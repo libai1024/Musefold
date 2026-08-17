@@ -72,6 +72,8 @@ MCP 完整模式共 16 个工具。readonly/toolset/no-wait 参数可继续裁�
 
 完整更新契约见 `Musefold-Skills/SKILL-UPDATE-SPEC.md`。发布顺序必须是：更新 Skill 目录、兼容说明和 App 内置副本 → 计算 SHA-256 并更新 manifest → 提交并创建对应 annotated tag → **先推送并验证 tag** → 再推送 `main` 上的 manifest → 最后提交、验证并发布 App。若先把 manifest 推到 `main` 而 tag 尚不存在，客户端会发现版本但下载失败。
 
+任何包含 App 源码的 Git 提交都必须执行 Skill 影响审查，并在提交消息记录唯一的 `Skill-Impact: none - <具体理由>` 或 `Skill-Impact: updated - vX.Y.Z` trailer。`.githooks/commit-msg` 在本地校验 staged 变更，GitHub Actions 对 push/PR 提交范围复核；声明 `updated` 时还会强制核对内置 `SKILL.md` 版本标记、`MUSEFOLD_SKILL_VERSION` 和版本提升。完整提交规则见根目录 `CONTRIBUTING.md`。
+
 ## 花费与审计
 
 - 生图、Skill 和设计方案 run 是 spend 操作。

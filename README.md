@@ -37,6 +37,8 @@ npm run check
 npm run clean:artifacts -- --build
 ```
 
+所有包含 App 源码的提交必须写 `Skill-Impact` trailer，明确记录官方 Agent Skill 是否需要同步更新。本地 hook 和 GitHub Actions 都会强制校验；格式、判定范围和示例见 [开发提交规范](CONTRIBUTING.md)。首次拉取或旧工作树执行 `npm install` 或 `npm run hooks:install` 启用 hook。
+
 桌面端使用 Electron、React、TypeScript、SQLite 和 Zustand。账号模式通过 Musefold Cloud 托管文本与生图模型；自备 Provider 的 API Key 只由 Electron 主进程通过系统安全存储管理，不写入 SQLite、日志或导出文件。
 
 ## 文档

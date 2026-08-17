@@ -14,6 +14,10 @@
   ],
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "skill:check": "node scripts/check-skill-update.mjs",
+    "skill:check:ci": "node scripts/check-skill-update.mjs --ci",
     "dev": "electron-vite dev",
     "dev:stop": "node scripts/stop-dev-processes.mjs",
     "dev:web": "npm run dev --workspace @musefold/web",

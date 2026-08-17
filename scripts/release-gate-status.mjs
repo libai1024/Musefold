@@ -170,7 +170,7 @@ async function checkPackagedDocsSync() {
 
 async function checkManifestPreserved() {
   const pkg = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
-  const requiredScripts = ['check', 'package:mac', 'package:win', 'release:preflight', 'release:status', 'release:evidence', 'release:ci:evidence', 'release:windows:hosted', 'release:macos:signing', 'release:signing:precheck', 'release:windows:target'];
+  const requiredScripts = ['check', 'hooks:install', 'skill:check', 'skill:check:ci', 'package:mac', 'package:win', 'release:preflight', 'release:status', 'release:evidence', 'release:ci:evidence', 'release:windows:hosted', 'release:macos:signing', 'release:signing:precheck', 'release:windows:target'];
   const missingScripts = requiredScripts.filter((script) => typeof pkg.scripts?.[script] !== 'string');
   const requiredDevDeps = ['typescript', 'vite', 'vitest', 'electron-builder'];
   const missingDevDeps = requiredDevDeps.filter((dep) => typeof pkg.devDependencies?.[dep] !== 'string');

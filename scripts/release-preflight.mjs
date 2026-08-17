@@ -174,6 +174,9 @@ async function checkDocsAndWorkflow() {
   const workflow = await readText('.github/workflows/ci.yml');
 
   const scriptExpectations = [
+    ['hooks:install', 'node scripts/install-git-hooks.mjs'],
+    ['skill:check', 'node scripts/check-skill-update.mjs'],
+    ['skill:check:ci', 'node scripts/check-skill-update.mjs --ci'],
     ['package', 'node scripts/run-builder.mjs'],
     ['package:mac', 'node scripts/run-builder.mjs --mac'],
     ['package:win', 'node scripts/run-builder.mjs --win'],
@@ -258,6 +261,8 @@ async function checkDocsAndWorkflow() {
   }
 
   const workflowNeedles = [
+    'fetch-depth: 0',
+    'npm run skill:check:ci',
     'npm run check',
     'npm run clean:artifacts',
     'npm run release:preflight',
