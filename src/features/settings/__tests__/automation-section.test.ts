@@ -22,7 +22,8 @@ describe('automation settings UI contract', () => {
     expect(section).toContain('api.automation.integrationInfo()');
     expect(section).toContain("? '未安装'");
     expect(section).toContain("? '已安装（PATH 未生效）'");
-    expect(section).toContain('已安装到 PATH');
+    expect(section).toContain('已自动安装');
+    expect(section).toContain('正式版会为当前用户自动安装，无需管理员权限');
   });
 
   it('explains native credential handoff and completion notifications', () => {

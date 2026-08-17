@@ -9,6 +9,8 @@
 | `src/features/history/` | 生成历史与成本 |
 | `src/features/settings/` | 设置、账号/Provider/Agent 模型和数据管理 |
 | `electron/main/` | Electron 宿主、IPC、OS、账号、Skill 和设计方案编排 |
+| `electron/main/integration.ts` | CLI/MCP/Agent 接入检测、用户级 CLI 自动安装、修复与卸载 |
+| `electron/main/integration-cli-path.ts` | zsh/bash/fish PATH 标记块的纯函数与可逆更新规则 |
 | `electron/preload/` | typed context bridge |
 | `shared/` | 跨层类型、Schema、错误码和纯逻辑 |
 | `shared/design-scheme/` | 设计方案文档、编译和 Agent 交换契约 |

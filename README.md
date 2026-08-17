@@ -57,3 +57,11 @@ npm run package:win
 ```
 
 构建结果写入 `release/`，该目录不进入 Git。公开分发前仍需在对应平台完成代码签名、公证和安装态测试。
+
+## CLI 安装
+
+正式版内置 `musefold` CLI，不依赖系统 Node.js，也不要求管理员权限：
+
+- macOS DMG 本身只负责拖拽安装；首次从 `/Applications` 或 `~/Applications` 启动 App 时，自动把 shim 写入 `~/.local/bin`，并为当前 zsh、bash 或 fish 配置可逆的 PATH 标记块。
+- Windows NSIS 安装阶段自动写入 `%USERPROFILE%\.musefold\bin\musefold.cmd` 和 HKCU 用户 PATH；首次启动还会幂等修复缺失或过期的 shim。
+- 已打开的终端或 Agent 不会收到新的环境变量，安装后需重新启动。设置 → 自动化保留“修复安装/移除”入口。

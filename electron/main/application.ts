@@ -31,6 +31,7 @@ import { acquireDesktopOwnerLockWithHeadlessTakeover } from './headless-takeover
 import { createAppTray, destroyAppTray } from './tray';
 import { initializeUpdater } from '../update';
 import { disposeDoubaoWebBrowser } from '../doubao-web/browser-service';
+import { ensureCliInstalledAtStartup } from './integration';
 
 function isPetWindow(win: BrowserWindow): boolean {
   return getPetWindow() === win;
@@ -90,6 +91,7 @@ app.whenReady().then(async () => {
   registerMediaProtocolHandler();
   registerAllHandlers();
   registerWindowHandlers();
+  await ensureCliInstalledAtStartup();
   createMainWindow();
   initializeUpdater({ beforeInstall: prepareForUpdateInstall });
   // 桌宠默认关闭，只能由用户通过显式开关开启。应用生命周期不能替用户改开关。

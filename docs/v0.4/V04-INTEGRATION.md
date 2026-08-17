@@ -3,6 +3,21 @@
 > 面向用户的接入文档（V04-DOC-01）。前提：Musefold 桌面应用 ≥ 0.4.0 正在运行
 > （或 `musefold serve` 守护），设置 → 自动化 处于开启状态（默认开启）。
 
+## 0. 安装版如何部署 CLI
+
+CLI 是 App 内置产物的用户级 shim，不复制运行时、不依赖系统 Node.js，也不接触账号或 Provider 凭据。
+
+| 场景 | 自动安装时机 | 目标 | 权限与后续动作 |
+| --- | --- | --- | --- |
+| macOS DMG | App 已放入 `/Applications` 或 `~/Applications` 后首次启动；升级首启会幂等修复 | `~/.local/bin/musefold`；zsh 写 `~/.zprofile`，bash 写其实际登录 profile，fish 写 `~/.config/fish/conf.d/musefold.fish` 的可逆标记块 | 不需要管理员权限；已打开终端/Agent 要重启 |
+| macOS 从 DMG、Downloads 或其他临时位置直接运行 | 自动安装延后，避免 shim 指向卸载后消失的卷或临时路径 | 用户在移动 App 后重启，或在设置 → 自动化点“修复安装” | 不弹系统授权；自定义 shell 可能需手动把 `~/.local/bin` 加入 PATH |
+| Windows NSIS | 安装器 `customInstall` 阶段；首启/升级再次校验修复 | `%USERPROFILE%\.musefold\bin\musefold.cmd` + HKCU 用户 PATH | 默认按用户安装，不需要管理员权限；广播环境变化，但已打开终端/Agent 仍要重启 |
+| Windows portable/unpacked | 首次启动 App | 同上 | 企业策略禁止修改 HKCU 时，设置页会显示失败并保留手动修复入口 |
+
+Apple Silicon 与 Intel Mac 共用同一 shim 逻辑；shim 调用当前 App 自带的对应架构 Electron，不下载另一份二进制。选择用户级目录而不是 `/usr/local/bin`，是为了避免首次使用弹管理员密码、避免系统级 PATH 污染，并让安装/修复/移除都由同一用户完成。
+
+macOS DMG 的拖拽复制阶段不能执行 postinstall；如强制在“安装时”写 `/usr/local/bin`，必须改用带系统安装脚本的 PKG 并请求管理员授权。本项目不采用该方案。删除 macOS App 前应先在设置 → 自动化点“移除”，否则只会残留一个无效的小型 shim 和无害的 `~/.local/bin` PATH 项。
+
 ## 1. 一分钟接入 MCP
 
 > npm 包发布后可用 `npx -y musefold mcp`；仓库内开发用

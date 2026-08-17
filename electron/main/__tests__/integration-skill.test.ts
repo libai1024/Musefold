@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { MUSEFOLD_SKILL_URL } from '@shared/constants';
+import { MUSEFOLD_SKILL_URL, MUSEFOLD_SKILL_VERSION } from '@shared/constants';
 import { validateMusefoldSkill } from '../integration-skill';
 
 const skill = validateMusefoldSkill(
@@ -9,7 +9,10 @@ const skill = validateMusefoldSkill(
 
 describe('公开 Musefold Agent Skill', () => {
   it('uses a stable public URL and valid frontmatter', () => {
-    expect(MUSEFOLD_SKILL_URL).toBe('https://zhaozhaoyue.top/Musefold/skills/musefold/SKILL.md');
+    expect(MUSEFOLD_SKILL_VERSION).toBe('v0.2.0');
+    expect(MUSEFOLD_SKILL_URL).toBe(
+      'https://raw.githubusercontent.com/libai1024/Musefold-Skills/v0.2.0/skills/musefold/SKILL.md',
+    );
     expect(skill.startsWith('---\nname: musefold\n')).toBe(true);
     expect(skill).toContain('description: >-');
   });

@@ -5,7 +5,7 @@
 import { execFile, execFileSync } from 'child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
-import { delimiter, join, resolve } from 'path';
+import { delimiter, dirname, join, resolve } from 'path';
 import { app, shell } from 'electron';
 import { MUSEFOLD_SKILL_URL } from '@shared/constants';
 import type {
@@ -25,6 +25,12 @@ import {
   type IntegrationPaths,
 } from './integration-snippets';
 import { validateMusefoldSkill } from './integration-skill';
+import {
+  managedCliPathBlock,
+  removeManagedCliPathBlock,
+  resolvePosixShellProfile,
+  upsertManagedCliPathBlock,
+} from './integration-cli-path';
 
 const logger = createLogger('integration');
 const SHIM_NAME = process.platform === 'win32' ? 'musefold.cmd' : 'musefold';
@@ -53,7 +59,7 @@ export function resolveIntegrationPaths(): IntegrationPaths {
   };
 }
 
-/** shim 安装目录：E2E 隔离进 userData → /usr/local/bin（可写时）→ ~/.local/bin */
+/** CLI 默认使用用户级目录；macOS 不应为命令行入口要求管理员权限。 */
 function shimTargets(): string[] {
   if (process.env['MUSEFOLD_E2E'] === '1') {
     return [join(app.getPath('userData'), 'bin')];
@@ -61,11 +67,17 @@ function shimTargets(): string[] {
   if (process.platform === 'win32') {
     return [join(homedir(), '.musefold', 'bin')];
   }
-  return ['/usr/local/bin', join(homedir(), '.local', 'bin')];
+  return [join(homedir(), '.local', 'bin')];
+}
+
+function shimSearchDirs(): string[] {
+  const current = shimTargets();
+  // v0.5 之前可能由用户手动装到 /usr/local/bin；继续识别，以便显示和卸载。
+  return process.platform === 'darwin' ? [...current, '/usr/local/bin'] : current;
 }
 
 function installedShimPath(): string | null {
-  for (const dir of shimTargets()) {
+  for (const dir of shimSearchDirs()) {
     const candidate = join(dir, SHIM_NAME);
     if (existsSync(candidate)) return candidate;
   }
@@ -258,6 +270,33 @@ function updateProcessPath(dir: string, add: boolean): void {
   process.env.PATH = (add ? [...filtered, dir] : filtered).join(delimiter);
 }
 
+function configurePosixUserPath(dir: string): string | null {
+  if (process.env['MUSEFOLD_E2E'] === '1') {
+    updateProcessPath(dir, true);
+    return null;
+  }
+  const profile = resolvePosixShellProfile(homedir(), process.env['SHELL'], existsSync);
+  if (!profile) return null;
+  const current = existsSync(profile.path) ? readFileSync(profile.path, 'utf8') : '';
+  const next = upsertManagedCliPathBlock(current, managedCliPathBlock(profile.kind));
+  if (next !== current) {
+    mkdirSync(dirname(profile.path), { recursive: true });
+    writeFileSync(profile.path, next, 'utf8');
+  }
+  updateProcessPath(dir, true);
+  return profile.path;
+}
+
+function removePosixUserPath(): string | null {
+  if (process.env['MUSEFOLD_E2E'] === '1') return null;
+  const profile = resolvePosixShellProfile(homedir(), process.env['SHELL'], existsSync);
+  if (!profile || !existsSync(profile.path)) return null;
+  const current = readFileSync(profile.path, 'utf8');
+  const next = removeManagedCliPathBlock(current);
+  if (next !== current) writeFileSync(profile.path, next, 'utf8');
+  return profile.path;
+}
+
 async function installCliShim(): Promise<IntegrationActionResult> {
   const paths = resolveIntegrationPaths();
   const content = process.platform === 'win32' ? cliShimWindows(paths) : cliShimPosix(paths);
@@ -271,13 +310,16 @@ async function installCliShim(): Promise<IntegrationActionResult> {
       if (process.platform === 'win32') {
         await setWindowsUserPath(dir, true);
         updateProcessPath(dir, true);
+      } else {
+        const profile = configurePosixUserPath(dir);
+        logger.info('CLI PATH 已配置', profile ?? '当前进程');
       }
       logger.info('CLI shim 已安装', target);
       const onPath = isDirectoryOnPath(dir);
       return {
         ok: true,
         message: onPath
-          ? `已安装到 ${target}`
+          ? `已为当前用户安装到 ${target}；已打开的终端或 Agent 需要重新启动`
           : `已安装到 ${target}（该目录不在 PATH 中，请把 ${dir} 加入 PATH）`,
       };
     } catch (error) {
@@ -296,11 +338,35 @@ async function uninstallCliShim(): Promise<IntegrationActionResult> {
     if (process.platform === 'win32') {
       await setWindowsUserPath(dir, false);
       updateProcessPath(dir, false);
+    } else {
+      removePosixUserPath();
+      updateProcessPath(dir, false);
     }
     return { ok: true, message: `已移除 ${existing}` };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/**
+ * 正式版首启/升级后幂等修复 CLI。Windows 安装器通常已完成此步骤；
+ * macOS DMG 没有 postinstall，必须等 App 位于 Applications 后由首启完成。
+ */
+export async function ensureCliInstalledAtStartup(): Promise<void> {
+  if (!app.isPackaged || process.env['MUSEFOLD_E2E'] === '1') return;
+  if (process.platform === 'darwin' && !app.isInApplicationsFolder()) {
+    logger.info('跳过 CLI 自动安装：Musefold 尚未位于 Applications 文件夹');
+    return;
+  }
+  const paths = resolveIntegrationPaths();
+  if (!existsSync(paths.cliScriptPath)) {
+    logger.warn('跳过 CLI 自动安装：打包内 CLI 产物缺失');
+    return;
+  }
+  if (installedShimPath() && shimUpToDate(paths) && isShimOnPath()) return;
+  const result = await installCliShim();
+  if (result.ok) logger.info('CLI 自动安装/修复完成', result.message);
+  else logger.warn('CLI 自动安装/修复失败', result.message);
 }
 
 /** Claude Code：检测到 claude CLI 时直接替用户执行注册（user 作用域，全项目可用）。 */

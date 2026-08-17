@@ -32,7 +32,10 @@ def test_integration_info_and_snippets(app):
     assert snippets["cursorDeeplink"].startswith("cursor://anysphere.cursor-deeplink/mcp/install?name=musefold")
     assert "claude mcp add musefold" in snippets["claudeCommand"]
     assert "[mcp_servers.musefold]" in snippets["codexToml"]
-    assert snippets["skillUrl"] == "https://zhaozhaoyue.top/Musefold/skills/musefold/SKILL.md"
+    assert snippets["skillUrl"] == (
+        "https://raw.githubusercontent.com/libai1024/Musefold-Skills/"
+        "v0.2.0/skills/musefold/SKILL.md"
+    )
     for text in snippets.values():
         assert "mf_at_" not in text, "配置片段不得包含控制面 token"
 

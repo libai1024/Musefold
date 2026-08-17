@@ -397,7 +397,7 @@ export function AutomationSection() {
                         ? '已安装（指向旧版本）'
                         : !integration.cli.onPath
                           ? '已安装（PATH 未生效）'
-                          : `已安装到 PATH · ${integration.cli.path}`}
+                          : `已自动安装 · ${integration.cli.path}`}
                 </span>
               </p>
               <button
@@ -421,7 +421,9 @@ export function AutomationSection() {
               </button>
             </div>
             <p className="mt-1 text-[10.5px] text-quaternary">
-              终端里 musefold status / generate / prompts…（脚本与 CI 亦可用）
+              正式版会为当前用户自动安装，无需管理员权限。macOS 在首次从 Applications
+              启动时写入 ~/.local/bin；Windows 安装器写入 %USERPROFILE%\.musefold\bin。
+              已打开的终端或 Agent 需重新启动；此按钮用于修复或移除。
             </p>
           </div>
         </div>

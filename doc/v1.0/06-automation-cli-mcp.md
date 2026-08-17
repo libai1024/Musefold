@@ -34,6 +34,13 @@ serve
 
 安装版 CLI 会尝试自动启动桌面 App。`serve` 是独立 headless Provider 模式，不读取桌面账号或安全凭证。
 
+### 安装与升级
+
+- macOS DMG 没有安装脚本。正式 App 位于 `/Applications` 或 `~/Applications` 时，首启自动写 `~/.local/bin/musefold`，并在当前 zsh/bash/fish 的启动文件中维护可逆 PATH 标记块；不请求管理员权限。直接从挂载卷或临时目录运行时跳过自动安装，避免留下失效路径。
+- Windows NSIS 在 `customInstall` 中写 `%USERPROFILE%\.musefold\bin\musefold.cmd`、更新 HKCU PATH 并广播 `WM_SETTINGCHANGE`；首启逻辑负责 portable/unpacked、升级和损坏场景的幂等修复。默认用户级安装不要求管理员权限。
+- 已运行的终端、IDE 和 Agent 不会自动继承新 PATH，必须重启。设置 → 自动化的按钮用于显式修复或移除；macOS 自定义 shell 需要用户手动把 `~/.local/bin` 加入 PATH。
+- shim 只保存 App 可执行文件和内置 CLI 路径，不保存 Automation token、账号密码或 Provider key。
+
 ## MCP
 
 MCP 是 Automation API 的无状态薄适配器，不开数据库、不存密钥。当前工具分组：

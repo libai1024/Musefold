@@ -63,6 +63,8 @@ open /Applications/Musefold.app
 
 `electron-builder.yml`：appId `com.musefold.app`，产品名 Musefold，更新 URL 为 `https://zhaozhaoyue.top/Musefold/updates/stable/`；mac 产出 dmg/zip 和 hardened runtime；Windows NSIS 默认不签名；better-sqlite3 在 asarUnpack；builtin/pet/product docs 和打包后的 CLI/MCP 作为资源。
 
+CLI 安装遵循最小权限：macOS 首启只写 `~/.local/bin` 和当前用户 shell profile 的带边界标记 PATH 块；Windows NSIS/首启只写 `%USERPROFILE%\.musefold\bin` 与 HKCU PATH。两端都不需要管理员权限，不写 machine-wide PATH，不在 shim 中保存 token 或业务凭据。macOS 仅在 App 位于 Applications 时自动执行，避免从 DMG 挂载卷或临时目录生成失效入口。
+
 更新安装前清理临时状态，再调用 `quitAndInstall(false, true)`；没有自动重启行为的代码证据。
 
 ## 6. 日志与审计

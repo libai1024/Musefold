@@ -24,8 +24,23 @@ never ask the user to paste account passwords, API keys, tokens, or secrets into
 
 The installed CLI and MCP server automatically start the Musefold desktop app when needed.
 **Settings > Automation > Local control plane** must be on.
-On Windows, the Musefold installer adds `musefold` to the user PATH by default. If the
-command is missing, ask the user to open **Settings > Automation** and repair the CLI.
+
+## Ensure the CLI is installed
+
+Musefold manages the CLI per user and does not require administrator privileges:
+
+- **macOS:** a DMG cannot run a post-install script. The first launch from
+  `/Applications` or `~/Applications` installs `musefold` into `~/.local/bin` and adds a
+  reversible PATH block for zsh, bash, or fish. Intel and Apple Silicon use the same shim.
+- **Windows installer:** NSIS installs `%USERPROFILE%\.musefold\bin\musefold.cmd`, updates
+  the HKCU user PATH, and broadcasts the environment change. First launch repairs a
+  missing or stale shim, including unpacked/portable builds.
+- Existing terminals and Agent hosts do not receive PATH updates. Restart them after
+  installation or repair.
+
+If `musefold` is still missing, ask the user to open **Settings > Automation** and choose
+**Repair CLI**. For a custom shell, ask them to add the displayed user-level directory to
+PATH. Do not use `sudo`, create an ad-hoc system symlink, or modify machine-wide PATH.
 
 Do not use `musefold serve` for a Musefold account. Headless mode does not read the
 desktop account session or its secure credentials; it is only for local Providers whose
