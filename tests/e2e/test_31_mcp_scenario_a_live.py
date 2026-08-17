@@ -116,7 +116,7 @@ def test_scenario_a_generate_via_mcp_with_confirmation(app):
         result = client.wait_for(3, 240)
         payload = json.loads(result["result"]["content"][0]["text"])
         assert payload["status"] == "success", json.dumps(payload, ensure_ascii=False)
-        assert payload["costCents"] is None or payload["costCents"] >= 0
+        assert payload["costPoints"] is None or payload["costPoints"] >= 0
 
         links = [item for item in result["result"]["content"] if item.get("type") == "resource_link"]
         assert links, "成功结果应携带 file:// ResourceLink"

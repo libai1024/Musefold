@@ -20,11 +20,10 @@ export function formatPoints(quota: number): string {
 
 export function formatCost(
   value: number | null | undefined,
-  unit: import('@shared/types/models').CostUnit = 'cny_cent',
+  _unit: import('@shared/types/models').CostUnit = 'point',
 ): string {
   if (value == null) return '—';
-  if (unit === 'point') return `${formatPoints(value)} 积分`;
-  return `¥${(value / 100).toFixed(2)}`;
+  return `${value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })} 积分`;
 }
 
 export function formatDuration(ms: number | null | undefined): string {

@@ -118,7 +118,7 @@ describe('musefold CLI（P1 骨架）', () => {
 
     const show = capture();
     expect(await run(['history', 'show', 'his-cli'], show)).toBe(EXIT.OK);
-    expect(show.stdout.join('\n')).toContain('12 分');
+    expect(show.stdout.join('\n')).toContain('12 积分');
   });
 
   it('退出码矩阵：未知命令 2 / 未知参数 2 / 连不上 3', async () => {

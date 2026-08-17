@@ -23,8 +23,8 @@ export function registerAutomationHandlers(): void {
     ok: resolveAutomationConfirmation(String(confirmationId), Boolean(approved)),
   }));
   ipcMain.handle(IPC.AUTOMATION_BUDGET_GET, () => getAutomationBudget());
-  ipcMain.handle(IPC.AUTOMATION_BUDGET_SET, (_e, monthlyLimitCents: number) =>
-    setAutomationBudgetLimit(Number(monthlyLimitCents)),
+  ipcMain.handle(IPC.AUTOMATION_BUDGET_SET, (_e, monthlyLimitPoints: number) =>
+    setAutomationBudgetLimit(Number(monthlyLimitPoints)),
   );
   ipcMain.handle(IPC.AUTOMATION_INTEGRATION_INFO, () => getIntegrationInfo());
   ipcMain.handle(IPC.AUTOMATION_INTEGRATION_ACTION, (_e, action: import('@shared/types/ipc').IntegrationAction) =>

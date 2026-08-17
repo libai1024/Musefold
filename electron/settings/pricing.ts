@@ -3,6 +3,7 @@
 
 import Store from 'electron-store';
 import { STORE_NAME } from '@shared/constants';
+import { getDb } from '@musefold/core/db/index';
 import type {
   ProviderPricingConfig,
   ProviderPricingSetRequest,
@@ -12,6 +13,7 @@ import {
   estimateCostFromPricing,
   normalizeProviderPricing,
   parseStoredProviderPricing,
+  accountQuotaToPoints,
 } from '@shared/pricing';
 
 interface ProviderStore {
@@ -32,7 +34,18 @@ function assertProviderId(providerId: string): void {
 
 export function getProviderPricing(providerId: string): ProviderPricingConfig | null {
   assertProviderId(providerId);
-  return parseStoredProviderPricing(store.get(`pricing.${providerId}`));
+  const stored = store.get(`pricing.${providerId}`);
+  const managed = getDb().prepare('SELECT managed_by FROM providers WHERE id = ?').get(providerId) as
+    | { managed_by: string | null }
+    | undefined;
+  const pricing = parseStoredProviderPricing(
+    stored,
+    managed?.managed_by === 'account' ? accountQuotaToPoints : undefined,
+  );
+  if (pricing && stored && !('unitPoints' in (stored as object))) {
+    store.set(`pricing.${providerId}`, pricing);
+  }
+  return pricing;
 }
 
 export function setProviderPricing(req: ProviderPricingSetRequest): ProviderPricingConfig {

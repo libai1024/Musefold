@@ -17,7 +17,7 @@ const ENDPOINT = '/__preview_api__';
 const providers = new Map();
 /** @type {Map<string, string>} providerId -> apiKey（明文，仅内存） */
 const keys = new Map();
-/** @type {Map<string, {mode:'per-image'|'per-1k-token', unitCents:number}>} providerId -> pricing */
+/** @type {Map<string, {mode:'per-image'|'per-1k-token', unitPoints:number}>} providerId -> pricing */
 const pricing = new Map();
 const previewBackups = [];
 const previewPrompts = new Map();
@@ -33,11 +33,11 @@ function normalizePricing(raw) {
   if (!raw || (raw.mode !== 'per-image' && raw.mode !== 'per-1k-token')) {
     throw new Error('计费方式无效');
   }
-  if (typeof raw.unitCents !== 'number' || !Number.isFinite(raw.unitCents) || !Number.isInteger(raw.unitCents)) {
-    throw new Error('单价必须是整数分');
+  if (typeof raw.unitPoints !== 'number' || !Number.isFinite(raw.unitPoints)) {
+    throw new Error('单价必须是有效积分数');
   }
-  if (raw.unitCents < 0) throw new Error('单价不能为负数');
-  return { mode: raw.mode, unitCents: raw.unitCents };
+  if (raw.unitPoints < 0) throw new Error('单价不能为负数');
+  return { mode: raw.mode, unitPoints: raw.unitPoints };
 }
 
 function usageTokens(raw) {
@@ -53,9 +53,9 @@ function usageTokens(raw) {
 function estimateCost(providerId, req, usage) {
   const p = pricing.get(providerId);
   if (!p) return undefined;
-  if (p.mode === 'per-image') return p.unitCents * Math.max(1, Math.floor(req?.n ?? 1));
+  if (p.mode === 'per-image') return p.unitPoints * Math.max(1, Math.floor(req?.n ?? 1));
   if (!Number.isFinite(usage)) return undefined;
-  return Math.round((usage / 1000) * p.unitCents);
+  return Math.round(((usage / 1000) * p.unitPoints) * 1_000_000) / 1_000_000;
 }
 
 function clientFor(providerId) {
@@ -288,6 +288,7 @@ async function dispatch(channel, args) {
         const models = (list.data ?? []).map((m) => ({ id: m.id, name: m.id }));
         const ids = models.map((m) => m.id);
         const modelOk = config.model ? ids.includes(config.model) : true;
+        const costPoints = estimateCost(providerId ?? activeId, a0, usageTokens(res));
         return {
           ok: true,
           message: modelOk
@@ -361,7 +362,9 @@ async function dispatch(channel, args) {
           historyId: jobId ?? rid('hist'),
           status: 'success',
           imagePath: `data:image/png;base64,${b64}`,
-          cost: estimateCost(providerId ?? activeId, a0, usageTokens(res)),
+          cost: costPoints,
+          costPoints,
+          costUnit: 'point',
           durationMs: now() - started,
         };
       } catch (err) {

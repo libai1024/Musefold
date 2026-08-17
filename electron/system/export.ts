@@ -274,7 +274,7 @@ export function buildExportPayload(opts: {
         errorMessage: str(r.error_message),
         imagePath: img,
         cost: num(r.cost),
-        costUnit: r.cost_unit === 'point' ? 'point' : 'cny_cent',
+        costUnit: 'point',
         durationMs: num(r.duration_ms),
         createdAt: Number(r.created_at),
         promptReferences: referencesByHistory.get(String(r.id)) ?? [],

@@ -9,9 +9,9 @@ const skill = validateMusefoldSkill(
 
 describe('公开 Musefold Agent Skill', () => {
   it('uses a stable public URL and valid frontmatter', () => {
-    expect(MUSEFOLD_SKILL_VERSION).toBe('v0.2.0');
+    expect(MUSEFOLD_SKILL_VERSION).toBe('v0.3.0');
     expect(MUSEFOLD_SKILL_URL).toBe(
-      'https://raw.githubusercontent.com/libai1024/Musefold-Skills/v0.2.0/skills/musefold/SKILL.md',
+      'https://raw.githubusercontent.com/libai1024/Musefold-Skills/v0.3.0/skills/musefold/SKILL.md',
     );
     expect(skill.startsWith('---\nname: musefold\n')).toBe(true);
     expect(skill).toContain('description: >-');

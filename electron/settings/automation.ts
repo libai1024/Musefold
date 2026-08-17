@@ -5,10 +5,10 @@ import Store from 'electron-store';
 import { STORE_NAME } from '@shared/constants';
 
 interface AutomationBudgetShape {
-  /** 月度上限（分）；0 = 一切花钱动作须确认（Q1 拍板默认） */
-  monthlyLimitCents: number;
-  /** 本月已用（分，按实际成本冲销） */
-  usedCents: number;
+  /** 月度上限（积分）；0 = 一切花钱动作须确认（Q1 拍板默认） */
+  monthlyLimitPoints: number;
+  /** 本月已用（积分，按实际成本冲销） */
+  usedPoints: number;
   /** 记账月份 YYYY-MM；跨月自动清零 */
   month: string;
 }
@@ -29,7 +29,7 @@ const store = new Store<AutomationSettingsShape>({
   defaults: {
     automation: {
       enabled: true,
-      budget: { monthlyLimitCents: 0, usedCents: 0, month: currentMonth() },
+      budget: { monthlyLimitPoints: 0, usedPoints: 0, month: currentMonth() },
     },
   },
 });
@@ -43,34 +43,40 @@ export function setAutomationEnabled(enabled: boolean): void {
 }
 
 export function getAutomationBudget(): AutomationBudgetShape {
-  const budget = store.get('automation.budget') as AutomationBudgetShape | undefined;
+  const budget = store.get('automation.budget') as (AutomationBudgetShape & {
+    monthlyLimitCents?: number;
+    usedCents?: number;
+  }) | undefined;
   const normalized: AutomationBudgetShape = {
-    monthlyLimitCents: budget?.monthlyLimitCents ?? 0,
-    usedCents: budget?.usedCents ?? 0,
+    monthlyLimitPoints: budget?.monthlyLimitPoints ?? ((budget?.monthlyLimitCents ?? 0) / 10),
+    usedPoints: budget?.usedPoints ?? ((budget?.usedCents ?? 0) / 10),
     month: budget?.month ?? currentMonth(),
   };
+  const legacy = budget && (budget.monthlyLimitPoints == null || budget.usedPoints == null);
   if (normalized.month !== currentMonth()) {
     normalized.month = currentMonth();
-    normalized.usedCents = 0;
+    normalized.usedPoints = 0;
+    store.set('automation.budget', normalized);
+  } else if (legacy) {
     store.set('automation.budget', normalized);
   }
   return normalized;
 }
 
-export function setAutomationBudgetLimit(monthlyLimitCents: number): AutomationBudgetShape {
+export function setAutomationBudgetLimit(monthlyLimitPoints: number): AutomationBudgetShape {
   const budget = getAutomationBudget();
-  const next = { ...budget, monthlyLimitCents: Math.max(0, Math.floor(monthlyLimitCents)) };
+  const next = { ...budget, monthlyLimitPoints: Math.max(0, monthlyLimitPoints) };
   store.set('automation.budget', next);
   return next;
 }
 
-export function remainingAutomationBudgetCents(): number {
+export function remainingAutomationBudgetPoints(): number {
   const budget = getAutomationBudget();
-  return Math.max(0, budget.monthlyLimitCents - budget.usedCents);
+  return Math.max(0, budget.monthlyLimitPoints - budget.usedPoints);
 }
 
-export function settleAutomationBudget(actualCents: number): void {
-  if (actualCents <= 0) return;
+export function settleAutomationBudget(actualPoints: number): void {
+  if (actualPoints <= 0) return;
   const budget = getAutomationBudget();
-  store.set('automation.budget', { ...budget, usedCents: budget.usedCents + Math.ceil(actualCents) });
+  store.set('automation.budget', { ...budget, usedPoints: budget.usedPoints + actualPoints });
 }

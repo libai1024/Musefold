@@ -309,11 +309,11 @@ def test_provider_pricing_ui_and_history_cost(app, fake_openai_server):
     app.page.fill('[data-testid="provider-base-url"]', fake_openai_server["base"])
     app.page.fill('[data-testid="provider-model"]', "gpt-image-2")
     app.page.click('[data-testid="provider-pricing-per-image"]')
-    app.page.fill('[data-testid="provider-pricing-unit-cents"]', "-1")
+    app.page.fill('[data-testid="provider-pricing-unit-points"]', "-1")
     app.page.wait_for_selector('[data-testid="provider-pricing-error"]')
     assert app.page.locator('[data-testid="provider-save"]').is_disabled(), "负数单价应被 UI 拦截"
 
-    app.page.fill('[data-testid="provider-pricing-unit-cents"]', "32")
+    app.page.fill('[data-testid="provider-pricing-unit-points"]', "3.2")
     assert not app.page.locator('[data-testid="provider-save"]').is_disabled()
     app.page.click('[data-testid="provider-save"]')
     app.page.wait_for_timeout(350)
@@ -321,23 +321,23 @@ def test_provider_pricing_ui_and_history_cost(app, fake_openai_server):
     provider = next(p for p in app.api_ok("provider.list") if p["name"] == "E2E 单价服务商")
     assert app.api_ok("settings.pricing.get", provider["id"]) == {
         "mode": "per-image",
-        "unitCents": 32,
+        "unitPoints": 3.2,
     }
 
     # IPC 层也要拒绝非法输入，并保留原配置不被污染。
     bad = app.api("settings.pricing.set", {
         "providerId": provider["id"],
         "mode": "per-image",
-        "unitCents": -1,
+        "unitPoints": -1,
     })
     assert not bad["ok"] and "负数" in bad["error"]
     bad = app.api("settings.pricing.set", {
         "providerId": provider["id"],
         "mode": "per-image",
-        "unitCents": "abc",
+        "unitPoints": "abc",
     })
-    assert not bad["ok"] and "整数分" in bad["error"]
-    assert app.api_ok("settings.pricing.get", provider["id"])["unitCents"] == 32
+    assert not bad["ok"] and "积分" in bad["error"]
+    assert app.api_ok("settings.pricing.get", provider["id"])["unitPoints"] == 3.2
 
     app.api_ok("provider.saveKey", provider["id"], "sk-pricing-e2e-1234")
     app.api_ok("provider.setActive", provider["id"])
@@ -350,15 +350,15 @@ def test_provider_pricing_ui_and_history_cost(app, fake_openai_server):
         "n": 1,
     })
     assert res["status"] == "success", res
-    assert res["cost"] == 32
+    assert res["cost"] == 3.2
     row = app.db_query("SELECT status, cost FROM history WHERE id = ?", ("pricing-e2e-per-image",))[0]
-    assert row == {"status": "success", "cost": 32}
+    assert row == {"status": "success", "cost": 3.2}
     assert fake_openai_server["requests"][-1]["body"]["prompt"] == "pricing e2e image"
 
     app.api_ok("settings.pricing.set", {
         "providerId": provider["id"],
         "mode": "per-1k-token",
-        "unitCents": 20,
+        "unitPoints": 2,
     })
     res = app.api_ok("image.generate", {
         "jobId": "pricing-e2e-token-missing",

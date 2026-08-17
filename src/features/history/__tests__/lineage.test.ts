@@ -21,7 +21,7 @@ function rec(id: string, createdAt: number, parentHistoryId?: string): HistoryRe
     errorMessage: null,
     imagePath: null,
     cost: null,
-    costUnit: 'cny_cent',
+    costUnit: 'point',
     durationMs: null,
     createdAt,
     parentHistoryId,

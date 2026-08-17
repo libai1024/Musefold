@@ -31,7 +31,7 @@ const failedRecord: HistoryRecord = {
   errorMessage: '429',
   imagePath: null,
   cost: null,
-  costUnit: 'cny_cent',
+  costUnit: 'point',
   durationMs: 120,
   createdAt: Date.now(),
 };

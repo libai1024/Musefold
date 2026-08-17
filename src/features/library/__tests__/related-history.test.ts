@@ -21,7 +21,7 @@ function history(id: string, promptId: string | null, status: HistoryRecord['sta
     errorMessage: null,
     imagePath: status === 'success' ? `/tmp/${id}.png` : null,
     cost: null,
-    costUnit: 'cny_cent',
+    costUnit: 'point',
     durationMs: null,
     createdAt: 1,
   };

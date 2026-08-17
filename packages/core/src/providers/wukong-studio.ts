@@ -17,6 +17,7 @@ import { BaseProvider } from './base';
 import { createLogger } from '../runtime';
 import { parseRetryAfter, withRetry } from './retry';
 import { parseExpectedSize, readImagePixelSize } from './image-dimensions';
+import { cnyCentsToPoints } from '@shared/pricing';
 
 const logger = createLogger('provider:wukong');
 
@@ -149,7 +150,7 @@ export class WukongStudioProvider extends BaseProvider {
     size: string,
     controller: AbortController,
     onProgress?: ImageProgressHandler,
-  ): Promise<{ taskId: string; costCents?: number }> {
+  ): Promise<{ taskId: string; costPoints?: number }> {
     return withRetry(async (retrySignal) => {
       const res = await fetch(`${this.baseUrl}/submit`, {
         method: 'POST',
@@ -172,9 +173,11 @@ export class WukongStudioProvider extends BaseProvider {
         const ne = normalizeStudioError(res.status, msg, parseRetryAfter(res.headers.get('retry-after')));
         throw wrap(ne);
       }
-      const costCents = typeof raw.billing?.yuan === 'number' ? Math.round(raw.billing.yuan * 100) : undefined;
-      logger.info('submit ok', `task=${raw.task_id}`, costCents != null ? `cost=${costCents}分` : '', `req=${raw.billing?.request_id ?? '-'}`);
-      return { taskId: raw.task_id, costCents };
+      const costPoints = typeof raw.billing?.yuan === 'number'
+        ? cnyCentsToPoints(raw.billing.yuan * 100)
+        : undefined;
+      logger.info('submit ok', `task=${raw.task_id}`, costPoints != null ? `cost=${costPoints}积分` : '', `req=${raw.billing?.request_id ?? '-'}`);
+      return { taskId: raw.task_id, costPoints };
     }, { onRetry: onProgress }, controller.signal);
   }
 
@@ -223,7 +226,7 @@ export class WukongStudioProvider extends BaseProvider {
 
     try {
       logger.info('generate 开始', `product=${this.model}`, `ratio=${size}`, `promptLen=${req.prompt.length}`);
-      const { taskId, costCents } = await this.submit(req.prompt, size, controller, onProgress);
+      const { taskId, costPoints } = await this.submit(req.prompt, size, controller, onProgress);
 
       // 轮询直到成功/失败/超时
       let url: string | undefined;
@@ -276,7 +279,9 @@ export class WukongStudioProvider extends BaseProvider {
         status: 'success',
         imagePath: imgPath,
         durationMs,
-        cost: costCents,
+        cost: costPoints,
+        costUnit: 'point',
+        costPoints,
         ...(actualSize ? { actualSize } : {}),
         ...(sizeMismatch ? { sizeMismatch } : {}),
       };

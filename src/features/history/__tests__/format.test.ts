@@ -5,12 +5,11 @@ describe('formatHistoryCost', () => {
   it('explains missing pricing instead of showing a bare dash', () => {
     expect(formatHistoryCost(null)).toBe('未配单价');
     expect(formatHistoryCost(undefined)).toBe('未配单价');
-    expect(formatHistoryCost(32)).toBe('¥0.32');
+    expect(formatHistoryCost(3.2)).toBe('3.2 积分');
   });
 
-  it('converts managed point records to 积分 instead of misreading them as cents', () => {
-    // 20000 quota = 0.4 积分（¥0.04）；按分误读会显示成 ¥200.00
-    expect(formatHistoryCost(20000, 'point')).toBe('0.4 积分');
+  it('displays canonical point records without a second conversion', () => {
+    expect(formatHistoryCost(0.4, 'point')).toBe('0.4 积分');
     expect(formatHistoryCost(null, 'point')).toBe('未配单价');
   });
 });

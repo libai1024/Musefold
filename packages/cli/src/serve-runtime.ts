@@ -64,7 +64,13 @@ function envKeyName(providerId: string): string {
 
 interface ProvidersStoreShape {
   pricing?: Record<string, unknown>;
-  automation?: { budget?: { monthlyLimitCents?: number; usedCents?: number; month?: string } };
+  automation?: { budget?: {
+    monthlyLimitPoints?: number;
+    usedPoints?: number;
+    monthlyLimitCents?: number;
+    usedCents?: number;
+    month?: string;
+  } };
 }
 
 /** 直接读写 electron-store 的 JSON 文件（守护持有 owner.lock，App 必然未运行）。 */
@@ -148,14 +154,16 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
   const budget = () => {
     const stored = readProvidersStore(dataDir).automation?.budget;
     const month = new Date().toISOString().slice(0, 7);
-    if (!stored || stored.month !== month) return { monthlyLimitCents: stored?.monthlyLimitCents ?? 0, usedCents: 0, month };
-    return { monthlyLimitCents: stored.monthlyLimitCents ?? 0, usedCents: stored.usedCents ?? 0, month };
+    const monthlyLimitPoints = stored?.monthlyLimitPoints ?? ((stored?.monthlyLimitCents ?? 0) / 10);
+    const usedPoints = stored?.usedPoints ?? ((stored?.usedCents ?? 0) / 10);
+    if (!stored || stored.month !== month) return { monthlyLimitPoints, usedPoints: 0, month };
+    return { monthlyLimitPoints, usedPoints, month };
   };
-  const settleBudget = (actualCents: number) => {
-    if (actualCents <= 0) return;
+  const settleBudget = (actualPoints: number) => {
+    if (actualPoints <= 0) return;
     const store = readProvidersStore(dataDir);
     const current = budget();
-    const next = { ...current, usedCents: current.usedCents + Math.ceil(actualCents) };
+    const next = { ...current, usedPoints: current.usedPoints + actualPoints };
     writeFileSync(providersStorePath(dataDir), JSON.stringify({ ...store, automation: { ...store.automation, budget: next } }, null, 2));
   };
 
@@ -173,7 +181,7 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
       const n = body.n ?? 1;
       const pricing = parseStoredProviderPricing(readProvidersStore(dataDir).pricing?.[row.id as string]);
       return {
-        cents: estimateCostFromPricing(pricing, { n } as { n: number }, undefined),
+        points: estimateCostFromPricing(pricing, { n } as { n: number }, undefined),
         providerId: row.id as string,
         providerName: row.name as string,
         model: body.model ?? (row.model as string),
@@ -181,7 +189,7 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
       };
     },
     budget: {
-      remainingCents: () => Math.max(0, budget().monthlyLimitCents - budget().usedCents),
+      remainingPoints: () => Math.max(0, budget().monthlyLimitPoints - budget().usedPoints),
       settle: settleBudget,
     },
     // 无人值守：确认一律拒绝（T9）；只有预算/交互同意可放行

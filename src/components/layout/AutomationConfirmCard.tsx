@@ -32,7 +32,7 @@ export function AutomationConfirmCard() {
   if (queue.length === 0) return null;
   const active = queue[0];
   const cost =
-    active.estimatedCents != null ? `预估 ¥${(active.estimatedCents / 100).toFixed(2)}` : '成本未知';
+    active.estimatedPoints != null ? `预估 ${active.estimatedPoints} 积分` : '成本未知';
 
   return (
     <div

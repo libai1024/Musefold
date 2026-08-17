@@ -32,7 +32,7 @@ interface Fixture {
 
 async function fixture(overrides: {
   remaining?: number;
-  estimateCents?: number | null;
+  estimatePoints?: number | null;
   confirm?: 'approved' | 'denied' | 'hang';
   runResult?: Partial<GenerateImageResult>;
 } = {}): Promise<Fixture> {
@@ -53,15 +53,15 @@ async function fixture(overrides: {
     } as GenerateImageResult)),
     cancel: vi.fn(() => true),
     estimate: vi.fn(() => ({
-      cents: overrides.estimateCents === undefined ? 18 : overrides.estimateCents,
+      points: overrides.estimatePoints === undefined ? 18 : overrides.estimatePoints,
       providerId: 'prov-gate',
       providerName: '闸门测试站',
       model: 'gpt-image-2',
       n: 1,
     })),
     budget: {
-      remainingCents: () => overrides.remaining ?? 0,
-      settle: (cents: number) => settled.push(cents),
+      remainingPoints: () => overrides.remaining ?? 0,
+      settle: (points: number) => settled.push(points),
     },
     requestConfirmation: vi.fn(async () => {
       if (overrides.confirm === 'hang') return new Promise<never>(() => {});
@@ -153,13 +153,13 @@ describe('策略闸门四分支', () => {
     });
   });
 
-  it('账号点数结果输出换算后的 costCents，并保留原始 cost/costUnit', async () => {
+  it('账号结果以用户可见积分输出', async () => {
     const f = await fixture({
       remaining: 100,
       runResult: {
-        cost: 60_000,
+        cost: 1.2,
         costUnit: 'point',
-        costCents: 12,
+        costPoints: 1.2,
         actualSize: { width: 1536, height: 1024 },
         sizeMismatch: { expected: '1024x1024', actual: '1536x1024' },
       },
@@ -167,14 +167,14 @@ describe('策略闸门四分支', () => {
     const response = await post(f.info, '/v1/generations', { prompt: '账号计费' });
     expect(response.status).toBe(202);
     const payload = (await response.json()) as any;
-    await vi.waitFor(() => expect(f.host.settled).toEqual([12]));
+    await vi.waitFor(() => expect(f.host.settled).toEqual([1.2]));
     const detail = await fetch(`http://127.0.0.1:${f.info.port}/v1/generations/${payload.jobId}`, {
       headers: { authorization: `Bearer ${f.info.token}` },
     });
     expect(await detail.json()).toMatchObject({
       status: 'success',
-      costCents: 12,
-      cost: 60_000,
+      costPoints: 1.2,
+      cost: 1.2,
       costUnit: 'point',
       actualSize: { width: 1536, height: 1024 },
       sizeMismatch: { expected: '1024x1024', actual: '1536x1024' },
@@ -227,7 +227,7 @@ describe('策略闸门四分支', () => {
   });
 
   it('估算未知成本（无单价）时不可走预算，必须确认', async () => {
-    const f = await fixture({ remaining: 10_000, estimateCents: null, confirm: 'approved' });
+    const f = await fixture({ remaining: 10_000, estimatePoints: null, confirm: 'approved' });
     await post(f.info, '/v1/generations', { prompt: '未知成本' });
     expect(f.host.requestConfirmation).toHaveBeenCalledOnce();
   });
@@ -261,8 +261,8 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
         historyId: 'his-fail', status: 'failed', error: { code: 'PROVIDER_ERROR', message: 'boom' },
       } as GenerateImageResult)),
       cancel: () => true,
-      estimate: () => ({ cents: 10, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
-      budget: { remainingCents: () => 10_000, settle: () => {} },
+      estimate: () => ({ points: 10, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
+      budget: { remainingPoints: () => 10_000, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,
       stageUpload: async (bytes: Buffer, name: string) => ({ path: name, name, source: 'upload' as const, mimeType: 'image/png' as const, sizeBytes: bytes.length }),
@@ -312,8 +312,8 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
         historyId: req.jobId ?? 'h', status: 'success', imagePath: '/tmp/a.png', cost: 18, durationMs: 5,
       } as GenerateImageResult)),
       cancel: () => true,
-      estimate: () => ({ cents: 18, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
-      budget: { remainingCents: () => 100, settle: () => {} },
+      estimate: () => ({ points: 18, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
+      budget: { remainingPoints: () => 100, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,
       stageUpload: async (bytes: Buffer, name: string) => ({ path: name, name, source: 'upload' as const, mimeType: 'image/png' as const, sizeBytes: bytes.length }),
@@ -334,8 +334,8 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
       promptText: '完整提示词全文应被记录，一字不落',
       approvedVia: 'budget',
       status: 'success',
-      estimatedCents: 18,
-      actualCents: 18,
+      estimatedPoints: 18,
+      actualPoints: 18,
     });
     void f; // 前面 fixture 仅为保持隔离节奏
   });

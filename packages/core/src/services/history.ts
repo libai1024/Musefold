@@ -37,7 +37,7 @@ export function rowToHistory(row: unknown): HistoryRecord {
     errorMessage: (r.error_message as string) ?? null,
     imagePath: (r.image_path as string) ?? null,
     cost: (r.cost as number) ?? null,
-    costUnit: r.cost_unit === 'point' ? 'point' : 'cny_cent',
+    costUnit: 'point',
     durationMs: (r.duration_ms as number) ?? null,
     createdAt: r.created_at as number,
     parentHistoryId: typeof parentHistoryId === 'string' && parentHistoryId ? parentHistoryId : undefined,

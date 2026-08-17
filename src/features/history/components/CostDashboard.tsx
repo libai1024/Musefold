@@ -11,16 +11,12 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
-import { formatCost } from '../../../lib/format';
+import { formatCost, formatPoints } from '../../../lib/format';
 import { cn } from '../../../lib/utils';
 import { useHistoryStore } from '../store';
 import { useAccountStore } from '../../account/store';
 
 type CostRange = 'month' | 'last30' | 'all';
-
-function costUnitOf(item: { unit?: 'cny_cent' | 'point' }): 'cny_cent' | 'point' {
-  return item.unit === 'point' ? 'point' : 'cny_cent';
-}
 
 const RANGE_OPTIONS: { id: CostRange; label: string }[] = [
   { id: 'month', label: '本月' },
@@ -63,21 +59,18 @@ export function CostDashboard({
 
   const totalCount = stats?.totalCount ?? 0;
   const totals = stats?.totals ?? (stats ? [{
-    unit: 'cny_cent' as const,
+    unit: 'point' as const,
     cost: stats.totalCost,
     count: stats.totalCount,
     avgCost: stats.avgCost,
   }] : []);
-  const cny = totals.find((total) => total.unit === 'cny_cent');
-  const point = totals.find((total) => total.unit === 'point');
+  const total = totals.find((item) => item.unit === 'point');
   const hasData = totalCount > 0;
   const unpriced = hasData && totals.every((total) => total.cost === 0);
-  const hasByok = Boolean(cny);
-  const hasManaged = Boolean(point);
 
   const configurePricing = () => {
     onOpenChange(false);
-    setSettingsSection(hasByok ? 'providers' : 'account');
+    setSettingsSection('providers');
     setView('settings');
   };
 
@@ -141,32 +134,20 @@ export function CostDashboard({
             {account.loggedIn && (
               <SummaryCard
                 label="账号余额"
-                value={account.quota ? formatCost(account.quota.value, 'point') : '—'}
+                value={account.quota ? `${formatPoints(account.quota.value)} 积分` : '—'}
                 detail={account.estImagesRemaining != null ? `约可生成 ${account.estImagesRemaining.toLocaleString('zh-CN')} 张` : undefined}
                 testId="history-cost-balance"
               />
             )}
             <SummaryCard
               label="累计花费"
-              value={
-                hasManaged && hasByok
-                  ? `${formatCost(point?.cost ?? 0, 'point')} · ${formatCost(cny?.cost ?? 0)}`
-                  : hasManaged
-                    ? formatCost(point?.cost ?? 0, 'point')
-                    : formatCost(cny?.cost ?? 0)
-              }
+              value={formatCost(total?.cost ?? 0)}
               testId="history-cost-total"
             />
             <SummaryCard label="生图次数" value={`${totalCount} 张`} testId="history-cost-count" />
             <SummaryCard
               label="平均单张"
-              value={
-                hasManaged && hasByok
-                  ? '按来源分别统计'
-                  : hasManaged
-                    ? formatCost(Math.round(point?.avgCost ?? 0), 'point')
-                    : formatCost(Math.round(cny?.avgCost ?? 0))
-              }
+              value={formatCost(total?.avgCost ?? 0)}
               testId="history-cost-average"
             />
           </div>
@@ -205,15 +186,11 @@ export function CostDashboard({
           <div className="flex flex-col gap-2 border-t border-border-subtle pt-3 text-[11.5px] leading-relaxed text-tertiary sm:flex-row sm:items-center" data-testid="history-cost-disclaimer">
             <Info className="h-3.5 w-3.5 shrink-0 text-info" />
             <span className="min-w-0 flex-1">
-              {hasManaged && hasByok
-                ? '账号消费按服务器计费单价统计；手动服务商为本地估算，非服务商真实账单。'
-                : hasManaged
-                  ? '账号消费按服务器实际计费单价统计，与中转站扣费单位一致。'
-                  : '成本为本地估算，按各 Provider 配置的单价计算，非服务商真实账单。'}
+              所有成本均以积分统计；账号消费来自服务器计费，手动服务商来自本地单价估算。
             </span>
             <Button size="xs" variant="outline" onClick={configurePricing} data-testid="history-cost-configure">
               <Settings2 className="h-3 w-3" />
-              {hasByok ? '配置单价' : '查看账号'}
+              配置单价
             </Button>
           </div>
         </div>
@@ -300,32 +277,24 @@ function BucketChart({ buckets, loading }: { buckets: HistoryStatsBucket[]; load
     );
   }
 
-  const maxByUnit = {
-    cny_cent: Math.max(...buckets.filter((bucket) => costUnitOf(bucket) === 'cny_cent').map((bucket) => bucket.cost), 0),
-    point: Math.max(...buckets.filter((bucket) => costUnitOf(bucket) === 'point').map((bucket) => bucket.cost), 0),
-  };
-  const maxCountByUnit = {
-    cny_cent: Math.max(...buckets.filter((bucket) => costUnitOf(bucket) === 'cny_cent').map((bucket) => bucket.count), 1),
-    point: Math.max(...buckets.filter((bucket) => costUnitOf(bucket) === 'point').map((bucket) => bucket.count), 1),
-  };
+  const maxCost = Math.max(...buckets.map((bucket) => bucket.cost), 0);
+  const maxCount = Math.max(...buckets.map((bucket) => bucket.count), 1);
 
   return (
     <div className="rounded-lg border border-border-subtle bg-elevated px-3 py-3" data-testid="history-cost-chart">
       <div className="flex h-36 items-end gap-1.5 overflow-x-auto pb-1">
         {buckets.map((bucket) => {
-          const unit = costUnitOf(bucket);
-          const maxCost = maxByUnit[unit];
-          const ratio = maxCost > 0 ? bucket.cost / maxCost : bucket.count / maxCountByUnit[unit];
+          const ratio = maxCost > 0 ? bucket.cost / maxCost : bucket.count / maxCount;
           const height = Math.max(8, Math.round(ratio * 100));
           return (
             <div key={bucket.key} className="flex min-w-[32px] flex-1 flex-col items-center gap-1">
               <div
                 className={cn(
                   'w-full min-w-[20px] rounded-t-sm border border-primary/40 transition-colors',
-                  unit === 'point' ? 'bg-primary/85 hover:bg-primary' : 'bg-primary/35 hover:bg-primary/55',
+                  'bg-primary/85 hover:bg-primary',
                 )}
                 style={{ height: `${height}%` }}
-                title={`${bucket.key} · ${formatCost(bucket.cost, unit)} · ${bucket.count} 张`}
+                title={`${bucket.key} · ${formatCost(bucket.cost)} · ${bucket.count} 张`}
                 data-testid="history-cost-bucket"
                 data-key={bucket.key}
                 data-cost={bucket.cost}
@@ -358,21 +327,13 @@ function ProviderBreakdown({ providers, loading }: { providers: HistoryStatsProv
     );
   }
 
-  const maxByUnit = {
-    cny_cent: Math.max(...providers.filter((provider) => costUnitOf(provider) === 'cny_cent').map((provider) => provider.cost), 0),
-    point: Math.max(...providers.filter((provider) => costUnitOf(provider) === 'point').map((provider) => provider.cost), 0),
-  };
-  const maxCountByUnit = {
-    cny_cent: Math.max(...providers.filter((provider) => costUnitOf(provider) === 'cny_cent').map((provider) => provider.count), 1),
-    point: Math.max(...providers.filter((provider) => costUnitOf(provider) === 'point').map((provider) => provider.count), 1),
-  };
+  const maxCost = Math.max(...providers.map((provider) => provider.cost), 0);
+  const maxCount = Math.max(...providers.map((provider) => provider.count), 1);
 
   return (
     <div className="space-y-1.5">
       {providers.map((provider) => {
-        const unit = costUnitOf(provider);
-        const maxCost = maxByUnit[unit];
-        const ratio = maxCost > 0 ? provider.cost / maxCost : provider.count / maxCountByUnit[unit];
+        const ratio = maxCost > 0 ? provider.cost / maxCost : provider.count / maxCount;
         return (
           <div
             key={provider.providerId}
@@ -383,12 +344,7 @@ function ProviderBreakdown({ providers, loading }: { providers: HistoryStatsProv
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-primary">{provider.name}</span>
-              {unit === 'point' && (
-                <span className="rounded-full border border-border-default px-1.5 py-px text-[9px] text-tertiary">
-                  账号计费
-                </span>
-              )}
-              <span className="font-mono text-[11px] tabular-nums text-primary">{formatCost(provider.cost, unit)}</span>
+              <span className="font-mono text-[11px] tabular-nums text-primary">{formatCost(provider.cost)}</span>
               <span className="font-mono text-[10px] tabular-nums text-tertiary">{provider.count} 张</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-inset">

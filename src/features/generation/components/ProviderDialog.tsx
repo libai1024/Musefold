@@ -59,7 +59,7 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
   const [showKey, setShowKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [pricingMode, setPricingMode] = useState<PricingDraftMode>('none');
-  const [unitCents, setUnitCents] = useState('');
+  const [unitPoints, setUnitPoints] = useState('');
   const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -87,7 +87,7 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
     setOpeningWebLogin(false);
     setPricingLoadError(null);
     setPricingMode('none');
-    setUnitCents('');
+    setUnitPoints('');
     if (provider) {
       setName(provider.name);
       setType(provider.type);
@@ -124,11 +124,11 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
         if (cancelled) return;
         if (!pricing) {
           setPricingMode('none');
-          setUnitCents('');
+          setUnitPoints('');
           return;
         }
         setPricingMode(pricing.mode);
-        setUnitCents(String(pricing.unitCents));
+        setUnitPoints(String(pricing.unitPoints));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -149,7 +149,7 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
     setModelError(null);
   }
 
-  const pricingError = managed || isDoubaoWeb ? null : validatePricingDraft(pricingMode, unitCents);
+  const pricingError = managed || isDoubaoWeb ? null : validatePricingDraft(pricingMode, unitPoints);
   const valid = managed
     ? Boolean(model.trim())
     : Boolean(name.trim() && baseUrl.trim() && model.trim() && !pricingError);
@@ -178,7 +178,7 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
         await api.settings.pricing.set({
           providerId: id,
           mode: pricingMode,
-          unitCents: Number(unitCents),
+          unitPoints: Number(unitPoints),
         });
       }
     }
@@ -508,15 +508,15 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
                 <div>
                   <div className="flex items-center gap-2">
                     <Input
-                      value={unitCents}
-                      onChange={(e) => setUnitCents(e.target.value)}
-                      placeholder="32"
-                      inputMode="numeric"
+                      value={unitPoints}
+                      onChange={(e) => setUnitPoints(e.target.value)}
+                      placeholder="3.2"
+                      inputMode="decimal"
                       className="h-8 w-28 font-mono tabular-nums"
-                      data-testid="provider-pricing-unit-cents"
+                      data-testid="provider-pricing-unit-points"
                     />
                     <span className="text-[12px] text-tertiary">
-                      分 / {pricingMode === 'per-image' ? '张图' : '千 token'}
+                      积分 / {pricingMode === 'per-image' ? '张图' : '千 token'}
                     </span>
                   </div>
                   {pricingError && (
@@ -608,12 +608,12 @@ function PricingModeButton({
   );
 }
 
-function validatePricingDraft(mode: PricingDraftMode, unitCents: string): string | null {
+function validatePricingDraft(mode: PricingDraftMode, unitPoints: string): string | null {
   if (mode === 'none') return null;
-  const trimmed = unitCents.trim();
+  const trimmed = unitPoints.trim();
   if (!trimmed) return '请填写单价';
-  if (!/^\d+$/.test(trimmed)) return '单价必须是非负整数分';
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return '单价必须是非负积分数';
   const value = Number(trimmed);
-  if (!Number.isSafeInteger(value)) return '单价过大';
+  if (!Number.isFinite(value)) return '单价过大';
   return null;
 }

@@ -125,12 +125,12 @@ export interface GenerateImageResult {
   images?: GeneratedImageOutput[];
   providerResponse?: ImageProviderResponseSummary;
   error?: { code: string; message: string };
-  /** 原始记账数值；单位由 costUnit 决定。 */
+  /** 实际成本（积分）。 */
   cost?: number;
-  /** 原始记账单位。账号托管 provider 使用 point，自备 provider 使用 cny_cent。 */
+  /** 成本单位，固定为 point。 */
   costUnit?: CostUnit;
-  /** 面向预算/旧接口的人民币分换算值。自备 provider 与 cost 相同。 */
-  costCents?: number;
+  /** 实际成本（积分）；与 cost 同义，供自动化契约使用。 */
+  costPoints?: number;
   durationMs?: number;
   actualSize?: { width: number; height: number };
   sizeMismatch?: { expected: ImageSize; actual: string };

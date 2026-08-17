@@ -79,8 +79,8 @@ beforeAll(async () => {
         durationMs: 5,
       })),
       cancel: () => true,
-      estimate: () => ({ cents: 20, providerId: 'prov-mcp', providerName: 'MCP站', model: 'gpt-image-2', n: 1 }),
-      budget: { remainingCents: () => 10_000, settle: () => {} },
+      estimate: () => ({ points: 2, providerId: 'prov-mcp', providerName: 'MCP站', model: 'gpt-image-2', n: 1 }),
+      budget: { remainingPoints: () => 10_000, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,
       stageUpload: async (bytes, name) => ({ path: join(root, name), name, source: 'upload', mimeType: 'image/png', sizeBytes: bytes.length }),
@@ -193,7 +193,7 @@ describe('musefold-mcp', () => {
     const result = await client.callTool({ name: 'generate_image', arguments: { prompt: '一张 MCP 测试图', wait: true } });
     const payload = parseText(result as never);
     expect(payload.status).toBe('success');
-    expect(payload.costCents).toBe(20);
+    expect(payload.costPoints).toBe(20);
     const links = (result as { content: Array<{ type: string; uri?: string }> }).content.filter((item) => item.type === 'resource_link');
     expect(payload.assets).toHaveLength(4);
     expect(links).toHaveLength(4);

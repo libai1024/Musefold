@@ -101,7 +101,7 @@ export const DEFAULT_PRESET_ID = 'tvt';
 export const DEFAULT_ACCOUNT_SERVER_URL = 'https://zhaozhaoyue.top';
 
 /** 给本地 Agent 读取的公开 Musefold 自动化 Skill；网站与设置页共用这个稳定地址。 */
-export const MUSEFOLD_SKILL_VERSION = 'v0.2.0';
+export const MUSEFOLD_SKILL_VERSION = 'v0.3.0';
 export const MUSEFOLD_SKILL_URL =
   `https://raw.githubusercontent.com/libai1024/Musefold-Skills/${MUSEFOLD_SKILL_VERSION}/skills/musefold/SKILL.md`;
 /** 官方账号服务器的故障切换入口；只在主域名网络不可达或返回 5xx 时使用。 */

@@ -337,7 +337,7 @@ export async function commandHistory(context: CliContext, rest: string[]): Promi
     if (context.json) printJson(context.io, { type: 'result', history: result.history });
     else {
       for (const item of result.history) {
-        const cost = item.cost != null ? `${item.cost}分` : '-';
+        const cost = item.cost != null ? `${item.cost}积分` : '-';
         context.io.stdout(`${String(item.id)}  ${String(item.status)}  ${cost}  ${String(item.promptText ?? '').slice(0, 40)}`);
       }
       if (result.history.length === 0) context.io.stderr('（没有历史记录）');
@@ -356,7 +356,7 @@ export async function commandHistory(context: CliContext, rest: string[]): Promi
         ['状态', String(history.status)],
         ['Provider', String(history.providerId)],
         ['模型', String(history.model)],
-        ['成本', history.cost != null ? `${history.cost} 分` : '-'],
+        ['成本', history.cost != null ? `${history.cost} 积分` : '-'],
         ['产物', String(history.imagePath ?? '-')],
         ['提示词', String(history.promptText ?? '').slice(0, 120)],
       ])) context.io.stdout(line);
@@ -395,7 +395,7 @@ async function pollExternalRun(
   }
   type RunDetail = {
     jobId: string; status: string; assets?: Array<{ path: string }>;
-    costCents?: number | null; cost?: number | null; costUnit?: 'cny_cent' | 'point';
+    costPoints?: number | null; cost?: number | null; costUnit?: 'point';
     stepSummaries?: string[]; error?: { code: string; message: string } | null;
   };
   let seenSteps = 0;
@@ -410,7 +410,7 @@ async function pollExternalRun(
     printJson(context.io, { type: 'result', ...detail });
   } else if (detail.status === 'success') {
     for (const asset of detail.assets ?? []) context.io.stdout(asset.path);
-    if (detail.costCents != null) context.io.stderr(`musefold: 成本 ¥${(detail.costCents / 100).toFixed(2)}`);
+    if (detail.costPoints != null) context.io.stderr(`musefold: 成本 ${detail.costPoints} 积分`);
   } else {
     context.io.stderr(`musefold: 运行${detail.status === 'cancelled' ? '已取消' : '失败'}${detail.error ? `：${detail.error.message}` : ''}`);
   }

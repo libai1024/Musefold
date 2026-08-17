@@ -5,7 +5,6 @@
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import type { MusefoldClient } from '@musefold/client';
-import { ACCOUNT_QUOTA_PER_POINT } from '@shared/constants';
 import { connect, type CliContext } from './context';
 import { EXIT, printJson } from './io';
 
@@ -44,12 +43,9 @@ function mimeTypeFor(path: string): string {
   return 'image/jpeg';
 }
 
-function formatCliCost(detail: { costCents?: number | null; cost?: number | null; costUnit?: string | null }): string | null {
-  if (detail.costUnit === 'point' && detail.cost != null) {
-    return `${(detail.cost / ACCOUNT_QUOTA_PER_POINT).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 积分`;
-  }
-  if (detail.costCents != null) return `¥${(detail.costCents / 100).toFixed(2)}`;
-  if (detail.cost != null) return `¥${(detail.cost / 100).toFixed(2)}`;
+function formatCliCost(detail: { costPoints?: number | null; cost?: number | null }): string | null {
+  const points = detail.costPoints ?? detail.cost;
+  if (points != null) return `${points.toLocaleString('zh-CN', { maximumFractionDigits: 6 })} 积分`;
   return null;
 }
 
@@ -104,8 +100,8 @@ export async function commandGenerate(
 
   // 估算 + 确认（TTY 且未 --yes 时询问；--yes/确认通过 = 交互同意放行）
   const estimate = await client.estimateGeneration(body);
-  const costLabel = estimate.cents != null ? `¥${(estimate.cents / 100).toFixed(2)}` : '未知（未配置单价）';
-  if (context.maxCostCents != null && estimate.cents != null && estimate.cents > context.maxCostCents) {
+  const costLabel = estimate.points != null ? `${estimate.points} 积分` : '未知（未配置单价）';
+  if (context.maxCostPoints != null && estimate.points != null && estimate.points > context.maxCostPoints) {
     context.io.stderr(`musefold: 预估成本 ${costLabel} 超过 --max-cost 上限，已取消`);
     if (context.json) printJson(context.io, { type: 'error', code: 'BUDGET_EXCEEDED', message: '超出 --max-cost' });
     return EXIT.BUDGET;
@@ -121,7 +117,7 @@ export async function commandGenerate(
     }
   }
   body.consent = 'interactive';
-  if (context.maxCostCents != null) body.declaredBudgetCents = context.maxCostCents;
+  if (context.maxCostPoints != null) body.declaredBudgetPoints = context.maxCostPoints;
 
   let lastPhase = '';
   const noWait = flags['no-wait'] === true;
@@ -171,9 +167,9 @@ export async function commandGenerate(
         historyId: detail.historyId,
         status: detail.status,
         assets: (copied.length ? copied : assets.map((asset) => asset.path)).map((path) => ({ path })),
-        costCents: detail.costCents ?? null,
+        costPoints: detail.costPoints ?? detail.cost ?? null,
         cost: detail.cost ?? null,
-        costUnit: detail.costUnit ?? 'cny_cent',
+        costUnit: 'point',
         durationMs: detail.durationMs ?? null,
         actualSize: detail.actualSize ?? null,
         sizeMismatch: detail.sizeMismatch ?? null,

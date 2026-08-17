@@ -29,8 +29,8 @@ export interface SpendAuditDraft {
   action: 'generate_image';
   promptText: string | null;
   params: Record<string, unknown>;
-  estimatedCents: number | null;
-  actualCents: number | null;
+  estimatedPoints: number | null;
+  actualPoints: number | null;
   approvedVia: 'budget' | 'confirmation' | 'consent' | 'idempotent-replay' | 'denied' | 'timeout';
   status: 'success' | 'failed' | 'cancelled' | 'denied' | 'timeout';
   jobId: string | null;
@@ -45,8 +45,8 @@ export interface GenerationGateOptions {
 }
 
 export interface GenerationEstimate {
-  /** 估算成本（分）；null = 无单价配置 → 必须确认 */
-  cents: number | null;
+  /** 估算成本（积分）；null = 无单价配置 → 必须确认 */
+  points: number | null;
   providerId: string;
   providerName: string;
   model: string;
@@ -54,10 +54,10 @@ export interface GenerationEstimate {
 }
 
 export interface GenerationBudget {
-  /** 剩余额度（分）；预算未配置视为 0（Q1 拍板：默认一切须确认） */
-  remainingCents(): number;
+  /** 剩余额度（积分）；预算未配置视为 0（Q1 拍板：默认一切须确认） */
+  remainingPoints(): number;
   /** 按实际成本冲销（估算只用于闸门） */
-  settle(actualCents: number): void;
+  settle(actualPoints: number): void;
 }
 
 export interface GenerationHost {
@@ -86,7 +86,7 @@ export interface ConfirmationSummary {
   providerName: string;
   model: string;
   n: number;
-  estimatedCents: number | null;
+  estimatedPoints: number | null;
   promptPreview: string;
 }
 
@@ -102,8 +102,8 @@ export interface GenerationRequestBody {
   background?: string;
   referenceImagePaths?: string[];
   referenceHistoryIds?: string[];
-  /** 调用方声明的一次性预算（分）；须 ≤ 设置页预算剩余（§5.4 b） */
-  declaredBudgetCents?: number;
+  /** 调用方声明的一次性预算（积分）；须 ≤ 设置页预算剩余（§5.4 b） */
+  declaredBudgetPoints?: number;
   /**
    * 'interactive' = 人已在本机终端确认（CLI TTY y/N 或 --yes，D7 一等路径）。
    * MCP 工具面不暴露此字段；审计记录放行路径。
@@ -116,7 +116,7 @@ interface JobRecord {
   status: 'running' | 'success' | 'failed' | 'cancelled';
   startedAt: number;
   result?: GenerateImageResult;
-  estimatedCents: number | null;
+  estimatedPoints: number | null;
 }
 
 interface PendingConfirmation {
@@ -243,7 +243,7 @@ export function createGenerationGate(
     approvedVia: 'budget' | 'confirmation' | 'consent',
   ): JobRecord {
     const jobId = randomUUID().replaceAll('-', '').slice(0, 26).toUpperCase();
-    const record: JobRecord = { jobId, status: 'running', startedAt: Date.now(), estimatedCents: estimate.cents };
+    const record: JobRecord = { jobId, status: 'running', startedAt: Date.now(), estimatedPoints: estimate.points };
     jobs.set(jobId, record);
     const request = toGenerateRequest(body, estimate, jobId, references);
     void host
@@ -253,8 +253,8 @@ export function createGenerationGate(
       .then((result) => {
         record.status = result.status === 'success' ? 'success' : result.status === 'cancelled' ? 'cancelled' : 'failed';
         record.result = result;
-        const actualCents = result.costCents ?? result.cost ?? 0;
-        if (result.status === 'success') host.budget.settle(actualCents);
+        const actualPoints = result.costPoints ?? result.cost ?? 0;
+        if (result.status === 'success') host.budget.settle(actualPoints);
         noteOutcome(record.status);
         audit({
           at: clock(),
@@ -267,8 +267,8 @@ export function createGenerationGate(
             aspectRatio: body.aspectRatio ?? null,
             references: references.length,
           },
-          estimatedCents: estimate.cents,
-          actualCents: result.costCents ?? result.cost ?? null,
+          estimatedPoints: estimate.points,
+          actualPoints: result.costPoints ?? result.cost ?? null,
           approvedVia,
           status: record.status,
           jobId,
@@ -279,9 +279,9 @@ export function createGenerationGate(
             jobId,
             historyId: result.historyId,
             status: result.status,
-            costCents: result.costCents ?? result.cost ?? null,
+            costPoints: result.costPoints ?? result.cost ?? null,
             cost: result.cost ?? null,
-            costUnit: result.costUnit ?? 'cny_cent',
+            costUnit: 'point',
             durationMs: result.durationMs ?? null,
             assets: generationAssets(result),
             error: result.error ?? null,
@@ -303,8 +303,8 @@ export function createGenerationGate(
           action: 'generate_image',
           promptText: body.prompt ?? null,
           params: { providerId: estimate.providerId, n: estimate.n },
-          estimatedCents: estimate.cents,
-          actualCents: null,
+          estimatedPoints: estimate.points,
+          actualPoints: null,
           approvedVia,
           status: 'failed',
           jobId,
@@ -319,13 +319,13 @@ export function createGenerationGate(
       jobId: record.jobId,
       status: record.status,
       startedAt: record.startedAt,
-      estimatedCents: record.estimatedCents,
+      estimatedPoints: record.estimatedPoints,
       ...(record.result
         ? {
             historyId: record.result.historyId,
-            costCents: record.result.costCents ?? record.result.cost ?? null,
+            costPoints: record.result.costPoints ?? record.result.cost ?? null,
             cost: record.result.cost ?? null,
-            costUnit: record.result.costUnit ?? 'cny_cent',
+            costUnit: 'point',
             durationMs: record.result.durationMs ?? null,
             assets: generationAssets(record.result),
             error: record.result.error ?? null,
@@ -341,7 +341,7 @@ export function createGenerationGate(
     'POST /v1/generations/estimate': (context) => {
       const body = validateBody(context);
       const estimate = host.estimate(body);
-      return { ...estimate, remainingBudgetCents: host.budget.remainingCents() };
+      return { ...estimate, remainingBudgetPoints: host.budget.remainingPoints() };
     },
 
     'POST /v1/generations': async (context) => {
@@ -368,12 +368,12 @@ export function createGenerationGate(
 
       // b. 预算覆盖估算 → 自动放行（估算未知成本不可走预算，必须确认）；
       //    调用方声明的一次性预算须同时 ≤ 剩余额度（§5.4 b）
-      const remaining = host.budget.remainingCents();
-      const declared = body.declaredBudgetCents;
+      const remaining = host.budget.remainingPoints();
+      const declared = body.declaredBudgetPoints;
       const budgetCovered =
-        estimate.cents != null &&
-        estimate.cents <= remaining &&
-        (declared == null || (estimate.cents <= declared && declared <= remaining));
+        estimate.points != null &&
+        estimate.points <= remaining &&
+        (declared == null || (estimate.points <= declared && declared <= remaining));
       // 交互同意：人已在本机确认（CLI TTY / --yes），等价 App 卡片放行
       const covered = budgetCovered || body.consent === 'interactive';
 
@@ -385,7 +385,7 @@ export function createGenerationGate(
           providerName: estimate.providerName,
           model: estimate.model,
           n: estimate.n,
-          estimatedCents: estimate.cents,
+          estimatedPoints: estimate.points,
           promptPreview: body.prompt!.slice(0, 120),
         };
         let resolveOutcome!: (outcome: 'approved' | 'denied' | 'timeout') => void;
@@ -425,8 +425,8 @@ export function createGenerationGate(
             action: 'generate_image',
             promptText: body.prompt ?? null,
             params: { providerId: estimate.providerId, n: estimate.n },
-            estimatedCents: estimate.cents,
-            actualCents: null,
+            estimatedPoints: estimate.points,
+            actualPoints: null,
             approvedVia: verdict,
             status: verdict,
             jobId: null,

@@ -22,7 +22,7 @@ export interface CliContext {
   args: ParsedArgs;
   json: boolean;
   yes: boolean;
-  maxCostCents: number | null;
+  maxCostPoints: number | null;
   env: NodeJS.ProcessEnv;
 }
 

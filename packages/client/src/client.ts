@@ -27,9 +27,9 @@ export interface GenerationDetail {
   jobId: string;
   status: string;
   historyId?: string;
-  costCents?: number | null;
+  costPoints?: number | null;
   cost?: number | null;
-  costUnit?: 'cny_cent' | 'point';
+  costUnit?: 'point';
   durationMs?: number | null;
   assets?: Array<{ path: string }>;
   error?: { code: string; message: string } | null;
@@ -158,13 +158,13 @@ export class MusefoldClient {
   // —— 生图闭环（V04-API-03/04） ——
   estimateGeneration(body: Record<string, unknown>) {
     return this.request<{
-      cents: number | null; providerId: string; providerName: string; model: string; n: number;
-      remainingBudgetCents: number;
+      points: number | null; providerId: string; providerName: string; model: string; n: number;
+      remainingBudgetPoints: number;
     }>('/v1/generations/estimate', { method: 'POST', body: JSON.stringify(body) });
   }
   startGeneration(body: Record<string, unknown>, idempotencyKey?: string) {
     return this.request<{
-      jobId: string; status: string; historyId?: string; costCents?: number | null; cost?: number | null; costUnit?: 'cny_cent' | 'point';
+      jobId: string; status: string; historyId?: string; costPoints?: number | null; cost?: number | null; costUnit?: 'point';
       assets?: Array<{ path: string }>; error?: { code: string; message: string } | null;
       actualSize?: { width: number; height: number } | null; sizeMismatch?: { expected: string; actual: string } | null;
       idempotentReplay?: boolean;

@@ -27,6 +27,7 @@
 9. [交接清单](./09-handoff-checklist-and-known-gaps.md)
 10. [仓库文件地图](./10-repository-file-map.md)
 11. [契约与错误码](./11-contracts-and-error-catalog.md)
+12. [积分成本契约](./12-cost-points-contract.md)
 
 ## 证据优先级
 

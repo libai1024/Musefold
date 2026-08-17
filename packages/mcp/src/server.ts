@@ -138,9 +138,9 @@ function generationResult(detail: Awaited<ReturnType<MusefoldClient['getGenerati
       jobId: detail.jobId,
       status: detail.status,
       historyId: detail.historyId,
-      costCents: detail.costCents ?? null,
+      costPoints: detail.costPoints ?? detail.cost ?? null,
       cost: detail.cost ?? null,
-      costUnit: detail.costUnit ?? 'cny_cent',
+      costUnit: 'point',
       durationMs: detail.durationMs ?? null,
       assets: detail.assets ?? [],
       actualSize: detail.actualSize ?? null,
@@ -385,8 +385,8 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
               const shouldWait = wait ?? !options.noWait;
               if (!shouldWait) return textResult(submitted);
               type RunDetail = {
-                jobId: string; status: string; assets?: Array<{ path: string }>; costCents?: number | null;
-                cost?: number | null; costUnit?: 'cny_cent' | 'point'; error?: unknown;
+                jobId: string; status: string; assets?: Array<{ path: string }>; costPoints?: number | null;
+                cost?: number | null; costUnit?: 'point'; error?: unknown;
               };
               let detail = await client.request<RunDetail>(`/v1/scheme-runs/${submitted.jobId}`);
               while (detail.status === 'running') {
@@ -424,8 +424,8 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
             const shouldWait = args.wait ?? !options.noWait;
             if (!shouldWait) return textResult(submitted);
             type RunDetail = {
-              jobId: string; status: string; assets?: Array<{ path: string }>; costCents?: number | null;
-              cost?: number | null; costUnit?: 'cny_cent' | 'point'; stepSummaries?: string[]; error?: unknown;
+              jobId: string; status: string; assets?: Array<{ path: string }>; costPoints?: number | null;
+              cost?: number | null; costUnit?: 'point'; stepSummaries?: string[]; error?: unknown;
             };
             let detail = await client.request<RunDetail>(`/v1/skill-runs/${submitted.jobId}`);
             while (detail.status === 'running') {
@@ -442,7 +442,7 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
       register(server, client) {
         addTool(server, 'list_history', {
           title: '列出生成历史',
-          description: 'List generation history rows (status, cost in cents, asset paths). Read-only.',
+          description: 'List generation history rows (status, cost in points, asset paths). Read-only.',
           inputSchema: {
             limit: z.number().int().min(1).max(50).optional(),
             status: z.enum(['success', 'failed', 'cancelled']).optional(),

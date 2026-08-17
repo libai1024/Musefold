@@ -11,6 +11,7 @@ import { up as migration_0012 } from './migrations/0012_automation_audit';
 import { up as migration_0013 } from './migrations/0013_account_managed';
 import { up as migration_0014 } from './migrations/0014_doubao_web_daily_usage';
 import { up as migration_0015 } from './migrations/0015_remove_recipes';
+import { up as migration_0016 } from './migrations/0016_cost_points';
 
 interface Migration {
   version: number;
@@ -24,6 +25,7 @@ const migrations: Migration[] = [
   { version: 13, up: migration_0013 },
   { version: 14, up: migration_0014 },
   { version: 15, up: migration_0015 },
+  { version: 16, up: migration_0016 },
 ];
 
 export function runMigrations(db: Database.Database): void {

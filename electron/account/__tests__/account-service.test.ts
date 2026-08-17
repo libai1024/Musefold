@@ -157,9 +157,9 @@ describe('login 编排（§5.1）', () => {
       deviceTokenSuffix: '1234',
       health: 'ok',
     });
-    // 定价同步（version 门控首轮）：0.04 × 500000 × 1 = 20000 点/张
-    expect(h.provisioner.priceCalls).toEqual([{ providerId: 'prov-1', pricePoints: 20_000 }]);
-    // estImagesRemaining = 900000（登录后 refreshQuota 未调，用登录时 quota 1000000）→ 50
+    // 定价同步（version 门控首轮）：0.04 元 = 0.4 积分/张
+    expect(h.provisioner.priceCalls).toEqual([{ providerId: 'prov-1', pricePoints: 0.4 }]);
+    // 1000000 quota = 20 积分，约可生成 50 张
     expect(status.estImagesRemaining).toBe(50);
     expect(h.changed.length).toBeGreaterThan(0);
   });
@@ -294,7 +294,7 @@ describe('refreshQuota 与定价门控（FR-GW-09）', () => {
 
     const status = await h.service.refreshQuota();
     expect(status.quota?.value).toBe(900_000);
-    expect(status.estImagesRemaining).toBe(45); // 900000 ÷ 20000
+    expect(status.estImagesRemaining).toBe(45); // 900000 quota = 18 积分；18 ÷ 0.4
     expect(h.provisioner.priceCalls).toHaveLength(1); // version 未变，跳过
   });
 
@@ -310,7 +310,7 @@ describe('refreshQuota 与定价门控（FR-GW-09）', () => {
       ],
     });
     await h.service.refreshQuota();
-    expect(h.provisioner.priceCalls[1]).toEqual({ providerId: 'prov-1', pricePoints: 50_000 });
+    expect(h.provisioner.priceCalls[1]).toEqual({ providerId: 'prov-1', pricePoints: 1 });
   });
 
   it('公告随刷新更新到状态', async () => {

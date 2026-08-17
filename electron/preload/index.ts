@@ -227,7 +227,7 @@ const api = {
       ipcRenderer.invoke(IPC.AUTOMATION_CONFIRM, confirmationId, approved),
     budget: {
       get: () => ipcRenderer.invoke(IPC.AUTOMATION_BUDGET_GET),
-      set: (monthlyLimitCents: number) => ipcRenderer.invoke(IPC.AUTOMATION_BUDGET_SET, monthlyLimitCents),
+      set: (monthlyLimitPoints: number) => ipcRenderer.invoke(IPC.AUTOMATION_BUDGET_SET, monthlyLimitPoints),
     },
     onConfirmationRequired: (cb: (summary: import('@shared/types/ipc').AutomationConfirmationSummary) => void) => {
       const listener = (_event: unknown, summary: import('@shared/types/ipc').AutomationConfirmationSummary) => cb(summary);

@@ -45,8 +45,8 @@ beforeAll(async () => {
         return { historyId: req.jobId ?? 'his-x', status: 'success', imagePath: assetPath, cost: 18, durationMs: 30 };
       }),
       cancel: vi.fn(() => true),
-      estimate: vi.fn(() => ({ cents: 18, providerId: 'prov', providerName: '测试站', model: 'gpt-image-2', n: 1 })),
-      budget: { remainingCents: () => 0, settle: vi.fn() },
+      estimate: vi.fn(() => ({ points: 18, providerId: 'prov', providerName: '测试站', model: 'gpt-image-2', n: 1 })),
+      budget: { remainingPoints: () => 0, settle: vi.fn() },
       requestConfirmation: vi.fn(async () => 'denied' as const),
       authorizeReferencePath: () => true,
       stageUpload: vi.fn(async (bytes: Buffer, name: string) => ({
@@ -80,7 +80,7 @@ describe('musefold generate', () => {
     expect(code).toBe(EXIT.OK);
     const lines = io.stdout.map((line) => JSON.parse(line));
     const result = lines.at(-1);
-    expect(result).toMatchObject({ type: 'result', status: 'success', costCents: 18 });
+    expect(result).toMatchObject({ type: 'result', status: 'success', costPoints: 18 });
     expect(result.assets[0].path).toBe(assetPath);
   });
 
@@ -113,16 +113,16 @@ describe('musefold generate', () => {
     });
   });
 
-  it('账号点数成本不会在人类输出里显示成人民币分', async () => {
+  it('账号成本在人类输出中使用积分', async () => {
     runSpy.mockImplementationOnce(async (req: { jobId?: string }, onProgress: (p: unknown) => void): Promise<GenerateImageResult> => {
       onProgress({ phase: 'generating', percent: 50 });
       return {
         historyId: req.jobId ?? 'his-account',
         status: 'success',
         imagePath: assetPath,
-        cost: 60_000,
+        cost: 1.2,
         costUnit: 'point',
-        costCents: 12,
+        costPoints: 1.2,
         durationMs: 30,
       };
     });
@@ -132,16 +132,16 @@ describe('musefold generate', () => {
     expect(io.stderr.join('\n')).toContain('成本 1.2 积分');
   });
 
-  it('账号点数 JSON 同时返回人民币分和原始单位', async () => {
+  it('账号 JSON 只返回积分口径', async () => {
     runSpy.mockImplementationOnce(async (req: { jobId?: string }, onProgress: (p: unknown) => void): Promise<GenerateImageResult> => {
       onProgress({ phase: 'generating', percent: 50 });
       return {
         historyId: req.jobId ?? 'his-account-json',
         status: 'success',
         imagePath: assetPath,
-        cost: 60_000,
+        cost: 1.2,
         costUnit: 'point',
-        costCents: 12,
+        costPoints: 1.2,
         durationMs: 30,
       };
     });
@@ -151,8 +151,8 @@ describe('musefold generate', () => {
     expect(JSON.parse(io.stdout.at(-1)!)).toMatchObject({
       type: 'result',
       status: 'success',
-      costCents: 12,
-      cost: 60_000,
+      costPoints: 1.2,
+      cost: 1.2,
       costUnit: 'point',
     });
   });

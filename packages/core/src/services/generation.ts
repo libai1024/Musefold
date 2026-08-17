@@ -5,7 +5,6 @@
 import { resolve } from 'path';
 import { ulid } from 'ulid';
 import { MAX_REFERENCE_IMAGES } from '@shared/types/providers';
-import { ACCOUNT_QUOTA_PER_USD } from '@shared/constants';
 import type {
   GenerateImageRequest,
   GenerateImageResult,
@@ -26,11 +25,6 @@ const abortControllers = new Map<string, AbortController>();
 
 export function hasActiveImageJobs(): boolean {
   return abortControllers.size > 0;
-}
-
-function costToCnyCents(cost: number | null | undefined, unit: 'cny_cent' | 'point'): number | undefined {
-  if (cost == null) return undefined;
-  return unit === 'point' ? Math.round((cost * 100) / ACCOUNT_QUOTA_PER_USD) : cost;
 }
 
 interface RunContext {
@@ -282,7 +276,7 @@ export async function generate(
     return { historyId, status: 'failed', error: { code, message }, durationMs: Date.now() - startTs };
   }
   /** 记账单位快照（FR-COST-03）：托管 Provider 以「点」入账；providerRow 加载后回填 */
-  let costUnit: 'cny_cent' | 'point' = 'cny_cent';
+  const costUnit = 'point' as const;
 
   /** 写一条失败/取消历史并返回结构化结果（见下方"为什么不 throw"） */
   const fail = (
@@ -326,8 +320,6 @@ export async function generate(
     logger.error('generate 失败', `history=${historyId}`, 'code=NO_PROVIDER', 'Provider 不存在');
     return fail('failed', 'NO_PROVIDER', 'Provider 不存在或已被删除', req.model ?? 'unknown', null);
   }
-
-  costUnit = providerRow.managed_by === 'account' ? 'point' : 'cny_cent';
 
   const provider = createProvider(
     providerRow.type as ProviderType,
@@ -467,7 +459,7 @@ export async function generate(
       ...normalizedResult,
       historyId,
       costUnit,
-      costCents: costToCnyCents(normalizedResult.cost, costUnit),
+      costPoints: normalizedResult.cost,
     };
   } catch (err) {
     const upstreamCode = (err as { code?: string })?.code ?? 'UNKNOWN';

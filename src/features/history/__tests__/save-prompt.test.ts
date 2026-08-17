@@ -19,7 +19,7 @@ function makeRecord(patch: Partial<HistoryRecord> = {}): HistoryRecord {
     durationMs: 1200,
     createdAt: 1_728_000_000_000,
     ...patch,
-    costUnit: patch.costUnit ?? 'cny_cent',
+    costUnit: patch.costUnit ?? 'point',
   };
 }
 

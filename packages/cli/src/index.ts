@@ -99,7 +99,7 @@ const USAGE = [
   '  export / import            库导出导入（本地通道）',
   '  serve [--data-dir]         headless 本地 Provider 守护（不读取桌面账号，与 App 互斥）',
   '',
-  '全局参数：--json（机器可读输出）、-y 跳过确认、--max-cost <分>、--endpoint/--token、--autostart、-q',
+  '全局参数：--json（机器可读输出）、-y 跳过确认、--max-cost <积分>、--endpoint/--token、--autostart、-q',
   '连接：安装版 CLI 会自动拉起 Musefold App；桌面账号仅由 App 的自动化控制面提供。',
 ].join('\n');
 
@@ -125,7 +125,7 @@ export async function runCli(argv: string[], io: CliIo, env: NodeJS.ProcessEnv =
       args,
       json: args.flags.json === true,
       yes: args.flags.yes === true,
-      maxCostCents: typeof args.flags['max-cost'] === 'string' ? Number(args.flags['max-cost']) : null,
+      maxCostPoints: typeof args.flags['max-cost'] === 'string' ? Number(args.flags['max-cost']) : null,
       env,
     };
   } catch (error) {

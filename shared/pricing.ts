@@ -6,6 +6,22 @@ import type {
   ProviderPricingMode,
 } from './types/models';
 import type { GenerateImageRequest } from './types/providers';
+import { ACCOUNT_QUOTA_PER_POINT } from './constants';
+
+/** 唯一成本口径：1 积分 = ¥0.1 = 50,000 服务端原始配额。 */
+export const CNY_CENTS_PER_POINT = 10;
+
+export function roundPoints(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+export function cnyCentsToPoints(cents: number): number {
+  return roundPoints(cents / CNY_CENTS_PER_POINT);
+}
+
+export function accountQuotaToPoints(quota: number): number {
+  return roundPoints(quota / ACCOUNT_QUOTA_PER_POINT);
+}
 
 export const PROVIDER_PRICING_MODES: ProviderPricingMode[] = ['per-image', 'per-1k-token'];
 
@@ -18,19 +34,26 @@ export function normalizeProviderPricing(input: unknown): ProviderPricingConfig 
   if (!raw || !isProviderPricingMode(raw.mode)) {
     throw new Error('计费方式无效');
   }
-  const unitCents = raw.unitCents;
-  if (typeof unitCents !== 'number' || !Number.isFinite(unitCents) || !Number.isInteger(unitCents)) {
-    throw new Error('单价必须是整数分');
+  const unitPoints = raw.unitPoints;
+  if (typeof unitPoints !== 'number' || !Number.isFinite(unitPoints)) {
+    throw new Error('单价必须是有效积分数');
   }
-  if (unitCents < 0) {
+  if (unitPoints < 0) {
     throw new Error('单价不能为负数');
   }
-  return { mode: raw.mode, unitCents };
+  return { mode: raw.mode, unitPoints: roundPoints(unitPoints) };
 }
 
-export function parseStoredProviderPricing(input: unknown): ProviderPricingConfig | null {
+export function parseStoredProviderPricing(
+  input: unknown,
+  legacyCentsConverter: (value: number) => number = cnyCentsToPoints,
+): ProviderPricingConfig | null {
   try {
-    return normalizeProviderPricing(input);
+    const raw = input as { mode?: unknown; unitPoints?: unknown; unitCents?: unknown } | null;
+    if (raw?.unitPoints == null && typeof raw?.unitCents === 'number') {
+      return normalizeProviderPricing({ mode: raw.mode, unitPoints: legacyCentsConverter(raw.unitCents) });
+    }
+    return normalizeProviderPricing(raw);
   } catch {
     return null;
   }
@@ -44,8 +67,8 @@ export function estimateCostFromPricing(
   if (!pricing) return null;
   if (pricing.mode === 'per-image') {
     const count = Number.isFinite(req.n) && req.n > 0 ? Math.floor(req.n) : 1;
-    return pricing.unitCents * count;
+    return roundPoints(pricing.unitPoints * count);
   }
   if (!Number.isFinite(usageTokens ?? NaN) || (usageTokens ?? 0) < 0) return null;
-  return Math.round(((usageTokens as number) / 1000) * pricing.unitCents);
+  return roundPoints(((usageTokens as number) / 1000) * pricing.unitPoints);
 }

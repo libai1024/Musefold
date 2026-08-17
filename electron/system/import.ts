@@ -596,7 +596,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
       asStr(r.errorMessage),
       mapImagePath(ctx, asStr(r.imagePath)),
       asNullNum(r.cost),
-      asStr(r.costUnit) === 'point' ? 'point' : 'cny_cent',
+      'point',
       asNullNum(r.durationMs),
       asNum(r.createdAt, now)
     );

@@ -606,8 +606,8 @@ export interface AutomationSpendAudit {
   promptText: string | null;
   approvedVia: 'budget' | 'confirmation' | 'consent' | 'idempotent-replay' | 'denied' | 'timeout';
   status: 'success' | 'failed' | 'cancelled' | 'denied' | 'timeout';
-  estimatedCents: number | null;
-  actualCents: number | null;
+  estimatedPoints: number | null;
+  actualPoints: number | null;
   jobId: string | null;
 }
 
@@ -617,14 +617,14 @@ export interface AutomationConfirmationSummary {
   providerName: string;
   model: string;
   n: number;
-  estimatedCents: number | null;
+  estimatedPoints: number | null;
   promptPreview: string;
 }
 
 /** 自动化预算（Q1 拍板：默认 0，一切花钱须确认） */
 export interface AutomationBudget {
-  monthlyLimitCents: number;
-  usedCents: number;
+  monthlyLimitPoints: number;
+  usedPoints: number;
   month: string;
 }
 
@@ -872,7 +872,7 @@ export interface Api {
     confirm: (confirmationId: string, approved: boolean) => Promise<{ ok: boolean }>;
     budget: {
       get: () => Promise<AutomationBudget>;
-      set: (monthlyLimitCents: number) => Promise<AutomationBudget>;
+      set: (monthlyLimitPoints: number) => Promise<AutomationBudget>;
     };
     onConfirmationRequired: (cb: (summary: AutomationConfirmationSummary) => void) => () => void;
     onConfirmationResolved: (

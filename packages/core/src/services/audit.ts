@@ -21,8 +21,8 @@ export interface SpendAuditEntry {
   /** Q5 拍板：完整提示词（仅本机 SQLite；列表 UI 显示截断，点开看全文） */
   promptText: string | null;
   params: Record<string, unknown>;
-  estimatedCents: number | null;
-  actualCents: number | null;
+  estimatedPoints: number | null;
+  actualPoints: number | null;
   approvedVia: SpendAuditApprovedVia;
   status: SpendAuditStatus;
   jobId: string | null;
@@ -39,7 +39,7 @@ export function createSpendAuditService(db: () => Database.Database = getDb): Sp
       db()
         .prepare(
           `INSERT INTO automation_audit
-             (at, caller, action, prompt_text, params_json, estimated_cents, actual_cents, approved_via, status, job_id)
+             (at, caller, action, prompt_text, params_json, estimated_points, actual_points, approved_via, status, job_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
@@ -48,8 +48,8 @@ export function createSpendAuditService(db: () => Database.Database = getDb): Sp
           entry.action,
           entry.promptText,
           JSON.stringify(entry.params),
-          entry.estimatedCents,
-          entry.actualCents,
+          entry.estimatedPoints,
+          entry.actualPoints,
           entry.approvedVia,
           entry.status,
           entry.jobId,
@@ -66,8 +66,8 @@ export function createSpendAuditService(db: () => Database.Database = getDb): Sp
         action: row.action as SpendAuditAction,
         promptText: (row.prompt_text as string) ?? null,
         params: JSON.parse((row.params_json as string) || '{}') as Record<string, unknown>,
-        estimatedCents: (row.estimated_cents as number) ?? null,
-        actualCents: (row.actual_cents as number) ?? null,
+        estimatedPoints: (row.estimated_points as number) ?? null,
+        actualPoints: (row.actual_points as number) ?? null,
         approvedVia: row.approved_via as SpendAuditApprovedVia,
         status: row.status as SpendAuditStatus,
         jobId: (row.job_id as string) ?? null,

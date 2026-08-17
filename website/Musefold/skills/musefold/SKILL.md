@@ -79,12 +79,17 @@ Supported automation ratios are `1:1`, `3:4`, `4:3`, `16:9`, and `9:16`. Optiona
 --negative "<negative prompt>"
 --ref "<local image path>"                 # repeatable reference image
 --ref-history "<history id>"               # repeatable prior Musefold result
---max-cost <cents>                          # hard spending ceiling
+--max-cost <points>                         # hard spending ceiling in Musefold points
 ```
 
 With MCP, call `generate_image` with the equivalent fields. It waits for completion by
 default and returns image resources. For deliberate background work, call
 `generate_image(wait:false)` and then exactly one `wait_for_generation(jobId)`.
+
+All Musefold cost and budget values use user-visible points. `1 point = CNY 0.1 = 50,000
+managed-account quota units`. Read `costPoints`, `estimatedPoints`, and
+`remainingBudgetPoints` as points; never convert a returned point value again and never
+treat it as cents. CLI `--max-cost` is also expressed in points.
 
 CLI `--json` emits NDJSON progress followed by a result object. Present every
 `assets[].path` to the user. Do not poll with `get_generation`, and do not retry a failed

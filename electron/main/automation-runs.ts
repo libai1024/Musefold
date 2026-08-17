@@ -10,9 +10,9 @@ import { getDb } from '@musefold/core/db/index';
 import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import type { GenerateImageRequest } from '@shared/types/providers';
 import { estimateProviderCost } from '../settings/pricing';
-import { ACCOUNT_QUOTA_PER_USD, resolveRatioOptionById } from '@shared/constants';
+import { resolveRatioOptionById } from '@shared/constants';
 import {
-  remainingAutomationBudgetCents,
+  remainingAutomationBudgetPoints,
   settleAutomationBudget,
 } from '../settings/automation';
 import { getMusefoldCore } from './core-instance';
@@ -30,7 +30,7 @@ interface ExternalRun {
   status: 'running' | 'success' | 'failed' | 'cancelled';
   startedAt: number;
   assets: Array<{ path: string }>;
-  costCents: number | null;
+  costPoints: number | null;
   error?: { code: string; message: string } | null;
   /** 方案运行的 dsr_ 运行号 / Skill 的执行轨迹摘要 */
   runId?: string;
@@ -41,7 +41,7 @@ interface ExternalRun {
 const externalRuns = new Map<string, ExternalRun>();
 
 interface SpendAuthorizer {
-  (summary: { providerName: string; model: string; n: number; estimatedCents: number | null; promptPreview: string }): Promise<void>;
+  (summary: { providerName: string; model: string; n: number; estimatedPoints: number | null; promptPreview: string }): Promise<void>;
 }
 
 interface ProviderPick {
@@ -69,14 +69,8 @@ function pickProvider(providerId?: string): ProviderPick {
   };
 }
 
-/**
- * 托管 Provider 的 pricing 存的是 quota point（500000 = $1，按 ¥1 计费），
- * 而预算闸门与确认卡都以人民币「分」为口径——不换算会把 0.4 积分显示成 ¥200。
- */
-function estimateCentsFor(provider: ProviderPick, n: number): number | null {
-  const raw = estimateProviderCost(provider.id, { n });
-  if (raw == null || provider.managedBy !== 'account') return raw;
-  return Math.round((raw * 100) / ACCOUNT_QUOTA_PER_USD);
+function estimatePointsFor(provider: ProviderPick, n: number): number | null {
+  return estimateProviderCost(provider.id, { n });
 }
 
 function runPayload(run: ExternalRun) {
@@ -86,7 +80,7 @@ function runPayload(run: ExternalRun) {
     status: run.status,
     startedAt: run.startedAt,
     assets: run.assets,
-    costCents: run.costCents,
+    costPoints: run.costPoints,
     stepSummaries: run.stepSummaries.slice(-12),
     ...(run.runId ? { runId: run.runId } : {}),
     ...(run.error ? { error: run.error } : {}),
@@ -136,7 +130,7 @@ export function createExternalRunRoutes(
         throw new AutomationError('INVALID_PARAMS', `n 必须是 1–${MAX_RUN_N} 的整数`, 400, { n });
       }
       const provider = pickProvider(body.providerId);
-      const estimated = estimateCentsFor(provider, n);
+      const estimated = estimatePointsFor(provider, n);
       const approvedVia: 'budget' | 'confirmation' | 'consent' =
         body.consent === 'interactive' ? 'consent' : externalSpendCovered(estimated) ? 'budget' : 'confirmation';
       if (body.consent !== 'interactive') {
@@ -144,7 +138,7 @@ export function createExternalRunRoutes(
           providerName: provider.name,
           model: provider.model,
           n,
-          estimatedCents: estimated,
+          estimatedPoints: estimated,
           promptPreview: `运行方案「${detail.summary.name}」`,
         });
       }
@@ -158,7 +152,7 @@ export function createExternalRunRoutes(
         status: 'running',
         startedAt: Date.now(),
         assets: [],
-        costCents: null,
+        costPoints: null,
         stepSummaries: [],
         controller,
       };
@@ -206,8 +200,8 @@ export function createExternalRunRoutes(
               .map((generation) => generation.result.imagePath)
               .filter((path): path is string => Boolean(path))
               .map((path) => ({ path }));
-            const cost = generations.reduce((sum, generation) => sum + (generation.result.costCents ?? generation.result.cost ?? 0), 0);
-            run.costCents = cost || null;
+            const cost = generations.reduce((sum, generation) => sum + (generation.result.costPoints ?? generation.result.cost ?? 0), 0);
+            run.costPoints = cost || null;
             run.status = succeeded.length > 0 ? 'success' : controller.signal.aborted ? 'cancelled' : 'failed';
             if (cost > 0) settleAutomationBudget(cost);
           }
@@ -216,8 +210,8 @@ export function createExternalRunRoutes(
             action: 'run_scheme',
             promptText: body.brief ?? null,
             params: { schemeId: detail.summary.id, inputs: body.inputs ?? {}, n, providerId: provider.id },
-            estimatedCents: estimated,
-            actualCents: run.costCents,
+            estimatedPoints: estimated,
+            actualPoints: run.costPoints,
             approvedVia,
             status: run.status,
             jobId: run.id,
@@ -263,7 +257,7 @@ export function createExternalRunRoutes(
         throw new AutomationError('INVALID_PARAMS', `n 必须是 1–${MAX_RUN_N} 的整数`, 400, { n });
       }
       const provider = pickProvider(body.providerId);
-      const estimated = estimateCentsFor(provider, n);
+      const estimated = estimatePointsFor(provider, n);
       const approvedVia: 'budget' | 'confirmation' | 'consent' =
         body.consent === 'interactive' ? 'consent' : externalSpendCovered(estimated) ? 'budget' : 'confirmation';
       if (body.consent !== 'interactive') {
@@ -271,7 +265,7 @@ export function createExternalRunRoutes(
           providerName: provider.name,
           model: provider.model,
           n,
-          estimatedCents: estimated,
+          estimatedPoints: estimated,
           promptPreview: `运行 GitHub Skill：${body.url}`,
         });
       }
@@ -285,7 +279,7 @@ export function createExternalRunRoutes(
         status: 'running',
         startedAt: Date.now(),
         assets: [],
-        costCents: null,
+        costPoints: null,
         stepSummaries: [],
         controller,
       };
@@ -335,8 +329,8 @@ export function createExternalRunRoutes(
             .map((generation) => generation.result.imagePath)
             .filter((path): path is string => Boolean(path))
             .map((path) => ({ path }));
-          const cost = generations.reduce((sum, generation) => sum + (generation.result.costCents ?? generation.result.cost ?? 0), 0);
-          run.costCents = cost || null;
+          const cost = generations.reduce((sum, generation) => sum + (generation.result.costPoints ?? generation.result.cost ?? 0), 0);
+          run.costPoints = cost || null;
           run.status = succeeded.length > 0 ? 'success' : controller.signal.aborted ? 'cancelled' : 'failed';
           if (cost > 0) settleAutomationBudget(cost);
         }
@@ -345,8 +339,8 @@ export function createExternalRunRoutes(
           action: 'run_github_skill',
           promptText: body.prompt ?? null,
           params: { url: body.url, n, providerId: provider.id },
-          estimatedCents: estimated,
-          actualCents: run.costCents,
+          estimatedPoints: estimated,
+          actualPoints: run.costPoints,
           approvedVia,
           status: run.status,
           jobId: run.id,
@@ -385,6 +379,6 @@ function cancelExternalRun(id: string, kind: 'scheme' | 'skill') {
 }
 
 /** 供预算判定复用（与生图闸门一致的口径）。 */
-export function externalSpendCovered(estimatedCents: number | null): boolean {
-  return estimatedCents != null && estimatedCents <= remainingAutomationBudgetCents();
+export function externalSpendCovered(estimatedPoints: number | null): boolean {
+  return estimatedPoints != null && estimatedPoints <= remainingAutomationBudgetPoints();
 }

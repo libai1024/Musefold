@@ -183,7 +183,7 @@ export function buildHistoryStatsSql(q: Partial<HistoryStatsQuery> = {}): {
   const { where, values } = buildHistoryStatsWhere(q);
   return {
     totalSql: `
-      SELECT COALESCE(h.cost_unit, 'cny_cent') AS unit,
+      SELECT 'point' AS unit,
              COALESCE(SUM(COALESCE(h.cost, 0)), 0) AS cost,
              COUNT(*) AS totalCount
       FROM history h
@@ -192,7 +192,7 @@ export function buildHistoryStatsSql(q: Partial<HistoryStatsQuery> = {}): {
     `,
     bucketsSql: `
       SELECT ${bucketExpr} AS key,
-             COALESCE(h.cost_unit, 'cny_cent') AS unit,
+             'point' AS unit,
              COALESCE(SUM(COALESCE(h.cost, 0)), 0) AS cost,
              COUNT(*) AS count
       FROM history h
@@ -203,7 +203,7 @@ export function buildHistoryStatsSql(q: Partial<HistoryStatsQuery> = {}): {
     byProviderSql: `
       SELECT h.provider_id AS providerId,
              COALESCE(p.name, h.provider_id) AS name,
-             COALESCE(h.cost_unit, 'cny_cent') AS unit,
+             'point' AS unit,
              COALESCE(SUM(COALESCE(h.cost, 0)), 0) AS cost,
              COUNT(*) AS count
       FROM history h
@@ -465,21 +465,20 @@ export function registerHistoryHandlers(): void {
       const count = Number(r.totalCount ?? 0);
       const cost = Number(r.cost ?? 0);
       return {
-        unit: r.unit === 'point' ? 'point' as const : 'cny_cent' as const,
+        unit: 'point' as const,
         cost,
         count,
         avgCost: count > 0 ? cost / count : 0,
       };
     });
     const totalCount = totals.reduce((sum, total) => sum + total.count, 0);
-    const legacyCny = totals.find((total) => total.unit === 'cny_cent');
     const buckets = db.prepare(bucketsSql).all(...values).map((row) => {
       const r = row as Record<string, unknown>;
       return {
         key: String(r.key ?? ''),
         cost: Number(r.cost ?? 0),
         count: Number(r.count ?? 0),
-        ...(r.unit === 'point' ? { unit: 'point' as const } : {}),
+        unit: 'point' as const,
       };
     });
     const byProvider = db.prepare(byProviderSql).all(...values).map((row) => {
@@ -489,14 +488,14 @@ export function registerHistoryHandlers(): void {
         name: String(r.name ?? r.providerId ?? ''),
         cost: Number(r.cost ?? 0),
         count: Number(r.count ?? 0),
-        ...(r.unit === 'point' ? { unit: 'point' as const } : {}),
+        unit: 'point' as const,
       };
     });
 
     return {
-      ...(totals.some((total) => total.unit === 'point') ? { totals } : {}),
-      totalCost: legacyCny?.cost ?? 0,
-      avgCost: legacyCny?.avgCost ?? 0,
+      totals,
+      totalCost: totals[0]?.cost ?? 0,
+      avgCost: totals[0]?.avgCost ?? 0,
       totalCount,
       buckets,
       byProvider,

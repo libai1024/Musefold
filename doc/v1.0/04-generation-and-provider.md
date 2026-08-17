@@ -59,7 +59,7 @@ Core 对外只返回不含 secret 的 `ProviderConfig`，包括 `managedBy`。UI
 
 ### Wukong Studio
 
-默认 API `/catalog` 获取模型，`POST /submit` 使用 `product_id` 和 `{prompt,size:ratio}`，每 2500ms 轮询，超时 180s；成功下载 URL 并写 PNG。成本取服务返回的 `billing.yuan * 100`（人民币分）。不接受参考图；错误包括 WRONG_GROUP、AUTH、NO_BALANCE、RATE_LIMIT、SERVER、TIMEOUT。
+默认 API `/catalog` 获取模型，`POST /submit` 使用 `product_id` 和 `{prompt,size:ratio}`，每 2500ms 轮询，超时 180s；成功下载 URL 并写 PNG。Provider 边界把 `billing.yuan` 换算为积分后返回。不接受参考图；错误包括 WRONG_GROUP、AUTH、NO_BALANCE、RATE_LIMIT、SERVER、TIMEOUT。
 
 ### Doubao 网页版
 
@@ -86,7 +86,7 @@ Provider 错误映射：
 
 ## 6. 计费语义
 
-普通 Provider 成本单位是 `cny_cent`；`providers.managed_by='account'` 的托管 Provider 成本单位是 `point`。Core 使用 `ACCOUNT_QUOTA_PER_USD=500000` 等账号换算常量将 Provider 价格转换为点；Automation 预算展示为人民币分，托管点数先映射为人民币分估算。
+所有 Provider、历史、Automation、CLI 和 MCP 成本统一为用户可见积分，`costUnit` 固定为 `point`。`1 积分 = ¥0.1 = 50,000` 账号原始配额；人民币金额和原始配额只能在 Provider/旧数据边界换算，不进入预算判断。
 
 估算是零成本操作；实际成本在成功后结算自动化预算，失败不扣预算。账号额度、Provider pricing 和模型价格来自服务端/本地 pricing cache，不能把缓存价格当成永久定价。
 

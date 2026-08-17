@@ -9,7 +9,7 @@
 
 密钥只在系统安全存储中。数据库只保存脱敏状态和 Provider 配置。
 
-## 主库 v15
+## 主库 v16
 
 - `prompts`、`prompts_fts`、`folders`、`tags`、`prompt_tags`、`smart_sets`。
 - `providers`、`provider_pricing`、`automation_audit`。
@@ -17,6 +17,8 @@
 - `workbench_sessions`、`generation_runs`、`generated_assets`。
 
 `generation_runs.run_kind` 只允许 `free_generation | refinement | retry`。`prompts` 和 `history` 已移除旧 Recipe 外键及快照列。历史仍保留实际发送的 prompt、Provider/model、参数、状态、成本、耗时和图片路径。
+
+v16 将历史成本统一为积分：旧账号原始配额除以 50,000，旧人民币分除以 10，`cost_unit` 固定为 `point`；自动化审计字段和值同步迁移为积分。
 
 ## 旧库退役
 

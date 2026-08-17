@@ -35,12 +35,11 @@ import { getPaths } from '../system/paths';
 import { estimateProviderCost } from '../settings/pricing';
 import {
   getAutomationEnabled,
-  remainingAutomationBudgetCents,
+  remainingAutomationBudgetPoints,
   setAutomationEnabled,
   settleAutomationBudget,
 } from '../settings/automation';
 import { getCoreEventHub, getMusefoldCore } from './core-instance';
-import { ACCOUNT_QUOTA_PER_USD } from '@shared/constants';
 
 const AUDIT_RING_LIMIT = 200;
 const AUDIT_FILE = 'automation-audit.ndjson';
@@ -85,10 +84,8 @@ function isAllowedReferencePath(path: string): boolean {
   });
 }
 
-function estimateCentsFromRow(row: Record<string, unknown>, n: number): number | null {
-  const raw = estimateProviderCost(row.id as string, { n });
-  if (raw == null || row.managed_by !== 'account') return raw;
-  return Math.round((raw * 100) / ACCOUNT_QUOTA_PER_USD);
+function estimatePointsFromRow(row: Record<string, unknown>, n: number): number | null {
+  return estimateProviderCost(row.id as string, { n });
 }
 
 /** App 确认卡流程（生图闸门与方案/Skill 运行共用）。 */
@@ -100,10 +97,10 @@ function requestRendererConfirmation(summary: ConfirmationSummary): Promise<'app
     });
     broadcastToWindows('automation:confirmationRequired', summary);
     if (Notification.isSupported()) {
-      const cents = summary.estimatedCents;
+      const points = summary.estimatedPoints;
       new Notification({
         title: 'Musefold 生成确认',
-        body: `外部 Agent 请求生成 ${summary.n} 张图${cents != null ? `（预估 ¥${(cents / 100).toFixed(2)}）` : '（成本未知）'}，请在应用内确认`,
+        body: `外部 Agent 请求生成 ${summary.n} 张图${points != null ? `（预估 ${points} 积分）` : '（成本未知）'}，请在应用内确认`,
       }).show();
     }
   });
@@ -130,7 +127,7 @@ function createElectronGenerationHost(): GenerationHost {
       }
       const n = body.n ?? 1;
       return {
-        cents: estimateCentsFromRow(row, n),
+        points: estimatePointsFromRow(row, n),
         providerId: row.id as string,
         providerName: row.name as string,
         model: body.model ?? (row.model as string),
@@ -138,8 +135,8 @@ function createElectronGenerationHost(): GenerationHost {
       };
     },
     budget: {
-      remainingCents: () => remainingAutomationBudgetCents(),
-      settle: (actualCents) => settleAutomationBudget(actualCents),
+      remainingPoints: () => remainingAutomationBudgetPoints(),
+      settle: (actualPoints) => settleAutomationBudget(actualPoints),
     },
     requestConfirmation: (summary) => requestRendererConfirmation(summary),
     authorizeReferencePath: isAllowedReferencePath,
@@ -188,10 +185,10 @@ async function authorizeExternalSpend(summary: {
   providerName: string;
   model: string;
   n: number;
-  estimatedCents: number | null;
+  estimatedPoints: number | null;
   promptPreview: string;
 }): Promise<void> {
-  if (externalSpendCovered(summary.estimatedCents)) return;
+  if (externalSpendCovered(summary.estimatedPoints)) return;
   const confirmation: ConfirmationSummary = { confirmationId: randomUUID(), ...summary };
   getCoreEventHub().sink.emit({ type: 'confirmation.required', payload: confirmation });
   const verdict = await Promise.race([
@@ -325,8 +322,8 @@ export function listAutomationAudit(limit = 50): AutomationSpendAudit[] {
       promptText: entry.promptText,
       approvedVia: entry.approvedVia,
       status: entry.status,
-      estimatedCents: entry.estimatedCents,
-      actualCents: entry.actualCents,
+      estimatedPoints: entry.estimatedPoints,
+      actualPoints: entry.actualPoints,
       jobId: entry.jobId,
     }));
 }

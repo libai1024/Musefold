@@ -4,12 +4,10 @@
 import type { PromptParams } from '@shared/types/models';
 import { formatCost } from '../../lib/format';
 
-/** 历史账本中的成本文案：成功但 cost=null 表示该 Provider 未配置单价。
- *  账号托管记录以 point 计账（quota 原值），必须带单位换算成「积分」，
- *  否则 20000 quota 会被当成人民币分显示成 ¥200.00。 */
+/** 历史账本中的成本文案；成功但 cost=null 表示该 Provider 未配置单价。 */
 export function formatHistoryCost(
   cost: number | null | undefined,
-  unit: import('@shared/types/models').CostUnit = 'cny_cent',
+  unit: import('@shared/types/models').CostUnit = 'point',
 ): string {
   return cost == null ? '未配单价' : formatCost(cost, unit);
 }

@@ -62,7 +62,7 @@ export function AutomationSection() {
     setStatus(nextStatus);
     setAudit(nextAudit);
     setBudget(nextBudget);
-    setBudgetDraft((nextBudget.monthlyLimitCents / 100).toFixed(2));
+    setBudgetDraft(String(nextBudget.monthlyLimitPoints));
     setIntegration(nextIntegration);
   }, []);
 
@@ -197,13 +197,13 @@ export function AutomationSection() {
           label="自动化预算"
           hint={
             budget
-              ? `本月已用 ¥${(budget.usedCents / 100).toFixed(2)}；预算内的生成自动放行，超出或未知成本逐次确认（默认 ¥0.00）`
+              ? `本月已用 ${budget.usedPoints} 积分；预算内的生成自动放行，超出或未知成本逐次确认（默认 0 积分）`
               : '预算内的生成自动放行'
           }
           data-testid="automation-budget-row"
         >
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-quaternary">¥</span>
+            <span className="text-[11px] text-quaternary">积分</span>
             <input
               type="number"
               min="0"
@@ -223,7 +223,7 @@ export function AutomationSection() {
                 void (async () => {
                   setBusy(true);
                   try {
-                    setBudget(await api.automation.budget.set(Math.round(Number(budgetDraft) * 100)));
+                    setBudget(await api.automation.budget.set(Number(budgetDraft)));
                   } finally {
                     setBusy(false);
                   }
@@ -469,7 +469,7 @@ export function AutomationSection() {
                     {entry.promptText ? entry.promptText.slice(0, 60) : '—'}
                   </span>
                   <span className="shrink-0 text-quaternary">
-                    {entry.actualCents != null ? `¥${(entry.actualCents / 100).toFixed(2)}` : '-'}
+                    {entry.actualPoints != null ? `${entry.actualPoints} 积分` : '-'}
                   </span>
                   <span className="shrink-0 text-quaternary">{AUDIT_VIA_LABEL[entry.approvedVia] ?? entry.approvedVia}</span>
                   <span className="shrink-0 text-quaternary">

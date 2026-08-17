@@ -8,6 +8,7 @@ import {
   DEFAULT_ACCOUNT_SERVER_URL,
 } from '@shared/constants';
 import type { AccountHealth, AccountNotice } from '@shared/types/account';
+import { accountQuotaToPoints } from '@shared/pricing';
 
 export const ACCOUNT_STORE_NAME = 'musefold-account-v0.5.0';
 /** keychain 条目 id（复用 ElectronAiSecretKeychain 的加密存储） */
@@ -27,6 +28,8 @@ export interface AccountSessionState {
   /** 定价同步指纹与生图单价（点/张）——estImagesRemaining 的分母（FR-COST-01） */
   pricingVersion: string | null;
   imagePricePoints: number | null;
+  /** 缺失表示 v0.5 旧数据：imagePricePoints 实际保存账号原始配额。 */
+  imagePriceUnit?: 'point';
   notices: AccountNotice[];
 }
 
@@ -68,7 +71,17 @@ export class AccountStore {
   }
 
   get session(): AccountSessionState | null {
-    return this.backend.get('session') ?? null;
+    const session = this.backend.get('session') ?? null;
+    if (session?.imagePricePoints != null && session.imagePriceUnit !== 'point') {
+      const migrated = {
+        ...session,
+        imagePricePoints: accountQuotaToPoints(session.imagePricePoints),
+        imagePriceUnit: 'point' as const,
+      };
+      this.backend.set('session', migrated);
+      return migrated;
+    }
+    return session;
   }
 
   set session(value: AccountSessionState | null) {

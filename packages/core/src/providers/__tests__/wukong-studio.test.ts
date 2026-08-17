@@ -58,7 +58,7 @@ describe('WukongStudioProvider retry integration', () => {
     await vi.runAllTimersAsync();
     const result = await pending;
 
-    expect(result).toMatchObject({ historyId: REQUEST.jobId, status: 'success', cost: 12 });
+    expect(result).toMatchObject({ historyId: REQUEST.jobId, status: 'success', cost: 1.2, costUnit: 'point' });
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(progress).toHaveBeenCalledTimes(2);
     expect(progress.mock.calls.map(([event]) => event)).toEqual([

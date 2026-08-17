@@ -164,8 +164,7 @@ export function createManagedProvisioner(): ManagedProvisioner {
         `SELECT 1 FROM providers WHERE id = ? AND managed_by = 'account'`,
       ).get(providerId);
       if (!row) return;
-      // 字段沿用既有 unitCents 命名；history.cost_unit='point' 决定其实际展示单位。
-      setProviderPricing({ providerId, mode: 'per-image', unitCents: pricePoints });
+      setProviderPricing({ providerId, mode: 'per-image', unitPoints: pricePoints });
     },
   };
 }

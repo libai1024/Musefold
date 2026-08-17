@@ -90,7 +90,7 @@ def live_provider(app):
     app.api_ok("settings.pricing.set", {
         "providerId": p["id"],
         "mode": "per-image",
-        "unitCents": 32,
+        "unitPoints": 3.2,
     })
     app.api_ok("provider.setActive", p["id"])
     app.page.evaluate(
@@ -192,7 +192,7 @@ def test_live_generate_writes_real_png_and_history(app):
     assert row["error_code"] is None and row["error_message"] is None, row
     assert row["model"] == LIVE_MODEL, row
     assert row["image_path"], "成功行必须落图片路径"
-    assert isinstance(row["cost"], int) and row["cost"] > 0, f"应记成本（分）: {row['cost']}"
+    assert isinstance(row["cost"], (int, float)) and row["cost"] > 0, f"应记成本（积分）: {row['cost']}"
     assert isinstance(row["duration_ms"], int) and row["duration_ms"] > 0, row["duration_ms"]
 
     # ── 磁盘真相：真 PNG，不是 0 字节占位 ──────────────────
@@ -231,7 +231,7 @@ def test_live_generate_writes_real_png_and_history(app):
     image_size = img.stat().st_size
     print(f"\n[live] 出图成功 {dims['w']}x{dims['h']}, "
           f"{image_size} bytes ({image_size // 1024}KB), {row['duration_ms']}ms, "
-          f"成本 {row['cost']} 分, 墙钟 {elapsed:.1f}s, sha256={image_sha256}")
+          f"成本 {row['cost']} 积分, 墙钟 {elapsed:.1f}s, sha256={image_sha256}")
 
 
 def test_live_lightbox_opens_generated_image(app):

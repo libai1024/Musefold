@@ -184,11 +184,9 @@ export interface HistoryRecord {
 export type HistoryStatsGroupBy = 'day' | 'week' | 'month';
 
 /**
- * 记账货币单位（FR-COST-03）：
- * - `cny_cent`：人民币分（BYOK 手填单价的历史语义，缺省）
- * - `point`：账号点（500000 点 = $1，与服务器扣费一致）
+ * 唯一成本单位：用户可见积分（1 积分 = ¥0.1 = 50,000 服务端原始配额）。
  */
-export type CostUnit = 'cny_cent' | 'point';
+export type CostUnit = 'point';
 
 export interface HistoryStatsQuery {
   from?: number;
@@ -201,7 +199,7 @@ export interface HistoryStatsBucket {
   key: string;
   cost: number;
   count: number;
-  /** 缺省 cny_cent；point 时显式返回。可选用于兼容 v0.4 IPC 精确响应形状。 */
+  /** 成本单位，固定为 point。 */
   unit?: CostUnit;
 }
 
@@ -210,7 +208,7 @@ export interface HistoryStatsProvider {
   name: string;
   cost: number;
   count: number;
-  /** 缺省 cny_cent；point 时显式返回。 */
+  /** 成本单位，固定为 point。 */
   unit?: CostUnit;
 }
 
@@ -223,14 +221,11 @@ export interface HistoryStatsTotal {
 }
 
 export interface HistoryStats {
-  /**
-   * 按记账单位分组的汇总（仅 success）。
-   * 只有 point 参与时才在 IPC 响应显式返回；纯 cny_cent 响应保留 v0.4 精确形状。
-   */
+  /** 积分汇总（仅 success）。 */
   totals?: HistoryStatsTotal[];
-  /** @deprecated v0.4 兼容字段：仅人民币分（cny_cent）汇总；新 UI 使用 totals。 */
+  /** @deprecated 使用 totals；值同样为积分。 */
   totalCost: number;
-  /** @deprecated v0.4 兼容字段：仅人民币分（cny_cent）平均；新 UI 使用 totals。 */
+  /** @deprecated 使用 totals；值同样为积分。 */
   avgCost: number;
   /** 全部成功次数（跨单位） */
   totalCount: number;
@@ -246,10 +241,9 @@ export type ProviderPricingMode = 'per-image' | 'per-1k-token';
 export interface ProviderPricingConfig {
   mode: ProviderPricingMode;
   /**
-   * 单位价格的最小记账单位：BYOK Provider = 人民币分；账号托管 Provider = 点。
-   * per-image=每张；per-1k-token=每千 token。最终显示单位由 history.cost_unit 快照决定。
+   * 单位价格（积分）。per-image=每张；per-1k-token=每千 token。
    */
-  unitCents: number;
+  unitPoints: number;
 }
 
 export interface ProviderPricingSetRequest extends ProviderPricingConfig {

@@ -15,7 +15,7 @@ export const EXPORT_FORMAT = 'musefold-export';
  * - 只加可选字段 → 不动版本号（旧端读新文件时忽略未知字段即可）
  * - 改字段语义 / 删字段 / 加必填字段 → +1，并在 validateEnvelope 里写好降级路径
  */
-export const EXPORT_SCHEMA_VERSION = 2;
+export const EXPORT_SCHEMA_VERSION = 3;
 
 /** zip 模式里导出 JSON 的固定名字；导入端据此在包内定位 */
 export const EXPORT_JSON_NAME = 'musefold-export.json';

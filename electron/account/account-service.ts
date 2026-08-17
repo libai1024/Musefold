@@ -8,7 +8,7 @@
 import {
   ACCOUNT_DEFAULT_IMAGE_MODEL,
   ACCOUNT_DEFAULT_TEXT_MODEL,
-  ACCOUNT_QUOTA_PER_USD,
+  ACCOUNT_QUOTA_PER_POINT,
   DEFAULT_ACCOUNT_SERVER_FALLBACK_URL,
   DEFAULT_ACCOUNT_SERVER_URL,
   DEFAULT_ACCOUNT_SERVER_URLS,
@@ -130,7 +130,9 @@ export class AccountService {
       isDefaultServer: DEFAULT_ACCOUNT_SERVER_URLS.includes(this.activeServerUrl as (typeof DEFAULT_ACCOUNT_SERVER_URLS)[number]),
       quota,
       estImagesRemaining:
-        quota && price && price > 0 ? Math.max(0, Math.floor(quota.value / price)) : null,
+        quota && price && price > 0
+          ? Math.max(0, Math.floor((quota.value / ACCOUNT_QUOTA_PER_POINT) / price))
+          : null,
       deviceTokenSuffix: session?.deviceTokenSuffix ?? null,
       health: session?.health ?? 'unknown',
       notices: session?.notices ?? [],
@@ -204,6 +206,7 @@ export class AccountService {
         health: 'ok',
         pricingVersion: previousSession?.pricingVersion ?? null,
         imagePricePoints: previousSession?.imagePricePoints ?? null,
+        imagePriceUnit: 'point',
         notices: previousSession?.notices ?? [],
       };
 
@@ -336,9 +339,9 @@ export class AccountService {
       );
       if (image && session.managedProviderId) {
         const groupRatio = pricing.groupRatio[session.group] ?? pricing.groupRatio.default ?? 1;
-        const pricePoints = Math.round(image.modelPrice * ACCOUNT_QUOTA_PER_USD * (groupRatio || 1));
+        const pricePoints = image.modelPrice * 10 * (groupRatio || 1);
         this.provisioner.applyImagePrice(session.managedProviderId, pricePoints);
-        this.store.patchSession({ pricingVersion: pricing.version, imagePricePoints: pricePoints });
+        this.store.patchSession({ pricingVersion: pricing.version, imagePricePoints: pricePoints, imagePriceUnit: 'point' });
       } else {
         this.store.patchSession({ pricingVersion: pricing.version });
       }

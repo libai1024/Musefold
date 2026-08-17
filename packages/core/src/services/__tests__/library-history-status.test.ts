@@ -152,8 +152,8 @@ describe('SpendAuditService（V04-SEC-01 完整落库）', () => {
       action: 'generate_image',
       promptText: '完整提示词全文，一字不落地进入本机审计表',
       params: { providerId: 'prov-a', n: 2 },
-      estimatedCents: 36,
-      actualCents: 40,
+      estimatedPoints: 3.6,
+      actualPoints: 4,
       approvedVia: 'budget',
       status: 'success',
       jobId: 'JOB1',
@@ -165,8 +165,8 @@ describe('SpendAuditService（V04-SEC-01 完整落库）', () => {
       promptText: '完整提示词全文，一字不落地进入本机审计表',
       approvedVia: 'budget',
       status: 'success',
-      estimatedCents: 36,
-      actualCents: 40,
+      estimatedPoints: 3.6,
+      actualPoints: 4,
       jobId: 'JOB1',
     });
     expect(entries[0].params).toEqual({ providerId: 'prov-a', n: 2 });
