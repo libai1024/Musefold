@@ -137,11 +137,13 @@ export function replaceMusefoldSkillDirectory(
   source: MusefoldSkillInstallMetadata['source'],
   manifestUrl: string | null,
 ): string | null {
-  const parent = dirname(dir);
-  mkdirSync(parent, { recursive: true });
+  const skillRoot = dirname(dir);
+  const clientRoot = dirname(skillRoot);
+  mkdirSync(skillRoot, { recursive: true });
   const nonce = `${Date.now()}-${process.pid}`;
-  const stage = join(parent, `.musefold-stage-${nonce}`);
-  const backup = join(parent, `musefold.backup-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`);
+  const stage = join(skillRoot, `.musefold-stage-${nonce}`);
+  const backupRoot = join(clientRoot, 'musefold-skill-backups');
+  const backup = join(backupRoot, `musefold-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`);
   let movedExisting = false;
   try {
     mkdirSync(stage, { recursive: false });
@@ -156,6 +158,7 @@ export function replaceMusefoldSkillDirectory(
       { encoding: 'utf8', mode: 0o600 },
     );
     if (existsSync(dir)) {
+      mkdirSync(backupRoot, { recursive: true });
       renameSync(dir, backup);
       movedExisting = true;
     }

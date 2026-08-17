@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   compareReleaseVersions,
@@ -55,11 +55,11 @@ describe('Musefold Skill release contract', () => {
     });
   });
 
-  it('atomically replaces a directory and keeps the previous version as a sibling backup', () => {
+  it('atomically replaces a directory and keeps the previous version outside the Skill discovery root', () => {
     const root = mkdtempSync(join(tmpdir(), 'musefold-skill-release-'));
-    const target = join(root, 'musefold');
+    const skillRoot = join(root, '.codex', 'skills');
+    const target = join(skillRoot, 'musefold');
     try {
-      writeFileSync(join(root, 'placeholder'), 'keep parent');
       replaceMusefoldSkillDirectory(
         target,
         new Map([['SKILL.md', 'old']]),
@@ -81,6 +81,8 @@ describe('Musefold Skill release contract', () => {
         source: 'github-release',
       });
       expect(backup).not.toBeNull();
+      expect(dirname(backup!)).toBe(join(root, '.codex', 'musefold-skill-backups'));
+      expect(relative(skillRoot, backup!).startsWith('..')).toBe(true);
       expect(readFileSync(join(backup!, 'SKILL.md'), 'utf8')).toBe('old');
     } finally {
       rmSync(root, { recursive: true, force: true });

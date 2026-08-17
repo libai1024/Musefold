@@ -63,14 +63,14 @@ MCP 完整模式共 16 个工具。readonly/toolset/no-wait 参数可继续裁�
 - App 内置一个固定版本的完整 Skill 目录，当前为 `v0.4.0`；离线时仍可安装。
 - `Musefold-Skills/main/manifest.json` 只用于发现最新版。清单内每个文件 URL 必须指向与 `version` 相同的不可变 Git tag，不能直接下载 `main` 内容。
 - 清单声明 `minimumAppVersion`、文件相对路径和 SHA-256。App 限制 GitHub host、仓库、tag、路径穿越、文件数、单文件大小和下载超时。
-- 安装先在目标目录同级 staging 中写入并校验全部文件，再把旧目录重命名为时间戳备份并原子换入新目录；失败时恢复旧目录。
+- 安装先在目标 `skills` 目录的 staging 中写入并校验全部文件，再把旧目录移动到 Agent 配置根目录下的 `musefold-skill-backups`（位于 Skill 扫描目录之外），随后原子换入新目录；失败时恢复旧目录。禁止在 `skills` 下保留含 `SKILL.md` 的备份，避免同名 Skill 被重复发现。
 - `.musefold-install.json` 记录版本、来源、安装时间和文件哈希。旧安装没有 sidecar 时，回退读取 `SKILL.md` 的 HTML 版本标记；两者都没有则显示“旧版/版本未知”。
 - 设置 → 自动化提供检查、安装/更新/重新安装和自动更新开关。自动更新默认关闭；开启后只更新已经安装 Musefold Skill 的 Agent 目标，不会向未使用的客户端静默安装。
 - 启动时异步检查，不阻断窗口创建。网络或清单失败时保留已安装版本，并允许用户安装 App 内置版本。
 
 新版 Skill 对旧 App 采用能力探测而非硬编码版本矩阵：先看 MCP 工具目录，再看 health capabilities；CLI 回退先执行 `status --json` 与 `help`。缺少 setup、参考图、异步等待、设计方案或 GitHub Skill 能力时，降级到 App UI。旧响应只有裸 `cost` 且没有 `costUnit` 时，单位视为未知，禁止猜测或换算。
 
-发布顺序必须是：更新 Skill 目录与兼容说明 → 计算 SHA-256 → 更新 manifest → 提交并创建对应 tag → 验证 tag 下原始文件可下载 → 最后更新 App 内置版本并发布 App。若先把 manifest 推到 `main` 而 tag 尚不存在，客户端会发现版本但下载失败。
+完整更新契约见 `Musefold-Skills/SKILL-UPDATE-SPEC.md`。发布顺序必须是：更新 Skill 目录、兼容说明和 App 内置副本 → 计算 SHA-256 并更新 manifest → 提交并创建对应 annotated tag → **先推送并验证 tag** → 再推送 `main` 上的 manifest → 最后提交、验证并发布 App。若先把 manifest 推到 `main` 而 tag 尚不存在，客户端会发现版本但下载失败。
 
 ## 花费与审计
 

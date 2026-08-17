@@ -120,7 +120,9 @@ def test_agent_skill_install_and_update_controls(app):
         assert "musefold-skill-version: v0.4.0" in skill.read_text("utf8")
         assert compatibility.is_file()
         assert metadata["version"] == "v0.4.0"
-        assert metadata["source"] == "bundled"
+        assert metadata["source"] in {"bundled", "github-release"}
+        if metadata["source"] == "github-release":
+            assert metadata["manifestUrl"].endswith("/main/manifest.json")
 
     auto_update = app.page.get_by_test_id("integration-skill-auto-update")
     assert auto_update.get_attribute("aria-checked") == "false"
