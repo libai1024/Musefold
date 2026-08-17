@@ -54,6 +54,24 @@ MCP 是 Automation API 的无状态薄适配器，不开数据库、不存密钥
 
 MCP 完整模式共 16 个工具。readonly/toolset/no-wait 参数可继续裁剪。stdout 只用于 stdio 协议，日志只写 stderr。
 
+`GET /v1/health` 同时返回 `appVersion`、`apiVersion` 和细粒度 `capabilities`。当前能力字段包括 `generation`、`schemes`、`skills`、`setup`、`generationWait`、`referenceImages`、`historyReferences`、`pointCosts` 和 `githubSkillReferenceImages`。字段是向后兼容的可选声明：Agent 必须以实际 MCP 工具目录/输入 schema 为第一依据；旧 App 缺字段时按“未知”处理，不能默认支持。
+
+## 官方 Agent Skill 的安装与更新
+
+此处的 `Musefold 自动化 Skill` 是安装到 Codex、Claude Code、Cursor 的控制说明，不是工作台里运行的第三方 GitHub 视觉 Skill。
+
+- App 内置一个固定版本的完整 Skill 目录，当前为 `v0.4.0`；离线时仍可安装。
+- `Musefold-Skills/main/manifest.json` 只用于发现最新版。清单内每个文件 URL 必须指向与 `version` 相同的不可变 Git tag，不能直接下载 `main` 内容。
+- 清单声明 `minimumAppVersion`、文件相对路径和 SHA-256。App 限制 GitHub host、仓库、tag、路径穿越、文件数、单文件大小和下载超时。
+- 安装先在目标目录同级 staging 中写入并校验全部文件，再把旧目录重命名为时间戳备份并原子换入新目录；失败时恢复旧目录。
+- `.musefold-install.json` 记录版本、来源、安装时间和文件哈希。旧安装没有 sidecar 时，回退读取 `SKILL.md` 的 HTML 版本标记；两者都没有则显示“旧版/版本未知”。
+- 设置 → 自动化提供检查、安装/更新/重新安装和自动更新开关。自动更新默认关闭；开启后只更新已经安装 Musefold Skill 的 Agent 目标，不会向未使用的客户端静默安装。
+- 启动时异步检查，不阻断窗口创建。网络或清单失败时保留已安装版本，并允许用户安装 App 内置版本。
+
+新版 Skill 对旧 App 采用能力探测而非硬编码版本矩阵：先看 MCP 工具目录，再看 health capabilities；CLI 回退先执行 `status --json` 与 `help`。缺少 setup、参考图、异步等待、设计方案或 GitHub Skill 能力时，降级到 App UI。旧响应只有裸 `cost` 且没有 `costUnit` 时，单位视为未知，禁止猜测或换算。
+
+发布顺序必须是：更新 Skill 目录与兼容说明 → 计算 SHA-256 → 更新 manifest → 提交并创建对应 tag → 验证 tag 下原始文件可下载 → 最后更新 App 内置版本并发布 App。若先把 manifest 推到 `main` 而 tag 尚不存在，客户端会发现版本但下载失败。
+
 ## 花费与审计
 
 - 生图、Skill 和设计方案 run 是 spend 操作。

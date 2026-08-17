@@ -99,6 +99,41 @@ def test_automation_control_plane_end_to_end(app):
     assert all("action" in entry and "approvedVia" in entry for entry in audit)
 
 
+def test_agent_skill_install_and_update_controls(app):
+    app.set_view("settings")
+    app.page.evaluate(
+        "() => window.__musefold_test?.stores?.settings?.getState?.().setSection?.('automation')"
+    )
+    panel = app.page.get_by_test_id("integration-skill")
+    panel.wait_for(state="visible", timeout=5000)
+    assert "v0.4.0" in app.page.get_by_test_id("integration-skill-status").inner_text()
+
+    app.page.get_by_test_id("integration-skill-install").click()
+    app.page.get_by_test_id("integration-notice").wait_for(state="visible", timeout=5000)
+    assert "v0.4.0" in app.page.get_by_test_id("integration-notice").inner_text()
+
+    for client in ("codex", "claude", "cursor"):
+        skill_dir = app.user_data_dir / "skills" / client / "musefold"
+        skill = skill_dir / "SKILL.md"
+        compatibility = skill_dir / "references" / "compatibility.md"
+        metadata = json.loads((skill_dir / ".musefold-install.json").read_text("utf8"))
+        assert "musefold-skill-version: v0.4.0" in skill.read_text("utf8")
+        assert compatibility.is_file()
+        assert metadata["version"] == "v0.4.0"
+        assert metadata["source"] == "bundled"
+
+    auto_update = app.page.get_by_test_id("integration-skill-auto-update")
+    assert auto_update.get_attribute("aria-checked") == "false"
+    auto_update.click()
+    app.page.wait_for_function(
+        "() => document.querySelector('[data-testid=integration-skill-auto-update]')?.getAttribute('aria-checked') === 'true'"
+    )
+    auto_update.click()
+    app.page.wait_for_function(
+        "() => document.querySelector('[data-testid=integration-skill-auto-update]')?.getAttribute('aria-checked') === 'false'"
+    )
+
+
 def test_automation_origin_and_owner_lock(app):
     doc = read_discovery(app)
 

@@ -1,7 +1,7 @@
 // 设置 · 自动化（V04-SET-01）：本地控制面开关、端口/token 展示与轮换、审计一览。
 // 安全边界：token 只用于本机 Agent/CLI 接入；关闭后端口不再监听、发现文件删除。
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, ExternalLink } from 'lucide-react';
+import { Copy, Download, ExternalLink, RefreshCw } from 'lucide-react';
 import type {
   AutomationBudget,
   AutomationSpendAudit,
@@ -51,6 +51,17 @@ export function AutomationSection() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
+
+  const installedSkillCount = integration
+    ? Object.values(integration.skills.installed).filter(Boolean).length
+    : 0;
+  const skillVersionSummary = integration
+    ? installedSkillCount === 0
+      ? `未安装 · App 内置 ${integration.skills.bundledVersion}`
+      : integration.skills.updateAvailable
+        ? `发现更新 ${integration.skills.availableVersion}`
+        : `已安装 ${integration.skills.availableVersion}`
+    : '检测中…';
 
   const refresh = useCallback(async () => {
     const [nextStatus, nextAudit, nextBudget, nextIntegration] = await Promise.all([
@@ -346,40 +357,114 @@ export function AutomationSection() {
 
           {/* 公开 Agent Skill */}
           <div className="rounded-lg border border-border-subtle p-3" data-testid="integration-skill">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="min-w-0 flex-1">
                 <p className="text-[12px] font-medium text-primary">Musefold 自动化 Skill</p>
-                <code
-                  className="mt-1 block truncate font-mono text-[10.5px] text-tertiary"
-                  data-testid="integration-skill-url"
-                  title={integration?.snippets.skillUrl}
-                >
-                  {integration?.snippets.skillUrl ?? '正在获取网址…'}
-                </code>
+                <p className="mt-1 text-[10.5px] text-tertiary" data-testid="integration-skill-status">
+                  {skillVersionSummary}
+                  {integration?.skills.checkedAt
+                    ? ` · 已检查 ${new Date(integration.skills.checkedAt).toLocaleString('zh-CN', { hour12: false })}`
+                    : ' · 尚未联网检查'}
+                </p>
               </div>
+              <button
+                type="button"
+                className="no-drag inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                disabled={busy || !integration?.bundledReady}
+                data-testid="integration-skill-install"
+                onClick={() => void runIntegration('install-skill-all')}
+              >
+                <Download aria-hidden="true" size={13} />
+                {installedSkillCount === 0
+                  ? '安装'
+                  : integration?.skills.updateAvailable
+                    ? '更新'
+                    : '重新安装'}
+              </button>
               <button
                 type="button"
                 className="no-drag inline-flex items-center gap-1 rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
                 disabled={busy || !integration}
-                data-testid="integration-skill-open"
-                onClick={() => void runIntegration('open-skill-url')}
+                data-testid="integration-skill-check"
+                onClick={() => void runIntegration('check-skill-update')}
               >
-                <ExternalLink aria-hidden="true" size={13} />
-                打开
+                <RefreshCw aria-hidden="true" size={13} />
+                检查
               </button>
               <button
                 type="button"
-                className="no-drag inline-flex items-center gap-1 rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+                className="no-drag inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-default text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+                disabled={busy || !integration}
+                data-testid="integration-skill-open"
+                title="打开 Skill 发布页"
+                onClick={() => void runIntegration('open-skill-url')}
+              >
+                <ExternalLink aria-hidden="true" size={13} />
+              </button>
+              <button
+                type="button"
+                className="no-drag inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-default text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
                 disabled={!integration}
                 data-testid="integration-skill-copy"
+                title={copiedSnippet === 'skill-url' ? '已复制 Skill 地址' : '复制 Skill 地址'}
                 onClick={() => void copySnippet('skill-url', integration!.snippets.skillUrl)}
               >
                 <Copy aria-hidden="true" size={13} />
-                {copiedSnippet === 'skill-url' ? '已复制' : '复制网址'}
               </button>
             </div>
+            <div className="mt-2 flex items-center justify-between gap-3 border-t border-border-subtle pt-2">
+              <div className="min-w-0">
+                <p className="text-[10.5px] text-secondary">自动更新</p>
+                <p className="mt-0.5 text-[10px] text-quaternary">
+                  启动时检查并更新已安装项；下载内容通过 SHA-256 校验，旧目录保留备份
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={integration?.skills.autoUpdate ?? false}
+                aria-label="自动更新 Musefold Skill"
+                disabled={busy || !integration}
+                data-testid="integration-skill-auto-update"
+                onClick={() => void runIntegration(
+                  integration?.skills.autoUpdate
+                    ? 'disable-skill-auto-update'
+                    : 'enable-skill-auto-update',
+                )}
+                className={cn(
+                  'no-drag relative h-5 w-9 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] disabled:opacity-50',
+                  integration?.skills.autoUpdate ? 'border-accent bg-accent' : 'border-border-strong bg-inset',
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                    integration?.skills.autoUpdate ? 'translate-x-4' : 'translate-x-0',
+                  )}
+                />
+              </button>
+            </div>
+            {integration?.skills.checkError && (
+              <p className="mt-2 text-[10.5px] text-[var(--danger-text,#e5484d)]" data-testid="integration-skill-error">
+                {integration.skills.checkError}；仍可安装 App 内置版本 {integration.skills.bundledVersion}
+              </p>
+            )}
+            <code
+              className="mt-2 block truncate font-mono text-[10px] text-quaternary"
+              data-testid="integration-skill-url"
+              title={integration?.snippets.skillUrl}
+            >
+              {integration?.snippets.skillUrl ?? '正在获取网址…'}
+            </code>
+            {integration && (
+              <p className="mt-1 text-[10px] text-quaternary">
+                Codex {integration.skills.installed.codex ? integration.skills.installedVersions.codex ?? '旧版' : '未安装'}
+                {' · '}Claude {integration.skills.installed.claude ? integration.skills.installedVersions.claude ?? '旧版' : '未安装'}
+                {' · '}Cursor {integration.skills.installed.cursor ? integration.skills.installedVersions.cursor ?? '旧版' : '未安装'}
+              </p>
+            )}
             <p className="mt-1 text-[10.5px] text-quaternary">
-              把网址直接发给 AI；文档会随 Musefold CLI / MCP 一起更新
+              新版 Skill 会先探测 App 能力；旧版 App 缺少新接口时会降级或明确提示升级，不会猜测调用
             </p>
           </div>
 

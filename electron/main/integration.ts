@@ -3,11 +3,22 @@
 // 不需要 Node/npm/网络下载。
 
 import { execFile, execFileSync } from 'child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'fs';
 import { homedir } from 'os';
 import { delimiter, dirname, join, resolve } from 'path';
 import { app, shell } from 'electron';
-import { MUSEFOLD_SKILL_URL } from '@shared/constants';
+import {
+  MUSEFOLD_SKILL_MANIFEST_URL,
+  MUSEFOLD_SKILL_URL,
+  MUSEFOLD_SKILL_VERSION,
+} from '@shared/constants';
 import type {
   IntegrationAction,
   IntegrationActionResult,
@@ -26,14 +37,34 @@ import {
 } from './integration-snippets';
 import { validateMusefoldSkill } from './integration-skill';
 import {
+  compareReleaseVersions,
+  extractMusefoldSkillVersion,
+  replaceMusefoldSkillDirectory,
+  sha256Text,
+  SKILL_INSTALL_METADATA_FILE,
+  validateSkillReleaseManifest,
+  type MusefoldSkillReleaseManifest,
+} from './integration-skill-release';
+import {
   managedCliPathBlock,
   removeManagedCliPathBlock,
   resolvePosixShellProfile,
   upsertManagedCliPathBlock,
 } from './integration-cli-path';
+import {
+  getSkillAutoUpdateEnabled,
+  setSkillAutoUpdateEnabled,
+} from '../settings/automation';
 
 const logger = createLogger('integration');
 const SHIM_NAME = process.platform === 'win32' ? 'musefold.cmd' : 'musefold';
+const SKILL_RELEASE_FILES = ['SKILL.md', 'references/compatibility.md'] as const;
+const SKILL_FETCH_TIMEOUT_MS = 8_000;
+const SKILL_FILE_MAX_BYTES = 512 * 1024;
+
+let remoteSkillRelease: MusefoldSkillReleaseManifest | null = null;
+let skillReleaseCheckedAt: string | null = null;
+let skillReleaseCheckError: string | null = null;
 
 export function resolveIntegrationPaths(): IntegrationPaths {
   if (app.isPackaged) {
@@ -155,20 +186,133 @@ function skillTargets(): Record<'claude' | 'codex' | 'cursor', string> {
   };
 }
 
-function skillContent(): string {
-  const packaged = join(process.resourcesPath, 'integration', 'musefold-skill.md');
+function skillSourceDir(): string {
+  const packaged = join(process.resourcesPath, 'integration', 'musefold-skill');
   const appPath = resolve(app.getAppPath());
   const candidates = app.isPackaged
     ? [packaged]
     : [
-        join(appPath, 'website', 'Musefold', 'skills', 'musefold', 'SKILL.md'),
-        join(resolve(appPath, '..'), 'website', 'Musefold', 'skills', 'musefold', 'SKILL.md'),
-        join(resolve(appPath, '..', '..'), 'website', 'Musefold', 'skills', 'musefold', 'SKILL.md'),
-        join(process.cwd(), 'website', 'Musefold', 'skills', 'musefold', 'SKILL.md'),
+        join(appPath, 'website', 'Musefold', 'skills', 'musefold'),
+        join(resolve(appPath, '..'), 'website', 'Musefold', 'skills', 'musefold'),
+        join(resolve(appPath, '..', '..'), 'website', 'Musefold', 'skills', 'musefold'),
+        join(process.cwd(), 'website', 'Musefold', 'skills', 'musefold'),
       ];
-  const source = candidates.find((candidate) => existsSync(candidate));
+  const source = candidates.find((candidate) => existsSync(join(candidate, 'SKILL.md')));
   if (!source) throw new Error('Musefold Skill 文档缺失');
-  return validateMusefoldSkill(readFileSync(source, 'utf8'));
+  return source;
+}
+
+function bundledSkillFiles(): Map<string, string> {
+  const sourceDir = skillSourceDir();
+  const files = new Map<string, string>();
+  for (const relativePath of SKILL_RELEASE_FILES) {
+    const path = join(sourceDir, relativePath);
+    if (!existsSync(path)) throw new Error(`Musefold Skill 内置文件缺失：${relativePath}`);
+    files.set(relativePath, readFileSync(path, 'utf8'));
+  }
+  validateMusefoldSkill(files.get('SKILL.md')!);
+  return files;
+}
+
+function skillContent(): string {
+  return bundledSkillFiles().get('SKILL.md')!;
+}
+
+function bundledSkillRelease(): MusefoldSkillReleaseManifest {
+  const files = bundledSkillFiles();
+  return {
+    schemaVersion: 1,
+    name: 'musefold',
+    version: MUSEFOLD_SKILL_VERSION,
+    releasedAt: '2026-08-17T00:00:00.000Z',
+    minimumAppVersion: '0.0.0',
+    files: [...files].map(([path, content]) => ({
+      path,
+      url: path === 'SKILL.md'
+        ? MUSEFOLD_SKILL_URL
+        : MUSEFOLD_SKILL_URL.replace(/SKILL\.md$/, path),
+      sha256: sha256Text(content),
+    })),
+  };
+}
+
+function sanitizeSkillUpdateError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error))
+    .replace(/https?:\/\/[^\s)]+/gi, '[Skill 发布服务器]')
+    .slice(0, 240);
+}
+
+async function fetchText(url: string): Promise<string> {
+  const response = await fetch(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(SKILL_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`下载失败（HTTP ${response.status}）`);
+  const contentLength = Number(response.headers.get('content-length') ?? 0);
+  if (contentLength > SKILL_FILE_MAX_BYTES) throw new Error('Skill 发布文件超过大小限制');
+  const text = await response.text();
+  if (Buffer.byteLength(text, 'utf8') > SKILL_FILE_MAX_BYTES) throw new Error('Skill 发布文件超过大小限制');
+  return text;
+}
+
+async function checkRemoteSkillRelease(): Promise<MusefoldSkillReleaseManifest | null> {
+  skillReleaseCheckedAt = new Date().toISOString();
+  try {
+    const manifest = validateSkillReleaseManifest(JSON.parse(await fetchText(MUSEFOLD_SKILL_MANIFEST_URL)));
+    if (compareReleaseVersions(app.getVersion(), manifest.minimumAppVersion) < 0) {
+      throw new Error(`最新版 Skill ${manifest.version} 需要 Musefold ${manifest.minimumAppVersion} 或更高版本`);
+    }
+    remoteSkillRelease = compareReleaseVersions(manifest.version, MUSEFOLD_SKILL_VERSION) >= 0
+      ? manifest
+      : null;
+    skillReleaseCheckError = null;
+    return remoteSkillRelease ?? bundledSkillRelease();
+  } catch (error) {
+    skillReleaseCheckError = sanitizeSkillUpdateError(error);
+    logger.warn('Skill 更新检查失败', skillReleaseCheckError);
+    return null;
+  }
+}
+
+function availableSkillRelease(): MusefoldSkillReleaseManifest {
+  return remoteSkillRelease ?? bundledSkillRelease();
+}
+
+async function releaseFiles(manifest: MusefoldSkillReleaseManifest): Promise<Map<string, string>> {
+  if (manifest.version === MUSEFOLD_SKILL_VERSION && manifest !== remoteSkillRelease) {
+    return bundledSkillFiles();
+  }
+  const files = new Map<string, string>();
+  for (const file of manifest.files) {
+    const content = await fetchText(file.url);
+    if (sha256Text(content) !== file.sha256) throw new Error(`Skill 文件校验失败：${file.path}`);
+    files.set(file.path, content);
+  }
+  const skill = validateMusefoldSkill(files.get('SKILL.md') ?? '');
+  if (extractMusefoldSkillVersion(skill) !== manifest.version) {
+    throw new Error('Skill 正文版本与发布清单不一致');
+  }
+  return files;
+}
+
+function installedSkillVersion(dir: string): string | null {
+  try {
+    const metadata = JSON.parse(readFileSync(join(dir, SKILL_INSTALL_METADATA_FILE), 'utf8')) as {
+      name?: unknown;
+      version?: unknown;
+    };
+    if (metadata.name === 'musefold' && typeof metadata.version === 'string') {
+      compareReleaseVersions(metadata.version, metadata.version);
+      return metadata.version;
+    }
+  } catch {
+    // Older/manual installations have no sidecar; use the in-document marker next.
+  }
+  try {
+    return extractMusefoldSkillVersion(readFileSync(join(dir, 'SKILL.md'), 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 function isShimOnPath(): boolean {
@@ -178,13 +322,26 @@ function isShimOnPath(): boolean {
   return isDirectoryOnPath(dir);
 }
 
-function installSkill(target: 'claude' | 'codex' | 'cursor'): IntegrationActionResult {
+async function installSkill(
+  target: 'claude' | 'codex' | 'cursor',
+  manifest = availableSkillRelease(),
+): Promise<IntegrationActionResult> {
   const dir = skillTargets()[target];
   try {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'SKILL.md'), skillContent(), 'utf8');
+    const files = await releaseFiles(manifest);
+    const source = manifest === remoteSkillRelease ? 'github-release' : 'bundled';
+    const backup = replaceMusefoldSkillDirectory(
+      dir,
+      files,
+      manifest,
+      source,
+      source === 'github-release' ? MUSEFOLD_SKILL_MANIFEST_URL : null,
+    );
     logger.info('Agent Skill 已安装', dir);
-    return { ok: true, message: `已写入 ${join(dir, 'SKILL.md')}` };
+    return {
+      ok: true,
+      message: `已安装 Musefold Skill ${manifest.version} 到 ${dir}${backup ? `；旧版备份：${backup}` : ''}`,
+    };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
@@ -197,6 +354,19 @@ export function getIntegrationInfo(): IntegrationInfo {
   const codexConfigPath = join(homedir(), '.codex', 'config.toml');
   const cursorConfigPath = join(homedir(), '.cursor', 'mcp.json');
   const shimPath = installedShimPath();
+  const targets = skillTargets();
+  const installed = Object.fromEntries(
+    Object.entries(targets).map(([key, dir]) => [key, existsSync(join(dir, 'SKILL.md'))]),
+  ) as Record<'claude' | 'codex' | 'cursor', boolean>;
+  const installedVersions = Object.fromEntries(
+    Object.entries(targets).map(([key, dir]) => [key, installedSkillVersion(dir)]),
+  ) as Record<'claude' | 'codex' | 'cursor', string | null>;
+  const availableVersion = availableSkillRelease().version;
+  const updateAvailable = Object.entries(installed).some(([target, isInstalled]) => {
+    if (!isInstalled) return false;
+    const version = installedVersions[target as keyof typeof installedVersions];
+    return version == null || compareReleaseVersions(version, availableVersion) < 0;
+  });
   return {
     bundledReady,
     launch: spec,
@@ -209,10 +379,15 @@ export function getIntegrationInfo(): IntegrationInfo {
       skillMarkdown: skillContent(),
     },
     skills: {
-      targets: skillTargets(),
-      installed: Object.fromEntries(
-        Object.entries(skillTargets()).map(([key, dir]) => [key, existsSync(join(dir, 'SKILL.md'))]),
-      ) as Record<'claude' | 'codex' | 'cursor', boolean>,
+      targets,
+      installed,
+      installedVersions,
+      bundledVersion: MUSEFOLD_SKILL_VERSION,
+      availableVersion,
+      updateAvailable,
+      checkedAt: skillReleaseCheckedAt,
+      checkError: skillReleaseCheckError,
+      autoUpdate: getSkillAutoUpdateEnabled(),
     },
     clients: {
       cursor: {
@@ -407,6 +582,18 @@ export async function runIntegrationAction(action: IntegrationAction): Promise<I
     }
     case 'register-claude-code':
       return registerClaudeCode();
+    case 'check-skill-update': {
+      const release = await checkRemoteSkillRelease();
+      return release
+        ? { ok: true, message: `已检查，最新 Skill 为 ${release.version}` }
+        : { ok: false, message: skillReleaseCheckError ?? '暂时无法检查 Skill 更新' };
+    }
+    case 'enable-skill-auto-update':
+      setSkillAutoUpdateEnabled(true);
+      return { ok: true, message: '已开启 Skill 自动更新；只更新已安装的 Musefold Skill' };
+    case 'disable-skill-auto-update':
+      setSkillAutoUpdateEnabled(false);
+      return { ok: true, message: '已关闭 Skill 自动更新' };
     case 'install-skill-claude':
       return installSkill('claude');
     case 'install-skill-codex':
@@ -414,13 +601,52 @@ export async function runIntegrationAction(action: IntegrationAction): Promise<I
     case 'install-skill-cursor':
       return installSkill('cursor');
     case 'install-skill-all': {
-      const results = (['claude', 'codex', 'cursor'] as const).map((target) => installSkill(target));
+      const release = availableSkillRelease();
+      let files: Map<string, string>;
+      try {
+        files = await releaseFiles(release);
+      } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+      }
+      const results = await Promise.all(
+        (['claude', 'codex', 'cursor'] as const).map(async (target) => {
+          const dir = skillTargets()[target];
+          try {
+            const source = release === remoteSkillRelease ? 'github-release' : 'bundled';
+            const backup = replaceMusefoldSkillDirectory(
+              dir,
+              files,
+              release,
+              source,
+              source === 'github-release' ? MUSEFOLD_SKILL_MANIFEST_URL : null,
+            );
+            return { ok: true, message: backup ?? '' } satisfies IntegrationActionResult;
+          } catch (error) {
+            return { ok: false, message: error instanceof Error ? error.message : String(error) };
+          }
+        }),
+      );
       const failed = results.filter((result) => !result.ok);
       return failed.length === 0
-        ? { ok: true, message: '已安装到 Claude Code、Codex/ChatGPT、Cursor 的技能目录' }
+        ? { ok: true, message: `已将 Musefold Skill ${release.version} 安装到 Claude Code、Codex/ChatGPT、Cursor；现有目录已保留时间戳备份` }
         : { ok: false, message: failed.map((result) => result.message).join('；') };
     }
     default:
       return { ok: false, message: `未知动作：${String(action)}` };
+  }
+}
+
+/** 启动时只做一次轻量检查；自动更新仅作用于用户已经安装的目标。 */
+export async function checkSkillUpdatesAtStartup(): Promise<void> {
+  const release = await checkRemoteSkillRelease();
+  if (!getSkillAutoUpdateEnabled()) return;
+  const selected = release ?? bundledSkillRelease();
+  const targets = skillTargets();
+  for (const [target, dir] of Object.entries(targets) as Array<[keyof typeof targets, string]>) {
+    if (!existsSync(join(dir, 'SKILL.md'))) continue;
+    const installedVersion = installedSkillVersion(dir);
+    if (installedVersion && compareReleaseVersions(installedVersion, selected.version) >= 0) continue;
+    const result = await installSkill(target, selected);
+    if (!result.ok) logger.warn(`Skill 自动更新失败（${target}）`, result.message);
   }
 }

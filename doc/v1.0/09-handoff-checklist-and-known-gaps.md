@@ -29,6 +29,8 @@
 - [ ] 验证 discovery 文件权限、token 轮换、Origin 拒绝、速率限制、SSE 断线后的 client poll fallback。
 - [ ] 验证 CLI 非 TTY 无 `--yes` 不发起花费请求；MCP readonly/toolsets/no-wait 形态符合集成方预期。
 - [ ] 仅公开仓库 Skill 可导入；确认脚本不会执行，输入长度和文件读取限制生效。
+- [ ] 发布官方 Agent Skill 时确认 manifest 哈希与 tag 文件一致；在 macOS/Windows 分别验证安装、更新、离线内置回退、校验失败回滚和旧目录备份。
+- [ ] 用旧版 App + 新版 Skill 验证能力探测：缺少 setup/ref/wait/scheme/GitHub Skill 能力时必须降级，裸 `cost` 不得被猜测为积分。
 
 ## 2. 当前源码确认的限制
 
@@ -42,6 +44,7 @@
 | 图片账本 | 数据库路径和文件资产分离 | 仅备份数据库不足以恢复图片；导出需包含允许的资产。 |
 | 设计方案 | formal/unsupported/quality gate 有严格状态门 | Draft 或 unsupported 不能假设可运行。 |
 | CLI/MCP 版本 | CLI usage 体现 v0.4 设计；MCP info 固定 0.4.0 | 需在发布时确认协议兼容，不以应用包版本替代。 |
+| Agent Skill 独立更新 | App 可从独立清单发现新版，自动更新默认关闭 | Skill 发布必须先有不可变 tag；新版 Skill 只能调用旧 App 实际暴露的能力。 |
 | 开发/正式环境 | `dev:stop` 只隔离运行进程，普通开发态数据目录仍可能使用 `musefold` | 不得把进程清理脚本当作数据、密钥或登录会话隔离；独立 development profile 仍需后续实现。 |
 
 ## 3. 已发现的历史文档偏差

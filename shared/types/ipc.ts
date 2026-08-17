@@ -662,6 +662,13 @@ export interface IntegrationInfo {
   skills: {
     targets: Record<'claude' | 'codex' | 'cursor', string>;
     installed: Record<'claude' | 'codex' | 'cursor', boolean>;
+    installedVersions: Record<'claude' | 'codex' | 'cursor', string | null>;
+    bundledVersion: string;
+    availableVersion: string;
+    updateAvailable: boolean;
+    checkedAt: string | null;
+    checkError: string | null;
+    autoUpdate: boolean;
   };
   clients: {
     cursor: { configPath: string; registered: boolean };
@@ -684,6 +691,9 @@ export type IntegrationAction =
   | 'open-skill-url'
   | 'open-cursor-deeplink'
   | 'register-claude-code'
+  | 'check-skill-update'
+  | 'enable-skill-auto-update'
+  | 'disable-skill-auto-update'
   | 'install-skill-claude'
   | 'install-skill-codex'
   | 'install-skill-cursor'

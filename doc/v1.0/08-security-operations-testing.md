@@ -65,6 +65,8 @@ open /Applications/Musefold.app
 
 CLI 安装遵循最小权限：macOS 首启只写 `~/.local/bin` 和当前用户 shell profile 的带边界标记 PATH 块；Windows NSIS/首启只写 `%USERPROFILE%\.musefold\bin` 与 HKCU PATH。两端都不需要管理员权限，不写 machine-wide PATH，不在 shim 中保存 token 或业务凭据。macOS 仅在 App 位于 Applications 时自动执行，避免从 DMG 挂载卷或临时目录生成失效入口。
 
+Agent Skill 更新与 App 更新相互独立。Skill 更新默认仅检查、不自动写；用户开启自动更新后也只改当前用户的 `~/.codex/skills/musefold`、`~/.claude/skills/musefold`、`~/.cursor/skills/musefold`（Windows 对应用户目录）。远程清单只负责版本发现，实际内容固定到 Git tag 并逐文件校验 SHA-256；目录替换前保留同级时间戳备份。清单校验、下载或换入失败均不得破坏当前可用版本。
+
 更新安装前清理临时状态，再调用 `quitAndInstall(false, true)`；没有自动重启行为的代码证据。
 
 ## 6. 日志与审计

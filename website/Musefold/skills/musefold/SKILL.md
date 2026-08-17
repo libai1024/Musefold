@@ -8,6 +8,8 @@ description: >-
   running with Automation enabled.
 ---
 
+<!-- musefold-skill-version: v0.4.0 -->
+
 # Use Musefold for image generation
 
 Musefold is a local-first visual creation app. Credentials stay inside its native UI;
@@ -15,12 +17,17 @@ never ask the user to paste account passwords, API keys, tokens, or secrets into
 
 ## Choose the connection
 
-1. If Musefold MCP tools such as `musefold_status` and `generate_image` are available,
-   call `musefold_status` once and use MCP.
-2. Otherwise, if local commands are available, run `musefold status --json` once and use
-   the CLI.
+1. Inspect the MCP tool catalog. If `musefold_status` is available, call it once and use
+   only Musefold tools that are actually present in that catalog.
+2. Otherwise, if local commands are available, run `musefold status --json` and
+   `musefold help` once. Use only commands and flags shown by that installed CLI.
 3. If neither is available, explain that this Agent cannot access the local app. Do not
    claim that an image was generated.
+
+Before any write or spend workflow, read [references/compatibility.md](references/compatibility.md).
+Treat `appVersion`, `apiVersion`, optional `capabilities`, the MCP tool catalog, and CLI help
+as the authority. A newer Skill may be controlling an older App; never infer a feature from
+this Skill's version.
 
 The installed CLI and MCP server automatically start the Musefold desktop app when needed.
 **Settings > Automation > Local control plane** must be on.
@@ -53,7 +60,8 @@ musefold status --json
 ## Secure setup
 
 With MCP, use `get_setup_status`, then `open_account_setup` or `open_provider_setup` only
-when setup is needed. With the CLI, use:
+when those tools are present and setup is needed. With the CLI, use the following commands
+only when `musefold help` lists the relevant command group:
 
 ```bash
 musefold account status --json
@@ -82,14 +90,17 @@ Supported automation ratios are `1:1`, `3:4`, `4:3`, `16:9`, and `9:16`. Optiona
 --max-cost <points>                         # hard spending ceiling in Musefold points
 ```
 
-With MCP, call `generate_image` with the equivalent fields. It waits for completion by
-default and returns image resources. For deliberate background work, call
-`generate_image(wait:false)` and then exactly one `wait_for_generation(jobId)`.
+With MCP, call `generate_image` with fields supported by its exposed input schema. It waits
+for completion by default in current Apps. Use background mode only when both `wait` and
+`wait_for_generation` are exposed: call `generate_image(wait:false)` and then exactly one
+`wait_for_generation(jobId)`.
 
-All Musefold cost and budget values use user-visible points. `1 point = CNY 0.1 = 50,000
-managed-account quota units`. Read `costPoints`, `estimatedPoints`, and
+Current Musefold cost and budget values use user-visible points. `1 point = CNY 0.1 =
+50,000 managed-account quota units`. Read `costPoints`, `estimatedPoints`, and
 `remainingBudgetPoints` as points; never convert a returned point value again and never
-treat it as cents. CLI `--max-cost` is also expressed in points.
+treat it as cents. Use CLI `--max-cost` as points only when the installed CLI help describes
+it as points. A legacy bare `cost` without `costUnit` has an unknown unit: report it as an
+unlabelled legacy value and do not convert it.
 
 CLI `--json` emits NDJSON progress followed by a result object. Present every
 `assets[].path` to the user. Do not poll with `get_generation`, and do not retry a failed
@@ -104,10 +115,9 @@ repository scripts. A configured text AI connection is required.
 musefold skill run "https://github.com/owner/repository" -p "<design request>" -y --json
 ```
 
-With MCP, call `run_github_skill`. The CLI/MCP GitHub Skill call currently accepts a text
-brief but no local reference-image path. For a GitHub Skill plus source images, ask the
-user to paste the GitHub URL into the Musefold workbench, attach the images there, and run
-the prepared Skill in the app.
+With MCP, call `run_github_skill` only when that tool is present. The current CLI/MCP GitHub
+Skill call accepts a text brief but no local reference-image path. If the capability is
+missing, or for a GitHub Skill plus source images, ask the user to use the Musefold workbench.
 
 ## Reuse Musefold assets
 
@@ -133,6 +143,9 @@ Generation and Skill runs cost money; searches and compilation do not.
 - Assets: `search_prompts`, `get_prompt`, `save_prompt`, `list_schemes`,
   `get_scheme`, `compile_scheme_prompt`, `list_history`
 - Spend workflows: `run_scheme`, `run_github_skill`
+
+This map describes the current release, not guaranteed tools in older Apps. Intersect it
+with the actual MCP tool catalog before calling anything.
 
 Always return final image paths/resources and identify the prompt asset, scheme, or GitHub
 Skill used. Never expose credentials, silently spend, or repeatedly retry generation.

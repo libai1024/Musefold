@@ -17,6 +17,9 @@ interface AutomationSettingsShape {
   automation: {
     enabled: boolean;
     budget: AutomationBudgetShape;
+    skillUpdates: {
+      autoUpdate: boolean;
+    };
   };
 }
 
@@ -30,6 +33,7 @@ const store = new Store<AutomationSettingsShape>({
     automation: {
       enabled: true,
       budget: { monthlyLimitPoints: 0, usedPoints: 0, month: currentMonth() },
+      skillUpdates: { autoUpdate: false },
     },
   },
 });
@@ -40,6 +44,14 @@ export function getAutomationEnabled(): boolean {
 
 export function setAutomationEnabled(enabled: boolean): void {
   store.set('automation.enabled', enabled);
+}
+
+export function getSkillAutoUpdateEnabled(): boolean {
+  return store.get('automation.skillUpdates.autoUpdate', false) as boolean;
+}
+
+export function setSkillAutoUpdateEnabled(enabled: boolean): void {
+  store.set('automation.skillUpdates.autoUpdate', enabled);
 }
 
 export function getAutomationBudget(): AutomationBudgetShape {

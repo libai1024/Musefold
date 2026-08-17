@@ -42,7 +42,20 @@ describe('automation server', () => {
     expect(readDiscoveryFile(dir)?.port).toBe(info.port);
     const response = await request(info, '/v1/health');
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ connected: true, owner: 'desktop-app', apiVersion: 'v1', data: { prompts: 2 } });
+    expect(await response.json()).toMatchObject({
+      connected: true,
+      owner: 'desktop-app',
+      apiVersion: 'v1',
+      capabilities: {
+        generation: true,
+        generationWait: true,
+        referenceImages: true,
+        historyReferences: true,
+        pointCosts: true,
+        githubSkillReferenceImages: false,
+      },
+      data: { prompts: 2 },
+    });
   });
 
   it('rejects missing, invalid and browser-origin credentials', async () => {

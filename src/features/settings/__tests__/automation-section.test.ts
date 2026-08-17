@@ -11,11 +11,14 @@ describe('automation settings UI contract', () => {
     expect(section).not.toContain('--accent-solid');
   });
 
-  it('shows the public Skill URL instead of installing a local copy', () => {
+  it('shows versioned Skill install and update controls', () => {
     expect(section).toContain('Musefold 自动化 Skill');
     expect(section).toContain('integration!.snippets.skillUrl');
-    expect(section).toContain('复制网址');
-    expect(section).not.toContain("runIntegration('install-skill-all')");
+    expect(section).toContain("runIntegration('install-skill-all')");
+    expect(section).toContain("runIntegration('check-skill-update')");
+    expect(section).toContain('integration-skill-auto-update');
+    expect(section).toContain('SHA-256');
+    expect(section).toContain('旧版 App 缺少新接口时会降级');
   });
 
   it('auto-detects and clearly displays CLI/PATH state', () => {

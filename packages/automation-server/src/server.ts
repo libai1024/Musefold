@@ -239,6 +239,11 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
         schemes: true,
         skills: true,
         setup: options.capabilities?.setup === true,
+        generationWait: true,
+        referenceImages: true,
+        historyReferences: true,
+        pointCosts: true,
+        githubSkillReferenceImages: false,
       },
       ...(snapshot ? { data: snapshot } : {}),
     };

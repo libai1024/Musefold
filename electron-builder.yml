@@ -28,8 +28,9 @@ extraResources:
   - from: packages/cli/dist/chunks
     to: integration/chunks
     filter: ['**/*']
-  - from: website/Musefold/skills/musefold/SKILL.md
-    to: integration/musefold-skill.md
+  - from: website/Musefold/skills/musefold
+    to: integration/musefold-skill
+    filter: ['**/*']
   - from: node_modules/better-sqlite3
     to: integration/node_modules/better-sqlite3
     filter:
