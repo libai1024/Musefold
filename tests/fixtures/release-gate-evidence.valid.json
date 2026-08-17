@@ -1,0 +1,74 @@
+{
+  "githubActionsRemoteGreen": {
+    "runUrl": "https://github.com/musefold/musefold/actions/runs/1234567890",
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "conclusion": "success",
+    "jobs": {
+      "sourceChecks": true,
+      "electronE2E": true,
+      "macosPackageSmoke": true,
+      "windowsPackageAndRuntimeSmoke": true
+    }
+  },
+  "windowsHostedRuntimeSmoke": {
+    "runUrl": "https://github.com/musefold/musefold/actions/runs/1234567890/job/9876543210",
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "os": "Windows Server 2025",
+    "architecture": "x64",
+    "installerSha256": "6bbd63e3a12102733b187061d1a2a809dea1b0b24e32d9f327d3be46d149afaf",
+    "testCommand": "python -m pytest tests/package/windows_runtime_smoke.py -q",
+    "result": {
+      "installedAppLaunch": true,
+      "fakeGeneration": true,
+      "mediaPreview": true,
+      "historyRecord": true,
+      "exportImport": true,
+      "deeplinkImport": true
+    }
+  },
+  "windowsArm64TargetRuntime": {
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "device": "Surface Pro 11 ARM64",
+    "windowsVersion": "Windows 11 Pro 24H2",
+    "installerSha256": "6bbd63e3a12102733b187061d1a2a809dea1b0b24e32d9f327d3be46d149afaf",
+    "appExeSha256": "a1bf64a591a5a6a32c2c23a1b2102d166bd2605a37cc9f61e394c8ecc8d8f394",
+    "checklist": {
+      "install": true,
+      "launch": true,
+      "fakeGeneration": true,
+      "mediaPreview": true,
+      "historyRecord": true,
+      "exportImport": true,
+      "deeplinkImport": true
+    }
+  },
+  "macosDeveloperIdNotarization": {
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "teamId": "Z9Y8X7W6V5",
+    "bundleId": "com.musefold.app",
+    "artifacts": {
+      "dmgSha256": "2f7806f327f37e704de1955a624f571790aa273458055fd5ead81b9f4c275995",
+      "zipSha256": "d7bb62296b121d59994c43817647ba031218fa753c571c70229681ff5441c593"
+    },
+    "checks": {
+      "codesignVerify": true,
+      "spctlAssess": true,
+      "notarizationAccepted": true,
+      "stapleValidate": true
+    }
+  },
+  "upstreamRealImageGeneration": {
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "providerBaseUrl": "https://ai.tvt.wiki/v1",
+    "model": "gpt-image-2",
+    "testCommand": "MUSEFOLD_TVT_KEY=<redacted> python -m pytest tests/e2e/test_08_generation_workbench_live.py -q",
+    "result": {
+      "testsPassed": 1,
+      "generatedImageOnDisk": true,
+      "imageByteSize": 123456,
+      "imageSha256": "c6d80a30ef8fe473aa59982116c58314014b7a98313b1ae81eaa545348ac7e8b",
+      "mediaPreviewVisible": true,
+      "historySuccessRecord": true
+    }
+  }
+}

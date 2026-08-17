@@ -1,0 +1,474 @@
+/* src/styles/globals.css
+ * Musefold: Graphite / Ember
+ * 系统材质只留在窗口壳层；内容区依靠稳定表面、发丝边框和克制阴影建立层级。
+ */
+
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+/* ============================================================
+ * Light: warm porcelain surfaces
+ * ============================================================ */
+:root {
+  color-scheme: light;
+
+  /* v0.2.2 Canon: 内容区实色表面。半透明只在窗口壳层 vibrancy（由 Electron 处理）
+   * 与瞬时层（bg-popover）。见 docs/v0.2/V02.2-UI-DEVELOPMENT-CONSTRAINTS.md §2。 */
+  --bg-window: #f6f6f4;
+  --bg-sidebar: #f3f3f1;
+  --bg-elevated: #ffffff;
+  --bg-popover: #fdfcf9;
+  --bg-inset: rgba(24, 24, 29, 0.045);
+  --bg-hover: rgba(24, 24, 29, 0.06);
+  --bg-active: rgba(24, 24, 29, 0.09);
+
+  --fg-primary: #202124;
+  --fg-secondary: #4f5156;
+  --fg-tertiary: #74777c;
+  --fg-quaternary: #a1a3a9;
+
+  --border-subtle: rgba(24, 24, 29, 0.07);
+  --border-default: #dfdfdb;
+  --border-strong: #c8c8c3;
+
+  --accent: #d6653f;
+  --accent-hover: #bc5535;
+  --accent-press: #93371e;
+  --accent-soft: rgba(214, 101, 63, 0.12);
+  --accent-ring: rgba(214, 101, 63, 0.28);
+  --on-accent: #ffffff;
+
+  --success: #2a7b4a;
+  --warning: #a96d1d;
+  --danger: #b54935;
+  --info: #3f739e;
+  --on-danger: #ffffff;
+
+  /* Shape scale (v0.2.2): 随容器尺度选择。徽章 4 / 行 6 / 密集卡+控件 8 /
+   * 面板 12 / Composer+对话框 16。见 UI 重构文档 §2.3。 */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* 控件高度 */
+  --control-xs: 24px;
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 38px;
+
+  /* 界面密度：组件消费这些变量，切换时不缩放字号。 */
+  --density-page-padding: 1.5rem;
+  --density-card-padding: 0.75rem;
+  --density-setting-row-y: 0.75rem;
+  --density-row-padding: 0.5rem;
+  --density-list-gap: 0.5rem;
+  --density-nav-y: 7px;
+  --density-history-thumb: 3rem;
+
+  /* v0.2.2: 两级阴影。sm=hover 微抬；pop=仅瞬时层。 */
+  --shadow-sm: 0 1px 2px rgba(28, 30, 34, 0.06);
+  --shadow-pop: 0 16px 40px rgba(28, 30, 34, 0.08);
+  --shadow-composer: 0 12px 36px rgba(28, 30, 34, 0.1), 0 2px 8px rgba(28, 30, 34, 0.05);
+}
+
+[data-density='compact'] {
+  --density-page-padding: 1rem;
+  --density-card-padding: 0.5rem;
+  --density-setting-row-y: 0.5rem;
+  --density-row-padding: 0.375rem;
+  --density-list-gap: 0.375rem;
+  --density-nav-y: 5px;
+  --density-history-thumb: 2.5rem;
+}
+
+/* ============================================================
+ * Dark: graphite surfaces
+ * ============================================================ */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* v0.2.2 Canon 深色：采纳 demo 的暖графит阶梯（#18191b→#202124→#25272a），
+   * 比旧 #0d0e11 系更暖更浅，实色。 */
+  --bg-window: #18191b;
+  --bg-sidebar: #202124;
+  --bg-elevated: #25272a;
+  --bg-popover: #2a2c30;
+  --bg-inset: rgba(0, 0, 0, 0.28);
+  --bg-hover: rgba(255, 255, 255, 0.065);
+  --bg-active: rgba(255, 255, 255, 0.1);
+
+  --fg-primary: #f4f4f1;
+  --fg-secondary: #c6c7ca;
+  --fg-tertiary: #a0a2a7;
+  --fg-quaternary: #62656d;
+
+  --border-subtle: rgba(255, 255, 255, 0.075);
+  --border-default: #33353a;
+  --border-strong: #4a4d53;
+
+  --accent: #ef7a52;
+  --accent-hover: #ff9169;
+  --accent-press: #d96742;
+  --accent-soft: rgba(239, 122, 82, 0.15);
+  --accent-ring: rgba(239, 122, 82, 0.35);
+  --on-accent: #28110a;
+
+  --success: #75d493;
+  --warning: #e7ad54;
+  --danger: #ff8b70;
+  --info: #78b7d5;
+  --on-danger: #24100f;
+
+  /* 两级阴影（深色更深以在暖графит上可见） */
+  --shadow-sm: 0 1px 2px rgba(5, 6, 8, 0.38);
+  --shadow-pop: 0 18px 46px rgba(0, 0, 0, 0.5);
+  --shadow-composer: 0 14px 38px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+/* v0.2.2: 内容表面全实色，窗口 vibrancy/Mica 由 Electron 窗口层负责，
+ * 不再靠 CSS 半透明模拟（那是深浅色发灰的根因）。各平台仅在需要时微调。 */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable',
+    'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-primary);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: 0;
+  overflow: hidden;
+  font-feature-settings: 'calt', 'kern', 'liga', 'ss03';
+}
+
+/* 标题栏拖拽区 */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* 横版品牌稿是浅色位图；混合模式让底色融入当前实色表面。 */
+.musefold-brand-image {
+  filter: contrast(1.14);
+  mix-blend-mode: darken;
+  transition: filter var(--dur-base) var(--ease-out);
+}
+
+[data-theme='dark'] .musefold-brand-image {
+  filter: invert(1) hue-rotate(180deg) contrast(1.14);
+  mix-blend-mode: lighten;
+}
+
+.generation-directions-viewport {
+  mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+}
+
+/* 瞬时浮层材质，只用于命令面板、菜单、对话框和覆盖抽屉。 */
+.glass-panel {
+  background: var(--bg-popover);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-pop);
+  backdrop-filter: saturate(130%) blur(20px);
+  -webkit-backdrop-filter: saturate(130%) blur(20px);
+}
+
+/* 生成完成态动作：结果卡片和回合操作共用，避免未定义 class 退化为裸按钮。 */
+@layer components {
+  .action-button {
+    display: inline-flex;
+    min-height: var(--control-sm);
+    align-items: center;
+    gap: 0.375rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    padding: 0.3rem 0.65rem;
+    background: var(--bg-elevated);
+    color: var(--fg-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transition: border-color var(--dur-fast), background-color var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast);
+  }
+  .action-button:hover {
+    border-color: var(--border-default);
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+    box-shadow: var(--shadow-sm);
+  }
+  .action-button:focus-visible,
+  .icon-action:focus-visible,
+  .menu-action:focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 1px;
+  }
+  .action-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .action-button.bg-accent-soft {
+    border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .action-button.bg-accent-soft:hover {
+    border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+    background: color-mix(in oklab, var(--accent) 18%, transparent);
+    color: var(--accent);
+  }
+  .icon-action {
+    display: inline-flex;
+    height: 24px;
+    width: 24px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    color: inherit;
+    transition: background-color var(--dur-fast), color var(--dur-fast);
+  }
+  .icon-action:hover {
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+  }
+  .menu-action {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.6rem;
+    color: var(--fg-secondary);
+    text-align: left;
+    white-space: nowrap;
+    transition: background-color var(--dur-fast), color var(--dur-fast);
+  }
+  .menu-action:hover {
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+  }
+  /* 侧栏对话状态光晕：生成中 = Ember 呼吸；完成未读 = 静态绿。
+     减少动效时呼吸动画停止，保留静态橙色光晕。 */
+  .conversation-glow-running {
+    background: var(--accent);
+    box-shadow: 0 0 8px 2px color-mix(in oklab, var(--accent) 62%, transparent);
+    animation: status-breathe 1.8s var(--ease-in-out) infinite;
+  }
+  .conversation-glow-unread {
+    background: var(--success);
+    box-shadow: 0 0 7px 1.5px color-mix(in oklab, var(--success) 55%, transparent);
+  }
+  /* Ember 印章点：印泥落纸的书卷质感 ——
+     哑光平面、无方向光：中心颜料略薄、边缘积墨渐沉 + 细颗粒纸纹 + 轻浮起投影。 */
+  .ember-seal {
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='56' height='56' filter='url(%23g)' opacity='0.42'/%3E%3C/svg%3E"),
+      radial-gradient(
+        circle at 50% 50%,
+        color-mix(in oklab, var(--accent) 93%, #f3ead9) 0%,
+        var(--accent) 52%,
+        color-mix(in oklab, var(--accent) 86%, #241610) 86%,
+        color-mix(in oklab, var(--accent) 76%, #241610) 100%
+      );
+    background-blend-mode: overlay, normal;
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in oklab, var(--accent) 68%, #241610),
+      0 1px 1.5px rgb(0 0 0 / 0.14),
+      0 2.5px 7px color-mix(in oklab, var(--accent) 28%, transparent);
+    transition: filter var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .group:hover .ember-seal {
+    filter: brightness(1.05) saturate(1.04);
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in oklab, var(--accent) 68%, #241610),
+      0 1.5px 2.5px rgb(0 0 0 / 0.16),
+      0 4px 10px color-mix(in oklab, var(--accent) 36%, transparent);
+  }
+  /* 素笺（v0.3.3 §5）：一枚方形纸笺，右下角翻起页角，与 Musefold「翻页」标记同构。
+     暖纸底 + 朱丝栏顶线 + 极淡朱丝横格 + 细颗粒纸纹；折角缺口用 clip-path 裁出，
+     投影改用 drop-shadow 以贴合折角轮廓（box-shadow 会被 clip-path 一并裁掉）。 */
+  .slip-paper {
+    --slip-fold: 42px;
+    position: relative;
+    background-color: color-mix(in oklab, var(--bg-popover) 95%, #d8a25f);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='72' height='72' filter='url(%23p)' opacity='0.05'/%3E%3C/svg%3E");
+    border: 1px solid var(--border-default);
+    border-top: 2px solid color-mix(in oklab, var(--accent) 66%, transparent);
+    clip-path: polygon(
+      0 0,
+      100% 0,
+      100% calc(100% - var(--slip-fold)),
+      calc(100% - var(--slip-fold)) 100%,
+      0 100%
+    );
+    filter:
+      drop-shadow(0 18px 38px rgba(28, 30, 34, 0.16))
+      drop-shadow(0 3px 8px rgba(28, 30, 34, 0.1));
+  }
+  [data-theme='dark'] .slip-paper {
+    background-color: color-mix(in oklab, var(--bg-popover) 96%, #b97a45);
+    border-color: var(--border-strong);
+    filter:
+      drop-shadow(0 20px 42px rgba(0, 0, 0, 0.5))
+      drop-shadow(0 3px 10px rgba(0, 0, 0, 0.4));
+  }
+  /* 翻起的页角：露出纸背的三角——折痕处受光起一线高光、尖端积影，
+     并向折痕内侧（卡面）投一道软影，读作「被掀起一角」而非切角。 */
+  .slip-fold {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: var(--slip-fold, 42px);
+    height: var(--slip-fold, 42px);
+    clip-path: polygon(0 100%, 100% 0, 100% 100%);
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--bg-popover) 97%, #f7e3bf) 0%,
+      color-mix(in oklab, var(--bg-popover) 90%, #e6bf83) 12%,
+      color-mix(in oklab, var(--bg-popover) 74%, #c88f4c) 52%,
+      color-mix(in oklab, var(--bg-popover) 60%, #a86c34) 100%
+    );
+    filter:
+      drop-shadow(-1.5px -1.5px 1.5px rgba(28, 30, 34, 0.2))
+      drop-shadow(1px 1px 1px rgba(28, 30, 34, 0.16));
+  }
+  [data-theme='dark'] .slip-fold {
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--bg-elevated) 84%, #9a6c3e) 0%,
+      color-mix(in oklab, var(--bg-elevated) 74%, #6a4629) 16%,
+      color-mix(in oklab, var(--bg-elevated) 62%, #3f2c1a) 60%,
+      color-mix(in oklab, var(--bg-elevated) 54%, #241811) 100%
+    );
+    filter:
+      drop-shadow(-1.5px -1.5px 1.5px rgba(0, 0, 0, 0.5))
+      drop-shadow(1px 1px 1.5px rgba(0, 0, 0, 0.45));
+  }
+  /* 朱丝横格：极淡的暖线，随文一起滚动（background-attachment: local） */
+  .slip-textarea {
+    line-height: 22px;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 21px,
+      color-mix(in oklab, var(--accent) 9%, transparent) 21px,
+      color-mix(in oklab, var(--accent) 9%, transparent) 22px
+    );
+    background-attachment: local;
+  }
+  [data-theme='dark'] .slip-textarea {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 21px,
+      color-mix(in oklab, var(--accent) 7%, transparent) 21px,
+      color-mix(in oklab, var(--accent) 7%, transparent) 22px
+    );
+  }
+  /* 深色主题：空闲不发光（品牌纪律），环境投影只留暗色沉底；悬停才允许一点 Ember 余温 */
+  [data-theme='dark'] .ember-seal {
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in oklab, var(--accent) 62%, #17100c),
+      0 1px 2px rgb(0 0 0 / 0.5);
+  }
+  [data-theme='dark'] .group:hover .ember-seal {
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in oklab, var(--accent) 62%, #17100c),
+      0 1.5px 3px rgb(0 0 0 / 0.55),
+      0 3px 9px color-mix(in oklab, var(--accent) 26%, transparent);
+  }
+}
+
+.preview-source-segment--weighted::after {
+  content: attr(data-weight-label);
+  display: inline-flex;
+  margin-left: 0.25rem;
+  transform: translateY(-0.06rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 0 0.2rem;
+  color: var(--fg-tertiary);
+  background: var(--bg-inset);
+  font-size: 9px;
+  line-height: 1.25;
+  vertical-align: baseline;
+}
+
+/* 滚动条 —— 极细发丝 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-tertiary);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* 文本输入依靠自身中性边框或 composer 外层反馈焦点，不使用 Ember 矩形轮廓。 */
+input:not([type='checkbox']):not([type='radio']):not([type='range']):focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  /* 表面本就实色；这里只需关掉瞬时层的模糊。 */
+  .glass-panel,
+  [class*='backdrop-blur'] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* 文本截断到 N 行 */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

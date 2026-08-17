@@ -1,0 +1,74 @@
+{
+  "githubActionsRemoteGreen": {
+    "runUrl": "https://github.com/OWNER/REPO/actions/runs/RUN_ID",
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "conclusion": "success",
+    "jobs": {
+      "sourceChecks": true,
+      "electronE2E": true,
+      "macosPackageSmoke": true,
+      "windowsPackageAndRuntimeSmoke": true
+    }
+  },
+  "windowsHostedRuntimeSmoke": {
+    "runUrl": "https://github.com/OWNER/REPO/actions/runs/RUN_ID/job/JOB_ID",
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "os": "Windows Server runner",
+    "architecture": "x64",
+    "installerSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "testCommand": "python -m pytest tests/package/windows_runtime_smoke.py -q",
+    "result": {
+      "installedAppLaunch": true,
+      "fakeGeneration": true,
+      "mediaPreview": true,
+      "historyRecord": true,
+      "exportImport": true,
+      "deeplinkImport": true
+    }
+  },
+  "windowsArm64TargetRuntime": {
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "device": "Windows ARM64 device model",
+    "windowsVersion": "Windows 11 ARM64 build",
+    "installerSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "appExeSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "checklist": {
+      "install": true,
+      "launch": true,
+      "fakeGeneration": true,
+      "mediaPreview": true,
+      "historyRecord": true,
+      "exportImport": true,
+      "deeplinkImport": true
+    }
+  },
+  "macosDeveloperIdNotarization": {
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "teamId": "ABCDE12345",
+    "bundleId": "com.promptforge.app",
+    "artifacts": {
+      "dmgSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "zipSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    "checks": {
+      "codesignVerify": true,
+      "spctlAssess": true,
+      "notarizationAccepted": true,
+      "stapleValidate": true
+    }
+  },
+  "upstreamRealImageGeneration": {
+    "checkedAt": "2026-08-06T00:00:00Z",
+    "providerBaseUrl": "https://ai.tvt.wiki/v1",
+    "model": "gpt-image-2",
+    "testCommand": "PF_TVT_KEY=<redacted> python -m pytest tests/e2e/test_08_generation_workbench_live.py -q",
+    "result": {
+      "testsPassed": 1,
+      "generatedImageOnDisk": true,
+      "imageByteSize": 123456,
+      "imageSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "mediaPreviewVisible": true,
+      "historySuccessRecord": true
+    }
+  }
+}

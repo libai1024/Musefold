@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "electron-driver": {
+      "command": "npx",
+      "args": ["electron-driver"]
+    }
+  }
+}

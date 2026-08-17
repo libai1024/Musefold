@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "baseUrl": "../..",
+    "paths": {
+      "@shared/*": ["shared/*"],
+      "@musefold/client": ["packages/client/src/index.ts"],
+      "@musefold/client/*": ["packages/client/src/*"],
+      "@musefold/core": ["packages/core/src/index.ts"],
+      "@musefold/core/*": ["packages/core/src/*"],
+      "@musefold/automation-server": ["packages/automation-server/src/index.ts"],
+      "@musefold/automation-server/*": ["packages/automation-server/src/*"]
+    },
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -1,0 +1,152 @@
+/* src/pet/pet.css
+   桌宠窗口样式。窗口本身是透明的，这里任何一处不小心画上的背景色都会变成
+   桌面上的一块灰方块，所以除了角色本体之外一律保持完全透明。 */
+
+html,
+body,
+#pet-root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  /* 窗口内不需要文本选择和原生右键菜单，去掉更像一个桌面挂件 */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.pet-stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* 按状态叠加的微动画容器。帧序列负责动作本身，这里只补充呼吸、点头、漂浮；
+   动画统一从脚底起（origin 底部居中），角色才不会像悬空缩放。 */
+.pet-motion {
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+
+.pet-motion[data-state='idle'],
+.pet-motion[data-state='thinking'] {
+  animation: pet-breathe 4.8s ease-in-out infinite;
+}
+
+.pet-motion[data-state='typing'],
+.pet-motion[data-state='juggling'],
+.pet-motion[data-state='conducting'] {
+  animation: pet-work-bob 1.3s ease-in-out infinite;
+}
+
+.pet-motion[data-state='happy'],
+.pet-motion[data-state='notification'] {
+  animation: pet-cheer 1.2s ease-in-out infinite;
+}
+
+.pet-motion[data-state='react-poke'] {
+  animation: pet-poke-shake 0.5s ease-in-out infinite;
+}
+
+.pet-motion[data-state='react-drag'] {
+  animation: pet-float 2.2s ease-in-out infinite;
+}
+
+/* error / wake 刻意不加动画：躺平的"死机感"和定格的伸懒腰本身就是表达 */
+
+@keyframes pet-breathe {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  50% { transform: scaleY(1.02) scaleX(1.008); }
+}
+
+@keyframes pet-work-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(0.6deg); }
+}
+
+@keyframes pet-cheer {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-7px) scale(1.03); }
+  60% { transform: translateY(0) scale(0.99); }
+}
+
+@keyframes pet-poke-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3.5deg); }
+  75% { transform: rotate(3.5deg); }
+}
+
+@keyframes pet-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-6px) rotate(1deg); }
+}
+
+/* 帧容器：始终只挂载当前已解码帧，避免透明窗口交叉淡入时短暂露白。 */
+.pet-frames {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  pointer-events: auto;
+  /* 拖拽时给一点跟手的手感 */
+  transition: transform 120ms ease-out;
+}
+
+.pet-frames.is-dragging {
+  transform: scale(1.04);
+  transition: none;
+}
+
+.pet-sprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* 256px 高面数 APNG 以 128px 显示，保留浏览器的高质量缩小采样。 */
+  image-rendering: auto;
+  -webkit-user-drag: none;
+}
+
+.pet-bubble {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 136px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(28, 28, 32, 0.86);
+  color: rgba(255, 255, 255, 0.94);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  animation: pet-bubble-in 180ms ease-out;
+}
+
+@keyframes pet-bubble-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-sprite,
+  .pet-bubble,
+  .pet-motion {
+    animation: none;
+    transition: none;
+  }
+}

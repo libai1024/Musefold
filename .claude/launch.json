@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--config", "vite.preview.config.ts"],
+      "port": 5199,
+      "autoPort": true
+    }
+  ]
+}

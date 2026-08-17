@@ -1,0 +1,178 @@
+/* src/styles/motion.css
+ * macOS 26 风动效 —— 弹簧缓动 + 时长 token + 减动效守护
+ * 不引入 framer-motion：@tanstack/react-virtual 的绝对定位行与 FLIP 会冲突
+ */
+
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-instant: 90ms;
+  --dur-fast: 130ms;
+  --dur-base: 180ms;
+  --dur-med: 220ms;
+  --dur-slow: 260ms;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down-fade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-out-right {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(10px); }
+}
+
+/* 系统通知：短距离淡入/淡出，不使用弹簧和缩放，降低打扰感。 */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(5px); }
+}
+
+@keyframes scale-fade-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes selection-release {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.68); }
+}
+
+/* 命令面板专用：从上方轻落 + 微缩放 */
+@keyframes command-in {
+  /* 横向居中由 Tailwind 的独立 translate 属性负责；动画只负责纵向落位和缩放。 */
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 居中对话框专用：居中由 Tailwind v4 的 `translate: -50% -50%`（translate 属性）负责，
+ * 这里只动 transform（scale + 轻微下落）。两者是独立属性，会叠加，不会互相覆盖，
+ * 因此绝不能在此重复写 translate(-50%,-50%)，否则位移翻倍会把浮层推出屏幕。 */
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 生成中脉冲 */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes status-breathe {
+  0%, 100% { opacity: 0.5; transform: scale(0.78); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* 对话界面 Ember 状态点：运行中柔和呼吸的光晕边缘 */
+@keyframes ember-breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1.05); }
+  50% { opacity: 0.85; transform: scale(1.9); }
+}
+
+/* 素笺空提交：轻微摇头 */
+@keyframes slip-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+.animate-slip-shake { animation: slip-shake 0.22s var(--ease-in-out) 2; }
+
+/* 骨架微光 */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+/* 聊天气泡入场 */
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 加载转圈 */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in { animation: fade-in var(--dur-base) var(--ease-out) both; }
+.animate-slide-up-fade { animation: slide-up-fade var(--dur-base) var(--ease-out) both; }
+.animate-slide-down-fade { animation: slide-down-fade var(--dur-base) var(--ease-out) both; }
+.animate-slide-in-right { animation: slide-in-right var(--dur-med) var(--ease-smooth) both; }
+.animate-slide-out-right { animation: slide-out-right var(--dur-fast) var(--ease-in-out) both; }
+.animate-toast-in { animation: toast-in var(--dur-base) var(--ease-out) both; }
+.animate-toast-out { animation: toast-out var(--dur-fast) var(--ease-in-out) both; }
+.animate-scale-fade-in { animation: scale-fade-in var(--dur-base) var(--ease-spring) both; }
+.animate-selection-release { animation: selection-release var(--dur-base) var(--ease-out) both; }
+.animate-command-in { animation: command-in var(--dur-base) var(--ease-smooth) both; }
+.animate-dialog-in { animation: dialog-in var(--dur-base) var(--ease-out) both; }
+.animate-overlay-in { animation: overlay-in var(--dur-fast) var(--ease-out) both; }
+.animate-pulse-soft { animation: pulse-soft 1.6s var(--ease-in-out) infinite; }
+.animate-status-breathe { animation: status-breathe 1.8s var(--ease-in-out) infinite; }
+.animate-ember-breathe { animation: ember-breathe 2.2s var(--ease-in-out) infinite; }
+.animate-bubble-in { animation: bubble-in var(--dur-base) var(--ease-out) both; }
+.animate-spin { animation: spin 0.7s linear infinite; }
+.animate-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-inset) 25%,
+    var(--bg-hover) 50%,
+    var(--bg-inset) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* 用户显式开启减少动效。 */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+/* 只有“跟随系统”时读取系统偏好；用户显式关闭时不进入这条规则。 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-motion='system'] *,
+  html[data-motion='system'] *::before,
+  html[data-motion='system'] *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

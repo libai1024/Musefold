@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#18191b">
+    <meta name="description" content="Musefold / 未像 0.5：本地优先的视觉灵感与 AI 生图工作台，连接账号、模型、Skill、CLI 与 MCP 自动化。">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'self'; form-action 'self'">
+    <title>Musefold / 未像 · 让灵感成为图像</title>
+    <link rel="icon" href="assets/musefold-icon.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Musefold",
+        "alternateName": "未像",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Windows, macOS",
+        "softwareVersion": "0.5.0-dev",
+        "description": "一个本地优先的视觉灵感与 AI 生图工作台，支持账号、模型、Skill、CLI 与 MCP 自动化。"
+      }
+    </script>
+  </head>
+  <body>
+    <!-- THESIS: Musefold is a quiet creative desk where unfinished visual ideas become reusable images. OWN-WORLD: Graphite/Porcelain surfaces, Ember actions, and real product captures. STORY: Start a new creation, collect fragments, shape a reusable design scheme, reveal a direction, then keep the result. FORM: A direct, full-width website flow with the desktop app shown only as evidence. FINISH: No gradients, no fake product UI, no decorative noise; every detail earns its place. -->
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <main id="main-content">
+      <section class="hero section-dark" aria-labelledby="hero-title">
+        <div class="page-width hero__inner">
+          <div class="hero__copy reveal">
+            <p class="eyebrow">MUSEFOLD / 未像 <span class="eyebrow__dot" aria-hidden="true"></span> 0.5.0 DEV</p>
+            <h1 id="hero-title">让灵感<br><em>成为图像。</em></h1>
+            <p class="hero__lead">把参考图、文字、账号模型和 Skill 放到同一张可靠的创作桌上。收集、展开、生成，然后继续。</p>
+            <div class="hero__actions">
+              <a class="button button--ember" href="#downloads">下载 Musefold</a>
+              <a class="button button--quiet" href="#current-version">查看 0.5 界面</a>
+            </div>
+            <p class="hero__meta"><span class="status-dot" aria-hidden="true"></span>本地优先 · 账号与模型统一管理 · Windows + macOS</p>
+          </div>
+          <div class="hero__visual reveal reveal--late">
+            <figure class="app-frame app-frame--hero">
+              <div class="app-frame__topline"><span>制作工作台</span><span>0.5 / 01</span></div>
+              <img src="assets/screens/workbench.png" alt="Musefold 0.5 制作工作台，展示模型切换器、提示词输入和生成入口" width="2560" height="1640">
+              <figcaption><span>让这个方向先显形</span><span>WORKBENCH / 0.5</span></figcaption>
+            </figure>
+            <div class="hero__stamp" aria-hidden="true"><span>fold</span><strong>→</strong><span>reveal</span></div>
+          </div>
+        </div>
+        <div class="hero__rule page-width" aria-hidden="true"><span>收集 / 折叠 / 显形 / 复用</span><span>SCROLL TO EXPLORE</span></div>
+      </section>
+
+      <section class="manifesto section-porcelain" aria-labelledby="manifesto-title">
+        <div class="page-width manifesto__inner">
+          <p class="section-kicker">不是提示词工具</p>
+          <div>
+            <h2 id="manifesto-title">是一张安静、可靠的<br><span>创作桌。</span></h2>
+            <p class="section-copy">灵感不会在一次生成后结束。Musefold 0.5 把图片、提示词、参考图、账号模型、Skill、设计方案和历史版本放在一条可回看的路径里，让每次尝试都能成为下一次的起点。</p>
+          </div>
+          <div class="manifesto__index" aria-hidden="true"><span>01</span><i></i><span>04</span></div>
+        </div>
+      </section>
+
+      <section class="workflow section-porcelain" id="workflow" aria-labelledby="workflow-title">
+        <div class="page-width">
+          <div class="section-heading">
+            <p class="section-kicker">从片段到作品</p>
+            <h2 id="workflow-title">让想法一步一步<br><span>长出形状。</span></h2>
+          </div>
+          <div class="workflow__layout">
+            <ol class="workflow-list">
+              <li class="workflow-item is-active">
+                <span class="workflow-item__number">01</span>
+                <div><h3>收集 Collection</h3><p>从图片、文字或一个模糊念头开始，先把它留下来。</p></div>
+              </li>
+              <li class="workflow-item">
+                <span class="workflow-item__number">02</span>
+                <div><h3>导入 Skill</h3><p>粘贴公开 Skill，安全选择内容，让 AI 帮你整理成可执行的创作目标。</p></div>
+              </li>
+              <li class="workflow-item">
+                <span class="workflow-item__number">03</span>
+                <div><h3>选择模型</h3><p>在侧栏切换账号模型、中转站或自定义 Provider，生图与 Agent 分开管理。</p></div>
+              </li>
+              <li class="workflow-item">
+                <span class="workflow-item__number">04</span>
+                <div><h3>显形 Reveal</h3><p>带入工作台生成、比较、编辑，让下一个方向变得可见。</p></div>
+              </li>
+            </ol>
+            <figure class="app-frame app-frame--light workflow__image">
+              <div class="app-frame__topline"><span>Skill 运行时</span><span>SKILL / 02</span></div>
+              <img src="assets/screens/skill-import.png" alt="Musefold 0.5 导入 Skill 流程，展示文件选择与安全读取状态" width="1440" height="900" loading="lazy">
+              <figcaption><span>先看清，再交给 AI</span><span>SKILL IMPORT</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof section-dark" id="proof" aria-labelledby="proof-title">
+        <div class="page-width">
+          <div class="section-heading section-heading--dark">
+            <p class="section-kicker">工作台里有什么</p>
+            <h2 id="proof-title">所有线索，都在<br><span>同一条创作路径上。</span></h2>
+          </div>
+          <div class="proof-grid">
+            <article class="proof-panel proof-panel--wide">
+              <div class="proof-panel__copy"><span class="proof-panel__label">01 / 灵感库</span><h3>看见你收藏过的方向。</h3><p>图片和提示词不再散落在不同窗口。给每个片段留一点上下文，下一次回来时仍然认得它。</p></div>
+              <figure class="app-frame app-frame--inset"><img src="assets/screens/library.png" alt="Musefold 灵感库，展示图片与提示词条目" width="1280" height="820" loading="lazy"></figure>
+            </article>
+            <article class="proof-panel proof-panel--accent">
+              <span class="proof-panel__label">02 / 设计方案</span>
+              <p class="proof-panel__quote">“把一次生成留下的方法，变成下一次创作的起点。”</p>
+              <div class="proof-panel__line"></div>
+              <p class="proof-panel__small">提示词、模型、参数、参考图、账号和结果，作为一个完整版本被保存。</p>
+            </article>
+            <article class="proof-panel proof-panel--quiet">
+              <span class="proof-panel__label">03 / 继续编辑</span>
+              <h3>沿着一张图继续。</h3>
+              <p>生成不是终点。保留来源和历史，试错有迹可循，好的方向可以慢慢长大。</p>
+              <a class="text-link" href="#downloads">把它带回工作台</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="current-version section-porcelain" id="current-version" aria-labelledby="current-version-title">
+        <div class="page-width current-version__inner">
+          <div class="current-version__copy">
+            <p class="section-kicker">0.5 / 当前界面</p>
+            <h2 id="current-version-title">创作、模型与自动化<br><span>在同一张桌上。</span></h2>
+            <p class="section-copy">0.5 将桌面创作与本机自动化连在一起：从侧栏切换生图模型，在设置中管理账号与 Provider，再把 CLI、MCP 或公开 Skill 交给你的 AI。</p>
+            <ul class="current-version__list">
+              <li><span>01</span><div><strong>统一模型入口</strong><small>生图模型与 Agent 模型独立配置，侧栏直接切换。</small></div></li>
+              <li><span>02</span><div><strong>账号模式</strong><small>使用 Musefold 账号能力，也可以保留自己的 Provider。</small></div></li>
+              <li><span>03</span><div><strong>本机自动化</strong><small>内置 CLI 与 MCP，自动检测 PATH 和桌面 App 状态。</small></div></li>
+            </ul>
+          </div>
+          <figure class="app-frame app-frame--light current-version__image">
+            <div class="app-frame__topline"><span>模型服务</span><span>SETTINGS / 0.5</span></div>
+            <img src="assets/screens/model-hub.png" alt="Musefold 0.5 设置中的生图模型页面，展示模型服务入口与 Provider 管理" width="2560" height="1720" loading="lazy">
+            <figcaption><span>模型与服务，一处管理</span><span>MODEL HUB / 0.5</span></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="local-first section-ember" id="local-first" aria-labelledby="local-title">
+        <div class="page-width local-first__inner">
+          <div class="local-first__headline"><p class="section-kicker section-kicker--dark">属于你的创作档案</p><h2 id="local-title">本地优先，<br>掌控每一层。</h2></div>
+          <div class="local-first__body"><p class="local-first__lead">你的图片、提示词、设计方案与历史，先留在你的电脑上。账号凭证由系统安全存储，模型连接和自动化开关由你决定。</p><div class="trust-list"><div><span>01</span><p>本地数据</p><small>图片、提示词和历史在本机管理</small></div><div><span>02</span><p>账号与 Provider</p><small>按你的使用方式切换模型服务</small></div><div><span>03</span><p>可回看</p><small>每次生成都能继续编辑与复用</small></div></div></div>
+        </div>
+      </section>
+
+      <section class="automation section-dark" id="automation" aria-labelledby="automation-title">
+        <div class="page-width automation__inner">
+          <div class="automation__intro">
+            <p class="section-kicker">CLI / MCP 自动化</p>
+            <h2 id="automation-title">把 Musefold<br><span>交给你的 AI。</span></h2>
+            <p class="section-copy">启用自动化后，App 内置的 CLI 与 MCP 可以由本机 Agent 调用。公开 Skill 覆盖生图、参考图、提示词库、设计方案和 GitHub 视觉 Skill，直接把网址交给 AI。</p>
+          </div>
+          <div class="skill-access" aria-label="Musefold 自动化 Skill 地址">
+            <div class="skill-access__meta"><span>PUBLIC SKILL</span><span>随 CLI / MCP 更新</span></div>
+            <code data-skill-url>https://zhaozhaoyue.top/Musefold/skills/musefold/SKILL.md</code>
+            <div class="skill-access__actions">
+              <a class="button button--ember" href="skills/musefold/SKILL.md">打开 Skill</a>
+              <button class="button button--quiet" type="button" data-skill-copy>复制网址</button>
+            </div>
+            <p class="skill-access__status" data-skill-copy-status aria-live="polite">SKILL.md · CLI 优先 · MCP 兼容</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="downloads section-porcelain" id="downloads" aria-labelledby="downloads-title">
+        <div class="page-width downloads__inner">
+          <div class="downloads__intro"><p class="section-kicker">把 0.5 工作台带走</p><h2 id="downloads-title">在你的桌面上，<br><span>继续显形。</span></h2><p class="section-copy">Musefold 0.5.0-dev 已上线。Windows 安装时默认配置 musefold CLI 到 PATH；macOS 提供 Apple Silicon 安装包。安装后，CLI 会自动寻找正在运行的桌面 App。</p></div>
+          <div class="download-list" id="download-status">
+            <p class="download-summary" data-download-summary data-state="loading" aria-live="polite"><span>下载开始次数</span><strong data-download-total>--</strong><span data-download-status>正在读取</span></p>
+            <a class="download-row" href="/Musefold/api/download?platform=macos&amp;version=0.5.0-dev" rel="nofollow" download><span class="download-row__platform">macOS</span><span class="download-row__detail"><span>Apple Silicon · DMG · 0.5.0-dev</span><span class="download-row__count" data-download-count="macos" data-download-version="0.5.0-dev">统计中</span></span><span class="download-row__state">下载</span></a>
+            <a class="download-row" href="/Musefold/api/download?platform=windows&amp;version=0.5.0-dev" rel="nofollow" download><span class="download-row__platform">Windows</span><span class="download-row__detail"><span>安装程序 · 0.5.0-dev</span><span class="download-row__count" data-download-count="windows" data-download-version="0.5.0-dev">统计中</span></span><span class="download-row__state">下载</span></a>
+            <div class="download-note"><span class="status-dot status-dot--ember" aria-hidden="true"></span><span>Windows：0.5.0-dev · macOS：0.5.0-dev · 当前内测包未签名/未公证，请仅在测试环境使用。</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer section-dark">
+      <div class="page-width site-footer__inner"><div><a class="brand brand--footer" href="/Musefold/" aria-label="Musefold 未像首页"><img src="assets/musefold-icon.png" alt="" width="28" height="28"><span class="brand__wordmark">Musefold</span><span class="brand__cn">未像</span></a><p class="footer-tagline">Collect sparks. Shape images.</p></div><div class="footer-meta"><span>视觉灵感与 AI 生图工作台</span><span>zhaozhaoyue.top / Musefold</span><span>开发者：昭昭月科技有限公司</span><span>© 2026 Musefold</span></div></div>
+    </footer>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>

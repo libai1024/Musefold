@@ -1,0 +1,12 @@
+{
+  "name": "@musefold/core",
+  "version": "0.1.0",
+  "description": "Musefold 可移植领域核心（端口-适配器）：Electron 主进程与 headless 守护共用",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  }
+}

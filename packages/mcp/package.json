@@ -1,0 +1,19 @@
+{
+  "name": "@musefold/mcp",
+  "version": "0.5.0-dev",
+  "description": "Musefold MCP 服务器（stdio）：把本地控制面开放给 Claude Code / Codex / Cursor",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "bin": { "musefold-mcp": "./dist/musefold-mcp.mjs" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@musefold/client": "*",
+    "zod": "^3.25.76"
+  }
+}

@@ -1,0 +1,38 @@
+node_modules/
+out/
+release/
+dist/
+test-results/
+.pytest_cache/
+__pycache__/
+.venv-test/
+*.py[cod]
+*.tsbuildinfo
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+backups/
+*.db
+*.db-journal
+*.db-wal
+.electron-driver/
+.claude/settings.local.json
+
+# Local design/scratch artifacts
+generated/*
+!generated/v31-skill-research/
+generated/v31-skill-research/*
+!generated/v31-skill-research/gc-minimal-zine-landscape-poster.png
+!generated/v31-skill-research/source-landscape.jpg
+!generated/v31-skill-research/skill-ref-pause-map.jpeg
+.impeccable/
+sandbox/
+3dmodel/
+artifacts/
+output/
+
+# 桌宠临时形象资源（芙宁娜 sprite 共 51MB，且原角色版权属米哈游）。
+# 仅用于本地跑通流程；换成原创形象后删除此条并把资源纳入版本管理。
+resources/pet/furina/

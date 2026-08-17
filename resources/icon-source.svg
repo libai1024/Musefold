@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Vector companion to the raster master generated from ../logo.png. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="68" y="68" width="888" height="888" rx="210" fill="#f6f6f4" stroke="#a6a6a3" stroke-width="3"/>
+  <path
+    fill="#202124"
+    fill-rule="evenodd"
+    d="M286 236h452c30 0 54 24 54 54v266c0 22-8 43-24 59L574 806c-12 12-28 18-45 18H286c-30 0-54-24-54-54V290c0-30 24-54 54-54Zm48 92v404h174l192-190V328H334Z"
+  />
+  <circle cx="696" cy="390" r="34" fill="#d85b31"/>
+</svg>

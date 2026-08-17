@@ -1,0 +1,12 @@
+{
+  "name": "@musefold/automation-server",
+  "version": "0.1.0",
+  "description": "Musefold 本地控制面（Automation API v1）：loopback HTTP + SSE，token 鉴权",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  }
+}

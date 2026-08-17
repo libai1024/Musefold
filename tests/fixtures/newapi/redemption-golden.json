@@ -1,0 +1,79 @@
+{
+  "captured_at": "2026-08-13",
+  "server": "new-api v1.0.0-rc.24",
+  "cases": {
+    "admin_create_batch": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "count": 2,
+        "data_shape": "list[string] 兑换码明文"
+      },
+      "note": "码明文不入 golden"
+    },
+    "redeem_success": {
+      "status": 200,
+      "body": {
+        "data": 500000,
+        "message": "",
+        "success": true
+      },
+      "note": "data = 到账 quota（int）"
+    },
+    "redeem_already_used": {
+      "status": 200,
+      "body": {
+        "message": "Redemption failed, please try again later",
+        "success": false
+      },
+      "note": ""
+    },
+    "redeem_invalid": {
+      "status": 200,
+      "body": {
+        "message": "Redemption failed, please try again later",
+        "success": false
+      },
+      "note": ""
+    },
+    "redeem_empty": {
+      "status": 200,
+      "body": {
+        "message": "Redemption failed, please try again later",
+        "success": false
+      },
+      "note": ""
+    },
+    "balance_after": {
+      "status": 200,
+      "body": {
+        "before": 0,
+        "after": 500000,
+        "delta": 500000
+      },
+      "note": "管理面余额即时到账；/v1 调用面另有 ~15-60s 缓存延迟"
+    },
+    "admin_list_status": {
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": 6,
+            "name": "app-golden",
+            "status": 1,
+            "quota": 500000,
+            "used_user_id": 0
+          },
+          {
+            "id": 5,
+            "name": "app-golden",
+            "status": 3,
+            "quota": 500000,
+            "used_user_id": 6
+          }
+        ]
+      },
+      "note": "status: 1=未用 3=已用"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "downloads": [
+    {
+      "platform": "macos",
+      "version": "0.3.2",
+      "path": "/Musefold/downloads/0.3.2/Musefold-0.3.2-arm64.dmg"
+    },
+    {
+      "platform": "windows",
+      "version": "0.3.2",
+      "path": "/Musefold/downloads/0.3.2/Musefold%20Setup%200.3.2.exe"
+    },
+    {
+      "platform": "windows",
+      "version": "0.5.0-dev",
+      "path": "/Musefold/downloads/0.5.0-dev/Musefold%20Setup%200.5.0-dev.exe"
+    },
+    {
+      "platform": "macos",
+      "version": "0.5.0-dev",
+      "path": "/Musefold/downloads/0.5.0-dev/Musefold-0.5.0-dev-arm64.dmg"
+    }
+  ]
+}

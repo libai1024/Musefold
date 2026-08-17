@@ -1,0 +1,128 @@
+{
+  "name": "cat",
+  "displayName": "Musefold 小黑猫",
+  "version": "4.0.0",
+  "author": "musefold",
+  "description": "基于同一 Meshy 骨架生成的 256×256 高面数透明 APNG 桌宠，全套状态统一使用稳定的三分之四最终骨架动作。",
+  "schemaVersion": 1,
+  "meta": {
+    "canvas": { "w": 256, "h": 256 },
+    "format": "apng",
+    "note": "全套状态使用同一高面数模型、最终骨架、相机和光照，以 48fps 渲染；站立动作采用近景三分之四视角，后脚保持锁定，前爪只通过 IK 做受控竖直动作，并由头颈、耳根/耳尖、尾尖、眨眼、表情和围巾控制器提供稳定循环，应用按 128px CSS 尺寸显示。"
+  },
+  "states": {
+    "idle": {
+      "file": "apng/idle.apng",
+      "type": "A",
+      "loop": "pingpong"
+    },
+    "thinking": {
+      "file": "apng/thinking.apng",
+      "type": "A",
+      "loop": "subloop"
+    },
+    "creating": {
+      "file": "apng/circle-walk.apng",
+      "type": "A",
+      "loop": "subloop"
+    },
+    "typing": {
+      "file": "apng/typing.apng",
+      "type": "A",
+      "loop": "subloop"
+    },
+    "juggling": {
+      "file": "apng/juggling.apng",
+      "type": "A",
+      "loop": "subloop"
+    },
+    "conducting": {
+      "file": "apng/conducting.apng",
+      "type": "A",
+      "loop": "subloop"
+    },
+    "sleeping": {
+      "file": "apng/sleeping.apng",
+      "type": "A",
+      "loop": "pingpong"
+    },
+    "error": {
+      "file": "apng/error.apng",
+      "type": "A",
+      "loop": "pingpong"
+    },
+    "happy": {
+      "file": "apng/happy.apng",
+      "type": "B",
+      "loop": "pingpong",
+      "returnTo": "idle",
+      "durMs": 1500
+    },
+    "notification": {
+      "file": "apng/notification.apng",
+      "type": "B",
+      "loop": "pingpong",
+      "returnTo": "idle",
+      "durMs": 1500
+    },
+    "run-left": {
+      "file": "apng/run-left.apng",
+      "type": "A",
+      "loop": "subloop"
+    },
+    "run-right": {
+      "file": "apng/run-right.apng",
+      "type": "A",
+      "loop": "subloop"
+    }
+  },
+  "transitions": {
+    "collapse-sleep": {
+      "file": "apng/collapse-sleep.apng",
+      "type": "C",
+      "loop": "once-freeze",
+      "from": "idle",
+      "to": "sleeping",
+      "durMs": 1500
+    },
+    "wake": {
+      "file": "apng/wake.apng",
+      "type": "C",
+      "loop": "once-freeze",
+      "from": "sleeping",
+      "to": "idle",
+      "durMs": 1500
+    }
+  },
+  "reactions": {
+    "react-drag": {
+      "file": "apng/idle.apng",
+      "type": "A",
+      "loop": "pingpong"
+    },
+    "react-poke": {
+      "file": "apng/notification.apng",
+      "type": "B",
+      "loop": "pingpong",
+      "returnTo": "idle",
+      "durMs": 1500
+    }
+  },
+  "eventMap": {
+    "Idle": "idle",
+    "UserPromptSubmit": "thinking",
+    "GenerationRunning": "creating",
+    "PreToolUse": "typing",
+    "PostToolUse": "typing",
+    "SubagentStart:1": "juggling",
+    "SubagentStart:2+": "conducting",
+    "PostToolUseFailure": "error",
+    "PermissionRequest": "notification",
+    "Stop": "happy",
+    "IdleTimeout:180s": "collapse-sleep -> sleeping",
+    "WakeFromSleep": "wake -> idle",
+    "onDrag": "react-drag",
+    "onPoke": "react-poke"
+  },
+  "idleEggs": []
+}

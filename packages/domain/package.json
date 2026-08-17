@@ -1,0 +1,18 @@
+{
+  "name": "@musefold/domain",
+  "version": "1.1.0-dev",
+  "description": "Platform-neutral Musefold domain rules and application ports",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@musefold/contracts": "*"
+  }
+}

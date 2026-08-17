@@ -1,0 +1,135 @@
+{
+  "captured_at": "2026-08-13",
+  "server": "new-api v1.0.0-rc.24 @ Musefold Cloud（生产实测，敏感值已替换为等长同构样例）",
+  "cases": {
+    "login_success": {
+      "status": 200,
+      "set_cookie": "new_api_refresh=dfb28cd2-7de6-4db7-995e-439666d24244.5G5PTJQeyDfrAl2IfponEKuVUvP4XusTxaRWeshRxY7l5z5VqJj7UuqERpTOPUsw; Path=/api/user/auth; Expires=Sat, 12 Sep 2026 10:40:10 GMT; Max-Age=2591999; HttpOnly; SameSite=Strict",
+      "body": {
+        "success": true,
+        "message": "",
+        "data": {
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.SAMPLE.PAYLOAD",
+          "access_expires_at": 1786618510,
+          "token_type": "Bearer",
+          "session": "",
+          "user": { "id": 4, "username": "smoke01", "quota": 2468895, "group": "default" }
+        }
+      }
+    },
+    "login_bad_credentials": {
+      "status": 200,
+      "body": { "success": false, "message": "用户名或密码错误" }
+    },
+    "refresh_success_rotated": {
+      "status": 200,
+      "set_cookie": "new_api_refresh=dfb28cd2-7de6-4db7-995e-439666d24244.bd19f18a91255c91dee3c9b2a33589f7188f8eb5866f36fe09d3ce1aaaaaaaaa; Path=/api/user/auth; Max-Age=2591999; HttpOnly; SameSite=Strict",
+      "body": {
+        "success": true,
+        "message": "",
+        "data": {
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ROTATED.PAYLOAD",
+          "access_expires_at": 1786620510,
+          "token_type": "Bearer",
+          "session": "",
+          "user": { "id": 4, "username": "smoke01", "quota": 2468895, "group": "default" }
+        }
+      }
+    },
+    "refresh_expired": {
+      "status": 401,
+      "body": { "success": false, "message": "Unauthorized" }
+    },
+    "self_success": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "",
+        "data": { "id": 4, "username": "smoke01", "quota": 968437, "group": "default", "used_quota": 31563 }
+      }
+    },
+    "user_models": {
+      "status": 200,
+      "body": { "success": true, "message": "", "data": ["musefold-agent", "musefold-image-pro"] }
+    },
+    "token_create": {
+      "status": 200,
+      "body": { "success": true, "message": "" }
+    },
+    "token_list_masked": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "",
+        "data": {
+          "items": [
+            {
+              "id": 2,
+              "name": "smoke-device",
+              "status": 1,
+              "key": "tP1**********LmzM",
+              "unlimited_quota": true,
+              "remain_quota": 0,
+              "expired_time": -1,
+              "group": ""
+            }
+          ],
+          "page": 0,
+          "page_size": 20,
+          "total": 1
+        }
+      }
+    },
+    "token_key_full": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "",
+        "data": { "key": "tP1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALmzM" }
+      }
+    },
+    "pricing": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "pricing_version": "5a9c",
+        "group_ratio": { "default": 1 },
+        "usable_group": { "default": "默认分组" },
+        "data": [
+          {
+            "model_name": "musefold-agent",
+            "quota_type": 0,
+            "model_ratio": 2.5,
+            "model_price": 0,
+            "completion_ratio": 8,
+            "enable_groups": ["default"],
+            "supported_endpoint_types": ["openai"]
+          },
+          {
+            "model_name": "musefold-image-pro",
+            "quota_type": 1,
+            "model_ratio": 0,
+            "model_price": 0.04,
+            "completion_ratio": 0,
+            "enable_groups": ["default"],
+            "supported_endpoint_types": ["openai"]
+          }
+        ]
+      }
+    },
+    "status_announcements": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "announcements": [{ "content": "8/20 02:00-04:00 服务器维护", "publishDate": "2026-08-14T10:00:00Z" }],
+          "announcements_enabled": true
+        }
+      }
+    },
+    "notice_markdown": {
+      "status": 200,
+      "body": { "success": true, "message": "", "data": "欢迎使用 Musefold Cloud 内测。" }
+    }
+  }
+}

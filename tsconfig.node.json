@@ -1,0 +1,36 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node", "electron-vite/node"],
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"],
+      "@electron/*": ["electron/*"],
+      "@musefold/core": ["packages/core/src/index.ts"],
+      "@musefold/core/*": ["packages/core/src/*"],
+      "@musefold/automation-server": ["packages/automation-server/src/index.ts"],
+      "@musefold/automation-server/*": ["packages/automation-server/src/*"],
+      "@musefold/client": ["packages/client/src/index.ts"],
+      "@musefold/client/*": ["packages/client/src/*"]
+    },
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": [
+    "electron/**/*.ts",
+    "shared/**/*.ts",
+    "packages/core/src/**/*.ts",
+    "packages/automation-server/src/**/*.ts",
+    "packages/client/src/**/*.ts",
+    "packages/cli/src/**/*.ts"
+  ]
+}

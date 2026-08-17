@@ -1,0 +1,13 @@
+{
+  "name": "@musefold/client",
+  "version": "0.1.0",
+  "description": "Musefold 控制面客户端：发现链 + typed fetch + SSE（CLI 与 MCP 共用）",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  }
+}

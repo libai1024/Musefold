@@ -1,0 +1,65 @@
+appId: com.musefold.app
+productName: Musefold
+copyright: Copyright © 2026 昭昭月科技有限公司
+publish:
+  provider: generic
+  url: https://zhaozhaoyue.top/Musefold/updates/stable/
+directories:
+  buildResources: resources
+  output: release
+files:
+  - out/**/*
+  - package.json
+afterPack: scripts/after-pack.cjs
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+  - from: resources/builtin
+    to: builtin
+    filter: ['**/*']
+  - from: resources/pet
+    to: pet
+    filter: ['**/*']
+  # v0.4.x 客户端接入：内置 MCP 服务器与 CLI 单文件产物（私下分发，不依赖 npm/Node）
+  - from: packages/mcp/dist/musefold-mcp.mjs
+    to: integration/musefold-mcp.mjs
+  - from: packages/cli/dist/musefold.mjs
+    to: integration/musefold-cli.mjs
+  - from: packages/cli/dist/chunks
+    to: integration/chunks
+    filter: ['**/*']
+  - from: website/Musefold/skills/musefold/SKILL.md
+    to: integration/musefold-skill.md
+  - from: node_modules/better-sqlite3
+    to: integration/node_modules/better-sqlite3
+    filter:
+      - package.json
+      - lib/**/*
+      - prebuilds/**/*
+  - from: docs/product
+    to: product-docs
+    filter: ['**/*.md']
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+  icon: icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+win:
+  target:
+    - nsis
+  icon: icon.ico
+  signtoolOptions:
+    publisherName: 昭昭月科技有限公司
+  # Cross-builds without a Windows certificate keep resource editing while
+  # skipping code signing; a signed release must override this via
+  # `-c.win.signExecutable=true` and provide the certificate environment.
+  signExecutable: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  include: build/installer.nsh
