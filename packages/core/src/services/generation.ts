@@ -70,7 +70,12 @@ function createRunContext(
     const retryOf = retrySource?.id ?? null;
     const sourceAssetId = sourceAsset?.id ?? null;
     const refinementInstruction = req.refinementInstruction?.trim() || null;
-    const basePrompt = req.prompt;
+    const refinementParent = !retryOf && req.parentHistoryId
+      ? repositories.runs.get(req.parentHistoryId)
+      : null;
+    const basePrompt = retrySource?.basePrompt
+      ?? (refinementInstruction ? refinementParent?.finalPrompt : null)
+      ?? req.prompt;
     const params = {
       schemaVersion: 1 as const,
       size: req.size,
@@ -109,7 +114,7 @@ function createRunContext(
         sourceAssetId: req.sourceAssetId,
         refinementInstruction,
         finalPrompt: req.prompt,
-        basePrompt: retrySource?.basePrompt ?? req.prompt,
+        basePrompt,
         userPrompt: workbench?.userPrompt ?? refinementInstruction,
         negativePrompt: req.negative ?? null,
         providerId: req.providerId,

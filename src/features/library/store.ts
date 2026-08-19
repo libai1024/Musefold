@@ -348,6 +348,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
               ...(patch.contentNegative !== undefined
                 ? { contentNegative: patch.contentNegative }
                 : {}),
+              ...(patch.isPinned !== undefined ? { isPinned: patch.isPinned } : {}),
               ...(patch.folderId !== undefined ? { folderId: patch.folderId } : {}),
               ...(patch.modelId !== undefined ? { modelId: patch.modelId } : {}),
               ...(patch.rating !== undefined ? { rating: patch.rating } : {}),

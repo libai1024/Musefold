@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { PromptDocument } from '@musefold/contracts';
 import {
   applyPromptToGeneration,
+  canTransitionGeneration,
+  generationRequestToPromptDraft,
   getProductCapabilities,
   normalizePromptDraft,
+  titleFromPromptContent,
 } from '../index';
 
 function promptFixture(): PromptDocument {
@@ -14,11 +17,25 @@ function promptFixture(): PromptDocument {
     content: 'A folded paper landscape',
     negative: 'watermark',
     folderId: null,
-    tags: ['paper'],
+    tags: [{
+      id: 'tag-paper',
+      name: 'paper',
+      group: null,
+      color: null,
+      version: 1,
+      createdAt: '2026-08-17T08:00:00.000Z',
+      updatedAt: '2026-08-17T08:00:00.000Z',
+      deletedAt: null,
+    }],
     modelId: null,
     params: null,
+    rating: 3,
     isPinned: false,
+    pinOrder: null,
     usageCount: 2,
+    lastUsedAt: null,
+    source: 'manual',
+    sourceUrl: null,
     version: 1,
     createdAt: '2026-08-17T08:00:00.000Z',
     updatedAt: '2026-08-17T08:00:00.000Z',
@@ -30,6 +47,9 @@ describe('surface capabilities', () => {
   it('keeps desktop-only features out of the Web surface', () => {
     const web = getProductCapabilities('web');
     expect(web.generation).toBe(true);
+    expect(web.workbench).toBe(true);
+    expect(web.promptSync).toBe(true);
+    expect(web.cloudMcpConnections).toBe(true);
     expect(web.cloudPrompts).toBe(true);
     expect(web.agent).toBe(false);
     expect(web.automation).toBe(false);
@@ -38,16 +58,16 @@ describe('surface capabilities', () => {
 });
 
 describe('prompt application rules', () => {
-  it('normalizes optional values and de-duplicates tags', () => {
+  it('normalizes optional values and de-duplicates tag ids', () => {
     expect(normalizePromptDraft({
       title: '  Poster   study ',
       content: '  a quiet image  ',
-      tags: ['Paper', 'paper', ' blue '],
+      tagIds: ['tag-paper', 'tag-paper', ' tag-blue '],
     })).toMatchObject({
       title: 'Poster study',
       content: 'a quiet image',
       description: null,
-      tags: ['Paper', 'blue'],
+      tagIds: ['tag-paper', 'tag-blue'],
       isPinned: false,
     });
   });
@@ -65,5 +85,46 @@ describe('prompt application rules', () => {
       quality: 'medium',
       count: 1,
     });
+  });
+
+  it('maps a generation request back to a cloud prompt draft', () => {
+    const draft = generationRequestToPromptDraft({
+      prompt: '  A quiet glass study under morning light  ',
+      negative: 'watermark',
+      size: '1024x1024',
+      aspectRatio: '1:1',
+      quality: 'high',
+      count: 1,
+    });
+
+    expect(draft).toEqual({
+      title: 'A quiet glass study under morning light',
+      description: null,
+      content: 'A quiet glass study under morning light',
+      negative: 'watermark',
+      folderId: null,
+      tagIds: [],
+      modelId: null,
+      params: {
+        size: '1024x1024',
+        aspectRatio: '1:1',
+        quality: 'high',
+        count: 1,
+      },
+      rating: 0,
+      isPinned: false,
+      source: 'generation',
+      sourceUrl: null,
+    });
+    expect(titleFromPromptContent('')).toBe('生成提示词');
+  });
+});
+
+describe('generation state machine', () => {
+  it('allows approval and execution transitions but rejects terminal restarts', () => {
+    expect(canTransitionGeneration('pending_approval', 'queued')).toBe(true);
+    expect(canTransitionGeneration('pending_approval', 'cancelled')).toBe(true);
+    expect(canTransitionGeneration('running', 'succeeded')).toBe(true);
+    expect(canTransitionGeneration('failed', 'queued')).toBe(false);
   });
 });

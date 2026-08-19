@@ -25,3 +25,4 @@ export type {
   CompileSchemeResult,
 } from './services/schemes';
 export type { StatusService, StatusSnapshot } from './services/status';
+export * from './sync/index';

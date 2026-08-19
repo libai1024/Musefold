@@ -17,6 +17,8 @@ import { useAiConnectionStore } from '../features/settings/ai-connection-store';
 import { useSkillRuntimeStore } from '../features/generation/workbench/skillRuntimeStore';
 import { useSchemeCreationStore } from '../features/design-schemes/creationStore';
 import { useSchemeRunStore } from '../features/design-schemes/runStore';
+import { useAccountStore } from '../features/account/store';
+import { useCloudConnectionsStore } from '../features/settings/cloud-connections-store';
 import type { SharePayload } from '@shared/share';
 
 interface TestHook {
@@ -34,6 +36,8 @@ interface TestHook {
     skillRuntime: typeof useSkillRuntimeStore;
     schemeCreation: typeof useSchemeCreationStore;
     schemeRun: typeof useSchemeRunStore;
+    account: typeof useAccountStore;
+    cloudConnections: typeof useCloudConnectionsStore;
   };
   /** 读任意 store 的当前快照（结构化可序列化部分由调用方挑选） */
   snapshot: (name: keyof TestHook['stores']) => unknown;
@@ -74,6 +78,8 @@ export function installTestHook(): void {
     skillRuntime: useSkillRuntimeStore,
     schemeCreation: useSchemeCreationStore,
     schemeRun: useSchemeRunStore,
+    account: useAccountStore,
+    cloudConnections: useCloudConnectionsStore,
   };
   window.__musefold_test = {
     setView: (v) => useAppStore.getState().setView(v),

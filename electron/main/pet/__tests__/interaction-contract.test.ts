@@ -14,6 +14,8 @@ describe('pet interaction contract', () => {
     expect(controller).toContain("if (interaction === 'open-main')");
     expect(controller).toContain('openMainWindowFromPet()');
     expect(application).toContain('if (isPetActivationSuppressed()) return;');
+    expect(application).toContain('const main = getMainWindow();');
+    expect(application).not.toContain("BrowserWindow.getAllWindows().find((win) => !isPetWindow(win))");
     expect(windowSource).toContain("type: process.platform === 'darwin' ? 'panel' : undefined");
     expect(windowSource).toContain('focusable: false');
   });

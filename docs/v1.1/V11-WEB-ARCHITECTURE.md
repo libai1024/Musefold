@@ -623,9 +623,18 @@ npm run build:web
 npm run check:v1.1
 ```
 
-浏览器验证已覆盖 `1440x900` 和 `390x844`：选择云提示词、切换比例、提交任务、轮询状态、取消能力和结果展示；两种视口均无水平溢出，手机可见操作目标不小于 44px。开发态结果来自明确标记的 fixture，生产构建通过 `HttpWebGateway` 访问 `/api/musefold/v1`。
+浏览器验证已覆盖 `1440x900` 和 `390x844`：选择云提示词、切换比例、提交任务、SSE 状态唤醒与快照确认、断线退避、取消能力、结果展示和同一会话多 turn 恢复；两种视口均无水平溢出，手机可见操作目标不小于 44px。开发态结果来自明确标记的 fixture，生产构建通过 `HttpWebGateway` 访问 `/api/musefold/v1`。
 
-当前 `apps/web` UI 是 Phase 0 验证原型，不是后续独立维护的产品实现。M8 前必须按 [共享 UI 架构](./V11-SHARED-UI-ARCHITECTURE.md) 替换为 Desktop/Web 共用组件。
+当前 `apps/web` UI 已进入共享组件迁移阶段：工作台页面壳、时间线、Composer、用户消息、助手头、结果网格/结果卡/共享助手头像、提示词库、历史核心视图、历史主从工作区、账户摘要、账户页和 Cloud MCP 连接策略页已由 Desktop/Web 共用的 `@musefold/product-ui` 提供，`App.tsx` 对这些页面只负责路由和 contracts 到 view model 的映射。Desktop active/archived/open/rename/archive/restore/delete 已复用同一 session reducer 规则并加入 IPC 请求序列保护；Desktop 设置已通过集中式 `cloud-connections-store` 和 `cloudConnections` IPC 接入共享 Cloud MCP 连接页面；`useWorkbenchGenerationSyncController` 已接入 Web，按跨会话活跃任务维护快照和可恢复 SSE；`npm run test:visual:shared` 已完成 Workbench、成功/失败/取消结果态、提示词库列表/详情、历史详情内容、完整历史工作区、账号摘要和 Cloud MCP 连接页十一项区域的 Desktop/Web 中心裁剪像素比较，指标均低于阈值。仍需完成跨设备后台快照的真实 Cloud 验收、真实 Cloud API 浏览器验收和 staging/production 环境门禁，不能把当前代码标记为 M8 或 production release 完成。
+
+当前 UI 验收修订（2026-08-19）：共享视觉比较已扩展为十三项区域，新增提示词引用卡片和全文悬停预览；共享产品 UI 当前为 `37/37`。真实 Cloud API、跨设备后台生成快照和 staging/production 环境门禁仍未完成。
+
+本轮视觉门禁增量：共享视觉比较已扩展为十三项区域，覆盖成功、失败、取消结果态、`390x844` 手机取消态、提示词引用卡片和全文悬停预览；Web E2E 当前 `11/11`，Desktop 视觉 QA `5/5`，新增五项结果/引用态比较均低于门禁。真实 Cloud API、跨设备后台生成快照和 staging/production 环境门禁仍未完成。
+
+最新 UI 修订（2026-08-19）：共享产品 UI 为 `38/38`；生成结果重试按钮已抽取为 `@musefold/product-ui` 的 `GenerationRetryAction`，Desktop/Web 共享图标、尺寸、忙碌/禁用状态和测试契约。历史详情真实运行时内容区域在两端均为 `285x459`。这只收敛公共 UI，不改变 Desktop 本地文件、Skill、方案和批量操作等 capability slot；真实 Cloud API、跨设备后台生成快照和 staging/production 环境门禁仍未完成。
+
+当前验证基线（2026-08-19）：重新执行本地 v1.1 验证后，共享 Product UI 为 `40/40`，共享视觉门禁为 `16/16`，Web E2E 为 `13/13`，Desktop 视觉 QA 为 `5/5`，本地产物预检通过。本地 Web API `60162` 已连接真实 new-api 账号完成登录、真实生图、MCP SDK 双客户端和兑换码增额核验（`500000` 点）；远程 Cloud API、跨设备后台生成快照和 staging/production 环境门禁仍未完成。
+Cloud MCP 全量验收补充：本地真实账号已通过 14 个工具的双客户端调用矩阵、OAuth PKCE/refresh/revoke、审批态生成的幂等/查询/等待/取消和历史签名资源读取；`pending_approval` 取消状态转换已修复。远程 Cloud API、跨设备后台生成快照和 staging/production 环境门禁仍未完成。
 
 ## 18. 调研依据
 

@@ -1,0 +1,22 @@
+{
+  "name": "@musefold/cloud-client",
+  "version": "1.1.0-dev",
+  "description": "Typed browser and desktop client for the Musefold Cloud API",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@musefold/contracts": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

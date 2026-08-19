@@ -1,7 +1,7 @@
 // 设置 · 自动化（V04-SET-01）：本地控制面开关、端口/token 展示与轮换、审计一览。
 // 安全边界：token 只用于本机 Agent/CLI 接入；关闭后端口不再监听、发现文件删除。
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { Copy, Download, ExternalLink, RefreshCw } from '../../../components/ui/icons';
 import type {
   AutomationBudget,
   AutomationSpendAudit,

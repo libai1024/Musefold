@@ -13,6 +13,7 @@ import { AiConnectionsSection } from '../sections/AiConnectionsSection';
 import { ArchivedChatsSection } from '../sections/ArchivedChatsSection';
 import { AutomationSection } from '../sections/AutomationSection';
 import { AccountSection } from '../sections/AccountSection';
+import { ConnectedAppsSection } from '../sections/ConnectedAppsSection';
 import { DoubaoSection } from '../sections/DoubaoSection';
 import { AccessModeSection } from '../sections/AccessModeSection';
 import { cn } from '../../../lib/utils';
@@ -29,6 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'access', label: 'AI 接入' },
       { key: 'doubao', label: '豆包网页版' },
       { key: 'account', label: 'Musefold 账号' },
+      { key: 'connections', label: '已连接应用' },
     ],
   },
   {
@@ -72,6 +74,7 @@ const SECTIONS: Record<SettingsSection, () => JSX.Element> = {
   access: AccessModeSection,
   doubao: DoubaoSection,
   account: AccountSection,
+  connections: ConnectedAppsSection,
   providers: ProvidersSection,
   ai: AiConnectionsSection,
   generation: GenerationSection,

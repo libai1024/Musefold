@@ -3,13 +3,22 @@
 
 import { ulid } from 'ulid';
 import type { Prompt, NewPrompt, PromptParams } from '@shared/types/models';
-import type { BatchPromptMutationResult, ListPromptsQuery, UpdatePromptPatch } from '@shared/types/ipc';
+import type {
+  BatchPromptMutationResult,
+  ListPromptsQuery,
+  UpdatePromptPatch,
+} from '@shared/types/ipc';
 import type { PromptStats } from '@shared/types/ipc';
+import type { SyncUsageAction } from '@musefold/contracts';
 import { UNFILED_FOLDER_ID } from '@shared/constants';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
 import { tagsRepo } from './tags';
 import { tokenizeForFts, buildMatchQuery } from '../fts';
+import {
+  enqueueActiveAccountMutation,
+  enqueueActiveAccountUsageEvent,
+} from '../../sync/repository';
 
 /**
  * FTS 由本层显式维护（schema.ts 已说明为何不能用触发器：分词在 JS 侧）。
@@ -19,22 +28,35 @@ import { tokenizeForFts, buildMatchQuery } from '../fts';
 function syncFts(id: string): void {
   const db = getDb();
   const row = db
-    .prepare('SELECT rowid, title, description, content FROM prompts WHERE id = ?')
-    .get(id) as { rowid: number; title: string; description: string | null; content: string } | undefined;
+    .prepare(
+      'SELECT rowid, title, description, content FROM prompts WHERE id = ?',
+    )
+    .get(id) as
+    | {
+        rowid: number;
+        title: string;
+        description: string | null;
+        content: string;
+      }
+    | undefined;
   if (!row) return;
   const tagNames = tagsRepo.getByPromptId(id).map((t) => t.name);
-  const tagsIndex = tokenizeForFts(row.title, row.description, row.content, tagNames);
+  const tagsIndex = tokenizeForFts(
+    row.title,
+    row.description,
+    row.content,
+    tagNames,
+  );
   db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
   db.prepare(
-    'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)',
   ).run(row.rowid, row.title, row.description ?? '', row.content, tagsIndex);
 }
 
 function removeFts(id: string): void {
   const db = getDb();
   const row = db.prepare('SELECT rowid FROM prompts WHERE id = ?').get(id) as
-    | { rowid: number }
-    | undefined;
+    { rowid: number } | undefined;
   if (row) db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
 }
 
@@ -42,7 +64,11 @@ function uniqueIds(ids: string[]): string[] {
   return Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
 }
 
-function batchResult(ids: string[], affected: number, missingIds: string[]): BatchPromptMutationResult {
+function batchResult(
+  ids: string[],
+  affected: number,
+  missingIds: string[],
+): BatchPromptMutationResult {
   return {
     requested: ids.length,
     affected,
@@ -80,7 +106,10 @@ function rowToPrompt(row: unknown): Prompt {
     modelId: (r.model_id as string) ?? null,
     params: parseJsonColumn<PromptParams | null>(r.params, null),
     previewImagePath: (r.preview_image_path as string) ?? null,
-    coverImagePath: (r.latest_work_image as string) ?? (r.preview_image_path as string) ?? null,
+    coverImagePath:
+      (r.latest_work_image as string) ??
+      (r.preview_image_path as string) ??
+      null,
     rating: r.rating as number,
     isPinned: Boolean(r.is_pinned),
     pinOrder: (r.pin_order as number) ?? null,
@@ -115,10 +144,20 @@ const SORT_COLUMN = {
  * - 追加 updated_at + id 作次级键：保证同值稳定排序（评分/次数全 0 时不抖动）。
  * - title 的「默认方向」是 A→Z，与时间/数值类相反，所以 desc/asc 在此语义翻转。
  */
-function buildOrderBy(sort: ListPromptsQuery['sort'], dir: ListPromptsQuery['sortDir']): string {
+function buildOrderBy(
+  sort: ListPromptsQuery['sort'],
+  dir: ListPromptsQuery['sortDir'],
+): string {
   const key = SORT_COLUMN[sort ?? 'updated'];
   const descending = (dir ?? 'desc') === 'desc';
-  const direction = key === SORT_COLUMN.title ? (descending ? 'ASC' : 'DESC') : descending ? 'DESC' : 'ASC';
+  const direction =
+    key === SORT_COLUMN.title
+      ? descending
+        ? 'ASC'
+        : 'DESC'
+      : descending
+        ? 'DESC'
+        : 'ASC';
   return `p.is_pinned DESC, CASE WHEN p.is_pinned = 1 THEN p.pin_order END ASC, ${key} ${direction}, p.updated_at DESC, p.id DESC`;
 }
 
@@ -234,7 +273,11 @@ export const promptsRepo = {
 
   get(id: string): Prompt | null {
     const db = getDb();
-    const row = db.prepare(`SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.id = ?`).get(id);
+    const row = db
+      .prepare(
+        `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.id = ?`,
+      )
+      .get(id);
     if (!row) return null;
     return attachTags(rowToPrompt(row));
   },
@@ -246,9 +289,9 @@ export const promptsRepo = {
     db.transaction(() => {
       db.prepare(
         `INSERT INTO prompts (id, title, description, content, content_negative, folder_id, model_id,
-          params, preview_image_path, rating, source, source_url, created_at, updated_at)
+          params, preview_image_path, rating, is_pinned, source, source_url, created_at, updated_at)
          VALUES (@id, @title, @description, @content, @content_negative, @folder_id, @model_id,
-          @params, @preview_image_path, @rating, @source, @source_url, @created_at, @updated_at)`
+          @params, @preview_image_path, @rating, @is_pinned, @source, @source_url, @created_at, @updated_at)`,
       ).run({
         id,
         title: p.title,
@@ -260,6 +303,7 @@ export const promptsRepo = {
         params: p.params ? JSON.stringify(p.params) : null,
         preview_image_path: p.previewImagePath ?? null,
         rating: p.rating ?? 0,
+        is_pinned: p.isPinned ? 1 : 0,
         source: p.source ?? 'manual',
         source_url: p.sourceUrl ?? null,
         created_at: now,
@@ -270,6 +314,7 @@ export const promptsRepo = {
       }
       // 标签写入后再建 FTS 行，保证 tags_index 含标签词
       syncFts(id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'create');
     })();
     return this.get(id)!;
   },
@@ -279,20 +324,56 @@ export const promptsRepo = {
     const now = Date.now();
     const fields: string[] = [];
     const values: Record<string, unknown> = { id, updated_at: now };
-    if (patch.title !== undefined) { fields.push('title = @title'); values.title = patch.title; }
-    if (patch.content !== undefined) { fields.push('content = @content'); values.content = patch.content; }
-    if (patch.description !== undefined) { fields.push('description = @description'); values.description = patch.description; }
-    if (patch.contentNegative !== undefined) { fields.push('content_negative = @content_negative'); values.content_negative = patch.contentNegative; }
-    if (patch.folderId !== undefined) { fields.push('folder_id = @folder_id'); values.folder_id = patch.folderId; }
-    if (patch.modelId !== undefined) { fields.push('model_id = @model_id'); values.model_id = patch.modelId; }
-    if (patch.params !== undefined) { fields.push('params = @params'); values.params = JSON.stringify(patch.params); }
-    if (patch.previewImagePath !== undefined) { fields.push('preview_image_path = @preview_image_path'); values.preview_image_path = patch.previewImagePath; }
-    if (patch.rating !== undefined) { fields.push('rating = @rating'); values.rating = patch.rating; }
-    if (patch.source !== undefined) { fields.push('source = @source'); values.source = patch.source; }
+    if (patch.title !== undefined) {
+      fields.push('title = @title');
+      values.title = patch.title;
+    }
+    if (patch.content !== undefined) {
+      fields.push('content = @content');
+      values.content = patch.content;
+    }
+    if (patch.description !== undefined) {
+      fields.push('description = @description');
+      values.description = patch.description;
+    }
+    if (patch.contentNegative !== undefined) {
+      fields.push('content_negative = @content_negative');
+      values.content_negative = patch.contentNegative;
+    }
+    if (patch.isPinned !== undefined) {
+      fields.push('is_pinned = @is_pinned');
+      values.is_pinned = patch.isPinned ? 1 : 0;
+    }
+    if (patch.folderId !== undefined) {
+      fields.push('folder_id = @folder_id');
+      values.folder_id = patch.folderId;
+    }
+    if (patch.modelId !== undefined) {
+      fields.push('model_id = @model_id');
+      values.model_id = patch.modelId;
+    }
+    if (patch.params !== undefined) {
+      fields.push('params = @params');
+      values.params = JSON.stringify(patch.params);
+    }
+    if (patch.previewImagePath !== undefined) {
+      fields.push('preview_image_path = @preview_image_path');
+      values.preview_image_path = patch.previewImagePath;
+    }
+    if (patch.rating !== undefined) {
+      fields.push('rating = @rating');
+      values.rating = patch.rating;
+    }
+    if (patch.source !== undefined) {
+      fields.push('source = @source');
+      values.source = patch.source;
+    }
 
     db.transaction(() => {
       if (fields.length > 0) {
-        db.prepare(`UPDATE prompts SET ${fields.join(', ')}, updated_at = @updated_at WHERE id = @id`).run(values);
+        db.prepare(
+          `UPDATE prompts SET ${fields.join(', ')}, updated_at = @updated_at WHERE id = @id`,
+        ).run(values);
       }
       // 标签变更
       if (patch.tagIds !== undefined) {
@@ -300,6 +381,7 @@ export const promptsRepo = {
       }
       // 重建 FTS 行（title/description/content/tags 任一变化都要重算分词）
       syncFts(id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'update');
     })();
     return this.get(id)!;
   },
@@ -308,7 +390,12 @@ export const promptsRepo = {
     const db = getDb();
     // 软删除保留 FTS 行；list() 的 `p.deleted_at IS NULL` 已把它挡在搜索结果外，
     // 恢复时无需重建索引。
-    db.prepare('UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?').run(Date.now(), Date.now(), id);
+    db.transaction(() => {
+      db.prepare(
+        'UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?',
+      ).run(Date.now(), Date.now(), id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'delete');
+    })();
   },
 
   batchAddTags(ids: string[], tagIds: string[]): BatchPromptMutationResult {
@@ -324,13 +411,13 @@ export const promptsRepo = {
     }
 
     const promptExists = db.prepare(
-      'SELECT 1 FROM prompts WHERE id = ? AND deleted_at IS NULL'
+      'SELECT 1 FROM prompts WHERE id = ? AND deleted_at IS NULL',
     );
     const insertTag = db.prepare(
-      'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)'
+      'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
     );
     const touchPrompt = db.prepare(
-      'UPDATE prompts SET updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE prompts SET updated_at = ? WHERE id = ? AND deleted_at IS NULL',
     );
     const now = Date.now();
 
@@ -343,6 +430,7 @@ export const promptsRepo = {
         for (const tagId of nextTagIds) insertTag.run(id, tagId);
         touchPrompt.run(now, id);
         syncFts(id);
+        enqueueActiveAccountMutation(db, 'prompt', id, 'update');
         affected += 1;
       }
     })();
@@ -353,21 +441,26 @@ export const promptsRepo = {
   batchMove(ids: string[], folderId: string | null): BatchPromptMutationResult {
     const promptIds = uniqueIds(ids);
     const db = getDb();
-    if (folderId && !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)) {
+    if (
+      folderId &&
+      !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)
+    ) {
       throw new Error(`Folder not found: ${folderId}`);
     }
 
     const missingIds: string[] = [];
     let affected = 0;
     const stmt = db.prepare(
-      'UPDATE prompts SET folder_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE prompts SET folder_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
     );
     const now = Date.now();
     db.transaction(() => {
       for (const id of promptIds) {
         const result = stmt.run(folderId, now, id);
-        if (result.changes > 0) affected += 1;
-        else missingIds.push(id);
+        if (result.changes > 0) {
+          enqueueActiveAccountMutation(db, 'prompt', id, 'update');
+          affected += 1;
+        } else missingIds.push(id);
       }
     })();
     return batchResult(promptIds, affected, missingIds);
@@ -380,20 +473,22 @@ export const promptsRepo = {
     let affected = 0;
     let maxOrder = (
       db
-        .prepare('SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1')
+        .prepare(
+          'SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1',
+        )
         .get() as { m: number }
     ).m;
     const getPrompt = db.prepare(
-      'SELECT is_pinned FROM prompts WHERE id = ? AND deleted_at IS NULL'
+      'SELECT is_pinned FROM prompts WHERE id = ? AND deleted_at IS NULL',
     );
     const keepPinned = db.prepare(
-      'UPDATE prompts SET is_pinned = 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE prompts SET is_pinned = 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
     );
     const pin = db.prepare(
-      'UPDATE prompts SET is_pinned = 1, pin_order = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE prompts SET is_pinned = 1, pin_order = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
     );
     const unpin = db.prepare(
-      'UPDATE prompts SET is_pinned = 0, pin_order = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE prompts SET is_pinned = 0, pin_order = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
     );
     const now = Date.now();
 
@@ -412,6 +507,7 @@ export const promptsRepo = {
           maxOrder += 1;
           pin.run(maxOrder, now, id);
         }
+        enqueueActiveAccountMutation(db, 'prompt', id, 'update');
         affected += 1;
       }
     })();
@@ -424,14 +520,16 @@ export const promptsRepo = {
     const missingIds: string[] = [];
     let affected = 0;
     const stmt = db.prepare(
-      'UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+      'UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
     );
     const now = Date.now();
     db.transaction(() => {
       for (const id of promptIds) {
         const result = stmt.run(now, now, id);
-        if (result.changes > 0) affected += 1;
-        else missingIds.push(id);
+        if (result.changes > 0) {
+          enqueueActiveAccountMutation(db, 'prompt', id, 'delete');
+          affected += 1;
+        } else missingIds.push(id);
       }
     })();
     return batchResult(promptIds, affected, missingIds);
@@ -443,7 +541,9 @@ export const promptsRepo = {
   listDeleted(): Prompt[] {
     const db = getDb();
     const rows = db
-      .prepare('SELECT * FROM prompts WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 500')
+      .prepare(
+        'SELECT * FROM prompts WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 500',
+      )
       .all();
     return rows.map(rowToPrompt).map(attachTags);
   },
@@ -451,8 +551,13 @@ export const promptsRepo = {
   /** 从回收站恢复 */
   restore(id: string): Prompt {
     const db = getDb();
-    db.prepare('UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE id = ?').run(Date.now(), id);
-    db.transaction(() => syncFts(id))();
+    db.transaction(() => {
+      db.prepare(
+        'UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE id = ?',
+      ).run(Date.now(), id);
+      syncFts(id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'restore');
+    })();
     return this.get(id)!;
   },
 
@@ -469,7 +574,9 @@ export const promptsRepo = {
   /** 清空回收站；返回清理条数 */
   purgeAllDeleted(): number {
     const db = getDb();
-    const ids = db.prepare('SELECT id FROM prompts WHERE deleted_at IS NOT NULL').all() as {
+    const ids = db
+      .prepare('SELECT id FROM prompts WHERE deleted_at IS NOT NULL')
+      .all() as {
       id: string;
     }[];
     db.transaction(() => {
@@ -489,21 +596,31 @@ export const promptsRepo = {
   stats(): PromptStats {
     const db = getDb();
     const total = (
-      db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL').get() as { c: number }
+      db
+        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL')
+        .get() as { c: number }
     ).c;
     const unfiled = (
       db
-        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND folder_id IS NULL')
+        .prepare(
+          'SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND folder_id IS NULL',
+        )
         .get() as { c: number }
     ).c;
     const trashed = (
-      db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NOT NULL').get() as {
+      db
+        .prepare(
+          'SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NOT NULL',
+        )
+        .get() as {
         c: number;
       }
     ).c;
     const pinned = (
       db
-        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND is_pinned = 1')
+        .prepare(
+          'SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND is_pinned = 1',
+        )
         .get() as { c: number }
     ).c;
 
@@ -511,7 +628,7 @@ export const promptsRepo = {
     for (const r of db
       .prepare(
         `SELECT folder_id AS id, COUNT(*) AS c FROM prompts
-         WHERE deleted_at IS NULL AND folder_id IS NOT NULL GROUP BY folder_id`
+         WHERE deleted_at IS NULL AND folder_id IS NOT NULL GROUP BY folder_id`,
       )
       .all() as { id: string; c: number }[]) {
       byFolder[r.id] = r.c;
@@ -522,7 +639,7 @@ export const promptsRepo = {
       .prepare(
         `SELECT pt.tag_id AS id, COUNT(*) AS c FROM prompt_tags pt
          JOIN prompts p ON p.id = pt.prompt_id
-         WHERE p.deleted_at IS NULL GROUP BY pt.tag_id`
+         WHERE p.deleted_at IS NULL GROUP BY pt.tag_id`,
       )
       .all() as { id: string; c: number }[]) {
       byTag[r.id] = r.c;
@@ -551,25 +668,41 @@ export const promptsRepo = {
   togglePin(id: string, pinned: boolean): Prompt {
     const db = getDb();
     const now = Date.now();
-    const maxOrder = db.prepare('SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1').get() as { m: number };
-    db.prepare('UPDATE prompts SET is_pinned = ?, pin_order = ?, updated_at = ? WHERE id = ?')
-      .run(pinned ? 1 : 0, pinned ? maxOrder.m + 1 : null, now, id);
+    const maxOrder = db
+      .prepare(
+        'SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1',
+      )
+      .get() as { m: number };
+    db.transaction(() => {
+      db.prepare(
+        'UPDATE prompts SET is_pinned = ?, pin_order = ?, updated_at = ? WHERE id = ?',
+      ).run(pinned ? 1 : 0, pinned ? maxOrder.m + 1 : null, now, id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'update');
+    })();
     return this.get(id)!;
   },
 
   reorderPins(ids: string[]): void {
     const db = getDb();
-    const stmt = db.prepare('UPDATE prompts SET pin_order = ?, updated_at = ? WHERE id = ?');
+    const stmt = db.prepare(
+      'UPDATE prompts SET pin_order = ?, updated_at = ? WHERE id = ?',
+    );
     const now = Date.now();
     db.transaction(() => {
-      ids.forEach((id, i) => stmt.run(i, now, id));
+      ids.forEach((id, i) => {
+        stmt.run(i, now, id);
+        enqueueActiveAccountMutation(db, 'prompt', id, 'update');
+      });
     })();
   },
 
-  incrementUsage(id: string): void {
+  incrementUsage(id: string, action: SyncUsageAction = 'apply'): void {
     const db = getDb();
-    db.prepare('UPDATE prompts SET usage_count = usage_count + 1, last_used_at = ? WHERE id = ?')
-      .run(Date.now(), id);
+    db.transaction(() => {
+      db.prepare(
+        'UPDATE prompts SET usage_count = usage_count + 1, last_used_at = ? WHERE id = ?',
+      ).run(Date.now(), id);
+      enqueueActiveAccountUsageEvent(db, id, action);
+    })();
   },
-
 };

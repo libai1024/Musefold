@@ -1,0 +1,57 @@
+services:
+  v11-minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - v11-minio-data:/data
+    networks:
+      - musefold_default
+
+  v11-web-api:
+    image: musefold-v11:latest
+    restart: unless-stopped
+    command: ["npm", "run", "start", "--workspace", "@musefold/web-api"]
+    env_file:
+      - .env.v11
+    environment:
+      DATABASE_URL: postgres://musefold_app:${APP_DB_PASSWORD}@db:5432/musefold
+    depends_on:
+      - v11-minio
+    expose:
+      - "60160"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:60160/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - musefold_default
+
+  v11-worker:
+    image: musefold-v11:latest
+    restart: unless-stopped
+    command: ["npm", "run", "start", "--workspace", "@musefold/generation-worker"]
+    env_file:
+      - .env.v11
+    environment:
+      DATABASE_URL: postgres://musefold_worker:${WORKER_DB_PASSWORD}@db:5432/musefold
+    depends_on:
+      - v11-minio
+    networks:
+      - musefold_default
+
+networks:
+  musefold_default:
+    external: true
+    name: musefold_default
+
+volumes:
+  v11-minio-data:

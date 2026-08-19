@@ -1,0 +1,36 @@
+{
+  "name": "@musefold/ui",
+  "version": "1.1.0-dev",
+  "description": "Shared Musefold design tokens and canonical icon contract",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./icons": "./src/icons.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./primitives.css": "./src/primitives.css"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.4",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-tabs": "^1.1.2",
+    "@radix-ui/react-toast": "^1.2.4",
+    "@radix-ui/react-tooltip": "^1.2.7",
+    "lucide-react": "^1.28.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

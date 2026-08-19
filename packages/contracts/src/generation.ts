@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiErrorCodeSchema, entityIdSchema, isoDateTimeSchema } from './common';
+import { apiErrorCodeSchema, entityIdSchema, isoDateTimeSchema } from './common.js';
 
 export const generationSizeSchema = z.enum([
   'auto',
@@ -10,12 +10,24 @@ export const generationSizeSchema = z.enum([
 
 export const generationQualitySchema = z.enum(['low', 'medium', 'high', 'auto']);
 export const generationStatusSchema = z.enum([
+  'pending_approval',
   'queued',
   'running',
   'succeeded',
   'failed',
   'cancelling',
   'cancelled',
+  'rejected',
+  'expired',
+]);
+
+export const generationActorTypeSchema = z.enum(['web', 'cloud_mcp']);
+export const generationApprovalStatusSchema = z.enum([
+  'not_required',
+  'pending_approval',
+  'approved',
+  'rejected',
+  'expired',
 ]);
 
 export const generationAssetUrlSchema = z.string().min(1).max(4_096).refine((value) => {
@@ -39,6 +51,12 @@ export const cloudGenerationRequestSchema = z.object({
   count: z.literal(1).default(1),
 });
 
+export const createGenerationInputSchema = cloudGenerationRequestSchema.extend({
+  sessionId: entityIdSchema.optional(),
+  parentRunId: entityIdSchema.optional(),
+  runKind: z.enum(['free_generation', 'refinement', 'retry']).default('free_generation'),
+});
+
 export const generationAssetSchema = z.object({
   id: entityIdSchema,
   url: generationAssetUrlSchema,
@@ -51,9 +69,16 @@ export const generationAssetSchema = z.object({
 
 export const generationJobSchema = z.object({
   id: entityIdSchema,
+  sessionId: entityIdSchema.nullable(),
+  parentRunId: entityIdSchema.nullable(),
+  promptId: entityIdSchema.nullable(),
+  actorType: generationActorTypeSchema,
+  approvalStatus: generationApprovalStatusSchema,
   status: generationStatusSchema,
   progress: z.number().int().min(0).max(100),
   request: cloudGenerationRequestSchema,
+  providerModel: z.string().trim().min(1).max(128).nullable(),
+  costPoints: z.number().int().nonnegative().nullable(),
   assets: z.array(generationAssetSchema),
   error: z.object({
     code: apiErrorCodeSchema,
@@ -62,12 +87,17 @@ export const generationJobSchema = z.object({
   createdAt: isoDateTimeSchema,
   startedAt: isoDateTimeSchema.nullable(),
   finishedAt: isoDateTimeSchema.nullable(),
+  deletedAt: isoDateTimeSchema.nullable().optional(),
 });
 
 export type GenerationSize = z.infer<typeof generationSizeSchema>;
 export type GenerationQuality = z.infer<typeof generationQualitySchema>;
 export type GenerationStatus = z.infer<typeof generationStatusSchema>;
+export type GenerationActorType = z.infer<typeof generationActorTypeSchema>;
+export type GenerationApprovalStatus = z.infer<typeof generationApprovalStatusSchema>;
 export type CloudGenerationRequest = z.input<typeof cloudGenerationRequestSchema>;
 export type ParsedCloudGenerationRequest = z.output<typeof cloudGenerationRequestSchema>;
+export type CreateGenerationInput = z.input<typeof createGenerationInputSchema>;
+export type ParsedCreateGenerationInput = z.output<typeof createGenerationInputSchema>;
 export type GenerationAsset = z.infer<typeof generationAssetSchema>;
 export type GenerationJob = z.infer<typeof generationJobSchema>;

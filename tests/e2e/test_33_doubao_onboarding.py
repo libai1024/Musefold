@@ -86,7 +86,7 @@ def test_first_run_offers_doubao_or_account_and_adapts_to_narrow_window(app, tmp
 
     app.page.set_viewport_size({"width": 1200, "height": 760})
     app.page.keyboard.press("Escape")
-    assert "登录方式" in app.page.locator("body").inner_text()
+    assert "接入方式" in app.page.locator("body").inner_text()
     assert "高级设置" in app.page.locator("body").inner_text()
     app.page.screenshot(path=str(tmp_path / "doubao-settings-desktop.png"))
 
@@ -119,11 +119,11 @@ def test_doubao_workbench_exposes_four_image_web_settings(app, tmp_path):
     app.page.set_viewport_size({"width": 360, "height": 740})
     app.page.wait_for_selector('[data-testid="workbench-more-settings"]')
     trigger = app.page.locator('[data-testid="workbench-more-settings"]')
-    assert "每次请求返回 4 张" in (trigger.get_attribute("aria-label") or "")
+    assert "豆包" in (trigger.get_attribute("aria-label") or "")
 
     trigger.click()
     panel = app.page.locator('[data-testid="workbench-generation-options"]')
-    assert "豆包网页 · 每次请求返回 4 张" in panel.inner_text()
+    assert "文字生图返回 4 张" in panel.inner_text()
     assert "图片与回复文字按同一批次归组" in panel.inner_text()
     assert "本地每日最多提交 10 次" in panel.inner_text()
     assert panel.locator('[data-testid="refine-count-4"]').count() == 0

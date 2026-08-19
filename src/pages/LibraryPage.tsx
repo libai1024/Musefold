@@ -12,16 +12,25 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
+  PromptLibraryScreen,
+  PromptLibraryHeaderActions,
+  PromptListRow,
+  PromptSectionHeading,
+  type PromptListItemViewModel,
+} from '@musefold/product-ui';
+import {
   FileText,
-  MoreHorizontal,
   Plus,
   Search,
-  Trash,
   Upload,
   X,
 } from '../components/ui/icons';
 import type { Prompt } from '@shared/types/models';
-import { useLibraryStore, useNormalPrompts, usePinnedPrompts } from '../features/library/store';
+import {
+  useLibraryStore,
+  useNormalPrompts,
+  usePinnedPrompts,
+} from '../features/library/store';
 import { useGenerationWorkbenchStore } from '../features/generation/workbench/store';
 import { useSettingsStore } from '../features/settings/store';
 import { PromptEditor } from '../features/library/components/PromptEditor';
@@ -42,7 +51,9 @@ const COLUMN_GAP = 28;
 function usePromptDraft() {
   const openDraft = useGenerationWorkbenchStore((s) => s.openDraft);
   return (prompt: Prompt) => {
-    const params = prompt.params ? promptParamsToRefineParams(prompt.params) : undefined;
+    const params = prompt.params
+      ? promptParamsToRefineParams(prompt.params)
+      : undefined;
     openDraft({
       prompt: prompt.content,
       negative: prompt.contentNegative ?? '',
@@ -53,107 +64,18 @@ function usePromptDraft() {
   };
 }
 
-function PromptRow({
-  prompt,
-  compact,
-  highlighted,
-  onOpen,
-  onUse,
-}: {
-  prompt: Prompt;
-  compact: boolean;
-  highlighted: boolean;
-  onOpen: () => void;
-  onUse: () => void;
-}) {
-  return (
-    <article
-      className={cn(
-        'group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 transition-colors hover:bg-hover',
-        compact ? 'min-h-[60px] py-1.5' : 'min-h-[76px] py-2',
-        highlighted && 'bg-accent-soft',
-      )}
-      data-prompt-id={prompt.id}
-      data-testid="prompt-row"
-    >
-      <button
-        type="button"
-        onClick={onOpen}
-        className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
-        aria-label={`查看${prompt.title}`}
-        tabIndex={-1}
-      >
-        <span
-          className={cn(
-            'flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border-subtle bg-inset/55',
-            compact ? 'h-11 w-11' : 'h-14 w-14',
-          )}
-        >
-          {prompt.coverImagePath ? (
-            <img src={toImageSrc(prompt.coverImagePath)} alt="" className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <FileText className="h-4 w-4 text-secondary" aria-hidden="true" />
-          )}
-        </span>
-      </button>
-      <button type="button" onClick={onOpen} className="min-w-0 text-left focus-visible:outline-none" data-testid="prompt-row-open">
-        <span className="block truncate text-[12.5px] font-semibold text-primary">{prompt.title}</span>
-        <span className="mt-0.5 block truncate text-[10.5px] text-tertiary">{prompt.content}</span>
-        <span className={cn('flex items-center gap-2 text-[10px] text-secondary', compact ? 'mt-0.5' : 'mt-1.5')}>
-          {prompt.usageCount > 0 && <span className="tabular-nums">使用 {prompt.usageCount} 次</span>}
-          <span className="text-quaternary">{formatTime(prompt.updatedAt)}</span>
-        </span>
-      </button>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onUse();
-        }}
-        className="no-drag min-h-8 shrink-0 rounded-md px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
-        data-testid="prompt-row-use"
-      >
-        使用
-      </button>
-    </article>
-  );
-}
-
-function SectionHeading({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="mb-2 flex items-center gap-2 border-b border-border-subtle pb-2">
-      <h2 className="text-[13px] font-semibold text-primary">{title}</h2>
-      <span className="text-[10px] tabular-nums text-tertiary">{count}</span>
-    </div>
-  );
-}
-
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border-default bg-elevated px-3 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-accent/10">
-      <Search className="h-3.5 w-3.5 shrink-0 text-tertiary" />
-      <span className="sr-only">搜索提示词</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label="搜索提示词"
-        placeholder="搜索标题或正文"
-        className="min-w-0 flex-1 bg-transparent text-[12px] text-primary outline-none placeholder:text-quaternary"
-        data-testid="library-search"
-      />
-      {value && (
-        <button
-          type="button"
-          onClick={() => onChange('')}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-tertiary hover:bg-hover hover:text-primary"
-          aria-label="清空搜索"
-          data-testid="library-search-clear"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </label>
-  );
+function toPromptListItem(prompt: Prompt): PromptListItemViewModel {
+  return {
+    id: prompt.id,
+    title: prompt.title,
+    content: prompt.content,
+    description: prompt.description,
+    imageUrl: prompt.coverImagePath ? toImageSrc(prompt.coverImagePath) : null,
+    usageCount: prompt.usageCount,
+    updatedAtLabel: formatTime(prompt.updatedAt),
+    tags: prompt.tags.map((tag) => tag.name),
+    isPinned: prompt.isPinned,
+  };
 }
 
 export function LibraryPage() {
@@ -166,6 +88,7 @@ export function LibraryPage() {
   const initialized = useLibraryStore((s) => s.initialized);
   const error = useLibraryStore((s) => s.error);
   const clearError = useLibraryStore((s) => s.clearError);
+  const copyContent = useLibraryStore((s) => s.copyContent);
   const selectedPromptId = useLibraryStore((s) => s.selectedPromptId);
   const selectPrompt = useLibraryStore((s) => s.selectPrompt);
   const setTrashOpen = useLibraryStore((s) => s.setTrashOpen);
@@ -174,7 +97,9 @@ export function LibraryPage() {
   const setFilters = useLibraryStore((s) => s.setFilters);
   // 笺匣（v0.3.3 §8）：source='slip' 的收件箱视图；计数取当前已加载列表
   const slipsOnly = useLibraryStore((s) => s.filters.source === 'slip');
-  const slipCount = useLibraryStore((s) => s.prompts.filter((p) => p.source === 'slip').length);
+  const slipCount = useLibraryStore(
+    (s) => s.prompts.filter((p) => p.source === 'slip').length,
+  );
   const pinned = usePinnedPrompts();
   const normal = useNormalPrompts();
   const usePrompt = usePromptDraft();
@@ -187,16 +112,16 @@ export function LibraryPage() {
   const [pageMode, setPageMode] = useState<PageMode>('list');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Prompt | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRootRef = useRef<HTMLDivElement>(null);
-
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [listOffset, setListOffset] = useState(0);
   const [columns, setColumns] = useState(2);
 
   const compact = density === 'compact';
-  const rowHeight = (compact ? 60 : 76) + ROW_GAP;
+  // 紧凑行的摘要在双列窄宽度下可能占两行，估算必须覆盖实际内容高度，
+  // 否则虚拟行会在快速滚动或密度切换时发生重叠。
+  const rowHeight = (compact ? 72 : 76) + ROW_GAP;
   const empty = pinned.length === 0 && normal.length === 0;
   const searching = search.trim() !== '';
   const showList = pageMode === 'list';
@@ -255,7 +180,9 @@ export function LibraryPage() {
     if (!highlightPromptId) return;
     const normalIndex = normal.findIndex((p) => p.id === highlightPromptId);
     if (normalIndex >= 0) {
-      virtualizer.scrollToIndex(Math.floor(normalIndex / columns), { align: 'center' });
+      virtualizer.scrollToIndex(Math.floor(normalIndex / columns), {
+        align: 'center',
+      });
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -266,22 +193,6 @@ export function LibraryPage() {
     return () => window.cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightPromptId, normal, columns]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRootRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
 
   const openEditor = (p: Prompt | null) => {
     setEditing(p);
@@ -294,7 +205,6 @@ export function LibraryPage() {
   };
 
   const openImport = () => {
-    setMenuOpen(false);
     useSettingsStore.getState().setSection('data');
     setView('settings');
   };
@@ -306,12 +216,22 @@ export function LibraryPage() {
   } as const;
 
   const renderRow = (p: Prompt) => (
-    <PromptRow
+    <PromptListRow
       key={p.id}
-      prompt={p}
+      prompt={toPromptListItem(p)}
       compact={compact}
       highlighted={highlightPromptId === p.id}
+      copied={copiedPromptId === p.id}
       onOpen={() => openDetail(p.id)}
+      onCopy={() => {
+        void copyContent(p.id).then((copied) => {
+          if (!copied) return;
+          setCopiedPromptId(p.id);
+          window.setTimeout(() => {
+            setCopiedPromptId((current) => current === p.id ? null : current);
+          }, 1_200);
+        });
+      }}
       onUse={() => usePrompt(p)}
     />
   );
@@ -337,19 +257,47 @@ export function LibraryPage() {
   }
 
   return (
-    <div className="h-full bg-elevated" data-testid="library-page">
-      <div ref={scrollRef} className="relative h-full overflow-y-auto" data-testid="prompt-list">
-        <div className="mx-auto w-full max-w-[960px] px-6 pb-16 pt-5 max-[640px]:px-4">
-          {/* max-[1240px]:pr-12：窄窗口时列边贴近视口右缘，为朱点让出保留区（v0.3.3 §1.2） */}
-          <div className="flex items-center gap-3 max-[1240px]:pr-12">
-            <h1 className="text-[15px] font-semibold text-primary">提示词库</h1>
-            {(slipCount > 0 || slipsOnly) && (
+    <div className="h-full bg-elevated" data-testid="library-shell">
+      <div
+        ref={scrollRef}
+        className="relative h-full overflow-y-auto px-6 pb-16 pt-5 max-[640px]:px-4"
+        data-testid="prompt-list"
+      >
+        <PromptLibraryScreen
+          prompts={[...pinned, ...normal].map(toPromptListItem)}
+          query={search}
+          onQueryChange={setSearch}
+          headerAction={
+            <PromptLibraryHeaderActions
+              onCreate={() => openEditor(null)}
+              onOpenTrash={() => setTrashOpen(true)}
+              trashCount={stats?.trashed ?? 0}
+              trashTestId="trash-open"
+              extraMenuItems={(closeMenu) => (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      closeMenu();
+                      openImport();
+                    }}
+                    data-testid="library-import"
+                  >
+                    <Upload aria-hidden="true" /> 导入
+                  </button>
+              )}
+            />
+          }
+          toolbarExtra={
+            (slipCount > 0 || slipsOnly) ? (
               <button
                 type="button"
                 data-testid="library-filter-slips"
                 data-active={slipsOnly ? 'true' : 'false'}
                 aria-pressed={slipsOnly}
-                onClick={() => setFilters({ source: slipsOnly ? undefined : 'slip' })}
+                onClick={() =>
+                  setFilters({ source: slipsOnly ? undefined : 'slip' })
+                }
                 className={cn(
                   'no-drag rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors',
                   slipsOnly
@@ -359,82 +307,55 @@ export function LibraryPage() {
               >
                 笺匣{slipCount > 0 ? ` ${slipCount}` : ''}
               </button>
-            )}
-            <div className="relative ml-auto flex items-center gap-1" ref={menuRootRef}>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                className="icon-action h-8 w-8"
-                aria-label="更多操作"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                title="更多操作"
-                data-testid="library-menu"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => openEditor(null)}
-                className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-background hover:opacity-85"
-                data-testid="library-new"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                新建
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-44 rounded-lg border border-border-default bg-popover p-1.5 shadow-pop animate-scale-fade-in" role="menu" aria-label="提示词库操作">
-                  <button type="button" role="menuitem" className="menu-action rounded-md" onClick={openImport} data-testid="library-import">
-                    <Upload className="h-3.5 w-3.5" /> 导入
-                  </button>
+            ) : null
+          }
+          body={
+            <div className="mt-1">
+              {error && (
+                <div
+                  role="alert"
+                  className="mt-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger"
+                  data-testid="library-error"
+                >
+                  <span className="min-w-0 flex-1 truncate">{error}</span>
                   <button
                     type="button"
-                    role="menuitem"
-                    className="menu-action rounded-md"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setTrashOpen(true);
-                    }}
-                    data-testid="trash-open"
+                    onClick={clearError}
+                    className="shrink-0 hover:opacity-70"
+                    aria-label="关闭错误提示"
                   >
-                    <Trash className="h-3.5 w-3.5" /> 回收站
-                    {(stats?.trashed ?? 0) > 0 && (
-                      <span className="ml-auto font-mono text-[10px] tabular-nums text-tertiary">{stats.trashed}</span>
-                    )}
+                    <X aria-hidden="true" />
                   </button>
                 </div>
               )}
-            </div>
-          </div>
 
-          <div className="mt-5">
-            <SearchField value={search} onChange={setSearch} />
-          </div>
-
-          {error && (
-            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger" data-testid="library-error">
-              <span className="min-w-0 flex-1 truncate">{error}</span>
-              <button type="button" onClick={clearError} className="shrink-0 hover:opacity-70" aria-label="关闭错误提示">
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-
-          <div className="mt-7">
+              <div className="mt-7">
             {loading && !initialized ? (
-              <div className="py-16 text-center text-[11px] text-tertiary" data-testid="prompt-list-skeleton">
+              <div
+                className="py-16 text-center text-[11px] text-tertiary"
+                data-testid="prompt-list-skeleton"
+              >
                 正在读取提示词…
               </div>
             ) : empty && searching ? (
               <div className="py-16 text-center" data-testid="empty-no-match">
                 <Search className="mx-auto h-5 w-5 text-quaternary" />
-                <p className="mt-3 text-[12px] text-secondary">没有找到匹配的提示词</p>
-                <p className="mt-1 text-[10.5px] text-tertiary">换一个标题或正文关键词试试</p>
+                <p className="mt-3 text-[12px] text-secondary">
+                  没有找到匹配的提示词
+                </p>
+                <p className="mt-1 text-[10.5px] text-tertiary">
+                  换一个标题或正文关键词试试
+                </p>
               </div>
             ) : empty && slipsOnly ? (
               <div className="py-16 text-center" data-testid="empty-no-slips">
-                <span aria-hidden="true" className="ember-seal mx-auto block h-[15px] w-[15px] rounded-full" />
-                <p className="mt-4 text-[12px] font-medium text-primary">匣中无笺</p>
+                <span
+                  aria-hidden="true"
+                  className="ember-seal mx-auto block h-[15px] w-[15px] rounded-full"
+                />
+                <p className="mt-4 text-[12px] font-medium text-primary">
+                  匣中无笺
+                </p>
                 <p className="mx-auto mt-1 max-w-[42ch] text-[10.5px] leading-relaxed text-tertiary">
                   任何页面双击右上角的朱点，随手记一笔。
                 </p>
@@ -442,7 +363,9 @@ export function LibraryPage() {
             ) : empty ? (
               <div className="py-16 text-center" data-testid="empty-no-prompts">
                 <FileText className="mx-auto h-5 w-5 text-quaternary" />
-                <p className="mt-3 text-[12px] font-medium text-primary">还没有提示词</p>
+                <p className="mt-3 text-[12px] font-medium text-primary">
+                  还没有提示词
+                </p>
                 <p className="mx-auto mt-1 max-w-[42ch] text-[10.5px] leading-relaxed text-tertiary">
                   生成满意的结果后可以「存为提示词」，也可以现在新建一条。
                 </p>
@@ -460,16 +383,21 @@ export function LibraryPage() {
               <>
                 {pinned.length > 0 && (
                   <section className="mb-7" data-testid="pinned-section">
-                    <SectionHeading title="置顶" count={pinned.length} />
-                    <div style={{ ...gridStyle, rowGap: `${ROW_GAP}px` }}>{pinned.map(renderRow)}</div>
+                    <PromptSectionHeading title="置顶" count={pinned.length} />
+                    <div style={{ ...gridStyle, rowGap: `${ROW_GAP}px` }}>
+                      {pinned.map(renderRow)}
+                    </div>
                   </section>
                 )}
                 {normal.length > 0 && (
                   <section>
-                    <SectionHeading title="全部" count={normal.length} />
+                    <PromptSectionHeading title="全部" count={normal.length} />
                     <div
                       ref={listRef}
-                      style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
+                      style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        position: 'relative',
+                      }}
                     >
                       {virtualizer.getVirtualItems().map((v) => (
                         <div
@@ -483,16 +411,23 @@ export function LibraryPage() {
                             ...gridStyle,
                           }}
                         >
-                          {normal.slice(v.index * columns, v.index * columns + columns).map(renderRow)}
+                          {normal
+                            .slice(
+                              v.index * columns,
+                              v.index * columns + columns,
+                            )
+                            .map(renderRow)}
                         </div>
                       ))}
                     </div>
                   </section>
                 )}
               </>
-            )}
-          </div>
-        </div>
+              )}
+              </div>
+            </div>
+          }
+        />
       </div>
 
       <PromptEditor

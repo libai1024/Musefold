@@ -1,123 +1,269 @@
 import {
-  accountSessionSchema,
-  apiErrorResponseSchema,
-  cloudGenerationRequestSchema,
-  generationJobSchema,
-  promptListQuerySchema,
-  promptPageSchema,
   type AccountSession,
   type ApiErrorCode,
+  type CreateGenerationInput,
   type CloudGenerationRequest,
+  type GenerationHistoryPage,
   type GenerationJob,
   type LoginRequest,
+  type McpConnectionPage,
+  type PromptDocument,
   type PromptListQuery,
   type PromptPage,
-} from '@musefold/contracts';
+  type PromptUseInput,
+  type PromptUseResult,
+  type UpdatePromptDocument,
+  type CreateWorkbenchSession,
+  type UpdateWorkbenchSession,
+  type WorkbenchSession,
+  type WorkbenchSessionListQuery,
+  type WorkbenchSessionPage,
+  type GenerationHistoryQuery,
+} from "@musefold/contracts";
+import {
+  createMusefoldCloudClient,
+  MusefoldCloudError,
+  type GenerationEvent,
+  type MusefoldCloudClient,
+} from "@musefold/cloud-client";
+import { resolveWebGatewayMode } from "./runtime-mode";
 
 export interface WebGateway {
-  readonly mode: 'api' | 'fixture';
+  readonly mode: "api" | "fixture";
   getSession(): Promise<AccountSession>;
   login(input: LoginRequest): Promise<AccountSession>;
   logout(): Promise<void>;
   listPrompts(query: PromptListQuery): Promise<PromptPage>;
-  createGeneration(input: CloudGenerationRequest, idempotencyKey: string): Promise<GenerationJob>;
+  getPrompt(id: string): Promise<PromptDocument>;
+  createPrompt(
+    input: Parameters<MusefoldCloudClient["createPrompt"]>[0],
+  ): Promise<PromptDocument>;
+  updatePrompt(
+    id: string,
+    input: UpdatePromptDocument,
+  ): Promise<PromptDocument>;
+  deletePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
+  restorePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
+  usePrompt(id: string, input: PromptUseInput): Promise<PromptUseResult>;
+  createGeneration(
+    input: CreateGenerationInput,
+    idempotencyKey: string,
+  ): Promise<GenerationJob>;
   getGeneration(id: string): Promise<GenerationJob>;
+  streamGenerationEvents(
+    id: string,
+    afterSeq: number,
+    onEvent: (event: GenerationEvent) => void | Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void>;
   cancelGeneration(id: string): Promise<GenerationJob>;
+  retryGeneration(id: string, idempotencyKey: string): Promise<GenerationJob>;
+  deleteGeneration(id: string): Promise<GenerationJob>;
+  restoreGeneration(id: string): Promise<GenerationJob>;
+  approveGeneration(id: string, token: string): Promise<GenerationJob>;
+  listGenerationHistory(
+    query: GenerationHistoryQuery,
+  ): Promise<GenerationHistoryPage>;
+  listWorkbenchSessions(
+    query: WorkbenchSessionListQuery,
+  ): Promise<WorkbenchSessionPage>;
+  getWorkbenchSession(id: string): Promise<WorkbenchSession>;
+  createWorkbenchSession(
+    input: CreateWorkbenchSession,
+  ): Promise<WorkbenchSession>;
+  updateWorkbenchSession(
+    id: string,
+    input: UpdateWorkbenchSession,
+  ): Promise<WorkbenchSession>;
+  deleteWorkbenchSession(
+    id: string,
+    expectedVersion: number,
+  ): Promise<WorkbenchSession>;
+  listConnections(): Promise<McpConnectionPage>;
+  updateConnection(
+    id: string,
+    input: Parameters<MusefoldCloudClient["updateConnection"]>[1],
+  ): Promise<McpConnectionPage>;
+  revokeConnection(id: string): Promise<void>;
 }
 
 export class WebGatewayError extends Error {
   constructor(
     readonly code: ApiErrorCode,
     message: string,
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
-    this.name = 'WebGatewayError';
+    this.name = "WebGatewayError";
   }
-}
-
-interface Parser<T> {
-  parse(value: unknown): T;
 }
 
 class HttpWebGateway implements WebGateway {
-  readonly mode = 'api' as const;
+  readonly mode = "api" as const;
+  private readonly client: MusefoldCloudClient;
 
-  constructor(private readonly baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/musefold/v1') {}
+  constructor(
+    baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api/musefold/v1",
+  ) {
+    this.client = createMusefoldCloudClient(baseUrl);
+  }
 
   getSession(): Promise<AccountSession> {
-    return this.request('/auth/me', {}, accountSessionSchema);
+    return this.call(() => this.client.getSession());
   }
 
   login(input: LoginRequest): Promise<AccountSession> {
-    return this.request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }, accountSessionSchema);
+    return this.call(() => this.client.login(input));
   }
 
   async logout(): Promise<void> {
-    await this.request('/auth/logout', { method: 'POST' }, { parse: () => undefined });
+    await this.call(() => this.client.logout());
   }
 
   listPrompts(query: PromptListQuery): Promise<PromptPage> {
-    const parsed = promptListQuerySchema.parse(query);
-    const search = new URLSearchParams();
-    if (parsed.q) search.set('q', parsed.q);
-    if (parsed.cursor) search.set('cursor', parsed.cursor);
-    search.set('limit', String(parsed.limit));
-    search.set('includeDeleted', String(parsed.includeDeleted));
-    search.set('sort', parsed.sort);
-    if (parsed.folderId) search.set('folderId', parsed.folderId);
-    parsed.tags?.forEach((tag) => search.append('tag', tag));
-    if (parsed.pinnedOnly) search.set('pinnedOnly', 'true');
-    return this.request(`/prompts?${search.toString()}`, {}, promptPageSchema);
+    return this.call(() => this.client.listPrompts(query));
   }
 
-  createGeneration(input: CloudGenerationRequest, idempotencyKey: string): Promise<GenerationJob> {
-    const request = cloudGenerationRequestSchema.parse(input);
-    return this.request('/generations', {
-      method: 'POST',
-      headers: { 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify(request),
-    }, generationJobSchema);
+  getPrompt(id: string): Promise<PromptDocument> {
+    return this.call(() => this.client.getPrompt(id));
+  }
+
+  createPrompt(
+    input: Parameters<MusefoldCloudClient["createPrompt"]>[0],
+  ): Promise<PromptDocument> {
+    return this.call(() => this.client.createPrompt(input));
+  }
+
+  updatePrompt(
+    id: string,
+    input: UpdatePromptDocument,
+  ): Promise<PromptDocument> {
+    return this.call(() => this.client.updatePrompt(id, input));
+  }
+
+  deletePrompt(id: string, expectedVersion: number): Promise<PromptDocument> {
+    return this.call(() => this.client.deletePrompt(id, expectedVersion));
+  }
+
+  restorePrompt(id: string, expectedVersion: number): Promise<PromptDocument> {
+    return this.call(() => this.client.restorePrompt(id, expectedVersion));
+  }
+
+  usePrompt(id: string, input: PromptUseInput): Promise<PromptUseResult> {
+    return this.call(() => this.client.usePrompt(id, input));
+  }
+
+  createGeneration(
+    input: CreateGenerationInput,
+    idempotencyKey: string,
+  ): Promise<GenerationJob> {
+    return this.call(() => this.client.createGeneration(input, idempotencyKey));
   }
 
   getGeneration(id: string): Promise<GenerationJob> {
-    return this.request(`/generations/${encodeURIComponent(id)}`, {}, generationJobSchema);
+    return this.call(() => this.client.getGeneration(id));
+  }
+
+  streamGenerationEvents(
+    id: string,
+    afterSeq: number,
+    onEvent: (event: GenerationEvent) => void | Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.call(() =>
+      this.client.streamGenerationEvents(id, afterSeq, onEvent, signal),
+    );
   }
 
   cancelGeneration(id: string): Promise<GenerationJob> {
-    return this.request(`/generations/${encodeURIComponent(id)}/cancel`, { method: 'POST' }, generationJobSchema);
+    return this.call(() => this.client.cancelGeneration(id));
   }
 
-  private async request<T>(path: string, init: RequestInit, parser: Parser<T>): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init.headers,
-      },
-    });
+  retryGeneration(id: string, idempotencyKey: string): Promise<GenerationJob> {
+    return this.call(() => this.client.retryGeneration(id, idempotencyKey));
+  }
 
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      const parsed = apiErrorResponseSchema.safeParse(payload);
-      if (parsed.success) {
-        throw new WebGatewayError(parsed.data.error.code, parsed.data.error.message);
-      }
-      throw new WebGatewayError('INTERNAL_ERROR', `请求失败（${response.status}）`);
+  deleteGeneration(id: string): Promise<GenerationJob> {
+    return this.call(() => this.client.deleteGeneration(id));
+  }
+
+  restoreGeneration(id: string): Promise<GenerationJob> {
+    return this.call(() => this.client.restoreGeneration(id));
+  }
+
+  approveGeneration(id: string, token: string): Promise<GenerationJob> {
+    return this.call(() => this.client.approveGeneration(id, token));
+  }
+
+  listGenerationHistory(
+    query: GenerationHistoryQuery,
+  ): Promise<GenerationHistoryPage> {
+    return this.call(() => this.client.listGenerationHistory(query));
+  }
+
+  listWorkbenchSessions(
+    query: WorkbenchSessionListQuery,
+  ): Promise<WorkbenchSessionPage> {
+    return this.call(() => this.client.listWorkbenchSessions(query));
+  }
+
+  getWorkbenchSession(id: string): Promise<WorkbenchSession> {
+    return this.call(() => this.client.getWorkbenchSession(id));
+  }
+
+  createWorkbenchSession(
+    input: CreateWorkbenchSession,
+  ): Promise<WorkbenchSession> {
+    return this.call(() => this.client.createWorkbenchSession(input));
+  }
+
+  updateWorkbenchSession(
+    id: string,
+    input: UpdateWorkbenchSession,
+  ): Promise<WorkbenchSession> {
+    return this.call(() => this.client.updateWorkbenchSession(id, input));
+  }
+
+  deleteWorkbenchSession(
+    id: string,
+    expectedVersion: number,
+  ): Promise<WorkbenchSession> {
+    return this.call(() =>
+      this.client.deleteWorkbenchSession(id, expectedVersion),
+    );
+  }
+
+  listConnections(): Promise<McpConnectionPage> {
+    return this.call(() => this.client.listConnections());
+  }
+
+  updateConnection(
+    id: string,
+    input: Parameters<MusefoldCloudClient["updateConnection"]>[1],
+  ): Promise<McpConnectionPage> {
+    return this.call(() => this.client.updateConnection(id, input));
+  }
+
+  async revokeConnection(id: string): Promise<void> {
+    await this.call(() => this.client.revokeConnection(id));
+  }
+
+  private async call<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof MusefoldCloudError)
+        throw new WebGatewayError(error.code, error.message, error.details);
+      throw error;
     }
-
-    if (response.status === 204) return parser.parse(undefined);
-    return parser.parse(await response.json());
   }
 }
 
 class DeferredFixtureWebGateway implements WebGateway {
-  readonly mode = 'fixture' as const;
-  private readonly delegate = import('./fixture-runtime').then(({ FixtureWebGateway }) => new FixtureWebGateway());
+  readonly mode = "fixture" as const;
+  private readonly delegate = import("./fixture-runtime").then(
+    ({ FixtureWebGateway }) => new FixtureWebGateway(),
+  );
 
   async getSession(): Promise<AccountSession> {
     return (await this.delegate).getSession();
@@ -135,7 +281,45 @@ class DeferredFixtureWebGateway implements WebGateway {
     return (await this.delegate).listPrompts(query);
   }
 
-  async createGeneration(input: CloudGenerationRequest, idempotencyKey: string): Promise<GenerationJob> {
+  async getPrompt(id: string): Promise<PromptDocument> {
+    return (await this.delegate).getPrompt(id);
+  }
+
+  async createPrompt(
+    input: Parameters<MusefoldCloudClient["createPrompt"]>[0],
+  ): Promise<PromptDocument> {
+    return (await this.delegate).createPrompt(input);
+  }
+
+  async updatePrompt(
+    id: string,
+    input: UpdatePromptDocument,
+  ): Promise<PromptDocument> {
+    return (await this.delegate).updatePrompt(id, input);
+  }
+
+  async deletePrompt(
+    id: string,
+    expectedVersion: number,
+  ): Promise<PromptDocument> {
+    return (await this.delegate).deletePrompt(id, expectedVersion);
+  }
+
+  async restorePrompt(
+    id: string,
+    expectedVersion: number,
+  ): Promise<PromptDocument> {
+    return (await this.delegate).restorePrompt(id, expectedVersion);
+  }
+
+  async usePrompt(id: string, input: PromptUseInput): Promise<PromptUseResult> {
+    return (await this.delegate).usePrompt(id, input);
+  }
+
+  async createGeneration(
+    input: CreateGenerationInput,
+    idempotencyKey: string,
+  ): Promise<GenerationJob> {
     return (await this.delegate).createGeneration(input, idempotencyKey);
   }
 
@@ -143,13 +327,102 @@ class DeferredFixtureWebGateway implements WebGateway {
     return (await this.delegate).getGeneration(id);
   }
 
+  async streamGenerationEvents(
+    id: string,
+    afterSeq: number,
+    onEvent: (event: GenerationEvent) => void | Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return (await this.delegate).streamGenerationEvents(
+      id,
+      afterSeq,
+      onEvent,
+      signal,
+    );
+  }
+
   async cancelGeneration(id: string): Promise<GenerationJob> {
     return (await this.delegate).cancelGeneration(id);
+  }
+
+  async retryGeneration(
+    id: string,
+    idempotencyKey: string,
+  ): Promise<GenerationJob> {
+    return (await this.delegate).retryGeneration(id, idempotencyKey);
+  }
+
+  async deleteGeneration(id: string): Promise<GenerationJob> {
+    return (await this.delegate).deleteGeneration(id);
+  }
+
+  async restoreGeneration(id: string): Promise<GenerationJob> {
+    return (await this.delegate).restoreGeneration(id);
+  }
+
+  async approveGeneration(id: string, token: string): Promise<GenerationJob> {
+    return (await this.delegate).approveGeneration(id, token);
+  }
+
+  async listGenerationHistory(
+    query: GenerationHistoryQuery,
+  ): Promise<GenerationHistoryPage> {
+    return (await this.delegate).listGenerationHistory(query);
+  }
+
+  async listWorkbenchSessions(
+    query: WorkbenchSessionListQuery,
+  ): Promise<WorkbenchSessionPage> {
+    return (await this.delegate).listWorkbenchSessions(query);
+  }
+
+  async getWorkbenchSession(id: string): Promise<WorkbenchSession> {
+    return (await this.delegate).getWorkbenchSession(id);
+  }
+
+  async createWorkbenchSession(
+    input: CreateWorkbenchSession,
+  ): Promise<WorkbenchSession> {
+    return (await this.delegate).createWorkbenchSession(input);
+  }
+
+  async updateWorkbenchSession(
+    id: string,
+    input: UpdateWorkbenchSession,
+  ): Promise<WorkbenchSession> {
+    return (await this.delegate).updateWorkbenchSession(id, input);
+  }
+
+  async deleteWorkbenchSession(
+    id: string,
+    expectedVersion: number,
+  ): Promise<WorkbenchSession> {
+    return (await this.delegate).deleteWorkbenchSession(id, expectedVersion);
+  }
+
+  async listConnections(): Promise<McpConnectionPage> {
+    return (await this.delegate).listConnections();
+  }
+
+  async updateConnection(
+    id: string,
+    input: Parameters<MusefoldCloudClient["updateConnection"]>[1],
+  ): Promise<McpConnectionPage> {
+    return (await this.delegate).updateConnection(id, input);
+  }
+
+  async revokeConnection(id: string): Promise<void> {
+    return (await this.delegate).revokeConnection(id);
   }
 }
 
 export function createWebGateway(): WebGateway {
-  if (import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES !== 'false') {
+  if (
+    resolveWebGatewayMode({
+      isDevelopment: import.meta.env.DEV,
+      useFixtures: import.meta.env.VITE_USE_FIXTURES,
+    }) === "fixture"
+  ) {
     return new DeferredFixtureWebGateway();
   }
   return new HttpWebGateway();

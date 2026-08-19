@@ -56,6 +56,7 @@ export interface NewPrompt {
   description?: string;
   content: string;
   contentNegative?: string;
+  isPinned?: boolean;
   folderId?: string;
   modelId?: string;
   params?: PromptParams;

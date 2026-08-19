@@ -79,9 +79,9 @@ def insert_history(
             """
             INSERT INTO history (
               id, prompt_id, provider_id, model, prompt_text, negative_text, params,
-              status, error_code, error_message, image_path, cost, duration_ms, created_at
+              status, error_code, error_message, image_path, cost, cost_unit, duration_ms, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 hid,
@@ -95,7 +95,8 @@ def insert_history(
                 code,
                 message,
                 image_path,
-                32 if status == "success" else None,
+                3.2 if status == "success" else None,
+                "point",
                 1200,
                 created_at,
             ),
@@ -456,7 +457,7 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         prompt_text="history stats january cost",
         created_at=jan_15,
     )
-    set_history_cost(app, "hist-stats-jan-cost", 100)
+    set_history_cost(app, "hist-stats-jan-cost", 1)
     insert_history(
         app,
         hid="hist-stats-jan-null",
@@ -474,7 +475,7 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         prompt_text="history stats february cost",
         created_at=feb_02,
     )
-    set_history_cost(app, "hist-stats-feb-cost", 300)
+    set_history_cost(app, "hist-stats-feb-cost", 3)
     insert_history(
         app,
         hid="hist-stats-failed-noise",
@@ -499,16 +500,16 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
     set_history_cost(app, "hist-stats-cancelled-noise", 888)
 
     stats = app.api_ok("history.stats", {"groupBy": "month"})
-    assert stats["totalCost"] == 400
+    assert stats["totalCost"] == 4
     assert stats["totalCount"] == 3
-    assert abs(stats["avgCost"] - (400 / 3)) < 1e-9
+    assert abs(stats["avgCost"] - (4 / 3)) < 1e-9
     assert stats["buckets"] == [
-        {"key": "2026-01", "cost": 100, "count": 2},
-        {"key": "2026-02", "cost": 300, "count": 1},
+        {"key": "2026-01", "cost": 1, "count": 2, "unit": "point"},
+        {"key": "2026-02", "cost": 3, "count": 1, "unit": "point"},
     ]
     assert stats["byProvider"] == [
-        {"providerId": provider_b["id"], "name": "Stats Provider B", "cost": 300, "count": 1},
-        {"providerId": provider_a["id"], "name": "Stats Provider A", "cost": 100, "count": 2},
+        {"providerId": provider_b["id"], "name": "Stats Provider B", "cost": 3, "count": 1, "unit": "point"},
+        {"providerId": provider_a["id"], "name": "Stats Provider A", "cost": 1, "count": 2, "unit": "point"},
     ]
 
     filtered = app.api_ok("history.stats", {
@@ -517,16 +518,20 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         "from": jan_20,
         "to": jan_20,
     })
-    assert filtered == {
-        "totalCost": 0,
-        "totalCount": 1,
-        "avgCost": 0,
-        "buckets": [{"key": "2026-01-20", "cost": 0, "count": 1}],
-        "byProvider": [{"providerId": provider_a["id"], "name": "Stats Provider A", "cost": 0, "count": 1}],
-    }
+    assert filtered["totalCost"] == 0
+    assert filtered["totalCount"] == 1
+    assert filtered["avgCost"] == 0
+    assert filtered["buckets"] == [{"key": "2026-01-20", "cost": 0, "count": 1, "unit": "point"}]
+    assert filtered["byProvider"] == [
+        {"providerId": provider_a["id"], "name": "Stats Provider A", "cost": 0, "count": 1, "unit": "point"},
+    ]
 
     empty = app.api_ok("history.stats", {"groupBy": "week", "providerId": "missing-provider"})
-    assert empty == {"totalCost": 0, "totalCount": 0, "avgCost": 0, "buckets": [], "byProvider": []}
+    assert empty["totalCost"] == 0
+    assert empty["totalCount"] == 0
+    assert empty["avgCost"] == 0
+    assert empty["buckets"] == []
+    assert empty["byProvider"] == []
 
 
 def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(app):
@@ -555,7 +560,7 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
         prompt_text="dashboard provider a cost",
         created_at=day_two,
     )
-    set_history_cost(app, "hist-dashboard-a-cost", 100)
+    set_history_cost(app, "hist-dashboard-a-cost", 1)
     insert_history(
         app,
         hid="hist-dashboard-a-null",
@@ -573,7 +578,7 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
         prompt_text="dashboard provider b cost",
         created_at=day_three,
     )
-    set_history_cost(app, "hist-dashboard-b-cost", 300)
+    set_history_cost(app, "hist-dashboard-b-cost", 3)
     insert_history(
         app,
         hid="hist-dashboard-failed-noise",
@@ -590,21 +595,21 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
     app.page.click('[data-testid="history-cost-open"]')
     app.page.wait_for_selector('[data-testid="history-cost-dashboard"]')
     app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"history-cost-total\"]')?.innerText.includes('¥4.00')",
+        "() => document.querySelector('[data-testid=\"history-cost-total\"]')?.innerText.includes('4 积分')",
         timeout=5_000,
     )
 
     assert "3 张" in app.page.inner_text('[data-testid="history-cost-count"]')
-    assert "¥1.33" in app.page.inner_text('[data-testid="history-cost-average"]')
+    assert "积分" in app.page.inner_text('[data-testid="history-cost-average"]')
     assert app.page.locator('[data-testid="history-cost-bucket"]').count() == 2
 
     providers = app.page.locator('[data-testid="history-cost-provider"]')
     assert providers.count() == 2
     assert providers.nth(0).get_attribute("data-provider-id") == provider_b["id"]
     assert "Dashboard Provider B" in providers.nth(0).inner_text()
-    assert "¥3.00" in providers.nth(0).inner_text()
+    assert "3 积分" in providers.nth(0).inner_text()
     assert "Dashboard Provider A" in providers.nth(1).inner_text()
-    assert "¥1.00" in providers.nth(1).inner_text()
+    assert "1 积分" in providers.nth(1).inner_text()
 
     app.page.click('[data-testid="history-cost-group-month"]')
     app.page.wait_for_function(
@@ -613,8 +618,8 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
     )
     month_key = app.page.locator('[data-testid="history-cost-bucket"]').nth(0).get_attribute("data-key")
     assert month_key and len(month_key) == 7 and month_key[4] == "-", month_key
-    assert "本地估算" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-    assert "非服务商真实账单" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
+    assert "积分" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
+    assert "本地单价估算" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
 
     app.page.click('[data-testid="history-cost-configure"]')
     app.page.wait_for_function("() => window.__musefold_test?.getView?.() === 'settings'", timeout=5_000)
@@ -655,7 +660,7 @@ def test_history_cost_dashboard_empty_and_unpriced_states(app):
         "() => document.querySelector('[data-testid=\"history-cost-count\"]')?.innerText.includes('1 张')",
         timeout=5_000,
     )
-    assert "¥0.00" in app.page.inner_text('[data-testid="history-cost-total"]')
+    assert "0 积分" in app.page.inner_text('[data-testid="history-cost-total"]')
     assert "未配置单价" in app.page.inner_text('[data-testid="history-cost-unpriced"]')
 
 

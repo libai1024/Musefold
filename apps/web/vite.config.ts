@@ -25,6 +25,17 @@ export default defineConfig({
   ],
   server: {
     port: 4174,
+    ...(process.env.VITE_DEV_API_ORIGIN
+      ? {
+          proxy: {
+            '/api': {
+              target: process.env.VITE_DEV_API_ORIGIN,
+              changeOrigin: true,
+              secure: false,
+            },
+          },
+        }
+      : {}),
   },
   preview: {
     port: 4174,

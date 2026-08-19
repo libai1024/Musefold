@@ -14,23 +14,14 @@ export interface PromptDraftInput {
   content: string;
   negative?: string | null;
   folderId?: string | null;
-  tags?: string[];
+  tagIds?: string[];
   modelId?: string | null;
   params?: Record<string, unknown> | null;
   isPinned?: boolean;
 }
 
 export function normalizePromptDraft(input: PromptDraftInput): NewPromptDocument {
-  const seenTags = new Set<string>();
-  const tags = (input.tags ?? [])
-    .map((tag) => tag.trim())
-    .filter((tag) => {
-      if (!tag) return false;
-      const key = tag.toLocaleLowerCase();
-      if (seenTags.has(key)) return false;
-      seenTags.add(key);
-      return true;
-    });
+  const tagIds = [...new Set((input.tagIds ?? []).map((tagId) => tagId.trim()).filter(Boolean))];
 
   return newPromptDocumentSchema.parse({
     title: input.title.trim().replace(/\s+/g, ' '),
@@ -38,10 +29,13 @@ export function normalizePromptDraft(input: PromptDraftInput): NewPromptDocument
     content: input.content.trim(),
     negative: input.negative?.trim() || null,
     folderId: input.folderId ?? null,
-    tags,
+    tagIds,
     modelId: input.modelId ?? null,
     params: input.params ?? null,
     isPinned: input.isPinned ?? false,
+    rating: 0,
+    source: 'manual',
+    sourceUrl: null,
   });
 }
 
@@ -63,5 +57,38 @@ export function applyPromptToGeneration(
     aspectRatio: options.aspectRatio,
     quality: options.quality ?? 'auto',
     count: 1,
+  });
+}
+
+export function titleFromPromptContent(
+  content: string,
+  fallback = '生成提示词',
+): string {
+  const compact = content.trim().replace(/\s+/g, ' ');
+  return Array.from(compact).slice(0, 40).join('') || fallback;
+}
+
+export function generationRequestToPromptDraft(
+  request: CloudGenerationRequest,
+): NewPromptDocument {
+  const parsed = cloudGenerationRequestSchema.parse(request);
+  return newPromptDocumentSchema.parse({
+    title: titleFromPromptContent(parsed.prompt),
+    description: null,
+    content: parsed.prompt,
+    negative: parsed.negative ?? null,
+    folderId: null,
+    tagIds: [],
+    modelId: null,
+    params: {
+      size: parsed.size,
+      quality: parsed.quality,
+      count: parsed.count,
+      ...(parsed.aspectRatio ? { aspectRatio: parsed.aspectRatio } : {}),
+    },
+    rating: 0,
+    isPinned: false,
+    source: 'generation',
+    sourceUrl: null,
   });
 }

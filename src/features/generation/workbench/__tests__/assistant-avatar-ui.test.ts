@@ -12,13 +12,16 @@ const avatar = readFileSync(
 const assetGenerator = readFileSync('scripts/generate-app-icons.swift', 'utf8');
 
 describe('assistant avatar UI contract', () => {
-  it('uses the circular Musefold logo for AI replies', () => {
+  it('uses the shared Musefold avatar for generation replies', () => {
     expect(assetGenerator).toContain('logo-circle.png');
     expect(avatar).toContain("./musefold-assistant-avatar.png");
     expect(avatar).toContain('rounded-full');
     expect(avatar).toContain('h-14 w-14');
+    expect(workbench).toContain('WorkbenchAssistantAvatar,');
+    expect(workbench).toContain('imageUrl={musefoldIconUrl}');
+    expect(workbench).toContain('data-testid="generation-assistant-avatar"');
     expect(workbench).toContain(
-      '<MusefoldAssistantAvatar data-testid="generation-assistant-avatar" />',
+      '<MusefoldAssistantAvatar data-testid="skill-runtime-assistant-avatar" />',
     );
     expect(workbench).toContain('data-testid="doubao-generation-avatar"');
     expect(workbench).toContain('<ModelBrandIcon model="doubao"');

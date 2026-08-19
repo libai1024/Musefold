@@ -5,6 +5,9 @@ export default defineConfig({
   main: {
     build: {
       sourcemap: true,
+      externalizeDeps: {
+        exclude: ['@musefold/cloud-client', '@musefold/contracts'],
+      },
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main/index.ts'),
@@ -18,7 +21,15 @@ export default defineConfig({
         // workspace 包直读 TS 源、随主进程 chunk 打包（不外部化），
         // electron-builder 的 node_modules 打包面因此零变化（V04-CORE-01）。
         '@musefold/core': resolve(__dirname, 'packages/core/src'),
-        '@musefold/automation-server': resolve(__dirname, 'packages/automation-server/src'),
+        '@musefold/automation-server': resolve(
+          __dirname,
+          'packages/automation-server/src',
+        ),
+        '@musefold/cloud-client': resolve(
+          __dirname,
+          'packages/cloud-client/src',
+        ),
+        '@musefold/contracts': resolve(__dirname, 'packages/contracts/src'),
       },
     },
   },

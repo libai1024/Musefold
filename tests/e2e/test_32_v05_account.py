@@ -110,6 +110,23 @@ def fake_newapi():
                 self._json({"success": True, "message": "", "data": 500_000})
             elif self.path == "/v1/images/generations":
                 self._json({"data": [{"b64_json": PNG_1PX_B64}]})
+            elif self.path == "/v1/chat/completions":
+                self._json({
+                    "id": "chatcmpl-account-e2e",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": body.get("model", "musefold-agent"),
+                    "choices": [{
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "OK"},
+                        "finish_reason": "stop",
+                    }],
+                    "usage": {
+                        "prompt_tokens": 1,
+                        "completion_tokens": 1,
+                        "total_tokens": 2,
+                    },
+                })
             else:
                 self._json({"success": False, "message": "not found"}, 404)
 
@@ -181,14 +198,14 @@ def test_account_register_provisions_both_stacks_and_point_history(app, fake_new
         "SELECT cost, cost_unit FROM history WHERE id = ?",
         (generated["historyId"],),
     )
-    assert rows == [{"cost": 20000, "cost_unit": "point"}]
+    assert rows == [{"cost": 0.4, "cost_unit": "point"}]
 
     # 侧栏账号行：登录后显示用户名与实时余额（500000 quota = 10 积分）。
     app.page.wait_for_function(
         "() => document.querySelector('[data-testid=\"sidebar-account-balance\"]')?.innerText.includes('10 积分')",
         timeout=5_000,
     )
-    assert "e2euser" in app.page.inner_text('[data-testid="sidebar-account"]')
+    assert "e2euser" in app.page.inner_text('[data-testid="sidebar-official-account"]')
 
     app.page.evaluate("() => window.__musefold_test.setView('history')")
     app.page.wait_for_selector('[data-testid="history-list"]')
@@ -199,8 +216,8 @@ def test_account_register_provisions_both_stacks_and_point_history(app, fake_new
         timeout=5_000,
     )
     assert "10 积分" in app.page.inner_text('[data-testid="history-cost-balance"]')
-    assert "服务器实际计费单价" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-    assert "账号计费" in app.page.inner_text('[data-testid="history-cost-provider"]')
+    assert "服务器计费" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
+    assert "Musefold 账号" in app.page.inner_text('[data-testid="history-cost-provider"]')
     app.page.keyboard.press("Escape")
 
     # UI 登出（设置 → 账号 → 退出登录 → 确认），验证渲染层幽灵条目同步回收。
@@ -221,71 +238,89 @@ def test_account_register_provisions_both_stacks_and_point_history(app, fake_new
 
 
 def test_account_model_source_switch(app, fake_newapi):
-    """「模型来源」一键切换：账号积分 ⇄ 自备中转站，同步两栈 active。"""
+    """「AI 接入」切换：账号 ⇄ 双栈中转站，验证后同步两栈 active。"""
     app.api_ok("account.setServerUrl", fake_newapi["base"])
     app.api_ok("account.login", {"username": "e2euser", "password": "Password123"})
 
-    byok = app.api_ok("provider.create", {
+    relay_provider = app.api_ok("provider.create", {
         "name": "E2E 自备站",
         "type": "openai-compatible",
-        "baseUrl": "https://byok.example.com/v1",
-        "model": "gpt-image-2",
+        "baseUrl": f"{fake_newapi['base']}/v1",
+        "model": "musefold-image-pro",
         "isActive": False,
     })
-    # provider.create 走的是 IPC 直建（测试作弊路径），渲染层列表要手动刷一次；
-    # 真实用户从 UI 添加时 store.create 会同步更新，无此步骤。
-    app.page.evaluate("() => window.__musefold_test.stores.generation.getState().loadProviders()")
+    relay_connection = app.api_ok("aiConnection.create", {
+        "name": "E2E Agent 中转站",
+        "routeKind": "gateway",
+        "presetId": "custom",
+        "baseUrl": f"{fake_newapi['base']}/v1",
+        "model": "musefold-agent",
+        "isActive": False,
+    })
+    app.api_ok("provider.saveKey", relay_provider["id"], "sk-e2e-relay-image")
+    app.api_ok("aiConnection.saveKey", relay_connection["id"], "sk-e2e-relay-agent")
+    # 直接 IPC 建立测试夹具后，显式刷新两个渲染层 store。
+    app.page.evaluate(
+        "() => Promise.all(["
+        "window.__musefold_test.stores.generation.getState().loadProviders(),"
+        "window.__musefold_test.stores.aiConnections.getState().load()"
+        "])"
+    )
     app.page.wait_for_function(
         "(id) => window.__musefold_test.stores.generation.getState().providers.some((p) => p.id === id)",
-        arg=byok["id"],
+        arg=relay_provider["id"],
         timeout=5_000,
     )
 
     app.page.evaluate("() => window.__musefold_test.setView('settings')")
-    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('account')")
-    app.page.wait_for_selector('[data-testid="account-model-source"]')
-    # 登录后默认账号来源。
-    app.page.wait_for_selector('[data-testid="account-source-account"][data-active="true"]')
+    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('access')")
+    app.page.wait_for_selector('[data-testid="settings-access-mode-account"][aria-checked="true"]')
 
-    # 切到自备中转站：生图 active 落到 BYOK 条目（Agent 无自备连接，保持原样并提示）。
-    app.page.click('[data-testid="account-source-byok"]')
+    # 切到中转站：先验证生图和 Agent 两条通道，再同步激活。
+    app.page.click('[data-testid="settings-access-mode-relay"]')
+    app.page.wait_for_selector('[data-testid="settings-relay-summary"]', timeout=15_000)
     app.page.wait_for_function(
         "(id) => window.__musefold_test.stores.generation.getState().providers.find((p) => p.id === id)?.isActive === true",
-        arg=byok["id"],
+        arg=relay_provider["id"],
         timeout=5_000,
     )
     providers = app.api_ok("provider.list")
-    assert next(p for p in providers if p["id"] == byok["id"])["isActive"] is True
+    assert next(p for p in providers if p["id"] == relay_provider["id"])["isActive"] is True
     assert next(p for p in providers if p["managedBy"] == "account")["isActive"] is False
+    assert next(
+        connection for connection in app.api_ok("aiConnection.list")
+        if connection["id"] == relay_connection["id"]
+    )["isActive"] is True
 
-    # 切回账号积分：托管条目重新激活。
-    app.page.click('[data-testid="account-source-account"]')
+    # 切回账号模式：官方账号的托管双栈重新激活。
+    app.page.click('[data-testid="settings-access-mode-account"]')
+    app.page.wait_for_selector('[data-testid="settings-account-source-picker"]', timeout=15_000)
     app.page.wait_for_function(
         "() => window.__musefold_test.stores.generation.getState().providers.find((p) => p.managedBy === 'account')?.isActive === true",
         timeout=5_000,
     )
     assert next(p for p in app.api_ok("provider.list") if p["managedBy"] == "account")["isActive"] is True
+    assert next(
+        connection for connection in app.api_ok("aiConnection.list")
+        if connection["managedBy"] == "account"
+    )["isActive"] is True
 
     app.api_ok("account.logout")
 
 
-def test_composer_model_picker_hides_agent_alias(app, fake_newapi):
-    """生图模型选择器（Composer）：托管站 /v1/models 混排的 Agent 别名不得出现。"""
+def test_account_managed_models_are_fixed_and_friendly(app, fake_newapi):
+    """官方生图与 Agent 模型固定展示友好名，不在 Composer 临时选择。"""
     app.api_ok("account.setServerUrl", fake_newapi["base"])
     app.api_ok("account.login", {"username": "e2euser", "password": "Password123"})
-    # 登录态翻转会触发渲染层列表重载，等托管条目就位。
-    app.page.wait_for_function(
-        "() => window.__musefold_test.stores.generation.getState().providers.some((p) => p.managedBy === 'account')",
-        timeout=5_000,
-    )
-    app.page.wait_for_selector('[data-testid="generate-model-trigger"]')
-    app.page.click('[data-testid="generate-model-trigger"]')
-    app.page.wait_for_selector('[data-testid="generate-model-musefold-image-pro"]', timeout=5_000)
-    assert app.page.locator('[data-testid="generate-model-musefold-agent"]').count() == 0
-    # 别名模型显示友好名，原始 id 以小字标注。
-    menu_text = app.page.inner_text('[data-testid="generate-model-menu"]')
-    assert "Musefold 生图" in menu_text
-    app.page.keyboard.press("Escape")
+    app.page.evaluate("() => window.__musefold_test.setView('settings')")
+    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('account')")
+    app.page.wait_for_selector('[data-testid="account-managed-models"]')
+    models_text = app.page.inner_text('[data-testid="account-managed-models"]')
+    assert "Musefold 生图" in models_text
+    assert "Musefold Agent" in models_text
+    assert "musefold-image-pro" not in models_text
+    assert "musefold-agent" not in models_text
+    assert app.page.locator('[data-testid="generate-model-trigger"]').count() == 0
     app.api_ok("account.logout")
 
 

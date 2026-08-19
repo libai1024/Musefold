@@ -87,6 +87,22 @@ def fake_openai_server():
     requests: list[dict] = []
 
     class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 - stdlib hook
+            requests.append({"path": self.path, "method": "GET"})
+            if self.path.startswith("/v1/models"):
+                payload = json.dumps({
+                    "object": "list",
+                    "data": [{"id": "gpt-image-2", "object": "model"}],
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            self.send_response(404)
+            self.end_headers()
+
         def do_POST(self):  # noqa: N802 - stdlib hook
             length = int(self.headers.get("content-length", "0") or 0)
             raw = self.rfile.read(length) if length else b"{}"
@@ -156,10 +172,17 @@ def choose_count(app, count: int):
 def switch_provider_via_sidebar(app, provider_id: str):
     """服务商切换收敛在侧栏模型切换器（设置页不再有默认服务商行）。"""
     app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.wait_for_selector('[data-testid="model-hub"]')
-    app.page.click(f'[data-testid="model-hub-station-{provider_id}"]')
-    app.page.keyboard.press("Escape")
-    app.page.wait_for_function("() => document.querySelector('[data-testid=\"model-hub\"]') === null")
+    app.page.wait_for_selector('[data-testid="relay-model-switcher"]')
+    app.page.click(f'[data-testid="relay-model-option-{provider_id}"]')
+    app.page.wait_for_function("() => document.querySelector('[data-testid=\"relay-model-switcher\"]') === null")
+
+
+def open_provider_settings(app):
+    """v1.1：侧栏齿轮 → 应用设置 → 生图中转站（不再有 model-hub-manage）。"""
+    app.page.click('[data-testid="sidebar-settings"]')
+    app.page.get_by_test_id("sidebar-settings-open").click()
+    app.page.wait_for_function("() => window.__musefold_test?.getView?.() === 'settings'", timeout=5_000)
+    app.page.get_by_role("button", name="生图中转站", exact=True).click()
 
 
 def wb(app, expr: str):
@@ -267,9 +290,8 @@ def test_no_provider_shows_guidance_not_dead_controls(app):
     assert send.is_disabled(), "无服务商时发送按钮应禁用而不是假可用"
     assert send.get_attribute("title") == "请先连接服务商"
 
-    # 补救路径：侧栏模型切换器 → 管理生图服务 → 空态引导（预设一键接入）
-    app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.get_by_test_id("model-hub-manage").click()
+    # 补救路径：侧栏齿轮 → 应用设置 → 生图中转站空态引导（预设一键接入）
+    open_provider_settings(app)
     app.page.wait_for_selector('[data-testid="settings-empty-provider"]')
     assert app_state(app, "currentView") == "settings"
     assert app.page.is_visible('[data-testid="provider-add-first"]')
@@ -302,6 +324,8 @@ def test_key_state_never_exposes_plaintext(app):
 def test_provider_pricing_ui_and_history_cost(app, fake_openai_server):
     """HIS-13：设置页配置单价 → 生图成功后按单价写 history.cost。"""
     app.set_view("settings")
+    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('providers')")
+    app.page.wait_for_selector('[data-testid="settings-provider-new"]')
     app.page.click('[data-testid="settings-provider-new"]')
     app.page.wait_for_selector('[data-testid="provider-name"]')
 
@@ -477,7 +501,7 @@ def test_workbench_retry_falls_back_to_default_provider(app, fake_openai_server)
 # ---------------------------------------------------------------- GEN-02/06 逐张生成
 
 def test_refine_params_write_through_to_store(app):
-    """比例/质量/张数点一下就落 Workbench store，且按钮上的 ×N 跟着变。"""
+    """比例/质量/张数点一下就落 Workbench store，且发送按钮上的张数跟着变。"""
     mk_provider(app)
     goto_generate(app, "refine")
     app.page.fill('[data-testid="refine-prompt"]', "param write-through")
@@ -515,7 +539,7 @@ def test_refine_params_write_through_to_store(app):
     assert wb(app, "s.params.n") == 2
     assert app.page.get_attribute('[data-testid="refine-ratio-trigger"]', "data-value") == "16:9"
     assert app.page.get_attribute('[data-testid="refine-quality-high"]', "data-active") == "true"
-    assert "×2" in app.page.inner_text('[data-testid="refine-generate"]')
+    assert "2 张" in app.page.inner_text('[data-testid="refine-generate"]')
 
 
 def test_one_card_and_one_history_row_per_image(app):

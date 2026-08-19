@@ -53,7 +53,10 @@ def test_managed_secrets_never_reach_renderer_databases_or_exports(app, tmp_path
     assert provider_key.encode() not in exported
     assert ai_key.encode() not in exported
 
-    for database in (app.db_path(), app.user_data_dir / "musefold-design-scheme-v0.3.2.db"):
+    app.api_ok("designScheme.list")
+    scheme_dbs = sorted(app.user_data_dir.glob("musefold-design-scheme*.db"))
+    assert scheme_dbs, "设计方案应落在独立 sqlite，而不是写进主库"
+    for database in (app.db_path(), *scheme_dbs):
         assert database.exists(), database
         raw = database.read_bytes()
         assert provider_key.encode() not in raw

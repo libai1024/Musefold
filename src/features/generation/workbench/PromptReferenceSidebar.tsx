@@ -161,7 +161,11 @@ export function PromptReferenceSidebar({
     };
     update();
     media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
+    window.addEventListener('resize', update);
+    return () => {
+      media.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -172,6 +176,7 @@ export function PromptReferenceSidebar({
       const bounds = parent.getBoundingClientRect();
       const composer = parent.parentElement?.querySelector<HTMLElement>('[data-testid="workbench-composer"]');
       const composerRect = composer?.getBoundingClientRect();
+      setIsNarrow(bounds.width <= 760);
       setFrame((current) => {
         const width = Math.min(DEFAULT_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, bounds.width - PANEL_MARGIN * 2));
         const height = Math.min(DEFAULT_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, bounds.height - PANEL_MARGIN * 2));

@@ -4,23 +4,20 @@
 
 import { useEffect, useState } from 'react';
 import {
-  AlertTriangle,
-  Ban,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   Copy,
   FolderOpen,
   ImageOff,
   KeyRound,
   LayoutTemplate,
   RotateCcw,
-  Save,
-  Sparkles,
   Trash2,
-  Wand2,
-  XCircle,
 } from '../../../components/ui/icons';
+import {
+  GenerationHistoryDetailActions,
+  GenerationHistoryDetailContent,
+  GenerationHistoryInspectorPanel,
+  type GenerationHistoryDetailViewModel,
+} from '@musefold/product-ui';
 import type { HistoryRecord } from '@shared/types/models';
 import { Button } from '../../../components/ui/button';
 import {
@@ -42,7 +39,6 @@ import {
 import { formatDuration, formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';
 import api from '../../../lib/ipc';
-import { cn } from '../../../lib/utils';
 import { useAppStore } from '../../../stores/app';
 import { toast } from '../../../stores/toast';
 import { useGenerationStore } from '../../generation/store';
@@ -74,9 +70,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   const setActiveProvider = useGenerationStore((s) => s.setActive);
 
   const [sourceLabel, setSourceLabel] = useState('未记录');
-  const [errorOpen, setErrorOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [imgBroken, setImgBroken] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState('');
   const [savingPrompt, setSavingPrompt] = useState(false);
@@ -88,9 +82,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   }, [providers.length, loadProviders]);
 
   useEffect(() => {
-    setErrorOpen(false);
     setConfirmDelete(false);
-    setImgBroken(false);
     setSaveDialogOpen(false);
     setSaveTitle('');
     setSavingPrompt(false);
@@ -132,7 +124,40 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   const error = historyErrorPresentation(record.errorCode, record.errorMessage);
   const isRetrying = retryingIds.has(record.id);
   const canOpenImage = meta.status === 'success' && Boolean(record.imagePath);
-  const showImage = canOpenImage && !imgBroken;
+  const detailViewModel: GenerationHistoryDetailViewModel = {
+    id: record.id,
+    prompt: record.promptText,
+    negative: record.negativeText,
+    imageUrl: canOpenImage ? toImageSrc(record.imagePath!) : null,
+    imageUnavailableLabel: meta.status === 'success' ? '图片不可用' : '无生成图片',
+    statusKey: meta.status,
+    statusLabel: meta.label,
+    statusTone:
+      meta.status === 'success'
+        ? 'success'
+        : meta.status === 'failed'
+          ? 'danger'
+          : 'neutral',
+    modelLabel: displayModelName(record.model),
+    metadata: [
+      providerName,
+      formatTime(record.createdAt),
+      ...(meta.status === 'success'
+        ? [formatHistoryCost(record.cost, record.costUnit), formatDuration(record.durationMs)]
+        : []),
+    ],
+    paramsLabel: paramsLine,
+    sourceLabel,
+    deletedAtLabel: null,
+    error: meta.showError
+      ? {
+          code: record.errorCode,
+          title: error.displayTitle,
+          hint: error.hint,
+          details: [record.errorCode, record.errorMessage].filter(Boolean).join('\n') || null,
+        }
+      : null,
+  };
 
   const copyPrompt = async () => {
     try {
@@ -273,307 +298,128 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
     }
   };
 
-  return (
-    <div
-      className="flex h-full flex-col"
-      data-testid="history-detail"
-      data-history-id={record.id}
-      data-status={meta.status}
+  const detailErrorAction = error.canRetry ? (
+    <Button
+      size="xs"
+      variant="outline"
+      disabled={isRetrying}
+      onClick={() => void retry(record.id)}
+      data-testid="history-detail-retry"
     >
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        {/* 大图 / 占位 */}
-        <button
-          type="button"
-          className={cn(
-            'relative block w-full overflow-hidden rounded-lg border border-border-subtle bg-inset text-left',
-            canOpenImage && 'cursor-zoom-in hover:border-border-default',
-          )}
-          data-testid="history-detail-image"
-          onClick={() => {
-            if (canOpenImage) onOpenLightbox?.(record.id);
-          }}
-          disabled={!canOpenImage}
-          title={canOpenImage ? '放大预览' : undefined}
-        >
-          {showImage ? (
-            <img
-              src={toImageSrc(record.imagePath!)}
-              alt=""
-              onError={() => setImgBroken(true)}
-              className="max-h-56 w-full object-contain"
-            />
-          ) : (
-            <div className="flex h-36 flex-col items-center justify-center gap-1.5 text-quaternary">
-              <ImageOff className="h-8 w-8" />
-              <span className="text-[11px]">
-                {meta.status === 'success' ? '图片不可用' : '无生成图片'}
-              </span>
-            </div>
-          )}
-        </button>
+      {isRetrying ? <Spinner size={12} /> : <RotateCcw className="h-3 w-3" />}
+      {isRetrying ? '重试中…' : '重试'}
+    </Button>
+  ) : error.primaryAction?.kind === 'update_key' ? (
+    <Button
+      size="xs"
+      variant="outline"
+      onClick={() => {
+        if (provider) openProviderDialog(provider);
+        else toast.info('服务商不存在', '请到设置中选择一个可用服务商。');
+      }}
+      data-testid="history-detail-error-action"
+    >
+      <KeyRound className="h-3 w-3" /> 更新密钥
+    </Button>
+  ) : error.primaryAction ? (
+    <span className="text-[10px] text-tertiary" data-testid="history-detail-error-action">
+      建议：{error.primaryAction.label}
+    </span>
+  ) : null;
 
-        {/* 状态行 */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <StatusGlyph status={record.status} />
-            <span className={cn('text-[12px] font-semibold', meta.colorClass)}>{meta.label}</span>
-            <span className="text-[11px] text-border-strong">·</span>
-            <span
-              className={cn('truncate text-[11px] text-primary', displayModelName(record.model) === record.model && 'font-mono')}
-              data-testid="history-detail-model"
-              title={record.model}
-            >
-              {displayModelName(record.model)}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-tertiary">
-            <span className="truncate" data-testid="history-detail-provider" title={providerName}>
-              {providerName}
-            </span>
-            <span className="text-border-strong">·</span>
-            <span className="font-mono tabular-nums" data-testid="history-detail-time">
-              {formatTime(record.createdAt)}
-            </span>
-            {meta.status === 'success' && (
-              <>
-                <span className="text-border-strong">·</span>
-                <span className="font-mono tabular-nums" data-testid="history-detail-cost">
-                  {formatHistoryCost(record.cost, record.costUnit)}
-                </span>
-                <span className="text-border-strong">·</span>
-                <span className="font-mono tabular-nums" data-testid="history-detail-duration">
-                  {formatDuration(record.durationMs)}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* 提示词 */}
-        <Section
-          label="提示词"
-          action={
-            <button
-              type="button"
-              className="inline-flex items-center gap-0.5 text-[10px] text-tertiary hover:text-primary"
-              onClick={() => void copyPrompt()}
-              data-testid="history-detail-copy-prompt"
-              title="复制提示词"
-            >
-              <Copy className="h-3 w-3" /> 复制
-            </button>
-          }
-        >
-          <pre
-            className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-inset px-2 py-1.5 font-mono text-[11px] leading-relaxed text-secondary"
-            data-testid="history-detail-prompt"
-          >
-            {record.promptText || '未记录'}
-          </pre>
-        </Section>
-
-        {record.negativeText ? (
-          <Section label="负面提示词">
-            <pre
-              className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md bg-inset px-2 py-1.5 font-mono text-[11px] leading-relaxed text-tertiary"
-              data-testid="history-detail-negative"
-            >
-              {record.negativeText}
-            </pre>
-          </Section>
-        ) : null}
-
-        <Section label="参数">
-          <p
-            className="font-mono text-[11px] leading-relaxed text-secondary"
-            data-testid="history-detail-params"
-          >
-            {paramsLine}
-          </p>
-        </Section>
-
-        <HistoryLineagePanel record={record} />
-
-        <Section label="来源">
-          <p className="text-[11px] text-secondary" data-testid="history-detail-source">
-            {sourceLabel}
-          </p>
-        </Section>
-
-        {/* 失败信息 */}
-        {meta.showError && (
-          <div
-            className="rounded-md border border-danger/25 bg-danger/5 p-2.5"
-            data-testid="history-detail-error"
-          >
-            <div className="flex items-start gap-1.5">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-medium text-danger">
-                  {record.errorCode ? (
-                    <span className="font-mono text-[10px] opacity-80">{record.errorCode}</span>
-                  ) : null}
-                  {record.errorCode ? ' · ' : null}
-                  {error.displayTitle}
-                </p>
-                <p className="mt-0.5 text-[10.5px] leading-snug text-danger/80">{error.hint}</p>
-                {(record.errorMessage || record.errorCode) && (
+  return (
+    <>
+      {/* 详情内容与动作栏的几何由 Desktop/Web 共享。 */}
+      <GenerationHistoryInspectorPanel
+        historyId={record.id}
+        status={meta.status}
+        content={
+          <GenerationHistoryDetailContent
+          detail={detailViewModel}
+          density="compact"
+          onOpenImage={canOpenImage ? () => onOpenLightbox?.(record.id) : undefined}
+          onCopyPrompt={() => void copyPrompt()}
+          bodyExtra={<HistoryLineagePanel record={record} />}
+          errorAction={detailErrorAction}
+          />
+        }
+        actions={
+          <GenerationHistoryDetailActions
+          layout="stacked"
+          reuseTestId="history-detail-regen"
+          onReuse={() => void reeditHistory()}
+          onSavePrompt={openSavePromptDialog}
+          onCopyPrompt={() => void copyPrompt()}
+          onDelete={() => setConfirmDelete(true)}
+          deleteLabel="删除记录"
+          busyAction={savingPrompt ? 'save' : null}
+          extraActions={
+            <>
+              <div className="grid grid-cols-2 gap-1.5">
+                <HistoryFileAction
+                  icon={LayoutTemplate}
+                  label="创建设计方案"
+                  tip="以这条历史提示词创建可复用的设计方案草稿"
+                  testId="history-detail-create-scheme"
+                  disabled={false}
+                  onClick={createDesignScheme}
+                />
+                <HistoryFileAction
+                  icon={FolderOpen}
+                  label="打开文件夹"
+                  tip={record.imagePath ? '在系统文件管理器中定位图片' : '无图片路径'}
+                  testId="history-detail-folder"
+                  disabled={!record.imagePath}
+                  onClick={() => void openImageFolder()}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <HistoryFileAction
+                  icon={Copy}
+                  label="复制图片"
+                  tip={record.imagePath ? '复制图片到系统剪贴板' : '无图片'}
+                  testId="history-detail-copy-image"
+                  disabled={!record.imagePath}
+                  onClick={() => void copyImage()}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!record.imagePath}
+                  onClick={() => setDeleteFileDialogOpen(true)}
+                  data-testid="history-detail-delete-file"
+                  title={record.imagePath ? '删除记录并删除磁盘源文件' : '无图片路径'}
+                >
+                  <Trash2 className="h-3 w-3" /> 删除记录+源文件
+                </Button>
+              </div>
+              {confirmDelete ? (
+                <span className="flex items-center justify-end gap-1">
                   <button
                     type="button"
-                    className="mt-1.5 inline-flex items-center gap-0.5 text-[10px] text-tertiary hover:text-secondary"
-                    onClick={() => setErrorOpen((v) => !v)}
-                    data-testid="history-detail-error-toggle"
+                    className="rounded px-1.5 py-0.5 text-[10px] text-secondary hover:bg-hover"
+                    onClick={() => setConfirmDelete(false)}
                   >
-                    {errorOpen ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                    技术细节
+                    取消
                   </button>
-                )}
-                {errorOpen && (
-                  <pre
-                    className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-inset/80 px-1.5 py-1 font-mono text-[10px] leading-snug text-tertiary"
-                    data-testid="history-detail-error-details"
+                  <button
+                    type="button"
+                    className="rounded bg-danger px-1.5 py-0.5 text-[10px] text-on-danger hover:brightness-105"
+                    data-testid="history-detail-delete-confirm"
+                    onClick={() => {
+                      setConfirmDelete(false);
+                      void remove(record.id);
+                    }}
                   >
-                    {[record.errorCode, record.errorMessage].filter(Boolean).join('\n') || '未记录'}
-                  </pre>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {error.canRetry ? (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      disabled={isRetrying}
-                      onClick={() => void retry(record.id)}
-                      data-testid="history-detail-retry"
-                    >
-                      {isRetrying ? <Spinner size={12} /> : <RotateCcw className="h-3 w-3" />}
-                      {isRetrying ? '重试中…' : '重试'}
-                    </Button>
-                  ) : error.primaryAction?.kind === 'update_key' ? (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        if (provider) openProviderDialog(provider);
-                        else toast.info('服务商不存在', '请到设置中选择一个可用服务商。');
-                      }}
-                      data-testid="history-detail-error-action"
-                    >
-                      <KeyRound className="h-3 w-3" /> 更新密钥
-                    </Button>
-                  ) : error.primaryAction ? (
-                    <span
-                      className="text-[10px] text-tertiary"
-                      data-testid="history-detail-error-action"
-                    >
-                      建议：{error.primaryAction.label}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 动作区：反哺主路径 + 文件系统动作 */}
-      <div className="space-y-1.5 border-t border-border-subtle p-2.5">
-        <div className="grid grid-cols-1 gap-1.5">
-          <HistoryFileAction
-            icon={Wand2}
-            label="再次制作"
-            tip="进入制作界面并填入这条历史的提示词，确认后手动生成"
-            testId="history-detail-regen"
-            disabled={false}
-            onClick={() => void reeditHistory()}
+                    确认删除
+                  </button>
+                </span>
+              ) : null}
+            </>
+          }
           />
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <HistoryFileAction
-            icon={LayoutTemplate}
-            label="创建设计方案"
-            tip="以这条历史提示词创建可复用的设计方案草稿"
-            testId="history-detail-create-scheme"
-            disabled={false}
-            onClick={createDesignScheme}
-          />
-          <HistoryFileAction
-            icon={Save}
-            label="存为提示词"
-            tip="将提示词、负面提示词与参数存为提示词库资产"
-            testId="history-detail-save"
-            disabled={savingPrompt}
-            onClick={openSavePromptDialog}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <HistoryFileAction
-            icon={FolderOpen}
-            label="打开文件夹"
-            tip={record.imagePath ? '在系统文件管理器中定位图片' : '无图片路径'}
-            testId="history-detail-folder"
-            disabled={!record.imagePath}
-            onClick={() => void openImageFolder()}
-          />
-          <HistoryFileAction
-            icon={Copy}
-            label="复制图片"
-            tip={record.imagePath ? '复制图片到系统剪贴板' : '无图片'}
-            testId="history-detail-copy-image"
-            disabled={!record.imagePath}
-            onClick={() => void copyImage()}
-          />
-        </div>
-
-        <div className="flex gap-1.5 pt-0.5">
-          {confirmDelete ? (
-            <span className="flex flex-1 items-center justify-end gap-1">
-              <button
-                type="button"
-                className="rounded px-1.5 py-0.5 text-[10px] text-secondary hover:bg-hover"
-                onClick={() => setConfirmDelete(false)}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                className="rounded bg-danger px-1.5 py-0.5 text-[10px] text-on-danger hover:brightness-105"
-                data-testid="history-detail-delete-confirm"
-                onClick={() => {
-                  setConfirmDelete(false);
-                  void remove(record.id);
-                }}
-              >
-                确认删除
-              </button>
-            </span>
-          ) : (
-            <Button
-              size="xs"
-              variant="ghost"
-              className="w-full text-danger hover:text-danger"
-              onClick={() => setConfirmDelete(true)}
-              data-testid="history-detail-delete"
-            >
-              <Trash2 className="h-3 w-3" /> 删除记录
-            </Button>
-          )}
-        </div>
-        <Button
-          size="xs"
-          variant="ghost"
-          className="w-full text-danger hover:text-danger"
-          disabled={!record.imagePath}
-          onClick={() => setDeleteFileDialogOpen(true)}
-          data-testid="history-detail-delete-file"
-          title={record.imagePath ? '删除记录并删除磁盘源文件' : '无图片路径'}
-        >
-          <Trash2 className="h-3 w-3" /> 删除记录+源文件
-        </Button>
-      </div>
+        }
+      />
 
       <Dialog
         open={saveDialogOpen}
@@ -644,7 +490,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
@@ -664,37 +510,6 @@ async function resolveSourceLabel(record: HistoryRecord): Promise<string> {
     promptTitle,
     promptId: record.promptId,
   });
-}
-
-function StatusGlyph({ status }: { status: string }) {
-  const meta = historyStatusMeta(status);
-  if (meta.status === 'success') {
-    return <CheckCircle2 className={cn('h-3.5 w-3.5 shrink-0', meta.colorClass)} />;
-  }
-  if (meta.status === 'cancelled') {
-    return <Ban className={cn('h-3.5 w-3.5 shrink-0', meta.colorClass)} />;
-  }
-  return <XCircle className={cn('h-3.5 w-3.5 shrink-0', meta.colorClass)} />;
-}
-
-function Section({
-  label,
-  action,
-  children,
-}: {
-  label: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-quaternary">{label}</div>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
 }
 
 function HistoryFileAction({

@@ -4,7 +4,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import '@musefold/ui/tokens.css';
+import '@musefold/ui/primitives.css';
 import './styles/globals.css';
+import '@musefold/product-ui/styles.css';
 import './styles/motion.css';
 import { installTestHook } from './lib/test-hook';
 import { api } from './lib/ipc';
@@ -36,5 +39,5 @@ createRoot(container).render(
       <App />
     </GlobalErrorBoundary>
     <GlobalErrorDialog />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

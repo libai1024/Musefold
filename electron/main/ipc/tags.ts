@@ -1,11 +1,12 @@
 // electron/main/ipc/tags.ts
 // 标签 IPC handler —— 详见 docs/07-ipc-contracts.md §3.3
 
-import { ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
-import { tagsRepo } from '@musefold/core/db/repositories/tags';
-import { promptsRepo } from '@musefold/core/db/repositories/prompts';
-import { getDb } from '@musefold/core/db';
+import { ipcMain } from "electron";
+import { IPC } from "@shared/types/ipc";
+import { tagsRepo } from "@musefold/core/db/repositories/tags";
+import { promptsRepo } from "@musefold/core/db/repositories/prompts";
+import { getDb } from "@musefold/core/db";
+import { scheduleCloudSync } from "../../cloud-sync";
 
 /**
  * prompts_fts.tags_index 里含标签名（JS 侧分词），所以任何改动
@@ -14,18 +15,23 @@ import { getDb } from '@musefold/core/db';
  */
 function promptIdsOfTag(tagId: string): string[] {
   const rows = getDb()
-    .prepare('SELECT prompt_id FROM prompt_tags WHERE tag_id = ?')
+    .prepare("SELECT prompt_id FROM prompt_tags WHERE tag_id = ?")
     .all(tagId) as { prompt_id: string }[];
   return rows.map((r) => r.prompt_id);
 }
 
 export function registerTagHandlers(): void {
   ipcMain.handle(IPC.TAGS_LIST, (_e, group?) => tagsRepo.list(group));
-  ipcMain.handle(IPC.TAGS_CREATE, (_e, t) => tagsRepo.create(t));
+  ipcMain.handle(IPC.TAGS_CREATE, (_e, t) => {
+    const value = tagsRepo.create(t);
+    scheduleCloudSync();
+    return value;
+  });
   ipcMain.handle(IPC.TAGS_UPDATE, (_e, id: string, patch) => {
     const affected = patch?.name !== undefined ? promptIdsOfTag(id) : [];
     const tag = tagsRepo.update(id, patch);
     for (const pid of affected) promptsRepo.resyncFts(pid);
+    scheduleCloudSync();
     return tag;
   });
   ipcMain.handle(IPC.TAGS_DELETE, (_e, id: string) => {
@@ -33,11 +39,13 @@ export function registerTagHandlers(): void {
     const affected = promptIdsOfTag(id);
     tagsRepo.delete(id);
     for (const pid of affected) promptsRepo.resyncFts(pid);
+    scheduleCloudSync();
     return { ok: true as const };
   });
   ipcMain.handle(IPC.TAGS_ASSIGN, (_e, promptId: string, tagIds: string[]) => {
     tagsRepo.assignToPrompt(promptId, tagIds);
     promptsRepo.resyncFts(promptId);
+    scheduleCloudSync();
     return { ok: true as const };
   });
 }

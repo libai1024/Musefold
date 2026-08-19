@@ -34,7 +34,7 @@ def test_integration_info_and_snippets(app):
     assert "[mcp_servers.musefold]" in snippets["codexToml"]
     assert snippets["skillUrl"] == (
         "https://raw.githubusercontent.com/libai1024/Musefold-Skills/"
-        "v0.2.0/skills/musefold/SKILL.md"
+        "v0.4.0/skills/musefold/SKILL.md"
     )
     for text in snippets.values():
         assert "mf_at_" not in text, "配置片段不得包含控制面 token"
@@ -152,7 +152,7 @@ def test_mcp_bundle_runs_under_app_runtime(app):
         proc.stdin.flush()
         tools = json.loads(proc.stdout.readline().strip())["result"]["tools"]
         names = {tool["name"] for tool in tools}
-        assert len(tools) == 24, "连上运行中的 App 应看到 v0.5 全量工具目录"
+        assert len(tools) == 20, "连上运行中的 App 应看到去掉 recipes 后的全量工具目录"
         assert {"generate_image", "run_github_skill", "open_account_setup", "wait_for_generation"} <= names
     finally:
         proc.kill()

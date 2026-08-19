@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import {
   Check,
   ChevronDown,
-  ChevronRight,
   Loader2,
   Power,
   Server,
@@ -17,6 +16,7 @@ import { useAccountStore } from '../../features/account/store';
 import { useDoubaoAccountStore } from '../../features/account/doubao-store';
 import { useGenerationStore } from '../../features/generation/store';
 import { useSettingsStore } from '../../features/settings/store';
+import { useAiConnectionStore } from '../../features/settings/ai-connection-store';
 import { accessModeOfProvider } from '../../lib/ai-access';
 import { displayModelName } from '../../lib/model-catalog';
 import { formatPoints } from '../../lib/format';
@@ -24,6 +24,12 @@ import { cn } from '../../lib/utils';
 import api from '../../lib/ipc';
 import { useAppStore } from '../../stores/app';
 import { toast } from '../../stores/toast';
+import {
+  AccountIdentityTransition,
+  type AccountIdentity,
+  type AccountIdentityTransitionState,
+} from '../../features/settings/components/AccessTransitions';
+import { switchAccountSource } from '../../features/settings/account-source-switch';
 
 export function SidebarAccessSwitcher() {
   const providers = useGenerationStore((state) => state.providers);
@@ -36,6 +42,9 @@ export function SidebarAccessSwitcher() {
   const doubaoStatusLoading = useDoubaoAccountStore((state) => state.loading);
   const refreshDoubaoStatus = useDoubaoAccountStore((state) => state.refreshStatus);
   const refreshDoubaoUsage = useDoubaoAccountStore((state) => state.refreshUsage);
+  const aiConnections = useAiConnectionStore((state) => state.connections);
+  const aiConnectionsLoaded = useAiConnectionStore((state) => state.loaded);
+  const loadAiConnections = useAiConnectionStore((state) => state.load);
   const currentView = useAppStore((state) => state.currentView);
   const setView = useAppStore((state) => state.setView);
   const setSettingsSection = useSettingsStore((state) => state.setSection);
@@ -45,6 +54,7 @@ export function SidebarAccessSwitcher() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsAnchor, setSettingsAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
+  const [identityTransition, setIdentityTransition] = useState<AccountIdentityTransitionState | null>(null);
   const [petEnabled, setPetEnabled] = useState<boolean | null>(null);
   const [petPending, setPetPending] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -53,9 +63,16 @@ export function SidebarAccessSwitcher() {
   const activeProvider = providers.find((provider) => provider.id === activeProviderId) ?? providers[0] ?? null;
   const mode = accessModeOfProvider(activeProvider) ?? 'account';
   const activeDoubao = activeProvider?.type === 'doubao-web';
+  const doubaoProvider = providers.find((provider) => provider.type === 'doubao-web') ?? null;
+  const officialProvider = providers.find((provider) => provider.managedBy === 'account') ?? null;
+  const officialConnection = aiConnections.find((connection) => connection.managedBy === 'account') ?? null;
   const relayProviders = providers.filter(
     (provider) => provider.managedBy !== 'account' && provider.type !== 'doubao-web',
   );
+
+  useEffect(() => {
+    if (!aiConnectionsLoaded) void loadAiConnections().catch(() => {});
+  }, [aiConnectionsLoaded, loadAiConnections]);
 
   useEffect(() => {
     if (activeDoubao) {
@@ -107,10 +124,6 @@ export function SidebarAccessSwitcher() {
 
   const handlePrimaryClick = () => {
     setSettingsOpen(false);
-    if (mode === 'account') {
-      openSettingsAt('access');
-      return;
-    }
     if (!modelMenuOpen) {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (rect) setModelMenuAnchor({ left: Math.max(8, rect.left), bottom: window.innerHeight - rect.top + 6 });
@@ -172,11 +185,50 @@ export function SidebarAccessSwitcher() {
     : doubaoStatusLoading
       ? '正在读取今日剩余次数'
       : '今日剩余次数暂不可用';
+  const officialName = accountStatus.username?.trim() || 'Musefold 官方账号';
+  const doubaoReady = Boolean(doubaoProvider?.hasKey && (doubaoStatus?.loggedIn ?? true));
+  const officialReady = Boolean(
+    officialProvider
+      && officialConnection
+      && accountStatus.loggedIn
+      && accountStatus.health !== 'token-invalid',
+  );
+  const identityOf = (source: 'doubao' | 'official'): AccountIdentity => source === 'doubao'
+    ? {
+        source,
+        name: doubaoName,
+        detail: doubaoDetail,
+        avatarDataUrl: doubaoStatus?.avatarDataUrl,
+      }
+    : {
+        source,
+        name: officialName,
+        detail: accountBalance,
+      };
+
+  function beginAccountSwitch(target: 'doubao' | 'official') {
+    if (identityTransition) return;
+    const from = activeDoubao ? 'doubao' : 'official';
+    if (target === from) {
+      setModelMenuOpen(false);
+      return;
+    }
+    if (target === 'doubao' && !doubaoReady) {
+      toast.error('豆包账号不可用', '请先在设置中完成豆包扫码登录。');
+      return;
+    }
+    if (target === 'official' && !officialReady) {
+      toast.error('Musefold 官方账号不可用', '请先在设置中登录官方账号。');
+      return;
+    }
+    setModelMenuOpen(false);
+    setIdentityTransition({ from: identityOf(from), to: identityOf(target) });
+  }
   const title = mode === 'relay'
     ? activeProvider?.name || '中转站未配置'
     : activeDoubao
       ? doubaoName
-      : accountStatus.username?.trim() || 'Musefold 官方账号';
+      : officialName;
   const detail = mode === 'relay'
     ? displayModelName(activeProvider?.model) || '模型未配置'
     : activeDoubao
@@ -195,12 +247,16 @@ export function SidebarAccessSwitcher() {
         ref={triggerRef}
         type="button"
         onClick={handlePrimaryClick}
-        aria-label={mode === 'relay' ? `切换生图模型，当前${title} ${detail}` : `管理账号，当前${title}`}
-        aria-haspopup={mode === 'relay' ? 'dialog' : undefined}
-        aria-expanded={mode === 'relay' ? modelMenuOpen : undefined}
+        disabled={Boolean(identityTransition)}
+        aria-label={mode === 'relay'
+          ? `切换生图模型，当前${title} ${detail}`
+          : `选择生图账号，当前${title}`}
+        aria-haspopup="dialog"
+        aria-expanded={modelMenuOpen}
+        aria-busy={mode === 'account' && Boolean(identityTransition)}
         title={`${title} · ${detail}`}
         className={cn(
-          'flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 text-secondary transition-colors hover:bg-hover hover:text-primary',
+          'flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 text-secondary transition-colors hover:bg-hover hover:text-primary disabled:cursor-wait disabled:opacity-70',
           modelMenuOpen && 'bg-hover text-primary',
         )}
         data-testid="provider-quick-switch"
@@ -231,9 +287,7 @@ export function SidebarAccessSwitcher() {
             {detail}
           </span>
         </span>
-        {mode === 'relay'
-          ? <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', modelMenuOpen && 'rotate-180')} />
-          : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-quaternary" />}
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-quaternary transition-transform', modelMenuOpen && 'rotate-180')} />
       </button>
 
       <button
@@ -299,55 +353,120 @@ export function SidebarAccessSwitcher() {
       {modelMenuOpen && modelMenuAnchor && createPortal(
         <div
           role="dialog"
-          aria-label="切换生图模型"
+          aria-label={mode === 'account' ? '切换生图账号' : '切换生图模型'}
           data-relay-model-switcher
-          data-testid="relay-model-switcher"
+          data-testid={mode === 'account' ? 'account-source-switcher' : 'relay-model-switcher'}
           className="no-drag fixed z-[70] w-[292px] overflow-hidden rounded-lg border border-border-default bg-popover text-[11px] shadow-pop animate-scale-fade-in"
           style={{ left: modelMenuAnchor.left, bottom: modelMenuAnchor.bottom }}
         >
-          <div className="border-b border-border-subtle px-3 py-2.5">
-            <p className="text-[11.5px] font-medium text-primary">切换生图模型</p>
-            <p className="mt-0.5 text-[10px] text-tertiary">当前为中转站模式</p>
-          </div>
-          <div className="max-h-[280px] overflow-y-auto p-1.5" role="listbox" aria-label="可用生图模型">
-            {relayProviders.map((provider) => {
-              const active = provider.id === activeProviderId;
-              const pending = provider.id === pendingProviderId;
-              return (
-                <button
-                  key={provider.id}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  disabled={Boolean(pendingProviderId)}
-                  onClick={() => void chooseRelayProvider(provider.id)}
-                  className="flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-left transition-colors hover:bg-hover disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-                  data-testid={`relay-model-option-${provider.id}`}
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-inset text-secondary">
-                    {matchModelBrand(provider.model) !== 'generic'
-                      ? <ModelBrandIcon model={provider.model} className="h-4 w-4" />
-                      : <Server className="h-4 w-4" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11.5px] font-medium text-primary">{provider.name}</span>
-                    <span className="mt-0.5 block truncate text-[10px] text-tertiary">{displayModelName(provider.model)}</span>
-                  </span>
-                  {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin text-tertiary" /> : active && <Check className="h-3.5 w-3.5 text-accent" />}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            onClick={() => openSettingsAt('providers')}
-            className="flex w-full items-center justify-center gap-1.5 border-t border-border-subtle px-2 py-2.5 text-[10px] text-secondary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-            data-testid="relay-model-manage"
-          >
-            <Settings2 className="h-3.5 w-3.5" /> 管理生图中转站
-          </button>
+          {mode === 'account' ? (
+            <>
+              <div className="border-b border-border-subtle px-3 py-2.5">
+                <p className="text-[11.5px] font-medium text-primary">切换生图账号</p>
+                <p className="mt-0.5 text-[10px] text-tertiary">选择后验证账号并播放切换动画</p>
+              </div>
+              <div className="p-1.5" role="listbox" aria-label="可用生图账号">
+                {([
+                  {
+                    source: 'doubao' as const,
+                    name: doubaoName,
+                    detail: doubaoReady ? doubaoDetail : '未登录，请先在设置中扫码',
+                    available: doubaoReady,
+                    avatarDataUrl: doubaoStatus?.avatarDataUrl,
+                  },
+                  {
+                    source: 'official' as const,
+                    name: officialName,
+                    detail: officialReady ? accountBalance : '未登录，请先登录官方账号',
+                    available: officialReady,
+                    avatarDataUrl: null,
+                  },
+                ]).map((account) => {
+                  const active = account.source === (activeDoubao ? 'doubao' : 'official');
+                  return (
+                    <button
+                      key={account.source}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      disabled={!account.available}
+                      onClick={() => beginAccountSwitch(account.source)}
+                      className="flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-left transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                      data-testid={`account-source-option-${account.source}`}
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-inset text-[11px] font-semibold text-secondary">
+                        {account.avatarDataUrl
+                          ? <img src={account.avatarDataUrl} alt="" className="h-full w-full object-cover" />
+                          : account.source === 'official'
+                            ? <ModelBrandIcon model="musefold-agent" className="h-4 w-4" />
+                            : account.name.charAt(0) || <UserRound className="h-4 w-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[11.5px] font-medium text-primary">{account.name}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-tertiary">{account.detail}</span>
+                      </span>
+                      {active && <Check className="h-3.5 w-3.5 shrink-0 text-accent" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="border-b border-border-subtle px-3 py-2.5">
+                <p className="text-[11.5px] font-medium text-primary">切换生图模型</p>
+                <p className="mt-0.5 text-[10px] text-tertiary">当前为中转站模式</p>
+              </div>
+              <div className="max-h-[280px] overflow-y-auto p-1.5" role="listbox" aria-label="可用生图模型">
+                {relayProviders.map((provider) => {
+                  const active = provider.id === activeProviderId;
+                  const pending = provider.id === pendingProviderId;
+                  return (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      disabled={Boolean(pendingProviderId)}
+                      onClick={() => void chooseRelayProvider(provider.id)}
+                      className="flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-left transition-colors hover:bg-hover disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                      data-testid={`relay-model-option-${provider.id}`}
+                    >
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-inset text-secondary">
+                        {matchModelBrand(provider.model) !== 'generic'
+                          ? <ModelBrandIcon model={provider.model} className="h-4 w-4" />
+                          : <Server className="h-4 w-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[11.5px] font-medium text-primary">{provider.name}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-tertiary">{displayModelName(provider.model)}</span>
+                      </span>
+                      {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin text-tertiary" /> : active && <Check className="h-3.5 w-3.5 text-accent" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => openSettingsAt('providers')}
+                className="flex w-full items-center justify-center gap-1.5 border-t border-border-subtle px-2 py-2.5 text-[10px] text-secondary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                data-testid="relay-model-manage"
+              >
+                <Settings2 className="h-3.5 w-3.5" /> 管理生图中转站
+              </button>
+            </>
+          )}
         </div>,
         document.body,
+      )}
+
+      {identityTransition && (
+        <AccountIdentityTransition
+          key={`${identityTransition.from.source}-${identityTransition.to.source}`}
+          state={identityTransition}
+          onSwap={() => switchAccountSource(identityTransition.to.source)}
+          onComplete={() => setIdentityTransition(null)}
+        />
       )}
     </div>
   );

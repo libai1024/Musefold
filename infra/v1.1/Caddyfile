@@ -1,0 +1,55 @@
+{
+	# Keep the IP certificate for clients that omit SNI.
+	default_sni 45.207.211.136
+}
+
+45.207.211.136 {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+	reverse_proxy new-api:3000
+}
+
+zhaozhaoyue.top, www.zhaozhaoyue.top {
+	redir /Musefold /Musefold/ permanent
+
+	handle /health/* {
+		reverse_proxy v11-web-api:60160
+	}
+
+	handle /api/musefold/mcp {
+		reverse_proxy v11-web-api:60160
+	}
+
+	handle /api/musefold/v1/* {
+		reverse_proxy v11-web-api:60160
+	}
+
+	handle /.well-known/oauth-protected-resource* {
+		reverse_proxy v11-web-api:60160
+	}
+
+	handle /.well-known/oauth-authorization-server {
+		reverse_proxy v11-web-api:60160
+	}
+
+	handle /musefold-local/* {
+		reverse_proxy v11-minio:9000
+	}
+
+	handle_path /Musefold/api/* {
+		reverse_proxy download-stats:8080
+	}
+
+	handle /Musefold/* {
+		root * /srv/musefold-site
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	handle {
+		reverse_proxy new-api:3000
+	}
+}

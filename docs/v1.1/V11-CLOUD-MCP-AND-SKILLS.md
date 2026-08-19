@@ -1,10 +1,14 @@
 # Musefold v1.1 云端 MCP 与 Skills 设计
 
-> **状态**：v1.1 P0 设计基线
+> **状态**：v1.1 P0 设计基线，Cloud MCP 本地实现与集成验证进行中
 >
 > **日期**：2026-08-17
 >
 > **目标**：用户用 Musefold/new-api 个人账号授权 AI 客户端，在不安装桌面 App 的情况下通过远程 MCP 和 Skill 调用云端生图
+
+> **实施状态（2026-08-19）**：Streamable HTTP、`oidc-provider` 持久化 OAuth、官方 Skill registry、Cloud backend、审批/自动预算、云历史和签名资产结果已有代码闭环。官方 MCP SDK 已覆盖 initialize、tools/list、tools/call 和 HTTPS `resource_link`；真实 PostgreSQL 已覆盖 grant 级幂等、10 请求并发日预算、取消释放、成功结算、审批重试及消费表 RLS。Web 审批页已接入共享生成快照控制器，登录回跳限制为同源 OAuth 交互路径，审批后的排队/生成/终态和签名图片可恢复展示。尚未通过两个独立远程 MCP 客户端和真实 new-api staging 生图，因此仍不是 production release。
+
+`scripts/test-v1.1-mcp-staging.mjs` 已提供两个独立官方 SDK transport 会话的 staging smoke，并可在 `MUSEFOLD_STAGING_MCP_RUN_GENERATION=true` 时验证幂等生图/等待；默认只读取状态、Skills 和历史。该脚本仍不能代替两个真实产品客户端。
 
 ## 0. 核心结论
 
@@ -142,7 +146,7 @@ apps/
 
 ```ts
 interface MusefoldToolBackend {
-  readonly surface: 'local' | 'cloud';
+  readonly surface: "local" | "cloud";
   capabilities(): Promise<McpCapabilitySet>;
   accountStatus(): Promise<McpAccountStatus>;
   listModels(): Promise<McpModel[]>;
@@ -200,6 +204,8 @@ CloudBackend           -> 同进程 application services，携带已验证的 ow
 
 MCP transport 断线不能影响 generation job。`generate_image` 成功创建 job 后，事实已在 PostgreSQL；客户端可用 job id 在新 MCP 会话中继续 `get_generation/wait_for_generation`。
 
+Web approval URL 同样只保存 job id 和一次性 token，不把任务状态放在浏览器内存中。登录完成后仅允许回到同源 OAuth interaction 路径；审批页会把任务加入共享 Desktop/Web 生成快照控制器，通过 SSE 和轮询兜底更新，终态时重新显示短期签名图片 URL。
+
 ## 6. OAuth 与账号登录
 
 ### 6.1 身份边界
@@ -228,13 +234,13 @@ P0 由 `oidc-provider` 提供协议状态机和 metadata，在 Musefold adapter 
 
 ### 6.3 Scope
 
-| Scope | 能力 |
-|---|---|
-| `account:read` | 账号摘要、额度和模型能力 |
-| `prompts:read` | 搜索和读取云端提示词 |
-| `prompts:write` | 保存提示词 |
-| `skills:read` | 读取官方 Skill registry |
-| `generations:read` | 查询任务、历史和资产 |
+| Scope               | 能力                     |
+| ------------------- | ------------------------ |
+| `account:read`      | 账号摘要、额度和模型能力 |
+| `prompts:read`      | 搜索和读取云端提示词     |
+| `prompts:write`     | 保存提示词               |
+| `skills:read`       | 读取官方 Skill registry  |
+| `generations:read`  | 查询任务、历史和资产     |
 | `generations:write` | 创建、等待和取消生图任务 |
 
 默认授权不包含 `prompts:write`。生图 spend policy 不是 scope 的替代物：即使有 `generations:write`，仍需通过预算/审批。
@@ -243,21 +249,18 @@ P0 由 `oidc-provider` 提供协议状态机和 metadata，在 Musefold adapter 
 
 ```text
 oauth_clients
-  id, name, redirect_uris, registration_type, created_at, revoked_at
+  id, name, redirect_uris, registration_type, metadata, created_at, revoked_at
 
 oauth_grants
   id, owner_id, client_id, scopes, created_at, last_used_at, revoked_at
 
-oauth_authorization_codes
-  code_hash, grant_id, redirect_uri, pkce_challenge,
-  resource, expires_at, used_at
-
-oauth_token_families
-  id, grant_id, refresh_hash, previous_refresh_hash,
-  expires_at, rotated_at, revoked_at
+oidc_provider_artifacts
+  model, sha256(id), payload, expires_at, created_at, updated_at
 ```
 
-Access token 可以是短期签名 JWT；refresh token 必须是不透明随机值并只保存 hash。签名 key 使用 `kid` 轮换并发布 JWKS。
+当前实现使用 `oidc-provider` 的 opaque access/refresh token。PostgreSQL Adapter 对 artifact id 做 SHA-256，数据库不会保存 bearer 或 refresh 原值；只有当前请求能在内存中还原原始 token。Authorization code、interaction、session 和 Grant 也由同一 Adapter 持久化。JWKS 仍由 provider 管理，用于标准发现和未来 OIDC 扩展；生产环境必须通过 `OAUTH_JWKS_JSON` 注入可轮换的私钥集合。
+
+`000009_cloud_mcp` 中的自定义 code/access/refresh 表为切换期间保留的 legacy schema，当前 provider 不读取它们。完成线上数据迁移后再单独发布删除迁移，避免滚动发布时破坏旧实例。
 
 ## 7. 花费控制与审批
 
@@ -267,7 +270,7 @@ Access token 可以是短期签名 JWT；refresh token 必须是不透明随机�
 
 ```ts
 interface McpSpendPolicy {
-  mode: 'ask_each_time' | 'auto_with_limits';
+  mode: "ask_each_time" | "auto_with_limits";
   maxPointsPerGeneration: number;
   maxPointsPerDay: number;
   maxImagesPerGeneration: 1;
@@ -313,36 +316,38 @@ mcp_spend_reservations
 
 批准/自动执行时在数据库事务内锁定 policy 计数并创建 reservation，再把 run 转为 queued。任务终态后按实际费用结算；失败/取消释放预留。new-api 余额仍是最终上游约束，Musefold reservation 用于防止同一 AI 客户端并发超出用户设置。
 
+当前 image gateway 不返回独立的实际点数，Worker 暂按服务器估价结算；接入上游 usage 字段后再以实际值覆盖。明确拒绝、额度不足和排队阶段取消会释放预留；请求已发出但上游结果未知时保留预留，避免在无法判断是否已扣费时重新放大自动预算。消费预留表使用 `(owner_id, grant_id)` 和 `(owner_id, generation_run_id)` 复合外键并强制 RLS。
+
 ## 8. P0 工具目录
 
 ### 8.1 账号与发现
 
-| Tool | 级别 | 说明 |
-|---|---|---|
-| `musefold_status` | read | MCP、账号、Cloud API 和 capability 摘要 |
-| `get_account_status` | read | 脱敏账号、额度、预算剩余和可生图状态 |
-| `list_models` | read | 允许的模型别名和参数能力 |
-| `estimate_generation` | read | 当前模型/参数的点数估算，不预留额度 |
+| Tool                  | 级别 | 说明                                    |
+| --------------------- | ---- | --------------------------------------- |
+| `musefold_status`     | read | MCP、账号、Cloud API 和 capability 摘要 |
+| `get_account_status`  | read | 脱敏账号、额度、预算剩余和可生图状态    |
+| `list_models`         | read | 允许的模型别名和参数能力                |
+| `estimate_generation` | read | 当前模型/参数的点数估算，不预留额度     |
 
 ### 8.2 提示词与 Skills
 
-| Tool | 级别 | 说明 |
-|---|---|---|
-| `search_prompts` | read | 搜索用户云端提示词库 |
-| `get_prompt` | read | 获取一条完整提示词 |
-| `save_prompt` | write | 保存 AI 形成的好提示词，需要 `prompts:write` |
-| `list_skills` | read | 列出官方/已审核视觉 Skills |
-| `get_skill` | read | 按固定版本返回 Skill 内容、输入 schema 和 hash |
+| Tool             | 级别  | 说明                                           |
+| ---------------- | ----- | ---------------------------------------------- |
+| `search_prompts` | read  | 搜索用户云端提示词库                           |
+| `get_prompt`     | read  | 获取一条完整提示词                             |
+| `save_prompt`    | write | 保存 AI 形成的好提示词，需要 `prompts:write`   |
+| `list_skills`    | read  | 列出官方/已审核视觉 Skills                     |
+| `get_skill`      | read  | 按固定版本返回 Skill 内容、输入 schema 和 hash |
 
 ### 8.3 生图与历史
 
-| Tool | 级别 | 说明 |
-|---|---|---|
-| `generate_image` | spend | 创建任务或返回待审批状态 |
-| `get_generation` | read | 获取一次任务当前状态 |
-| `wait_for_generation` | read | 最多等待 25 秒后返回当前状态 |
-| `cancel_generation` | write | 尽力取消 |
-| `list_history` | read | 分页获取该账号的云历史 |
+| Tool                  | 级别  | 说明                         |
+| --------------------- | ----- | ---------------------------- |
+| `generate_image`      | spend | 创建任务或返回待审批状态     |
+| `get_generation`      | read  | 获取一次任务当前状态         |
+| `wait_for_generation` | read  | 最多等待 25 秒后返回当前状态 |
+| `cancel_generation`   | write | 尽力取消                     |
+| `list_history`        | read  | 分页获取该账号的云历史       |
 
 P0 不注册 `select_provider`、`open_provider_setup`、本地路径参数、设计方案和任意 GitHub URL 执行工具。
 
@@ -353,9 +358,9 @@ interface McpGenerationInput {
   idempotencyKey: string;
   prompt: string;
   negative?: string;
-  size?: 'auto' | '1024x1024' | '1536x1024' | '1024x1536';
-  aspectRatio?: '1:1' | '3:4' | '4:3' | '16:9' | '9:16';
-  quality?: 'low' | 'medium' | 'high' | 'auto';
+  size?: "auto" | "1024x1024" | "1536x1024" | "1024x1536";
+  aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9" | "9:16";
+  quality?: "low" | "medium" | "high" | "auto";
   maxPoints: number;
   promptId?: string;
   skillRef?: { id: string; version: string; contentHash: string };
@@ -365,6 +370,7 @@ interface McpGenerationInput {
 
 - P0 count 固定为 1。
 - `idempotencyKey` 在同一 OAuth grant 下唯一；AI 重试必须复用。
+- 服务端以 grant id 和调用方 key 共同派生内部幂等键；不同授权使用同一调用方 key 不会互相命中。
 - 服务器重新计算估价，不信任客户端提交的 estimate。
 - `skillRef` 必须在 registry 中存在且 hash 匹配，否则拒绝或要求重新读取 Skill。
 
@@ -444,7 +450,7 @@ Cloud MCP 必须配套以下用户界面：
 - 客户端名称、首次授权、最近使用、scope。
 - 单次和每日预算、今日已用/已预留。
 - 最近 MCP 生图，不显示 prompt 正文到普通审计列表。
-- 暂停、撤销、降低预算；提高预算需要重新验证当前 Web session。
+- 暂停、撤销、降低预算；切换自动模式、提高预算或恢复连接需要重新输入当前 new-api 账号密码。密码只用于当次校验，不保存到 Musefold session 或 OAuth grant。
 
 审批页显示最终 prompt 摘要、模型、比例、估算费用、Skill 来源和客户端名称。用户确认前不创建上游调用。
 
@@ -483,19 +489,19 @@ generation.settled
 
 ## 13. 威胁与控制
 
-| 风险 | 控制 |
-|---|---|
-| 直接暴露本地控制面 | Cloud MCP 只挂载 cloud-safe backend，不连接 Electron/loopback token |
-| OAuth token 泄漏 | 短期 access、refresh rotation、scope、audience、撤销、hash 存储 |
-| Web/MCP 认证混用 | REST 只接受 Web session，MCP 只接受目标 audience 的 bearer token；actor context 由路由 middleware 构造 |
-| AI 重试重复扣费 | grant-scoped idempotency key + generation 唯一约束 |
-| AI 越权提高预算 | policy 只能在 Web session 中修改，tool 无预算写接口 |
-| Prompt injection 要求泄密 | MCP 后端从不提供凭据；Skill 不是安全边界 |
-| 任意 GitHub Skill 供应链攻击 | P0 只读审核 registry，不抓任意 URL、不执行代码 |
-| SSRF | P0 不接受参考图 URL；后续只使用预签名上传 |
-| 资源 URL 转发 | 私有 bucket、短期签名、owner 校验、可撤销 grant |
-| 恶意动态 OAuth client | 注册限流、redirect 严格匹配、client 元数据和撤销界面 |
-| 长连接耗尽 | 无状态 Streamable HTTP、有界等待、并发/时长/响应大小限制 |
+| 风险                         | 控制                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 直接暴露本地控制面           | Cloud MCP 只挂载 cloud-safe backend，不连接 Electron/loopback token                                    |
+| OAuth token 泄漏             | 短期 access、refresh rotation、scope、audience、撤销、hash 存储                                        |
+| Web/MCP 认证混用             | REST 只接受 Web session，MCP 只接受目标 audience 的 bearer token；actor context 由路由 middleware 构造 |
+| AI 重试重复扣费              | grant-scoped idempotency key + generation 唯一约束                                                     |
+| AI 越权提高预算              | policy 只能在 Web session 中修改，tool 无预算写接口                                                    |
+| Prompt injection 要求泄密    | MCP 后端从不提供凭据；Skill 不是安全边界                                                               |
+| 任意 GitHub Skill 供应链攻击 | P0 只读审核 registry，不抓任意 URL、不执行代码                                                         |
+| SSRF                         | P0 不接受参考图 URL；后续只使用预签名上传                                                              |
+| 资源 URL 转发                | 私有 bucket、短期签名、owner 校验、可撤销 grant                                                        |
+| 恶意动态 OAuth client        | 注册限流、redirect 严格匹配、client 元数据和撤销界面                                                   |
+| 长连接耗尽                   | 无状态 Streamable HTTP、有界等待、并发/时长/响应大小限制                                               |
 
 ## 14. 测试矩阵
 
@@ -520,6 +526,7 @@ generation.settled
 - 并发 10 个请求不能超过 daily reservation。
 - 同 idempotencyKey 重试只生成一个 run。
 - 失败/取消正确释放预留，成功按实际费用结算。
+- 上游结果未知时保留预留并进入人工对账路径，不自动重新调用 Provider。
 
 ### 14.4 Skills
 
@@ -533,6 +540,14 @@ generation.settled
 - 至少用两个支持远程 MCP OAuth 的客户端完成授权、生图、等待和资源展示。
 - 不支持 URL elicitation 的客户端仍能通过 approvalUrl 完成审批。
 - 本地 stdio MCP 全量回归，现有 CLI/Automation 行为不变。
+
+当前自动化覆盖使用官方 `@modelcontextprotocol/sdk` 客户端连接真实 Fastify TCP endpoint，并验证签名 HTTPS 资产同时作为 structured data 和 `resource_link` 返回。发布门禁仍要求两个独立产品客户端完成 OAuth、审批、生图、等待和图片展示，不用 SDK 测试替代真实客户端兼容性。
+
+```bash
+MUSEFOLD_STAGING_MCP_URL=https://staging.example.com/api/musefold/mcp \
+MUSEFOLD_STAGING_MCP_ACCESS_TOKEN=... \
+npm run test:staging:mcp-sdk
+```
 
 ## 15. P0 完成定义
 

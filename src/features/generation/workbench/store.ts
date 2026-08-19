@@ -36,6 +36,7 @@ import type {
 } from '@shared/types/design-scheme';
 import type {
   GenerationRun,
+  WorkbenchSession,
   WorkbenchSessionDocument,
   WorkbenchSessionSummary,
 } from '@shared/types/workbench';
@@ -59,6 +60,8 @@ import {
   uniqueReferenceImages,
 } from './imageReferences';
 import { setSessionUnread } from './sessionPreferences';
+import { workbenchSessionControllerReducer } from '@musefold/product-ui';
+import type { WorkbenchSessionControllerAction } from '@musefold/product-ui';
 
 const DEFAULT_WORKBENCH_PARAMS: RefineParams = {
   ...DEFAULT_REFINE_PARAMS,
@@ -70,6 +73,37 @@ export const WORKBENCH_PROMPT_LIMIT = 8000;
 const SKILL_RUNTIME_PROMPT_LIMIT = 8 * 1024 * 1024;
 let seq = 0;
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
+let activeSessionListRequest = 0;
+let archivedSessionListRequest = 0;
+let openSessionRequest = 0;
+
+function reduceSessionSummaries(
+  items: WorkbenchSessionSummary[],
+  selectedId: string | null,
+  action: WorkbenchSessionControllerAction<WorkbenchSessionSummary>,
+) {
+  return workbenchSessionControllerReducer({
+    items,
+    selectedId,
+    openingId: null,
+    loading: false,
+    error: null,
+  }, action);
+}
+
+function mergeSessionSummary(
+  session: WorkbenchSession,
+  current?: WorkbenchSessionSummary,
+): WorkbenchSessionSummary {
+  return {
+    ...session,
+    turnCount: current?.turnCount ?? 0,
+    runCount: current?.runCount ?? 0,
+    latestAssetPath: current?.latestAssetPath ?? null,
+    conversationKind: current?.conversationKind ?? 'prompt',
+    latestStatus: current?.latestStatus ?? null,
+  };
+}
 
 function normalizeCount(value: unknown, fallback: number): number {
   return typeof value === 'number' && [1, 2, 4, 6].includes(value)
@@ -784,8 +818,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((current) => ({
       turns: [...current.turns, turn],
       activeSessionId: state.sessionId,
-      sessions: [
-        {
+      sessions: reduceSessionSummaries(current.sessions, current.activeSessionId, {
+        type: 'upsert',
+        item: {
           id: state.sessionId,
           title: sessionTitle,
           createdAt: existingSession?.createdAt ?? submittedAt,
@@ -798,8 +833,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           conversationKind: 'prompt',
           latestStatus: 'running',
         },
-        ...current.sessions.filter((session) => session.id !== state.sessionId),
-      ],
+      }).items,
       ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'skill' }),
       activeJobId: null,
       cancelRequested: false,
@@ -936,8 +970,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((current) => ({
       turns: [...current.turns, turn],
       activeSessionId: state.sessionId,
-      sessions: [
-        {
+      sessions: reduceSessionSummaries(current.sessions, current.activeSessionId, {
+        type: 'upsert',
+        item: {
           id: state.sessionId,
           title: sessionTitle,
           createdAt: existingSession?.createdAt ?? submittedAt,
@@ -950,8 +985,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           conversationKind: 'prompt',
           latestStatus: 'running',
         },
-        ...current.sessions.filter((session) => session.id !== state.sessionId),
-      ],
+      }).items,
       ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'scheme-creation' }),
       activeJobId: null,
       cancelRequested: false,
@@ -1016,8 +1050,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((current) => ({
       turns: [...current.turns, turn],
       activeSessionId: state.sessionId,
-      sessions: [
-        {
+      sessions: reduceSessionSummaries(current.sessions, current.activeSessionId, {
+        type: 'upsert',
+        item: {
           id: state.sessionId,
           title: sessionTitle,
           createdAt: existingSession?.createdAt ?? submittedAt,
@@ -1030,8 +1065,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           conversationKind: 'prompt',
           latestStatus: 'running',
         },
-        ...current.sessions.filter((session) => session.id !== state.sessionId),
-      ],
+      }).items,
       ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'scheme-run' }),
       activeJobId: null,
       cancelRequested: false,
@@ -1279,8 +1313,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((current) => ({
       turns: [...current.turns, turn],
       activeSessionId: state.sessionId,
-      sessions: [
-        {
+      sessions: reduceSessionSummaries(current.sessions, current.activeSessionId, {
+        type: 'upsert',
+        item: {
           id: state.sessionId,
           title: sessionTitle,
           createdAt: existingSession?.createdAt ?? submittedAt,
@@ -1293,8 +1328,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           conversationKind,
           latestStatus: provider?.hasKey ? 'running' : null,
         },
-        ...current.sessions.filter((session) => session.id !== state.sessionId),
-      ],
+      }).items,
       ...(provider?.hasKey
         ? withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'image' })
         : {}),
@@ -1796,9 +1830,14 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   clearRefinement: () => set({ refinementContext: null, draftPrompt: '', draftImages: [] }),
 
   loadSessions: async (archived = false) => {
+    const requestId = archived
+      ? ++archivedSessionListRequest
+      : ++activeSessionListRequest;
     set({ sessionsLoading: true, sessionsError: null });
     try {
       const result = await api.workbenchSession.list({ archived, limit: 100, offset: 0 });
+      const latestRequest = archived ? archivedSessionListRequest : activeSessionListRequest;
+      if (requestId !== latestRequest) return;
       set((current) => {
         if (archived) return { archivedSessions: result.items, sessionsLoading: false };
         const activeOptimistic = current.activeSessionId === current.sessionId && current.turns.length > 0
@@ -1807,9 +1846,18 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
         const sessions = activeOptimistic && !result.items.some((session) => session.id === activeOptimistic.id)
           ? [activeOptimistic, ...result.items]
           : result.items;
-        return { sessions, sessionsLoading: false };
+        const reconciled = workbenchSessionControllerReducer({
+          items: current.sessions,
+          selectedId: current.activeSessionId,
+          openingId: null,
+          loading: true,
+          error: current.sessionsError,
+        }, { type: 'replace', items: sessions });
+        return { sessions: reconciled.items, sessionsLoading: false };
       });
     } catch (error) {
+      const latestRequest = archived ? archivedSessionListRequest : activeSessionListRequest;
+      if (requestId !== latestRequest) return;
       set({
         sessionsLoading: false,
         sessionsError: workbenchSessionErrorMessage(error, '加载对话失败'),
@@ -1818,6 +1866,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   },
 
   openSession: async (id) => {
+    const requestId = ++openSessionRequest;
     // 生成期间也允许切换：当前会话先进后台缓存（含未落库的方案创建/修改轮）。
     const state = get();
     cacheSessionTurns(state.sessionId, state.turns);
@@ -1849,12 +1898,20 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set({ sessionsLoading: true, sessionsError: null });
     try {
       const document = await api.workbenchSession.get(id);
+      if (requestId !== openSessionRequest) return;
       if (!document) throw new Error('对话不存在或已删除');
       const turns = turnsFromSession(document);
       const last = turns.at(-1);
+      const selection = workbenchSessionControllerReducer({
+        items: get().sessions,
+        selectedId: get().activeSessionId,
+        openingId: id,
+        loading: true,
+        error: get().sessionsError,
+      }, { type: 'select', id: document.session.id });
       set({
         sessionId: document.session.id,
-        activeSessionId: document.session.id,
+        activeSessionId: selection.selectedId,
         turns,
         draftPrompt: '',
         draftNegativePrompt: '',
@@ -1869,6 +1926,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       });
       useAppStore.getState().setView('generate');
     } catch (error) {
+      if (requestId !== openSessionRequest) return;
       set({
         sessionsLoading: false,
         sessionsError: workbenchSessionErrorMessage(error, '打开对话失败'),
@@ -1877,22 +1935,103 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   },
 
   renameSession: async (id, title) => {
-    await api.workbenchSession.rename(id, title);
-    await get().loadSessions();
+    set({ sessionsLoading: true, sessionsError: null });
+    try {
+      const renamed = await api.workbenchSession.rename(id, title);
+      set((current) => {
+        const existing = current.sessions.find((item) => item.id === id)
+          ?? current.archivedSessions.find((item) => item.id === id);
+        const item = mergeSessionSummary(renamed, existing);
+        const target = renamed.archivedAt ? 'archivedSessions' : 'sessions';
+        const next = reduceSessionSummaries(
+          current[target],
+          target === 'sessions' ? current.activeSessionId : null,
+          { type: 'upsert', item },
+        );
+        return {
+          [target]: next.items,
+          sessionsLoading: false,
+          sessionsError: null,
+        };
+      });
+    } catch (error) {
+      set({
+        sessionsLoading: false,
+        sessionsError: workbenchSessionErrorMessage(error, '重命名对话失败'),
+      });
+      throw error;
+    }
   },
 
   archiveSession: async (id, archived = true) => {
-    await api.workbenchSession.archive(id, archived);
-    if (get().activeSessionId === id) get().newSession();
-    await Promise.all([get().loadSessions(), get().loadSessions(true)]);
+    set({ sessionsLoading: true, sessionsError: null });
+    try {
+      const existing = get().sessions.find((item) => item.id === id)
+        ?? get().archivedSessions.find((item) => item.id === id);
+      const result = await api.workbenchSession.archive(id, archived);
+      if (get().activeSessionId === id) get().newSession();
+      set((current) => {
+        const item = mergeSessionSummary(result, existing);
+        const active = reduceSessionSummaries(
+          current.sessions,
+          current.activeSessionId,
+          archived ? { type: 'remove', id } : { type: 'upsert', item },
+        );
+        const archivedList = reduceSessionSummaries(
+          current.archivedSessions,
+          null,
+          archived ? { type: 'upsert', item } : { type: 'remove', id },
+        );
+        return {
+          sessions: active.items,
+          archivedSessions: archivedList.items,
+          activeSessionId: active.selectedId,
+          sessionsLoading: false,
+          sessionsError: null,
+        };
+      });
+    } catch (error) {
+      set({
+        sessionsLoading: false,
+        sessionsError: workbenchSessionErrorMessage(error, archived ? '归档对话失败' : '恢复对话失败'),
+      });
+      throw error;
+    }
   },
 
   deleteSession: async (id) => {
-    await api.workbenchSession.delete(id);
-    // newSession 会把当前对话快照进缓存，删除对话时要在其后清掉该会话的缓存。
-    if (get().activeSessionId === id) get().newSession();
-    sessionTurnsCache.delete(id);
-    await Promise.all([get().loadSessions(), get().loadSessions(true)]);
+    set({ sessionsLoading: true, sessionsError: null });
+    try {
+      await api.workbenchSession.delete(id);
+      // newSession 会把当前对话快照进缓存，删除对话时要在其后清掉该会话的缓存。
+      if (get().activeSessionId === id) get().newSession();
+      sessionTurnsCache.delete(id);
+      set((current) => {
+        const active = reduceSessionSummaries(
+          current.sessions,
+          current.activeSessionId,
+          { type: 'remove', id },
+        );
+        const archived = reduceSessionSummaries(
+          current.archivedSessions,
+          null,
+          { type: 'remove', id },
+        );
+        return {
+          sessions: active.items,
+          archivedSessions: archived.items,
+          activeSessionId: active.selectedId,
+          sessionsLoading: false,
+          sessionsError: null,
+        };
+      });
+    } catch (error) {
+      set({
+        sessionsLoading: false,
+        sessionsError: workbenchSessionErrorMessage(error, '删除对话失败'),
+      });
+      throw error;
+    }
   },
 }));
 

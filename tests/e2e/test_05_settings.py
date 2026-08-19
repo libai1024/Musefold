@@ -171,6 +171,17 @@ def open_ai_section(app):
     app.page.get_by_test_id("settings-ai-new").wait_for(state="visible", timeout=5000)
 
 
+def test_cloud_mcp_connections_use_shared_screen_when_signed_out(app):
+    app.set_view("settings")
+    app.page.evaluate(
+        "() => window.__musefold_test?.stores?.settings?.getState?.().setSection?.('connections')"
+    )
+    screen = app.page.get_by_test_id("connected-apps-screen")
+    screen.wait_for(state="visible", timeout=5000)
+    assert screen.get_by_role("heading", name="已连接应用").is_visible()
+    assert screen.get_by_text("登录 Musefold 账号后可管理 Cloud MCP 连接").is_visible()
+
+
 def test_ai_connection_settings_model_fallback_and_export_isolation(app, fake_text_ai_server, tmp_path):
     key = "test-ai-key-ends-4821"
     open_ai_section(app)
@@ -191,7 +202,7 @@ def test_ai_connection_settings_model_fallback_and_export_isolation(app, fake_te
 
     row = app.page.locator('[data-testid^="settings-ai-row-"]').first
     assert row.get_by_text("E2E 文本模型", exact=True).is_visible()
-    assert row.get_by_text("Key ···4821", exact=True).is_visible()
+    assert row.get_by_text("Key ····4821", exact=True).is_visible()
     assert "E2E 文本模型" not in app.page.evaluate(
         "() => JSON.stringify(window.__musefold_test.stores.generation.getState())"
     )
@@ -267,7 +278,7 @@ def test_export_envelope_top_level(app_shared, seeded, tmp_path):
     env = read_envelope(out)
 
     assert env["format"] == "musefold-export"
-    assert env["schemaVersion"] == 2
+    assert env["schemaVersion"] == 3
     assert isinstance(env["dbUserVersion"], int) and env["dbUserVersion"] >= 3
     assert env["appVersion"], "appVersion 缺失，跨版本导入无从判断兼容性"
     assert isinstance(env["exportedAt"], int) and env["exportedAt"] > 0
@@ -505,7 +516,7 @@ def test_export_empty_library_is_valid_envelope(app, tmp_path):
         json.dumps(
             {
                 "format": "musefold-export",
-                "schemaVersion": 2,
+                "schemaVersion": 3,
                 "dbUserVersion": 3,
                 "appVersion": "0.0.0",
                 "exportedAt": 1,
@@ -633,7 +644,7 @@ def test_import_never_restores_keys(app, tmp_path):
     """
     a = app
     src_env = {
-        "format": "musefold-export", "schemaVersion": 2, "dbUserVersion": 11,
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 11,
         "appVersion": "0.0.0", "exportedAt": 1, "mode": "db-only", "counts": {},
         "data": {
             "prompts": [], "folders": [], "tags": [], "smartSets": [],
@@ -665,7 +676,7 @@ def test_import_dangling_folder_id_downgraded(app, tmp_path):
     """悬空 folderId → 置空但 prompt 仍导入（不整条失败）。"""
     a = app
     src_env = {
-        "format": "musefold-export", "schemaVersion": 2, "dbUserVersion": 11,
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 11,
         "appVersion": "0.0.0", "exportedAt": 1, "mode": "db-only", "counts": {},
         "data": {
             "prompts": [{
@@ -728,7 +739,7 @@ def test_import_dry_run_previews_without_writing(app, tmp_path):
     """试运行：拿到真实计数，但库一行不动（事务内跑完主动回滚）。"""
     a = app
     src_env = {
-        "format": "musefold-export", "schemaVersion": 2, "dbUserVersion": 11,
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 11,
         "appVersion": "0.0.0", "exportedAt": 1, "mode": "db-only", "counts": {},
         "data": {
             "prompts": [
@@ -771,7 +782,7 @@ def test_import_zip_extracts_images_and_rewrites_path(app, tmp_path):
     # 换个"本机"：清库 + 删掉原图，模拟导到另一台机器
     empty = tmp_path / "empty.json"
     empty.write_text(json.dumps({
-        "format": "musefold-export", "schemaVersion": 2, "dbUserVersion": 11,
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 11,
         "appVersion": "0.0.0", "exportedAt": 1, "mode": "db-only", "counts": {},
         "data": {"prompts": [], "folders": [], "tags": [], "smartSets": [], "providers": []},
     }), "utf-8")
@@ -807,7 +818,7 @@ def test_import_zip_slip_entry_never_lands(app, tmp_path, entry_name):
     a = app
     evil = tmp_path / "evil.zip"
     env = {
-        "format": "musefold-export", "schemaVersion": 2, "dbUserVersion": 11,
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 11,
         "appVersion": "0.0.0", "exportedAt": 1, "mode": "db-with-images", "counts": {},
         "data": {"prompts": [], "folders": [], "tags": [], "smartSets": [], "providers": []},
     }
@@ -840,7 +851,7 @@ def test_import_malformed_params_nulled_not_stored_raw(app, tmp_path):
     """
     a = app
     src_env = {
-        "format": "musefold-export", "schemaVersion": 2, "dbUserVersion": 11,
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 11,
         "appVersion": "0.0.0", "exportedAt": 1, "mode": "db-only", "counts": {},
         "data": {
             "prompts": [{

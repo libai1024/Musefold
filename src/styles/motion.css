@@ -3,18 +3,6 @@
  * 不引入 framer-motion：@tanstack/react-virtual 的绝对定位行与 FLIP 会冲突
  */
 
-:root {
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-instant: 90ms;
-  --dur-fast: 130ms;
-  --dur-base: 180ms;
-  --dur-med: 220ms;
-  --dur-slow: 260ms;
-}
-
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }

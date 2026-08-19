@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: musefold
+      POSTGRES_USER: musefold_migration
+      POSTGRES_PASSWORD: musefold_migration
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U musefold_migration -d musefold"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - musefold-postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: musefold_local
+      MINIO_ROOT_PASSWORD: musefold_local_secret
+    ports:
+      - "59000:9000"
+      - "59001:9001"
+    volumes:
+      - musefold-minio-data:/data
+
+volumes:
+  musefold-postgres-data:
+  musefold-minio-data:

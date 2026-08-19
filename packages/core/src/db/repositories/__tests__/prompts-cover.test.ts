@@ -74,4 +74,28 @@ describe('promptsRepo coverImagePath', () => {
     const prompt = promptsRepo.create({ title: '空', content: 'empty' });
     expect(promptsRepo.get(prompt.id)?.coverImagePath).toBeNull();
   });
+
+  it('编辑器字段 description 与 isPinned 可创建并更新', () => {
+    const prompt = promptsRepo.create({
+      title: '可编辑',
+      description: '初始描述',
+      content: '初始正文',
+      isPinned: true,
+    });
+    expect(promptsRepo.get(prompt.id)).toMatchObject({
+      description: '初始描述',
+      isPinned: true,
+    });
+
+    const updated = promptsRepo.update(prompt.id, {
+      description: '更新描述',
+      content: '更新正文',
+      isPinned: false,
+    });
+    expect(updated).toMatchObject({
+      description: '更新描述',
+      content: '更新正文',
+      isPinned: false,
+    });
+  });
 });

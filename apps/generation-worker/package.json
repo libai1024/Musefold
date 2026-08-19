@@ -1,0 +1,33 @@
+{
+  "name": "@musefold/generation-worker",
+  "version": "1.1.0-dev",
+  "description": "Musefold v1.1 durable generation and maintenance worker",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "start": "tsx src/worker.ts",
+    "storage:smoke": "tsx src/storage-smoke.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run src",
+    "queue:migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.980.0",
+    "@musefold/contracts": "*",
+    "@musefold/server-crypto": "*",
+    "graphile-worker": "0.17.3",
+    "pg": "8.23.0",
+    "tsx": "4.20.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

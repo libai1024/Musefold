@@ -42,7 +42,7 @@ def reload_list(app):
 
 def row_titles(app) -> list[str]:
     return app.page.eval_on_selector_all(
-        '[data-testid="prompt-row"] [data-testid="prompt-row-open"] > span:first-child',
+        '[data-testid="prompt-row"] [data-testid="prompt-row-open"] > strong',
         "els => els.map(e => e.textContent.trim())",
     )
 

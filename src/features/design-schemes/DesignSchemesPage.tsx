@@ -127,6 +127,7 @@ function SearchField({ value, onChange, placeholder, onSubmit }: { value: string
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && onSubmit) { event.preventDefault(); onSubmit(); } }}
         placeholder={placeholder ?? '搜索方案、作者或仓库'}
+        aria-label="搜索方案"
         className="min-w-0 flex-1 bg-transparent text-[12px] text-primary outline-none placeholder:text-quaternary"
         data-testid="scheme-search"
       />

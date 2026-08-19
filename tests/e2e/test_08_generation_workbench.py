@@ -596,8 +596,9 @@ def test_workbench_starts_as_single_surface_with_provider_empty_state(app):
 def test_workbench_empty_provider_dialog_cancel_keeps_empty_state(app):
     """CHT-10：无 Provider 时从侧栏直达服务商设置引导，取消配置后不留下半成品状态。"""
     app.page.wait_for_selector('[data-testid="workbench-empty"]')
-    app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.get_by_test_id("model-hub-manage").click()
+    app.page.click('[data-testid="sidebar-settings"]')
+    app.page.get_by_test_id("sidebar-settings-open").click()
+    app.page.get_by_role("button", name="生图中转站", exact=True).click()
     app.page.wait_for_selector('[data-testid="settings-empty-provider"]')
     app.page.click('[data-testid="provider-add-first"]')
     app.page.wait_for_selector('[data-testid="provider-api-key"]')
@@ -625,14 +626,14 @@ def test_workbench_empty_provider_without_key_guides_to_key_entry(app, fake_work
     app.api_ok("provider.setActive", provider["id"])
     app.page.evaluate("async () => window.__musefold_test.stores.generation.getState().loadProviders()")
 
-    # 有服务商但没有密钥：发送保持禁用，模型菜单给出直达配置入口补 Key
+    # 有服务商但没有密钥：发送保持禁用，全局模型入口可进入中转站管理补 Key
     app.page.fill('[data-testid="refine-prompt"]', "未存密钥探针")
     send = app.page.locator('[data-testid="refine-generate"]')
-    app.page.wait_for_selector('[data-testid="generate-model-trigger"]')
     assert send.is_disabled(), "未存密钥时发送应禁用而不是制造失败回合"
 
-    app.page.click('[data-testid="generate-model-trigger"]')
-    app.page.click('[data-testid="generate-model-settings"]')
+    app.page.click('[data-testid="provider-quick-switch"]')
+    app.page.click('[data-testid="relay-model-manage"]')
+    app.page.get_by_role("button", name="编辑").click()
     app.page.wait_for_selector('[data-testid="provider-api-key"]')
     app.page.get_by_role("button", name="取消").click()
     app.page.wait_for_function(
@@ -801,13 +802,19 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
         app.page.locator('[data-testid="workbench-reference-backdrop"]').click(position={"x": 5, "y": 20})
     app.page.click('[data-testid="refine-ratio-trigger"]')
     app.page.wait_for_selector('[data-testid="refine-ratio-menu"]')
+    app.page.screenshot(path=str(tmp_path / "generation-narrow-ratio-menu.png"))
     narrow_menu = app.page.locator('[data-testid="refine-ratio-menu"]').bounding_box()
+    narrow_surface = app.page.locator('.mf-workbench-composer-surface').bounding_box()
     narrow_viewport = app.page.evaluate("() => ({ width: window.innerWidth, height: window.innerHeight })")
-    assert narrow_menu, narrow_menu
+    assert narrow_menu and narrow_surface, {"menu": narrow_menu, "surface": narrow_surface}
     assert narrow_menu["x"] >= -1, narrow_menu
     assert narrow_menu["x"] + narrow_menu["width"] <= narrow_viewport["width"] + 1, {
         "menu": narrow_menu,
         "viewport": narrow_viewport,
+    }
+    assert narrow_menu["y"] + narrow_menu["height"] <= narrow_surface["y"] + 1, {
+        "menu": narrow_menu,
+        "surface": narrow_surface,
     }
     app.page.keyboard.press("Escape")
     app.page.wait_for_function("() => document.querySelector('[data-testid=\"refine-ratio-menu\"]') === null")
@@ -830,7 +837,7 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
     assert_no_horizontal_overflow()
 
 
-def test_workbench_composer_uses_compact_options_popover(app, fake_workbench_server):
+def test_workbench_composer_uses_compact_options_popover(app, fake_workbench_server, tmp_path):
     """底部 Composer 以输入为主，质量/数量/负面词按需进入自绘设置浮层。"""
     setup_provider(app, fake_workbench_server)
     app.page.wait_for_selector('[data-testid="workbench-composer"]')
@@ -847,16 +854,29 @@ def test_workbench_composer_uses_compact_options_popover(app, fake_workbench_ser
     assert "生成图像" in (submit.get_attribute("aria-label") or "")
 
     options_trigger = app.page.locator('[data-testid="workbench-more-settings"]')
+    options_label = options_trigger.locator("span")
+    assert options_label.evaluate("node => node.scrollWidth <= node.clientWidth + 1")
     fixed_slots = {
         test_id: app.page.locator(f'[data-testid="{test_id}"]').bounding_box()["width"]
         for test_id in (
-            "generate-model-trigger",
             "refine-ratio-trigger",
             "workbench-more-settings",
         )
     }
     options_trigger.click()
     app.page.wait_for_selector('[data-testid="workbench-generation-options"]')
+    app.page.wait_for_timeout(220)
+    app.page.screenshot(path=str(tmp_path / "generation-settings-desktop.png"))
+    settings_menu = app.page.locator('[data-testid="workbench-generation-options"]').bounding_box()
+    settings_surface = app.page.locator('.mf-workbench-composer-surface').bounding_box()
+    assert settings_menu and settings_surface, {
+        "menu": settings_menu,
+        "surface": settings_surface,
+    }
+    assert settings_menu["y"] + settings_menu["height"] <= settings_surface["y"] + 1, {
+        "menu": settings_menu,
+        "surface": settings_surface,
+    }
     assert app.page.locator('[data-testid="workbench-generation-options"] [role="radiogroup"]').count() == 2
     app.page.click('[data-testid="refine-quality-low"]')
     app.page.click('[data-testid="refine-count-2"]')
@@ -890,8 +910,13 @@ def test_workbench_composer_uses_compact_options_popover(app, fake_workbench_ser
     options_trigger.click()
     app.page.wait_for_selector('[data-testid="workbench-generation-options"]')
     menu = app.page.locator('[data-testid="workbench-generation-options"]').bounding_box()
+    surface = app.page.locator('.mf-workbench-composer-surface').bounding_box()
     assert menu and menu["x"] >= 15, menu
     assert menu["x"] + menu["width"] <= 345, menu
+    assert surface and menu["y"] + menu["height"] <= surface["y"] + 1, {
+        "menu": menu,
+        "surface": surface,
+    }
     metrics = app.page.evaluate(
         "() => ({ viewport: innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth })",
     )
@@ -909,12 +934,20 @@ def test_ratio_picker_uses_custom_preview_cards_in_workbench_and_settings(app):
     app.page.wait_for_selector('[data-testid="refine-ratio-menu"]')
     assert app.page.locator('[data-testid="refine-ratio-menu"] [role="listbox"]').count() == 1
     workbench_menu = app.page.locator('[data-testid="refine-ratio-menu"]').bounding_box()
+    workbench_surface = app.page.locator('.mf-workbench-composer-surface').bounding_box()
     workbench_viewport = app.page.evaluate("() => ({ width: window.innerWidth, height: window.innerHeight })")
-    assert workbench_menu, workbench_menu
+    assert workbench_menu and workbench_surface, {
+        "menu": workbench_menu,
+        "surface": workbench_surface,
+    }
     assert workbench_menu["x"] >= -1, workbench_menu
     assert workbench_menu["x"] + workbench_menu["width"] <= workbench_viewport["width"] + 1, {
         "menu": workbench_menu,
         "viewport": workbench_viewport,
+    }
+    assert workbench_menu["y"] + workbench_menu["height"] <= workbench_surface["y"] + 1, {
+        "menu": workbench_menu,
+        "surface": workbench_surface,
     }
     assert app.page.locator('[data-testid="refine-ratio-menu-summary-preview"]').count() == 0
     assert app.page.locator('[data-testid="refine-ratio-menu"] [role="option"]').count() == 11
@@ -1224,7 +1257,7 @@ def test_workbench_refinement_creates_child_run_and_preserves_snapshots(app, fak
     assert runs[1]["parent_run_id"] == parent_result["historyId"]
     assert runs[1]["retry_of_run_id"] is None
     assert runs[1]["source_asset_id"] == parent_result["historyId"]
-    assert runs[1]["user_prompt"] == runs[0]["user_prompt"]
+    assert runs[1]["user_prompt"] == "减少文字，增加留白"
     assert runs[1]["base_prompt"] == runs[0]["final_prompt"]
     assert runs[1]["refinement_instruction"] == "减少文字，增加留白"
     assert runs[1]["final_prompt"] == child["prompt"]
@@ -1468,8 +1501,8 @@ def test_settings_update_workbench_defaults_without_erasing_prompt(app, fake_wor
     assert persisted == {"background": "transparent", "ratio": "16:9", "count": 2}
 
 
-def test_workbench_uses_global_provider_and_keeps_model_switch_inline(app, fake_workbench_server):
-    """服务商由全局设置管理，工作台只保留低风险的模型快切且不泄露 Key。"""
+def test_workbench_uses_global_provider_switch_without_leaking_keys(app, fake_workbench_server):
+    """服务商由侧栏全局入口切换，Composer 不复制模型管理且不泄露 Key。"""
     first = app.api_ok("provider.create", {
         "name": "Workbench Provider A",
         "type": "openai-compatible",
@@ -1497,24 +1530,22 @@ def test_workbench_uses_global_provider_and_keeps_model_switch_inline(app, fake_
     assert secret_a not in app.page.locator("body").inner_text()
     assert secret_b not in app.page.locator("body").inner_text()
 
-    assert app.api_ok("provider.listModels", second["id"])[0]["id"] == "gpt-image-2"
-    app.page.click('[data-testid="generate-model-trigger"]')
-    app.page.wait_for_selector('[data-testid="generate-model-menu"]')
-    app.page.wait_for_selector('[data-testid="generate-model-gpt-image-1"]', timeout=5_000)
-    app.page.click('[data-testid="generate-model-gpt-image-1"]')
+    app.page.click('[data-testid="provider-quick-switch"]')
+    app.page.wait_for_selector('[data-testid="relay-model-switcher"]')
+    app.page.click(f'[data-testid="relay-model-option-{first["id"]}"]')
     app.page.wait_for_function(
-        f"() => window.__musefold_test.stores.generation.getState().providers.find((p) => p.id === '{second['id']}')?.model === 'gpt-image-1'",
+        f"() => window.__musefold_test.stores.generation.getState().activeProviderId === '{first['id']}'",
     )
 
-    app.page.fill('[data-workbench-testid="workbench-prompt"]', "inline provider and model switch")
+    app.page.fill('[data-workbench-testid="workbench-prompt"]', "global provider switch")
     app.page.click('[data-workbench-testid="workbench-submit"]')
     settle(app)
     row = app.db_query(
         "SELECT provider_id, model FROM history WHERE prompt_text = ? ORDER BY created_at DESC LIMIT 1",
-        (constrained_prompt("inline provider and model switch"),),
+        (constrained_prompt("global provider switch"),),
     )
-    assert row == [{"provider_id": second["id"], "model": "gpt-image-1"}]
-    assert fake_workbench_server["requests"][-1]["body"]["model"] == "gpt-image-1"
+    assert row == [{"provider_id": first["id"], "model": "gpt-image-2"}]
+    assert fake_workbench_server["requests"][-1]["body"]["model"] == "gpt-image-2"
 
 def test_workbench_cancel_marks_inflight_result_cancelled(app, hanging_workbench_server):
     provider = app.api_ok("provider.create", {
@@ -1549,7 +1580,6 @@ def test_workbench_cancel_marks_inflight_result_cancelled(app, hanging_workbench
     assert session_row.get_attribute("data-conversation-kind") == "chat"
     running_dot = session_row.locator('[data-testid="conversation-status-dot"]')
     assert running_dot.get_attribute("data-status") == "running"
-    assert "conversation-glow-running" in (running_dot.get_attribute("class") or "")
     assert app.page.locator('[data-workbench-testid="workbench-submit"]').count() == 0
 
     app.page.click('[data-workbench-testid="workbench-cancel"]')

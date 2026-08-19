@@ -1,8 +1,8 @@
 # Musefold v1.1 提示词云同步协议
 
-> **状态**：P0 协议基线
+> **状态**：P0 协议基线；Prompt/Folder/Tag 桌面同步已实现，跨设备实机验收进行中
 >
-> **日期**：2026-08-17
+> **日期**：2026-08-18
 >
 > **目标**：让 Web 与桌面端在同一 new-api 个人账号下安全同步提示词库，同时保留桌面本地优先能力
 
@@ -22,12 +22,12 @@ P0 采用“云端版本 + 客户端 outbox + 服务端变更日志”的增量�
 
 ### 1.1 同步实体
 
-| 实体 | 同步内容 |
-|---|---|
-| Prompt | 标题、描述、正文、负向提示词、文件夹、标签、模型提示、参数、评分、收藏、来源、删除状态 |
-| Folder | 名称、父文件夹、排序、删除状态 |
-| Tag | 名称、分组、颜色、删除状态 |
-| Usage event | copy/apply/generate 使用事件，按幂等键计数 |
+| 实体        | 同步内容                                                                                 |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| Prompt      | 标题、描述、正文、负向提示词、文件夹、标签、模型提示、参数、评分、收藏、来源、删除状态   |
+| Folder      | 名称、父文件夹、排序、删除状态                                                           |
+| Tag         | 名称、分组、颜色、删除状态                                                               |
+| Usage event | copy/apply/generate 使用事件，按幂等键计数；服务端接口已实现，桌面事件复制待独立通道落地 |
 
 ### 1.2 不同步内容
 
@@ -45,7 +45,7 @@ P0 的云端提示词聚合冻结为：
 
 ```ts
 interface CloudPromptDocument {
-  id: string;                    // ULID，客户端可生成
+  id: string; // ULID，客户端可生成
   title: string;
   description: string | null;
   content: string;
@@ -54,12 +54,12 @@ interface CloudPromptDocument {
   tags: CloudPromptTag[];
   modelId: string | null;
   params: Record<string, unknown> | null;
-  rating: number;                // 0..5
+  rating: number; // 0..5
   isPinned: boolean;
   pinOrder: number | null;
-  usageCount: number;            // 服务端拥有
-  lastUsedAt: string | null;     // 服务端拥有
-  source: 'manual' | 'import' | 'share' | 'slip' | 'generation';
+  usageCount: number; // 服务端拥有
+  lastUsedAt: string | null; // 服务端拥有
+  source: "manual" | "import" | "share" | "slip" | "generation";
   sourceUrl: string | null;
   version: number;
   createdAt: string;
@@ -87,27 +87,27 @@ interface CloudPromptTag {
 
 ## 3. 桌面字段映射
 
-| Desktop `Prompt` | Cloud | 规则 |
-|---|---|---|
-| `id` | `id` | 保留现有 ULID，不重新生成 |
-| `title` | `title` | 原样同步，服务端 trim/校验 |
-| `description` | `description` | 空字符串规范化为 null |
-| `content` | `content` | 原样同步 |
-| `contentNegative` | `negative` | 空字符串规范化为 null |
-| `folderId` | `folderId` | folder 必须先存在或在同批次先创建 |
-| `modelId` | `modelId` | 只作为提示信息，不用于选择云 Provider |
-| `params` | `params` | 仅保留 cloud-safe JSON 字段 |
-| `previewImagePath` | 不同步 | 本地路径不能进入云端 |
-| `coverImagePath` | 不同步 | 只读派生字段 |
-| `rating` | `rating` | 0 至 5 |
-| `isPinned` | `isPinned` | 同步 |
-| `pinOrder` | `pinOrder` | 同步；空值允许服务端重排 |
-| `usageCount` | `initialUsageCount` | 仅首次导入使用，之后由事件维护 |
-| `lastUsedAt` | `lastUsedAt` | 首次导入可作为参考，之后服务端维护 |
-| `source` | `source` | 不支持值规范化为 `import` |
-| `sourceUrl` | `sourceUrl` | 通过 URL 白名单校验 |
-| `createdAt/updatedAt` | 对应 ISO 时间 | 首次导入保留；后续 server time 为准 |
-| `deletedAt` | `deletedAt` | 已经同步过的实体删除必须上传墓碑 |
+| Desktop `Prompt`      | Cloud               | 规则                                  |
+| --------------------- | ------------------- | ------------------------------------- |
+| `id`                  | `id`                | 保留现有 ULID，不重新生成             |
+| `title`               | `title`             | 原样同步，服务端 trim/校验            |
+| `description`         | `description`       | 空字符串规范化为 null                 |
+| `content`             | `content`           | 原样同步                              |
+| `contentNegative`     | `negative`          | 空字符串规范化为 null                 |
+| `folderId`            | `folderId`          | folder 必须先存在或在同批次先创建     |
+| `modelId`             | `modelId`           | 只作为提示信息，不用于选择云 Provider |
+| `params`              | `params`            | 仅保留 cloud-safe JSON 字段           |
+| `previewImagePath`    | 不同步              | 本地路径不能进入云端                  |
+| `coverImagePath`      | 不同步              | 只读派生字段                          |
+| `rating`              | `rating`            | 0 至 5                                |
+| `isPinned`            | `isPinned`          | 同步                                  |
+| `pinOrder`            | `pinOrder`          | 同步；空值允许服务端重排              |
+| `usageCount`          | `initialUsageCount` | 仅首次导入使用，之后由事件维护        |
+| `lastUsedAt`          | `lastUsedAt`        | 首次导入可作为参考，之后服务端维护    |
+| `source`              | `source`            | 不支持值规范化为 `import`             |
+| `sourceUrl`           | `sourceUrl`         | 通过 URL 白名单校验                   |
+| `createdAt/updatedAt` | 对应 ISO 时间       | 首次导入保留；后续 server time 为准   |
+| `deletedAt`           | `deletedAt`         | 已经同步过的实体删除必须上传墓碑      |
 
 Folder 与 Tag 保留现有 id。桌面标签关联在 push 时作为 prompt 聚合的一部分提交，服务端在同一事务内维护 `prompt_tag_links`。
 
@@ -271,12 +271,12 @@ POST /sync/push
 
 `status`：
 
-| 状态 | 含义 |
-|---|---|
-| `applied` | 已成功应用并写 change |
-| `duplicate` | mutationId 已处理，返回第一次结果 |
-| `conflict` | baseVersion 不是当前版本，返回 current snapshot |
-| `rejected` | schema、依赖或业务规则不合法，不应原样重试 |
+| 状态        | 含义                                            |
+| ----------- | ----------------------------------------------- |
+| `applied`   | 已成功应用并写 change                           |
+| `duplicate` | mutationId 已处理，返回第一次结果               |
+| `conflict`  | baseVersion 不是当前版本，返回 current snapshot |
+| `rejected`  | schema、依赖或业务规则不合法，不应原样重试      |
 
 push 批次不是全有或全无。每个 mutation 独立事务，防止一条冲突阻塞其他本地修改；同一实体的 mutation 必须按 outbox 顺序发送。
 
@@ -292,7 +292,7 @@ cloud_sync_accounts
 cloud_entity_state
   owner_id, entity_type, local_id, cloud_id,
   cloud_version, last_synced_hash, sync_status,
-  last_synced_at,
+  remote_snapshot_json, last_synced_at,
   PK(owner_id, entity_type, local_id)
 
 cloud_sync_outbox
@@ -304,6 +304,10 @@ cloud_sync_conflicts
   id, owner_id, entity_type, entity_id, mutation_id,
   base_version, local_snapshot, remote_snapshot,
   detected_at, resolved_at, resolution
+
+cloud_sync_usage_outbox
+  event_id, owner_id, prompt_id, action,
+  created_at, attempt_count, next_attempt_at, last_error
 ```
 
 `sync_status`：`clean | pending | conflict | error`。
@@ -314,6 +318,8 @@ Repository 约束：
 - sync engine 应用 pull 时走专用 `applyCloudSnapshot()`，不得再次生成 outbox。
 - mutation 成功后，以响应 snapshot 更新业务表和 entity state，再删除对应 outbox。
 - outbox payload 是 cloud-safe 快照，不得包含本地路径或密钥。
+- `remote_snapshot_json` 保存最后确认的云端规范快照，用于 Folder/Tag 恢复时只恢复仍然成立的关系，不把已被其他端移除的关系误接回。
+- `cloud_sync_usage_outbox` 与实体 outbox 分离；copy/apply/generate 事件使用独立 ULID 幂等键，不推进 prompt 内容版本。
 
 ## 8. 同步循环
 
@@ -325,8 +331,9 @@ Repository 约束：
 3. apply changes to clean entities; dirty entities enter conflict check
 4. push ordered local outbox mutations
 5. apply applied/duplicate results; persist conflicts/rejections
-6. pull once more to receive own and concurrent server changes
-7. update last_sync_at and UI status
+6. push usage event outbox and remove applied/duplicate events
+7. pull once more to receive own and concurrent server changes
+8. update last_sync_at and UI status
 ```
 
 触发时机：
@@ -362,7 +369,7 @@ Repository 约束：
 ### 9.3 关闭与重新启用
 
 - 关闭只停止网络同步，不清理 `cloud_entity_state/outbox/conflicts`。
-- 关闭期间的本地修改仍写 outbox，界面显示“等待同步”，避免重新启用后遗漏。
+- 关闭期间的本地修改和提示词使用事件仍写 outbox，界面显示“等待同步”，避免重新启用后遗漏。
 - 重新启用先 pull，再 push。
 - “从云端重新构建”是独立的破坏性操作，执行前必须备份本地提示词并二次确认。
 
@@ -380,11 +387,11 @@ Repository 约束：
 
 每条冲突保留本地和云端完整快照，用户可以选择：
 
-| 选择 | 行为 |
-|---|---|
-| 保留云端 | 丢弃冲突 mutation，以 remote snapshot 覆盖本地并标记 clean |
+| 选择     | 行为                                                                  |
+| -------- | --------------------------------------------------------------------- |
+| 保留云端 | 丢弃冲突 mutation，以 remote snapshot 覆盖本地并标记 clean            |
 | 保留本地 | 以 remote 当前 version 生成新的 update/restore mutation，明确覆盖云端 |
-| 保留两份 | 原 id 接受 remote；本地快照使用新 ULID 创建“标题（本地副本）” |
+| 保留两份 | 原 id 接受 remote；本地快照使用新 ULID 创建“标题（本地副本）”         |
 
 删除冲突也使用同一三选一逻辑。任何选择都可审计，且不会直接修改历史 mutation 记录。
 
@@ -399,6 +406,7 @@ Web `PATCH /prompts/:id` 同样携带 `expectedVersion`。409 时编辑器保留
 - 普通列表默认不返回 deleted；回收站通过 `includeDeleted=true` 查询。
 - Prompt 墓碑至少保留 180 天；正文在 30 天恢复期后可从主表清除，但保留最小 tombstone：id、owner、version、deletedAt。
 - Folder 删除默认把活动 prompt 移到未分类，并在同事务为受影响 prompt 写变化；P0 不级联删除提示词。
+- Folder 删除也把直接子文件夹移到根层级；恢复 Folder 不自动恢复已经解绑的子级与提示词关系。
 - Tag 删除移除关系，并为受影响 prompt 写聚合变化。
 - 设备 cursor 过期后必须 bootstrap，不能只从“最后看到的时间”猜测删除。
 
@@ -412,7 +420,8 @@ Web `PATCH /prompts/:id` 同样携带 `expectedVersion`。409 时编辑器保留
 
 ## 13. 隐私与安全
 
-- sync API 必须使用 HttpOnly session，桌面 cloud client 使用账号服务颁发的设备会话，不保存 Web Cookie 明文到普通配置。
+- Web sync API 使用 HttpOnly Cookie 会话；桌面只在 Electron 主进程内用账号管理 JWT 交换一次 opaque 设备会话，之后以该 opaque bearer 调用 sync API。
+- 账号管理 JWT、opaque 设备会话和 CSRF 值都不通过 IPC 暴露给渲染进程；设备会话仅保存在主进程内存，不写入普通配置或 SQLite。
 - 所有查询同时带 owner 条件并受 PostgreSQL RLS 保护。
 - 普通日志不记录 mutation payload、prompt snapshot 或正文 hash。
 - rejected 响应只返回字段级安全错误，不回显未经清洗的完整 payload。
@@ -421,15 +430,15 @@ Web `PATCH /prompts/:id` 同样携带 `expectedVersion`。409 时编辑器保留
 
 ## 14. 性能边界
 
-| 项目 | P0 限制 |
-|---|---:|
-| 单用户提示词 | 50,000 |
-| 单次 bootstrap page | 200 |
-| 单次 pull changes | 默认 200，最大 500 |
-| 单次 push mutations | 最大 100 |
-| 单次 push body | 最大 512 KiB |
-| prompt params | 最大 32 KiB |
-| sync change 保留 | 至少 180 天 |
+| 项目                |            P0 限制 |
+| ------------------- | -----------------: |
+| 单用户提示词        |             50,000 |
+| 单次 bootstrap page |                200 |
+| 单次 pull changes   | 默认 200，最大 500 |
+| 单次 push mutations |           最大 100 |
+| 单次 push body      |       最大 512 KiB |
+| prompt params       |        最大 32 KiB |
+| sync change 保留    |        至少 180 天 |
 
 服务端必须使用 `(owner_id, seq)`、`(owner_id, entity_type, entity_id)`、`(owner_id, device_id, mutation_id)` 索引。bootstrap 和 pull 不允许 offset 分页。
 
@@ -450,6 +459,7 @@ Web `PATCH /prompts/:id` 同样携带 `expectedVersion`。409 时编辑器保留
 - pull 应用不产生回声 outbox。
 - 关闭同步期间修改，重新启用后不遗漏。
 - preview/cover 本地路径从不出现在 HTTP body。
+- Folder/Tag 删除后，受影响的子文件夹、提示词和标签关系在两端得到相同快照，恢复父实体不静默恢复旧关系。
 
 ### 15.3 冲突
 
@@ -474,3 +484,12 @@ Web `PATCH /prompts/:id` 同样携带 `expectedVersion`。409 时编辑器保留
 6. 任意 sync 请求重放、API 重启或网络中断都不丢数据、不重复 mutation。
 7. 删除状态在离线超过一个月的设备重新上线后仍然正确；游标过期时完整重建。
 
+## 17. 当前实现与剩余验收
+
+截至 2026-08-19，Desktop 主进程同步服务、SQLite migration、实体事务型 outbox、独立 usage event outbox、bootstrap/pull/push、冲突三选一、账号切换隔离、设备游标、撤销检查、设置页状态与手动同步已经落地，并通过 core、IPC、迁移、PostgreSQL/RLS 集成测试。设备会话采用一次性 JWT 交换后的 opaque bearer，渲染进程不接触凭据。
+
+发布前仍必须完成：
+
+- 两台真实 Desktop 与 Web 的跨网络首次合并、离线冲突和账号切换验收。
+- 游标保留/压缩后的 `SYNC_CURSOR_EXPIRED` 长周期恢复测试。
+- 设备撤销后的两台真实 Desktop/Web 在线会话失效与重新注册完整闭环。

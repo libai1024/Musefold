@@ -33,6 +33,7 @@ import {
 } from '../components/AccessTransitions';
 import { SectionShell, SettingRow } from '../components/SectionShell';
 import { useSettingsStore } from '../store';
+import { switchAccountSource } from '../account-source-switch';
 
 export function AccessModeSection() {
   const providers = useGenerationStore((state) => state.providers);
@@ -48,7 +49,6 @@ export function AccessModeSection() {
   const validateConnection = useAiConnectionStore((state) => state.validate);
 
   const accountStatus = useAccountStore((state) => state.status);
-  const refreshQuota = useAccountStore((state) => state.refreshQuota);
   const doubaoStatus = useDoubaoAccountStore((state) => state.status);
   const refreshDoubaoStatus = useDoubaoAccountStore((state) => state.refreshStatus);
   const refreshDoubaoUsage = useDoubaoAccountStore((state) => state.refreshUsage);
@@ -133,6 +133,15 @@ export function AccessModeSection() {
 
   const activateTarget = async (targetMode: AiAccessMode, accountSource?: AccountImageSource) => {
     setPending(true);
+    if (targetMode === 'account') {
+      try {
+        if (!accountSource) throw new Error('没有可用的账号');
+        await switchAccountSource(accountSource);
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
     let connectivityPassed = false;
     const previousProviderId = useGenerationStore.getState().activeProviderId;
     const previousConnection = useAiConnectionStore.getState().connections.find((connection) => connection.isActive) ?? null;
@@ -162,50 +171,6 @@ export function AccessModeSection() {
         return;
       }
 
-      if (accountSource === 'doubao') {
-        if (!doubaoProvider) throw new Error('请先打开豆包设置完成扫码登录');
-        const result = await testProvider(doubaoProvider.id);
-        if (result.state !== 'ok') throw new Error(result.message || '豆包网页会话尚未登录');
-        connectivityPassed = true;
-        if (previousProviderId !== doubaoProvider.id) await setActiveProvider(doubaoProvider.id);
-        await refreshDoubaoStatus();
-        setPreferredAccountSource('doubao');
-        toast.success('已切换到豆包账号');
-        return;
-      }
-
-      if (!officialProvider || !officialConnection) throw new Error('请先登录 Musefold 官方账号');
-      await verifyAiAccessConnectivity([
-        {
-          label: '账号',
-          run: async () => {
-            const status = await refreshQuota();
-            return {
-              ok: status.loggedIn && status.health === 'ok',
-              message: status.health === 'token-invalid' ? '登录已失效' : '账号服务器不可达',
-            };
-          },
-        },
-        {
-          label: '生图',
-          run: async () => {
-            const result = await testProvider(officialProvider.id);
-            return { ok: result.state === 'ok', message: result.message || '官方生图模型连接失败' };
-          },
-        },
-        {
-          label: 'Agent',
-          run: async () => {
-            const result = await validateConnection(officialConnection.id);
-            return { ok: result.ok, message: result.message || '官方 Agent 连接失败' };
-          },
-        },
-      ]);
-      connectivityPassed = true;
-      if (previousProviderId !== officialProvider.id) await setActiveProvider(officialProvider.id);
-      if (previousConnection?.id !== officialConnection.id) await setActiveConnection(officialConnection.id);
-      setPreferredAccountSource('official');
-      toast.success('已切换到 Musefold 官方账号');
     } catch (error) {
       await Promise.allSettled([
         previousProviderId && useGenerationStore.getState().activeProviderId !== previousProviderId

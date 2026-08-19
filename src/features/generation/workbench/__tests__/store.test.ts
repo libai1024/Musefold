@@ -643,6 +643,108 @@ describe('reuse and session restore', () => {
       ]),
     });
   });
+
+  it('keeps rename, archive, restore and delete in the shared session lifecycle', async () => {
+    const summary = {
+      id: 'session-life',
+      title: '原标题',
+      createdAt: 100,
+      updatedAt: 200,
+      archivedAt: null,
+      deletedAt: null,
+      turnCount: 3,
+      runCount: 4,
+      latestAssetPath: '/tmp/latest.png',
+      conversationKind: 'chat' as const,
+      latestStatus: 'success' as const,
+    };
+    useGenerationWorkbenchStore.setState({
+      sessionId: summary.id,
+      activeSessionId: summary.id,
+      sessions: [summary],
+      archivedSessions: [],
+    });
+
+    mocks.sessionRename.mockResolvedValueOnce({
+      ...summary,
+      title: '新标题',
+      updatedAt: 210,
+    });
+    await useGenerationWorkbenchStore.getState().renameSession(summary.id, '新标题');
+    expect(useGenerationWorkbenchStore.getState().sessions[0]).toMatchObject({
+      title: '新标题',
+      turnCount: 3,
+      runCount: 4,
+    });
+
+    mocks.sessionArchive.mockResolvedValueOnce({
+      ...summary,
+      title: '新标题',
+      updatedAt: 220,
+      archivedAt: 220,
+    });
+    await useGenerationWorkbenchStore.getState().archiveSession(summary.id);
+    expect(useGenerationWorkbenchStore.getState()).toMatchObject({
+      activeSessionId: null,
+      sessions: [],
+      archivedSessions: [expect.objectContaining({ id: summary.id, turnCount: 3 })],
+      sessionsLoading: false,
+      sessionsError: null,
+    });
+
+    mocks.sessionArchive.mockResolvedValueOnce({
+      ...summary,
+      title: '新标题',
+      updatedAt: 230,
+      archivedAt: null,
+    });
+    await useGenerationWorkbenchStore.getState().archiveSession(summary.id, false);
+    expect(useGenerationWorkbenchStore.getState()).toMatchObject({
+      sessions: [expect.objectContaining({ id: summary.id, title: '新标题' })],
+      archivedSessions: [],
+    });
+
+    mocks.sessionDelete.mockResolvedValueOnce({
+      ...summary,
+      title: '新标题',
+      updatedAt: 240,
+      deletedAt: 240,
+    });
+    await useGenerationWorkbenchStore.getState().deleteSession(summary.id);
+    expect(useGenerationWorkbenchStore.getState()).toMatchObject({
+      sessions: [],
+      archivedSessions: [],
+      sessionsLoading: false,
+      sessionsError: null,
+    });
+  });
+
+  it('preserves session lists and exposes mutation errors', async () => {
+    const summary = {
+      id: 'session-error',
+      title: '保留标题',
+      createdAt: 100,
+      updatedAt: 200,
+      archivedAt: null,
+      deletedAt: null,
+      turnCount: 1,
+      runCount: 1,
+      latestAssetPath: null,
+      conversationKind: 'prompt' as const,
+      latestStatus: null,
+    };
+    useGenerationWorkbenchStore.setState({ sessions: [summary] });
+    mocks.sessionRename.mockRejectedValueOnce(new Error('IPC unavailable'));
+
+    await expect(
+      useGenerationWorkbenchStore.getState().renameSession(summary.id, '失败标题'),
+    ).rejects.toThrow('IPC unavailable');
+    expect(useGenerationWorkbenchStore.getState()).toMatchObject({
+      sessions: [summary],
+      sessionsLoading: false,
+      sessionsError: 'IPC unavailable',
+    });
+  });
 });
 
 // 生成期间允许新建/切换对话：运行中的对话进入后台缓存，事件继续写入，

@@ -10,6 +10,7 @@ const doubao = readFileSync('src/features/settings/sections/DoubaoSection.tsx', 
 const account = readFileSync('src/features/settings/sections/AccountSection.tsx', 'utf8');
 const providers = readFileSync('src/features/settings/sections/ProvidersSection.tsx', 'utf8');
 const agentConnections = readFileSync('src/features/settings/sections/AiConnectionsSection.tsx', 'utf8');
+const accountSwitch = readFileSync('src/features/settings/account-source-switch.ts', 'utf8');
 const settingsStore = readFileSync('src/features/settings/store.ts', 'utf8');
 const doubaoBrowser = readFileSync('electron/doubao-web/browser-service.ts', 'utf8');
 
@@ -51,13 +52,20 @@ describe('AI access settings and sidebar contract', () => {
     expect(activation).toContain('verifyAiAccessConnectivity');
     expect(activation).toContain('testProvider(relayProvider.id)');
     expect(activation).toContain('validateConnection(relayConnection.id)');
-    expect(activation).toContain('refreshQuota()');
     expect(activation).toContain('Promise.allSettled');
+    expect(accountSwitch).toContain('refreshQuota()');
+    expect(accountSwitch).toContain('generation.testProvider(officialProvider.id)');
+    expect(accountSwitch).toContain('connections.validate(officialConnection.id)');
+    expect(accountSwitch).toContain('Promise.allSettled');
   });
 
-  it('shows account identity in the sidebar and opens Settings instead of switching there', () => {
-    expect(switcher).toContain("if (mode === 'account')");
-    expect(switcher).toContain("openSettingsAt('access')");
+  it('switches account identity from the sidebar with the Settings animation', () => {
+    expect(switcher).not.toContain("openSettingsAt('access')");
+    expect(switcher).toContain("data-testid={mode === 'account' ? 'account-source-switcher'");
+    expect(switcher).toContain('account-source-option-${account.source}');
+    expect(switcher).toContain('beginAccountSwitch(account.source)');
+    expect(switcher).toContain('<AccountIdentityTransition');
+    expect(switcher).toContain('switchAccountSource(identityTransition.to.source)');
     expect(switcher).toContain('data-testid="sidebar-doubao-avatar"');
     expect(switcher).toContain("'sidebar-doubao-remaining'");
     expect(switcher).toContain("'sidebar-official-account'");
@@ -66,7 +74,7 @@ describe('AI access settings and sidebar contract', () => {
   it('shows relay station and model in the sidebar and switches image models there', () => {
     expect(switcher).toContain("'sidebar-relay-name'");
     expect(switcher).toContain("'sidebar-relay-model'");
-    expect(switcher).toContain('data-testid="relay-model-switcher"');
+    expect(switcher).toContain("'relay-model-switcher'");
     expect(switcher).toContain('chooseRelayProvider(provider.id)');
     expect(switcher).toContain('await testProvider(providerId)');
   });
@@ -94,8 +102,9 @@ describe('AI access settings and sidebar contract', () => {
     expect(doubao).toContain('label="开发者选项"');
     expect(doubao).toContain('data-testid="settings-doubao-developer-toggle"');
     expect(doubao).toContain('豆包在后台运行，不显示网页窗口');
-    expect(settingsStore).toContain("localStorage.getItem(DOUBAO_DEVELOPER_MODE_KEY) === '1'");
-    expect(settingsStore).toContain('return false;');
+    expect(doubao).toContain('每次启动均保持关闭');
+    expect(settingsStore).toContain('doubaoDeveloperMode: false');
+    expect(settingsStore).not.toContain('DOUBAO_DEVELOPER_MODE_KEY');
     expect(doubaoBrowser).toContain('let developerWindowVisible = false;');
     expect(doubaoBrowser).toContain('if (!developerWindowVisible && win.isVisible()) win.hide();');
     expect(doubaoBrowser).toContain('const win = await ensureImagePage(true);');

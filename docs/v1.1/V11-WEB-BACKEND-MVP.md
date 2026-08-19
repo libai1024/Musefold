@@ -1,27 +1,31 @@
 # Musefold v1.1 Web 后端 MVP 实施规格
 
-> **状态**：首版开发基线，编码前冻结
+> **状态**：首版开发基线，核心后端实现与集成验证进行中
 >
 > **日期**：2026-08-17
 >
 > **适用范围**：Web 制作工作台、个人账号、生成历史、云端提示词库、提示词云同步和 Cloud MCP
 
+> **实施状态（2026-08-19）**：迁移已推进至 `000013_generation_events_notify`；Fastify、PostgreSQL/RLS、opaque session、提示词/同步、工作台/历史、Graphile Worker、私有对象、OAuth 和 Cloud MCP 已形成可运行基线。真实 PostgreSQL 迁移、owner 隔离、并发 token bucket、Cloud MCP 预算和生成事件通知测试已通过；Web 审批页已接入共享生成快照恢复并显示签名结果。真实 new-api staging、双远程客户端、备份恢复和生产发布仍是上线门禁。
+
+本轮补充了三个显式真实环境验收入口：`scripts/test-v1.1-staging.mjs`（Cookie/CSRF 账号、提示词、工作台、历史、幂等生图、SSE replay 和签名资产）、`scripts/test-v1.1-mcp-staging.mjs`（两个独立 SDK transport 会话）和 `scripts/check-v1.1-openapi.mjs`。它们只在传入 staging 环境变量时运行；当前工作区没有 staging 凭据，因此不能把脚本存在误记为真实环境已通过。
+
 ## 0. 冻结结论
 
 首版后端按以下技术栈实施：
 
-| 层 | 选型 | 约束 |
-|---|---|---|
-| Runtime | Node.js 24 LTS + TypeScript | API、worker 保持同一 Node 主版本；共享包兼容 Electron 运行时 |
-| HTTP API | Fastify 5 | 插件化模块、统一错误处理、Pino 结构化日志 |
-| 契约 | Zod 4 + `fastify-type-provider-zod` + OpenAPI 3.1 | `@musefold/contracts` 是请求和响应的唯一 schema 来源 |
-| 数据库 | PostgreSQL 16 | 独立 Musefold Cloud 数据库；不和 new-api 表直接 join |
-| 数据访问 | Kysely + `pg` | 类型化查询；RLS、`pg_trgm`、queue function 保持 SQL 可见 |
-| 迁移 | SQL-first + `node-pg-migrate` | schema、RLS、扩展、函数和索引只有一个迁移入口 |
-| 会话/限流 | PostgreSQL | opaque session、敏感端点 token bucket；P0 不依赖 Redis |
-| 异步任务 | Graphile Worker | 与 generation run 同库事务入队；支持重试、延迟、优先级和 job key |
-| 对象存储 | S3-compatible + AWS SDK v3 | 本地开发使用 MinIO，生产使用配置的 S3 兼容服务 |
-| 测试 | Vitest + Testcontainers + Playwright | 数据隔离、迁移、队列竞态和移动端主路径必须自动化 |
+| 层        | 选型                                              | 约束                                                             |
+| --------- | ------------------------------------------------- | ---------------------------------------------------------------- |
+| Runtime   | Node.js 24 LTS + TypeScript                       | API、worker 保持同一 Node 主版本；共享包兼容 Electron 运行时     |
+| HTTP API  | Fastify 5                                         | 插件化模块、统一错误处理、Pino 结构化日志                        |
+| 契约      | Zod 4 + `fastify-type-provider-zod` + OpenAPI 3.1 | `@musefold/contracts` 是请求和响应的唯一 schema 来源             |
+| 数据库    | PostgreSQL 16                                     | 独立 Musefold Cloud 数据库；不和 new-api 表直接 join             |
+| 数据访问  | Kysely + `pg`                                     | 类型化查询；RLS、`pg_trgm`、queue function 保持 SQL 可见         |
+| 迁移      | SQL-first + `node-pg-migrate`                     | schema、RLS、扩展、函数和索引只有一个迁移入口                    |
+| 会话/限流 | PostgreSQL                                        | opaque session、敏感端点 token bucket；P0 不依赖 Redis           |
+| 异步任务  | Graphile Worker                                   | 与 generation run 同库事务入队；支持重试、延迟、优先级和 job key |
+| 对象存储  | S3-compatible + AWS SDK v3                        | 本地开发使用 MinIO，生产使用配置的 S3 兼容服务                   |
+| 测试      | Vitest + Testcontainers + Playwright              | 数据隔离、迁移、队列竞态和移动端主路径必须自动化                 |
 
 代码组织冻结为模块化 Web API 和独立 worker。Cloud MCP 作为隔离的 Fastify 模块挂载在 Web API；不把公网 API 塞入 Electron 或现有 loopback Automation Server。完整取舍见 [技术选型与架构决策](./V11-TECHNOLOGY-DECISIONS.md)。
 
@@ -41,16 +45,16 @@
 
 ### 2.1 P0 功能
 
-| 数据域 | P0 能力 |
-|---|---|
-| Account | 注册、登录、续期、退出、账号摘要、额度、兑换码 |
-| Workbench | 会话创建、草稿保存、提示词引用、参数保存、会话恢复、归档 |
-| Generation | 文生图、异步任务、进度、取消、失败重试、继续调整、结果下载 |
-| History | 按会话分页、任务快照、错误状态、资产元数据、删除与恢复 |
-| Prompt Library | CRUD、搜索、文件夹、标签、收藏、软删除、恢复、使用计数 |
-| Prompt Sync | 首次引导、增量 pull/push、删除墓碑、幂等 mutation、显式冲突 |
-| Cloud MCP | Streamable HTTP、OAuth、官方 Skill、预算/审批、云端生图和历史 |
-| Mobile | 同一 API 支持手机浏览器；断线、重复点击和页面恢复不重复扣费 |
+| 数据域         | P0 能力                                                       |
+| -------------- | ------------------------------------------------------------- |
+| Account        | 注册、登录、续期、退出、账号摘要、额度、兑换码                |
+| Workbench      | 会话创建、草稿保存、提示词引用、参数保存、会话恢复、归档      |
+| Generation     | 文生图、异步任务、进度、取消、失败重试、继续调整、结果下载    |
+| History        | 按会话分页、任务快照、错误状态、资产元数据、删除与恢复        |
+| Prompt Library | CRUD、搜索、文件夹、标签、收藏、软删除、恢复、使用计数        |
+| Prompt Sync    | 首次引导、增量 pull/push、删除墓碑、幂等 mutation、显式冲突   |
+| Cloud MCP      | Streamable HTTP、OAuth、官方 Skill、预算/审批、云端生图和历史 |
+| Mobile         | 同一 API 支持手机浏览器；断线、重复点击和页面恢复不重复扣费   |
 
 ### 2.2 明确不进入 P0
 
@@ -260,6 +264,7 @@ last_seen_at
 - 登录/注册按 IP 和账号摘要限流；兑换、同步 push、生图创建分别使用独立限额。
 - P0 的细粒度限流用 PostgreSQL token bucket/事务锁实现，Caddy 提供入口级粗限流；达到技术决策文档阈值后再换 Redis adapter。
 - 代理后只信任固定 Caddy 网段的 `X-Forwarded-*`，不能信任任意客户端转发头。
+- `TRUST_PROXY` 必须列出明确代理地址或 Fastify 命名范围；配置 `true`、`*` 等全信任值时服务拒绝启动。限流键中的账号、grant 和 IP 使用服务端 HMAC 后再落库，429 响应携带 `Retry-After`。
 
 ## 7. PostgreSQL 数据模型
 
@@ -356,6 +361,8 @@ generation_events
 
 Cloud MCP 还需要 OAuth grant、refresh family、预算策略、审批和费用预留表。字段与 token 生命周期见 [V11-CLOUD-MCP-AND-SKILLS.md](./V11-CLOUD-MCP-AND-SKILLS.md)，这些表同样使用 owner 隔离，token 只保存 hash。
 
+费用预留按 `(owner_id, grant_id)` 隔离并在 grant 行锁内检查单次/每日预算；日累计同时包含 `reserved` 和 `settled`。成功任务在 Worker 中结算，确定失败和排队阶段取消释放；上游结果未知则保留等待对账。当前上游无 usage 字段时，`actual_points` 暂取服务器预估值。
+
 ### 7.4 同步表
 
 ```text
@@ -446,79 +453,80 @@ run、event 和 job 同事务提交，不需要“先写数据库、再发布消
 
 ### 9.1 账号
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/auth/register` | 注册并建立 Web session |
-| `POST` | `/auth/login` | 登录并轮换 session |
-| `POST` | `/auth/refresh` | 显式刷新账号摘要；通常由服务端自动续期 |
-| `POST` | `/auth/logout` | 删除当前 Web session |
-| `GET` | `/auth/me` | 账号、额度、能力和 CSRF nonce |
-| `POST` | `/auth/redeem` | 兑换码充值，幂等保护 |
+| 方法   | 路径             | 说明                                   |
+| ------ | ---------------- | -------------------------------------- |
+| `POST` | `/auth/register` | 注册并建立 Web session                 |
+| `POST` | `/auth/login`    | 登录并轮换 session                     |
+| `POST` | `/auth/refresh`  | 显式刷新账号摘要；通常由服务端自动续期 |
+| `POST` | `/auth/logout`   | 删除当前 Web session                   |
+| `GET`  | `/auth/me`       | 账号、额度、能力和 CSRF nonce          |
+| `POST` | `/auth/redeem`   | 兑换码充值，幂等保护                   |
 
 ### 9.2 提示词库
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/prompts` | 搜索、筛选和游标分页 |
-| `POST` | `/prompts` | 创建提示词 |
-| `GET` | `/prompts/:id` | 获取完整聚合 |
-| `PATCH` | `/prompts/:id` | 带 `expectedVersion` 更新 |
-| `DELETE` | `/prompts/:id` | 软删除 |
-| `POST` | `/prompts/:id/restore` | 恢复并增加版本 |
-| `POST` | `/prompts/:id/use` | 幂等记录 copy/apply/generate |
-| `GET/POST/PATCH/DELETE` | `/folders...` | 文件夹管理 |
-| `GET/POST/PATCH/DELETE` | `/tags...` | 标签管理 |
+| 方法                    | 路径                   | 说明                         |
+| ----------------------- | ---------------------- | ---------------------------- |
+| `GET`                   | `/prompts`             | 搜索、筛选和游标分页         |
+| `POST`                  | `/prompts`             | 创建提示词                   |
+| `GET`                   | `/prompts/:id`         | 获取完整聚合                 |
+| `PATCH`                 | `/prompts/:id`         | 带 `expectedVersion` 更新    |
+| `DELETE`                | `/prompts/:id`         | 软删除                       |
+| `POST`                  | `/prompts/:id/restore` | 恢复并增加版本               |
+| `POST`                  | `/prompts/:id/use`     | 幂等记录 copy/apply/generate |
+| `GET/POST/PATCH/DELETE` | `/folders...`          | 文件夹管理                   |
+| `GET/POST/PATCH/DELETE` | `/tags...`             | 标签管理                     |
 
 ### 9.3 同步
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/sync/devices` | 注册或恢复同步设备 |
-| `GET` | `/sync/bootstrap` | 分页获取全量当前快照和起始 cursor |
-| `GET` | `/sync/pull` | 从 cursor 增量读取 changes |
-| `POST` | `/sync/push` | 批量提交最多 100 个 mutations |
-| `GET` | `/sync/status` | 当前设备游标、待处理冲突和服务端序列 |
+| 方法   | 路径              | 说明                                 |
+| ------ | ----------------- | ------------------------------------ |
+| `POST` | `/sync/devices`   | 注册或恢复同步设备                   |
+| `GET`  | `/sync/bootstrap` | 分页获取全量当前快照和起始 cursor    |
+| `GET`  | `/sync/pull`      | 从 cursor 增量读取 changes           |
+| `POST` | `/sync/push`      | 批量提交最多 100 个 mutations        |
+| `POST` | `/sync/usage`     | 批量提交最多 100 个独立 usage events |
+| `GET`  | `/sync/status`    | 当前设备游标、待处理冲突和服务端序列 |
 
 ### 9.4 工作台和历史
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET/POST` | `/workbench/sessions` | 分页列出或创建会话 |
-| `GET/PATCH/DELETE` | `/workbench/sessions/:id` | 恢复、保存草稿、归档或软删除 |
-| `GET` | `/workbench/sessions/:id/runs` | 会话内生成记录 |
-| `GET` | `/generations` | 个人生成历史分页 |
-| `POST` | `/generations` | 幂等创建任务，返回 `202` |
-| `GET` | `/generations/:id` | 获取当前状态和资产 |
-| `GET` | `/generations/:id/events` | SSE 状态流 |
-| `POST` | `/generations/:id/cancel` | 尽力取消 |
-| `POST` | `/generations/:id/retry` | 创建关联的新 run |
-| `DELETE/POST` | `/generations/:id` / `/generations/:id/restore` | 历史软删除/恢复 |
-| `GET` | `/assets/:id/url` | 返回短期签名下载 URL |
+| 方法               | 路径                                            | 说明                         |
+| ------------------ | ----------------------------------------------- | ---------------------------- |
+| `GET/POST`         | `/workbench/sessions`                           | 分页列出或创建会话           |
+| `GET/PATCH/DELETE` | `/workbench/sessions/:id`                       | 恢复、保存草稿、归档或软删除 |
+| `GET`              | `/workbench/sessions/:id/runs`                  | 会话内生成记录               |
+| `GET`              | `/generations`                                  | 个人生成历史分页             |
+| `POST`             | `/generations`                                  | 幂等创建任务，返回 `202`     |
+| `GET`              | `/generations/:id`                              | 获取当前状态和资产           |
+| `GET`              | `/generations/:id/events`                       | SSE 状态流                   |
+| `POST`             | `/generations/:id/cancel`                       | 尽力取消                     |
+| `POST`             | `/generations/:id/retry`                        | 创建关联的新 run             |
+| `DELETE/POST`      | `/generations/:id` / `/generations/:id/restore` | 历史软删除/恢复              |
+| `GET`              | `/assets/:id/url`                               | 返回短期签名下载 URL         |
 
 ### 9.5 Cloud MCP 授权与审批
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET/POST` | `/oauth/authorize` | Web 登录后的 OAuth consent |
-| `POST` | `/oauth/token` | Authorization Code/refresh token 交换 |
-| `POST` | `/oauth/revoke` | 撤销 token/grant |
-| `GET` | `/connections` | 已授权 AI 客户端 |
-| `PATCH/DELETE` | `/connections/:id` | 修改预算、暂停或撤销 |
-| `GET/POST` | `/approvals/:id` | 查看并批准/拒绝 MCP 生图 |
+| 方法           | 路径               | 说明                                  |
+| -------------- | ------------------ | ------------------------------------- |
+| `GET/POST`     | `/oauth/authorize` | Web 登录后的 OAuth consent            |
+| `POST`         | `/oauth/token`     | Authorization Code/refresh token 交换 |
+| `POST`         | `/oauth/revoke`    | 撤销 token/grant                      |
+| `GET`          | `/connections`     | 已授权 AI 客户端                      |
+| `PATCH/DELETE` | `/connections/:id` | 修改预算、暂停或撤销                  |
+| `GET/POST`     | `/approvals/:id`   | 查看并批准/拒绝 MCP 生图              |
 
 Cloud MCP 工具端点为 `/api/musefold/mcp`，不使用 Web Cookie。完整协议、scope 和 Skill registry 见 [云端 MCP 设计](./V11-CLOUD-MCP-AND-SKILLS.md)。
 
 ## 10. API 幂等和并发规则
 
-| 操作 | 机制 |
-|---|---|
-| 登录/注册 | 服务器限流；注册冲突不泄露额外账号信息 |
-| 兑换 | `Idempotency-Key` + owner 唯一约束；重复请求返回第一次结果 |
-| 创建生图 | `Idempotency-Key` 必填；同 owner 重复键返回同一 run |
-| prompt usage | 可选幂等键；同一 generate 操作只累计一次 |
-| prompt/sessions 更新 | `expectedVersion`；不匹配返回 409 和服务端当前值 |
-| sync push | `(owner, device, mutationId)` 唯一；整批逐项返回 applied/conflict/rejected |
-| 删除/恢复 | 重复执行返回当前实体状态，不产生重复 change |
+| 操作                 | 机制                                                                       |
+| -------------------- | -------------------------------------------------------------------------- |
+| 登录/注册            | 服务器限流；注册冲突不泄露额外账号信息                                     |
+| 兑换                 | `Idempotency-Key` + owner 唯一约束；重复请求返回第一次结果                 |
+| 创建生图             | `Idempotency-Key` 必填；同 owner 重复键返回同一 run                        |
+| prompt usage         | 可选幂等键；同一 generate 操作只累计一次                                   |
+| prompt/sessions 更新 | `expectedVersion`；不匹配返回 409 和服务端当前值                           |
+| sync push            | `(owner, device, mutationId)` 唯一；整批逐项返回 applied/conflict/rejected |
+| 删除/恢复            | 重复执行返回当前实体状态，不产生重复 change                                |
 
 ## 11. 错误契约
 
@@ -632,30 +640,29 @@ NODE_ENV
 PUBLIC_ORIGIN
 DATABASE_URL
 SESSION_COOKIE_NAME
-SESSION_ENCRYPTION_KEYS
-CREDENTIAL_ENCRYPTION_KEYS
-OAUTH_ISSUER
-OAUTH_SIGNING_KEYS
+SESSION_ENCRYPTION_KEY
+OAUTH_JWKS_JSON
+MCP_RESOURCE_URL
 NEW_API_BASE_URL
 S3_ENDPOINT
 S3_REGION
 S3_BUCKET
 S3_ACCESS_KEY_ID
 S3_SECRET_ACCESS_KEY
-SIGNED_URL_TTL_SECONDS
+S3_SIGNED_URL_TTL_SECONDS
 LOG_LEVEL
 ```
 
-密钥变量使用版本化 JSON 或 Secret Manager 注入，支持旧 key 解密、新 key 加密。
+生产环境的 `SESSION_ENCRYPTION_KEY` 和 `OAUTH_JWKS_JSON` 必须由 Secret Manager 注入；JWKS 使用带 `kid` 的版本化 JSON，轮换时保留旧私钥直到现有 provider artifact 过期。
 
 ### 15.3 健康检查
 
-| 端点 | 用途 |
-|---|---|
-| `/health/live` | 进程事件循环正常，不访问外部服务 |
-| `/health/ready` | PostgreSQL 可用、迁移与 Graphile schema 版本正确；不触发真实生图 |
-| worker heartbeat | worker 最近心跳和队列消费时间 |
-| queue health | ready/locked job 数、最老 ready job 年龄和失败重试数 |
+| 端点             | 用途                                                             |
+| ---------------- | ---------------------------------------------------------------- |
+| `/health/live`   | 进程事件循环正常，不访问外部服务                                 |
+| `/health/ready`  | PostgreSQL 可用、迁移与 Graphile schema 版本正确；不触发真实生图 |
+| worker heartbeat | worker 最近心跳和队列消费时间                                    |
+| queue health     | ready/locked job 数、最老 ready job 年龄和失败重试数             |
 
 ## 16. 数据保留与备份
 
@@ -706,6 +713,33 @@ Web Playwright 覆盖 `1440x900`、`390x844`：
 9. 为该 AI 客户端配置自动预算，预算内直接生成、超额重新进入审批。
 
 真实 new-api 和对象存储 smoke test 只在 staging 运行；凭据由 CI Secret 注入。
+
+可执行验收入口：
+
+```bash
+MUSEFOLD_STAGING_BASE_URL=https://staging.example.com \
+MUSEFOLD_STAGING_USERNAME=... MUSEFOLD_STAGING_PASSWORD=... \
+npm run test:staging:v1.1
+
+# 以下选项会写入 staging 或消耗额度，必须显式打开
+MUSEFOLD_STAGING_RUN_PROMPT_MUTATIONS=true \
+MUSEFOLD_STAGING_RUN_REDEEM=true MUSEFOLD_STAGING_REDEEM_CODE=... \
+MUSEFOLD_STAGING_RUN_GENERATION=true \
+npm run test:staging:v1.1
+
+MUSEFOLD_OPENAPI_URL=https://staging.example.com/api/musefold/v1/openapi.json \
+npm run openapi:check
+```
+
+Cloud MCP SDK smoke：
+
+```bash
+MUSEFOLD_STAGING_MCP_URL=https://staging.example.com/api/musefold/mcp \
+MUSEFOLD_STAGING_MCP_ACCESS_TOKEN=... \
+npm run test:staging:mcp-sdk
+```
+
+SDK smoke 不能替代真实产品客户端的 OAuth、审批、等待和图片展示兼容性验收。
 
 ## 18. 首版完成定义
 

@@ -14,16 +14,27 @@ import { HistoryDiskUsage } from '../features/history/components/HistoryDiskUsag
 import { CostDashboard } from '../features/history/components/CostDashboard';
 import { useHistoryStore } from '../features/history/store';
 import { ImageLightbox } from '../components/ui/image-lightbox';
-import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/button';
-import { cn } from '../lib/utils';
+import {
+  GenerationHistoryWorkspace,
+  GenerationHistoryScreen,
+  useHistoryInspectorController,
+} from '@musefold/product-ui';
 
 export function HistoryPage() {
   const records = useHistoryStore((s) => s.records);
   const count = useHistoryStore((s) => s.records.length);
-  const inspectorCollapsed = useHistoryStore((s) => s.inspectorCollapsed);
-  const toggleInspector = useHistoryStore((s) => s.toggleInspector);
+  const loading = useHistoryStore((s) => s.loading);
+  const load = useHistoryStore((s) => s.load);
+  const selectedId = useHistoryStore((s) => s.selectedId);
   const select = useHistoryStore((s) => s.select);
+  const inspector = useHistoryInspectorController();
+  const inspectorCollapsed = inspector.collapsed;
+
+  useEffect(() => {
+    inspector.select(selectedId);
+    if (selectedId) inspector.setCollapsed(false);
+  }, [inspector.select, inspector.setCollapsed, selectedId]);
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [costDashboardOpen, setCostDashboardOpen] = useState(false);
 
@@ -54,10 +65,14 @@ export function HistoryPage() {
   };
 
   return (
-    <div className="flex h-full flex-col" data-testid="history-page">
-      <PageHeader
+    <div className="h-full px-6 pb-12 pt-5 max-[640px]:px-4">
+      <GenerationHistoryScreen
+        items={[]}
         count={count}
-        actions={
+        refreshing={loading}
+        onRefresh={() => void load({ limit: 200 })}
+        className="mf-history-screen-workspace"
+        headerAction={
           <>
             <Button
               size="sm"
@@ -73,7 +88,7 @@ export function HistoryPage() {
             <Button
               size="icon"
               variant="ghost"
-              onClick={toggleInspector}
+              onClick={inspector.toggleCollapsed}
               title={inspectorCollapsed ? '展开检视面板' : '折叠检视面板'}
               data-testid="history-inspector-toggle"
             >
@@ -85,33 +100,31 @@ export function HistoryPage() {
             </Button>
           </>
         }
+        toolbar={<HistoryFilterBar />}
+        body={
+        <>
+          <GenerationHistoryWorkspace
+            detailOpen={Boolean(selectedId) && !inspectorCollapsed}
+            onBack={() => {
+              select(null);
+              inspector.select(null);
+            }}
+            list={<HistoryList onOpenLightbox={openLightbox} />}
+            detail={<HistoryDetail onOpenLightbox={openLightbox} />}
+          />
+          <ImageLightbox
+            path={lightboxRecord?.imagePath ?? null}
+            prompt={lightboxRecord?.promptText}
+            onClose={() => setLightboxId(null)}
+            onPrevious={() => goLightbox(-1)}
+            onNext={() => goLightbox(1)}
+            hasPrevious={lightboxIndex > 0}
+            hasNext={lightboxIndex >= 0 && lightboxIndex < imageRecords.length - 1}
+          />
+          <CostDashboard open={costDashboardOpen} onOpenChange={setCostDashboardOpen} />
+        </>
+        }
       />
-      <HistoryFilterBar />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <main className="min-w-0 flex-1 overflow-hidden">
-          <HistoryList onOpenLightbox={openLightbox} />
-        </main>
-        <aside
-          className={cn(
-            'shrink-0 overflow-hidden border-l border-border-subtle bg-inset/25 transition-[width] duration-[var(--dur-med)]',
-            inspectorCollapsed ? 'w-0' : 'w-80',
-          )}
-          data-testid="history-inspector"
-          aria-hidden={inspectorCollapsed}
-        >
-          {!inspectorCollapsed && <HistoryDetail onOpenLightbox={openLightbox} />}
-        </aside>
-      </div>
-      <ImageLightbox
-        path={lightboxRecord?.imagePath ?? null}
-        prompt={lightboxRecord?.promptText}
-        onClose={() => setLightboxId(null)}
-        onPrevious={() => goLightbox(-1)}
-        onNext={() => goLightbox(1)}
-        hasPrevious={lightboxIndex > 0}
-        hasNext={lightboxIndex >= 0 && lightboxIndex < imageRecords.length - 1}
-      />
-      <CostDashboard open={costDashboardOpen} onOpenChange={setCostDashboardOpen} />
     </div>
   );
 }

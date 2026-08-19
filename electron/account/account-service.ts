@@ -9,16 +9,21 @@ import {
   ACCOUNT_DEFAULT_IMAGE_MODEL,
   ACCOUNT_DEFAULT_TEXT_MODEL,
   ACCOUNT_QUOTA_PER_POINT,
+  ACCOUNT_QUOTA_PER_USD,
   DEFAULT_ACCOUNT_SERVER_FALLBACK_URL,
   DEFAULT_ACCOUNT_SERVER_URL,
   DEFAULT_ACCOUNT_SERVER_URLS,
-} from '@shared/constants';
-import type { AccountRedeemResult, AccountStatus } from '@shared/types/account';
-import type { NewApiClient, RelayAuthSession } from './api-client';
-import { createNewApiClient, normalizeAccountServerUrl, RelayApiError } from './api-client';
-import { AccountStore, REFRESH_TOKEN_KEYCHAIN_ID } from './account-store';
-import { AccountError, toAccountError } from './errors';
-import type { AiSecretKeychain } from '../security/ai-keychain';
+} from "@shared/constants";
+import type { AccountRedeemResult, AccountStatus } from "@shared/types/account";
+import type { NewApiClient, RelayAuthSession } from "./api-client";
+import {
+  createNewApiClient,
+  normalizeAccountServerUrl,
+  RelayApiError,
+} from "./api-client";
+import { AccountStore, REFRESH_TOKEN_KEYCHAIN_ID } from "./account-store";
+import { AccountError, toAccountError } from "./errors";
+import type { AiSecretKeychain } from "../security/ai-keychain";
 
 /** 双栈托管写入/回收端口（真实现见 managed-provisioner.ts；测试注入内存版） */
 export interface ManagedProvisioner {
@@ -29,7 +34,10 @@ export interface ManagedProvisioner {
     skKey: string;
     existing: { providerId: string | null; connectionId: string | null };
   }): { providerId: string; connectionId: string };
-  remove(targets: { providerId: string | null; connectionId: string | null }): void;
+  remove(targets: {
+    providerId: string | null;
+    connectionId: string | null;
+  }): void;
   /** 托管生图 Provider 单价写入（点/张，FR-GW-09/FR-COST）；Provider 不存在时静默忽略 */
   applyImagePrice(providerId: string, pricePoints: number): void;
 }
@@ -51,13 +59,19 @@ const JWT_SLACK_SECONDS = 60;
 function isRetryableRelayError(error: unknown): error is RelayApiError {
   return (
     error instanceof RelayApiError &&
-    (error.code === 'ACCOUNT/NETWORK' ||
-      (error.code === 'ACCOUNT/SERVER' && (error.httpStatus == null || error.httpStatus >= 500)))
+    (error.code === "ACCOUNT/NETWORK" ||
+      (error.code === "ACCOUNT/SERVER" &&
+        (error.httpStatus == null || error.httpStatus >= 500)))
   );
 }
 
 function defaultDeviceName(): string {
-  const platform = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux';
+  const platform =
+    process.platform === "darwin"
+      ? "mac"
+      : process.platform === "win32"
+        ? "win"
+        : "linux";
   const rand = Math.random().toString(16).slice(2, 6);
   return `musefold-${platform}-${rand}`;
 }
@@ -82,7 +96,8 @@ export class AccountService {
     this.store = options.store ?? new AccountStore();
     this.secrets = options.secrets;
     this.provisioner = options.provisioner;
-    this.clientFactory = options.clientFactory ?? ((url) => createNewApiClient(url));
+    this.clientFactory =
+      options.clientFactory ?? ((url) => createNewApiClient(url));
     this.deviceName = options.deviceName ?? defaultDeviceName;
     this.now = options.now ?? Date.now;
     this.onChanged = options.onChanged;
@@ -91,11 +106,16 @@ export class AccountService {
   }
 
   /** 官方域名异常时切换到裸 IP；自定义服务器永不自动切换。 */
-  private async withFailover<T>(operation: (client: NewApiClient) => Promise<T>): Promise<T> {
+  private async withFailover<T>(
+    operation: (client: NewApiClient) => Promise<T>,
+  ): Promise<T> {
     try {
       return await operation(this.client);
     } catch (error) {
-      if (this.activeServerUrl !== DEFAULT_ACCOUNT_SERVER_URL || !isRetryableRelayError(error)) {
+      if (
+        this.activeServerUrl !== DEFAULT_ACCOUNT_SERVER_URL ||
+        !isRetryableRelayError(error)
+      ) {
         throw error;
       }
 
@@ -113,7 +133,8 @@ export class AccountService {
   }
 
   private requireSecrets(): AiSecretKeychain {
-    if (!this.secrets) throw new AccountError('ACCOUNT/SERVER', '密钥存储不可用');
+    if (!this.secrets)
+      throw new AccountError("ACCOUNT/SERVER", "密钥存储不可用");
     return this.secrets;
   }
 
@@ -127,16 +148,46 @@ export class AccountService {
       loggedIn: Boolean(session),
       username: session?.username ?? null,
       serverUrl: this.activeServerUrl,
-      isDefaultServer: DEFAULT_ACCOUNT_SERVER_URLS.includes(this.activeServerUrl as (typeof DEFAULT_ACCOUNT_SERVER_URLS)[number]),
+      isDefaultServer: DEFAULT_ACCOUNT_SERVER_URLS.includes(
+        this.activeServerUrl as (typeof DEFAULT_ACCOUNT_SERVER_URLS)[number],
+      ),
       quota,
       estImagesRemaining:
         quota && price && price > 0
-          ? Math.max(0, Math.floor((quota.value / ACCOUNT_QUOTA_PER_POINT) / price))
+          ? Math.max(
+              0,
+              Math.floor(quota.value / ACCOUNT_QUOTA_PER_POINT / price),
+            )
           : null,
       deviceTokenSuffix: session?.deviceTokenSuffix ?? null,
-      health: session?.health ?? 'unknown',
+      health: session?.health ?? "unknown",
       notices: session?.notices ?? [],
     };
+  }
+
+  cloudIdentity(): {
+    ownerId: string;
+    username: string;
+    cloudBaseUrl: string;
+  } | null {
+    const session = this.store.session;
+    if (
+      !session ||
+      !DEFAULT_ACCOUNT_SERVER_URLS.includes(
+        this.activeServerUrl as (typeof DEFAULT_ACCOUNT_SERVER_URLS)[number],
+      )
+    )
+      return null;
+    return {
+      ownerId: String(session.userId),
+      username: session.username,
+      cloudBaseUrl: `${DEFAULT_ACCOUNT_SERVER_URL}/api/musefold/v1`,
+    };
+  }
+
+  async managementAccessToken(): Promise<string> {
+    if (!this.store.session) throw new AccountError("ACCOUNT/AUTH", "尚未登录");
+    return this.ensureJwt();
   }
 
   private broadcast(): AccountStatus {
@@ -147,16 +198,22 @@ export class AccountService {
 
   // ---------- 注册 / 登录（§5.1 编排 + NFR-REL-02 回滚） ----------
 
-  async register(input: { username: string; password: string }): Promise<AccountStatus> {
+  async register(input: {
+    username: string;
+    password: string;
+  }): Promise<AccountStatus> {
     try {
       await this.withFailover((client) => client.register(input));
     } catch (error) {
-      throw toAccountError(error, 'auth');
+      throw toAccountError(error, "auth");
     }
     return this.login(input);
   }
 
-  async login(input: { username: string; password: string }): Promise<AccountStatus> {
+  async login(input: {
+    username: string;
+    password: string;
+  }): Promise<AccountStatus> {
     const secrets = this.requireSecrets();
     const previousSession = this.store.session;
 
@@ -165,7 +222,7 @@ export class AccountService {
     try {
       auth = await this.withFailover((client) => client.login(input));
     } catch (error) {
-      throw toAccountError(error, 'auth');
+      throw toAccountError(error, "auth");
     }
 
     let refreshSaved = false;
@@ -177,8 +234,13 @@ export class AccountService {
       this.jwt = { value: auth.jwt, expiresAt: auth.jwtExpiresAt };
 
       // 3/4 设备令牌幂等供给（FR-ACC-07）
-      const deviceTokenName = previousSession?.deviceTokenName ?? this.deviceName();
-      const token = await this.ensureDeviceToken(auth.jwt, previousSession?.deviceTokenId ?? null, deviceTokenName);
+      const deviceTokenName =
+        previousSession?.deviceTokenName ?? this.deviceName();
+      const token = await this.ensureDeviceToken(
+        auth.jwt,
+        previousSession?.deviceTokenId ?? null,
+        deviceTokenName,
+      );
 
       // 5 双栈托管写入（幂等 upsert）
       provisioned = this.provisioner.upsert({
@@ -203,7 +265,7 @@ export class AccountService {
         managedProviderId: provisioned.providerId,
         managedConnectionId: provisioned.connectionId,
         quotaCache: { value: auth.user.quota, at: this.now() },
-        health: 'ok',
+        health: "ok",
         pricingVersion: previousSession?.pricingVersion ?? null,
         imagePricePoints: previousSession?.imagePricePoints ?? null,
         imagePriceUnit: 'point',
@@ -232,8 +294,15 @@ export class AccountService {
       this.jwt = null;
       this.store.session = null;
       this.broadcast();
-      const stage = provisioned ? 'provision' : refreshSaved ? 'provision' : 'token';
-      throw toAccountError(error, error instanceof AccountError && error.stage ? error.stage : stage);
+      const stage = provisioned
+        ? "provision"
+        : refreshSaved
+          ? "provision"
+          : "token";
+      throw toAccountError(
+        error,
+        error instanceof AccountError && error.stage ? error.stage : stage,
+      );
     }
   }
 
@@ -245,25 +314,37 @@ export class AccountService {
     try {
       if (existingId != null) {
         try {
-          const key = await this.withFailover((client) => client.fetchTokenKey(jwt, existingId));
+          const key = await this.withFailover((client) =>
+            client.fetchTokenKey(jwt, existingId),
+          );
           return { id: existingId, key };
         } catch (error) {
-          if (error instanceof RelayApiError && (error.code === 'ACCOUNT/AUTH' || error.code === 'ACCOUNT/NETWORK')) {
+          if (
+            error instanceof RelayApiError &&
+            (error.code === "ACCOUNT/AUTH" || error.code === "ACCOUNT/NETWORK")
+          ) {
             throw error; // 凭据/网络问题不该走"重建令牌"
           }
           /* 令牌已被删除等 → 走新建 */
         }
       }
-      await this.withFailover((client) => client.createToken(jwt, { name: deviceTokenName }));
-      const tokens = await this.withFailover((client) => client.listTokens(jwt));
+      await this.withFailover((client) =>
+        client.createToken(jwt, { name: deviceTokenName }),
+      );
+      const tokens = await this.withFailover((client) =>
+        client.listTokens(jwt),
+      );
       const created = tokens
         .filter((t) => t.name === deviceTokenName)
         .sort((a, b) => b.id - a.id)[0];
-      if (!created) throw new RelayApiError('ACCOUNT/SERVER', '设备令牌创建后未找到');
-      const key = await this.withFailover((client) => client.fetchTokenKey(jwt, created.id));
+      if (!created)
+        throw new RelayApiError("ACCOUNT/SERVER", "设备令牌创建后未找到");
+      const key = await this.withFailover((client) =>
+        client.fetchTokenKey(jwt, created.id),
+      );
       return { id: created.id, key };
     } catch (error) {
-      throw toAccountError(error, 'token');
+      throw toAccountError(error, "token");
     }
   }
 
@@ -271,28 +352,34 @@ export class AccountService {
 
   private async ensureJwt(): Promise<string> {
     const nowSeconds = Math.floor(this.now() / 1000);
-    if (this.jwt && this.jwt.expiresAt - nowSeconds > JWT_SLACK_SECONDS) return this.jwt.value;
+    if (this.jwt && this.jwt.expiresAt - nowSeconds > JWT_SLACK_SECONDS)
+      return this.jwt.value;
     if (this.refreshInflight) return this.refreshInflight;
 
     const secrets = this.requireSecrets();
     const refreshToken = secrets.load(REFRESH_TOKEN_KEYCHAIN_ID);
     if (!refreshToken) {
-      throw new AccountError('ACCOUNT/AUTH', '尚未登录');
+      throw new AccountError("ACCOUNT/AUTH", "尚未登录");
     }
 
     this.refreshInflight = (async () => {
       try {
-        const session = await this.withFailover((client) => client.refresh(refreshToken));
+        const session = await this.withFailover((client) =>
+          client.refresh(refreshToken),
+        );
         // 响应必轮换 refresh 值：立即回存（V05-ARCHITECTURE §2.1）
         secrets.save(REFRESH_TOKEN_KEYCHAIN_ID, session.refreshToken);
         this.jwt = { value: session.jwt, expiresAt: session.jwtExpiresAt };
         return session.jwt;
       } catch (error) {
-        if (error instanceof RelayApiError && error.code === 'ACCOUNT/AUTH') {
-          this.store.patchSession({ health: 'token-invalid' });
+        if (error instanceof RelayApiError && error.code === "ACCOUNT/AUTH") {
+          this.store.patchSession({ health: "token-invalid" });
           this.broadcast();
-        } else if (error instanceof RelayApiError && error.code === 'ACCOUNT/NETWORK') {
-          this.store.patchSession({ health: 'unreachable' });
+        } else if (
+          error instanceof RelayApiError &&
+          error.code === "ACCOUNT/NETWORK"
+        ) {
+          this.store.patchSession({ health: "unreachable" });
           this.broadcast();
         }
         throw toAccountError(error);
@@ -306,19 +393,24 @@ export class AccountService {
   // ---------- 余额 / 定价 / 公告 ----------
 
   async refreshQuota(): Promise<AccountStatus> {
-    if (!this.store.session) throw new AccountError('ACCOUNT/AUTH', '尚未登录');
+    if (!this.store.session) throw new AccountError("ACCOUNT/AUTH", "尚未登录");
     const jwt = await this.ensureJwt();
     try {
       const user = await this.withFailover((client) => client.getSelf(jwt));
       this.store.patchSession({
         quotaCache: { value: user.quota, at: this.now() },
         group: user.group,
-        health: 'ok',
+        health: "ok",
       });
     } catch (error) {
       const mapped = toAccountError(error);
       this.store.patchSession({
-        health: mapped.code === 'ACCOUNT/AUTH' ? 'token-invalid' : mapped.code === 'ACCOUNT/NETWORK' ? 'unreachable' : 'ok',
+        health:
+          mapped.code === "ACCOUNT/AUTH"
+            ? "token-invalid"
+            : mapped.code === "ACCOUNT/NETWORK"
+              ? "unreachable"
+              : "ok",
       });
       this.broadcast();
       throw mapped;
@@ -335,13 +427,27 @@ export class AccountService {
     const pricing = await this.withFailover((client) => client.getPricing());
     if (pricing.version && pricing.version !== session.pricingVersion) {
       const image = pricing.models.find(
-        (m) => m.modelName === ACCOUNT_DEFAULT_IMAGE_MODEL && m.quotaType === 1 && m.modelPrice > 0,
+        (m) =>
+          m.modelName === ACCOUNT_DEFAULT_IMAGE_MODEL &&
+          m.quotaType === 1 &&
+          m.modelPrice > 0,
       );
       if (image && session.managedProviderId) {
-        const groupRatio = pricing.groupRatio[session.group] ?? pricing.groupRatio.default ?? 1;
-        const pricePoints = image.modelPrice * 10 * (groupRatio || 1);
-        this.provisioner.applyImagePrice(session.managedProviderId, pricePoints);
-        this.store.patchSession({ pricingVersion: pricing.version, imagePricePoints: pricePoints, imagePriceUnit: 'point' });
+        const groupRatio =
+          pricing.groupRatio[session.group] ?? pricing.groupRatio.default ?? 1;
+        const pricePoints =
+          image.modelPrice *
+          (ACCOUNT_QUOTA_PER_USD / ACCOUNT_QUOTA_PER_POINT) *
+          (groupRatio || 1);
+        this.provisioner.applyImagePrice(
+          session.managedProviderId,
+          pricePoints,
+        );
+        this.store.patchSession({
+          pricingVersion: pricing.version,
+          imagePricePoints: pricePoints,
+          imagePriceUnit: "point",
+        });
       } else {
         this.store.patchSession({ pricingVersion: pricing.version });
       }
@@ -354,13 +460,19 @@ export class AccountService {
   // ---------- 兑换 ----------
 
   async redeem(code: string): Promise<AccountRedeemResult> {
-    if (!this.store.session) throw new AccountError('ACCOUNT/AUTH', '尚未登录');
+    if (!this.store.session) throw new AccountError("ACCOUNT/AUTH", "尚未登录");
     const trimmed = code.trim();
-    if (!trimmed) throw new AccountError('ACCOUNT/REDEEM_INVALID', '兑换失败，请检查兑换码后重试');
+    if (!trimmed)
+      throw new AccountError(
+        "ACCOUNT/REDEEM_INVALID",
+        "兑换失败，请检查兑换码后重试",
+      );
     const jwt = await this.ensureJwt();
     let quotaAdded: number;
     try {
-      ({ quotaAdded } = await this.withFailover((client) => client.redeem(jwt, trimmed)));
+      ({ quotaAdded } = await this.withFailover((client) =>
+        client.redeem(jwt, trimmed),
+      ));
     } catch (error) {
       throw toAccountError(error);
     }
@@ -399,7 +511,10 @@ export class AccountService {
 
   async setServerUrl(url: string): Promise<AccountStatus> {
     if (this.store.session) {
-      throw new AccountError('ACCOUNT/MANAGED_READONLY', '更换服务器前请先退出登录');
+      throw new AccountError(
+        "ACCOUNT/MANAGED_READONLY",
+        "更换服务器前请先退出登录",
+      );
     }
     let normalized: string;
     try {

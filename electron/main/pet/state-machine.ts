@@ -217,7 +217,11 @@ export class PetStateMachine {
     const delay = IDLE_EGG_MIN_MS + Math.random() * IDLE_EGG_JITTER_MS;
     this.idleEggTimer = setTimeout(() => {
       this.idleEggTimer = null;
-      if (this.current !== 'idle') return;
+      // 有任务时保持 idle 基态；待机彩蛋不应掩盖忙碌状态或让测试/宿主误判为空闲。
+      if (this.current !== 'idle' || !this.canSleep()) {
+        if (this.current === 'idle') this.armIdleEggs();
+        return;
+      }
       const eggs = this.theme.idleEggs;
       this.setState(eggs[Math.floor(Math.random() * eggs.length)]);
     }, delay);

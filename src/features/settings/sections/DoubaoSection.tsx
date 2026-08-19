@@ -149,8 +149,8 @@ export function DoubaoSection() {
         <SettingRow
           label="开发者选项"
           hint={developerMode
-            ? '豆包网页窗口会自动显示，用于排查网页改版、上传和安全验证。'
-            : '豆包在后台运行，不显示网页窗口；登录二维码仍在 Musefold 内展示。'}
+            ? '本次运行期间显示豆包网页，用于排查网页改版、上传和安全验证；下次启动会自动关闭。'
+            : '豆包在后台运行，不显示网页窗口；登录二维码仍在 Musefold 内展示。每次启动均保持关闭。'}
           data-testid="settings-doubao-developer-row"
         >
           <Button

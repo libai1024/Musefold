@@ -227,13 +227,15 @@ def test_boundary_skip_after_step2_goes_directly_to_library(app):
     assert app.page.evaluate("() => window.__musefold_test.getView()") == "library"
     assert ob(app, "s.onboarded") is True
 
-    # 跳过引导后仍无 Provider —— 发送按钮禁用说明原因，侧栏「服务商设置」直达预设补救
+    # 跳过引导后仍无 Provider —— 发送按钮禁用说明原因，侧栏齿轮直达生图中转站空态
     app.set_view("generate")
     app.page.wait_for_selector('[data-testid="refine-generate"]')
     app.page.fill('[data-testid="refine-prompt"]', "跳过引导后的无服务商探针")
     assert app.page.locator('[data-testid="refine-generate"]').is_disabled()
-    app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.get_by_test_id("model-hub-manage").click()
+    app.page.click('[data-testid="sidebar-settings"]')
+    app.page.get_by_test_id("sidebar-settings-open").click()
+    app.page.wait_for_function("() => window.__musefold_test?.getView?.() === 'settings'", timeout=5_000)
+    app.page.get_by_role("button", name="生图中转站", exact=True).click()
     app.page.wait_for_selector('[data-testid="settings-empty-provider"]')
 
 

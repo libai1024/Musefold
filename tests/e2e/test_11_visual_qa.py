@@ -15,6 +15,7 @@ PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
     "890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082"
 )
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def output_dir() -> Path | None:
     raw = os.environ.get("MUSEFOLD_VISUAL_OUTPUT_DIR")
@@ -87,7 +88,80 @@ def capture(app, name: str, test_id: str):
         app.page.screenshot(path=str(target / f"{name}.png"), full_page=False)
 
 
-def insert_history(app, *, history_id: str, prompt_id: str | None, status: str, image_path: str | None):
+def capture_shared_workbench(app):
+    target = output_dir()
+    if not target:
+        return
+    app.page.locator('[data-testid="generation-workbench"]').screenshot(
+        path=str(target / "shared-workbench-1440x900.png"),
+    )
+
+
+def capture_shared_surface(app, file_name: str, test_id: str):
+    target = output_dir()
+    if not target:
+        return
+    surface = app.page.locator(f'[data-testid="{test_id}"]')
+    if test_id == "prompt-reference-preview":
+        surface.evaluate(
+            """element => {
+              element.style.zIndex = '2147483647';
+              element.style.animation = 'none';
+            }"""
+        )
+        box = surface.bounding_box()
+        assert box, f"Missing bounds for {test_id}"
+        app.page.screenshot(path=str(target / file_name), clip=box)
+        return
+    surface.screenshot(path=str(target / file_name))
+
+
+def set_shared_generation_result_state(app, *, status: str, error: str | None = None):
+    app.page.evaluate(
+        """({status, error}) => {
+          const now = Date.now();
+          window.__musefold_test.stores.workbench.setState({
+            turns: [{
+              id: `visual-${status}-result-turn`,
+              prompt: `视觉回归${status}态结果`,
+              userPrompt: `视觉回归${status}态结果`,
+              references: [],
+              negativePrompt: '',
+              source: { kind: 'manual' },
+              providerId: null,
+              params: { ratioId: '1:1', quality: 'medium', n: 1, background: 'auto' },
+              status,
+              results: [{
+                id: `visual-${status}-result`,
+                jobId: `visual-${status}-result-job`,
+                historyId: `visual-${status}-result-history`,
+                status,
+                ...(error ? { error, errorCode: 'INTERNAL_ERROR' } : {}),
+              }],
+              referenceImages: [],
+              createdAt: now,
+              completedAt: now,
+            }],
+            isGenerating: false,
+            runningTurns: {},
+            activeTurnId: null,
+            activeJobId: null,
+            cancelRequested: false,
+          });
+        }""",
+        {"status": status, "error": error},
+    )
+
+
+def insert_history(
+    app,
+    *,
+    history_id: str,
+    prompt_id: str | None,
+    status: str,
+    image_path: str | None,
+    prompt_text: str | None = None,
+):
     con = sqlite3.connect(app.db_path())
     try:
         now = int(time.time() * 1000)
@@ -99,7 +173,7 @@ def insert_history(app, *, history_id: str, prompt_id: str | None, status: str, 
             (
                 history_id,
                 prompt_id,
-                f"视觉回归提示词 {history_id}",
+                prompt_text or f"视觉回归提示词 {history_id}",
                 status,
                 None if status == "success" else "UPSTREAM_ERROR",
                 None if status == "success" else "视觉回归模拟失败",
@@ -207,3 +281,369 @@ def test_visual_integrated_surfaces_toast_and_lightbox(app):
     app.page.wait_for_selector('[data-testid="history-page"]')
     app.page.locator('[data-testid="history-row"]').filter(has_text="visual-history-failed").click()
     capture(app, "11-history-640-light-comfortable", "history-page")
+
+
+def test_shared_workbench_visual_contract(app):
+    """Emit the same content-only surface that the Web visual contract compares."""
+    set_visual_state(app, width=1440, height=900, theme="light", density="comfortable")
+    app.page.get_by_test_id("sidebar-resize-handle").dblclick()
+    app.page.evaluate("window.__musefold_test.setView('generate')")
+    app.page.wait_for_selector('[data-testid="generation-workbench"]')
+    capture_shared_surface(
+        app,
+        "shared-product-sidebar-1440x900.png",
+        "product-sidebar",
+    )
+    capture_shared_workbench(app)
+    capture_shared_surface(
+        app,
+        "shared-workbench-composer-1440x900.png",
+        "workbench-composer-surface",
+    )
+    set_visual_state(app, width=390, height=844, theme="light", density="comfortable")
+    capture_shared_surface(
+        app,
+        "shared-workbench-composer-390x844.png",
+        "workbench-composer-surface",
+    )
+    set_visual_state(app, width=1440, height=900, theme="light", density="comfortable")
+
+    shared_image_path = app.user_data_dir / "musefold-previews-v0.3.0" / "shared-workbench-result.jpeg"
+    shared_image_path.parent.mkdir(parents=True, exist_ok=True)
+    shared_image_path.write_bytes(
+        (REPO_ROOT / "generated/v31-skill-research/skill-ref-pause-map.jpeg").read_bytes()
+    )
+    app.page.evaluate(
+        """(imagePath) => {
+          window.__musefold_test.stores.workbench.setState({
+            turns: [{
+              id: 'visual-shared-result-turn',
+              prompt: '雨后的夜间建筑摄影，低机位，湿润街面反射窗内暖光。',
+              userPrompt: '雨后的夜间建筑摄影，低机位，湿润街面反射窗内暖光。',
+              references: [],
+              negativePrompt: '过度霓虹，强光晕，水印',
+              source: { kind: 'manual' },
+              providerId: null,
+              params: { ratioId: '1:1', quality: 'medium', n: 1, background: 'auto' },
+              status: 'success',
+              results: [{
+                id: 'visual-shared-result',
+                jobId: 'visual-shared-result-job',
+                historyId: 'visual-shared-result-history',
+                status: 'success',
+                imagePath,
+                durationMs: 1840,
+              }],
+              referenceImages: [],
+              createdAt: Date.now(),
+              completedAt: Date.now(),
+            }],
+            isGenerating: false,
+            runningTurns: {},
+            activeTurnId: null,
+            activeJobId: null,
+            cancelRequested: false,
+          });
+        }""",
+        str(shared_image_path),
+    )
+    app.page.wait_for_selector('[data-testid="generation-result-group"]')
+    app.page.wait_for_selector('[data-testid="generate-result-card"] img')
+    capture_shared_surface(
+        app,
+        "shared-workbench-result-1440x900.png",
+        "generation-result-group",
+    )
+
+
+def test_shared_generation_result_state_visual_contracts(app):
+    """Keep cancelled/failed result surfaces aligned on desktop and mobile."""
+    set_visual_state(app, width=1440, height=900, theme="light", density="comfortable")
+    app.page.evaluate("window.__musefold_test.setView('generate')")
+    app.page.wait_for_selector('[data-testid="generation-workbench"]')
+
+    set_shared_generation_result_state(
+        app,
+        status="failed",
+        error="视觉回归模拟失败",
+    )
+    app.page.wait_for_selector(
+        '[data-testid="generation-result-group"] [data-status="failed"]'
+    )
+    capture_shared_surface(
+        app,
+        "shared-workbench-result-failed-1440x900.png",
+        "generation-result-group",
+    )
+
+    set_shared_generation_result_state(app, status="cancelled")
+    app.page.wait_for_selector(
+        '[data-testid="generation-result-group"] [data-status="cancelled"]'
+    )
+    capture_shared_surface(
+        app,
+        "shared-workbench-result-cancelled-1440x900.png",
+        "generation-result-group",
+    )
+
+    set_visual_state(app, width=390, height=844, theme="light", density="comfortable")
+    app.page.wait_for_selector(
+        '[data-testid="generation-result-group"] [data-status="cancelled"]'
+    )
+    capture_shared_surface(
+        app,
+        "shared-workbench-result-cancelled-390x844.png",
+        "generation-result-group",
+    )
+
+
+def test_shared_library_and_history_visual_contracts(app):
+    """Emit common product surfaces after removing Desktop-only capability slots."""
+    fixture_prompts = [
+        app.api_ok("prompt.create", {
+            "title": "留白纸感海报",
+            "description": "暖白纸张、印刷颗粒与克制的单色锚点。",
+            "content": "将主题处理为一张竖版编辑海报，大面积暖白留白，主体是一个小型视觉事件，保留纸张纤维、网点与轻微套印偏移，使用一个钴蓝色锚点。",
+            "contentNegative": "商业广告，密集拼贴，霓虹，3D 标题，水印",
+            "isPinned": True,
+        }),
+        app.api_ok("prompt.create", {
+            "title": "夜色建筑摄影",
+            "description": "湿润街面与安静的人造光。",
+            "content": "雨后的夜间建筑摄影，低机位，湿润街面反射窗内暖光，克制的深青天空，真实建筑材质，画面安静且具有清晰空间层次。",
+            "contentNegative": "过度霓虹，赛博朋克文字，强光晕，人物特写",
+        }),
+        app.api_ok("prompt.create", {
+            "title": "玻璃静物",
+            "description": "自然窗光下的透明材质研究。",
+            "content": "透明玻璃器皿静物，清晨自然窗光，白色工作台，清晰折射和柔和投影，色彩只来自一片深绿色叶子，写实产品摄影。",
+            "contentNegative": "彩色背景，复杂道具，浮夸高光，文字，Logo",
+        }),
+    ]
+    night_prompt = fixture_prompts[1]
+    night_prompt_id = night_prompt["id"]
+    previews = app.user_data_dir / "musefold-previews-v0.3.0"
+    previews.mkdir(parents=True, exist_ok=True)
+    image_path = previews / "shared-history.png"
+    image_path.write_bytes(PNG_1PX)
+    insert_history(
+        app,
+        history_id="shared-history-success",
+        prompt_id=night_prompt["id"],
+        status="success",
+        image_path=str(image_path),
+        prompt_text=night_prompt["content"],
+    )
+
+    set_visual_state(app, width=1440, height=900, theme="light", density="comfortable")
+    app.page.evaluate("window.__musefold_test.setView('library')")
+    app.page.wait_for_selector('[data-testid="library-page"]')
+    app.page.wait_for_function(
+        "window.__musefold_test.stores.library.getState().initialized === true"
+    )
+    app.page.evaluate(
+        """(items) => {
+          const pinned = items.filter((item) => item.isPinned).length;
+          const unfiled = items.filter((item) => !item.folderId).length;
+          window.__musefold_test.stores.library.setState({
+            prompts: items,
+            stats: {
+              total: items.length,
+              unfiled,
+              trashed: 0,
+              pinned,
+              byFolder: {},
+              byTag: {},
+            },
+            search: '',
+            loading: false,
+            initialized: true,
+          });
+        }""",
+        fixture_prompts,
+    )
+    app.page.wait_for_selector(f'[data-prompt-id="{night_prompt_id}"]')
+    app.page.wait_for_function(
+        "(count) => document.querySelectorAll('[data-testid=prompt-row]').length === count",
+        arg=len(fixture_prompts),
+    )
+    capture_shared_surface(
+        app,
+        "shared-library-list-1440x900.png",
+        "library-page",
+    )
+
+    app.page.click(
+        f'[data-prompt-id="{night_prompt_id}"] [data-testid="prompt-row-open"]'
+    )
+    app.page.wait_for_selector('[data-testid="prompt-detail"]')
+    app.page.wait_for_selector('[data-testid="prompt-works-panel"]')
+    app.page.locator('[data-testid="prompt-works-panel"]').evaluate(
+        "element => { element.style.display = 'none'; }"
+    )
+    capture_shared_surface(
+        app,
+        "shared-prompt-detail-1440x900.png",
+        "prompt-detail",
+    )
+
+    app.page.get_by_test_id("detail-generate").click()
+    app.page.wait_for_selector('[data-testid="refine-source"]')
+    capture_shared_surface(
+        app,
+        "shared-prompt-reference-card-1440x900.png",
+        "refine-source",
+    )
+    app.page.get_by_test_id("refine-source-clear").focus()
+    app.page.wait_for_selector('[data-testid="prompt-reference-preview"]')
+    app.page.wait_for_timeout(180)
+    capture_shared_surface(
+        app,
+        "shared-prompt-reference-preview-1440x900.png",
+        "prompt-reference-preview",
+    )
+
+    app.page.evaluate(
+        """async () => {
+          window.__musefold_test.setView('history');
+          await window.__musefold_test.stores.history.getState().load({ limit: 200 });
+        }"""
+    )
+    app.page.locator('[data-testid="history-row"]').filter(
+        has_text="雨后的夜间建筑摄影"
+    ).click()
+    app.page.wait_for_selector('[data-testid="history-detail-content"]')
+    app.page.wait_for_function(
+        """() => {
+          const inspector = document.querySelector('[data-testid="history-inspector"]');
+          return inspector && Math.abs(inspector.getBoundingClientRect().width - 320) <= 1;
+        }"""
+    )
+    history_geometry = app.page.locator('[data-testid="history-workspace"]').evaluate(
+        """workspace => {
+          const list = workspace.querySelector('.mf-history-workspace-list');
+          const inspector = workspace.querySelector('[data-testid="history-inspector"]');
+          if (!list || !inspector) return null;
+          return {
+            workspace: workspace.getBoundingClientRect().width,
+            list: list.getBoundingClientRect().width,
+            inspector: inspector.getBoundingClientRect().width,
+          };
+        }"""
+    )
+    assert history_geometry is not None
+    assert abs(history_geometry["inspector"] - 320) <= 1
+    assert history_geometry["list"] > history_geometry["inspector"]
+    assert abs(
+        history_geometry["list"]
+        + history_geometry["inspector"]
+        - history_geometry["workspace"]
+    ) <= 1
+    app.page.locator('[data-testid="history-workspace"] img').evaluate_all(
+        "images => images.forEach(image => image.remove())"
+    )
+    capture_shared_surface(
+        app,
+        "shared-history-workspace-1440x900.png",
+        "history-workspace",
+    )
+    app.page.locator('[data-testid="history-detail-image"]').evaluate(
+        "element => element.replaceChildren()"
+    )
+    capture_shared_surface(
+        app,
+        "shared-history-detail-compact.png",
+        "history-detail-content",
+    )
+
+
+def test_shared_account_and_connections_visual_contracts(app):
+    """Compare shared account content and the complete Cloud MCP connection screen."""
+    account_status = {
+        "loggedIn": True,
+        "username": "musefold",
+        "serverUrl": "https://api.musefold.example",
+        "isDefaultServer": True,
+        "quota": {"value": 9_300_000, "at": 1_787_000_000_000},
+        "estImagesRemaining": None,
+        "deviceTokenSuffix": "1a2b",
+        "health": "ok",
+        "notices": [],
+    }
+    connections = {
+        "items": [{
+            "id": "fixture-connection-1",
+            "clientName": "Musefold Preview Client",
+            "scopes": [
+                "account:read",
+                "prompts:read",
+                "skills:read",
+                "generations:read",
+                "generations:write",
+            ],
+            "mode": "ask_each_time",
+            "maxPointsPerGeneration": 1000,
+            "maxPointsPerDay": 5000,
+            "spentPointsToday": 1000,
+            "reservedPointsToday": 0,
+            "status": "active",
+            "createdAt": "2026-08-12T07:30:00.000Z",
+            "lastUsedAt": "2026-08-17T08:00:00.000Z",
+        }],
+    }
+
+    set_visual_state(app, width=1440, height=900, theme="light", density="comfortable")
+    app.page.evaluate(
+        """(status) => {
+          const account = window.__musefold_test.stores.account;
+          account.setState({
+            status,
+            loaded: true,
+            loading: false,
+            action: null,
+            error: null,
+            lastUsername: status.username,
+            refreshQuota: async () => account.getState().status,
+          });
+          window.__musefold_test.stores.settings.getState().setSection('account');
+          window.__musefold_test.setView('settings');
+        }""",
+        account_status,
+    )
+    app.page.wait_for_selector('[data-testid="settings-account-summary-panel"]')
+    account_summary = app.page.get_by_test_id("settings-account-summary-panel")
+    account_summary.locator(".mf-account-summary-header-action").evaluate(
+        "element => { element.style.display = 'none'; }"
+    )
+    account_summary.locator("small").evaluate_all(
+        "elements => elements.forEach(element => { element.style.display = 'none'; })"
+    )
+    capture_shared_surface(
+        app,
+        "shared-account-summary-1440x900.png",
+        "settings-account-summary-panel",
+    )
+
+    app.page.evaluate(
+        """(connections) => {
+          const store = window.__musefold_test.stores.cloudConnections;
+          store.setState({
+            connections,
+            loaded: true,
+            loading: false,
+            error: null,
+            load: async () => connections,
+            update: async () => connections,
+            revoke: async () => undefined,
+          });
+          window.__musefold_test.stores.settings.getState().setSection('connections');
+        }""",
+        connections,
+    )
+    app.page.wait_for_selector('[data-testid="connected-apps-screen"]')
+    app.page.wait_for_selector('[data-testid="connection-row"]')
+    capture_shared_surface(
+        app,
+        "shared-connected-apps-1440x900.png",
+        "connected-apps-screen",
+    )

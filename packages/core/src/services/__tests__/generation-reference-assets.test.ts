@@ -110,4 +110,48 @@ describe('generation reference asset authorization', () => {
     });
     expect(doubaoRuntime.generateImage).not.toHaveBeenCalled();
   });
+
+  it('preserves the parent final prompt as refinement lineage', async () => {
+    const result = await generate({
+      jobId: 'refinement-child-job',
+      providerId: 'doubao-test',
+      prompt: '图 1 为本次微调目标。\n\n原始请求\n\n微调要求：\n增强晨光',
+      size: '1024x1024',
+      quality: 'medium',
+      n: 1,
+      parentHistoryId: 'doubao-parent',
+      sourceAssetId: 'doubao-parent-2',
+      refinementInstruction: '增强晨光',
+      referenceImages: [{
+        source: 'history',
+        historyId: 'doubao-parent',
+        assetId: 'doubao-parent-2',
+        path: '/tmp/doubao-parent-2.png',
+      }],
+      workbench: {
+        sessionId: 'refinement-session',
+        sessionTitle: '微调测试',
+        turnId: 'refinement-turn',
+        turnIndex: 1,
+        resultIndex: 0,
+        userPrompt: '增强晨光',
+      },
+    });
+
+    expect(result.status).toBe('success');
+    const run = createWorkbenchRepositories().runs.get('refinement-child-job');
+    expect(run).toMatchObject({
+      runKind: 'refinement',
+      parentRunId: 'doubao-parent',
+      basePrompt: '原始请求',
+      refinementInstruction: '增强晨光',
+      finalPrompt: '图 1 为本次微调目标。\n\n原始请求\n\n微调要求：\n增强晨光',
+      promptSnapshot: {
+        userPrompt: '增强晨光',
+        basePrompt: '原始请求',
+        refinementInstruction: '增强晨光',
+        finalPrompt: '图 1 为本次微调目标。\n\n原始请求\n\n微调要求：\n增强晨光',
+      },
+    });
+  });
 });
