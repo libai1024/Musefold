@@ -470,13 +470,14 @@ def _fake_github_api():
 class App:
     """已启动的 Electron 应用句柄：page + userDataDir + DB 直查能力。"""
 
-    def __init__(self, page: Page, proc: subprocess.Popen, user_data_dir: Path, browser=None, pw=None, app_args=None):
+    def __init__(self, page: Page, proc: subprocess.Popen, user_data_dir: Path, browser=None, pw=None, app_args=None, extra_env=None):
         self.page = page
         self.proc = proc
         self.user_data_dir = user_data_dir
         self.browser = browser
         self._pw = pw
         self._app_args = app_args
+        self._extra_env = extra_env
 
     # ---- 渲染进程内直接调用真实 IPC（window.api）----
     def api(self, dotted: str, *args, timeout_ms: int = 30_000):
@@ -545,17 +546,25 @@ class App:
         except subprocess.TimeoutExpired:
             self.proc.kill()
 
-        browser, handle = _launch(self.user_data_dir, self._pw, app_args=self._app_args)
+        browser, handle = _launch(
+            self.user_data_dir,
+            self._pw,
+            app_args=self._app_args,
+            extra_env=self._extra_env,
+        )
         self.page = handle.page
         self.proc = handle.proc
         self.browser = browser
         self._errors = handle._errors  # type: ignore[attr-defined]
+        self._extra_env = handle._extra_env
         return self
 
 
-def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_args=None):
+def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_args=None, extra_env=None):
     port = _free_port()
     env = dict(os.environ)
+    if extra_env:
+        env.update(extra_env)
     env["MUSEFOLD_E2E"] = "1"  # 应用侧可据此暴露测试钩子
     env["MUSEFOLD_E2E_USER_DATA_DIR"] = str(user_data_dir)
     env["MUSEFOLD_E2E_REMOTE_DEBUGGING_PORT"] = str(port)
@@ -643,7 +652,7 @@ def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_arg
     page.wait_for_selector("#root > *", timeout=30_000)
     page.wait_for_timeout(600)
 
-    app = App(page, proc, user_data_dir, browser=browser, pw=pw, app_args=app_args)
+    app = App(page, proc, user_data_dir, browser=browser, pw=pw, app_args=app_args, extra_env=extra_env)
     app._errors = errors  # type: ignore[attr-defined]
     app.console_tail = console_tail  # type: ignore[attr-defined]
     return browser, app
