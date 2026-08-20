@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { McpConnectionPage, NewPromptDocument } from '@musefold/contracts';
-import type { UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
+import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { HistoryRecord, NewPrompt, Prompt } from '@musefold/desktop-contracts/models';
 import type {
   EnsureWorkbenchSessionCommand,
@@ -114,6 +114,9 @@ function createFakeApi() {
   let promptSeq = 0;
   let account = { ...loggedOut };
 
+  const list = vi.fn(async (_q?: ListPromptsQuery) =>
+    [...prompts.values()].filter((row) => row.deletedAt == null),
+  );
   const create = vi.fn(async (input: NewPrompt) => {
     const id = `p-${++promptSeq}`;
     const now = 1_800_000_000_000;
@@ -188,7 +191,7 @@ function createFakeApi() {
 
   const api = {
     prompt: {
-      list: async () => [...prompts.values()].filter((row) => row.deletedAt == null),
+      list,
       listDeleted: async () => [...prompts.values()].filter((row) => row.deletedAt != null),
       get: async (id: string) => prompts.get(id) ?? null,
       create,
@@ -278,7 +281,7 @@ function createFakeApi() {
     },
   } as unknown as WindowApi;
 
-  return { api, prompts, histories, sessions, create, update, incrementUsage, ensure, logout };
+  return { api, prompts, histories, sessions, create, list, update, incrementUsage, ensure, logout };
 }
 
 const newDoc: NewPromptDocument = {
@@ -343,6 +346,43 @@ describe('DesktopGateway PromptGateway', () => {
     expect(fake.incrementUsage).toHaveBeenCalledWith(created.id);
 
     await expect(gateway.getPrompt('missing')).rejects.toBeInstanceOf(DesktopGatewayError);
+  });
+});
+
+describe('DesktopGateway DesktopExtras', () => {
+  it('createLibraryPrompt forwards NewPrompt including previewImagePath to api.prompt.create', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    const input: NewPrompt = {
+      title: '笺',
+      content: 'a slip of paper',
+      previewImagePath: '/tmp/slip.png',
+      source: 'slip',
+    };
+
+    await gateway.createLibraryPrompt(input);
+
+    expect(fake.create).toHaveBeenCalledWith(input);
+    expect(fake.create.mock.calls[0][0]).toBe(input);
+    expect(fake.create.mock.calls[0][0].previewImagePath).toBe('/tmp/slip.png');
+  });
+
+  it('listLibraryPrompts forwards ListPromptsQuery as-is to api.prompt.list', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    const query: ListPromptsQuery = {
+      search: '雨巷',
+      folderId: 'folder-1',
+      tagIds: ['tag-ink'],
+      filters: { isPinned: true, source: 'slip' },
+      sort: 'updated',
+      sortDir: 'desc',
+    };
+
+    await gateway.listLibraryPrompts(query);
+
+    expect(fake.list).toHaveBeenCalledWith(query);
+    expect(fake.list.mock.calls[0][0]).toBe(query);
   });
 });
 

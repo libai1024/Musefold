@@ -8,6 +8,7 @@ import type {
   PromptGateway,
   WorkbenchGateway,
 } from '@musefold/domain';
+import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type { Api } from '@musefold/desktop-contracts/ipc';
 import {
   DesktopGatewayError,
@@ -42,7 +43,8 @@ export class DesktopGateway
     GenerationGateway,
     HistoryGateway,
     AccountGateway,
-    PlatformServices
+    PlatformServices,
+    DesktopExtras
 {
   constructor(private readonly api: WindowApi) {}
 
@@ -115,6 +117,61 @@ export class DesktopGateway
       throw new DesktopGatewayError('提示词不存在', { id });
     }
     return { prompt: promptRowToDocument(row), recorded: true };
+  }
+
+  // ---------- DesktopExtras（桌面库面直通 IPC，不经 PromptDocument mapper） ----------
+
+  listLibraryPrompts(
+    q?: Parameters<DesktopExtras['listLibraryPrompts']>[0],
+  ): ReturnType<DesktopExtras['listLibraryPrompts']> {
+    return this.api.prompt.list(q);
+  }
+
+  listDeletedLibraryPrompts(): ReturnType<DesktopExtras['listDeletedLibraryPrompts']> {
+    return this.api.prompt.listDeleted();
+  }
+
+  libraryStats(): ReturnType<DesktopExtras['libraryStats']> {
+    return this.api.prompt.stats();
+  }
+
+  createLibraryPrompt(
+    p: Parameters<DesktopExtras['createLibraryPrompt']>[0],
+  ): ReturnType<DesktopExtras['createLibraryPrompt']> {
+    return this.api.prompt.create(p);
+  }
+
+  toggleLibraryPin(
+    id: string,
+    pinned: boolean,
+  ): ReturnType<DesktopExtras['toggleLibraryPin']> {
+    return this.api.prompt.togglePin(id, pinned);
+  }
+
+  reorderLibraryPins(ids: string[]): ReturnType<DesktopExtras['reorderLibraryPins']> {
+    return this.api.prompt.reorderPins(ids);
+  }
+
+  purgeLibraryPrompt(id: string): ReturnType<DesktopExtras['purgeLibraryPrompt']> {
+    return this.api.prompt.purge(id);
+  }
+
+  purgeLibraryPrompts(): ReturnType<DesktopExtras['purgeLibraryPrompts']> {
+    return this.api.prompt.purgeAll();
+  }
+
+  listSearchHistory(
+    limit?: number,
+  ): ReturnType<DesktopExtras['listSearchHistory']> {
+    return this.api.searchHistory.list(limit);
+  }
+
+  addSearchHistory(term: string): ReturnType<DesktopExtras['addSearchHistory']> {
+    return this.api.searchHistory.add(term);
+  }
+
+  clearSearchHistory(): ReturnType<DesktopExtras['clearSearchHistory']> {
+    return this.api.searchHistory.clear();
   }
 
   // ---------- WorkbenchGateway ----------

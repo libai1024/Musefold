@@ -2,3 +2,4 @@
 
 export { IPC } from './ipc';
 export type { Api } from './ipc';
+export type { DesktopExtras } from './desktop-extras';

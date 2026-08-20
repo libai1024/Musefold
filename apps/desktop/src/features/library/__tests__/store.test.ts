@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PromptGateway } from '@musefold/domain';
+import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type { Prompt } from '@musefold/desktop-contracts/models';
 import { desktopGateway } from '../../../runtime';
 import {
@@ -50,6 +51,7 @@ vi.mock('../../../lib/ipc', () => ({
 }));
 
 import {
+  setLibraryDesktopExtrasForTests,
   setLibraryPromptGatewayForTests,
   useLibraryStore,
 } from '../store';
@@ -116,6 +118,22 @@ function createFakeGateway(): PromptGateway {
   };
 }
 
+function createFakeExtras(): DesktopExtras {
+  return {
+    listLibraryPrompts: vi.fn(),
+    listDeletedLibraryPrompts: vi.fn(),
+    libraryStats: vi.fn(),
+    createLibraryPrompt: vi.fn(),
+    toggleLibraryPin: vi.fn(),
+    reorderLibraryPins: vi.fn(),
+    purgeLibraryPrompt: vi.fn(),
+    purgeLibraryPrompts: vi.fn(),
+    listSearchHistory: vi.fn(),
+    addSearchHistory: vi.fn(),
+    clearSearchHistory: vi.fn(),
+  };
+}
+
 function resetStore(patch: Partial<ReturnType<typeof useLibraryStore.getState>> = {}): void {
   useLibraryStore.setState({
     prompts: [],
@@ -137,63 +155,69 @@ function resetStore(patch: Partial<ReturnType<typeof useLibraryStore.getState>> 
 }
 
 let gateway: PromptGateway;
+let extras: DesktopExtras;
 
 beforeEach(() => {
   vi.clearAllMocks();
   gateway = createFakeGateway();
+  extras = createFakeExtras();
   setLibraryPromptGatewayForTests(gateway);
-  mocks.list.mockResolvedValue([]);
-  mocks.stats.mockResolvedValue(EMPTY_STATS);
-  mocks.listDeleted.mockResolvedValue([]);
-  mocks.searchHistoryList.mockResolvedValue([]);
+  setLibraryDesktopExtrasForTests(extras);
+  vi.mocked(extras.listLibraryPrompts).mockResolvedValue([]);
+  vi.mocked(extras.libraryStats).mockResolvedValue(EMPTY_STATS);
+  vi.mocked(extras.listDeletedLibraryPrompts).mockResolvedValue([]);
+  vi.mocked(extras.listSearchHistory).mockResolvedValue([]);
   resetStore();
 });
 
 afterEach(() => {
   setLibraryPromptGatewayForTests(desktopGateway);
+  setLibraryDesktopExtrasForTests(desktopGateway);
 });
 
 describe('library store PromptGateway wiring', () => {
-  it('loadAll still lists via api.prompt.list, not PromptGateway.listPrompts', async () => {
+  it('loadAll lists via extras.listLibraryPrompts, not PromptGateway.listPrompts', async () => {
     const row = makePrompt();
-    mocks.list.mockResolvedValue([row]);
+    vi.mocked(extras.listLibraryPrompts).mockResolvedValue([row]);
 
     await useLibraryStore.getState().loadAll();
 
-    expect(mocks.list).toHaveBeenCalledOnce();
+    expect(extras.listLibraryPrompts).toHaveBeenCalledOnce();
     expect(gateway.listPrompts).not.toHaveBeenCalled();
+    expect(mocks.list).not.toHaveBeenCalled();
     expect(useLibraryStore.getState().prompts).toEqual([row]);
   });
 
-  it('createPrompt stays on api.prompt.create and never calls gateway.createPrompt', async () => {
+  it('createPrompt goes through extras.createLibraryPrompt and never calls gateway.createPrompt', async () => {
     const created = makePrompt({ id: 'new-1', title: '新条目' });
-    mocks.create.mockResolvedValue(created);
-    mocks.list.mockResolvedValue([created]);
+    vi.mocked(extras.createLibraryPrompt).mockResolvedValue(created);
+    vi.mocked(extras.listLibraryPrompts).mockResolvedValue([created]);
 
     const result = await useLibraryStore.getState().createPrompt({
       title: '新条目',
       content: 'cinematic rain alley poster',
     });
 
-    expect(mocks.create).toHaveBeenCalledWith({
+    expect(extras.createLibraryPrompt).toHaveBeenCalledWith({
       title: '新条目',
       content: 'cinematic rain alley poster',
     });
     expect(gateway.createPrompt).not.toHaveBeenCalled();
-    expect(mocks.list).toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(extras.listLibraryPrompts).toHaveBeenCalled();
     expect(result?.id).toBe('new-1');
     expect(useLibraryStore.getState().selectedPromptId).toBe('new-1');
   });
 
-  it('createPrompt forwards previewImagePath to api.prompt.create as-is', async () => {
+  it('createPrompt forwards previewImagePath to extras.createLibraryPrompt as-is', async () => {
     const created = makePrompt({
       id: 'slip-1',
       title: '笺',
       previewImagePath: '/tmp/slip.png',
       source: 'slip',
     });
-    mocks.create.mockResolvedValue(created);
-    mocks.list.mockResolvedValue([created]);
+    vi.mocked(extras.createLibraryPrompt).mockResolvedValue(created);
+    vi.mocked(extras.listLibraryPrompts).mockResolvedValue([created]);
 
     const input = {
       title: '笺',
@@ -203,15 +227,16 @@ describe('library store PromptGateway wiring', () => {
     };
     const result = await useLibraryStore.getState().createPrompt(input);
 
-    expect(mocks.create).toHaveBeenCalledWith(input);
+    expect(extras.createLibraryPrompt).toHaveBeenCalledWith(input);
     expect(gateway.createPrompt).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
     expect(result?.previewImagePath).toBe('/tmp/slip.png');
   });
 
   it('createPrompt failure keeps the existing list intact', async () => {
     const existing = makePrompt();
     resetStore({ prompts: [existing] });
-    mocks.create.mockRejectedValue(new Error('创建被拒'));
+    vi.mocked(extras.createLibraryPrompt).mockRejectedValue(new Error('创建被拒'));
 
     const result = await useLibraryStore.getState().createPrompt({
       title: '失败条目',
@@ -220,7 +245,8 @@ describe('library store PromptGateway wiring', () => {
 
     expect(result).toBeNull();
     expect(gateway.createPrompt).not.toHaveBeenCalled();
-    expect(mocks.create).toHaveBeenCalled();
+    expect(extras.createLibraryPrompt).toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
     expect(useLibraryStore.getState().prompts).toEqual([existing]);
     expect(useLibraryStore.getState().error).toBe('创建被拒');
   });
@@ -301,7 +327,7 @@ describe('library store PromptGateway wiring', () => {
     const restored = makePrompt({ deletedAt: null });
     resetStore({ deleted: [trashed], prompts: [] });
     vi.mocked(gateway.restorePrompt).mockResolvedValue(promptRowToDocument(restored));
-    mocks.list.mockResolvedValue([restored]);
+    vi.mocked(extras.listLibraryPrompts).mockResolvedValue([restored]);
 
     await useLibraryStore.getState().restorePrompt('prompt-1');
 
@@ -310,7 +336,8 @@ describe('library store PromptGateway wiring', () => {
       DESKTOP_SYNTHETIC_ENTITY_VERSION,
     );
     expect(mocks.restore).not.toHaveBeenCalled();
-    expect(mocks.list).toHaveBeenCalled();
+    expect(extras.listLibraryPrompts).toHaveBeenCalled();
+    expect(mocks.list).not.toHaveBeenCalled();
     expect(useLibraryStore.getState().deleted).toEqual([]);
     expect(useLibraryStore.getState().prompts).toEqual([restored]);
   });

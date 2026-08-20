@@ -2,19 +2,20 @@
 // 提示词库状态 —— 详见 docs/product/10-library-deep-dive.md（TASK-LIB-02 为本文件主卡）
 //
 // 约定：
-//   1. 重叠写路径经 PromptGateway（update / delete / restore、copy 的 usage）；
-//      create 因封面字段（previewImagePath）暂留 api，留给 DesktopExtras（GW-07）。
-//      其余桌面独有面经 api（list / listDeleted / stats、togglePin / reorderPins /
-//      purge / purgeAll、searchHistory）。失败时 set(error) 且**不破坏现有列表**。
+//   1. 重叠写路径经 PromptGateway（update / delete / restore、copy 的 usage）。
+//      桌面独有面经 DesktopExtras（list / listDeleted / stats / create、togglePin /
+//      reorderPins / purge / purgeAll、searchHistory）；create 走行模型以保留
+//      previewImagePath。失败时 set(error) 且**不破坏现有列表**。
 //   2. 删除 / 收藏走乐观更新 + 失败回滚（验收明确要求）。
 //   3. 筛选类状态（搜索/筛选/排序）变更走 150ms 防抖 fetch，
 //      避免连续输入时打出一串 IPC。
-//   4. 回收站计数来自 api.prompt.stats()，不用 prompts.length 现算
+//   4. 回收站计数来自 extras.libraryStats()，不用 prompts.length 现算
 //      —— list() 有 LIMIT 且被筛选收敛过，现算必然偏小。
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { PromptGateway } from '@musefold/domain';
+import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type {
   Prompt,
   NewPrompt,
@@ -27,7 +28,6 @@ import type {
   PromptStats,
 } from '@musefold/desktop-contracts/ipc';
 import { SEARCH_DEBOUNCE_MS } from '@musefold/domain/constants';
-import api from '../../lib/ipc';
 import { desktopGateway } from '../../runtime';
 import {
   DESKTOP_SYNTHETIC_ENTITY_VERSION,
@@ -38,10 +38,16 @@ import {
 import { toast } from '../../stores/toast';
 
 let promptGateway: PromptGateway = desktopGateway;
+let desktopExtras: DesktopExtras = desktopGateway;
 
 /** 测试替换 PromptGateway；生产保持 desktopGateway 单例。 */
 export function setLibraryPromptGatewayForTests(next: PromptGateway): void {
   promptGateway = next;
+}
+
+/** 测试替换 DesktopExtras；生产保持 desktopGateway 单例。 */
+export function setLibraryDesktopExtrasForTests(next: DesktopExtras): void {
+  desktopExtras = next;
 }
 
 export type LibraryFilters = NonNullable<ListPromptsQuery['filters']>;
@@ -164,9 +170,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const [prompts, stats, searchHistory] = await Promise.all([
-        api.prompt.list(buildQuery(get())),
-        api.prompt.stats(),
-        api.searchHistory.list(10),
+        desktopExtras.listLibraryPrompts(buildQuery(get())),
+        desktopExtras.libraryStats(),
+        desktopExtras.listSearchHistory(10),
       ]);
       set({
         prompts,
@@ -188,7 +194,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
     set({ loading: true });
     try {
-      const prompts = await api.prompt.list(buildQuery(get()));
+      const prompts = await desktopExtras.listLibraryPrompts(buildQuery(get()));
       set({
         prompts,
         loading: false,
@@ -202,7 +208,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   reloadStats: async () => {
     try {
-      set({ stats: await api.prompt.stats() });
+      set({ stats: await desktopExtras.libraryStats() });
     } catch {
       /* 计数是装饰性信息，失败静默 */
     }
@@ -210,7 +216,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   reloadSearchHistory: async () => {
     try {
-      set({ searchHistory: await api.searchHistory.list(10), error: null });
+      set({ searchHistory: await desktopExtras.listSearchHistory(10), error: null });
     } catch (err) {
       set({ error: message(err) });
     }
@@ -223,7 +229,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const term = get().search.trim();
       void get().reloadPrompts();
       if (term) {
-        void api.searchHistory.add(term)
+        void desktopExtras.addSearchHistory(term)
           .then(() => get().reloadSearchHistory())
           .catch(() => {
             /* 搜索历史是辅助能力，失败不打断搜索 */
@@ -236,7 +242,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   createPrompt: async (p) => {
     try {
-      const created = await api.prompt.create(p);
+      const created = await desktopExtras.createLibraryPrompt(p);
       // 不做乐观插入：新条目是否落在当前筛选/排序里由后端决定，重拉才是真相
       await get().reloadPrompts();
       void get().reloadStats();
@@ -334,13 +340,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const next = pinned ?? !current.isPinned;
     set({ prompts: prev.map((x) => (x.id === id ? { ...x, isPinned: next } : x)) });
     try {
-      const updated = await api.prompt.togglePin(id, next);
+      const updated = await desktopExtras.toggleLibraryPin(id, next);
       set((s) => ({
         prompts: s.prompts.map((x) => (x.id === id ? updated : x)),
         error: null,
-	      }));
-	      void get().reloadStats();
-	      return true;
+      }));
+      void get().reloadStats();
+      return true;
     } catch (err) {
       set({ prompts: prev, error: message(err) });
       toast.error(next ? '收藏失败' : '取消收藏失败', message(err));
@@ -356,7 +362,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       prompts: prev.map((x) => (orderMap.has(x.id) ? { ...x, pinOrder: orderMap.get(x.id)! } : x)),
     });
     try {
-      await api.prompt.reorderPins(ids);
+      await desktopExtras.reorderLibraryPins(ids);
       set({ error: null });
     } catch (err) {
       set({ prompts: prev, error: message(err) });
@@ -392,7 +398,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   loadDeleted: async () => {
     try {
-      set({ deleted: await api.prompt.listDeleted(), error: null });
+      set({ deleted: await desktopExtras.listDeletedLibraryPrompts(), error: null });
     } catch (err) {
       set({ error: message(err) });
     }
@@ -415,8 +421,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const prev = get().deleted;
     set({ deleted: prev.filter((x) => x.id !== id) });
     try {
-	      await api.prompt.purge(id);
-	      void get().reloadStats();
+      await desktopExtras.purgeLibraryPrompt(id);
+      void get().reloadStats();
     } catch (err) {
       set({ deleted: prev, error: message(err) });
       toast.error('彻底删除失败', message(err));
@@ -427,8 +433,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const prev = get().deleted;
     set({ deleted: [] });
     try {
-	      const { purged } = await api.prompt.purgeAll();
-	      void get().reloadStats();
+      const { purged } = await desktopExtras.purgeLibraryPrompts();
+      void get().reloadStats();
       toast.success('回收站已清空', `彻底删除 ${purged} 条`);
     } catch (err) {
       set({ deleted: prev, error: message(err) });
@@ -448,7 +454,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     if (!clean) return;
     set({ search: clean });
     await get().reloadPrompts();
-    await api.searchHistory.add(clean).catch(() => null);
+    await desktopExtras.addSearchHistory(clean).catch(() => null);
     void get().reloadSearchHistory();
   },
 
@@ -456,7 +462,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const prev = get().searchHistory;
     set({ searchHistory: [] });
     try {
-      await api.searchHistory.clear();
+      await desktopExtras.clearSearchHistory();
     } catch (err) {
       set({ searchHistory: prev, error: message(err) });
       toast.error('清除搜索历史失败', message(err));
