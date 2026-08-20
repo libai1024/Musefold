@@ -2,7 +2,7 @@
 
 v1.2.2 是系统架构重构版本。它不新增产品功能，交付的是桌面 + Web 双端的企业级 monorepo 结构：桌面 App 迁入 `apps/desktop`、共享层补全、桌面数据访问抽象与 Web 对齐，让双端「一致的交互体验和 UI 设计」建立在同一套代码上，而不是两套平行实现上。
 
-**当前进度（2026-08-20）**：Phase 0 工程化地基与 Phase 1a 源码目录迁移已完成；Phase 2 桌面 Gateway 部分完成（GW-01 domain / GW-02 / GW-03 已完成；GW-01 的 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 起未开工）；Phase 3 共享逻辑归位部分完成（SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04，与 Phase 2 stores 切换同批）；Phase 1b（App manifest 下移）未开工。
+**当前进度（2026-08-20）**：Phase 0 工程化地基与 Phase 1a 源码目录迁移已完成；Phase 2 桌面 Gateway 部分完成（GW-01 domain / GW-02 / GW-03 / GW-05 已完成；GW-01 的 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 / GW-06 起未开工）；Phase 3 共享逻辑归位部分完成（SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04，与 Phase 2 stores 切换同批）；Phase 1b（App manifest 下移）未开工。
 
 前置版本是 [v1.2.1 持续交付](../v1.2.1/README.md)。v1.2.1 交付的 affected 流水线、自动部署与一键回滚是本版本大规模目录迁移的回归安全网，顺序不可颠倒。
 
@@ -42,7 +42,7 @@ v1.1 已经完成双端复用最难的一半：`packages/ui` + `packages/product
 | Phase 0 工程化地基 | 依赖声明、zod v4、dependency-cruiser、project references | **已完成（2026-08-20）** |
 | Phase 1a 源码目录迁移 | 桌面迁入 `apps/desktop`、`shared/` 解散、别名收敛、CI 层级映射 | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root；打包与发布路径同步 | 未开工（须 v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周） |
-| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | **部分完成（2026-08-20）**：GW-01（domain）/ 02 / 03 已完成；GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 起未开工 |
+| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | **部分完成（2026-08-20）**：GW-01（domain）/ 02 / 03 / 05 已完成；GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 / 06 起未开工 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04（与 Phase 2 stores 同批；可与 Phase 2 交错，不依赖 Phase 1b） |
 
 Prompt/History 实体统一与宿主编排进一步收敛列为 v1.3+ 候选，理由见[架构文档第 5 节](./V122-ARCHITECTURE.md)。
