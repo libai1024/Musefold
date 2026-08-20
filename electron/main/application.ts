@@ -3,9 +3,12 @@
 
 import { app, BrowserWindow, dialog, session } from "electron";
 import { createWindow, getMainWindow, registerWindowHandlers } from "./window";
+import { preparePrefsOriginMigration, isWindowAllClosedSuppressed } from "./prefs-origin-migration";
 import { initDb, closeDb } from "@musefold/core/db";
 import { registerAllHandlers } from "./ipc";
+import { registerAppProtocolHandler } from "./app-protocol";
 import { registerMediaProtocolHandler } from "./media-protocol";
+import { resolveRendererRoot } from "./renderer-bundle";
 import {
   flushQueuedShareImports,
   handleShareArgv,
@@ -98,11 +101,13 @@ app.whenReady().then(async () => {
   initDb();
   void startAutomationIfEnabled();
   registerMediaProtocolHandler();
+  registerAppProtocolHandler(resolveRendererRoot().root);
   registerAllHandlers();
   startCloudSyncService();
   registerWindowHandlers();
   await ensureCliInstalledAtStartup();
   void checkSkillUpdatesAtStartup();
+  await preparePrefsOriginMigration();
   createMainWindow();
   initializeUpdater({ beforeInstall: prepareForUpdateInstall });
   // 桌宠默认关闭，只能由用户通过显式开关开启。应用生命周期不能替用户改开关。
@@ -206,6 +211,9 @@ function showOwnerLockError(ownership: AcquireResult): void {
 }
 
 app.on("window-all-closed", () => {
+  // 偏好导出隐藏窗在主窗口创建前就会 destroy。若这里立刻 quit，
+  // 已安装用户升级后主界面永远不会出现。
+  if (isWindowAllClosedSuppressed()) return;
   app.quit();
 });
 

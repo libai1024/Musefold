@@ -9,13 +9,14 @@ describe('Electron main workspace bundling', () => {
     );
 
     expect(config).toMatch(
-      /externalizeDeps:\s*{\s*exclude:\s*\[\s*'@musefold\/cloud-client',\s*'@musefold\/contracts'\s*\]/,
+      /externalizeDeps:\s*\{\s*exclude:\s*\[\s*'@musefold\/cloud-client',\s*'@musefold\/contracts',\s*'@musefold\/update-protocol',?\s*\]/s,
     );
     expect(config).toMatch(
       /'@musefold\/cloud-client':\s*resolve\([\s\S]*?'packages\/cloud-client\/src'/,
     );
+    expect(config).toMatch(/'@musefold\/contracts':\s*resolve\([^)]*'packages\/contracts\/src'/);
     expect(config).toMatch(
-      /'@musefold\/contracts':\s*resolve\([^)]*'packages\/contracts\/src'/,
+      /'@musefold\/update-protocol':\s*resolve\([\s\S]*?'packages\/update-protocol\/src'/,
     );
   });
 });

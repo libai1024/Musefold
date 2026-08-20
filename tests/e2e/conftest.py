@@ -27,6 +27,7 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 import pytest
 from playwright.sync_api import sync_playwright, Page
@@ -66,6 +67,22 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return int(s.getsockname()[1])
+
+
+def _cdp_has_app_page(port: int) -> bool:
+    """True when Chromium exposes a real app renderer, not the file:// export window."""
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/json/list", timeout=0.5) as resp:
+            targets = json.loads(resp.read().decode())
+    except Exception:  # noqa: BLE001
+        return False
+    if not isinstance(targets, list):
+        return False
+    for target in targets:
+        url = str(target.get("url") or "")
+        if url.startswith(("app://", "http://", "https://")):
+            return True
+    return False
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -569,6 +586,9 @@ def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_arg
             out = "".join(console_tail)
             raise RuntimeError(f"electron exited early rc={proc.returncode}\n{out[-4000:]}")
         try:
+            if not _cdp_has_app_page(port):
+                time.sleep(0.3)
+                continue
             browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
             break
         except Exception as e:  # noqa: BLE001
@@ -583,13 +603,18 @@ def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_arg
         output = "".join(console_tail)
         raise RuntimeError(f"cannot connect CDP: {last}\n{output[-4000:]}")
 
-    # 找到渲染进程页面（跳过 devtools / 空白页）
+    # 找到渲染进程页面（跳过 devtools / 空白页 / 一次性 file:// 偏好导出隐藏窗）
     page = None
     deadline = time.time() + 30
     while time.time() < deadline and page is None:
         for ctx in browser.contexts:
             for p in ctx.pages:
-                if p.url.startswith("devtools://"):
+                url = p.url or ""
+                if url.startswith("devtools://"):
+                    continue
+                if url.startswith("file://"):
+                    continue
+                if not url:
                     continue
                 page = p
                 break

@@ -12,6 +12,7 @@ import { app, protocol } from 'electron';
 import { readFile } from 'fs/promises';
 import { resolve, sep, extname, join } from 'path';
 import { getPaths } from '../system/paths';
+import { registerPrivilegedSchemes } from './privileged-schemes';
 
 /** 允许被 media:// 读取的根目录（防目录穿越） */
 function allowedRoots(): string[] {
@@ -40,17 +41,8 @@ const MIME: Record<string, string> = {
  * standard → 解析 host/path；secure → 可在安全上下文加载；supportFetchAPI → 兼容 fetch。
  */
 export function registerMediaScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: 'media',
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        stream: true,
-      },
-    },
-  ]);
+  // Electron 只允许一次 registerSchemesAsPrivileged；与 app:// 一并声明。
+  registerPrivilegedSchemes();
 }
 
 /** app.whenReady 之后调用：注册实际的读盘处理器。 */

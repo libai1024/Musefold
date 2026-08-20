@@ -16,6 +16,7 @@
 import { app, BrowserWindow, powerMonitor, screen, shell } from 'electron';
 import type { Rectangle } from 'electron';
 import { join } from 'path';
+import { isAppOriginUrl, resolvePetWindowLoadUrl } from '../app-protocol';
 import { isAllowedExternalUrl } from '../external-links';
 import { clampPetPosition, type PetPoint } from './movement';
 
@@ -121,12 +122,7 @@ export function createPetWindow(savedDesktopPosition?: PetPoint | null): Browser
     petWindow = null;
   });
 
-  const devUrl = process.env['ELECTRON_RENDERER_URL'];
-  if (devUrl) {
-    win.loadURL(`${devUrl.replace(/\/$/, '')}/pet.html`);
-  } else {
-    win.loadFile(join(appRoot, 'out/renderer/pet.html'));
-  }
+  win.loadURL(resolvePetWindowLoadUrl(process.env['ELECTRON_RENDERER_URL']));
 
   return win;
 }
@@ -206,7 +202,7 @@ function applyPetWebSecurity(win: BrowserWindow): void {
   });
 
   win.webContents.on('will-navigate', (e, url) => {
-    const sameApp = devUrl ? url.startsWith(devUrl) : url.startsWith('file://');
+    const sameApp = devUrl ? url.startsWith(devUrl) : isAppOriginUrl(url);
     if (sameApp) return;
     e.preventDefault();
     if (isAllowedExternalUrl(url)) void shell.openExternal(url);

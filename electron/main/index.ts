@@ -6,6 +6,7 @@ import { appendFileSync, mkdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { LOGS_DIR_NAME } from '@shared/constants';
 import { writeConsoleLine } from '../system/console-output';
+import { registerAppScheme } from './app-protocol';
 import { registerMediaScheme } from './media-protocol';
 import { reportMainDiagnostic, showNativeDiagnostic } from './diagnostics';
 
@@ -41,6 +42,7 @@ if (process.env['MUSEFOLD_E2E'] === '1') {
 
 // Privileged schemes must be declared synchronously before Electron becomes ready.
 registerMediaScheme();
+registerAppScheme();
 
 process.on('uncaughtException', (error: unknown) => {
   const report = reportMainDiagnostic(error, {

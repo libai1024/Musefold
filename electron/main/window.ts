@@ -7,6 +7,8 @@
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
+import { isAppOriginUrl, resolveMainWindowLoadUrl } from './app-protocol';
+import { originMigrationImportArgv } from './prefs-origin-migration';
 import { buildContentSecurityPolicy } from './csp';
 import { isAllowedExternalUrl } from './external-links';
 import { APP_VERSION } from '../system/app-version';
@@ -26,6 +28,7 @@ export function createWindow(): BrowserWindow {
   const windowIcon = app.isPackaged
     ? join(process.resourcesPath, 'icon.png')
     : join(appRoot, 'resources/icon.png');
+  const importArgv = originMigrationImportArgv();
 
   const win = new BrowserWindow({
     width: 1320,
@@ -49,6 +52,8 @@ export function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       preload: join(appRoot, 'out/preload/index.cjs'),
+      // 只传布尔标记，不把偏好 value 放进进程参数列表。
+      ...(importArgv.length > 0 ? { additionalArguments: importArgv } : {}),
     },
   });
 
@@ -117,18 +122,11 @@ export function createWindow(): BrowserWindow {
     win.webContents.send('window:fullscreenChanged', false)
   );
 
-  // 开发环境加载 dev server，生产环境加载构建产物
+  // 开发环境加载 dev server，生产环境加载固定 origin 下的构建产物。
   // MUSEFOLD_E2E=1 时附加 ?musefold_e2e=1 —— 渲染层据此安装 window.__musefold_test 测试钩子
   // （见 src/lib/test-hook.ts）。仅 E2E 启动链路会带此环境变量。
   const e2e = process.env['MUSEFOLD_E2E'] === '1';
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    const base = process.env['ELECTRON_RENDERER_URL'];
-    win.loadURL(e2e ? `${base}${base.includes('?') ? '&' : '?'}musefold_e2e=1` : base);
-  } else {
-    win.loadFile(join(appRoot, 'out/renderer/index.html'), {
-      search: e2e ? 'musefold_e2e=1' : undefined,
-    });
-  }
+  win.loadURL(resolveMainWindowLoadUrl(process.env['ELECTRON_RENDERER_URL'], e2e));
 
   return win;
 }
@@ -137,7 +135,7 @@ export function createWindow(): BrowserWindow {
  * 渲染层安全策略（TASK-GEN-14）
  *
  * 1) CSP 由主进程按响应头注入，而不是写在 index.html 的 meta 里 —— 响应头版本
- *    连 file:// 产物一起覆盖，且渲染层改不了。
+ *    连 app:// 产物一起覆盖，且渲染层改不了。
  * 2) `media:` 必须放进 img-src：生成的图片走自定义 media:// 协议，
  *    不是 file://（Chromium 从 http dev 源加载 file:// 会被拦）。
  * 3) 不放开 webSecurity、不加本地 HTTP 端点 —— 宁可让某个便利功能麻烦一点。
@@ -165,9 +163,9 @@ function applyWebSecurity(win: BrowserWindow): void {
     return { action: 'deny' };
   });
 
-  // 站外导航同样外送 —— 只允许留在 dev server / 本地产物内
+  // 站外导航同样外送 —— 只允许留在 dev server / 固定 app:// origin 内
   win.webContents.on('will-navigate', (e, url) => {
-    const sameApp = devUrl ? url.startsWith(devUrl) : url.startsWith('file://');
+    const sameApp = devUrl ? url.startsWith(devUrl) : isAppOriginUrl(url);
     if (sameApp) return;
     e.preventDefault();
     if (isAllowedExternalUrl(url)) void shell.openExternal(url);

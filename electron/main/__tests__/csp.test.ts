@@ -9,6 +9,9 @@ describe('main-process CSP', () => {
     expect(csp).toContain("img-src 'self' media: data: blob:");
     expect(csp).toContain("connect-src 'self'");
     expect(csp).not.toContain('connect-src \'self\' https:');
+    // Production renderer must not reach the network. Do not pre-emptively
+    // open http(s) or wildcards for the app:// origin switch.
+    expect(csp).not.toMatch(/connect-src[^;]*(https?:|\*)/);
   });
 
   it('allows the exact Vite origin and websocket only in development', () => {

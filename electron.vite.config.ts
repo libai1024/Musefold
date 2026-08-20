@@ -6,7 +6,7 @@ export default defineConfig({
     build: {
       sourcemap: true,
       externalizeDeps: {
-        exclude: ['@musefold/cloud-client', '@musefold/contracts'],
+        exclude: ['@musefold/cloud-client', '@musefold/contracts', '@musefold/update-protocol'],
       },
       rollupOptions: {
         input: {
@@ -21,15 +21,10 @@ export default defineConfig({
         // workspace 包直读 TS 源、随主进程 chunk 打包（不外部化），
         // electron-builder 的 node_modules 打包面因此零变化（V04-CORE-01）。
         '@musefold/core': resolve(__dirname, 'packages/core/src'),
-        '@musefold/automation-server': resolve(
-          __dirname,
-          'packages/automation-server/src',
-        ),
-        '@musefold/cloud-client': resolve(
-          __dirname,
-          'packages/cloud-client/src',
-        ),
+        '@musefold/automation-server': resolve(__dirname, 'packages/automation-server/src'),
+        '@musefold/cloud-client': resolve(__dirname, 'packages/cloud-client/src'),
         '@musefold/contracts': resolve(__dirname, 'packages/contracts/src'),
+        '@musefold/update-protocol': resolve(__dirname, 'packages/update-protocol/src'),
       },
     },
   },
@@ -63,6 +58,8 @@ export default defineConfig({
           index: resolve(__dirname, 'src/index.html'),
           // 桌宠是独立窗口，单独出一个入口，不让它的代码进主窗口的包
           pet: resolve(__dirname, 'src/pet.html'),
+          // 一次性 file:// origin 偏好导出页：不含应用代码，主进程以 file:// 加载
+          storageExport: resolve(__dirname, 'src/storage-export.html'),
         },
       },
     },
