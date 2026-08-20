@@ -10,11 +10,12 @@ import './styles/globals.css';
 import '@musefold/product-ui/styles.css';
 import './styles/motion.css';
 import { installTestHook } from './lib/test-hook';
-import { api } from './lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { installGlobalErrorHandlers, reportError } from './stores/errors';
 import { GlobalErrorDialog } from './components/ui/global-error-dialog';
 import { GlobalErrorBoundary } from './components/layout/GlobalErrorBoundary';
 
+document.documentElement.dataset.productHost = 'desktop';
 installGlobalErrorHandlers();
 const bootstrapErrors = window.__musefold_bootstrap_errors?.splice(0) ?? [];
 window.__musefold_bootstrap_ready = true;
@@ -41,4 +42,4 @@ createRoot(container).render(
     <GlobalErrorDialog />
   </React.StrictMode>,
 );
-window.api?.updater?.notifyContentReady?.();
+api.updater.notifyContentReady?.();

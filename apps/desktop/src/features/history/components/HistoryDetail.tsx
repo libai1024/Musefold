@@ -38,7 +38,8 @@ import {
 } from '../../../components/ui/tooltip';
 import { formatDuration, formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
+import { desktopGateway } from '../../../runtime';
 import { useAppStore } from '../../../stores/app';
 import { toast } from '../../../stores/toast';
 import { useGenerationStore } from '../../generation/store';
@@ -228,7 +229,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
       }
     }
 
-    const detailedRecord = await api.history.get(record.id).catch(() => null);
+    const detailedRecord = await desktopGateway.getHistory(record.id).catch(() => null);
     const references = detailedRecord?.promptReferences ?? [];
     const mappedParams = historyParamsToRefineParams(record.params) ?? {};
     openDraft({
@@ -257,7 +258,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
     setSavingPrompt(true);
     const input = historyRecordToPromptInput(record, saveTitle);
     try {
-      const created = await api.prompt.create(input);
+      const created = await desktopGateway.createLibraryPrompt(input);
       let linkResult = null;
       try {
         linkResult = await linkHistoriesToPrompt(created.id, [record.id]);
@@ -499,7 +500,7 @@ async function resolveSourceLabel(record: HistoryRecord): Promise<string> {
 
   if (record.promptId) {
     try {
-      const p = await api.prompt.get(record.promptId);
+      const p = await desktopGateway.getLibraryPrompt(record.promptId);
       promptTitle = p?.title ?? null;
     } catch {
       promptTitle = null;

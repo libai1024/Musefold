@@ -2,7 +2,7 @@
 // 用户对「后台有 Agent 在花钱」永远有全局感知（V04-ARCHITECTURE §6.4）。
 
 import { create } from 'zustand';
-import { api } from '../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 interface ExternalTasksState {
   activeJobs: Record<string, number>;

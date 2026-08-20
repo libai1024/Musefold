@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..');
-const packageJsonPath = resolve(repoRoot, 'package.json');
+const desktopRoot = resolve(repoRoot, 'apps', 'desktop');
+const packageJsonPath = resolve(desktopRoot, 'package.json');
+const builderConfigPath = resolve(desktopRoot, 'electron-builder.yml');
 const builderBin = resolve(
   repoRoot,
   'node_modules',
@@ -15,13 +17,17 @@ const builderBin = resolve(
   process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder',
 );
 
-const args = process.argv.slice(2);
+const cliArgs = process.argv.slice(2);
+const hasConfigArg = cliArgs.some((arg) =>
+  arg === '--config' || arg === '-c' || arg.startsWith('--config=') || arg.startsWith('-c='),
+);
+const args = hasConfigArg ? cliArgs : ['--config', builderConfigPath, ...cliArgs];
 const before = await readFile(packageJsonPath, 'utf8');
 
 function runBuilder() {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(builderBin, args, {
-      cwd: repoRoot,
+      cwd: desktopRoot,
       env: process.env,
       stdio: 'inherit',
       shell: process.platform === 'win32',
@@ -38,7 +44,7 @@ try {
   const after = await readFile(packageJsonPath, 'utf8');
   if (after !== before) {
     await writeFile(packageJsonPath, before, 'utf8');
-    console.warn('restored package.json after electron-builder metadata pruning');
+    console.warn('restored apps/desktop/package.json after electron-builder metadata pruning');
   }
 }
 

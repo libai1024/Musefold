@@ -21,7 +21,7 @@ import { accessModeOfProvider } from '../../lib/ai-access';
 import { displayModelName } from '../../lib/model-catalog';
 import { formatPoints } from '@musefold/domain';
 import { cn } from '../../lib/utils';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { useAppStore } from '../../stores/app';
 import { toast } from '../../stores/toast';
 import {

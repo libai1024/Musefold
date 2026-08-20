@@ -32,7 +32,9 @@ pytestmark = pytest.mark.skipif(
     reason="Windows installed-package runtime smoke runs on Windows only",
 )
 
-PACKAGE_VERSION = json.loads((REPO / "package.json").read_text(encoding="utf-8"))["version"]
+PACKAGE_VERSION = json.loads(
+    (REPO / "apps/desktop/package.json").read_text(encoding="utf-8")
+)["version"]
 INSTALLER = REPO / f"release/Musefold Setup {PACKAGE_VERSION}.exe"
 PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"

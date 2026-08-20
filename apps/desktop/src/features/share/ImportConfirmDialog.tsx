@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2 } from '../../components/ui/icons';
 import { ShareCard } from './ShareCard';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
 import { useLibraryStore } from '../library/store';

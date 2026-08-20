@@ -361,10 +361,7 @@ module.exports = {
       severity: 'error',
       from: {
         path: '^apps/desktop/src/runtime/',
-        pathNot: [
-          '^apps/desktop/src/runtime/mappers/',
-          '^apps/desktop/src/runtime/__tests__/',
-        ],
+        pathNot: ['^apps/desktop/src/runtime/mappers/', '^apps/desktop/src/runtime/__tests__/'],
       },
       to: {
         path: ['^packages/contracts/', '^@musefold/contracts'],
@@ -388,55 +385,20 @@ module.exports = {
     },
 
     {
-      // V122-GW-09：迁移完成的 feature 目录禁止直接 import lib/ipc 与 window.api，
-      // 强制通过 gateway 与 DesktopExtras。显式豁免：
-      // - 桌宠窗口（apps/desktop/src/pet/）：独立进程无需 gateway
-      // - 窗口控件（components/layout/WindowControls.tsx）：直连 window.electron
-      // - 预览桥（apps/desktop/src/preview/）：开发服务器桥接
-      // - 测试 mock（__tests__/、__mocks__/、.test.、.spec.）
-      //
-      // 已知合规例外（使用 import api，但只调用 gateway/DesktopExtras 之外的 IPC）：
-      // - library/PromptWorksPanel.tsx：api.system.relaunch（平台服务）
-      // - history/HistoryDiskUsage.tsx：api.system.diskUsage（平台服务）
-      // - history/HistoryDetail.tsx：api.system.{copyImage,openInFolder}（平台服务）
-      // - account/doubao-store.ts：api.provider.{webStatus,webUsage,onWebLoginChanged}（豆包专属）
-      // - generation/ProviderDialog.tsx：api.settings.pricing、api.provider.openWebLogin（平台/Provider 配置）
-      // - generation/GenerationWorkbench.tsx：api.system.*、api.pet.*、api.image.stageLocal（平台服务）
-      // - generation/workbench/store.ts：api.workbenchSession.*、api.image.onProgress（hybrid pattern + 事件订阅）
-      // - generation/workbench/skillRuntimeStore.ts：api.skillRuntime.*（Skill 运行时，桌面专属）
-      // - generation/workbench/PromptReferenceSidebar.tsx：api.prompt（DesktopExtras 已覆盖）
-      // - generation/workbench/PromptPickerPopover.tsx：api.prompt（DesktopExtras 已覆盖）
-      //
-      // 待修复的违规（应迁移到 gateway）：
-      // - history/store.ts：api.image.retry → gateway.retryImage
-      // - history/HistoryDetail.tsx：api.history.get → gateway.getGeneration
-      // - history/HistoryDetail.tsx：api.prompt.{get,create} → gateway prompt methods
-      // - generation/store.ts：unused import（仅 import，无实际调用）
-      name: 'features-no-direct-ipc',
+      // V122-GW-09 收口：业务 IO 走 DesktopGateway / DesktopExtras，桌面独有壳能力
+      // 走 DesktopHostServices。lib/ipc 只允许由 runtime 宿主适配器导入。
+      name: 'renderer-no-direct-ipc',
       comment:
-        'V122-GW-09：迁移完成的 feature 目录（library、history、account、workbench、generation）禁止 import lib/ipc，强制通过 gateway。已知合规例外：平台服务（api.system.*、api.pet.*）、Provider 专属（api.provider.web*、api.settings.pricing）、Skill 运行时（api.skillRuntime.*）、workbench hybrid pattern（api.workbenchSession.*、api.image.onProgress）。待修复：history 的 api.image.retry、api.history.get、api.prompt.* 应迁移到 gateway；generation/store.ts 的 unused import 应移除。',
+        'V122-GW-09：renderer 禁止直接 import lib/ipc。跨端业务 IO 走 Gateway/Extras，桌面独有 system/pet/automation/designScheme 等能力走 runtime/desktop-host-services。',
       severity: 'error',
       from: {
-        path: '^apps/desktop/src/features/(library|history|account|workbench|generation)/',
+        path: '^apps/desktop/src/',
         pathNot: [
-          // 测试文件豁免
           '/__tests__/',
           '/__mocks__/',
           '\\.(test|spec)\\.(ts|tsx)$',
-          // 平台服务合规使用
-          '^apps/desktop/src/features/library/components/PromptWorksPanel\\.tsx$',
-          '^apps/desktop/src/features/history/components/HistoryDiskUsage\\.tsx$',
-          '^apps/desktop/src/features/history/components/HistoryDetail\\.tsx$',
-          // Provider 专属与 Skill 运行时
-          '^apps/desktop/src/features/account/doubao-store\\.ts$',
-          '^apps/desktop/src/features/generation/components/ProviderDialog\\.tsx$',
-          '^apps/desktop/src/features/generation/workbench/skillRuntimeStore\\.ts$',
-          // Workbench hybrid pattern（gateway 写 + 直连读）与生成画布平台服务
-          '^apps/desktop/src/features/generation/workbench/store\\.ts$',
-          '^apps/desktop/src/features/generation/workbench/GenerationWorkbench\\.tsx$',
-          // DesktopExtras 已覆盖的 prompt 方法（合规使用）
-          '^apps/desktop/src/features/generation/workbench/PromptReferenceSidebar\\.tsx$',
-          '^apps/desktop/src/features/generation/workbench/PromptPickerPopover\\.tsx$',
+          '^apps/desktop/src/lib/ipc\\.ts$',
+          '^apps/desktop/src/runtime/desktop-host-services\\.ts$',
         ],
       },
       to: {

@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, Search, X } from '../../../components/ui/icons';
 import type { Prompt } from '@musefold/desktop-contracts/models';
-import api from '../../../lib/ipc';
+import { desktopGateway } from '../../../runtime';
 import { toImageSrc } from '../../../lib/media';
 import { useAppStore } from '../../../stores/app';
 
@@ -21,11 +21,11 @@ export function PromptPickerPopover({
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 直连 IPC 拉取一次快照，不借用提示词库页的 store（避免污染其搜索/筛选状态）。
+  // 独立拉取一次快照，不借用提示词库页的 store（避免污染其搜索/筛选状态）。
   useEffect(() => {
     let cancelled = false;
-    api.prompt
-      .list({ sort: 'updated' })
+    desktopGateway
+      .listLibraryPrompts({ sort: 'updated' })
       .then((rows) => {
         if (!cancelled) setPrompts(rows);
       })

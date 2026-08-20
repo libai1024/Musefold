@@ -27,7 +27,7 @@ import {
 } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
 import { cn } from '../../../lib/utils';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
 import {
   aiConnectionErrorMessage,

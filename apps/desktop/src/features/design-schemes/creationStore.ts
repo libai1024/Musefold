@@ -6,7 +6,7 @@
  * 方案数据本体由主进程写入新 design-scheme 库，这里不持久化任何内容。
  */
 import { create } from 'zustand';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import type {
   DesignSchemeCreationEvent,
   DesignSchemeHistorySourceItem,

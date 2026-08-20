@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { HardDrive, RefreshCw } from '../../../components/ui/icons';
 import type { DiskUsageResult } from '@musefold/desktop-contracts/ipc';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { useHistoryStore } from '../store';
 
 function formatBytes(bytes: number): string {

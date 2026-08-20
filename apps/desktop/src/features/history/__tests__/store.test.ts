@@ -9,10 +9,12 @@ const mocks = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock('../../../lib/ipc', () => ({
-  default: {
-    image: { retry: mocks.retry },
-    history: { list: mocks.list, delete: mocks.delete, clear: mocks.clear },
+vi.mock('../../../runtime', () => ({
+  desktopGateway: {
+    retryImage: mocks.retry,
+    listHistory: mocks.list,
+    deleteHistory: mocks.delete,
+    clearHistory: mocks.clear,
   },
 }));
 

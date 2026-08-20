@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import packageInfo from '../../../../../package.json';
+import packageInfo from '../../../package.json';
 import { APP_VERSION } from '../app-version';
 
 describe('application version', () => {

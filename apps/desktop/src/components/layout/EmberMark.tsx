@@ -24,7 +24,7 @@ import {
   recallSlip,
   type CapturedSelection,
 } from './emberSlips';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { cn } from '../../lib/utils';
 
 gsap.registerPlugin(useGSAP);

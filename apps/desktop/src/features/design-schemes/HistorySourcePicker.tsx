@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Check, History, Loader2, X } from '../../components/ui/icons';
-import api from '../../lib/ipc';
+import { desktopGateway } from '../../runtime';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import type { HistoryRecord } from '@musefold/desktop-contracts/models';
@@ -55,7 +55,7 @@ export function HistorySourcePicker({
     let cancelled = false;
     void (async () => {
       try {
-        const list = await api.history.list({ status: 'success', limit: 60 });
+        const list = await desktopGateway.listHistory({ status: 'success', limit: 60 });
         if (cancelled) return;
         setRecords(list.filter((record) => Boolean(record.imagePath)));
       } catch (cause) {

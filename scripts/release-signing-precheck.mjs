@@ -90,7 +90,7 @@ function missingEnv(names) {
 
 async function checkProjectConfig() {
   const pkg = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
-  const builder = await readFile(safePath('electron-builder.yml'), 'utf8');
+  const builder = await readFile(safePath('apps/desktop/electron-builder.yml'), 'utf8');
   const issues = [];
   if (!/^appId:\s*com\.musefold\.app\s*$/m.test(builder)) issues.push('appId must remain com.musefold.app');
   if (!/^productName:\s*Musefold\s*$/m.test(builder)) issues.push('productName must be Musefold');
@@ -135,7 +135,7 @@ function checkHostTools() {
 }
 
 async function checkReleaseArtifacts() {
-  const pkg = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
+  const pkg = JSON.parse(await readFile(safePath('apps/desktop/package.json'), 'utf8'));
   const appPath = 'release/mac-arm64/Musefold.app';
   const dmgPath = `release/Musefold-${pkg.version}-arm64.dmg`;
   const zipPath = `release/Musefold-${pkg.version}-arm64-mac.zip`;
@@ -215,7 +215,7 @@ function checkSigningEnvironment() {
 }
 
 async function checkCurrentSignatureState() {
-  const pkg = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
+  const pkg = JSON.parse(await readFile(safePath('apps/desktop/package.json'), 'utf8'));
   const appPath = 'release/mac-arm64/Musefold.app';
   const dmgPath = `release/Musefold-${pkg.version}-arm64.dmg`;
 

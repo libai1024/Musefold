@@ -18,72 +18,32 @@ import {
   type WorkbenchSessionListQuery,
   type WorkbenchSessionPage,
   type GenerationHistoryQuery,
-} from "@musefold/contracts";
+} from '@musefold/contracts';
 import {
   createMusefoldCloudClient,
   MusefoldCloudError,
   type GenerationEvent,
   type MusefoldCloudClient,
-} from "@musefold/cloud-client";
-import { resolveWebGatewayMode } from "./runtime-mode";
+} from '@musefold/cloud-client';
+import type {
+  AccountGateway,
+  GenerationGateway,
+  HistoryGateway,
+  PlatformServices,
+  PromptGateway,
+  WorkbenchGateway,
+} from '@musefold/domain';
+import { resolveWebGatewayMode } from './runtime-mode';
 
-export interface WebGateway {
-  readonly mode: "api" | "fixture";
-  getSession(): Promise<AccountSession>;
-  login(input: LoginRequest): Promise<AccountSession>;
-  logout(): Promise<void>;
-  listPrompts(query: PromptListQuery): Promise<PromptPage>;
-  getPrompt(id: string): Promise<PromptDocument>;
-  createPrompt(
-    input: Parameters<MusefoldCloudClient["createPrompt"]>[0],
-  ): Promise<PromptDocument>;
-  updatePrompt(
-    id: string,
-    input: UpdatePromptDocument,
-  ): Promise<PromptDocument>;
-  deletePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
-  restorePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
-  usePrompt(id: string, input: PromptUseInput): Promise<PromptUseResult>;
-  createGeneration(
-    input: CreateGenerationInput,
-    idempotencyKey: string,
-  ): Promise<GenerationJob>;
-  getGeneration(id: string): Promise<GenerationJob>;
-  streamGenerationEvents(
-    id: string,
-    afterSeq: number,
-    onEvent: (event: GenerationEvent) => void | Promise<void>,
-    signal?: AbortSignal,
-  ): Promise<void>;
-  cancelGeneration(id: string): Promise<GenerationJob>;
-  retryGeneration(id: string, idempotencyKey: string): Promise<GenerationJob>;
-  deleteGeneration(id: string): Promise<GenerationJob>;
-  restoreGeneration(id: string): Promise<GenerationJob>;
-  approveGeneration(id: string, token: string): Promise<GenerationJob>;
-  listGenerationHistory(
-    query: GenerationHistoryQuery,
-  ): Promise<GenerationHistoryPage>;
-  listWorkbenchSessions(
-    query: WorkbenchSessionListQuery,
-  ): Promise<WorkbenchSessionPage>;
-  getWorkbenchSession(id: string): Promise<WorkbenchSession>;
-  createWorkbenchSession(
-    input: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  updateWorkbenchSession(
-    id: string,
-    input: UpdateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  deleteWorkbenchSession(
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession>;
-  listConnections(): Promise<McpConnectionPage>;
-  updateConnection(
-    id: string,
-    input: Parameters<MusefoldCloudClient["updateConnection"]>[1],
-  ): Promise<McpConnectionPage>;
-  revokeConnection(id: string): Promise<void>;
+export interface WebGateway
+  extends
+    PromptGateway,
+    WorkbenchGateway,
+    GenerationGateway,
+    HistoryGateway,
+    AccountGateway,
+    PlatformServices {
+  readonly mode: 'api' | 'fixture';
 }
 
 export class WebGatewayError extends Error {
@@ -93,17 +53,15 @@ export class WebGatewayError extends Error {
     readonly details: Record<string, unknown> = {},
   ) {
     super(message);
-    this.name = "WebGatewayError";
+    this.name = 'WebGatewayError';
   }
 }
 
 class HttpWebGateway implements WebGateway {
-  readonly mode = "api" as const;
+  readonly mode = 'api' as const;
   private readonly client: MusefoldCloudClient;
 
-  constructor(
-    baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api/musefold/v1",
-  ) {
+  constructor(baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/musefold/v1') {
     this.client = createMusefoldCloudClient(baseUrl);
   }
 
@@ -127,16 +85,11 @@ class HttpWebGateway implements WebGateway {
     return this.call(() => this.client.getPrompt(id));
   }
 
-  createPrompt(
-    input: Parameters<MusefoldCloudClient["createPrompt"]>[0],
-  ): Promise<PromptDocument> {
+  createPrompt(input: Parameters<MusefoldCloudClient['createPrompt']>[0]): Promise<PromptDocument> {
     return this.call(() => this.client.createPrompt(input));
   }
 
-  updatePrompt(
-    id: string,
-    input: UpdatePromptDocument,
-  ): Promise<PromptDocument> {
+  updatePrompt(id: string, input: UpdatePromptDocument): Promise<PromptDocument> {
     return this.call(() => this.client.updatePrompt(id, input));
   }
 
@@ -152,10 +105,7 @@ class HttpWebGateway implements WebGateway {
     return this.call(() => this.client.usePrompt(id, input));
   }
 
-  createGeneration(
-    input: CreateGenerationInput,
-    idempotencyKey: string,
-  ): Promise<GenerationJob> {
+  createGeneration(input: CreateGenerationInput, idempotencyKey: string): Promise<GenerationJob> {
     return this.call(() => this.client.createGeneration(input, idempotencyKey));
   }
 
@@ -169,9 +119,7 @@ class HttpWebGateway implements WebGateway {
     onEvent: (event: GenerationEvent) => void | Promise<void>,
     signal?: AbortSignal,
   ): Promise<void> {
-    return this.call(() =>
-      this.client.streamGenerationEvents(id, afterSeq, onEvent, signal),
-    );
+    return this.call(() => this.client.streamGenerationEvents(id, afterSeq, onEvent, signal));
   }
 
   cancelGeneration(id: string): Promise<GenerationJob> {
@@ -194,15 +142,11 @@ class HttpWebGateway implements WebGateway {
     return this.call(() => this.client.approveGeneration(id, token));
   }
 
-  listGenerationHistory(
-    query: GenerationHistoryQuery,
-  ): Promise<GenerationHistoryPage> {
+  listGenerationHistory(query: GenerationHistoryQuery): Promise<GenerationHistoryPage> {
     return this.call(() => this.client.listGenerationHistory(query));
   }
 
-  listWorkbenchSessions(
-    query: WorkbenchSessionListQuery,
-  ): Promise<WorkbenchSessionPage> {
+  listWorkbenchSessions(query: WorkbenchSessionListQuery): Promise<WorkbenchSessionPage> {
     return this.call(() => this.client.listWorkbenchSessions(query));
   }
 
@@ -210,26 +154,16 @@ class HttpWebGateway implements WebGateway {
     return this.call(() => this.client.getWorkbenchSession(id));
   }
 
-  createWorkbenchSession(
-    input: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession> {
+  createWorkbenchSession(input: CreateWorkbenchSession): Promise<WorkbenchSession> {
     return this.call(() => this.client.createWorkbenchSession(input));
   }
 
-  updateWorkbenchSession(
-    id: string,
-    input: UpdateWorkbenchSession,
-  ): Promise<WorkbenchSession> {
+  updateWorkbenchSession(id: string, input: UpdateWorkbenchSession): Promise<WorkbenchSession> {
     return this.call(() => this.client.updateWorkbenchSession(id, input));
   }
 
-  deleteWorkbenchSession(
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession> {
-    return this.call(() =>
-      this.client.deleteWorkbenchSession(id, expectedVersion),
-    );
+  deleteWorkbenchSession(id: string, expectedVersion: number): Promise<WorkbenchSession> {
+    return this.call(() => this.client.deleteWorkbenchSession(id, expectedVersion));
   }
 
   listConnections(): Promise<McpConnectionPage> {
@@ -238,7 +172,7 @@ class HttpWebGateway implements WebGateway {
 
   updateConnection(
     id: string,
-    input: Parameters<MusefoldCloudClient["updateConnection"]>[1],
+    input: Parameters<MusefoldCloudClient['updateConnection']>[1],
   ): Promise<McpConnectionPage> {
     return this.call(() => this.client.updateConnection(id, input));
   }
@@ -259,8 +193,8 @@ class HttpWebGateway implements WebGateway {
 }
 
 class DeferredFixtureWebGateway implements WebGateway {
-  readonly mode = "fixture" as const;
-  private readonly delegate = import("./fixture-runtime").then(
+  readonly mode = 'fixture' as const;
+  private readonly delegate = import('./fixture-runtime').then(
     ({ FixtureWebGateway }) => new FixtureWebGateway(),
   );
 
@@ -285,29 +219,20 @@ class DeferredFixtureWebGateway implements WebGateway {
   }
 
   async createPrompt(
-    input: Parameters<MusefoldCloudClient["createPrompt"]>[0],
+    input: Parameters<MusefoldCloudClient['createPrompt']>[0],
   ): Promise<PromptDocument> {
     return (await this.delegate).createPrompt(input);
   }
 
-  async updatePrompt(
-    id: string,
-    input: UpdatePromptDocument,
-  ): Promise<PromptDocument> {
+  async updatePrompt(id: string, input: UpdatePromptDocument): Promise<PromptDocument> {
     return (await this.delegate).updatePrompt(id, input);
   }
 
-  async deletePrompt(
-    id: string,
-    expectedVersion: number,
-  ): Promise<PromptDocument> {
+  async deletePrompt(id: string, expectedVersion: number): Promise<PromptDocument> {
     return (await this.delegate).deletePrompt(id, expectedVersion);
   }
 
-  async restorePrompt(
-    id: string,
-    expectedVersion: number,
-  ): Promise<PromptDocument> {
+  async restorePrompt(id: string, expectedVersion: number): Promise<PromptDocument> {
     return (await this.delegate).restorePrompt(id, expectedVersion);
   }
 
@@ -332,22 +257,14 @@ class DeferredFixtureWebGateway implements WebGateway {
     onEvent: (event: GenerationEvent) => void | Promise<void>,
     signal?: AbortSignal,
   ): Promise<void> {
-    return (await this.delegate).streamGenerationEvents(
-      id,
-      afterSeq,
-      onEvent,
-      signal,
-    );
+    return (await this.delegate).streamGenerationEvents(id, afterSeq, onEvent, signal);
   }
 
   async cancelGeneration(id: string): Promise<GenerationJob> {
     return (await this.delegate).cancelGeneration(id);
   }
 
-  async retryGeneration(
-    id: string,
-    idempotencyKey: string,
-  ): Promise<GenerationJob> {
+  async retryGeneration(id: string, idempotencyKey: string): Promise<GenerationJob> {
     return (await this.delegate).retryGeneration(id, idempotencyKey);
   }
 
@@ -363,15 +280,11 @@ class DeferredFixtureWebGateway implements WebGateway {
     return (await this.delegate).approveGeneration(id, token);
   }
 
-  async listGenerationHistory(
-    query: GenerationHistoryQuery,
-  ): Promise<GenerationHistoryPage> {
+  async listGenerationHistory(query: GenerationHistoryQuery): Promise<GenerationHistoryPage> {
     return (await this.delegate).listGenerationHistory(query);
   }
 
-  async listWorkbenchSessions(
-    query: WorkbenchSessionListQuery,
-  ): Promise<WorkbenchSessionPage> {
+  async listWorkbenchSessions(query: WorkbenchSessionListQuery): Promise<WorkbenchSessionPage> {
     return (await this.delegate).listWorkbenchSessions(query);
   }
 
@@ -379,9 +292,7 @@ class DeferredFixtureWebGateway implements WebGateway {
     return (await this.delegate).getWorkbenchSession(id);
   }
 
-  async createWorkbenchSession(
-    input: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession> {
+  async createWorkbenchSession(input: CreateWorkbenchSession): Promise<WorkbenchSession> {
     return (await this.delegate).createWorkbenchSession(input);
   }
 
@@ -392,10 +303,7 @@ class DeferredFixtureWebGateway implements WebGateway {
     return (await this.delegate).updateWorkbenchSession(id, input);
   }
 
-  async deleteWorkbenchSession(
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession> {
+  async deleteWorkbenchSession(id: string, expectedVersion: number): Promise<WorkbenchSession> {
     return (await this.delegate).deleteWorkbenchSession(id, expectedVersion);
   }
 
@@ -405,7 +313,7 @@ class DeferredFixtureWebGateway implements WebGateway {
 
   async updateConnection(
     id: string,
-    input: Parameters<MusefoldCloudClient["updateConnection"]>[1],
+    input: Parameters<MusefoldCloudClient['updateConnection']>[1],
   ): Promise<McpConnectionPage> {
     return (await this.delegate).updateConnection(id, input);
   }
@@ -420,7 +328,7 @@ export function createWebGateway(): WebGateway {
     resolveWebGatewayMode({
       isDevelopment: import.meta.env.DEV,
       useFixtures: import.meta.env.VITE_USE_FIXTURES,
-    }) === "fixture"
+    }) === 'fixture'
   ) {
     return new DeferredFixtureWebGateway();
   }

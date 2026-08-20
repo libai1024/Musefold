@@ -18,7 +18,7 @@ import { usePlatform } from './lib/usePlatform';
 import { useAiConnectionStore } from './features/settings/ai-connection-store';
 import { useAccountStore } from './features/account/store';
 import { useSettingsStore } from './features/settings/store';
-import api from './lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 const pages = {
   generate: GeneratePage,

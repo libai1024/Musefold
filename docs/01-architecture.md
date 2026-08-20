@@ -143,10 +143,10 @@ shared ← src/renderer
 | 命令 | 作用 |
 |---|---|
 | `npm run dev` | electron-vite 启动：main/preload 热重载 + renderer HMR |
-| `npm run build` | 构建生产产物到 out/ |
+| `npm run build` | 构建生产产物到 `apps/desktop/out/` |
 | `npm run package` | electron-builder 打包 dmg/nsis 安装包 |
 | `npm run typecheck` | tsc --noEmit 跨三 tsconfig 检查 |
 
 **native 模块处理**：
 - `better-sqlite3` + `@node-rs/jieba` 需 `@electron/rebuild` 针对 Electron ABI 重编译
-- `electron-builder.yml` 配 `asarUnpack`：`**/node_modules/better-sqlite3/**` + `**/node_modules/@node-rs/jieba*/**`，否则 asar 内无法加载 `.node` 二进制
+- `apps/desktop/electron-builder.yml` 配 `asarUnpack`：`**/node_modules/better-sqlite3/**`，否则 asar 内无法加载 `.node` 二进制

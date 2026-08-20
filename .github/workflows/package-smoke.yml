@@ -3,7 +3,7 @@
 # Prerequisite: main-branch CI ("Source checks") is already green. These jobs no
 # longer `needs: check` because a tag push does not always run ci.yml.
 #
-# App semver single source of truth: the `version` field in the repo-root package.json.
+# App semver single source of truth: `apps/desktop/package.json`.
 name: Package smoke
 
 on:
@@ -45,7 +45,7 @@ jobs:
           path: |
             ~/Library/Caches/electron
             ~/Library/Caches/electron-builder
-          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'electron-builder.yml') }}
+          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'apps/desktop/electron-builder.yml') }}
 
       - name: Install deps
         run: npm ci
@@ -58,7 +58,7 @@ jobs:
 
       - name: Verify DMG
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
           hdiutil verify "release/Musefold-${VERSION}-arm64.dmg"
 
       - name: macOS signing evidence reminder (macosDeveloperIdNotarization)
@@ -95,7 +95,7 @@ jobs:
           path: |
             ~\AppData\Local\electron\Cache
             ~\AppData\Local\electron-builder\Cache
-          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'electron-builder.yml') }}
+          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'apps/desktop/electron-builder.yml') }}
 
       - name: Install deps
         run: npm ci

@@ -1,7 +1,7 @@
 // 桌面图像预览适配：共享 ImageLightbox + 本地路径/IPC/toast。
 import { ImageLightbox as SharedImageLightbox } from '@musefold/ui';
 import { toImageSrc } from '../lib/media';
-import api from '../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../stores/toast';
 
 interface Props {

@@ -12,7 +12,7 @@ import { reportMainDiagnostic, showNativeDiagnostic } from './diagnostics';
 
 const e2eUserData = process.env['MUSEFOLD_E2E_USER_DATA_DIR'];
 
-// v0.4 workspaces：根包更名为 musefold-app（npm 包名 musefold 让给 CLI，D9）。
+// v0.4 workspaces：桌面 App 包名为 musefold-app（npm 包名 musefold 让给 CLI，D9）。
 // Electron 开发态的 userData 默认按包名派生，这里显式钉回历史路径
 // `.../musefold`，保证改名不搬家。打包态由 productName（Musefold）决定，不受影响。
 // E2E 的隔离目录在下方覆盖，优先级更高。

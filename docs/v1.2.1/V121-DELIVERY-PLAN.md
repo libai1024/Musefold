@@ -1,12 +1,12 @@
 # Musefold v1.2.1 CI/CD 交付计划
 
-> **状态**：任务分解，尚未开工
+> **状态**：仓库侧 M1/M4/M5/M7 已完成；生产部署与真实发布门禁仍受外部条件阻塞
 >
 > **日期**：2026-08-20
 >
 > **范围**：生产环境收敛、流水线提速、Web/服务层自动部署、通道化、内容层热更新、外壳发布自动化
 >
-> **当前实现状态（2026-08-20）**：全部里程碑均未开始。`.github/workflows/ci.yml` 只做验证，无任何部署步骤。生产环境已完成实地盘点，结果记录在 `V121-CICD-ARCHITECTURE.md` 第 1 节；盘点中发现三个需要在自动化之前修复的线上缺陷。
+> **当前实现状态（2026-08-20）**：仓库侧 affected CI、通道/签名协议、内容层热更新实现与 iOS 预留已完成；本地全仓门禁已通过。生产环境收敛、Web/API/Worker 自动部署、对象存储/CDN、真实 dev 通道热更新与签名公证安装包仍未完成，详见第 10 节发布门禁。
 
 ## 0. 交付原则
 
@@ -18,7 +18,7 @@
 6. 每一步都要能在不影响正式用户的前提下自测，因此通道化排在热更新之前。
 7. **CI/CD 先于架构重构**。[v1.2.2 系统架构重构](../v1.2.2/README.md)会移动仓库目录并重排共享层，它依赖本版本交付的 affected 流水线、自动部署与回滚作为回归安全网。因此 v1.2.2 的目录迁移（Phase 1 起）必须等本版本发布门禁全部通过后开工；v1.2.2 Phase 0（纯仓库侧工程化，不动目录）可与 M4–M7 并行。所有会被目录迁移影响的配置（层级路径映射、Dockerfile 构建上下文、`out/renderer` 引用）在本版本内都要做到单点定义。
 
-   **2026-08-20 修订**：Phase 1 拆成 1a/1b 后，本条对「目录迁移」的开工门禁按保护面拆开，不再一刀切等待发布门禁全部通过。Phase 1a（仅移动 `src/`、`electron/`、`shared/`）改为「本版本仓库侧里程碑 M1、M4、M5、M7 完成且桌面回归安全网全绿」，该条件已于 2026-08-20 达成——原则 7 要保护的是 affected 流水线与 Turborepo 缓存、全仓 `check` 门禁、桌面 E2E 与打包冒烟，这些已就绪且在用；尚未达成的发布门禁全是外部条件（对象存储与 CDN、生产部署身份与自托管 runner、签名证书），不构成对桌面代码移动的回归保护。Phase 1b（触及 `electron-builder.yml`、Dockerfile 与发布脚本）仍须本版本发布门禁全部通过，并叠加 Phase 1a 稳定运行一周。详见 [v1.2.2 迁移计划](../v1.2.2/V122-MIGRATION-PLAN.md)。**Phase 1a 已于 2026-08-20 完成。**
+   **2026-08-20 执行记录**：Phase 1 拆成 1a/1b 后按保护面推进。Phase 1a 在仓库侧 M1/M4/M5/M7 与桌面回归安全网全绿后完成；Phase 1b 随后在 feature freeze 工作树中完成，以 macOS ad-hoc 真包运行态、Windows ARM64 结构包、真实 Docker 镜像和发布预检覆盖变更面。该仓库实现不替代对象存储/CDN、生产部署身份、远端 runner、Developer ID 与公证 evidence，v1.2.1 的公开发布门禁语义不变。详见 [v1.2.2 迁移计划](../v1.2.2/V122-MIGRATION-PLAN.md)。
 
 ## 1. 里程碑总览
 
@@ -134,7 +134,7 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 
 ### 任务
 
-- `V121-SVC-01`：在自托管 runner 上实现容器内镜像构建，复用 `infra/v1.1/Dockerfile`；宿主机没有 Node 与 npm，构建不得依赖宿主机工具链。
+- `V121-SVC-01`：在自托管 runner 上实现容器内镜像构建，复用 `infra/v1.1/Dockerfile`；宿主机没有 Node 与 npm，构建不得依赖宿主机工具链。**仓库侧前置已验证（2026-08-20）**：修正 Phase 1a 后残留的 `COPY shared` 与缺失的 `COPY tooling`，本地真实 `docker build` 通过；自托管 runner 部署与生产流水线实跑仍未完成。
 - `V121-SVC-02`：把数据库迁移拆为独立前置步骤，使用 `musefold_migration` 角色执行，失败即中止部署。
 - `V121-SVC-03`：在 CI 增加 expand/contract 静态检查，拒绝在同一次变更中同时移除写入与删除列。
 - `V121-SVC-04`：把流量切换条件从 `/health/live` 改为 `/health/ready`，确认迁移版本匹配与依赖可用后才切。
@@ -159,7 +159,7 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 ### 任务
 
 - `V121-CHAN-01`：~~更新源按通道拼接~~ **已完成（2026-08-20）**。解析优先级 `MUSEFOLD_UPDATE_CHANNEL` > electron-store `update.channel` > 默认 `stable`；非法值回落 `stable` 且不抛异常。`resolveUpdateFeedUrl('stable')` 与旧常量逐字符相同。另定：`allowPrerelease` 随通道联动（`stable` 为 `false`，`dev`/`beta` 为 `true`）——否则 dev/beta 发布的 prerelease 版本永远不会被提供，通道功能形同虚设。
-- `V121-CHAN-02`：~~调整 `electron-builder.yml` 的 `publish.url`~~ **已完成（2026-08-20）**。指向 `updates/stable/`，并注明运行时会按设置项覆盖。
+- `V121-CHAN-02`：~~调整 `apps/desktop/electron-builder.yml` 的 `publish.url`~~ **已完成（2026-08-20）**。指向 `updates/stable/`，并注明运行时会按设置项覆盖。
 - `V121-CHAN-03`：~~设置页通道选择~~ **已完成（2026-08-20）**。「应用更新」分区内新增通道行，默认 `stable`，切换走既有 `Dialog` 二次确认；环境变量锁定时只读。IPC 新增 `updater:getChannel` / `updater:setChannel`，只传通道标识、是否被环境变量锁定与脱敏文本；主进程对入参重新校验，不信任渲染层。
 - `V121-CHAN-04`：~~manifest schema 与规范化序列化~~ **已完成（2026-08-20）**。落在新建的纯协议包 `@musefold/update-protocol`（零 workspace 依赖，仅 zod + semver）。见下方「M4 的三项协议加固」。
 - `V121-CHAN-05`：~~Ed25519 签名工具~~ **工具已完成（2026-08-20）**，CI 真实签名 job 顺延至 `V121-HOT-10`（需要 bundle 产物与 CDN，均由 `V121-CHAN-07` 解锁）。私钥只从 `MUSEFOLD_BUNDLE_SIGNING_KEY` 环境变量读取，不支持命令行或文件传入，错误路径不打印任何密钥内容；CLI 提供 `keygen` / `sign` / `verify` / `--self-test`。

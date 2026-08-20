@@ -106,7 +106,7 @@ async function collectMarkdown(baseRel) {
 }
 
 async function checkArtifacts() {
-  const pkg = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
+  const pkg = JSON.parse(await readFile(safePath('apps/desktop/package.json'), 'utf8'));
   const version = pkg.version;
   const artifacts = [
     `release/Musefold-${version}-arm64.dmg`,

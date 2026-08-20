@@ -1,6 +1,6 @@
 # Musefold v1.2.2 系统架构
 
-> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 2 部分落地：GW-01 domain / GW-02 / GW-03 / GW-05 / GW-07（两刀 fa45f74 + 83d9f71）/ GW-08；Phase 3 部分落地：SHARE-06 / 01 / 05 / 02 / 03；Phase 1b 未开工，GW-04 / GW-06 未开工）
+> **状态**：v1.2.2 已实现架构基线（Phase 0、Phase 1a/1b、Phase 2 GW-01~09 及补卡、Phase 3 SHARE-01~06 均已落地）
 >
 > **日期**：2026-08-20
 >
@@ -12,9 +12,9 @@
 
 v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」重构为标准的双端 monorepo：
 
-1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链（App manifest 下移属 Phase 1b）。
+1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链。
 2. **`shared/` 解散**（Phase 1a 已落地）：IPC 契约与 SQLite 行模型进 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定与桌面行模型逻辑归位 `packages/core` / 主进程。`@shared/types/*` 兼容别名已于 Phase 3 SHARE-06 删除，消费方改走 `@musefold/desktop-contracts/<mod>` 子路径。
-3. **桌面补上数据访问抽象**：`packages/domain` 六端口已上提（GW-01）；桌面 `DesktopGateway` 骨架已落地（GW-02），library 写路径作模式样板（GW-03）。`DesktopExtras` 已落地（GW-07，两刀 fa45f74 + 83d9f71）：library 查询/写面走行模型；account login/status 全量与 cloudSync 直通 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。settings 的 aiConnection / provider 仍直连 ipc，未纳入 GW-07。桌面已接入 `getProductCapabilities('desktop')`（GW-08）。`WebGateway implements` 补卡等待 web 并行工作流收口。目标仍是 store 与组件不再直接 import IPC。
+3. **桌面补上数据访问抽象**：`packages/domain` 六端口已上提（GW-01），WebGateway 已显式继承同一组端口；桌面 `DesktopGateway` 与 `DesktopExtras` 覆盖共享业务面及 library/account/cloudSync/provider/aiConnection/workbench 桌面语义，工作台再以 `WorkbenchIO` 隔开 transport。system/pet/automation/designScheme/skillRuntime 等宿主能力统一经 `DesktopHostServices`。renderer 业务代码直接 import `lib/ipc` 已归零，裸 `window.api` 只剩 5 个低层入口。桌面已接入 `getProductCapabilities('desktop')`（GW-08）。
 4. **双模型不强合，用 mapper 收口**：SQLite 行模型与云文档模型语义不同（时间、分页、乐观锁），转换集中在明确的 mapper 层；新功能一律以 `contracts` 形状为准。
 5. **依赖规则从约定变成机器约束**：dependency-cruiser 把分层图变成 CI 门禁；package.json 补全真实依赖；TypeScript project references 统一 typecheck 入口。
 
@@ -40,9 +40,9 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 **缺口一：两套并行领域模型。** 同一批实体在桌面行模型（原 `shared/types/models.ts`，Phase 1a 起为 `packages/desktop-contracts`：`Prompt.contentNegative`、`createdAt: number`、无 version）与 `packages/contracts/src/prompt.ts`（`negative`、ISO 字符串、`version` 乐观锁）各有一份定义，工作台会话、账号、历史同理。`packages/core` 的 SQLite 行与 IPC 全部是前者。
 
-**缺口二：桌面没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；桌面侧 47 个渲染文件直接 `import api from '@renderer/lib/ipc'`，8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。Phase 2 已开始收口：六端口已上提，`DesktopGateway` 骨架与 library 写路径样板已落地，`DesktopExtras` 已把 library 查询/写面、account login/status 全量与 cloudSync 切出；settings 的 aiConnection / provider 仍直连 ipc（未纳入 GW-07），见第 4 节。
+**缺口二：桌面曾没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；Phase 2 前桌面侧有 47 个渲染文件直接 import IPC、8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。Phase 2 已完成收口：六端口、`DesktopGateway`、`DesktopExtras` 与 `DesktopHostServices` 分别承接共享业务、桌面数据语义和纯宿主能力；renderer 业务代码直接 import transport 已归零，裸 `window.api` 只剩 5 个低层桥接入口，见第 4 节。
 
-**缺口三：桌面 App 占据仓库根目录。** Phase 1a 已将 `src/`、`electron/` 迁入 `apps/desktop/` 并解散 `shared/`；根 `package.json` 仍兼 App manifest（Phase 1b）。迁移前的后果是工程配置无法收敛：`tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts`、`vitest.config.ts` 各维护一套不完全一致的别名；根 tsconfig 没有 references 到任何包；`typecheck` 拆成三条命令，其中 `typecheck:mcp` 需要 8 GiB 堆。后两项已由 Phase 0 收口；别名于 DIR-03 收敛为 `tooling/aliases.mjs` + tsconfig 守卫。
+**缺口三：桌面 App 曾占据仓库根目录。** Phase 1a 已将 `src/`、`electron/` 迁入 `apps/desktop/` 并解散 `shared/`；Phase 1b 已下移 App manifest 与 builder 配置，根 `package.json` 现为纯 workspace root。迁移前的后果是工程配置无法收敛：`tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts`、`vitest.config.ts` 各维护一套不完全一致的别名；根 tsconfig 没有 references 到任何包；`typecheck` 拆成三条命令，其中 `typecheck:mcp` 需要 8 GiB 堆。后两项已由 Phase 0 收口；别名于 DIR-03 收敛为 `tooling/aliases.mjs` + tsconfig 守卫。
 
 **缺口四：宿主编排层重复。** Web `App.tsx`（1,373 行）与桌面 pages+stores 是接同一批 product-ui 组件的两套平行编排；`packages/new-api-client` 与 `electron/account/api-client.ts` 是接口几乎同名的两份客户端；`titleFromPromptContent`、积分格式化等纯函数在 domain、桌面、Web 各有副本；`src/components/ui/` 里 dropdown/select/slider/lightbox 等约 1,000 行原语未完成向 `@musefold/ui` 的迁移。
 
@@ -60,8 +60,8 @@ apps/
     electron.vite.config.ts
     tsconfig.node.json         # 自根目录迁入，保留原名（无按名发现机制）
     tsconfig.web.json
-    electron-builder.yml       # Phase 1b
-    package.json               # Electron App manifest（原根 package.json 的 App 部分；Phase 1b）
+    electron-builder.yml       # Electron 打包配置
+    package.json               # Electron App manifest 与运行依赖
   web/                         # 不变
   web-api/                     # 不变
   generation-worker/           # 不变
@@ -94,7 +94,7 @@ tooling/                       # 扁平布局（Phase 0 实测，未用子目录
 要点：
 
 - `website/`、`services/`、`infra/`、`scripts/`、`tests/`（Python E2E）保持现位，不在本次范围。根 `shared/` 已于 Phase 1a 解散，不再存在。
-- 根 `package.json` 从「Electron App manifest 兼 workspace root」退化为纯 workspace root；electron-builder、`main` 字段、App 依赖全部下移到 `apps/desktop/package.json`。这是 Phase 1b，风险最高的一步，见[迁移计划](./V122-MIGRATION-PLAN.md)。
+- 根 `package.json` 已从「Electron App manifest 兼 workspace root」退化为纯 workspace root；electron-builder、`main` 字段、App 依赖全部位于 `apps/desktop`。详见[迁移计划](./V122-MIGRATION-PLAN.md)。
 - `@shared/types/*` 别名曾在迁移期直映 `packages/desktop-contracts`（无 re-export 胶水，避免把 `better-sqlite3` 拉进渲染层）；其余 `@shared/<module>` 已在 DIR-02 改写为真实包名。兼容别名已于 Phase 3 SHARE-06 删除，消费方改走 `@musefold/desktop-contracts/<mod>` 子路径；ESLint `no-restricted-imports` 禁 `@shared`，depcruise 保留 `'^@shared'` 回流锁。
 
 ## 3. 分层与依赖规则
@@ -178,7 +178,7 @@ apps/web-api       ← contracts/domain/new-api-client/server-crypto；禁止 de
 
 ## 4. 桌面 Gateway 与端口设计
 
-Phase 2 已落地 domain 六端口（GW-01）、`DesktopGateway` 骨架（GW-02）、library 写路径样板（GW-03）、cloud-connections 切 AccountGateway（GW-05）、`DesktopExtras`（GW-07，两刀 fa45f74 + 83d9f71：library extras + account login/status 全量 + cloudSync）与桌面 capabilities 接入（GW-08）。GW-04 / GW-06 未开工；settings aiConnection / provider 仍直连 ipc，未纳入 GW-07；`WebGateway implements` 补卡等待 web 并行工作流收口。
+Phase 2 已落地 domain 六端口（GW-01）、`DesktopGateway`（GW-02）、library 写路径样板（GW-03）、history/account stores（GW-04/05）、`DesktopExtras`（GW-07 + GW-06 workbench 无损面 + settings 补卡）、工作台/generation IO 收口（GW-06）、桌面 capabilities（GW-08）与全 renderer depcruise 门禁（GW-09）。WebGateway 显式端口绑定、settings aiConnection/provider 和宿主 IO 补卡均已收口。
 
 ### 4.1 端口定义（packages/domain）
 
@@ -195,19 +195,19 @@ PlatformServices：   空接口（WebGateway 当时没有 toast/download/clipboa
 // 未归组：readonly mode: "api" | "fixture"（宿主传输开关，非领域 IO）
 ```
 
-`WebGateway implements` 因 web 并行未提交改动推迟；新增 `apps/web/src/__tests__/gateway-ports.typecheck.test.ts`（`satisfies`）锁形状不漂移。
+`WebGateway` 已显式继承六个 domain 端口；`HttpWebGateway` 与 `DeferredFixtureWebGateway` 实现该聚合接口。`gateway-ports.typecheck.test.ts` 继续以 `satisfies`/赋值断言锁形状不漂移。
 
 约束：
 
 - 端口签名使用 **contracts 形状或共享视图模型**，不出现 `window.api` 类型、SQLite 行或本地路径。
-- 进度/事件用回调或 `AsyncIterable` 表达，两端分别落到 IPC 事件与 SSE。桌面 `streamGenerationEvents` 现为 NotImplemented（见 4.2），GW-06 前须裁定扩 preload 还是改拉模型。
-- 桌面独有域（pet、automation、designScheme、skillRuntime）以及 library 的桌面查询面（list 的 search + 多维 filters + sortDir、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory）**不进共享端口**，归 `DesktopExtras`（类型来自 `desktop-contracts`）。GW-07 两刀已落地扁平 `DesktopExtras`：library 面（直通行模型，不经 PromptDocument）与 account* / cloudSync*（直通 AccountStatus / CloudSyncSummary，不经 AccountSession mapper）。settings 的 aiConnection / provider 未纳入本卡。
+- 进度/事件用回调或 `AsyncIterable` 表达，两端分别落到 IPC 事件与 SSE。桌面 `streamGenerationEvents` 保持 NotImplemented（见 4.2）；无 seq/终态的 `image.onProgress` 经 `DesktopExtras.onImageGenerationProgress` 保留宿主原生语义，不伪造成共享 SSE。
+- library/account/cloudSync/provider/aiConnection 的桌面数据面，以及 workbench 的无损 session summary/document 与原生 progress **不进共享端口**，归 `DesktopExtras`（类型来自 `desktop-contracts`）。pet/automation/designScheme/skillRuntime/system 等纯宿主能力经 `DesktopHostServices`，不污染 domain 端口。workbench 保留 `runs`、计数、最近资源和无 seq progress，不经云 `WorkbenchSession` / SSE 有损转换。
 
 ### 4.2 两端实现
 
 ```text
-apps/web/src/runtime.ts        HttpWebGateway / FixtureWebGateway（已存在；implements 补卡等待 web 并行工作流收口；形状由 gateway-ports.typecheck.test.ts 的 satisfies 锁定）
-apps/desktop/src/runtime/      createDesktopGateway(api) + 懒单例 desktopGateway（GW-02，fc197b8）；capabilities.ts 单点 getProductCapabilities('desktop')（GW-08，ae9723e）；字段转换只在 mappers/；depcruise 第 20 条 desktop-runtime-contracts-only-in-mappers 禁止 runtime 组装层引用 contracts
+apps/web/src/runtime.ts        WebGateway 显式 extends 六端口；Http / Fixture 两实现
+apps/desktop/src/runtime/      DesktopGateway + DesktopExtras + DesktopHostServices；capabilities.ts 单点 getProductCapabilities('desktop')；字段转换只在 mappers/
 ```
 
 GW-02 骨架：PromptGateway 全实现（有损字段逐条注释）。其余按 IPC 能直映的做，对不齐的抛 `DesktopGatewayNotImplementedError`。**`streamGenerationEvents` 裁定为 NotImplemented**（桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号）。骨架未接线，行为零变化。
@@ -223,17 +223,27 @@ GW-03（2026-08-20，7790a35）以 library store 为写路径模式样板：
 
 GW-07 第一刀（2026-08-20，fa45f74）：新增扁平 `DesktopExtras`（`packages/desktop-contracts/src/desktop-extras.ts`）。library list/listDeleted/stats/create/togglePin/reorderPins/purge/searchHistory 直通行模型，不经 PromptDocument；library store 剩余 api 调用已切到 extras。update/delete/restore/usePrompt 仍走 PromptGateway。
 
-GW-07 第二刀（2026-08-20，83d9f71）：DesktopExtras 新增 account* 与 cloudSync* 扁平方法，直通 IPC，返回 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。account/store.ts 去掉 lib/ipc；AccountSection 不再出现 window.api.cloudSync。aiConnection / provider 仍直连 ipc，未纳入本卡。
+GW-07 第二刀（2026-08-20，83d9f71）：DesktopExtras 新增 account* 与 cloudSync* 扁平方法，直通 IPC，返回 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。account/store.ts 去掉 lib/ipc；AccountSection 不再出现 window.api.cloudSync。
+
+GW-07 补卡（2026-08-20）：provider store 已走 DesktopExtras；aiConnection 完整 namespace 进入 DesktopExtras，AI store 通过可注入 `AiConnectionIO` 使用。随后新增 `DesktopHostServices` 收口不属于共享端口的纯桌面壳能力，并以 `renderer-no-direct-ipc` 禁止 renderer 业务代码直接 import transport。
+
+GW-06 + SHARE-04（2026-08-20）：工作台新增 `WorkbenchIO` 窄注入面，生产绑定 `DesktopGateway`，测试绑定 fake。会话 CRUD、生图提交/取消/重试全部经 gateway；无损 session list/document 和原生 progress 经 `DesktopExtras`。`store.ts` 拆出三个桌面 controller：
+
+- `draftController.ts`：草稿约束、附件去重、参数偏好持久化；
+- `sessionController.ts`：复用 product-ui session reducer，管理 list/open 请求竞态与后台会话缓存；
+- `generationSyncController.ts`：运行登记、批量结果展开、transport error 与 retry progress 回填。
+
+共享 session reducer 已上提；草稿的 Skill/Scheme/本地图片和 generation 的桌面结果/缓存语义留宿主，不把 `desktop-contracts` 泄漏进 `product-ui`。`streamGenerationEvents` 继续 NotImplemented，不扩 preload、不改拉模型。
 
 消费规则（目标不变，library / account 写路径已按此走）：
 
-- zustand store 与 React 组件只依赖端口类型，通过宿主组装的 runtime 对象获取实现；迁完的写路径不再直连 `src/lib/ipc.ts`。library 查询/写面与 account login/status、cloudSync 已走 extras；settings 的 aiConnection / provider 仍直连 ipc。
+- zustand store 与 React 组件通过宿主组装的 runtime 对象获取 IO；跨端业务面走 Gateway，桌面数据面走 DesktopExtras，纯宿主面走 DesktopHostServices。renderer 业务代码不再直连 `src/lib/ipc.ts`。
 - 现有 47 处直连 IPC 与 8 处裸 `window.api` 按 feature 逐个收编（迁移顺序见迁移计划 Phase 2），迁完的 feature 目录由 depcruise 规则从 warn 提升为 error。
 - 桌宠、窗口控件等纯桌面窗口壳可以保留直连，在规则中显式豁免并注明理由。
 
 ### 4.3 为什么不是把 store 搬进共享包
 
-共享包禁 IPC（v1.1 边界规则），store 现在就是 IPC 适配器，直接搬等于把平台依赖搬进共享层。正确顺序是先立端口、store 改吃端口，之后「哪些 store 逻辑值得上提为 product-ui controller」再按 Web 已有的三个 workbench controller 模式逐个评估（Phase 3）。
+共享包禁 IPC（v1.1 边界规则），直接搬 store 等于把平台依赖搬进共享层。GW-06/SHARE-04 已按正确顺序完成：先立端口和 `WorkbenchIO`，再拆 controller。通用 session reducer 复用 `product-ui`；依赖 Skill/Scheme、本地附件、桌面结果行与原生 progress 的状态机留桌面。两端共享交互契约，不强行共享状态库或宿主特有语义。
 
 ## 5. 双模型策略：映射而非强合
 
@@ -275,7 +285,7 @@ Phase 1a DIR-02（2026-08-20，fcd614f）已按 import 图执行完毕。下表�
 |---|---|---|
 | 层级路径映射（`V121-CI-04`，单点定义） | `src/`、`electron/` 移动，`shared/` 消失 | Phase 1a 已完成：映射切至 `apps/desktop/**`；`desktop-contracts` 双列 content+shell；补卡将 `core` 列入 shell、`domain` 列入 service，桌面 tsconfig 按编译单元拆归 shell/content |
 | Turborepo 任务图（按包定义） | 包位置变化 | 只改 `workspaces` glob，任务图不动 |
-| `infra/v1.1/Dockerfile` | 构建上下文含根 package.json | Phase 1b 同步更新 COPY 路径与 `npm ci` 目标 |
+| `infra/v1.1/Dockerfile` | 根 manifest 不再携带 App 依赖 | 只复制 Web/Web API 并选择性安装对应 workspace；真实镜像构建通过，桌面源码与 Electron/better-sqlite3 依赖均不进入镜像 |
 | renderer bundle 产物路径（`out/renderer`） | 变为 `apps/desktop/out/renderer` | 打包与热更新流水线从构建配置读取（v1.2.1 已预留） |
 | `minShellVersion` 推导（`V121-HOT-06`） | `shared/types/ipc.ts` 迁至 `desktop-contracts` | 推导脚本按包名解析（v1.2.1 已预留） |
 | 视觉门禁、桌面 E2E、`check`/`check:v1.1` | 语义不变 | 每个 Phase 的回归安全网 |

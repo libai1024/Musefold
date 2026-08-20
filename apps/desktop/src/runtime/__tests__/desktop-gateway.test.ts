@@ -14,14 +14,21 @@ import type {
   WorkbenchSessionListQuery,
 } from '@musefold/desktop-contracts/workbench';
 import type { AccountStatus } from '@musefold/desktop-contracts/account';
-import type { CloudSyncConflictResolution, CloudSyncSummary } from '@musefold/desktop-contracts/cloud-sync';
+import type {
+  CloudSyncConflictResolution,
+  CloudSyncSummary,
+} from '@musefold/desktop-contracts/cloud-sync';
 import {
   createDesktopGateway,
   DesktopGatewayError,
   DesktopGatewayNotImplementedError,
   type WindowApi,
 } from '../index';
-import { pickReversiblePromptRow, promptDocumentToRow, promptRowToDocument } from '../mappers/prompt';
+import {
+  pickReversiblePromptRow,
+  promptDocumentToRow,
+  promptRowToDocument,
+} from '../mappers/prompt';
 
 function promptRow(id: string, patch: Partial<Prompt> = {}): Prompt {
   return {
@@ -238,7 +245,10 @@ function createFakeApi() {
     const limit = query?.limit ?? all.length;
     return all.slice(offset, offset + limit);
   });
-  const historyRelated = vi.fn(async (_q: RelatedHistoryQuery) => ({ items: [] as HistoryRecord[], total: 0 }));
+  const historyRelated = vi.fn(async (_q: RelatedHistoryQuery) => ({
+    items: [] as HistoryRecord[],
+    total: 0,
+  }));
   const historyLinkPrompt = vi.fn(async (_req: HistoryLinkPromptRequest) => ({
     linked: 0,
     alreadyLinked: 0,
@@ -281,7 +291,12 @@ function createFakeApi() {
             conversationKind: 'chat' as const,
             latestStatus: null,
           }));
-        return { items, total: items.length, limit: query?.limit ?? 200, offset: query?.offset ?? 0 };
+        return {
+          items,
+          total: items.length,
+          limit: query?.limit ?? 200,
+          offset: query?.offset ?? 0,
+        };
       },
       get: async (id: string): Promise<WorkbenchSessionDocument | null> => {
         const session = sessions.get(id);
@@ -446,6 +461,54 @@ describe('DesktopGateway PromptGateway', () => {
 });
 
 describe('DesktopGateway DesktopExtras', () => {
+  it('forwards the complete AI connection namespace without mapping secrets into renderer state', async () => {
+    const profile = { id: 'ai-1' };
+    const aiConnection = {
+      listPresets: vi.fn(async () => []),
+      list: vi.fn(async () => [profile]),
+      create: vi.fn(async () => profile),
+      update: vi.fn(async () => profile),
+      delete: vi.fn(async () => ({ ok: true as const })),
+      saveKey: vi.fn(async () => profile),
+      deleteKey: vi.fn(async () => profile),
+      hasKey: vi.fn(async () => ({ hasKey: true, suffix: '1234' })),
+      setActive: vi.fn(async () => profile),
+      listModels: vi.fn(async () => []),
+      validate: vi.fn(async () => ({ ok: true })),
+    };
+    const gateway = createDesktopGateway({ aiConnection } as unknown as WindowApi);
+    const input = {
+      name: '团队网关',
+      routeKind: 'gateway' as const,
+      baseUrl: 'https://example.com/v1',
+      model: 'text-model',
+    };
+
+    await gateway.listAiConnectionPresets();
+    await gateway.listAiConnections();
+    await gateway.createAiConnection(input);
+    await gateway.updateAiConnection('ai-1', { model: 'text-model-2' });
+    await gateway.deleteAiConnection('ai-1');
+    await gateway.saveAiConnectionKey('ai-1', 'secret');
+    await gateway.deleteAiConnectionKey('ai-1');
+    await gateway.hasAiConnectionKey('ai-1');
+    await gateway.setActiveAiConnection('ai-1');
+    await gateway.listAiConnectionModels('ai-1');
+    await gateway.validateAiConnection('ai-1');
+
+    expect(aiConnection.listPresets).toHaveBeenCalledOnce();
+    expect(aiConnection.list).toHaveBeenCalledOnce();
+    expect(aiConnection.create).toHaveBeenCalledWith(input);
+    expect(aiConnection.update).toHaveBeenCalledWith('ai-1', { model: 'text-model-2' });
+    expect(aiConnection.delete).toHaveBeenCalledWith('ai-1');
+    expect(aiConnection.saveKey).toHaveBeenCalledWith('ai-1', 'secret');
+    expect(aiConnection.deleteKey).toHaveBeenCalledWith('ai-1');
+    expect(aiConnection.hasKey).toHaveBeenCalledWith('ai-1');
+    expect(aiConnection.setActive).toHaveBeenCalledWith('ai-1');
+    expect(aiConnection.listModels).toHaveBeenCalledWith('ai-1');
+    expect(aiConnection.validate).toHaveBeenCalledWith('ai-1');
+  });
+
   it('createLibraryPrompt forwards NewPrompt including previewImagePath to api.prompt.create', async () => {
     const fake = createFakeApi();
     const gateway = createDesktopGateway(fake.api);
@@ -479,6 +542,7 @@ describe('DesktopGateway DesktopExtras', () => {
 
     expect(fake.list).toHaveBeenCalledWith(query);
     expect(fake.list.mock.calls[0][0]).toBe(query);
+    await gateway.getLibraryPrompt('missing');
   });
 
   it('relatedHistory / linkHistoryPrompt / listHistory 直通 api.history 行模型', async () => {
@@ -504,6 +568,7 @@ describe('DesktopGateway DesktopExtras', () => {
     await gateway.listHistory(listQuery);
     expect(fake.historyList).toHaveBeenCalledWith(listQuery);
     expect(fake.historyList.mock.calls[0][0]).toBe(listQuery);
+    await gateway.getHistory('missing');
 
     await expect(gateway.getSystemVersion()).resolves.toEqual({ app: '0.0.0-test', db: 10 });
     expect(fake.getVersion).toHaveBeenCalledOnce();
@@ -589,6 +654,33 @@ describe('DesktopGateway other ports', () => {
     expect(deleted.deletedAt).not.toBeNull();
   });
 
+  it('keeps desktop workbench summaries, runs and native progress lossless in extras', async () => {
+    const fake = createFakeApi();
+    const progress = vi.fn();
+    const unsubscribe = vi.fn();
+    (
+      fake.api.image as unknown as {
+        onProgress: (cb: (value: { jobId: string; phase: 'retrying' }) => void) => () => void;
+      }
+    ).onProgress = vi.fn((cb) => {
+      cb({ jobId: 'j1', phase: 'retrying' });
+      return unsubscribe;
+    });
+    const gateway = createDesktopGateway(fake.api);
+    fake.sessions.set('s1', sessionRow('s1'));
+
+    const listed = await gateway.listDesktopWorkbenchSessions({ limit: 200 });
+    expect(listed.items[0]).toMatchObject({ id: 's1', turnCount: 0, runCount: 0 });
+    await expect(gateway.getDesktopWorkbenchSession('s1')).resolves.toMatchObject({
+      session: { id: 's1' },
+      runs: [],
+    });
+    const stop = gateway.onImageGenerationProgress(progress);
+    expect(progress).toHaveBeenCalledWith({ jobId: 'j1', phase: 'retrying' });
+    stop();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
   it('implements history list/delete and generation get/cancel/retry', async () => {
     const fake = createFakeApi();
     const gateway = createDesktopGateway(fake.api);
@@ -626,9 +718,9 @@ describe('DesktopGateway other ports', () => {
     expect(fake.logout).toHaveBeenCalled();
 
     await expect(gateway.listConnections()).resolves.toEqual(emptyConnections);
-    await expect(
-      gateway.updateConnection('c1', { mode: 'ask_each_time' }),
-    ).resolves.toEqual(emptyConnections);
+    await expect(gateway.updateConnection('c1', { mode: 'ask_each_time' })).resolves.toEqual(
+      emptyConnections,
+    );
     await expect(gateway.revokeConnection('c1')).resolves.toBeUndefined();
   });
 });
@@ -637,18 +729,9 @@ describe('DesktopGateway NotImplemented methods', () => {
   it('throws DesktopGatewayNotImplementedError with the method name', async () => {
     const gateway = createDesktopGateway(createFakeApi().api);
     const cases: Array<[string, () => Promise<unknown>]> = [
-      [
-        'updateWorkbenchSession',
-        () => gateway.updateWorkbenchSession('s', { expectedVersion: 1 }),
-      ],
-      [
-        'createGeneration',
-        () => gateway.createGeneration({ prompt: 'x' }, 'idem'),
-      ],
-      [
-        'streamGenerationEvents',
-        () => gateway.streamGenerationEvents('g', 0, () => undefined),
-      ],
+      ['updateWorkbenchSession', () => gateway.updateWorkbenchSession('s', { expectedVersion: 1 })],
+      ['createGeneration', () => gateway.createGeneration({ prompt: 'x' }, 'idem')],
+      ['streamGenerationEvents', () => gateway.streamGenerationEvents('g', 0, () => undefined)],
       ['approveGeneration', () => gateway.approveGeneration('g', 'token')],
       ['restoreGeneration', () => gateway.restoreGeneration('h1')],
     ];

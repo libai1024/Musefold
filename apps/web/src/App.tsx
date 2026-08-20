@@ -537,6 +537,7 @@ export function App({ gateway }: AppProps) {
     try {
       let target = workbenchSessions.find((sessionItem) => sessionItem.id === item.id);
       if (workbenchRef.current?.id === item.id) {
+        if (!(await flushCurrentWorkbenchDraft())) return;
         target = workbenchRef.current;
       }
       if (!target) return;

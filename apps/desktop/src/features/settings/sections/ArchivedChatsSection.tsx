@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
 import { useGenerationWorkbenchStore } from '../../generation/workbench/store';
 import { WORKBENCH_SESSION_RESTART_REQUIRED } from '../../generation/workbench/sessionErrors';

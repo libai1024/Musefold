@@ -8,7 +8,7 @@ import { X } from '../ui/icons';
 import { hatchMotionAllowed } from '../../stores/emberHatch';
 import { createSlip, type CapturedSelection } from './emberSlips';
 import { toImageSrc } from '../../lib/media';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { cn } from '../../lib/utils';
 
 interface SlipImage {

@@ -14,9 +14,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/ipc', () => ({
   default: {
-    image: { generate: mocks.generate },
     provider: { openWebLogin: mocks.openWebLogin },
   },
+}));
+
+vi.mock('../../../runtime', () => ({
+  desktopGateway: { generateImage: mocks.generate },
 }));
 
 let genState: {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
@@ -69,8 +69,23 @@ import { composePromptWithRatioConstraint } from '../promptConstraints';
 import { composePromptWithRefinementImageHint } from '../imageReferences';
 import { WORKBENCH_SESSION_RESTART_REQUIRED } from '../sessionErrors';
 import { readUnreadSessionIds } from '../sessionPreferences';
+import { resetWorkbenchIOForTests, setWorkbenchIOForTests, type WorkbenchIO } from '../io';
+
+const testWorkbenchIO = {
+  ensureWorkbenchSession: mocks.sessionEnsure,
+  listDesktopWorkbenchSessions: mocks.sessionList,
+  getDesktopWorkbenchSession: mocks.sessionGet,
+  renameWorkbenchSession: mocks.sessionRename,
+  archiveWorkbenchSession: mocks.sessionArchive,
+  deleteWorkbenchSession: mocks.sessionDelete,
+  generateImage: mocks.generate,
+  cancelImage: mocks.cancel,
+  retryImage: mocks.retry,
+  onImageGenerationProgress: vi.fn(() => () => undefined),
+} as unknown as WorkbenchIO;
 
 function reset(): void {
+  setWorkbenchIOForTests(testWorkbenchIO);
   mocks.provider.hasKey = true;
   mocks.provider.type = 'openai-compatible';
   mocks.appView.current = 'generate';
@@ -133,6 +148,7 @@ describe('session creation timing', () => {
 });
 
 beforeEach(reset);
+afterAll(resetWorkbenchIOForTests);
 
 describe('single-surface workbench', () => {
   it('starts free creation with one parameter set and no persisted session', () => {

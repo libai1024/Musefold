@@ -7,7 +7,7 @@ import { Blocks, LibraryBig, History, Power } from "../ui/icons";
 import { useAppStore } from "../../stores/app";
 import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
 import { Button } from "../ui/button";
-import api from "../../lib/ipc";
+import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
 import { WORKBENCH_SESSION_RESTART_REQUIRED } from "../../features/generation/workbench/sessionErrors";
 import { usePlatform, useWindowFullscreen } from "../../lib/usePlatform";
 import { SidebarAccessSwitcher } from "./SidebarAccessSwitcher";

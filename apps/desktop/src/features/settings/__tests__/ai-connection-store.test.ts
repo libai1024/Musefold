@@ -1,22 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 
-const api = vi.hoisted(() => ({
-  listPresets: vi.fn(),
-  list: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  saveKey: vi.fn(),
-  deleteKey: vi.fn(),
-  setActive: vi.fn(),
-  listModels: vi.fn(),
-  validate: vi.fn(),
-}));
+import {
+  resetAiConnectionIOForTests,
+  setAiConnectionIOForTests,
+  useAiConnectionStore,
+  type AiConnectionIO,
+} from '../ai-connection-store';
 
-vi.mock('../../../lib/ipc', () => ({ default: { aiConnection: api } }));
-
-import { useAiConnectionStore } from '../ai-connection-store';
+const io: AiConnectionIO = {
+  listAiConnectionPresets: vi.fn(),
+  listAiConnections: vi.fn(),
+  createAiConnection: vi.fn(),
+  updateAiConnection: vi.fn(),
+  deleteAiConnection: vi.fn(),
+  saveAiConnectionKey: vi.fn(),
+  deleteAiConnectionKey: vi.fn(),
+  setActiveAiConnection: vi.fn(),
+  listAiConnectionModels: vi.fn(),
+  validateAiConnection: vi.fn(),
+};
 
 function profile(patch: Partial<AiConnectionProfile> = {}): AiConnectionProfile {
   return {
@@ -47,6 +50,7 @@ function profile(patch: Partial<AiConnectionProfile> = {}): AiConnectionProfile 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setAiConnectionIOForTests(io);
   useAiConnectionStore.setState({
     connections: [],
     presets: [],
@@ -60,28 +64,47 @@ beforeEach(() => {
   });
 });
 
+afterAll(() => {
+  resetAiConnectionIOForTests();
+});
+
 describe('AI connection settings store', () => {
   it('loads presets and sanitized connections through the dedicated API', async () => {
-    api.listPresets.mockResolvedValue([{ id: 'custom', name: '自定义', routeKind: 'gateway', baseUrl: 'https://example.com/v1', model: 'm', hint: '' }]);
-    api.list.mockResolvedValue([profile()]);
+    vi.mocked(io.listAiConnectionPresets).mockResolvedValue([
+      {
+        id: 'custom',
+        name: '自定义',
+        routeKind: 'gateway',
+        baseUrl: 'https://example.com/v1',
+        model: 'm',
+        hint: '',
+      },
+    ]);
+    vi.mocked(io.listAiConnections).mockResolvedValue([profile()]);
     await useAiConnectionStore.getState().load();
     expect(useAiConnectionStore.getState()).toMatchObject({ loaded: true, loading: false });
-    expect(useAiConnectionStore.getState().connections[0]).toMatchObject({ id: 'ai-1', hasKey: false });
+    expect(useAiConnectionStore.getState().connections[0]).toMatchObject({
+      id: 'ai-1',
+      hasKey: false,
+    });
   });
 
   it('never stores the submitted API key in renderer state', async () => {
     const secured = profile({ hasKey: true, keySuffix: '7890' });
     useAiConnectionStore.setState({ connections: [profile()] });
-    api.saveKey.mockResolvedValue(secured);
+    vi.mocked(io.saveAiConnectionKey).mockResolvedValue(secured);
     await useAiConnectionStore.getState().saveKey('ai-1', 'sk-renderer-one-shot-1234567890');
-    expect(api.saveKey).toHaveBeenCalledWith('ai-1', 'sk-renderer-one-shot-1234567890');
+    expect(io.saveAiConnectionKey).toHaveBeenCalledWith('ai-1', 'sk-renderer-one-shot-1234567890');
     expect(JSON.stringify(useAiConnectionStore.getState())).not.toContain('sk-renderer-one-shot');
-    expect(useAiConnectionStore.getState().connections[0]).toMatchObject({ hasKey: true, keySuffix: '7890' });
+    expect(useAiConnectionStore.getState().connections[0]).toMatchObject({
+      hasKey: true,
+      keySuffix: '7890',
+    });
   });
 
   it('keeps a manual model when discovery is unavailable but text validation succeeds', async () => {
     useAiConnectionStore.setState({ connections: [profile({ hasKey: true })] });
-    api.validate.mockResolvedValue({
+    vi.mocked(io.validateAiConnection).mockResolvedValue({
       ok: true,
       message: '连接成功；请手工填写模型 ID',
       models: [],
@@ -98,9 +121,12 @@ describe('AI connection settings store', () => {
 
   it('revokes key status independently from the image provider store', async () => {
     useAiConnectionStore.setState({ connections: [profile({ hasKey: true, keySuffix: '7890' })] });
-    api.deleteKey.mockResolvedValue(profile());
+    vi.mocked(io.deleteAiConnectionKey).mockResolvedValue(profile());
     await useAiConnectionStore.getState().deleteKey('ai-1');
-    expect(useAiConnectionStore.getState().connections[0]).toMatchObject({ hasKey: false, keySuffix: null });
+    expect(useAiConnectionStore.getState().connections[0]).toMatchObject({
+      hasKey: false,
+      keySuffix: null,
+    });
     expect(useAiConnectionStore.getState().testStatus['ai-1']).toEqual({ state: 'idle' });
   });
 
@@ -110,9 +136,9 @@ describe('AI connection settings store', () => {
 
     useAiConnectionStore.getState().openDialog(managed);
     expect(useAiConnectionStore.getState().dialogOpen).toBe(false);
-    await expect(useAiConnectionStore.getState().updateConnection(managed.id, { model: 'other-model' }))
-      .rejects.toThrow('固定管理');
-    expect(api.update).not.toHaveBeenCalled();
+    await expect(
+      useAiConnectionStore.getState().updateConnection(managed.id, { model: 'other-model' }),
+    ).rejects.toThrow('固定管理');
+    expect(io.updateAiConnection).not.toHaveBeenCalled();
   });
-
 });

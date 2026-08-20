@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Blocks, ImagePlus, Loader2, Plus, Search, X } from '../../components/ui/icons';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import { toast } from '../../stores/toast';

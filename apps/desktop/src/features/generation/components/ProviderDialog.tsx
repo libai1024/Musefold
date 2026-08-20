@@ -24,7 +24,7 @@ import { cn } from '../../../lib/utils';
 import { displayModelName, filterImageModels } from '../../../lib/model-catalog';
 import { ValidationResultBanner } from './ValidationResultBanner';
 import { toast } from '../../../stores/toast';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 interface Props {
   open: boolean;

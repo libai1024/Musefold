@@ -1950,10 +1950,8 @@
     display: none;
   }
 
-  /* Bottom sheet вместо привязанного попапа: позицию задаёт
-     useWorkbenchPopoverPosition, оформление — здесь. */
-  .mf-workbench-ratio-menu,
-  .mf-workbench-generation-menu {
+  [data-product-host='web'] .mf-workbench-ratio-menu,
+  [data-product-host='web'] .mf-workbench-generation-menu {
     width: auto;
     max-width: none;
     border-bottom: 0;
@@ -1963,8 +1961,8 @@
     animation: mf-workbench-sheet-in 200ms ease-out;
   }
 
-  .mf-workbench-ratio-menu::before,
-  .mf-workbench-generation-menu::before {
+  [data-product-host='web'] .mf-workbench-ratio-menu::before,
+  [data-product-host='web'] .mf-workbench-generation-menu::before {
     content: '';
     display: block;
     width: 36px;
@@ -4716,10 +4714,13 @@
     justify-content: center;
   }
 
-  /* 豆包式主区：空会话不放 landing hero，只留 composer 和对话主题。 */
-  .mf-workbench-empty,
+  /* 窄屏精简空态插画和方向列表，但保留产品标语与会话语境。 */
+  .mf-workbench-empty {
+    min-height: 0;
+    padding: 24px 8px;
+  }
+
   .mf-workbench-empty-brand,
-  .mf-workbench-empty-copy,
   .mf-workbench-directions {
     display: none;
   }

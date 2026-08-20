@@ -774,7 +774,7 @@
 - `electron/system/{about,app-version}.ts`、`electron/main/ipc/system.ts`（固定资源 ID 与正确产品版本）
 - `electron/main/external-links.ts`、`window.ts`（Provider 外链 HTTPS + 精确 host 白名单）
 - `shared/types/ipc.ts`、`electron/preload/index.ts`、`preview/bridge-plugin.mjs`（`system:openAboutResource` 契约）
-- `electron-builder.yml`、`LICENSE`（随包产品文档与 MIT 许可）
+- `apps/desktop/electron-builder.yml`、`LICENSE`（随包产品文档与 MIT 许可）
 
 **IPC 契约**：复用 `system:getVersion`（§3.8），新增 `system:openAboutResource(resource: 'product-docs')`。渲染层不传文件路径；未知 ID 由主进程拒绝。
 

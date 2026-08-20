@@ -91,7 +91,7 @@ async function fileSummary(path) {
 }
 
 async function artifactPaths() {
-  const pkg = JSON.parse(await readText('package.json'));
+  const pkg = JSON.parse(await readText('apps/desktop/package.json'));
   return {
     version: pkg.version,
     app: 'release/mac-arm64/Musefold.app',
@@ -101,7 +101,7 @@ async function artifactPaths() {
 }
 
 async function bundleIdFromConfig() {
-  const builder = await readText('electron-builder.yml');
+  const builder = await readText('apps/desktop/electron-builder.yml');
   const match = builder.match(/^appId:\s*([^\s#]+)\s*$/m);
   return match?.[1] ?? 'com.musefold.app';
 }

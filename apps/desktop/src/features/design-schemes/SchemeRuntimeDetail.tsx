@@ -33,7 +33,7 @@ import {
 } from '../../components/ui/icons';
 import { cn } from '../../lib/utils';
 import { toImageSrc } from '../../lib/media';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../stores/toast';
 import type {
   DesignSchemeAssetSummary,

@@ -14,7 +14,21 @@ const providerApi = vi.hoisted(() => ({
   listModels: vi.fn(),
 }));
 
-vi.mock('../../../lib/ipc', () => ({ default: { provider: providerApi } }));
+vi.mock('../../../runtime/gateway-context', () => ({
+  gateway: {
+    desktop: {
+      listProviders: providerApi.list,
+      createProvider: providerApi.create,
+      updateProvider: providerApi.update,
+      deleteProvider: providerApi.delete,
+      saveProviderKey: providerApi.saveKey,
+      hasProviderKey: providerApi.hasKey,
+      setActiveProvider: providerApi.setActive,
+      validateProvider: providerApi.validate,
+      listProviderModels: providerApi.listModels,
+    },
+  },
+}));
 
 import { useGenerationStore } from '../store';
 
@@ -56,8 +70,9 @@ describe('provider settings store', () => {
 
     useGenerationStore.getState().openProviderDialog(managed);
     expect(useGenerationStore.getState().providerDialogOpen).toBe(false);
-    await expect(useGenerationStore.getState().updateProvider(managed.id, { model: 'other-model' }))
-      .rejects.toThrow('固定管理');
+    await expect(
+      useGenerationStore.getState().updateProvider(managed.id, { model: 'other-model' }),
+    ).rejects.toThrow('固定管理');
     expect(providerApi.update).not.toHaveBeenCalled();
   });
 

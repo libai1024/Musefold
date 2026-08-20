@@ -8,8 +8,9 @@ const application = readFileSync('apps/desktop/electron/main/application.ts', 'u
 
 describe('pet interaction contract', () => {
   it('opens the main window only from an explicit double-click action', () => {
-    expect(renderer).toContain("window.api.pet.interact('pointer-down')");
-    expect(renderer).toContain("onDoubleClick={() => window.api.pet.interact('open-main')}");
+    expect(renderer).toContain("desktopHost as api");
+    expect(renderer).toContain("api.pet.interact('pointer-down')");
+    expect(renderer).toContain("onDoubleClick={() => api.pet.interact('open-main')}");
     expect(controller).toContain("if (interaction === 'pointer-down')");
     expect(controller).toContain("if (interaction === 'open-main')");
     expect(controller).toContain('openMainWindowFromPet()');
@@ -23,7 +24,7 @@ describe('pet interaction contract', () => {
   it('tracks dragging from the native cursor instead of renderer move events', () => {
     expect(controller).toContain('screen.getCursorScreenPoint()');
     expect(controller).toContain('setInterval(updatePetDragPosition, 16)');
-    expect(renderer).not.toContain('window.api.pet.moveBy(dx, dy)');
+    expect(renderer).not.toContain('api.pet.moveBy(dx, dy)');
   });
 
   it('keeps the pet off by default and preserves the explicit user setting', () => {

@@ -1,18 +1,14 @@
 import { create } from 'zustand';
 import type {
-  GenerateImageResult,
-  ImageGenerationProgress,
   ImageProviderResponseSummary,
   LocalImageReference,
   PromptReference,
 } from '@musefold/desktop-contracts/providers';
-import { LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
 import { useAppStore } from '../../../stores/app';
 import { useGenerationStore } from '../store';
 import { useDoubaoAccountStore } from '../../account/doubao-store';
 import { useHistoryStore } from '../../history/store';
-import { gateway } from '../../../runtime/gateway-context';
-import api from '../../../lib/ipc';
+import { getWorkbenchIO, subscribeToWorkbenchGenerationProgress } from './io';
 import {
   buildImageRequest,
   DEFAULT_REFINE_PARAMS,
@@ -23,7 +19,6 @@ import type {
   GenerationResultItem,
   GenerationSource,
   GenerationTurn,
-  GenerationTurnStatus,
   RefinementContext,
   SchemeCreationDraftCard,
 } from './types';
@@ -35,7 +30,6 @@ import type {
 } from '@musefold/desktop-contracts/design-scheme';
 import type {
   GenerationRun,
-  WorkbenchSession,
   WorkbenchSessionDocument,
   WorkbenchSessionSummary,
 } from '@musefold/desktop-contracts/workbench';
@@ -45,12 +39,7 @@ import type {
   SkillRuntimeSnapshot,
   SkillRuntimeTraceItem,
 } from '@musefold/desktop-contracts/skill-runtime';
-import {
-  composePromptWithReferences,
-  isDuplicateReference,
-  MAX_DRAFT_REFERENCES,
-  MAX_REFERENCE_TEXT_LENGTH,
-} from './references';
+import { composePromptWithReferences } from './references';
 import { workbenchSessionErrorMessage } from './sessionErrors';
 import { composePromptWithRatioConstraint } from './promptConstraints';
 import {
@@ -59,98 +48,46 @@ import {
   uniqueReferenceImages,
 } from './imageReferences';
 import { setSessionUnread } from './sessionPreferences';
-import { workbenchSessionControllerReducer } from '@musefold/product-ui';
-import type { WorkbenchSessionControllerAction } from '@musefold/product-ui';
+import {
+  createEmptyWorkbenchDraft,
+  DEFAULT_WORKBENCH_PARAMS,
+  loadWorkbenchPreferences,
+  persistWorkbenchPreferences,
+  workbenchDraftControllerReducer,
+  WORKBENCH_PROMPT_LIMIT,
+  type WorkbenchDraftControllerState,
+} from './draftController';
+import { workbenchSessionController } from './sessionController';
+import {
+  applyGenerationProgress,
+  applyImageResult,
+  applyTransportError,
+  resultStatus,
+  sessionHasRunningTurn,
+  updateGenerationResult,
+  withRunRegistered,
+  withRunReleased,
+  type RunningTurnEntry,
+  type WorkbenchGenerationSyncState,
+} from './generationSyncController';
 
-const DEFAULT_WORKBENCH_PARAMS: RefineParams = {
-  ...DEFAULT_REFINE_PARAMS,
-  n: 4,
-};
-
-const PREFERENCES_KEY = `${LOCAL_STORAGE_PREFIX}workbench-preferences-v2`;
-export const WORKBENCH_PROMPT_LIMIT = 8000;
 const SKILL_RUNTIME_PROMPT_LIMIT = 8 * 1024 * 1024;
 let seq = 0;
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
-let activeSessionListRequest = 0;
-let archivedSessionListRequest = 0;
-let openSessionRequest = 0;
-
-function reduceSessionSummaries(
-  items: WorkbenchSessionSummary[],
-  selectedId: string | null,
-  action: WorkbenchSessionControllerAction<WorkbenchSessionSummary>,
-) {
-  return workbenchSessionControllerReducer({
-    items,
-    selectedId,
-    openingId: null,
-    loading: false,
-    error: null,
-  }, action);
-}
-
-function mergeSessionSummary(
-  session: WorkbenchSession,
-  current?: WorkbenchSessionSummary,
-): WorkbenchSessionSummary {
-  return {
-    id: session.id,
-    title: session.title,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    archivedAt: session.archivedAt,
-    deletedAt: session.deletedAt,
-    turnCount: current?.turnCount ?? 0,
-    runCount: current?.runCount ?? 0,
-    latestAssetPath: current?.latestAssetPath ?? null,
-    conversationKind: current?.conversationKind ?? 'prompt',
-    latestStatus: current?.latestStatus ?? null,
-  };
-}
-
-function normalizeCount(value: unknown, fallback: number): number {
-  return typeof value === 'number' && [1, 2, 4, 6].includes(value)
-    ? value
-    : fallback;
-}
-
-function safeStorage(): Storage | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const storage = window.localStorage;
-    return typeof storage?.getItem === 'function' && typeof storage?.setItem === 'function'
-      ? storage
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function loadPreferences(): RefineParams {
-  const storage = safeStorage();
-  if (!storage) return { ...DEFAULT_WORKBENCH_PARAMS };
-  try {
-    const parsed = JSON.parse(storage.getItem(PREFERENCES_KEY) ?? '{}') as Partial<RefineParams>;
-    return {
-      ...DEFAULT_WORKBENCH_PARAMS,
-      ...parsed,
-      n: normalizeCount(parsed.n, DEFAULT_WORKBENCH_PARAMS.n),
-    };
-  } catch {
-    return { ...DEFAULT_WORKBENCH_PARAMS };
-  }
-}
-
-function persistPreferences(params: RefineParams): void {
-  const storage = safeStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(PREFERENCES_KEY, JSON.stringify(params));
-  } catch {
-    // 偏好写入失败不能影响实际生成。
-  }
-}
+const mapTurnsEverywhere = workbenchSessionController.mapTurnsEverywhere.bind(
+  workbenchSessionController,
+);
+const findTurnAnywhere = workbenchSessionController.findTurn.bind(workbenchSessionController);
+const cacheSessionTurns = workbenchSessionController.cacheTurns.bind(workbenchSessionController);
+const sessionIdForTurn = workbenchSessionController.sessionIdForTurn.bind(
+  workbenchSessionController,
+);
+const reduceSessionSummaries = workbenchSessionController.reduceSummaries.bind(
+  workbenchSessionController,
+);
+const mergeSessionSummary = workbenchSessionController.mergeSummary.bind(
+  workbenchSessionController,
+);
 
 function sourceToRefineSource(source: GenerationSource): RefineSource | null {
   if (source.kind === 'prompt') {
@@ -177,35 +114,30 @@ export function composeRefinementPrompt(parentPrompt: string, instruction: strin
   return `${parentPrompt.trim()}\n\n微调要求：\n${instruction.trim()}`.trim();
 }
 
-function resultStatus(results: GenerationResultItem[]): GenerationTurnStatus {
-  if (results.some((r) => r.status === 'pending')) return 'running';
-  if (results.some((r) => r.status === 'success') && results.some((r) => r.status !== 'success')) return 'partial';
-  if (results.every((r) => r.status === 'success')) return 'success';
-  if (results.every((r) => r.status === 'cancelled')) return 'cancelled';
-  return 'failed';
-}
-
 function parseSkillRuntimeSnapshot(candidate: unknown): SkillRuntimeSnapshot | null {
   if (!candidate || typeof candidate !== 'object') return null;
   const value = candidate as Partial<SkillRuntimeSnapshot>;
   if (
-    typeof value.label !== 'string'
-    || typeof value.repositoryUrl !== 'string'
-    || !['agent', 'file-fallback', 'direct-forward'].includes(value.executionMode ?? '')
-    || !Array.isArray(value.trace)
-  ) return null;
+    typeof value.label !== 'string' ||
+    typeof value.repositoryUrl !== 'string' ||
+    !['agent', 'file-fallback', 'direct-forward'].includes(value.executionMode ?? '') ||
+    !Array.isArray(value.trace)
+  )
+    return null;
   return {
     label: value.label,
     repositoryUrl: value.repositoryUrl,
     executionMode: value.executionMode as SkillRuntimeExecutionMode,
-    trace: value.trace.filter((item): item is SkillRuntimeTraceItem => Boolean(
-      item
-      && typeof item === 'object'
-      && typeof item.id === 'string'
-      && typeof item.title === 'string'
-      && ['tool', 'assistant', 'system'].includes(item.kind)
-      && ['running', 'success', 'warning', 'error'].includes(item.status),
-    )),
+    trace: value.trace.filter((item): item is SkillRuntimeTraceItem =>
+      Boolean(
+        item &&
+        typeof item === 'object' &&
+        typeof item.id === 'string' &&
+        typeof item.title === 'string' &&
+        ['tool', 'assistant', 'system'].includes(item.kind) &&
+        ['running', 'success', 'warning', 'error'].includes(item.status),
+      ),
+    ),
   };
 }
 
@@ -220,14 +152,17 @@ function completedSkillTrace(
     id: 'image-generation',
     kind: 'tool',
     title: successCount > 0 ? '图片生成完成' : '图片生成失败',
-    detail: successCount > 0
-      ? `已返回 ${successCount} 张图片${failedCount > 0 ? `，${failedCount} 张失败` : ''}`
-      : results.find((result) => result.error)?.error || '图片生成失败',
+    detail:
+      successCount > 0
+        ? `已返回 ${successCount} 张图片${failedCount > 0 ? `，${failedCount} 张失败` : ''}`
+        : results.find((result) => result.error)?.error || '图片生成失败',
     status: successCount > 0 ? 'success' : 'error',
   };
   const index = trace.findIndex((candidate) => candidate.id === item.id);
   if (index < 0) return [...trace, item];
-  return trace.map((candidate) => candidate.id === item.id ? { ...candidate, ...item } : candidate);
+  return trace.map((candidate) =>
+    candidate.id === item.id ? { ...candidate, ...item } : candidate,
+  );
 }
 
 function sourceFromRun(run: GenerationRun): GenerationSource {
@@ -248,7 +183,10 @@ function sourceFromRun(run: GenerationRun): GenerationSource {
 function paramsFromRun(run: GenerationRun): RefineParams {
   return {
     ...DEFAULT_REFINE_PARAMS,
-    ratioId: typeof run.params.aspectRatio === 'string' ? run.params.aspectRatio : DEFAULT_REFINE_PARAMS.ratioId,
+    ratioId:
+      typeof run.params.aspectRatio === 'string'
+        ? run.params.aspectRatio
+        : DEFAULT_REFINE_PARAMS.ratioId,
     quality: run.params.quality ?? DEFAULT_REFINE_PARAMS.quality,
     n: 1,
     background: run.params.background ?? DEFAULT_REFINE_PARAMS.background,
@@ -260,15 +198,18 @@ function parseReferenceImage(candidate: unknown): LocalImageReference | null {
   if (!candidate || typeof candidate !== 'object') return null;
   const value = candidate as Partial<LocalImageReference>;
   if (
-    (value.source !== 'upload' && value.source !== 'history')
-    || typeof value.path !== 'string'
-    || !value.path
-  ) return null;
+    (value.source !== 'upload' && value.source !== 'history') ||
+    typeof value.path !== 'string' ||
+    !value.path
+  )
+    return null;
   return {
     path: value.path,
     source: value.source,
     ...(typeof value.name === 'string' ? { name: value.name } : {}),
-    ...(typeof value.mimeType === 'string' ? { mimeType: value.mimeType as LocalImageReference['mimeType'] } : {}),
+    ...(typeof value.mimeType === 'string'
+      ? { mimeType: value.mimeType as LocalImageReference['mimeType'] }
+      : {}),
     ...(typeof value.sizeBytes === 'number' ? { sizeBytes: value.sizeBytes } : {}),
     ...(typeof value.historyId === 'string' ? { historyId: value.historyId } : {}),
   };
@@ -287,17 +228,18 @@ function providerResponseFromValue(value: unknown): ImageProviderResponseSummary
   if (!value || typeof value !== 'object') return undefined;
   const summary = value as Partial<ImageProviderResponseSummary>;
   if (
-    summary.kind !== 'doubao-web'
-    || typeof summary.expectedImageCount !== 'number'
-    || typeof summary.receivedImageCount !== 'number'
-  ) return undefined;
+    summary.kind !== 'doubao-web' ||
+    typeof summary.expectedImageCount !== 'number' ||
+    typeof summary.receivedImageCount !== 'number'
+  )
+    return undefined;
   return {
     kind: 'doubao-web',
     expectedImageCount: summary.expectedImageCount,
     receivedImageCount: summary.receivedImageCount,
     ...(typeof summary.message === 'string' && summary.message.trim()
       ? { message: summary.message }
-        : {}),
+      : {}),
   };
 }
 
@@ -318,43 +260,46 @@ function turnsFromSession(document: WorkbenchSessionDocument): GenerationTurn[] 
       for (const item of items) {
         const position = item.run.resultIndex ?? 0;
         const current = latestByPosition.get(position);
-        if (!current || item.run.createdAt >= current.run.createdAt) latestByPosition.set(position, item);
+        if (!current || item.run.createdAt >= current.run.createdAt)
+          latestByPosition.set(position, item);
       }
       const ordered = [...latestByPosition.entries()].sort((a, b) => a[0] - b[0]);
       const firstItem = ordered[0]?.[1] ?? items[0];
       const first = firstItem.run;
-      const results: GenerationResultItem[] = ordered.flatMap(([
-        position,
-        item,
-      ]): GenerationResultItem[] => {
-        const assets = item.assets
-          .filter((asset) => asset.status === 'available' && asset.mediaPath)
-          .sort((left, right) => left.position - right.position);
-        if (assets.length > 0) {
-          return assets.map((asset) => ({
-            id: `${turnId}-${position}-${asset.position}`,
-            jobId: item.run.id,
-            historyId: item.run.id,
-            assetId: asset.id,
-            status: 'success' as const,
-            imagePath: asset.mediaPath ?? undefined,
-            cost: item.run.actualCost ?? undefined,
-            durationMs: item.run.durationMs ?? undefined,
-          }));
-        }
-        return [{
-          id: `${turnId}-${position}`,
-          jobId: item.run.id,
-          historyId: item.run.id,
-          status: item.run.status === 'queued' || item.run.status === 'running'
-            ? 'pending' as const
-            : item.run.status,
-          cost: item.run.actualCost ?? undefined,
-          durationMs: item.run.durationMs ?? undefined,
-          error: item.run.errorMessage ?? undefined,
-          errorCode: item.run.errorCode ?? undefined,
-        }];
-      });
+      const results: GenerationResultItem[] = ordered.flatMap(
+        ([position, item]): GenerationResultItem[] => {
+          const assets = item.assets
+            .filter((asset) => asset.status === 'available' && asset.mediaPath)
+            .sort((left, right) => left.position - right.position);
+          if (assets.length > 0) {
+            return assets.map((asset) => ({
+              id: `${turnId}-${position}-${asset.position}`,
+              jobId: item.run.id,
+              historyId: item.run.id,
+              assetId: asset.id,
+              status: 'success' as const,
+              imagePath: asset.mediaPath ?? undefined,
+              cost: item.run.actualCost ?? undefined,
+              durationMs: item.run.durationMs ?? undefined,
+            }));
+          }
+          return [
+            {
+              id: `${turnId}-${position}`,
+              jobId: item.run.id,
+              historyId: item.run.id,
+              status:
+                item.run.status === 'queued' || item.run.status === 'running'
+                  ? ('pending' as const)
+                  : item.run.status,
+              cost: item.run.actualCost ?? undefined,
+              durationMs: item.run.durationMs ?? undefined,
+              error: item.run.errorMessage ?? undefined,
+              errorCode: item.run.errorCode ?? undefined,
+            },
+          ];
+        },
+      );
       const source = sourceFromRun(first);
       const providerResponse = ordered
         .map(([, item]) => providerResponseFromValue(item.providerResponse))
@@ -365,9 +310,10 @@ function turnsFromSession(document: WorkbenchSessionDocument): GenerationTurn[] 
         userPrompt: first.promptSnapshot.userPrompt || first.userPrompt,
         references: firstItem.promptReferences.map((reference) => ({ ...reference })),
         negativePrompt: first.negativePrompt ?? '',
-        source: source.kind === 'skill'
-          ? { ...source, trace: completedSkillTrace(source.trace, results) }
-          : source,
+        source:
+          source.kind === 'skill'
+            ? { ...source, trace: completedSkillTrace(source.trace, results) }
+            : source,
         providerId: first.providerId,
         params: { ...paramsFromRun(first), n: results.length },
         status: resultStatus(results),
@@ -381,226 +327,16 @@ function turnsFromSession(document: WorkbenchSessionDocument): GenerationTurn[] 
     });
 }
 
-/**
- * 会话内存缓存：切走的对话在本次运行期间保留完整轮次。
- *
- * 作用（生成期间允许新建/切换对话的关键）：
- * 1. 后台运行的事件（轨迹、逐张结果、完成/失败）继续写入缓存里的原对话；
- * 2. 切回时原样恢复，包括数据库不落盘的方案创建/修改轮（草稿卡片）；
- * 3. 完成时据此找到轮次所属会话，给侧栏标未读。
- * 单飞约束不变：同一时刻只允许一次生成（begin 与 submit 系列仍有 isGenerating 守卫）。
- */
-const sessionTurnsCache = new Map<string, GenerationTurn[]>();
-const SESSION_TURNS_CACHE_LIMIT = 12;
-
-function cacheSessionTurns(sessionId: string, turns: GenerationTurn[]): void {
-  if (!sessionId || turns.length === 0) return;
-  sessionTurnsCache.delete(sessionId);
-  sessionTurnsCache.set(sessionId, turns);
-  while (sessionTurnsCache.size > SESSION_TURNS_CACHE_LIMIT) {
-    const oldest = sessionTurnsCache.keys().next().value as string | undefined;
-    if (oldest === undefined) break;
-    sessionTurnsCache.delete(oldest);
-  }
-}
-
 /** 测试隔离用：清空会话内存缓存。 */
 export function clearSessionTurnsCacheForTests(): void {
-  sessionTurnsCache.clear();
+  workbenchSessionController.clearCache();
 }
 
-/** 当前轮次与缓存中的后台会话一起打补丁：后台运行完成时结果必须写回原对话。 */
-function mapTurnsEverywhere(
-  turns: GenerationTurn[],
-  mapper: (turn: GenerationTurn) => GenerationTurn,
-): GenerationTurn[] {
-  for (const [sessionId, cached] of sessionTurnsCache) {
-    sessionTurnsCache.set(sessionId, cached.map(mapper));
-  }
-  return turns.map(mapper);
-}
-
-/** 在当前轮次或后台缓存里找轮次（后台运行的事件补写用）。 */
-function findTurnAnywhere(turns: GenerationTurn[], turnId: string): GenerationTurn | undefined {
-  const current = turns.find((item) => item.id === turnId);
-  if (current) return current;
-  for (const cached of sessionTurnsCache.values()) {
-    const hit = cached.find((item) => item.id === turnId);
-    if (hit) return hit;
-  }
-  return undefined;
-}
-
-/** turnId 所属会话（后台完成时标未读用）。 */
-function sessionIdForTurn(turnId: string): string | null {
-  for (const [sessionId, cached] of sessionTurnsCache) {
-    if (cached.some((turn) => turn.id === turnId)) return sessionId;
-  }
-  return null;
-}
-
-/**
- * 运行登记：生成的单飞锁按「对话」粒度生效（跨对话可以并行生成）。
- * jobId 供停止按钮逐张取消；cancelRequested 只作用于该轮。
- */
-export interface RunningTurnEntry {
-  sessionId: string;
-  jobId: string | null;
-  cancelRequested: boolean;
-  kind: 'image' | 'retry' | 'refinement' | 'skill' | 'scheme-creation' | 'scheme-run';
-}
-
-/** 该对话是否已有运行中的轮次（提交守卫用）。 */
-export function sessionHasRunningTurn(
-  state: Pick<WorkbenchState, 'runningTurns'>,
-  sessionId: string,
-): boolean {
-  return Object.values(state.runningTurns).some((entry) => entry.sessionId === sessionId);
-}
-
-function withRunRegistered(
-  state: Pick<WorkbenchState, 'runningTurns'>,
-  turnId: string,
-  entry: RunningTurnEntry,
-): Pick<WorkbenchState, 'runningTurns' | 'isGenerating' | 'activeTurnId'> {
-  return {
-    runningTurns: { ...state.runningTurns, [turnId]: entry },
-    isGenerating: true,
-    activeTurnId: turnId,
-  };
-}
-
-function withRunReleased(
-  state: Pick<WorkbenchState, 'runningTurns' | 'activeTurnId'>,
-  turnId: string,
-): Partial<WorkbenchState> {
-  const runningTurns = { ...state.runningTurns };
-  delete runningTurns[turnId];
-  const remaining = Object.keys(runningTurns);
-  return {
-    runningTurns,
-    isGenerating: remaining.length > 0,
-    activeTurnId: state.activeTurnId === turnId ? remaining.at(-1) ?? null : state.activeTurnId,
-    ...(remaining.length === 0 ? { activeJobId: null, cancelRequested: false } : {}),
-  };
-}
-
-function updateResult(
-  set: (updater: (state: WorkbenchState) => Partial<WorkbenchState>) => void,
-  turnId: string,
-  resultId: string,
-  patch: Partial<GenerationResultItem>,
-): void {
-  set((state) => ({
-    turns: mapTurnsEverywhere(state.turns, (turn) => {
-      if (turn.id !== turnId) return turn;
-      const results = turn.results.map((result) =>
-        result.id === resultId ? { ...result, ...patch } : result,
-      );
-      return { ...turn, results, status: resultStatus(results) };
-    }),
-  }));
-}
-
-function applyImageResult(
-  set: (updater: (state: WorkbenchState) => Partial<WorkbenchState>) => void,
-  turnId: string,
-  resultId: string,
-  result: GenerateImageResult,
-): void {
-  const images = result.images?.filter((image) => Boolean(image.imagePath))
-    ?? (result.imagePath ? [{ imagePath: result.imagePath, actualSize: result.actualSize }] : []);
-  if (result.status === 'success' && images.length > 0) {
-    set((state) => ({
-      turns: mapTurnsEverywhere(state.turns, (turn) => {
-        if (turn.id !== turnId) return turn;
-        const targetIndex = turn.results.findIndex((item) => item.id === resultId);
-        if (targetIndex < 0) return turn;
-        const target = turn.results[targetIndex];
-        const replacements: GenerationResultItem[] = images.map((image, index) => ({
-          ...target,
-          id: index === 0 ? resultId : `${resultId}-variant-${index + 1}-${image.assetId ?? index}`,
-          status: 'success',
-          historyId: result.historyId,
-          assetId: image.assetId,
-          imagePath: image.imagePath,
-          cost: result.cost,
-          durationMs: result.durationMs,
-          error: undefined,
-          errorCode: undefined,
-          retrying: false,
-          retryAttempt: undefined,
-          retryMax: undefined,
-          retryDelayMs: undefined,
-        }));
-        const results = [
-          ...turn.results.slice(0, targetIndex),
-          ...replacements,
-          ...turn.results.slice(targetIndex + 1),
-        ];
-        return {
-          ...turn,
-          results,
-          params: { ...turn.params, n: results.length },
-          status: resultStatus(results),
-          ...(result.providerResponse ? { providerResponse: result.providerResponse } : {}),
-        };
-      }),
-    }));
-    return;
-  }
-  updateResult(set, turnId, resultId, {
-    status: result.status === 'cancelled' ? 'cancelled' : 'failed',
-    historyId: result.historyId,
-    error: result.error?.message ?? '生成失败',
-    errorCode: result.error?.code ?? 'UNKNOWN',
-    durationMs: result.durationMs,
-    retrying: false,
-    retryAttempt: undefined,
-    retryMax: undefined,
-    retryDelayMs: undefined,
-  });
-}
-
-function applyTransportError(
-  set: (updater: (state: WorkbenchState) => Partial<WorkbenchState>) => void,
-  turnId: string,
-  resultId: string,
-  error: unknown,
-): void {
-  const code = (error as { code?: string })?.code ?? 'UNKNOWN';
-  const message = error instanceof Error ? error.message : '生成失败';
-  updateResult(set, turnId, resultId, {
-    status: code === 'CANCELLED' ? 'cancelled' : 'failed',
-    errorCode: code,
-    error: message,
-    retrying: false,
-    retryAttempt: undefined,
-    retryMax: undefined,
-    retryDelayMs: undefined,
-  });
-}
-
-interface WorkbenchState {
-  turns: GenerationTurn[];
-  draftPrompt: string;
-  draftNegativePrompt: string;
-  draftReferences: PromptReference[];
-  draftImages: LocalImageReference[];
-  draftSource: GenerationSource;
+interface WorkbenchState extends WorkbenchDraftControllerState, WorkbenchGenerationSyncState {
   /** Composer 指令芯片（Codex 式）：输入完整 / 指令后收敛为图标+指令名。 */
   draftCommand: 'design-plan' | null;
   /** 「从历史内容创建」挑选的来源（UI 规范 §10）；随 design-plan 指令一起提交。 */
   draftHistorySource: { items: DesignSchemeHistorySourceItem[] } | null;
-  params: RefineParams;
-  /** 是否有任意运行在进行（全局粗粒度；对话级判断用 runningTurns）。 */
-  isGenerating: boolean;
-  /** 运行中的轮次登记：turnId → 所属会话 / 当前 jobId / 取消标记。 */
-  runningTurns: Record<string, RunningTurnEntry>;
-  activeTurnId: string | null;
-  activeJobId: string | null;
-  cancelRequested: boolean;
-  lastError: { code: string; message: string } | null;
   /** 方案运行事件回填当前 jobId（供该对话的停止按钮取消）。 */
   setRunningTurnJob: (turnId: string, jobId: string | null) => void;
   sessionId: string;
@@ -630,18 +366,27 @@ interface WorkbenchState {
     params: RefineParams;
     referenceImages: LocalImageReference[];
     source: Extract<GenerationSource, { kind: 'skill' }>;
-  }) => { turnId: string; turnIndex: number; jobIds: string[]; sessionId: string; sessionTitle: string } | null;
+  }) => {
+    turnId: string;
+    turnIndex: number;
+    jobIds: string[];
+    sessionId: string;
+    sessionTitle: string;
+  } | null;
   /** 生图真正开始时才补建结果占位卡片（Agent 阅读/编排阶段不显示骨架）。幂等。 */
   materializeSkillTurnResults: (turnId: string, jobIds: string[]) => void;
   /** 主进程逐张推送的生图结果回填到对应卡片。 */
   applySkillGenerationResult: (turnId: string, outcome: SkillRuntimeGenerationOutcome) => void;
   /** Skill 执行收尾：写入最终提示词与轨迹，补齐漏掉的结果并结束生成态。 */
-  finishSkillTurn: (turnId: string, patch: {
-    prompt: string;
-    source: Extract<GenerationSource, { kind: 'skill' }>;
-    referenceImages: LocalImageReference[];
-    generations: SkillRuntimeGenerationOutcome[];
-  }) => void;
+  finishSkillTurn: (
+    turnId: string,
+    patch: {
+      prompt: string;
+      source: Extract<GenerationSource, { kind: 'skill' }>;
+      referenceImages: LocalImageReference[];
+      generations: SkillRuntimeGenerationOutcome[];
+    },
+  ) => void;
   /** Skill 执行整体失败（Agent 报错 / IPC 异常）：所有未完成卡片标记失败。 */
   failSkillTurn: (turnId: string, message: string, code?: string) => void;
   /** 创建设计方案：立即建立对话轮，过程由主进程创建管线事件驱动。 */
@@ -664,20 +409,29 @@ interface WorkbenchState {
     source: Extract<GenerationSource, { kind: 'scheme' }> & { mode: DesignSchemeRunMode };
     /** 质量门修复重跑（有限修复链，规范 §5.5）。 */
     isRepairRun?: boolean;
-  }) => { turnId: string; turnIndex: number; jobIds: string[]; sessionId: string; sessionTitle: string } | null;
+  }) => {
+    turnId: string;
+    turnIndex: number;
+    jobIds: string[];
+    sessionId: string;
+    sessionTitle: string;
+  } | null;
   patchSchemeRunSource: (
     turnId: string,
     patch: Partial<Omit<Extract<GenerationSource, { kind: 'scheme-run' }>, 'kind'>>,
   ) => void;
   upsertSchemeRunTrace: (turnId: string, item: DesignSchemeCreationTraceItem) => void;
-  finishSchemeRunTurn: (turnId: string, patch: {
-    compiledPrompt: string;
-    generations: DesignSchemeRunGeneration[];
-    trace: DesignSchemeCreationTraceItem[];
-    /** 本轮 runId 与质量门修复建议（有限修复链，规范 §5.5）。 */
-    runId?: string;
-    repairHint?: string | null;
-  }) => void;
+  finishSchemeRunTurn: (
+    turnId: string,
+    patch: {
+      compiledPrompt: string;
+      generations: DesignSchemeRunGeneration[];
+      trace: DesignSchemeCreationTraceItem[];
+      /** 本轮 runId 与质量门修复建议（有限修复链，规范 §5.5）。 */
+      runId?: string;
+      repairHint?: string | null;
+    },
+  ) => void;
   failSchemeRunTurn: (turnId: string, message: string, cancelled?: boolean) => void;
   patchSchemeCreationSource: (
     turnId: string,
@@ -695,7 +449,12 @@ interface WorkbenchState {
   submitDraft: () => Promise<void>;
   cancel: () => Promise<void>;
   retryResult: (turnId: string, resultId: string) => Promise<void>;
-  submitRefinement: (turnId: string, resultId: string, instruction: string, images?: LocalImageReference[]) => Promise<void>;
+  submitRefinement: (
+    turnId: string,
+    resultId: string,
+    instruction: string,
+    images?: LocalImageReference[],
+  ) => Promise<void>;
   reuseResult: (turnId: string, resultId: string) => void;
   editTurn: (turnId: string) => void;
   openDraft: (input: {
@@ -716,17 +475,11 @@ interface WorkbenchState {
   clearRefinement: () => void;
 }
 
-const preferences = loadPreferences();
+const preferences = loadWorkbenchPreferences();
 
 export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => ({
   turns: [],
-  draftPrompt: '',
-  draftNegativePrompt: '',
-  draftReferences: [],
-  draftImages: [],
-  draftSource: { kind: 'manual' },
-  draftCommand: null,
-  draftHistorySource: null,
+  ...createEmptyWorkbenchDraft(),
   params: preferences,
   isGenerating: false,
   runningTurns: {},
@@ -742,64 +495,51 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   sessionsError: null,
   refinementContext: null,
 
-  setRunningTurnJob: (turnId, jobId) => set((state) => ({
-    activeJobId: jobId,
-    runningTurns: state.runningTurns[turnId]
-      ? { ...state.runningTurns, [turnId]: { ...state.runningTurns[turnId], jobId } }
-      : state.runningTurns,
-  })),
-  setDraftPrompt: (value) => set({ draftPrompt: value.slice(0, WORKBENCH_PROMPT_LIMIT) }),
-  setDraftCommand: (command) => set((state) => ({
-    draftCommand: command,
-    // 指令被移除时，附着其上的历史来源一并清除。
-    ...(command === null && state.draftHistorySource ? { draftHistorySource: null } : {}),
-  })),
-  setDraftHistorySource: (source) => set({ draftHistorySource: source }),
-  setDraftNegativePrompt: (value) => set({ draftNegativePrompt: value }),
-  addDraftReference: (reference) =>
-    set((state) => {
-      const text = reference.text.trim();
-      const normalized = { ...reference, title: reference.title.trim() || '未命名提示词', text };
-      if (!text) return { lastError: { code: 'EMPTY_REFERENCE', message: '引用内容不能为空' } };
-      if (text.length > MAX_REFERENCE_TEXT_LENGTH) {
-        return { lastError: { code: 'REFERENCE_TOO_LONG', message: `单条引用不能超过 ${MAX_REFERENCE_TEXT_LENGTH} 字` } };
-      }
-      if (state.draftReferences.length >= MAX_DRAFT_REFERENCES) {
-        return { lastError: { code: 'TOO_MANY_REFERENCES', message: `最多同时引用 ${MAX_DRAFT_REFERENCES} 条提示词` } };
-      }
-      if (isDuplicateReference(state.draftReferences, normalized)) {
-        return { lastError: { code: 'DUPLICATE_REFERENCE', message: '这段内容已经引用过了' } };
-      }
-      return { draftReferences: [...state.draftReferences, normalized], lastError: null };
-    }),
-  removeDraftReference: (index) =>
+  setRunningTurnJob: (turnId, jobId) =>
     set((state) => ({
-      draftReferences: state.draftReferences.filter((_reference, currentIndex) => currentIndex !== index),
-      lastError: null,
+      activeJobId: jobId,
+      runningTurns: state.runningTurns[turnId]
+        ? { ...state.runningTurns, [turnId]: { ...state.runningTurns[turnId], jobId } }
+        : state.runningTurns,
     })),
-  clearDraftReferences: () => set({ draftReferences: [], lastError: null }),
-  addDraftImages: (images) => set((state) => ({
-    draftImages: uniqueReferenceImages([...state.draftImages, ...images]),
-    lastError: null,
-  })),
-  removeDraftImage: (index) => set((state) => ({
-    draftImages: state.draftImages.filter((_image, currentIndex) => currentIndex !== index),
-    lastError: null,
-  })),
-  clearDraftImages: () => set({ draftImages: [], lastError: null }),
-  setDraftSource: (source) => set({ draftSource: source }),
-  setTurnSkillTrace: (turnId, trace) => set((state) => ({
-    turns: mapTurnsEverywhere(state.turns, (turn) => turn.id === turnId && turn.source.kind === 'skill'
-      ? { ...turn, source: { ...turn.source, trace: trace.map((item) => ({ ...item })) } }
-      : turn),
-  })),
+  setDraftPrompt: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'set-prompt', value })),
+  setDraftCommand: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'set-command', value })),
+  setDraftHistorySource: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'set-history-source', value })),
+  setDraftNegativePrompt: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'set-negative', value })),
+  addDraftReference: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'add-reference', value })),
+  removeDraftReference: (index) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'remove-reference', index })),
+  clearDraftReferences: () =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'clear-references' })),
+  addDraftImages: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'add-images', value })),
+  removeDraftImage: (index) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'remove-image', index })),
+  clearDraftImages: () =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'clear-images' })),
+  setDraftSource: (value) =>
+    set((state) => workbenchDraftControllerReducer(state, { type: 'set-source', value })),
+  setTurnSkillTrace: (turnId, trace) =>
+    set((state) => ({
+      turns: mapTurnsEverywhere(state.turns, (turn) =>
+        turn.id === turnId && turn.source.kind === 'skill'
+          ? { ...turn, source: { ...turn.source, trace: trace.map((item) => ({ ...item })) } }
+          : turn,
+      ),
+    })),
   beginSkillTurn: (input) => {
     const state = get();
     if (sessionHasRunningTurn(state, state.sessionId)) return null;
     const turnId = uid('turn');
     const turnIndex = state.turns.length;
     const jobIds = Array.from({ length: input.params.n }, () => uid('job'));
-    const proposedSessionTitle = input.userPrompt.replace(/\s+/g, ' ').trim().slice(0, 80) || '新设计';
+    const proposedSessionTitle =
+      input.userPrompt.replace(/\s+/g, ' ').trim().slice(0, 80) || '新设计';
     const existingSession = state.sessions.find((session) => session.id === state.sessionId);
     const sessionTitle = existingSession?.title ?? proposedSessionTitle;
     const submittedAt = Date.now();
@@ -838,7 +578,12 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           latestStatus: 'running',
         },
       }).items,
-      ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'skill' }),
+      ...withRunRegistered(current, turnId, {
+        sessionId: state.sessionId,
+        jobId: null,
+        cancelRequested: false,
+        kind: 'skill',
+      }),
       activeJobId: null,
       cancelRequested: false,
       lastError: null,
@@ -847,44 +592,55 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       draftNegativePrompt: '',
       draftSource: { kind: 'manual' as const },
     }));
-    void gateway.desktop.ensureWorkbenchSession({
-      id: state.sessionId,
-      title: sessionTitle,
-      createdAt: submittedAt,
-    }).catch((error: unknown) => {
-      set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
-    });
+    void getWorkbenchIO()
+      .ensureWorkbenchSession({
+        id: state.sessionId,
+        title: sessionTitle,
+        createdAt: submittedAt,
+      })
+      .catch((error: unknown) => {
+        set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
+      });
     return { turnId, turnIndex, jobIds, sessionId: state.sessionId, sessionTitle };
   },
-  materializeSkillTurnResults: (turnId, jobIds) => set((state) => {
-    // 补建的占位卡片要在当前与后台缓存中保持同一 result id，否则后续按 jobId 找 id 会错位。
-    const created = new Map<string, string>();
-    const resultIdFor = (jobId: string) => {
-      const existing = created.get(jobId);
-      if (existing) return existing;
-      const id = uid('result');
-      created.set(jobId, id);
-      return id;
-    };
-    return {
-      turns: mapTurnsEverywhere(state.turns, (turn) => {
-        if (turn.id !== turnId) return turn;
-        const missing = jobIds.filter((jobId) => !turn.results.some((result) => result.jobId === jobId));
-        if (missing.length === 0) return turn;
-        const results = [
-          ...turn.results,
-          ...missing.map((jobId) => ({ id: resultIdFor(jobId), jobId, status: 'pending' as const })),
-        ];
-        return { ...turn, results, status: resultStatus(results) };
-      }),
-    };
-  }),
+  materializeSkillTurnResults: (turnId, jobIds) =>
+    set((state) => {
+      // 补建的占位卡片要在当前与后台缓存中保持同一 result id，否则后续按 jobId 找 id 会错位。
+      const created = new Map<string, string>();
+      const resultIdFor = (jobId: string) => {
+        const existing = created.get(jobId);
+        if (existing) return existing;
+        const id = uid('result');
+        created.set(jobId, id);
+        return id;
+      };
+      return {
+        turns: mapTurnsEverywhere(state.turns, (turn) => {
+          if (turn.id !== turnId) return turn;
+          const missing = jobIds.filter(
+            (jobId) => !turn.results.some((result) => result.jobId === jobId),
+          );
+          if (missing.length === 0) return turn;
+          const results = [
+            ...turn.results,
+            ...missing.map((jobId) => ({
+              id: resultIdFor(jobId),
+              jobId,
+              status: 'pending' as const,
+            })),
+          ];
+          return { ...turn, results, status: resultStatus(results) };
+        }),
+      };
+    }),
   applySkillGenerationResult: (turnId, outcome) => {
     // 用户可能已切到其他对话：轮次也可能只存在于后台缓存里。
     const turn = findTurnAnywhere(get().turns, turnId);
     const result = turn?.results.find((item) => item.jobId === outcome.jobId);
     if (!turn || !result) return;
-    applyImageResult(set, turnId, result.id, outcome.result);
+    set((state) => ({
+      turns: applyImageResult(state.turns, turnId, result.id, outcome.result),
+    }));
     if (get().activeJobId === outcome.jobId) set({ activeJobId: null });
   },
   finishSkillTurn: (turnId, patch) => {
@@ -899,9 +655,11 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((state) => ({
       turns: mapTurnsEverywhere(state.turns, (turn) => {
         if (turn.id !== turnId) return turn;
-        const results = turn.results.map((result) => result.status === 'pending'
-          ? { ...result, status: 'failed' as const, error: '生成未完成', errorCode: 'UNKNOWN' }
-          : result);
+        const results = turn.results.map((result) =>
+          result.status === 'pending'
+            ? { ...result, status: 'failed' as const, error: '生成未完成', errorCode: 'UNKNOWN' }
+            : result,
+        );
         return {
           ...turn,
           prompt: patch.prompt || turn.prompt,
@@ -926,9 +684,11 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((state) => ({
       turns: mapTurnsEverywhere(state.turns, (turn) => {
         if (turn.id !== turnId) return turn;
-        const results = turn.results.map((result) => result.status === 'pending'
-          ? { ...result, status: 'failed' as const, error: message, errorCode: code }
-          : result);
+        const results = turn.results.map((result) =>
+          result.status === 'pending'
+            ? { ...result, status: 'failed' as const, error: message, errorCode: code }
+            : result,
+        );
         return {
           ...turn,
           results,
@@ -947,7 +707,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     const turnId = uid('turn');
     const submittedAt = Date.now();
     const briefText = input.brief.trim();
-    const proposedSessionTitle = (briefText || `方案创建 · ${input.label}`).replace(/\s+/g, ' ').slice(0, 80);
+    const proposedSessionTitle = (briefText || `方案创建 · ${input.label}`)
+      .replace(/\s+/g, ' ')
+      .slice(0, 80);
     const existingSession = state.sessions.find((session) => session.id === state.sessionId);
     const sessionTitle = existingSession?.title ?? proposedSessionTitle;
     const turn: GenerationTurn = {
@@ -990,36 +752,49 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           latestStatus: 'running',
         },
       }).items,
-      ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'scheme-creation' }),
+      ...withRunRegistered(current, turnId, {
+        sessionId: state.sessionId,
+        jobId: null,
+        cancelRequested: false,
+        kind: 'scheme-creation',
+      }),
       activeJobId: null,
       cancelRequested: false,
       lastError: null,
     }));
-    void gateway.desktop.ensureWorkbenchSession({
-      id: state.sessionId,
-      title: sessionTitle,
-      createdAt: submittedAt,
-    }).catch((error) => {
-      set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
-    });
+    void getWorkbenchIO()
+      .ensureWorkbenchSession({
+        id: state.sessionId,
+        title: sessionTitle,
+        createdAt: submittedAt,
+      })
+      .catch((error) => {
+        set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
+      });
     return { turnId };
   },
-  patchSchemeCreationSource: (turnId, patch) => set((state) => ({
-    turns: mapTurnsEverywhere(state.turns, (turn) => turn.id === turnId && turn.source.kind === 'scheme-creation'
-      ? { ...turn, source: { ...turn.source, ...patch } }
-      : turn),
-  })),
+  patchSchemeCreationSource: (turnId, patch) =>
+    set((state) => ({
+      turns: mapTurnsEverywhere(state.turns, (turn) =>
+        turn.id === turnId && turn.source.kind === 'scheme-creation'
+          ? { ...turn, source: { ...turn.source, ...patch } }
+          : turn,
+      ),
+    })),
   schemeInputValues: {},
-  setSchemeInputValue: (slotId, value) => set((state) => ({
-    schemeInputValues: { ...state.schemeInputValues, [slotId]: value },
-  })),
+  setSchemeInputValue: (slotId, value) =>
+    set((state) => ({
+      schemeInputValues: { ...state.schemeInputValues, [slotId]: value },
+    })),
   beginSchemeRunTurn: (input) => {
     const state = get();
     if (sessionHasRunningTurn(state, state.sessionId)) return null;
     const turnId = uid('turn');
     const turnIndex = state.turns.length;
     const jobIds = Array.from({ length: input.params.n }, () => uid('job'));
-    const proposedSessionTitle = `${input.source.mode === 'trial' ? '试运行' : ''}${input.source.label}`.slice(0, 80) || '新设计';
+    const proposedSessionTitle =
+      `${input.source.mode === 'trial' ? '试运行' : ''}${input.source.label}`.slice(0, 80) ||
+      '新设计';
     const existingSession = state.sessions.find((session) => session.id === state.sessionId);
     const sessionTitle = existingSession?.title ?? proposedSessionTitle;
     const submittedAt = Date.now();
@@ -1070,7 +845,12 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           latestStatus: 'running',
         },
       }).items,
-      ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'scheme-run' }),
+      ...withRunRegistered(current, turnId, {
+        sessionId: state.sessionId,
+        jobId: null,
+        cancelRequested: false,
+        kind: 'scheme-run',
+      }),
       activeJobId: null,
       cancelRequested: false,
       lastError: null,
@@ -1080,29 +860,35 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       draftSource: { kind: 'manual' as const },
       schemeInputValues: {},
     }));
-    void gateway.desktop.ensureWorkbenchSession({
-      id: state.sessionId,
-      title: sessionTitle,
-      createdAt: submittedAt,
-    }).catch((error) => {
-      set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
-    });
+    void getWorkbenchIO()
+      .ensureWorkbenchSession({
+        id: state.sessionId,
+        title: sessionTitle,
+        createdAt: submittedAt,
+      })
+      .catch((error) => {
+        set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
+      });
     return { turnId, turnIndex, jobIds, sessionId: state.sessionId, sessionTitle };
   },
-  patchSchemeRunSource: (turnId, patch) => set((state) => ({
-    turns: mapTurnsEverywhere(state.turns, (turn) => turn.id === turnId && turn.source.kind === 'scheme-run'
-      ? { ...turn, source: { ...turn.source, ...patch } }
-      : turn),
-  })),
-  upsertSchemeRunTrace: (turnId, item) => set((state) => ({
-    turns: mapTurnsEverywhere(state.turns, (turn) => {
-      if (turn.id !== turnId || turn.source.kind !== 'scheme-run') return turn;
-      const trace = turn.source.trace.some((existing) => existing.id === item.id)
-        ? turn.source.trace.map((existing) => (existing.id === item.id ? { ...item } : existing))
-        : [...turn.source.trace, { ...item }];
-      return { ...turn, source: { ...turn.source, trace } };
-    }),
-  })),
+  patchSchemeRunSource: (turnId, patch) =>
+    set((state) => ({
+      turns: mapTurnsEverywhere(state.turns, (turn) =>
+        turn.id === turnId && turn.source.kind === 'scheme-run'
+          ? { ...turn, source: { ...turn.source, ...patch } }
+          : turn,
+      ),
+    })),
+  upsertSchemeRunTrace: (turnId, item) =>
+    set((state) => ({
+      turns: mapTurnsEverywhere(state.turns, (turn) => {
+        if (turn.id !== turnId || turn.source.kind !== 'scheme-run') return turn;
+        const trace = turn.source.trace.some((existing) => existing.id === item.id)
+          ? turn.source.trace.map((existing) => (existing.id === item.id ? { ...item } : existing))
+          : [...turn.source.trace, { ...item }];
+        return { ...turn, source: { ...turn.source, trace } };
+      }),
+    })),
   finishSchemeRunTurn: (turnId, patch) => {
     // 兜底补建：取消或事件丢失时也要有卡片承接 cancelled/failed 结果。
     const jobIds = [...patch.generations]
@@ -1113,30 +899,40 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       get().applySkillGenerationResult(turnId, outcome);
     }
     const succeeded = patch.generations.some((outcome) => outcome.result.status === 'success');
-    const cancelled = !succeeded && patch.generations.some((outcome) => outcome.result.status === 'cancelled');
-    const failureMessage = succeeded || cancelled
-      ? undefined
-      : patch.generations.find((outcome) => outcome.result.error)?.result.error?.message ?? '图片生成失败';
+    const cancelled =
+      !succeeded && patch.generations.some((outcome) => outcome.result.status === 'cancelled');
+    const failureMessage =
+      succeeded || cancelled
+        ? undefined
+        : (patch.generations.find((outcome) => outcome.result.error)?.result.error?.message ??
+          '图片生成失败');
     set((state) => ({
       turns: mapTurnsEverywhere(state.turns, (turn) => {
         if (turn.id !== turnId) return turn;
-        const results = turn.results.map((result) => result.status === 'pending'
-          ? { ...result, status: 'failed' as const, error: '生成未完成', errorCode: 'UNKNOWN' }
-          : result);
+        const results = turn.results.map((result) =>
+          result.status === 'pending'
+            ? { ...result, status: 'failed' as const, error: '生成未完成', errorCode: 'UNKNOWN' }
+            : result,
+        );
         return {
           ...turn,
           prompt: patch.compiledPrompt || turn.prompt,
-          source: turn.source.kind === 'scheme-run'
-            ? {
-                ...turn.source,
-                state: succeeded ? 'succeeded' as const : cancelled ? 'cancelled' as const : 'failed' as const,
-                trace: patch.trace.map((item) => ({ ...item })),
-                generations: patch.generations.map((outcome) => ({ ...outcome })),
-                ...(patch.runId ? { runId: patch.runId } : {}),
-                repairHint: patch.repairHint ?? null,
-                ...(failureMessage ? { error: failureMessage } : {}),
-              }
-            : turn.source,
+          source:
+            turn.source.kind === 'scheme-run'
+              ? {
+                  ...turn.source,
+                  state: succeeded
+                    ? ('succeeded' as const)
+                    : cancelled
+                      ? ('cancelled' as const)
+                      : ('failed' as const),
+                  trace: patch.trace.map((item) => ({ ...item })),
+                  generations: patch.generations.map((outcome) => ({ ...outcome })),
+                  ...(patch.runId ? { runId: patch.runId } : {}),
+                  repairHint: patch.repairHint ?? null,
+                  ...(failureMessage ? { error: failureMessage } : {}),
+                }
+              : turn.source,
           results,
           status: results.length > 0 ? resultStatus(results) : 'failed',
           completedAt: Date.now(),
@@ -1156,14 +952,21 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((state) => ({
       turns: mapTurnsEverywhere(state.turns, (turn) => {
         if (turn.id !== turnId) return turn;
-        const results = turn.results.map((result) => result.status === 'pending'
-          ? { ...result, status: 'failed' as const, error: message, errorCode: 'UNKNOWN' }
-          : result);
+        const results = turn.results.map((result) =>
+          result.status === 'pending'
+            ? { ...result, status: 'failed' as const, error: message, errorCode: 'UNKNOWN' }
+            : result,
+        );
         return {
           ...turn,
-          source: turn.source.kind === 'scheme-run'
-            ? { ...turn.source, state: cancelled ? 'cancelled' as const : 'failed' as const, error: message }
-            : turn.source,
+          source:
+            turn.source.kind === 'scheme-run'
+              ? {
+                  ...turn.source,
+                  state: cancelled ? ('cancelled' as const) : ('failed' as const),
+                  error: message,
+                }
+              : turn.source,
           results,
           status: results.length > 0 ? resultStatus(results) : cancelled ? 'cancelled' : 'failed',
           completedAt: Date.now(),
@@ -1174,30 +977,33 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }));
     void get().loadSessions();
   },
-  upsertSchemeCreationTrace: (turnId, item) => set((state) => ({
-    turns: mapTurnsEverywhere(state.turns, (turn) => {
-      if (turn.id !== turnId || turn.source.kind !== 'scheme-creation') return turn;
-      const trace = turn.source.trace.some((existing) => existing.id === item.id)
-        ? turn.source.trace.map((existing) => (existing.id === item.id ? { ...item } : existing))
-        : [...turn.source.trace, { ...item }];
-      return { ...turn, source: { ...turn.source, trace } };
-    }),
-  })),
+  upsertSchemeCreationTrace: (turnId, item) =>
+    set((state) => ({
+      turns: mapTurnsEverywhere(state.turns, (turn) => {
+        if (turn.id !== turnId || turn.source.kind !== 'scheme-creation') return turn;
+        const trace = turn.source.trace.some((existing) => existing.id === item.id)
+          ? turn.source.trace.map((existing) => (existing.id === item.id ? { ...item } : existing))
+          : [...turn.source.trace, { ...item }];
+        return { ...turn, source: { ...turn.source, trace } };
+      }),
+    })),
   completeSchemeCreationTurn: (turnId, draft, trace) => {
     set((state) => ({
-      turns: mapTurnsEverywhere(state.turns, (turn) => turn.id === turnId && turn.source.kind === 'scheme-creation'
-        ? {
-            ...turn,
-            source: {
-              ...turn.source,
-              state: 'draft_ready',
-              trace: trace.map((item) => ({ ...item })),
-              draft,
-            },
-            status: 'success',
-            completedAt: Date.now(),
-          }
-        : turn),
+      turns: mapTurnsEverywhere(state.turns, (turn) =>
+        turn.id === turnId && turn.source.kind === 'scheme-creation'
+          ? {
+              ...turn,
+              source: {
+                ...turn.source,
+                state: 'draft_ready',
+                trace: trace.map((item) => ({ ...item })),
+                draft,
+              },
+              status: 'success',
+              completedAt: Date.now(),
+            }
+          : turn,
+      ),
       ...withRunReleased(state, turnId),
       draftPrompt: '',
       draftNegativePrompt: '',
@@ -1209,32 +1015,34 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   },
   failSchemeCreationTurn: (turnId, message, cancelled = false) => {
     set((state) => ({
-      turns: mapTurnsEverywhere(state.turns, (turn) => turn.id === turnId && turn.source.kind === 'scheme-creation'
-        ? {
-            ...turn,
-            source: {
-              ...turn.source,
-              state: cancelled ? 'cancelled' : 'failed',
-              error: message,
-            },
-            status: cancelled ? 'cancelled' : 'failed',
-            completedAt: Date.now(),
-          }
-        : turn),
+      turns: mapTurnsEverywhere(state.turns, (turn) =>
+        turn.id === turnId && turn.source.kind === 'scheme-creation'
+          ? {
+              ...turn,
+              source: {
+                ...turn.source,
+                state: cancelled ? 'cancelled' : 'failed',
+                error: message,
+              },
+              status: cancelled ? 'cancelled' : 'failed',
+              completedAt: Date.now(),
+            }
+          : turn,
+      ),
       ...withRunReleased(state, turnId),
       lastError: cancelled ? null : { code: 'SCHEME_CREATION_FAILED', message },
     }));
     void get().loadSessions();
   },
-  clearDraftSource: () => set((state) => ({
-    draftPrompt: state.draftPrompt,
-    draftSource: { kind: 'manual' },
-    schemeInputValues: {},
-  })),
+  clearDraftSource: () =>
+    set((state) => ({
+      ...workbenchDraftControllerReducer(state, { type: 'clear-source' }),
+      schemeInputValues: {},
+    })),
   setParams: (patch) =>
     set((state) => {
       const next = { ...state.params, ...patch };
-      persistPreferences(next);
+      persistWorkbenchPreferences(next);
       return { params: next };
     }),
   submitDraft: async () => {
@@ -1252,9 +1060,8 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       null;
     const userPrompt = state.draftPrompt.trim();
     const negativePrompt = state.draftNegativePrompt.trim();
-    const basePrompt = state.draftSource.kind === 'skill'
-      ? state.draftSource.compiledPrompt
-      : userPrompt;
+    const basePrompt =
+      state.draftSource.kind === 'skill' ? state.draftSource.compiledPrompt : userPrompt;
     const references = state.draftReferences.map((reference) => ({ ...reference }));
     const params = {
       ...state.params,
@@ -1268,7 +1075,8 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       params.ratioId,
     );
     if (!prompt) return;
-    const promptLimit = state.draftSource.kind === 'skill' ? SKILL_RUNTIME_PROMPT_LIMIT : WORKBENCH_PROMPT_LIMIT;
+    const promptLimit =
+      state.draftSource.kind === 'skill' ? SKILL_RUNTIME_PROMPT_LIMIT : WORKBENCH_PROMPT_LIMIT;
     if (prompt.length > promptLimit) {
       set({
         lastError: {
@@ -1280,16 +1088,18 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }
     const turnId = uid('turn');
     const turnIndex = state.turns.length;
-    const proposedSessionTitle = (userPrompt || basePrompt || references[0]?.title || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 80) || '新设计';
+    const proposedSessionTitle =
+      (userPrompt || basePrompt || references[0]?.title || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || '新设计';
     const existingSession = state.sessions.find((session) => session.id === state.sessionId);
     const sessionTitle = existingSession?.title ?? proposedSessionTitle;
-    const conversationKind = state.draftSource.kind === 'prompt'
-      || state.draftSource.kind === 'skill'
-      || (state.draftSource.kind === 'history' && Boolean(state.draftSource.promptId))
-      || references.length > 0
+    const conversationKind =
+      state.draftSource.kind === 'prompt' ||
+      state.draftSource.kind === 'skill' ||
+      (state.draftSource.kind === 'history' && Boolean(state.draftSource.promptId)) ||
+      references.length > 0
         ? 'prompt'
         : 'chat';
     const submittedAt = Date.now();
@@ -1334,10 +1144,20 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
         },
       }).items,
       ...(provider?.hasKey
-        ? withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId: null, cancelRequested: false, kind: 'image' })
+        ? withRunRegistered(current, turnId, {
+            sessionId: state.sessionId,
+            jobId: null,
+            cancelRequested: false,
+            kind: 'image',
+          })
         : {}),
       cancelRequested: false,
-      lastError: provider?.hasKey ? null : { code: provider ? 'NO_KEY' : 'NO_PROVIDER', message: provider ? '当前服务商尚未配置密钥' : '尚未配置服务商' },
+      lastError: provider?.hasKey
+        ? null
+        : {
+            code: provider ? 'NO_KEY' : 'NO_PROVIDER',
+            message: provider ? '当前服务商尚未配置密钥' : '尚未配置服务商',
+          },
       ...(provider?.hasKey
         ? {
             draftPrompt: '',
@@ -1349,7 +1169,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }));
 
     try {
-      await gateway.desktop.ensureWorkbenchSession({
+      await getWorkbenchIO().ensureWorkbenchSession({
         id: state.sessionId,
         title: sessionTitle,
         createdAt: submittedAt,
@@ -1360,11 +1180,13 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
 
     if (!provider?.hasKey) {
       for (const result of results) {
-        updateResult(set, turnId, result.id, {
-          status: 'failed',
-          errorCode: provider ? 'NO_KEY' : 'NO_PROVIDER',
-          error: provider ? '当前服务商尚未配置密钥' : '尚未配置服务商',
-        });
+        set((current) => ({
+          turns: updateGenerationResult(current.turns, turnId, result.id, {
+            status: 'failed',
+            errorCode: provider ? 'NO_KEY' : 'NO_PROVIDER',
+            error: provider ? '当前服务商尚未配置密钥' : '尚未配置服务商',
+          }),
+        }));
       }
       return;
     }
@@ -1372,11 +1194,22 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     for (const result of results) {
       // 取消只作用于本轮（并行运行互不影响）。
       if (get().runningTurns[turnId]?.cancelRequested) {
-        updateResult(set, turnId, result.id, { status: 'cancelled', errorCode: 'CANCELLED', error: '已取消生成' });
+        set((current) => ({
+          turns: updateGenerationResult(current.turns, turnId, result.id, {
+            status: 'cancelled',
+            errorCode: 'CANCELLED',
+            error: '已取消生成',
+          }),
+        }));
         continue;
       }
       const jobId = uid('job');
-      updateResult(set, turnId, result.id, { jobId, status: 'pending' });
+      set((current) => ({
+        turns: updateGenerationResult(current.turns, turnId, result.id, {
+          jobId,
+          status: 'pending',
+        }),
+      }));
       get().setRunningTurnJob(turnId, jobId);
       try {
         const refineSource = sourceToRefineSource(state.draftSource);
@@ -1398,21 +1231,31 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
             resultIndex: results.indexOf(result),
             userPrompt,
           },
-          skillRuntime: state.draftSource.kind === 'skill' ? {
-            label: state.draftSource.label,
-            repositoryUrl: state.draftSource.repositoryUrl,
-            executionMode: state.draftSource.executionMode,
-            trace: state.draftSource.trace,
-          } : undefined,
+          skillRuntime:
+            state.draftSource.kind === 'skill'
+              ? {
+                  label: state.draftSource.label,
+                  repositoryUrl: state.draftSource.repositoryUrl,
+                  executionMode: state.draftSource.executionMode,
+                  trace: state.draftSource.trace,
+                }
+              : undefined,
         });
-        const response = await gateway.desktop.generateImage(request);
-        applyImageResult(set, turnId, result.id, response);
+        const response = await getWorkbenchIO().generateImage(request);
+        set((current) => ({
+          turns: applyImageResult(current.turns, turnId, result.id, response),
+        }));
       } catch (error) {
-        applyTransportError(set, turnId, result.id, error);
+        set((current) => ({
+          turns: applyTransportError(current.turns, turnId, result.id, error),
+        }));
       } finally {
         if (get().activeJobId === jobId) set({ activeJobId: null });
         if (provider.type === 'doubao-web') {
-          void useDoubaoAccountStore.getState().refreshUsage().catch(() => {});
+          void useDoubaoAccountStore
+            .getState()
+            .refreshUsage()
+            .catch(() => {});
         }
       }
     }
@@ -1431,20 +1274,24 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   cancel: async () => {
     // 取消当前对话的运行（并行时不影响其他对话）。
     const state = get();
-    const running = Object.entries(state.runningTurns)
-      .find(([, entry]) => entry.sessionId === state.sessionId && !entry.cancelRequested);
+    const running = Object.entries(state.runningTurns).find(
+      ([, entry]) => entry.sessionId === state.sessionId && !entry.cancelRequested,
+    );
     if (!running) return;
     const [turnId] = running;
     set((current) => ({
       cancelRequested: true,
       runningTurns: current.runningTurns[turnId]
-        ? { ...current.runningTurns, [turnId]: { ...current.runningTurns[turnId], cancelRequested: true } }
+        ? {
+            ...current.runningTurns,
+            [turnId]: { ...current.runningTurns[turnId], cancelRequested: true },
+          }
         : current.runningTurns,
     }));
     const jobId = get().runningTurns[turnId]?.jobId;
     if (!jobId) return;
     try {
-      await gateway.desktop.cancelImage(jobId);
+      await getWorkbenchIO().cancelImage(jobId);
     } catch {
       // 主进程任务最终会以 cancelled/failed 返回，取消 IPC 失败不阻塞状态收尾。
     }
@@ -1457,58 +1304,77 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     const target = turn?.results.find((item) => item.id === resultId);
     if (!turn || !target || !turn.providerId) return;
 
-    updateResult(set, turnId, resultId, {
-      status: 'pending',
-      error: undefined,
-      errorCode: undefined,
-      imagePath: undefined,
-      cost: undefined,
-      durationMs: undefined,
-    });
+    set((current) => ({
+      turns: updateGenerationResult(current.turns, turnId, resultId, {
+        status: 'pending',
+        error: undefined,
+        errorCode: undefined,
+        imagePath: undefined,
+        cost: undefined,
+        durationMs: undefined,
+      }),
+    }));
     const jobId = uid('job');
     set((current) => ({
-      ...withRunRegistered(current, turnId, { sessionId: state.sessionId, jobId, cancelRequested: false, kind: 'retry' }),
+      ...withRunRegistered(current, turnId, {
+        sessionId: state.sessionId,
+        jobId,
+        cancelRequested: false,
+        kind: 'retry',
+      }),
       lastError: null,
     }));
-    updateResult(set, turnId, resultId, { jobId });
+    set((current) => ({
+      turns: updateGenerationResult(current.turns, turnId, resultId, { jobId }),
+    }));
     set({ activeJobId: jobId });
-    const freshRequest = () => buildImageRequest({
-      jobId,
-      providerId: turn.providerId!,
-      prompt: turn.prompt,
-      negative: turn.negativePrompt,
-      params: turn.params,
-      source: sourceToRefineSource(turn.source),
-      parentHistoryId: turn.parentHistoryId,
-      references: turn.references,
-      referenceImages: turn.referenceImages,
-      workbench: {
-        sessionId: state.sessionId,
-        sessionTitle: turn.userPrompt.slice(0, 80) || '新设计',
-        turnId: turn.id,
-        turnIndex: turnIndexForTurn(state.turns, turn.id),
-        resultIndex: turn.results.findIndex((item) => item.id === resultId),
-        userPrompt: turn.userPrompt,
-      },
-    });
+    const freshRequest = () =>
+      buildImageRequest({
+        jobId,
+        providerId: turn.providerId!,
+        prompt: turn.prompt,
+        negative: turn.negativePrompt,
+        params: turn.params,
+        source: sourceToRefineSource(turn.source),
+        parentHistoryId: turn.parentHistoryId,
+        references: turn.references,
+        referenceImages: turn.referenceImages,
+        workbench: {
+          sessionId: state.sessionId,
+          sessionTitle: turn.userPrompt.slice(0, 80) || '新设计',
+          turnId: turn.id,
+          turnIndex: turnIndexForTurn(state.turns, turn.id),
+          resultIndex: turn.results.findIndex((item) => item.id === resultId),
+          userPrompt: turn.userPrompt,
+        },
+      });
     try {
       let response = target.historyId
-        ? await gateway.desktop.retryImage(target.historyId, jobId)
-        : await gateway.desktop.generateImage(freshRequest());
+        ? await getWorkbenchIO().retryImage(target.historyId, jobId)
+        : await getWorkbenchIO().generateImage(freshRequest());
       // 崩溃恢复后的重试：中断的那张只有运行账本、没有 history 记录
       // （history 在完成时才落库）。此时按本轮快照重发一次，而不是把用户
       // 堵在「历史记录已不存在」的死路上。
       if (response.status !== 'success' && response.error?.code === 'NO_HISTORY') {
-        response = await gateway.desktop.generateImage(freshRequest());
+        response = await getWorkbenchIO().generateImage(freshRequest());
       }
-      applyImageResult(set, turnId, resultId, response);
+      set((current) => ({
+        turns: applyImageResult(current.turns, turnId, resultId, response),
+      }));
     } catch (error) {
-      applyTransportError(set, turnId, resultId, error);
+      set((current) => ({
+        turns: applyTransportError(current.turns, turnId, resultId, error),
+      }));
     } finally {
       set((current) => withRunReleased(current, turnId));
-      const retryProvider = useGenerationStore.getState().providers.find((item) => item.id === turn.providerId);
+      const retryProvider = useGenerationStore
+        .getState()
+        .providers.find((item) => item.id === turn.providerId);
       if (retryProvider?.type === 'doubao-web') {
-        void useDoubaoAccountStore.getState().refreshUsage().catch(() => {});
+        void useDoubaoAccountStore
+          .getState()
+          .refreshUsage()
+          .catch(() => {});
       }
       markSessionUnreadAfterTurn(turnId);
       void useHistoryStore.getState().load({ limit: 200 });
@@ -1522,14 +1388,15 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     const target = turn?.results.find((item) => item.id === resultId);
     const text = instruction.trim();
     if (
-      !turn
-      || !target
-      || target.status !== 'success'
-      || !target.imagePath
-      || !target.historyId
-      || !turn.providerId
-      || !text
-    ) return;
+      !turn ||
+      !target ||
+      target.status !== 'success' ||
+      !target.imagePath ||
+      !target.historyId ||
+      !turn.providerId ||
+      !text
+    )
+      return;
 
     const fallbackImage: LocalImageReference = {
       source: 'history',
@@ -1538,24 +1405,25 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       ...(target.assetId ? { assetId: target.assetId } : {}),
       name: '图 1',
     };
-    const inheritedImages = state.refinementContext?.turnId === turnId
-      && state.refinementContext.images.length > 0
-      ? state.refinementContext.images
-      : [fallbackImage];
+    const inheritedImages =
+      state.refinementContext?.turnId === turnId && state.refinementContext.images.length > 0
+        ? state.refinementContext.images
+        : [fallbackImage];
     const referenceImages = uniqueReferenceImages([...inheritedImages, ...images]);
     const generation = useGenerationStore.getState();
     const provider = generation.providers.find((item) => item.id === turn.providerId);
     // 豆包网页已经收到所选图片；微调时只发送本轮修改要求，不能把首次
     // 生图使用的 Skill/长提示词再次嵌入请求。其他 Provider 保持原有语义。
-    const prompt = provider?.type === 'doubao-web'
-      ? text
-      : composePromptWithRatioConstraint(
-          composePromptWithRefinementImageHint(
-            composeRefinementPrompt(turn.prompt, text),
-            referenceImages.length,
-          ),
-          turn.params.ratioId,
-        );
+    const prompt =
+      provider?.type === 'doubao-web'
+        ? text
+        : composePromptWithRatioConstraint(
+            composePromptWithRefinementImageHint(
+              composeRefinementPrompt(turn.prompt, text),
+              referenceImages.length,
+            ),
+            turn.params.ratioId,
+          );
     if (prompt.length > WORKBENCH_PROMPT_LIMIT) {
       set({
         lastError: {
@@ -1580,15 +1448,19 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       providerId: turn.providerId,
       params: { ...turn.params, n: 1 },
       status: provider?.hasKey ? 'running' : 'failed',
-      results: [{
-        id: refinementResultId,
-        jobId,
-        status: provider?.hasKey ? 'pending' : 'failed',
-        ...(provider?.hasKey ? {} : {
-          errorCode: provider ? 'NO_KEY' : 'NO_PROVIDER',
-          error: provider ? '当前服务商尚未配置密钥' : '尚未配置服务商',
-        }),
-      }],
+      results: [
+        {
+          id: refinementResultId,
+          jobId,
+          status: provider?.hasKey ? 'pending' : 'failed',
+          ...(provider?.hasKey
+            ? {}
+            : {
+                errorCode: provider ? 'NO_KEY' : 'NO_PROVIDER',
+                error: provider ? '当前服务商尚未配置密钥' : '尚未配置服务商',
+              }),
+        },
+      ],
       referenceImages: referenceImages.map((image) => ({ ...image })),
       parentHistoryId: target.historyId,
       createdAt: Date.now(),
@@ -1597,7 +1469,12 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     set((current) => ({
       turns: [...current.turns, refinementTurn],
       ...(provider?.hasKey
-        ? withRunRegistered(current, refinementTurnId, { sessionId: state.sessionId, jobId, cancelRequested: false, kind: 'refinement' })
+        ? withRunRegistered(current, refinementTurnId, {
+            sessionId: state.sessionId,
+            jobId,
+            cancelRequested: false,
+            kind: 'refinement',
+          })
         : {}),
       activeJobId: provider?.hasKey ? jobId : null,
       cancelRequested: false,
@@ -1622,7 +1499,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }
 
     try {
-      const response = await gateway.desktop.generateImage(
+      const response = await getWorkbenchIO().generateImage(
         buildImageRequest({
           jobId,
           providerId: provider.id,
@@ -1645,9 +1522,13 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
           },
         }),
       );
-      applyImageResult(set, refinementTurnId, refinementResultId, response);
+      set((current) => ({
+        turns: applyImageResult(current.turns, refinementTurnId, refinementResultId, response),
+      }));
     } catch (error) {
-      applyTransportError(set, refinementTurnId, refinementResultId, error);
+      set((current) => ({
+        turns: applyTransportError(current.turns, refinementTurnId, refinementResultId, error),
+      }));
     } finally {
       set((current) => ({
         ...withRunReleased(current, refinementTurnId),
@@ -1660,7 +1541,10 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       }));
       markSessionUnreadAfterTurn(refinementTurnId);
       if (provider.type === 'doubao-web') {
-        void useDoubaoAccountStore.getState().refreshUsage().catch(() => {});
+        void useDoubaoAccountStore
+          .getState()
+          .refreshUsage()
+          .catch(() => {});
       }
       void useHistoryStore.getState().load({ limit: 200 });
     }
@@ -1708,15 +1592,17 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
             assetId: result.assetId,
             imagePath: result.imagePath,
             label: candidate.userPrompt.slice(0, 48) || '上一张图片',
-            images: [targetImage
-              ? { ...targetImage, name: '图 1' }
-              : {
-                  source: 'history',
-                  path: result.imagePath,
-                  historyId: result.historyId!,
-                  ...(result.assetId ? { assetId: result.assetId } : {}),
-                  name: '图 1',
-                }],
+            images: [
+              targetImage
+                ? { ...targetImage, name: '图 1' }
+                : {
+                    source: 'history',
+                    path: result.imagePath,
+                    historyId: result.historyId!,
+                    ...(result.assetId ? { assetId: result.assetId } : {}),
+                    name: '图 1',
+                  },
+            ],
           };
           break;
         }
@@ -1725,10 +1611,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
 
     const editableReferences = refinementContext
       ? turn.referenceImages
-          .filter((image) => !(
-            image.source === 'history'
-            && image.historyId === turn.parentHistoryId
-          ))
+          .filter(
+            (image) => !(image.source === 'history' && image.historyId === turn.parentHistoryId),
+          )
           .map((image) => ({ ...image }))
       : turn.referenceImages.map((image) => ({ ...image }));
     set({
@@ -1754,7 +1639,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       draftSource: source,
       draftCommand: null,
       draftHistorySource: null,
-     draftReferences: references.map((reference) => ({ ...reference })),
+      draftReferences: references.map((reference) => ({ ...reference })),
       draftImages: [],
       params: {
         ...state.params,
@@ -1773,14 +1658,8 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     cacheSessionTurns(state.sessionId, state.turns);
     set({
       turns: [],
-      draftPrompt: '',
-      draftNegativePrompt: '',
-     draftReferences: [],
-      draftImages: [],
-      draftSource: { kind: 'manual' },
-      draftCommand: null,
-      draftHistorySource: null,
-      params: loadPreferences(),
+      ...createEmptyWorkbenchDraft(),
+      params: loadWorkbenchPreferences(),
       lastError: null,
       sessionId: uid('session'),
       activeSessionId: null,
@@ -1834,63 +1713,50 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   clearRefinement: () => set({ refinementContext: null, draftPrompt: '', draftImages: [] }),
 
   loadSessions: async (archived = false) => {
-    const requestId = archived
-      ? ++archivedSessionListRequest
-      : ++activeSessionListRequest;
     set({ sessionsLoading: true, sessionsError: null });
-    try {
-      const result = await api.workbenchSession.list({ archived, limit: 200, offset: 0 });
-      const latestRequest = archived ? archivedSessionListRequest : activeSessionListRequest;
-      if (requestId !== latestRequest) return;
-      set((current) => {
-        if (archived) return { archivedSessions: result.items, sessionsLoading: false };
-        const activeOptimistic = current.activeSessionId === current.sessionId && current.turns.length > 0
-          ? current.sessions.find((session) => session.id === current.activeSessionId)
-          : undefined;
-        const sessions = activeOptimistic && !result.items.some((session) => session.id === activeOptimistic.id)
-          ? [activeOptimistic, ...result.items]
-          : result.items;
-        const reconciled = workbenchSessionControllerReducer({
-          items: current.sessions,
-          selectedId: current.activeSessionId,
-          openingId: null,
-          loading: true,
-          error: current.sessionsError,
-        }, { type: 'replace', items: sessions });
-        return { sessions: reconciled.items, sessionsLoading: false };
-      });
-    } catch (error) {
-      const latestRequest = archived ? archivedSessionListRequest : activeSessionListRequest;
-      if (requestId !== latestRequest) return;
+    const outcome = await workbenchSessionController.list(archived);
+    if (outcome.status === 'stale') return;
+    if (outcome.status === 'error') {
       set({
         sessionsLoading: false,
-        sessionsError: workbenchSessionErrorMessage(error, '加载对话失败'),
+        sessionsError: workbenchSessionErrorMessage(outcome.error, '加载对话失败'),
       });
+      return;
     }
+    set((current) => {
+      if (archived) return { archivedSessions: outcome.value.items, sessionsLoading: false };
+      const activeOptimistic =
+        current.activeSessionId === current.sessionId && current.turns.length > 0
+          ? current.sessions.find((session) => session.id === current.activeSessionId)
+          : undefined;
+      const sessions =
+        activeOptimistic &&
+        !outcome.value.items.some((session) => session.id === activeOptimistic.id)
+          ? [activeOptimistic, ...outcome.value.items]
+          : outcome.value.items;
+      const reconciled = reduceSessionSummaries(current.sessions, current.activeSessionId, {
+        type: 'replace',
+        items: sessions,
+      });
+      return { sessions: reconciled.items, sessionsLoading: false };
+    });
   },
 
   openSession: async (id) => {
-    const requestId = ++openSessionRequest;
     // 生成期间也允许切换：当前会话先进后台缓存（含未落库的方案创建/修改轮）。
     const state = get();
     cacheSessionTurns(state.sessionId, state.turns);
 
     // 本次运行期间访问过（或正在后台运行）的会话：内存快照比数据库全，原样恢复。
-    const cached = sessionTurnsCache.get(id);
-    if (cached && cached.length > 0) {
-      const last = cached.at(-1);
+    const operation = workbenchSessionController.open(id);
+    if (operation.source === 'cache') {
+      const last = operation.turns.at(-1);
       set({
         sessionId: id,
         activeSessionId: id,
-        turns: cached,
-        draftPrompt: '',
-        draftNegativePrompt: '',
-        draftReferences: [],
-        draftImages: [],
-        draftSource: { kind: 'manual' },
-        draftCommand: null,
-        draftHistorySource: null,
-        params: last?.params ?? loadPreferences(),
+        turns: operation.turns,
+        ...createEmptyWorkbenchDraft(),
+        params: last?.params ?? loadWorkbenchPreferences(),
         refinementContext: null,
         sessionsLoading: false,
         sessionsError: null,
@@ -1900,51 +1766,41 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }
 
     set({ sessionsLoading: true, sessionsError: null });
-    try {
-      const document = await api.workbenchSession.get(id);
-      if (requestId !== openSessionRequest) return;
-      if (!document) throw new Error('对话不存在或已删除');
-      const turns = turnsFromSession(document);
-      const last = turns.at(-1);
-      const selection = workbenchSessionControllerReducer({
-        items: get().sessions,
-        selectedId: get().activeSessionId,
-        openingId: id,
-        loading: true,
-        error: get().sessionsError,
-      }, { type: 'select', id });
-      set({
-        sessionId: id,
-        activeSessionId: selection.selectedId,
-        turns,
-        draftPrompt: '',
-        draftNegativePrompt: '',
-       draftReferences: [],
-        draftImages: [],
-        draftSource: { kind: 'manual' },
-        draftCommand: null,
-        draftHistorySource: null,
-        params: last?.params ?? loadPreferences(),
-        refinementContext: null,
-        sessionsLoading: false,
-      });
-      useAppStore.getState().setView('generate');
-    } catch (error) {
-      if (requestId !== openSessionRequest) return;
+    const outcome = await operation.result;
+    if (outcome.status === 'stale') return;
+    if (outcome.status === 'error') {
       set({
         sessionsLoading: false,
-        sessionsError: workbenchSessionErrorMessage(error, '打开对话失败'),
+        sessionsError: workbenchSessionErrorMessage(outcome.error, '打开对话失败'),
       });
+      return;
     }
+    const turns = turnsFromSession(outcome.value);
+    const last = turns.at(-1);
+    const selection = reduceSessionSummaries(get().sessions, get().activeSessionId, {
+      type: 'select',
+      id,
+    });
+    set({
+      sessionId: id,
+      activeSessionId: selection.selectedId,
+      turns,
+      ...createEmptyWorkbenchDraft(),
+      params: last?.params ?? loadWorkbenchPreferences(),
+      refinementContext: null,
+      sessionsLoading: false,
+    });
+    useAppStore.getState().setView('generate');
   },
 
   renameSession: async (id, title) => {
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      const renamed = await gateway.desktop.renameWorkbenchSession(id, title);
+      const renamed = await getWorkbenchIO().renameWorkbenchSession(id, title);
       set((current) => {
-        const existing = current.sessions.find((item) => item.id === id)
-          ?? current.archivedSessions.find((item) => item.id === id);
+        const existing =
+          current.sessions.find((item) => item.id === id) ??
+          current.archivedSessions.find((item) => item.id === id);
         const item = mergeSessionSummary(renamed, existing);
         const target = renamed.archivedAt ? 'archivedSessions' : 'sessions';
         const next = reduceSessionSummaries(
@@ -1970,9 +1826,10 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   archiveSession: async (id, archived = true) => {
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      const existing = get().sessions.find((item) => item.id === id)
-        ?? get().archivedSessions.find((item) => item.id === id);
-      const result = await gateway.desktop.archiveWorkbenchSession(id, archived);
+      const existing =
+        get().sessions.find((item) => item.id === id) ??
+        get().archivedSessions.find((item) => item.id === id);
+      const result = await getWorkbenchIO().archiveWorkbenchSession(id, archived);
       if (get().activeSessionId === id) get().newSession();
       set((current) => {
         const item = mergeSessionSummary(result, existing);
@@ -1997,7 +1854,10 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     } catch (error) {
       set({
         sessionsLoading: false,
-        sessionsError: workbenchSessionErrorMessage(error, archived ? '归档对话失败' : '恢复对话失败'),
+        sessionsError: workbenchSessionErrorMessage(
+          error,
+          archived ? '归档对话失败' : '恢复对话失败',
+        ),
       });
       throw error;
     }
@@ -2006,21 +1866,19 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   deleteSession: async (id) => {
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      await gateway.desktop.deleteWorkbenchSession(id, 1);
+      await getWorkbenchIO().deleteWorkbenchSession(id, 1);
       // newSession 会把当前对话快照进缓存，删除对话时要在其后清掉该会话的缓存。
       if (get().activeSessionId === id) get().newSession();
-      sessionTurnsCache.delete(id);
+      workbenchSessionController.deleteCachedTurns(id);
       set((current) => {
-        const active = reduceSessionSummaries(
-          current.sessions,
-          current.activeSessionId,
-          { type: 'remove', id },
-        );
-        const archived = reduceSessionSummaries(
-          current.archivedSessions,
-          null,
-          { type: 'remove', id },
-        );
+        const active = reduceSessionSummaries(current.sessions, current.activeSessionId, {
+          type: 'remove',
+          id,
+        });
+        const archived = reduceSessionSummaries(current.archivedSessions, null, {
+          type: 'remove',
+          id,
+        });
         return {
           sessions: active.items,
           archivedSessions: archived.items,
@@ -2040,7 +1898,10 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
 }));
 
 function turnIndexForTurn(turns: GenerationTurn[], turnId: string): number {
-  return Math.max(0, turns.findIndex((turn) => turn.id === turnId));
+  return Math.max(
+    0,
+    turns.findIndex((turn) => turn.id === turnId),
+  );
 }
 
 // 生成完成但用户不在原对话查看时，把会话标记为未读（侧栏绿色光晕）。
@@ -2051,8 +1912,9 @@ function markSessionUnreadAfterTurn(turnId: string) {
   const inCurrentSession = workbench.turns.some((item) => item.id === turnId);
   const sessionId = inCurrentSession ? workbench.sessionId : sessionIdForTurn(turnId);
   if (!sessionId) return;
-  const turn = (inCurrentSession ? workbench.turns : sessionTurnsCache.get(sessionId) ?? [])
-    .find((item) => item.id === turnId);
+  const turn = (
+    inCurrentSession ? workbench.turns : (workbenchSessionController.cachedTurns(sessionId) ?? [])
+  ).find((item) => item.id === turnId);
   if (!turn?.results.some((result) => result.status === 'success')) return;
   if (inCurrentSession && useAppStore.getState().currentView === 'generate') return;
   setSessionUnread(sessionId, true);
@@ -2060,25 +1922,11 @@ function markSessionUnreadAfterTurn(turnId: string) {
 
 // Provider 自动重试发生在主进程，必须用独立事件把状态映射回当前结果卡片。
 // 用户可能已切走对话：后台缓存中的原对话同样要收到重试状态。
-if (typeof api.image.onProgress === 'function') {
-  api.image.onProgress((progress: ImageGenerationProgress) => {
-    useGenerationWorkbenchStore.setState((state) => ({
-      turns: mapTurnsEverywhere(state.turns, (turn) => ({
-        ...turn,
-        results: turn.results.map((result) =>
-          result.jobId === progress.jobId
-            ? {
-                ...result,
-                retrying: progress.phase === 'retrying',
-                retryAttempt: progress.attempt,
-                retryMax: progress.maxRetries,
-                retryDelayMs: progress.delayMs,
-              }
-            : result,
-        ),
-      })),
-    }));
-  });
-}
+subscribeToWorkbenchGenerationProgress((progress) => {
+  useGenerationWorkbenchStore.setState((state) => ({
+    turns: applyGenerationProgress(state.turns, progress),
+  }));
+});
 
-export { DEFAULT_WORKBENCH_PARAMS };
+export { DEFAULT_WORKBENCH_PARAMS, WORKBENCH_PROMPT_LIMIT };
+export type { RunningTurnEntry };

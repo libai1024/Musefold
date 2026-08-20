@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '../ui/button';
 import { Loader2, Power } from '../ui/icons';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { reportError } from '../../stores/errors';
 
 interface Props {

@@ -17,7 +17,8 @@ const SOURCE_PREFIXES = [
   'website/Musefold/',
 ];
 const SOURCE_FILES = new Set([
-  'electron-builder.yml',
+  'apps/desktop/electron-builder.yml',
+  'apps/desktop/package.json',
   'apps/desktop/electron.vite.config.ts',
   'package.json',
   'package-lock.json',

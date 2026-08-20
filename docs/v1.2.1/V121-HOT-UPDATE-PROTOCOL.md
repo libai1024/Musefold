@@ -219,7 +219,7 @@ win.loadFile(join(appRoot, 'out/renderer/index.html'), {
 export const UPDATE_FEED_URL = 'https://zhaozhaoyue.top/Musefold/updates/stable/';
 ```
 
-需改为按通道拼接，通道值来自设置项，可被 `MUSEFOLD_UPDATE_CHANNEL` 覆盖，默认 `stable`。`electron-builder.yml` 的 `publish.url` 同步调整。默认值保持不变，确保现有安装行为不受影响。
+需改为按通道拼接，通道值来自设置项，可被 `MUSEFOLD_UPDATE_CHANNEL` 覆盖，默认 `stable`。`apps/desktop/electron-builder.yml` 的 `publish.url` 同步调整。默认值保持不变，确保现有安装行为不受影响。
 
 ### 7.5 IPC 与设置页
 
@@ -235,7 +235,7 @@ export const UPDATE_FEED_URL = 'https://zhaozhaoyue.top/Musefold/updates/stable/
 ### 7.6 E2E 与打包
 
 - `tests/e2e` 需要覆盖三条路径：验签失败拒绝应用、`minShellVersion` 不满足拒绝应用、连续两次启动失败自动回退。
-- `electron-builder.yml` 的 `files` 与 `extraResources` 不变；内置 `out/renderer` 继续随包分发，作为兜底。
+- `apps/desktop/electron-builder.yml` 的 `files` 与 `extraResources` 保持等价；内置 `apps/desktop/out/renderer` 继续随包分发，作为兜底。
 - 打包冒烟测试需新增一项：确认全新安装在没有网络的情况下仍能从内置 bundle 正常启动。
 
 ## 8. 威胁模型

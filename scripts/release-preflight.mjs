@@ -167,7 +167,9 @@ async function checkRoadmap() {
 async function checkDocsAndWorkflow() {
   const pkg = JSON.parse(await readText('package.json'));
   const readme = await readText('docs/product/README.md');
-  const workflow = await readText('.github/workflows/ci.yml');
+  const sourceWorkflow = await readText('.github/workflows/ci.yml');
+  const packageWorkflow = await readText('.github/workflows/package-smoke.yml');
+  const workflow = `${sourceWorkflow}\n${packageWorkflow}`;
 
   const scriptExpectations = [
     ['hooks:install', 'node scripts/install-git-hooks.mjs'],
@@ -224,8 +226,8 @@ async function checkDocsAndWorkflow() {
     windowsTargetChecklist.includes('windowsArm64TargetRuntime') &&
     windowsTargetChecklist.includes('PE_MACHINE_ARM64') &&
     windowsTargetChecklist.includes('musefold://');
-  if (missingScripts.length === 0 && wrapper.includes('restored package.json after electron-builder metadata pruning') && evidenceReady && ciEvidenceReady && windowsHostedReady && macosSigningReady && signingPrecheckReady && windowsTargetReady) {
-    pass('Package scripts protect the development manifest during packaging', 'run-builder restores package.json after electron-builder');
+  if (missingScripts.length === 0 && wrapper.includes('restored apps/desktop/package.json after electron-builder metadata pruning') && evidenceReady && ciEvidenceReady && windowsHostedReady && macosSigningReady && signingPrecheckReady && windowsTargetReady) {
+    pass('Package scripts protect the development manifest during packaging', 'run-builder restores apps/desktop/package.json after electron-builder');
   } else {
     const details = [`missing/unsafe scripts: ${missingScripts.join(', ') || 'none'}`];
     if (!evidenceReady) details.push('release gate evidence script/template missing');
@@ -259,7 +261,7 @@ async function checkDocsAndWorkflow() {
   const workflowNeedles = [
     'fetch-depth: 0',
     'npm run skill:check:ci',
-    'npm run check',
+    'npx turbo run typecheck test build lint check:boundaries',
     'npm run clean:artifacts',
     'npm run release:preflight',
     'xvfb-run -a python -m pytest tests/e2e -q',
@@ -277,7 +279,7 @@ async function checkDocsAndWorkflow() {
   const workflowMissing = workflowNeedles.filter((needle) => !workflow.includes(needle));
   const duplicatedPathBlock = /(^|\n)[ \t]+path:\s*\|\s*\r?\n[ \t]+path:\s*\|/.test(workflow);
   if (workflowMissing.length === 0 && !duplicatedPathBlock) {
-    pass('CI workflow covers source, E2E, package, and Windows host runtime smoke', '.github/workflows/ci.yml');
+    pass('CI workflow covers source, E2E, package, and Windows host runtime smoke', '.github/workflows/ci.yml + package-smoke.yml');
   } else {
     const details = [];
     if (workflowMissing.length > 0) details.push(`missing: ${workflowMissing.join(', ')}`);

@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { pickAliases } from '../../tooling/aliases.mjs';
 
 // 配置文件已迁入 apps/desktop/：相对路径以本目录为基准。
-// 仓库根仍是 App manifest / packages 所在处。
+// 仓库根仍是 workspace manifest / packages 所在处。
 const desktopRoot = __dirname;
 const repoRoot = resolve(desktopRoot, '../..');
 
@@ -63,8 +63,8 @@ export default defineConfig({
         input: {
           index: resolve(desktopRoot, 'electron/preload/index.ts'),
         },
-        // package.json 有 "type":"module"，默认会产出 .mjs；但 sandbox:true 的
-        // 预加载脚本必须是 CommonJS。强制输出 .cjs，与 window.ts 的 preload 路径一致。
+        // sandbox:true 的预加载脚本必须是 CommonJS。显式固定输出 .cjs，
+        // 与 window.ts 的 preload 路径一致，不受 manifest 模块类型影响。
         output: {
           format: 'cjs',
           entryFileNames: '[name].cjs',

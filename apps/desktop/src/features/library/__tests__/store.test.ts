@@ -3,10 +3,7 @@ import type { PromptGateway } from '@musefold/domain';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type { Prompt } from '@musefold/desktop-contracts/models';
 import { desktopGateway } from '../../../runtime';
-import {
-  DESKTOP_SYNTHETIC_ENTITY_VERSION,
-  promptRowToDocument,
-} from '../../../runtime/mappers';
+import { DESKTOP_SYNTHETIC_ENTITY_VERSION, promptRowToDocument } from '../../../runtime/mappers';
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -127,6 +124,7 @@ function createFakeGateway(): PromptGateway {
 function createFakeExtras(): DesktopExtras {
   return {
     listLibraryPrompts: vi.fn(),
+    getLibraryPrompt: unusedExtrasMethod('getLibraryPrompt'),
     listDeletedLibraryPrompts: vi.fn(),
     libraryStats: vi.fn(),
     createLibraryPrompt: vi.fn(),
@@ -137,9 +135,21 @@ function createFakeExtras(): DesktopExtras {
     listSearchHistory: vi.fn(),
     addSearchHistory: vi.fn(),
     clearSearchHistory: vi.fn(),
+    listAiConnectionPresets: unusedExtrasMethod('listAiConnectionPresets'),
+    listAiConnections: unusedExtrasMethod('listAiConnections'),
+    createAiConnection: unusedExtrasMethod('createAiConnection'),
+    updateAiConnection: unusedExtrasMethod('updateAiConnection'),
+    deleteAiConnection: unusedExtrasMethod('deleteAiConnection'),
+    saveAiConnectionKey: unusedExtrasMethod('saveAiConnectionKey'),
+    deleteAiConnectionKey: unusedExtrasMethod('deleteAiConnectionKey'),
+    hasAiConnectionKey: unusedExtrasMethod('hasAiConnectionKey'),
+    setActiveAiConnection: unusedExtrasMethod('setActiveAiConnection'),
+    listAiConnectionModels: unusedExtrasMethod('listAiConnectionModels'),
+    validateAiConnection: unusedExtrasMethod('validateAiConnection'),
     relatedHistory: unusedExtrasMethod('relatedHistory'),
     linkHistoryPrompt: unusedExtrasMethod('linkHistoryPrompt'),
     listHistory: unusedExtrasMethod('listHistory'),
+    getHistory: unusedExtrasMethod('getHistory'),
     historyStats: unusedExtrasMethod('historyStats'),
     deleteHistory: unusedExtrasMethod('deleteHistory'),
     clearHistory: unusedExtrasMethod('clearHistory'),
@@ -170,6 +180,11 @@ function createFakeExtras(): DesktopExtras {
     cloudSyncResolve: unusedExtrasMethod('cloudSyncResolve'),
     onCloudSyncChanged: vi.fn(() => {
       throw new Error('onCloudSyncChanged 不应被 library store 调用');
+    }),
+    listDesktopWorkbenchSessions: unusedExtrasMethod('listDesktopWorkbenchSessions'),
+    getDesktopWorkbenchSession: unusedExtrasMethod('getDesktopWorkbenchSession'),
+    onImageGenerationProgress: vi.fn(() => {
+      throw new Error('onImageGenerationProgress 不应被 library store 调用');
     }),
   };
 }
@@ -339,10 +354,7 @@ describe('library store PromptGateway wiring', () => {
     const ok = await useLibraryStore.getState().deletePrompt('prompt-1');
 
     expect(ok).toBe(true);
-    expect(gateway.deletePrompt).toHaveBeenCalledWith(
-      'prompt-1',
-      DESKTOP_SYNTHETIC_ENTITY_VERSION,
-    );
+    expect(gateway.deletePrompt).toHaveBeenCalledWith('prompt-1', DESKTOP_SYNTHETIC_ENTITY_VERSION);
     expect(mocks.delete).not.toHaveBeenCalled();
     expect(useLibraryStore.getState().prompts).toEqual([]);
     expect(useLibraryStore.getState().selectedPromptId).toBeNull();

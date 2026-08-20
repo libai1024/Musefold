@@ -7,7 +7,7 @@ import type {
 } from '@musefold/desktop-contracts/skill-runtime';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { MAX_REFERENCE_IMAGES, type LocalImageReference } from '@musefold/desktop-contracts/providers';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { parseGithubSkillUrl } from './githubSkillUrl';
 import { buildImageRequest, type RefineParams } from '../params';
 import { useGenerationWorkbenchStore } from './store';

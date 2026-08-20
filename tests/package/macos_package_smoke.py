@@ -33,7 +33,9 @@ PACKAGE = _macos_packaged_app()
 EXECUTABLE = PACKAGE / "Contents/MacOS/Musefold"
 PRODUCT_DOCS = PACKAGE / "Contents/Resources/product-docs/README.md"
 PRODUCT_ROADMAP = PACKAGE / "Contents/Resources/product-docs/90-roadmap-and-task-index.md"
-PACKAGE_VERSION = json.loads((REPO / "package.json").read_text(encoding="utf-8"))["version"]
+PACKAGE_VERSION = json.loads(
+    (REPO / "apps/desktop/package.json").read_text(encoding="utf-8")
+)["version"]
 PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
     "890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082"

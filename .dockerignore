@@ -1,6 +1,8 @@
 .git
 .gitignore
 node_modules
+apps/desktop
+apps/generation-worker
 release
 out
 .venv

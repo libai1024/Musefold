@@ -48,10 +48,20 @@ async function waitForFixtureWorkspace(page: Page): Promise<void> {
 }
 
 async function openCompactSidebar(page: Page): Promise<void> {
+  const layout = page.getByTestId('product-sidebar-layout');
+  const rail = page.getByTestId('product-sidebar-rail');
+  await expect(layout).toHaveAttribute('data-compact', 'true');
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   const toggle = page.getByRole('button', { name: '展开侧栏' });
-  if (await toggle.isVisible()) {
+  if ((await rail.getAttribute('data-open')) !== 'true') {
     await toggle.click();
   }
+  await expect(rail).toHaveAttribute('data-open', 'true');
   await expect(page.getByTestId('product-sidebar')).toBeVisible();
 }
 

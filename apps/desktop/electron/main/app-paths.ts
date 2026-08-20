@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { app } from 'electron';
 
-/** 根应用包名。npm 上的 musefold 留给 CLI，不能拿来识别仓库根。 */
+/** 桌面应用包名。npm 上的 musefold 留给 CLI，不能拿来识别仓库根。 */
 const APP_PACKAGE_NAME = 'musefold-app';
 
 export interface AppPathEnvironment {
@@ -30,7 +30,9 @@ function readDefaultEnvironment(): AppPathEnvironment {
 function defaultAppRootProbe(dir: string): boolean {
   if (!existsSync(join(dir, 'resources'))) return false;
   try {
-    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8')) as { name?: unknown };
+    const pkg = JSON.parse(
+      readFileSync(join(dir, 'apps', 'desktop', 'package.json'), 'utf-8'),
+    ) as { name?: unknown };
     return pkg.name === APP_PACKAGE_NAME;
   } catch {
     return false;

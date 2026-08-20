@@ -6,40 +6,46 @@ publish:
   # Packaged default only (stable). Runtime overrides the feed URL from the
   # update-channel setting / MUSEFOLD_UPDATE_CHANNEL (`updates/<channel>/`).
   url: https://zhaozhaoyue.top/Musefold/updates/stable/
+extraMetadata:
+  main: ./apps/desktop/out/main/index.js
 directories:
-  buildResources: resources
-  output: release
+  buildResources: ../../resources
+  output: ../../release
 files:
-  - apps/desktop/out/**/*
+  # Keep the historical asar layout consumed by the runtime fallback resolver.
+  - from: ../..
+    to: .
+    filter:
+      - apps/desktop/out/**/*
   - package.json
-afterPack: scripts/after-pack.cjs
+afterPack: ../../scripts/after-pack.cjs
 extraResources:
-  - from: resources/icon.png
+  - from: ../../resources/icon.png
     to: icon.png
-  - from: resources/builtin
+  - from: ../../resources/builtin
     to: builtin
     filter: ['**/*']
-  - from: resources/pet
+  - from: ../../resources/pet
     to: pet
     filter: ['**/*']
   # v0.4.x 客户端接入：内置 MCP 服务器与 CLI 单文件产物（私下分发，不依赖 npm/Node）
-  - from: packages/mcp/dist/musefold-mcp.mjs
+  - from: ../../packages/mcp/dist/musefold-mcp.mjs
     to: integration/musefold-mcp.mjs
-  - from: packages/cli/dist/musefold.mjs
+  - from: ../../packages/cli/dist/musefold.mjs
     to: integration/musefold-cli.mjs
-  - from: packages/cli/dist/chunks
+  - from: ../../packages/cli/dist/chunks
     to: integration/chunks
     filter: ['**/*']
-  - from: website/Musefold/skills/musefold
+  - from: ../../website/Musefold/skills/musefold
     to: integration/musefold-skill
     filter: ['**/*']
-  - from: node_modules/better-sqlite3
+  - from: ../../node_modules/better-sqlite3
     to: integration/node_modules/better-sqlite3
     filter:
       - package.json
       - lib/**/*
       - prebuilds/**/*
-  - from: docs/product
+  - from: ../../docs/product
     to: product-docs
     filter: ['**/*.md']
 asarUnpack:
@@ -65,4 +71,4 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  include: build/installer.nsh
+  include: ../../build/installer.nsh

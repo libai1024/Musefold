@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PetFrame } from '@musefold/desktop-contracts/pet';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 export function PetApp(): JSX.Element | null {
   const [frame, setFrame] = useState<PetFrame | null>(null);
@@ -25,10 +26,10 @@ export function PetApp(): JSX.Element | null {
 
   useEffect(() => {
     let alive = true;
-    void window.api.pet.getFrame().then((initial) => {
+    void api.pet.getFrame().then((initial) => {
       if (alive && initial) setFrame(initial);
     });
-    const off = window.api.pet.onFrame(setFrame);
+    const off = api.pet.onFrame(setFrame);
     return () => {
       alive = false;
       off();
@@ -76,7 +77,7 @@ export function PetApp(): JSX.Element | null {
   // 主进程会保持透明窗口隐藏，直到角色首帧真正提交到 DOM。
   useEffect(() => {
     if (!shown) return;
-    const id = requestAnimationFrame(() => window.api.pet.ready());
+    const id = requestAnimationFrame(() => api.pet.ready());
     return () => cancelAnimationFrame(id);
   }, [shown]);
 
@@ -114,7 +115,7 @@ export function PetApp(): JSX.Element | null {
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    window.api.pet.interact('pointer-down');
+    api.pet.interact('pointer-down');
     lastScreen.current = { x: e.screenX, y: e.screenY };
     pressTravel.current = 0;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -133,7 +134,7 @@ export function PetApp(): JSX.Element | null {
       if (pressTravel.current < DRAG_THRESHOLD_PX) return;
       dragActive.current = true;
       setDragging(true);
-      window.api.pet.interact('drag-start');
+      api.pet.interact('drag-start');
     }
     // 位移由主进程直接读取系统鼠标坐标，避免透明窗口移动造成事件掉帧。
   }, []);
@@ -144,7 +145,7 @@ export function PetApp(): JSX.Element | null {
     if (dragActive.current) {
       dragActive.current = false;
       setDragging(false);
-      window.api.pet.interact('drag-end');
+      api.pet.interact('drag-end');
     }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -165,11 +166,11 @@ export function PetApp(): JSX.Element | null {
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onDoubleClick={() => window.api.pet.interact('open-main')}
-          onMouseEnter={() => window.api.pet.interact('wake')}
+          onDoubleClick={() => api.pet.interact('open-main')}
+          onMouseEnter={() => api.pet.interact('wake')}
           onContextMenu={(e) => {
             e.preventDefault();
-            window.api.pet.openMenu();
+            api.pet.openMenu();
           }}
         >
           <img

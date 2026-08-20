@@ -16,7 +16,7 @@ import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 import { Button } from '../../../components/ui/button';
 import { displayModelName } from '../../../lib/model-catalog';
 import { ModelBrandIcon } from '../../../components/ui/brand-icons';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
 import { AI_CONNECTION_RESTART_REQUIRED } from '../ai-connection-errors';
 import { useAiConnectionStore } from '../ai-connection-store';

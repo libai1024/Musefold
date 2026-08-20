@@ -7,7 +7,7 @@ import {
   Download,
   Upload,
 } from '../../../components/ui/icons';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { SectionShell } from '../components/SectionShell';
 import { Button } from '../../../components/ui/button';
 import { ExportDialog } from '../components/ExportDialog';

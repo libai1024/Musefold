@@ -17,11 +17,13 @@ import {
 import { EXPORT_FORMAT, EXPORT_JSON_NAME, validateEnvelope } from '@musefold/domain/export-format';
 import { SHARE_PROTOCOL, parseShareDeeplink } from '@musefold/desktop-contracts/share';
 
-const builder = readFileSync('electron-builder.yml', 'utf8');
-const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+const builder = readFileSync('apps/desktop/electron-builder.yml', 'utf8');
+const packageJson = JSON.parse(readFileSync('apps/desktop/package.json', 'utf8')) as {
   name: string;
   version: string;
   author: string;
+};
+const workspacePackageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: Record<string, string>;
 };
 const bootstrap = readFileSync('apps/desktop/electron/main/index.ts', 'utf8');
@@ -73,14 +75,14 @@ function readProductText(path: string): string {
 describe('Musefold brand boundary', () => {
   it('uses Musefold for product, package, and visible UI identities', () => {
     expect(APP_NAME).toBe('Musefold');
-    // v0.4（D9）：npm 包名 musefold 保留给 CLI；根应用包是私有的 musefold-app。
+    // v0.4（D9）：npm 包名 musefold 保留给 CLI；桌面应用包是私有的 musefold-app。
     expect(packageJson.name).toBe('musefold-app');
     // 具体版本号由发布流程管理；开发期用 -dev.N 递增，守卫只挡旧品牌形态的版本串。
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+(-dev(\.\d+)?)?$/);
     expect(packageJson.author).toBe('Musefold');
     expect(builder).toMatch(/^appId:\s*com\.musefold\.app$/m);
     expect(builder).toMatch(/^productName:\s*Musefold$/m);
-    expect(packageJson.scripts['package:mac:adhoc']).toContain('Musefold.app');
+    expect(workspacePackageJson.scripts['package:mac:adhoc']).toContain('Musefold.app');
     expect(visibleUi).toContain('Musefold');
   });
 
@@ -124,6 +126,7 @@ describe('Musefold brand boundary', () => {
       ...['apps/desktop/src', 'apps/desktop/electron', 'packages', 'scripts', 'preview', 'tests', '.github'].map(readProductText),
       readFileSync('README.md', 'utf8'),
       readFileSync('package.json', 'utf8'),
+      readFileSync('apps/desktop/package.json', 'utf8'),
       readFileSync('package-lock.json', 'utf8'),
       builder,
     ].join('\n');

@@ -34,7 +34,9 @@ class WindowsPackageLayout:
 
 
 def package_version(repo: Path) -> str:
-    version = json.loads((repo / "package.json").read_text(encoding="utf-8"))["version"]
+    version = json.loads(
+        (repo / "apps/desktop/package.json").read_text(encoding="utf-8")
+    )["version"]
     if not isinstance(version, str) or not version.strip():
         raise ValueError("package.json version must be a non-empty string")
     return version
@@ -103,7 +105,7 @@ def windows_package_layout_candidates(
     `nsis.buildUniversalInstaller` is false. Unpacked dirs follow
     `win[-{arch}]-unpacked` relative to that output directory.
     """
-    output = repo / meta.output_dir
+    output = (repo / "apps/desktop" / meta.output_dir).resolve()
     unpacked_name = windows_unpacked_dir_name(arch, meta.default_arch)
     installer_names = [f"{meta.product_name} Setup {version}.exe"]
     if arch != meta.default_arch:
@@ -133,7 +135,9 @@ def windows_package_layout_candidates(
 def _windows_packaged_layout(arch: str, *, repo: Path = REPO) -> WindowsPackageLayout:
     """Prefer electron-builder's current output; keep the historical layout as fallback."""
     version = package_version(repo)
-    meta = electron_builder_windows_meta((repo / "electron-builder.yml").read_text(encoding="utf-8"))
+    meta = electron_builder_windows_meta(
+        (repo / "apps/desktop/electron-builder.yml").read_text(encoding="utf-8")
+    )
     candidates = windows_package_layout_candidates(
         repo, version=version, arch=arch, meta=meta
     )
@@ -166,7 +170,13 @@ def assert_windows_target(layout: WindowsPackageLayout, expected_machine: int):
     installer = layout.installer
     unpacked = layout.unpacked
     app_exe = unpacked / f"{layout.product_name}.exe"
-    native = unpacked / "resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+    native_root = unpacked / "resources/app.asar.unpacked/node_modules/better-sqlite3"
+    native_arch = "arm64" if expected_machine == PE_MACHINE_ARM64 else "x64"
+    native_candidates = [
+        native_root / f"prebuilds/win32-{native_arch}.node",
+        native_root / "build/Release/better_sqlite3.node",
+    ]
+    native = next((candidate for candidate in native_candidates if candidate.is_file()), native_candidates[0])
     asar = unpacked / "resources/app.asar"
     docs = unpacked / "resources/product-docs"
 
@@ -191,14 +201,14 @@ def test_windows_package_layout_candidates_follow_current_builder_output():
     """Path derivation is pure: config files only, packaged artifacts need not exist."""
     version = package_version(REPO)
     meta = electron_builder_windows_meta(
-        (REPO / "electron-builder.yml").read_text(encoding="utf-8")
+        (REPO / "apps/desktop/electron-builder.yml").read_text(encoding="utf-8")
     )
     repo = Path("/nonexistent/musefold")
     x64 = windows_package_layout_candidates(repo, version=version, arch="x64", meta=meta)
     arm64 = windows_package_layout_candidates(repo, version=version, arch="arm64", meta=meta)
 
     assert meta.product_name == "Musefold"
-    assert meta.output_dir == "release"
+    assert meta.output_dir == "../../release"
     assert meta.default_arch == "x64"
     assert x64[0].installer == repo / f"release/Musefold Setup {version}.exe"
     assert x64[0].unpacked == repo / "release/win-unpacked"

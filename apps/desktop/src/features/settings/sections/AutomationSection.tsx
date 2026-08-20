@@ -9,7 +9,7 @@ import type {
   IntegrationAction,
   IntegrationInfo,
 } from '@musefold/desktop-contracts/ipc';
-import { api } from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { SectionShell, SettingRow } from '../components/SectionShell';
 import { cn } from '../../../lib/utils';
 

@@ -20,8 +20,6 @@ interface WorkbenchPopoverPositionOptions {
 /**
  * Positions Composer popovers above the whole surface instead of above only
  * the toolbar button, which prevents tall menus from covering the prompt.
- * На мобильном (≤PRODUCT_MOBILE_BREAKPOINT) меню раскрывается как bottom
- * sheet во всю ширину экрана; оформление задаёт CSS по тем же классам.
  */
 export function useWorkbenchPopoverPosition({
   open,
@@ -43,7 +41,10 @@ export function useWorkbenchPopoverPosition({
     const menu = menuRef.current;
     if (!open || !anchor || !menu) return;
 
-    if (window.innerWidth <= PRODUCT_MOBILE_BREAKPOINT) {
+    if (
+      document.documentElement.dataset.productHost === 'web' &&
+      window.innerWidth <= PRODUCT_MOBILE_BREAKPOINT
+    ) {
       menu.style.maxHeight = '';
       setStyle({
         position: 'fixed',

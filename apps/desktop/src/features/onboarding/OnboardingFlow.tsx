@@ -37,7 +37,7 @@ import { formatPoints } from '@musefold/domain';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import { usePlatform, useWindowFullscreen } from '../../lib/usePlatform';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { useDoubaoAccountStore } from '../account/doubao-store';
 
 const QUALITY_OPTIONS: { id: ImageQuality; label: string }[] = [

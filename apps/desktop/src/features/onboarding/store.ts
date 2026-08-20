@@ -20,7 +20,8 @@ import { useAppStore } from '../../stores/app';
 import { hatchMotionAllowed, useEmberHatchStore } from '../../stores/emberHatch';
 import { useAccountStore } from '../account/store';
 import { useAiConnectionStore } from '../settings/ai-connection-store';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
+import { desktopGateway } from '../../runtime';
 
 const ONBOARDED_KEY = 'musefold:onboarded';
 
@@ -423,7 +424,7 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     const ratio = RATIO_OPTIONS.find((r) => r.id === ratioId) ?? RATIO_OPTIONS[0];
     set({ generating: true, generateError: null, generatedImagePath: null });
     try {
-      const result: GenerateImageResult = await api.image.generate({
+      const result: GenerateImageResult = await desktopGateway.generateImage({
         providerId,
         prompt: EXAMPLE_PROMPT,
         size: ratio.size,

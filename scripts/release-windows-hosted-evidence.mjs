@@ -85,7 +85,7 @@ async function fileSummary(path) {
 }
 
 async function defaultInstallerPath() {
-  const pkg = JSON.parse(await readText('package.json'));
+  const pkg = JSON.parse(await readText('apps/desktop/package.json'));
   return `release/Musefold Setup ${pkg.version}.exe`;
 }
 

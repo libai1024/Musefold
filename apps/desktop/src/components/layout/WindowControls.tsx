@@ -5,6 +5,7 @@
 
 import { Copy as RestoreIcon, Minus as MinimizeIcon, Square as MaximizeIcon, X as CloseIcon } from '../ui/icons';
 import { useWindowMaximized } from '../../lib/usePlatform';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 const neutralButtonClass =
   'no-drag flex h-full w-[46px] items-center justify-center text-secondary transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-hover hover:text-primary focus-visible:outline-none';
@@ -13,7 +14,7 @@ export function MinimizeWindowButton() {
   return (
     <button
       className={neutralButtonClass}
-      onClick={() => window.api?.window.minimize()}
+      onClick={() => api.window.minimize()}
       aria-label="最小化"
       title="最小化"
     >
@@ -24,7 +25,7 @@ export function MinimizeWindowButton() {
 
 export function WindowControls() {
   const isMax = useWindowMaximized();
-  const w = window.api?.window;
+  const w = api.window;
 
   return (
     <div className="no-drag flex h-full items-stretch">

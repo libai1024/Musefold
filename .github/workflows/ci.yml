@@ -1,5 +1,5 @@
 # Fast-lane CI (source checks + desktop E2E).
-# App semver single source of truth: the `version` field in the repo-root package.json.
+# App semver single source of truth: `apps/desktop/package.json`.
 # Document versions (v1.2.1, etc.) are independent of app semver.
 name: CI
 

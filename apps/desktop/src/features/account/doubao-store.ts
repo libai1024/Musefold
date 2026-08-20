@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { DoubaoWebAccountStatus, DoubaoWebUsageStatus } from '@musefold/desktop-contracts/providers';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 interface DoubaoAccountState {
   status: DoubaoWebAccountStatus | null;

@@ -3,7 +3,7 @@
 #
 # Allowed pattern forms (anything else is rejected at load time):
 #   1. Directory prefix: apps/desktop/src/**
-#   2. Extension or exact file: *.md, electron-builder.yml
+#   2. Extension or exact file: *.md, apps/desktop/electron-builder.yml
 #
 # Do not use brace expansion, negation, nested globs (src/**/*.ts), or
 # basename wildcards (tsconfig*). List exact files instead.
@@ -73,9 +73,10 @@ service:
 shell:
   - apps/desktop/electron/**
   - apps/desktop/electron.vite.config.ts
+  - apps/desktop/package.json
   - apps/desktop/tsconfig.node.json
   - resources/**
-  - electron-builder.yml
+  - apps/desktop/electron-builder.yml
   # Protocol package is compiled into the main process; renderer consumes Channel types.
   - packages/update-protocol/**
   # IPC contracts are implemented by the main process; renderer consumes the types.
@@ -89,7 +90,7 @@ desktop:
   - resources/**
   - tests/**
   - requirements-test.txt
-  - electron-builder.yml
+  - apps/desktop/electron-builder.yml
 
 docs:
   - docs/**

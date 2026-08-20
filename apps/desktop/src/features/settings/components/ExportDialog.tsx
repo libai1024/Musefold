@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FileJson, FileArchive, Loader2, ShieldCheck } from '../../../components/ui/icons';
 import type { ExportCounts, ExportMode, ExportResult } from '@musefold/desktop-contracts/ipc';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
 import {
   Dialog,

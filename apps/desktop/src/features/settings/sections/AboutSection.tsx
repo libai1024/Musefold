@@ -8,7 +8,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from '../../../components/ui/icons';
-import { api } from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import type {
   Channel,
   ContentLayerCheckSnapshot,

@@ -3,7 +3,7 @@
 // 若同一确认被 HTTP 回执或超时解决，卡片随 resolved 事件自动关闭。
 import { useEffect, useState } from 'react';
 import type { AutomationConfirmationSummary } from '@musefold/desktop-contracts/ipc';
-import { api } from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { displayModelName } from '../../lib/model-catalog';
 
 export function AutomationConfirmCard() {

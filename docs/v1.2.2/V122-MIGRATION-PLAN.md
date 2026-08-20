@@ -1,10 +1,10 @@
 # Musefold v1.2.2 迁移计划
 
-> **状态**：Phase 0、Phase 1a 已完成；Phase 2 部分完成（GW-01 domain / GW-02 / GW-03 / GW-05 / GW-07（两刀 fa45f74 + 83d9f71）/ GW-08 已完成），GW-04 / GW-06 未开工，GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；Phase 3 部分完成（SHARE-06 / 01 / 05 / 02 / 03），仅剩 SHARE-04（与 Phase 2 stores 同批）；Phase 1b 未开工
+> **状态**：Phase 0、Phase 1a/1b、Phase 2（GW-01~09 + WebGateway/settings/renderer IO 补卡）与 Phase 3（SHARE-01~06）均已完成；v1.2.2 仓库开发完成，正式发布仍受 v1.2.1 外部 evidence 门禁约束
 >
 > **日期**：2026-08-20
 >
-> **前置**：Phase 1a 须 v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（已于 2026-08-20 达成，Phase 1a 同日完成）；Phase 1b 须 v1.2.1 发布门禁全部通过，且 Phase 1a 稳定运行一周；Phase 0 可与 v1.2.1 M4–M7 并行
+> **执行记录**：Phase 1a 的仓库侧门禁于 2026-08-20 达成；Phase 1b 同日在隔离工作树内完成，并以全仓门禁、macOS ad-hoc 真包运行态、Windows ARM64 结构包和真实 Docker 镜像补足迁移回归证据。此实现完成状态不替代 Developer ID、公证、远端 CI 与目标设备 evidence
 >
 > **总原则**：每个任务卡独立合并、独立可回滚；纯移动提交与内容修改严格分离；不改变任何用户可见行为
 
@@ -22,9 +22,9 @@
 |---|---|---|---|
 | Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | **已完成（2026-08-20）** |
 | Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
-| Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
-| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | **部分完成（2026-08-20）**：GW-01（domain）/ 02 / 03 / 05 / 07（两刀 fa45f74 + 83d9f71）/ 08 已完成；GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 / 06 未开工 |
-| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04（与 Phase 2 stores 同批） |
+| Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | feature freeze + 打包、Docker、发布路径全验证 | **已完成（2026-08-20）**：DIR-06~09 |
+| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | **已完成（2026-08-20）**：GW-01~09 + WebGateway/settings/renderer IO 补卡 |
+| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **已完成（2026-08-20）**：SHARE-01~06 |
 
 ## 2. Phase 0：工程化地基
 
@@ -68,15 +68,15 @@ Phase 0 于 2026-08-20 全部完成。
 
 ## 3. Phase 1：目录重构
 
-**2026-08-20 修订**：Phase 1a（仅移动桌面目录：`src/`、`electron/`、`shared/`）的开工门禁由「v1.2.1 发布门禁全部通过」改为「v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿」，该条件已于 2026-08-20 达成。Phase 1b 维持原门禁（v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周）。
+**2026-08-20 执行记录**：Phase 1a 在仓库侧安全网全绿后完成；Phase 1b 随后在 feature freeze 工作树内完成，并把原计划依赖外部环境的风险改为本地可执行证据：macOS 真包启动、Windows ARM64 结构包、Docker 依赖隔离和发布脚本预检。正式签名、公证、远端 CI 与目标设备运行仍由 v1.2.1 evidence 门禁负责。
 
 1. [v1.2.1 交付原则 7](../v1.2.1/V121-DELIVERY-PLAN.md) 的目的是「迁移依赖 affected 流水线、自动部署与回滚作为回归安全网」。保护**桌面目录迁移**的安全网是：affected 流水线与 Turborepo 缓存（M1，已交付）、全仓 typecheck/test/build/lint/boundaries（Phase 0，已交付）、桌面 E2E 222 例与打包冒烟（M5 期间扩充，含 macOS 真包验证）——全部就绪且在用。
 2. v1.2.1 发布门禁中尚未达成的项全部是外部条件：对象存储与 CDN 采购（CHAN-07）、生产服务器的部署身份与自托管 runner（M0/M2/M3）、签名证书（M6）。Phase 1a 只移动桌面代码，不触碰服务部署面、不触碰发布链路语义（层级路径映射仍是单点定义，DIR-04 专卡处理）；这些外部项无论完成与否都不构成对桌面迁移的回归保护，让目录迁移无限期等待采购只产生停滞。
-3. 风险边界不变：Phase 1b 要动 `electron-builder.yml`、`infra/v1.1/Dockerfile` 与发布脚本（DIR-06/07/08），才真正依赖发布链路与服务器侧验证能力，因此 1b 门禁原样保留。1a 的回滚方式仍是 revert 单个迁移提交。
+3. 风险边界不变：Phase 1b 同批修改 `apps/desktop/electron-builder.yml`、`infra/v1.1/Dockerfile` 与发布脚本（DIR-06/07/08），以单个变更集保持可回滚；公开发布证据不由架构迁移结果代替。
 
 ### Phase 1a：源码目录迁移（根 package.json 暂不动）
 
-- `V122-DIR-01`：~~`git mv src apps/desktop/src`、`git mv electron apps/desktop/electron`；`electron.vite.config.ts` 迁至 `apps/desktop/` 并更新入口路径；根 package.json 暂时保留 App manifest 角色，`main` 字段指向新输出路径。~~ **已完成（2026-08-20）**。桌面应用迁入 `apps/desktop/`；根 package.json 仍为 App manifest（下移属 Phase 1b）。
+- `V122-DIR-01`：~~`git mv src apps/desktop/src`、`git mv electron apps/desktop/electron`；`electron.vite.config.ts` 迁至 `apps/desktop/` 并更新入口路径；根 package.json 暂时保留 App manifest 角色，`main` 字段指向新输出路径。~~ **已完成（2026-08-20）**。桌面应用迁入 `apps/desktop/`；本卡完成时根 package.json 暂留 App manifest，随后已由 Phase 1b 下移。
 - `V122-DIR-02`：~~新建 `packages/desktop-contracts`，`git mv shared/types/*` 迁入；其余 `shared/` 文件按[架构文档第 6 节](./V122-ARCHITECTURE.md)归位 domain/core/desktop-contracts；`@shared/*` 别名由 `desktop-contracts` 兼容 re-export。~~ **已完成（2026-08-20，fcd614f）**。`shared/` 已解散。`shared/types/*` 15 文件迁入新包 `@musefold/desktop-contracts`（`0.0.0-internal`，composite）；`@shared/types/*` 别名直映到包内，数百处 types import 零改动，**无 re-export 胶水**。其余 `@shared/<module>` import 全部改写为真实包名——单一兼容模块会把 `better-sqlite3` 拉进渲染层，故不走「一个 re-export 兜底」。
 
   归位（执行期按 import 图逐文件判定，订正架构 §6 预估）：
@@ -119,31 +119,31 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 
 ### Phase 1b：App manifest 下移（需 feature freeze 窗口）
 
-- `V122-DIR-06`：Electron App manifest 下移到 `apps/desktop/package.json`（`main`、App 依赖、electron-builder 配置、`postinstall` 的 `install-app-deps`）；根 package.json 变纯 workspace root，只留全局脚本与 devDependencies。`electron-builder.yml` 迁至 `apps/desktop/` 并验证原生依赖收集（`better-sqlite3`）在 workspace 布局下正确打入。
-- `V122-DIR-07`：更新 `scripts/*.mjs` 中的路径引用（`run-builder`、`build-cli`、`clean-artifacts`、release 系列）；更新 `infra/v1.1/Dockerfile` 构建上下文（web-api 镜像不再安装桌面 App 依赖，构建应变轻）。
-- `V122-DIR-08`：发布链路全验证：tag 触发打包 workflow、renderer bundle 构建路径（`apps/desktop/out/renderer`）、`minShellVersion` 推导脚本按包名解析 `@musefold/desktop-contracts`。
-- `V122-DIR-09`：清理与文档：删除 `apps/desktop/` 下迁入的 `tsconfig.node.json`、`tsconfig.web.json`（DIR-03 已自根目录迁入并保留原名）等被 references 图取代的文件；`doc/v1.0/README.md` 与 `docs/08-file-structure.md` 加「目录结构已被 v1.2.2 取代」横幅。
+- `V122-DIR-06`：~~Electron App manifest 与 builder 配置下移。~~ **已完成（2026-08-20）**。`apps/desktop/package.json` 成为 App 版本、`main`、运行依赖与 `postinstall` 的唯一来源；根 manifest 仅保留 workspace、全局脚本和 devDependencies。builder 以 `apps/desktop` 为 projectDir，workspace root 收集依赖；`install-app-deps` 与打包均成功重建/收集 `better-sqlite3`，asar 内保持 `apps/desktop/out/**` 兼容布局。
+- `V122-DIR-07`：~~更新脚本、发布读取路径与 Web API Docker 上下文。~~ **已完成（2026-08-20）**。`run-builder`、release 系列、package smoke、CI 缓存键和版本读取全部切到新 App manifest/config；Docker 只复制 Web/Web API，选择性安装两个 workspace，构建上下文约 19.9 MB → 2.9 MB。镜像内实证不存在 Electron、electron-builder、better-sqlite3 与桌面 workspace。
+- `V122-DIR-08`：~~发布链路全验证。~~ **已完成（2026-08-20）**。tag workflow 路径、renderer bundle、按包名解析的 `minShellVersion` 保持有效；macOS ad-hoc 生成 app/DMG/ZIP/blockmap，DMG 校验与安装包运行态 2/2 通过；Windows ARM64 交叉包与结构烟测通过。Developer ID/公证和 Windows 目标机运行仍是发布 evidence，不在此冒充完成。
+- `V122-DIR-09`：~~清理与文档。~~ **已完成（2026-08-20，含执行期裁定修正）**。旧文档已加取代横幅，所有旧 manifest/builder 路径已清理。原卡要求删除 `tsconfig.node.json` / `tsconfig.web.json`，但两者是 node 与 DOM 两套 compilerOptions 的真实 composite 编译单元，根 references、脚本和 CI 分层仍直接引用；删除会破坏 project graph，故按 DIR-03 与架构基线保留并记录裁定。
 
 **回滚**：1b 合并前在分支上完成 mac + win 双平台打包冒烟；合并后若发现打包问题，revert 单个合并提交即可，运行时行为不受影响（用户侧无变化）。
 
 ### 完成条件
 
-- 根目录不再有 `src/`、`electron/`、`shared/`；`apps/desktop` 结构与[架构文档第 2 节](./V122-ARCHITECTURE.md)一致。✅（Phase 1a：三处源码已迁走；`apps/desktop/package.json` 与 `electron-builder.yml` 下移属 Phase 1b）
-- 打一个 tag 能产出与迁移前等价的签名安装包；`downloads` 产物清单逐项一致。
-- 内容层/服务层/外壳层/纯文档四类提交的流水线触发与迁移前等价。
-- `git log --follow` 能追溯任一被迁移文件的历史。
+- 根目录不再有 `src/`、`electron/`、`shared/`、App manifest 或 builder 配置；`apps/desktop` 结构与[架构文档第 2 节](./V122-ARCHITECTURE.md)一致。✅
+- 本地 macOS/Windows 产物与迁移前结构等价，tag workflow 使用同一 package 脚本。✅（正式签名与 CDN 清单仍需外部发布 evidence）
+- 内容层/服务层/外壳层/纯文档四类提交的流水线触发与迁移前等价。✅
+- `git log --follow` 能追溯任一被迁移文件的历史。✅
 
 ## 4. Phase 2：桌面 Gateway
 
-**2026-08-20 修订**：Phase 2 的开工门禁由「Phase 1 完成」改为「Phase 1a 完成」，该条件已于 2026-08-20 达成。Phase 1b 维持原门禁（v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周），与 Phase 2 解耦。
+**2026-08-20 修订**：Phase 2 当时按「Phase 1a 完成」解耦开工并已完成；Phase 1b 后续也已完成，不改变两者独立回滚的边界。
 
-1. Phase 1b 只下移 App manifest 与 electron-builder 配置（DIR-06~09），动的是打包与发布链路；Phase 2 的 Gateway 卡（GW-01~09）全部是 domain 端口与渲染层 stores 的仓库侧重接线。两者无共享文件、无依赖关系。1b 被外部条件（签名证书、服务器部署身份）加一周稳定期锁死，让 Gateway 工作无限期等待，与 Phase 1a 门禁修订时驳回的「等采购」是同一种停滞。
+1. Phase 1b 只下移 App manifest 与 electron-builder 配置（DIR-06~09），Phase 2 的 Gateway 卡（GW-01~09）只重接 domain 端口与渲染层 stores；两者无共享状态机，均已独立完成验证。
 2. 风险边界不变：Phase 2 每卡的回归保护本来就是仓库侧门禁（桌面 E2E、共享视觉门禁、turbo 全门禁），与 1b 的发布链路验证无关；GW 卡独立合并、独立 revert 的原则不变。
 3. 注意事项：`V122-GW-01` 原计划同时改 `apps/web/src/runtime.ts` 为 `implements`。执行期因 web 侧并行未提交改动改为 domain 半卡；`implements` 补卡须等该工作流收口，避免工作树互相踩踏。端口不漂移由 `apps/web/src/__tests__/gateway-ports.typecheck.test.ts`（`satisfies`）锁住。
 
 ### 任务
 
-- `V122-GW-01`：~~在 `packages/domain` 上提端口：`PromptGateway`、`WorkbenchGateway`、`GenerationGateway`、`HistoryGateway`、`AccountGateway`、`PlatformServices`（形状以 `apps/web/src/runtime.ts` 的 `WebGateway` 为准）；`WebGateway` 改为 `implements` 这组端口，行为零变化。~~ **已完成（2026-08-20，b12bbd8）**（domain 半卡）。在 `packages/domain` 上提六端口，签名照抄 `WebGateway` 现行形状，不改名不合并。分组：
+- `V122-GW-01`：~~在 `packages/domain` 上提端口：`PromptGateway`、`WorkbenchGateway`、`GenerationGateway`、`HistoryGateway`、`AccountGateway`、`PlatformServices`（形状以 `apps/web/src/runtime.ts` 的 `WebGateway` 为准）；`WebGateway` 改为 `implements` 这组端口，行为零变化。~~ **已完成（2026-08-20，domain b12bbd8 + Web 补卡）**。在 `packages/domain` 上提六端口，签名照抄 `WebGateway` 现行形状，不改名不合并。分组：
   - PromptGateway：listPrompts / getPrompt / createPrompt / updatePrompt / deletePrompt / restorePrompt / usePrompt
   - WorkbenchGateway：list/get/create/update/deleteWorkbenchSession
   - GenerationGateway：createGeneration / getGeneration / streamGenerationEvents / cancelGeneration / retryGeneration / approveGeneration
@@ -152,14 +152,14 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
   - PlatformServices：**空接口**（WebGateway 当时没有 toast/download/clipboard/openExternal）
   - 未归组：`readonly mode: "api" | "fixture"`（宿主传输开关，非领域 IO）
 
-  类型只引用 `@musefold/contracts` + domain。`WebGateway implements` 因 web 并行未提交改动**推迟**；用新增 `apps/web/src/__tests__/gateway-ports.typecheck.test.ts`（`satisfies`）锁不漂移。
+  类型只引用 `@musefold/contracts` + domain。Web 工作流收口后，`WebGateway` 已显式 `extends` 六端口；`HttpWebGateway` 与 `DeferredFixtureWebGateway` 继续 `implements WebGateway`。`gateway-ports.typecheck.test.ts` 保留为防漂移断言。
 
   **裁定**：端口按 WebGateway 现行方法名原样上提，不发明新抽象；PlatformServices 保持空接口，不把计划中的 clipboard/download/openExternal 提前写进 domain。`mode` 不进领域端口。
 
-  验证：`gateway-ports.typecheck.test.ts`（`satisfies`）锁端口与 `WebGateway` 形状不漂移。
+  验证：`gateway-ports.typecheck.test.ts` + Web 7 files / 14 tests；全仓 Turbo 30/30。
 - `V122-GW-02`：~~`apps/desktop/src/runtime/` 建 `DesktopGateway` 骨架与 `mappers/` 目录（行模型 ↔ 端口形状的转换全部收口于此）；宿主组装 runtime 对象注入 store 层。~~ **已完成（2026-08-20，fc197b8）**。`apps/desktop/src/runtime/` 骨架：`createDesktopGateway(api)` + 懒单例 `desktopGateway`。字段转换只在 `mappers/`。depcruise 第 20 条 `desktop-runtime-contracts-only-in-mappers`：runtime 组装层禁 contracts。PromptGateway 全实现（有损字段逐条注释）。其余按 IPC 能直映的做，对不齐的抛 `DesktopGatewayNotImplementedError`。骨架未接线，行为零变化。新增 19 条测试。
 
-  **裁定**：`streamGenerationEvents` 定为 NotImplemented。桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号；GW-06 前要决定扩 preload 还是桌面改拉模型。
+  **裁定**：`streamGenerationEvents` 定为 NotImplemented。桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号；GW-06 最终以 `DesktopExtras.onImageGenerationProgress` 保留原生事件语义，不扩 preload、不改拉模型。
 
   验证：新增 19 条测试；库 E2E 21 passed；turbo 28/30，红的是并行 web/product-ui 4 条，非本卡。
 - `V122-GW-03`：~~切换 `features/library/store.ts`（977 行，IPC 面最全，作为模式样板）。~~ **已完成（2026-08-20，7790a35）**。library store 模式样板。走 gateway：update / delete / restore / copy 的 usePrompt；delete/restore 传合成 version 1。仍走 `api`：list / listDeleted / stats / togglePin / reorderPins / purge / searchHistory。create 仍走 `api.prompt.create`。新增 `applyPromptDocumentToRow`：update 回写保留封面路径。注入：模块级 `setLibraryPromptGatewayForTests`，无 React context。
@@ -173,43 +173,47 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
   **裁定**：**不按计划切 account/store 与 AccountSection cloudSync**——共享 AccountGateway 能接的是 cloud-connections 的 list/update/revoke；login/status 全量与 cloudSync 留给 GW-07（已由 83d9f71 收口）。
 
   验证：账号 E2E 4 条 + signed-out 已连接应用 1 条通过；turbo 除并行 4 红外全绿。
-- `V122-GW-06`：切换 `features/generation/store.ts` 与工作台 store 的 IO 边（会话 CRUD、生图提交/进度；状态机部分留给 `V122-SHARE-04`）。**开工前裁定**：`streamGenerationEvents`（GW-02 已定为 NotImplemented：桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号）——须先决定扩 preload 还是桌面改拉模型。
-- `V122-GW-07`：~~切换 settings 桌面域（aiConnection、cloudConnections、provider）到 `DesktopExtras` 接口（类型来自 `desktop-contracts`，不进共享端口）。DesktopExtras 需覆盖 library 未进共享端口的桌面面：list（桌面查询面）、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory；另补（GW-05）account login/status 全量、AccountSection cloudSync。~~ **已完成（2026-08-20，两刀 fa45f74 + 83d9f71）**。`PlatformServices` 仍空。
+- `V122-GW-06`：~~切换 `features/generation/store.ts` 与工作台 store 的 IO 边（会话 CRUD、生图提交/进度；状态机部分留给 `V122-SHARE-04`）。~~ **已完成（2026-08-20）**。provider store 与工作台会话写面/生图提交/取消/重试走 `DesktopGateway`；桌面无损 session summary/document 与原生 progress 走 `DesktopExtras`。新增窄接口 `WorkbenchIO` 作为生产默认 gateway、测试可注入的唯一 transport seam；工作台 store 不再 import `lib/ipc`。
+
+  **裁定**：`streamGenerationEvents` 继续 `DesktopGatewayNotImplementedError`。桌面 `image.onProgress` 只有 Provider 重试阶段，没有 `seq`、`afterSeq` 或终态；不扩 preload、不改拉模型，也不伪造 SSE 游标。新增 `DesktopExtras.onImageGenerationProgress` 原样承接宿主事件。共享 `WorkbenchGateway.getWorkbenchSession` 会有损丢弃桌面 `runs`，所以恢复会话使用 `getDesktopWorkbenchSession`；列表同理保留 `turnCount/runCount/latestAssetPath/conversationKind/latestStatus`。
+
+  验证：工作台/controller/gateway 相关 19 files、100 tests 通过；全仓 `tsc -b`、桌面生产构建、ESLint、depcruise 通过。
+- `V122-GW-07`：~~切换 settings 桌面域（aiConnection、cloudConnections、provider）到 `DesktopExtras` 接口（类型来自 `desktop-contracts`，不进共享端口）。DesktopExtras 需覆盖 library 未进共享端口的桌面面：list（桌面查询面）、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory；另补（GW-05）account login/status 全量、AccountSection cloudSync。~~ **已完成（2026-08-20，library/account 两刀 + settings 补卡）**。`PlatformServices` 仍空。
 
   第一刀（fa45f74，library extras）：新增扁平 `DesktopExtras`（`packages/desktop-contracts/src/desktop-extras.ts`）。library list/listDeleted/stats/create/togglePin/reorderPins/purge/searchHistory 直通行模型，不经 PromptDocument。library store 剩余 api 调用已切到 extras；update/delete/restore/usePrompt 仍走 PromptGateway。
 
   第二刀（83d9f71，account / cloudSync）：DesktopExtras 新增 account* 与 cloudSync* 扁平方法，直通 IPC，返回 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。account/store.ts 去掉 lib/ipc；AccountSection 不再出现 window.api.cloudSync。两刀合起来，计划点名的 library extras + account login/status 全量 + cloudSync 已收口。
 
-  **aiConnection / provider 未纳入本卡**：计划原文点了名，但仍直连 ipc。它们是设置桌面域的下一批，避免和账号切片抢同一文件；列入后续输入。cloudConnections 已由 GW-05 切到 AccountGateway。
+  settings 补卡：provider store 已由 GW-06 走 `DesktopExtras`；aiConnection 完整 namespace（preset/list/CRUD/key/active/models/validate）进入 `DesktopExtras`，AI store 使用可注入 `AiConnectionIO`，不再 import `lib/ipc`。cloudConnections 已由 GW-05 切到 AccountGateway。
 
   **裁定**：library 桌面查询/写面走 extras 行模型，不经共享 PromptDocument。account login/status 全量与 cloudSync 走 extras 直通桌面状态，不经 AccountSession mapper（共享 AccountGateway 的 getSession/login 仍有损）。
 
-  验证：第一刀库 E2E 21 passed。第二刀 vitest 32 passed；账号 E2E 4；cloud 设置 1；tsc 通过。
+  验证：第一刀库 E2E 21 passed；第二刀 vitest 32 passed、账号 E2E 4、cloud 设置 1；补卡相关 31 tests；最终全仓 Turbo 30/30。
 - `V122-GW-08`：~~桌面接入 `getProductCapabilities('desktop')`，替代页面内散落的能力判断。~~ **已完成（2026-08-20，ae9723e）**。桌面接入 `getProductCapabilities('desktop')`，单点 `apps/desktop/src/runtime/capabilities.ts`。Sidebar / SettingsView / CommandPalette 按 flag 滤入口。修正过期 flag：`desktop.cloudMcpConnections` false→true（已连接应用存在）。命令面板 `act-providers`→byokProviders、`act-ai-connections`→agent，避免 ⌘K 后门。当前 flag 全 true，可见入口不变。工作台内部按钮不闸。
 
   **裁定**：能力判断单点 `runtime/capabilities.ts`；Sidebar / SettingsView / CommandPalette 按 flag 滤入口，工作台内部按钮不闸。过期 flag 与命令面板 action 对齐真实能力，避免 ⌘K 后门。
 
   验证：当前 flag 全 true，可见入口不变。
-- `V122-GW-09`：~~depcruise 规则收口：迁移完成的 feature 目录禁止 import `lib/ipc` 与 `window.api`（从 baseline 豁免中移除）；桌宠窗口、窗口控件、预览桥保留显式豁免并注明理由。~~ **已完成（2026-08-20）**。新增 `features-no-direct-ipc` 规则强制 library/history/account/workbench/generation 目录通过 gateway，pathNot 显式豁免合规使用：平台服务（api.system.*、api.pet.*）、Provider 专属（api.provider.web*、api.settings.pricing）、Skill 运行时（api.skillRuntime.*）、workbench hybrid pattern（api.workbenchSession.*、api.image.onProgress）、DesktopExtras 已覆盖的 prompt 方法（PromptReferenceSidebar、PromptPickerPopover）。修复违规：history/store.ts 的 `api.image.retry` → `desktopGateway.retryImage`；generation/store.ts 移除 unused `import api`。baseline 保持为空（Phase 0 已归零）。
+- `V122-GW-09`：~~depcruise 规则收口：迁移完成的 feature 目录禁止 import `lib/ipc` 与 `window.api`（从 baseline 豁免中移除）；桌宠窗口、窗口控件、预览桥保留显式豁免并注明理由。~~ **已完成（2026-08-20）**。最终规则提升为 `renderer-no-direct-ipc`：整个 renderer 的业务代码不得 import `lib/ipc`；跨端业务 IO 走 Gateway/Extras，system/pet/automation/designScheme/skillRuntime 等桌面独有能力统一走 `runtime/desktop-host-services.ts`，仅该宿主适配器可持有 transport import。裸 `window.api` 只剩 lib/runtime/preview/availability probe 共 5 个低层入口。baseline 保持为空。
 
-  验证：`check:boundaries` 通过（791 modules, 3025 dependencies, 0 violations）、typecheck 通过。
+  验证：`check:boundaries` 通过（799 modules, 3063 dependencies, 0 violations）、typecheck/lint 通过。
 
 ### Phase 2 沉淀的后续输入
 
-- **GW-06 前裁定 `streamGenerationEvents`**：GW-02 已定为 `DesktopGatewayNotImplementedError`。桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号；须先决定扩 preload 还是桌面改拉模型。
-- **settings aiConnection / provider**：GW-07 未纳入。计划原文点了名，仍直连 ipc。它们是设置桌面域的下一批，避免和账号切片抢同一文件。
+- **`streamGenerationEvents` 已裁定**：继续 `DesktopGatewayNotImplementedError`。桌面 `image.onProgress` 无 seq/终态，GW-06 以 `DesktopExtras.onImageGenerationProgress` 保留原生事件语义，不扩 preload、不改拉模型。
+- **settings aiConnection / provider 已收口**：provider 走 DesktopExtras；aiConnection 走可注入 `AiConnectionIO`，完整方法面由 DesktopGateway 直通。
 - **`PlatformServices` 仍空**：GW-08 落地的是 capabilities，未填 PlatformServices。
-- **GW-01 `WebGateway implements` 补卡**：等待 web 并行工作流收口；期间以 `gateway-ports.typecheck.test.ts`（`satisfies`）锁形状。
+- **GW-01 Web 补卡已完成**：`WebGateway` 显式继承六端口，具体 HTTP/fixture 类继续实现该聚合接口。
 
 ### 完成条件
 
-- 渲染进程直连 IPC 的文件数从 47+8 降到豁免清单内（预期 ≤ 6）。
+- 渲染业务代码直接 import `lib/ipc` 的文件数从 47 降为 0；裸 `window.api` 从 8 降至 5 个低层桥接入口（≤ 6）。
 - 桌面 E2E 与共享视觉门禁全绿；每张卡独立合并、独立可 revert。
 - `DesktopGateway` 与 `WebGateway` 实现同一组 domain 端口，接口差异只剩桌面独有域（`DesktopExtras`）。
 
 ## 5. Phase 3：共享逻辑归位
 
-**启动裁定（2026-08-20）**：Phase 3 与 Phase 2 可交错、纯仓库侧，不依赖 Phase 1b 的 manifest 下移；在 Phase 1b 等待外部条件与稳定期期间先行推进。`V122-SHARE-06` / `01` / `05` / `02` / `03` 已完成；仅剩 `SHARE-04`（与 Phase 2 stores 切换同批）。
+**完成状态（2026-08-20）**：Phase 3 与 Phase 2 交错完成，纯仓库侧，不依赖 Phase 1b 的 manifest 下移。`V122-SHARE-01~06` 已全部完成。
 
 ### 任务
 
@@ -228,7 +232,11 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
   **裁定**：审计结论——管理面两端都是 JWT Bearer + Cookie，桌面 sk- 设备令牌只用于托管 Provider，认证并无分叉，无需 header 注入回调。
 
   验证：turbo 30/30、`check:v1.1`（new-api-client 9 passed、web-api 15/11 skipped）、冒烟、桌面 E2E 222/17。
-- `V122-SHARE-04`：工作台 store（2,080 行）按 Web 已验证的三 controller 模式（session/draft-sync/generation-sync）拆分 IO 与状态机；可上提的 reducer 进 `product-ui`，IPC IO 留在 `DesktopGateway`。与 Phase 2 stores 切换同批，未开工。
+- `V122-SHARE-04`：~~工作台 store（2,080 行）按 Web 已验证的三 controller 模式（session/draft-sync/generation-sync）拆分 IO 与状态机；可上提的 reducer 进 `product-ui`，IPC IO 留在 `DesktopGateway`。~~ **已完成（2026-08-20，与 GW-06 同批）**。拆出 `draftController.ts`、`sessionController.ts`、`generationSyncController.ts` 与窄 `io.ts`：草稿约束/偏好、session reducer+请求竞态+后台缓存、运行登记+结果/错误/progress 回填分别独立；store 只保留跨域编排和 Zustand 组装。
+
+  **裁定**：session 生命周期继续复用 `product-ui` 的 `workbenchSessionControllerReducer`。草稿中的本地图片/完整引用/Skill/Scheme 来源，以及生成同步中的桌面 `GenerateImageResult`、后台会话缓存和无 seq progress 都是桌面语义，留在桌面 controller；不把 desktop-contracts 类型上提到 `product-ui`，也不让 Web React hooks 依赖 Zustand。
+
+  验证：新增 7 条 controller 定向测试；工作台/controller/gateway 相关 19 files、100 tests 通过；全仓 `tsc -b`、桌面生产构建、ESLint、depcruise（798 modules / 3053 dependencies / 0 violations）通过。
 - `V122-SHARE-05`：~~`check-shared-ui-boundaries.mjs` 中 import 类规则（图标唯一入口、禁私有 sidebar）折入 depcruise/ESLint；token 与 CSS 断言保留为脚本。~~ **已完成（2026-08-20，9e9f041）**。边界脚本 import 规则折入 ESLint。核实脚本 7 项检查中唯一 import 形的是 lucide-react 直连禁令 → `no-restricted-imports` regex `^lucide-react(?:/|$)`，`packages/ui/src/icons.ts` 唯一豁免，比旧脚本更严（深路径、全仓范围）。
 
   **裁定**：「禁私有 sidebar」核实为 CSS/JSX 断言而非 import 图，不硬造 depcruise 规则，留脚本。token / CSS / JSX 断言留 `check:ui-boundaries`。红绿验证（探针文件先红后绿）。depcruise 仍 19 条、0 豁免。

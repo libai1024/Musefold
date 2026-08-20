@@ -3,11 +3,12 @@
 // 播动画和上报交互，多引一层全局状态只会白白拖慢启动。
 
 import { createRoot } from 'react-dom/client';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { PetApp } from './PetApp';
 import './pet.css';
 
 const container = document.getElementById('pet-root');
 if (container) {
   createRoot(container).render(<PetApp />);
-  window.api?.updater?.notifyContentReady?.();
+  api.updater.notifyContentReady?.();
 }

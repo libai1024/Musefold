@@ -5,7 +5,7 @@ import {
   DOUBAO_WEB_DAILY_IMAGE_LIMIT,
   PROVIDER_PRESETS,
 } from '@musefold/domain/constants';
-import api from '../../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { Button } from '../../../components/ui/button';
 import { useGenerationStore } from '../../generation/store';
 import { useDoubaoAccountStore } from '../../account/doubao-store';

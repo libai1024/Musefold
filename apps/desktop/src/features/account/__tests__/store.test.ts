@@ -60,6 +60,7 @@ function unused(name: string) {
 function createFakeExtras(): DesktopExtras {
   return {
     listLibraryPrompts: unused('listLibraryPrompts'),
+    getLibraryPrompt: unused('getLibraryPrompt'),
     listDeletedLibraryPrompts: unused('listDeletedLibraryPrompts'),
     libraryStats: unused('libraryStats'),
     createLibraryPrompt: unused('createLibraryPrompt'),
@@ -70,9 +71,21 @@ function createFakeExtras(): DesktopExtras {
     listSearchHistory: unused('listSearchHistory'),
     addSearchHistory: unused('addSearchHistory'),
     clearSearchHistory: unused('clearSearchHistory'),
+    listAiConnectionPresets: unused('listAiConnectionPresets'),
+    listAiConnections: unused('listAiConnections'),
+    createAiConnection: unused('createAiConnection'),
+    updateAiConnection: unused('updateAiConnection'),
+    deleteAiConnection: unused('deleteAiConnection'),
+    saveAiConnectionKey: unused('saveAiConnectionKey'),
+    deleteAiConnectionKey: unused('deleteAiConnectionKey'),
+    hasAiConnectionKey: unused('hasAiConnectionKey'),
+    setActiveAiConnection: unused('setActiveAiConnection'),
+    listAiConnectionModels: unused('listAiConnectionModels'),
+    validateAiConnection: unused('validateAiConnection'),
     relatedHistory: unused('relatedHistory'),
     linkHistoryPrompt: unused('linkHistoryPrompt'),
     listHistory: unused('listHistory'),
+    getHistory: unused('getHistory'),
     historyStats: unused('historyStats'),
     deleteHistory: unused('deleteHistory'),
     clearHistory: unused('clearHistory'),
@@ -101,6 +114,11 @@ function createFakeExtras(): DesktopExtras {
     cloudSyncResolve: unused('cloudSyncResolve'),
     onCloudSyncChanged: vi.fn(() => {
       throw new Error('onCloudSyncChanged 不应被 account store 调用');
+    }),
+    listDesktopWorkbenchSessions: unused('listDesktopWorkbenchSessions'),
+    getDesktopWorkbenchSession: unused('getDesktopWorkbenchSession'),
+    onImageGenerationProgress: vi.fn(() => {
+      throw new Error('onImageGenerationProgress 不应被 account store 调用');
     }),
   };
 }

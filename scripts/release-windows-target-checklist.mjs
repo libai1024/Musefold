@@ -191,7 +191,7 @@ function validateTargetEvidence(evidence, artifacts) {
 }
 
 async function collectArtifacts() {
-  const pkg = JSON.parse(await readText('package.json'));
+  const pkg = JSON.parse(await readText('apps/desktop/package.json'));
   const installerPath = `release/Musefold Setup ${pkg.version}.exe`;
   const appExePath = 'release/win-arm64-unpacked/Musefold.exe';
   const artifacts = {

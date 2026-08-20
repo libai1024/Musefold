@@ -14,10 +14,7 @@ import type {
   EnsureWorkbenchSessionCommand,
   WorkbenchSession,
 } from '@musefold/desktop-contracts/workbench';
-import {
-  DesktopGatewayError,
-  DesktopGatewayNotImplementedError,
-} from './errors';
+import { DesktopGatewayError, DesktopGatewayNotImplementedError } from './errors';
 import {
   accountStatusToSession,
   combinePromptListRows,
@@ -132,6 +129,10 @@ export class DesktopGateway
     return this.api.prompt.list(q);
   }
 
+  getLibraryPrompt(id: string): ReturnType<DesktopExtras['getLibraryPrompt']> {
+    return this.api.prompt.get(id);
+  }
+
   listDeletedLibraryPrompts(): ReturnType<DesktopExtras['listDeletedLibraryPrompts']> {
     return this.api.prompt.listDeleted();
   }
@@ -146,10 +147,7 @@ export class DesktopGateway
     return this.api.prompt.create(p);
   }
 
-  toggleLibraryPin(
-    id: string,
-    pinned: boolean,
-  ): ReturnType<DesktopExtras['toggleLibraryPin']> {
+  toggleLibraryPin(id: string, pinned: boolean): ReturnType<DesktopExtras['toggleLibraryPin']> {
     return this.api.prompt.togglePin(id, pinned);
   }
 
@@ -165,9 +163,7 @@ export class DesktopGateway
     return this.api.prompt.purgeAll();
   }
 
-  listSearchHistory(
-    limit?: number,
-  ): ReturnType<DesktopExtras['listSearchHistory']> {
+  listSearchHistory(limit?: number): ReturnType<DesktopExtras['listSearchHistory']> {
     return this.api.searchHistory.list(limit);
   }
 
@@ -177,6 +173,58 @@ export class DesktopGateway
 
   clearSearchHistory(): ReturnType<DesktopExtras['clearSearchHistory']> {
     return this.api.searchHistory.clear();
+  }
+
+  listAiConnectionPresets(): ReturnType<DesktopExtras['listAiConnectionPresets']> {
+    return this.api.aiConnection.listPresets();
+  }
+
+  listAiConnections(): ReturnType<DesktopExtras['listAiConnections']> {
+    return this.api.aiConnection.list();
+  }
+
+  createAiConnection(
+    input: Parameters<DesktopExtras['createAiConnection']>[0],
+  ): ReturnType<DesktopExtras['createAiConnection']> {
+    return this.api.aiConnection.create(input);
+  }
+
+  updateAiConnection(
+    id: string,
+    patch: Parameters<DesktopExtras['updateAiConnection']>[1],
+  ): ReturnType<DesktopExtras['updateAiConnection']> {
+    return this.api.aiConnection.update(id, patch);
+  }
+
+  deleteAiConnection(id: string): ReturnType<DesktopExtras['deleteAiConnection']> {
+    return this.api.aiConnection.delete(id);
+  }
+
+  saveAiConnectionKey(
+    id: string,
+    apiKey: string,
+  ): ReturnType<DesktopExtras['saveAiConnectionKey']> {
+    return this.api.aiConnection.saveKey(id, apiKey);
+  }
+
+  deleteAiConnectionKey(id: string): ReturnType<DesktopExtras['deleteAiConnectionKey']> {
+    return this.api.aiConnection.deleteKey(id);
+  }
+
+  hasAiConnectionKey(id: string): ReturnType<DesktopExtras['hasAiConnectionKey']> {
+    return this.api.aiConnection.hasKey(id);
+  }
+
+  setActiveAiConnection(id: string): ReturnType<DesktopExtras['setActiveAiConnection']> {
+    return this.api.aiConnection.setActive(id);
+  }
+
+  listAiConnectionModels(id: string): ReturnType<DesktopExtras['listAiConnectionModels']> {
+    return this.api.aiConnection.listModels(id);
+  }
+
+  validateAiConnection(id: string): ReturnType<DesktopExtras['validateAiConnection']> {
+    return this.api.aiConnection.validate(id);
   }
 
   listProviders(): ReturnType<DesktopExtras['listProviders']> {
@@ -200,10 +248,7 @@ export class DesktopGateway
     return this.api.provider.delete(id);
   }
 
-  saveProviderKey(
-    id: string,
-    apiKey: string,
-  ): ReturnType<DesktopExtras['saveProviderKey']> {
+  saveProviderKey(id: string, apiKey: string): ReturnType<DesktopExtras['saveProviderKey']> {
     return this.api.provider.saveKey(id, apiKey);
   }
 
@@ -239,6 +284,10 @@ export class DesktopGateway
     q?: Parameters<DesktopExtras['listHistory']>[0],
   ): ReturnType<DesktopExtras['listHistory']> {
     return this.api.history.list(q);
+  }
+
+  getHistory(id: string): ReturnType<DesktopExtras['getHistory']> {
+    return this.api.history.get(id);
   }
 
   historyStats(
@@ -307,9 +356,7 @@ export class DesktopGateway
     return this.api.cloudSync.status();
   }
 
-  cloudSyncSetEnabled(
-    enabled: boolean,
-  ): ReturnType<DesktopExtras['cloudSyncSetEnabled']> {
+  cloudSyncSetEnabled(enabled: boolean): ReturnType<DesktopExtras['cloudSyncSetEnabled']> {
     return this.api.cloudSync.setEnabled(enabled);
   }
 
@@ -334,14 +381,32 @@ export class DesktopGateway
     return this.api.cloudSync.onChanged(cb);
   }
 
+  // ---------- DesktopExtras workbench（桌面摘要 / runs / 原生进度无损直通） ----------
+
+  listDesktopWorkbenchSessions(
+    query?: Parameters<DesktopExtras['listDesktopWorkbenchSessions']>[0],
+  ): ReturnType<DesktopExtras['listDesktopWorkbenchSessions']> {
+    return this.api.workbenchSession.list(query);
+  }
+
+  getDesktopWorkbenchSession(id: string): ReturnType<DesktopExtras['getDesktopWorkbenchSession']> {
+    return this.api.workbenchSession.get(id);
+  }
+
+  onImageGenerationProgress(
+    cb: Parameters<DesktopExtras['onImageGenerationProgress']>[0],
+  ): ReturnType<DesktopExtras['onImageGenerationProgress']> {
+    return typeof this.api.image.onProgress === 'function'
+      ? this.api.image.onProgress(cb)
+      : () => undefined;
+  }
+
   // ---------- WorkbenchGateway ----------
 
   async listWorkbenchSessions(
     query: Parameters<WorkbenchGateway['listWorkbenchSessions']>[0],
   ): ReturnType<WorkbenchGateway['listWorkbenchSessions']> {
-    const active = await this.api.workbenchSession.list(
-      workbenchListQueryToRowQuery(query, false),
-    );
+    const active = await this.api.workbenchSession.list(workbenchListQueryToRowQuery(query, false));
     if (query.includeArchived) {
       const archived = await this.api.workbenchSession.list(
         workbenchListQueryToRowQuery(query, true),
@@ -351,9 +416,7 @@ export class DesktopGateway
     return paginateWorkbenchRows(mergeWorkbenchSessionRows(active), query);
   }
 
-  async getWorkbenchSession(
-    id: string,
-  ): ReturnType<WorkbenchGateway['getWorkbenchSession']> {
+  async getWorkbenchSession(id: string): ReturnType<WorkbenchGateway['getWorkbenchSession']> {
     const document = await this.api.workbenchSession.get(id);
     if (!document) {
       throw new DesktopGatewayError('工作台会话不存在', { id });
@@ -462,13 +525,12 @@ export class DesktopGateway
     _id: string,
     _token: string,
   ): ReturnType<GenerationGateway['approveGeneration']> {
-    return notImplemented(
-      'approveGeneration',
-      '桌面生图无云审批/MCP 预算闸门，没有对应 IPC',
-    );
+    return notImplemented('approveGeneration', '桌面生图无云审批/MCP 预算闸门，没有对应 IPC');
   }
 
-  async generateImage(req: import('@musefold/desktop-contracts/providers').GenerateImageRequest): Promise<import('@musefold/desktop-contracts/providers').GenerateImageResult> {
+  async generateImage(
+    req: import('@musefold/desktop-contracts/providers').GenerateImageRequest,
+  ): Promise<import('@musefold/desktop-contracts/providers').GenerateImageResult> {
     return this.api.image.generate(req);
   }
 
@@ -477,7 +539,10 @@ export class DesktopGateway
     return { ok: true };
   }
 
-  async retryImage(historyId: string, jobId?: string): Promise<import('@musefold/desktop-contracts/providers').GenerateImageResult> {
+  async retryImage(
+    historyId: string,
+    jobId?: string,
+  ): Promise<import('@musefold/desktop-contracts/providers').GenerateImageResult> {
     return this.api.image.retry(historyId, jobId);
   }
 
@@ -503,10 +568,7 @@ export class DesktopGateway
 
   restoreGeneration(id: string): ReturnType<HistoryGateway['restoreGeneration']> {
     void id;
-    return notImplemented(
-      'restoreGeneration',
-      '桌面 history.delete 是硬删，没有恢复 IPC',
-    );
+    return notImplemented('restoreGeneration', '桌面 history.delete 是硬删，没有恢复 IPC');
   }
 
   // ---------- AccountGateway ----------
@@ -519,9 +581,7 @@ export class DesktopGateway
     return session;
   }
 
-  async login(
-    input: Parameters<AccountGateway['login']>[0],
-  ): ReturnType<AccountGateway['login']> {
+  async login(input: Parameters<AccountGateway['login']>[0]): ReturnType<AccountGateway['login']> {
     const session = accountStatusToSession(await this.api.account.login(input));
     if (!session) {
       throw new DesktopGatewayError('登录未建立会话');

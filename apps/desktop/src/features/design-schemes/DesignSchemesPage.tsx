@@ -22,7 +22,7 @@ import { cn } from '../../lib/utils';
 import { toImageSrc } from '../../lib/media';
 import { useAppStore } from '../../stores/app';
 import { toast } from '../../stores/toast';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import type { DesignSchemeSummary, MarketCandidate, MarketSearchResult } from '@musefold/desktop-contracts/design-scheme';
 import { useGenerationWorkbenchStore } from '../generation/workbench/store';
 import { useSchemeCreationStore } from './creationStore';

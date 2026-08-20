@@ -1,14 +1,14 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
 
-const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+const appSource = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
 
-describe("web host boundary", () => {
-  it("keeps page implementations outside the route and adapter host", () => {
-    expect(appSource).toContain('from "./layout/WebNavigation"');
-    expect(appSource).toContain('from "./views/GenerateView"');
-    expect(appSource).toContain('from "./views/PromptLibraryView"');
-    expect(appSource).toContain('from "./views/HistoryView"');
+describe('web host boundary', () => {
+  it('keeps page implementations outside the route and adapter host', () => {
+    expect(appSource).toMatch(/from ["']\.\/layout\/WebNavigation["']/);
+    expect(appSource).toMatch(/from ["']\.\/views\/GenerateView["']/);
+    expect(appSource).toMatch(/from ["']\.\/views\/PromptLibraryView["']/);
+    expect(appSource).toMatch(/from ["']\.\/views\/HistoryView["']/);
     expect(appSource).not.toMatch(
       /function (GenerateView|PromptLibraryView|HistoryView|Sidebar|Topbar|MobileNavigation)\s*\(/,
     );

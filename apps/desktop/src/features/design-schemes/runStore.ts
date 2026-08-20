@@ -6,7 +6,7 @@
  * 承接试运行后的设为封面 / 设为正式。
  */
 import { create } from 'zustand';
-import api from '../../lib/ipc';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import type {
   DesignSchemeCreationEvent,
   DesignSchemeRunMode,
