@@ -37,9 +37,10 @@ describe("account cloud sync UI contract", () => {
     expect(settingsView).toContain("key: 'connections', label: '已连接应用'");
     expect(connectionsSource).toContain("<ConnectedAppsScreen");
     expect(connectionsSource).toContain("useCloudConnectionsStore");
-    expect(connectionsStoreSource).toContain("window.api.cloudConnections.list()");
-    expect(connectionsStoreSource).toContain("window.api.cloudConnections.update(");
-    expect(connectionsStoreSource).toContain("window.api.cloudConnections.revoke(id)");
+    expect(connectionsStoreSource).toContain("listConnections");
+    expect(connectionsStoreSource).toContain("updateConnection");
+    expect(connectionsStoreSource).toContain("revokeConnection");
+    expect(connectionsStoreSource).not.toContain("window.api.cloudConnections");
     expect(connectionsSource).not.toContain("reauthPassword");
   });
 });

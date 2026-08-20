@@ -1,10 +1,23 @@
+// 设置 → Cloud MCP 已连接应用。
+// list / update / revoke 走 AccountGateway（desktopGateway），作为账号域样板。
+// 账号 login/status 与 cloudSync 仍不经本 store：前者有损映射，后者是桌面独有域。
+
 import { create } from 'zustand';
+import type { AccountGateway } from '@musefold/domain';
 import type {
   McpConnectionPage,
   UpdateMcpConnection,
 } from '@musefold/contracts';
+import { desktopGateway } from '../../runtime';
 
 const EMPTY_CONNECTIONS: McpConnectionPage = { items: [] };
+
+let accountGateway: AccountGateway = desktopGateway;
+
+/** 测试替换 AccountGateway；生产保持 desktopGateway 单例。 */
+export function setCloudConnectionsGatewayForTests(next: AccountGateway): void {
+  accountGateway = next;
+}
 
 interface CloudConnectionsState {
   connections: McpConnectionPage;
@@ -39,7 +52,7 @@ export const useCloudConnectionsStore = create<CloudConnectionsState>((set, get)
     if (get().loading) return get().connections;
     set({ loading: true, error: null });
     try {
-      const connections = await window.api.cloudConnections.list();
+      const connections = await accountGateway.listConnections();
       set({ connections, loaded: true });
       return connections;
     } catch (error) {
@@ -55,7 +68,7 @@ export const useCloudConnectionsStore = create<CloudConnectionsState>((set, get)
 
   update: async (id, input) => {
     try {
-      const connections = await window.api.cloudConnections.update(id, input);
+      const connections = await accountGateway.updateConnection(id, input);
       set({ connections, loaded: true, error: null });
       return connections;
     } catch (error) {
@@ -66,8 +79,9 @@ export const useCloudConnectionsStore = create<CloudConnectionsState>((set, get)
 
   revoke: async (id) => {
     try {
-      await window.api.cloudConnections.revoke(id);
-      const connections = await window.api.cloudConnections.list();
+      // 现网：revoke 后再 list，刷新整页连接。
+      await accountGateway.revokeConnection(id);
+      const connections = await accountGateway.listConnections();
       set({ connections, loaded: true, error: null });
     } catch (error) {
       set({ error: errorMessage(error, '撤销 Cloud MCP 连接失败') });
