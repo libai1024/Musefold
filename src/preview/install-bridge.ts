@@ -97,6 +97,7 @@ const updaterApi: Api['updater'] = {
   getChannel: async () => ({ channel: 'stable', lockedByEnv: false }),
   setChannel: async (channel) => ({ ok: true, channel, lockedByEnv: false }),
   onStateChanged: () => () => {},
+  notifyContentReady: () => {},
 };
 
 // 顶层用 Proxy 兜底所有域：已知域走 domainProxy，window 域用具体桩。

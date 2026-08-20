@@ -8,6 +8,11 @@ import { initDb, closeDb } from "@musefold/core/db";
 import { registerAllHandlers } from "./ipc";
 import { registerAppProtocolHandler } from "./app-protocol";
 import { registerMediaProtocolHandler } from "./media-protocol";
+import { initializeUpdater } from "../update";
+import {
+  contentBundleCandidateReader,
+  prepareContentBundleStartup,
+} from "../update/content-bundle-runtime";
 import { resolveRendererRoot } from "./renderer-bundle";
 import {
   flushQueuedShareImports,
@@ -32,7 +37,6 @@ import { getPetWindow } from "./pet/window";
 import { attachPetWindowLifecycle } from "./pet/lifecycle";
 import { acquireDesktopOwnerLockWithHeadlessTakeover } from "./headless-takeover";
 import { createAppTray, destroyAppTray } from "./tray";
-import { initializeUpdater } from "../update";
 import { disposeDoubaoWebBrowser } from "../doubao-web/browser-service";
 import { startCloudSyncService, stopCloudSyncService } from "../cloud-sync";
 import {
@@ -101,7 +105,15 @@ app.whenReady().then(async () => {
   initDb();
   void startAutomationIfEnabled();
   registerMediaProtocolHandler();
-  registerAppProtocolHandler(resolveRendererRoot().root);
+  // 加载分支只在此处判断一次：Vite 开发态不消费 bundle。prepare 与解析必须看到同一结论。
+  const willLoadFromBundles = !process.env["ELECTRON_RENDERER_URL"];
+  // prepare 必须先于解析：会加载 bundle 时它会改写 pending（两次未达信标则拒绝）。
+  prepareContentBundleStartup({ willLoadFromBundles });
+  // 开发态窗口走 Vite，解析冻成 builtin，避免信标把未加载的 pending 提升为已知可用。
+  const rendererRoot = willLoadFromBundles
+    ? resolveRendererRoot(contentBundleCandidateReader)
+    : resolveRendererRoot();
+  registerAppProtocolHandler(rendererRoot.root);
   registerAllHandlers();
   startCloudSyncService();
   registerWindowHandlers();

@@ -7,4 +7,7 @@ import { PetApp } from './PetApp';
 import './pet.css';
 
 const container = document.getElementById('pet-root');
-if (container) createRoot(container).render(<PetApp />);
+if (container) {
+  createRoot(container).render(<PetApp />);
+  window.api?.updater?.notifyContentReady?.();
+}

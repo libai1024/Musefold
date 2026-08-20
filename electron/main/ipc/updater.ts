@@ -1,7 +1,9 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { IPC } from '@shared/types/ipc';
 import type { UpdateChannelResult } from '@shared/types/updater';
 import { getUpdaterService } from '../../update';
+import { confirmContentBundleStartup } from '../../update/content-bundle-runtime';
+import { peekRendererRootResolution } from '../renderer-bundle';
 import {
   getUpdateChannel,
   isUpdateChannel,
@@ -51,6 +53,22 @@ export function registerUpdaterHandlers(): void {
       };
     }
   });
+  ipcMain.on(IPC.UPDATER_CONTENT_READY, (event) => {
+    if (!isTrustedContentBeaconSender(event)) return;
+    confirmContentBundleStartup(peekRendererRootResolution());
+  });
+}
+
+function isTrustedContentBeaconSender(event: Electron.IpcMainEvent): boolean {
+  const sender = event.sender;
+  if (!sender || sender.isDestroyed()) return false;
+  const win = BrowserWindow.fromWebContents(sender);
+  if (!win || win.isDestroyed()) return false;
+  // 只接受我们自己窗口的主 frame，避免子 frame 冒充信标。
+  if (event.senderFrame != null && sender.mainFrame != null && event.senderFrame !== sender.mainFrame) {
+    return false;
+  }
+  return true;
 }
 
 function sanitizeChannelError(error: unknown): string {

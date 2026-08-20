@@ -1,4 +1,5 @@
-// 内容层更新的单次检查编排。不含调度、IPC 或启动信标——那些是下一张卡。
+// 内容层更新的单次检查编排与后台调度（V121-HOT-08）。
+// 启动信标在 content-bundle-runtime.ts，两边都不互相 import。
 
 import { app } from 'electron';
 import { usablePublicKeys, type Channel } from '@musefold/update-protocol';
@@ -28,6 +29,11 @@ const logger = createLogger('content-updater');
 const MANIFEST_FILE = 'manifest.json';
 const MANIFEST_MAX_BYTES = 1024 * 1024;
 
+/** app ready 后首次检查延迟。E2E 可在未打包时用环境变量缩短。 */
+export const CONTENT_UPDATE_CHECK_INITIAL_DELAY_MS = 30_000;
+/** 此后周期检查间隔。 */
+export const CONTENT_UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
 export type ContentUpdateCheckResult =
   | { status: 'trust_anchor_missing' }
   | { status: 'manifest_unreachable' }
@@ -45,6 +51,14 @@ export type ContentUpdateCheckDeps = {
   publicKeys?: readonly string[];
   userDataRoot?: string;
   timeoutMs?: number;
+  /** 覆盖 manifest 拉取地址。生产调度只在未打包时从测试环境变量注入。 */
+  manifestUrl?: string;
+};
+
+export type ContentUpdateSchedulePlan = {
+  disabled: boolean;
+  initialDelayMs: number;
+  checkDeps: ContentUpdateCheckDeps;
 };
 
 export async function runContentUpdateCheckOnce(
@@ -60,7 +74,7 @@ export async function runContentUpdateCheckOnce(
   const channel = deps.channel ?? getUpdateChannel();
   const fetchFn = deps.fetch ?? globalThis.fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_CONTENT_DOWNLOAD_TIMEOUT_MS;
-  const manifestUrl = resolveContentManifestUrl(channel);
+  const manifestUrl = deps.manifestUrl ?? resolveContentManifestUrl(channel);
 
   const rawJson = await fetchManifestText(fetchFn, manifestUrl, timeoutMs);
   if (rawJson === 'unreachable') {
@@ -93,6 +107,86 @@ export async function runContentUpdateCheckOnce(
   }
 
   return installContentBundle(verified.manifest, installDepsFrom(deps, fetchFn, timeoutMs));
+}
+
+let contentUpdateScheduleStarted = false;
+
+/**
+ * 读取调度计划。
+ *
+ * 安全边界：`MUSEFOLD_CONTENT_TEST_PUBLIC_KEY` / `MUSEFOLD_CONTENT_TEST_FEED_URL` /
+ * `MUSEFOLD_CONTENT_CHECK_INITIAL_DELAY_MS` **只在 `!app.isPackaged` 时读取**。
+ * 打包构建绝不能把信任锚或 feed URL 交给环境变量，否则等于给已分发二进制开后门。
+ * `MUSEFOLD_CONTENT_UPDATE_DISABLED=1` 任意构建形态都尊重（只关不开）。
+ */
+export function resolveContentUpdateSchedulePlan(
+  env: NodeJS.ProcessEnv = process.env,
+  isPackaged = app.isPackaged,
+): ContentUpdateSchedulePlan {
+  const disabled = env['MUSEFOLD_CONTENT_UPDATE_DISABLED'] === '1';
+  const checkDeps: ContentUpdateCheckDeps = {};
+  let initialDelayMs = CONTENT_UPDATE_CHECK_INITIAL_DELAY_MS;
+
+  if (!isPackaged) {
+    const publicKey = env['MUSEFOLD_CONTENT_TEST_PUBLIC_KEY'];
+    if (typeof publicKey === 'string' && publicKey.length > 0) {
+      checkDeps.publicKeys = [publicKey];
+    }
+    const feedUrl = env['MUSEFOLD_CONTENT_TEST_FEED_URL'];
+    if (typeof feedUrl === 'string' && feedUrl.length > 0) {
+      checkDeps.manifestUrl = feedUrl;
+    }
+    const delayRaw = env['MUSEFOLD_CONTENT_CHECK_INITIAL_DELAY_MS'];
+    if (typeof delayRaw === 'string' && delayRaw.length > 0) {
+      const parsed = Number.parseInt(delayRaw, 10);
+      if (Number.isInteger(parsed) && parsed >= 0) {
+        initialDelayMs = parsed;
+      }
+    }
+  }
+
+  return { disabled, initialDelayMs, checkDeps };
+}
+
+/** app ready 后延迟首查，此后按间隔复查。幂等：重复调用不会叠加定时器。 */
+export function scheduleContentUpdateChecks(
+  env: NodeJS.ProcessEnv = process.env,
+  isPackaged = app.isPackaged,
+): void {
+  if (contentUpdateScheduleStarted) return;
+  contentUpdateScheduleStarted = true;
+
+  const plan = resolveContentUpdateSchedulePlan(env, isPackaged);
+  if (plan.disabled) return;
+
+  const run = (): void => {
+    void runContentUpdateCheckOnce(plan.checkDeps)
+      .then((result) => {
+        logCheckResult(result);
+      })
+      .catch(() => {
+        logger.warn('content update check failed', 'reason=unhandled');
+      });
+  };
+
+  setTimeout(run, plan.initialDelayMs);
+  setInterval(run, CONTENT_UPDATE_CHECK_INTERVAL_MS);
+}
+
+/** 仅供测试：允许下一例重新调度。 */
+export function resetContentUpdateScheduleForTests(): void {
+  contentUpdateScheduleStarted = false;
+}
+
+function logCheckResult(result: ContentUpdateCheckResult): void {
+  // 密钥仪式完成前每次启动都会走到缺锚点；与单次检查一样不打 info/warn。
+  if (result.status === 'trust_anchor_missing') return;
+  const parts = [`status=${result.status}`];
+  if ('reason' in result && result.reason) parts.push(`reason=${result.reason}`);
+  if ('bundleVersion' in result && result.bundleVersion) {
+    parts.push(`version=${result.bundleVersion}`);
+  }
+  logger.info('content update check finished', ...parts);
 }
 
 function resolveContentManifestUrl(channel: Channel): string {

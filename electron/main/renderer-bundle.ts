@@ -66,6 +66,14 @@ export function resolveRendererRoot(
   return cachedResolution;
 }
 
+/**
+ * 读取已冻结的解析结果。尚未解析时返回 undefined，且**不**触发冻结。
+ * 开发态若从未调用 resolveRendererRoot，信标到达必须空操作，不能在 confirm 里顺带解析。
+ */
+export function peekRendererRootResolution(): RendererRootResolution | undefined {
+  return cachedResolution;
+}
+
 /** 仅供测试：丢掉进程级缓存，以便下一例重新探测。 */
 export function resetRendererRootCacheForTests(): void {
   cachedResolution = undefined;

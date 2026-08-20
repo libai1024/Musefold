@@ -20,6 +20,7 @@ vi.mock('electron', () => ({
 import {
   emptyRendererBundleCandidateReader,
   getBuiltinRendererRoot,
+  peekRendererRootResolution,
   resetRendererRootCacheForTests,
   resolveRendererRoot,
 } from './renderer-bundle';
@@ -118,5 +119,11 @@ describe('resolveRendererRoot', () => {
 
     expect(second).toBe(first);
     expect(readCandidates).toHaveBeenCalledTimes(1);
+  });
+
+  it('peeks the frozen result without resolving when nothing is cached', () => {
+    expect(peekRendererRootResolution()).toBeUndefined();
+    const resolved = resolveRendererRoot(emptyRendererBundleCandidateReader);
+    expect(peekRendererRootResolution()).toBe(resolved);
   });
 });

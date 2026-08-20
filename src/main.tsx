@@ -41,3 +41,4 @@ createRoot(container).render(
     <GlobalErrorDialog />
   </React.StrictMode>,
 );
+window.api?.updater?.notifyContentReady?.();

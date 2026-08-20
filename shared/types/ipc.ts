@@ -261,6 +261,8 @@ export const IPC = {
   UPDATER_GET_CHANNEL: "updater:getChannel",
   UPDATER_SET_CHANNEL: "updater:setChannel",
   UPDATER_STATE_CHANGED: "updater:stateChanged",
+  /** 内容层启动信标：渲染进程首帧完成且 IPC 可用。单向 send，无应答。 */
+  UPDATER_CONTENT_READY: "updater:contentReady",
   // share / deeplink（docs/product/15 TASK-DIF-05）
   SHARE_RENDER_CARD: "share:renderCard",
   SHARE_BUILD_DEEPLINK: "share:buildDeeplink",
@@ -965,6 +967,8 @@ export interface Api {
     setChannel: (channel: Channel) => Promise<UpdateChannelResult>;
     /** 订阅更新状态变化，返回取消订阅函数。 */
     onStateChanged: (cb: (status: UpdateStatus) => void) => () => void;
+    /** 内容层启动信标。单向，无返回值。 */
+    notifyContentReady: () => void;
   };
   log: {
     /** 读取日志文件尾部（已脱敏，不含密钥） */

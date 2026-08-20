@@ -597,6 +597,7 @@ const api = {
       return () =>
         ipcRenderer.removeListener(IPC.UPDATER_STATE_CHANGED, listener);
     },
+    notifyContentReady: () => ipcRenderer.send(IPC.UPDATER_CONTENT_READY),
   },
   log: {
     tail: (maxLines?: number) => ipcRenderer.invoke(IPC.LOG_TAIL, maxLines),

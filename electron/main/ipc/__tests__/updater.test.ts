@@ -15,17 +15,36 @@ const service = vi.hoisted(() => ({
   check: vi.fn(async () => ({ state: 'idle', currentVersion: '0.5.0' })),
   getState: vi.fn(() => ({ state: 'idle', currentVersion: '0.5.0' })),
 }));
+const beacon = vi.hoisted(() => ({
+  confirm: vi.fn(),
+  peek: vi.fn(() => ({ root: '/tmp/builtin-renderer', source: 'builtin' as const })),
+  fromWebContents: vi.fn(),
+}));
 
 vi.mock('electron', () => ({
   ipcMain: {
     handle: (channel: string, listener: (...args: unknown[]) => unknown) => {
       handlers.set(channel, listener);
     },
+    on: (channel: string, listener: (...args: unknown[]) => unknown) => {
+      handlers.set(channel, listener);
+    },
+  },
+  BrowserWindow: {
+    fromWebContents: beacon.fromWebContents,
   },
 }));
 
 vi.mock('../../../update', () => ({
   getUpdaterService: () => service,
+}));
+
+vi.mock('../../../update/content-bundle-runtime', () => ({
+  confirmContentBundleStartup: beacon.confirm,
+}));
+
+vi.mock('../../renderer-bundle', () => ({
+  peekRendererRootResolution: beacon.peek,
 }));
 
 vi.mock('../../../settings/update-channel', async () => {
@@ -50,6 +69,10 @@ describe('updater IPC channel handlers', () => {
     settings.setUpdateChannel.mockClear();
     service.setChannel.mockClear();
     service.check.mockClear();
+    beacon.confirm.mockClear();
+    beacon.peek.mockClear();
+    beacon.peek.mockReturnValue({ root: '/tmp/builtin-renderer', source: 'builtin' });
+    beacon.fromWebContents.mockReset();
     registerUpdaterHandlers();
   });
 
@@ -107,5 +130,38 @@ describe('updater IPC channel handlers', () => {
     expect(result).toEqual({ channel: 'beta', lockedByEnv: true });
     expect(JSON.stringify(result)).not.toMatch(/https?:\/\//);
     expect(Object.keys(result as object).sort()).toEqual(['channel', 'lockedByEnv']);
+  });
+
+  it('confirms content startup when the beacon comes from our window', () => {
+    const mainFrame = { id: 1 };
+    const sender = { isDestroyed: () => false, mainFrame };
+    beacon.fromWebContents.mockReturnValue({ isDestroyed: () => false });
+
+    handlers.get(IPC.UPDATER_CONTENT_READY)?.({ sender, senderFrame: mainFrame });
+
+    expect(beacon.confirm).toHaveBeenCalledWith({
+      root: '/tmp/builtin-renderer',
+      source: 'builtin',
+    });
+  });
+
+  it('ignores content-ready beacons from unknown webContents', () => {
+    const sender = { isDestroyed: () => false, mainFrame: { id: 1 } };
+    beacon.fromWebContents.mockReturnValue(null);
+
+    handlers.get(IPC.UPDATER_CONTENT_READY)?.({ sender, senderFrame: sender.mainFrame });
+
+    expect(beacon.confirm).not.toHaveBeenCalled();
+  });
+
+  it('ignores content-ready beacons from a subframe', () => {
+    const mainFrame = { id: 1 };
+    const childFrame = { id: 2 };
+    const sender = { isDestroyed: () => false, mainFrame };
+    beacon.fromWebContents.mockReturnValue({ isDestroyed: () => false });
+
+    handlers.get(IPC.UPDATER_CONTENT_READY)?.({ sender, senderFrame: childFrame });
+
+    expect(beacon.confirm).not.toHaveBeenCalled();
   });
 });

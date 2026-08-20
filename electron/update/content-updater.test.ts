@@ -78,6 +78,9 @@ vi.mock('electron', () => ({
   app: {
     getPath: (name: string) => `/tmp/musefold-mock/${name}`,
     getVersion: () => '0.5.0-dev',
+    get isPackaged() {
+      return false;
+    },
   },
 }));
 
@@ -97,7 +100,13 @@ vi.mock('../system/logger', () => ({
 }));
 
 import { getBundleDir, getPendingVersion } from './content-bundle-store';
-import { runContentUpdateCheckOnce } from './content-updater';
+import {
+  CONTENT_UPDATE_CHECK_INITIAL_DELAY_MS,
+  resetContentUpdateScheduleForTests,
+  resolveContentUpdateSchedulePlan,
+  runContentUpdateCheckOnce,
+  scheduleContentUpdateChecks,
+} from './content-updater';
 import { resolveUpdateFeedUrl } from './updater-service';
 
 const STORE_DEFAULTS = {
@@ -245,5 +254,80 @@ describe('runContentUpdateCheckOnce', () => {
     expect(readFileSync(join(dest, 'index.html'), 'utf8')).toBe('<html>index</html>');
     expect(readFileSync(join(dest, 'pet.html'), 'utf8')).toBe('<html>pet</html>');
     expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses an injected manifest URL when provided', async () => {
+    const { publicKey } = generateBundleSigningKeyPair();
+    const customUrl = 'https://example.test/custom/manifest.json';
+    const fetchFn = vi.fn(async () => new Response('nope', { status: 404 }));
+    const result = await runContentUpdateCheckOnce({
+      fetch: fetchFn,
+      publicKeys: [publicKey],
+      channel: 'dev',
+      currentShellVersion: '0.5.0-dev',
+      userDataRoot: userData,
+      manifestUrl: customUrl,
+    });
+    expect(result).toEqual({ status: 'manifest_unreachable' });
+    expect(fetchFn).toHaveBeenCalledWith(
+      customUrl,
+      expect.objectContaining({ method: 'GET', redirect: 'error' }),
+    );
+  });
+});
+
+describe('content update schedule plan', () => {
+  const TEST_ENV = {
+    MUSEFOLD_CONTENT_TEST_PUBLIC_KEY: 'injected-test-public-key',
+    MUSEFOLD_CONTENT_TEST_FEED_URL: 'https://evil.example/manifest.json',
+    MUSEFOLD_CONTENT_CHECK_INITIAL_DELAY_MS: '12',
+  };
+
+  it('ignores test trust-anchor injection when the app is packaged', () => {
+    const plan = resolveContentUpdateSchedulePlan(TEST_ENV, true);
+    expect(plan.disabled).toBe(false);
+    expect(plan.checkDeps.publicKeys).toBeUndefined();
+    expect(plan.checkDeps.manifestUrl).toBeUndefined();
+    expect(plan.initialDelayMs).toBe(CONTENT_UPDATE_CHECK_INITIAL_DELAY_MS);
+  });
+
+  it('reads test overrides only when the app is unpackaged', () => {
+    const plan = resolveContentUpdateSchedulePlan(TEST_ENV, false);
+    expect(plan.checkDeps.publicKeys).toEqual(['injected-test-public-key']);
+    expect(plan.checkDeps.manifestUrl).toBe('https://evil.example/manifest.json');
+    expect(plan.initialDelayMs).toBe(12);
+  });
+
+  it('disables scheduling in any build when MUSEFOLD_CONTENT_UPDATE_DISABLED=1', () => {
+    expect(resolveContentUpdateSchedulePlan({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, true).disabled).toBe(
+      true,
+    );
+    expect(resolveContentUpdateSchedulePlan({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, false).disabled).toBe(
+      true,
+    );
+  });
+});
+
+describe('scheduleContentUpdateChecks', () => {
+  beforeEach(() => {
+    resetContentUpdateScheduleForTests();
+  });
+
+  afterEach(() => {
+    resetContentUpdateScheduleForTests();
+    vi.useRealTimers();
+  });
+
+  it('does not start timers when updates are disabled', () => {
+    vi.useFakeTimers();
+    scheduleContentUpdateChecks({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('is idempotent and does not stack timers', () => {
+    vi.useFakeTimers();
+    scheduleContentUpdateChecks({}, false);
+    scheduleContentUpdateChecks({}, false);
+    expect(vi.getTimerCount()).toBe(2);
   });
 });

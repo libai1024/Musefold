@@ -8,6 +8,7 @@ import {
   UpdaterService,
   type UpdaterAdapter,
 } from './updater-service';
+import { scheduleContentUpdateChecks } from './content-updater';
 
 let updaterService: UpdaterService | null = null;
 
@@ -49,6 +50,8 @@ export function initializeUpdater(options: InitializeUpdaterOptions = {}): Updat
   });
 
   if (enabled) scheduleChecks(updaterService);
+  // 内容层检查与外壳 updater 共用初始化点；自身幂等，未打包时才读测试注入变量。
+  scheduleContentUpdateChecks();
   return updaterService;
 }
 
