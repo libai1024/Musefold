@@ -1,7 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { runBundleManifestCli, type CliIo } from './cli.ts';
 import { generateBundleSigningKeyPair, signManifest } from './sign.ts';
+
+const cliTempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of cliTempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 const shaA = 'ab'.repeat(32);
 
@@ -108,6 +120,37 @@ describe('bundle-manifest CLI', () => {
     expect(err).not.toContain(bogus);
     expect(err).not.toContain(String(bogus.length));
     expect(err).not.toContain('not-a-real');
+  });
+
+  it('pack writes an archive and prints bytes plus sha256', () => {
+    const root = mkdtempSync(join(tmpdir(), 'musefold-bundle-cli-pack-'));
+    cliTempDirs.push(root);
+    const dir = join(root, 'bundle');
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'index.html'), '<html>pack</html>');
+    const out = join(root, 'bundle.tar.gz');
+
+    const { io, stdout, stderr } = captureIo();
+    expect(runBundleManifestCli(['pack', '--dir', dir, '--out', out], io)).toBe(0);
+    expect(stderr.join('')).toBe('');
+    const parsed = JSON.parse(stdout.join('')) as { bytes: number; sha256: string };
+    const file = readFileSync(out);
+    expect(parsed.bytes).toBe(file.length);
+    expect(parsed.sha256).toBe(createHash('sha256').update(file).digest('hex'));
+    expect(parsed.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('pack reports an error for a missing directory', () => {
+    const root = mkdtempSync(join(tmpdir(), 'musefold-bundle-cli-pack-missing-'));
+    cliTempDirs.push(root);
+    const { io, stderr } = captureIo();
+    expect(
+      runBundleManifestCli(
+        ['pack', '--dir', join(root, 'no-such-bundle'), '--out', join(root, 'out.tar.gz')],
+        io,
+      ),
+    ).toBe(1);
+    expect(stderr.join('')).toContain('failed to read bundle directory');
   });
 
   it('does not accept a private key via argv', () => {

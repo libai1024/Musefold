@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { BundleArchiveError, packBundleArchiveToFile, runArchiveSelfTest } from './archive.ts';
 import {
   BundleSigningError,
   generateBundleSigningKeyPair,
@@ -54,8 +55,9 @@ export function runBundleManifestCli(argv: string[], io: CliIo = defaultIo): num
     if (command === 'keygen') return runKeygen(io);
     if (command === 'sign') return runSign(argv.slice(1), io);
     if (command === 'verify') return runVerify(argv.slice(1), io);
+    if (command === 'pack') return runPack(argv.slice(1), io);
   } catch (error) {
-    if (error instanceof BundleSigningError) {
+    if (error instanceof BundleSigningError || error instanceof BundleArchiveError) {
       io.stderr(`${error.message}\n`);
       return 1;
     }
@@ -68,10 +70,13 @@ export function runBundleManifestCli(argv: string[], io: CliIo = defaultIo): num
 }
 
 function runSelfTestCommand(io: CliIo): number {
-  const ok = runSignatureSelfTest();
-  if (ok) {
-    io.stdout('self-test: passed\n');
-    return 0;
+  try {
+    if (runSignatureSelfTest() && runArchiveSelfTest()) {
+      io.stdout('self-test: passed\n');
+      return 0;
+    }
+  } catch {
+    // 自检失败只报告结果，不把内部异常细节写到 stdout/stderr。
   }
   io.stderr('self-test: failed\n');
   return 1;
@@ -128,6 +133,44 @@ function runVerify(args: string[], io: CliIo): number {
   return 1;
 }
 
+function runPack(args: string[], io: CliIo): number {
+  const parsed = parsePackArgs(args);
+  if (!parsed) {
+    io.stderr('usage: bundle-manifest pack --dir <directory> --out <archive>\n');
+    return 1;
+  }
+  const packed = packBundleArchiveToFile(parsed.dir, parsed.out);
+  io.stdout(`${JSON.stringify({ bytes: packed.bytes, sha256: packed.sha256 })}\n`);
+  return 0;
+}
+
+function parsePackArgs(args: string[]): { dir: string; out: string } | undefined {
+  let dir: string | undefined;
+  let out: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--dir' || arg === '--out') {
+      const value = args[index + 1];
+      if (!value || value.startsWith('-')) return undefined;
+      if (arg === '--dir') dir = value;
+      else out = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--dir=')) {
+      dir = arg.slice('--dir='.length);
+      continue;
+    }
+    if (arg.startsWith('--out=')) {
+      out = arg.slice('--out='.length);
+      continue;
+    }
+    return undefined;
+  }
+  if (!dir || !out) return undefined;
+  return { dir, out };
+}
+
 function parseVerifyArgs(args: string[]): { file: string | undefined; publicKeys: string[] } {
   const publicKeys: string[] = [];
   const positionals: string[] = [];
@@ -174,6 +217,7 @@ function usage(): string {
     '  bundle-manifest keygen',
     '  bundle-manifest sign <manifest.json>',
     '  bundle-manifest verify <manifest.json> --public-key <base64>',
+    '  bundle-manifest pack --dir <directory> --out <archive>',
     '  bundle-manifest --self-test',
   ].join('\n');
 }
