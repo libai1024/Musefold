@@ -1,12 +1,12 @@
-import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
-import * as SelectPrimitive from "@radix-ui/react-select";
-import * as SliderPrimitive from "@radix-ui/react-slider";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
-import * as ToastPrimitive from "@radix-ui/react-toast";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
+import * as SelectPrimitive from '@radix-ui/react-select';
+import * as SliderPrimitive from '@radix-ui/react-slider';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import * as ToastPrimitive from '@radix-ui/react-toast';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import {
   AlertCircle,
   Check,
@@ -21,14 +21,15 @@ import {
   ImageOff,
   LoaderCircle,
   RotateCcw,
+  Share2,
   X,
   ZoomIn,
   ZoomOut,
-} from "./icons";
-import { IconButton } from "./primitives";
+} from './icons';
+import { IconButton } from './primitives';
 
 function mergeClassNames(...names: Array<string | undefined>) {
-  return names.filter(Boolean).join(" ");
+  return names.filter(Boolean).join(' ');
 }
 
 export const Dialog = DialogPrimitive.Root;
@@ -43,14 +44,15 @@ export const DialogOverlay = React.forwardRef<
   return (
     <DialogPrimitive.Overlay
       ref={ref}
-      className={mergeClassNames("mf-ui-dialog-overlay", className)}
+      className={mergeClassNames('mf-ui-dialog-overlay', className)}
       {...props}
     />
   );
 });
 
-export interface UiDialogContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+export interface UiDialogContentProps extends React.ComponentPropsWithoutRef<
+  typeof DialogPrimitive.Content
+> {
   hideClose?: boolean;
   overlayClassName?: string;
 }
@@ -67,17 +69,13 @@ export const DialogContent = React.forwardRef<
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         ref={ref}
-        className={mergeClassNames("mf-ui-dialog-content", className)}
+        className={mergeClassNames('mf-ui-dialog-content', className)}
         {...props}
       >
         {children}
         {!hideClose ? (
           <DialogPrimitive.Close asChild>
-            <IconButton
-              className="mf-ui-dialog-close"
-              label="关闭"
-              size="xs"
-            >
+            <IconButton className="mf-ui-dialog-close" label="关闭" size="xs">
               <X aria-hidden="true" />
             </IconButton>
           </DialogPrimitive.Close>
@@ -87,31 +85,21 @@ export const DialogContent = React.forwardRef<
   );
 });
 
-export const DialogHeader = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(function DialogHeader({ className, ...props }, ref) {
-  return (
-    <div
-      ref={ref}
-      className={mergeClassNames("mf-ui-dialog-header", className)}
-      {...props}
-    />
-  );
-});
+export const DialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  function DialogHeader({ className, ...props }, ref) {
+    return (
+      <div ref={ref} className={mergeClassNames('mf-ui-dialog-header', className)} {...props} />
+    );
+  },
+);
 
-export const DialogFooter = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(function DialogFooter({ className, ...props }, ref) {
-  return (
-    <div
-      ref={ref}
-      className={mergeClassNames("mf-ui-dialog-footer", className)}
-      {...props}
-    />
-  );
-});
+export const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  function DialogFooter({ className, ...props }, ref) {
+    return (
+      <div ref={ref} className={mergeClassNames('mf-ui-dialog-footer', className)} {...props} />
+    );
+  },
+);
 
 export const DialogTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
@@ -120,7 +108,7 @@ export const DialogTitle = React.forwardRef<
   return (
     <DialogPrimitive.Title
       ref={ref}
-      className={mergeClassNames("mf-ui-dialog-title", className)}
+      className={mergeClassNames('mf-ui-dialog-title', className)}
       {...props}
     />
   );
@@ -133,7 +121,7 @@ export const DialogDescription = React.forwardRef<
   return (
     <DialogPrimitive.Description
       ref={ref}
-      className={mergeClassNames("mf-ui-dialog-description", className)}
+      className={mergeClassNames('mf-ui-dialog-description', className)}
       {...props}
     />
   );
@@ -143,9 +131,10 @@ export const Drawer = DialogPrimitive.Root;
 export const DrawerTrigger = DialogPrimitive.Trigger;
 export const DrawerClose = DialogPrimitive.Close;
 
-export interface UiDrawerContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
-  side?: "left" | "right" | "top" | "bottom";
+export interface UiDrawerContentProps extends React.ComponentPropsWithoutRef<
+  typeof DialogPrimitive.Content
+> {
+  side?: 'left' | 'right' | 'top' | 'bottom';
   hideClose?: boolean;
 }
 
@@ -153,7 +142,7 @@ export const DrawerContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   UiDrawerContentProps
 >(function DrawerContent(
-  { children, className, side = "right", hideClose = false, ...props },
+  { children, className, side = 'right', hideClose = false, ...props },
   ref,
 ) {
   return (
@@ -162,17 +151,13 @@ export const DrawerContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         data-side={side}
-        className={mergeClassNames("mf-ui-drawer-content", className)}
+        className={mergeClassNames('mf-ui-drawer-content', className)}
         {...props}
       >
         {children}
         {!hideClose ? (
           <DialogPrimitive.Close asChild>
-            <IconButton
-              className="mf-ui-drawer-close"
-              label="关闭"
-              size="xs"
-            >
+            <IconButton className="mf-ui-drawer-close" label="关闭" size="xs">
               <X aria-hidden="true" />
             </IconButton>
           </DialogPrimitive.Close>
@@ -196,7 +181,7 @@ export const TabsList = React.forwardRef<
   return (
     <TabsPrimitive.List
       ref={ref}
-      className={mergeClassNames("mf-ui-tabs-list", className)}
+      className={mergeClassNames('mf-ui-tabs-list', className)}
       {...props}
     />
   );
@@ -209,7 +194,7 @@ export const TabsTrigger = React.forwardRef<
   return (
     <TabsPrimitive.Trigger
       ref={ref}
-      className={mergeClassNames("mf-ui-tabs-trigger", className)}
+      className={mergeClassNames('mf-ui-tabs-trigger', className)}
       {...props}
     />
   );
@@ -222,7 +207,7 @@ export const TabsContent = React.forwardRef<
   return (
     <TabsPrimitive.Content
       ref={ref}
-      className={mergeClassNames("mf-ui-tabs-content", className)}
+      className={mergeClassNames('mf-ui-tabs-content', className)}
       {...props}
     />
   );
@@ -241,7 +226,7 @@ export const TooltipContent = React.forwardRef<
       <TooltipPrimitive.Content
         ref={ref}
         sideOffset={sideOffset}
-        className={mergeClassNames("mf-ui-tooltip-content", className)}
+        className={mergeClassNames('mf-ui-tooltip-content', className)}
         {...props}
       />
     </TooltipPrimitive.Portal>
@@ -257,32 +242,30 @@ export const ToastViewport = React.forwardRef<
   return (
     <ToastPrimitive.Viewport
       ref={ref}
-      className={mergeClassNames("mf-ui-toast-viewport", className)}
+      className={mergeClassNames('mf-ui-toast-viewport', className)}
       {...props}
     />
   );
 });
 
-export type UiToastVariant = "default" | "success" | "danger" | "warning" | "accent";
+export type UiToastVariant = 'default' | 'success' | 'danger' | 'warning' | 'accent';
 
-export interface UiToastProps
-  extends React.ComponentPropsWithoutRef<typeof ToastPrimitive.Root> {
+export interface UiToastProps extends React.ComponentPropsWithoutRef<typeof ToastPrimitive.Root> {
   variant?: UiToastVariant;
 }
 
-export const Toast = React.forwardRef<
-  React.ComponentRef<typeof ToastPrimitive.Root>,
-  UiToastProps
->(function Toast({ className, variant = "default", ...props }, ref) {
-  return (
-    <ToastPrimitive.Root
-      ref={ref}
-      data-variant={variant}
-      className={mergeClassNames("mf-ui-toast", className)}
-      {...props}
-    />
-  );
-});
+export const Toast = React.forwardRef<React.ComponentRef<typeof ToastPrimitive.Root>, UiToastProps>(
+  function Toast({ className, variant = 'default', ...props }, ref) {
+    return (
+      <ToastPrimitive.Root
+        ref={ref}
+        data-variant={variant}
+        className={mergeClassNames('mf-ui-toast', className)}
+        {...props}
+      />
+    );
+  },
+);
 
 export const ToastTitle = React.forwardRef<
   React.ComponentRef<typeof ToastPrimitive.Title>,
@@ -291,7 +274,7 @@ export const ToastTitle = React.forwardRef<
   return (
     <ToastPrimitive.Title
       ref={ref}
-      className={mergeClassNames("mf-ui-toast-title", className)}
+      className={mergeClassNames('mf-ui-toast-title', className)}
       {...props}
     />
   );
@@ -304,7 +287,7 @@ export const ToastDescription = React.forwardRef<
   return (
     <ToastPrimitive.Description
       ref={ref}
-      className={mergeClassNames("mf-ui-toast-description", className)}
+      className={mergeClassNames('mf-ui-toast-description', className)}
       {...props}
     />
   );
@@ -317,7 +300,7 @@ export const ToastClose = React.forwardRef<
   return (
     <ToastPrimitive.Close asChild ref={ref} {...props}>
       <IconButton
-        className={mergeClassNames("mf-ui-toast-close", className)}
+        className={mergeClassNames('mf-ui-toast-close', className)}
         label="关闭通知"
         size="xs"
       >
@@ -327,75 +310,66 @@ export const ToastClose = React.forwardRef<
   );
 });
 
-export interface UiInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface UiInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   mono?: boolean;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, UiInputProps>(
-  function Input({ className, mono, ...props }, ref) {
-    return (
-      <input
-        ref={ref}
-        className={mergeClassNames("mf-ui-input", mono ? "mf-ui-input-mono" : undefined, className)}
-        {...props}
-      />
-    );
-  },
-);
+export const Input = React.forwardRef<HTMLInputElement, UiInputProps>(function Input(
+  { className, mono, ...props },
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      className={mergeClassNames('mf-ui-input', mono ? 'mf-ui-input-mono' : undefined, className)}
+      {...props}
+    />
+  );
+});
 
-export interface UiTextareaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface UiTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   mono?: boolean;
 }
 
-export const Textarea = React.forwardRef<HTMLTextAreaElement, UiTextareaProps>(
-  function Textarea({ className, mono, ...props }, ref) {
-    return (
-      <textarea
-        ref={ref}
-        className={mergeClassNames("mf-ui-textarea", mono ? "mf-ui-input-mono" : undefined, className)}
-        {...props}
-      />
-    );
-  },
-);
+export const Textarea = React.forwardRef<HTMLTextAreaElement, UiTextareaProps>(function Textarea(
+  { className, mono, ...props },
+  ref,
+) {
+  return (
+    <textarea
+      ref={ref}
+      className={mergeClassNames(
+        'mf-ui-textarea',
+        mono ? 'mf-ui-input-mono' : undefined,
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 
-export interface UiEmptyStateProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+export interface UiEmptyStateProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   icon?: React.ReactNode | React.ElementType<{ className?: string }>;
   title: React.ReactNode;
   hint?: React.ReactNode;
   action?: React.ReactNode;
 }
 
-export function EmptyState({
-  icon,
-  title,
-  hint,
-  action,
-  className,
-  ...props
-}: UiEmptyStateProps) {
+export function EmptyState({ icon, title, hint, action, className, ...props }: UiEmptyStateProps) {
   const iconIsElement = React.isValidElement(icon);
   const iconIsComponent =
     !iconIsElement &&
-    (typeof icon === "function" ||
-      (typeof icon === "object" &&
-        icon !== null &&
-        "$$typeof" in icon &&
-        "render" in icon));
+    (typeof icon === 'function' ||
+      (typeof icon === 'object' && icon !== null && '$$typeof' in icon && 'render' in icon));
   return (
-    <div className={mergeClassNames("mf-ui-empty-state", className)} {...props}>
+    <div className={mergeClassNames('mf-ui-empty-state', className)} {...props}>
       {icon ? (
         <span className="mf-ui-empty-state-icon">
-          {iconIsComponent ? (
-            React.createElement(icon as React.ElementType, {
-              className: "mf-ui-empty-state-icon-glyph",
-            })
-          ) : (
-            (icon as React.ReactNode)
-          )}
+          {iconIsComponent
+            ? React.createElement(icon as React.ElementType, {
+                className: 'mf-ui-empty-state-icon-glyph',
+              })
+            : (icon as React.ReactNode)}
         </span>
       ) : null}
       <p className="mf-ui-empty-state-title">{title}</p>
@@ -409,9 +383,9 @@ export interface UiLoadingStateProps extends React.HTMLAttributes<HTMLDivElement
   label?: React.ReactNode;
 }
 
-export function LoadingState({ label = "正在载入...", className, ...props }: UiLoadingStateProps) {
+export function LoadingState({ label = '正在载入...', className, ...props }: UiLoadingStateProps) {
   return (
-    <div className={mergeClassNames("mf-ui-loading-state", className)} role="status" {...props}>
+    <div className={mergeClassNames('mf-ui-loading-state', className)} role="status" {...props}>
       <LoaderCircle className="mf-ui-spin" aria-hidden="true" />
       <span>{label}</span>
     </div>
@@ -425,7 +399,7 @@ export interface UiErrorStateProps extends React.HTMLAttributes<HTMLDivElement> 
 
 export function ErrorState({ message, action, className, ...props }: UiErrorStateProps) {
   return (
-    <div className={mergeClassNames("mf-ui-error-state", className)} role="alert" {...props}>
+    <div className={mergeClassNames('mf-ui-error-state', className)} role="alert" {...props}>
       <AlertCircle aria-hidden="true" />
       <span>{message}</span>
       {action ? <div className="mf-ui-error-state-action">{action}</div> : null}
@@ -445,18 +419,12 @@ export const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
     inset?: boolean;
   }
->(function DropdownMenuSubTrigger(
-  { className, inset, children, ...props },
-  ref,
-) {
+>(function DropdownMenuSubTrigger({ className, inset, children, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
       data-inset={inset || undefined}
-      className={mergeClassNames(
-        "mf-ui-dropdown-item mf-ui-dropdown-sub-trigger",
-        className,
-      )}
+      className={mergeClassNames('mf-ui-dropdown-item mf-ui-dropdown-sub-trigger', className)}
       {...props}
     >
       {children}
@@ -472,10 +440,7 @@ export const DropdownMenuSubContent = React.forwardRef<
   return (
     <DropdownMenuPrimitive.SubContent
       ref={ref}
-      className={mergeClassNames(
-        "mf-ui-dropdown-content mf-ui-dropdown-sub-content",
-        className,
-      )}
+      className={mergeClassNames('mf-ui-dropdown-content mf-ui-dropdown-sub-content', className)}
       {...props}
     />
   );
@@ -489,12 +454,12 @@ export const DropdownMenuContent = React.forwardRef<
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={mergeClassNames("mf-ui-dropdown-content", className)}
+      className={mergeClassNames('mf-ui-dropdown-content', className)}
       {...props}
     />
   );
   // Node 静态渲染没有 document，Portal 会丢掉内容；浏览器仍走 Portal。
-  if (typeof document === "undefined") return content;
+  if (typeof document === 'undefined') return content;
   return <DropdownMenuPrimitive.Portal>{content}</DropdownMenuPrimitive.Portal>;
 });
 
@@ -508,7 +473,7 @@ export const DropdownMenuItem = React.forwardRef<
     <DropdownMenuPrimitive.Item
       ref={ref}
       data-inset={inset || undefined}
-      className={mergeClassNames("mf-ui-dropdown-item", className)}
+      className={mergeClassNames('mf-ui-dropdown-item', className)}
       {...props}
     />
   );
@@ -517,17 +482,11 @@ export const DropdownMenuItem = React.forwardRef<
 export const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
->(function DropdownMenuCheckboxItem(
-  { className, children, checked, ...props },
-  ref,
-) {
+>(function DropdownMenuCheckboxItem({ className, children, checked, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
       ref={ref}
-      className={mergeClassNames(
-        "mf-ui-dropdown-item mf-ui-dropdown-indicator-item",
-        className,
-      )}
+      className={mergeClassNames('mf-ui-dropdown-item mf-ui-dropdown-indicator-item', className)}
       checked={checked}
       {...props}
     >
@@ -548,10 +507,7 @@ export const DropdownMenuRadioItem = React.forwardRef<
   return (
     <DropdownMenuPrimitive.RadioItem
       ref={ref}
-      className={mergeClassNames(
-        "mf-ui-dropdown-item mf-ui-dropdown-indicator-item",
-        className,
-      )}
+      className={mergeClassNames('mf-ui-dropdown-item mf-ui-dropdown-indicator-item', className)}
       {...props}
     >
       <span className="mf-ui-dropdown-indicator">
@@ -574,7 +530,7 @@ export const DropdownMenuLabel = React.forwardRef<
     <DropdownMenuPrimitive.Label
       ref={ref}
       data-inset={inset || undefined}
-      className={mergeClassNames("mf-ui-dropdown-label", className)}
+      className={mergeClassNames('mf-ui-dropdown-label', className)}
       {...props}
     />
   );
@@ -587,7 +543,7 @@ export const DropdownMenuSeparator = React.forwardRef<
   return (
     <DropdownMenuPrimitive.Separator
       ref={ref}
-      className={mergeClassNames("mf-ui-dropdown-separator", className)}
+      className={mergeClassNames('mf-ui-dropdown-separator', className)}
       {...props}
     />
   );
@@ -597,9 +553,7 @@ export function DropdownMenuShortcut({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span className={mergeClassNames("mf-ui-dropdown-shortcut", className)} {...props} />
-  );
+  return <span className={mergeClassNames('mf-ui-dropdown-shortcut', className)} {...props} />;
 }
 
 export const Select = SelectPrimitive.Root;
@@ -613,7 +567,7 @@ export const SelectTrigger = React.forwardRef<
   return (
     <SelectPrimitive.Trigger
       ref={ref}
-      className={mergeClassNames("mf-ui-select-trigger", className)}
+      className={mergeClassNames('mf-ui-select-trigger', className)}
       {...props}
     >
       {children}
@@ -627,14 +581,11 @@ export const SelectTrigger = React.forwardRef<
 export const SelectContent = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(function SelectContent(
-  { className, children, position = "popper", ...props },
-  ref,
-) {
+>(function SelectContent({ className, children, position = 'popper', ...props }, ref) {
   const content = (
     <SelectPrimitive.Content
       ref={ref}
-      className={mergeClassNames("mf-ui-select-content", className)}
+      className={mergeClassNames('mf-ui-select-content', className)}
       position={position}
       {...props}
     >
@@ -643,7 +594,7 @@ export const SelectContent = React.forwardRef<
       </SelectPrimitive.Viewport>
     </SelectPrimitive.Content>
   );
-  if (typeof document === "undefined") return content;
+  if (typeof document === 'undefined') return content;
   return <SelectPrimitive.Portal>{content}</SelectPrimitive.Portal>;
 });
 
@@ -654,7 +605,7 @@ export const SelectItem = React.forwardRef<
   return (
     <SelectPrimitive.Item
       ref={ref}
-      className={mergeClassNames("mf-ui-select-item", className)}
+      className={mergeClassNames('mf-ui-select-item', className)}
       {...props}
     >
       <span className="mf-ui-dropdown-indicator">
@@ -674,7 +625,7 @@ export const Slider = React.forwardRef<
   return (
     <SliderPrimitive.Root
       ref={ref}
-      className={mergeClassNames("mf-ui-slider", className)}
+      className={mergeClassNames('mf-ui-slider', className)}
       {...props}
     >
       <SliderPrimitive.Track className="mf-ui-slider-track">
@@ -695,9 +646,9 @@ export interface UiSegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   options: SegmentedOption<T>[];
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
   className?: string;
-  "aria-label"?: string;
+  'aria-label'?: string;
 }
 
 /** 分段控件：选项间切换，不含桌面拖拽区语义。 */
@@ -705,16 +656,16 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   options,
-  size = "md",
+  size = 'md',
   className,
   ...aria
 }: UiSegmentedControlProps<T>) {
   return (
     <div
       role="tablist"
-      aria-label={aria["aria-label"]}
+      aria-label={aria['aria-label']}
       data-size={size}
-      className={mergeClassNames("mf-ui-segmented", className)}
+      className={mergeClassNames('mf-ui-segmented', className)}
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -737,31 +688,26 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-export type UiBadgeVariant =
-  | "neutral"
-  | "accent"
-  | "success"
-  | "warning"
-  | "danger"
-  | "outline";
+export type UiBadgeVariant = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'outline';
 
 export interface UiBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: UiBadgeVariant;
 }
 
 /** 紧凑状态/标签 chip，与 StatusBadge（纯色状态字）分工。 */
-export const Badge = React.forwardRef<HTMLSpanElement, UiBadgeProps>(
-  function Badge({ className, variant = "neutral", ...props }, ref) {
-    return (
-      <span
-        ref={ref}
-        data-variant={variant}
-        className={mergeClassNames("mf-ui-badge", className)}
-        {...props}
-      />
-    );
-  },
-);
+export const Badge = React.forwardRef<HTMLSpanElement, UiBadgeProps>(function Badge(
+  { className, variant = 'neutral', ...props },
+  ref,
+) {
+  return (
+    <span
+      ref={ref}
+      data-variant={variant}
+      className={mergeClassNames('mf-ui-badge', className)}
+      {...props}
+    />
+  );
+});
 
 export const ScrollArea = React.forwardRef<
   React.ComponentRef<typeof ScrollAreaPrimitive.Root>,
@@ -772,11 +718,11 @@ export const ScrollArea = React.forwardRef<
   return (
     <ScrollAreaPrimitive.Root
       ref={ref}
-      className={mergeClassNames("mf-ui-scroll-area", className)}
+      className={mergeClassNames('mf-ui-scroll-area', className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
-        className={mergeClassNames("mf-ui-scroll-viewport", viewportClassName)}
+        className={mergeClassNames('mf-ui-scroll-viewport', viewportClassName)}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
@@ -794,7 +740,7 @@ const ScrollBar = React.forwardRef<
     <ScrollAreaPrimitive.ScrollAreaScrollbar
       ref={ref}
       orientation="vertical"
-      className={mergeClassNames("mf-ui-scroll-bar", className)}
+      className={mergeClassNames('mf-ui-scroll-bar', className)}
       {...props}
     >
       <ScrollAreaPrimitive.ScrollAreaThumb className="mf-ui-scroll-thumb" />
@@ -802,24 +748,12 @@ const ScrollBar = React.forwardRef<
   );
 });
 
-export function Kbd({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLElement>) {
-  return <kbd className={mergeClassNames("mf-ui-kbd", className)} {...props} />;
+export function Kbd({ className, ...props }: React.HTMLAttributes<HTMLElement>) {
+  return <kbd className={mergeClassNames('mf-ui-kbd', className)} {...props} />;
 }
 
-export function Skeleton({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      aria-hidden
-      className={mergeClassNames("mf-ui-skeleton", className)}
-      {...props}
-    />
-  );
+export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div aria-hidden className={mergeClassNames('mf-ui-skeleton', className)} {...props} />;
 }
 
 export interface UiSpinnerProps {
@@ -831,7 +765,7 @@ export interface UiSpinnerProps {
 export function Spinner({ className, size = 16 }: UiSpinnerProps) {
   return (
     <span
-      className={mergeClassNames("mf-ui-spinner", className)}
+      className={mergeClassNames('mf-ui-spinner', className)}
       style={{
         width: size,
         height: size,
@@ -857,6 +791,8 @@ export interface UiImageLightboxProps {
   hasNext?: boolean;
   prompt?: string | null;
   onSave?: () => void | Promise<void>;
+  /** Системный share (navigator.share); передавайте только там, где он доступен. */
+  onShare?: () => void | Promise<void>;
   onReveal?: () => void | Promise<void>;
   onCopyImage?: () => void | Promise<void>;
   onCopyPrompt?: () => void | Promise<void>;
@@ -872,6 +808,7 @@ export function ImageLightbox({
   hasNext = false,
   prompt,
   onSave,
+  onShare,
   onReveal,
   onCopyImage,
   onCopyPrompt,
@@ -885,203 +822,205 @@ export function ImageLightbox({
 
   const zoomBy = (delta: number) => {
     setScale((v) =>
-      Math.min(
-        LIGHTBOX_MAX_SCALE,
-        Math.max(LIGHTBOX_MIN_SCALE, Number((v + delta).toFixed(2))),
-      ),
+      Math.min(LIGHTBOX_MAX_SCALE, Math.max(LIGHTBOX_MIN_SCALE, Number((v + delta).toFixed(2)))),
     );
   };
 
   React.useEffect(() => {
     if (!src) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft" && hasPrevious) {
+      if (e.key === 'ArrowLeft' && hasPrevious) {
         e.preventDefault();
         onPrevious?.();
       }
-      if (e.key === "ArrowRight" && hasNext) {
+      if (e.key === 'ArrowRight' && hasNext) {
         e.preventDefault();
         onNext?.();
       }
-      if (e.key === "+" || e.key === "=") {
+      if (e.key === '+' || e.key === '=') {
         e.preventDefault();
         zoomBy(LIGHTBOX_SCALE_STEP);
       }
-      if (e.key === "-" || e.key === "_") {
+      if (e.key === '-' || e.key === '_') {
         e.preventDefault();
         zoomBy(-LIGHTBOX_SCALE_STEP);
       }
-      if (e.key === "0") {
+      if (e.key === '0') {
         e.preventDefault();
         setScale(1);
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [hasNext, hasPrevious, onNext, onPrevious, src]);
 
   const hasActions = Boolean(
-    onSave || onReveal || onCopyImage || (prompt && onCopyPrompt),
+    onSave || onShare || onReveal || onCopyImage || (prompt && onCopyPrompt),
   );
 
   const surface = (
     <>
       <DialogPrimitive.Overlay className="mf-ui-lightbox-overlay" />
       <DialogPrimitive.Content
-          className="mf-ui-lightbox-content"
-          onClick={onClose}
-          aria-label="图像预览"
-          data-testid="image-lightbox"
-        >
-          <DialogPrimitive.Title className="mf-ui-sr-only">图像预览</DialogPrimitive.Title>
-          <DialogPrimitive.Description className="mf-ui-sr-only">
-            点击任意处或按 ESC 关闭
-          </DialogPrimitive.Description>
-          {src && !broken ? (
-            <img
-              src={src}
-              alt="预览"
-              onClick={(e) => e.stopPropagation()}
-              onError={() => setBroken(true)}
-              data-testid="image-lightbox-image"
-              data-scale={scale}
-              style={{ transform: `scale(${scale})` }}
-              className="mf-ui-lightbox-image"
-            />
-          ) : null}
-          {src && broken ? (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="mf-ui-lightbox-broken"
+        className="mf-ui-lightbox-content"
+        onClick={onClose}
+        aria-label="图像预览"
+        data-testid="image-lightbox"
+      >
+        <DialogPrimitive.Title className="mf-ui-sr-only">图像预览</DialogPrimitive.Title>
+        <DialogPrimitive.Description className="mf-ui-sr-only">
+          点击任意处或按 ESC 关闭
+        </DialogPrimitive.Description>
+        {src && !broken ? (
+          <img
+            src={src}
+            alt="预览"
+            onClick={(e) => e.stopPropagation()}
+            onError={() => setBroken(true)}
+            data-testid="image-lightbox-image"
+            data-scale={scale}
+            style={{ transform: `scale(${scale})` }}
+            className="mf-ui-lightbox-image"
+          />
+        ) : null}
+        {src && broken ? (
+          <div onClick={(e) => e.stopPropagation()} className="mf-ui-lightbox-broken">
+            <ImageOff aria-hidden="true" />
+            <p className="mf-ui-lightbox-broken-title">图片无法加载</p>
+            <p className="mf-ui-lightbox-broken-hint">文件可能已被移动或删除。</p>
+          </div>
+        ) : null}
+        {src && (onPrevious || onNext) ? (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasPrevious) onPrevious?.();
+              }}
+              aria-disabled={!hasPrevious}
+              aria-label="上一张"
+              data-testid="image-lightbox-prev"
+              className="mf-ui-lightbox-nav mf-ui-lightbox-nav-prev"
             >
-              <ImageOff aria-hidden="true" />
-              <p className="mf-ui-lightbox-broken-title">图片无法加载</p>
-              <p className="mf-ui-lightbox-broken-hint">文件可能已被移动或删除。</p>
-            </div>
-          ) : null}
-          {src && (onPrevious || onNext) ? (
-            <>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (hasPrevious) onPrevious?.();
-                }}
-                aria-disabled={!hasPrevious}
-                aria-label="上一张"
-                data-testid="image-lightbox-prev"
-                className="mf-ui-lightbox-nav mf-ui-lightbox-nav-prev"
-              >
-                <ChevronLeft aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (hasNext) onNext?.();
-                }}
-                aria-disabled={!hasNext}
-                aria-label="下一张"
-                data-testid="image-lightbox-next"
-                className="mf-ui-lightbox-nav mf-ui-lightbox-nav-next"
-              >
-                <ChevronRight aria-hidden="true" />
-              </button>
-            </>
-          ) : null}
-          {src && (hasActions || !broken) ? (
-            <div
-              className="mf-ui-lightbox-toolbar"
-              onClick={(e) => e.stopPropagation()}
-              data-testid="image-lightbox-toolbar"
+              <ChevronLeft aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasNext) onNext?.();
+              }}
+              aria-disabled={!hasNext}
+              aria-label="下一张"
+              data-testid="image-lightbox-next"
+              className="mf-ui-lightbox-nav mf-ui-lightbox-nav-next"
             >
-              {onSave ? (
-                <LightboxAction
-                  icon={Download}
-                  label="另存图片"
-                  testId="image-lightbox-save"
-                  onClick={() => void onSave()}
-                />
-              ) : null}
-              {onReveal ? (
-                <LightboxAction
-                  icon={FolderOpen}
-                  label="打开所在文件夹"
-                  testId="image-lightbox-folder"
-                  onClick={() => void onReveal()}
-                />
-              ) : null}
-              {onCopyImage ? (
-                <LightboxAction
-                  icon={Copy}
-                  label="复制图片"
-                  testId="image-lightbox-copy-image"
-                  onClick={() => void onCopyImage()}
-                />
-              ) : null}
-              {prompt && onCopyPrompt ? (
-                <LightboxAction
-                  icon={ClipboardCopy}
-                  label="复制提示词"
-                  testId="image-lightbox-copy-prompt"
-                  onClick={() => void onCopyPrompt()}
-                />
-              ) : null}
-              {!broken && hasActions ? (
-                <span className="mf-ui-lightbox-toolbar-rule" aria-hidden="true" />
-              ) : null}
-              {!broken ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => zoomBy(-LIGHTBOX_SCALE_STEP)}
-                    disabled={scale <= LIGHTBOX_MIN_SCALE}
-                    aria-label="缩小"
-                    data-testid="image-lightbox-zoom-out"
-                    className="mf-ui-lightbox-zoom"
-                  >
-                    <ZoomOut aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScale(1)}
-                    aria-label="重置缩放"
-                    data-testid="image-lightbox-zoom-reset"
-                    className="mf-ui-lightbox-zoom-reset"
-                  >
-                    <RotateCcw aria-hidden="true" />
-                    {Math.round(scale * 100)}%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => zoomBy(LIGHTBOX_SCALE_STEP)}
-                    disabled={scale >= LIGHTBOX_MAX_SCALE}
-                    aria-label="放大"
-                    data-testid="image-lightbox-zoom-in"
-                    className="mf-ui-lightbox-zoom"
-                  >
-                    <ZoomIn aria-hidden="true" />
-                  </button>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            data-testid="image-lightbox-close"
-            className="mf-ui-lightbox-close"
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </>
+        ) : null}
+        {src && (hasActions || !broken) ? (
+          <div
+            className="mf-ui-lightbox-toolbar"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="image-lightbox-toolbar"
           >
-            <X aria-hidden="true" />
-          </button>
-        </DialogPrimitive.Content>
-        </>
+            {onSave ? (
+              <LightboxAction
+                icon={Download}
+                label="另存图片"
+                testId="image-lightbox-save"
+                onClick={() => void onSave()}
+              />
+            ) : null}
+            {onShare ? (
+              <LightboxAction
+                icon={Share2}
+                label="分享图片"
+                testId="image-lightbox-share"
+                onClick={() => void onShare()}
+              />
+            ) : null}
+            {onReveal ? (
+              <LightboxAction
+                icon={FolderOpen}
+                label="打开所在文件夹"
+                testId="image-lightbox-folder"
+                onClick={() => void onReveal()}
+              />
+            ) : null}
+            {onCopyImage ? (
+              <LightboxAction
+                icon={Copy}
+                label="复制图片"
+                testId="image-lightbox-copy-image"
+                onClick={() => void onCopyImage()}
+              />
+            ) : null}
+            {prompt && onCopyPrompt ? (
+              <LightboxAction
+                icon={ClipboardCopy}
+                label="复制提示词"
+                testId="image-lightbox-copy-prompt"
+                onClick={() => void onCopyPrompt()}
+              />
+            ) : null}
+            {!broken && hasActions ? (
+              <span className="mf-ui-lightbox-toolbar-rule" aria-hidden="true" />
+            ) : null}
+            {!broken ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => zoomBy(-LIGHTBOX_SCALE_STEP)}
+                  disabled={scale <= LIGHTBOX_MIN_SCALE}
+                  aria-label="缩小"
+                  data-testid="image-lightbox-zoom-out"
+                  className="mf-ui-lightbox-zoom"
+                >
+                  <ZoomOut aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScale(1)}
+                  aria-label="重置缩放"
+                  data-testid="image-lightbox-zoom-reset"
+                  className="mf-ui-lightbox-zoom-reset"
+                >
+                  <RotateCcw aria-hidden="true" />
+                  {Math.round(scale * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => zoomBy(LIGHTBOX_SCALE_STEP)}
+                  disabled={scale >= LIGHTBOX_MAX_SCALE}
+                  aria-label="放大"
+                  data-testid="image-lightbox-zoom-in"
+                  className="mf-ui-lightbox-zoom"
+                >
+                  <ZoomIn aria-hidden="true" />
+                </button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="关闭"
+          data-testid="image-lightbox-close"
+          className="mf-ui-lightbox-close"
+        >
+          <X aria-hidden="true" />
+        </button>
+      </DialogPrimitive.Content>
+    </>
   );
 
   return (
     <DialogPrimitive.Root open={Boolean(src)} onOpenChange={(o) => !o && onClose()}>
-      {typeof document === "undefined" ? (
+      {typeof document === 'undefined' ? (
         surface
       ) : (
         <DialogPrimitive.Portal>{surface}</DialogPrimitive.Portal>

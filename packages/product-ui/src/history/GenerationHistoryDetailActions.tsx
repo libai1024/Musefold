@@ -4,20 +4,16 @@ import {
   MoreHorizontal,
   RotateCcw,
   Save,
+  Share2,
   Square,
   Trash2,
   WandSparkles,
-} from "@musefold/ui/icons";
-import { Button, IconButton } from "@musefold/ui";
-import { useEffect, useState, type ReactNode } from "react";
+} from '@musefold/ui/icons';
+import { Button, IconButton } from '@musefold/ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import { canShareImage, shareImageAsset } from '../share';
 
-export type GenerationHistoryBusyAction =
-  | "retry"
-  | "cancel"
-  | "save"
-  | "delete"
-  | "restore"
-  | null;
+export type GenerationHistoryBusyAction = 'retry' | 'cancel' | 'save' | 'delete' | 'restore' | null;
 
 export interface GenerationHistoryDetailActionsProps {
   deleted?: boolean;
@@ -34,7 +30,7 @@ export interface GenerationHistoryDetailActionsProps {
   savePromptLabel?: string;
   deleteLabel?: string;
   extraActions?: ReactNode;
-  layout?: "inline" | "stacked";
+  layout?: 'inline' | 'stacked';
   className?: string;
 }
 
@@ -50,11 +46,11 @@ export function GenerationHistoryDetailActions({
   onSavePrompt,
   onCopyPrompt,
   onDelete,
-  reuseTestId = "history-detail-reuse",
-  savePromptLabel = "存为提示词",
-  deleteLabel = "移到回收站",
+  reuseTestId = 'history-detail-reuse',
+  savePromptLabel = '存为提示词',
+  deleteLabel = '移到回收站',
   extraActions,
-  layout = "inline",
+  layout = 'inline',
   className,
 }: GenerationHistoryDetailActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -70,7 +66,7 @@ export function GenerationHistoryDetailActions({
       onClick={onSavePrompt}
       data-testid="history-detail-save"
       icon={<Save aria-hidden="true" />}
-      busy={busyAction === "save"}
+      busy={busyAction === 'save'}
       busyLabel="保存中..."
     >
       {savePromptLabel}
@@ -102,9 +98,7 @@ export function GenerationHistoryDetailActions({
 
   return (
     <div
-      className={["mf-history-detail-actions", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={['mf-history-detail-actions', className].filter(Boolean).join(' ')}
       data-layout={layout}
     >
       {deleted && onRestore ? (
@@ -115,7 +109,7 @@ export function GenerationHistoryDetailActions({
           onClick={onRestore}
           data-testid="history-detail-restore"
           icon={<RotateCcw aria-hidden="true" />}
-          busy={busyAction === "restore"}
+          busy={busyAction === 'restore'}
           busyLabel="恢复中..."
         >
           恢复
@@ -141,7 +135,7 @@ export function GenerationHistoryDetailActions({
               onClick={onRetry}
               data-testid="history-detail-retry"
               icon={<RotateCcw aria-hidden="true" />}
-              busy={busyAction === "retry"}
+              busy={busyAction === 'retry'}
               busyLabel="重试中..."
             >
               重试
@@ -155,7 +149,7 @@ export function GenerationHistoryDetailActions({
               onClick={onCancel}
               data-testid="history-detail-cancel"
               icon={<Square aria-hidden="true" />}
-              busy={busyAction === "cancel"}
+              busy={busyAction === 'cancel'}
               busyLabel="取消中..."
             >
               取消任务
@@ -172,13 +166,24 @@ export function GenerationHistoryDetailActions({
               下载
             </a>
           ) : null}
-          {layout === "stacked" ? (
+          {downloadUrl && canShareImage() ? (
+            <Button
+              variant="secondary"
+              className="mf-secondary-button"
+              onClick={() => void shareImageAsset(downloadUrl, 'Musefold 生成图片')}
+              data-testid="history-detail-share"
+              icon={<Share2 aria-hidden="true" />}
+            >
+              分享
+            </Button>
+          ) : null}
+          {layout === 'stacked' ? (
             <>
               {saveButton}
               {copyButton}
               {deleteButton}
             </>
-          ) : (onSavePrompt || onDelete || onCopyPrompt) ? (
+          ) : onSavePrompt || onDelete || onCopyPrompt ? (
             <div className="mf-history-detail-menu-wrap">
               <IconButton
                 className="mf-icon-button"
@@ -190,11 +195,7 @@ export function GenerationHistoryDetailActions({
                 <MoreHorizontal aria-hidden="true" />
               </IconButton>
               {menuOpen ? (
-                <div
-                  className="mf-prompt-detail-menu"
-                  role="menu"
-                  aria-label="生成记录操作"
-                >
+                <div className="mf-prompt-detail-menu" role="menu" aria-label="生成记录操作">
                   {onSavePrompt ? (
                     <Button
                       variant="ghost"
@@ -207,7 +208,7 @@ export function GenerationHistoryDetailActions({
                       data-testid="history-detail-save"
                       icon={<Save aria-hidden="true" />}
                     >
-                      {busyAction === "save" ? "保存中..." : savePromptLabel}
+                      {busyAction === 'save' ? '保存中...' : savePromptLabel}
                     </Button>
                   ) : null}
                   {onCopyPrompt ? (

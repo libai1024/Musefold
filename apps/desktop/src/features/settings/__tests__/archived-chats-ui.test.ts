@@ -37,7 +37,7 @@ describe("archived chat UI contract", () => {
     expect(archivedSection).not.toContain("引用配方");
     // 侧栏不再用类型图标，类型通过行级 data 属性暴露
     expect(sessionList).toContain(
-      'data-conversation-kind={item.kind ?? "chat"}',
+      "data-conversation-kind={item.kind ?? 'chat'}",
     );
   });
 

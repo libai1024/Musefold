@@ -792,6 +792,7 @@ describe("shared product views", () => {
     expect(sidebar).toContain('data-testid="product-sidebar"');
     expect(sidebar).toContain('data-testid="nav-prompts"');
     expect(sidebar).toContain('data-active="true"');
+    expect(sidebar).toContain("功能");
     expect(sidebar).toContain("最近对话");
     expect(sidebar).toContain("个人账户");
     expect(mobileButton).toMatch(

@@ -6,11 +6,21 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-} from "react";
+} from 'react';
 
 export const PRODUCT_SIDEBAR_DEFAULT_WIDTH = 244;
 export const PRODUCT_SIDEBAR_MIN_WIDTH = 200;
+/**
+ * Канонические адаптивные брейкпоинты, общие для web- и desktop-хостов.
+ * CSS-медиазапросы в product-ui/styles.css и стилях хостов должны
+ * использовать эти же значения:
+ * - COMPACT (≤760px): сайдбар сворачивается в overlay-drawer.
+ * - MOBILE (≤680px): телефонная раскладка в духе 豆包 — левый drawer
+ *   (функции + список диалогов + аккаунт), главная сцена только
+ *   тема разговора и общий composer.
+ */
 export const PRODUCT_SIDEBAR_COMPACT_BREAKPOINT = 760;
+export const PRODUCT_MOBILE_BREAKPOINT = 680;
 
 export interface ProductSidebarLayoutProps {
   open: boolean;
@@ -24,12 +34,8 @@ export interface ProductSidebarLayoutProps {
   className?: string;
 }
 
-function readInitialWidth(
-  storageKey: string,
-  defaultWidth: number,
-  minWidth: number,
-): number {
-  if (typeof window === "undefined") return defaultWidth;
+function readInitialWidth(storageKey: string, defaultWidth: number, minWidth: number): number {
+  if (typeof window === 'undefined') return defaultWidth;
   const raw = window.localStorage.getItem(storageKey);
   if (raw === null) return defaultWidth;
   const saved = Number(raw);
@@ -44,10 +50,10 @@ export function ProductSidebarLayout({
   sidebar,
   children,
   compactDismissKey,
-  storageKey = "musefold:sidebar-width",
+  storageKey = 'musefold:sidebar-width',
   defaultSidebarWidth = PRODUCT_SIDEBAR_DEFAULT_WIDTH,
   minSidebarWidth = PRODUCT_SIDEBAR_MIN_WIDTH,
-  className = "",
+  className = '',
 }: ProductSidebarLayoutProps) {
   const [compact, setCompact] = useState(false);
   const [resizing, setResizing] = useState(false);
@@ -62,7 +68,7 @@ export function ProductSidebarLayout({
 
   const maxSidebarWidth = useCallback(
     () =>
-      typeof window === "undefined"
+      typeof window === 'undefined'
         ? defaultSidebarWidth * 2
         : Math.max(minSidebarWidth, Math.floor(window.innerWidth * 0.5)),
     [defaultSidebarWidth, minSidebarWidth],
@@ -70,13 +76,10 @@ export function ProductSidebarLayout({
 
   const applySidebarWidth = useCallback(
     (width: number) => {
-      const next = Math.min(
-        maxSidebarWidth(),
-        Math.max(minSidebarWidth, Math.round(width)),
-      );
+      const next = Math.min(maxSidebarWidth(), Math.max(minSidebarWidth, Math.round(width)));
       sidebarWidthRef.current = next;
       setSidebarWidth(next);
-      if (typeof window !== "undefined") {
+      if (typeof window !== 'undefined') {
         window.localStorage.setItem(storageKey, String(next));
       }
     },
@@ -88,9 +91,7 @@ export function ProductSidebarLayout({
   }, [sidebarWidth]);
 
   useEffect(() => {
-    const media = window.matchMedia(
-      `(max-width: ${PRODUCT_SIDEBAR_COMPACT_BREAKPOINT}px)`,
-    );
+    const media = window.matchMedia(`(max-width: ${PRODUCT_SIDEBAR_COMPACT_BREAKPOINT}px)`);
     const sync = (matches: boolean) => {
       if (matches && !compactRef.current) {
         openBeforeCompactRef.current = openRef.current;
@@ -104,21 +105,46 @@ export function ProductSidebarLayout({
     };
     sync(media.matches);
     const handleChange = (event: MediaQueryListEvent) => sync(event.matches);
-    media.addEventListener?.("change", handleChange);
-    return () => media.removeEventListener?.("change", handleChange);
+    media.addEventListener?.('change', handleChange);
+    return () => media.removeEventListener?.('change', handleChange);
   }, [onOpenChange]);
 
   useEffect(() => {
     const handleResize = () => applySidebarWidth(sidebarWidthRef.current);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [applySidebarWidth]);
 
   useEffect(() => {
     if (compact) onOpenChange(false);
   }, [compact, compactDismissKey, onOpenChange]);
 
-  const compactWidth = `min(304px, max(${minSidebarWidth}px, calc(100vw - 48px)))`;
+  const railRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!compact || !open) return;
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const dismissOn = [
+      '[data-testid="sidebar-new-design"]',
+      '.mf-product-sidebar-nav-button',
+      '.mf-workbench-session-open',
+      '[data-testid="sidebar-account"]',
+    ].join(', ');
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.closest(dismissOn)) return;
+      window.requestAnimationFrame(() => onOpenChange(false));
+    };
+
+    rail.addEventListener('click', handleClick);
+    return () => rail.removeEventListener('click', handleClick);
+  }, [compact, open, onOpenChange]);
+
+  const compactWidth = `min(320px, max(${minSidebarWidth}px, calc(100vw - 28px)))`;
   const visibleWidth = compact ? compactWidth : sidebarWidth;
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -132,27 +158,27 @@ export function ProductSidebarLayout({
     };
     const stop = () => {
       setResizing(false);
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", stop);
-      window.removeEventListener("pointercancel", stop);
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
     };
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", stop);
-    window.addEventListener("pointercancel", stop);
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
   };
 
   const handleResizeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (compact || !open) return;
-    if (event.key === "ArrowRight") {
+    if (event.key === 'ArrowRight') {
       event.preventDefault();
       applySidebarWidth(sidebarWidthRef.current + 16);
-    } else if (event.key === "ArrowLeft") {
+    } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
       applySidebarWidth(sidebarWidthRef.current - 16);
-    } else if (event.key === "Home") {
+    } else if (event.key === 'Home') {
       event.preventDefault();
       applySidebarWidth(minSidebarWidth);
-    } else if (event.key === "End") {
+    } else if (event.key === 'End') {
       event.preventDefault();
       applySidebarWidth(maxSidebarWidth());
     }
@@ -161,17 +187,18 @@ export function ProductSidebarLayout({
   return (
     <div
       className={`mf-product-sidebar-layout ${className}`}
-      data-compact={compact ? "true" : "false"}
-      data-resizing={resizing ? "true" : "false"}
+      data-compact={compact ? 'true' : 'false'}
+      data-resizing={resizing ? 'true' : 'false'}
       data-testid="product-sidebar-layout"
     >
       <div
+        ref={railRef}
         className="mf-product-sidebar-rail"
-        data-open={open ? "true" : "false"}
+        data-open={open ? 'true' : 'false'}
         aria-hidden={!open}
         style={{
           width: open ? visibleWidth : 0,
-          visibility: open ? "visible" : "hidden",
+          visibility: open ? 'visible' : 'hidden',
         }}
         data-testid="product-sidebar-rail"
       >

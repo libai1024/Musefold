@@ -1,7 +1,7 @@
 {
   "name": "@musefold/web",
   "version": "0.0.0-internal",
-  "description": "Musefold Web v1.1 personal generation and cloud prompt surface",
+  "description": "Musefold Web v1.1.1 personal generation and cloud prompt surface",
   "license": "MIT",
   "type": "module",
   "private": true,

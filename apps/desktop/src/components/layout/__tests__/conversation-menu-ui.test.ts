@@ -59,7 +59,7 @@ describe("recent conversation actions", () => {
   });
 
   it("puts pinned chats in their own group without an inline pin marker", () => {
-    expect(sessionList).toContain('item.pinned ? "置顶" : sessionDateGroup');
+    expect(sessionList).toContain("item.pinned ? '置顶' : sessionDateGroup");
     expect(sessionList).not.toContain("{pinned && <Pin");
   });
 
@@ -68,6 +68,6 @@ describe("recent conversation actions", () => {
     expect(sidebar).not.toContain("conversation-type-indicator");
     expect(sessionList).toContain('className="mf-workbench-session-status"');
     expect(sessionList).toContain("data-status={status}");
-    expect(sessionList).toContain('status === "running"');
+    expect(sessionList).toContain("status === 'running'");
   });
 });

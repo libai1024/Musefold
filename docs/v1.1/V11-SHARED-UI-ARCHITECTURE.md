@@ -269,7 +269,7 @@ interface UiAsset {
 
 - Desktop：自定义 titlebar、完整 sidebar、命令面板、设置窗口。
 - Web desktop：普通浏览器顶栏/侧栏、登录门、Cloud MCP 连接入口。
-- Web mobile：底部导航、浏览器安全区、系统分享。
+- Web mobile：左侧功能/对话抽屉、浏览器安全区、系统分享。
 
 页面内容、按钮文案、图标和交互顺序在相同 capability 下保持一致。
 

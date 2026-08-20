@@ -144,6 +144,14 @@ async function openFixture(page: Page, width: number, height: number) {
   await expect(page.getByText("开发预览", { exact: true })).toBeVisible();
 }
 
+async function openCompactSidebar(page: Page): Promise<void> {
+  const toggle = page.getByRole("button", { name: "展开侧栏" });
+  if (await toggle.isVisible()) {
+    await toggle.click();
+  }
+  await expect(page.getByTestId("product-sidebar")).toBeVisible();
+}
+
 test("canonical Desktop/Web surfaces stay within the shared visual contract", async ({
   page,
 }, testInfo) => {
@@ -256,20 +264,16 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
   );
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page
-    .getByRole("navigation", { name: "移动端导航" })
-    .getByRole("button", { name: "制作工作台" })
-    .click();
+  await openCompactSidebar(page);
+  await page.locator("[data-conversation-row]").first().click();
   await captureCanonicalSurface(
     page,
     testInfo,
     "workbench-390-light-comfortable",
     "generation-workbench",
   );
-  await page
-    .getByRole("navigation", { name: "移动端导航" })
-    .getByRole("button", { name: "提示词库" })
-    .click();
+  await openCompactSidebar(page);
+  await page.getByTestId("product-sidebar").getByTestId("nav-prompts").click();
   await captureCanonicalSurface(
     page,
     testInfo,

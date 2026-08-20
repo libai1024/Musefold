@@ -5,7 +5,8 @@ import {
   useState,
   type CSSProperties,
   type RefObject,
-} from "react";
+} from 'react';
+import { PRODUCT_MOBILE_BREAKPOINT } from '../navigation/ProductSidebarLayout';
 
 interface WorkbenchPopoverPositionOptions {
   open: boolean;
@@ -19,6 +20,8 @@ interface WorkbenchPopoverPositionOptions {
 /**
  * Positions Composer popovers above the whole surface instead of above only
  * the toolbar button, which prevents tall menus from covering the prompt.
+ * На мобильном (≤PRODUCT_MOBILE_BREAKPOINT) меню раскрывается как bottom
+ * sheet во всю ширину экрана; оформление задаёт CSS по тем же классам.
  */
 export function useWorkbenchPopoverPosition({
   open,
@@ -29,10 +32,10 @@ export function useWorkbenchPopoverPosition({
   gap = 8,
 }: WorkbenchPopoverPositionOptions): CSSProperties {
   const [style, setStyle] = useState<CSSProperties>({
-    position: "fixed",
+    position: 'fixed',
     left: 0,
     top: 0,
-    visibility: "hidden",
+    visibility: 'hidden',
   });
 
   const update = useCallback(() => {
@@ -40,72 +43,75 @@ export function useWorkbenchPopoverPosition({
     const menu = menuRef.current;
     if (!open || !anchor || !menu) return;
 
+    if (window.innerWidth <= PRODUCT_MOBILE_BREAKPOINT) {
+      menu.style.maxHeight = '';
+      setStyle({
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        top: 'auto',
+        bottom: 0,
+        maxHeight: `min(${maxHeight}px, 72dvh)`,
+        visibility: 'visible',
+      });
+      return;
+    }
+
     const anchorRect = anchor.getBoundingClientRect();
-    const composer = anchor.closest<HTMLElement>(".mf-workbench-composer");
+    const composer = anchor.closest<HTMLElement>('.mf-workbench-composer');
     const surfaceRect = (
-      composer?.querySelector<HTMLElement>(".mf-workbench-composer-surface") ??
-      anchor.closest<HTMLElement>(".mf-workbench-composer-surface")
+      composer?.querySelector<HTMLElement>('.mf-workbench-composer-surface') ??
+      anchor.closest<HTMLElement>('.mf-workbench-composer-surface')
     )?.getBoundingClientRect();
-    const safeBottom = Math.max(
-      viewportPadding + 120,
-      (surfaceRect?.top ?? anchorRect.top) - gap,
-    );
-    const availableHeight = Math.max(
-      120,
-      Math.min(maxHeight, safeBottom - viewportPadding),
-    );
+    const safeBottom = Math.max(viewportPadding + 120, (surfaceRect?.top ?? anchorRect.top) - gap);
+    const availableHeight = Math.max(120, Math.min(maxHeight, safeBottom - viewportPadding));
 
     menu.style.maxHeight = `${availableHeight}px`;
     const menuWidth = menu.getBoundingClientRect().width;
     const menuHeight = Math.min(menu.scrollHeight, availableHeight);
-    const maxLeft = Math.max(
-      viewportPadding,
-      window.innerWidth - menuWidth - viewportPadding,
-    );
+    const maxLeft = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding);
     const preferredLeft =
-      window.innerWidth <= 640
-        ? (window.innerWidth - menuWidth) / 2
-        : anchorRect.right - menuWidth;
+      window.innerWidth <= 640 ? (window.innerWidth - menuWidth) / 2 : anchorRect.right - menuWidth;
     const left = Math.min(Math.max(viewportPadding, preferredLeft), maxLeft);
     const top = Math.max(viewportPadding, safeBottom - menuHeight);
 
     setStyle({
-      position: "fixed",
+      position: 'fixed',
       left,
       top,
       maxHeight: availableHeight,
-      visibility: "visible",
+      visibility: 'visible',
     });
   }, [anchorRef, gap, maxHeight, menuRef, open, viewportPadding]);
 
   useLayoutEffect(() => {
     if (!open) {
       setStyle({
-        position: "fixed",
+        position: 'fixed',
         left: 0,
         top: 0,
-        visibility: "hidden",
+        visibility: 'hidden',
       });
       return;
     }
     update();
     const frame = window.requestAnimationFrame(update);
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
     };
   }, [open, update]);
 
   useEffect(() => {
     if (open) return;
     setStyle({
-      position: "fixed",
+      position: 'fixed',
       left: 0,
       top: 0,
-      visibility: "hidden",
+      visibility: 'hidden',
     });
   }, [open]);
 

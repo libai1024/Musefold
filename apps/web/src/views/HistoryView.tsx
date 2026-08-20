@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
 import {
   type GenerationHistoryPage,
   type GenerationJob,
   type PromptDocument,
-} from "@musefold/contracts";
-import { canCancelGeneration } from "@musefold/domain";
+} from '@musefold/contracts';
+import { canCancelGeneration } from '@musefold/domain';
 import {
   GenerationHistoryDetailActions,
   GenerationHistoryDetailContent,
@@ -15,10 +15,13 @@ import {
   GenerationHistoryTrashScreen,
   GenerationHistoryWorkspace,
   useHistoryInspectorController,
+  canShareImage,
+  shareImageAsset,
   type GenerationHistoryDetailViewModel,
   type GenerationHistoryItemViewModel,
-} from "@musefold/product-ui";
-import { Button } from "@musefold/ui";
+} from '@musefold/product-ui';
+import { Button, ImageLightbox } from '@musefold/ui';
+import { downloadImage } from '../download-image';
 
 export interface HistoryViewProps {
   history: GenerationHistoryPage;
@@ -52,14 +55,13 @@ export function HistoryView({
   const [trash, setTrash] = useState<GenerationJob[]>([]);
   const [trashLoading, setTrashLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<
-    "retry" | "cancel" | "save" | "delete" | "restore" | null
+    'retry' | 'cancel' | 'save' | 'delete' | 'restore' | null
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [savedPromptIds, setSavedPromptIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [savedPromptIds, setSavedPromptIds] = useState<Set<string>>(() => new Set());
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selected || selected.deletedAt) return;
@@ -73,7 +75,7 @@ export function HistoryView({
     () =>
       history.items.map((item) => ({
         ...toGenerationHistoryItemViewModel(item),
-        selected: item.id === selected?.id && mode === "detail",
+        selected: item.id === selected?.id && mode === 'detail',
       })),
     [history.items, mode, selected?.id],
   );
@@ -84,13 +86,13 @@ export function HistoryView({
     try {
       await onRefresh();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "历史刷新失败");
+      setError(nextError instanceof Error ? nextError.message : '历史刷新失败');
     } finally {
       setRefreshing(false);
     }
   };
 
-  const openDetail = async (item: GenerationJob, origin: "list" | "trash") => {
+  const openDetail = async (item: GenerationJob, origin: 'list' | 'trash') => {
     setError(null);
     setNotice(null);
     setSelected(item);
@@ -98,9 +100,7 @@ export function HistoryView({
     try {
       setSelected(await onGet(item.id));
     } catch (nextError) {
-      setError(
-        nextError instanceof Error ? nextError.message : "生成详情载入失败",
-      );
+      setError(nextError instanceof Error ? nextError.message : '生成详情载入失败');
     }
   };
 
@@ -112,9 +112,7 @@ export function HistoryView({
     try {
       setTrash(await onListTrash());
     } catch (nextError) {
-      setError(
-        nextError instanceof Error ? nextError.message : "回收站载入失败",
-      );
+      setError(nextError instanceof Error ? nextError.message : '回收站载入失败');
     } finally {
       setTrashLoading(false);
     }
@@ -124,15 +122,15 @@ export function HistoryView({
     if (!selected) return;
     try {
       await navigator.clipboard.writeText(selected.request.prompt);
-      setNotice("提示词已复制");
+      setNotice('提示词已复制');
       setError(null);
     } catch {
-      setError("剪贴板不可用，提示词复制失败");
+      setError('剪贴板不可用，提示词复制失败');
     }
   };
 
   const closeDetail = () => {
-    if (detailOrigin === "trash") inspector.openTrash();
+    if (detailOrigin === 'trash') inspector.openTrash();
     else inspector.openList();
     setError(null);
     setNotice(null);
@@ -141,49 +139,43 @@ export function HistoryView({
 
   const retrySelected = () => {
     if (!selected) return;
-    setBusyAction("retry");
+    setBusyAction('retry');
     setError(null);
     setNotice(null);
     void onRetry(selected.id)
       .then((next) => {
         setSelected(next);
-        inspector.openDetail(next.id, "list");
-        setNotice("已创建重试任务");
+        inspector.openDetail(next.id, 'list');
+        setNotice('已创建重试任务');
       })
-      .catch((nextError) =>
-        setError(nextError instanceof Error ? nextError.message : "重试失败"),
-      )
+      .catch((nextError) => setError(nextError instanceof Error ? nextError.message : '重试失败'))
       .finally(() => setBusyAction(null));
   };
 
   const cancelSelected = () => {
     if (!selected) return;
-    setBusyAction("cancel");
+    setBusyAction('cancel');
     setError(null);
     void onCancel(selected.id)
       .then((next) => {
         setSelected(next);
-        setNotice("任务已取消");
+        setNotice('任务已取消');
       })
-      .catch((nextError) =>
-        setError(nextError instanceof Error ? nextError.message : "取消失败"),
-      )
+      .catch((nextError) => setError(nextError instanceof Error ? nextError.message : '取消失败'))
       .finally(() => setBusyAction(null));
   };
 
   const saveSelectedPrompt = () => {
     if (!selected || savedPromptIds.has(selected.id)) return;
-    setBusyAction("save");
+    setBusyAction('save');
     setError(null);
     void onSavePrompt(selected)
       .then(() => {
         setSavedPromptIds((current) => new Set(current).add(selected.id));
-        setNotice("已存入个人提示词库");
+        setNotice('已存入个人提示词库');
       })
       .catch((nextError) =>
-        setError(
-          nextError instanceof Error ? nextError.message : "存为提示词失败",
-        ),
+        setError(nextError instanceof Error ? nextError.message : '存为提示词失败'),
       )
       .finally(() => setBusyAction(null));
   };
@@ -191,50 +183,61 @@ export function HistoryView({
   const deleteSelected = () => {
     if (!selected) return;
     setConfirmDelete(false);
-    setBusyAction("delete");
+    setBusyAction('delete');
     setError(null);
     void onDelete(selected.id)
       .then((deleted) => {
-        setTrash((current) => [
-          deleted,
-          ...current.filter((job) => job.id !== deleted.id),
-        ]);
+        setTrash((current) => [deleted, ...current.filter((job) => job.id !== deleted.id)]);
         setSelected(null);
         inspector.select(null);
         inspector.openList();
       })
-      .catch((nextError) =>
-        setError(nextError instanceof Error ? nextError.message : "删除失败"),
-      )
+      .catch((nextError) => setError(nextError instanceof Error ? nextError.message : '删除失败'))
       .finally(() => setBusyAction(null));
   };
 
   const restoreSelected = () => {
     if (!selected) return;
-    setBusyAction("restore");
+    setBusyAction('restore');
     setError(null);
     void onRestore(selected.id)
       .then((restored) => {
-        setTrash((current) =>
-          current.filter((job) => job.id !== restored.id),
-        );
+        setTrash((current) => current.filter((job) => job.id !== restored.id));
         setSelected(restored);
-        inspector.openDetail(restored.id, "list");
-        setNotice("生成记录已恢复");
+        inspector.openDetail(restored.id, 'list');
+        setNotice('生成记录已恢复');
       })
-      .catch((nextError) =>
-        setError(nextError instanceof Error ? nextError.message : "恢复失败"),
-      )
+      .catch((nextError) => setError(nextError instanceof Error ? nextError.message : '恢复失败'))
       .finally(() => setBusyAction(null));
   };
 
-  if (mode === "trash") {
+  const previewLightbox = (
+    <ImageLightbox
+      src={previewUrl}
+      prompt={selected?.request.prompt ?? null}
+      onClose={() => setPreviewUrl(null)}
+      onSave={() => {
+        if (previewUrl) downloadImage(previewUrl);
+      }}
+      onShare={
+        canShareImage()
+          ? () => {
+              if (previewUrl)
+                return shareImageAsset(previewUrl, 'Musefold 生成图片').then(() => undefined);
+            }
+          : undefined
+      }
+      onCopyPrompt={selected ? () => void copyPrompt() : undefined}
+    />
+  );
+
+  if (mode === 'trash') {
     return (
       <div className="page">
         <GenerationHistoryTrashScreen
           items={trash.map(toGenerationHistoryDetailViewModel)}
           loading={trashLoading}
-          busyId={busyAction === "restore" ? (selected?.id ?? null) : null}
+          busyId={busyAction === 'restore' ? (selected?.id ?? null) : null}
           error={error}
           onBack={() => {
             inspector.openList();
@@ -242,24 +245,18 @@ export function HistoryView({
           }}
           onOpen={(item) => {
             const job = trash.find((candidate) => candidate.id === item.id);
-            if (job) void openDetail(job, "trash");
+            if (job) void openDetail(job, 'trash');
           }}
           onRestore={(item) => {
             setSelected(trash.find((job) => job.id === item.id) ?? null);
-            setBusyAction("restore");
+            setBusyAction('restore');
             setError(null);
             void onRestore(item.id)
               .then(() => {
-                setTrash((current) =>
-                  current.filter((job) => job.id !== item.id),
-                );
+                setTrash((current) => current.filter((job) => job.id !== item.id));
               })
               .catch((nextError) =>
-                setError(
-                  nextError instanceof Error
-                    ? nextError.message
-                    : "生成记录恢复失败",
-                ),
+                setError(nextError instanceof Error ? nextError.message : '生成记录恢复失败'),
               )
               .finally(() => setBusyAction(null));
           }}
@@ -268,9 +265,9 @@ export function HistoryView({
     );
   }
 
-  if (mode === "detail" && selected && detailOrigin === "trash") {
+  if (mode === 'detail' && selected && detailOrigin === 'trash') {
     const detail = toGenerationHistoryDetailViewModel(selected);
-    const retryable = ["failed", "cancelled"].includes(selected.status);
+    const retryable = ['failed', 'cancelled'].includes(selected.status);
     return (
       <div className="page">
         <GenerationHistoryDetailScreen
@@ -279,43 +276,30 @@ export function HistoryView({
           busyAction={busyAction}
           notice={notice}
           actionError={error}
-          savePromptLabel={
-            savedPromptIds.has(selected.id) ? "已存为提示词" : "存为提示词"
-          }
+          savePromptLabel={savedPromptIds.has(selected.id) ? '已存为提示词' : '存为提示词'}
           onBack={closeDetail}
-          onOpenImage={
-            detail.imageUrl
-              ? () => window.open(detail.imageUrl ?? "", "_blank", "noopener")
-              : undefined
-          }
+          onOpenImage={detail.imageUrl ? () => setPreviewUrl(detail.imageUrl ?? null) : undefined}
           onCopyPrompt={() => void copyPrompt()}
           onRetry={!selected.deletedAt && retryable ? retrySelected : undefined}
           onCancel={
-            !selected.deletedAt && canCancelGeneration(selected)
-              ? cancelSelected
-              : undefined
+            !selected.deletedAt && canCancelGeneration(selected) ? cancelSelected : undefined
           }
           onSavePrompt={
-            !selected.deletedAt && selected.status === "succeeded"
-              ? saveSelectedPrompt
-              : undefined
+            !selected.deletedAt && selected.status === 'succeeded' ? saveSelectedPrompt : undefined
           }
           onRestore={selected.deletedAt ? restoreSelected : undefined}
         />
+        {previewLightbox}
       </div>
     );
   }
 
   const detail =
-    mode === "detail" && selected
-      ? toGenerationHistoryDetailViewModel(selected)
-      : null;
-  const retryable = Boolean(
-    selected && ["failed", "cancelled"].includes(selected.status),
-  );
+    mode === 'detail' && selected ? toGenerationHistoryDetailViewModel(selected) : null;
+  const retryable = Boolean(selected && ['failed', 'cancelled'].includes(selected.status));
   const openHistoryItem = (item: GenerationHistoryItemViewModel) => {
     const job = history.items.find((candidate) => candidate.id === item.id);
-    if (job) void openDetail(job, "list");
+    if (job) void openDetail(job, 'list');
   };
 
   const inspectorDetail =
@@ -329,12 +313,7 @@ export function HistoryView({
           <GenerationHistoryDetailContent
             detail={detail}
             density="compact"
-            onOpenImage={
-              detail.imageUrl
-                ? () =>
-                    window.open(detail.imageUrl ?? "", "_blank", "noopener")
-                : undefined
-            }
+            onOpenImage={detail.imageUrl ? () => setPreviewUrl(detail.imageUrl ?? null) : undefined}
             onCopyPrompt={() => void copyPrompt()}
           />
         }
@@ -345,27 +324,19 @@ export function HistoryView({
             busyAction={busyAction}
             onRestore={selected.deletedAt ? restoreSelected : undefined}
             onReuse={selected.deletedAt ? undefined : () => onReuse(selected)}
-            onRetry={
-              !selected.deletedAt && retryable ? retrySelected : undefined
-            }
+            onRetry={!selected.deletedAt && retryable ? retrySelected : undefined}
             onCancel={
-              !selected.deletedAt && canCancelGeneration(selected)
-                ? cancelSelected
-                : undefined
+              !selected.deletedAt && canCancelGeneration(selected) ? cancelSelected : undefined
             }
             downloadUrl={detail.imageUrl}
             onSavePrompt={
-              !selected.deletedAt && selected.status === "succeeded"
+              !selected.deletedAt && selected.status === 'succeeded'
                 ? saveSelectedPrompt
                 : undefined
             }
-            savePromptLabel={
-              savedPromptIds.has(selected.id) ? "已存为提示词" : "存为提示词"
-            }
+            savePromptLabel={savedPromptIds.has(selected.id) ? '已存为提示词' : '存为提示词'}
             onCopyPrompt={() => void copyPrompt()}
-            onDelete={
-              !selected.deletedAt ? () => setConfirmDelete(true) : undefined
-            }
+            onDelete={!selected.deletedAt ? () => setConfirmDelete(true) : undefined}
             extraActions={
               confirmDelete ? (
                 <span className="mf-history-delete-confirm" role="group">
@@ -383,7 +354,7 @@ export function HistoryView({
                     onClick={deleteSelected}
                     data-testid="history-detail-delete-confirm"
                   >
-                    {busyAction === "delete" ? "处理中..." : "移到回收站"}
+                    {busyAction === 'delete' ? '处理中...' : '移到回收站'}
                   </Button>
                 </span>
               ) : null
@@ -408,15 +379,12 @@ export function HistoryView({
             onBack={closeDetail}
             list={
               <>
-                {error && mode === "list" ? (
+                {error && mode === 'list' ? (
                   <p className="library-error" role="alert">
                     {error}
                   </p>
                 ) : null}
-                <div
-                  className="mf-history-list mf-history-workspace-rows"
-                  role="list"
-                >
+                <div className="mf-history-list mf-history-workspace-rows" role="list">
                   {items.map((item) => (
                     <GenerationHistoryRow
                       key={item.id}
@@ -433,9 +401,7 @@ export function HistoryView({
                       }
                     />
                   ))}
-                  {items.length === 0 ? (
-                    <div className="mf-empty-row">还没有生成记录</div>
-                  ) : null}
+                  {items.length === 0 ? <div className="mf-empty-row">还没有生成记录</div> : null}
                 </div>
               </>
             }
@@ -443,13 +409,12 @@ export function HistoryView({
           />
         }
       />
+      {previewLightbox}
     </div>
   );
 }
 
-function toGenerationHistoryItemViewModel(
-  job: GenerationJob,
-): GenerationHistoryItemViewModel {
+function toGenerationHistoryItemViewModel(job: GenerationJob): GenerationHistoryItemViewModel {
   const status = generationStatusPresentation(job.status);
   return {
     id: job.id,
@@ -458,16 +423,11 @@ function toGenerationHistoryItemViewModel(
     statusKey: job.status,
     statusLabel: status.label,
     statusTone: status.tone,
-    metadata: [
-      generationActorLabel(job),
-      new Date(job.createdAt).toLocaleString(),
-    ],
+    metadata: [generationActorLabel(job), new Date(job.createdAt).toLocaleString()],
   };
 }
 
-function toGenerationHistoryDetailViewModel(
-  job: GenerationJob,
-): GenerationHistoryDetailViewModel {
+function toGenerationHistoryDetailViewModel(job: GenerationJob): GenerationHistoryDetailViewModel {
   const status = generationStatusPresentation(job.status);
   const duration = generationDurationLabel(job);
   const metadata = [
@@ -477,80 +437,72 @@ function toGenerationHistoryDetailViewModel(
     ...(duration ? [duration] : []),
   ];
   const quality =
-    job.request.quality === "low"
-      ? "快速"
-      : job.request.quality === "medium"
-        ? "标准"
-        : job.request.quality === "high"
-          ? "高质量"
-          : "自动质量";
+    job.request.quality === 'low'
+      ? '快速'
+      : job.request.quality === 'medium'
+        ? '标准'
+        : job.request.quality === 'high'
+          ? '高质量'
+          : '自动质量';
   return {
     id: job.id,
     prompt: job.request.prompt,
     negative: job.request.negative ?? null,
     imageUrl: job.assets[0]?.url ?? null,
-    imageUnavailableLabel:
-      job.status === "succeeded" ? "图片不可用" : "无生成图片",
+    imageUnavailableLabel: job.status === 'succeeded' ? '图片不可用' : '无生成图片',
     statusKey: job.status,
     statusLabel: status.label,
     statusTone: status.tone,
-    modelLabel: job.providerModel ?? "模型待分配",
+    modelLabel: job.providerModel ?? '模型待分配',
     metadata,
-    paramsLabel: [
-      job.request.size,
-      job.request.aspectRatio,
-      quality,
-      `${job.request.count} 张`,
-    ]
+    paramsLabel: [job.request.size, job.request.aspectRatio, quality, `${job.request.count} 张`]
       .filter(Boolean)
-      .join(" · "),
+      .join(' · '),
     sourceLabel: job.promptId
       ? `个人提示词库 · ${generationActorLabel(job)}`
       : generationActorLabel(job),
-    deletedAtLabel: job.deletedAt
-      ? new Date(job.deletedAt).toLocaleString()
-      : null,
+    deletedAtLabel: job.deletedAt ? new Date(job.deletedAt).toLocaleString() : null,
     error: job.error
       ? {
           code: job.error.code,
-          title: "生成失败",
-          hint: "可以检查提示词、额度和服务状态后重试。",
+          title: '生成失败',
+          hint: '可以检查提示词、额度和服务状态后重试。',
           details: job.error.message,
         }
       : null,
   };
 }
 
-function generationStatusPresentation(status: GenerationJob["status"]): {
+function generationStatusPresentation(status: GenerationJob['status']): {
   label: string;
-  tone: GenerationHistoryDetailViewModel["statusTone"];
+  tone: GenerationHistoryDetailViewModel['statusTone'];
 } {
   switch (status) {
-    case "succeeded":
-      return { label: "已完成", tone: "success" };
-    case "failed":
-      return { label: "失败", tone: "danger" };
-    case "cancelled":
-      return { label: "已取消", tone: "neutral" };
-    case "pending_approval":
-      return { label: "等待审批", tone: "warning" };
-    case "queued":
-      return { label: "排队中", tone: "progress" };
-    case "running":
-    case "cancelling":
+    case 'succeeded':
+      return { label: '已完成', tone: 'success' };
+    case 'failed':
+      return { label: '失败', tone: 'danger' };
+    case 'cancelled':
+      return { label: '已取消', tone: 'neutral' };
+    case 'pending_approval':
+      return { label: '等待审批', tone: 'warning' };
+    case 'queued':
+      return { label: '排队中', tone: 'progress' };
+    case 'running':
+    case 'cancelling':
       return {
-        label: status === "cancelling" ? "取消中" : "生成中",
-        tone: "progress",
+        label: status === 'cancelling' ? '取消中' : '生成中',
+        tone: 'progress',
       };
-    case "rejected":
-      return { label: "已拒绝", tone: "danger" };
-    case "expired":
-      return { label: "已过期", tone: "danger" };
+    case 'rejected':
+      return { label: '已拒绝', tone: 'danger' };
+    case 'expired':
+      return { label: '已过期', tone: 'danger' };
   }
 }
 
 function generationActorLabel(job: GenerationJob): string {
-  return job.actorType === "cloud_mcp" ? "Cloud MCP" : "Web 工作台";
+  return job.actorType === 'cloud_mcp' ? 'Cloud MCP' : 'Web 工作台';
 }
 
 function generationDurationLabel(job: GenerationJob): string | null {

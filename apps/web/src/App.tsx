@@ -1,12 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
-import { Check, CircleUserRound, LoaderCircle } from "@musefold/ui/icons";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Check, CircleUserRound, LoaderCircle } from '@musefold/ui/icons';
 import {
   cloudGenerationRequestSchema,
   type AccountSession,
@@ -18,14 +11,14 @@ import {
   type PromptDocument,
   type PromptPage,
   type WorkbenchSession,
-} from "@musefold/contracts";
+} from '@musefold/contracts';
 import {
   applyPromptToGeneration,
   canCancelGeneration,
   formatAccountPoints,
   generationRequestToPromptDraft,
   getProductCapabilities,
-} from "@musefold/domain";
+} from '@musefold/domain';
 import {
   useWorkbenchDraftSyncController,
   useWorkbenchSessionController,
@@ -41,51 +34,40 @@ import {
   workbenchGenerationStatusLabel,
   useWorkbenchGenerationSyncController,
   ProductSidebarLayout,
-} from "@musefold/product-ui";
-import {
-  WebMobileNavigation,
-  WebSidebar,
-  WebTopbar,
-  type WebView,
-} from "./layout/WebNavigation";
-import { Button, Input } from "@musefold/ui";
-import musefoldIconUrl from "../../../website/Musefold/assets/musefold-icon.png";
-import { WebGatewayError, type WebGateway } from "./runtime";
-import {
-  areWorkbenchDraftsEqual,
-  buildWorkbenchDraft,
-} from "./workbench-draft";
-import { GenerateView } from "./views/GenerateView";
-import { HistoryView } from "./views/HistoryView";
-import { PromptLibraryView } from "./views/PromptLibraryView";
-import { getSafeOAuthReturnTo } from "./oauth-return-to";
+} from '@musefold/product-ui';
+import { WebSidebar, WebTopbar, type WebView } from './layout/WebNavigation';
+import { useKeyboardInset } from './layout/useKeyboardInset';
+import { Button, Input } from '@musefold/ui';
+import musefoldIconUrl from '../../../website/Musefold/assets/musefold-icon.png';
+import { WebGatewayError, type WebGateway } from './runtime';
+import { areWorkbenchDraftsEqual, buildWorkbenchDraft } from './workbench-draft';
+import { GenerateView } from './views/GenerateView';
+import { HistoryView } from './views/HistoryView';
+import { PromptLibraryView } from './views/PromptLibraryView';
+import { getSafeOAuthReturnTo } from './oauth-return-to';
 
 type View = WebView;
-type Ratio = "1:1" | "16:9" | "9:16";
+type Ratio = '1:1' | '16:9' | '9:16';
 
-const capabilities = getProductCapabilities("web");
-const ratioSizes: Record<Ratio, "1024x1024" | "1536x1024" | "1024x1536"> = {
-  "1:1": "1024x1024",
-  "16:9": "1536x1024",
-  "9:16": "1024x1536",
+const capabilities = getProductCapabilities('web');
+const ratioSizes: Record<Ratio, '1024x1024' | '1536x1024' | '1024x1536'> = {
+  '1:1': '1024x1024',
+  '16:9': '1536x1024',
+  '9:16': '1024x1536',
 };
 
-const ratioValues: readonly Ratio[] = ["1:1", "16:9", "9:16"];
+const ratioValues: readonly Ratio[] = ['1:1', '16:9', '9:16'];
 
 function workbenchRatio(session: WorkbenchSession): Ratio {
   const value = session.draft.params.aspectRatio;
-  return ratioValues.includes(value as Ratio) ? (value as Ratio) : "1:1";
+  return ratioValues.includes(value as Ratio) ? (value as Ratio) : '1:1';
 }
 
 function replaceWorkbenchSessionUrl(sessionId: string | null): void {
   const url = new URL(window.location.href);
-  if (sessionId) url.searchParams.set("session", sessionId);
-  else url.searchParams.delete("session");
-  window.history.replaceState(
-    null,
-    "",
-    `${url.pathname}${url.search}${url.hash}`,
-  );
+  if (sessionId) url.searchParams.set('session', sessionId);
+  else url.searchParams.delete('session');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 async function listAllGenerationHistory(
@@ -114,14 +96,15 @@ interface AppProps {
 }
 
 export function App({ gateway }: AppProps) {
-  const [view, setView] = useState<View>("generate");
+  useKeyboardInset();
+  const [view, setView] = useState<View>('generate');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [session, setSession] = useState<AccountSession | null>(null);
   const [prompts, setPrompts] = useState<PromptPage>({
     items: [],
     nextCursor: null,
   });
-  const [promptQuery, setPromptQuery] = useState("");
+  const [promptQuery, setPromptQuery] = useState('');
   const promptSearchRevision = useRef(0);
   const [history, setHistory] = useState<GenerationHistoryPage>({
     items: [],
@@ -131,8 +114,7 @@ export function App({ gateway }: AppProps) {
     items: [],
   });
   const [workbench, setWorkbench] = useState<WorkbenchSession | null>(null);
-  const workbenchSessionController =
-    useWorkbenchSessionController<WorkbenchSession>();
+  const workbenchSessionController = useWorkbenchSessionController<WorkbenchSession>();
   const {
     state: workbenchSessionState,
     replace: replaceWorkbenchSessions,
@@ -152,28 +134,22 @@ export function App({ gateway }: AppProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
-  const [promptText, setPromptText] = useState("");
+  const [promptText, setPromptText] = useState('');
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
-  const [selectedPrompt, setSelectedPrompt] = useState<PromptDocument | null>(
-    null,
-  );
-  const [ratio, setRatio] = useState<Ratio>("1:1");
-  const [quality, setQuality] = useState<GenerationQuality>("medium");
+  const [selectedPrompt, setSelectedPrompt] = useState<PromptDocument | null>(null);
+  const [ratio, setRatio] = useState<Ratio>('1:1');
+  const [quality, setQuality] = useState<GenerationQuality>('medium');
   const [job, setJob] = useState<GenerationJob | null>(null);
   const [workbenchJobs, setWorkbenchJobs] = useState<GenerationJob[]>([]);
-  const [trackedGenerationJobs, setTrackedGenerationJobs] = useState<
-    GenerationJob[]
-  >([]);
-  const [savingPromptJobId, setSavingPromptJobId] = useState<string | null>(
-    null,
-  );
+  const [trackedGenerationJobs, setTrackedGenerationJobs] = useState<GenerationJob[]>([]);
+  const [savingPromptJobId, setSavingPromptJobId] = useState<string | null>(null);
   const [savedPromptJobId, setSavedPromptJobId] = useState<string | null>(null);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const workbenchRef = useRef<WorkbenchSession | null>(null);
   const approvalRequest = useMemo(() => {
     const match = window.location.pathname.match(/\/approvals\/([^/]+)$/);
-    const token = new URLSearchParams(window.location.search).get("token");
+    const token = new URLSearchParams(window.location.search).get('token');
     return match && token ? { id: decodeURIComponent(match[1]), token } : null;
   }, []);
   const [approvalJob, setApprovalJob] = useState<GenerationJob | null>(null);
@@ -188,9 +164,7 @@ export function App({ gateway }: AppProps) {
     [trackedGenerationJobs],
   );
   const updateWorkbenchJob = useCallback((nextJob: GenerationJob) => {
-    setTrackedGenerationJobs((current) =>
-      upsertWorkbenchGenerationSnapshot(current, nextJob),
-    );
+    setTrackedGenerationJobs((current) => upsertWorkbenchGenerationSnapshot(current, nextJob));
     setWorkbenchJobs((current) => {
       if (nextJob.sessionId !== workbenchRef.current?.id) return current;
       return upsertWorkbenchGenerationSnapshot(current, nextJob);
@@ -198,9 +172,7 @@ export function App({ gateway }: AppProps) {
   }, []);
 
   const removeTrackedGenerationJob = useCallback((id: string) => {
-    setTrackedGenerationJobs((current) =>
-      current.filter((item) => item.id !== id),
-    );
+    setTrackedGenerationJobs((current) => current.filter((item) => item.id !== id));
     setWorkbenchJobs((current) => current.filter((item) => item.id !== id));
   }, []);
 
@@ -223,7 +195,7 @@ export function App({ gateway }: AppProps) {
         title: item.title,
         updatedAt: item.updatedAt,
         selected: item.id === selectedWorkbenchSessionId,
-        status: runningWorkbenchSessionIds.has(item.id) ? "running" : "idle",
+        status: runningWorkbenchSessionIds.has(item.id) ? 'running' : 'idle',
       })),
     [runningWorkbenchSessionIds, selectedWorkbenchSessionId, workbenchSessions],
   );
@@ -252,11 +224,9 @@ export function App({ gateway }: AppProps) {
       }),
     loadLatest: (current) => gateway.getWorkbenchSession(current.id),
     isConflictError: (error) =>
-      error instanceof WebGatewayError &&
-      error.code === "WORKBENCH_VERSION_CONFLICT",
+      error instanceof WebGatewayError && error.code === 'WORKBENCH_VERSION_CONFLICT',
     onCommit: commitWorkbench,
-    onError: (error) =>
-      setActionError(error instanceof Error ? error.message : "草稿保存失败"),
+    onError: (error) => setActionError(error instanceof Error ? error.message : '草稿保存失败'),
   });
   const {
     status: draftSaveStatus,
@@ -285,13 +255,9 @@ export function App({ gateway }: AppProps) {
         gateway.listConnections(),
         gateway.listWorkbenchSessions({ limit: 20 }),
       ]);
-      const requestedSessionId = new URLSearchParams(
-        window.location.search,
-      ).get("session");
+      const requestedSessionId = new URLSearchParams(window.location.search).get('session');
       const selectedWorkbench =
-        nextWorkbenchPage.items.find(
-          (item) => item.id === requestedSessionId,
-        ) ??
+        nextWorkbenchPage.items.find((item) => item.id === requestedSessionId) ??
         nextWorkbenchPage.items[0] ??
         null;
       const restoredWorkbench = selectedWorkbench
@@ -317,37 +283,32 @@ export function App({ gateway }: AppProps) {
       setJob(latestWorkbenchGenerationSnapshot(restoredRuns.items));
       if (restoredWorkbench) {
         setPromptText(restoredWorkbench.draft.prompt);
-        setSelectedPromptId(
-          restoredWorkbench.draft.promptReferenceIds[0] ?? null,
-        );
+        setSelectedPromptId(restoredWorkbench.draft.promptReferenceIds[0] ?? null);
         setSelectedPrompt(
           nextPrompts.items.find(
-            (prompt) =>
-              prompt.id === restoredWorkbench.draft.promptReferenceIds[0],
+            (prompt) => prompt.id === restoredWorkbench.draft.promptReferenceIds[0],
           ) ?? null,
         );
         setRatio(workbenchRatio(restoredWorkbench));
-        setQuality(restoredWorkbench.draft.params.quality ?? "medium");
+        setQuality(restoredWorkbench.draft.params.quality ?? 'medium');
         replaceWorkbenchSessionUrl(restoredWorkbench.id);
       } else {
-        setPromptText("");
+        setPromptText('');
         setSelectedPromptId(null);
         setSelectedPrompt(null);
-        setRatio("1:1");
-        setQuality("medium");
+        setRatio('1:1');
+        setQuality('medium');
         replaceWorkbenchSessionUrl(null);
       }
       setAuthRequired(false);
     } catch (error) {
       if (
         error instanceof WebGatewayError &&
-        ["AUTH_REQUIRED", "AUTH_SESSION_EXPIRED"].includes(error.code)
+        ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
       ) {
         setAuthRequired(true);
       } else {
-        setLoadError(
-          error instanceof Error ? error.message : "无法载入 Musefold",
-        );
+        setLoadError(error instanceof Error ? error.message : '无法载入 Musefold');
       }
     } finally {
       setLoading(false);
@@ -367,21 +328,14 @@ export function App({ gateway }: AppProps) {
         setApprovalJob(next);
         updateWorkbenchJob(next);
       })
-      .catch((error) =>
-        setActionError(
-          error instanceof Error ? error.message : "审批任务无法载入",
-        ),
-      )
+      .catch((error) => setActionError(error instanceof Error ? error.message : '审批任务无法载入'))
       .finally(() => setApprovalLoading(false));
   }, [approvalRequest, gateway, session, updateWorkbenchJob]);
 
   useWorkbenchGenerationSyncController<GenerationJob>({
     jobs: trackedGenerationJobs,
     enabled: Boolean(session),
-    getSnapshot: useCallback(
-      (id: string) => gateway.getGeneration(id),
-      [gateway],
-    ),
+    getSnapshot: useCallback((id: string) => gateway.getGeneration(id), [gateway]),
     streamEvents: useCallback(
       (id, afterSeq, onEvent, signal) =>
         gateway.streamGenerationEvents(id, afterSeq, onEvent, signal),
@@ -402,17 +356,14 @@ export function App({ gateway }: AppProps) {
     onAuthRequired: useCallback(() => setAuthRequired(true), []),
     onError: useCallback(
       (error: unknown) =>
-        setActionError(
-          error instanceof Error ? error.message : "任务状态更新失败",
-        ),
+        setActionError(error instanceof Error ? error.message : '任务状态更新失败'),
       [],
     ),
   });
 
   const flushCurrentWorkbenchDraft = async (): Promise<boolean> => {
     const current = workbenchRef.current;
-    if (!current || areWorkbenchDraftsEqual(current.draft, currentDraft))
-      return true;
+    if (!current || areWorkbenchDraftsEqual(current.draft, currentDraft)) return true;
     try {
       return Boolean(await flushDraftSync());
     } catch {
@@ -423,31 +374,29 @@ export function App({ gateway }: AppProps) {
   const beginNewDesign = async (): Promise<boolean> => {
     if (!(await flushCurrentWorkbenchDraft())) return false;
     resetDraftSync();
-    setView("generate");
+    setView('generate');
     commitWorkbench(null);
     setWorkbenchJobs([]);
     setJob(null);
-    setPromptText("");
+    setPromptText('');
     setSelectedPromptId(null);
     setSelectedPrompt(null);
-    setRatio("1:1");
-    setQuality("medium");
+    setRatio('1:1');
+    setQuality('medium');
     setActionError(null);
     replaceWorkbenchSessionUrl(null);
     return true;
   };
 
   const selectPrompt = async (prompt: PromptDocument) => {
-    await gateway
-      .usePrompt(prompt.id, { action: "apply" })
-      .catch(() => undefined);
+    await gateway.usePrompt(prompt.id, { action: 'apply' }).catch(() => undefined);
     const request = applyPromptToGeneration(prompt, {
       quality,
       aspectRatio: ratio,
     });
     if (!(await beginNewDesign())) return;
-    setPromptQuery("");
-    void searchPrompts("");
+    setPromptQuery('');
+    void searchPrompts('');
     setPromptText(request.prompt);
     setSelectedPromptId(prompt.id);
     setSelectedPrompt(prompt);
@@ -461,16 +410,14 @@ export function App({ gateway }: AppProps) {
     setJob(nextJob);
     setPromptText(nextJob.request.prompt);
     setSelectedPromptId(nextJob.promptId);
-    setSelectedPrompt(
-      prompts.items.find((prompt) => prompt.id === nextJob.promptId) ?? null,
-    );
+    setSelectedPrompt(prompts.items.find((prompt) => prompt.id === nextJob.promptId) ?? null);
     setRatio(
       ratioValues.includes(nextJob.request.aspectRatio as Ratio)
         ? (nextJob.request.aspectRatio as Ratio)
-        : "1:1",
+        : '1:1',
     );
     setQuality(nextJob.request.quality);
-    setView("generate");
+    setView('generate');
     setActionError(null);
     if (!nextJob.sessionId) {
       replaceWorkbenchSessionUrl(null);
@@ -485,21 +432,17 @@ export function App({ gateway }: AppProps) {
         }),
       ]);
       commitWorkbench(restoredWorkbench);
-      setTrackedGenerationJobs((current) =>
-        upsertWorkbenchGenerationSnapshot(current, nextJob),
-      );
+      setTrackedGenerationJobs((current) => upsertWorkbenchGenerationSnapshot(current, nextJob));
       setWorkbenchJobs(restoredRuns.items);
       replaceWorkbenchSessionUrl(restoredWorkbench.id);
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : "无法恢复工作台会话",
-      );
+      setActionError(error instanceof Error ? error.message : '无法恢复工作台会话');
     }
   };
 
   const openWorkbenchSession = async (sessionId: string) => {
     if (sessionId === workbenchRef.current?.id) {
-      setView("generate");
+      setView('generate');
       return;
     }
     if (!(await flushCurrentWorkbenchDraft())) return;
@@ -510,39 +453,32 @@ export function App({ gateway }: AppProps) {
       nextCursor: null,
     };
     try {
-      const restoredWorkbench = await openWorkbenchSessionRecord(
-        sessionId,
-        async (id) => {
-          const [nextWorkbench, nextRuns] = await Promise.all([
-            gateway.getWorkbenchSession(id),
-            listAllGenerationHistory(gateway, { limit: 100, sessionId: id }),
-          ]);
-          restoredRuns = nextRuns;
-          return nextWorkbench;
-        },
-      );
+      const restoredWorkbench = await openWorkbenchSessionRecord(sessionId, async (id) => {
+        const [nextWorkbench, nextRuns] = await Promise.all([
+          gateway.getWorkbenchSession(id),
+          listAllGenerationHistory(gateway, { limit: 100, sessionId: id }),
+        ]);
+        restoredRuns = nextRuns;
+        return nextWorkbench;
+      });
       if (!restoredWorkbench) return;
       resetDraftSync();
       commitWorkbench(restoredWorkbench);
       setPromptText(restoredWorkbench.draft.prompt);
-      setSelectedPromptId(
-        restoredWorkbench.draft.promptReferenceIds[0] ?? null,
-      );
+      setSelectedPromptId(restoredWorkbench.draft.promptReferenceIds[0] ?? null);
       setSelectedPrompt(
         prompts.items.find(
-          (prompt) =>
-            prompt.id === restoredWorkbench.draft.promptReferenceIds[0],
+          (prompt) => prompt.id === restoredWorkbench.draft.promptReferenceIds[0],
         ) ?? null,
       );
       setRatio(workbenchRatio(restoredWorkbench));
-      setQuality(restoredWorkbench.draft.params.quality ?? "medium");
+      setQuality(restoredWorkbench.draft.params.quality ?? 'medium');
       setWorkbenchJobs(restoredRuns.items);
       setJob(latestWorkbenchGenerationSnapshot(restoredRuns.items));
-      setView("generate");
+      setView('generate');
       replaceWorkbenchSessionUrl(restoredWorkbench.id);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "无法恢复工作台会话";
+      const message = error instanceof Error ? error.message : '无法恢复工作台会话';
       setSessionListError(message);
       setActionError(message);
     }
@@ -555,9 +491,7 @@ export function App({ gateway }: AppProps) {
         return page.items;
       });
     } catch (error) {
-      setSessionListError(
-        error instanceof Error ? error.message : "无法读取最近对话",
-      );
+      setSessionListError(error instanceof Error ? error.message : '无法读取最近对话');
     }
   };
 
@@ -581,32 +515,27 @@ export function App({ gateway }: AppProps) {
         commitWorkbench(null);
         setWorkbenchJobs([]);
         setJob(null);
-        setPromptText("");
+        setPromptText('');
         setSelectedPromptId(null);
         setSelectedPrompt(null);
-        setRatio("1:1");
-        setQuality("medium");
-        setView("generate");
+        setRatio('1:1');
+        setQuality('medium');
+        setView('generate');
         replaceWorkbenchSessionUrl(null);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "无法归档对话";
+      const message = error instanceof Error ? error.message : '无法归档对话';
       setActionError(message);
       await refreshWorkbenchSessions();
       setSessionListError(message);
     }
   };
 
-  const renameWorkbenchSession = async (
-    item: WorkbenchSessionListItemViewModel,
-    title: string,
-  ) => {
+  const renameWorkbenchSession = async (item: WorkbenchSessionListItemViewModel, title: string) => {
     setSessionListError(null);
     setActionError(null);
     try {
-      let target = workbenchSessions.find(
-        (sessionItem) => sessionItem.id === item.id,
-      );
+      let target = workbenchSessions.find((sessionItem) => sessionItem.id === item.id);
       if (workbenchRef.current?.id === item.id) {
         target = workbenchRef.current;
       }
@@ -618,47 +547,40 @@ export function App({ gateway }: AppProps) {
       upsertWorkbenchSession(renamed);
       if (workbenchRef.current?.id === renamed.id) commitWorkbench(renamed);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "无法重命名对话";
+      const message = error instanceof Error ? error.message : '无法重命名对话';
       setActionError(message);
       await refreshWorkbenchSessions();
       setSessionListError(message);
     }
   };
 
-  const deleteWorkbenchSession = async (
-    item: WorkbenchSessionListItemViewModel,
-  ) => {
+  const deleteWorkbenchSession = async (item: WorkbenchSessionListItemViewModel) => {
     setSessionListError(null);
     setActionError(null);
     try {
-      let target = workbenchSessions.find(
-        (sessionItem) => sessionItem.id === item.id,
-      );
+      let target = workbenchSessions.find((sessionItem) => sessionItem.id === item.id);
       if (workbenchRef.current?.id === item.id) {
         if (!(await flushCurrentWorkbenchDraft())) return;
         target = workbenchRef.current;
       }
       if (!target) return;
-      const deleted = await gateway.deleteWorkbenchSession(
-        target.id,
-        target.version,
-      );
+      const deleted = await gateway.deleteWorkbenchSession(target.id, target.version);
       removeWorkbenchSession(deleted.id);
       if (workbenchRef.current?.id === deleted.id) {
         resetDraftSync();
         commitWorkbench(null);
         setWorkbenchJobs([]);
         setJob(null);
-        setPromptText("");
+        setPromptText('');
         setSelectedPromptId(null);
         setSelectedPrompt(null);
-        setRatio("1:1");
-        setQuality("medium");
-        setView("generate");
+        setRatio('1:1');
+        setQuality('medium');
+        setView('generate');
         replaceWorkbenchSessionUrl(null);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "无法删除对话";
+      const message = error instanceof Error ? error.message : '无法删除对话';
       setActionError(message);
       await refreshWorkbenchSessions();
       setSessionListError(message);
@@ -681,7 +603,7 @@ export function App({ gateway }: AppProps) {
       let currentWorkbench = workbenchRef.current;
       if (!currentWorkbench) {
         currentWorkbench = await gateway.createWorkbenchSession({
-          title: promptText.trim().slice(0, 120) || "未命名创作",
+          title: promptText.trim().slice(0, 120) || '未命名创作',
           draft: currentDraft,
         });
         if (!draftSync.isRevisionCurrent(submissionRevision)) return;
@@ -699,15 +621,10 @@ export function App({ gateway }: AppProps) {
       updateWorkbenchJob(nextJob);
       setHistory((current) => ({
         ...current,
-        items: [
-          nextJob,
-          ...current.items.filter((item) => item.id !== nextJob.id),
-        ],
+        items: [nextJob, ...current.items.filter((item) => item.id !== nextJob.id)],
       }));
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : "无法创建生成任务",
-      );
+      setActionError(error instanceof Error ? error.message : '无法创建生成任务');
     }
   };
 
@@ -718,12 +635,10 @@ export function App({ gateway }: AppProps) {
     setPromptText(latest.draft.prompt);
     setSelectedPromptId(latest.draft.promptReferenceIds[0] ?? null);
     setSelectedPrompt(
-      prompts.items.find(
-        (prompt) => prompt.id === latest.draft.promptReferenceIds[0],
-      ) ?? null,
+      prompts.items.find((prompt) => prompt.id === latest.draft.promptReferenceIds[0]) ?? null,
     );
     setRatio(workbenchRatio(latest));
-    setQuality(latest.draft.params.quality ?? "medium");
+    setQuality(latest.draft.params.quality ?? 'medium');
     setActionError(null);
   };
 
@@ -733,13 +648,8 @@ export function App({ gateway }: AppProps) {
     try {
       await draftSync.overwriteRemoteDraft();
     } catch (error) {
-      if (
-        !(error instanceof WebGatewayError) ||
-        error.code !== "WORKBENCH_VERSION_CONFLICT"
-      ) {
-        setActionError(
-          error instanceof Error ? error.message : "无法保存本机草稿",
-        );
+      if (!(error instanceof WebGatewayError) || error.code !== 'WORKBENCH_VERSION_CONFLICT') {
+        setActionError(error instanceof Error ? error.message : '无法保存本机草稿');
       }
     }
   };
@@ -753,26 +663,18 @@ export function App({ gateway }: AppProps) {
       updateWorkbenchJob(nextJob);
       setHistory((current) => ({
         ...current,
-        items: [
-          nextJob,
-          ...current.items.filter((item) => item.id !== nextJob.id),
-        ],
+        items: [nextJob, ...current.items.filter((item) => item.id !== nextJob.id)],
       }));
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "无法取消任务");
+      setActionError(error instanceof Error ? error.message : '无法取消任务');
     }
   };
 
   const createPromptFromGeneration = async (targetJob: GenerationJob) => {
-    const created = await gateway.createPrompt(
-      generationRequestToPromptDraft(targetJob.request),
-    );
+    const created = await gateway.createPrompt(generationRequestToPromptDraft(targetJob.request));
     setPrompts((current) => ({
       ...current,
-      items: [
-        created,
-        ...current.items.filter((prompt) => prompt.id !== created.id),
-      ],
+      items: [created, ...current.items.filter((prompt) => prompt.id !== created.id)],
     }));
     return created;
   };
@@ -783,21 +685,15 @@ export function App({ gateway }: AppProps) {
       const next = await gateway.listPrompts({
         q: query.trim() || undefined,
         limit: 20,
-        sort: "updated-desc",
+        sort: 'updated-desc',
       });
       if (revision === promptSearchRevision.current) setPrompts(next);
     },
     [gateway],
   );
 
-  const saveGenerationPrompt = async (
-    targetJob: GenerationJob | null = job,
-  ) => {
-    if (
-      !targetJob ||
-      targetJob.status !== "succeeded" ||
-      savingPromptJobId === targetJob.id
-    )
+  const saveGenerationPrompt = async (targetJob: GenerationJob | null = job) => {
+    if (!targetJob || targetJob.status !== 'succeeded' || savingPromptJobId === targetJob.id)
       return;
     setSavingPromptJobId(targetJob.id);
     setActionError(null);
@@ -805,39 +701,31 @@ export function App({ gateway }: AppProps) {
       await createPromptFromGeneration(targetJob);
       setSavedPromptJobId(targetJob.id);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "无法存为提示词");
+      setActionError(error instanceof Error ? error.message : '无法存为提示词');
     } finally {
       setSavingPromptJobId(null);
     }
   };
 
-  const retryCurrentGeneration = async (
-    targetJob: GenerationJob | null = job,
-  ) => {
+  const retryCurrentGeneration = async (targetJob: GenerationJob | null = job) => {
     if (
       !targetJob ||
-      !["failed", "cancelled"].includes(targetJob.status) ||
+      !['failed', 'cancelled'].includes(targetJob.status) ||
       retryingJobId === targetJob.id
     )
       return;
     setRetryingJobId(targetJob.id);
     setActionError(null);
     try {
-      const nextJob = await gateway.retryGeneration(
-        targetJob.id,
-        crypto.randomUUID(),
-      );
+      const nextJob = await gateway.retryGeneration(targetJob.id, crypto.randomUUID());
       setJob(nextJob);
       updateWorkbenchJob(nextJob);
       setHistory((current) => ({
         ...current,
-        items: [
-          nextJob,
-          ...current.items.filter((item) => item.id !== nextJob.id),
-        ],
+        items: [nextJob, ...current.items.filter((item) => item.id !== nextJob.id)],
       }));
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "无法重试任务");
+      setActionError(error instanceof Error ? error.message : '无法重试任务');
     } finally {
       setRetryingJobId(null);
     }
@@ -845,12 +733,7 @@ export function App({ gateway }: AppProps) {
 
   if (loading) return <LoadingScreen />;
   if (authRequired) {
-    return (
-      <LoginScreen
-        gateway={gateway}
-        onAuthenticated={() => void loadWorkspace()}
-      />
-    );
+    return <LoginScreen gateway={gateway} onAuthenticated={() => void loadWorkspace()} />;
   }
   if (approvalRequest) {
     return (
@@ -861,17 +744,12 @@ export function App({ gateway }: AppProps) {
         onApprove={async () => {
           if (!approvalRequest || !approvalJob) return;
           try {
-            const next = await gateway.approveGeneration(
-              approvalRequest.id,
-              approvalRequest.token,
-            );
+            const next = await gateway.approveGeneration(approvalRequest.id, approvalRequest.token);
             setActionError(null);
             setApprovalJob(next);
             updateWorkbenchJob(next);
           } catch (error) {
-            setActionError(
-              error instanceof Error ? error.message : "审批失败，请稍后重试",
-            );
+            setActionError(error instanceof Error ? error.message : '审批失败，请稍后重试');
           }
         }}
       />
@@ -879,10 +757,7 @@ export function App({ gateway }: AppProps) {
   }
   if (loadError || !session) {
     return (
-      <FailureScreen
-        message={loadError ?? "会话不可用"}
-        onRetry={() => void loadWorkspace()}
-      />
+      <FailureScreen message={loadError ?? '会话不可用'} onRetry={() => void loadWorkspace()} />
     );
   }
 
@@ -904,12 +779,8 @@ export function App({ gateway }: AppProps) {
           onNewDesign={() => void beginNewDesign()}
           onCollapse={() => setSidebarOpen(false)}
           onOpenWorkbenchSession={(item) => void openWorkbenchSession(item.id)}
-          onArchiveWorkbenchSession={(item) =>
-            void archiveWorkbenchSession(item.id)
-          }
-          onRenameWorkbenchSession={(item, title) =>
-            renameWorkbenchSession(item, title)
-          }
+          onArchiveWorkbenchSession={(item) => void archiveWorkbenchSession(item.id)}
+          onRenameWorkbenchSession={(item, title) => renameWorkbenchSession(item, title)}
           onDeleteWorkbenchSession={(item) => deleteWorkbenchSession(item)}
           onRetryWorkbenchSessions={() => void refreshWorkbenchSessions()}
         />
@@ -921,27 +792,20 @@ export function App({ gateway }: AppProps) {
           quota={`${formatAccountPoints(session.account.quota)} 积分`}
           mode={gateway.mode}
           workbenchTitle={workbench?.title ?? null}
-          workbenchSession={
-            workbenchSessionItems.find((item) => item.id === workbench?.id) ??
-            null
-          }
+          workbenchSession={workbenchSessionItems.find((item) => item.id === workbench?.id) ?? null}
           sidebarOpen={sidebarOpen}
           onOpenSidebar={() => setSidebarOpen(true)}
           onSearch={() => {
-            setView("prompts");
+            setView('prompts');
             window.requestAnimationFrame(() => {
-              document
-                .querySelector<HTMLInputElement>(
-                  '[data-testid="library-search"]',
-                )
-                ?.focus();
+              document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
             });
           }}
           onRenameSession={(item, title) => renameWorkbenchSession(item, title)}
           onArchiveSession={(item) => archiveWorkbenchSession(item.id)}
           onDeleteSession={(item) => deleteWorkbenchSession(item)}
         />
-        {view === "generate" && (
+        {view === 'generate' && (
           <GenerateView
             promptText={promptText}
             ratio={ratio}
@@ -950,10 +814,10 @@ export function App({ gateway }: AppProps) {
             jobs={workbenchJobs}
             savePromptState={(targetJob) =>
               targetJob.id === savedPromptJobId
-                ? "saved"
+                ? 'saved'
                 : targetJob.id === savingPromptJobId
-                  ? "saving"
-                  : "idle"
+                  ? 'saving'
+                  : 'idle'
             }
             error={actionError}
             draftSaveStatus={draftSaveStatus}
@@ -963,14 +827,14 @@ export function App({ gateway }: AppProps) {
             onPromptTextChange={setPromptText}
             onRatioChange={setRatio}
             onQualityChange={setQuality}
-            onOpenPromptLibrary={() => setView("prompts")}
+            onOpenPromptLibrary={() => setView('prompts')}
             onSubmit={() => void submitGeneration()}
             onCancel={() => void cancelGeneration()}
             onSavePrompt={(targetJob) => void saveGenerationPrompt(targetJob)}
             retrying={(targetJob) => retryingJobId === targetJob.id}
             onRetry={(targetJob) => void retryCurrentGeneration(targetJob)}
             onReuse={(targetJob) => void openGenerationInWorkbench(targetJob)}
-            onOpenHistory={() => setView("history")}
+            onOpenHistory={() => setView('history')}
             onUseCloudDraft={useCloudWorkbenchDraft}
             onOverwriteCloudDraft={() => void overwriteCloudWorkbenchDraft()}
             onClearPromptReference={() => {
@@ -979,7 +843,7 @@ export function App({ gateway }: AppProps) {
             }}
           />
         )}
-        {view === "prompts" && (
+        {view === 'prompts' && (
           <PromptLibraryView
             prompts={prompts.items}
             query={promptQuery}
@@ -997,9 +861,7 @@ export function App({ gateway }: AppProps) {
               const latest = await gateway.getPrompt(id);
               setPrompts((current) => ({
                 ...current,
-                items: current.items.map((prompt) =>
-                  prompt.id === latest.id ? latest : prompt,
-                ),
+                items: current.items.map((prompt) => (prompt.id === latest.id ? latest : prompt)),
               }));
               return latest;
             }}
@@ -1007,9 +869,7 @@ export function App({ gateway }: AppProps) {
               const updated = await gateway.updatePrompt(id, input);
               setPrompts((current) => ({
                 ...current,
-                items: current.items.map((prompt) =>
-                  prompt.id === updated.id ? updated : prompt,
-                ),
+                items: current.items.map((prompt) => (prompt.id === updated.id ? updated : prompt)),
               }));
               return updated;
             }}
@@ -1025,10 +885,7 @@ export function App({ gateway }: AppProps) {
               const restored = await gateway.restorePrompt(id, expectedVersion);
               setPrompts((current) => ({
                 ...current,
-                items: [
-                  restored,
-                  ...current.items.filter((prompt) => prompt.id !== id),
-                ],
+                items: [restored, ...current.items.filter((prompt) => prompt.id !== id)],
               }));
               return restored;
             }}
@@ -1037,29 +894,23 @@ export function App({ gateway }: AppProps) {
                 await gateway.listPrompts({
                   includeDeleted: true,
                   limit: 100,
-                  sort: "updated-desc",
+                  sort: 'updated-desc',
                 })
               ).items.filter((prompt) => prompt.deletedAt !== null)
             }
             onSearch={searchPrompts}
           />
         )}
-        {view === "history" && (
+        {view === 'history' && (
           <HistoryView
             history={history}
             onReuse={(nextJob) => void openGenerationInWorkbench(nextJob)}
             onGet={(id) => gateway.getGeneration(id)}
             onRetry={async (id) => {
-              const next = await gateway.retryGeneration(
-                id,
-                crypto.randomUUID(),
-              );
+              const next = await gateway.retryGeneration(id, crypto.randomUUID());
               setHistory((current) => ({
                 ...current,
-                items: [
-                  next,
-                  ...current.items.filter((item) => item.id !== next.id),
-                ],
+                items: [next, ...current.items.filter((item) => item.id !== next.id)],
               }));
               updateWorkbenchJob(next);
               return next;
@@ -1068,9 +919,7 @@ export function App({ gateway }: AppProps) {
               const next = await gateway.cancelGeneration(id);
               setHistory((current) => ({
                 ...current,
-                items: current.items.map((item) =>
-                  item.id === next.id ? next : item,
-                ),
+                items: current.items.map((item) => (item.id === next.id ? next : item)),
               }));
               updateWorkbenchJob(next);
               if (job?.id === next.id) setJob(next);
@@ -1082,23 +931,17 @@ export function App({ gateway }: AppProps) {
                 ...current,
                 items: current.items.filter((item) => item.id !== id),
               }));
-              const remainingJobs = workbenchJobs.filter(
-                (item) => item.id !== id,
-              );
+              const remainingJobs = workbenchJobs.filter((item) => item.id !== id);
               removeTrackedGenerationJob(id);
               setWorkbenchJobs(sortWorkbenchGenerationSnapshots(remainingJobs));
-              if (job?.id === id)
-                setJob(latestWorkbenchGenerationSnapshot(remainingJobs));
+              if (job?.id === id) setJob(latestWorkbenchGenerationSnapshot(remainingJobs));
               return deleted;
             }}
             onRestore={async (id) => {
               const restored = await gateway.restoreGeneration(id);
               setHistory((current) => ({
                 ...current,
-                items: [
-                  restored,
-                  ...current.items.filter((item) => item.id !== id),
-                ],
+                items: [restored, ...current.items.filter((item) => item.id !== id)],
               }));
               updateWorkbenchJob(restored);
               return restored;
@@ -1112,50 +955,46 @@ export function App({ gateway }: AppProps) {
               ).items.filter((item) => Boolean(item.deletedAt))
             }
             onSavePrompt={createPromptFromGeneration}
-            onRefresh={async () =>
-              setHistory(await gateway.listGenerationHistory({ limit: 20 }))
-            }
+            onRefresh={async () => setHistory(await gateway.listGenerationHistory({ limit: 20 }))}
           />
         )}
-        {view === "connections" && (
-          <ConnectedAppsScreen
-            testId="connected-apps-screen"
-            items={connections.items}
-            onUpdate={async (id, input) =>
-              setConnections(await gateway.updateConnection(id, input))
-            }
-            onRevoke={async (id) => {
-              await gateway.revokeConnection(id);
-              setConnections(await gateway.listConnections());
-            }}
-          />
+        {view === 'connections' && (
+          <div className="page">
+            <ConnectedAppsScreen
+              testId="connected-apps-screen"
+              items={connections.items}
+              onUpdate={async (id, input) =>
+                setConnections(await gateway.updateConnection(id, input))
+              }
+              onRevoke={async (id) => {
+                await gateway.revokeConnection(id);
+                setConnections(await gateway.listConnections());
+              }}
+            />
+          </div>
         )}
-        {view === "account" && (
-          <AccountScreen
-            testId="account-screen"
-            account={{
-              name: session.account.displayName ?? session.account.username,
-              username: session.account.username,
-              avatarLabel: (
-                session.account.displayName ?? session.account.username
-              ).slice(0, 1),
-              quotaLabel: `${formatAccountPoints(session.account.quota)} 积分`,
-              generationStatusLabel: session.account.canGenerate
-                ? "可用"
-                : "额度不足",
-              generationAvailable: session.account.canGenerate,
-              dataSourceLabel:
-                gateway.mode === "fixture" ? "开发预览" : "Musefold Cloud",
-            }}
-            onLogout={async () => {
-              await gateway.logout();
-              setSession(null);
-              setAuthRequired(true);
-            }}
-          />
+        {view === 'account' && (
+          <div className="page">
+            <AccountScreen
+              testId="account-screen"
+              account={{
+                name: session.account.displayName ?? session.account.username,
+                username: session.account.username,
+                avatarLabel: (session.account.displayName ?? session.account.username).slice(0, 1),
+                quotaLabel: `${formatAccountPoints(session.account.quota)} 积分`,
+                generationStatusLabel: session.account.canGenerate ? '可用' : '额度不足',
+                generationAvailable: session.account.canGenerate,
+                dataSourceLabel: gateway.mode === 'fixture' ? '开发预览' : 'Musefold Cloud',
+              }}
+              onLogout={async () => {
+                await gateway.logout();
+                setSession(null);
+                setAuthRequired(true);
+              }}
+            />
+          </div>
         )}
       </main>
-      <WebMobileNavigation view={view} onNavigate={setView} />
     </ProductSidebarLayout>
   );
 }
@@ -1170,24 +1009,13 @@ function LoadingScreen() {
   );
 }
 
-function FailureScreen({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
+function FailureScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="center-screen">
       <img className="loading-mark" src={musefoldIconUrl} alt="Musefold" />
       <strong>暂时无法连接</strong>
       <span>{message}</span>
-      <Button
-        variant="primary"
-        className="button button-primary"
-        type="button"
-        onClick={onRetry}
-      >
+      <Button variant="primary" className="button button-primary" type="button" onClick={onRetry}>
         重试
       </Button>
     </div>
@@ -1201,8 +1029,8 @@ function LoginScreen({
   gateway: WebGateway;
   onAuthenticated: () => void;
 }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1213,7 +1041,7 @@ function LoginScreen({
     try {
       await gateway.login({ username, password });
       const returnTo = getSafeOAuthReturnTo(
-        new URLSearchParams(window.location.search).get("returnTo"),
+        new URLSearchParams(window.location.search).get('returnTo'),
         window.location.origin,
       );
       if (returnTo) {
@@ -1222,7 +1050,7 @@ function LoginScreen({
       }
       onAuthenticated();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "登录失败");
+      setError(cause instanceof Error ? cause.message : '登录失败');
     } finally {
       setSubmitting(false);
     }
@@ -1323,14 +1151,14 @@ function ApprovalScreen({
               <span>来源：Cloud MCP</span>
               <span>
                 状态：
-                {job.status === "pending_approval" ? "等待确认" : job.status}
+                {job.status === 'pending_approval' ? '等待确认' : job.status}
               </span>
             </div>
             <Button
               variant="primary"
               className="button button-primary"
               type="button"
-              disabled={approving || job.status !== "pending_approval"}
+              disabled={approving || job.status !== 'pending_approval'}
               onClick={() => void approve()}
             >
               {approving ? (
@@ -1338,7 +1166,7 @@ function ApprovalScreen({
               ) : (
                 <Check aria-hidden="true" />
               )}
-              {job.status === "pending_approval" ? "允许生成" : "已处理"}
+              {job.status === 'pending_approval' ? '允许生成' : '已处理'}
             </Button>
             <GenerationResultSurface
               className="approval-result"
@@ -1349,12 +1177,12 @@ function ApprovalScreen({
               imageAlt="Musefold Cloud MCP 生图结果"
               imageLabel="查看生图结果"
               imageTitle="查看生图结果"
-              aspectRatio={job.request.aspectRatio ?? "1:1"}
-              progressLabel={`${workbenchGenerationStatusLabel(job.status)}${job.progress > 0 ? ` ${job.progress}%` : ""}`}
+              aspectRatio={job.request.aspectRatio ?? '1:1'}
+              progressLabel={`${workbenchGenerationStatusLabel(job.status)}${job.progress > 0 ? ` ${job.progress}%` : ''}`}
               footerLabel={workbenchGenerationStatusLabel(job.status)}
               onOpenImage={
                 job.assets[0]
-                  ? () => window.open(job.assets[0].url, "_blank", "noopener")
+                  ? () => window.open(job.assets[0].url, '_blank', 'noopener')
                   : undefined
               }
               errorMessage={job.error?.message}

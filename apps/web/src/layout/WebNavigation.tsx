@@ -1,17 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
+import { History, LibraryBig, Link2, PanelLeft, Search, Sparkles } from '@musefold/ui/icons';
+import { IconButton } from '@musefold/ui';
 import {
-  CircleUserRound,
-  History,
-  LibraryBig,
-  Link2,
-  PanelLeft,
-  Search,
-  Sparkles,
-  WandSparkles,
-} from "@musefold/ui/icons";
-import { IconButton } from "@musefold/ui";
-import {
-  ProductNavButton,
   ProductSidebar,
   ProductTopbar,
   ProductViewIcon,
@@ -29,16 +19,15 @@ import {
   setSessionUnread,
   type ProductSidebarNavItem,
   type WorkbenchSessionListItemViewModel,
-} from "@musefold/product-ui";
-import type { WebGateway } from "../runtime";
+} from '@musefold/product-ui';
+import type { WebGateway } from '../runtime';
 
-export type WebView =
-  "generate" | "prompts" | "history" | "connections" | "account";
+export type WebView = 'generate' | 'prompts' | 'history' | 'connections' | 'account';
 
 interface WebSidebarProps {
   view: WebView;
   accountName: string;
-  mode: WebGateway["mode"];
+  mode: WebGateway['mode'];
   promptCount: number;
   workbenchSessions: WorkbenchSessionListItemViewModel[];
   sessionListLoading: boolean;
@@ -52,9 +41,7 @@ interface WebSidebarProps {
     item: WorkbenchSessionListItemViewModel,
     title: string,
   ) => void | Promise<void>;
-  onDeleteWorkbenchSession: (
-    item: WorkbenchSessionListItemViewModel,
-  ) => void | Promise<void>;
+  onDeleteWorkbenchSession: (item: WorkbenchSessionListItemViewModel) => void | Promise<void>;
   onRetryWorkbenchSessions: () => void;
 }
 
@@ -75,19 +62,16 @@ export function WebSidebar({
   onDeleteWorkbenchSession,
   onRetryWorkbenchSessions,
 }: WebSidebarProps) {
-  const [pinnedSessionIds, setPinnedSessionIds] =
-    useState(readPinnedSessionIds);
-  const [unreadSessionIds, setUnreadSessionIds] =
-    useState(readUnreadSessionIds);
+  const [pinnedSessionIds, setPinnedSessionIds] = useState(readPinnedSessionIds);
+  const [unreadSessionIds, setUnreadSessionIds] = useState(readUnreadSessionIds);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState("");
+  const [editingValue, setEditingValue] = useState('');
   const [contextMenu, setContextMenu] = useState<{
     item: WorkbenchSessionListItemViewModel;
     x: number;
     y: number;
   } | null>(null);
-  const [deleteTarget, setDeleteTarget] =
-    useState<WorkbenchSessionListItemViewModel | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkbenchSessionListItemViewModel | null>(null);
 
   useEffect(() => {
     const syncPins = () => setPinnedSessionIds(readPinnedSessionIds());
@@ -108,11 +92,11 @@ export function WebSidebar({
             ...item,
             pinned: pinnedSessionIds.includes(item.id),
             status:
-              item.status === "running"
-                ? "running"
+              item.status === 'running'
+                ? 'running'
                 : unreadSessionIds.includes(item.id)
-                  ? "unread"
-                  : "idle",
+                  ? 'unread'
+                  : 'idle',
           }) satisfies WorkbenchSessionListItemViewModel,
       ),
     [pinnedSessionIds, unreadSessionIds, workbenchSessions],
@@ -121,26 +105,26 @@ export function WebSidebar({
   const closeDeleteDialog = () => setDeleteTarget(null);
   const navItems: ProductSidebarNavItem[] = [
     {
-      id: "prompts",
-      label: "提示词库",
+      id: 'prompts',
+      label: '提示词库',
       icon: <LibraryBig aria-hidden="true" />,
       count: promptCount,
-      active: view === "prompts",
-      onSelect: () => onNavigate("prompts"),
+      active: view === 'prompts',
+      onSelect: () => onNavigate('prompts'),
     },
     {
-      id: "history",
-      label: "生成历史",
+      id: 'history',
+      label: '生成历史',
       icon: <History aria-hidden="true" />,
-      active: view === "history",
-      onSelect: () => onNavigate("history"),
+      active: view === 'history',
+      onSelect: () => onNavigate('history'),
     },
     {
-      id: "connections",
-      label: "已连接应用",
+      id: 'connections',
+      label: '已连接应用',
       icon: <Link2 aria-hidden="true" />,
-      active: view === "connections",
-      onSelect: () => onNavigate("connections"),
+      active: view === 'connections',
+      onSelect: () => onNavigate('connections'),
     },
   ];
 
@@ -161,39 +145,33 @@ export function WebSidebar({
             onEditingValueChange={setEditingValue}
             onCancelRename={() => {
               setEditingId(null);
-              setEditingValue("");
+              setEditingValue('');
             }}
             onSubmitRename={(item) => {
               const title = editingValue.trim();
               if (!title) return;
-              void Promise.resolve(onRenameWorkbenchSession(item, title)).then(
-                () => {
-                  setEditingId(null);
-                  setEditingValue("");
-                },
-              );
+              void Promise.resolve(onRenameWorkbenchSession(item, title)).then(() => {
+                setEditingId(null);
+                setEditingValue('');
+              });
             }}
             onOpen={(item) => {
               setUnreadSessionIds(setSessionUnread(item.id, false));
               onOpenWorkbenchSession(item);
             }}
-            onTogglePinned={(item) =>
-              setPinnedSessionIds(setSessionPinned(item.id, !item.pinned))
-            }
+            onTogglePinned={(item) => setPinnedSessionIds(setSessionPinned(item.id, !item.pinned))}
             onArchive={(item) => {
               setUnreadSessionIds(setSessionUnread(item.id, false));
               onArchiveWorkbenchSession(item);
             }}
-            onContextMenu={(item, anchor) =>
-              setContextMenu({ item, ...anchor })
-            }
+            onContextMenu={(item, anchor) => setContextMenu({ item, ...anchor })}
             onRetry={onRetryWorkbenchSessions}
           />
         }
         account={{
           name: accountName,
-          detail: mode === "fixture" ? "开发数据" : "个人账户",
-          onSelect: () => onNavigate("account"),
+          detail: mode === 'fixture' ? '开发数据' : '个人账户',
+          onSelect: () => onNavigate('account'),
         }}
       />
       {contextMenu ? (
@@ -204,10 +182,7 @@ export function WebSidebar({
           onClose={() => setContextMenu(null)}
           onTogglePinned={() =>
             setPinnedSessionIds(
-              setSessionPinned(
-                contextMenu.item.id,
-                !(contextMenu.item.pinned ?? false),
-              ),
+              setSessionPinned(contextMenu.item.id, !(contextMenu.item.pinned ?? false)),
             )
           }
           onRename={() => {
@@ -218,9 +193,7 @@ export function WebSidebar({
             setUnreadSessionIds(setSessionUnread(contextMenu.item.id, false));
             onArchiveWorkbenchSession(contextMenu.item);
           }}
-          onMarkUnread={() =>
-            setUnreadSessionIds(setSessionUnread(contextMenu.item.id, true))
-          }
+          onMarkUnread={() => setUnreadSessionIds(setSessionUnread(contextMenu.item.id, true))}
           onDelete={() => {
             setPinnedSessionIds(setSessionPinned(contextMenu.item.id, false));
             setUnreadSessionIds(setSessionUnread(contextMenu.item.id, false));
@@ -246,22 +219,15 @@ export function WebSidebar({
 interface WebTopbarProps {
   view: WebView;
   quota: string;
-  mode: WebGateway["mode"];
+  mode: WebGateway['mode'];
   workbenchTitle: string | null;
   workbenchSession: WorkbenchSessionListItemViewModel | null;
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
   onSearch: () => void;
-  onRenameSession: (
-    item: WorkbenchSessionListItemViewModel,
-    title: string,
-  ) => void | Promise<void>;
-  onArchiveSession: (
-    item: WorkbenchSessionListItemViewModel,
-  ) => void | Promise<void>;
-  onDeleteSession: (
-    item: WorkbenchSessionListItemViewModel,
-  ) => void | Promise<void>;
+  onRenameSession: (item: WorkbenchSessionListItemViewModel, title: string) => void | Promise<void>;
+  onArchiveSession: (item: WorkbenchSessionListItemViewModel) => void | Promise<void>;
+  onDeleteSession: (item: WorkbenchSessionListItemViewModel) => void | Promise<void>;
 }
 
 export function WebTopbar({
@@ -277,39 +243,34 @@ export function WebTopbar({
   onArchiveSession,
   onDeleteSession,
 }: WebTopbarProps) {
-  const [pinnedSessionIds, setPinnedSessionIds] =
-    useState(readPinnedSessionIds);
-  const [deleteTarget, setDeleteTarget] =
-    useState<WorkbenchSessionListItemViewModel | null>(null);
-  const [renameTarget, setRenameTarget] =
-    useState<WorkbenchSessionListItemViewModel | null>(null);
+  const [pinnedSessionIds, setPinnedSessionIds] = useState(readPinnedSessionIds);
+  const [deleteTarget, setDeleteTarget] = useState<WorkbenchSessionListItemViewModel | null>(null);
+  const [renameTarget, setRenameTarget] = useState<WorkbenchSessionListItemViewModel | null>(null);
 
   useEffect(() => {
     const syncPins = () => setPinnedSessionIds(readPinnedSessionIds());
     window.addEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
-    return () =>
-      window.removeEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
+    return () => window.removeEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
   }, []);
 
   const titles: Record<WebView, string> = {
-    generate: "新设计",
-    prompts: "提示词库",
-    history: "生成历史",
-    connections: "已连接应用",
-    account: "账户",
+    generate: '新设计',
+    prompts: '提示词库',
+    history: '生成历史',
+    connections: '已连接应用',
+    account: '账户',
   };
-  const fullTitle =
-    view === "generate" && workbenchTitle ? workbenchTitle : titles[view];
+  const fullTitle = view === 'generate' && workbenchTitle ? workbenchTitle : titles[view];
 
   return (
     <>
       <ProductTopbar
         title={fullTitle}
         displayTitle={productTopbarDisplayTitle(fullTitle)}
-        icon={<ProductViewIcon view={view === "prompts" ? "library" : view} />}
-        statusLabel={mode === "fixture" ? "开发预览" : undefined}
+        icon={<ProductViewIcon view={view === 'prompts' ? 'library' : view} />}
+        statusLabel={mode === 'fixture' ? '开发预览' : undefined}
         titleSuffix={
-          view === "generate" && workbenchSession ? (
+          view === 'generate' && workbenchSession ? (
             <WorkbenchSessionMenuTrigger
               title={workbenchSession.title}
               pinned={pinnedSessionIds.includes(workbenchSession.id)}
@@ -384,68 +345,5 @@ export function WebTopbar({
         }}
       />
     </>
-  );
-}
-
-export function WebMobileNavigation({
-  view,
-  onNavigate,
-}: {
-  view: WebView;
-  onNavigate: (view: WebView) => void;
-}) {
-  return (
-    <nav className="mobile-nav" aria-label="移动端导航">
-      <ProductNavButton
-        className="nav-button"
-        item={{
-          id: "generate",
-          active: view === "generate",
-          icon: <WandSparkles />,
-          label: "制作工作台",
-          onSelect: () => onNavigate("generate"),
-        }}
-      />
-      <ProductNavButton
-        className="nav-button"
-        item={{
-          id: "prompts",
-          active: view === "prompts",
-          icon: <LibraryBig />,
-          label: "提示词库",
-          onSelect: () => onNavigate("prompts"),
-        }}
-      />
-      <ProductNavButton
-        className="nav-button"
-        item={{
-          id: "history",
-          active: view === "history",
-          icon: <History />,
-          label: "历史",
-          onSelect: () => onNavigate("history"),
-        }}
-      />
-      <ProductNavButton
-        className="nav-button"
-        item={{
-          id: "connections",
-          active: view === "connections",
-          icon: <Link2 />,
-          label: "连接",
-          onSelect: () => onNavigate("connections"),
-        }}
-      />
-      <ProductNavButton
-        className="nav-button"
-        item={{
-          id: "account",
-          active: view === "account",
-          icon: <CircleUserRound />,
-          label: "账户",
-          onSelect: () => onNavigate("account"),
-        }}
-      />
-    </nav>
   );
 }

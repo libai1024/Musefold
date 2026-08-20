@@ -47,6 +47,6 @@ Musefold uses a quiet creative-tool language called Graphite / Ember. Stable por
 ## Web V1.1 Composition
 
 - Desktop: fixed task rail, flexible main work area, optional prompt recall rail.
-- Mobile: single work column, stable bottom navigation, horizontal prompt recall strip, full-width result viewport.
+- Mobile: left overlay drawer (functions + conversations, account at the bottom), a single work column with the conversation topic and the shared composer; search and remaining credits stay in the top-right.
 - The generation result uses a stable `aspect-ratio` container so loading and status changes cannot move the composer.
 - Prompt library uses rows for scanning and comparison; details open as a page or drawer rather than a nested card.

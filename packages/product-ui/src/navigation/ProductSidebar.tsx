@@ -110,7 +110,7 @@ export function ProductSidebar({
         </Button>
       </div>
 
-      <p className="mf-product-sidebar-section-label">工作区</p>
+      <p className="mf-product-sidebar-section-label">功能</p>
       <nav className="mf-product-sidebar-nav" aria-label="主导航">
         {navItems.map((item) => (
           <ProductNavButton key={item.id} item={item} className="no-drag" />
