@@ -2,7 +2,7 @@
 # Referenced by .github/scripts/detect-layers.mjs; do not copy globs into workflows.
 #
 # Allowed pattern forms (anything else is rejected at load time):
-#   1. Directory prefix: src/**
+#   1. Directory prefix: apps/desktop/src/**
 #   2. Extension or exact file: *.md, electron-builder.yml
 #
 # Do not use brace expansion, negation, nested globs (src/**/*.ts), or
@@ -19,10 +19,13 @@
 # depcruise rules + baseline). Changing it is a full-layer infra change.
 # `packages/contracts/**` is listed under both content and service (§3.3).
 # `packages/update-protocol/**` is listed under both content and shell: the
-# renderer consumes Channel as a type (via shared/), and the main process
-# compiles the protocol package into the shell.
+# renderer consumes Channel as a type, and the main process compiles the
+# protocol package into the shell.
+# `packages/desktop-contracts/**` is listed under both content and shell: IPC /
+# SQLite row types are consumed by the renderer (hot-update) and implemented by
+# the main process (tag-released shell, minShellVersion). Dual-listing is the
+# conservative trigger so neither lane is skipped.
 # Unmapped paths fail-open (all product layers and desktop true) in detect-layers.mjs.
-# v1.2.2 directory moves should update this file only.
 #
 # This file is parsed by a restricted subset parser (comments, `key:`, `- item`,
 # optional quotes). Do not add anchors, flow collections, or other YAML features.
@@ -38,7 +41,6 @@ infra:
   - tooling/**
   - .prettierrc
   - .prettierignore
-  - electron.vite.config.ts
   - vitest.config.ts
   - postcss.config.js
   - tailwind.config.ts
@@ -46,12 +48,14 @@ infra:
   - .github/**
 
 content:
-  - src/**
+  - apps/desktop/src/**
+  - apps/desktop/electron.vite.config.ts
   - apps/web/**
   - packages/ui/**
   - packages/product-ui/**
   - packages/contracts/**
   - packages/domain/**
+  - packages/desktop-contracts/**
   - packages/update-protocol/**
 
 service:
@@ -60,16 +64,17 @@ service:
   - packages/contracts/**
 
 shell:
-  - electron/**
+  - apps/desktop/electron/**
+  - apps/desktop/electron.vite.config.ts
   - resources/**
   - electron-builder.yml
   # Protocol package is compiled into the main process; renderer consumes Channel types.
   - packages/update-protocol/**
+  # IPC contracts are implemented by the main process; renderer consumes the types.
+  - packages/desktop-contracts/**
 
 desktop:
-  - src/**
-  - electron/**
-  - shared/**
+  - apps/desktop/**
   - packages/**
   - resources/**
   - tests/**

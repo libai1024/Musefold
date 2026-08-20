@@ -376,10 +376,34 @@ function selfTest() {
     },
   );
   assertEqual(
-    'electron only → desktop=true',
-    pick(classifyFiles(['electron/main/window.ts'], groups)),
+    'desktop renderer → content+desktop',
+    pick(classifyFiles(['apps/desktop/src/pages/LibraryPage.tsx'], groups)),
+    {
+      content: true,
+      service: false,
+      shell: false,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'desktop main process → shell+desktop',
+    pick(classifyFiles(['apps/desktop/electron/main/window.ts'], groups)),
     {
       content: false,
+      service: false,
+      shell: true,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'packages/desktop-contracts → content+shell+desktop',
+    pick(classifyFiles(['packages/desktop-contracts/src/ipc.ts'], groups)),
+    {
+      content: true,
       service: false,
       shell: true,
       desktop: true,
@@ -437,7 +461,7 @@ function selfTest() {
   );
   assertEqual(
     'mixed docs + renderer',
-    pick(classifyFiles(['docs/v1.2.1/V121-DELIVERY-PLAN.md', 'src/pages/LibraryPage.tsx'], groups)),
+    pick(classifyFiles(['docs/v1.2.1/V121-DELIVERY-PLAN.md', 'apps/desktop/src/pages/LibraryPage.tsx'], groups)),
     {
       content: true,
       service: false,
