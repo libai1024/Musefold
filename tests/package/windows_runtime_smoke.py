@@ -24,6 +24,7 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 from tests.e2e.conftest import REPO, _launch
+from tests.package.builtin_renderer import assert_fresh_install_uses_builtin_renderer
 
 
 pytestmark = pytest.mark.skipif(
@@ -311,4 +312,13 @@ def test_windows_installed_package_runtime(fake_openai_server):
         if handle:
             _stop_process(handle.proc)
         shutil.rmtree(user_data, ignore_errors=True)
+        shutil.rmtree(install_root, ignore_errors=True)
+
+
+def test_windows_fresh_install_starts_from_builtin_renderer():
+    install_root = Path(tempfile.mkdtemp(prefix="musefold-win-fresh-install-"))
+    try:
+        executable = _install_package(install_root)
+        assert_fresh_install_uses_builtin_renderer(executable)
+    finally:
         shutil.rmtree(install_root, ignore_errors=True)

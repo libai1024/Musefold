@@ -13,9 +13,23 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 from tests.e2e.conftest import REPO, _launch
+from tests.package.builtin_renderer import assert_fresh_install_uses_builtin_renderer
 
 
-PACKAGE = REPO / "release/v0.3.0/macos/mac-arm64/Musefold.app"
+def _macos_packaged_app() -> Path:
+    """Prefer electron-builder's current output; keep the historical layout as fallback."""
+    candidates = [
+        REPO / "release/mac-arm64/Musefold.app",
+        REPO / "release/mac/Musefold.app",
+        REPO / "release/v0.3.0/macos/mac-arm64/Musefold.app",
+    ]
+    for package in candidates:
+        if (package / "Contents/MacOS/Musefold").is_file():
+            return package
+    return candidates[0]
+
+
+PACKAGE = _macos_packaged_app()
 EXECUTABLE = PACKAGE / "Contents/MacOS/Musefold"
 PRODUCT_DOCS = PACKAGE / "Contents/Resources/product-docs/README.md"
 PRODUCT_ROADMAP = PACKAGE / "Contents/Resources/product-docs/90-roadmap-and-task-index.md"
@@ -136,3 +150,8 @@ def test_macos_package_end_to_end(fake_openai_server):
             except Exception:
                 handle.proc.kill()
         shutil.rmtree(user_data, ignore_errors=True)
+
+
+def test_macos_fresh_install_starts_from_builtin_renderer():
+    assert EXECUTABLE.is_file(), "missing package; run `npm run package:mac` first"
+    assert_fresh_install_uses_builtin_renderer(EXECUTABLE)
