@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 const SOURCE_PREFIXES = [
   'apps/',
@@ -104,6 +106,82 @@ function extractAppSkillVersion(constants) {
   return constants.match(/MUSEFOLD_SKILL_VERSION\s*=\s*['"](v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)['"]/)?.[1] ?? null;
 }
 
+function findStatementEnd(source, start) {
+  let quote = null;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') {
+        index += 1;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === ';') return index;
+  }
+  return -1;
+}
+
+/**
+ * 只抽 MUSEFOLD_SKILL_* 的字面声明：constants.ts 里绝大多数常量与 Skill 无关。
+ * 解析失败返回 null，让调用方按“已变更”回落，避免漏报。
+ */
+export function extractMusefoldSkillConstants(source) {
+  if (typeof source !== 'string') return null;
+  /** @type {Record<string, string>} */
+  const constants = {};
+  const pattern =
+    /^[ \t]*(?:export\s+)?const\s+(MUSEFOLD_SKILL_[A-Z0-9_]+)(?:\s*:\s*[^=]+)?\s*=\s*/gm;
+  let match = pattern.exec(source);
+  while (match) {
+    const name = match[1];
+    const valueStart = match.index + match[0].length;
+    const valueEnd = findStatementEnd(source, valueStart);
+    if (valueEnd < 0) return null;
+    const value = source.slice(valueStart, valueEnd).trim();
+    if (!value || Object.hasOwn(constants, name)) return null;
+    constants[name] = value;
+    pattern.lastIndex = valueEnd + 1;
+    match = pattern.exec(source);
+  }
+  return constants;
+}
+
+function serializeSkillConstants(constants) {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(constants).sort(([left], [right]) => left.localeCompare(right, 'en')),
+    ),
+  );
+}
+
+/** @returns {boolean} true = Skill 相关常量已变，或无法证明没变 */
+export function musefoldSkillConstantsChanged(beforeSource, afterSource) {
+  const before = extractMusefoldSkillConstants(beforeSource);
+  const after = extractMusefoldSkillConstants(afterSource);
+  if (!before || !after) return true;
+  if (Object.keys(before).length === 0 || Object.keys(after).length === 0) return true;
+  return serializeSkillConstants(before) !== serializeSkillConstants(after);
+}
+
+function versionFileSkillConstantsChanged(ref, parentRef) {
+  if (parentRef == null) return true;
+  try {
+    return musefoldSkillConstantsChanged(
+      readPathAt(parentRef, VERSION_FILE),
+      readPathAt(ref, VERSION_FILE),
+    );
+  } catch {
+    // 新增、删除或任一侧读失败时，不能证明 Skill 常量没动
+    return true;
+  }
+}
+
 function commitParents(commit) {
   return lines(git(['rev-list', '--parents', '-n', '1', commit], { silent: true }));
 }
@@ -171,9 +249,11 @@ function validateDecision({ label, paths, message, ref, parentRef }) {
   }
 
   const impact = parseSkillImpact(message);
-  const bundledSkillChanged = paths.some((path) => path.startsWith(BUNDLED_SKILL_PREFIX)) || paths.includes(VERSION_FILE);
+  const bundledSkillChanged = paths.some((path) => path.startsWith(BUNDLED_SKILL_PREFIX));
+  const skillConstantsChanged =
+    paths.includes(VERSION_FILE) && versionFileSkillConstantsChanged(ref, parentRef);
   if (impact.kind === 'none') {
-    if (bundledSkillChanged) {
+    if (bundledSkillChanged || skillConstantsChanged) {
       throw new Error(`${label} 修改了内置 Skill 或版本常量，不能声明 Skill-Impact: none`);
     }
     console.log(`[skill-impact] ${label}: 已确认无需更新 Skill（${impact.reason}）`);
@@ -236,13 +316,97 @@ function printHelp() {
   node scripts/check-skill-update.mjs --staged --commit-message <path>
   node scripts/check-skill-update.mjs --commit <sha>
   node scripts/check-skill-update.mjs --range <base..head>
-  node scripts/check-skill-update.mjs --ci`);
+  node scripts/check-skill-update.mjs --ci
+  node scripts/check-skill-update.mjs --self-test`);
+}
+
+function assertEqual(name, actual, expected) {
+  const actualText = JSON.stringify(actual);
+  const expectedText = JSON.stringify(expected);
+  if (actualText !== expectedText) {
+    throw new Error(`${name}\n  expected ${expectedText}\n  actual   ${actualText}`);
+  }
+  process.stdout.write(`ok  ${name}\n`);
+}
+
+function selfTest() {
+  const baseline = [
+    "export const APP_NAME = 'Musefold';",
+    "export const MUSEFOLD_SKILL_VERSION = 'v0.4.0';",
+    'export const MUSEFOLD_SKILL_URL =',
+    '  `https://example.com/${MUSEFOLD_SKILL_VERSION}/SKILL.md`;',
+    "export const MUSEFOLD_SKILL_MANIFEST_URL = 'https://example.com/manifest.json';",
+    'export const ACCOUNT_QUOTA_PER_USD = 500000;',
+  ].join('\n');
+
+  const sameSkillDifferentOther = [
+    "export const APP_NAME = 'Other';",
+    'export const ACCOUNT_QUOTA_PER_USD = 1;',
+    "export const MUSEFOLD_SKILL_VERSION = 'v0.4.0';",
+    'export const MUSEFOLD_SKILL_URL =',
+    '  `https://example.com/${MUSEFOLD_SKILL_VERSION}/SKILL.md`;',
+    "export const MUSEFOLD_SKILL_MANIFEST_URL = 'https://example.com/manifest.json';",
+  ].join('\n');
+
+  assertEqual(
+    '两侧 MUSEFOLD_SKILL_* 完全一致（其它部分不同）→ 未变更',
+    musefoldSkillConstantsChanged(baseline, sameSkillDifferentOther),
+    false,
+  );
+
+  const versionChanged = baseline.replace("'v0.4.0'", "'v0.4.1'");
+  assertEqual(
+    'MUSEFOLD_SKILL_VERSION 值变了 → 已变更',
+    musefoldSkillConstantsChanged(baseline, versionChanged),
+    true,
+  );
+
+  const added = `${baseline}\nexport const MUSEFOLD_SKILL_EXTRA = 'x';`;
+  assertEqual(
+    '新增了一个 MUSEFOLD_SKILL_* 常量 → 已变更',
+    musefoldSkillConstantsChanged(baseline, added),
+    true,
+  );
+
+  const removed = baseline.replace(
+    "export const MUSEFOLD_SKILL_MANIFEST_URL = 'https://example.com/manifest.json';\n",
+    '',
+  );
+  assertEqual(
+    '删除了一个 MUSEFOLD_SKILL_* 常量 → 已变更',
+    musefoldSkillConstantsChanged(baseline, removed),
+    true,
+  );
+
+  const reordered = [
+    "export const MUSEFOLD_SKILL_MANIFEST_URL = 'https://example.com/manifest.json';",
+    "export const MUSEFOLD_SKILL_VERSION = 'v0.4.0';",
+    'export const MUSEFOLD_SKILL_URL =',
+    '  `https://example.com/${MUSEFOLD_SKILL_VERSION}/SKILL.md`;',
+  ].join('\n');
+  assertEqual(
+    '只是声明顺序不同、值不变 → 未变更',
+    musefoldSkillConstantsChanged(baseline, reordered),
+    false,
+  );
+
+  assertEqual(
+    '一侧解析不出任何 MUSEFOLD_SKILL_* → 已变更',
+    musefoldSkillConstantsChanged(baseline, "export const APP_NAME = 'x';\n"),
+    true,
+  );
+
+  process.stdout.write('check-skill-update self-test: all passed\n');
 }
 
 function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h')) {
     printHelp();
+    return;
+  }
+  if (args.includes('--self-test')) {
+    selfTest();
     return;
   }
   if (args.includes('--staged')) validateStaged(args);
@@ -254,10 +418,13 @@ function main() {
   else validateCommit(argumentValue(args, '--commit') ?? 'HEAD');
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`[skill-impact] FAIL: ${error instanceof Error ? error.message : String(error)}`);
-  console.error('提交前必须审查 Skill 影响。详见 CONTRIBUTING.md 和 Musefold-Skills/SKILL-UPDATE-SPEC.md。');
-  process.exitCode = 1;
+const invokedAsScript = resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url);
+if (invokedAsScript) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`[skill-impact] FAIL: ${error instanceof Error ? error.message : String(error)}`);
+    console.error('提交前必须审查 Skill 影响。详见 CONTRIBUTING.md 和 Musefold-Skills/SKILL-UPDATE-SPEC.md。');
+    process.exitCode = 1;
+  }
 }
