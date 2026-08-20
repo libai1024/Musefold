@@ -1,4 +1,17 @@
+const { readdirSync } = require('node:fs');
 const { resolve } = require('node:path');
+
+/**
+ * V13-GOV-02：renderer features 同层不互导。
+ * depcruise 的静态正则无法表达「from 与 to 分属不同 feature」的互斥，
+ * 按 feature 目录动态生成 N 条规则；新增 feature 自动纳入约束。
+ * 存量违规登记在 dependency-cruiser-known-violations.json，只减不增。
+ */
+const RENDERER_FEATURES = readdirSync(resolve(__dirname, '../apps/desktop/src/features'), {
+  withFileTypes: true,
+})
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -405,6 +418,21 @@ module.exports = {
         path: ['^apps/desktop/src/lib/ipc(\\.ts)?$'],
       },
     },
+
+    ...RENDERER_FEATURES.map((feature) => ({
+      name: `renderer-features-isolated-${feature}`,
+      comment:
+        `V13-GOV-02：features/${feature} 禁止 import 其他 feature（同层不互导）。` +
+        '跨域共享物下沉 product-ui/domain，业务不可分时合并 feature；存量违规在 known-violations baseline 只减不增。',
+      severity: 'error',
+      from: {
+        path: `^apps/desktop/src/features/${feature}/`,
+        pathNot: ['/__tests__/', '/__mocks__/', '\\.(test|spec)\\.(ts|tsx)$'],
+      },
+      to: {
+        path: `^apps/desktop/src/features/(?!${feature}/)`,
+      },
+    })),
   ],
   options: {
     doNotFollow: {

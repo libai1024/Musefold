@@ -1,1 +1,973 @@
-[]
+[
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/account/store.ts",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-account"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/account/store.ts",
+    "to": "apps/desktop/src/features/settings/ai-connection-store.ts",
+    "unresolvedTo": "../settings/ai-connection-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-account"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/creationStore.ts",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/creationStore.ts",
+    "to": "apps/desktop/src/features/generation/workbench/types.ts",
+    "unresolvedTo": "../generation/workbench/types",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/DesignSchemesPage.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "to": "apps/desktop/src/features/generation/params.ts",
+    "unresolvedTo": "../generation/params",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "to": "apps/desktop/src/features/generation/workbench/types.ts",
+    "unresolvedTo": "../generation/workbench/types",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/SchemeCreationConversation.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/SkillRuntimeAttachment.tsx",
+    "unresolvedTo": "../generation/workbench/SkillRuntimeAttachment",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/SchemeCreationConversation.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/types.ts",
+    "unresolvedTo": "../generation/workbench/types",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/SchemeRunComposer.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/SchemeRunComposer.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/types.ts",
+    "unresolvedTo": "../generation/workbench/types",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/SchemeRunConversation.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/SkillRuntimeAttachment.tsx",
+    "unresolvedTo": "../generation/workbench/SkillRuntimeAttachment",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/design-schemes/SchemeRunConversation.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/types.ts",
+    "unresolvedTo": "../generation/workbench/types",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-design-schemes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/components/ProviderEmptyGuide.tsx",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/components/ProviderEmptyGuide.tsx",
+    "to": "apps/desktop/src/features/settings/store.ts",
+    "unresolvedTo": "../../settings/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/design-schemes/creationStore.ts",
+    "unresolvedTo": "../../design-schemes/creationStore",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/design-schemes/HistorySourcePicker.tsx",
+    "unresolvedTo": "../../design-schemes/HistorySourcePicker",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "unresolvedTo": "../../design-schemes/runStore",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/design-schemes/SchemeCreationConversation.tsx",
+    "unresolvedTo": "../../design-schemes/SchemeCreationConversation",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/design-schemes/SchemeRunComposer.tsx",
+    "unresolvedTo": "../../design-schemes/SchemeRunComposer",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/design-schemes/SchemeRunConversation.tsx",
+    "unresolvedTo": "../../design-schemes/SchemeRunConversation",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/library/related-history.ts",
+    "unresolvedTo": "../../library/related-history",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/library/store.ts",
+    "unresolvedTo": "../../library/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "to": "apps/desktop/src/features/settings/store.ts",
+    "unresolvedTo": "../../settings/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/store.ts",
+    "to": "apps/desktop/src/features/account/doubao-store.ts",
+    "unresolvedTo": "../../account/doubao-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/generation/workbench/store.ts",
+    "to": "apps/desktop/src/features/history/store.ts",
+    "unresolvedTo": "../../history/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-generation"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/CostDashboard.tsx",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/CostDashboard.tsx",
+    "to": "apps/desktop/src/features/settings/store.ts",
+    "unresolvedTo": "../../settings/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/HistoryDetail.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/HistoryDetail.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/references.ts",
+    "unresolvedTo": "../../generation/workbench/references",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/HistoryDetail.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/HistoryDetail.tsx",
+    "to": "apps/desktop/src/features/library/related-history.ts",
+    "unresolvedTo": "../../library/related-history",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/components/HistoryFilterBar.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/history/refine.ts",
+    "to": "apps/desktop/src/features/generation/params.ts",
+    "unresolvedTo": "../generation/params",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-history"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/library/components/PromptDetailView.tsx",
+    "to": "apps/desktop/src/features/generation/promptParams.ts",
+    "unresolvedTo": "../../generation/promptParams",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-library"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/library/components/PromptDetailView.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-library"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/library/components/PromptDetailView.tsx",
+    "to": "apps/desktop/src/features/share/SharePromptDialog.tsx",
+    "unresolvedTo": "../../share/SharePromptDialog",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-library"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/onboarding/OnboardingFlow.tsx",
+    "to": "apps/desktop/src/features/account/doubao-store.ts",
+    "unresolvedTo": "../account/doubao-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-onboarding"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/onboarding/OnboardingFlow.tsx",
+    "to": "apps/desktop/src/features/generation/components/ValidationResultBanner.tsx",
+    "unresolvedTo": "../generation/components/ValidationResultBanner",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-onboarding"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/onboarding/OnboardingFlow.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-onboarding"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/onboarding/store.ts",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-onboarding"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/onboarding/store.ts",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-onboarding"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/onboarding/store.ts",
+    "to": "apps/desktop/src/features/settings/ai-connection-store.ts",
+    "unresolvedTo": "../settings/ai-connection-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-onboarding"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/account-source-switch.ts",
+    "to": "apps/desktop/src/features/account/doubao-store.ts",
+    "unresolvedTo": "../account/doubao-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/account-source-switch.ts",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/account-source-switch.ts",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/AccessModeSection.tsx",
+    "to": "apps/desktop/src/features/account/doubao-store.ts",
+    "unresolvedTo": "../../account/doubao-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/AccessModeSection.tsx",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/AccessModeSection.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/AccountSection.tsx",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/AiConnectionsSection.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/ArchivedChatsSection.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/sessionErrors.ts",
+    "unresolvedTo": "../../generation/workbench/sessionErrors",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/ArchivedChatsSection.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/ConnectedAppsSection.tsx",
+    "to": "apps/desktop/src/features/account/store.ts",
+    "unresolvedTo": "../../account/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/DataSection.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/DataSection.tsx",
+    "to": "apps/desktop/src/features/history/store.ts",
+    "unresolvedTo": "../../history/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/DataSection.tsx",
+    "to": "apps/desktop/src/features/library/store.ts",
+    "unresolvedTo": "../../library/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/DoubaoSection.tsx",
+    "to": "apps/desktop/src/features/account/doubao-store.ts",
+    "unresolvedTo": "../../account/doubao-store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/DoubaoSection.tsx",
+    "to": "apps/desktop/src/features/generation/components/ValidationResultBanner.tsx",
+    "unresolvedTo": "../../generation/components/ValidationResultBanner",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/DoubaoSection.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/GenerationSection.tsx",
+    "to": "apps/desktop/src/features/generation/components/RatioPicker.tsx",
+    "unresolvedTo": "../../generation/components/RatioPicker",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/GenerationSection.tsx",
+    "to": "apps/desktop/src/features/generation/workbench/store.ts",
+    "unresolvedTo": "../../generation/workbench/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/ProvidersSection.tsx",
+    "to": "apps/desktop/src/features/generation/components/ProviderEmptyGuide.tsx",
+    "unresolvedTo": "../../generation/components/ProviderEmptyGuide",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/ProvidersSection.tsx",
+    "to": "apps/desktop/src/features/generation/components/ValidationResultBanner.tsx",
+    "unresolvedTo": "../../generation/components/ValidationResultBanner",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/settings/sections/ProvidersSection.tsx",
+    "to": "apps/desktop/src/features/generation/store.ts",
+    "unresolvedTo": "../../generation/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-settings"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/share/ImportConfirmDialog.tsx",
+    "to": "apps/desktop/src/features/library/store.ts",
+    "unresolvedTo": "../library/store",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-share"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/desktop/src/features/share/SharePromptDialog.tsx",
+    "to": "apps/desktop/src/features/generation/promptParams.ts",
+    "unresolvedTo": "../generation/promptParams",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "renderer-features-isolated-share"
+    }
+  }
+]

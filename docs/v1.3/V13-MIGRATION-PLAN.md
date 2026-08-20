@@ -38,9 +38,11 @@
   验证：repo 守卫 3 条 + 全部 repo 测试 18 条通过；探针 601 行文件先红（未登记超标报错）后绿；baseline 文件 ESLint 静音确认、611 行新文件 warn 确认；全仓 `tsc -b` 通过。✅
   回滚：revert 规则提交；baseline 文件独立于规则文件。
 
-- `V13-GOV-02`：depcruise 新规则 `renderer-features-isolated`：`apps/desktop/src/features/<a>/**` 禁止 import `features/<b>/**`（`__tests__` 豁免）。存量 26+ 违规进 `dependency-cruiser-known-violations.json`，只减不增。
+- `V13-GOV-02`：~~depcruise 新规则 `renderer-features-isolated`：`apps/desktop/src/features/<a>/**` 禁止 import `features/<b>/**`（`__tests__` 豁免）。存量 26+ 违规进 `dependency-cruiser-known-violations.json`，只减不增。~~ **已完成（2026-08-21）**。
 
-  验证：`check:boundaries` 通过；探针（features/library import features/history）先红后绿。
+  **裁定（实现形态）**：depcruise 静态正则无法表达「from 与 to 分属不同 feature」的互斥，按 feature 目录在配置加载时 readdir 动态生成 N 条规则（`renderer-features-isolated-<feature>`，to 侧负向前瞻排除自身）；新增 feature 自动纳入约束。存量违规实测 **69 条边**（原卡「26+ 文件」为文件口径，边口径更细），全量进 baseline。
+
+  验证：`check:boundaries` 通过（69 known ignored）；探针（onboarding store import library store）先红（`renderer-features-isolated-onboarding` error）后绿。✅
   回滚：revert 规则提交。
 
 - `V13-GOV-03`：store 命名与目录统一：feature store 统一 `store.ts`（`doubao-store.ts`→`account/store.ts` 内域、`creationStore.ts`/`runStore.ts`/`skillRuntimeStore.ts` 归位命名）；settings `sections/` 归并入 `components/`（13 个 section 组件改名迁入）；`store-persist-only` ESLint 规则以关闭状态预置（按 STATE-03 分批启用）。
