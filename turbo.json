@@ -2,7 +2,11 @@
   "$schema": "https://turborepo.dev/schema.json",
   // Remote cache stays at Turborepo defaults: set TURBO_TOKEN and TURBO_TEAM in the environment to enable. Do not put credentials in this file.
   // Electron packaging (package / package:mac / package:win / electron-builder) is intentionally not a turbo task.
-  "globalDependencies": ["tsconfig*.json", "tooling/tsconfig.base.json"],
+  "globalDependencies": [
+    "tsconfig*.json",
+    "apps/desktop/tsconfig*.json",
+    "tooling/tsconfig.base.json"
+  ],
   "globalEnv": ["NODE_VERSION"],
   "tasks": {
     "typecheck": {
@@ -35,6 +39,7 @@
       "inputs": [
         "package.json",
         "tsconfig*.json",
+        "apps/desktop/tsconfig*.json",
         "tooling/tsconfig.base.json",
         "apps/desktop/src/**",
         "apps/desktop/electron/**",
@@ -52,6 +57,7 @@
       "inputs": [
         "package.json",
         "vitest.config.ts",
+        "tooling/aliases.mjs",
         "apps/desktop/src/**",
         "tests/repo/**",
         "apps/desktop/electron/**",
@@ -69,6 +75,7 @@
       "inputs": [
         "package.json",
         "apps/desktop/electron.vite.config.ts",
+        "tooling/aliases.mjs",
         "postcss.config.js",
         "tailwind.config.ts",
         "apps/desktop/src/**",
@@ -92,6 +99,7 @@
         "package.json",
         "eslint.config.mjs",
         "tooling/eslint.config.base.mjs",
+        "tooling/aliases.mjs",
         "apps/desktop/electron.vite.config.ts",
         "vitest.config.ts",
         "vite.preview.config.ts",
@@ -115,6 +123,8 @@
         "package.json",
         "tooling/dependency-cruiser.cjs",
         "tooling/dependency-cruiser-known-violations.json",
+        "apps/desktop/tsconfig.node.json",
+        "tooling/tsconfig.base.json",
         "apps/desktop/src/**",
         "apps/desktop/electron/**",
         "packages/**",

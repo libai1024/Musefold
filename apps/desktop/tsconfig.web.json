@@ -1,0 +1,21 @@
+{
+  "extends": "../../tooling/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "rootDir": "src",
+    "outDir": "../../.tsout/web",
+    "tsBuildInfoFile": "../../.tsout/web/tsconfig.tsbuildinfo",
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/desktop-contracts" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/ui" },
+    { "path": "../../packages/product-ui" },
+    { "path": "../../packages/update-protocol" }
+  ]
+}

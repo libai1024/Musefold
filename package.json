@@ -1,6 +1,6 @@
 {
   "name": "musefold-app",
-  "version": "0.5.0-dev.23",
+  "version": "0.5.0-dev.24",
   "description": "Forge your image prompts — 跨平台生图提示词管理桌面 App",
   "main": "./apps/desktop/out/main/index.js",
   "author": "Musefold",
@@ -44,8 +44,8 @@
     "package:win": "electron-vite build --config apps/desktop/electron.vite.config.ts && node scripts/build-cli.mjs && node scripts/run-builder.mjs --win",
     "typecheck": "tsc -b",
     "typecheck:v1.1": "tsc -b packages/contracts packages/domain packages/new-api-client packages/cloud-client packages/server-crypto packages/ui packages/product-ui apps/web apps/web-api apps/generation-worker",
-    "typecheck:node": "tsc -b tsconfig.node.json",
-    "typecheck:web": "tsc -b tsconfig.web.json",
+    "typecheck:node": "tsc -b apps/desktop/tsconfig.node.json",
+    "typecheck:web": "tsc -b apps/desktop/tsconfig.web.json",
     "rebuild": "electron-builder install-app-deps",
     "test": "vitest run",
     "test:watch": "vitest",

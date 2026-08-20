@@ -24,8 +24,9 @@ const SOURCE_FILES = new Set([
   'postcss.config.js',
   'tailwind.config.ts',
   'tsconfig.json',
-  'tsconfig.node.json',
-  'tsconfig.web.json',
+  'apps/desktop/tsconfig.node.json',
+  'apps/desktop/tsconfig.web.json',
+  'tooling/aliases.mjs',
   'vite.preview.config.ts',
   'vitest.config.ts',
 ]);

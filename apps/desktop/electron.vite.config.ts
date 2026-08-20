@@ -1,13 +1,11 @@
 import { defineConfig } from 'electron-vite';
 import { resolve } from 'path';
+import { pickAliases } from '../../tooling/aliases.mjs';
 
 // 配置文件已迁入 apps/desktop/：相对路径以本目录为基准。
 // 仓库根仍是 App manifest / packages 所在处。
 const desktopRoot = __dirname;
 const repoRoot = resolve(desktopRoot, '../..');
-
-const desktopContractsSrc = resolve(repoRoot, 'packages/desktop-contracts/src');
-const domainSrc = resolve(repoRoot, 'packages/domain/src');
 
 export default defineConfig({
   main: {
@@ -32,19 +30,22 @@ export default defineConfig({
       },
     },
     resolve: {
-      alias: {
-        '@shared/types': desktopContractsSrc,
-        '@electron': resolve(desktopRoot, 'electron'),
-        // workspace 包直读 TS 源、随主进程 chunk 打包（不外部化），
-        // electron-builder 的 node_modules 打包面因此零变化（V04-CORE-01）。
-        '@musefold/core': resolve(repoRoot, 'packages/core/src'),
-        '@musefold/automation-server': resolve(repoRoot, 'packages/automation-server/src'),
-        '@musefold/cloud-client': resolve(repoRoot, 'packages/cloud-client/src'),
-        '@musefold/contracts': resolve(repoRoot, 'packages/contracts/src'),
-        '@musefold/desktop-contracts': desktopContractsSrc,
-        '@musefold/domain': domainSrc,
-        '@musefold/update-protocol': resolve(repoRoot, 'packages/update-protocol/src'),
-      },
+      alias: pickAliases(
+        [
+          '@shared/types',
+          '@electron',
+          // workspace 包直读 TS 源、随主进程 chunk 打包（不外部化），
+          // electron-builder 的 node_modules 打包面因此零变化（V04-CORE-01）。
+          '@musefold/core',
+          '@musefold/automation-server',
+          '@musefold/cloud-client',
+          '@musefold/contracts',
+          '@musefold/desktop-contracts',
+          '@musefold/domain',
+          '@musefold/update-protocol',
+        ],
+        repoRoot,
+      ),
     },
   },
   preload: {
@@ -64,11 +65,10 @@ export default defineConfig({
       },
     },
     resolve: {
-      alias: {
-        '@shared/types': desktopContractsSrc,
-        '@musefold/desktop-contracts': desktopContractsSrc,
-        '@musefold/domain': domainSrc,
-      },
+      alias: pickAliases(
+        ['@shared/types', '@musefold/desktop-contracts', '@musefold/domain'],
+        repoRoot,
+      ),
     },
   },
   renderer: {
@@ -87,13 +87,16 @@ export default defineConfig({
       },
     },
     resolve: {
-      alias: {
-        '@shared/types': desktopContractsSrc,
-        '@musefold/desktop-contracts': desktopContractsSrc,
-        '@musefold/domain': domainSrc,
-        '@musefold/contracts': resolve(repoRoot, 'packages/contracts/src'),
-        '@renderer': resolve(desktopRoot, 'src'),
-      },
+      alias: pickAliases(
+        [
+          '@shared/types',
+          '@musefold/desktop-contracts',
+          '@musefold/domain',
+          '@musefold/contracts',
+          '@renderer',
+        ],
+        repoRoot,
+      ),
     },
   },
 });

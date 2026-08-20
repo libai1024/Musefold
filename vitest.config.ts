@@ -1,28 +1,29 @@
 // vitest.config.ts
 // 单测配置 —— 只为解析路径别名而存在。
 //
+// 别名指向只维护在 tooling/aliases.mjs；此处按需取名。
 // apps/desktop/electron.vite.config.ts 里的 alias 只作用于 electron-vite 的三个构建目标，
 // vitest 不读它。之前几个 spec 侥幸能跑，是因为它们只 `import type` @shared/types/*
 // （类型在编译期被抹掉，运行时不需要解析）；一旦有模块从包名取**值**
 // （如 params.ts 的 RATIO_OPTIONS），没有这份 alias 就会 Cannot find package。
 
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
+import { pickAliases } from './tooling/aliases.mjs';
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@shared/types': resolve(__dirname, 'packages/desktop-contracts/src'),
-      '@renderer': resolve(__dirname, 'apps/desktop/src'),
-      '@electron': resolve(__dirname, 'apps/desktop/electron'),
-      '@musefold/core': resolve(__dirname, 'packages/core/src'),
-      '@musefold/automation-server': resolve(__dirname, 'packages/automation-server/src'),
-      '@musefold/client': resolve(__dirname, 'packages/client/src'),
-      '@musefold/update-protocol': resolve(__dirname, 'packages/update-protocol/src'),
-      '@musefold/desktop-contracts': resolve(__dirname, 'packages/desktop-contracts/src'),
-      '@musefold/domain': resolve(__dirname, 'packages/domain/src'),
-      '@musefold/contracts': resolve(__dirname, 'packages/contracts/src'),
-    },
+    alias: pickAliases([
+      '@shared/types',
+      '@renderer',
+      '@electron',
+      '@musefold/core',
+      '@musefold/automation-server',
+      '@musefold/client',
+      '@musefold/update-protocol',
+      '@musefold/desktop-contracts',
+      '@musefold/domain',
+      '@musefold/contracts',
+    ]),
   },
   test: {
     // 渲染层、包内与全仓守卫单测；E2E 交给 tests/e2e 的 pytest + Playwright

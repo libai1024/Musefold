@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { chmodSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pickAliases } from '../tooling/aliases.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -15,15 +16,18 @@ const shared = {
   target: 'node20',
   format: 'esm',
   sourcemap: false,
-  alias: {
-    '@musefold/client': resolve(root, 'packages/client/src'),
-    '@musefold/core': resolve(root, 'packages/core/src'),
-    '@musefold/automation-server': resolve(root, 'packages/automation-server/src'),
-    '@musefold/domain': resolve(root, 'packages/domain/src'),
-    '@musefold/desktop-contracts': resolve(root, 'packages/desktop-contracts/src'),
-    '@musefold/contracts': resolve(root, 'packages/contracts/src'),
-    '@shared/types': resolve(root, 'packages/desktop-contracts/src'),
-  },
+  alias: pickAliases(
+    [
+      '@musefold/client',
+      '@musefold/core',
+      '@musefold/automation-server',
+      '@musefold/domain',
+      '@musefold/desktop-contracts',
+      '@musefold/contracts',
+      '@shared/types',
+    ],
+    root,
+  ),
   external: ['better-sqlite3'],
   banner: {
     js: '#!/usr/bin/env node\nimport { createRequire } from "node:module"; const require = globalThis.require ?? createRequire(import.meta.url);',

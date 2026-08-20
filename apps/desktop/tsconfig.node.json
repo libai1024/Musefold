@@ -1,0 +1,20 @@
+{
+  "extends": "../../tooling/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node", "electron-vite/node"],
+    "rootDir": "electron",
+    "outDir": "../../.tsout/node",
+    "tsBuildInfoFile": "../../.tsout/node/tsconfig.tsbuildinfo"
+  },
+  "include": ["electron/**/*.ts"],
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/desktop-contracts" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/automation-server" },
+    { "path": "../../packages/cloud-client" },
+    { "path": "../../packages/update-protocol" }
+  ]
+}

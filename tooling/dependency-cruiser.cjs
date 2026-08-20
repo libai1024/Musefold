@@ -1,3 +1,5 @@
+const { resolve } = require('node:path');
+
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
@@ -374,10 +376,12 @@ module.exports = {
     moduleSystems: ['es6', 'cjs'],
     tsPreCompilationDeps: true,
     tsConfig: {
-      // Path aliases for the current layout. tsconfig.node.json
+      // Path aliases for the current layout. apps/desktop/tsconfig.node.json
       // covers @shared/types/@electron; @renderer is matched as an unresolved specifier
       // in rules that forbid apps/desktop/src/ (see ^@renderer).
-      fileName: 'tsconfig.node.json',
+      // 必须用绝对路径：depcruise 的 parseJsonConfigFileContent 在相对 fileName 下
+      // 无法解析出 apps/desktop 里 `extends: ../../tooling/tsconfig.base.json`（TS5083）。
+      fileName: resolve(__dirname, '../apps/desktop/tsconfig.node.json'),
     },
     combinedDependencies: true,
     skipAnalysisNotInRules: true,

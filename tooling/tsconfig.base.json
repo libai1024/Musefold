@@ -1,4 +1,7 @@
 {
+  // tsconfig paths 无法从 JS 导入。本表与 tooling/aliases.mjs 必须同步；
+  // tests/repo/alias-consistency.test.ts 比对指向。
+  // @renderer / @electron 仅桌面消费；写在此处是因为 tsc extends 时 paths 整表覆盖、无法在 apps/desktop 子项目追加。
   "compilerOptions": {
     "composite": true,
     "incremental": true,
