@@ -33,7 +33,6 @@ import {
   isPetActivationSuppressed,
   syncPetWithMainWindow,
 } from "./pet";
-import { getPetWindow } from "./pet/window";
 import { attachPetWindowLifecycle } from "./pet/lifecycle";
 import { acquireDesktopOwnerLockWithHeadlessTakeover } from "./headless-takeover";
 import { createAppTray, destroyAppTray } from "./tray";
@@ -43,10 +42,6 @@ import {
   checkSkillUpdatesAtStartup,
   ensureCliInstalledAtStartup,
 } from "./integration";
-
-function isPetWindow(win: BrowserWindow): boolean {
-  return getPetWindow() === win;
-}
 
 registerShareProtocolListeners();
 

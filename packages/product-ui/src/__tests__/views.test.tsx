@@ -397,6 +397,12 @@ describe("shared product views", () => {
     expect(success).toContain("下载");
     expect(pending).toContain('data-status="pending"');
     expect(pending).toContain("42%");
+
+    const busy = renderToStaticMarkup(
+      <GenerationResultSurface status="pending" busy footerLabel="生成中" />,
+    );
+    expect(busy).toContain('aria-busy="true"');
+    expect(busy).toContain('data-busy="true"');
   });
 
   it("shares result grid batch geometry", () => {

@@ -72,10 +72,8 @@ export function registerAiConnectionHandlers(dependencies: AiConnectionHandlerDe
     return models;
   });
   target.handle(IPC.AI_CONNECTION_VALIDATE, async (_event, id: string) => {
-    let profile: AiConnectionProfile;
     try {
       const resolved = assistantFor(id);
-      profile = resolved.profile;
       const validation = await resolved.assistant.validateConnection();
       const updated = store.updateCapabilities(id, {
         modelDiscovery: validation.modelDiscovery,

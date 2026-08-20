@@ -4,7 +4,6 @@ import {
   newPromptDocumentSchema,
   newPromptFolderSchema,
   newPromptTagSchema,
-  promptListQuerySchema,
   promptUseInputSchema,
   updatePromptDocumentSchema,
   updatePromptFolderSchema,

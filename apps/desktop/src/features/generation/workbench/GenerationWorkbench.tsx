@@ -11,7 +11,6 @@ import {
   ArrowUp,
   Blocks,
   Check,
-  ChevronDown,
   Copy,
   Download,
   FileText,
@@ -22,14 +21,12 @@ import {
   ListChecks,
   Loader2,
   MoreHorizontal,
-  RefreshCw,
-  Settings2,
   Search,
   Square,
   Wand2,
   X,
 } from "../../../components/ui/icons";
-import type { Prompt, ProviderConfig } from "@musefold/desktop-contracts/models";
+import type { Prompt } from "@musefold/desktop-contracts/models";
 import type { ImageQuality } from "@musefold/desktop-contracts/enums";
 import { RATIO_OPTIONS } from "@musefold/domain/constants";
 import { titleFromPromptContent } from "@musefold/domain";
@@ -143,20 +140,13 @@ const WORKBENCH_RATIO_OPTIONS = RATIO_OPTIONS.map((option) => ({
 }));
 
 export function GenerationWorkbench() {
-  const defaultProviderId = useAppStore((s) => s.defaultProviderId);
   const providers = useGenerationStore((s) => s.providers);
-  const activeProviderId = useGenerationStore((s) => s.activeProviderId);
   const loadProviders = useGenerationStore((s) => s.loadProviders);
   const refinementContext = useGenerationWorkbenchStore(
     (s) => s.refinementContext,
   );
   const referencesOpen = useAppStore((s) => s.materialLibraryOpen);
   const setReferencesOpen = useAppStore((s) => s.setMaterialLibraryOpen);
-  const selectedProvider =
-    providers.find((provider) => provider.id === activeProviderId) ??
-    providers.find((provider) => provider.id === defaultProviderId) ??
-    providers[0] ??
-    null;
 
   useEffect(() => {
     if (providers.length === 0) void loadProviders().catch(() => {});

@@ -73,10 +73,6 @@ function zipError(
   });
 }
 
-function rejectZip(error: AppError): never {
-  throw new SkillZipError(error);
-}
-
 function sha256(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 }

@@ -4,7 +4,6 @@
 
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
-import type { MusefoldClient } from '@musefold/client';
 import { connect, type CliContext } from './context';
 import { EXIT, printJson } from './io';
 

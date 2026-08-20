@@ -11,7 +11,7 @@ import {
   type GenerationHistoryItemViewModel,
 } from '@musefold/product-ui';
 import {
-  Image as ImageIcon,
+  Image,
   XCircle,
   RotateCcw,
   Trash2,
@@ -87,7 +87,7 @@ export function HistoryList({
       ) : records.length === 0 ? (
         filtered ? (
           <EmptyState
-            icon={ImageIcon}
+            icon={Image}
             title={loading ? '正在加载…' : '没有匹配的记录'}
             hint="试试放宽条件，或清除筛选查看全部。"
             data-testid="history-empty-filtered"
@@ -106,7 +106,7 @@ export function HistoryList({
           />
         ) : (
           <EmptyState
-            icon={ImageIcon}
+            icon={Image}
             title={loading ? '正在加载…' : '还没有生成记录'}
             hint="从「新设计」开始制作，生成的图像会出现在这里。"
             data-testid="history-empty"

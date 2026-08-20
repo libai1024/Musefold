@@ -353,6 +353,7 @@ async function dispatch(channel, args) {
           model: model || config.model || 'gpt-image-2',
           prompt,
           size: size === 'auto' ? undefined : size,
+          quality,
           n: 1,
         });
         const b64 = res.data?.[0]?.b64_json;

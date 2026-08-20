@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import type { ImageBackground, ImageQuality } from '@musefold/desktop-contracts/enums';
 import type {
   GenerateImageResult,
   ImageGenerationProgress,
@@ -7,10 +6,7 @@ import type {
   LocalImageReference,
   PromptReference,
 } from '@musefold/desktop-contracts/providers';
-import {
-  LOCAL_STORAGE_PREFIX,
-  RATIO_OPTIONS,
-} from '@musefold/domain/constants';
+import { LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
 import { useAppStore } from '../../../stores/app';
 import { useGenerationStore } from '../store';
 import { useDoubaoAccountStore } from '../../account/doubao-store';
@@ -19,7 +15,6 @@ import api from '../../../lib/ipc';
 import {
   buildImageRequest,
   DEFAULT_REFINE_PARAMS,
-  resolveRatio,
   type RefineParams,
   type RefineSource,
 } from '../params';

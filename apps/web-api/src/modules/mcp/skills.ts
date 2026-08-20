@@ -81,7 +81,8 @@ export class SkillService {
       validate = new Ajv({ allErrors: true, strict: true }).compile(
         skill.inputSchema,
       );
-    } catch (error) {
+    } catch {
+      // schema 编译失败不得把 Ajv 细节泄漏给客户端
       throw new AppError(
         "INTERNAL_ERROR",
         "官方 Skill 输入 schema 无法使用",

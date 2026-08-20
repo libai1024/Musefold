@@ -21,7 +21,6 @@ import {
   type WorkbenchSessionListQuery,
   type GenerationHistoryQuery,
   type AccountSession,
-  type CloudGenerationRequest,
   type GenerationJob,
   type LoginRequest,
   type PromptListQuery,

@@ -8,7 +8,7 @@
 // 预览与真跑共用同一段写入代码，所以不会出现"预览说导 312 条、实跑只有 300 条"。
 // 换策略会重新 dryRun —— 三种策略的计数本来就不同，不重算就是在骗人。
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, FileUp, Loader2 } from '../../../components/ui/icons';
 import type { ImportResult, ImportStrategy } from '@musefold/desktop-contracts/ipc';
 import api from '../../../lib/ipc';

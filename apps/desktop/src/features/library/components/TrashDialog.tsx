@@ -5,7 +5,7 @@
 // 软删除的条目在这里恢复或彻底删除。「清空回收站」是不可逆的，所以走双重确认。
 
 import { useEffect, useState } from 'react';
-import { RotateCcw, Trash2, Trash } from '../../../components/ui/icons';
+import { RotateCcw, Trash2 } from '../../../components/ui/icons';
 import { useLibraryStore } from '../store';
 import { Button } from '../../../components/ui/button';
 import { EmptyState } from '../../../components/ui/empty-state';
@@ -44,7 +44,7 @@ export function TrashDialog() {
       <DialogContent className="max-w-lg" data-testid="trash-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1.5">
-            <Trash className="h-3.5 w-3.5" /> 回收站
+            <Trash2 className="h-3.5 w-3.5" /> 回收站
             <span className="font-mono text-[11px] tabular-nums text-quaternary">
               {deleted.length}
             </span>
@@ -56,7 +56,7 @@ export function TrashDialog() {
 
         {deleted.length === 0 ? (
           <EmptyState
-            icon={Trash}
+            icon={Trash2}
             title="回收站是空的"
             hint="删除提示词后可以在这里找回。"
             data-testid="trash-empty"

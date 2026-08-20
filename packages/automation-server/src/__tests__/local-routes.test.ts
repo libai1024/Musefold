@@ -94,7 +94,7 @@ describe('本地专属通道', () => {
   });
 
   it('伪造内容 → 403，且该质询作废', async () => {
-    const { dir, info } = await fixture();
+    const { info } = await fixture();
     const challenge = (await (await call(info, '/v1/local/challenge', { method: 'POST' })).json()) as { challengeId: string; fileName: string };
     const forged = await call(info, '/v1/local/backups', {
       method: 'POST',

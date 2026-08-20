@@ -33,8 +33,15 @@ function walk(dir, acc = []) {
 const violations = [];
 for (const file of walk(ROOT)) {
   const src = fs.readFileSync(file, 'utf8');
+  const rel = path.relative(ROOT, file);
   if (path.resolve(file) !== BARREL && /from 'lucide-react'/.test(src)) {
-    violations.push(`${path.relative(ROOT, file)}: 直接 import lucide-react，应改用 components/ui/icons`);
+    violations.push(`${rel}: 直接 import lucide-react，应改用 components/ui/icons`);
+  }
+  if (path.resolve(file) === BARREL) continue;
+  for (const [deprecated, canonical] of Object.entries(DEPRECATED)) {
+    if (new RegExp(`\\b${deprecated}\\b`).test(src)) {
+      violations.push(`${rel}: 使用已折叠图标名 ${deprecated}，应改用 ${canonical}`);
+    }
   }
 }
 

@@ -138,7 +138,6 @@ export function App({ gateway }: AppProps) {
     replace: replaceWorkbenchSessions,
     upsert: upsertWorkbenchSession,
     remove: removeWorkbenchSession,
-    setLoading: setSessionListLoading,
     setError: setSessionListError,
     select: selectWorkbenchSession,
     open: openWorkbenchSessionRecord,

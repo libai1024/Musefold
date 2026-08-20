@@ -1,5 +1,4 @@
 import {
-  cloudGenerationRequestSchema,
   createGenerationInputSchema,
   generationHistoryQuerySchema,
 } from '@musefold/contracts';

@@ -2,8 +2,7 @@
 // 生图与方案/Skill 运行在 P2/P3 追加；本文件保持每个命令一个纯函数、可注入测试。
 
 import { readFileSync } from 'node:fs';
-import { MusefoldClientError } from '@musefold/client';
-import { connect, connectDetailed, localCall, parseCommandArgs, type CliContext } from './context';
+import { connect, connectDetailed, localCall, type CliContext } from './context';
 import { EXIT, printJson, table, type CliIo } from './io';
 
 type CommandRunner = (context: CliContext, rest: string[]) => Promise<number>;

@@ -8,13 +8,9 @@ import {
   type CreateGenerationInput,
   type GenerationHistoryPage,
   type GenerationJob,
-  type ParsedCreateGenerationInput,
   type ParsedGenerationHistoryQuery,
 } from "@musefold/contracts";
-import {
-  assertGenerationTransition,
-  canCancelGeneration,
-} from "@musefold/domain";
+import { assertGenerationTransition } from "@musefold/domain";
 import {
   withOwnerTransaction,
   type OwnerTransaction,

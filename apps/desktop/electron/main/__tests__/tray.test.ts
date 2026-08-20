@@ -71,7 +71,7 @@ afterEach(() => {
 describe('application tray', () => {
   it('creates one tray with open and quit actions', () => {
     const openMainWindow = vi.fn();
-    const tray = createAppTray(openMainWindow);
+    createAppTray(openMainWindow);
     const fakeTray = mocks.trayInstances[0];
     const template = mocks.buildFromTemplate.mock.calls[0]?.[0] as Array<{ click?: () => void }>;
     const iconSize = process.platform === 'darwin' ? 18 : 20;

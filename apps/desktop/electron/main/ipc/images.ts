@@ -12,7 +12,6 @@ import type {
 } from '@musefold/desktop-contracts/providers';
 import type { ImageSize, ImageQuality, ImageBackground, ModerationLevel } from '@musefold/desktop-contracts/enums';
 import { getDb } from '@musefold/core/db/index';
-import { parseJsonColumn } from '@musefold/core/db/json';
 import {
   cancelGeneration,
   generate as coreGenerate,

@@ -3,7 +3,7 @@
 // 详见 docs/06-ui-design-system.md §6.2
 
 import { useEffect, useMemo, useState } from "react";
-import { Blocks, LibraryBig, History, Power, RefreshCw } from "../ui/icons";
+import { Blocks, LibraryBig, History, Power } from "../ui/icons";
 import { useAppStore } from "../../stores/app";
 import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
 import { Button } from "../ui/button";

@@ -2,7 +2,6 @@ import {
   type AccountSession,
   type ApiErrorCode,
   type CreateGenerationInput,
-  type CloudGenerationRequest,
   type GenerationHistoryPage,
   type GenerationJob,
   type LoginRequest,

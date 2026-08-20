@@ -47,10 +47,6 @@ function fail(name, details = '') {
   checks.push({ name, status: 'fail', details });
 }
 
-function warn(name, details = '') {
-  checks.push({ name, status: 'warn', details });
-}
-
 async function exists(path) {
   try {
     await lstat(safePath(path));

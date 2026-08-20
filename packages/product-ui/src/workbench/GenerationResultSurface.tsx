@@ -121,6 +121,8 @@ export function GenerationResultSurface({
       data-status={status}
       data-selected={selected || undefined}
       data-deselecting={deselecting || undefined}
+      data-busy={busy || undefined}
+      aria-busy={busy || undefined}
       data-image-available={imageAvailable || undefined}
     >
       <div

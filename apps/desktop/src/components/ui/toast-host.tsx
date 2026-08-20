@@ -3,7 +3,7 @@
 
 import { Toast, ToastClose, ToastDescription, ToastTitle, ToastViewport } from './toast';
 import { useToastStore } from '../../stores/toast';
-import { AlertCircle, CheckCircle2, Info, TriangleAlert } from './icons';
+import { AlertCircle, CheckCircle2, Info, AlertTriangle } from './icons';
 import { cn } from '../../lib/utils';
 
 function ToastStatusIcon({ variant }: { variant: 'default' | 'success' | 'danger' | 'warning' | 'accent' }) {
@@ -12,7 +12,7 @@ function ToastStatusIcon({ variant }: { variant: 'default' | 'success' | 'danger
     : variant === 'danger'
       ? AlertCircle
       : variant === 'warning'
-        ? TriangleAlert
+        ? AlertTriangle
         : Info;
   const color = variant === 'success'
     ? 'text-success'

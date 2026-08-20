@@ -20,7 +20,6 @@ import { IPC } from '@musefold/desktop-contracts/ipc';
 import {
   MAX_REFERENCE_IMAGES,
   type GenerateImageRequest,
-  type GenerateImageResult,
   type ImageGenerationProgress,
   type LocalImageReference,
 } from '@musefold/desktop-contracts/providers';

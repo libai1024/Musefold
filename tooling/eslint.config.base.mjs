@@ -110,13 +110,38 @@ export default tseslint.config(
     },
   },
   {
-    // 存量违规冻结（首轮全量 2026-08-20）。第一批棘轮已收紧：违规最少的 8 条
-    // 已修复并重新启用。以下 8 条仍 off，违规数保持首轮基线，待后续棘轮。
+    // V121-CI-08 第二批：未使用绑定清零。代码库已普遍用 _ 前缀标记占位
+    //（接口参数、解构丢弃）；catch 未使用同样要求 _ 前缀，避免误吞真错误。
     rules: {
-      '@typescript-eslint/no-unused-vars': 'off', // 57; ratchet: v1.2.2 Phase 0 重新启用
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          args: 'all',
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
+  {
+    // CommonJS 里 require 是合法形态：按文件类型关闭，不是行内豁免。
+    // .cjs 以及显式 "type": "commonjs" 的 skill 脚本（.js）。
+    files: ['**/*.cjs', '.claude/skills/newapi/**/*.js'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    // 存量违规冻结（首轮全量 2026-08-20）。第一、二批棘轮已收紧：
+    // 第一批 8 条低违规规则 + 第二批 no-unused-vars / no-require-imports 已清零并启用。
+    // 以下 6 条仍 off（react-hooks 系列与 no-explicit-any 留给 Phase 2 stores）。
+    rules: {
       'react-hooks/set-state-in-effect': 'off', // 47; ratchet: v1.2.2 Phase 0 重新启用
       '@typescript-eslint/no-explicit-any': 'off', // 41; ratchet: v1.2.2 Phase 0 重新启用
-      '@typescript-eslint/no-require-imports': 'off', // 18; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/exhaustive-deps': 'off', // 12; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/refs': 'off', // 5; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/immutability': 'off', // 2; ratchet: v1.2.2 Phase 0 重新启用

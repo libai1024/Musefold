@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { lstat, readFile, readdir } from 'fs/promises';
 import { relative, resolve, sep } from 'path';
-import { appError, fail, ok, type AppError, type AppResult } from '@musefold/domain/app-result';
+import { appError, fail, type AppError, type AppResult } from '@musefold/domain/app-result';
 import {
   classifyAgentSkillFile,
   scanAgentSkillFiles,

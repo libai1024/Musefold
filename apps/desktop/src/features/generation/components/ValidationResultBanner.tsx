@@ -1,7 +1,7 @@
 // src/features/generation/components/ValidationResultBanner.tsx
 // 测试连接结果条：按错误码展示友好文案 + 可执行下一步（TASK-GEN-03）
 
-import { Check, AlertCircle, KeyRound, ExternalLink, RotateCw } from '../../../components/ui/icons';
+import { Check, AlertCircle, KeyRound, ExternalLink, RotateCcw } from '../../../components/ui/icons';
 import { errorGuidance, type ErrorAction } from '@musefold/domain/errors';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
@@ -113,7 +113,7 @@ function actionIcon(kind: ErrorAction['kind']) {
     case 'open_url':
       return <ExternalLink className="h-3 w-3" />;
     case 'retry':
-      return <RotateCw className="h-3 w-3" />;
+      return <RotateCcw className="h-3 w-3" />;
     default:
       return null;
   }

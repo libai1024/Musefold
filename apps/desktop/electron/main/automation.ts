@@ -26,7 +26,7 @@ import { createElectronLocalAdminOps } from './automation-local';
 import { createElectronAutomationSetupRoutes } from './automation-setup';
 import { CoreError } from '@musefold/core';
 import { getDb } from '@musefold/core/db/index';
-import { createSpendAuditService, type SpendAuditEntry } from '@musefold/core/services/audit';
+import { createSpendAuditService } from '@musefold/core/services/audit';
 import { stageLocalImageBytes } from '@musefold/core/providers/local-image';
 import { trackPetGeneration } from './pet';
 import type { AutomationAuditEntry, AutomationSpendAudit, AutomationStatus } from '@musefold/desktop-contracts/ipc';

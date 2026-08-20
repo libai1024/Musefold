@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   generateImage,
   imageChecksum,
-  UpstreamImageError,
 } from '../image-gateway.js';
 
 const onePixelPng = Buffer.from(

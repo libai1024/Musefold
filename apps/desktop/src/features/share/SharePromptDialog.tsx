@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, ImageDown, Loader2, Save, Share2 } from '../../components/ui/icons';
+import { Check, Copy, ImageDown, Loader2, Save } from '../../components/ui/icons';
 import type { Prompt } from '@musefold/desktop-contracts/models';
 import type { ShareRenderCardResult } from '@musefold/desktop-contracts/ipc';
 import api from '../../lib/ipc';

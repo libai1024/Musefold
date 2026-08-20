@@ -1,7 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type Provider from "oidc-provider";
 import { z } from "zod";
-import type { WebApiConfig } from "../../config.js";
 import { AppError } from "../../errors.js";
 import type { SessionStorePort } from "../account/session-store.js";
 import type { AccountService } from "../account/service.js";

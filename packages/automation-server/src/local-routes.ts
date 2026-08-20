@@ -7,7 +7,7 @@
 // 调用方读取该文件并以头 `x-musefold-local-proof: <challengeId>:<内容>` 回证。
 
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from './server';
 import { tokenEquals } from './token';

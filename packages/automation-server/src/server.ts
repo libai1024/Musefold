@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { URL } from 'node:url';
-import type { CoreError, CoreEvent, EventHub, Logger, MusefoldCore } from '@musefold/core';
+import type { CoreError, EventHub, Logger, MusefoldCore } from '@musefold/core';
 import {
   discoveryFilePath,
   removeDiscoveryFileIfOwned,

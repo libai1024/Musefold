@@ -5,7 +5,6 @@ import {
   Loader2,
   QrCode,
   Server,
-  UserRound,
 } from '../../../components/ui/icons';
 import { ModelBrandIcon, matchModelBrand } from '../../../components/ui/brand-icons';
 import { formatPoints } from '@musefold/domain';
@@ -72,7 +71,6 @@ export function AccessModeSection() {
   }, [providers, refreshDoubaoStatus, refreshDoubaoUsage]);
 
   const activeProvider = providers.find((provider) => provider.id === activeProviderId) ?? providers[0] ?? null;
-  const activeConnection = connections.find((connection) => connection.isActive) ?? connections[0] ?? null;
   const currentMode = accessModeOfProvider(activeProvider) ?? 'account';
   const currentAccountSource = accountImageSourceOfProvider(activeProvider) ?? preferredAccountSource;
   const doubaoProvider = providers.find((provider) => provider.type === 'doubao-web') ?? null;
