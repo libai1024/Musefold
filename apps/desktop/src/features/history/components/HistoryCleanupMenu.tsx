@@ -19,7 +19,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../../../components/ui/dropdown-menu';
+} from '@musefold/ui';
 import { useHistoryStore } from '../store';
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;

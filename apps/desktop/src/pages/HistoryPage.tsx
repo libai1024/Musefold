@@ -13,7 +13,7 @@ import { HistoryCleanupMenu } from '../features/history/components/HistoryCleanu
 import { HistoryDiskUsage } from '../features/history/components/HistoryDiskUsage';
 import { CostDashboard } from '../features/history/components/CostDashboard';
 import { useHistoryStore } from '../features/history/store';
-import { ImageLightbox } from '../components/ui/image-lightbox';
+import { ImageLightbox } from '../components/image-lightbox';
 import { Button } from '../components/ui/button';
 import {
   GenerationHistoryWorkspace,

@@ -30,7 +30,7 @@ import {
 } from '../../../components/ui/dialog';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Input } from '../../../components/ui/input';
-import { Spinner } from '../../../components/ui/spinner';
+import { Spinner } from '@musefold/ui';
 import {
   Tooltip,
   TooltipContent,

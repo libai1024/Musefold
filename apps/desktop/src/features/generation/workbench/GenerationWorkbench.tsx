@@ -80,7 +80,7 @@ import type {
   GenerationTurn,
   RefinementContext,
 } from "./types";
-import { ImageLightbox } from "../../../components/ui/image-lightbox";
+import { ImageLightbox } from "../../../components/image-lightbox";
 import { cn } from "../../../lib/utils";
 import { toImageSrc } from "../../../lib/media";
 import api from "../../../lib/ipc";

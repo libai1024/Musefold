@@ -24,7 +24,7 @@ import {
 import { useAppStore, type ViewKey } from '../../stores/app';
 import { useLibraryStore } from '../../features/library/store';
 import { useSettingsStore } from '../../features/settings/store';
-import { Kbd } from '../ui/kbd';
+import { Kbd } from '@musefold/ui';
 import { cn } from '../../lib/utils';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
 

@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
-import { Kbd } from '../../../components/ui/kbd';
+import { Kbd } from '@musefold/ui';
 import { MusefoldLogoAnimated } from '../../../components/brand/MusefoldLogoAnimated';
 import { SectionShell } from '../components/SectionShell';
 import { THIRD_PARTY_PACKAGES } from '../third-party-notices';

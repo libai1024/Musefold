@@ -8,7 +8,7 @@ import type { HistoryRecord, Prompt } from '@musefold/desktop-contracts/models';
 import api from '../../../lib/ipc';
 import { toImageSrc } from '../../../lib/media';
 import { formatTime } from '../../../lib/format';
-import { ImageLightbox } from '../../../components/ui/image-lightbox';
+import { ImageLightbox } from '../../../components/image-lightbox';
 import { cn } from '../../../lib/utils';
 import { loadRelatedHistory } from '../related-history';
 import { promptRelationLabel } from '../prompt-relation-label';
