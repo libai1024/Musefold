@@ -1,10 +1,10 @@
 # Musefold v1.2.2 迁移计划
 
-> **状态**：任务分解，尚未开工
+> **状态**：Phase 0、Phase 1a 已完成；Phase 1b 起未开工
 >
 > **日期**：2026-08-20
 >
-> **前置**：Phase 1a 须 v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（已于 2026-08-20 达成）；Phase 1b 须 v1.2.1 发布门禁全部通过，且 Phase 1a 稳定运行一周；Phase 0 可与 v1.2.1 M4–M7 并行
+> **前置**：Phase 1a 须 v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（已于 2026-08-20 达成，Phase 1a 同日完成）；Phase 1b 须 v1.2.1 发布门禁全部通过，且 Phase 1a 稳定运行一周；Phase 0 可与 v1.2.1 M4–M7 并行
 >
 > **总原则**：每个任务卡独立合并、独立可回滚；纯移动提交与内容修改严格分离；不改变任何用户可见行为
 
@@ -20,8 +20,8 @@
 
 | 阶段 | 内容 | 开工条件 | 预期节奏 |
 |---|---|---|---|
-| Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | 每卡半天到一天 |
-| Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | 集中 2–3 天完成 |
+| Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | **已完成（2026-08-20）** |
+| Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
 | Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1 完成 | 按 feature 逐卡推进 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错 | 按卡推进 |
@@ -55,7 +55,7 @@ Phase 0 于 2026-08-20 全部完成。
 
 ### Phase 0 沉淀的 Phase 3 输入
 
-- **`@shared/*` 别名消费清单**（Phase 3 拆迁 `shared/` 的依据）：`packages/core` 消费面最大（constants、pricing、types/{enums,models,providers,ipc,workbench,design-scheme}、design-scheme/{prompt-compiler,schema}）；`packages/cli` 生产代码消费 constants、pricing；`packages/automation-server` 生产代码消费 types/providers、constants；`packages/client` 零别名。
+- **`@shared/*` 别名消费清单**（原为 Phase 3 拆迁 `shared/` 的依据；`shared/` 已于 Phase 1a DIR-02 解散）：`packages/core` 消费面最大（constants、pricing、types/{enums,models,providers,ipc,workbench,design-scheme}、design-scheme/{prompt-compiler,schema}）；`packages/cli` 生产代码消费 constants、pricing；`packages/automation-server` 生产代码消费 types/providers、constants；`packages/client` 零别名。残留的 `@shared/types/*` 直映与 ESLint 禁令见下方 Phase 1a 沉淀的 Phase 3 输入。
 - **退役后端面**（前端 store 死路径已删，以下保留待 Phase 3 决断）：`electron/main/ipc/{folders,tags,prompts,smartSets}.ts` 的 folder/tag/batch/smartSet 通道、preload 对应暴露、`packages/core` 的 folders/tags/smartSets repositories——导入导出与 E2E 仍在使用其中一部分，不能整体删除。
 - **已知测试竞态**：~~根 vitest 并行时 brand-migration 相关测试与 `packages/cli/dist` 写入偶发撞车~~ **已于 2026-08-20 修复**。根因不是临时目录问题，而是 `readProductText()` 递归扫描 `packages/**` 时把构建产物一起读了：该守卫要守的是源码，产物随时可重建，扫它既拖慢测试又会和并发构建抢文件。现按目录名跳过产物与依赖目录（`dist`/`out`/`node_modules`/`.turbo`/`.tsout` 等）并跳过符号链接；正反向都已验证（产物目录内放旧品牌串仍通过，`src/` 下放则失败）。
 
@@ -74,11 +74,44 @@ Phase 0 于 2026-08-20 全部完成。
 
 ### Phase 1a：源码目录迁移（根 package.json 暂不动）
 
-- `V122-DIR-01`：`git mv src apps/desktop/src`、`git mv electron apps/desktop/electron`；`electron.vite.config.ts` 迁至 `apps/desktop/` 并更新入口路径；根 package.json 暂时保留 App manifest 角色，`main` 字段指向新输出路径。
-- `V122-DIR-02`：新建 `packages/desktop-contracts`，`git mv shared/types/*` 迁入；其余 `shared/` 文件按[架构文档第 6 节](./V122-ARCHITECTURE.md)归位 domain/core/desktop-contracts；`@shared/*` 别名由 `desktop-contracts` 兼容 re-export。
-- `V122-DIR-03`：收敛别名：`@renderer`、`@main` 只在 `apps/desktop` 的 tsconfig 与 vite 配置中定义；删除 `vitest.config.ts`、`electron.vite.config.ts` 中与 tsconfig 重复的 alias 表。
-- `V122-DIR-04`：更新 v1.2.1 的层级路径映射（`.github/layer-paths.yml`）：外壳层 `apps/desktop/electron/`、内容层 `apps/desktop/src/`、新增 `packages/desktop-contracts`。构造四类提交各验证一次触发正确。
-- `V122-DIR-05`：门禁：`check` + `check:v1.1` + 桌面 E2E + 共享视觉门禁 + `package:mac:adhoc` 冒烟。
+- `V122-DIR-01`：~~`git mv src apps/desktop/src`、`git mv electron apps/desktop/electron`；`electron.vite.config.ts` 迁至 `apps/desktop/` 并更新入口路径；根 package.json 暂时保留 App manifest 角色，`main` 字段指向新输出路径。~~ **已完成（2026-08-20）**。桌面应用迁入 `apps/desktop/`；根 package.json 仍为 App manifest（下移属 Phase 1b）。
+- `V122-DIR-02`：~~新建 `packages/desktop-contracts`，`git mv shared/types/*` 迁入；其余 `shared/` 文件按[架构文档第 6 节](./V122-ARCHITECTURE.md)归位 domain/core/desktop-contracts；`@shared/*` 别名由 `desktop-contracts` 兼容 re-export。~~ **已完成（2026-08-20，fcd614f）**。`shared/` 已解散。`shared/types/*` 15 文件迁入新包 `@musefold/desktop-contracts`（`0.0.0-internal`，composite）；`@shared/types/*` 别名直映到包内，数百处 types import 零改动，**无 re-export 胶水**。其余 `@shared/<module>` import 全部改写为真实包名——单一兼容模块会把 `better-sqlite3` 拉进渲染层，故不走「一个 re-export 兜底」。
+
+  归位（执行期按 import 图逐文件判定，订正架构 §6 预估）：
+  - `design-scheme/` → `desktop-contracts`；
+  - `diagnostics.ts`、`share.ts` 核实为纯函数（无 Node import，`Buffer` 仅特性探测）→ 留 `desktop-contracts`（预估曾写 core / `apps/desktop`）；
+  - `export-format` / `generation-prompt` / `app-result` / `errors` → `packages/domain`；
+  - `pricing` → `packages/core`（裁定：其类型面是桌面 SQLite 行模型即 desktop-contracts，而 domain 禁止依赖 desktop-contracts，故不能进 domain）；
+  - `skill-scanner` → `apps/desktop/electron/main/skill-import/`（依赖 yaml 且仅主进程消费）；
+  - 全仓守卫 `brand-migration` / `namespace` 测试 → `tests/repo/`。
+
+  constants 拆分：产品常量 + `MUSEFOLD_SKILL_*` 三常量 → `packages/domain/src/constants.ts`；落盘路径类常量（`DB_NAME`、目录名、`FTS_TOKENIZE`）→ `packages/core/src/constants.ts`；billing 消费方直连 `@musefold/contracts/billing.js`。
+
+  **裁定（预料外，2026-08-20）**：desktop-contracts 依赖 domain（`prompt-compiler` 运行时调 `generation-prompt`；type-only `AppResult`）与 type-only 的 update-protocol（`Channel`）——向下依赖、渲染安全。depcruise 新规则 `desktop-contracts-no-upward` 放行 domain / contracts / update-protocol，禁止 core / electron / renderer / apps。规则 18→19 条，0 违规（770 modules / 2951 deps）。
+
+  `check-skill-update.mjs`：新路径优先、父 revision 回退 `shared/constants.ts`，self-test 扩跨路径分支。
+
+  验证：turbo 30/30（18 包）、全量 E2E 221+1 重跑 / 17 skipped、adhoc 真包 + macOS 冒烟 2 passed。
+- `V122-DIR-03`：~~收敛别名：`@renderer`、`@main` 只在 `apps/desktop` 的 tsconfig 与 vite 配置中定义；删除 `vitest.config.ts`、`electron.vite.config.ts` 中与 tsconfig 重复的 alias 表。~~ **已完成（2026-08-20，12bf33d）**。运行时别名单点定义 `tooling/aliases.mjs`，electron.vite / vitest / vite.preview / build-cli 以 `pickAliases` 取名单（各配置 pick 名单与收敛前逐项相同）。tsconfig paths 因 `extends` 整表覆盖不合并、且无法 import JS，保持声明在 `tooling/tsconfig.base.json`，由新守卫测试 `tests/repo/alias-consistency.test.ts`（3 条）双向比对锁漂移。
+
+  `tsconfig.node.json` / `tsconfig.web.json` 迁入 `apps/desktop/` 保留原名（无按名发现机制，node/web 词汇与既有脚本/规则一致）。
+
+  **事实修正**：架构文档写的桌面别名 `@main` 实际代码中是 `@electron`——文档按代码现实修正（见 [架构文档](./V122-ARCHITECTURE.md)）。
+
+  depcruise 对相对 extends 解析有缺陷（TS5083），`dependency-cruiser.cjs` 改用绝对路径。
+
+  验证：turbo 30/30、根 vitest 164 files / 961 tests、冒烟 `reason=builtin`、内容更新 E2E 3 passed。
+- `V122-DIR-04`：~~更新 v1.2.1 的层级路径映射（`.github/layer-paths.yml`）：外壳层 `apps/desktop/electron/`、内容层 `apps/desktop/src/`、新增 `packages/desktop-contracts`。构造四类提交各验证一次触发正确。~~ **已完成（2026-08-20，d440f48；补卡 da6754a）**。`layer-paths.yml` 切至 `apps/desktop/**`；旧 `src/`、`electron/`、`shared/` 条目删除；`packages/desktop-contracts` 双列 content+shell（渲染与主进程同时消费，照 update-protocol 模式，最保守）；`electron.vite.config.ts` 双列 content+shell 并撤出 infra。desktop E2E 门控组同步。四类构造变更验证触发正确。
+
+  **补卡（三处映射缺口，da6754a）**：`packages/core/**` 补进 shell（主进程编译它）；`packages/domain/**` 补进 service（web-api 依赖）；迁走的桌面 tsconfig 撤出 infra、按编译单元拆归 shell（node）/ content（web），避免渲染 tsconfig 误点外壳车道。self-test 补断言。
+- `V122-DIR-05`：~~门禁：`check` + `check:v1.1` + 桌面 E2E + 共享视觉门禁 + `package:mac:adhoc` 冒烟。~~ **已完成（2026-08-20）**。turbo 全门禁 30/30 + 全量桌面 E2E + adhoc 真包冒烟（DIR-02 内完成）+ `check:v1.1` 通过 + `test:visual:shared` 共享视觉门禁通过（web/desktop 视觉契约全对通过）。
+
+Phase 1a 于 2026-08-20 全部完成，门禁全绿。
+
+### Phase 1a 沉淀的 Phase 3 输入
+
+- **`@shared/types/*` 兼容别名的删除与 import 全量改写**：DIR-02 为避免数百处 types import 改动，将 `@shared/types/*` 直映到 `packages/desktop-contracts`；删除该别名并改写全部 import 留 Phase 3（`V122-SHARE-06`）。
+- **ESLint `no-restricted-imports` 禁 `@shared`**：原计划在 Phase 1a 即禁止新增，执行期未落地；与别名删除同批收口，避免别名仍在时规则与现实打架。
 
 **回滚**：1a 全部是移动与路径修正，revert 迁移提交即回滚。
 
@@ -87,13 +120,13 @@ Phase 0 于 2026-08-20 全部完成。
 - `V122-DIR-06`：Electron App manifest 下移到 `apps/desktop/package.json`（`main`、App 依赖、electron-builder 配置、`postinstall` 的 `install-app-deps`）；根 package.json 变纯 workspace root，只留全局脚本与 devDependencies。`electron-builder.yml` 迁至 `apps/desktop/` 并验证原生依赖收集（`better-sqlite3`）在 workspace 布局下正确打入。
 - `V122-DIR-07`：更新 `scripts/*.mjs` 中的路径引用（`run-builder`、`build-cli`、`clean-artifacts`、release 系列）；更新 `infra/v1.1/Dockerfile` 构建上下文（web-api 镜像不再安装桌面 App 依赖，构建应变轻）。
 - `V122-DIR-08`：发布链路全验证：tag 触发打包 workflow、renderer bundle 构建路径（`apps/desktop/out/renderer`）、`minShellVersion` 推导脚本按包名解析 `@musefold/desktop-contracts`。
-- `V122-DIR-09`：清理与文档：删除根目录遗留配置（`tsconfig.node.json`、`tsconfig.web.json` 等被 references 图取代的文件）；`doc/v1.0/README.md` 与 `docs/08-file-structure.md` 加「目录结构已被 v1.2.2 取代」横幅。
+- `V122-DIR-09`：清理与文档：删除 `apps/desktop/` 下迁入的 `tsconfig.node.json`、`tsconfig.web.json`（DIR-03 已自根目录迁入并保留原名）等被 references 图取代的文件；`doc/v1.0/README.md` 与 `docs/08-file-structure.md` 加「目录结构已被 v1.2.2 取代」横幅。
 
 **回滚**：1b 合并前在分支上完成 mac + win 双平台打包冒烟；合并后若发现打包问题，revert 单个合并提交即可，运行时行为不受影响（用户侧无变化）。
 
 ### 完成条件
 
-- 根目录不再有 `src/`、`electron/`、`shared/`；`apps/desktop` 结构与[架构文档第 2 节](./V122-ARCHITECTURE.md)一致。
+- 根目录不再有 `src/`、`electron/`、`shared/`；`apps/desktop` 结构与[架构文档第 2 节](./V122-ARCHITECTURE.md)一致。✅（Phase 1a：三处源码已迁走；`apps/desktop/package.json` 与 `electron-builder.yml` 下移属 Phase 1b）
 - 打一个 tag 能产出与迁移前等价的签名安装包；`downloads` 产物清单逐项一致。
 - 内容层/服务层/外壳层/纯文档四类提交的流水线触发与迁移前等价。
 - `git log --follow` 能追溯任一被迁移文件的历史。
@@ -129,7 +162,7 @@ Phase 0 于 2026-08-20 全部完成。
 - `V122-SHARE-03`：new-api 客户端去重：`electron/account/api-client.ts` 切换到 `@musefold/new-api-client`，差异部分（设备令牌编排）留在 `electron/account/`。
 - `V122-SHARE-04`：工作台 store（2,080 行）按 Web 已验证的三 controller 模式（session/draft-sync/generation-sync）拆分 IO 与状态机；可上提的 reducer 进 `product-ui`，IPC IO 留在 `DesktopGateway`。
 - `V122-SHARE-05`：`check-shared-ui-boundaries.mjs` 中 import 类规则（图标唯一入口、禁私有 sidebar）折入 depcruise/ESLint；token 与 CSS 断言保留为脚本。
-- `V122-SHARE-06`：删除 `@shared/*` 兼容 re-export 与全部残留引用，`desktop-contracts` 成为唯一入口。
+- `V122-SHARE-06`：删除 `@shared/types/*` 兼容别名并全量改写 import；ESLint `no-restricted-imports` 禁 `@shared`；`desktop-contracts` 成为唯一入口。
 
 ### 完成条件
 
@@ -167,7 +200,7 @@ Phase 0 于 2026-08-20 全部完成。
 | CI 路径过滤失配导致漏部署/误部署 | `V122-DIR-04` 用四类构造提交验证 | 映射文件单点回滚 |
 | Gateway 切换引入行为回归 | 按 feature 逐卡合并；桌面 E2E + 视觉门禁每卡必跑 | 单卡 revert |
 | 热更新 `minShellVersion` 推导在新路径失效 | `V122-DIR-08` 专项验证；推导按包名解析 | 阻塞发布,不阻塞代码合并 |
-| `@shared` re-export 期间新代码继续引用旧路径 | ESLint no-restricted-imports 在 Phase 1a 即禁止新增 | — |
+| `@shared/types/*` 兼容别名残留、新代码继续走旧路径 | 别名删除与 ESLint `no-restricted-imports` 禁 `@shared` 列入 Phase 3 `V122-SHARE-06`（Phase 1a 未落地禁令，以免别名仍在时规则与现实打架） | — |
 
 ## 9. 相关文档
 

@@ -2,6 +2,8 @@
 
 v1.2.2 是系统架构重构版本。它不新增产品功能，交付的是桌面 + Web 双端的企业级 monorepo 结构：桌面 App 迁入 `apps/desktop`、共享层补全、桌面数据访问抽象与 Web 对齐，让双端「一致的交互体验和 UI 设计」建立在同一套代码上，而不是两套平行实现上。
 
+**当前进度（2026-08-20）**：Phase 0 工程化地基与 Phase 1a 源码目录迁移已完成；Phase 1b（App manifest 下移）未开工。
+
 前置版本是 [v1.2.1 持续交付](../v1.2.1/README.md)。v1.2.1 交付的 affected 流水线、自动部署与一键回滚是本版本大规模目录迁移的回归安全网，顺序不可颠倒。
 
 ## 文档
@@ -14,9 +16,9 @@ v1.2.2 是系统架构重构版本。它不新增产品功能，交付的是桌�
 
 v1.1 已经完成双端复用最难的一半：`packages/ui` + `packages/product-ui` 约 1.2 万行产品组件被桌面和 Web 共同消费，并有像素级视觉门禁。剩余维护成本集中在五个结构性缺口：
 
-1. **两套并行领域模型**。桌面 `shared/types`（SQLite 行、epoch 时间、offset 分页）与 `packages/contracts`（云文档、ISO 时间、cursor 分页、乐观锁）对同一批实体各有一份定义。
+1. **两套并行领域模型**。桌面行模型（原 `shared/types`，现 `packages/desktop-contracts`：SQLite 行、epoch 时间、offset 分页）与 `packages/contracts`（云文档、ISO 时间、cursor 分页、乐观锁）对同一批实体各有一份定义。
 2. **桌面没有数据访问抽象**。Web 有 `WebGateway`，桌面 47 个渲染文件直接 import IPC，18 个 zustand store 就是数据层；`packages/domain` 定义的 `PromptRepository` 端口全仓库零实现。
-3. **桌面 App 占据仓库根目录**（`src/` + `electron/` + `shared/` 约 6.5 万行），导致三套互不一致的路径别名、无 project references、typecheck 入口分裂为三条。
+3. **桌面 App 占据仓库根目录**（Phase 1a 前：`src/` + `electron/` + `shared/` 约 6.5 万行），导致三套互不一致的路径别名、无 project references、typecheck 入口分裂为三条。Phase 1a 已迁走源码并解散 `shared/`；根 package.json 仍兼 App manifest（Phase 1b）。
 4. **宿主编排层重复**。Web `App.tsx` 与桌面 pages+stores 平行实现；`new-api` 客户端两份；纯函数多处复制；UI 原语迁移一半。
 5. **依赖关系靠别名而非声明**。`core`、`cli`、`client`、`automation-server` 的 package.json 不声明真实依赖，zod v3/v4 分裂，包版本号三套。
 
@@ -35,12 +37,13 @@ v1.1 已经完成双端复用最难的一半：`packages/ui` + `packages/product
 
 ## 阶段总览
 
-| 阶段 | 内容 | 开工条件 |
+| 阶段 | 内容 | 状态 |
 |---|---|---|
-| Phase 0 工程化地基 | 依赖声明、zod v4、dependency-cruiser、project references | 可与 v1.2.1 M4–M7 并行（纯仓库侧） |
-| Phase 1 目录重构 | 桌面迁入 `apps/desktop`、`shared/` 解散、别名收敛 | v1.2.1 发布门禁全部通过 |
-| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1 完成 |
-| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错 |
+| Phase 0 工程化地基 | 依赖声明、zod v4、dependency-cruiser、project references | **已完成（2026-08-20）** |
+| Phase 1a 源码目录迁移 | 桌面迁入 `apps/desktop`、`shared/` 解散、别名收敛、CI 层级映射 | **已完成（2026-08-20）** |
+| Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root；打包与发布路径同步 | 未开工（须 v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周） |
+| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | 未开工（须 Phase 1 完成） |
+| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 未开工（可与 Phase 2 交错） |
 
 Prompt/History 实体统一与宿主编排进一步收敛列为 v1.3+ 候选，理由见[架构文档第 5 节](./V122-ARCHITECTURE.md)。
 
@@ -48,8 +51,8 @@ Prompt/History 实体统一与宿主编排进一步收敛列为 v1.3+ 候选，�
 
 | 风险 | 缓解 |
 |---|---|
-| Phase 1 目录迁移破坏 electron-builder 打包 | 拆成 1a（只动源码目录）与 1b（App manifest 下移）两步；每步以 `package:mac:adhoc` 冒烟为门禁 |
+| Phase 1 目录迁移破坏 electron-builder 打包 | 拆成 1a（只动源码目录，**已完成**）与 1b（App manifest 下移）两步；每步以 `package:mac:adhoc` 冒烟为门禁 |
 | 迁移与日常开发冲突产生大面积 rebase | `git mv` 纯移动提交与内容修改严格分离；Phase 1b 设短暂 feature freeze 窗口 |
-| v1.2.1 流水线的路径过滤在迁移后失配 | 路径映射已按 `V121-CI-04` 单点定义，Phase 1 验收项包含同步更新 |
+| v1.2.1 流水线的路径过滤在迁移后失配 | 路径映射已按 `V121-CI-04` 单点定义；Phase 1a DIR-04 已切至 `apps/desktop/**` 并验证四类触发 |
 | 热更新 `minShellVersion` 推导脚本失效 | 推导按包名解析（`V121-HOT-06` 已预留），Phase 1 验收项包含验证 |
 | Gateway 抽象引入回归 | 按 feature 逐个 store 切换，每步过桌面 E2E 与共享视觉门禁 |

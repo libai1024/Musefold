@@ -1,6 +1,6 @@
 # Musefold v1.2.2 系统架构
 
-> **状态**：v1.2.2 架构基线
+> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 1b 起未开工）
 >
 > **日期**：2026-08-20
 >
@@ -12,8 +12,8 @@
 
 v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」重构为标准的双端 monorepo：
 
-1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链。
-2. **`shared/` 解散**：IPC 契约与 SQLite 行模型进新包 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定逻辑归位 `packages/core`。
+1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链（App manifest 下移属 Phase 1b）。
+2. **`shared/` 解散**（Phase 1a 已落地）：IPC 契约与 SQLite 行模型进 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定与桌面行模型逻辑归位 `packages/core` / 主进程。`@shared/types/*` 兼容别名直映 desktop-contracts，删除留 Phase 3。
 3. **桌面补上数据访问抽象**：`packages/domain` 的端口做全，桌面实现 `DesktopGateway`（封装 `window.api`），与 Web 的 `WebGateway` 实现同一组接口；store 与组件不再直接 import IPC。
 4. **双模型不强合，用 mapper 收口**：SQLite 行模型与云文档模型语义不同（时间、分页、乐观锁），转换集中在明确的 mapper 层；新功能一律以 `contracts` 形状为准。
 5. **依赖规则从约定变成机器约束**：dependency-cruiser 把分层图变成 CI 门禁；package.json 补全真实依赖；TypeScript project references 统一 typecheck 入口。
@@ -22,7 +22,9 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 ## 1. 现状与问题定位
 
-### 1.1 规模基线（2026-08-20 实测）
+### 1.1 规模基线（2026-08-20 实测；Phase 1a 前）
+
+下表为目录迁移前的规模快照。Phase 1a 已将 `src/`、`electron/` 迁入 `apps/desktop/`，并解散 `shared/`。
 
 | 区域 | 生产代码 | 说明 |
 |---|---|---|
@@ -36,11 +38,11 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 ### 1.2 五个结构性缺口
 
-**缺口一：两套并行领域模型。** 同一批实体在 `shared/types/models.ts`（`Prompt.contentNegative`、`createdAt: number`、无 version）与 `packages/contracts/src/prompt.ts`（`negative`、ISO 字符串、`version` 乐观锁）各有一份定义，工作台会话、账号、历史同理。`packages/core` 的 SQLite 行与 IPC 全部是前者。
+**缺口一：两套并行领域模型。** 同一批实体在桌面行模型（原 `shared/types/models.ts`，Phase 1a 起为 `packages/desktop-contracts`：`Prompt.contentNegative`、`createdAt: number`、无 version）与 `packages/contracts/src/prompt.ts`（`negative`、ISO 字符串、`version` 乐观锁）各有一份定义，工作台会话、账号、历史同理。`packages/core` 的 SQLite 行与 IPC 全部是前者。
 
 **缺口二：桌面没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；桌面侧 47 个渲染文件直接 `import api from '@renderer/lib/ipc'`，8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。`packages/domain/src/ports.ts` 定义的 `PromptRepository` 全仓库零实现、零注入。
 
-**缺口三：桌面 App 占据仓库根目录。** 后果是工程配置无法收敛：`tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts`、`vitest.config.ts` 各维护一套不完全一致的别名；根 tsconfig 没有 references 到任何包；`typecheck` 拆成三条命令，其中 `typecheck:mcp` 需要 8 GiB 堆。
+**缺口三：桌面 App 占据仓库根目录。** Phase 1a 已将 `src/`、`electron/` 迁入 `apps/desktop/` 并解散 `shared/`；根 `package.json` 仍兼 App manifest（Phase 1b）。迁移前的后果是工程配置无法收敛：`tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts`、`vitest.config.ts` 各维护一套不完全一致的别名；根 tsconfig 没有 references 到任何包；`typecheck` 拆成三条命令，其中 `typecheck:mcp` 需要 8 GiB 堆。后两项已由 Phase 0 收口；别名于 DIR-03 收敛为 `tooling/aliases.mjs` + tsconfig 守卫。
 
 **缺口四：宿主编排层重复。** Web `App.tsx`（1,373 行）与桌面 pages+stores 是接同一批 product-ui 组件的两套平行编排；`packages/new-api-client` 与 `electron/account/api-client.ts` 是接口几乎同名的两份客户端；`titleFromPromptContent`、积分格式化等纯函数在 domain、桌面、Web 各有副本；`src/components/ui/` 里 dropdown/select/slider/lightbox 等约 1,000 行原语未完成向 `@musefold/ui` 的迁移。
 
@@ -50,46 +52,50 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 ```text
 apps/
-  desktop/                     # ← 根目录 src/ + electron/ 迁入
+  desktop/                     # ← 根目录 src/ + electron/ 迁入（Phase 1a 已落地）
     electron/
-      main/                    # 主进程（原 electron/main 等）
+      main/                    # 主进程（原 electron/main 等；skill-scanner 归位于 main/skill-import/）
       preload/
     src/                       # 渲染进程（原根 src/）
     electron.vite.config.ts
-    electron-builder.yml
-    package.json               # Electron App manifest（原根 package.json 的 App 部分）
+    tsconfig.node.json         # 自根目录迁入，保留原名（无按名发现机制）
+    tsconfig.web.json
+    electron-builder.yml       # Phase 1b
+    package.json               # Electron App manifest（原根 package.json 的 App 部分；Phase 1b）
   web/                         # 不变
   web-api/                     # 不变
   generation-worker/           # 不变
 
 packages/
   contracts/                   # 云契约（Zod）；新增实体的唯一规范形状
-  desktop-contracts/           # ← shared/types 迁入：IPC Api 面 + SQLite 行模型 + 桌面枚举
+  desktop-contracts/           # ← shared/types 迁入：IPC Api 面 + SQLite 行模型 + 桌面枚举 + design-scheme / diagnostics / share
   domain/                      # 做厚：纯业务规则 + Gateway 端口 + contracts 侧 mapper + capability
   ui/                          # 设计 token 与原语（补齐迁移）
   product-ui/                  # 共享产品组件与交互 controller
   cloud-client/                # Cloud HTTP 客户端（双端共用）
   new-api-client/              # new-api 客户端（收敛为唯一一份）
   server-crypto/               # 服务端密封
-  core/                        # 桌面本地核（SQLite/Provider/同步），声明真实依赖
+  core/                        # 桌面本地核（SQLite/Provider/同步），声明真实依赖；定价行模型与落盘路径常量在此
   automation-server/           # 本地控制面，职责不变
   client/                      # 控制面客户端，职责不变
   cli/                         # CLI，职责不变
   mcp/                         # 本地 stdio MCP，职责不变
 
-tooling/
-  tsconfig/                    # tsconfig.base.json 与各类预设
-  eslint/                      # 共享 ESLint 配置（v1.2.1 CI-08 建立后收入此处）
-  depcruise/                   # 分层依赖规则
+tooling/                       # 扁平布局（Phase 0 实测，未用子目录）
+  tsconfig.base.json
+  eslint.config.base.mjs
+  dependency-cruiser.cjs
+  dependency-cruiser-known-violations.json
+  aliases.mjs                  # 运行时别名单点（DIR-03）
 
-根目录：package.json（纯 workspace root）、turbo.json、锁文件、scripts/、docs/、infra/、website/、tests/
+根目录：package.json（Phase 1b 起纯 workspace root）、turbo.json、锁文件、scripts/、docs/、infra/、website/、tests/
 ```
 
 要点：
 
-- `website/`、`services/`、`infra/`、`scripts/`、`tests/`（Python E2E）保持现位，不在本次范围。
+- `website/`、`services/`、`infra/`、`scripts/`、`tests/`（Python E2E）保持现位，不在本次范围。根 `shared/` 已于 Phase 1a 解散，不再存在。
 - 根 `package.json` 从「Electron App manifest 兼 workspace root」退化为纯 workspace root；electron-builder、`main` 字段、App 依赖全部下移到 `apps/desktop/package.json`。这是 Phase 1b，风险最高的一步，见[迁移计划](./V122-MIGRATION-PLAN.md)。
-- `@shared/*` 别名在迁移期由 `packages/desktop-contracts` 做兼容 re-export，新代码禁用。
+- `@shared/types/*` 别名在迁移期直映 `packages/desktop-contracts`（无 re-export 胶水，避免把 `better-sqlite3` 拉进渲染层）；其余 `@shared/<module>` 已改写为真实包名。兼容别名删除与 ESLint 禁令留 Phase 3。
 
 ## 3. 分层与依赖规则
 
@@ -99,10 +105,13 @@ tooling/
 flowchart TB
   subgraph contractsLayer [契约层]
     contracts[contracts 云契约]
-    desktopContracts[desktop-contracts IPC与SQLite模型]
+    updateProtocol[update-protocol 热更新协议]
   end
   subgraph ruleLayer [规则层]
     domain["domain: 业务规则 + Gateway端口 + capability"]
+  end
+  subgraph desktopContractLayer [桌面契约]
+    desktopContracts[desktop-contracts IPC与SQLite模型]
   end
   subgraph uiLayer [共享UI层]
     ui[ui token与原语]
@@ -123,6 +132,8 @@ flowchart TB
   contracts --> domain
   contracts --> cloudClient
   contracts --> desktopContracts
+  domain --> desktopContracts
+  updateProtocol --> desktopContracts
   domain --> wGateway
   domain --> dGateway
   ui --> productUi
@@ -133,11 +144,16 @@ flowchart TB
   cloudClient --> wGateway
 ```
 
+`domain → desktop-contracts` 与 type-only `update-protocol → desktop-contracts` 为 2026-08-20 执行期裁定：desktop-contracts 不再与 contracts 同属「零 workspace 依赖」的叶子契约层；依赖方向仍禁止 core / electron / renderer / apps（渲染安全）。详见 §3.2。
+
 ### 3.2 依赖规则（dependency-cruiser 强制）
 
 ```text
 contracts          ← 不依赖任何 workspace 包（仅 zod）
-desktop-contracts  ← contracts（少量交叉类型），禁止反向
+desktop-contracts  ← zod + domain + contracts + type-only update-protocol（Channel）
+                     depcruise `desktop-contracts-no-upward`（2026-08-20 裁定）：放行上述三包，禁止 core / electron / renderer / apps
+                     理由：prompt-compiler 运行时调 domain 的 generation-prompt；AppResult 为 type-only；向下依赖、渲染安全
+                     domain 仍禁止依赖 desktop-contracts（禁止反向）
 domain             ← contracts；禁止 desktop-contracts、electron、fs、window.api
 ui                 ← 不依赖任何 workspace 包
 product-ui         ← ui；禁止 domain 实现细节、window.api、cloud-client、electron
@@ -216,28 +232,35 @@ SQLite 行模型与云文档模型的差异不是命名问题，是语义问题�
 
 ## 6. `shared/` 的去向
 
-| 现文件 | 去向 | 依据 |
-|---|---|---|
-| `types/ipc.ts`、`types/models.ts`、`types/workbench.ts`、`types/providers.ts`、`types/pet.ts`、`types/skill-runtime.ts`、`types/ai.ts`、`types/account.ts`、`types/enums.ts`、`types/design-scheme.ts`、updater/cloud-sync 类型 | `packages/desktop-contracts` | 桌面 IPC/持久化契约 |
-| `pricing.ts`、`export-format.ts`、`generation-prompt.ts`、`app-result.ts`、`errors.ts` | `packages/domain`（逐文件确认无 Node/Electron 依赖） | 平台无关业务规则 |
-| `design-scheme/{schema,prompt-compiler,agents}.ts` | `packages/desktop-contracts`（方案是桌面独有能力） | 桌面领域 schema |
-| `constants.ts` | 拆分：路径常量进 `packages/core`，产品常量（RATIO_OPTIONS 等）进 `domain` | 混装 |
-| `skill-scanner.ts`、`diagnostics.ts`、`share.ts` | `packages/core` 或 `apps/desktop`（含 fs/Node 依赖） | Node 绑定 |
+Phase 1a DIR-02（2026-08-20，fcd614f）已按 import 图执行完毕。下表为实际归位，相对原预估的差异见裁定栏。
 
-执行时以实际 import 图为准，逐文件判定；`@shared/*` 别名由 `desktop-contracts` 兼容 re-export 支撑到 Phase 3 结束后删除。
+| 原文件 | 实际去向 | 依据 / 裁定 |
+|---|---|---|
+| `types/*` 15 文件 | `packages/desktop-contracts/src/` | 桌面 IPC/持久化契约。`@shared/types/*` 别名直映到包内，数百处 types import 零改动，无 re-export 胶水 |
+| `design-scheme/{schema,prompt-compiler,agents}.ts` | `packages/desktop-contracts` | 方案是桌面独有能力 |
+| `diagnostics.ts`、`share.ts` | `packages/desktop-contracts` | **订正预估**（原写 core / `apps/desktop`）：import 图核实为纯函数，无 Node import，`Buffer` 仅特性探测 |
+| `export-format.ts`、`generation-prompt.ts`、`app-result.ts`、`errors.ts` | `packages/domain` | 平台无关业务规则 |
+| `pricing.ts` | `packages/core` | **订正预估**（原写 domain）：类型面是桌面 SQLite 行模型即 desktop-contracts；domain 禁止依赖 desktop-contracts，故不能进 domain（2026-08-20 裁定） |
+| `constants.ts` | 拆分：产品常量 + `MUSEFOLD_SKILL_*` 三常量 → `packages/domain/src/constants.ts`；落盘路径类（`DB_NAME`、目录名、`FTS_TOKENIZE`）→ `packages/core/src/constants.ts`；billing 消费方直连 `@musefold/contracts/billing.js` | 混装 |
+| `skill-scanner.ts` | `apps/desktop/electron/main/skill-import/` | **订正预估**（原写 core / `apps/desktop`）：依赖 yaml 且仅主进程消费 |
+| 全仓守卫 `brand-migration` / `namespace` 测试 | `tests/repo/` | 仓库级守卫，非包运行时 |
+
+**desktop-contracts 依赖面（2026-08-20 裁定）**：zod + domain + contracts + type-only update-protocol（`Channel`）。depcruise 规则 `desktop-contracts-no-upward` 放行上述、禁止 core / electron / renderer / apps。理由：`prompt-compiler` 运行时调 domain 的 `generation-prompt`；`AppResult` 为 type-only；向下依赖、渲染安全。domain 仍禁止依赖 desktop-contracts。
+
+`@shared/types/*` 兼容别名支撑到 Phase 3 结束后删除（全量改写 import + ESLint `no-restricted-imports`）；其余 `@shared/<module>` 已在 DIR-02 改写为真实包名。
 
 ## 7. TypeScript 工程统一
 
-1. `tooling/tsconfig/tsconfig.base.json` 为唯一 base；各 app/包持有 `composite: true` 的独立 tsconfig 并声明 `references`。
-2. 根 `tsconfig.json` references 全图，`npm run typecheck` 收敛为一条 `tsc -b`（Turborepo 按包切分缓存）。`typecheck:mcp` 的 8 GiB 堆问题预期随图切分消失，验证后移除特殊入口。
-3. 别名收敛：workspace 包一律包名 import（`exports` 直指 `src/`，与现状一致）；app 内部别名只保留 `@renderer`、`@main` 两个，且只在对应 app 的 tsconfig 与 vite 配置中定义。`electron.vite.config.ts`、`vitest.config.ts` 中与 tsconfig 重复的 alias 表删除，改由 tsconfig paths 插件或包名解析统一提供。
+1. `tooling/tsconfig.base.json` 为唯一 base（扁平布局，无 `tooling/tsconfig/` 子目录）；各 app/包持有 `composite: true` 的独立 tsconfig 并声明 `references`。
+2. 根 `tsconfig.json` references 全图，`npm run typecheck` 收敛为一条 `tsc -b`（Turborepo 按包切分缓存）。`typecheck:mcp` 的 8 GiB 堆问题已随图切分消失并移除特殊入口。
+3. 别名收敛（DIR-03，2026-08-20）：workspace 包一律包名 import（`exports` 直指 `src/`）；app 内部别名只保留 `@renderer`、`@electron` 两个（**事实修正**：原文写 `@main`，实际代码一直是 `@electron`，按代码订正），且只在对应 app 的 tsconfig 与构建配置中取用。运行时别名单点定义 `tooling/aliases.mjs`，electron.vite / vitest / vite.preview / build-cli 以 `pickAliases` 取名单。tsconfig paths 因 `extends` 整表覆盖不合并、且无法 import JS，保持声明在 `tooling/tsconfig.base.json`，由 `tests/repo/alias-consistency.test.ts`（3 条）双向比对锁漂移。
 4. 包版本收敛为统一的 `0.0.0-internal`（不发布 npm），内部引用一律 `*`；App 版本单一事实源沿用 `V121-CI-07` 的结论。
 
 ## 8. 与 v1.2.1 CI/CD 的衔接
 
 | v1.2.1 资产 | v1.2.2 的影响 | 同步动作 |
 |---|---|---|
-| 层级路径映射（`V121-CI-04`，单点定义） | `src/`、`electron/` 移动，`shared/` 消失 | Phase 1 验收项：更新映射并验证四类触发 |
+| 层级路径映射（`V121-CI-04`，单点定义） | `src/`、`electron/` 移动，`shared/` 消失 | Phase 1a 已完成：映射切至 `apps/desktop/**`；`desktop-contracts` 双列 content+shell；补卡将 `core` 列入 shell、`domain` 列入 service，桌面 tsconfig 按编译单元拆归 shell/content |
 | Turborepo 任务图（按包定义） | 包位置变化 | 只改 `workspaces` glob，任务图不动 |
 | `infra/v1.1/Dockerfile` | 构建上下文含根 package.json | Phase 1b 同步更新 COPY 路径与 `npm ci` 目标 |
 | renderer bundle 产物路径（`out/renderer`） | 变为 `apps/desktop/out/renderer` | 打包与热更新流水线从构建配置读取（v1.2.1 已预留） |
