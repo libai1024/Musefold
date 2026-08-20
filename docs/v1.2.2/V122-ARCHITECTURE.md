@@ -1,6 +1,6 @@
 # Musefold v1.2.2 系统架构
 
-> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 2 部分落地：GW-01 domain / GW-02 / GW-03；Phase 3 部分落地：SHARE-06 / 01 / 05 / 02 / 03；Phase 1b 未开工，GW-04 起未开工）
+> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 2 部分落地：GW-01 domain / GW-02 / GW-03 / GW-05 / GW-07（两刀 fa45f74 + 83d9f71）/ GW-08；Phase 3 部分落地：SHARE-06 / 01 / 05 / 02 / 03；Phase 1b 未开工，GW-04 / GW-06 未开工）
 >
 > **日期**：2026-08-20
 >
@@ -14,7 +14,7 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链（App manifest 下移属 Phase 1b）。
 2. **`shared/` 解散**（Phase 1a 已落地）：IPC 契约与 SQLite 行模型进 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定与桌面行模型逻辑归位 `packages/core` / 主进程。`@shared/types/*` 兼容别名已于 Phase 3 SHARE-06 删除，消费方改走 `@musefold/desktop-contracts/<mod>` 子路径。
-3. **桌面补上数据访问抽象**：`packages/domain` 六端口已上提（GW-01）；桌面 `DesktopGateway` 骨架已落地（GW-02），library 写路径作模式样板（GW-03）。`WebGateway implements` 补卡等待 web 并行工作流收口。list/create 等桌面查询面仍直连 IPC，待 `DesktopExtras`（GW-07）。目标仍是 store 与组件不再直接 import IPC。
+3. **桌面补上数据访问抽象**：`packages/domain` 六端口已上提（GW-01）；桌面 `DesktopGateway` 骨架已落地（GW-02），library 写路径作模式样板（GW-03）。`DesktopExtras` 已落地（GW-07，两刀 fa45f74 + 83d9f71）：library 查询/写面走行模型；account login/status 全量与 cloudSync 直通 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。settings 的 aiConnection / provider 仍直连 ipc，未纳入 GW-07。桌面已接入 `getProductCapabilities('desktop')`（GW-08）。`WebGateway implements` 补卡等待 web 并行工作流收口。目标仍是 store 与组件不再直接 import IPC。
 4. **双模型不强合，用 mapper 收口**：SQLite 行模型与云文档模型语义不同（时间、分页、乐观锁），转换集中在明确的 mapper 层；新功能一律以 `contracts` 形状为准。
 5. **依赖规则从约定变成机器约束**：dependency-cruiser 把分层图变成 CI 门禁；package.json 补全真实依赖；TypeScript project references 统一 typecheck 入口。
 
@@ -40,7 +40,7 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 **缺口一：两套并行领域模型。** 同一批实体在桌面行模型（原 `shared/types/models.ts`，Phase 1a 起为 `packages/desktop-contracts`：`Prompt.contentNegative`、`createdAt: number`、无 version）与 `packages/contracts/src/prompt.ts`（`negative`、ISO 字符串、`version` 乐观锁）各有一份定义，工作台会话、账号、历史同理。`packages/core` 的 SQLite 行与 IPC 全部是前者。
 
-**缺口二：桌面没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；桌面侧 47 个渲染文件直接 `import api from '@renderer/lib/ipc'`，8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。Phase 2 已开始收口：六端口已上提，`DesktopGateway` 骨架与 library 写路径样板已落地；list/create 等仍直连 IPC，见第 4 节。
+**缺口二：桌面没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；桌面侧 47 个渲染文件直接 `import api from '@renderer/lib/ipc'`，8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。Phase 2 已开始收口：六端口已上提，`DesktopGateway` 骨架与 library 写路径样板已落地，`DesktopExtras` 已把 library 查询/写面、account login/status 全量与 cloudSync 切出；settings 的 aiConnection / provider 仍直连 ipc（未纳入 GW-07），见第 4 节。
 
 **缺口三：桌面 App 占据仓库根目录。** Phase 1a 已将 `src/`、`electron/` 迁入 `apps/desktop/` 并解散 `shared/`；根 `package.json` 仍兼 App manifest（Phase 1b）。迁移前的后果是工程配置无法收敛：`tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts`、`vitest.config.ts` 各维护一套不完全一致的别名；根 tsconfig 没有 references 到任何包；`typecheck` 拆成三条命令，其中 `typecheck:mcp` 需要 8 GiB 堆。后两项已由 Phase 0 收口；别名于 DIR-03 收敛为 `tooling/aliases.mjs` + tsconfig 守卫。
 
@@ -171,14 +171,14 @@ apps/web-api       ← contracts/domain/new-api-client/server-crypto；禁止 de
 
 ### 3.3 平台专属能力的归属
 
-以 `packages/domain` 的 capability manifest 为唯一开关（桌面在 v1.2.2 起消费 `getProductCapabilities('desktop')`，替代散落的页面判断）：
+以 `packages/domain` 的 capability manifest 为唯一开关。GW-08（2026-08-20，ae9723e）已落地：桌面经单点 `apps/desktop/src/runtime/capabilities.ts` 消费 `getProductCapabilities('desktop')`；Sidebar / SettingsView / CommandPalette 按 flag 滤入口；工作台内部按钮不闸。当前 flag 全 true，可见入口不变：
 
 - 设计方案、Skill runtime、豆包网页桥、BYOK Provider、备份导入导出、桌宠、朱点、命令面板 → 仅 `apps/desktop`。
 - 本地控制面三件套（automation-server / client / cli）与本地 stdio MCP → 桌面生态，职责与 v0.4 一致，不参与本次重构。
 
 ## 4. 桌面 Gateway 与端口设计
 
-Phase 2 已落地 domain 六端口（GW-01）、`DesktopGateway` 骨架（GW-02）与 library 写路径样板（GW-03）。GW-04 起未开工；`WebGateway implements` 补卡等待 web 并行工作流收口。
+Phase 2 已落地 domain 六端口（GW-01）、`DesktopGateway` 骨架（GW-02）、library 写路径样板（GW-03）、cloud-connections 切 AccountGateway（GW-05）、`DesktopExtras`（GW-07，两刀 fa45f74 + 83d9f71：library extras + account login/status 全量 + cloudSync）与桌面 capabilities 接入（GW-08）。GW-04 / GW-06 未开工；settings aiConnection / provider 仍直连 ipc，未纳入 GW-07；`WebGateway implements` 补卡等待 web 并行工作流收口。
 
 ### 4.1 端口定义（packages/domain）
 
@@ -191,7 +191,7 @@ WorkbenchGateway：   list/get/create/update/deleteWorkbenchSession
 GenerationGateway：  createGeneration / getGeneration / streamGenerationEvents / cancelGeneration / retryGeneration / approveGeneration
 HistoryGateway：     listGenerationHistory / deleteGeneration / restoreGeneration
 AccountGateway：     getSession / login / logout / listConnections / updateConnection / revokeConnection
-PlatformServices：   空接口（WebGateway 当时没有 toast/download/clipboard/openExternal；待 GW-07/08）
+PlatformServices：   空接口（WebGateway 当时没有 toast/download/clipboard/openExternal；GW-08 落地的是 capabilities，未填此项）
 // 未归组：readonly mode: "api" | "fixture"（宿主传输开关，非领域 IO）
 ```
 
@@ -201,13 +201,13 @@ PlatformServices：   空接口（WebGateway 当时没有 toast/download/clipboa
 
 - 端口签名使用 **contracts 形状或共享视图模型**，不出现 `window.api` 类型、SQLite 行或本地路径。
 - 进度/事件用回调或 `AsyncIterable` 表达，两端分别落到 IPC 事件与 SSE。桌面 `streamGenerationEvents` 现为 NotImplemented（见 4.2），GW-06 前须裁定扩 preload 还是改拉模型。
-- 桌面独有域（pet、automation、designScheme、skillRuntime）以及 library 的桌面查询面（list 的 search + 多维 filters + sortDir、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory）**不进共享端口**，归 `DesktopExtras`（GW-07），类型来自 `desktop-contracts`。
+- 桌面独有域（pet、automation、designScheme、skillRuntime）以及 library 的桌面查询面（list 的 search + 多维 filters + sortDir、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory）**不进共享端口**，归 `DesktopExtras`（类型来自 `desktop-contracts`）。GW-07 两刀已落地扁平 `DesktopExtras`：library 面（直通行模型，不经 PromptDocument）与 account* / cloudSync*（直通 AccountStatus / CloudSyncSummary，不经 AccountSession mapper）。settings 的 aiConnection / provider 未纳入本卡。
 
 ### 4.2 两端实现
 
 ```text
 apps/web/src/runtime.ts        HttpWebGateway / FixtureWebGateway（已存在；implements 补卡等待 web 并行工作流收口；形状由 gateway-ports.typecheck.test.ts 的 satisfies 锁定）
-apps/desktop/src/runtime/      createDesktopGateway(api) + 懒单例 desktopGateway（GW-02，fc197b8）；字段转换只在 mappers/；depcruise 第 20 条 desktop-runtime-contracts-only-in-mappers 禁止 runtime 组装层引用 contracts
+apps/desktop/src/runtime/      createDesktopGateway(api) + 懒单例 desktopGateway（GW-02，fc197b8）；capabilities.ts 单点 getProductCapabilities('desktop')（GW-08，ae9723e）；字段转换只在 mappers/；depcruise 第 20 条 desktop-runtime-contracts-only-in-mappers 禁止 runtime 组装层引用 contracts
 ```
 
 GW-02 骨架：PromptGateway 全实现（有损字段逐条注释）。其余按 IPC 能直映的做，对不齐的抛 `DesktopGatewayNotImplementedError`。**`streamGenerationEvents` 裁定为 NotImplemented**（桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号）。骨架未接线，行为零变化。
@@ -216,14 +216,18 @@ GW-03（2026-08-20，7790a35）以 library store 为写路径模式样板：
 
 - **list 不走端口**：云 `PromptListQuery` 表达不了桌面 search + 多维 filters + sortDir。
 - 走 gateway：update / delete / restore / copy 的 usePrompt；delete/restore 传合成 version 1。
-- **create 仍走 `api.prompt.create`**：`NewPromptDocument` 无 `previewImagePath`，笺与工作台「存为提示词」经端口会丢封面。
-- 仍走 api：list / listDeleted / stats / togglePin / reorderPins / purge / searchHistory。
+- **create 仍走 `api.prompt.create`**：`NewPromptDocument` 无 `previewImagePath`，笺与工作台「存为提示词」经端口会丢封面（GW-07 第一刀已切到 extras）。
+- 仍走 api：list / listDeleted / stats / togglePin / reorderPins / purge / searchHistory（GW-07 第一刀已切到 extras）。
 - 新增 `applyPromptDocumentToRow`：update 回写保留封面路径。
 - 注入：模块级 `setLibraryPromptGatewayForTests`，无 React context。
 
-消费规则（目标不变，library 写路径已按此走）：
+GW-07 第一刀（2026-08-20，fa45f74）：新增扁平 `DesktopExtras`（`packages/desktop-contracts/src/desktop-extras.ts`）。library list/listDeleted/stats/create/togglePin/reorderPins/purge/searchHistory 直通行模型，不经 PromptDocument；library store 剩余 api 调用已切到 extras。update/delete/restore/usePrompt 仍走 PromptGateway。
 
-- zustand store 与 React 组件只依赖端口类型，通过宿主组装的 runtime 对象获取实现；迁完的写路径不再直连 `src/lib/ipc.ts`。list/create 等桌面查询面仍直连，直至 `DesktopExtras`（GW-07）。
+GW-07 第二刀（2026-08-20，83d9f71）：DesktopExtras 新增 account* 与 cloudSync* 扁平方法，直通 IPC，返回 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。account/store.ts 去掉 lib/ipc；AccountSection 不再出现 window.api.cloudSync。aiConnection / provider 仍直连 ipc，未纳入本卡。
+
+消费规则（目标不变，library / account 写路径已按此走）：
+
+- zustand store 与 React 组件只依赖端口类型，通过宿主组装的 runtime 对象获取实现；迁完的写路径不再直连 `src/lib/ipc.ts`。library 查询/写面与 account login/status、cloudSync 已走 extras；settings 的 aiConnection / provider 仍直连 ipc。
 - 现有 47 处直连 IPC 与 8 处裸 `window.api` 按 feature 逐个收编（迁移顺序见迁移计划 Phase 2），迁完的 feature 目录由 depcruise 规则从 warn 提升为 error。
 - 桌宠、窗口控件等纯桌面窗口壳可以保留直连，在规则中显式豁免并注明理由。
 

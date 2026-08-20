@@ -1,6 +1,6 @@
 # Musefold v1.2.2 迁移计划
 
-> **状态**：Phase 0、Phase 1a 已完成；Phase 2 部分完成（GW-01 domain / GW-02 / GW-03 / GW-05），GW-04 / GW-06 起未开工，GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；Phase 3 部分完成（SHARE-06 / 01 / 05 / 02 / 03），仅剩 SHARE-04（与 Phase 2 stores 同批）；Phase 1b 未开工
+> **状态**：Phase 0、Phase 1a 已完成；Phase 2 部分完成（GW-01 domain / GW-02 / GW-03 / GW-05 / GW-07（两刀 fa45f74 + 83d9f71）/ GW-08 已完成），GW-04 / GW-06 未开工，GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；Phase 3 部分完成（SHARE-06 / 01 / 05 / 02 / 03），仅剩 SHARE-04（与 Phase 2 stores 同批）；Phase 1b 未开工
 >
 > **日期**：2026-08-20
 >
@@ -23,7 +23,7 @@
 | Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | **已完成（2026-08-20）** |
 | Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
-| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | **部分完成（2026-08-20）**：GW-01（domain）/ 02 / 03 / 05 已完成；GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 / 06 起未开工 |
+| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | **部分完成（2026-08-20）**：GW-01（domain）/ 02 / 03 / 05 / 07（两刀 fa45f74 + 83d9f71）/ 08 已完成；GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 / 06 未开工 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04（与 Phase 2 stores 同批） |
 
 ## 2. Phase 0：工程化地基
@@ -166,23 +166,37 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 
   **裁定**：**list 不走端口**——云 `PromptListQuery` 表达不了桌面 search + 多维 filters + sortDir。**create 仍走 `api.prompt.create`**——`NewPromptDocument` 无 `previewImagePath`，笺与工作台「存为提示词」经端口会丢封面。
 
-  验证：store+mapper 测试、库 E2E 21 passed、冒烟 `reason=builtin`。
+  验证：store+mapper 测试、库 E2E 21 passed、冒烟 `reason=builtin`。library 剩余 api 已由 GW-07 第一刀（fa45f74）切到 extras。
 - `V122-GW-04`：切换 `features/history/store.ts` 与历史相关组件内的直连 IPC（`HistoryDetail` 等）。
-- `V122-GW-05`：~~切换 `features/account/store.ts` 与 `AccountSection` 的裸 `window.api.cloudSync`。~~ **已完成（2026-08-20，34711b4）**。执行期按 import 图改裁定：实际切的是 `cloud-connections-store` 的 list/update/revoke → AccountGateway。未切：account/store login/status（AccountSession 有损，丢掉 deviceTokenSuffix/serverUrl/notices/health/estImagesRemaining）；AccountSection cloudSync（桌面独有，GW-07）。契约测试改为断言网关方法名；新增 store 单测 6 条。
+- `V122-GW-05`：~~切换 `features/account/store.ts` 与 `AccountSection` 的裸 `window.api.cloudSync`。~~ **已完成（2026-08-20，34711b4）**。执行期按 import 图改裁定：实际切的是 `cloud-connections-store` 的 list/update/revoke → AccountGateway。当时未切：account/store login/status（AccountSession 有损，丢掉 deviceTokenSuffix/serverUrl/notices/health/estImagesRemaining）；AccountSection cloudSync（桌面独有）。二者已由 GW-07 第二刀（83d9f71）收口。契约测试改为断言网关方法名；新增 store 单测 6 条。
 
-  **裁定**：**不按计划切 account/store 与 AccountSection cloudSync**——共享 AccountGateway 能接的是 cloud-connections 的 list/update/revoke；login/status 全量与 cloudSync 留给 GW-07。
+  **裁定**：**不按计划切 account/store 与 AccountSection cloudSync**——共享 AccountGateway 能接的是 cloud-connections 的 list/update/revoke；login/status 全量与 cloudSync 留给 GW-07（已由 83d9f71 收口）。
 
   验证：账号 E2E 4 条 + signed-out 已连接应用 1 条通过；turbo 除并行 4 红外全绿。
 - `V122-GW-06`：切换 `features/generation/store.ts` 与工作台 store 的 IO 边（会话 CRUD、生图提交/进度；状态机部分留给 `V122-SHARE-04`）。**开工前裁定**：`streamGenerationEvents`（GW-02 已定为 NotImplemented：桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号）——须先决定扩 preload 还是桌面改拉模型。
-- `V122-GW-07`：切换 settings 桌面域（aiConnection、cloudConnections、provider）到 `DesktopExtras` 接口（类型来自 `desktop-contracts`，不进共享端口）。**DesktopExtras 需覆盖** library 未进共享端口的桌面面：list（桌面查询面）、stats、pin/reorder、purge、**带 `previewImagePath` 的 create**、searchHistory；**另补（GW-05）** account login/status 全量、AccountSection cloudSync。`PlatformServices` 仍空，等 GW-07/08。
-- `V122-GW-08`：桌面接入 `getProductCapabilities('desktop')`，替代页面内散落的能力判断。
+- `V122-GW-07`：~~切换 settings 桌面域（aiConnection、cloudConnections、provider）到 `DesktopExtras` 接口（类型来自 `desktop-contracts`，不进共享端口）。DesktopExtras 需覆盖 library 未进共享端口的桌面面：list（桌面查询面）、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory；另补（GW-05）account login/status 全量、AccountSection cloudSync。~~ **已完成（2026-08-20，两刀 fa45f74 + 83d9f71）**。`PlatformServices` 仍空。
+
+  第一刀（fa45f74，library extras）：新增扁平 `DesktopExtras`（`packages/desktop-contracts/src/desktop-extras.ts`）。library list/listDeleted/stats/create/togglePin/reorderPins/purge/searchHistory 直通行模型，不经 PromptDocument。library store 剩余 api 调用已切到 extras；update/delete/restore/usePrompt 仍走 PromptGateway。
+
+  第二刀（83d9f71，account / cloudSync）：DesktopExtras 新增 account* 与 cloudSync* 扁平方法，直通 IPC，返回 AccountStatus / CloudSyncSummary，不经 AccountSession mapper。account/store.ts 去掉 lib/ipc；AccountSection 不再出现 window.api.cloudSync。两刀合起来，计划点名的 library extras + account login/status 全量 + cloudSync 已收口。
+
+  **aiConnection / provider 未纳入本卡**：计划原文点了名，但仍直连 ipc。它们是设置桌面域的下一批，避免和账号切片抢同一文件；列入后续输入。cloudConnections 已由 GW-05 切到 AccountGateway。
+
+  **裁定**：library 桌面查询/写面走 extras 行模型，不经共享 PromptDocument。account login/status 全量与 cloudSync 走 extras 直通桌面状态，不经 AccountSession mapper（共享 AccountGateway 的 getSession/login 仍有损）。
+
+  验证：第一刀库 E2E 21 passed。第二刀 vitest 32 passed；账号 E2E 4；cloud 设置 1；tsc 通过。
+- `V122-GW-08`：~~桌面接入 `getProductCapabilities('desktop')`，替代页面内散落的能力判断。~~ **已完成（2026-08-20，ae9723e）**。桌面接入 `getProductCapabilities('desktop')`，单点 `apps/desktop/src/runtime/capabilities.ts`。Sidebar / SettingsView / CommandPalette 按 flag 滤入口。修正过期 flag：`desktop.cloudMcpConnections` false→true（已连接应用存在）。命令面板 `act-providers`→byokProviders、`act-ai-connections`→agent，避免 ⌘K 后门。当前 flag 全 true，可见入口不变。工作台内部按钮不闸。
+
+  **裁定**：能力判断单点 `runtime/capabilities.ts`；Sidebar / SettingsView / CommandPalette 按 flag 滤入口，工作台内部按钮不闸。过期 flag 与命令面板 action 对齐真实能力，避免 ⌘K 后门。
+
+  验证：当前 flag 全 true，可见入口不变。
 - `V122-GW-09`：depcruise 规则收口：迁移完成的 feature 目录禁止 import `lib/ipc` 与 `window.api`（从 baseline 豁免中移除）；桌宠窗口、窗口控件、预览桥保留显式豁免并注明理由。
 
 ### Phase 2 沉淀的后续输入
 
 - **GW-06 前裁定 `streamGenerationEvents`**：GW-02 已定为 `DesktopGatewayNotImplementedError`。桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号；须先决定扩 preload 还是桌面改拉模型。
-- **GW-07 `DesktopExtras` 覆盖面**（library 未进共享端口的桌面查询/写面）：list（桌面查询面）、stats、pin/reorder、purge、**带 `previewImagePath` 的 create**、searchHistory；**另补（GW-05）** account login/status 全量、cloudSync。
-- **`PlatformServices` 仍空**：等 GW-07/08。
+- **settings aiConnection / provider**：GW-07 未纳入。计划原文点了名，仍直连 ipc。它们是设置桌面域的下一批，避免和账号切片抢同一文件。
+- **`PlatformServices` 仍空**：GW-08 落地的是 capabilities，未填 PlatformServices。
 - **GW-01 `WebGateway implements` 补卡**：等待 web 并行工作流收口；期间以 `gateway-ports.typecheck.test.ts`（`satisfies`）锁形状。
 
 ### 完成条件
