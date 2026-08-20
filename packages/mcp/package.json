@@ -18,5 +18,9 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@musefold/client": "*",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@musefold/automation-server": "*",
+    "@musefold/core": "*"
   }
 }
