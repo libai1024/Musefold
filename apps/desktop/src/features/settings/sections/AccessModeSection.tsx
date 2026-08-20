@@ -8,7 +8,7 @@ import {
   UserRound,
 } from '../../../components/ui/icons';
 import { ModelBrandIcon, matchModelBrand } from '../../../components/ui/brand-icons';
-import { formatPoints } from '../../../lib/format';
+import { formatPoints } from '@musefold/domain';
 import {
   accessModeOfProvider,
   accountImageSourceOfProvider,

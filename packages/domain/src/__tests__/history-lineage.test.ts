@@ -1,35 +1,18 @@
-// src/features/history/__tests__/lineage.test.ts
 // 微调链组装：线程分组 / 排序 / 深度 / 序号 / 孤儿与环防御
 
 import { describe, expect, it } from 'vitest';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
-import { flattenHistoryThreads, historyThreadOf } from '../lineage';
+import {
+  flattenHistoryThreads,
+  historyThreadOf,
+  type HistoryLineageNode,
+} from '../history-lineage';
 
-let seq = 0;
-function rec(id: string, createdAt: number, parentHistoryId?: string): HistoryRecord {
-  seq += 1;
-  return {
-    id,
-    promptId: null,
-    providerId: 'p1',
-    model: 'gpt-image-2',
-    promptText: `prompt ${id} #${seq}`,
-    negativeText: null,
-    params: null,
-    status: 'success',
-    errorCode: null,
-    errorMessage: null,
-    imagePath: null,
-    cost: null,
-    costUnit: 'point',
-    durationMs: null,
-    createdAt,
-    parentHistoryId,
-  };
+function rec(id: string, createdAt: number, parentHistoryId?: string): HistoryLineageNode {
+  return { id, createdAt, parentHistoryId };
 }
 
 /** 模拟 history.list：createdAt 倒序 */
-function listed(...records: HistoryRecord[]): HistoryRecord[] {
+function listed(...records: HistoryLineageNode[]): HistoryLineageNode[] {
   return [...records].sort((a, b) => b.createdAt - a.createdAt);
 }
 

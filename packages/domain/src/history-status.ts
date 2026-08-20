@@ -1,7 +1,8 @@
-// src/features/history/status.ts
 // 历史记录三态展示元数据 —— 纯逻辑，可单测（TASK-HIS-01）
+// 与 `@musefold/desktop-contracts/enums` 的 HistoryStatus 同形；domain 不依赖 desktop-contracts。
 
-import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
+/** 桌面本地历史三态；Web 云任务用 contracts 的 GenerationStatus，不是同一套词表。 */
+export type HistoryStatus = 'success' | 'failed' | 'cancelled';
 
 export interface HistoryStatusMeta {
   status: HistoryStatus;

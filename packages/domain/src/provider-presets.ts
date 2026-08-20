@@ -1,11 +1,10 @@
-// src/features/generation/presets.ts
 // Provider 预设解析 —— 空态一键接入与对话框共用（TASK-GEN-01）
 
 import {
   DEFAULT_PRESET_ID,
   PROVIDER_PRESETS,
   type ProviderPreset,
-} from '@musefold/domain/constants';
+} from './constants';
 
 /** 按 id 取预设；未知 id 回落默认推荐（TvT） */
 export function pickPreset(presetId?: string | null): ProviderPreset {

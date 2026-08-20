@@ -1,7 +1,6 @@
-// src/features/history/filters.ts
 // 历史筛选：日期范围解析 + 活跃计数 —— 纯逻辑可单测（TASK-HIS-02）
 
-import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
+import type { HistoryStatus } from './history-status';
 
 export const DAY_MS = 86_400_000;
 

@@ -17,10 +17,11 @@ import {
   Trash2,
 } from '../../../components/ui/icons';
 import { useHistoryStore } from '../store';
-import { historyStatusMeta } from '../status';
+import { historyStatusMeta } from '@musefold/domain/history-status';
 import { historyErrorPresentation } from '../error';
 import { formatHistoryCost } from '../format';
-import { flattenHistoryThreads, type HistoryThreadItem } from '../lineage';
+import { flattenHistoryThreads, type HistoryThreadItem } from '@musefold/domain/history-lineage';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { Button } from '../../../components/ui/button';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Spinner } from '../../../components/ui/spinner';
@@ -163,7 +164,7 @@ function HistoryRow({
   onRetry,
   onDelete,
 }: {
-  item: HistoryThreadItem;
+  item: HistoryThreadItem<HistoryRecord>;
   selected: boolean;
   retrying: boolean;
   onSelect: () => void;

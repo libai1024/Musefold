@@ -5,8 +5,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CornerDownRight, ImageOff } from '../../../components/ui/icons';
 import type { HistoryRecord } from '@musefold/desktop-contracts/models';
-import { historyThreadOf, type HistoryThreadItem } from '../lineage';
-import { historyStatusMeta } from '../status';
+import { historyThreadOf, type HistoryThreadItem } from '@musefold/domain/history-lineage';
+import { historyStatusMeta } from '@musefold/domain/history-status';
 import { useHistoryStore } from '../store';
 import { formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';
@@ -54,7 +54,7 @@ function LineageNode({
   current,
   onSelect,
 }: {
-  item: HistoryThreadItem;
+  item: HistoryThreadItem<HistoryRecord>;
   current: boolean;
   onSelect: () => void;
 }) {

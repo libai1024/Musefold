@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryRecord } from '@musefold/desktop-contracts/models';
-import { DEFAULT_HISTORY_FILTERS } from '../filters';
+import { DEFAULT_HISTORY_FILTERS } from '@musefold/domain/history-filters';
 
 const mocks = vi.hoisted(() => ({
   retry: vi.fn(),

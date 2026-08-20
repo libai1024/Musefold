@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
-import { formatCost, formatPoints } from '../../../lib/format';
+import { formatPoints } from '@musefold/domain';
+import { formatCost } from '../../../lib/format';
 import { cn } from '../../../lib/utils';
 import { useHistoryStore } from '../store';
 import { useAccountStore } from '../../account/store';

@@ -14,7 +14,7 @@ import {
   PROVIDER_PRESETS,
   type ProviderPreset,
 } from '@musefold/domain/constants';
-import { pickPreset } from '../presets';
+import { pickPreset } from '@musefold/domain/provider-presets';
 import { useGenerationStore } from '../store';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';

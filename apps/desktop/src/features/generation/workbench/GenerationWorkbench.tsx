@@ -32,6 +32,7 @@ import {
 import type { Prompt, ProviderConfig } from "@musefold/desktop-contracts/models";
 import type { ImageQuality } from "@musefold/desktop-contracts/enums";
 import { RATIO_OPTIONS } from "@musefold/domain/constants";
+import { titleFromPromptContent } from "@musefold/domain";
 import {
   MAX_REFERENCE_IMAGES,
   type LocalImageReference,
@@ -70,7 +71,6 @@ import {
 } from "@musefold/product-ui";
 import { useGenerationStore } from "../store";
 import { useLibraryStore } from "../../library/store";
-import { titleFromPromptContent } from "../../library/prompt-title";
 import { REFINE_COUNTS } from "../params";
 import {
   composeRefinementPrompt,

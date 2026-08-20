@@ -4,7 +4,7 @@ import {
   countActiveHistoryFilters,
   resolveDateRange,
   type HistoryFilters,
-} from '../filters';
+} from '../history-filters';
 
 const NOW = Date.UTC(2026, 7, 4, 12, 0, 0); // 2026-08-04 12:00 UTC
 

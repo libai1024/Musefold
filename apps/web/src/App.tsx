@@ -22,6 +22,7 @@ import {
 import {
   applyPromptToGeneration,
   canCancelGeneration,
+  formatAccountPoints,
   generationRequestToPromptDraft,
   getProductCapabilities,
 } from "@musefold/domain";
@@ -58,7 +59,6 @@ import { GenerateView } from "./views/GenerateView";
 import { HistoryView } from "./views/HistoryView";
 import { PromptLibraryView } from "./views/PromptLibraryView";
 import { getSafeOAuthReturnTo } from "./oauth-return-to";
-import { formatAccountPoints } from "./account-format";
 
 type View = WebView;
 type Ratio = "1:1" | "16:9" | "9:16";

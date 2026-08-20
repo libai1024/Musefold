@@ -8,7 +8,7 @@ import { useHistoryStore } from '../store';
 import {
   DATE_PRESET_OPTIONS,
   STATUS_OPTIONS,
-} from '../filters';
+} from '@musefold/domain/history-filters';
 import { useGenerationStore } from '../../generation/store';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';

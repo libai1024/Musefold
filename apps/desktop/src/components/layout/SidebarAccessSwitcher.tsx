@@ -19,7 +19,7 @@ import { useSettingsStore } from '../../features/settings/store';
 import { useAiConnectionStore } from '../../features/settings/ai-connection-store';
 import { accessModeOfProvider } from '../../lib/ai-access';
 import { displayModelName } from '../../lib/model-catalog';
-import { formatPoints } from '../../lib/format';
+import { formatPoints } from '@musefold/domain';
 import { cn } from '../../lib/utils';
 import api from '../../lib/ipc';
 import { useAppStore } from '../../stores/app';

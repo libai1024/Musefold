@@ -12,8 +12,7 @@ import {
   countActiveHistoryFilters,
   resolveDateRange,
   type HistoryFilters,
-  type HistoryDatePreset,
-} from './filters';
+} from '@musefold/domain/history-filters';
 import { historyErrorPresentation } from './error';
 
 /** 发给主进程的 list 查询（已解析日期） */
@@ -266,4 +265,4 @@ export function selectSelectedHistory(s: HistoryState): HistoryRecord | null {
   return s.records.find((r) => r.id === s.selectedId) ?? null;
 }
 
-export type { HistoryFilters, HistoryDatePreset };
+export type { HistoryFilters, HistoryDatePreset } from '@musefold/domain/history-filters';

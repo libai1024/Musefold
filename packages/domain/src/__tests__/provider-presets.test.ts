@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PRESET_ID } from '@musefold/domain/constants';
-import { pickPreset, recommendedPresets } from '../presets';
+import { DEFAULT_PRESET_ID } from '../constants';
+import { pickPreset, recommendedPresets } from '../provider-presets';
 
 describe('pickPreset', () => {
   it('returns exact preset by id', () => {

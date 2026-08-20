@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { historyStatusMeta } from '../status';
+import { historyStatusMeta } from '../history-status';
 
 describe('historyStatusMeta', () => {
   it('success is green, not retryable', () => {

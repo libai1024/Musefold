@@ -48,7 +48,7 @@ import { formatHistoryCost, formatParamsSummary, formatSourceLabel } from '../fo
 import { historyParamsToRefineParams } from '../refine';
 import { defaultHistoryPromptTitle, historyRecordToPromptInput } from '../save-prompt';
 import { linkHistoriesToPrompt } from '../../library/related-history';
-import { historyStatusMeta } from '../status';
+import { historyStatusMeta } from '@musefold/domain/history-status';
 import { selectSelectedHistory, useHistoryStore } from '../store';
 import { extractUserPromptFromComposed } from '../../generation/workbench/references';
 import { HistoryLineagePanel } from './HistoryLineagePanel';

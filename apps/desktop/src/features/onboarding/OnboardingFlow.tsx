@@ -33,7 +33,7 @@ import { ValidationResultBanner } from '../generation/components/ValidationResul
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { MusefoldLogoAnimated } from '../../components/brand/MusefoldLogoAnimated';
-import { formatPoints } from '../../lib/format';
+import { formatPoints } from '@musefold/domain';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import { usePlatform, useWindowFullscreen } from '../../lib/usePlatform';

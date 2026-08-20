@@ -15,7 +15,7 @@ import {
 import { ACCOUNT_QUOTA_PER_USD } from "@musefold/contracts/billing.js";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
-import { formatPoints } from "../../../lib/format";
+import { formatPoints } from "@musefold/domain";
 import { displayModelName } from "../../../lib/model-catalog";
 import { cn } from "../../../lib/utils";
 import type {
