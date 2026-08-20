@@ -1,6 +1,6 @@
 {
   "name": "musefold-app",
-  "version": "0.5.0-dev.15",
+  "version": "0.5.0-dev.16",
   "description": "Forge your image prompts — 跨平台生图提示词管理桌面 App",
   "main": "./out/main/index.js",
   "author": "Musefold",
@@ -27,6 +27,7 @@
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "skill:check": "node scripts/check-skill-update.mjs",
     "skill:check:ci": "node scripts/check-skill-update.mjs --ci",
+    "derive:min-shell": "node scripts/derive-min-shell-version.mjs",
     "dev": "electron-vite dev",
     "dev:stop": "node scripts/stop-dev-processes.mjs",
     "dev:web": "npm run dev --workspace @musefold/web",
