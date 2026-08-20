@@ -29,6 +29,7 @@ export type { ReversiblePromptRow } from './prompt';
 export {
   EMPTY_WORKBENCH_DRAFT,
   workbenchSessionRowToDocument,
+  workbenchSessionDocumentToSession,
   createWorkbenchSessionToEnsureCommand,
   workbenchListQueryToRowQuery,
   mergeWorkbenchSessionRows,

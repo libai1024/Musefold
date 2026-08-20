@@ -11,6 +11,7 @@ import { useAppStore } from '../../../stores/app';
 import { useGenerationStore } from '../store';
 import { useDoubaoAccountStore } from '../../account/doubao-store';
 import { useHistoryStore } from '../../history/store';
+import { gateway } from '../../../runtime/gateway-context';
 import api from '../../../lib/ipc';
 import {
   buildImageRequest,
@@ -94,7 +95,12 @@ function mergeSessionSummary(
   current?: WorkbenchSessionSummary,
 ): WorkbenchSessionSummary {
   return {
-    ...session,
+    id: session.id,
+    title: session.title,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    archivedAt: session.archivedAt,
+    deletedAt: session.deletedAt,
     turnCount: current?.turnCount ?? 0,
     runCount: current?.runCount ?? 0,
     latestAssetPath: current?.latestAssetPath ?? null,
@@ -841,11 +847,11 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       draftNegativePrompt: '',
       draftSource: { kind: 'manual' as const },
     }));
-    void api.workbenchSession.ensure({
+    void gateway.desktop.ensureWorkbenchSession({
       id: state.sessionId,
       title: sessionTitle,
       createdAt: submittedAt,
-    }).catch((error) => {
+    }).catch((error: unknown) => {
       set({ sessionsError: workbenchSessionErrorMessage(error, '创建对话失败') });
     });
     return { turnId, turnIndex, jobIds, sessionId: state.sessionId, sessionTitle };
@@ -989,7 +995,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       cancelRequested: false,
       lastError: null,
     }));
-    void api.workbenchSession.ensure({
+    void gateway.desktop.ensureWorkbenchSession({
       id: state.sessionId,
       title: sessionTitle,
       createdAt: submittedAt,
@@ -1074,7 +1080,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       draftSource: { kind: 'manual' as const },
       schemeInputValues: {},
     }));
-    void api.workbenchSession.ensure({
+    void gateway.desktop.ensureWorkbenchSession({
       id: state.sessionId,
       title: sessionTitle,
       createdAt: submittedAt,
@@ -1343,7 +1349,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }));
 
     try {
-      await api.workbenchSession.ensure({
+      await gateway.desktop.ensureWorkbenchSession({
         id: state.sessionId,
         title: sessionTitle,
         createdAt: submittedAt,
@@ -1399,7 +1405,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
             trace: state.draftSource.trace,
           } : undefined,
         });
-        const response = await api.image.generate(request);
+        const response = await gateway.desktop.generateImage(request);
         applyImageResult(set, turnId, result.id, response);
       } catch (error) {
         applyTransportError(set, turnId, result.id, error);
@@ -1438,7 +1444,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     const jobId = get().runningTurns[turnId]?.jobId;
     if (!jobId) return;
     try {
-      await api.image.cancel(jobId);
+      await gateway.desktop.cancelImage(jobId);
     } catch {
       // 主进程任务最终会以 cancelled/failed 返回，取消 IPC 失败不阻塞状态收尾。
     }
@@ -1487,13 +1493,13 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     });
     try {
       let response = target.historyId
-        ? await api.image.retry(target.historyId, jobId)
-        : await api.image.generate(freshRequest());
+        ? await gateway.desktop.retryImage(target.historyId, jobId)
+        : await gateway.desktop.generateImage(freshRequest());
       // 崩溃恢复后的重试：中断的那张只有运行账本、没有 history 记录
       // （history 在完成时才落库）。此时按本轮快照重发一次，而不是把用户
       // 堵在「历史记录已不存在」的死路上。
       if (response.status !== 'success' && response.error?.code === 'NO_HISTORY') {
-        response = await api.image.generate(freshRequest());
+        response = await gateway.desktop.generateImage(freshRequest());
       }
       applyImageResult(set, turnId, resultId, response);
     } catch (error) {
@@ -1616,7 +1622,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     }
 
     try {
-      const response = await api.image.generate(
+      const response = await gateway.desktop.generateImage(
         buildImageRequest({
           jobId,
           providerId: provider.id,
@@ -1833,7 +1839,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
       : ++activeSessionListRequest;
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      const result = await api.workbenchSession.list({ archived, limit: 100, offset: 0 });
+      const result = await api.workbenchSession.list({ archived, limit: 200, offset: 0 });
       const latestRequest = archived ? archivedSessionListRequest : activeSessionListRequest;
       if (requestId !== latestRequest) return;
       set((current) => {
@@ -1906,9 +1912,9 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
         openingId: id,
         loading: true,
         error: get().sessionsError,
-      }, { type: 'select', id: document.session.id });
+      }, { type: 'select', id });
       set({
-        sessionId: document.session.id,
+        sessionId: id,
         activeSessionId: selection.selectedId,
         turns,
         draftPrompt: '',
@@ -1935,7 +1941,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   renameSession: async (id, title) => {
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      const renamed = await api.workbenchSession.rename(id, title);
+      const renamed = await gateway.desktop.renameWorkbenchSession(id, title);
       set((current) => {
         const existing = current.sessions.find((item) => item.id === id)
           ?? current.archivedSessions.find((item) => item.id === id);
@@ -1966,7 +1972,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
     try {
       const existing = get().sessions.find((item) => item.id === id)
         ?? get().archivedSessions.find((item) => item.id === id);
-      const result = await api.workbenchSession.archive(id, archived);
+      const result = await gateway.desktop.archiveWorkbenchSession(id, archived);
       if (get().activeSessionId === id) get().newSession();
       set((current) => {
         const item = mergeSessionSummary(result, existing);
@@ -2000,7 +2006,7 @@ export const useGenerationWorkbenchStore = create<WorkbenchState>((set, get) => 
   deleteSession: async (id) => {
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      await api.workbenchSession.delete(id);
+      await gateway.desktop.deleteWorkbenchSession(id, 1);
       // newSession 会把当前对话快照进缓存，删除对话时要在其后清掉该会话的缓存。
       if (get().activeSessionId === id) get().newSession();
       sessionTurnsCache.delete(id);

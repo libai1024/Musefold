@@ -10,6 +10,10 @@ import type {
 } from '@musefold/domain';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type { Api } from '@musefold/desktop-contracts/ipc';
+import type {
+  EnsureWorkbenchSessionCommand,
+  WorkbenchSession,
+} from '@musefold/desktop-contracts/workbench';
 import {
   DesktopGatewayError,
   DesktopGatewayNotImplementedError,
@@ -31,6 +35,7 @@ import {
   promptRowToDocument,
   updatePromptDocumentToPatch,
   workbenchListQueryToRowQuery,
+  workbenchSessionDocumentToSession,
   workbenchSessionRowToDocument,
 } from './mappers';
 
@@ -353,7 +358,7 @@ export class DesktopGateway
     if (!document) {
       throw new DesktopGatewayError('工作台会话不存在', { id });
     }
-    return workbenchSessionRowToDocument(document.session);
+    return workbenchSessionDocumentToSession(document);
   }
 
   async createWorkbenchSession(
@@ -382,6 +387,21 @@ export class DesktopGateway
     void expectedVersion;
     const deleted = await this.api.workbenchSession.delete(id);
     return workbenchSessionRowToDocument(deleted);
+  }
+
+  async renameWorkbenchSession(id: string, title: string): Promise<WorkbenchSession> {
+    const renamed = await this.api.workbenchSession.rename(id, title);
+    return renamed;
+  }
+
+  async archiveWorkbenchSession(id: string, archived = true): Promise<WorkbenchSession> {
+    const result = await this.api.workbenchSession.archive(id, archived);
+    return result;
+  }
+
+  async ensureWorkbenchSession(command: EnsureWorkbenchSessionCommand): Promise<WorkbenchSession> {
+    const session = await this.api.workbenchSession.ensure(command);
+    return session;
   }
 
   // ---------- GenerationGateway ----------
@@ -446,6 +466,19 @@ export class DesktopGateway
       'approveGeneration',
       '桌面生图无云审批/MCP 预算闸门，没有对应 IPC',
     );
+  }
+
+  async generateImage(req: import('@musefold/desktop-contracts/providers').GenerateImageRequest): Promise<import('@musefold/desktop-contracts/providers').GenerateImageResult> {
+    return this.api.image.generate(req);
+  }
+
+  async cancelImage(jobId: string): Promise<{ ok: true }> {
+    await this.api.image.cancel(jobId);
+    return { ok: true };
+  }
+
+  async retryImage(historyId: string, jobId?: string): Promise<import('@musefold/desktop-contracts/providers').GenerateImageResult> {
+    return this.api.image.retry(historyId, jobId);
   }
 
   // ---------- HistoryGateway ----------

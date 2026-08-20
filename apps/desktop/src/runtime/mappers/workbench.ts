@@ -10,6 +10,7 @@ import type {
 import type {
   EnsureWorkbenchSessionCommand,
   WorkbenchSession as DesktopWorkbenchSession,
+  WorkbenchSessionDocument as DesktopWorkbenchSessionDocument,
   WorkbenchSessionListQuery as DesktopWorkbenchSessionListQuery,
   WorkbenchSessionListResult,
 } from '@musefold/desktop-contracts/workbench';
@@ -50,6 +51,12 @@ export function workbenchSessionRowToDocument(
     // - 云 draft 在桌面由渲染层 localStorage 持有，IPC 行模型无对应列。
     // - version 同 Prompt：桌面无乐观锁，读侧填 1。
   };
+}
+
+export function workbenchSessionDocumentToSession(
+  document: DesktopWorkbenchSessionDocument,
+): WorkbenchSession {
+  return workbenchSessionRowToDocument(document.session);
 }
 
 export function createWorkbenchSessionToEnsureCommand(
