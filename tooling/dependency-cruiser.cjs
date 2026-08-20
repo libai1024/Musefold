@@ -351,6 +351,27 @@ module.exports = {
     },
 
     {
+      // V122-GW-02：行模型 ↔ 端口形状只允许 mappers 同时看见 desktop-contracts 与 contracts。
+      // depcruise 无法直接表达「同时 import 双方」的交集，改为禁止 runtime 组装层
+      // 直接 import contracts（字段转换必须进 mappers/）。gateway 仍可 import
+      // desktop-contracts（WindowApi）与 domain 端口。测试目录除外。
+      name: 'desktop-runtime-contracts-only-in-mappers',
+      comment:
+        'V122-GW-02：apps/desktop/src/runtime/ 里只有 mappers/ 可以 import contracts。组装层（desktop-gateway.ts）禁止直接依赖云形状，避免字段级转换漏出 mapper。',
+      severity: 'error',
+      from: {
+        path: '^apps/desktop/src/runtime/',
+        pathNot: [
+          '^apps/desktop/src/runtime/mappers/',
+          '^apps/desktop/src/runtime/__tests__/',
+        ],
+      },
+      to: {
+        path: ['^packages/contracts/', '^@musefold/contracts'],
+      },
+    },
+
+    {
       name: 'desktop-tooling-no-frontend',
       comment:
         '§3.3 本地控制面三件套（automation-server / client / cli）与 mcp 属桌面生态，不参与 Web 重构；禁止反向依赖前端包、apps/desktop 渲染层与 apps/web*。主进程 apps/desktop/electron/ 仍允许（迁移前 ^electron/ 未列入本规则）。',

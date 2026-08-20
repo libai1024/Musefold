@@ -1,0 +1,443 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { McpConnectionPage, NewPromptDocument } from '@musefold/contracts';
+import type { UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
+import type { HistoryRecord, NewPrompt, Prompt } from '@musefold/desktop-contracts/models';
+import type {
+  EnsureWorkbenchSessionCommand,
+  WorkbenchSession,
+  WorkbenchSessionDocument,
+  WorkbenchSessionListQuery,
+} from '@musefold/desktop-contracts/workbench';
+import type { AccountStatus } from '@musefold/desktop-contracts/account';
+import {
+  createDesktopGateway,
+  DesktopGatewayError,
+  DesktopGatewayNotImplementedError,
+  type WindowApi,
+} from '../index';
+import { pickReversiblePromptRow, promptDocumentToRow, promptRowToDocument } from '../mappers/prompt';
+
+function promptRow(id: string, patch: Partial<Prompt> = {}): Prompt {
+  return {
+    id,
+    title: `标题 ${id}`,
+    description: null,
+    content: `body ${id}`,
+    contentNegative: 'blur',
+    folderId: null,
+    modelId: null,
+    params: { schemaVersion: 1 },
+    previewImagePath: `/tmp/${id}-preview.png`,
+    coverImagePath: `/tmp/${id}-cover.png`,
+    rating: 0,
+    isPinned: false,
+    pinOrder: null,
+    usageCount: 0,
+    lastUsedAt: null,
+    source: 'manual',
+    sourceUrl: null,
+    tags: [
+      {
+        id: 'tag-1',
+        name: '风景',
+        tagGroup: '场景',
+        color: '#112233',
+        createdAt: 1_700_000_000_000,
+      },
+    ],
+    createdAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_100_000,
+    deletedAt: null,
+    ...patch,
+  };
+}
+
+function historyRow(id: string, patch: Partial<HistoryRecord> = {}): HistoryRecord {
+  return {
+    id,
+    promptId: null,
+    providerId: 'prov',
+    model: 'gpt-image-2',
+    promptText: 'a cat',
+    negativeText: null,
+    params: { schemaVersion: 1, size: '1024x1024', quality: 'auto' },
+    status: 'success',
+    errorCode: null,
+    errorMessage: null,
+    imagePath: `/tmp/${id}.png`,
+    cost: 10,
+    costUnit: 'point',
+    durationMs: 100,
+    createdAt: 1_728_000_000_000,
+    ...patch,
+  };
+}
+
+function sessionRow(id: string, patch: Partial<WorkbenchSession> = {}): WorkbenchSession {
+  return {
+    id,
+    title: `对话 ${id}`,
+    createdAt: 1_000,
+    updatedAt: 2_000,
+    archivedAt: null,
+    deletedAt: null,
+    ...patch,
+  };
+}
+
+const emptyConnections: McpConnectionPage = { items: [] };
+
+const loggedOut: AccountStatus = {
+  loggedIn: false,
+  username: null,
+  serverUrl: 'https://example',
+  isDefaultServer: true,
+  quota: null,
+  estImagesRemaining: null,
+  deviceTokenSuffix: null,
+  health: 'unknown',
+  notices: [],
+};
+
+const loggedIn: AccountStatus = {
+  ...loggedOut,
+  loggedIn: true,
+  username: 'alice',
+  quota: { value: 1000, at: 1 },
+  health: 'ok',
+};
+
+function createFakeApi() {
+  const prompts = new Map<string, Prompt>();
+  const histories = new Map<string, HistoryRecord>();
+  const sessions = new Map<string, WorkbenchSession>();
+  let promptSeq = 0;
+  let account = { ...loggedOut };
+
+  const create = vi.fn(async (input: NewPrompt) => {
+    const id = `p-${++promptSeq}`;
+    const now = 1_800_000_000_000;
+    const row = promptRow(id, {
+      title: input.title,
+      content: input.content,
+      contentNegative: input.contentNegative ?? null,
+      description: input.description ?? null,
+      isPinned: input.isPinned ?? false,
+      folderId: input.folderId ?? null,
+      modelId: input.modelId ?? null,
+      params: input.params ?? null,
+      rating: input.rating ?? 0,
+      source: input.source ?? 'manual',
+      sourceUrl: input.sourceUrl ?? null,
+      tags: (input.tagIds ?? []).map((tagId: string) => ({
+        id: tagId,
+        name: tagId,
+        tagGroup: null,
+        color: null,
+        createdAt: now,
+      })),
+      previewImagePath: null,
+      coverImagePath: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    prompts.set(id, row);
+    return row;
+  });
+  const update = vi.fn(async (id: string, patch: UpdatePromptPatch) => {
+    const existing = prompts.get(id);
+    if (!existing) throw new Error('missing');
+    const next: Prompt = {
+      ...existing,
+      title: patch.title ?? existing.title,
+      description: patch.description !== undefined ? patch.description : existing.description,
+      content: patch.content ?? existing.content,
+      contentNegative:
+        patch.contentNegative !== undefined ? patch.contentNegative : existing.contentNegative,
+      isPinned: patch.isPinned ?? existing.isPinned,
+      folderId: patch.folderId !== undefined ? patch.folderId : existing.folderId,
+      modelId: patch.modelId !== undefined ? patch.modelId : existing.modelId,
+      params: patch.params !== undefined ? patch.params : existing.params,
+      rating: patch.rating ?? existing.rating,
+      source: patch.source ?? existing.source,
+      updatedAt: existing.updatedAt + 1,
+    };
+    prompts.set(id, next);
+    return next;
+  });
+  const incrementUsage = vi.fn(async (id: string) => {
+    const existing = prompts.get(id);
+    if (existing) {
+      prompts.set(id, {
+        ...existing,
+        usageCount: existing.usageCount + 1,
+        lastUsedAt: 1_910_000_000_000,
+      });
+    }
+    return { ok: true as const };
+  });
+  const ensure = vi.fn(async (command: EnsureWorkbenchSessionCommand) => {
+    const row = sessionRow(command.id, { title: command.title });
+    sessions.set(row.id, row);
+    return row;
+  });
+  const logout = vi.fn(async () => {
+    account = { ...loggedOut };
+    return account;
+  });
+
+  const api = {
+    prompt: {
+      list: async () => [...prompts.values()].filter((row) => row.deletedAt == null),
+      listDeleted: async () => [...prompts.values()].filter((row) => row.deletedAt != null),
+      get: async (id: string) => prompts.get(id) ?? null,
+      create,
+      update,
+      delete: async (id: string) => {
+        const existing = prompts.get(id);
+        if (existing) prompts.set(id, { ...existing, deletedAt: 1_900_000_000_000 });
+        return { ok: true as const };
+      },
+      restore: async (id: string) => {
+        const existing = prompts.get(id);
+        if (!existing) throw new Error('missing');
+        const next = { ...existing, deletedAt: null };
+        prompts.set(id, next);
+        return next;
+      },
+      incrementUsage,
+    },
+    workbenchSession: {
+      list: async (query?: WorkbenchSessionListQuery) => {
+        const archived = Boolean(query?.archived);
+        const items = [...sessions.values()]
+          .filter((row) => (archived ? row.archivedAt != null : row.archivedAt == null))
+          .map((row) => ({
+            ...row,
+            turnCount: 0,
+            runCount: 0,
+            latestAssetPath: null,
+            conversationKind: 'chat' as const,
+            latestStatus: null,
+          }));
+        return { items, total: items.length, limit: query?.limit ?? 200, offset: query?.offset ?? 0 };
+      },
+      get: async (id: string): Promise<WorkbenchSessionDocument | null> => {
+        const session = sessions.get(id);
+        return session ? { session, runs: [] } : null;
+      },
+      ensure,
+      delete: async (id: string) => {
+        const existing = sessions.get(id);
+        if (!existing) throw new Error('missing');
+        const next = { ...existing, deletedAt: 3_000 };
+        sessions.set(id, next);
+        return next;
+      },
+    },
+    history: {
+      list: async (query?: { limit?: number; offset?: number }) => {
+        const all = [...histories.values()];
+        const offset = query?.offset ?? 0;
+        const limit = query?.limit ?? all.length;
+        return all.slice(offset, offset + limit);
+      },
+      get: async (id: string) => histories.get(id) ?? null,
+      delete: async (req: string | { id: string }) => {
+        const id = typeof req === 'string' ? req : req.id;
+        histories.delete(id);
+        return { ok: true as const, deleted: 1 };
+      },
+    },
+    image: {
+      cancel: async (jobId: string) => {
+        const row = histories.get(jobId);
+        if (row) histories.set(jobId, { ...row, status: 'cancelled' });
+        return { ok: true as const };
+      },
+      retry: async (historyId: string) => {
+        const row = histories.get(historyId);
+        if (!row) throw new Error('missing');
+        const next = historyRow(`${historyId}-retry`, { promptText: row.promptText });
+        histories.set(next.id, next);
+        return { historyId: next.id, status: 'success' as const };
+      },
+    },
+    account: {
+      status: async () => account,
+      login: async (input: { username: string; password: string }) => {
+        account = { ...loggedIn, username: input.username };
+        return account;
+      },
+      logout,
+    },
+    cloudConnections: {
+      list: async () => emptyConnections,
+      update: async () => emptyConnections,
+      revoke: async () => undefined,
+    },
+  } as unknown as WindowApi;
+
+  return { api, prompts, histories, sessions, create, update, incrementUsage, ensure, logout };
+}
+
+const newDoc: NewPromptDocument = {
+  title: '新提示词',
+  description: 'desc',
+  content: 'a paper lantern',
+  negative: 'text',
+  folderId: null,
+  tagIds: ['tag-x'],
+  modelId: null,
+  params: { schemaVersion: 1 },
+  rating: 1,
+  isPinned: false,
+  source: 'manual',
+  sourceUrl: null,
+};
+
+describe('DesktopGateway PromptGateway', () => {
+  it('covers CRUD, restore, use, pagination and reversible round-trip through IPC', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    fake.prompts.set('seed-a', promptRow('seed-a'));
+    fake.prompts.set('seed-b', promptRow('seed-b', { title: '第二' }));
+    fake.prompts.set('seed-c', promptRow('seed-c', { title: '第三' }));
+
+    const page = await gateway.listPrompts({ limit: 2 });
+    expect(page.items).toHaveLength(2);
+    expect(page.nextCursor).toBe('2');
+
+    const created = await gateway.createPrompt(newDoc);
+    expect(fake.create).toHaveBeenCalledWith(
+      expect.objectContaining({ contentNegative: 'text', folderId: undefined }),
+    );
+    expect(created.negative).toBe('text');
+    expect(created.version).toBe(1);
+
+    const fetched = await gateway.getPrompt(created.id);
+    expect(fetched.id).toBe(created.id);
+    const stored = fake.prompts.get(created.id);
+    expect(stored).toBeDefined();
+    expect(pickReversiblePromptRow(promptDocumentToRow(promptRowToDocument(stored!)))).toEqual(
+      pickReversiblePromptRow(stored!),
+    );
+
+    const updated = await gateway.updatePrompt(created.id, {
+      expectedVersion: 99,
+      title: '改过',
+      negative: 'lowres',
+    });
+    expect(updated.title).toBe('改过');
+    expect(updated.negative).toBe('lowres');
+    expect(fake.update.mock.calls[0][1]).not.toHaveProperty('expectedVersion');
+
+    const deleted = await gateway.deletePrompt(created.id, 1);
+    expect(deleted.deletedAt).not.toBeNull();
+    const restored = await gateway.restorePrompt(created.id, 1);
+    expect(restored.deletedAt).toBeNull();
+
+    const used = await gateway.usePrompt(created.id, { action: 'copy' });
+    expect(used.recorded).toBe(true);
+    expect(used.prompt.usageCount).toBe(1);
+    expect(fake.incrementUsage).toHaveBeenCalledWith(created.id);
+
+    await expect(gateway.getPrompt('missing')).rejects.toBeInstanceOf(DesktopGatewayError);
+  });
+});
+
+describe('DesktopGateway other ports', () => {
+  it('implements workbench list/get/create/delete against session IPC', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    fake.sessions.set('s1', sessionRow('s1'));
+
+    const listed = await gateway.listWorkbenchSessions({ limit: 10 });
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0].draft.prompt).toBe('');
+
+    const created = await gateway.createWorkbenchSession({ title: '新对话' });
+    expect(fake.ensure).toHaveBeenCalledWith(expect.objectContaining({ title: '新对话' }));
+    const got = await gateway.getWorkbenchSession(created.id);
+    expect(got.id).toBe(created.id);
+    const deleted = await gateway.deleteWorkbenchSession(created.id, 1);
+    expect(deleted.deletedAt).not.toBeNull();
+  });
+
+  it('implements history list/delete and generation get/cancel/retry', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    fake.histories.set('h1', historyRow('h1'));
+
+    const page = await gateway.listGenerationHistory({ limit: 10 });
+    expect(page.items[0].id).toBe('h1');
+    expect(page.items[0].status).toBe('succeeded');
+
+    const got = await gateway.getGeneration('h1');
+    expect(got.id).toBe('h1');
+
+    const cancelled = await gateway.cancelGeneration('h1');
+    expect(cancelled.status).toBe('cancelled');
+
+    fake.histories.set('h1', historyRow('h1'));
+    const retried = await gateway.retryGeneration('h1', 'idem-1');
+    expect(retried.id).toBe('h1-retry');
+
+    const removed = await gateway.deleteGeneration('h1');
+    expect(removed.deletedAt).not.toBeNull();
+    expect(fake.histories.has('h1')).toBe(false);
+  });
+
+  it('maps account session methods that have a straight IPC counterpart', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+
+    await expect(gateway.getSession()).rejects.toBeInstanceOf(DesktopGatewayError);
+    const session = await gateway.login({ username: 'alice', password: 'secret' });
+    expect(session.account.username).toBe('alice');
+    expect(session.csrfToken.length).toBeGreaterThanOrEqual(32);
+    await expect(gateway.getSession()).resolves.toMatchObject({ account: { username: 'alice' } });
+    await gateway.logout();
+    expect(fake.logout).toHaveBeenCalled();
+
+    await expect(gateway.listConnections()).resolves.toEqual(emptyConnections);
+    await expect(
+      gateway.updateConnection('c1', { mode: 'ask_each_time' }),
+    ).resolves.toEqual(emptyConnections);
+    await expect(gateway.revokeConnection('c1')).resolves.toBeUndefined();
+  });
+});
+
+describe('DesktopGateway NotImplemented methods', () => {
+  it('throws DesktopGatewayNotImplementedError with the method name', async () => {
+    const gateway = createDesktopGateway(createFakeApi().api);
+    const cases: Array<[string, () => Promise<unknown>]> = [
+      [
+        'updateWorkbenchSession',
+        () => gateway.updateWorkbenchSession('s', { expectedVersion: 1 }),
+      ],
+      [
+        'createGeneration',
+        () => gateway.createGeneration({ prompt: 'x' }, 'idem'),
+      ],
+      [
+        'streamGenerationEvents',
+        () => gateway.streamGenerationEvents('g', 0, () => undefined),
+      ],
+      ['approveGeneration', () => gateway.approveGeneration('g', 'token')],
+      ['restoreGeneration', () => gateway.restoreGeneration('h1')],
+    ];
+
+    for (const [method, run] of cases) {
+      try {
+        await run();
+        expect.fail(`${method} should throw`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(DesktopGatewayNotImplementedError);
+        expect(error).not.toBeInstanceOf(TypeError);
+        expect((error as Error).name).toBe('DesktopGatewayNotImplementedError');
+        expect((error as Error).message.startsWith(`${method}:`)).toBe(true);
+      }
+    }
+  });
+});
