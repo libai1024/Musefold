@@ -288,7 +288,6 @@ async function dispatch(channel, args) {
         const models = (list.data ?? []).map((m) => ({ id: m.id, name: m.id }));
         const ids = models.map((m) => m.id);
         const modelOk = config.model ? ids.includes(config.model) : true;
-        const costPoints = estimateCost(providerId ?? activeId, a0, usageTokens(res));
         return {
           ok: true,
           message: modelOk
@@ -358,6 +357,7 @@ async function dispatch(channel, args) {
         });
         const b64 = res.data?.[0]?.b64_json;
         if (!b64) throw new Error('返回中缺少 b64_json 图像数据');
+        const costPoints = estimateCost(providerId ?? activeId, a0, usageTokens(res));
         return {
           historyId: jobId ?? rid('hist'),
           status: 'success',

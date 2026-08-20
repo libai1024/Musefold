@@ -747,7 +747,7 @@ async function inspectGeneratedReply(
       return [{ element: image, src, width: image.naturalWidth, height: image.naturalHeight }];
     });
     const pageText = (document.body?.innerText || '').slice(-12_000);
-    const pageCompleted = /已完成(?:图片)?生成|生成了?\s*[1-4四]\s*张|按.+生成/.test(pageText);
+    const pageCompleted = /已完成(?:图片)?生成|生成了?\\s*[1-4四]\\s*张|按.+生成/.test(pageText);
     // 带参考图生成完成后，豆包会自动打开查看器。此时主结果绘制在 canvas，
     // 对应的 img 只剩 56-120px 缩略图，达不到普通结果图的展示尺寸阈值。
     const canvasEntries = pageCompleted ? Array.from(document.querySelectorAll('canvas')).flatMap((canvas) => {
