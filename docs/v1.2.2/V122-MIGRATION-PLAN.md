@@ -1,6 +1,6 @@
 # Musefold v1.2.2 迁移计划
 
-> **状态**：Phase 0、Phase 1a 已完成；Phase 3 部分完成（SHARE-06 / 01 / 05）；Phase 1b、Phase 2 未开工
+> **状态**：Phase 0、Phase 1a 已完成；Phase 3 部分完成（SHARE-06 / 01 / 05 / 02 / 03），仅剩 SHARE-04（与 Phase 2 stores 同批）；Phase 1b、Phase 2 未开工
 >
 > **日期**：2026-08-20
 >
@@ -24,7 +24,7 @@
 | Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
 | Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1 完成 | 按 feature 逐卡推进 |
-| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 已完成；SHARE-02 / 03 / 04 未开工 |
+| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04（与 Phase 2 stores 同批） |
 
 ## 2. Phase 0：工程化地基
 
@@ -56,7 +56,9 @@ Phase 0 于 2026-08-20 全部完成。
 ### Phase 0 沉淀的 Phase 3 输入
 
 - **`@shared/*` 别名消费清单**（原为 Phase 3 拆迁 `shared/` 的依据；`shared/` 已于 Phase 1a DIR-02 解散）：`packages/core` 消费面最大（constants、pricing、types/{enums,models,providers,ipc,workbench,design-scheme}、design-scheme/{prompt-compiler,schema}）；`packages/cli` 生产代码消费 constants、pricing；`packages/automation-server` 生产代码消费 types/providers、constants；`packages/client` 零别名。残留的 `@shared/types/*` 直映与 ESLint 禁令已由 `V122-SHARE-06` 收口。
-- **退役后端面**（前端 store 死路径已删，以下保留待 Phase 3 决断）：`electron/main/ipc/{folders,tags,prompts,smartSets}.ts` 的 folder/tag/batch/smartSet 通道、preload 对应暴露、`packages/core` 的 folders/tags/smartSets repositories——导入导出与 E2E 仍在使用其中一部分，不能整体删除。
+- **退役后端面**（前端 store 死路径已删）：~~以下保留待 Phase 3 决断：`electron/main/ipc/{folders,tags,prompts,smartSets}.ts` 的 folder/tag/batch/smartSet 通道、preload 对应暴露、`packages/core` 的 folders/tags/smartSets repositories——导入导出与 E2E 仍在使用其中一部分，不能整体删除。~~ **已决断落地（2026-08-20，069535e）**。审计修正了 Phase 0 注记——导入导出引擎从来不经这些 repo/IPC，一直是 `getDb()` 直写 SQL；真正挡删除的是 E2E 夹具与 library store 残留的 list 调用。删除链：18 条 IPC（folders 5、tags 5、smartSets 4、prompt batch 4）+ 18 个 preload 方法（含 folder/tag/smartSet 三命名空间）+ ipc.ts 常量与类型 + 23 个 repository 方法 + 3 个源文件（ipc/folders.ts、ipc/tags.ts、repositories/folders.ts）。保留：搜索历史 IPC、`tagsRepo.assignToPrompt`/`getByPromptId`（prompt 写路径）、`prompt.list({folderId,tagIds})`、导出信封 v3 的 folders/tags/smartSets 字段、云同步 folder/tag 入站与 bootstrap（独立 SQL）、schema 与迁移史全部不动。
+
+  **后果声明**：foldersRepo 删除连带 `enqueueActiveAccountMutation('folder'|'tag')` 消失，桌面不再产生本地目录 CRUD 的 live mutation（UI 本就无写入口，已有行仍靠 bootstrap 上报）。E2E 夹具改 SQL 直写，`test_00_harness` 加负向断言锁 `window.api` 上退役命名空间不回流。基线保持 222/17。
 - **已知测试竞态**：~~根 vitest 并行时 brand-migration 相关测试与 `packages/cli/dist` 写入偶发撞车~~ **已于 2026-08-20 修复**。根因不是临时目录问题，而是 `readProductText()` 递归扫描 `packages/**` 时把构建产物一起读了：该守卫要守的是源码，产物随时可重建，扫它既拖慢测试又会和并发构建抢文件。现按目录名跳过产物与依赖目录（`dist`/`out`/`node_modules`/`.turbo`/`.tsout` 等）并跳过符号链接；正反向都已验证（产物目录内放旧品牌串仍通过，`src/` 下放则失败）。
 
 ### Phase 0 沉淀的 Phase 1 输入
@@ -153,7 +155,7 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 
 ## 5. Phase 3：共享逻辑归位
 
-**启动裁定（2026-08-20）**：Phase 3 与 Phase 2 可交错、纯仓库侧，不依赖 Phase 1b 的 manifest 下移；在 Phase 1b 等待外部条件与稳定期期间先行推进。`V122-SHARE-06` / `01` / `05` 已完成；`SHARE-02` / `03` / `04` 未开工（`SHARE-04` 与 Phase 2 stores 切换同批）。
+**启动裁定（2026-08-20）**：Phase 3 与 Phase 2 可交错、纯仓库侧，不依赖 Phase 1b 的 manifest 下移；在 Phase 1b 等待外部条件与稳定期期间先行推进。`V122-SHARE-06` / `01` / `05` / `02` / `03` 已完成；仅剩 `SHARE-04`（与 Phase 2 stores 切换同批）。
 
 ### 任务
 
@@ -162,8 +164,16 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
   **不可合并清单（裁定）**：`buildImageRequest` / `RefineParams` 等（类型面是桌面 IPC 请求，Web 对等物是 `CloudGenerationRequest`，形状不同属产品差异）；`formatTime` / `formatCost` / `formatDuration` 留桌面。删除 6 个实现副本 + 5 个测试副本，改写 14 文件 import。
 
   验证：turbo 30/30、`check:v1.1`、视觉门禁、全量 E2E 222 passed / 17 skipped。
-- `V122-SHARE-02`：UI 原语迁移收尾：dropdown-menu、select、slider、segmented、badge、scroll-area、kbd、skeleton、spinner、image-lightbox 迁入 `@musefold/ui`，删除 `src/components/ui/` 本地实现（约 1,000 行）。
-- `V122-SHARE-03`：new-api 客户端去重：`electron/account/api-client.ts` 切换到 `@musefold/new-api-client`，差异部分（设备令牌编排）留在 `electron/account/`。
+- `V122-SHARE-02`：~~UI 原语迁移收尾：dropdown-menu、select、slider、segmented、badge、scroll-area、kbd、skeleton、spinner、image-lightbox 迁入 `@musefold/ui`，删除 `src/components/ui/` 本地实现（约 1,000 行）。~~ **已完成（2026-08-20，20d5dc1）**。点名 10 原语全部迁入 `@musefold/ui`，跟随既有合并文件体例（`extended-primitives.tsx` + `primitives.css` 的 mf-ui token 类，不引入 cva/Tailwind）。审计发现 6 个原语当时零消费方（select/slider/segmented/badge/scroll-area/skeleton），仍迁入避免本地养死实现。`ImageLightbox`（276 行，深桌面耦合）参数化为 `src` + save/reveal/copy 回调，桌面留 84 行 IPC/toast 薄适配（`apps/desktop/src/components/image-lightbox.tsx`），消费方 API 与 E2E 选择器不变。桌面删 10 文件约 731 行，改写 8 文件 import。ui 包测试 5→9 条。
+
+  **裁定**：`Badge`/`Spinner` 与既有 `StatusBadge`/`LoadingState` 职责不同，未强行合并。
+
+  验证：turbo 30/30、`check:ui-boundaries`、`check:v1.1`、视觉门禁、桌面 E2E 222/17、Web E2E 13 passed。
+- `V122-SHARE-03`：~~new-api 客户端去重：`electron/account/api-client.ts` 切换到 `@musefold/new-api-client`，差异部分（设备令牌编排）留在 `electron/account/`。~~ **已完成（2026-08-20，f6f1178）**。桌面 `api-client.ts` 377→83 行，HTTP 面全量切到 `@musefold/new-api-client`；生产净删 168 行。包加构造器级扩展点 `createError`（桌面注入 `RelayApiError` 保持 `instanceof` 与 `ACCOUNT/*` 码，web-api 短码不变），新增桌面独有端点 `listUserModels`/`getPricing`/`getNotices`。桌面 2FA/超时/5xx 文案写进包（web-api 按 code 映射不读 message，无影响）。设备令牌编排、failover、服务器 URL 用户文案留 `electron/account/`。根 dependencies 增 `@musefold/new-api-client` + electron.vite exclude。
+
+  **裁定**：审计结论——管理面两端都是 JWT Bearer + Cookie，桌面 sk- 设备令牌只用于托管 Provider，认证并无分叉，无需 header 注入回调。
+
+  验证：turbo 30/30、`check:v1.1`（new-api-client 9 passed、web-api 15/11 skipped）、冒烟、桌面 E2E 222/17。
 - `V122-SHARE-04`：工作台 store（2,080 行）按 Web 已验证的三 controller 模式（session/draft-sync/generation-sync）拆分 IO 与状态机；可上提的 reducer 进 `product-ui`，IPC IO 留在 `DesktopGateway`。与 Phase 2 stores 切换同批，未开工。
 - `V122-SHARE-05`：~~`check-shared-ui-boundaries.mjs` 中 import 类规则（图标唯一入口、禁私有 sidebar）折入 depcruise/ESLint；token 与 CSS 断言保留为脚本。~~ **已完成（2026-08-20，9e9f041）**。边界脚本 import 规则折入 ESLint。核实脚本 7 项检查中唯一 import 形的是 lucide-react 直连禁令 → `no-restricted-imports` regex `^lucide-react(?:/|$)`，`packages/ui/src/icons.ts` 唯一豁免，比旧脚本更严（深路径、全仓范围）。
 
