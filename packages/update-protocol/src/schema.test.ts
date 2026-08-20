@@ -99,6 +99,39 @@ describe('manifest schema', () => {
     expect(parsed.surfaces['capacitor-web']?.bytes).toBe(12);
   });
 
+  it('keeps capacitor-web and electron-renderer while stripping web and unknown surface ids', () => {
+    const parsed = manifestBodySchema.parse(
+      validBody({
+        surfaces: {
+          'electron-renderer': {
+            url: 'https://cdn.example.test/renderer.tar.zst',
+            sha256: shaA,
+            bytes: 10,
+          },
+          'capacitor-web': {
+            url: 'https://cdn.example.test/capacitor.tar.zst',
+            sha256: shaB,
+            bytes: 12,
+          },
+          web: {
+            url: 'http://not-https.example/app',
+            sha256: 'zzzz',
+            bytes: 0,
+          },
+          'android-web': {
+            url: 'ftp://ignored.example/android',
+            sha256: 'not-a-digest',
+            bytes: -1,
+          },
+        },
+      }),
+    );
+    expect(parsed.surfaces['electron-renderer']?.bytes).toBe(10);
+    expect(parsed.surfaces['capacitor-web']?.bytes).toBe(12);
+    expect(parsed.surfaces).not.toHaveProperty('web');
+    expect(parsed.surfaces).not.toHaveProperty('android-web');
+  });
+
   it('still rejects a malformed known surface', () => {
     const result = manifestBodySchema.safeParse(
       validBody({

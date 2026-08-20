@@ -353,4 +353,23 @@ describe('installContentBundle', () => {
     expect(result).toEqual({ status: 'surface_missing' });
     expect(fetchFn).not.toHaveBeenCalled();
   });
+
+  it('returns surface_missing when the manifest only contains unknown surfaces', async () => {
+    const packed = completePacked();
+    const fetchFn = vi.fn();
+    const result = await installContentBundle(
+      manifestFor(packed, {
+        surfaces: {
+          'android-web': {
+            url: HTTPS_URL,
+            sha256: packed.sha256,
+            bytes: packed.bytes,
+          },
+        },
+      }),
+      { fetch: fetchFn, userDataRoot: userData },
+    );
+    expect(result).toEqual({ status: 'surface_missing' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
 });

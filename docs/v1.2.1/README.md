@@ -7,6 +7,7 @@ v1.2.1 是持续交付版本。它不新增产品功能，交付的是让每次�
 - [CI/CD 与持续交付架构](./V121-CICD-ARCHITECTURE.md)
 - [技术选型与决策](./V121-TECHNOLOGY-DECISIONS.md)
 - [内容层热更新协议](./V121-HOT-UPDATE-PROTOCOL.md)
+- [iOS 接入预留](./V121-IOS-RESERVE.md)
 - [交付计划](./V121-DELIVERY-PLAN.md)
 
 后继版本：[v1.2.2 系统架构重构](../v1.2.2/README.md)。v1.2.1 交付的自动化流水线是 v1.2.2 目录重构的回归安全网，两者的顺序关系见交付计划第 0 节原则 7。

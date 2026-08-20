@@ -189,13 +189,13 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 - `V121-HOT-05`：~~实现 bundle 下载、SHA-256 校验、安全解压（拒绝绝对路径、`..` 与符号链接，限制大小与文件数）和原子改名~~ **已完成（2026-08-20）**。归档定为 gzip 压缩的严格 ustar 子集（`.tar.gz`），打包与解压落在 `@musefold/update-protocol` 同一实现：自写解析器只收本包产出的 typeflag / 路径 / 头字段，攻击面小于完整 tar；头字段归一化（mode `0644`/`0755`、uid/gid `0`、mtime `0`、uname/gname 空、条目字典序），gzip mtime 清零且 OS 字节写 `0xff`（Node/zlib 的 OS_CODE 随平台变，不覆盖则跨平台 sha256 不可复现），同一目录树两次打包字节一致，CI 产物 sha256 才可复现。解压按不可信输入处理（只收 typeflag `0`/`5`，拒绝链接/PAX/GNU 扩展/绝对路径/`..`/坏 checksum/截断/尾部垃圾；条目上限 4096、解压总量 256 MiB，gunzip `maxOutputLength` 防炸弹）。CLI 新增 `pack`，stdout 输出 manifest 所需 `{bytes, sha256}`。
 
   主进程：`content-bundle-store` 落在 `userData/content-bundles/{bundles,tmp}`（公证后改 `.app` 内文件会破坏签名）；`installId` 首次生成即持久化；`rejectedVersions` 上限 20 FIFO——列表只防回滚攻击与反复重试，老到淘汰的版本会被 `bundleVersion` 单调性挡住。安装路径 https-only、流式下载边读边计数边哈希、超 manifest `bytes` 早停、sha256 小写比对、解压到 tmp、以 `index.html`+`pet.html` 为完整性门槛、`renameSync` 原子落盘；全路径不抛异常、返回判别联合，日志脱敏。检查编排：信任锚为空直接短路不发网络请求（fail-closed 下拉了也白拉）；manifest 响应 1 MiB 上限；验签失败透传 `reason`。
-- `V121-HOT-06`：实现 `minShellVersion` / `maxShellVersion` 校验，并在 CI 中根据实际引用的 IPC 通道自动推导 `minShellVersion`。
+- `V121-HOT-06`：~~实现 `minShellVersion` / `maxShellVersion` 校验，并在 CI 中根据实际引用的 IPC 通道自动推导 `minShellVersion`。~~ **已完成（2026-08-20）**。运行时校验早已在协议包（`packages/update-protocol/src/compatibility.ts`）与 `electron/update/bundle-trust.ts` 就位。CI 侧推导落在 `scripts/derive-min-shell-version.mjs` + `shared/types/api-method-versions.ts`：登记表按 `window.api` 方法面而非 IPC 通道名建——renderer 源码不引用通道常量，方法面才是真实依赖单元；完整性由映射类型在编译期强制；源码扫描相对构建产物只会偏保守方向安全；floor `0.5.0`。
 - `V121-HOT-07`：~~实现灰度分桶，哈希输入为 `installId + bundleVersion`，保证同一安装判定稳定~~ **已完成（2026-08-20）**。纯函数入协议包：`sha256(installId + '\n' + bundleVersion)` 取前 4 字节大端 uint32 模 100，小于 `percentage` 则命中。分隔符是为了避免 `("ab","c")` 与 `("a","bc")` 落入同一槽；`0` 与 `100` 显式短路，不依赖哈希分布——这两档是运营最常用的。`installId` 来自 store，首次启动生成 UUID 后持久化。
 - `V121-HOT-08`：~~实现启动信标与自动回滚：连续两次未达「已知可用」即回退并记入拒绝列表~~ **已完成（2026-08-20）**。启动状态机**先记尝试再加载**：`prepare` 在解析渲染根之前执行，`attemptCount >= 2` 时把 pending 写入拒绝列表并清空——这是上次运行崩在信标前、本次启动完成判决；若先加载再计数，崩掉的那次不会留痕。候选顺序 pending → knownGood → previousGood。信标必须绑定**实际被服务**的 bundle：pending 目录不完整时解析器会静默回落，比较冻结的 `resolution.root` 与 pending 目录，不一致则绝不提升 pending。渲染层两个入口在 `root.render()` 后各发一次单向信标（`updater:contentReady`），主进程幂等消费第一次。Vite 开发态只做 cleanup、不计数不判决——`attemptCount` 语义是「一次真实加载尝试」，未加载不得计数；由调用点显式传 `willLoadFromBundles`，模块不嗅探环境变量。调度为 app ready 后 30 秒首查 + 每 4 小时；三个测试环境变量仅未打包构建生效，打包版忽略并由单测锁死（把信任锚交给环境变量等于给已分发二进制开后门）。
 - `V121-HOT-09`：~~扩展 updater IPC 与设置页，显示内容层版本与状态，保持窄接口与脱敏约定~~ **已完成（2026-08-20）**。IPC 为 `updater:getContentState` / `updater:checkContentNow`（invoke）：只暴露 `activeSource`、`activeBundleVersion`（由冻结 resolution 反查三指针）、pending、knownGood、`lastCheck{status,reason,at}`，不含路径/URL/公钥/`message` 原文；`lastCheck` 只在模块内存、不落盘。手动检查用 in-flight promise 防重入。`MUSEFOLD_CONTENT_UPDATE_DISABLED` 只关后台调度、不关手动检查——后者是 E2E 的确定性触发点。设置页「应用更新」分区新增内容层行：版本显示「内置」或 bundle 版本、pending 重启提示、检查按钮；status/reason 全枚举中文映射，`trust_anchor_missing` 用中性文案「更新通道未启用」。
 - `V121-HOT-10`：在 CI 增加 renderer bundle 构建、签名与发布到 `dev` 通道。
 - `V121-HOT-11`：~~E2E 覆盖三条失败路径：验签失败、`minShellVersion` 不满足、连续两次启动失败自动回退~~ **已完成（2026-08-20）**。`tests/e2e/test_content_update_failures.py`：错误密钥签名 → `manifest_invalid` / `invalid_signature` 且零落盘零 pending；`minShellVersion: 99.0.0` → `incompatible_shell_version` 同样零残留；预置无 JS 的坏 bundle 连续两次真实启动未达信标 → 第三次启动回落 builtin、pending 清空、版本入拒绝列表。本地 http feed + CLI `keygen`/`sign` + 未打包 env 注入；`conftest` 增加 `extra_env` 入参，默认行为不变。
-- `V121-HOT-12`：打包冒烟新增一项，确认全新安装在无网络时可从内置 bundle 正常启动。
+- `V121-HOT-12`：~~打包冒烟新增一项，确认全新安装在无网络时可从内置 bundle 正常启动。~~ **已完成（2026-08-20）**。mac/win 打包冒烟新增全新安装断言（`tests/package/builtin_renderer.py`，由 `tests/package/macos_package_smoke.py` 与 `tests/package/windows_runtime_smoke.py` 调用）：隔离 userData + CDP 断言 `activeSource === 'builtin'` + 磁盘无下载 bundle。离线保证的机制是解析器无候选回落内置 + 首查延迟 30 秒 + 失败不改状态，冒烟在首查前完成；macOS 已跑真包通过。
 
 ### origin 变更的偏好迁移（`V121-HOT-13`）
 
@@ -227,6 +227,8 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 
 修法是新增 `electron/main/app-paths.ts` 作为唯一解析入口：`resolveAppRoot()` 打包时直接用 `app.getAppPath()`，未打包时从它逐级向上找同时含 `resources/` 与 `name` 为 `musefold-app` 的 `package.json` 的目录，失败依次回落 `process.cwd()`（同样校验）与原始 appPath，不抛错；`resolveResourcePath()` 在此之上按打包形态切换 `process.resourcesPath` 与 `<appRoot>/resources`。7 处调用点全部改走它，`integration.ts` 的候选扫描随之收敛。**打包期路径行为零变化**（仍走 `process.resourcesPath`），`about.ts` 的未打包文档路径一并接入。
 
+`tests/package/windows_package_smoke.py` 的结构检查仍指向过时的 `release/v0.3.0/windows-*` 布局，当前 electron-builder 输出是 `release/win-unpacked` 等。macOS 侧本轮已顺手改为解析真实输出路径（`tests/package/macos_package_smoke.py` 的 `_macos_packaged_app()`）；Windows 结构检查留待 M6 `V121-REL-01` 整理发布产物布局时一并修正。
+
 ## 8. M6：外壳发布流水线
 
 ### 任务
@@ -253,14 +255,14 @@ v1.2.1 只交付协议与认证侧的预留，实际接入属于 v3.0。
 
 ### 任务
 
-- `V121-IOS-01`：在 manifest schema 中保留 `capacitor-web` surface，客户端对未知 surface 的忽略行为需有测试覆盖。
-- `V121-IOS-02`：评估并记录 Cookie 会话到 bearer token 的迁移路径，以 `@musefold/new-api-client` 现有 device-token 为起点。
-- `V121-IOS-03`：记录 App Store 条款 4.2 的应对方案，列出候选原生集成能力与优先级。
+- `V121-IOS-01`：~~在 manifest schema 中保留 `capacitor-web` surface，客户端对未知 surface 的忽略行为需有测试覆盖。~~ **已完成（2026-08-20）**。schema 已保留 `capacitor-web`（`packages/update-protocol/src/schema.ts` 的 `KNOWN_SURFACE_IDS`）。既有覆盖：`packages/update-protocol/src/schema.test.ts` 的 `ignores unknown surfaces instead of failing the document`、`ignores web (not a negotiated surface) rather than rejecting the manifest`；`electron/update/content-installer.test.ts` 的 `returns surface_missing when the desktop surface is absent`（只含 `capacitor-web`）。本轮补了两条显式用例：`keeps capacitor-web and electron-renderer while stripping web and unknown surface ids`（同份 manifest 含 `capacitor-web`、`web`、`android-web`）；`returns surface_missing when the manifest only contains unknown surfaces`。
+- `V121-IOS-02`：~~评估并记录 Cookie 会话到 bearer token 的迁移路径，以 `@musefold/new-api-client` 现有 device-token 为起点。~~ **已完成（2026-08-20）**。见 [iOS 接入预留](./V121-IOS-RESERVE.md) 第 1 节。
+- `V121-IOS-03`：~~记录 App Store 条款 4.2 的应对方案，列出候选原生集成能力与优先级。~~ **已完成（2026-08-20）**。见 [iOS 接入预留](./V121-IOS-RESERVE.md) 第 2 节。
 
 ### 完成条件
 
-- v3.0 开工时不需要修改 manifest schema 即可接入第三个 surface。
-- bearer token 迁移路径有明确文档，且不破坏现有 Web 的 Cookie 会话。
+- v3.0 开工时不需要修改 manifest schema 即可接入第三个 surface。✅ `capacitor-web` 已在 `KNOWN_SURFACE_IDS`；未知 id（含 `web`）解析期剥离，桌面消费端缺 `electron-renderer` 返回 `surface_missing` 而不崩溃。
+- bearer token 迁移路径有明确文档，且不破坏现有 Web 的 Cookie 会话。✅ `V121-IOS-RESERVE.md` 第 1 节：Web 继续 Cookie；资源 API 已认 Bearer；账号三条路由认 Bearer 与 `platform: ios` 留给 v3.0。
 
 ## 10. 发布门禁
 
@@ -283,5 +285,6 @@ v1.2.1 只交付协议与认证侧的预留，实际接入属于 v3.0。
 - [CI/CD 与持续交付架构](./V121-CICD-ARCHITECTURE.md)
 - [技术选型与决策](./V121-TECHNOLOGY-DECISIONS.md)
 - [热更新协议](./V121-HOT-UPDATE-PROTOCOL.md)
+- [iOS 接入预留](./V121-IOS-RESERVE.md)
 - [v1.1 Web 后端交付计划](../v1.1/V11-BACKEND-DELIVERY-PLAN.md)
 - [v1.2.2 系统架构重构迁移计划](../v1.2.2/V122-MIGRATION-PLAN.md)
