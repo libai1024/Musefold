@@ -190,7 +190,9 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
   **裁定**：能力判断单点 `runtime/capabilities.ts`；Sidebar / SettingsView / CommandPalette 按 flag 滤入口，工作台内部按钮不闸。过期 flag 与命令面板 action 对齐真实能力，避免 ⌘K 后门。
 
   验证：当前 flag 全 true，可见入口不变。
-- `V122-GW-09`：depcruise 规则收口：迁移完成的 feature 目录禁止 import `lib/ipc` 与 `window.api`（从 baseline 豁免中移除）；桌宠窗口、窗口控件、预览桥保留显式豁免并注明理由。
+- `V122-GW-09`：~~depcruise 规则收口：迁移完成的 feature 目录禁止 import `lib/ipc` 与 `window.api`（从 baseline 豁免中移除）；桌宠窗口、窗口控件、预览桥保留显式豁免并注明理由。~~ **已完成（2026-08-20）**。新增 `features-no-direct-ipc` 规则强制 library/history/account/workbench/generation 目录通过 gateway，pathNot 显式豁免合规使用：平台服务（api.system.*、api.pet.*）、Provider 专属（api.provider.web*、api.settings.pricing）、Skill 运行时（api.skillRuntime.*）、workbench hybrid pattern（api.workbenchSession.*、api.image.onProgress）、DesktopExtras 已覆盖的 prompt 方法（PromptReferenceSidebar、PromptPickerPopover）。修复违规：history/store.ts 的 `api.image.retry` → `desktopGateway.retryImage`；generation/store.ts 移除 unused `import api`。baseline 保持为空（Phase 0 已归零）。
+
+  验证：`check:boundaries` 通过（791 modules, 3025 dependencies, 0 violations）、typecheck 通过。
 
 ### Phase 2 沉淀的后续输入
 

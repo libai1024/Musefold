@@ -9,7 +9,6 @@ import type { ProviderConfig, NewProviderConfig } from '@musefold/desktop-contra
 import type { ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
 import type { AutomationProviderDraft } from '@musefold/desktop-contracts/ipc';
 import { gateway } from '../../runtime/gateway-context';
-import api from '../../lib/ipc';
 
 /** 单个 Provider 的连通性测试状态 */
 export type ProviderTestState = 'idle' | 'testing' | 'ok' | 'failed' | 'skipped';

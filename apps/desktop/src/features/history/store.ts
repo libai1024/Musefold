@@ -7,7 +7,6 @@ import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from '@musefold/d
 import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 import { desktopGateway } from '../../runtime';
 import { toast } from '../../stores/toast';
-import api from '../../lib/ipc';
 import {
   DEFAULT_HISTORY_FILTERS,
   countActiveHistoryFilters,
@@ -235,7 +234,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     });
 
     try {
-      const result = await api.image.retry(id);
+      const result = await desktopGateway.retryImage(id);
       if (result.status === 'success') {
         toast.success(
           opts?.successTitle ?? '重试完成',
