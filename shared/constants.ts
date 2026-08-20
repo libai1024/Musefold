@@ -200,9 +200,6 @@ export const SEED_TAG_GROUPS: { group: TagGroup; tags: string[] }[] = [
 /** FTS5 配置 */
 export const FTS_TOKENIZE = 'unicode61';
 
-/** 迁移相关 */
-export const TARGET_DB_VERSION = 15;
-
 /** 豆包网页桥接的保守本地硬限制；所有豆包 Provider 共享。 */
 export const DOUBAO_WEB_DAILY_IMAGE_LIMIT = 10;
 
