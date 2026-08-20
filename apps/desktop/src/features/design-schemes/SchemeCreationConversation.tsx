@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { SkillRuntimeTraceItem } from '@musefold/desktop-contracts/skill-runtime';
 import type { GenerationSource } from '../generation/workbench/types';
 import { SkillRuntimeConversation } from '../generation/workbench/SkillRuntimeAttachment';
-import { useSchemeCreationStore } from './creationStore';
-import { useSchemeRunStore } from './runStore';
+import { useSchemeCreationStore } from './creation-store';
+import { useSchemeRunStore } from './run-store';
 import { useAppStore } from '../../stores/app';
 import { Blocks, Check, Download, FileCheck2, GitBranch, Play, ShieldCheck } from '../../components/ui/icons';
 

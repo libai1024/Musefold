@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const section = readFileSync('apps/desktop/src/features/settings/sections/AiConnectionsSection.tsx', 'utf8');
+const section = readFileSync('apps/desktop/src/features/settings/components/AiConnectionsSection.tsx', 'utf8');
 const dialog = readFileSync('apps/desktop/src/features/settings/components/AiConnectionDialog.tsx', 'utf8');
 const settingsView = readFileSync('apps/desktop/src/features/settings/components/SettingsView.tsx', 'utf8');
 

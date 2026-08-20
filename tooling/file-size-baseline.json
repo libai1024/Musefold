@@ -10,7 +10,7 @@
   "packages/ui/src/extended-primitives.tsx": 1055,
   "packages/desktop-contracts/src/ipc.ts": 1031,
   "apps/desktop/src/features/onboarding/OnboardingFlow.tsx": 886,
-  "apps/desktop/src/features/settings/sections/AccountSection.tsx": 855,
+  "apps/desktop/src/features/settings/components/AccountSection.tsx": 855,
   "apps/desktop/electron/main/ipc/skill-runtime.ts": 796,
   "apps/web-api/src/modules/generation/service.ts": 788,
   "apps/desktop/electron/main/skill-import/github-reader.ts": 739,

@@ -20,7 +20,7 @@ const runtimeState = vi.hoisted(() => ({
   remove: async () => undefined,
 }));
 
-vi.mock('../skillRuntimeStore', () => ({
+vi.mock('../skill-runtime-store', () => ({
   useSkillRuntimeStore: <T,>(selector: (state: typeof runtimeState) => T) => selector(runtimeState),
 }));
 

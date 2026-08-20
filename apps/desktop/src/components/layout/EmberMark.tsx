@@ -14,8 +14,8 @@ import { useGSAP } from '@gsap/react';
 import { useAppStore } from '../../stores/app';
 import { useEmberHatchStore } from '../../stores/emberHatch';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
-import { useSkillRuntimeStore } from '../../features/generation/workbench/skillRuntimeStore';
-import { useSchemeRunStore } from '../../features/design-schemes/runStore';
+import { useSkillRuntimeStore } from '../../features/generation/workbench/skill-runtime-store';
+import { useSchemeRunStore } from '../../features/design-schemes/run-store';
 import { useExternalTasksStore } from '../../stores/externalTasks';
 import { EmberSlipCard } from './EmberSlipCard';
 import {

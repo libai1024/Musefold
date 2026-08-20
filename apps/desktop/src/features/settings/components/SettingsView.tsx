@@ -4,18 +4,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from '../../../components/ui/icons';
 import { useSettingsStore, type SettingsSection } from '../store';
-import { ProvidersSection } from '../sections/ProvidersSection';
-import { GenerationSection } from '../sections/GenerationSection';
-import { AppearanceSection } from '../sections/AppearanceSection';
-import { DataSection } from '../sections/DataSection';
-import { AboutSection } from '../sections/AboutSection';
-import { AiConnectionsSection } from '../sections/AiConnectionsSection';
-import { ArchivedChatsSection } from '../sections/ArchivedChatsSection';
-import { AutomationSection } from '../sections/AutomationSection';
-import { AccountSection } from '../sections/AccountSection';
-import { ConnectedAppsSection } from '../sections/ConnectedAppsSection';
-import { DoubaoSection } from '../sections/DoubaoSection';
-import { AccessModeSection } from '../sections/AccessModeSection';
+import { ProvidersSection } from '../components/ProvidersSection';
+import { GenerationSection } from '../components/GenerationSection';
+import { AppearanceSection } from '../components/AppearanceSection';
+import { DataSection } from '../components/DataSection';
+import { AboutSection } from '../components/AboutSection';
+import { AiConnectionsSection } from '../components/AiConnectionsSection';
+import { ArchivedChatsSection } from '../components/ArchivedChatsSection';
+import { AutomationSection } from '../components/AutomationSection';
+import { AccountSection } from '../components/AccountSection';
+import { ConnectedAppsSection } from '../components/ConnectedAppsSection';
+import { DoubaoSection } from '../components/DoubaoSection';
+import { AccessModeSection } from '../components/AccessModeSection';
 import { cn } from '../../../lib/utils';
 import {
   SETTINGS_SECTION_CAPABILITY,

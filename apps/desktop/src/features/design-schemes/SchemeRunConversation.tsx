@@ -10,8 +10,8 @@ import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import { useAppStore } from '../../stores/app';
 import { BadgeCheck, Check, Pencil, Wrench } from '../../components/ui/icons';
-import { useSchemeCreationStore } from './creationStore';
-import { useSchemeRunStore } from './runStore';
+import { useSchemeCreationStore } from './creation-store';
+import { useSchemeRunStore } from './run-store';
 
 type SchemeRunSource = Extract<GenerationSource, { kind: 'scheme-run' }>;
 

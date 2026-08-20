@@ -6,7 +6,7 @@ const settingsView = readFileSync(
   "utf8",
 );
 const archivedSection = readFileSync(
-  "apps/desktop/src/features/settings/sections/ArchivedChatsSection.tsx",
+  "apps/desktop/src/features/settings/components/ArchivedChatsSection.tsx",
   "utf8",
 );
 const sidebar = readFileSync("apps/desktop/src/components/layout/Sidebar.tsx", "utf8");

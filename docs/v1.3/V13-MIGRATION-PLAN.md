@@ -45,11 +45,11 @@
   验证：`check:boundaries` 通过（69 known ignored）；探针（onboarding store import library store）先红（`renderer-features-isolated-onboarding` error）后绿。✅
   回滚：revert 规则提交。
 
-- `V13-GOV-03`：store 命名与目录统一：feature store 统一 `store.ts`（`doubao-store.ts`→`account/store.ts` 内域、`creationStore.ts`/`runStore.ts`/`skillRuntimeStore.ts` 归位命名）；settings `sections/` 归并入 `components/`（13 个 section 组件改名迁入）；`store-persist-only` ESLint 规则以关闭状态预置（按 STATE-03 分批启用）。
+- `V13-GOV-03`：~~store 命名与目录统一：feature store 统一 `store.ts`（`doubao-store.ts`→`account/store.ts` 内域、`creationStore.ts`/`runStore.ts`/`skillRuntimeStore.ts` 归位命名）；settings `sections/` 归并入 `components/`（13 个 section 组件改名迁入）；`store-persist-only` ESLint 规则以关闭状态预置（按 STATE-03 分批启用）。~~ **已完成（2026-08-21）**。`creationStore.ts`→`creation-store.ts`、`runStore.ts`→`run-store.ts`、`skillRuntimeStore.ts`→`skill-runtime-store.ts`（kebab-case 统一；主 store 已是 `store.ts`，doubao/ai-connection/cloud-connections 已合规）；settings 13 个 section 组件 `git mv` 入 `components/`、`sections/` 删除；`store-persist-only` 以 off 预置（selector 锁 `localStorage.{get,set,remove}Item`，STATE-03 启用）。文件尺寸 baseline 与 depcruise baseline 路径同步（69 条不变）。
 
   **裁定**：纯移动 + import 改写提交，不改任何 store 逻辑。
 
-  验证：typecheck/test/E2E 全绿（机械改名应有零行为差异）。
+  验证：全仓 `tsc -b`、`check:boundaries`（69 known）、repo 测试 18、settings+design-schemes feature 测试 29 全绿。✅
   回滚：revert 移动提交。
 
 - `V13-GOV-04`：`desktop-contracts/src/ipc.ts` 拆为 `ipc/` 域模块（prompt/history/workbench/account/generation/system/…），`Api` 聚合类型与子路径导出面不变（消费方零改动）；`preload/index.ts` 按域拆组装模块，仍单次 `contextBridge.exposeInMainWorld` 单对象暴露。

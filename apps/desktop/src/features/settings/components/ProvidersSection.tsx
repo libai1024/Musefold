@@ -1,4 +1,4 @@
-// src/features/settings/sections/ProvidersSection.tsx
+// src/features/settings/components/ProvidersSection.tsx
 // 高级设置：生图中转站管理。
 import { useMemo, useState } from 'react';
 import { Plus, Check, Trash2, Pencil, Zap, Loader2, KeyRound, ListChecks } from '../../../components/ui/icons';

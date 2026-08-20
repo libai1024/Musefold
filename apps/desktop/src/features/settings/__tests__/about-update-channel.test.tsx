@@ -5,7 +5,7 @@ import {
   canRequestUpdateChannelChange,
   commitUpdateChannelChange,
   UpdateChannelRow,
-} from '../sections/UpdateChannelRow';
+} from '../components/UpdateChannelRow';
 
 function setChannelMock() {
   return vi.fn(async (channel: Channel): Promise<UpdateChannelResult> => ({

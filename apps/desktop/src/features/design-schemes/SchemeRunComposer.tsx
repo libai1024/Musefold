@@ -13,7 +13,7 @@ import { useAppStore } from '../../stores/app';
 import type { DesignSchemeSummary } from '@musefold/desktop-contracts/design-scheme';
 import { useGenerationWorkbenchStore } from '../generation/workbench/store';
 import type { GenerationSource } from '../generation/workbench/types';
-import { useSchemeRunStore } from './runStore';
+import { useSchemeRunStore } from './run-store';
 
 type SchemeDraftSource = Extract<GenerationSource, { kind: 'scheme' }>;
 

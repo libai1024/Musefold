@@ -48,8 +48,8 @@ import type {
   InputKind,
   SourceKind,
 } from '@musefold/desktop-contracts/design-scheme/schema';
-import { useSchemeCreationStore } from './creationStore';
-import { useSchemeRunStore } from './runStore';
+import { useSchemeCreationStore } from './creation-store';
+import { useSchemeRunStore } from './run-store';
 
 const FIDELITY_LABEL: Record<string, string> = {
   verified: '已验证',

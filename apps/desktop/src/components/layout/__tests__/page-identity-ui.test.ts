@@ -21,7 +21,7 @@ const emptyState = readFileSync(
 );
 // 品牌信息已并入「关于」分区（v0.3.2 设置重构）
 const aboutSection = readFileSync(
-  "apps/desktop/src/features/settings/sections/AboutSection.tsx",
+  "apps/desktop/src/features/settings/components/AboutSection.tsx",
   "utf8",
 );
 

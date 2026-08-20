@@ -106,7 +106,7 @@ import {
   SkillRuntimeAttachment,
   SkillRuntimeConversation,
 } from "./SkillRuntimeAttachment";
-import { useSkillRuntimeStore } from "./skillRuntimeStore";
+import { useSkillRuntimeStore } from "./skill-runtime-store";
 import {
   DESIGN_PLAN_COMMAND_LABEL,
   exactGithubSkillUrl,
@@ -122,8 +122,8 @@ import {
   SchemeRunPickerPopover,
   SchemeRunVariableFields,
 } from "../../design-schemes/SchemeRunComposer";
-import { useSchemeRunStore } from "../../design-schemes/runStore";
-import { useSchemeCreationStore } from "../../design-schemes/creationStore";
+import { useSchemeRunStore } from "../../design-schemes/run-store";
+import { useSchemeCreationStore } from "../../design-schemes/creation-store";
 
 const QUALITY_OPTIONS: { id: ImageQuality; label: string; hint: string }[] = [
   { id: "auto", label: "自动", hint: "模型默认" },

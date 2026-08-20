@@ -1,4 +1,4 @@
-// src/features/settings/sections/AppearanceSection.tsx
+// src/features/settings/components/AppearanceSection.tsx
 // 外观 —— 主题来源（跟随系统 / 浅色 / 深色）
 import { Monitor, Sun, Moon } from '../../../components/ui/icons';
 import {

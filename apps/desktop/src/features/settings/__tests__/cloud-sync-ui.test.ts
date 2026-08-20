@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(
-  new URL("../sections/AccountSection.tsx", import.meta.url),
+  new URL("../components/AccountSection.tsx", import.meta.url),
   "utf8",
 );
 const connectionsSource = readFileSync(
-  new URL("../sections/ConnectedAppsSection.tsx", import.meta.url),
+  new URL("../components/ConnectedAppsSection.tsx", import.meta.url),
   "utf8",
 );
 const connectionsStoreSource = readFileSync(

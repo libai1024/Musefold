@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SkillRuntimeTraceItem } from '@musefold/desktop-contracts/skill-runtime';
 import { Check, ChevronDown, GitBranch, Loader2, ShieldCheck, X } from '../../../components/ui/icons';
 import { cn } from '../../../lib/utils';
-import { useSkillRuntimeStore } from './skillRuntimeStore';
+import { useSkillRuntimeStore } from './skill-runtime-store';
 import { useGenerationStore } from '../store';
 
 export function SkillRuntimeAttachment() {

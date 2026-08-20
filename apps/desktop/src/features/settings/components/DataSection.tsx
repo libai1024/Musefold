@@ -1,4 +1,4 @@
-// src/features/settings/sections/DataSection.tsx
+// src/features/settings/components/DataSection.tsx
 // 数据与存储 —— 导出/导入 + 备份 + 存储路径 + 诊断日志（版本信息在「关于」）
 import { useEffect, useState } from 'react';
 import {

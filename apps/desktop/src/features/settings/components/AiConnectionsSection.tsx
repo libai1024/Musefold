@@ -1,4 +1,4 @@
-// src/features/settings/sections/AiConnectionsSection.tsx
+// src/features/settings/components/AiConnectionsSection.tsx
 // Agent 模型 —— 为设计方案 Agent 提供文本能力的连接管理。
 import { useEffect, useMemo, useState } from 'react';
 import {

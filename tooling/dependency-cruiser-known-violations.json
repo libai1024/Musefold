@@ -29,7 +29,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/design-schemes/creationStore.ts",
+    "from": "apps/desktop/src/features/design-schemes/creation-store.ts",
     "to": "apps/desktop/src/features/generation/workbench/store.ts",
     "unresolvedTo": "../generation/workbench/store",
     "dependencyTypes": [
@@ -43,7 +43,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/design-schemes/creationStore.ts",
+    "from": "apps/desktop/src/features/design-schemes/creation-store.ts",
     "to": "apps/desktop/src/features/generation/workbench/types.ts",
     "unresolvedTo": "../generation/workbench/types",
     "dependencyTypes": [
@@ -72,7 +72,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "from": "apps/desktop/src/features/design-schemes/run-store.ts",
     "to": "apps/desktop/src/features/generation/params.ts",
     "unresolvedTo": "../generation/params",
     "dependencyTypes": [
@@ -86,7 +86,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "from": "apps/desktop/src/features/design-schemes/run-store.ts",
     "to": "apps/desktop/src/features/generation/workbench/store.ts",
     "unresolvedTo": "../generation/workbench/store",
     "dependencyTypes": [
@@ -100,7 +100,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/design-schemes/runStore.ts",
+    "from": "apps/desktop/src/features/design-schemes/run-store.ts",
     "to": "apps/desktop/src/features/generation/workbench/types.ts",
     "unresolvedTo": "../generation/workbench/types",
     "dependencyTypes": [
@@ -245,8 +245,8 @@
   {
     "type": "dependency",
     "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
-    "to": "apps/desktop/src/features/design-schemes/creationStore.ts",
-    "unresolvedTo": "../../design-schemes/creationStore",
+    "to": "apps/desktop/src/features/design-schemes/creation-store.ts",
+    "unresolvedTo": "../../design-schemes/creation-store",
     "dependencyTypes": [
       "local",
       "import"
@@ -273,8 +273,8 @@
   {
     "type": "dependency",
     "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
-    "to": "apps/desktop/src/features/design-schemes/runStore.ts",
-    "unresolvedTo": "../../design-schemes/runStore",
+    "to": "apps/desktop/src/features/design-schemes/run-store.ts",
+    "unresolvedTo": "../../design-schemes/run-store",
     "dependencyTypes": [
       "local",
       "import"
@@ -678,7 +678,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/AccessModeSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/AccessModeSection.tsx",
     "to": "apps/desktop/src/features/account/doubao-store.ts",
     "unresolvedTo": "../../account/doubao-store",
     "dependencyTypes": [
@@ -692,7 +692,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/AccessModeSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/AccessModeSection.tsx",
     "to": "apps/desktop/src/features/account/store.ts",
     "unresolvedTo": "../../account/store",
     "dependencyTypes": [
@@ -706,7 +706,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/AccessModeSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/AccessModeSection.tsx",
     "to": "apps/desktop/src/features/generation/store.ts",
     "unresolvedTo": "../../generation/store",
     "dependencyTypes": [
@@ -720,7 +720,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/AccountSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/AccountSection.tsx",
     "to": "apps/desktop/src/features/account/store.ts",
     "unresolvedTo": "../../account/store",
     "dependencyTypes": [
@@ -734,7 +734,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/AiConnectionsSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/AiConnectionsSection.tsx",
     "to": "apps/desktop/src/features/generation/store.ts",
     "unresolvedTo": "../../generation/store",
     "dependencyTypes": [
@@ -748,7 +748,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/ArchivedChatsSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/ArchivedChatsSection.tsx",
     "to": "apps/desktop/src/features/generation/workbench/sessionErrors.ts",
     "unresolvedTo": "../../generation/workbench/sessionErrors",
     "dependencyTypes": [
@@ -762,7 +762,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/ArchivedChatsSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/ArchivedChatsSection.tsx",
     "to": "apps/desktop/src/features/generation/workbench/store.ts",
     "unresolvedTo": "../../generation/workbench/store",
     "dependencyTypes": [
@@ -776,7 +776,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/ConnectedAppsSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/ConnectedAppsSection.tsx",
     "to": "apps/desktop/src/features/account/store.ts",
     "unresolvedTo": "../../account/store",
     "dependencyTypes": [
@@ -790,7 +790,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/DataSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/DataSection.tsx",
     "to": "apps/desktop/src/features/generation/workbench/store.ts",
     "unresolvedTo": "../../generation/workbench/store",
     "dependencyTypes": [
@@ -804,7 +804,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/DataSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/DataSection.tsx",
     "to": "apps/desktop/src/features/history/store.ts",
     "unresolvedTo": "../../history/store",
     "dependencyTypes": [
@@ -818,7 +818,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/DataSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/DataSection.tsx",
     "to": "apps/desktop/src/features/library/store.ts",
     "unresolvedTo": "../../library/store",
     "dependencyTypes": [
@@ -832,7 +832,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/DoubaoSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/DoubaoSection.tsx",
     "to": "apps/desktop/src/features/account/doubao-store.ts",
     "unresolvedTo": "../../account/doubao-store",
     "dependencyTypes": [
@@ -846,7 +846,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/DoubaoSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/DoubaoSection.tsx",
     "to": "apps/desktop/src/features/generation/components/ValidationResultBanner.tsx",
     "unresolvedTo": "../../generation/components/ValidationResultBanner",
     "dependencyTypes": [
@@ -860,7 +860,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/DoubaoSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/DoubaoSection.tsx",
     "to": "apps/desktop/src/features/generation/store.ts",
     "unresolvedTo": "../../generation/store",
     "dependencyTypes": [
@@ -874,7 +874,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/GenerationSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/GenerationSection.tsx",
     "to": "apps/desktop/src/features/generation/components/RatioPicker.tsx",
     "unresolvedTo": "../../generation/components/RatioPicker",
     "dependencyTypes": [
@@ -888,7 +888,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/GenerationSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/GenerationSection.tsx",
     "to": "apps/desktop/src/features/generation/workbench/store.ts",
     "unresolvedTo": "../../generation/workbench/store",
     "dependencyTypes": [
@@ -902,7 +902,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/ProvidersSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/ProvidersSection.tsx",
     "to": "apps/desktop/src/features/generation/components/ProviderEmptyGuide.tsx",
     "unresolvedTo": "../../generation/components/ProviderEmptyGuide",
     "dependencyTypes": [
@@ -916,7 +916,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/ProvidersSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/ProvidersSection.tsx",
     "to": "apps/desktop/src/features/generation/components/ValidationResultBanner.tsx",
     "unresolvedTo": "../../generation/components/ValidationResultBanner",
     "dependencyTypes": [
@@ -930,7 +930,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/sections/ProvidersSection.tsx",
+    "from": "apps/desktop/src/features/settings/components/ProvidersSection.tsx",
     "to": "apps/desktop/src/features/generation/store.ts",
     "unresolvedTo": "../../generation/store",
     "dependencyTypes": [

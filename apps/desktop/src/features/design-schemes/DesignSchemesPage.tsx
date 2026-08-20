@@ -25,8 +25,8 @@ import { toast } from '../../stores/toast';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import type { DesignSchemeSummary, MarketCandidate, MarketSearchResult } from '@musefold/desktop-contracts/design-scheme';
 import { useGenerationWorkbenchStore } from '../generation/workbench/store';
-import { useSchemeCreationStore } from './creationStore';
-import { useSchemeRunStore } from './runStore';
+import { useSchemeCreationStore } from './creation-store';
+import { useSchemeRunStore } from './run-store';
 import { SchemeRuntimeDetail } from './SchemeRuntimeDetail';
 import { HistorySourcePicker } from './HistorySourcePicker';
 

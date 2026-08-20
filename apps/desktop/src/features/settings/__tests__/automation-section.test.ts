@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const section = readFileSync('apps/desktop/src/features/settings/sections/AutomationSection.tsx', 'utf8');
+const section = readFileSync('apps/desktop/src/features/settings/components/AutomationSection.tsx', 'utf8');
 
 describe('automation settings UI contract', () => {
   it('renders an unambiguous, theme-aware local control-plane switch', () => {

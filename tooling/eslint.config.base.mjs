@@ -150,7 +150,7 @@ export default tseslint.config(
       'packages/ui/src/extended-primitives.tsx',
       'packages/desktop-contracts/src/ipc.ts',
       'apps/desktop/src/features/onboarding/OnboardingFlow.tsx',
-      'apps/desktop/src/features/settings/sections/AccountSection.tsx',
+      'apps/desktop/src/features/settings/components/AccountSection.tsx',
       'apps/desktop/electron/main/ipc/skill-runtime.ts',
       'apps/web-api/src/modules/generation/service.ts',
       'apps/desktop/electron/main/skill-import/github-reader.ts',
@@ -166,6 +166,21 @@ export default tseslint.config(
     ],
     rules: {
       'max-lines': 'off',
+    },
+  },
+  {
+    // V13-GOV-03 预置 / V13-STATE-03 启用：store 持久化只经 zustand persist middleware。
+    // 现为 off（stores/app.ts 等存量手写 localStorage 待 STATE-03 迁移后分批启用）。
+    files: ['apps/desktop/src/stores/**/*.ts', 'apps/desktop/src/features/**/store.ts', 'apps/desktop/src/features/**/*-store.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'off',
+        {
+          selector: "MemberExpression[object.name='localStorage'][property.name=/^(setItem|getItem|removeItem)$/]",
+          message:
+            'V13-STATE-03：store 持久化只经 zustand persist middleware，禁止手写 localStorage（读侧同理由 sessionPreferences 等 helper 收口）。',
+        },
+      ],
     },
   },
   {
