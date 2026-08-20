@@ -23,7 +23,10 @@ import type {
   CloudSyncConflictSummary,
   CloudSyncSummary,
 } from "@musefold/desktop-contracts/cloud-sync";
-import { useAccountStore } from "../../account/store";
+import {
+  getAccountDesktopExtras,
+  useAccountStore,
+} from "../../account/store";
 import { SectionShell, SettingRow } from "../components/SectionShell";
 import { useSettingsStore } from "../store";
 import { AccountSummaryPanel } from "@musefold/product-ui";
@@ -144,6 +147,7 @@ export function AccountSection() {
     });
   }, [accountSetupRequest, clearError, consumeAccountSetup, status.loggedIn]);
 
+  // 云同步走 DesktopExtras（与 account store 共用注入点），不直连 preload 的 cloudSync 面。
   useEffect(() => {
     if (!status.loggedIn) {
       setCloudSync(null);
@@ -151,13 +155,14 @@ export function AccountSection() {
       return;
     }
     let active = true;
+    const extras = getAccountDesktopExtras();
     const load = async () => {
       try {
-        const next = await window.api.cloudSync.status();
+        const next = await extras.cloudSyncStatus();
         if (!active) return;
         setCloudSync(next);
         if (next.conflicts > 0)
-          setCloudConflicts(await window.api.cloudSync.conflicts());
+          setCloudConflicts(await extras.cloudSyncConflicts());
       } catch (cause) {
         if (active)
           setCloudError(
@@ -166,7 +171,7 @@ export function AccountSection() {
       }
     };
     void load();
-    const unsubscribe = window.api.cloudSync.onChanged((next) => {
+    const unsubscribe = extras.onCloudSyncChanged((next) => {
       if (!active) return;
       setCloudSync(next);
       if (next.conflicts === 0) setCloudConflicts([]);
@@ -180,10 +185,11 @@ export function AccountSection() {
   const setCloudEnabled = async (enabled: boolean) => {
     setCloudError(null);
     try {
-      const next = await window.api.cloudSync.setEnabled(enabled);
+      const extras = getAccountDesktopExtras();
+      const next = await extras.cloudSyncSetEnabled(enabled);
       setCloudSync(next);
       if (next.conflicts > 0)
-        setCloudConflicts(await window.api.cloudSync.conflicts());
+        setCloudConflicts(await extras.cloudSyncConflicts());
     } catch (cause) {
       setCloudError(cause instanceof Error ? cause.message : "云同步操作失败");
     }
@@ -192,10 +198,11 @@ export function AccountSection() {
   const syncCloudNow = async () => {
     setCloudError(null);
     try {
-      const next = await window.api.cloudSync.syncNow();
+      const extras = getAccountDesktopExtras();
+      const next = await extras.cloudSyncNow();
       setCloudSync(next);
       setCloudConflicts(
-        next.conflicts > 0 ? await window.api.cloudSync.conflicts() : [],
+        next.conflicts > 0 ? await extras.cloudSyncConflicts() : [],
       );
     } catch (cause) {
       setCloudError(cause instanceof Error ? cause.message : "云同步失败");
@@ -208,10 +215,11 @@ export function AccountSection() {
   ) => {
     setCloudError(null);
     try {
-      const next = await window.api.cloudSync.resolve(conflictId, resolution);
+      const extras = getAccountDesktopExtras();
+      const next = await extras.cloudSyncResolve(conflictId, resolution);
       setCloudSync(next);
       setCloudConflicts(
-        next.conflicts > 0 ? await window.api.cloudSync.conflicts() : [],
+        next.conflicts > 0 ? await extras.cloudSyncConflicts() : [],
       );
     } catch (cause) {
       setCloudError(cause instanceof Error ? cause.message : "冲突处理失败");

@@ -106,6 +106,12 @@ function unusedGatewayMethod(name: string) {
   });
 }
 
+function unusedExtrasMethod(name: string) {
+  return vi.fn(async () => {
+    throw new Error(`${name} 不应被 library store 调用`);
+  });
+}
+
 function createFakeGateway(): PromptGateway {
   return {
     listPrompts: unusedGatewayMethod('listPrompts'),
@@ -131,6 +137,24 @@ function createFakeExtras(): DesktopExtras {
     listSearchHistory: vi.fn(),
     addSearchHistory: vi.fn(),
     clearSearchHistory: vi.fn(),
+    accountStatus: unusedExtrasMethod('accountStatus'),
+    accountRegister: unusedExtrasMethod('accountRegister'),
+    accountLogin: unusedExtrasMethod('accountLogin'),
+    accountLogout: unusedExtrasMethod('accountLogout'),
+    accountRedeem: unusedExtrasMethod('accountRedeem'),
+    accountRefreshQuota: unusedExtrasMethod('accountRefreshQuota'),
+    accountSetServerUrl: unusedExtrasMethod('accountSetServerUrl'),
+    onAccountChanged: vi.fn(() => {
+      throw new Error('onAccountChanged 不应被 library store 调用');
+    }),
+    cloudSyncStatus: unusedExtrasMethod('cloudSyncStatus'),
+    cloudSyncSetEnabled: unusedExtrasMethod('cloudSyncSetEnabled'),
+    cloudSyncNow: unusedExtrasMethod('cloudSyncNow'),
+    cloudSyncConflicts: unusedExtrasMethod('cloudSyncConflicts'),
+    cloudSyncResolve: unusedExtrasMethod('cloudSyncResolve'),
+    onCloudSyncChanged: vi.fn(() => {
+      throw new Error('onCloudSyncChanged 不应被 library store 调用');
+    }),
   };
 }
 

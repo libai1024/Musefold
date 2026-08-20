@@ -9,6 +9,7 @@ import type {
   WorkbenchSessionListQuery,
 } from '@musefold/desktop-contracts/workbench';
 import type { AccountStatus } from '@musefold/desktop-contracts/account';
+import type { CloudSyncConflictResolution, CloudSyncSummary } from '@musefold/desktop-contracts/cloud-sync';
 import {
   createDesktopGateway,
   DesktopGatewayError,
@@ -107,6 +108,22 @@ const loggedIn: AccountStatus = {
   health: 'ok',
 };
 
+const idleCloudSync: CloudSyncSummary = {
+  available: true,
+  unavailableReason: null,
+  status: 'idle',
+  account: {
+    ownerId: 'alice',
+    username: 'alice',
+    deviceName: 'Mac',
+    enabled: true,
+    lastSyncAt: null,
+    lastError: null,
+  },
+  pendingMutations: 0,
+  conflicts: 0,
+};
+
 function createFakeApi() {
   const prompts = new Map<string, Prompt>();
   const histories = new Map<string, HistoryRecord>();
@@ -188,6 +205,28 @@ function createFakeApi() {
     account = { ...loggedOut };
     return account;
   });
+  const accountStatus = vi.fn(async () => account);
+  const accountRegister = vi.fn(async (input: { username: string; password: string }) => {
+    account = { ...loggedIn, username: input.username };
+    return account;
+  });
+  const accountLogin = vi.fn(async (input: { username: string; password: string }) => {
+    account = { ...loggedIn, username: input.username };
+    return account;
+  });
+  const accountRedeem = vi.fn(async () => ({ quotaAdded: 100, status: account }));
+  const accountRefreshQuota = vi.fn(async () => account);
+  const accountSetServerUrl = vi.fn(async (url: string) => {
+    account = { ...account, serverUrl: url };
+    return account;
+  });
+  const accountOnChanged = vi.fn((_cb: (status: AccountStatus) => void) => () => undefined);
+  const cloudSyncStatus = vi.fn(async () => idleCloudSync);
+  const cloudSyncSetEnabled = vi.fn(async () => idleCloudSync);
+  const cloudSyncNow = vi.fn(async () => idleCloudSync);
+  const cloudSyncConflicts = vi.fn(async () => []);
+  const cloudSyncResolve = vi.fn(async () => idleCloudSync);
+  const cloudSyncOnChanged = vi.fn((_cb: (status: CloudSyncSummary) => void) => () => undefined);
 
   const api = {
     prompt: {
@@ -267,12 +306,22 @@ function createFakeApi() {
       },
     },
     account: {
-      status: async () => account,
-      login: async (input: { username: string; password: string }) => {
-        account = { ...loggedIn, username: input.username };
-        return account;
-      },
+      status: accountStatus,
+      register: accountRegister,
+      login: accountLogin,
       logout,
+      redeem: accountRedeem,
+      refreshQuota: accountRefreshQuota,
+      setServerUrl: accountSetServerUrl,
+      onChanged: accountOnChanged,
+    },
+    cloudSync: {
+      status: cloudSyncStatus,
+      setEnabled: cloudSyncSetEnabled,
+      syncNow: cloudSyncNow,
+      conflicts: cloudSyncConflicts,
+      resolve: cloudSyncResolve,
+      onChanged: cloudSyncOnChanged,
     },
     cloudConnections: {
       list: async () => emptyConnections,
@@ -281,7 +330,31 @@ function createFakeApi() {
     },
   } as unknown as WindowApi;
 
-  return { api, prompts, histories, sessions, create, list, update, incrementUsage, ensure, logout };
+  return {
+    api,
+    prompts,
+    histories,
+    sessions,
+    create,
+    list,
+    update,
+    incrementUsage,
+    ensure,
+    logout,
+    accountStatus,
+    accountRegister,
+    accountLogin,
+    accountRedeem,
+    accountRefreshQuota,
+    accountSetServerUrl,
+    accountOnChanged,
+    cloudSyncStatus,
+    cloudSyncSetEnabled,
+    cloudSyncNow,
+    cloudSyncConflicts,
+    cloudSyncResolve,
+    cloudSyncOnChanged,
+  };
 }
 
 const newDoc: NewPromptDocument = {
@@ -383,6 +456,67 @@ describe('DesktopGateway DesktopExtras', () => {
 
     expect(fake.list).toHaveBeenCalledWith(query);
     expect(fake.list.mock.calls[0][0]).toBe(query);
+  });
+
+  it('account extras forward to api.account and keep desktop AccountStatus', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    const credentials = { username: 'alice', password: 'secret' };
+
+    const loggedOutStatus = await gateway.accountStatus();
+    expect(loggedOutStatus).toEqual(loggedOut);
+    expect(loggedOutStatus).toHaveProperty('deviceTokenSuffix');
+    expect(loggedOutStatus).toHaveProperty('serverUrl');
+    expect(loggedOutStatus).not.toHaveProperty('csrfToken');
+    expect(fake.accountStatus).toHaveBeenCalledOnce();
+
+    const registered = await gateway.accountRegister(credentials);
+    expect(fake.accountRegister).toHaveBeenCalledWith(credentials);
+    expect(registered.username).toBe('alice');
+    expect(registered.loggedIn).toBe(true);
+    expect(registered).toHaveProperty('notices');
+    expect(registered).not.toHaveProperty('csrfToken');
+
+    const loggedInStatus = await gateway.accountLogin(credentials);
+    expect(fake.accountLogin).toHaveBeenCalledWith(credentials);
+    expect(loggedInStatus.health).toBe('ok');
+    expect(loggedInStatus.quota).toEqual({ value: 1000, at: 1 });
+
+    await gateway.accountRedeem('CODE');
+    expect(fake.accountRedeem).toHaveBeenCalledWith('CODE');
+    await gateway.accountRefreshQuota();
+    expect(fake.accountRefreshQuota).toHaveBeenCalledOnce();
+    await gateway.accountSetServerUrl('https://custom');
+    expect(fake.accountSetServerUrl).toHaveBeenCalledWith('https://custom');
+    await gateway.accountLogout();
+    expect(fake.logout).toHaveBeenCalledOnce();
+
+    const cb = vi.fn();
+    const unsub = gateway.onAccountChanged(cb);
+    expect(fake.accountOnChanged).toHaveBeenCalledWith(cb);
+    unsub();
+  });
+
+  it('cloudSync extras forward to api.cloudSync without mapping', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    const resolution: CloudSyncConflictResolution = 'local';
+
+    await expect(gateway.cloudSyncStatus()).resolves.toEqual(idleCloudSync);
+    expect(fake.cloudSyncStatus).toHaveBeenCalledOnce();
+    await gateway.cloudSyncSetEnabled(true);
+    expect(fake.cloudSyncSetEnabled).toHaveBeenCalledWith(true);
+    await gateway.cloudSyncNow();
+    expect(fake.cloudSyncNow).toHaveBeenCalledOnce();
+    await gateway.cloudSyncConflicts();
+    expect(fake.cloudSyncConflicts).toHaveBeenCalledOnce();
+    await gateway.cloudSyncResolve('c1', resolution);
+    expect(fake.cloudSyncResolve).toHaveBeenCalledWith('c1', resolution);
+
+    const cb = vi.fn();
+    const unsub = gateway.onCloudSyncChanged(cb);
+    expect(fake.cloudSyncOnChanged).toHaveBeenCalledWith(cb);
+    unsub();
   });
 });
 

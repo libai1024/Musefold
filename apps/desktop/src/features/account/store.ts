@@ -1,5 +1,6 @@
 // src/features/account/store.ts
 // 渲染层账号状态（v0.5）。密码只作为 login/register 的瞬时参数，不进入 Zustand。
+// 账号全量状态走 DesktopExtras（桌面 AccountStatus），不经 AccountGateway / AccountSession mapper。
 
 import { create } from 'zustand';
 import { DEFAULT_ACCOUNT_SERVER_URL } from '@musefold/domain/constants';
@@ -9,7 +10,8 @@ import type {
   AccountRedeemResult,
   AccountStatus,
 } from '@musefold/desktop-contracts/account';
-import api from '../../lib/ipc';
+import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
+import { desktopGateway } from '../../runtime';
 import { useGenerationStore } from '../generation/store';
 import { useAiConnectionStore } from '../settings/ai-connection-store';
 
@@ -68,7 +70,22 @@ function uiError(error: unknown): AccountUiError {
   };
 }
 
+let desktopExtras: DesktopExtras = desktopGateway;
 let subscribed = false;
+let unsubscribeAccountChanged: (() => void) | null = null;
+
+/** 测试替换 DesktopExtras；生产保持 desktopGateway 单例。 */
+export function setAccountDesktopExtrasForTests(next: DesktopExtras): void {
+  unsubscribeAccountChanged?.();
+  unsubscribeAccountChanged = null;
+  subscribed = false;
+  desktopExtras = next;
+}
+
+/** 账号设置页与 store 共用 extras 单点；调用时读取当前注入。 */
+export function getAccountDesktopExtras(): DesktopExtras {
+  return desktopExtras;
+}
 
 export const useAccountStore = create<AccountState>((set) => {
   const run = async <T>(
@@ -99,7 +116,7 @@ export const useAccountStore = create<AccountState>((set) => {
     initialize: async () => {
       if (!subscribed) {
         subscribed = true;
-        api.account.onChanged((status) => {
+        unsubscribeAccountChanged = desktopExtras.onAccountChanged((status) => {
           // 登录态翻转意味着主进程刚创建/回收了托管条目——无论由哪个入口
           // 发起（设置页、引导流、主进程自身），渲染层列表都要跟上。
           const loggedInBefore = useAccountStore.getState().status.loggedIn;
@@ -109,7 +126,7 @@ export const useAccountStore = create<AccountState>((set) => {
       }
       set({ loading: true, error: null });
       try {
-        const status = await api.account.status();
+        const status = await desktopExtras.accountStatus();
         set({ status, loaded: true, loading: false, ...(status.username ? { lastUsername: status.username } : {}) });
       } catch (error) {
         set({ loaded: true, loading: false, error: uiError(error) });
@@ -117,28 +134,28 @@ export const useAccountStore = create<AccountState>((set) => {
     },
 
     login: async (input) => {
-      const status = await run('login', () => api.account.login(input), (s) => s);
+      const status = await run('login', () => desktopExtras.accountLogin(input), (s) => s);
       set({ lastUsername: input.username });
       await reloadManagedStacks();
       return status;
     },
     register: async (input) => {
-      const status = await run('register', () => api.account.register(input), (s) => s);
+      const status = await run('register', () => desktopExtras.accountRegister(input), (s) => s);
       set({ lastUsername: input.username });
       await reloadManagedStacks();
       return status;
     },
     logout: async () => {
       const before = useAccountStore.getState().status.username;
-      const status = await run('logout', () => api.account.logout(), (s) => s);
+      const status = await run('logout', () => desktopExtras.accountLogout(), (s) => s);
       if (before) set({ lastUsername: before });
       await reloadManagedStacks();
       return status;
     },
-    redeem: (code) => run('redeem', () => api.account.redeem(code), (result) => result.status),
-    refreshQuota: () => run('refresh', () => api.account.refreshQuota(), (status) => status),
+    redeem: (code) => run('redeem', () => desktopExtras.accountRedeem(code), (result) => result.status),
+    refreshQuota: () => run('refresh', () => desktopExtras.accountRefreshQuota(), (status) => status),
     setServerUrl: async (url) => {
-      const status = await run('server', () => api.account.setServerUrl(url), (s) => s);
+      const status = await run('server', () => desktopExtras.accountSetServerUrl(url), (s) => s);
       // 换服务器可能触发主进程回收托管条目，同样要重载。
       await reloadManagedStacks();
       return status;

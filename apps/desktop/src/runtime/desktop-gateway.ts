@@ -174,6 +174,77 @@ export class DesktopGateway
     return this.api.searchHistory.clear();
   }
 
+  // ---------- DesktopExtras account / cloudSync（桌面状态直通 IPC，不经 AccountSession mapper） ----------
+
+  accountStatus(): ReturnType<DesktopExtras['accountStatus']> {
+    return this.api.account.status();
+  }
+
+  accountRegister(
+    input: Parameters<DesktopExtras['accountRegister']>[0],
+  ): ReturnType<DesktopExtras['accountRegister']> {
+    return this.api.account.register(input);
+  }
+
+  accountLogin(
+    input: Parameters<DesktopExtras['accountLogin']>[0],
+  ): ReturnType<DesktopExtras['accountLogin']> {
+    return this.api.account.login(input);
+  }
+
+  accountLogout(): ReturnType<DesktopExtras['accountLogout']> {
+    return this.api.account.logout();
+  }
+
+  accountRedeem(code: string): ReturnType<DesktopExtras['accountRedeem']> {
+    return this.api.account.redeem(code);
+  }
+
+  accountRefreshQuota(): ReturnType<DesktopExtras['accountRefreshQuota']> {
+    return this.api.account.refreshQuota();
+  }
+
+  accountSetServerUrl(url: string): ReturnType<DesktopExtras['accountSetServerUrl']> {
+    return this.api.account.setServerUrl(url);
+  }
+
+  onAccountChanged(
+    cb: Parameters<DesktopExtras['onAccountChanged']>[0],
+  ): ReturnType<DesktopExtras['onAccountChanged']> {
+    return this.api.account.onChanged(cb);
+  }
+
+  cloudSyncStatus(): ReturnType<DesktopExtras['cloudSyncStatus']> {
+    return this.api.cloudSync.status();
+  }
+
+  cloudSyncSetEnabled(
+    enabled: boolean,
+  ): ReturnType<DesktopExtras['cloudSyncSetEnabled']> {
+    return this.api.cloudSync.setEnabled(enabled);
+  }
+
+  cloudSyncNow(): ReturnType<DesktopExtras['cloudSyncNow']> {
+    return this.api.cloudSync.syncNow();
+  }
+
+  cloudSyncConflicts(): ReturnType<DesktopExtras['cloudSyncConflicts']> {
+    return this.api.cloudSync.conflicts();
+  }
+
+  cloudSyncResolve(
+    conflictId: string,
+    resolution: Parameters<DesktopExtras['cloudSyncResolve']>[1],
+  ): ReturnType<DesktopExtras['cloudSyncResolve']> {
+    return this.api.cloudSync.resolve(conflictId, resolution);
+  }
+
+  onCloudSyncChanged(
+    cb: Parameters<DesktopExtras['onCloudSyncChanged']>[0],
+  ): ReturnType<DesktopExtras['onCloudSyncChanged']> {
+    return this.api.cloudSync.onChanged(cb);
+  }
+
   // ---------- WorkbenchGateway ----------
 
   async listWorkbenchSessions(

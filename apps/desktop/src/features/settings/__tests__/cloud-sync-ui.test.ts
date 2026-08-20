@@ -22,8 +22,9 @@ describe("account cloud sync UI contract", () => {
   it("keeps sync controls in the existing account settings surface", () => {
     expect(source).toContain('data-testid="account-cloud-sync"');
     expect(source).toContain('role="switch"');
-    expect(source).toContain("window.api.cloudSync.setEnabled");
-    expect(source).toContain("window.api.cloudSync.syncNow");
+    expect(source).toContain("cloudSyncSetEnabled");
+    expect(source).toContain("cloudSyncNow");
+    expect(source).not.toContain("window.api.cloudSync");
   });
 
   it("offers explicit conflict outcomes and only duplicates supported entities", () => {
