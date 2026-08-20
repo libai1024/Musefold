@@ -4,6 +4,8 @@
 
 | 文档 | 作用 |
 |---|---|
+| [v1.2.2 系统架构重构索引](v1.2.2/README.md) | 双端 monorepo 目标结构、桌面 Gateway 抽象、技术栈重估和分阶段迁移计划 |
+| [v1.2.1 CI/CD 文档索引](v1.2.1/README.md) | 持续交付分层、发布通道、三端热更新协议和交付计划 |
 | [v1.1 Web 文档索引](v1.1/README.md) | Web/手机端、后端、同步、Cloud MCP、共享 UI 和交付计划 |
 | [v1.1 技术选型 ADR](v1.1/V11-TECHNOLOGY-DECISIONS.md) | Node/Fastify/PostgreSQL/Graphile/MCP/OAuth/UI 的选型依据、评分和扩容阈值 |
 | [桌面端代码手册](../doc/v1.0/README.md) | 当前桌面实现、模块地图、契约和已知风险 |
@@ -24,7 +26,7 @@
 发生冲突时按以下顺序判断：
 
 1. 当前源码、数据库迁移和自动化测试。
-2. `docs/v1.1`（Web）或 `doc/v1.0`（桌面）当前手册。
+2. `docs/v1.2.2`（仓库结构与共享层分层）、`docs/v1.2.1`（发布、CI/CD 与热更新）、`docs/v1.1`（Web）或 `doc/v1.0`（桌面）当前手册。目录结构以 `docs/v1.2.2` 为准，其中迁移未执行的部分以「当前路径」列为现状。
 3. `docs/v0.5`、`docs/v0.4` 对应专题规格。
 4. `docs/product` 和基础规格。
 

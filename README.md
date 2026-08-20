@@ -45,6 +45,8 @@ npm run clean:artifacts -- --build
 
 - [文档总入口](docs/README.md)
 - [Musefold Agent Skills](https://github.com/libai1024/Musefold-Skills)
+- [v1.2.2 系统架构重构](docs/v1.2.2/README.md)
+- [v1.2.1 CI/CD 与持续交付](docs/v1.2.1/README.md)
 - [v1.1 Web 架构与开发文档](docs/v1.1/V11-WEB-ARCHITECTURE.md)
 - [当前桌面端代码手册](doc/v1.0/README.md)
 - [v0.5 账号与云通道](docs/v0.5/README.md)

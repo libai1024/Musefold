@@ -11,8 +11,12 @@
 | 决策点 | 选择 | 主要理由 |
 |---|---|---|
 | CI 平台 | GitHub Actions | 仓库已托管在 GitHub，且托管 macOS/Windows runner 是签名打包的刚需 |
+| 包管理器 | 保持 npm workspaces（v1.2.x 冻结） | 切 pnpm 会同时动摇 CI 缓存、Dockerfile 与 electron-builder 三个面；其核心收益另行获得，完整评估见 [v1.2.2 D4](../v1.2.2/V122-TECHNOLOGY-DECISIONS.md) |
 | 构建编排 | Turborepo | 原生适配 npm workspaces；affected-only 与远程缓存直接压缩反馈循环 |
-| 部署执行位置 | 生产主机自托管 runner | 产物不跨境；无需为 GitHub 开放入站 SSH |
+| 部署执行位置 | 生产主机自托管 runner，仅部署 | 产物不跨境；无需开放入站 SSH；但内存不足以承载完整验证 |
+| 服务器构建方式 | 全部在容器内进行 | 宿主机没有安装 Node 与 npm，只有 Docker |
+| 基础设施配置 | 纳入仓库并由流水线下发 | 当前一致性靠人工维持，服务器上留有多份手工备份 |
+| 部署身份 | 专用非 root 用户 | 当前只有 `root` 可登录，自动化前必须收敛权限 |
 | Web 托管 | 保持 Caddy 同源 | Cookie 会话与 CSRF 依赖同源；境内可达性有保障 |
 | 静态发布方式 | symlink 原子切换 | 单次系统调用完成，无半更新态，回滚是常数时间 |
 | 服务发布方式 | 健康检查门控滚动重启 | 复杂度与当前规模匹配；蓝绿留作后续升级 |
@@ -24,12 +28,27 @@
 
 ## 1. 约束
 
-选型以仓库与生产环境的当前事实为准：
+选型以仓库与生产环境的当前事实为准。生产侧数据来自 2026-08-20 对 `musefold-cloud` 的实地盘点，详见 `V121-CICD-ARCHITECTURE.md` 第 1 节。
+
+代码侧：
 
 - 仓库是 TypeScript npm workspace，`workspaces` 为 `apps/*` 与 `packages/*`。
 - 桌面端使用 electron-builder，macOS 启用 `hardenedRuntime` 并需要 Developer ID 公证。
-- 生产是单台境内主机 `45.207.211.136`，Caddy 终结 HTTPS，Docker Compose 编排，网络 `musefold_default`。
 - Web API 使用 Cookie 会话（`mf_session`）与 CSRF 校验，与 Web 同源部署在 `zhaozhaoyue.top`。
+- `package.json` 的 `typecheck:mcp` 显式要求 `--max-old-space-size=8192`。
+
+生产侧：
+
+- 单台境内主机 `45.207.211.136`，Ubuntu 24.04，8 vCPU / 7.8 GiB 内存 / 49 GiB 磁盘（盘点时可用 33 GiB，2026-08-20 清理后可用 39 GiB），负载 `0.07`。
+- Caddy 终结 HTTPS，Docker 29.7.2 + Compose v5.4.0 编排，8 个容器共用网络 `musefold_default`。
+- **宿主机没有安装 Node 与 npm**，只有 Docker、git、rsync、curl。
+- 对外仅开放 22、80、443；new-api 绑定在 `127.0.0.1:3000`。
+- 唯一可登录身份是 `root`。
+- 站点根在宿主机为 `/opt/musefold/site`，以只读方式挂载进 Caddy 容器后才是 `/srv/musefold-site`。
+- 现有发布方式是从开发机 rsync 源码到 `/opt/musefold-v11-src`，再在服务器本机 `docker build`。构建缓存已积累 3.53 GiB。
+
+团队与节奏：
+
 - 维护主体是小团队，不具备维护多套基础设施的人力。
 - 迭代节奏高，单次改动小而频繁，反馈循环长度是首要体验指标。
 - iOS 尚未开始，预计 v3.0 落地，选型必须为其预留而不提前支付成本。
@@ -84,10 +103,11 @@
 
 - 缓存键必须包含 Node 版本、锁文件与相关配置文件，避免跨环境误命中。
 - Electron 打包不纳入缓存，原生产物与签名状态不适合复用。
+- 任务图以 workspace 包为节点定义（`build`、`typecheck`、`test`、`lint` 挂在各包的 package.json scripts 上），不绑定仓库根目录布局。v1.2.2 目录重构移动包位置时，只需更新 `workspaces` glob 与层级路径映射，任务图本身不重设计。
 
-## 5. 部署执行位置：生产主机自托管 runner
+## 5. 部署执行位置：生产主机自托管 runner，且只做部署
 
-这是本次选型中收益最大也争议最大的一项。
+这是本次选型中收益最大也争议最大的一项。实地盘点后结论有两处修正：风险比预估的低，但职责边界必须收窄。
 
 ### 备选比较
 
@@ -99,9 +119,39 @@
 
 ### 选择理由
 
-跨境链路是整条发布链中最不稳定的一段。自托管 runner 让源码成为唯一过境的数据，镜像在本机构建本机启动。同时它是唯一不需要为 GitHub 开放入站 SSH 的方案。
+跨境链路是整条发布链中最不稳定的一段。自托管 runner 让源码成为唯一过境的数据，镜像在本机构建本机启动。它也是唯一不需要为 GitHub 开放入站 SSH 的方案——当前对外只有 22、80、443，这个面不应该扩大。
 
-代价是生产隔离最差：构建与生产服务共享 CPU、内存和磁盘。缓解措施是给 runner 设资源上限，并在预算允许时拆出独立构建机。这一项被记录为 v1.2.1 的首要架构风险。
+这不是引入新做法。服务器上已有 3.53 GiB Docker 构建缓存，镜像本来就在本机构建，本方案只是把「rsync 加手敲命令」换成可复现、可审计、可回滚的流水线。
+
+### 修正一：CPU 风险低于预估
+
+最初把「构建与生产同机」列为首要架构风险。实测 8 vCPU、负载 `0.07 / 0.07 / 0.08`，CPU 余量充足，容器化构建配合 CPU 上限即可控制影响。这一项从首要风险降级。
+
+### 修正二：runner 不能承担验证
+
+真正的约束是内存。主机总内存 7.8 GiB，而 `typecheck:mcp` 显式要求 8 GiB 堆，完整的 `npm run check` 在这台机器上必然 OOM。加之宿主机根本没有 Node 与 npm，任何 JavaScript 构建都只能在容器内进行。
+
+因此 runner 的职责严格限定为部署：拉源码、容器内构建镜像、执行迁移、切换静态目录、滚动容器、写 manifest。typecheck、单测、契约检查、E2E 全部留在 GitHub 托管 runner，通过后才允许触发部署 job。
+
+镜像构建本身只跑 `npm ci` 与 `npm run build:web`（见 `infra/v1.1/Dockerfile`），内存占用远低于 `typecheck:mcp`，在现有余量内可以安全运行。
+
+### 真正需要盯的约束是磁盘
+
+盘点时 49 GiB 中可用 33 GiB。2026-08-20 已删除 1.05 GiB 陈旧备份、回收 3.53 GiB 构建缓存并去掉无引用的 `node:24`（1.64 GiB），可用升至 39 GiB。安装包仍占约 1.07 GiB，加上后续 release 目录与 bundle 归档仍会线性增长，因此迁往对象存储仍是本方案成立的前提之一。定期回收策略尚未建立。
+
+### 权限
+
+当前唯一可登录身份是 `root`，没有专用部署用户。自托管 runner 以 root 运行等于把生产完全交给 workflow 文件。创建专用部署用户、授予受限 `sudo`、禁止 fork PR 触发是接入 runner 的前置条件，不能事后补。
+
+## 5A. 基础设施配置纳入仓库
+
+`infra/v1.1/Caddyfile` 与 `infra/v1.1/remote-compose.yaml` 目前与线上逐字节一致，这是好消息——不存在需要考古的历史漂移。
+
+但一致性没有任何机制保障。`/opt/musefold/` 下留有 5 份 `Caddyfile.bak-*` 与 3 份 `docker-compose.yml.bak-*`，说明历史上确实是直接在服务器上编辑的。一旦开始自动化部署，服务器上的手工修改会被静默覆盖，或者反过来让流水线部署出与预期不同的拓扑。
+
+因此 v1.2.1 要求：这两份文件由流水线从仓库下发；部署前校验线上文件与仓库版本一致，不一致即中止并告警；服务器上不再保留手工编辑入口。
+
+同理，镜像标签必须从 `musefold-v11:latest` 改为按 `gitSha` 打标。`latest` 既无法定位当前线上跑的是哪个提交，也无法回滚。
 
 ## 6. Web 托管：保持 Caddy 同源
 
@@ -115,11 +165,15 @@
 
 ## 7. 安装包分发：对象存储 + CDN
 
-`release/` 下的 DMG 与 NSIS 单个在 100-200 MB 量级。继续从生产主机直接分发会让下载带宽与 API、静态站争抢同一条链路。
+线上 `/opt/musefold/site/Musefold/downloads/` 已经占用约 1.07 GiB：`0.3.2` 有完整一套（exe、zip、两个 blockmap、dmg、`SHA256SUMS.txt`，约 470 MiB），`0.5.0-dev` 约 600 MiB。每多发一个版本就多占数百 MiB。清理后全盘可用 39 GiB，余量仍不够支撑多版本并存。
 
-选择对象存储 + CDN 承载 `downloads/` 与 `bundles/`，`manifest.json` 与 `latest*.yml` 仍留在主域名下——清单文件小、需要强一致、且更新频繁，不适合走 CDN 缓存。
+继续从生产主机直接分发还会让下载带宽与 API、静态站争抢同一条链路，而这台机器同时跑着 PostgreSQL、new-api 和全部应用容器。
+
+选择对象存储 + CDN 承载 `downloads/` 与 `bundles/`。`manifest.json` 与 `latest*.yml` 仍留在主域名下——清单文件小、需要强一致、更新频繁，不适合走 CDN 缓存。
 
 `services/musefold-downloads` 的下载计数与重定向逻辑不变，只是重定向目标从本机路径改为 CDN 地址，`catalog.json` 相应更新。
+
+迁移时需要一并修复 `downloads/0.5.0-dev/` 的产物不完整问题：缺少 `.zip`（macOS 静默更新依赖它）、缺少 `dmg.blockmap`、缺少 `SHA256SUMS.txt`，且同时存在 `Musefold Setup 0.5.0-dev.exe` 与 `Musefold-Setup-0.5.0-dev.exe` 两个不同命名、不同大小的安装包。这种状态即使把 `latest*.yml` 补上，更新链路也走不通。
 
 ## 8. 内容层签名：Ed25519
 
@@ -186,6 +240,7 @@ v1.2.1 不实际接入 iOS，但形态选择会决定热更新协议的设计，
 | Vercel / Cloudflare Pages | 破坏同源 Cookie 会话；境内可达性不可控 |
 | Jenkins / Drone 自建 CI | 需自购并维护 macOS 构建机 |
 | Nx | 插件与代码生成能力对本仓库是净增复杂度 |
+| pnpm / Yarn（v1.2.x 内） | 同时动摇 CI 缓存键、`infra/v1.1/Dockerfile` 与 electron-builder 三个刚建立的面；严格依赖隔离的收益由补全依赖声明 + dependency-cruiser 边界检查获得（v1.2.2 Phase 0） |
 | Redis / 独立队列服务做发布编排 | 发布链路无需持久队列，Compose 与 workflow 已足够 |
 | PR 预览环境 | 单机资源有限，且当前团队规模下收益有限；不排除后续引入 |
 | 蓝绿 / 金丝雀基础设施 | 先用健康门控与灰度百分比覆盖；出现可测量停机影响时再升级 |
@@ -196,3 +251,4 @@ v1.2.1 不实际接入 iOS，但形态选择会决定热更新协议的设计，
 - [热更新协议](./V121-HOT-UPDATE-PROTOCOL.md)
 - [交付计划](./V121-DELIVERY-PLAN.md)
 - [v1.1 技术选型 ADR](../v1.1/V11-TECHNOLOGY-DECISIONS.md)
+- [v1.2.2 系统架构重构技术决策](../v1.2.2/V122-TECHNOLOGY-DECISIONS.md)
