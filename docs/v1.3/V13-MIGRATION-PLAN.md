@@ -31,11 +31,11 @@
 
 ### 任务
 
-- `V13-GOV-01`：ESLint `max-lines-per-file` 上线（warn 600 / error 1200，作用域：全部 `apps/*/src`、`packages/*/src`、`apps/desktop/electron` 生产代码）。以 baseline 文件登记存量超标清单（实测约 15 个：`GenerationWorkbench.tsx`、`workbench/store.ts`、`SchemeRuntimeDetail.tsx`、`OnboardingFlow.tsx`、`AccountSection.tsx`、`browser-service.ts`、`extended-primitives.tsx` 等），清单内文件 warn、清单外文件 error；清单只减不增。
+- `V13-GOV-01`：~~ESLint `max-lines-per-file` 上线（warn 600 / error 1200，作用域：全部 `apps/*/src`、`packages/*/src`、`apps/desktop/electron` 生产代码）。以 baseline 文件登记存量超标清单（实测约 15 个：`GenerationWorkbench.tsx`、`workbench/store.ts`、`SchemeRuntimeDetail.tsx`、`OnboardingFlow.tsx`、`AccountSection.tsx`、`browser-service.ts`、`extended-primitives.tsx` 等），清单内文件 warn、清单外文件 error；清单只减不增。~~ **已完成（2026-08-21）**。实测超标 23 个（含 web-api 2 个、core 2 个），全量登记进 `tooling/file-size-baseline.json`。
 
-  **裁定**：阈值取 600 的依据是存量分布（600 行以上约 3% 文件），是本仓库真实工作粒度而非激进值；清单清零后 error 阈值分步下调至 800。
+  **裁定（实现形态与原卡的差异）**：ESLint 没有名为 `max-lines-per-file` 的内建规则，采用内建 `max-lines`（语义等同）；且 ESLint 同一规则无法同时配置 warn 600 与 error 1200 两档。落地为双层：ESLint `max-lines` warn 600（非 baseline 文件，编辑器即时反馈）+ `tests/repo/file-size-ratchet.test.ts` 作为 CI 硬门禁（三条断言：未登记超标即失败、登记上限不可超越、失效条目必须移除——比原卡双阈值更严，新文件即受 600 行约束）。
 
-  验证：`npm run lint` 通过；构造 601 行探针文件先红后绿。
+  验证：repo 守卫 3 条 + 全部 repo 测试 18 条通过；探针 601 行文件先红（未登记超标报错）后绿；baseline 文件 ESLint 静音确认、611 行新文件 warn 确认；全仓 `tsc -b` 通过。✅
   回滚：revert 规则提交；baseline 文件独立于规则文件。
 
 - `V13-GOV-02`：depcruise 新规则 `renderer-features-isolated`：`apps/desktop/src/features/<a>/**` 禁止 import `features/<b>/**`（`__tests__` 豁免）。存量 26+ 违规进 `dependency-cruiser-known-violations.json`，只减不增。

@@ -128,6 +128,47 @@ export default tseslint.config(
     },
   },
   {
+    // V13-GOV-01：文件尺寸棘轮。warn 600 提供编辑器即时反馈；
+    // CI 硬门禁在 tests/repo/file-size-ratchet.test.ts（baseline 只减不增）。
+    files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['**/__tests__/**', '**/*.test.*', '**/*.spec.*', '**/*.d.ts'],
+    rules: {
+      'max-lines': ['warn', { max: 600 }],
+    },
+  },
+  {
+    // V13-GOV-01 baseline：存量超标文件由 repo 守卫棘轮管辖（tooling/file-size-baseline.json），
+    // 此处静音避免噪音。清单只减不增，消化完成（SPLIT 卡）后此块整体删除。
+    files: [
+      'apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx',
+      'apps/desktop/src/features/generation/workbench/store.ts',
+      'packages/core/src/sync/repository.ts',
+      'apps/web/src/App.tsx',
+      'apps/web-api/src/modules/prompts/service.ts',
+      'apps/desktop/src/features/design-schemes/SchemeRuntimeDetail.tsx',
+      'apps/desktop/electron/doubao-web/browser-service.ts',
+      'packages/ui/src/extended-primitives.tsx',
+      'packages/desktop-contracts/src/ipc.ts',
+      'apps/desktop/src/features/onboarding/OnboardingFlow.tsx',
+      'apps/desktop/src/features/settings/sections/AccountSection.tsx',
+      'apps/desktop/electron/main/ipc/skill-runtime.ts',
+      'apps/web-api/src/modules/generation/service.ts',
+      'apps/desktop/electron/main/skill-import/github-reader.ts',
+      'apps/web/src/fixture-runtime.ts',
+      'apps/desktop/electron/system/import.ts',
+      'packages/cloud-client/src/index.ts',
+      'packages/core/src/db/design-scheme/repositories.ts',
+      'apps/desktop/electron/main/integration.ts',
+      'apps/desktop/src/runtime/desktop-gateway.ts',
+      'apps/desktop/src/features/generation/components/ProviderDialog.tsx',
+      'apps/desktop/electron/preload/index.ts',
+      'apps/desktop/src/features/generation/workbench/PromptReferenceSidebar.tsx',
+    ],
+    rules: {
+      'max-lines': 'off',
+    },
+  },
+  {
     // CommonJS 里 require 是合法形态：按文件类型关闭，不是行内豁免。
     // .cjs 以及显式 "type": "commonjs" 的 skill 脚本（.js）。
     files: ['**/*.cjs', '.claude/skills/newapi/**/*.js'],
