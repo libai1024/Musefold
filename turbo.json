@@ -86,6 +86,7 @@
         "packages/automation-server/**",
         "packages/cloud-client/**",
         "packages/contracts/**",
+        "packages/new-api-client/**",
         "packages/update-protocol/**",
         "packages/ui/**",
         "packages/product-ui/**",

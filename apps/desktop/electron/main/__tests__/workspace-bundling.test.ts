@@ -9,6 +9,7 @@ const BUNDLED_WORKSPACE_PACKAGES = [
   '@musefold/update-protocol',
   '@musefold/core',
   '@musefold/automation-server',
+  '@musefold/new-api-client',
 ] as const;
 
 describe('Electron main workspace bundling', () => {
@@ -21,7 +22,7 @@ describe('Electron main workspace bundling', () => {
     expect(config).toMatch(/from ['"]\.\.\/\.\.\/tooling\/aliases\.mjs['"]/);
     expect(config).toMatch(/pickAliases\s*\(/);
     expect(config).toMatch(
-      /externalizeDeps:\s*\{\s*exclude:\s*\[\s*'@musefold\/cloud-client',\s*'@musefold\/contracts',\s*'@musefold\/desktop-contracts',\s*'@musefold\/domain',\s*'@musefold\/update-protocol',\s*'@musefold\/core',\s*'@musefold\/automation-server',?\s*\]/s,
+      /externalizeDeps:\s*\{\s*exclude:\s*\[\s*'@musefold\/cloud-client',\s*'@musefold\/contracts',\s*'@musefold\/desktop-contracts',\s*'@musefold\/domain',\s*'@musefold\/update-protocol',\s*'@musefold\/core',\s*'@musefold\/automation-server',\s*'@musefold\/new-api-client',?\s*\]/s,
     );
 
     for (const name of BUNDLED_WORKSPACE_PACKAGES) {

@@ -21,6 +21,7 @@ export default defineConfig({
           '@musefold/update-protocol',
           '@musefold/core',
           '@musefold/automation-server',
+          '@musefold/new-api-client',
         ],
       },
       rollupOptions: {
@@ -42,6 +43,7 @@ export default defineConfig({
           '@musefold/desktop-contracts',
           '@musefold/domain',
           '@musefold/update-protocol',
+          '@musefold/new-api-client',
         ],
         repoRoot,
       ),

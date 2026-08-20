@@ -52,6 +52,9 @@ function fixture() {
     ]),
     fetchTokenKey: vi.fn(async () => "sk-test"),
     redeem: vi.fn(async () => ({ quotaAdded: 1_000 })),
+    listUserModels: vi.fn(async () => []),
+    getPricing: vi.fn(async () => ({ version: "", groupRatio: {}, models: [] })),
+    getNotices: vi.fn(async () => []),
   };
   const credentials: AccountCredentialStorePort = {
     put: vi.fn(async () => undefined),

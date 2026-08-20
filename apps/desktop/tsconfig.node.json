@@ -15,6 +15,7 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/automation-server" },
     { "path": "../../packages/cloud-client" },
+    { "path": "../../packages/new-api-client" },
     { "path": "../../packages/update-protocol" }
   ]
 }

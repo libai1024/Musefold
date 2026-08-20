@@ -21,6 +21,7 @@ export default defineConfig({
       '@musefold/desktop-contracts',
       '@musefold/domain',
       '@musefold/contracts',
+      '@musefold/new-api-client',
     ]),
   },
   test: {
