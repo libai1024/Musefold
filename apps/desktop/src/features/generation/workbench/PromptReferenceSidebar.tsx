@@ -11,8 +11,8 @@ import {
   Star,
   X,
 } from '../../../components/ui/icons';
-import type { Prompt } from '@shared/types/models';
-import type { PromptReference } from '@shared/types/providers';
+import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { PromptReference } from '@musefold/desktop-contracts/providers';
 import api from '../../../lib/ipc';
 import { cn } from '../../../lib/utils';
 import { toast } from '../../../stores/toast';

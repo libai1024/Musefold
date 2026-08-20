@@ -1,11 +1,11 @@
 import { resolve } from 'node:path';
 import { BrowserWindow, ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import type {
   ContentLayerCheckSnapshot,
   ContentLayerState,
   UpdateChannelResult,
-} from '@shared/types/updater';
+} from '@musefold/desktop-contracts/updater';
 import { getUpdaterService } from '../../update';
 import { confirmContentBundleStartup } from '../../update/content-bundle-runtime';
 import {

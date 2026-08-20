@@ -3,9 +3,9 @@
 // electron/main/ipc/history.ts 原样迁入（单一真源，IPC 反向引用本模块）。
 
 import type Database from 'better-sqlite3';
-import type { HistoryStatus } from '@shared/types/enums';
-import type { HistoryRecord, PromptParams } from '@shared/types/models';
-import type { PromptReference } from '@shared/types/providers';
+import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
+import type { HistoryRecord, PromptParams } from '@musefold/desktop-contracts/models';
+import type { PromptReference } from '@musefold/desktop-contracts/providers';
 import { getDb } from '../db/index';
 import { parseJsonColumn } from '../db/json';
 

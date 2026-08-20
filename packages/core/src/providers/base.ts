@@ -1,8 +1,8 @@
 // electron/providers/base.ts
 // ImageProvider 抽象基类 —— 详见 docs/05-image-generation.md §2
 
-import type { ImageProvider, GenerateImageRequest, GenerateImageResult, ImageProgressHandler, ModelInfo, ValidationResult } from '@shared/types/providers';
-import type { ProviderType } from '@shared/types/enums';
+import type { ImageProvider, GenerateImageRequest, GenerateImageResult, ImageProgressHandler, ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { loadApiKey } from '../runtime';
 
 export abstract class BaseProvider implements ImageProvider {

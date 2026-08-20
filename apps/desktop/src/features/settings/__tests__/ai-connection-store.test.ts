@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AiConnectionProfile } from '@shared/types/ai';
+import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 
 const api = vi.hoisted(() => ({
   listPresets: vi.fn(),

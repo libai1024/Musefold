@@ -8,7 +8,7 @@
 import Database from 'better-sqlite3';
 import { copyFile, lstat, mkdir, readdir, rename, rm, stat, unlink } from 'fs/promises';
 import { basename, join } from 'path';
-import type { BackupInfo } from '@shared/types/ipc';
+import type { BackupInfo } from '@musefold/desktop-contracts/ipc';
 import { closeDb, getDb, initDb } from '@musefold/core/db/index';
 import { getPaths } from './paths';
 import { createLogger } from './logger';

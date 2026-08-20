@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEventHub } from '@musefold/core';
-import type { GenerateImageResult } from '@shared/types/providers';
+import type { GenerateImageResult } from '@musefold/desktop-contracts/providers';
 import { createAutomationServer, type AutomationServer, type AutomationServerInfo } from '../server';
 import { createGenerationGate, type GenerationHost } from '../generation-routes';
 

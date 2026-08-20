@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Power, QrCode, RefreshCw, ShieldCheck, X } from '../../../components/ui/icons';
-import type { ValidationResult, DoubaoWebUsageStatus } from '@shared/types/providers';
+import type { ValidationResult, DoubaoWebUsageStatus } from '@musefold/desktop-contracts/providers';
 import {
   DOUBAO_WEB_DAILY_IMAGE_LIMIT,
   PROVIDER_PRESETS,

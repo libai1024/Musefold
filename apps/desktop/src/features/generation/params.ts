@@ -10,9 +10,9 @@ import type {
   LocalImageReference,
   PromptReference,
   WorkbenchRunContext,
-} from '@shared/types/providers';
-import type { ImageQuality, ImageBackground, ModerationLevel } from '@shared/types/enums';
-import type { SkillRuntimeSnapshot } from '@shared/types/skill-runtime';
+} from '@musefold/desktop-contracts/providers';
+import type { ImageQuality, ImageBackground, ModerationLevel } from '@musefold/desktop-contracts/enums';
+import type { SkillRuntimeSnapshot } from '@musefold/desktop-contracts/skill-runtime';
 import { resolveRatioOptionById } from '@musefold/domain/constants';
 
 /** 精修面板的参数（比例而非像素，见文件头） */

@@ -2,8 +2,8 @@
 // Library 智能集合 + 搜索历史（TASK-DIF-06）
 
 import { ulid } from 'ulid';
-import type { LibraryQuerySnapshot, NewSmartSet, SearchHistoryItem, SmartSet } from '@shared/types/models';
-import type { UpdateSmartSetPatch } from '@shared/types/ipc';
+import type { LibraryQuerySnapshot, NewSmartSet, SearchHistoryItem, SmartSet } from '@musefold/desktop-contracts/models';
+import type { UpdateSmartSetPatch } from '@musefold/desktop-contracts/ipc';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
 

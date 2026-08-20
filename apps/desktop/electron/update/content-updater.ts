@@ -3,7 +3,7 @@
 
 import { app } from 'electron';
 import { usablePublicKeys, type Channel } from '@musefold/update-protocol';
-import type { ContentLayerCheckSnapshot } from '@shared/types/updater';
+import type { ContentLayerCheckSnapshot } from '@musefold/desktop-contracts/updater';
 import { getUpdateChannel } from '../settings/update-channel';
 import { createLogger } from '../system/logger';
 import {

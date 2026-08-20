@@ -2,7 +2,7 @@
 // validation, keyboard and discard interactions cannot drift between hosts.
 
 import { useMemo, useState } from 'react';
-import type { Prompt } from '@shared/types/models';
+import type { Prompt } from '@musefold/desktop-contracts/models';
 import {
   PromptEditorForm,
   type PromptEditorDraft,

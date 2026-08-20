@@ -6,7 +6,7 @@ import type {
   AiTextModelInfo,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
-} from '@shared/types/ai';
+} from '@musefold/desktop-contracts/ai';
 import api from '../../lib/ipc';
 import { aiConnectionErrorMessage } from './ai-connection-errors';
 

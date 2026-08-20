@@ -3,8 +3,8 @@
 // hasKey / keySuffix 均为非敏感展示字段；对外 HTTP/MCP 层再按级别裁剪。
 
 import type Database from 'better-sqlite3';
-import type { ProviderConfig } from '@shared/types/models';
-import type { ImageProvider, ModelInfo } from '@shared/types/providers';
+import type { ProviderConfig } from '@musefold/desktop-contracts/models';
+import type { ImageProvider, ModelInfo } from '@musefold/desktop-contracts/providers';
 import { getDb } from '../db/index';
 import { createProvider } from '../providers/registry';
 import { notFound } from './errors';

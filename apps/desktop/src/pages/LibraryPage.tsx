@@ -25,7 +25,7 @@ import {
   Upload,
   X,
 } from '../components/ui/icons';
-import type { Prompt } from '@shared/types/models';
+import type { Prompt } from '@musefold/desktop-contracts/models';
 import {
   useLibraryStore,
   useNormalPrompts,

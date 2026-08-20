@@ -2,7 +2,7 @@
 // 全局 UI 状态 —— 视图路由、主题（持久化）、命令面板开合、侧栏折叠
 
 import { create } from 'zustand';
-import type { SchemePriorityMode } from '@shared/types/design-scheme';
+import type { SchemePriorityMode } from '@musefold/desktop-contracts/design-scheme';
 import type { SharePayload } from '@musefold/desktop-contracts/share';
 
 export type ViewKey = 'generate' | 'library' | 'design-schemes' | 'history' | 'settings';

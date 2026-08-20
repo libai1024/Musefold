@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AutomationRouteContext } from '@musefold/automation-server';
-import type { AccountStatus } from '@shared/types/account';
-import type { ProviderConfig } from '@shared/types/models';
+import type { AccountStatus } from '@musefold/desktop-contracts/account';
+import type { ProviderConfig } from '@musefold/desktop-contracts/models';
 
 vi.mock('electron', () => ({ app: { focus: vi.fn() } }));
 vi.mock('../../account', () => ({ getAccountService: vi.fn() }));

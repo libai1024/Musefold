@@ -8,7 +8,7 @@
 // 凭据红线：本模块的返回值只在主进程内存流转；调用方负责入 keychain。
 // 日志纪律（FR-ERR-04）：本模块不打日志——message 原文由上层脱敏后决定去向。
 
-import type { AccountErrorCode } from '@shared/types/account';
+import type { AccountErrorCode } from '@musefold/desktop-contracts/account';
 
 export class RelayApiError extends Error {
   constructor(

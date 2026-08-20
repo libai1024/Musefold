@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import {
   directHistoryFallback,
   isMissingRelatedHistoryHandler,

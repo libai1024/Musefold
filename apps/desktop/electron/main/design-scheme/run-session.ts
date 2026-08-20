@@ -21,11 +21,11 @@ import type {
   DesignSchemeRunResult,
   SchemeRunEvaluation,
   StartDesignSchemeRunRequest,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import type {
   GenerateImageRequest,
   ImageGenerationProgress,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { buildRepairHint, evaluateSchemeRun } from './evaluation';
 import { generate as runProviderGeneration } from '../ipc/images';

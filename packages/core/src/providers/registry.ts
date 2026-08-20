@@ -1,8 +1,8 @@
 // electron/providers/registry.ts
 // Provider 工厂 + 注册表 —— 详见 docs/05-image-generation.md §2.2
 
-import type { ImageProvider } from '@shared/types/providers';
-import type { ProviderType } from '@shared/types/enums';
+import type { ImageProvider } from '@musefold/desktop-contracts/providers';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { OpenAICompatibleProvider } from './openai-compatible';
 import { WukongStudioProvider } from './wukong-studio';
 import { DoubaoWebProvider } from './doubao-web';

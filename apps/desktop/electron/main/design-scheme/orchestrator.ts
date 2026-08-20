@@ -22,7 +22,7 @@ import type {
   DesignSchemeCreationState,
   DesignSchemeCreationTraceItem,
   StartDesignSchemeCreationRequest,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { runRepositoryAnalyst } from './roles/analyst';

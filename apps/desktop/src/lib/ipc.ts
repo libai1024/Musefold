@@ -9,7 +9,7 @@
 //   2) 预加载脚本未加载（打包/路径/格式错误）——此时给出清晰报错，而不是
 //      让 `undefined.provider` 抛出难以定位的 "Cannot read properties of undefined"。
 
-import type { Api } from '@shared/types/ipc';
+import type { Api } from '@musefold/desktop-contracts/ipc';
 
 /** 缺桥时的兜底：任何 api.<域>.<方法>() 调用都抛出可定位的错误 */
 function createMissingApiProxy(): Api {

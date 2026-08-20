@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import electronUpdater from 'electron-updater';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import { APP_VERSION } from '../system/app-version';
 import { getUpdateChannel } from '../settings/update-channel';
 import {

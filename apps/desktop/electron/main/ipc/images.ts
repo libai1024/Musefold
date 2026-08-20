@@ -3,14 +3,14 @@
 // 本文件保留 Electron 专属部分：文件选择对话框、IPC 注册、retry 请求重建。
 
 import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron';
-import { IPC } from '@shared/types/ipc';
-import { MAX_REFERENCE_IMAGES } from '@shared/types/providers';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import { MAX_REFERENCE_IMAGES } from '@musefold/desktop-contracts/providers';
 import type {
   GenerateImageRequest,
   LocalImageReference,
   StageLocalImageInput,
-} from '@shared/types/providers';
-import type { ImageSize, ImageQuality, ImageBackground, ModerationLevel } from '@shared/types/enums';
+} from '@musefold/desktop-contracts/providers';
+import type { ImageSize, ImageQuality, ImageBackground, ModerationLevel } from '@musefold/desktop-contracts/enums';
 import { getDb } from '@musefold/core/db/index';
 import { parseJsonColumn } from '@musefold/core/db/json';
 import {

@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import { SHARE_PROTOCOL, parseShareDeeplink, type SharePayload } from '@musefold/desktop-contracts/share';
 import { getMainWindow } from './window';
 

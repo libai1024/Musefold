@@ -24,7 +24,6 @@ const shared = {
       '@musefold/domain',
       '@musefold/desktop-contracts',
       '@musefold/contracts',
-      '@shared/types',
     ],
     root,
   ),

@@ -15,7 +15,7 @@ import type {
   AiConnectionRouteKind,
   AiConnectionValidationResult,
   AiTextModelInfo,
-} from '@shared/types/ai';
+} from '@musefold/desktop-contracts/ai';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,

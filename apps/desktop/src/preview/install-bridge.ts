@@ -9,7 +9,7 @@
 // 必须在任何读取 window.api 的模块（src/lib/ipc.ts）求值之前执行 —— 因此本文件
 // 由 index.html <head> 首个 module 脚本加载，且在此顶层同步安装 window.api。
 
-import type { Api } from '@shared/types/ipc';
+import type { Api } from '@musefold/desktop-contracts/ipc';
 
 const ENDPOINT = '/__preview_api__';
 

@@ -7,7 +7,7 @@
  * SSE 流式解析留给运行切片（创建角色的返回是结构化 JSON，无逐字展示价值）。
  */
 import type { z } from 'zod';
-import type { AiConnectionProfile } from '@shared/types/ai';
+import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 

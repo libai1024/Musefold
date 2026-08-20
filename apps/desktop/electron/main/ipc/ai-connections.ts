@@ -1,10 +1,10 @@
 import { ipcMain, type IpcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import type {
   AiConnectionProfile,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
-} from '@shared/types/ai';
+} from '@musefold/desktop-contracts/ai';
 import {
   AI_CONNECTION_PRESETS,
   AiConnectionStore,

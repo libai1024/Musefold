@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { DOUBAO_WEB_DAILY_IMAGE_LIMIT } from '@musefold/domain/constants';
-import type { DoubaoWebUsageStatus } from '@shared/types/providers';
+import type { DoubaoWebUsageStatus } from '@musefold/desktop-contracts/providers';
 import { getDb } from '@musefold/core/db/index';
 
 const USAGE_SCOPE = 'doubao-web-image';

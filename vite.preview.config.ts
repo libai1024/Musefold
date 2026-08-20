@@ -12,7 +12,6 @@ export default defineConfig({
   plugins: [previewApiBridge()],
   resolve: {
     alias: pickAliases([
-      '@shared/types',
       '@musefold/desktop-contracts',
       '@musefold/domain',
       '@musefold/contracts',

@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { PetStateMachine } from '../state-machine';
-import type { PetTheme } from '@shared/types/pet';
+import type { PetTheme } from '@musefold/desktop-contracts/pet';
 
 const theme: PetTheme = {
   name: 'test',

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { PetThemeManifest } from '@shared/types/pet';
+import type { PetThemeManifest } from '@musefold/desktop-contracts/pet';
 
 const root = join(process.cwd(), 'resources/pet/cat');
 const theme = JSON.parse(

@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, FileUp, Loader2 } from '../../../components/ui/icons';
-import type { ImportResult, ImportStrategy } from '@shared/types/ipc';
+import type { ImportResult, ImportStrategy } from '@musefold/desktop-contracts/ipc';
 import api from '../../../lib/ipc';
 import { toast } from '../../../stores/toast';
 import {

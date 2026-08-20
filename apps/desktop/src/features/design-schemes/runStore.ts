@@ -11,8 +11,8 @@ import type {
   DesignSchemeCreationEvent,
   DesignSchemeRunMode,
   DesignSchemeSummary,
-} from '@shared/types/design-scheme';
-import type { LocalImageReference } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/design-scheme';
+import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
 import { buildImageRequest, type RefineParams } from '../generation/params';

@@ -11,7 +11,7 @@ import type {
   DesignSchemeCreationEvent,
   DesignSchemeHistorySourceItem,
   DesignSchemeSummary,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
 import { useGenerationWorkbenchStore } from '../generation/workbench/store';

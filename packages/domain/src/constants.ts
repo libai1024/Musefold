@@ -1,10 +1,10 @@
 // 产品 / UI / 领域常量（与路径、文件系统无关）。
 
-/** 与 `@shared/types/enums` 的 TagGroup 同形；domain 不依赖 desktop-contracts。 */
+/** 与 `@musefold/desktop-contracts/enums` 的 TagGroup 同形；domain 不依赖 desktop-contracts。 */
 type TagGroup = '风格' | '场景' | '模型' | '主体' | '画质' | '自定义';
-/** 与 `@shared/types/enums` 的 ProviderType 同形。 */
+/** 与 `@musefold/desktop-contracts/enums` 的 ProviderType 同形。 */
 type ProviderType = 'openai' | 'openai-compatible' | 'wukong-studio' | 'doubao-web';
-/** 与 `@shared/types/enums` 的 ImageSize 同形。 */
+/** 与 `@musefold/desktop-contracts/enums` 的 ImageSize 同形。 */
 type ImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '2048x2048' | 'auto';
 
 export const APP_NAME = 'Musefold';

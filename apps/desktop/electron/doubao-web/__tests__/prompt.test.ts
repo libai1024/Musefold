@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GenerateImageRequest } from '@shared/types/providers';
+import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 import { composeDoubaoWebPrompt } from '../prompt';
 
 function request(patch: Partial<GenerateImageRequest> = {}): GenerateImageRequest {

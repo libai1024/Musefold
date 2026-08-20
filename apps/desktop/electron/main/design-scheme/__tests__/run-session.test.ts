@@ -14,8 +14,8 @@ import {
 import type {
   DesignSchemeCreationEvent,
   StartDesignSchemeRunRequest,
-} from '@shared/types/design-scheme';
-import type { GenerateImageRequest, GenerateImageResult } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/design-scheme';
+import type { GenerateImageRequest, GenerateImageResult } from '@musefold/desktop-contracts/providers';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { fakePngBuffer } from './evaluation.test';

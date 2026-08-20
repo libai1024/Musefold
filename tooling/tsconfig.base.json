@@ -19,7 +19,6 @@
     "disableSourceOfProjectReferenceRedirect": true,
     "baseUrl": "..",
     "paths": {
-      "@shared/types/*": ["packages/desktop-contracts/src/*"],
       "@electron/*": ["apps/desktop/electron/*"],
       "@renderer/*": ["apps/desktop/src/*"],
       "@musefold/core": ["packages/core/src/index.ts"],

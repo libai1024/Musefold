@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, Search, X } from '../../../components/ui/icons';
-import type { Prompt } from '@shared/types/models';
+import type { Prompt } from '@musefold/desktop-contracts/models';
 import api from '../../../lib/ipc';
 import { toImageSrc } from '../../../lib/media';
 import { useAppStore } from '../../../stores/app';

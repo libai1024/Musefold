@@ -4,7 +4,7 @@ import type {
   UpdateMetadata,
   UpdateProgress,
   UpdateStatus,
-} from '@shared/types/updater';
+} from '@musefold/desktop-contracts/updater';
 
 export const UPDATE_FEED_BASE_URL = 'https://zhaozhaoyue.top/Musefold/updates/';
 export const DEFAULT_UPDATE_CHANNEL: Channel = DEFAULT_CHANNEL;

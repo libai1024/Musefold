@@ -8,7 +8,7 @@ import type {
   AutomationStatus,
   IntegrationAction,
   IntegrationInfo,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 import { api } from '../../../lib/ipc';
 import { SectionShell, SettingRow } from '../components/SectionShell';
 import { cn } from '../../../lib/utils';

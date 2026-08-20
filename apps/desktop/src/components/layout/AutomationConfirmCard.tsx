@@ -2,7 +2,7 @@
 // 右下角非阻塞卡片：展示 Provider/模型/张数/预估成本，允许/拒绝即回执；
 // 若同一确认被 HTTP 回执或超时解决，卡片随 resolved 事件自动关闭。
 import { useEffect, useState } from 'react';
-import type { AutomationConfirmationSummary } from '@shared/types/ipc';
+import type { AutomationConfirmationSummary } from '@musefold/desktop-contracts/ipc';
 import { api } from '../../lib/ipc';
 import { displayModelName } from '../../lib/model-catalog';
 

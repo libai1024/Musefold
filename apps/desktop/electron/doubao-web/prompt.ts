@@ -1,4 +1,4 @@
-import type { GenerateImageRequest } from '@shared/types/providers';
+import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 
 /** 组装最终填写到豆包网页输入框的文字。 */
 export function composeDoubaoWebPrompt(req: GenerateImageRequest): string {

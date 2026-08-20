@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 
 const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>());
 const settings = vi.hoisted(() => ({

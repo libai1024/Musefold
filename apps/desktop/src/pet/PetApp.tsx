@@ -6,7 +6,7 @@
 // 关键帧序列会全部解码完成后再开始轮播，避免未加载帧短暂露出透明桌面。
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PetFrame } from '@shared/types/pet';
+import type { PetFrame } from '@musefold/desktop-contracts/pet';
 
 export function PetApp(): JSX.Element | null {
   const [frame, setFrame] = useState<PetFrame | null>(null);

@@ -71,6 +71,22 @@ export default tseslint.config(
     },
   },
   {
+    // V122-SHARE-06：@shared 兼容别名已删除，desktop-contracts 是唯一入口。
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^@shared(?:/|$)',
+              message: '已删除 @shared 兼容别名。请改用 @musefold/desktop-contracts 子路径。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // 存量违规冻结（首轮全量 2026-08-20）。第一批棘轮已收紧：违规最少的 8 条
     // 已修复并重新启用。以下 8 条仍 off，违规数保持首轮基线，待后续棘轮。
     rules: {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, CalendarDays, Info, Loader2, Settings2 } from '../../../components/ui/icons';
-import type { HistoryStatsBucket, HistoryStatsGroupBy, HistoryStatsProvider, HistoryStatsQuery } from '@shared/types/models';
+import type { HistoryStatsBucket, HistoryStatsGroupBy, HistoryStatsProvider, HistoryStatsQuery } from '@musefold/desktop-contracts/models';
 import { useAppStore } from '../../../stores/app';
 import { useSettingsStore } from '../../settings/store';
 import {

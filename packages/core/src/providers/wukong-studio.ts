@@ -10,8 +10,8 @@
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { ulid } from 'ulid';
-import type { GenerateImageRequest, GenerateImageResult, ImageProgressHandler, ModelInfo, ValidationResult } from '@shared/types/providers';
-import type { ProviderType } from '@shared/types/enums';
+import type { GenerateImageRequest, GenerateImageResult, ImageProgressHandler, ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { getPaths } from '../runtime';
 import { BaseProvider } from './base';
 import { createLogger } from '../runtime';

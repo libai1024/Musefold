@@ -4,7 +4,7 @@ import type {
   Channel,
   UpdateChannelInfo,
   UpdateChannelResult,
-} from '@shared/types/updater';
+} from '@musefold/desktop-contracts/updater';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,

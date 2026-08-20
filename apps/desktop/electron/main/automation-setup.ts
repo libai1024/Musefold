@@ -4,10 +4,10 @@
 import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
 import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from '@musefold/automation-server';
-import type { ProviderConfig } from '@shared/types/models';
-import type { AccountStatus } from '@shared/types/account';
-import type { AutomationProviderDraft, AutomationSetupRequest } from '@shared/types/ipc';
-import { IPC } from '@shared/types/ipc';
+import type { ProviderConfig } from '@musefold/desktop-contracts/models';
+import type { AccountStatus } from '@musefold/desktop-contracts/account';
+import type { AutomationProviderDraft, AutomationSetupRequest } from '@musefold/desktop-contracts/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import { getAccountService } from '../account';
 import { getMainWindow } from './window';
 import { getMusefoldCore } from './core-instance';

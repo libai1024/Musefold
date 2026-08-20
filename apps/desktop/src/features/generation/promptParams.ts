@@ -7,8 +7,8 @@ import type {
   ImageQuality,
   ModerationLevel,
   PromptTarget,
-} from '@shared/types/enums';
-import type { PromptParams } from '@shared/types/models';
+} from '@musefold/desktop-contracts/enums';
+import type { PromptParams } from '@musefold/desktop-contracts/models';
 import { DEFAULT_REFINE_PARAMS, REFINE_COUNTS, type RefineParams } from './params';
 
 const QUALITIES = new Set<ImageQuality>(['low', 'medium', 'high', 'auto']);

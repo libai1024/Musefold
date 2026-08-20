@@ -6,15 +6,15 @@
 // 与 stores/app.ts 的主题存法一致），绝不写入 Key。
 
 import { create } from 'zustand';
-import type { ImageQuality } from '@shared/types/enums';
+import type { ImageQuality } from '@musefold/desktop-contracts/enums';
 import {
   PROVIDER_PRESETS,
   DEFAULT_PRESET_ID,
   RATIO_OPTIONS,
 } from '@musefold/domain/constants';
 import { ACCOUNT_FALLBACK_TEXT_MODEL } from '@musefold/domain/constants';
-import type { ValidationResult, GenerateImageResult } from '@shared/types/providers';
-import type { AiConnectionValidationResult } from '@shared/types/ai';
+import type { ValidationResult, GenerateImageResult } from '@musefold/desktop-contracts/providers';
+import type { AiConnectionValidationResult } from '@musefold/desktop-contracts/ai';
 import { useGenerationStore } from '../generation/store';
 import { useAppStore } from '../../stores/app';
 import { hatchMotionAllowed, useEmberHatchStore } from '../../stores/emberHatch';

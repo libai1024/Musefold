@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
-import type { EnsureWorkbenchSessionCommand, WorkbenchSessionListQuery } from '@shared/types/workbench';
-import type { ImageProviderResponseSummary } from '@shared/types/providers';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { EnsureWorkbenchSessionCommand, WorkbenchSessionListQuery } from '@musefold/desktop-contracts/workbench';
+import type { ImageProviderResponseSummary } from '@musefold/desktop-contracts/providers';
 import { getDb } from '@musefold/core/db';
 import { parseJsonColumn } from '@musefold/core/db/json';
 import { createWorkbenchRepositories } from '@musefold/core/db/repositories/workbench';

@@ -37,7 +37,7 @@ import type {
   ImportSourceInfo,
   ImportStrategy,
   ImportTypeStat,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 
 const logger = createLogger('import');
 

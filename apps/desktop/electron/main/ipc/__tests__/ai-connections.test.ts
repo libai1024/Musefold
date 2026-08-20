@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IPC } from '@shared/types/ipc';
-import type { AiConnectionProfile } from '@shared/types/ai';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 import { registerAiConnectionHandlers } from '../ai-connections';
 
 type Handler = (event: unknown, ...args: any[]) => unknown;

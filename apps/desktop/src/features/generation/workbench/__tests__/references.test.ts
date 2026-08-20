@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PromptReference } from '@shared/types/providers';
+import type { PromptReference } from '@musefold/desktop-contracts/providers';
 import {
   composePromptWithReferences,
   extractUserPromptFromComposed,

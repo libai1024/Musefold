@@ -11,7 +11,7 @@ import type {
   DesignSchemeAssetSummary,
   DesignSchemeSourceSnapshotDetail,
   DesignSchemeSummary,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 
 export interface SourceSnapshotWriteInput {
   package: {

@@ -5,7 +5,7 @@
 // tests/repo/alias-consistency.test.ts 会比对指向。
 //
 // 分组：
-//   SHARED  — 全仓（含 @shared/types 兼容别名，Phase 3 才删除其存在性）
+//   SHARED  — 全仓 workspace 包别名
 //   DESKTOP — 仅桌面内部（@renderer / @electron）。架构文档里的 @main 尚未落地，
 //             现网别名是 @electron，本卡不改名。
 
@@ -25,7 +25,6 @@ export const DESKTOP_ALIAS_RELATIVE = Object.freeze({
 
 /** 全仓共享别名，相对仓库根。 */
 export const SHARED_ALIAS_RELATIVE = Object.freeze({
-  '@shared/types': 'packages/desktop-contracts/src',
   '@musefold/core': 'packages/core/src',
   '@musefold/automation-server': 'packages/automation-server/src',
   '@musefold/client': 'packages/client/src',

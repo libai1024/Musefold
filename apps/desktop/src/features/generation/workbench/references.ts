@@ -1,4 +1,4 @@
-import type { PromptReference } from '@shared/types/providers';
+import type { PromptReference } from '@musefold/desktop-contracts/providers';
 
 export const MAX_DRAFT_REFERENCES = 6;
 export const MAX_REFERENCE_TEXT_LENGTH = 4000;

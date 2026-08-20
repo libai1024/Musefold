@@ -8,7 +8,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import Store from 'electron-store';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import { STORE_NAME } from '@musefold/core/constants';
 import { createLogger } from '../system/logger';
 import { getBuiltinRendererRoot } from './renderer-bundle';

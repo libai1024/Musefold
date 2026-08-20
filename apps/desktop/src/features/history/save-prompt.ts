@@ -1,7 +1,7 @@
 // History -> Prompt 入库映射（TASK-HIS-07）
 // 详见 docs/product/13-history-deep-dive.md §4.3 / TASK-HIS-07
 
-import type { HistoryRecord, NewPrompt } from '@shared/types/models';
+import type { HistoryRecord, NewPrompt } from '@musefold/desktop-contracts/models';
 
 const FALLBACK_TITLE_PREFIX = '生成历史';
 

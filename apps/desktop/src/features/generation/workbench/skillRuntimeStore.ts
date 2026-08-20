@@ -4,9 +4,9 @@ import type {
   SkillRuntimeEvent,
   SkillRuntimeExecution,
   SkillRuntimeTraceItem,
-} from '@shared/types/skill-runtime';
-import type { ProviderType } from '@shared/types/enums';
-import { MAX_REFERENCE_IMAGES, type LocalImageReference } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/skill-runtime';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
+import { MAX_REFERENCE_IMAGES, type LocalImageReference } from '@musefold/desktop-contracts/providers';
 import api from '../../../lib/ipc';
 import { parseGithubSkillUrl } from './githubSkillUrl';
 import { buildImageRequest, type RefineParams } from '../params';

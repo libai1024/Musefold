@@ -3,12 +3,12 @@ import type {
   ImageProviderResponseSummary,
   LocalImageReference,
   PromptReference,
-} from "@shared/types/providers";
+} from "@musefold/desktop-contracts/providers";
 import type { RefineParams } from "../params";
 import type {
   SkillRuntimeExecutionMode,
   SkillRuntimeTraceItem,
-} from "@shared/types/skill-runtime";
+} from "@musefold/desktop-contracts/skill-runtime";
 import type {
   DesignSchemeCreationState,
   DesignSchemeCreationTraceItem,
@@ -16,7 +16,7 @@ import type {
   DesignSchemeRunMode,
   DesignSchemeSourceConfirmation,
   DesignSchemeSummary,
-} from "@shared/types/design-scheme";
+} from "@musefold/desktop-contracts/design-scheme";
 import type { InputSlot } from "@musefold/desktop-contracts/design-scheme/schema";
 
 export interface SchemeCreationDraftCard extends DesignSchemeSummary {

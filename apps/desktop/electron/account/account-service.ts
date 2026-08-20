@@ -16,7 +16,7 @@ import {
   ACCOUNT_QUOTA_PER_POINT,
   ACCOUNT_QUOTA_PER_USD,
 } from "@musefold/contracts/billing.js";
-import type { AccountRedeemResult, AccountStatus } from "@shared/types/account";
+import type { AccountRedeemResult, AccountStatus } from "@musefold/desktop-contracts/account";
 import type { NewApiClient, RelayAuthSession } from "./api-client";
 import {
   createNewApiClient,

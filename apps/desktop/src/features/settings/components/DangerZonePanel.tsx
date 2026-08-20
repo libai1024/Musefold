@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, Loader2, ShieldCheck, Trash2 } from '../../../components/ui/icons';
-import type { ResetDataResult } from '@shared/types/ipc';
+import type { ResetDataResult } from '@musefold/desktop-contracts/ipc';
 import api from '../../../lib/ipc';
 import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/ui/button';

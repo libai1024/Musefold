@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import { buildShareDeeplink, type SharePayload } from '@musefold/desktop-contracts/share';
 
 const mocks = vi.hoisted(() => ({

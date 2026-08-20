@@ -2,7 +2,7 @@
 // 提示词 IPC handler —— 详见 docs/07-ipc-contracts.md §3.1
 
 import { ipcMain } from "electron";
-import { IPC } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
 import { promptsRepo } from "@musefold/core/db/repositories/prompts";
 import { scheduleCloudSync } from "../../cloud-sync";
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Api } from '@shared/types/ipc';
+import type { Api } from '@musefold/desktop-contracts/ipc';
 
 describe('renderer ipc accessor', () => {
   beforeEach(() => {

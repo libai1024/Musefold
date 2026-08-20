@@ -2,7 +2,7 @@
 // 历史 IPC —— list 支持 status/from/to/providerId 组合 AND（TASK-HIS-02）
 
 import { ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import type {
   HistoryClearRequest,
   HistoryDeleteRequest,
@@ -11,15 +11,15 @@ import type {
   HistoryLinkPromptResult,
   RelatedHistoryQuery,
   RelatedHistoryResult,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 import type {
   HistoryRecord,
   PromptHistoryRelation,
   HistoryStats,
   HistoryStatsGroupBy,
   HistoryStatsQuery,
-} from '@shared/types/models';
-import type { HistoryStatus } from '@shared/types/enums';
+} from '@musefold/desktop-contracts/models';
+import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 import { unlink } from 'fs/promises';
 import { resolve, sep } from 'path';
 import { getDb } from '@musefold/core/db/index';

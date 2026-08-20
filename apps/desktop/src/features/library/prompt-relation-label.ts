@@ -1,4 +1,4 @@
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 
 export function promptRelationLabel(item: HistoryRecord): string {
   const relations = item.promptRelations ?? [];

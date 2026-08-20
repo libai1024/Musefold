@@ -1,8 +1,8 @@
 // LibraryService（V04-CORE-04）：提示词库读 + 低危写（save_prompt / 素笺回流）。
 // v1 面向暴露矩阵：search 🟢 / get 🟢 / create 🟡；stats 供 status 汇总。
 
-import type { ListPromptsQuery, PromptStats } from '@shared/types/ipc';
-import type { NewPrompt, Prompt } from '@shared/types/models';
+import type { ListPromptsQuery, PromptStats } from '@musefold/desktop-contracts/ipc';
+import type { NewPrompt, Prompt } from '@musefold/desktop-contracts/models';
 import { promptsRepo } from '../db/repositories/prompts';
 
 export interface LibraryService {

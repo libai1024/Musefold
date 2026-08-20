@@ -12,7 +12,7 @@ import type {
   WorkbenchSessionDocument,
   WorkbenchSessionListQuery,
   WorkbenchSessionListResult,
-} from '@shared/types/workbench';
+} from '@musefold/desktop-contracts/workbench';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
 

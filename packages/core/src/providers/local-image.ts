@@ -6,7 +6,7 @@ import type {
   PickLocalImagesResult,
   StageLocalImageInput,
   SupportedImageMimeType,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import { getPaths } from '../runtime';
 
 export const MAX_LOCAL_IMAGE_BYTES = 20 * 1024 * 1024;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IPC, type Api } from "@shared/types/ipc";
+import { IPC, type Api } from "@musefold/desktop-contracts/ipc";
 
 const electronMock = vi.hoisted(() => {
   const exposed: Record<string, unknown> = {};

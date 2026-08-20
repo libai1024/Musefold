@@ -2,7 +2,7 @@
 // 标签 IPC handler —— 详见 docs/07-ipc-contracts.md §3.3
 
 import { ipcMain } from "electron";
-import { IPC } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
 import { tagsRepo } from "@musefold/core/db/repositories/tags";
 import { promptsRepo } from "@musefold/core/db/repositories/prompts";
 import { getDb } from "@musefold/core/db";

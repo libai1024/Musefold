@@ -21,7 +21,7 @@ import type {
   DesignSchemeCreationResult,
   DesignSchemeCreationTraceItem,
   StartDesignSchemeModifyRequest,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { buildInputSlots } from './orchestrator';

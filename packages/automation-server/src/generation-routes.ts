@@ -14,7 +14,7 @@ import type {
   GenerateImageResult,
   ImageGenerationProgress,
   LocalImageReference,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import { resolveRatioOptionById } from '@musefold/domain/constants';
 import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from './server';
 

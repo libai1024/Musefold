@@ -1,9 +1,9 @@
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import type {
   HistoryLinkPromptResult,
   RelatedHistoryQuery,
   RelatedHistoryResult,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 import api from '../../lib/ipc';
 
 const RELATED_HISTORY_DB_VERSION = 9;

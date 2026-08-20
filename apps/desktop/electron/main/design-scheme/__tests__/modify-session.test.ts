@@ -4,7 +4,7 @@ import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,
 } from '@musefold/desktop-contracts/design-scheme/schema';
-import type { DesignSchemeCreationEvent } from '@shared/types/design-scheme';
+import type { DesignSchemeCreationEvent } from '@musefold/desktop-contracts/design-scheme';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { DesignSchemeModifySession } from '../modify-session';

@@ -6,7 +6,7 @@
 // security/keychain、system/logger、settings/pricing），零行为变化。
 // P3 收口 shared/ 进 core 时，这里将折叠进正式的 ports（异步 SecretsPort 等）。
 
-import type { GenerateImageRequest, GenerateImageResult, ValidationResult } from '@shared/types/providers';
+import type { GenerateImageRequest, GenerateImageResult, ValidationResult } from '@musefold/desktop-contracts/providers';
 import type { Logger } from './ports';
 
 /** 与 electron/system/paths.ts 的 getPaths() 同形态。 */

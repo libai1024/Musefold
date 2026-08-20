@@ -10,7 +10,7 @@ import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
-import type { DesignSchemeSummary } from '@shared/types/design-scheme';
+import type { DesignSchemeSummary } from '@musefold/desktop-contracts/design-scheme';
 import { useGenerationWorkbenchStore } from '../generation/workbench/store';
 import type { GenerationSource } from '../generation/workbench/types';
 import { useSchemeRunStore } from './runStore';

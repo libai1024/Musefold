@@ -20,7 +20,7 @@ export function formatPoints(quota: number): string {
 
 export function formatCost(
   value: number | null | undefined,
-  _unit: import('@shared/types/models').CostUnit = 'point',
+  _unit: import('@musefold/desktop-contracts/models').CostUnit = 'point',
 ): string {
   if (value == null) return '—';
   return `${value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })} 积分`;

@@ -33,7 +33,7 @@ import type {
   ExportMode,
   ExportRequest,
   ExportResult,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 
 const logger = createLogger('export');
 

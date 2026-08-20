@@ -11,7 +11,7 @@
 
 import type Database from 'better-sqlite3';
 import { ulid } from 'ulid';
-import type { PromptParams } from '@shared/types/models';
+import type { PromptParams } from '@musefold/desktop-contracts/models';
 import { tokenizeForFts } from './fts';
 
 interface SeedPrompt {

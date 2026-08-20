@@ -26,7 +26,7 @@ import {
   PROVIDER_PRESETS,
   RATIO_OPTIONS,
 } from '@musefold/domain/constants';
-import type { ImageQuality } from '@shared/types/enums';
+import type { ImageQuality } from '@musefold/desktop-contracts/enums';
 import { useOnboardingStore, EXAMPLE_PROMPT, type OnboardingStep } from './store';
 import { useGenerationStore } from '../generation/store';
 import { ValidationResultBanner } from '../generation/components/ValidationResultBanner';

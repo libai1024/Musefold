@@ -7,8 +7,8 @@ import type {
   ProviderConfig,
   NewProviderConfig,
   ProviderPricingMode,
-} from '@shared/types/models';
-import type { ModelInfo, ValidationResult } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/models';
+import type { ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
 import type { ErrorAction } from '@musefold/domain/errors';
 import {
   PROVIDER_PRESETS,

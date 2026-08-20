@@ -5,7 +5,7 @@
  */
 import type Database from 'better-sqlite3';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
-import type { MarketCandidate, MarketSearchResult } from '@shared/types/design-scheme';
+import type { MarketCandidate, MarketSearchResult } from '@musefold/desktop-contracts/design-scheme';
 
 const SEARCH_TIMEOUT_MS = 15_000;
 const CANDIDATE_LIMIT = 8;

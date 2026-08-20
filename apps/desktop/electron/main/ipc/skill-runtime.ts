@@ -14,16 +14,16 @@ import {
   composePromptWithRatioConstraint,
 } from '@musefold/domain/generation-prompt';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
-import type { AiConnectionProfile, AiSkillImageReference, AiSkillSourceFile } from '@shared/types/ai';
-import type { ProviderType } from '@shared/types/enums';
-import { IPC } from '@shared/types/ipc';
+import type { AiConnectionProfile, AiSkillImageReference, AiSkillSourceFile } from '@musefold/desktop-contracts/ai';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import {
   MAX_REFERENCE_IMAGES,
   type GenerateImageRequest,
   type GenerateImageResult,
   type ImageGenerationProgress,
   type LocalImageReference,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import type {
   ExecuteSkillRuntimeRequest,
   PrepareGithubSkillRuntimeRequest,
@@ -33,7 +33,7 @@ import type {
   SkillRuntimeGenerationOutcome,
   SkillRuntimeGenerationPlan,
   SkillRuntimeTraceItem,
-} from '@shared/types/skill-runtime';
+} from '@musefold/desktop-contracts/skill-runtime';
 import { getAiConnectionStore } from '../../ai/connection-store';
 import { classifyAiError, OpenAiCompatibleAssistant } from '../../ai/openai-compatible-assistant';
 import { stageLocalImageBytes } from '@musefold/core/providers/local-image';

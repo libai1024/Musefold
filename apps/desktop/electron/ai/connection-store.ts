@@ -7,7 +7,7 @@ import type {
   AiConnectionProfile,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
-} from '@shared/types/ai';
+} from '@musefold/desktop-contracts/ai';
 import { ElectronAiSecretKeychain, type AiSecretKeychain } from '../security/ai-keychain';
 import { AccountError } from '../account/errors';
 

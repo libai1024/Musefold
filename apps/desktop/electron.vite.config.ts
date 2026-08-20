@@ -32,7 +32,6 @@ export default defineConfig({
     resolve: {
       alias: pickAliases(
         [
-          '@shared/types',
           '@electron',
           // workspace 包直读 TS 源、随主进程 chunk 打包（不外部化），
           // electron-builder 的 node_modules 打包面因此零变化（V04-CORE-01）。
@@ -52,6 +51,12 @@ export default defineConfig({
     build: {
       sourcemap: true,
       outDir: resolve(desktopRoot, 'out/preload'),
+      // 沙箱 preload 不能 require workspace 的 TS 源码。旧兼容别名不是 npm
+      // 包，会被打进 index.cjs；改成 @musefold/desktop-contracts 后必须显式
+      // 排除外部化，否则运行时 module not found。
+      externalizeDeps: {
+        exclude: ['@musefold/desktop-contracts', '@musefold/domain'],
+      },
       rollupOptions: {
         input: {
           index: resolve(desktopRoot, 'electron/preload/index.ts'),
@@ -66,7 +71,7 @@ export default defineConfig({
     },
     resolve: {
       alias: pickAliases(
-        ['@shared/types', '@musefold/desktop-contracts', '@musefold/domain'],
+        ['@musefold/desktop-contracts', '@musefold/domain'],
         repoRoot,
       ),
     },
@@ -89,7 +94,6 @@ export default defineConfig({
     resolve: {
       alias: pickAliases(
         [
-          '@shared/types',
           '@musefold/desktop-contracts',
           '@musefold/domain',
           '@musefold/contracts',

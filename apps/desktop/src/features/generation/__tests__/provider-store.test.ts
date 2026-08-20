@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProviderConfig } from '@shared/types/models';
+import type { ProviderConfig } from '@musefold/desktop-contracts/models';
 
 const providerApi = vi.hoisted(() => ({
   list: vi.fn(),

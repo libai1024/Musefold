@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Ban, ImageOff, Images, Loader2, Power, RefreshCw } from '../../../components/ui/icons';
-import type { HistoryRecord, Prompt } from '@shared/types/models';
+import type { HistoryRecord, Prompt } from '@musefold/desktop-contracts/models';
 import api from '../../../lib/ipc';
 import { toImageSrc } from '../../../lib/media';
 import { formatTime } from '../../../lib/format';

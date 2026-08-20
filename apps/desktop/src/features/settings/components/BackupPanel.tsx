@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Clock3, Loader2, RefreshCw, RotateCcw, ShieldCheck } from '../../../components/ui/icons';
-import type { BackupInfo, RestoreBackupResult } from '@shared/types/ipc';
+import type { BackupInfo, RestoreBackupResult } from '@musefold/desktop-contracts/ipc';
 import api from '../../../lib/ipc';
 import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/ui/button';

@@ -4,7 +4,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
-import type { PetStateDef, PetTheme, PetThemeManifest } from '@shared/types/pet';
+import type { PetStateDef, PetTheme, PetThemeManifest } from '@musefold/desktop-contracts/pet';
 import { resolveResourcePath } from '../app-paths';
 
 const DEFAULT_THEME = 'cat';

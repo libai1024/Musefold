@@ -1,11 +1,11 @@
 // electron/preload/index.ts
-// contextBridge 暴露 window.api —— 类型来自 @shared/types/ipc
+// contextBridge 暴露 window.api —— 类型来自 @musefold/desktop-contracts/ipc
 // 只做转发，无业务逻辑。详见 docs/01-architecture.md §2、docs/07-ipc-contracts.md §4
 
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
 import type { DiagnosticReport } from "@musefold/desktop-contracts/diagnostics";
-import type { AccountErrorPayload } from "@shared/types/account";
+import type { AccountErrorPayload } from "@musefold/desktop-contracts/account";
 import {
   runPreloadOriginMigration,
   type LocalStorageLike,
@@ -70,14 +70,14 @@ const api = {
   },
   prompt: {
     list: (
-      q?: Parameters<import("@shared/types/ipc").Api["prompt"]["list"]>[0],
+      q?: Parameters<import("@musefold/desktop-contracts/ipc").Api["prompt"]["list"]>[0],
     ) => ipcRenderer.invoke(IPC.PROMPTS_LIST, q),
     get: (id: string) => ipcRenderer.invoke(IPC.PROMPTS_GET, id),
-    create: (p: import("@shared/types/models").NewPrompt) =>
+    create: (p: import("@musefold/desktop-contracts/models").NewPrompt) =>
       ipcRenderer.invoke(IPC.PROMPTS_CREATE, p),
     update: (
       id: string,
-      patch: import("@shared/types/ipc").UpdatePromptPatch,
+      patch: import("@musefold/desktop-contracts/ipc").UpdatePromptPatch,
     ) => ipcRenderer.invoke(IPC.PROMPTS_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.PROMPTS_DELETE, id),
     batchAddTags: (ids: string[], tagIds: string[]) =>
@@ -104,11 +104,11 @@ const api = {
   },
   smartSet: {
     list: () => ipcRenderer.invoke(IPC.SMART_SETS_LIST),
-    create: (s: import("@shared/types/models").NewSmartSet) =>
+    create: (s: import("@musefold/desktop-contracts/models").NewSmartSet) =>
       ipcRenderer.invoke(IPC.SMART_SETS_CREATE, s),
     update: (
       id: string,
-      patch: import("@shared/types/ipc").UpdateSmartSetPatch,
+      patch: import("@musefold/desktop-contracts/ipc").UpdateSmartSetPatch,
     ) => ipcRenderer.invoke(IPC.SMART_SETS_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.SMART_SETS_DELETE, id),
   },
@@ -120,19 +120,19 @@ const api = {
   },
   folder: {
     list: (parentId?: string) => ipcRenderer.invoke(IPC.FOLDERS_LIST, parentId),
-    create: (f: import("@shared/types/models").NewFolder) =>
+    create: (f: import("@musefold/desktop-contracts/models").NewFolder) =>
       ipcRenderer.invoke(IPC.FOLDERS_CREATE, f),
-    update: (id: string, patch: import("@shared/types/models").Folder) =>
+    update: (id: string, patch: import("@musefold/desktop-contracts/models").Folder) =>
       ipcRenderer.invoke(IPC.FOLDERS_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.FOLDERS_DELETE, id),
     reorder: (ids: string[]) => ipcRenderer.invoke(IPC.FOLDERS_REORDER, ids),
   },
   tag: {
-    list: (group?: import("@shared/types/models").Tag["tagGroup"]) =>
+    list: (group?: import("@musefold/desktop-contracts/models").Tag["tagGroup"]) =>
       ipcRenderer.invoke(IPC.TAGS_LIST, group),
-    create: (t: import("@shared/types/models").NewTag) =>
+    create: (t: import("@musefold/desktop-contracts/models").NewTag) =>
       ipcRenderer.invoke(IPC.TAGS_CREATE, t),
-    update: (id: string, patch: import("@shared/types/models").Tag) =>
+    update: (id: string, patch: import("@musefold/desktop-contracts/models").Tag) =>
       ipcRenderer.invoke(IPC.TAGS_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.TAGS_DELETE, id),
     assignToPrompt: (promptId: string, tagIds: string[]) =>
@@ -140,10 +140,10 @@ const api = {
   },
   skillRuntime: {
     prepareGithub: (
-      request: import("@shared/types/skill-runtime").PrepareGithubSkillRuntimeRequest,
+      request: import("@musefold/desktop-contracts/skill-runtime").PrepareGithubSkillRuntimeRequest,
     ) => ipcRenderer.invoke(IPC.SKILL_RUNTIME_PREPARE_GITHUB, request),
     execute: (
-      request: import("@shared/types/skill-runtime").ExecuteSkillRuntimeRequest,
+      request: import("@musefold/desktop-contracts/skill-runtime").ExecuteSkillRuntimeRequest,
     ) => ipcRenderer.invoke(IPC.SKILL_RUNTIME_EXECUTE, request),
     cancel: (executionId: string) =>
       ipcRenderer.invoke(IPC.SKILL_RUNTIME_CANCEL, executionId),
@@ -151,12 +151,12 @@ const api = {
       ipcRenderer.invoke(IPC.SKILL_RUNTIME_RELEASE, runtimeId),
     onEvent: (
       cb: (
-        event: import("@shared/types/skill-runtime").SkillRuntimeEvent,
+        event: import("@musefold/desktop-contracts/skill-runtime").SkillRuntimeEvent,
       ) => void,
     ) => {
       const listener = (
         _event: unknown,
-        payload: import("@shared/types/skill-runtime").SkillRuntimeEvent,
+        payload: import("@musefold/desktop-contracts/skill-runtime").SkillRuntimeEvent,
       ) => cb(payload);
       ipcRenderer.on(IPC.SKILL_RUNTIME_EVENT, listener);
       return () =>
@@ -165,7 +165,7 @@ const api = {
   },
   designScheme: {
     startCreation: (
-      request: import("@shared/types/design-scheme").StartDesignSchemeCreationRequest,
+      request: import("@musefold/desktop-contracts/design-scheme").StartDesignSchemeCreationRequest,
     ) => ipcRenderer.invoke(IPC.DESIGN_SCHEME_CREATE_START, request),
     confirmInstall: (executionId: string, accept: boolean) =>
       ipcRenderer.invoke(
@@ -192,7 +192,7 @@ const api = {
         inputs,
       ),
     startRun: (
-      request: import("@shared/types/design-scheme").StartDesignSchemeRunRequest,
+      request: import("@musefold/desktop-contracts/design-scheme").StartDesignSchemeRunRequest,
     ) => ipcRenderer.invoke(IPC.DESIGN_SCHEME_RUN_START, request),
     cancelRun: (executionId: string) =>
       ipcRenderer.invoke(IPC.DESIGN_SCHEME_RUN_CANCEL, executionId),
@@ -207,7 +207,7 @@ const api = {
     listSourceFiles: (schemeId: string) =>
       ipcRenderer.invoke(IPC.DESIGN_SCHEME_LIST_SOURCE_FILES, schemeId),
     startModify: (
-      request: import("@shared/types/design-scheme").StartDesignSchemeModifyRequest,
+      request: import("@musefold/desktop-contracts/design-scheme").StartDesignSchemeModifyRequest,
     ) => ipcRenderer.invoke(IPC.DESIGN_SCHEME_MODIFY_START, request),
     cancelModify: (executionId: string) =>
       ipcRenderer.invoke(IPC.DESIGN_SCHEME_MODIFY_CANCEL, executionId),
@@ -223,12 +223,12 @@ const api = {
       ipcRenderer.invoke(IPC.DESIGN_SCHEME_IMPORT, sourcePath),
     onEvent: (
       cb: (
-        event: import("@shared/types/design-scheme").DesignSchemeCreationEvent,
+        event: import("@musefold/desktop-contracts/design-scheme").DesignSchemeCreationEvent,
       ) => void,
     ) => {
       const listener = (
         _event: unknown,
-        payload: import("@shared/types/design-scheme").DesignSchemeCreationEvent,
+        payload: import("@musefold/desktop-contracts/design-scheme").DesignSchemeCreationEvent,
       ) => cb(payload);
       ipcRenderer.on(IPC.DESIGN_SCHEME_EVENT, listener);
       return () =>
@@ -238,11 +238,11 @@ const api = {
   aiConnection: {
     listPresets: () => ipcRenderer.invoke(IPC.AI_CONNECTION_LIST_PRESETS),
     list: () => ipcRenderer.invoke(IPC.AI_CONNECTION_LIST),
-    create: (input: import("@shared/types/ai").CreateAiConnectionInput) =>
+    create: (input: import("@musefold/desktop-contracts/ai").CreateAiConnectionInput) =>
       ipcRenderer.invoke(IPC.AI_CONNECTION_CREATE, input),
     update: (
       id: string,
-      patch: import("@shared/types/ai").UpdateAiConnectionInput,
+      patch: import("@musefold/desktop-contracts/ai").UpdateAiConnectionInput,
     ) => ipcRenderer.invoke(IPC.AI_CONNECTION_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.AI_CONNECTION_DELETE, id),
     saveKey: (id: string, apiKey: string) =>
@@ -259,11 +259,11 @@ const api = {
   },
   provider: {
     list: () => ipcRenderer.invoke(IPC.PROVIDER_LIST),
-    create: (p: import("@shared/types/models").NewProviderConfig) =>
+    create: (p: import("@musefold/desktop-contracts/models").NewProviderConfig) =>
       ipcRenderer.invoke(IPC.PROVIDER_CREATE, p),
     update: (
       id: string,
-      patch: Partial<import("@shared/types/models").NewProviderConfig>,
+      patch: Partial<import("@musefold/desktop-contracts/models").NewProviderConfig>,
     ) => ipcRenderer.invoke(IPC.PROVIDER_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.PROVIDER_DELETE, id),
     saveKey: (id: string, apiKey: string) =>
@@ -278,12 +278,12 @@ const api = {
       ipcRenderer.invoke(IPC.PROVIDER_WEB_DEVELOPER_VISIBLE, visible),
     onWebLoginChanged: (
       cb: (
-        status: import("@shared/types/providers").DoubaoWebAccountStatus,
+        status: import("@musefold/desktop-contracts/providers").DoubaoWebAccountStatus,
       ) => void,
     ) => {
       const listener = (
         _event: unknown,
-        status: import("@shared/types/providers").DoubaoWebAccountStatus,
+        status: import("@musefold/desktop-contracts/providers").DoubaoWebAccountStatus,
       ) => cb(status);
       ipcRenderer.on(IPC.PROVIDER_WEB_LOGIN_CHANGED, listener);
       return () =>
@@ -300,7 +300,7 @@ const api = {
     pricing: {
       get: (providerId: string) =>
         ipcRenderer.invoke(IPC.SETTINGS_PRICING_GET, providerId),
-      set: (req: import("@shared/types/models").ProviderPricingSetRequest) =>
+      set: (req: import("@musefold/desktop-contracts/models").ProviderPricingSetRequest) =>
         ipcRenderer.invoke(IPC.SETTINGS_PRICING_SET, req),
       delete: (providerId: string) =>
         ipcRenderer.invoke(IPC.SETTINGS_PRICING_DELETE, providerId),
@@ -322,12 +322,12 @@ const api = {
     },
     onConfirmationRequired: (
       cb: (
-        summary: import("@shared/types/ipc").AutomationConfirmationSummary,
+        summary: import("@musefold/desktop-contracts/ipc").AutomationConfirmationSummary,
       ) => void,
     ) => {
       const listener = (
         _event: unknown,
-        summary: import("@shared/types/ipc").AutomationConfirmationSummary,
+        summary: import("@musefold/desktop-contracts/ipc").AutomationConfirmationSummary,
       ) => cb(summary);
       ipcRenderer.on(IPC.AUTOMATION_CONFIRMATION_REQUIRED, listener);
       return () =>
@@ -368,11 +368,11 @@ const api = {
         ipcRenderer.removeListener(IPC.AUTOMATION_ACTIVITY, listener);
     },
     onSetupRequested: (
-      cb: (request: import("@shared/types/ipc").AutomationSetupRequest) => void,
+      cb: (request: import("@musefold/desktop-contracts/ipc").AutomationSetupRequest) => void,
     ) => {
       const listener = (
         _event: unknown,
-        request: import("@shared/types/ipc").AutomationSetupRequest,
+        request: import("@musefold/desktop-contracts/ipc").AutomationSetupRequest,
       ) => cb(request);
       ipcRenderer.on(IPC.AUTOMATION_SETUP_REQUESTED, listener);
       return () =>
@@ -387,50 +387,50 @@ const api = {
     },
     integrationInfo: () => ipcRenderer.invoke(IPC.AUTOMATION_INTEGRATION_INFO),
     integrationAction: (
-      action: import("@shared/types/ipc").IntegrationAction,
+      action: import("@musefold/desktop-contracts/ipc").IntegrationAction,
     ) => ipcRenderer.invoke(IPC.AUTOMATION_INTEGRATION_ACTION, action),
   },
   account: {
     status: () =>
-      invokeAccount<import("@shared/types/account").AccountStatus>(
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountStatus>(
         IPC.ACCOUNT_STATUS,
       ),
     register: (
-      input: import("@shared/types/account").AccountCredentialsInput,
+      input: import("@musefold/desktop-contracts/account").AccountCredentialsInput,
     ) =>
-      invokeAccount<import("@shared/types/account").AccountStatus>(
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountStatus>(
         IPC.ACCOUNT_REGISTER,
         input,
       ),
-    login: (input: import("@shared/types/account").AccountCredentialsInput) =>
-      invokeAccount<import("@shared/types/account").AccountStatus>(
+    login: (input: import("@musefold/desktop-contracts/account").AccountCredentialsInput) =>
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountStatus>(
         IPC.ACCOUNT_LOGIN,
         input,
       ),
     logout: () =>
-      invokeAccount<import("@shared/types/account").AccountStatus>(
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountStatus>(
         IPC.ACCOUNT_LOGOUT,
       ),
     redeem: (code: string) =>
-      invokeAccount<import("@shared/types/account").AccountRedeemResult>(
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountRedeemResult>(
         IPC.ACCOUNT_REDEEM,
         code,
       ),
     refreshQuota: () =>
-      invokeAccount<import("@shared/types/account").AccountStatus>(
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountStatus>(
         IPC.ACCOUNT_REFRESH_QUOTA,
       ),
     setServerUrl: (url: string) =>
-      invokeAccount<import("@shared/types/account").AccountStatus>(
+      invokeAccount<import("@musefold/desktop-contracts/account").AccountStatus>(
         IPC.ACCOUNT_SET_SERVER_URL,
         url,
       ),
     onChanged: (
-      cb: (status: import("@shared/types/account").AccountStatus) => void,
+      cb: (status: import("@musefold/desktop-contracts/account").AccountStatus) => void,
     ) => {
       const listener = (
         _event: unknown,
-        status: import("@shared/types/account").AccountStatus,
+        status: import("@musefold/desktop-contracts/account").AccountStatus,
       ) => cb(status);
       ipcRenderer.on(IPC.ACCOUNT_CHANGED, listener);
       return () => ipcRenderer.removeListener(IPC.ACCOUNT_CHANGED, listener);
@@ -444,14 +444,14 @@ const api = {
     conflicts: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_CONFLICTS),
     resolve: (
       conflictId: string,
-      resolution: import("@shared/types/cloud-sync").CloudSyncConflictResolution,
+      resolution: import("@musefold/desktop-contracts/cloud-sync").CloudSyncConflictResolution,
     ) => ipcRenderer.invoke(IPC.CLOUD_SYNC_RESOLVE, conflictId, resolution),
     onChanged: (
-      cb: (status: import("@shared/types/cloud-sync").CloudSyncSummary) => void,
+      cb: (status: import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary) => void,
     ) => {
       const listener = (
         _event: unknown,
-        status: import("@shared/types/cloud-sync").CloudSyncSummary,
+        status: import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary,
       ) => cb(status);
       ipcRenderer.on(IPC.CLOUD_SYNC_CHANGED, listener);
       return () => ipcRenderer.removeListener(IPC.CLOUD_SYNC_CHANGED, listener);
@@ -469,21 +469,21 @@ const api = {
   image: {
     pickLocal: () => ipcRenderer.invoke(IPC.IMAGE_PICK_LOCAL),
     stageLocal: (
-      input: import("@shared/types/providers").StageLocalImageInput,
+      input: import("@musefold/desktop-contracts/providers").StageLocalImageInput,
     ) => ipcRenderer.invoke(IPC.IMAGE_STAGE_LOCAL, input),
-    generate: (req: import("@shared/types/providers").GenerateImageRequest) =>
+    generate: (req: import("@musefold/desktop-contracts/providers").GenerateImageRequest) =>
       ipcRenderer.invoke(IPC.IMAGE_GENERATE, req),
     cancel: (jobId: string) => ipcRenderer.invoke(IPC.IMAGE_CANCEL, jobId),
     retry: (historyId: string, jobId?: string) =>
       ipcRenderer.invoke(IPC.IMAGE_RETRY, historyId, jobId),
     onProgress: (
       cb: (
-        progress: import("@shared/types/providers").ImageGenerationProgress,
+        progress: import("@musefold/desktop-contracts/providers").ImageGenerationProgress,
       ) => void,
     ) => {
       const listener = (
         _event: unknown,
-        progress: import("@shared/types/providers").ImageGenerationProgress,
+        progress: import("@musefold/desktop-contracts/providers").ImageGenerationProgress,
       ) => cb(progress);
       ipcRenderer.on(IPC.IMAGE_PROGRESS, listener);
       return () => ipcRenderer.removeListener(IPC.IMAGE_PROGRESS, listener);
@@ -491,10 +491,10 @@ const api = {
   },
   workbenchSession: {
     ensure: (
-      command: import("@shared/types/workbench").EnsureWorkbenchSessionCommand,
+      command: import("@musefold/desktop-contracts/workbench").EnsureWorkbenchSessionCommand,
     ) => ipcRenderer.invoke(IPC.WORKBENCH_SESSION_ENSURE, command),
     list: (
-      query?: import("@shared/types/workbench").WorkbenchSessionListQuery,
+      query?: import("@musefold/desktop-contracts/workbench").WorkbenchSessionListQuery,
     ) => ipcRenderer.invoke(IPC.WORKBENCH_SESSION_LIST, query),
     get: (id: string) => ipcRenderer.invoke(IPC.WORKBENCH_SESSION_GET, id),
     rename: (id: string, title: string) =>
@@ -513,28 +513,28 @@ const api = {
       limit?: number;
       offset?: number;
     }) => ipcRenderer.invoke(IPC.HISTORY_LIST, q),
-    related: (q: import("@shared/types/ipc").RelatedHistoryQuery) =>
+    related: (q: import("@musefold/desktop-contracts/ipc").RelatedHistoryQuery) =>
       ipcRenderer.invoke(IPC.HISTORY_RELATED, q),
-    linkPrompt: (req: import("@shared/types/ipc").HistoryLinkPromptRequest) =>
+    linkPrompt: (req: import("@musefold/desktop-contracts/ipc").HistoryLinkPromptRequest) =>
       ipcRenderer.invoke(IPC.HISTORY_LINK_PROMPT, req),
     get: (id: string) => ipcRenderer.invoke(IPC.HISTORY_GET, id),
-    delete: (req: string | import("@shared/types/ipc").HistoryDeleteRequest) =>
+    delete: (req: string | import("@musefold/desktop-contracts/ipc").HistoryDeleteRequest) =>
       ipcRenderer.invoke(IPC.HISTORY_DELETE, req),
-    clear: (req?: number | import("@shared/types/ipc").HistoryClearRequest) =>
+    clear: (req?: number | import("@musefold/desktop-contracts/ipc").HistoryClearRequest) =>
       ipcRenderer.invoke(IPC.HISTORY_CLEAR, req),
-    stats: (q: import("@shared/types/models").HistoryStatsQuery) =>
+    stats: (q: import("@musefold/desktop-contracts/models").HistoryStatsQuery) =>
       ipcRenderer.invoke(IPC.HISTORY_STATS, q),
   },
   share: {
-    renderCard: (req: import("@shared/types/ipc").ShareRenderCardRequest) =>
+    renderCard: (req: import("@musefold/desktop-contracts/ipc").ShareRenderCardRequest) =>
       ipcRenderer.invoke(IPC.SHARE_RENDER_CARD, req),
     buildDeeplink: (
-      req: import("@shared/types/ipc").ShareBuildDeeplinkRequest,
+      req: import("@musefold/desktop-contracts/ipc").ShareBuildDeeplinkRequest,
     ) => ipcRenderer.invoke(IPC.SHARE_BUILD_DEEPLINK, req),
     parseDeeplink: (
-      req: import("@shared/types/ipc").ShareParseDeeplinkRequest,
+      req: import("@musefold/desktop-contracts/ipc").ShareParseDeeplinkRequest,
     ) => ipcRenderer.invoke(IPC.SHARE_PARSE_DEEPLINK, req),
-    import: (req: import("@shared/types/ipc").ShareImportRequest) =>
+    import: (req: import("@musefold/desktop-contracts/ipc").ShareImportRequest) =>
       ipcRenderer.invoke(IPC.SHARE_IMPORT, req),
     consumePending: () => ipcRenderer.invoke(IPC.SHARE_CONSUME_PENDING),
     onIncoming: (
@@ -552,7 +552,7 @@ const api = {
     getPaths: () => ipcRenderer.invoke(IPC.SYSTEM_GET_PATHS),
     getVersion: () => ipcRenderer.invoke(IPC.SYSTEM_GET_VERSION),
     openAboutResource: (
-      resource: import("@shared/types/ipc").AboutResourceId,
+      resource: import("@musefold/desktop-contracts/ipc").AboutResourceId,
     ) => ipcRenderer.invoke(IPC.SYSTEM_OPEN_ABOUT_RESOURCE, resource),
     openInFolder: (path: string) =>
       ipcRenderer.invoke(IPC.SYSTEM_OPEN_IN_FOLDER, path),
@@ -566,16 +566,16 @@ const api = {
     readClipboardImage: () =>
       ipcRenderer.invoke(IPC.SYSTEM_READ_CLIPBOARD_IMAGE),
     diskUsage: () => ipcRenderer.invoke(IPC.SYSTEM_DISK_USAGE),
-    export: (req?: import("@shared/types/ipc").ExportRequest) =>
+    export: (req?: import("@musefold/desktop-contracts/ipc").ExportRequest) =>
       ipcRenderer.invoke(IPC.SYSTEM_EXPORT, req ?? {}),
-    import: (req?: import("@shared/types/ipc").ImportRequest) =>
+    import: (req?: import("@musefold/desktop-contracts/ipc").ImportRequest) =>
       ipcRenderer.invoke(IPC.SYSTEM_IMPORT, req ?? {}),
     listBackups: () => ipcRenderer.invoke(IPC.SYSTEM_LIST_BACKUPS),
     backupNow: () => ipcRenderer.invoke(IPC.SYSTEM_BACKUP_NOW),
-    restoreBackup: (req: import("@shared/types/ipc").RestoreBackupRequest) =>
+    restoreBackup: (req: import("@musefold/desktop-contracts/ipc").RestoreBackupRequest) =>
       ipcRenderer.invoke(IPC.SYSTEM_RESTORE_BACKUP, req),
     relaunch: () => ipcRenderer.invoke(IPC.SYSTEM_RELAUNCH),
-    resetData: (req: import("@shared/types/ipc").ResetDataRequest) =>
+    resetData: (req: import("@musefold/desktop-contracts/ipc").ResetDataRequest) =>
       ipcRenderer.invoke(IPC.SYSTEM_RESET_DATA, req),
   },
   updater: {
@@ -584,14 +584,14 @@ const api = {
     download: () => ipcRenderer.invoke(IPC.UPDATER_DOWNLOAD),
     install: () => ipcRenderer.invoke(IPC.UPDATER_INSTALL),
     getChannel: () => ipcRenderer.invoke(IPC.UPDATER_GET_CHANNEL),
-    setChannel: (channel: import("@shared/types/updater").Channel) =>
+    setChannel: (channel: import("@musefold/desktop-contracts/updater").Channel) =>
       ipcRenderer.invoke(IPC.UPDATER_SET_CHANNEL, channel),
     onStateChanged: (
-      cb: (status: import("@shared/types/updater").UpdateStatus) => void,
+      cb: (status: import("@musefold/desktop-contracts/updater").UpdateStatus) => void,
     ) => {
       const listener = (
         _e: unknown,
-        status: import("@shared/types/updater").UpdateStatus,
+        status: import("@musefold/desktop-contracts/updater").UpdateStatus,
       ) => cb(status);
       ipcRenderer.on(IPC.UPDATER_STATE_CHANGED, listener);
       return () =>
@@ -611,19 +611,19 @@ const api = {
     isEnabled: () => ipcRenderer.invoke(IPC.PET_IS_ENABLED),
     getFrame: () => ipcRenderer.invoke(IPC.PET_GET_FRAME),
     ready: () => ipcRenderer.send(IPC.PET_READY),
-    onFrame: (cb: (frame: import("@shared/types/pet").PetFrame) => void) => {
+    onFrame: (cb: (frame: import("@musefold/desktop-contracts/pet").PetFrame) => void) => {
       const listener = (
         _e: unknown,
-        frame: import("@shared/types/pet").PetFrame,
+        frame: import("@musefold/desktop-contracts/pet").PetFrame,
       ) => cb(frame);
       ipcRenderer.on(IPC.PET_FRAME, listener);
       return () => ipcRenderer.removeListener(IPC.PET_FRAME, listener);
     },
-    interact: (interaction: import("@shared/types/pet").PetInteraction) =>
+    interact: (interaction: import("@musefold/desktop-contracts/pet").PetInteraction) =>
       ipcRenderer.send(IPC.PET_INTERACT, interaction),
     moveBy: (dx: number, dy: number) =>
       ipcRenderer.send(IPC.PET_MOVE_BY, dx, dy),
-    runToComposer: (anchor: import("@shared/types/pet").PetComposerAnchor) =>
+    runToComposer: (anchor: import("@musefold/desktop-contracts/pet").PetComposerAnchor) =>
       ipcRenderer.invoke(IPC.PET_RUN_TO_COMPOSER, anchor),
     returnHome: () => ipcRenderer.invoke(IPC.PET_RETURN_HOME),
     openMenu: () => ipcRenderer.send(IPC.PET_MENU),

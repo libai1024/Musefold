@@ -4,15 +4,15 @@
 
 import { resolve } from 'path';
 import { ulid } from 'ulid';
-import { MAX_REFERENCE_IMAGES } from '@shared/types/providers';
+import { MAX_REFERENCE_IMAGES } from '@musefold/desktop-contracts/providers';
 import type {
   GenerateImageRequest,
   GenerateImageResult,
   ImageGenerationProgress,
   LocalImageReference,
   PromptReference,
-} from '@shared/types/providers';
-import type { ProviderType } from '@shared/types/enums';
+} from '@musefold/desktop-contracts/providers';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { getDb } from '../db/index';
 import { createWorkbenchRepositories } from '../db/repositories/workbench';
 import { parseJsonColumn } from '../db/json';

@@ -12,7 +12,7 @@ import {
   Trash2,
   Unplug,
 } from '../../../components/ui/icons';
-import type { AiConnectionProfile } from '@shared/types/ai';
+import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 import { Button } from '../../../components/ui/button';
 import { displayModelName } from '../../../lib/model-catalog';
 import { ModelBrandIcon } from '../../../components/ui/brand-icons';

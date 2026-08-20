@@ -8,7 +8,7 @@
  */
 import { openSync, readSync, closeSync, statSync } from 'fs';
 import { RATIO_OPTIONS } from '@musefold/domain/constants';
-import type { SchemeRunEvaluationCheck } from '@shared/types/design-scheme';
+import type { SchemeRunEvaluationCheck } from '@musefold/desktop-contracts/design-scheme';
 
 export interface ImageProbe {
   width: number;

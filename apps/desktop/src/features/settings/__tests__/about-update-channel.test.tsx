@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { Channel, UpdateChannelResult } from '@shared/types/updater';
+import type { Channel, UpdateChannelResult } from '@musefold/desktop-contracts/updater';
 import {
   canRequestUpdateChannelChange,
   commitUpdateChannelChange,

@@ -2,13 +2,13 @@
 // 提示词数据访问层 —— 详见 docs/02-data-model.md、docs/03-prompt-library.md
 
 import { ulid } from 'ulid';
-import type { Prompt, NewPrompt, PromptParams } from '@shared/types/models';
+import type { Prompt, NewPrompt, PromptParams } from '@musefold/desktop-contracts/models';
 import type {
   BatchPromptMutationResult,
   ListPromptsQuery,
   UpdatePromptPatch,
-} from '@shared/types/ipc';
-import type { PromptStats } from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
+import type { PromptStats } from '@musefold/desktop-contracts/ipc';
 import type { SyncUsageAction } from '@musefold/contracts';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import { getDb } from '../index';

@@ -7,8 +7,8 @@ import { getDb } from '@musefold/core/db/index';
 import type {
   ProviderPricingConfig,
   ProviderPricingSetRequest,
-} from '@shared/types/models';
-import type { GenerateImageRequest } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/models';
+import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 import {
   estimateCostFromPricing,
   normalizeProviderPricing,

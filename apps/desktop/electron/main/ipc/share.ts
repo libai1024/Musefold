@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { mkdir, readFile, stat, unlink, writeFile } from 'fs/promises';
 import { dirname, extname, join, resolve } from 'path';
-import { IPC, type ShareRenderCardRequest, type ShareImportRequest } from '@shared/types/ipc';
-import type { Prompt, PromptParams } from '@shared/types/models';
-import type { PromptTarget } from '@shared/types/enums';
+import { IPC, type ShareRenderCardRequest, type ShareImportRequest } from '@musefold/desktop-contracts/ipc';
+import type { Prompt, PromptParams } from '@musefold/desktop-contracts/models';
+import type { PromptTarget } from '@musefold/desktop-contracts/enums';
 import {
   buildShareDeeplink,
   sanitizeSharePayload,

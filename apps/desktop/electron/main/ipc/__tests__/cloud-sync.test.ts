@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { IPC } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
 
 vi.mock("../../../cloud-sync", () => ({
   getCloudSyncService: () => {

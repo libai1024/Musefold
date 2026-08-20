@@ -2,7 +2,7 @@
 // 主进程账号服务单例。application.whenReady → initDb 后由 IPC 注册首次构造。
 
 import { BrowserWindow } from "electron";
-import { IPC } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
 import { ElectronAiSecretKeychain } from "../security/ai-keychain";
 import { AccountService } from "./account-service";
 import { AccountStore } from "./account-store";

@@ -7,7 +7,7 @@ import {
   DEFAULT_ACCOUNT_SERVER_FALLBACK_URL,
   DEFAULT_ACCOUNT_SERVER_URL,
 } from '@musefold/domain/constants';
-import type { AccountHealth, AccountNotice } from '@shared/types/account';
+import type { AccountHealth, AccountNotice } from '@musefold/desktop-contracts/account';
 import { accountQuotaToPoints } from '@musefold/core/pricing';
 
 export const ACCOUNT_STORE_NAME = 'musefold-account-v0.5.0';

@@ -29,7 +29,7 @@ import { getDb } from '@musefold/core/db/index';
 import { createSpendAuditService, type SpendAuditEntry } from '@musefold/core/services/audit';
 import { stageLocalImageBytes } from '@musefold/core/providers/local-image';
 import { trackPetGeneration } from './pet';
-import type { AutomationAuditEntry, AutomationSpendAudit, AutomationStatus } from '@shared/types/ipc';
+import type { AutomationAuditEntry, AutomationSpendAudit, AutomationStatus } from '@musefold/desktop-contracts/ipc';
 import { createLogger } from '../system/logger';
 import { getPaths } from '../system/paths';
 import { estimateProviderCost } from '../settings/pricing';

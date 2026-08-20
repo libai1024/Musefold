@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import {
   MAX_EXPORT_ATTEMPTS,
   MAX_SINGLE_KEY_BYTES,

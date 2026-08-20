@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMain } from "electron";
-import { IPC } from "@shared/types/ipc";
-import type { CloudSyncConflictResolution } from "@shared/types/cloud-sync";
+import { IPC } from "@musefold/desktop-contracts/ipc";
+import type { CloudSyncConflictResolution } from "@musefold/desktop-contracts/cloud-sync";
 import { updateMcpConnectionSchema } from "@musefold/contracts";
 import { getCloudSyncService, type CloudSyncService } from "../../cloud-sync";
 

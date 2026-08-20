@@ -18,7 +18,7 @@ import {
   GenerationHistoryInspectorPanel,
   type GenerationHistoryDetailViewModel,
 } from '@musefold/product-ui';
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,

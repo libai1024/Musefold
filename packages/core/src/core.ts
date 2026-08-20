@@ -14,7 +14,7 @@ import type {
   GenerateImageRequest,
   GenerateImageResult,
   ImageGenerationProgress,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import { createHistoryService, type HistoryService } from './services/history';
 import { createLibraryService, type LibraryService } from './services/library';
 import { createProviderService, type ProviderService } from './services/providers';

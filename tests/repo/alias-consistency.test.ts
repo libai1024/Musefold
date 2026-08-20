@@ -80,7 +80,8 @@ describe('路径别名单一来源', () => {
       '@renderer': 'apps/desktop/src',
       '@electron': 'apps/desktop/electron',
     });
-    expect(SHARED_ALIAS_RELATIVE['@shared/types']).toBe('packages/desktop-contracts/src');
+    expect(Object.keys(SHARED_ALIAS_RELATIVE)).not.toContain('@shared/types');
+    expect(Object.keys(ALIAS_RELATIVE)).not.toContain('@shared/types');
   });
 
   it('运行时配置从 aliases.mjs 取表，不再手写指向', () => {

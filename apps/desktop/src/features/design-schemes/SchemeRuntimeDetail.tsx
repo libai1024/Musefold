@@ -39,7 +39,7 @@ import type {
   DesignSchemeAssetSummary,
   DesignSchemeSourceSnapshotDetail,
   DesignSchemeSummary,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import type {
   ConstraintDomain,
   ConstraintMode,

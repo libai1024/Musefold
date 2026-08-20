@@ -19,7 +19,7 @@ import {
   type AutomationServer,
   type AutomationServerInfo,
 } from '@musefold/automation-server';
-import type { GenerateImageResult } from '@shared/types/providers';
+import type { GenerateImageResult } from '@musefold/desktop-contracts/providers';
 import { createMusefoldMcpServer, type McpServerOptions } from '../server';
 
 let root: string;

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DoubaoWebAccountStatus, DoubaoWebUsageStatus } from '@shared/types/providers';
+import type { DoubaoWebAccountStatus, DoubaoWebUsageStatus } from '@musefold/desktop-contracts/providers';
 import api from '../../lib/ipc';
 
 interface DoubaoAccountState {

@@ -19,12 +19,12 @@ import type {
   SmartSet,
   SearchHistoryItem,
   LibraryQuerySnapshot,
-} from '@shared/types/models';
+} from '@musefold/desktop-contracts/models';
 import type {
   ListPromptsQuery,
   UpdatePromptPatch,
   PromptStats,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 import {
   SEARCH_DEBOUNCE_MS,
   UNFILED_FOLDER_ID,

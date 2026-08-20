@@ -29,14 +29,14 @@ import {
   Wand2,
   X,
 } from "../../../components/ui/icons";
-import type { Prompt, ProviderConfig } from "@shared/types/models";
-import type { ImageQuality } from "@shared/types/enums";
+import type { Prompt, ProviderConfig } from "@musefold/desktop-contracts/models";
+import type { ImageQuality } from "@musefold/desktop-contracts/enums";
 import { RATIO_OPTIONS } from "@musefold/domain/constants";
 import {
   MAX_REFERENCE_IMAGES,
   type LocalImageReference,
-} from "@shared/types/providers";
-import type { SkillRuntimeTraceItem } from "@shared/types/skill-runtime";
+} from "@musefold/desktop-contracts/providers";
+import type { SkillRuntimeTraceItem } from "@musefold/desktop-contracts/skill-runtime";
 import { useAppStore } from "../../../stores/app";
 import {
   WorkbenchAssistantFrame,

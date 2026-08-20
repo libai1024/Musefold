@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CornerDownRight, ImageOff } from '../../../components/ui/icons';
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { historyThreadOf, type HistoryThreadItem } from '../lineage';
 import { historyStatusMeta } from '../status';
 import { useHistoryStore } from '../store';

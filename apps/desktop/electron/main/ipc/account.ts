@@ -3,8 +3,8 @@
 // 红线：所有响应只含 AccountStatus 摘要；密码入参不记录、不回显，JWT/refresh/sk- 永不出主进程。
 
 import { ipcMain, type IpcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
-import type { AccountCredentialsInput } from '@shared/types/account';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { AccountCredentialsInput } from '@musefold/desktop-contracts/account';
 import { getAccountService } from '../../account';
 import { AccountError, toAccountError } from '../../account/errors';
 import type { AccountService } from '../../account/account-service';

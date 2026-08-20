@@ -4,8 +4,8 @@
 import type {
   ProviderPricingConfig,
   ProviderPricingMode,
-} from '@shared/types/models';
-import type { GenerateImageRequest } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/models';
+import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 import { ACCOUNT_QUOTA_PER_POINT } from '@musefold/contracts/billing.js';
 
 /** 唯一成本口径：1 积分 = ¥0.1 = 50,000 服务端原始配额。 */

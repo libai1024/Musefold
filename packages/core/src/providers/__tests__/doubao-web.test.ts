@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GenerateImageRequest } from '@shared/types/providers';
+import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 import { configureTestCoreRuntime } from '../../testing';
 import { DoubaoWebProvider } from '../doubao-web';
 

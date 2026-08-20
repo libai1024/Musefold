@@ -1,7 +1,7 @@
 // 朱点速记的共享工具（v0.3.3 §4/§6/§8）：
 // 选区拾取、图片 src 反解、笺标题派生、落库。素笺卡与拾选/拾遗共用。
 import { useLibraryStore } from '../../features/library/store';
-import type { Prompt } from '@shared/types/models';
+import type { Prompt } from '@musefold/desktop-contracts/models';
 
 /** 笺标题：内容首行前 12 字；纯图笺叫「图像一笺」 */
 export function slipTitle(content: string): string {

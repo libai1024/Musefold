@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { Blocks, Share2 } from "../../../components/ui/icons";
-import type { Prompt } from "@shared/types/models";
+import type { Prompt } from "@musefold/desktop-contracts/models";
 import { useLibraryStore } from "../store";
 import { useGenerationWorkbenchStore } from "../../generation/workbench/store";
 import { useAppStore } from "../../../stores/app";

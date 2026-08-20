@@ -12,7 +12,7 @@ import type {
   DesignSchemeRevisionDocument,
   SourceBinding,
 } from '@musefold/desktop-contracts/design-scheme/schema';
-import type { DesignSchemeCheckUpdateResult } from '@shared/types/design-scheme';
+import type { DesignSchemeCheckUpdateResult } from '@musefold/desktop-contracts/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { buildInputSlots } from './orchestrator';

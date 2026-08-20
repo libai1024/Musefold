@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle, CalendarClock, ChevronDown, Trash2, XCircle } from '../../../components/ui/icons';
-import type { HistoryClearRequest } from '@shared/types/ipc';
+import type { HistoryClearRequest } from '@musefold/desktop-contracts/ipc';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,

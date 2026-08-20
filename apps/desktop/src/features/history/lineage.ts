@@ -8,7 +8,7 @@
 // - 父记录已被删除（或不在当前筛选结果里）的微调，降级为独立根，仅保留「微调」标记。
 // - 防御环引用：任何记录只输出一次。
 
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 
 export interface HistoryThreadItem {
   record: HistoryRecord;

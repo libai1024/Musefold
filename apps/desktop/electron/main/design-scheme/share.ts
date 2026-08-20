@@ -17,7 +17,7 @@ import {
   parseDesignSchemeRevisionDocument,
   type DesignSchemeRevisionDocument,
 } from '@musefold/desktop-contracts/design-scheme/schema';
-import type { DesignSchemeSummary } from '@shared/types/design-scheme';
+import type { DesignSchemeSummary } from '@musefold/desktop-contracts/design-scheme';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { getPaths } from '../../system/paths';
 

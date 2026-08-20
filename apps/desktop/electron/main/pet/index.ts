@@ -7,14 +7,14 @@
 
 import { app, ipcMain, Menu, screen } from 'electron';
 import { statSync } from 'fs';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import type {
   PetComposerAnchor,
   PetFrame,
   PetInteraction,
   PetStateDef,
   PetTheme,
-} from '@shared/types/pet';
+} from '@musefold/desktop-contracts/pet';
 import { createLogger } from '../../system/logger';
 import { getMainWindow } from '../window';
 import { loadTheme } from './theme';

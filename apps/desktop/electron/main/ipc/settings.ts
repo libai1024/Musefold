@@ -2,8 +2,8 @@
 // 设置类 IPC：目前承载 Provider 单价配置。
 
 import { ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
-import type { ProviderPricingSetRequest } from '@shared/types/models';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { ProviderPricingSetRequest } from '@musefold/desktop-contracts/models';
 import { getDb } from '@musefold/core/db/index';
 import {
   deleteProviderPricing,

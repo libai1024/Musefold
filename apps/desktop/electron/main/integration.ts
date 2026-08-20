@@ -24,7 +24,7 @@ import type {
   IntegrationAction,
   IntegrationActionResult,
   IntegrationInfo,
-} from '@shared/types/ipc';
+} from '@musefold/desktop-contracts/ipc';
 import { createLogger } from '../system/logger';
 import {
   claudeCodeAddCommand,

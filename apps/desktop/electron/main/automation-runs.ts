@@ -8,7 +8,7 @@ import type { EventHub } from '@musefold/core';
 import type { SpendAuditEntry } from '@musefold/core/services/audit';
 import { getDb } from '@musefold/core/db/index';
 import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
-import type { GenerateImageRequest } from '@shared/types/providers';
+import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 import { estimateProviderCost } from '../settings/pricing';
 import { resolveRatioOptionById } from '@musefold/domain/constants';
 import {

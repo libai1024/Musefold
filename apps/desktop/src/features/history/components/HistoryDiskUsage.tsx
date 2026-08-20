@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { HardDrive, RefreshCw } from '../../../components/ui/icons';
-import type { DiskUsageResult } from '@shared/types/ipc';
+import type { DiskUsageResult } from '@musefold/desktop-contracts/ipc';
 import api from '../../../lib/ipc';
 import { useHistoryStore } from '../store';
 

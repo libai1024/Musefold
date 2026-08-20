@@ -2,9 +2,9 @@
 // 生成历史 —— 列表/筛选/选中检视/删除（TASK-HIS-01/02/03）
 
 import { create } from 'zustand';
-import type { HistoryClearRequest, HistoryDeleteResult } from '@shared/types/ipc';
-import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from '@shared/types/models';
-import type { HistoryStatus } from '@shared/types/enums';
+import type { HistoryClearRequest, HistoryDeleteResult } from '@musefold/desktop-contracts/ipc';
+import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from '@musefold/desktop-contracts/models';
+import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 import api from '../../lib/ipc';
 import { toast } from '../../stores/toast';
 import {

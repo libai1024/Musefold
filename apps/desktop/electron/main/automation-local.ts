@@ -7,13 +7,13 @@ import { getDb } from '@musefold/core/db/index';
 import { createProvider } from '@musefold/core/providers/registry';
 import { promptsRepo } from '@musefold/core/db/repositories/prompts';
 import { rowToProvider } from '@musefold/core/services/providers';
-import type { ProviderConfig } from '@shared/types/models';
+import type { ProviderConfig } from '@musefold/desktop-contracts/models';
 import { deleteApiKey, getKeySuffix, hasApiKey, saveApiKey } from '../security/keychain';
 import { deleteProviderPricing } from '../settings/pricing';
 import { createBackup, listBackups, restoreBackup } from '../system/backup';
 import { runExport, defaultExportName } from '../system/export';
 import { runImport } from '../system/import';
-import type { ExportRequest, ImportRequest } from '@shared/types/ipc';
+import type { ExportRequest, ImportRequest } from '@musefold/desktop-contracts/ipc';
 import { join } from 'path';
 import { app } from 'electron';
 

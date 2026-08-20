@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { ImageBackground, ImageQuality } from '@shared/types/enums';
+import type { ImageBackground, ImageQuality } from '@musefold/desktop-contracts/enums';
 import type {
   GenerateImageResult,
   ImageGenerationProgress,
   ImageProviderResponseSummary,
   LocalImageReference,
   PromptReference,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import {
   LOCAL_STORAGE_PREFIX,
   RATIO_OPTIONS,
@@ -36,19 +36,19 @@ import type {
   DesignSchemeHistorySourceItem,
   DesignSchemeRunGeneration,
   DesignSchemeRunMode,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import type {
   GenerationRun,
   WorkbenchSession,
   WorkbenchSessionDocument,
   WorkbenchSessionSummary,
-} from '@shared/types/workbench';
+} from '@musefold/desktop-contracts/workbench';
 import type {
   SkillRuntimeExecutionMode,
   SkillRuntimeGenerationOutcome,
   SkillRuntimeSnapshot,
   SkillRuntimeTraceItem,
-} from '@shared/types/skill-runtime';
+} from '@musefold/desktop-contracts/skill-runtime';
 import {
   composePromptWithReferences,
   isDuplicateReference,

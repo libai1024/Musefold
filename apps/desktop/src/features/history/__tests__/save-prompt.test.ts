@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { defaultHistoryPromptTitle, historyRecordToPromptInput } from '../save-prompt';
 
 function makeRecord(patch: Partial<HistoryRecord> = {}): HistoryRecord {

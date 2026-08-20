@@ -4,8 +4,8 @@
 
 import { BrowserWindow, ipcMain } from 'electron';
 import { ulid } from 'ulid';
-import { IPC } from '@shared/types/ipc';
-import type { ProviderConfig, NewProviderConfig } from '@shared/types/models';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { ProviderConfig, NewProviderConfig } from '@musefold/desktop-contracts/models';
 import { getDb } from '@musefold/core/db/index';
 import { saveApiKey, deleteApiKey, hasApiKey, getKeySuffix } from '../../security/keychain';
 import { deleteProviderPricing } from '../../settings/pricing';

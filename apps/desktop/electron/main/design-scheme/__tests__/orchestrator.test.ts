@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DesignSchemeCreationEvent } from '@shared/types/design-scheme';
+import type { DesignSchemeCreationEvent } from '@musefold/desktop-contracts/design-scheme';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import type { OpenAiCompatibleTextAdapter, TextCompletionRequest } from '../text-adapter';

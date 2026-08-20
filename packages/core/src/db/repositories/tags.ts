@@ -2,8 +2,8 @@
 // 标签数据访问层 —— 详见 docs/02-data-model.md §2.2、docs/03-prompt-library.md §2.2
 
 import { ulid } from 'ulid';
-import type { Tag, NewTag } from '@shared/types/models';
-import type { TagGroup } from '@shared/types/enums';
+import type { Tag, NewTag } from '@musefold/desktop-contracts/models';
+import type { TagGroup } from '@musefold/desktop-contracts/enums';
 import { getDb } from '../index';
 import { enqueueActiveAccountMutation } from '../../sync/repository';
 

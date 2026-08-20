@@ -10,9 +10,9 @@ import {
 } from "electron";
 import { mkdir, stat } from "fs/promises";
 import { join } from "path";
-import { IPC } from "@shared/types/ipc";
-import type { ExportRequest, ImportRequest } from "@shared/types/ipc";
-import type { AboutResourceId } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
+import type { ExportRequest, ImportRequest } from "@musefold/desktop-contracts/ipc";
+import type { AboutResourceId } from "@musefold/desktop-contracts/ipc";
 import { getPaths } from "../../system/paths";
 import { getDb } from "@musefold/core/db/index";
 import { tailLog, logDir } from "../../system/logger";

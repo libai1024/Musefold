@@ -1,7 +1,7 @@
 // electron/account/errors.ts
 // AccountError —— 账号域错误：code 走 shared 契约，跨 IPC 由 preload 反序列化。
 
-import type { AccountErrorCode, AccountErrorPayload, AccountLoginStage } from '@shared/types/account';
+import type { AccountErrorCode, AccountErrorPayload, AccountLoginStage } from '@musefold/desktop-contracts/account';
 import { RelayApiError } from './api-client';
 
 /** IPC 序列化前缀：主进程 throw → preload 解析还原（electron 只保留 Error.message） */

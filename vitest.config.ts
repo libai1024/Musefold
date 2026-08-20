@@ -3,9 +3,8 @@
 //
 // 别名指向只维护在 tooling/aliases.mjs；此处按需取名。
 // apps/desktop/electron.vite.config.ts 里的 alias 只作用于 electron-vite 的三个构建目标，
-// vitest 不读它。之前几个 spec 侥幸能跑，是因为它们只 `import type` @shared/types/*
-// （类型在编译期被抹掉，运行时不需要解析）；一旦有模块从包名取**值**
-// （如 params.ts 的 RATIO_OPTIONS），没有这份 alias 就会 Cannot find package。
+// vitest 不读它。运行时取值的包名 import（如 @musefold/domain 的 RATIO_OPTIONS）
+// 必须走这份 alias，否则 Cannot find package。
 
 import { defineConfig } from 'vitest/config';
 import { pickAliases } from './tooling/aliases.mjs';
@@ -13,7 +12,6 @@ import { pickAliases } from './tooling/aliases.mjs';
 export default defineConfig({
   resolve: {
     alias: pickAliases([
-      '@shared/types',
       '@renderer',
       '@electron',
       '@musefold/core',

@@ -12,7 +12,7 @@ import { ok, type AppResult } from '@musefold/domain/app-result';
 import type {
   DesignSchemeHistorySourceItem,
   DesignSchemeSourceConfirmation,
-} from '@shared/types/design-scheme';
+} from '@musefold/desktop-contracts/design-scheme';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { getPaths } from '../../system/paths';
 

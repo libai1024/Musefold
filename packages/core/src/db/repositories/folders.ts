@@ -2,7 +2,7 @@
 // 文件夹数据访问层 —— 详见 docs/02-data-model.md §2.2
 
 import { ulid } from "ulid";
-import type { Folder, NewFolder } from "@shared/types/models";
+import type { Folder, NewFolder } from "@musefold/desktop-contracts/models";
 import { getDb } from "../index";
 import { enqueueActiveAccountMutation } from "../../sync/repository";
 

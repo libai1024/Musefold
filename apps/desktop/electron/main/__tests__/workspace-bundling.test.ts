@@ -28,4 +28,16 @@ describe('Electron main workspace bundling', () => {
       expect(config).toContain(`'${name}'`);
     }
   });
+
+  it('将 desktop-contracts 打进沙箱 preload，而不是运行时 require 包名', () => {
+    const config = readFileSync(
+      new URL('../../../electron.vite.config.ts', import.meta.url),
+      'utf8',
+    );
+    const preload = config.split('preload:')[1]?.split('renderer:')[0] ?? '';
+    expect(preload).toMatch(
+      /externalizeDeps:\s*\{\s*exclude:\s*\[[^\]]*@musefold\/desktop-contracts/,
+    );
+    expect(preload).toMatch(/@musefold\/domain/);
+  });
 });

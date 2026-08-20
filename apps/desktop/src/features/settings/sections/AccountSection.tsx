@@ -22,7 +22,7 @@ import type {
   CloudSyncConflictResolution,
   CloudSyncConflictSummary,
   CloudSyncSummary,
-} from "@shared/types/cloud-sync";
+} from "@musefold/desktop-contracts/cloud-sync";
 import { useAccountStore } from "../../account/store";
 import { SectionShell, SettingRow } from "../components/SectionShell";
 import { useSettingsStore } from "../store";

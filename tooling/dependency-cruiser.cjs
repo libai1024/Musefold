@@ -377,7 +377,8 @@ module.exports = {
     tsPreCompilationDeps: true,
     tsConfig: {
       // Path aliases for the current layout. apps/desktop/tsconfig.node.json
-      // covers @shared/types/@electron; @renderer is matched as an unresolved specifier
+      // covers @electron；`^@shared` 锁定已删除的兼容别名，防止旧路径回流。
+      // @renderer is matched as an unresolved specifier
       // in rules that forbid apps/desktop/src/ (see ^@renderer).
       // 必须用绝对路径：depcruise 的 parseJsonConfigFileContent 在相对 fileName 下
       // 无法解析出 apps/desktop 里 `extends: ../../tooling/tsconfig.base.json`（TS5083）。

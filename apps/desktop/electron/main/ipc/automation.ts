@@ -1,7 +1,7 @@
 // 自动化（控制面）IPC —— 设置页「自动化」面板的数据源（V04-SET-01）。
 
 import { ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import {
   getAutomationStatus,
   listAutomationAudit,
@@ -27,7 +27,7 @@ export function registerAutomationHandlers(): void {
     setAutomationBudgetLimit(Number(monthlyLimitPoints)),
   );
   ipcMain.handle(IPC.AUTOMATION_INTEGRATION_INFO, () => getIntegrationInfo());
-  ipcMain.handle(IPC.AUTOMATION_INTEGRATION_ACTION, (_e, action: import('@shared/types/ipc').IntegrationAction) =>
+  ipcMain.handle(IPC.AUTOMATION_INTEGRATION_ACTION, (_e, action: import('@musefold/desktop-contracts/ipc').IntegrationAction) =>
     runIntegrationAction(action),
   );
 }

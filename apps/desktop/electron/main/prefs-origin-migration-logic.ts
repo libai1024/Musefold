@@ -1,7 +1,7 @@
 // 纯决策：file:// → app://musefold 的一次性 localStorage 偏好迁移。
 // 不依赖 Electron，便于单测。体积上限与合并策略都在这里拍板。
 
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 
 /** 经 webPreferences.additionalArguments 传入 preload 的布尔标记。不含数据本体。 */
 export const PREFS_ORIGIN_MIGRATION_ARGV = '--musefold-prefs-origin-migration';

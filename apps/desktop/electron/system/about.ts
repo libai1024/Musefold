@@ -1,6 +1,6 @@
 import { app, shell } from 'electron';
 import { join } from 'path';
-import type { AboutResourceId } from '@shared/types/ipc';
+import type { AboutResourceId } from '@musefold/desktop-contracts/ipc';
 import { resolveAppRoot } from '../main/app-paths';
 
 const RESOURCE_FILES: Record<AboutResourceId, string> = {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { WorkbenchConversationKind, WorkbenchSessionSummary } from '@shared/types/workbench';
+import type { WorkbenchConversationKind, WorkbenchSessionSummary } from '@musefold/desktop-contracts/workbench';
 import {
   Archive,
   LibraryBig,

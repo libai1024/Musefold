@@ -2,7 +2,7 @@
 // 微调链组装：线程分组 / 排序 / 深度 / 序号 / 孤儿与环防御
 
 import { describe, expect, it } from 'vitest';
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { flattenHistoryThreads, historyThreadOf } from '../lineage';
 
 let seq = 0;

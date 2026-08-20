@@ -8,7 +8,7 @@
 // 睡眠链强制走桥：idle --(180s)--> collapse-sleep (C) --> sleeping (A)
 //                 --(任意活动)--> wake (C) --> idle
 
-import type { PetStateDef, PetTheme } from '@shared/types/pet';
+import type { PetStateDef, PetTheme } from '@musefold/desktop-contracts/pet';
 
 export enum StatePriority {
   Idle = 0,

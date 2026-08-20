@@ -3,7 +3,7 @@
  * 确定性管线轨迹 + 试运行成功后的「设为封面 / 设为正式」操作卡。
  * 轨迹条目与 Skill 执行同构，直接复用 SkillRuntimeConversation 渲染。
  */
-import type { SkillRuntimeTraceItem } from '@shared/types/skill-runtime';
+import type { SkillRuntimeTraceItem } from '@musefold/desktop-contracts/skill-runtime';
 import type { GenerationSource } from '../generation/workbench/types';
 import { SkillRuntimeConversation } from '../generation/workbench/SkillRuntimeAttachment';
 import { toImageSrc } from '../../lib/media';

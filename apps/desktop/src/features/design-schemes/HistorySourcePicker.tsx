@@ -8,8 +8,8 @@ import { Check, History, Loader2, X } from '../../components/ui/icons';
 import api from '../../lib/ipc';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
-import type { HistoryRecord } from '@shared/types/models';
-import type { DesignSchemeHistorySourceItem } from '@shared/types/design-scheme';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesignSchemeHistorySourceItem } from '@musefold/desktop-contracts/design-scheme';
 
 /** 默认提取说明（UI 规范 §10.2）：保留视觉方向，排除具体主体。 */
 export const HISTORY_EXTRACTION_NOTE = [

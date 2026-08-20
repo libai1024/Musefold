@@ -1,8 +1,8 @@
 // 制作工作台的单一默认参数集。
 // 提交时的回合快照优先级最高；历史重试永远不会被这里的默认值覆盖。
 // 服务商的切换收敛在侧栏底部的模型切换器，这里只管生成参数本身。
-import type { ImageBackground, ImageQuality } from '@shared/types/enums';
-import type { SchemePriorityMode } from '@shared/types/design-scheme';
+import type { ImageBackground, ImageQuality } from '@musefold/desktop-contracts/enums';
+import type { SchemePriorityMode } from '@musefold/desktop-contracts/design-scheme';
 import { describePriorityMode, PRIORITY_MODE_LABEL } from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
 import { useAppStore } from '../../../stores/app';
 import { useGenerationWorkbenchStore } from '../../generation/workbench/store';

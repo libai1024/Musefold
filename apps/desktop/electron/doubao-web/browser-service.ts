@@ -7,7 +7,7 @@ import type {
   GenerateImageRequest,
   GenerateImageResult,
   ValidationResult,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import { getPaths } from '../system/paths';
 import { createLogger } from '../system/logger';
 import { getDoubaoWebUsage, reserveDoubaoWebGeneration } from './usage-limit';

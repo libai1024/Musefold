@@ -6,7 +6,7 @@ import { join } from 'path';
 import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import type { DesignSchemeRevisionDocument } from '@musefold/desktop-contracts/design-scheme/schema';
-import { IPC } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import type {
   DesignSchemeAssetSummary,
   DesignSchemeCheckUpdateResult,
@@ -22,8 +22,8 @@ import type {
   StartDesignSchemeCreationRequest,
   StartDesignSchemeModifyRequest,
   StartDesignSchemeRunRequest,
-} from '@shared/types/design-scheme';
-import type { ImageGenerationProgress } from '@shared/types/providers';
+} from '@musefold/desktop-contracts/design-scheme';
+import type { ImageGenerationProgress } from '@musefold/desktop-contracts/providers';
 import { getAiConnectionStore } from '../../ai/connection-store';
 import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';

@@ -14,12 +14,12 @@ import {
   type DesktopSyncConflict,
 } from "@musefold/core";
 import { getDb } from "@musefold/core/db";
-import { IPC } from "@shared/types/ipc";
+import { IPC } from "@musefold/desktop-contracts/ipc";
 import type {
   CloudSyncConflictResolution,
   CloudSyncConflictSummary,
   CloudSyncSummary,
-} from "@shared/types/cloud-sync";
+} from "@musefold/desktop-contracts/cloud-sync";
 import { getAccountService } from "../account";
 
 const SYNC_DEBOUNCE_MS = 2_000;

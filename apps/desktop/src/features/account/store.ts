@@ -8,7 +8,7 @@ import type {
   AccountErrorCode,
   AccountRedeemResult,
   AccountStatus,
-} from '@shared/types/account';
+} from '@musefold/desktop-contracts/account';
 import api from '../../lib/ipc';
 import { useGenerationStore } from '../generation/store';
 import { useAiConnectionStore } from '../settings/ai-connection-store';

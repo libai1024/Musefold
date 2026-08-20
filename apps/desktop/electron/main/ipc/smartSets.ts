@@ -2,9 +2,9 @@
 // 智能集合 + 搜索历史 IPC（TASK-DIF-06）
 
 import { ipcMain } from 'electron';
-import { IPC } from '@shared/types/ipc';
-import type { NewSmartSet } from '@shared/types/models';
-import type { UpdateSmartSetPatch } from '@shared/types/ipc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { NewSmartSet } from '@musefold/desktop-contracts/models';
+import type { UpdateSmartSetPatch } from '@musefold/desktop-contracts/ipc';
 import { smartSetsRepo, searchHistoryRepo } from '@musefold/core/db/repositories/smartSets';
 
 export function registerSmartSetHandlers(): void {

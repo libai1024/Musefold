@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HistoryRecord } from '@shared/types/models';
+import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { DEFAULT_HISTORY_FILTERS } from '../filters';
 
 const mocks = vi.hoisted(() => ({

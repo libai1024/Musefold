@@ -1,7 +1,7 @@
 // src/features/history/status.ts
 // 历史记录三态展示元数据 —— 纯逻辑，可单测（TASK-HIS-01）
 
-import type { HistoryStatus } from '@shared/types/enums';
+import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 
 export interface HistoryStatusMeta {
   status: HistoryStatus;

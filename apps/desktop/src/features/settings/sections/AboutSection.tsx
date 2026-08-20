@@ -16,7 +16,7 @@ import type {
   UpdateChannelInfo,
   UpdateChannelResult,
   UpdateStatus,
-} from '@shared/types/updater';
+} from '@musefold/desktop-contracts/updater';
 import { usePlatform } from '../../../lib/usePlatform';
 import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/ui/button';

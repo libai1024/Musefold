@@ -1,4 +1,4 @@
-import type { ProviderType } from '@shared/types/enums';
+import type { ProviderType } from '@musefold/desktop-contracts/enums';
 
 export type SkillRuntimeProviderPolicy = 'agent-preferred' | 'direct-forward';
 

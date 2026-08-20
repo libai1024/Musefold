@@ -4,7 +4,7 @@ import type {
   ImageProvider,
   ModelInfo,
   ValidationResult,
-} from '@shared/types/providers';
+} from '@musefold/desktop-contracts/providers';
 import { getDoubaoWebRuntime } from '../runtime';
 
 const DOUBAO_IMAGE_MODELS: ModelInfo[] = [
