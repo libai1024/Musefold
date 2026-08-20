@@ -1,6 +1,6 @@
 # Musefold v1.2.2 迁移计划
 
-> **状态**：Phase 0、Phase 1a 已完成；Phase 3 部分完成（SHARE-06 / 01 / 05 / 02 / 03），仅剩 SHARE-04（与 Phase 2 stores 同批）；Phase 1b、Phase 2 未开工
+> **状态**：Phase 0、Phase 1a 已完成；Phase 2 部分完成（GW-01 domain / GW-02 / GW-03），GW-04 起未开工，GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；Phase 3 部分完成（SHARE-06 / 01 / 05 / 02 / 03），仅剩 SHARE-04（与 Phase 2 stores 同批）；Phase 1b 未开工
 >
 > **日期**：2026-08-20
 >
@@ -23,7 +23,7 @@
 | Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | **已完成（2026-08-20）** |
 | Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
-| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | 按 feature 逐卡推进 |
+| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | **部分完成（2026-08-20）**：GW-01（domain）/ 02 / 03 已完成；GW-01 WebGateway `implements` 补卡等待 web 并行工作流收口；GW-04 起未开工 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04（与 Phase 2 stores 同批） |
 
 ## 2. Phase 0：工程化地基
@@ -139,19 +139,47 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 
 1. Phase 1b 只下移 App manifest 与 electron-builder 配置（DIR-06~09），动的是打包与发布链路；Phase 2 的 Gateway 卡（GW-01~09）全部是 domain 端口与渲染层 stores 的仓库侧重接线。两者无共享文件、无依赖关系。1b 被外部条件（签名证书、服务器部署身份）加一周稳定期锁死，让 Gateway 工作无限期等待，与 Phase 1a 门禁修订时驳回的「等采购」是同一种停滞。
 2. 风险边界不变：Phase 2 每卡的回归保护本来就是仓库侧门禁（桌面 E2E、共享视觉门禁、turbo 全门禁），与 1b 的发布链路验证无关；GW 卡独立合并、独立 revert 的原则不变。
-3. 注意事项：`V122-GW-01` 触及 `apps/web/src/runtime.ts`，若届时 web 侧有未合并的并行改动，先等其收口再开卡，避免工作树互相踩踏。
+3. 注意事项：`V122-GW-01` 原计划同时改 `apps/web/src/runtime.ts` 为 `implements`。执行期因 web 侧并行未提交改动改为 domain 半卡；`implements` 补卡须等该工作流收口，避免工作树互相踩踏。端口不漂移由 `apps/web/src/__tests__/gateway-ports.typecheck.test.ts`（`satisfies`）锁住。
 
 ### 任务
 
-- `V122-GW-01`：在 `packages/domain` 上提端口：`PromptGateway`、`WorkbenchGateway`、`GenerationGateway`、`HistoryGateway`、`AccountGateway`、`PlatformServices`（形状以 `apps/web/src/runtime.ts` 的 `WebGateway` 为准）；`WebGateway` 改为 `implements` 这组端口，行为零变化。
-- `V122-GW-02`：`apps/desktop/src/runtime/` 建 `DesktopGateway` 骨架与 `mappers/` 目录（行模型 ↔ 端口形状的转换全部收口于此）；宿主组装 runtime 对象注入 store 层。
-- `V122-GW-03`：切换 `features/library/store.ts`（977 行，IPC 面最全，作为模式样板）。
+- `V122-GW-01`：~~在 `packages/domain` 上提端口：`PromptGateway`、`WorkbenchGateway`、`GenerationGateway`、`HistoryGateway`、`AccountGateway`、`PlatformServices`（形状以 `apps/web/src/runtime.ts` 的 `WebGateway` 为准）；`WebGateway` 改为 `implements` 这组端口，行为零变化。~~ **已完成（2026-08-20，b12bbd8）**（domain 半卡）。在 `packages/domain` 上提六端口，签名照抄 `WebGateway` 现行形状，不改名不合并。分组：
+  - PromptGateway：listPrompts / getPrompt / createPrompt / updatePrompt / deletePrompt / restorePrompt / usePrompt
+  - WorkbenchGateway：list/get/create/update/deleteWorkbenchSession
+  - GenerationGateway：createGeneration / getGeneration / streamGenerationEvents / cancelGeneration / retryGeneration / approveGeneration
+  - HistoryGateway：listGenerationHistory / deleteGeneration / restoreGeneration
+  - AccountGateway：getSession / login / logout / listConnections / updateConnection / revokeConnection
+  - PlatformServices：**空接口**（WebGateway 当时没有 toast/download/clipboard/openExternal）
+  - 未归组：`readonly mode: "api" | "fixture"`（宿主传输开关，非领域 IO）
+
+  类型只引用 `@musefold/contracts` + domain。`WebGateway implements` 因 web 并行未提交改动**推迟**；用新增 `apps/web/src/__tests__/gateway-ports.typecheck.test.ts`（`satisfies`）锁不漂移。
+
+  **裁定**：端口按 WebGateway 现行方法名原样上提，不发明新抽象；PlatformServices 保持空接口，不把计划中的 clipboard/download/openExternal 提前写进 domain。`mode` 不进领域端口。
+
+  验证：`gateway-ports.typecheck.test.ts`（`satisfies`）锁端口与 `WebGateway` 形状不漂移。
+- `V122-GW-02`：~~`apps/desktop/src/runtime/` 建 `DesktopGateway` 骨架与 `mappers/` 目录（行模型 ↔ 端口形状的转换全部收口于此）；宿主组装 runtime 对象注入 store 层。~~ **已完成（2026-08-20，fc197b8）**。`apps/desktop/src/runtime/` 骨架：`createDesktopGateway(api)` + 懒单例 `desktopGateway`。字段转换只在 `mappers/`。depcruise 第 20 条 `desktop-runtime-contracts-only-in-mappers`：runtime 组装层禁 contracts。PromptGateway 全实现（有损字段逐条注释）。其余按 IPC 能直映的做，对不齐的抛 `DesktopGatewayNotImplementedError`。骨架未接线，行为零变化。新增 19 条测试。
+
+  **裁定**：`streamGenerationEvents` 定为 NotImplemented。桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号；GW-06 前要决定扩 preload 还是桌面改拉模型。
+
+  验证：新增 19 条测试；库 E2E 21 passed；turbo 28/30，红的是并行 web/product-ui 4 条，非本卡。
+- `V122-GW-03`：~~切换 `features/library/store.ts`（977 行，IPC 面最全，作为模式样板）。~~ **已完成（2026-08-20，7790a35）**。library store 模式样板。走 gateway：update / delete / restore / copy 的 usePrompt；delete/restore 传合成 version 1。仍走 `api`：list / listDeleted / stats / togglePin / reorderPins / purge / searchHistory。create 仍走 `api.prompt.create`。新增 `applyPromptDocumentToRow`：update 回写保留封面路径。注入：模块级 `setLibraryPromptGatewayForTests`，无 React context。
+
+  **裁定**：**list 不走端口**——云 `PromptListQuery` 表达不了桌面 search + 多维 filters + sortDir。**create 仍走 `api.prompt.create`**——`NewPromptDocument` 无 `previewImagePath`，笺与工作台「存为提示词」经端口会丢封面。
+
+  验证：store+mapper 测试、库 E2E 21 passed、冒烟 `reason=builtin`。
 - `V122-GW-04`：切换 `features/history/store.ts` 与历史相关组件内的直连 IPC（`HistoryDetail` 等）。
 - `V122-GW-05`：切换 `features/account/store.ts` 与 `AccountSection` 的裸 `window.api.cloudSync`。
-- `V122-GW-06`：切换 `features/generation/store.ts` 与工作台 store 的 IO 边（会话 CRUD、生图提交/进度；状态机部分留给 `V122-SHARE-04`）。
-- `V122-GW-07`：切换 settings 桌面域（aiConnection、cloudConnections、provider）到 `DesktopExtras` 接口（类型来自 `desktop-contracts`，不进共享端口）。
+- `V122-GW-06`：切换 `features/generation/store.ts` 与工作台 store 的 IO 边（会话 CRUD、生图提交/进度；状态机部分留给 `V122-SHARE-04`）。**开工前裁定**：`streamGenerationEvents`（GW-02 已定为 NotImplemented：桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号）——须先决定扩 preload 还是桌面改拉模型。
+- `V122-GW-07`：切换 settings 桌面域（aiConnection、cloudConnections、provider）到 `DesktopExtras` 接口（类型来自 `desktop-contracts`，不进共享端口）。**DesktopExtras 需覆盖** library 未进共享端口的桌面面：list（桌面查询面）、stats、pin/reorder、purge、**带 `previewImagePath` 的 create**、searchHistory。`PlatformServices` 仍空，等 GW-07/08。
 - `V122-GW-08`：桌面接入 `getProductCapabilities('desktop')`，替代页面内散落的能力判断。
 - `V122-GW-09`：depcruise 规则收口：迁移完成的 feature 目录禁止 import `lib/ipc` 与 `window.api`（从 baseline 豁免中移除）；桌宠窗口、窗口控件、预览桥保留显式豁免并注明理由。
+
+### Phase 2 沉淀的后续输入
+
+- **GW-06 前裁定 `streamGenerationEvents`**：GW-02 已定为 `DesktopGatewayNotImplementedError`。桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号；须先决定扩 preload 还是桌面改拉模型。
+- **GW-07 `DesktopExtras` 覆盖面**（library 未进共享端口的桌面查询/写面）：list（桌面查询面）、stats、pin/reorder、purge、**带 `previewImagePath` 的 create**、searchHistory。
+- **`PlatformServices` 仍空**：等 GW-07/08。
+- **GW-01 `WebGateway implements` 补卡**：等待 web 并行工作流收口；期间以 `gateway-ports.typecheck.test.ts`（`satisfies`）锁形状。
 
 ### 完成条件
 

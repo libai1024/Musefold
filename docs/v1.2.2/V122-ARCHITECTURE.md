@@ -1,6 +1,6 @@
 # Musefold v1.2.2 系统架构
 
-> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 3 部分落地：SHARE-06 / 01 / 05；Phase 1b、Phase 2 未开工）
+> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 2 部分落地：GW-01 domain / GW-02 / GW-03；Phase 3 部分落地：SHARE-06 / 01 / 05 / 02 / 03；Phase 1b 未开工，GW-04 起未开工）
 >
 > **日期**：2026-08-20
 >
@@ -14,7 +14,7 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链（App manifest 下移属 Phase 1b）。
 2. **`shared/` 解散**（Phase 1a 已落地）：IPC 契约与 SQLite 行模型进 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定与桌面行模型逻辑归位 `packages/core` / 主进程。`@shared/types/*` 兼容别名已于 Phase 3 SHARE-06 删除，消费方改走 `@musefold/desktop-contracts/<mod>` 子路径。
-3. **桌面补上数据访问抽象**：`packages/domain` 的端口做全，桌面实现 `DesktopGateway`（封装 `window.api`），与 Web 的 `WebGateway` 实现同一组接口；store 与组件不再直接 import IPC。
+3. **桌面补上数据访问抽象**：`packages/domain` 六端口已上提（GW-01）；桌面 `DesktopGateway` 骨架已落地（GW-02），library 写路径作模式样板（GW-03）。`WebGateway implements` 补卡等待 web 并行工作流收口。list/create 等桌面查询面仍直连 IPC，待 `DesktopExtras`（GW-07）。目标仍是 store 与组件不再直接 import IPC。
 4. **双模型不强合，用 mapper 收口**：SQLite 行模型与云文档模型语义不同（时间、分页、乐观锁），转换集中在明确的 mapper 层；新功能一律以 `contracts` 形状为准。
 5. **依赖规则从约定变成机器约束**：dependency-cruiser 把分层图变成 CI 门禁；package.json 补全真实依赖；TypeScript project references 统一 typecheck 入口。
 
@@ -40,7 +40,7 @@ v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」
 
 **缺口一：两套并行领域模型。** 同一批实体在桌面行模型（原 `shared/types/models.ts`，Phase 1a 起为 `packages/desktop-contracts`：`Prompt.contentNegative`、`createdAt: number`、无 version）与 `packages/contracts/src/prompt.ts`（`negative`、ISO 字符串、`version` 乐观锁）各有一份定义，工作台会话、账号、历史同理。`packages/core` 的 SQLite 行与 IPC 全部是前者。
 
-**缺口二：桌面没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；桌面侧 47 个渲染文件直接 `import api from '@renderer/lib/ipc'`，8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。`packages/domain/src/ports.ts` 定义的 `PromptRepository` 全仓库零实现、零注入。
+**缺口二：桌面没有数据访问抽象。** Web 侧 `apps/web/src/runtime.ts` 的 `WebGateway` 已经把 fixture/HTTP 藏在接口后面；桌面侧 47 个渲染文件直接 `import api from '@renderer/lib/ipc'`，8 个文件裸用 `window.api`，18 个 zustand store 的 action 就是数据层。Phase 2 已开始收口：六端口已上提，`DesktopGateway` 骨架与 library 写路径样板已落地；list/create 等仍直连 IPC，见第 4 节。
 
 **缺口三：桌面 App 占据仓库根目录。** Phase 1a 已将 `src/`、`electron/` 迁入 `apps/desktop/` 并解散 `shared/`；根 `package.json` 仍兼 App manifest（Phase 1b）。迁移前的后果是工程配置无法收敛：`tsconfig.node.json`、`tsconfig.web.json`、`electron.vite.config.ts`、`vitest.config.ts` 各维护一套不完全一致的别名；根 tsconfig 没有 references 到任何包；`typecheck` 拆成三条命令，其中 `typecheck:mcp` 需要 8 GiB 堆。后两项已由 Phase 0 收口；别名于 DIR-03 收敛为 `tooling/aliases.mjs` + tsconfig 守卫。
 
@@ -167,7 +167,7 @@ apps/web-api       ← contracts/domain/new-api-client/server-crypto；禁止 de
 
 `domain` 保持 cloud-pure（只依赖 contracts）是有意为之：桌面行模型 → 视图模型的 mapper 放在 `apps/desktop` 宿主侧（见第 5 节），避免 domain 被桌面语义污染，Web 与 web-api 也能继续安全消费 domain。
 
-`scripts/check-shared-ui-boundaries.mjs` 中唯一 import 形规则（lucide-react 直连禁令）已于 Phase 3 SHARE-05 折入 ESLint `no-restricted-imports`（regex `^lucide-react(?:/|$)`，`packages/ui/src/icons.ts` 唯一豁免）；「禁私有 sidebar」核实为 CSS/JSX 断言而非 import 图，与 token / CSS / JSX 断言一并留 `check:ui-boundaries` 脚本。depcruise 仍 19 条、0 豁免。
+`scripts/check-shared-ui-boundaries.mjs` 中唯一 import 形规则（lucide-react 直连禁令）已于 Phase 3 SHARE-05 折入 ESLint `no-restricted-imports`（regex `^lucide-react(?:/|$)`，`packages/ui/src/icons.ts` 唯一豁免）；「禁私有 sidebar」核实为 CSS/JSX 断言而非 import 图，与 token / CSS / JSX 断言一并留 `check:ui-boundaries` 脚本。depcruise 19 条（SHARE-05 时）已于 GW-02 增至 20 条（`desktop-runtime-contracts-only-in-mappers`），0 豁免。
 
 ### 3.3 平台专属能力的归属
 
@@ -178,45 +178,54 @@ apps/web-api       ← contracts/domain/new-api-client/server-crypto；禁止 de
 
 ## 4. 桌面 Gateway 与端口设计
 
+Phase 2 已落地 domain 六端口（GW-01）、`DesktopGateway` 骨架（GW-02）与 library 写路径样板（GW-03）。GW-04 起未开工；`WebGateway implements` 补卡等待 web 并行工作流收口。
+
 ### 4.1 端口定义（packages/domain）
 
-把 Web `WebGateway` 已经验证过的接口面上提为 domain 端口，桌面与 Web 各自实现：
+GW-01（2026-08-20，b12bbd8）已把 Web `WebGateway` 现行接口面上提为 domain 六端口，签名照抄、不改名不合并。类型只引用 `@musefold/contracts` + domain：
 
-```ts
-// packages/domain/src/ports.ts（扩展现有 PromptRepository）
-export interface PromptGateway { /* list/get/create/update/remove/use，contracts 形状 */ }
-export interface WorkbenchGateway { /* 会话 CRUD + 草稿保存，含 expectedVersion */ }
-export interface GenerationGateway { /* 提交/取消/重试/进度订阅 */ }
-export interface HistoryGateway { /* 分页查询/删除/恢复 */ }
-export interface AccountGateway { /* 会话/额度摘要 */ }
-
-export interface PlatformServices {
-  clipboard: { writeText(text: string): Promise<void> };
-  download(asset: UiAssetRef): Promise<void>;
-  openExternal(url: string): Promise<void>;
-}
-
-export interface MusefoldGateway extends /* 上述端口聚合 */ {}
+```text
+// packages/domain：六端口，方法名照抄 WebGateway
+PromptGateway：      listPrompts / getPrompt / createPrompt / updatePrompt / deletePrompt / restorePrompt / usePrompt
+WorkbenchGateway：   list/get/create/update/deleteWorkbenchSession
+GenerationGateway：  createGeneration / getGeneration / streamGenerationEvents / cancelGeneration / retryGeneration / approveGeneration
+HistoryGateway：     listGenerationHistory / deleteGeneration / restoreGeneration
+AccountGateway：     getSession / login / logout / listConnections / updateConnection / revokeConnection
+PlatformServices：   空接口（WebGateway 当时没有 toast/download/clipboard/openExternal；待 GW-07/08）
+// 未归组：readonly mode: "api" | "fixture"（宿主传输开关，非领域 IO）
 ```
+
+`WebGateway implements` 因 web 并行未提交改动推迟；新增 `apps/web/src/__tests__/gateway-ports.typecheck.test.ts`（`satisfies`）锁形状不漂移。
 
 约束：
 
 - 端口签名使用 **contracts 形状或共享视图模型**，不出现 `window.api` 类型、SQLite 行或本地路径。
-- 进度/事件用回调或 `AsyncIterable` 表达，两端分别落到 IPC 事件与 SSE。
-- 桌面独有域（pet、automation、designScheme、skillRuntime）**不进共享端口**，在 `apps/desktop` 内定义 `DesktopExtras` 接口，类型来自 `desktop-contracts`。
+- 进度/事件用回调或 `AsyncIterable` 表达，两端分别落到 IPC 事件与 SSE。桌面 `streamGenerationEvents` 现为 NotImplemented（见 4.2），GW-06 前须裁定扩 preload 还是改拉模型。
+- 桌面独有域（pet、automation、designScheme、skillRuntime）以及 library 的桌面查询面（list 的 search + 多维 filters + sortDir、stats、pin/reorder、purge、带 `previewImagePath` 的 create、searchHistory）**不进共享端口**，归 `DesktopExtras`（GW-07），类型来自 `desktop-contracts`。
 
 ### 4.2 两端实现
 
 ```text
-apps/web/src/runtime.ts        HttpWebGateway / FixtureWebGateway（已存在，改为 implements domain 端口）
-apps/desktop/src/runtime/      DesktopGateway：封装 window.api，行模型 ↔ 端口形状的 mapper 在此收口
+apps/web/src/runtime.ts        HttpWebGateway / FixtureWebGateway（已存在；implements 补卡等待 web 并行工作流收口；形状由 gateway-ports.typecheck.test.ts 的 satisfies 锁定）
+apps/desktop/src/runtime/      createDesktopGateway(api) + 懒单例 desktopGateway（GW-02，fc197b8）；字段转换只在 mappers/；depcruise 第 20 条 desktop-runtime-contracts-only-in-mappers 禁止 runtime 组装层引用 contracts
 ```
 
-改造后的消费规则：
+GW-02 骨架：PromptGateway 全实现（有损字段逐条注释）。其余按 IPC 能直映的做，对不齐的抛 `DesktopGatewayNotImplementedError`。**`streamGenerationEvents` 裁定为 NotImplemented**（桌面 `image.onProgress` 无 seq/终态，硬适配会编造序号）。骨架未接线，行为零变化。
 
-- zustand store 与 React 组件只依赖端口类型，通过宿主组装的 runtime 对象获取实现；`src/lib/ipc.ts` 降级为 `DesktopGateway` 的内部实现细节。
+GW-03（2026-08-20，7790a35）以 library store 为写路径模式样板：
+
+- **list 不走端口**：云 `PromptListQuery` 表达不了桌面 search + 多维 filters + sortDir。
+- 走 gateway：update / delete / restore / copy 的 usePrompt；delete/restore 传合成 version 1。
+- **create 仍走 `api.prompt.create`**：`NewPromptDocument` 无 `previewImagePath`，笺与工作台「存为提示词」经端口会丢封面。
+- 仍走 api：list / listDeleted / stats / togglePin / reorderPins / purge / searchHistory。
+- 新增 `applyPromptDocumentToRow`：update 回写保留封面路径。
+- 注入：模块级 `setLibraryPromptGatewayForTests`，无 React context。
+
+消费规则（目标不变，library 写路径已按此走）：
+
+- zustand store 与 React 组件只依赖端口类型，通过宿主组装的 runtime 对象获取实现；迁完的写路径不再直连 `src/lib/ipc.ts`。list/create 等桌面查询面仍直连，直至 `DesktopExtras`（GW-07）。
 - 现有 47 处直连 IPC 与 8 处裸 `window.api` 按 feature 逐个收编（迁移顺序见迁移计划 Phase 2），迁完的 feature 目录由 depcruise 规则从 warn 提升为 error。
-- 桌宠、窗口控件等纯桌面窗口壳可以保留直连,在规则中显式豁免并注明理由。
+- 桌宠、窗口控件等纯桌面窗口壳可以保留直连，在规则中显式豁免并注明理由。
 
 ### 4.3 为什么不是把 store 搬进共享包
 
@@ -226,7 +235,7 @@ apps/desktop/src/runtime/      DesktopGateway：封装 window.api，行模型 �
 
 SQLite 行模型与云文档模型的差异不是命名问题，是语义问题：epoch 与 ISO 时间、offset 与 cursor 分页、无版本与乐观锁、本地文件路径与签名 URL。强行统一实体等于一次数据层改造，收益不足以支撑 v1.2.2 承担该风险。因此：
 
-1. **转换收口**。桌面行模型 ↔ 端口形状的 mapper 全部集中在 `apps/desktop/src/runtime/mappers/`，禁止组件与 store 内散落临时映射；contracts 侧的通用换算（如 `applyPromptToGeneration`）继续放 domain。
+1. **转换收口**。桌面行模型 ↔ 端口形状的 mapper 全部集中在 `apps/desktop/src/runtime/mappers/`（GW-02 已落地；depcruise `desktop-runtime-contracts-only-in-mappers` 禁止 runtime 组装层引用 contracts），禁止组件与 store 内散落临时映射；contracts 侧的通用换算（如 `applyPromptToGeneration`）继续放 domain。
 2. **新功能以 contracts 为准**。任何新增实体或字段先进 `packages/contracts`，桌面侧如需本地持久化再在 `desktop-contracts` 建行模型并写 mapper；禁止再往 `desktop-contracts` 加与云语义重复但形状不同的新类型。
 3. **实体统一列为 v1.3+ 候选**。前置条件：云同步（v1.1 M4）在真实多设备环境稳定运行、`prompts` 表具备版本列迁移方案。届时统一的方向是 SQLite 行模型向 `PromptDocument` 靠拢，而不是相反。
 
