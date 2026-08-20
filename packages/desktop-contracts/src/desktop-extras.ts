@@ -31,9 +31,12 @@ import type {
   HistoryStats,
   HistoryStatsQuery,
   NewPrompt,
+  NewProviderConfig,
   Prompt,
+  ProviderConfig,
   SearchHistoryItem,
 } from './models';
+import type { ModelInfo, ValidationResult } from './providers';
 
 /**
  * 桌面独有面（扁平方法，便于 DesktopGateway implements）。
@@ -56,6 +59,25 @@ export interface DesktopExtras {
   listSearchHistory(limit?: number): Promise<SearchHistoryItem[]>;
   addSearchHistory(term: string): Promise<{ ok: true }>;
   clearSearchHistory(): Promise<{ ok: true }>;
+
+  /** 对齐 Api.provider.list */
+  listProviders(): Promise<ProviderConfig[]>;
+  /** 对齐 Api.provider.create */
+  createProvider(p: NewProviderConfig): Promise<ProviderConfig>;
+  /** 对齐 Api.provider.update */
+  updateProvider(id: string, patch: Partial<NewProviderConfig>): Promise<ProviderConfig>;
+  /** 对齐 Api.provider.delete */
+  deleteProvider(id: string): Promise<{ ok: true }>;
+  /** 对齐 Api.provider.saveKey */
+  saveProviderKey(id: string, apiKey: string): Promise<{ ok: true }>;
+  /** 对齐 Api.provider.hasKey */
+  hasProviderKey(id: string): Promise<{ hasKey: boolean; suffix: string | null }>;
+  /** 对齐 Api.provider.setActive */
+  setActiveProvider(id: string): Promise<{ ok: true }>;
+  /** 对齐 Api.provider.validate */
+  validateProvider(id: string): Promise<ValidationResult>;
+  /** 对齐 Api.provider.listModels */
+  listProviderModels(id: string): Promise<ModelInfo[]>;
 
   /** 对齐 Api.history.related */
   relatedHistory(q: RelatedHistoryQuery): Promise<RelatedHistoryResult>;

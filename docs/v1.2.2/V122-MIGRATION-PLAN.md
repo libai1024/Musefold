@@ -167,7 +167,7 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
   **裁定**：**list 不走端口**——云 `PromptListQuery` 表达不了桌面 search + 多维 filters + sortDir。**create 仍走 `api.prompt.create`**——`NewPromptDocument` 无 `previewImagePath`，笺与工作台「存为提示词」经端口会丢封面。
 
   验证：store+mapper 测试、库 E2E 21 passed、冒烟 `reason=builtin`。library 剩余 api 已由 GW-07 第一刀（fa45f74）切到 extras。
-- `V122-GW-04`：切换 `features/history/store.ts` 与历史相关组件内的直连 IPC（`HistoryDetail` 等）。
+- `V122-GW-04`：~~切换 `features/history/store.ts` 与历史相关组件内的直连 IPC（`HistoryDetail` 等）。~~ **已完成（2026-08-20，8b779b4）**。DesktopExtras 新增 historyStats / deleteHistory / clearHistory，DesktopGateway 直通 api.history.*。history/store.ts 四方法（load / loadStats / remove / clear）改用 desktopGateway 替代直连 IPC；retry 仍走 api.image.retry（已由 GenerationGateway 接管）。测试 mock 补全新增 DesktopExtras 方法。
 - `V122-GW-05`：~~切换 `features/account/store.ts` 与 `AccountSection` 的裸 `window.api.cloudSync`。~~ **已完成（2026-08-20，34711b4）**。执行期按 import 图改裁定：实际切的是 `cloud-connections-store` 的 list/update/revoke → AccountGateway。当时未切：account/store login/status（AccountSession 有损，丢掉 deviceTokenSuffix/serverUrl/notices/health/estImagesRemaining）；AccountSection cloudSync（桌面独有）。二者已由 GW-07 第二刀（83d9f71）收口。契约测试改为断言网关方法名；新增 store 单测 6 条。
 
   **裁定**：**不按计划切 account/store 与 AccountSection cloudSync**——共享 AccountGateway 能接的是 cloud-connections 的 list/update/revoke；login/status 全量与 cloudSync 留给 GW-07（已由 83d9f71 收口）。

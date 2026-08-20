@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import type { ProviderConfig, NewProviderConfig } from '@musefold/desktop-contracts/models';
 import type { ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
 import type { AutomationProviderDraft } from '@musefold/desktop-contracts/ipc';
+import { gateway } from '../../runtime/gateway-context';
 import api from '../../lib/ipc';
 
 /** 单个 Provider 的连通性测试状态 */
@@ -87,7 +88,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   loadProviders: async () => {
     try {
-      const list = await api.provider.list();
+      const list = await gateway.desktop.listProviders();
       const active = list.find((p) => p.isActive) ?? list[0] ?? null;
       set({ providers: list, activeProviderId: active?.id ?? null, providersLoaded: true });
     } catch (err) {
@@ -97,7 +98,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   createProvider: async (p) => {
-    const created = await api.provider.create(p);
+    const created = await gateway.desktop.createProvider(p);
     set((s) => ({ providers: [...s.providers, created] }));
     if (created.isActive) set({ activeProviderId: created.id });
     return created;
@@ -107,12 +108,12 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     if (get().providers.find((provider) => provider.id === id)?.managedBy === 'account') {
       throw new Error('账号生图模型由 Musefold 固定管理');
     }
-    const updated = await api.provider.update(id, patch);
+    const updated = await gateway.desktop.updateProvider(id, patch);
     set((s) => ({ providers: s.providers.map((p) => (p.id === id ? updated : p)) }));
   },
 
   deleteProvider: async (id) => {
-    await api.provider.delete(id);
+    await gateway.desktop.deleteProvider(id);
     set((s) => ({
       providers: s.providers.filter((p) => p.id !== id),
       activeProviderId: s.activeProviderId === id ? null : s.activeProviderId,
@@ -120,8 +121,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   saveKey: async (id, apiKey) => {
-    await api.provider.saveKey(id, apiKey);
-    const { hasKey, suffix } = await api.provider.hasKey(id);
+    await gateway.desktop.saveProviderKey(id, apiKey);
+    const { hasKey, suffix } = await gateway.desktop.hasProviderKey(id);
     set((s) => ({
       providers: s.providers.map((p) =>
         p.id === id ? { ...p, hasKey, keySuffix: suffix } : p
@@ -130,16 +131,16 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   setActive: async (id) => {
-    await api.provider.setActive(id);
+    await gateway.desktop.setActiveProvider(id);
     set({ activeProviderId: id });
     await get().loadProviders();
   },
 
   validate: async (id) => {
-    return api.provider.validate(id);
+    return gateway.desktop.validateProvider(id);
   },
 
-  listModels: async (id) => api.provider.listModels(id),
+  listModels: async (id) => gateway.desktop.listProviderModels(id),
 
   testProvider: async (id) => {
     const provider = get().providers.find((p) => p.id === id);
@@ -151,7 +152,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     }
     set((s) => ({ testStatus: { ...s.testStatus, [id]: { state: 'testing' } } }));
     try {
-      const res = await api.provider.validate(id);
+      const res = await gateway.desktop.validateProvider(id);
       if (provider?.type === 'doubao-web') await get().loadProviders();
       const result: ProviderTest = {
         state: res.ok ? 'ok' : 'failed',

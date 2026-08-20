@@ -174,6 +174,50 @@ export class DesktopGateway
     return this.api.searchHistory.clear();
   }
 
+  listProviders(): ReturnType<DesktopExtras['listProviders']> {
+    return this.api.provider.list();
+  }
+
+  createProvider(
+    p: Parameters<DesktopExtras['createProvider']>[0],
+  ): ReturnType<DesktopExtras['createProvider']> {
+    return this.api.provider.create(p);
+  }
+
+  updateProvider(
+    id: string,
+    patch: Parameters<DesktopExtras['updateProvider']>[1],
+  ): ReturnType<DesktopExtras['updateProvider']> {
+    return this.api.provider.update(id, patch);
+  }
+
+  deleteProvider(id: string): ReturnType<DesktopExtras['deleteProvider']> {
+    return this.api.provider.delete(id);
+  }
+
+  saveProviderKey(
+    id: string,
+    apiKey: string,
+  ): ReturnType<DesktopExtras['saveProviderKey']> {
+    return this.api.provider.saveKey(id, apiKey);
+  }
+
+  hasProviderKey(id: string): ReturnType<DesktopExtras['hasProviderKey']> {
+    return this.api.provider.hasKey(id);
+  }
+
+  setActiveProvider(id: string): ReturnType<DesktopExtras['setActiveProvider']> {
+    return this.api.provider.setActive(id);
+  }
+
+  validateProvider(id: string): ReturnType<DesktopExtras['validateProvider']> {
+    return this.api.provider.validate(id);
+  }
+
+  listProviderModels(id: string): ReturnType<DesktopExtras['listProviderModels']> {
+    return this.api.provider.listModels(id);
+  }
+
   relatedHistory(
     q: Parameters<DesktopExtras['relatedHistory']>[0],
   ): ReturnType<DesktopExtras['relatedHistory']> {
