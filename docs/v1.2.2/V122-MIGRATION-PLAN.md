@@ -23,7 +23,7 @@
 | Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | **已完成（2026-08-20）** |
 | Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
-| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1 完成 | 按 feature 逐卡推进 |
+| Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1a 完成（已达成）；注意与 web 侧并行工作流的协调 | 按 feature 逐卡推进 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 / 02 / 03 已完成；仅剩 SHARE-04（与 Phase 2 stores 同批） |
 
 ## 2. Phase 0：工程化地基
@@ -134,6 +134,12 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 - `git log --follow` 能追溯任一被迁移文件的历史。
 
 ## 4. Phase 2：桌面 Gateway
+
+**2026-08-20 修订**：Phase 2 的开工门禁由「Phase 1 完成」改为「Phase 1a 完成」，该条件已于 2026-08-20 达成。Phase 1b 维持原门禁（v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周），与 Phase 2 解耦。
+
+1. Phase 1b 只下移 App manifest 与 electron-builder 配置（DIR-06~09），动的是打包与发布链路；Phase 2 的 Gateway 卡（GW-01~09）全部是 domain 端口与渲染层 stores 的仓库侧重接线。两者无共享文件、无依赖关系。1b 被外部条件（签名证书、服务器部署身份）加一周稳定期锁死，让 Gateway 工作无限期等待，与 Phase 1a 门禁修订时驳回的「等采购」是同一种停滞。
+2. 风险边界不变：Phase 2 每卡的回归保护本来就是仓库侧门禁（桌面 E2E、共享视觉门禁、turbo 全门禁），与 1b 的发布链路验证无关；GW 卡独立合并、独立 revert 的原则不变。
+3. 注意事项：`V122-GW-01` 触及 `apps/web/src/runtime.ts`，若届时 web 侧有未合并的并行改动，先等其收口再开卡，避免工作树互相踩踏。
 
 ### 任务
 
