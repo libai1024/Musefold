@@ -18,6 +18,7 @@ export default defineConfig({
       '@musefold/core': resolve(__dirname, 'packages/core/src'),
       '@musefold/automation-server': resolve(__dirname, 'packages/automation-server/src'),
       '@musefold/client': resolve(__dirname, 'packages/client/src'),
+      '@musefold/update-protocol': resolve(__dirname, 'packages/update-protocol/src'),
     },
   },
   test: {

@@ -1,4 +1,5 @@
 node_modules/
+.turbo
 out/
 release/
 dist/
@@ -9,6 +10,7 @@ __pycache__/
 .venv-test/
 *.py[cod]
 *.tsbuildinfo
+.tsout/
 *.log
 .DS_Store
 .env
@@ -20,6 +22,9 @@ backups/
 *.db-wal
 .electron-driver/
 .claude/settings.local.json
+
+# 更新源清单由发布流水线生成并直接写到分发站点，仓库内不保留副本以免出现第二份事实源。
+website/Musefold/updates/
 
 # Local design/scratch artifacts
 generated/*

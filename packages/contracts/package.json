@@ -1,6 +1,6 @@
 {
   "name": "@musefold/contracts",
-  "version": "1.1.0-dev",
+  "version": "0.0.0-internal",
   "description": "Cloud-safe Musefold Web API contracts and validation schemas",
   "license": "MIT",
   "type": "module",
@@ -10,7 +10,7 @@
     "./*": "./src/*"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
     "zod": "^4.4.3"

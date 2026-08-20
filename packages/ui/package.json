@@ -1,6 +1,6 @@
 {
   "name": "@musefold/ui",
-  "version": "1.1.0-dev",
+  "version": "0.0.0-internal",
   "description": "Shared Musefold design tokens and canonical icon contract",
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,7 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

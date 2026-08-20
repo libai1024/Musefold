@@ -1,6 +1,6 @@
 {
   "name": "@musefold/web-api",
-  "version": "1.1.0-dev",
+  "version": "0.0.0-internal",
   "description": "Musefold v1.1 Web API, OAuth and Cloud MCP host",
   "license": "MIT",
   "type": "module",
@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "tsx watch src/bin.ts",
     "start": "tsx src/bin.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc -b --pretty false",
     "test": "vitest run src",
     "test:integration": "RUN_DATABASE_TESTS=true vitest run src/__tests__/database.integration.test.ts",
     "db:migrate": "node-pg-migrate -m migrations --database-url-var DATABASE_URL --migrations-table pgmigrations up",
@@ -25,7 +25,7 @@
     "@fastify/swagger": "9.6.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@musefold/contracts": "*",
-    "@musefold/domain": "^1.1.0-dev",
+    "@musefold/domain": "*",
     "@musefold/new-api-client": "*",
     "@musefold/server-crypto": "*",
     "ajv": "^8.20.0",

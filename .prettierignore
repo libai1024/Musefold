@@ -1,0 +1,33 @@
+# Build / cache / vendor
+node_modules
+out
+dist
+release
+.turbo
+coverage
+playwright-report
+test-results
+test-output
+package-lock.json
+**/*.tsbuildinfo
+.tsout
+**/.tsout
+**/*.min.js
+
+# Docs & marketing site — full-repo reformat is deferred until after
+# the v1.2.2 directory migration so git mv history stays intact.
+docs
+website
+doc
+
+# Local / generated artifacts present in the working tree
+generated
+.pytest_cache
+.venv-test
+.electron-driver
+artifacts
+output
+sandbox
+3dmodel
+.impeccable
+backups

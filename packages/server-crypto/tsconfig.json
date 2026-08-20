@@ -1,15 +1,14 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tooling/tsconfig.base.json",
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2023",
     "lib": ["ES2023"],
     "types": ["node"],
-    "strict": true,
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "noEmit": true
+    "rootDir": "src",
+    "outDir": ".tsout",
+    "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"]
 }

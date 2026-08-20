@@ -1,6 +1,6 @@
 {
   "name": "@musefold/generation-worker",
-  "version": "1.1.0-dev",
+  "version": "0.0.0-internal",
   "description": "Musefold v1.1 durable generation and maintenance worker",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,7 @@
     "dev": "tsx watch src/worker.ts",
     "start": "tsx src/worker.ts",
     "storage:smoke": "tsx src/storage-smoke.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc -b --pretty false",
     "test": "vitest run src",
     "queue:migrate": "tsx src/migrate.ts"
   },

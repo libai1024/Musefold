@@ -30,6 +30,7 @@ const staticArtifacts = [
   'test-results',
   'tsconfig.node.tsbuildinfo',
   'tsconfig.web.tsbuildinfo',
+  '.tsout',
 ];
 
 if (includeBuild) {
@@ -43,6 +44,37 @@ function safeTarget(relPath) {
     throw new Error(`Refusing to remove unsafe path: ${relPath}`);
   }
   return { relPath: normalized, absPath };
+}
+
+async function collectNamedDirs(dirName) {
+  const found = [];
+
+  async function walk(absDir) {
+    let entries;
+    try {
+      entries = await readdir(absDir, { withFileTypes: true });
+    } catch (error) {
+      if (error && error.code === 'ENOENT') return;
+      throw error;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === 'node_modules' || entry.name === '.venv-test') continue;
+
+      const absChild = resolve(absDir, entry.name);
+      const relChild = relative(repoRoot, absChild).replaceAll('\\', '/');
+      if (!relChild || relChild.startsWith('..') || isAbsolute(relChild)) continue;
+      if (entry.name === dirName) {
+        found.push(relChild);
+        continue;
+      }
+      await walk(absChild);
+    }
+  }
+
+  await walk(repoRoot);
+  return found;
 }
 
 async function collectPycacheDirs(baseRel) {
@@ -94,6 +126,7 @@ async function collectExistingStaticArtifacts() {
 const candidates = [
   ...(await collectExistingStaticArtifacts()),
   ...(await collectPycacheDirs('tests')),
+  ...(await collectNamedDirs('.tsout')),
 ];
 
 const targets = [...new Map(candidates.map((item) => {

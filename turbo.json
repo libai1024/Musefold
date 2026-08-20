@@ -1,0 +1,128 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  // Remote cache stays at Turborepo defaults: set TURBO_TOKEN and TURBO_TEAM in the environment to enable. Do not put credentials in this file.
+  // Electron packaging (package / package:mac / package:win / electron-builder) is intentionally not a turbo task.
+  "globalDependencies": ["tsconfig*.json", "tooling/tsconfig.base.json"],
+  "globalEnv": ["NODE_VERSION"],
+  "tasks": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": [".tsout/**"],
+      "with": ["//#typecheck"]
+    },
+    "@musefold/mcp#typecheck": {
+      "dependsOn": [
+        "@musefold/client#typecheck",
+        "@musefold/core#typecheck",
+        "@musefold/automation-server#typecheck"
+      ],
+      "outputs": [".tsout/**"]
+    },
+    "//#typecheck": {
+      "dependsOn": [
+        "@musefold/core#typecheck",
+        "@musefold/automation-server#typecheck",
+        "@musefold/cli#typecheck",
+        "@musefold/mcp#typecheck",
+        "@musefold/cloud-client#typecheck",
+        "@musefold/product-ui#typecheck",
+        "@musefold/web#typecheck",
+        "@musefold/web-api#typecheck",
+        "@musefold/generation-worker#typecheck"
+      ],
+      "outputs": [".tsout/**", "shared/.tsout/**", "packages/*/.tsout/**", "apps/*/.tsout/**"],
+      "inputs": [
+        "package.json",
+        "tsconfig*.json",
+        "tooling/tsconfig.base.json",
+        "src/**",
+        "electron/**",
+        "shared/**",
+        "packages/**",
+        "apps/**",
+        "!**/.tsout/**",
+        "!**/*.tsbuildinfo"
+      ]
+    },
+    "test": {
+      "env": ["CI", "MUSEFOLD_TVT_KEY"]
+    },
+    "//#test": {
+      "env": ["CI", "MUSEFOLD_TVT_KEY"],
+      "inputs": [
+        "package.json",
+        "vitest.config.ts",
+        "src/**",
+        "shared/**",
+        "electron/**",
+        "packages/**",
+        "!**/.tsout/**",
+        "!**/*.tsbuildinfo"
+      ]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "//#build": {
+      "outputs": ["out/**"],
+      "inputs": [
+        "package.json",
+        "electron.vite.config.ts",
+        "postcss.config.js",
+        "tailwind.config.ts",
+        "src/**",
+        "electron/**",
+        "shared/**",
+        "packages/core/**",
+        "packages/automation-server/**",
+        "packages/cloud-client/**",
+        "packages/contracts/**",
+        "packages/update-protocol/**",
+        "packages/ui/**",
+        "packages/product-ui/**",
+        "!**/.tsout/**",
+        "!**/*.tsbuildinfo"
+      ]
+    },
+    "lint": {},
+    "//#lint": {
+      "inputs": [
+        "package.json",
+        "eslint.config.mjs",
+        "tooling/eslint.config.base.mjs",
+        "electron.vite.config.ts",
+        "vitest.config.ts",
+        "vite.preview.config.ts",
+        "tailwind.config.ts",
+        "postcss.config.js",
+        "src/**",
+        "electron/**",
+        "shared/**",
+        "packages/**",
+        "apps/**",
+        "scripts/**",
+        "infra/**",
+        "preview/**",
+        "tests/**",
+        "!**/.tsout/**",
+        "!**/*.tsbuildinfo"
+      ]
+    },
+    "check:boundaries": {},
+    "//#check:boundaries": {
+      "inputs": [
+        "package.json",
+        "tooling/dependency-cruiser.cjs",
+        "tooling/dependency-cruiser-known-violations.json",
+        "src/**",
+        "electron/**",
+        "shared/**",
+        "packages/**",
+        "apps/**",
+        "!**/.tsout/**",
+        "!**/*.tsbuildinfo"
+      ]
+    }
+  }
+}

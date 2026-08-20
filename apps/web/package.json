@@ -1,6 +1,6 @@
 {
   "name": "@musefold/web",
-  "version": "1.1.0-dev",
+  "version": "0.0.0-internal",
   "description": "Musefold Web v1.1 personal generation and cloud prompt surface",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,7 @@
     "check:production": "npm run build && node scripts/check-production-build.mjs",
     "test:e2e": "playwright test",
     "preview": "vite preview --host 127.0.0.1",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc -b --pretty false",
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {

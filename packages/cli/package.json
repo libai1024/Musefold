@@ -1,14 +1,26 @@
 {
-  "name": "musefold",
-  "version": "0.5.0-dev",
+  "name": "@musefold/cli",
+  "version": "0.0.0-internal",
   "description": "Musefold CLI：终端里的提示词库、设计方案与生图控制面客户端",
   "license": "MIT",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=20" },
-  "bin": { "musefold": "./dist/musefold.mjs" },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "musefold": "./dist/musefold.mjs"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@musefold/automation-server": "*",
+    "@musefold/client": "*",
+    "@musefold/core": "*"
   }
 }

@@ -1,0 +1,17 @@
+{
+  "extends": "../tooling/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": ".tsout",
+    "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
+  },
+  "files": ["types/diff-match-patch.d.ts"],
+  "include": ["**/*.ts"],
+  "exclude": [".tsout", "**/*.d.ts"],
+  "references": [
+    { "path": "../packages/contracts" },
+    { "path": "../packages/update-protocol" }
+  ]
+}

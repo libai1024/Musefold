@@ -15,8 +15,10 @@ interface ClientRow {
   metadata: AdapterPayload | null;
 }
 
-export function createPostgresOidcAdapter(db: Kysely<MusefoldDatabase>) {
-  return class PostgresOidcAdapter implements Adapter {
+export function createPostgresOidcAdapter(
+  db: Kysely<MusefoldDatabase>,
+): new (model: string) => Adapter {
+  class PostgresOidcAdapter implements Adapter {
     constructor(private readonly model: string) {}
 
     async upsert(
@@ -175,7 +177,8 @@ export function createPostgresOidcAdapter(db: Kysely<MusefoldDatabase>) {
       `.execute(db);
       return result.rows[0]?.payload;
     }
-  };
+  }
+  return PostgresOidcAdapter;
 }
 
 function hashArtifactId(value: string): string {

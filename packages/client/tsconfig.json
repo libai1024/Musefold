@@ -7,11 +7,5 @@
     "outDir": ".tsout",
     "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "references": [
-    { "path": "../client" },
-    { "path": "../core" },
-    { "path": "../automation-server" },
-    { "path": "../../shared" }
-  ]
+  "include": ["src/**/*.ts"]
 }

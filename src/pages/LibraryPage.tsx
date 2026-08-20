@@ -232,6 +232,7 @@ export function LibraryPage() {
           }, 1_200);
         });
       }}
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- usePrompt 是 usePromptDraft() 在组件顶层返回的回调，不是 Hook；规则因 use* 命名误报。
       onUse={() => usePrompt(p)}
     />
   );

@@ -1,6 +1,6 @@
 {
   "name": "@musefold/new-api-client",
-  "version": "1.1.0-dev",
+  "version": "0.0.0-internal",
   "description": "Shared new-api account and device-token REST client",
   "license": "MIT",
   "type": "module",
@@ -12,7 +12,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc -b --pretty false",
     "test": "vitest run src"
   },
   "devDependencies": {

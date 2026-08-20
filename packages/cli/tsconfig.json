@@ -9,9 +9,9 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
+    { "path": "../automation-server" },
     { "path": "../client" },
     { "path": "../core" },
-    { "path": "../automation-server" },
     { "path": "../../shared" }
   ]
 }

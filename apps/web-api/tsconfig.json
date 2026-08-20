@@ -1,16 +1,18 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tooling/tsconfig.base.json",
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
     "target": "ES2023",
     "lib": ["ES2023"],
     "types": ["node"],
-    "strict": true,
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "resolveJsonModule": true,
-    "noEmit": true
+    "rootDir": "src",
+    "outDir": ".tsout",
+    "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/new-api-client" },
+    { "path": "../../packages/server-crypto" }
+  ]
 }
