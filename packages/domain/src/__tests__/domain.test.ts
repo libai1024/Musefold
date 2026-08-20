@@ -55,6 +55,19 @@ describe('surface capabilities', () => {
     expect(web.automation).toBe(false);
     expect(web.byokProviders).toBe(false);
   });
+
+  it('exposes the full desktop host surface except cloud prompts', () => {
+    const desktop = getProductCapabilities('desktop');
+    expect(desktop.localPrompts).toBe(true);
+    expect(desktop.designSchemes).toBe(true);
+    expect(desktop.generationHistory).toBe(true);
+    expect(desktop.agent).toBe(true);
+    expect(desktop.automation).toBe(true);
+    expect(desktop.byokProviders).toBe(true);
+    expect(desktop.cloudMcpConnections).toBe(true);
+    expect(desktop.promptSync).toBe(true);
+    expect(desktop.cloudPrompts).toBe(false);
+  });
 });
 
 describe('prompt application rules', () => {

@@ -22,7 +22,7 @@ const CAPABILITIES: Record<MusefoldSurface, Readonly<ProductCapabilities>> = {
     generationHistory: true,
     cloudPrompts: false,
     promptSync: true,
-    cloudMcpConnections: false,
+    cloudMcpConnections: true,
     localPrompts: true,
     agent: true,
     designSchemes: true,

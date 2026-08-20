@@ -27,6 +27,10 @@ import {
   ProductSidebar,
   type ProductSidebarNavItem,
 } from "@musefold/product-ui";
+import {
+  SIDEBAR_NAV_CAPABILITY,
+  isCapabilityEntryVisible,
+} from "../../runtime/capabilities";
 
 export function Sidebar() {
   const { isMac } = usePlatform();
@@ -57,7 +61,7 @@ export function Sidebar() {
       active: currentView === "history",
       onSelect: () => setView("history"),
     },
-  ];
+  ].filter((item) => isCapabilityEntryVisible(SIDEBAR_NAV_CAPABILITY, item.id));
 
   return (
     <ProductSidebar

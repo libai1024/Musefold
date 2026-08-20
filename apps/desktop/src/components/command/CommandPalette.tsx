@@ -27,6 +27,10 @@ import { useSettingsStore } from '../../features/settings/store';
 import { Kbd } from '@musefold/ui';
 import { cn } from '../../lib/utils';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
+import {
+  COMMAND_ACTION_CAPABILITY,
+  isCapabilityEntryVisible,
+} from '../../runtime/capabilities';
 
 interface CommandAction {
   id: string;
@@ -136,7 +140,7 @@ export function CommandPalette() {
         keywords: 'sidebar collapse cebian',
         run: () => { toggleSidebar(); setOpen(false); },
       },
-    ],
+    ].filter((action) => isCapabilityEntryVisible(COMMAND_ACTION_CAPABILITY, action.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [theme]
   );

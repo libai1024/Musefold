@@ -17,6 +17,10 @@ import { ConnectedAppsSection } from '../sections/ConnectedAppsSection';
 import { DoubaoSection } from '../sections/DoubaoSection';
 import { AccessModeSection } from '../sections/AccessModeSection';
 import { cn } from '../../../lib/utils';
+import {
+  SETTINGS_SECTION_CAPABILITY,
+  isCapabilityEntryVisible,
+} from '../../../runtime/capabilities';
 
 interface NavGroup {
   label: string;
@@ -69,6 +73,16 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
+
+/** 运行时按能力清单滤入口；源码仍保留全部分组，既有契约测试读字符串不受影响。 */
+const VISIBLE_NAV_GROUPS: NavGroup[] = NAV_GROUPS
+  .map((group) => ({
+    ...group,
+    items: group.items.filter((item) =>
+      isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, item.key),
+    ),
+  }))
+  .filter((group) => group.items.length > 0);
 
 const SECTIONS: Record<SettingsSection, () => JSX.Element> = {
   access: AccessModeSection,
@@ -137,7 +151,7 @@ export function SettingsView() {
               data-testid="settings-mobile-section-menu"
               className="absolute left-2 right-2 top-full -mt-1 rounded-lg border border-border-default bg-popover p-1 shadow-pop animate-scale-fade-in"
             >
-              {NAV_GROUPS.map((group) => (
+              {VISIBLE_NAV_GROUPS.map((group) => (
                 <div key={group.label || group.items[0].key} role="group" aria-label={group.label || group.items[0].label}>
                   {group.label && <p className="px-2.5 pb-0.5 pt-2 text-[9.5px] font-medium text-quaternary first:pt-1">{group.label}</p>}
                   {group.items.map((item) => {
@@ -169,7 +183,7 @@ export function SettingsView() {
         {/* 桌面左侧分区导航：纯文字 + 分组标签，Codex 式排版承重 */}
         <nav className="settings-nav hidden w-[204px] shrink-0 flex-col overflow-y-auto border-r border-border-subtle px-4 pb-6 pt-7 min-[960px]:flex" aria-label="设置分区">
           <h1 className="px-2 pb-4 text-[15px] font-semibold tracking-tight text-primary">设置</h1>
-          {NAV_GROUPS.map((group) => (
+          {VISIBLE_NAV_GROUPS.map((group) => (
             <div key={group.label || group.items[0].key} className="mb-4 last:mb-0">
               {group.label && <p className="px-2 pb-1 text-[9.5px] font-medium tracking-wide text-quaternary">{group.label}</p>}
               <div className="flex flex-col gap-px">
