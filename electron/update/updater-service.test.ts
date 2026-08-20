@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { UpdaterService, type UpdaterAdapter, type UpdaterEventMap } from './updater-service';
+import {
+  allowsPrereleaseForChannel,
+  resolveUpdateFeedUrl,
+  UpdaterService,
+  type UpdaterAdapter,
+  type UpdaterEventMap,
+} from './updater-service';
 
 class FakeUpdater implements UpdaterAdapter {
   autoDownload = true;
@@ -91,5 +97,53 @@ describe('UpdaterService', () => {
       currentVersion: '0.5.0',
       message: 'signature verification failed',
     });
+  });
+
+  it('keeps the historical stable feed URL character-for-character', () => {
+    expect(resolveUpdateFeedUrl('stable')).toBe('https://zhaozhaoyue.top/Musefold/updates/stable/');
+    expect(resolveUpdateFeedUrl('beta')).toBe('https://zhaozhaoyue.top/Musefold/updates/beta/');
+    expect(resolveUpdateFeedUrl('dev')).toBe('https://zhaozhaoyue.top/Musefold/updates/dev/');
+  });
+
+  it('enables prerelease only for non-stable channels', () => {
+    expect(allowsPrereleaseForChannel('stable')).toBe(false);
+    expect(allowsPrereleaseForChannel('beta')).toBe(true);
+    expect(allowsPrereleaseForChannel('dev')).toBe(true);
+
+    const stableAdapter = new FakeUpdater();
+    new UpdaterService({ adapter: stableAdapter, currentVersion: '0.5.0', enabled: true });
+    expect(stableAdapter.allowPrerelease).toBe(false);
+    expect(stableAdapter.setFeedURL).toHaveBeenCalledWith('https://zhaozhaoyue.top/Musefold/updates/stable/');
+
+    const betaAdapter = new FakeUpdater();
+    new UpdaterService({
+      adapter: betaAdapter,
+      currentVersion: '0.5.0',
+      enabled: true,
+      channel: 'beta',
+    });
+    expect(betaAdapter.allowPrerelease).toBe(true);
+    expect(betaAdapter.setFeedURL).toHaveBeenCalledWith('https://zhaozhaoyue.top/Musefold/updates/beta/');
+  });
+
+  it('switches the feed URL at runtime and resets to a re-checkable idle state', async () => {
+    const adapter = new FakeUpdater();
+    const service = new UpdaterService({
+      adapter,
+      currentVersion: '0.5.0',
+      enabled: true,
+      feedUrl: 'https://updates.example.test/stable/',
+    });
+
+    await service.check();
+    expect(service.getState()).toMatchObject({ state: 'available', version: '0.6.0' });
+
+    service.setChannel('dev');
+    expect(adapter.allowPrerelease).toBe(true);
+    expect(adapter.setFeedURL).toHaveBeenCalledWith('https://zhaozhaoyue.top/Musefold/updates/dev/');
+    expect(service.getState()).toEqual({ state: 'idle', currentVersion: '0.5.0' });
+
+    await service.check();
+    expect(service.getState()).toMatchObject({ state: 'available', version: '0.6.0' });
   });
 });

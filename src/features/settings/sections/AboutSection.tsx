@@ -9,7 +9,12 @@ import {
   ShieldCheck,
 } from '../../../components/ui/icons';
 import { api } from '../../../lib/ipc';
-import type { UpdateStatus } from '@shared/types/updater';
+import type {
+  Channel,
+  UpdateChannelInfo,
+  UpdateChannelResult,
+  UpdateStatus,
+} from '@shared/types/updater';
 import { usePlatform } from '../../../lib/usePlatform';
 import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/ui/button';
@@ -24,11 +29,14 @@ import { Kbd } from '../../../components/ui/kbd';
 import { MusefoldLogoAnimated } from '../../../components/brand/MusefoldLogoAnimated';
 import { SectionShell } from '../components/SectionShell';
 import { THIRD_PARTY_PACKAGES } from '../third-party-notices';
+import { CHANNEL_LABELS, UpdateChannelRow } from './UpdateChannelRow';
 
 interface VersionInfo {
   app: string;
   db: number;
 }
+
+const DEFAULT_CHANNEL_INFO: UpdateChannelInfo = { channel: 'stable', lockedByEnv: false };
 
 export function AboutSection() {
   const { isMac, name: platform } = usePlatform();
@@ -36,6 +44,7 @@ export function AboutSection() {
   const [copied, setCopied] = useState(false);
   const [licensesOpen, setLicensesOpen] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [channelInfo, setChannelInfo] = useState<UpdateChannelInfo>(DEFAULT_CHANNEL_INFO);
   const mod = isMac ? '⌘' : 'Ctrl';
 
   useEffect(() => {
@@ -46,6 +55,9 @@ export function AboutSection() {
     api.updater.getState()
       .then((value) => mounted && setUpdateStatus(value))
       .catch(() => mounted && setUpdateStatus(null));
+    api.updater.getChannel()
+      .then((value) => mounted && setChannelInfo(value))
+      .catch(() => mounted && setChannelInfo(DEFAULT_CHANNEL_INFO));
     const unsubscribe = api.updater.onStateChanged((value) => {
       if (mounted) setUpdateStatus(value);
     });
@@ -98,6 +110,28 @@ export function AboutSection() {
     }
   };
 
+  const commitChannel = async (next: Channel): Promise<UpdateChannelResult> => {
+    try {
+      const result = await api.updater.setChannel(next);
+      if (!result.ok) {
+        toast.error('切换更新通道失败', result.message);
+        return result;
+      }
+      setChannelInfo(result);
+      setUpdateStatus(await api.updater.check());
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '请稍后重试';
+      toast.error('切换更新通道失败', message);
+      return {
+        ok: false,
+        channel: channelInfo.channel,
+        lockedByEnv: channelInfo.lockedByEnv,
+        message,
+      };
+    }
+  };
+
   const updateAction = async () => {
     try {
       if (updateStatus?.state === 'available') {
@@ -145,8 +179,9 @@ export function AboutSection() {
 
         <div>
           <p className="mb-2 text-[11px] font-medium text-tertiary">应用更新</p>
-          <div className="border-y border-border-subtle">
-            <UpdateRow status={updateStatus} onAction={updateAction} />
+          <div className="divide-y divide-border-subtle border-y border-border-subtle">
+            <UpdateChannelRow info={channelInfo} onCommit={commitChannel} />
+            <UpdateRow status={updateStatus} channel={channelInfo.channel} onAction={updateAction} />
           </div>
         </div>
 
@@ -231,7 +266,15 @@ export function AboutSection() {
   );
 }
 
-function UpdateRow({ status, onAction }: { status: UpdateStatus | null; onAction: () => void }) {
+function UpdateRow({
+  status,
+  channel,
+  onAction,
+}: {
+  status: UpdateStatus | null;
+  channel: Channel;
+  onAction: () => void;
+}) {
   const state = status?.state ?? 'checking';
   const isBusy = state === 'checking' || state === 'downloading' || state === 'installing';
   const versionLabel = status && 'version' in status ? status.version : '';
@@ -267,7 +310,9 @@ function UpdateRow({ status, onAction }: { status: UpdateStatus | null; onAction
           ? `${Math.round(progress?.percent ?? 0)}% · ${formatBytes(progress?.transferred ?? 0)} / ${formatBytes(progress?.total ?? 0)}`
           : state === 'error'
             ? errorMessage ?? '请稍后重试'
-            : '从 zhaozhaoyue.top 获取已签名的稳定版本';
+            : channel === 'stable'
+              ? '从 zhaozhaoyue.top 获取已签名的稳定版本'
+              : `当前为${CHANNEL_LABELS[channel]}通道，版本可能不稳定`;
   const action = state === 'available'
     ? '下载'
     : state === 'downloaded'

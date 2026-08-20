@@ -94,6 +94,8 @@ const updaterApi: Api['updater'] = {
   check: async () => ({ state: 'disabled', currentVersion: '0.5.0-dev', reason: 'development' }),
   download: async () => ({ state: 'disabled', currentVersion: '0.5.0-dev', reason: 'development' }),
   install: async () => ({ state: 'disabled', currentVersion: '0.5.0-dev', reason: 'development' }),
+  getChannel: async () => ({ channel: 'stable', lockedByEnv: false }),
+  setChannel: async (channel) => ({ ok: true, channel, lockedByEnv: false }),
   onStateChanged: () => () => {},
 };
 

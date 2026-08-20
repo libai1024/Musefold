@@ -20,6 +20,7 @@ import { registerAccountHandlers } from "./account";
 import { registerCloudSyncHandlers } from "./cloud-sync";
 import { registerUpdaterHandlers } from "./updater";
 import { registerAiConnectionHandlers } from "./ai-connections";
+import { registerPrefsOriginMigrationHandlers } from "../prefs-origin-migration";
 
 export function registerAllHandlers(): void {
   registerPromptHandlers();
@@ -41,4 +42,5 @@ export function registerAllHandlers(): void {
   registerAiConnectionHandlers();
   registerUpdaterHandlers();
   registerPetHandlers();
+  registerPrefsOriginMigrationHandlers();
 }

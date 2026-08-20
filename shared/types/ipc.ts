@@ -23,7 +23,12 @@ import type {
 } from "./models";
 import type { PetFrame, PetInteraction } from "./pet";
 import type { PromptSource } from "./enums";
-import type { UpdateStatus } from "./updater";
+import type {
+  Channel,
+  UpdateChannelInfo,
+  UpdateChannelResult,
+  UpdateStatus,
+} from "./updater";
 import type {
   EnsureWorkbenchSessionCommand,
   WorkbenchSession,
@@ -178,6 +183,9 @@ export const IPC = {
   SETTINGS_PRICING_GET: "settings:pricing:get",
   SETTINGS_PRICING_SET: "settings:pricing:set",
   SETTINGS_PRICING_DELETE: "settings:pricing:delete",
+  // one-shot file:// → app://musefold localStorage import (preload-only; not on window.api)
+  PREFS_PULL_ORIGIN_MIGRATION: "prefs:pullOriginMigration",
+  PREFS_ORIGIN_MIGRATION_APPLIED: "prefs:originMigrationApplied",
   // images
   IMAGE_GENERATE: "image:generate",
   IMAGE_PICK_LOCAL: "image:pickLocal",
@@ -250,6 +258,8 @@ export const IPC = {
   UPDATER_CHECK: "updater:check",
   UPDATER_DOWNLOAD: "updater:download",
   UPDATER_INSTALL: "updater:install",
+  UPDATER_GET_CHANNEL: "updater:getChannel",
+  UPDATER_SET_CHANNEL: "updater:setChannel",
   UPDATER_STATE_CHANGED: "updater:stateChanged",
   // share / deeplink（docs/product/15 TASK-DIF-05）
   SHARE_RENDER_CARD: "share:renderCard",
@@ -952,6 +962,8 @@ export interface Api {
     check: () => Promise<UpdateStatus>;
     download: () => Promise<UpdateStatus>;
     install: () => Promise<UpdateStatus>;
+    getChannel: () => Promise<UpdateChannelInfo>;
+    setChannel: (channel: Channel) => Promise<UpdateChannelResult>;
     /** 订阅更新状态变化，返回取消订阅函数。 */
     onStateChanged: (cb: (status: UpdateStatus) => void) => () => void;
   };

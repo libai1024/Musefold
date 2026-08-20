@@ -1,3 +1,4 @@
+import { DEFAULT_CHANNEL, type Channel } from '@musefold/update-protocol';
 import type {
   UpdateDisabledReason,
   UpdateMetadata,
@@ -5,7 +6,16 @@ import type {
   UpdateStatus,
 } from '@shared/types/updater';
 
-export const UPDATE_FEED_URL = 'https://zhaozhaoyue.top/Musefold/updates/stable/';
+export const UPDATE_FEED_BASE_URL = 'https://zhaozhaoyue.top/Musefold/updates/';
+export const DEFAULT_UPDATE_CHANNEL: Channel = DEFAULT_CHANNEL;
+
+export function resolveUpdateFeedUrl(channel: Channel): string {
+  return `${UPDATE_FEED_BASE_URL}${channel}/`;
+}
+
+export function allowsPrereleaseForChannel(channel: Channel): boolean {
+  return channel !== 'stable';
+}
 
 export type UpdaterEventMap = {
   'checking-for-update': () => void;
@@ -44,6 +54,7 @@ export interface UpdaterServiceOptions {
   currentVersion: string;
   enabled: boolean;
   disabledReason?: UpdateDisabledReason;
+  channel?: Channel;
   feedUrl?: string;
   onStateChanged?: (status: UpdateStatus) => void;
   beforeInstall?: () => Promise<void> | void;
@@ -63,6 +74,7 @@ export class UpdaterService {
   private downloadPromise: Promise<UpdateStatus> | null = null;
   private updateMetadata: UpdateMetadata | null = null;
   private installRequested = false;
+  private epoch = 0;
 
   constructor(options: UpdaterServiceOptions) {
     this.adapter = options.adapter;
@@ -79,11 +91,27 @@ export class UpdaterService {
 
     if (!options.enabled) return;
 
+    const channel = options.channel ?? DEFAULT_CHANNEL;
     this.adapter.autoDownload = false;
     this.adapter.autoInstallOnAppQuit = false;
-    this.adapter.allowPrerelease = false;
-    this.adapter.setFeedURL(options.feedUrl ?? UPDATE_FEED_URL);
+    this.applyChannel(channel, options.feedUrl);
     this.bindAdapterEvents();
+  }
+
+  /**
+   * Switch the electron-updater feed at runtime. Resets to idle so the next
+   * check talks to the new channel. Does not use electron-updater's `channel`
+   * field — feed URL is `updates/<channel>/`.
+   */
+  setChannel(channel: Channel): void {
+    if (this.state.state === 'disabled') return;
+    this.epoch += 1;
+    this.checkPromise = null;
+    this.downloadPromise = null;
+    this.updateMetadata = null;
+    this.installRequested = false;
+    this.applyChannel(channel);
+    this.transition({ state: 'idle', currentVersion: this.currentVersion });
   }
 
   getState(): UpdateStatus {
@@ -98,8 +126,10 @@ export class UpdaterService {
     }
 
     this.transition({ state: 'checking', currentVersion: this.currentVersion });
+    const epoch = this.epoch;
     this.checkPromise = this.adapter.checkForUpdates()
       .then((result) => {
+        if (epoch !== this.epoch) return this.state;
         // electron-updater normally emits update-not-available/update-available.
         // The fallback also keeps simple adapters deterministic in tests.
         if (this.state.state === 'checking') {
@@ -113,11 +143,12 @@ export class UpdaterService {
         return this.state;
       })
       .catch((error: unknown) => {
+        if (epoch !== this.epoch) return this.state;
         this.setError(error);
         return this.state;
       })
       .finally(() => {
-        this.checkPromise = null;
+        if (epoch === this.epoch) this.checkPromise = null;
       });
     return this.checkPromise;
   }
@@ -136,14 +167,16 @@ export class UpdaterService {
       ...metadata,
       progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 },
     });
+    const epoch = this.epoch;
     this.downloadPromise = this.adapter.downloadUpdate()
       .then(() => this.state)
       .catch((error: unknown) => {
+        if (epoch !== this.epoch) return this.state;
         this.setError(error);
         return this.state;
       })
       .finally(() => {
-        this.downloadPromise = null;
+        if (epoch === this.epoch) this.downloadPromise = null;
       });
     return this.downloadPromise;
   }
@@ -162,19 +195,28 @@ export class UpdaterService {
     return this.state;
   }
 
+  private applyChannel(channel: Channel, feedUrl?: string): void {
+    this.adapter.allowPrerelease = allowsPrereleaseForChannel(channel);
+    this.adapter.setFeedURL(feedUrl ?? resolveUpdateFeedUrl(channel));
+  }
+
   private bindAdapterEvents(): void {
     this.adapter.on('checking-for-update', () => {
+      if (this.state.state === 'idle' && !this.checkPromise) return;
       if (this.state.state !== 'checking') {
         this.transition({ state: 'checking', currentVersion: this.currentVersion });
       }
     });
     this.adapter.on('update-available', (info) => {
+      if (this.state.state === 'idle' && !this.checkPromise) return;
       this.setAvailable(info);
     });
     this.adapter.on('update-not-available', () => {
+      if (this.state.state === 'idle' && !this.checkPromise) return;
       this.transition({ state: 'not-available', currentVersion: this.currentVersion });
     });
     this.adapter.on('download-progress', (progress) => {
+      if (this.state.state !== 'downloading') return;
       const metadata = this.metadataOrFallback();
       this.transition({
         state: 'downloading',
@@ -184,6 +226,7 @@ export class UpdaterService {
       });
     });
     this.adapter.on('update-downloaded', (info) => {
+      if (this.state.state === 'idle' && !this.downloadPromise) return;
       this.updateMetadata = normalizeMetadata(info, this.updateMetadata?.version ?? this.currentVersion);
       this.transition({
         state: 'downloaded',
@@ -192,6 +235,7 @@ export class UpdaterService {
       });
     });
     this.adapter.on('error', (error, message) => {
+      if (this.state.state === 'idle' && !this.checkPromise && !this.downloadPromise) return;
       this.setError(message || error);
     });
   }

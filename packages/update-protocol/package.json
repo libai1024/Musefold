@@ -1,0 +1,19 @@
+{
+  "name": "@musefold/update-protocol",
+  "version": "0.0.0-internal",
+  "description": "Content-bundle manifest schema, canonical JSON, and Ed25519 signing for Musefold hot updates",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "semver": "^7.8.5",
+    "zod": "^4.4.3"
+  }
+}

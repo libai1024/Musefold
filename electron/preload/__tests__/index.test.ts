@@ -6,6 +6,7 @@ const electronMock = vi.hoisted(() => {
   const ipcRenderer = {
     invoke: vi.fn(),
     send: vi.fn(),
+    sendSync: vi.fn(),
     on: vi.fn(),
     removeListener: vi.fn(),
   };
@@ -50,6 +51,7 @@ describe("electron preload api bridge", () => {
       "api",
       api,
     );
+    expect(electronMock.ipcRenderer.sendSync).not.toHaveBeenCalled();
     expect(typeof api.designScheme.startCreation).toBe("function");
     expect(typeof api.designScheme.startRun).toBe("function");
     expect(typeof api.skillRuntime.prepareGithub).toBe("function");
@@ -218,5 +220,10 @@ describe("electron preload api bridge", () => {
       IPC.DIAGNOSTICS_ERROR,
       listener,
     );
+  });
+
+  it("does not sendSync origin migration when the argv flag is absent", async () => {
+    await loadPreloadApi();
+    expect(electronMock.ipcRenderer.sendSync).not.toHaveBeenCalled();
   });
 });

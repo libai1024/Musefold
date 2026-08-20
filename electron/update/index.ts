@@ -2,8 +2,9 @@ import { app, BrowserWindow } from 'electron';
 import electronUpdater from 'electron-updater';
 import { IPC } from '@shared/types/ipc';
 import { APP_VERSION } from '../system/app-version';
+import { getUpdateChannel } from '../settings/update-channel';
 import {
-  UPDATE_FEED_URL,
+  resolveUpdateFeedUrl,
   UpdaterService,
   type UpdaterAdapter,
 } from './updater-service';
@@ -30,13 +31,15 @@ export function initializeUpdater(options: InitializeUpdaterOptions = {}): Updat
         ? 'unsupported-platform'
         : undefined;
   const enabled = disabledReason === undefined;
+  const channel = getUpdateChannel();
 
   updaterService = new UpdaterService({
     adapter: autoUpdater as unknown as UpdaterAdapter,
     currentVersion: APP_VERSION,
     enabled,
     disabledReason,
-    feedUrl: UPDATE_FEED_URL,
+    channel,
+    feedUrl: resolveUpdateFeedUrl(channel),
     beforeInstall: options.beforeInstall,
     onStateChanged: (status) => {
       for (const win of BrowserWindow.getAllWindows()) {

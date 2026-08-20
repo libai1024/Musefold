@@ -20,6 +20,7 @@ const registrations = vi.hoisted(() => ({
   aiConnection: vi.fn(),
   updater: vi.fn(),
   pet: vi.fn(),
+  prefsOriginMigration: vi.fn(),
 }));
 
 vi.mock("../prompts", () => ({ registerPromptHandlers: registrations.prompt }));
@@ -65,6 +66,9 @@ vi.mock("../updater", () => ({
   registerUpdaterHandlers: registrations.updater,
 }));
 vi.mock("../../pet", () => ({ registerPetHandlers: registrations.pet }));
+vi.mock("../../prefs-origin-migration", () => ({
+  registerPrefsOriginMigrationHandlers: registrations.prefsOriginMigration,
+}));
 
 import { registerAllHandlers } from "../index";
 

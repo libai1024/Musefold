@@ -3,6 +3,8 @@ productName: Musefold
 copyright: Copyright © 2026 昭昭月科技有限公司
 publish:
   provider: generic
+  # Packaged default only (stable). Runtime overrides the feed URL from the
+  # update-channel setting / MUSEFOLD_UPDATE_CHANNEL (`updates/<channel>/`).
   url: https://zhaozhaoyue.top/Musefold/updates/stable/
 directories:
   buildResources: resources

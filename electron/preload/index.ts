@@ -6,6 +6,22 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC } from "@shared/types/ipc";
 import type { DiagnosticReport } from "@shared/diagnostics";
 import type { AccountErrorPayload } from "@shared/types/account";
+import {
+  runPreloadOriginMigration,
+  type LocalStorageLike,
+} from "../main/prefs-origin-migration-logic";
+
+try {
+  const storage = (globalThis as unknown as { localStorage?: LocalStorageLike })
+    .localStorage;
+  runPreloadOriginMigration({
+    argv: process.argv,
+    sendSync: (channel, ...args) => ipcRenderer.sendSync(channel, ...args),
+    storage,
+  });
+} catch {
+  // Preload must never throw: an exception here makes the whole app unusable.
+}
 
 // 诊断弹窗只接收主进程主动推送的未捕获异常。
 // invoke 的拒绝会原样抛给调用方：已处理的错误由调用方呈现（toast/行内），
@@ -567,6 +583,9 @@ const api = {
     check: () => ipcRenderer.invoke(IPC.UPDATER_CHECK),
     download: () => ipcRenderer.invoke(IPC.UPDATER_DOWNLOAD),
     install: () => ipcRenderer.invoke(IPC.UPDATER_INSTALL),
+    getChannel: () => ipcRenderer.invoke(IPC.UPDATER_GET_CHANNEL),
+    setChannel: (channel: import("@shared/types/updater").Channel) =>
+      ipcRenderer.invoke(IPC.UPDATER_SET_CHANNEL, channel),
     onStateChanged: (
       cb: (status: import("@shared/types/updater").UpdateStatus) => void,
     ) => {
