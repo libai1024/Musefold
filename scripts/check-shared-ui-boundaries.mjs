@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+/**
+ * 共享 UI 边界守卫：token 定义唯一性、宿主 CSS 入口、共享壳层 JSX 用法、
+ * Web 私有 `.sidebar` rail 禁令。
+ *
+ * import 类规则已折入 depcruise/ESLint（V122-SHARE-05）：
+ * 图标唯一入口（禁 lucide-react 直连/深路径）→ ESLint `no-restricted-imports`。
+ * 计划点名的「禁私有 sidebar」在本脚本里是 CSS/JSX 断言（`.sidebar` rail、
+ * `<ProductSidebarLayout`），不是 import 图，故仍留在此处。
+ */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { extname, join, relative, resolve } from "node:path";
@@ -30,22 +39,14 @@ const tokenNames = [
 const violations = [];
 for (const sourceRoot of sourceRoots) {
   for (const file of walk(sourceRoot)) {
-    const extension = extname(file);
-    if (![".ts", ".tsx", ".css"].includes(extension)) continue;
+    if (extname(file) !== ".css") continue;
     const source = readFileSync(file, "utf8");
     const displayPath = relative(root, file);
-    if (extension !== ".css" && /from\s+["']lucide-react["']/.test(source)) {
-      violations.push(
-        `${displayPath}: import icons from @musefold/ui/icons instead of lucide-react`,
-      );
-    }
-    if (extension === ".css") {
-      for (const token of tokenNames) {
-        if (new RegExp(`${escapeRegExp(token)}\\s*:`).test(source)) {
-          violations.push(
-            `${displayPath}: ${token} must only be defined in packages/ui/src/tokens.css`,
-          );
-        }
+    for (const token of tokenNames) {
+      if (new RegExp(`${escapeRegExp(token)}\\s*:`).test(source)) {
+        violations.push(
+          `${displayPath}: ${token} must only be defined in packages/ui/src/tokens.css`,
+        );
       }
     }
   }

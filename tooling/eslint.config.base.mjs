@@ -72,6 +72,29 @@ export default tseslint.config(
   },
   {
     // V122-SHARE-06：@shared 兼容别名已删除，desktop-contracts 是唯一入口。
+    // V122-SHARE-05：图标必须从 @musefold/ui/icons 进入；禁止直连 lucide-react（含深路径）。
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^@shared(?:/|$)',
+              message: '已删除 @shared 兼容别名。请改用 @musefold/desktop-contracts 子路径。',
+            },
+            {
+              regex: '^lucide-react(?:/|$)',
+              message:
+                '图标必须从 @musefold/ui/icons 导入，禁止直连 lucide-react 或其深路径。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // 唯一允许直连 lucide-react 的入口：@musefold/ui 的 icons 契约实现。
+    files: ['packages/ui/src/icons.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
