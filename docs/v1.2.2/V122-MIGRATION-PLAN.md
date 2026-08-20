@@ -1,6 +1,6 @@
 # Musefold v1.2.2 迁移计划
 
-> **状态**：Phase 0、Phase 1a 已完成；Phase 1b 起未开工
+> **状态**：Phase 0、Phase 1a 已完成；Phase 3 部分完成（SHARE-06 / 01 / 05）；Phase 1b、Phase 2 未开工
 >
 > **日期**：2026-08-20
 >
@@ -24,7 +24,7 @@
 | Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | **已完成（2026-08-20）** |
 | Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
 | Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1 完成 | 按 feature 逐卡推进 |
-| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错 | 按卡推进 |
+| Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错；纯仓库侧，不依赖 Phase 1b | **部分完成（2026-08-20）**：SHARE-06 / 01 / 05 已完成；SHARE-02 / 03 / 04 未开工 |
 
 ## 2. Phase 0：工程化地基
 
@@ -55,14 +55,14 @@ Phase 0 于 2026-08-20 全部完成。
 
 ### Phase 0 沉淀的 Phase 3 输入
 
-- **`@shared/*` 别名消费清单**（原为 Phase 3 拆迁 `shared/` 的依据；`shared/` 已于 Phase 1a DIR-02 解散）：`packages/core` 消费面最大（constants、pricing、types/{enums,models,providers,ipc,workbench,design-scheme}、design-scheme/{prompt-compiler,schema}）；`packages/cli` 生产代码消费 constants、pricing；`packages/automation-server` 生产代码消费 types/providers、constants；`packages/client` 零别名。残留的 `@shared/types/*` 直映与 ESLint 禁令见下方 Phase 1a 沉淀的 Phase 3 输入。
+- **`@shared/*` 别名消费清单**（原为 Phase 3 拆迁 `shared/` 的依据；`shared/` 已于 Phase 1a DIR-02 解散）：`packages/core` 消费面最大（constants、pricing、types/{enums,models,providers,ipc,workbench,design-scheme}、design-scheme/{prompt-compiler,schema}）；`packages/cli` 生产代码消费 constants、pricing；`packages/automation-server` 生产代码消费 types/providers、constants；`packages/client` 零别名。残留的 `@shared/types/*` 直映与 ESLint 禁令已由 `V122-SHARE-06` 收口。
 - **退役后端面**（前端 store 死路径已删，以下保留待 Phase 3 决断）：`electron/main/ipc/{folders,tags,prompts,smartSets}.ts` 的 folder/tag/batch/smartSet 通道、preload 对应暴露、`packages/core` 的 folders/tags/smartSets repositories——导入导出与 E2E 仍在使用其中一部分，不能整体删除。
 - **已知测试竞态**：~~根 vitest 并行时 brand-migration 相关测试与 `packages/cli/dist` 写入偶发撞车~~ **已于 2026-08-20 修复**。根因不是临时目录问题，而是 `readProductText()` 递归扫描 `packages/**` 时把构建产物一起读了：该守卫要守的是源码，产物随时可重建，扫它既拖慢测试又会和并发构建抢文件。现按目录名跳过产物与依赖目录（`dist`/`out`/`node_modules`/`.turbo`/`.tsout` 等）并跳过符号链接；正反向都已验证（产物目录内放旧品牌串仍通过，`src/` 下放则失败）。
 
 ### Phase 0 沉淀的 Phase 1 输入
 
 - **根应用的依赖声明缺口**（「缺口五」在根目录的残留）：`electron/` 与 `src/` 生产代码大量 import `@musefold/core`、`@musefold/automation-server`，但根 `package.json` 未声明，靠 `tooling/tsconfig.base.json` 与 `vitest.config.ts` 的别名解析。**不能只补声明**：electron-vite 的 `externalizeDepsPlugin` 以 `dependencies` 为准，一旦声明就会把它们外部化，打包后的主进程将在运行时 require TS 源码——必须同步加入 `electron.vite.config.ts` 的 `externalizeDeps.exclude`（现有 `cloud-client`/`contracts`/`update-protocol` 就是这么处理的，见 `electron/main/__tests__/workspace-bundling.test.ts`）。该路径只有完整打包并启动才能验证，不在 `typecheck test build lint check:boundaries` 门禁覆盖内，因此并入 Phase 1a 的 `V122-DIR-01`（App manifest 与构建配置本就要一起动）一次做完，而不是先单独补声明。
-- **lint 棘轮剩余 8 条**：`tooling/eslint.config.base.mjs` 首批 8 条低违规规则已于 2026-08-20 清零并启用（详见 v1.2.1 交付计划 `V121-CI-08` 的收紧记录）。剩余 `@typescript-eslint/no-unused-vars` 57、`react-hooks/set-state-in-effect` 47、`@typescript-eslint/no-explicit-any` 41、`@typescript-eslint/no-require-imports` 18、`react-hooks/exhaustive-deps` 12、`react-hooks/refs` 5、`react-hooks/immutability` 2、`react-hooks/incompatible-library` 2。其中 react-hooks 系列（合计 56 处）集中在渲染层，宜与 Phase 2 的 stores 切换同批处理，避免同一文件反复改动。`linterOptions.reportUnusedDisableDirectives` 仍为 `off`，其 6 处未使用指令中 5 处属 `exhaustive-deps`，须与该规则同批启用。
+- **lint 棘轮**：`tooling/eslint.config.base.mjs` 首批 8 条低违规规则已于 2026-08-20 清零并启用；第二批 `@typescript-eslint/no-unused-vars` 与 `@typescript-eslint/no-require-imports` 已于同日清零并启用（详见 v1.2.1 交付计划 `V121-CI-08`）。剩余 `react-hooks/set-state-in-effect` 47、`@typescript-eslint/no-explicit-any` 41、`react-hooks/exhaustive-deps` 12、`react-hooks/refs` 5、`react-hooks/immutability` 2、`react-hooks/incompatible-library` 2。其中 react-hooks 系列与 `no-explicit-any` 按既有裁定留 Phase 2 stores 切换同批，避免同一文件反复改动。`linterOptions.reportUnusedDisableDirectives` 仍为 `off`，其 6 处未使用指令中 5 处属 `exhaustive-deps`，须与该规则同批启用。
 
 ## 3. Phase 1：目录重构
 
@@ -110,8 +110,8 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 
 ### Phase 1a 沉淀的 Phase 3 输入
 
-- **`@shared/types/*` 兼容别名的删除与 import 全量改写**：DIR-02 为避免数百处 types import 改动，将 `@shared/types/*` 直映到 `packages/desktop-contracts`；删除该别名并改写全部 import 留 Phase 3（`V122-SHARE-06`）。
-- **ESLint `no-restricted-imports` 禁 `@shared`**：原计划在 Phase 1a 即禁止新增，执行期未落地；与别名删除同批收口，避免别名仍在时规则与现实打架。
+- **`@shared/types/*` 兼容别名的删除与 import 全量改写**：~~DIR-02 为避免数百处 types import 改动，将 `@shared/types/*` 直映到 `packages/desktop-contracts`；删除该别名并改写全部 import 留 Phase 3（`V122-SHARE-06`）。~~ **已完成（2026-08-20）**，见 `V122-SHARE-06`。
+- **ESLint `no-restricted-imports` 禁 `@shared`**：~~原计划在 Phase 1a 即禁止新增，执行期未落地；与别名删除同批收口，避免别名仍在时规则与现实打架。~~ **已完成（2026-08-20）**，与别名删除同批落地，见 `V122-SHARE-06`。
 
 **回滚**：1a 全部是移动与路径修正，revert 迁移提交即回滚。
 
@@ -153,22 +153,32 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 
 ## 5. Phase 3：共享逻辑归位
 
-可与 Phase 2 交错，按卡推进。
+**启动裁定（2026-08-20）**：Phase 3 与 Phase 2 可交错、纯仓库侧，不依赖 Phase 1b 的 manifest 下移；在 Phase 1b 等待外部条件与稳定期期间先行推进。`V122-SHARE-06` / `01` / `05` 已完成；`SHARE-02` / `03` / `04` 未开工（`SHARE-04` 与 Phase 2 stores 切换同批）。
 
 ### 任务
 
-- `V122-SHARE-01`：纯函数入 domain 并去重：`titleFromPromptContent`（桌面副本删除）、积分格式化（`src/lib/format.ts` 与 `apps/web/src/account-format.ts` 收敛）、`history/{lineage,filters,status}.ts`、generation `params.ts`/`presets.ts`。
+- `V122-SHARE-01`：~~纯函数入 domain 并去重：`titleFromPromptContent`（桌面副本删除）、积分格式化（`src/lib/format.ts` 与 `apps/web/src/account-format.ts` 收敛）、`history/{lineage,filters,status}.ts`、generation `params.ts`/`presets.ts`。~~ **已完成（2026-08-20，2aba605）**。双端重复纯函数入 domain。上提：`titleFromPromptContent`（桌面副本删除，domain 原有实现为准）；积分格式化收敛为 `packages/domain/src/billing-format.ts`（`quotaToPoints` / `formatPoints`，`formatAccountPoints` 为 Web 已验证名的别名）；history 三件套 → `history-lineage.ts` / `history-filters.ts` / `history-status.ts`（Web 无对等实现，按「桌面独有但纯」上提；lineage 用结构化 `HistoryLineageNode` 解耦，domain 不 import desktop-contracts）；generation presets → `provider-presets.ts`。
+
+  **不可合并清单（裁定）**：`buildImageRequest` / `RefineParams` 等（类型面是桌面 IPC 请求，Web 对等物是 `CloudGenerationRequest`，形状不同属产品差异）；`formatTime` / `formatCost` / `formatDuration` 留桌面。删除 6 个实现副本 + 5 个测试副本，改写 14 文件 import。
+
+  验证：turbo 30/30、`check:v1.1`、视觉门禁、全量 E2E 222 passed / 17 skipped。
 - `V122-SHARE-02`：UI 原语迁移收尾：dropdown-menu、select、slider、segmented、badge、scroll-area、kbd、skeleton、spinner、image-lightbox 迁入 `@musefold/ui`，删除 `src/components/ui/` 本地实现（约 1,000 行）。
 - `V122-SHARE-03`：new-api 客户端去重：`electron/account/api-client.ts` 切换到 `@musefold/new-api-client`，差异部分（设备令牌编排）留在 `electron/account/`。
-- `V122-SHARE-04`：工作台 store（2,080 行）按 Web 已验证的三 controller 模式（session/draft-sync/generation-sync）拆分 IO 与状态机；可上提的 reducer 进 `product-ui`，IPC IO 留在 `DesktopGateway`。
-- `V122-SHARE-05`：`check-shared-ui-boundaries.mjs` 中 import 类规则（图标唯一入口、禁私有 sidebar）折入 depcruise/ESLint；token 与 CSS 断言保留为脚本。
-- `V122-SHARE-06`：删除 `@shared/types/*` 兼容别名并全量改写 import；ESLint `no-restricted-imports` 禁 `@shared`；`desktop-contracts` 成为唯一入口。
+- `V122-SHARE-04`：工作台 store（2,080 行）按 Web 已验证的三 controller 模式（session/draft-sync/generation-sync）拆分 IO 与状态机；可上提的 reducer 进 `product-ui`，IPC IO 留在 `DesktopGateway`。与 Phase 2 stores 切换同批，未开工。
+- `V122-SHARE-05`：~~`check-shared-ui-boundaries.mjs` 中 import 类规则（图标唯一入口、禁私有 sidebar）折入 depcruise/ESLint；token 与 CSS 断言保留为脚本。~~ **已完成（2026-08-20，9e9f041）**。边界脚本 import 规则折入 ESLint。核实脚本 7 项检查中唯一 import 形的是 lucide-react 直连禁令 → `no-restricted-imports` regex `^lucide-react(?:/|$)`，`packages/ui/src/icons.ts` 唯一豁免，比旧脚本更严（深路径、全仓范围）。
+
+  **裁定**：「禁私有 sidebar」核实为 CSS/JSX 断言而非 import 图，不硬造 depcruise 规则，留脚本。token / CSS / JSX 断言留 `check:ui-boundaries`。红绿验证（探针文件先红后绿）。depcruise 仍 19 条、0 豁免。
+- `V122-SHARE-06`：~~删除 `@shared/types/*` 兼容别名并全量改写 import；ESLint `no-restricted-imports` 禁 `@shared`；`desktop-contracts` 成为唯一入口。~~ **已完成（2026-08-20，0bd0a28）**。删除 `@shared/types/*` 兼容别名。180 个消费方文件改写为 `@musefold/desktop-contracts/<mod>` 子路径（electron 76、src 78、core 22、automation-server 2、cli / mcp 各 1 测试）。别名从 `tooling/aliases.mjs`、`tooling/tsconfig.base.json` 与各 pickAliases 名单删除。ESLint `no-restricted-imports` 以 regex `^@shared(?:/|$)` 锁死；alias-consistency 守卫改为负向断言；depcruise 19 条规则保留 `'^@shared'` 作回流锁。
+
+  **裁定（预料外）**：沙箱 preload 的包名 import 会被 `externalizeDepsPlugin` 外部化导致打包后 require 失败，已给 preload 补与 main 同语义的 `externalizeDeps.exclude`（desktop-contracts + domain），`workspace-bundling.test.ts` 扩 preload 断言。
+
+  验证：turbo 30/30、全量 E2E 222 passed / 17 skipped。
 
 ### 完成条件
 
 - 双端重复的纯函数与 UI 原语清零（以 depcruise + 全库 grep 验证）。
 - `product-ui` 单测、共享视觉门禁、桌面 E2E、Web E2E 全绿。
-- `@shared` 别名从 tsconfig 与 vite 配置中删除。
+- `@shared` 别名从 tsconfig 与 vite 配置中删除。✅（`V122-SHARE-06`）
 
 ## 6. v1.3+ 候选（不在本版本门禁内）
 
@@ -200,7 +210,7 @@ Phase 1a 于 2026-08-20 全部完成，门禁全绿。
 | CI 路径过滤失配导致漏部署/误部署 | `V122-DIR-04` 用四类构造提交验证 | 映射文件单点回滚 |
 | Gateway 切换引入行为回归 | 按 feature 逐卡合并；桌面 E2E + 视觉门禁每卡必跑 | 单卡 revert |
 | 热更新 `minShellVersion` 推导在新路径失效 | `V122-DIR-08` 专项验证；推导按包名解析 | 阻塞发布,不阻塞代码合并 |
-| `@shared/types/*` 兼容别名残留、新代码继续走旧路径 | 别名删除与 ESLint `no-restricted-imports` 禁 `@shared` 列入 Phase 3 `V122-SHARE-06`（Phase 1a 未落地禁令，以免别名仍在时规则与现实打架） | — |
+| `@shared/types/*` 兼容别名残留、新代码继续走旧路径 | **已收口（2026-08-20，`V122-SHARE-06` / 0bd0a28）**：别名删除；ESLint `no-restricted-imports` 以 regex `^@shared(?:/|$)` 锁死；alias-consistency 守卫改为负向断言；depcruise 19 条规则保留 `'^@shared'` 作回流锁 | — |
 
 ## 9. 相关文档
 

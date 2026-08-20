@@ -1,6 +1,6 @@
 # Musefold v1.2.2 系统架构
 
-> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 1b 起未开工）
+> **状态**：v1.2.2 架构基线（Phase 0、Phase 1a 已落地；Phase 3 部分落地：SHARE-06 / 01 / 05；Phase 1b、Phase 2 未开工）
 >
 > **日期**：2026-08-20
 >
@@ -13,7 +13,7 @@
 v1.2.2 把仓库从「桌面 App 占据根目录 + 一批外挂 workspace 包」重构为标准的双端 monorepo：
 
 1. **桌面 App 迁入 `apps/desktop`**，与 `apps/web`、`apps/web-api`、`apps/generation-worker` 平级；根目录只留 workspace 配置与工具链（App manifest 下移属 Phase 1b）。
-2. **`shared/` 解散**（Phase 1a 已落地）：IPC 契约与 SQLite 行模型进 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定与桌面行模型逻辑归位 `packages/core` / 主进程。`@shared/types/*` 兼容别名直映 desktop-contracts，删除留 Phase 3。
+2. **`shared/` 解散**（Phase 1a 已落地）：IPC 契约与 SQLite 行模型进 `packages/desktop-contracts`；平台无关逻辑归位 `packages/domain`；Node 绑定与桌面行模型逻辑归位 `packages/core` / 主进程。`@shared/types/*` 兼容别名已于 Phase 3 SHARE-06 删除，消费方改走 `@musefold/desktop-contracts/<mod>` 子路径。
 3. **桌面补上数据访问抽象**：`packages/domain` 的端口做全，桌面实现 `DesktopGateway`（封装 `window.api`），与 Web 的 `WebGateway` 实现同一组接口；store 与组件不再直接 import IPC。
 4. **双模型不强合，用 mapper 收口**：SQLite 行模型与云文档模型语义不同（时间、分页、乐观锁），转换集中在明确的 mapper 层；新功能一律以 `contracts` 形状为准。
 5. **依赖规则从约定变成机器约束**：dependency-cruiser 把分层图变成 CI 门禁；package.json 补全真实依赖；TypeScript project references 统一 typecheck 入口。
@@ -95,7 +95,7 @@ tooling/                       # 扁平布局（Phase 0 实测，未用子目录
 
 - `website/`、`services/`、`infra/`、`scripts/`、`tests/`（Python E2E）保持现位，不在本次范围。根 `shared/` 已于 Phase 1a 解散，不再存在。
 - 根 `package.json` 从「Electron App manifest 兼 workspace root」退化为纯 workspace root；electron-builder、`main` 字段、App 依赖全部下移到 `apps/desktop/package.json`。这是 Phase 1b，风险最高的一步，见[迁移计划](./V122-MIGRATION-PLAN.md)。
-- `@shared/types/*` 别名在迁移期直映 `packages/desktop-contracts`（无 re-export 胶水，避免把 `better-sqlite3` 拉进渲染层）；其余 `@shared/<module>` 已改写为真实包名。兼容别名删除与 ESLint 禁令留 Phase 3。
+- `@shared/types/*` 别名曾在迁移期直映 `packages/desktop-contracts`（无 re-export 胶水，避免把 `better-sqlite3` 拉进渲染层）；其余 `@shared/<module>` 已在 DIR-02 改写为真实包名。兼容别名已于 Phase 3 SHARE-06 删除，消费方改走 `@musefold/desktop-contracts/<mod>` 子路径；ESLint `no-restricted-imports` 禁 `@shared`，depcruise 保留 `'^@shared'` 回流锁。
 
 ## 3. 分层与依赖规则
 
@@ -167,7 +167,7 @@ apps/web-api       ← contracts/domain/new-api-client/server-crypto；禁止 de
 
 `domain` 保持 cloud-pure（只依赖 contracts）是有意为之：桌面行模型 → 视图模型的 mapper 放在 `apps/desktop` 宿主侧（见第 5 节），避免 domain 被桌面语义污染，Web 与 web-api 也能继续安全消费 domain。
 
-现有 `scripts/check-shared-ui-boundaries.mjs` 中可表达为 import 规则的部分（图标唯一入口、禁止私有 sidebar）逐步折入 depcruise/ESLint；token 与 CSS 断言保留为脚本。
+`scripts/check-shared-ui-boundaries.mjs` 中唯一 import 形规则（lucide-react 直连禁令）已于 Phase 3 SHARE-05 折入 ESLint `no-restricted-imports`（regex `^lucide-react(?:/|$)`，`packages/ui/src/icons.ts` 唯一豁免）；「禁私有 sidebar」核实为 CSS/JSX 断言而非 import 图，与 token / CSS / JSX 断言一并留 `check:ui-boundaries` 脚本。depcruise 仍 19 条、0 豁免。
 
 ### 3.3 平台专属能力的归属
 
@@ -236,7 +236,7 @@ Phase 1a DIR-02（2026-08-20，fcd614f）已按 import 图执行完毕。下表�
 
 | 原文件 | 实际去向 | 依据 / 裁定 |
 |---|---|---|
-| `types/*` 15 文件 | `packages/desktop-contracts/src/` | 桌面 IPC/持久化契约。`@shared/types/*` 别名直映到包内，数百处 types import 零改动，无 re-export 胶水 |
+| `types/*` 15 文件 | `packages/desktop-contracts/src/` | 桌面 IPC/持久化契约。Phase 1a 以 `@shared/types/*` 别名直映到包内（数百处 types import 零改动，无 re-export 胶水）；Phase 3 SHARE-06 已删除该别名，消费方改走 `@musefold/desktop-contracts/<mod>` |
 | `design-scheme/{schema,prompt-compiler,agents}.ts` | `packages/desktop-contracts` | 方案是桌面独有能力 |
 | `diagnostics.ts`、`share.ts` | `packages/desktop-contracts` | **订正预估**（原写 core / `apps/desktop`）：import 图核实为纯函数，无 Node import，`Buffer` 仅特性探测 |
 | `export-format.ts`、`generation-prompt.ts`、`app-result.ts`、`errors.ts` | `packages/domain` | 平台无关业务规则 |
@@ -247,7 +247,7 @@ Phase 1a DIR-02（2026-08-20，fcd614f）已按 import 图执行完毕。下表�
 
 **desktop-contracts 依赖面（2026-08-20 裁定）**：zod + domain + contracts + type-only update-protocol（`Channel`）。depcruise 规则 `desktop-contracts-no-upward` 放行上述、禁止 core / electron / renderer / apps。理由：`prompt-compiler` 运行时调 domain 的 `generation-prompt`；`AppResult` 为 type-only；向下依赖、渲染安全。domain 仍禁止依赖 desktop-contracts。
 
-`@shared/types/*` 兼容别名支撑到 Phase 3 结束后删除（全量改写 import + ESLint `no-restricted-imports`）；其余 `@shared/<module>` 已在 DIR-02 改写为真实包名。
+`@shared/types/*` 兼容别名已于 Phase 3 SHARE-06（2026-08-20，0bd0a28）删除：180 个消费方改写为 `@musefold/desktop-contracts/<mod>` 子路径，ESLint `no-restricted-imports` 禁 `@shared`；其余 `@shared/<module>` 已在 DIR-02 改写为真实包名。
 
 ## 7. TypeScript 工程统一
 

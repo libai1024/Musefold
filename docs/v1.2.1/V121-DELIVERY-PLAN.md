@@ -98,6 +98,10 @@ M0 与 M1 可并行：M0 是服务器侧操作，M1 是仓库侧改动。M2 必�
 
   同批 `no-useless-escape` 还翻出一处潜在缺陷：`electron/doubao-web/browser-service.ts` 注入脚本的模板字符串里写了单反斜杠 `\s`，注入到页面后是字母 `s`，导致完成探测只能匹配「生成了1张」而漏掉「生成了 4 张」及其门控的 canvas 结果。已改为 `\\s`（注入后为 `\s`），与同函数其余正则一致；该改动严格更宽松，不会破坏已有匹配。
 
+  **第二批棘轮已于 2026-08-20 收紧（29acfd9）**：`@typescript-eslint/no-unused-vars`（实测 56，盘点曾记 57）与 `@typescript-eslint/no-require-imports`（实测 19，曾记 18）清零并启用 error。处理：42 处死代码删除、11 处占位走 `_` 前缀规则选项（`argsIgnorePattern` 等）、3 处真缺陷修复——DEV 预览桥丢弃 `quality` 参数未传上游；`GenerationResultSurface` 的 `busy` prop 被丢弃致无 `aria-busy`；`check-icon-contract.mjs` 声明了 DEPRECATED 映射却从未扫描，启用后归一 4 个同字形别名调用点（`icons.ts` 中它们本就是同字形别名导出，视觉零变化）。19 处 `require` 全在 CommonJS 文件，按文件类型关闭该规则，不算豁免（含 `inject-key.js` 的刻意延迟 require）。
+
+  **剩余棘轮**：`react-hooks/set-state-in-effect` 47、`@typescript-eslint/no-explicit-any` 41、`react-hooks/exhaustive-deps` 12、`react-hooks/refs` 5、`react-hooks/immutability` 2、`react-hooks/incompatible-library` 2。react-hooks 系列与 `no-explicit-any` 按既有裁定留 Phase 2 stores 切换同批。
+
 ### 完成条件
 
 - 纯文档改动不触发任何构建任务。✅（CI 层 `docs_only` 跳过 + turbo 缓存键不含 docs，实测 docs 探针 FULL TURBO）
