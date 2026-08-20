@@ -40,9 +40,4 @@ export default defineConfig({
   preview: {
     port: 4174,
   },
-  resolve: {
-    alias: {
-      '@shared': resolve(appDir, '../../shared'),
-    },
-  },
 });

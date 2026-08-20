@@ -11,6 +11,7 @@
   "references": [
     { "path": "../automation-server" },
     { "path": "../client" },
+    { "path": "../contracts" },
     { "path": "../core" },
     { "path": "../../shared" }
   ]

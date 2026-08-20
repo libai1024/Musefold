@@ -1,19 +1,5 @@
 [
   {
-    "type": "dependency",
-    "from": "apps/web/src/account-format.ts",
-    "to": "shared/constants.ts",
-    "unresolvedTo": "../../../shared/constants",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "web-no-desktop"
-    }
-  },
-  {
     "type": "cycle",
     "from": "apps/web/src/fixture-runtime.ts",
     "to": "apps/web/src/runtime.ts",

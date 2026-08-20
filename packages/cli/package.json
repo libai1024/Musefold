@@ -21,6 +21,7 @@
   "dependencies": {
     "@musefold/automation-server": "*",
     "@musefold/client": "*",
+    "@musefold/contracts": "*",
     "@musefold/core": "*"
   }
 }
