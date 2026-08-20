@@ -7,18 +7,18 @@ import { fileURLToPath } from 'node:url';
 
 const SOURCE_PREFIXES = [
   'apps/',
-  'electron/',
+  'apps/desktop/electron/',
   'packages/',
   'preview/',
   'resources/',
   'scripts/',
   'shared/',
-  'src/',
+  'apps/desktop/src/',
   'website/Musefold/',
 ];
 const SOURCE_FILES = new Set([
   'electron-builder.yml',
-  'electron.vite.config.ts',
+  'apps/desktop/electron.vite.config.ts',
   'package.json',
   'package-lock.json',
   'postcss.config.js',

@@ -79,8 +79,8 @@ def test_managed_secrets_never_reach_renderer_databases_or_exports(app, tmp_path
 
 def test_skill_readers_have_no_execution_or_raw_html_escape_hatch():
     roots = (
-        REPO / "electron/main/skill-import",
-        REPO / "electron/main/skill-runtime-policy.ts",
+        REPO / "apps/desktop/electron/main/skill-import",
+        REPO / "apps/desktop/electron/main/skill-runtime-policy.ts",
         REPO / "shared/skill-scanner.ts",
     )
     forbidden = (
@@ -101,6 +101,6 @@ def test_skill_readers_have_no_execution_or_raw_html_escape_hatch():
             for token in forbidden:
                 assert token not in source, {"file": str(path.relative_to(REPO)), "token": token}
     assert scanned
-    preload = (REPO / "electron/preload/index.ts").read_text("utf-8")
+    preload = (REPO / "apps/desktop/electron/preload/index.ts").read_text("utf-8")
     assert "invoke: (channel" not in preload
     assert "ipcRenderer: ipcRenderer" not in preload

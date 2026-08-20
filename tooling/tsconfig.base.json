@@ -17,8 +17,8 @@
     "baseUrl": "..",
     "paths": {
       "@shared/*": ["shared/*"],
-      "@electron/*": ["electron/*"],
-      "@renderer/*": ["src/*"],
+      "@electron/*": ["apps/desktop/electron/*"],
+      "@renderer/*": ["apps/desktop/src/*"],
       "@musefold/core": ["packages/core/src/index.ts"],
       "@musefold/core/*": ["packages/core/src/*"],
       "@musefold/automation-server": ["packages/automation-server/src/index.ts"],

@@ -181,9 +181,9 @@ def assert_windows_target(layout: WindowsPackageLayout, expected_machine: int):
     entries = asar_entries(asar)
     joined = "\n".join(entries)
     assert "/node_modules/better-sqlite3" in joined
-    assert "/out/main/index.js" in joined
-    assert "/out/preload/index.cjs" in joined
-    assert "/out/renderer/index.html" in joined
+    assert "/apps/desktop/out/main/index.js" in joined
+    assert "/apps/desktop/out/preload/index.cjs" in joined
+    assert "/apps/desktop/out/renderer/index.html" in joined
     assert "/src/features/composer" not in joined
 
 

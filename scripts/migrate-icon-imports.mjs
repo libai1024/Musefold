@@ -4,8 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve('src');
-const BARREL = path.resolve('src/components/ui/icons.ts');
+const ROOT = path.resolve('apps/desktop/src');
+const BARREL = path.resolve('apps/desktop/src/components/ui/icons.ts');
 
 function walk(dir, acc = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

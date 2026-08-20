@@ -124,7 +124,7 @@ function isDevelopmentProcess(item) {
   const electronVite = command.includes(`${normalizedRoot}/node_modules/`) && command.includes('electron-vite');
   const vite = command.includes(`${normalizedRoot}/node_modules/`) && /(?:^|[/ ])vite(?:\.js)?(?: |$)/.test(command);
   const esbuild = command.includes(`${normalizedRoot}/node_modules/@esbuild/`);
-  const builtMain = command.includes(`${normalizedRoot}/out/main/`);
+  const builtMain = command.includes(`${normalizedRoot}/apps/desktop/out/main/`);
   const cliDaemon = command.includes(`${normalizedRoot}/packages/cli/dist/musefold.mjs`) && /(?:^| )serve(?: |$)/.test(command);
   const mcpServer = command.includes(`${normalizedRoot}/packages/mcp/dist/musefold-mcp.mjs`);
 

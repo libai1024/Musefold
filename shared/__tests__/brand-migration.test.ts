@@ -22,17 +22,17 @@ const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
   author: string;
   scripts: Record<string, string>;
 };
-const bootstrap = readFileSync('electron/main/index.ts', 'utf8');
+const bootstrap = readFileSync('apps/desktop/electron/main/index.ts', 'utf8');
 const sessionPreferences = readFileSync(
-  'src/features/generation/workbench/sessionPreferences.ts',
+  'apps/desktop/src/features/generation/workbench/sessionPreferences.ts',
   'utf8',
 );
 const visibleUi = [
-  'src/index.html',
-  'src/components/layout/Sidebar.tsx',
-  'src/features/onboarding/OnboardingFlow.tsx',
-  'src/features/generation/workbench/GenerationWorkbench.tsx',
-  'src/features/design-schemes/DesignSchemesPage.tsx',
+  'apps/desktop/src/index.html',
+  'apps/desktop/src/components/layout/Sidebar.tsx',
+  'apps/desktop/src/features/onboarding/OnboardingFlow.tsx',
+  'apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx',
+  'apps/desktop/src/features/design-schemes/DesignSchemesPage.tsx',
 ].map((path) => readFileSync(path, 'utf8')).join('\n');
 
 const textExtensions = new Set([
@@ -119,7 +119,7 @@ describe('Musefold brand boundary', () => {
     const formerEnvPrefix = ['P', 'F_'].join('');
     const formerGlobalPrefix = ['__p', 'f'].join('');
     const productText = [
-      ...['src', 'electron', 'shared', 'packages', 'scripts', 'preview', 'tests', '.github'].map(readProductText),
+      ...['apps/desktop/src', 'apps/desktop/electron', 'shared', 'packages', 'scripts', 'preview', 'tests', '.github'].map(readProductText),
       readFileSync('README.md', 'utf8'),
       readFileSync('package.json', 'utf8'),
       readFileSync('package-lock.json', 'utf8'),

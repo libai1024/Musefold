@@ -1,6 +1,6 @@
 """Packaged fresh-install check: boot from the builtin renderer (V121-HOT-12).
 
-Protocol §7.6: a brand-new install must start from the bundled `out/renderer`
+Protocol §7.6: a brand-new install must start from the bundled `apps/desktop/out/renderer`
 even when there is no network.
 
 Offline is guaranteed by the product, not by this smoke inventing a partition:
@@ -56,7 +56,7 @@ def assert_fresh_install_uses_builtin_renderer(executable: Path) -> None:
     Isolation matches the rest of package smoke: Chromium `--user-data-dir` plus
     `MUSEFOLD_E2E_USER_DATA_DIR` (see `tests.e2e.conftest._launch` /
     `electron/main/index.ts`). `app_args=[]` is the packaged convention — do
-    not pass unpackaged `out/main/index.js`.
+    not pass unpackaged `apps/desktop/out/main/index.js`.
     """
     user_data = Path(tempfile.mkdtemp(prefix="musefold-fresh-install-"))
     browser = handle = None

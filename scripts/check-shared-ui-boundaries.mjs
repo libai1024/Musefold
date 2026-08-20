@@ -6,7 +6,7 @@ import { extname, join, relative, resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const canonicalTokens = resolve(root, "packages/ui/src/tokens.css");
 const sourceRoots = [
-  resolve(root, "src"),
+  resolve(root, "apps/desktop/src"),
   resolve(root, "apps/web/src"),
   resolve(root, "packages/product-ui/src"),
 ];
@@ -58,7 +58,7 @@ for (const token of tokenNames) {
   }
 }
 
-for (const entry of ["src/main.tsx", "apps/web/src/main.tsx"]) {
+for (const entry of ["apps/desktop/src/main.tsx", "apps/web/src/main.tsx"]) {
   const source = readFileSync(resolve(root, entry), "utf8");
   if (!source.includes("@musefold/ui/tokens.css")) {
     violations.push(`${entry}: missing @musefold/ui/tokens.css import`);
@@ -69,7 +69,7 @@ for (const entry of ["src/main.tsx", "apps/web/src/main.tsx"]) {
 }
 
 for (const entry of [
-  "src/components/layout/AppShell.tsx",
+  "apps/desktop/src/components/layout/AppShell.tsx",
   "apps/web/src/App.tsx",
 ]) {
   const source = readFileSync(resolve(root, entry), "utf8");
@@ -81,7 +81,7 @@ for (const entry of [
 }
 
 for (const entry of [
-  "src/features/generation/workbench/GenerationWorkbench.tsx",
+  "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
   "apps/web/src/views/GenerateView.tsx",
 ]) {
   const source = readFileSync(resolve(root, entry), "utf8");

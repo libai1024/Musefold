@@ -3,11 +3,11 @@
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["node", "electron-vite/node"],
-    "rootDir": "electron",
+    "rootDir": "apps/desktop/electron",
     "outDir": ".tsout/node",
     "tsBuildInfoFile": ".tsout/node/tsconfig.tsbuildinfo"
   },
-  "include": ["electron/**/*.ts"],
+  "include": ["apps/desktop/electron/**/*.ts"],
   "references": [
     { "path": "./shared" },
     { "path": "./packages/contracts" },

@@ -34,7 +34,7 @@ const staticArtifacts = [
 ];
 
 if (includeBuild) {
-  staticArtifacts.push('out', 'release', 'apps/web/dist');
+  staticArtifacts.push('out', 'apps/desktop/out', 'release', 'apps/web/dist');
 }
 
 function safeTarget(relPath) {

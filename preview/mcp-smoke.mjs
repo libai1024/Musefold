@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { resolve } from 'path';
 
-const MAIN = resolve('out/main/index.js');
+const MAIN = resolve('apps/desktop/out/main/index.js');
 
 const transport = new StdioClientTransport({
   command: 'npx',

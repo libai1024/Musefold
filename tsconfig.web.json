@@ -4,12 +4,12 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "types": ["vite/client", "node"],
-    "rootDir": "src",
+    "rootDir": "apps/desktop/src",
     "outDir": ".tsout/web",
     "tsBuildInfoFile": ".tsout/web/tsconfig.tsbuildinfo",
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["apps/desktop/src/**/*.ts", "apps/desktop/src/**/*.tsx"],
   "references": [
     { "path": "./shared" },
     { "path": "./packages/contracts" },

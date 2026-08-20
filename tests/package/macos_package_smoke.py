@@ -84,7 +84,7 @@ def test_macos_package_end_to_end(fake_openai_server):
             browser, handle = _launch(user_data, pw, executable=EXECUTABLE, app_args=[])
             version = handle.api_ok("system.getVersion")
             assert version["app"] == PACKAGE_VERSION
-            assert version["db"] == 15
+            assert version["db"] == 19
             assert handle.page.evaluate(
                 "() => ({ skillRuntime: typeof window.api.skillRuntime, designScheme: typeof window.api.designScheme })"
             ) == {"skillRuntime": "object", "designScheme": "object"}

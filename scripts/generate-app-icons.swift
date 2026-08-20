@@ -12,6 +12,8 @@ let resourcesURL = projectRoot.appendingPathComponent("resources", isDirectory: 
 let iconURL = resourcesURL.appendingPathComponent("icon.png")
 let sourceIconURL = resourcesURL.appendingPathComponent("icon-source.png")
 let assistantIconURL = projectRoot
+  .appendingPathComponent("apps", isDirectory: true)
+  .appendingPathComponent("desktop", isDirectory: true)
   .appendingPathComponent("src", isDirectory: true)
   .appendingPathComponent("components", isDirectory: true)
   .appendingPathComponent("brand", isDirectory: true)

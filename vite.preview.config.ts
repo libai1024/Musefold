@@ -6,14 +6,14 @@ import { resolve } from 'path';
 import { previewApiBridge } from './preview/bridge-plugin.mjs';
 
 export default defineConfig({
-  root: 'src',
+  root: 'apps/desktop/src',
   // 预览桥：仅此配置加载，注入 window.api 的 HTTP 客户端 + 挂载 /__preview_api__ 后端。
   // 生产 electron-vite 打包不引用本文件，故桥代码绝不进入发布产物。
   plugins: [previewApiBridge()],
   resolve: {
     alias: {
       '@shared': resolve(__dirname, 'shared'),
-      '@renderer': resolve(__dirname, 'src'),
+      '@renderer': resolve(__dirname, 'apps/desktop/src'),
     },
   },
   server: process.env.PORT

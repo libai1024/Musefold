@@ -90,7 +90,7 @@ async function collectFiles(baseRel, extensions) {
 }
 
 async function checkNoNativeSelect() {
-  const files = await collectFiles('src', new Set(['.ts', '.tsx', '.js', '.jsx']));
+  const files = await collectFiles('apps/desktop/src', new Set(['.ts', '.tsx', '.js', '.jsx']));
   const hits = [];
   for (const file of files) {
     const text = await readFile(file, 'utf8');
@@ -105,8 +105,8 @@ async function checkNoNativeSelect() {
 
 async function checkLegacyGenerationState() {
   const files = [
-    ...(await collectFiles('src', new Set(['.ts', '.tsx']))),
-    ...(await collectFiles('electron', new Set(['.ts', '.tsx', '.js', '.cjs']))),
+    ...(await collectFiles('apps/desktop/src', new Set(['.ts', '.tsx']))),
+    ...(await collectFiles('apps/desktop/electron', new Set(['.ts', '.tsx', '.js', '.cjs']))),
     ...(await collectFiles('shared', new Set(['.ts', '.tsx']))),
     ...(await collectFiles('tests', new Set(['.ts', '.tsx', '.py', '.json']))),
   ];
@@ -132,7 +132,7 @@ async function checkLegacyGenerationState() {
 
 async function checkRatioOptions() {
   const constants = await readText('shared/constants.ts');
-  const picker = await readText('src/features/generation/components/RatioPicker.tsx');
+  const picker = await readText('apps/desktop/src/features/generation/components/RatioPicker.tsx');
   const required = ['1:1', '2:3', '3:4', '3:2', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9', 'auto'];
   const missing = required.filter((id) => !constants.includes(`id: '${id}'`));
   if (missing.length === 0 && picker.includes('RatioSelectionPreview') && picker.includes('RatioOptionGrid')) {
@@ -292,8 +292,8 @@ async function checkDocsAndWorkflow() {
 
 async function checkNoLikelyLiveKeys() {
   const files = [
-    ...(await collectFiles('src', new Set(['.ts', '.tsx', '.js', '.jsx']))),
-    ...(await collectFiles('electron', new Set(['.ts', '.tsx', '.js', '.cjs']))),
+    ...(await collectFiles('apps/desktop/src', new Set(['.ts', '.tsx', '.js', '.jsx']))),
+    ...(await collectFiles('apps/desktop/electron', new Set(['.ts', '.tsx', '.js', '.cjs']))),
     ...(await collectFiles('shared', new Set(['.ts', '.tsx']))),
     ...(await collectFiles('tests', new Set(['.ts', '.tsx', '.py']))),
     ...(await collectFiles('docs', new Set(['.md', '.json']))),

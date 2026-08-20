@@ -5,8 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve('src');
-const BARREL = path.resolve('src/components/ui/icons.ts');
+const ROOT = path.resolve('apps/desktop/src');
+const BARREL = path.resolve('apps/desktop/src/components/ui/icons.ts');
 
 // 已废除/折叠的名字：应改用右侧规范名。
 const DEPRECATED = {

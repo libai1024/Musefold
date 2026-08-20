@@ -8,7 +8,7 @@ tests/e2e/conftest.py — Playwright(Python) 驱动真实 Electron 应用的测�
 隔离：每次会话用独立 --user-data-dir（临时目录），DB/迁移/seed 全新，互不污染
 用户真实数据。
 
-前置：`npm run build`（out/main/index.js 存在）。
+前置：`npm run build`（apps/desktop/out/main/index.js 存在）。
 运行：.venv-test/bin/python -m pytest tests/e2e -q
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ import pytest
 from playwright.sync_api import sync_playwright, Page
 
 REPO = Path(__file__).resolve().parents[2]
-MAIN = REPO / "out" / "main" / "index.js"
+MAIN = REPO / "apps" / "desktop" / "out" / "main" / "index.js"
 ELECTRON_BIN = (
     REPO / "node_modules" / "electron" / "dist" / "electron.exe"
     if os.name == "nt"

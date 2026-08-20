@@ -10,7 +10,7 @@ directories:
   buildResources: resources
   output: release
 files:
-  - out/**/*
+  - apps/desktop/out/**/*
   - package.json
 afterPack: scripts/after-pack.cjs
 extraResources:

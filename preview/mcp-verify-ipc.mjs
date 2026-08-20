@@ -7,7 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { resolve } from 'path';
 
-const MAIN = resolve('out/main/index.js');
+const MAIN = resolve('apps/desktop/out/main/index.js');
 const transport = new StdioClientTransport({ command: 'npx', args: ['electron-driver'] });
 const client = new Client({ name: 'musefold-ipc', version: '1.0.0' }, { capabilities: {} });
 const parse = (r) => JSON.parse(r.content?.[0]?.text ?? '{}');

@@ -10,10 +10,11 @@
  * renderer 真正依赖的是 preload 暴露的 window.api.<group>.<method>。登记表按方法面
  * 建立，是对协议条款的语义等价实现。
  *
- * 扫描范围：src/**\/*.{ts,tsx}，排除 *.test.*。
- * 不扫 src/preview/：electron.vite.config.ts 的 renderer 入口是 src/index.html、
- * src/pet.html、src/storage-export.html；index.html 只加载 bootstrap-error.ts 与
- * main.tsx。src/preview/install-bridge.ts 仅由 vite.preview.config.ts 经
+ * 扫描范围：apps/desktop/src/**\/*.{ts,tsx}，排除 *.test.*。
+ * 不扫 apps/desktop/src/preview/：electron.vite.config.ts 的 renderer 入口是
+ * apps/desktop/src/index.html、apps/desktop/src/pet.html、
+ * apps/desktop/src/storage-export.html；index.html 只加载 bootstrap-error.ts 与
+ * main.tsx。apps/desktop/src/preview/install-bridge.ts 仅由 vite.preview.config.ts 经
  * preview/bridge-plugin.mjs 注入，属于浏览器 UI 走查，不进 Electron renderer 产物。
  *
  * 同形误伤：group 不在登记表中的 `api.<g>.<m>` 忽略（大概率是无关同名变量）；
@@ -36,7 +37,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const FLOOR = '0.5.0';
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const SRC_ROOT = join(REPO_ROOT, 'src');
+const SRC_ROOT = join(REPO_ROOT, 'apps/desktop/src');
 const REGISTRY_URL = new URL('../shared/types/api-method-versions.ts', import.meta.url);
 const PREVIEW_PREFIX = 'preview/';
 
