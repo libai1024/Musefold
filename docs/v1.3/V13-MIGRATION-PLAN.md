@@ -1,0 +1,211 @@
+# Musefold v1.3 迁移计划
+
+> **状态**：v1.3 文档冻结，实施未开始
+>
+> **日期**：2026-08-21
+>
+> **总原则**：每张任务卡独立合并、独立可回滚；先立规则后搬代码（棘轮 baseline 只减不增）；类型切换即删旧引用，不留兼容 re-export；不改变任何用户可见行为
+
+前置条件已满足：v1.2.2 Phase 0–3 全部落地（depcruise 0 违规、桌面 E2E 222 例、视觉门禁在用）。v1.3 不动发布链路，不依赖 v1.2.1 外部 evidence 门禁；每卡回归安全网 = 全仓 `check` + `check:v1.1` + 桌面 E2E + 共享视觉门禁。
+
+## 0. 交付原则（沿用并增补）
+
+1. **CI/CD 是安全网**。每卡必跑 v1.2.1/v1.2.2 交付的门禁；安全网红时不开下一卡。
+2. **规则先行**。GOV 卡（尺寸/feature 隔离/行模型禁令）先于对应搬代码卡上线，baseline 冻结存量，只减不增。
+3. **切换即删除**。行类型、服务端 store 面、编排重复段在切换卡内一并删除，防止新旧并存漂移。
+4. **共享层最小增量**。product-ui 只新增 `@tanstack/react-query` 一个外部依赖；page-controllers 只依赖 domain 端口与注入服务。
+5. **机械步骤与逻辑步骤分离**。拆文件的第一步是零逻辑变更的移动提交（便于 review 与 `git log --follow`），行为修改另开提交。
+
+## 1. 阶段总览
+
+| 阶段 | 内容 | 开工条件 | 相对规模 |
+|---|---|---|---|
+| Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
+| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | 中 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | 大 |
+| Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
+
+卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
+
+## 2. Phase 0：治理地基
+
+### 任务
+
+- `V13-GOV-01`：ESLint `max-lines-per-file` 上线（warn 600 / error 1200，作用域：全部 `apps/*/src`、`packages/*/src`、`apps/desktop/electron` 生产代码）。以 baseline 文件登记存量超标清单（实测约 15 个：`GenerationWorkbench.tsx`、`workbench/store.ts`、`SchemeRuntimeDetail.tsx`、`OnboardingFlow.tsx`、`AccountSection.tsx`、`browser-service.ts`、`extended-primitives.tsx` 等），清单内文件 warn、清单外文件 error；清单只减不增。
+
+  **裁定**：阈值取 600 的依据是存量分布（600 行以上约 3% 文件），是本仓库真实工作粒度而非激进值；清单清零后 error 阈值分步下调至 800。
+
+  验证：`npm run lint` 通过；构造 601 行探针文件先红后绿。
+  回滚：revert 规则提交；baseline 文件独立于规则文件。
+
+- `V13-GOV-02`：depcruise 新规则 `renderer-features-isolated`：`apps/desktop/src/features/<a>/**` 禁止 import `features/<b>/**`（`__tests__` 豁免）。存量 26+ 违规进 `dependency-cruiser-known-violations.json`，只减不增。
+
+  验证：`check:boundaries` 通过；探针（features/library import features/history）先红后绿。
+  回滚：revert 规则提交。
+
+- `V13-GOV-03`：store 命名与目录统一：feature store 统一 `store.ts`（`doubao-store.ts`→`account/store.ts` 内域、`creationStore.ts`/`runStore.ts`/`skillRuntimeStore.ts` 归位命名）；settings `sections/` 归并入 `components/`（13 个 section 组件改名迁入）；`store-persist-only` ESLint 规则以关闭状态预置（按 STATE-03 分批启用）。
+
+  **裁定**：纯移动 + import 改写提交，不改任何 store 逻辑。
+
+  验证：typecheck/test/E2E 全绿（机械改名应有零行为差异）。
+  回滚：revert 移动提交。
+
+- `V13-GOV-04`：`desktop-contracts/src/ipc.ts` 拆为 `ipc/` 域模块（prompt/history/workbench/account/generation/system/…），`Api` 聚合类型与子路径导出面不变（消费方零改动）；`preload/index.ts` 按域拆组装模块，仍单次 `contextBridge.exposeInMainWorld` 单对象暴露。
+
+  验证：`workspace-bundling.test.ts` preload 断言；打包冒烟。
+  回滚：revert 拆分提交（聚合类型不变，无级联）。
+
+### 完成条件
+
+- 四条规则/约定上线且 CI 生效；baseline 登记完成、无新增豁免；全部门禁绿。
+
+## 3. Phase 1：实体统一（ENT-A）
+
+### 任务
+
+- `V13-ENT-01`：depcruise 新规则 `renderer-row-models-banned`：`apps/desktop/src/{features,components,pages,stores,lib}/**` 禁止 import `@musefold/desktop-contracts` 行模型（`models` 及 re-export 它的子路径）。例外：`runtime/mappers/**`、`runtime/desktop-gateway.ts`、`__tests__`。存量引用进 baseline。
+
+  验证：探针（features/history import models）先红后绿。
+  回滚：revert 规则提交。
+
+- `V13-ENT-02`：history 域文档化。`DesktopExtras` history 面签名从 `HistoryRecord` 改为 `DesktopGenerationEntry = GenerationJob & { localImagePath?; costUnit; promptId? }`；`mappers/history.ts` 扩展承接 extras 面；`features/history/store.ts` 与 `HistoryDetail` 类型切换；`HistoryDetail` 随类型统一下沉 `product-ui/history/`（它本就跨 generation/workbench/library 三域）。行模型引用在本域清零（baseline 相应缩减）。
+
+  **裁定**：`success`→`succeeded` 枚举、epoch→ISO、offset↔cursor 的转换继续在 mapper；UI 层自此只见文档形状。桌面列表查询面（search+多维 filters+sortDir）保留在 extras 签名上，形状文档化。
+
+  验证：history 单测 + 库/历史 E2E + 视觉门禁。
+  回滚：单卡 revert（类型面局部）。
+
+- `V13-ENT-03`：library + account 域文档化。`PromptRow` 面收敛为 `PromptDocument & { previewImagePath? }`（create/list/searchHistory 的 extras 签名）；`AccountStatus`/cloudSync 面以 contracts account 形状 + 桌面扩展表达。`library/store.ts`、`account/*store` 类型切换，行引用清零。
+
+  验证：库/账号 E2E；`check:boundaries` baseline 下降。
+  回滚：单卡 revert。
+
+- `V13-ENT-04`：workbench 域收尾与 `models.ts` 收缩。`DesktopWorkbenchSessionDocument` 等对齐 contracts 文档形状后，`models.ts` 仅剩存储行类型且引用面全部落在 core/主进程/ipc 签名/mappers；`renderer-row-models-banned` baseline 归零，规则升 error（移出豁免清单）。
+
+  验证：baseline 清零；全量 E2E。
+  回滚：单卡 revert；ENT-04 是收口卡， revert 需连同所依赖卡的类型面一起评估。
+
+### 完成条件
+
+- 渲染层与 product-ui 中 `desktop-contracts` 行模型 import 为 0（depcruise error 强制）；`DesktopExtras` 全部签名只引用 contracts 形状 + 组合扩展；SQLite schema 零变更。
+
+## 4. Phase 2：状态与编排
+
+### 任务
+
+- `V13-STATE-01`：引入 TanStack Query。依赖声明（product-ui + 双宿主）；`product-ui/src/page-controllers/query-client.ts` 导出 `createMusefoldQueryClient()`；双端 Provider 装配；depcruise `product-ui-query-allowed` 放行。本卡只铺管线，无读路径迁移。
+
+  验证：typecheck/boundaries；双端渲染冒烟。
+  回滚：revert（无行为变化）。
+
+- `V13-STATE-02`：history/library/account 读路径 query 化：列表、统计、账号状态改为 `useQuery`；对应 store 的 `loading/error/statsLoading/…` 镜像字段与拉取 action 删除；写操作（删除/恢复/清空/置顶）改 `useMutation` + 精确失效。
+
+  验证：三域 E2E；store 单测改写；竞态场景（快速切过滤）手工 + E2E 验证。
+  回滚：按域分卡 revert。
+
+- `V13-STATE-03`：持久化统一与写面收尾：`stores/app.ts` 手写 localStorage 迁移改 `persist` middleware（版本化 key + migrate）；`store-persist-only` 规则对已迁移 store 启用；剩余服务端写面 mutation 化。
+
+  验证：升级路径单测（旧 key 数据迁移）；E2E。
+  回滚：单卡 revert。
+
+- `V13-ORCH-01`：page-controllers 骨架 + `PlatformServices` 填充。建 `product-ui/src/page-controllers/`；domain `PlatformServices` 由空接口填充 toast/download/clipboard/openExternal（桌面接 toast store/IPC，Web 接浏览器 API）；host-boundary 测试双端各加断言（product-ui 不出现平台 import）。
+
+  **裁定**：编排 hook 一律 `(deps: { 端口…; platform: PlatformServices }) => …` 签名，与 `useWorkbenchSessionController` 注入风格连续；不引入 React Context 隐式注入。
+
+  验证：boundary 测试；fixture 模式冒烟。
+  回滚：revert 骨架提交。
+
+- `V13-ORCH-02`：history + library 页面编排下沉。`useHistoryPageController` / `useLibraryPageController` 落地（取数 Query + 过滤/选中/分页 + 动作分发）；桌面 `HistoryPage`/`LibraryPage` 切换为薄挂载，feature store 对应编排段删除；Web `App.tsx` 的 history/library 编排段拆除改用同 controller。
+
+  验证：双端 E2E 对应用例；视觉门禁；`App.tsx` 行数显著下降（过程指标）。
+  回滚：按端分卡 revert。
+
+- `V13-ORCH-03`：generate/workbench 编排收敛 + Web `App.tsx` 拆解完成。`useGeneratePageController`（工作台顶层编排：会话装配、草稿入口、生成提交入口）落地；Web `App.tsx` 收敛为视图切换 + 3 个薄 view + Provider 装配（目标 ≤ 300 行）；桌面工作台顶层编排对齐同 controller（与 SPLIT-03 协同）。
+
+  验证：工作台 E2E 全量；Web E2E。
+  回滚：按端分卡 revert。
+
+- `V13-ORCH-04`：共享导航配置与命令路由（v1.2.2 迁移计划 §6 预埋候选）。双端视图清单、快捷键、命令面板项的声明式配置收敛 domain/product-ui，宿主只注册差异项。
+
+  验证：命令面板 E2E；导航回归。
+  回滚：单卡 revert。
+
+### 完成条件
+
+- Web `App.tsx` ≤ 300 行；桌面 pages 均为薄挂载；page-controllers 覆盖 history/library/generate 三面且双端共用；store 中服务端镜像字段为 0；持久化全走 persist middleware。
+
+## 5. Phase 3：拆分与复用
+
+### 任务
+
+- `V13-SPLIT-01`：`GenerationWorkbench.tsx` 机械拆分：14 个内联组件按[架构文档 6.1](./V13-ARCHITECTURE.md) 边界拆为独立文件，**零逻辑变更**（纯移动 + import/props 透传修正）。
+
+  验证：typecheck/test；工作台 E2E 全量 + 视觉门禁（像素不变即证明零行为变更）。
+  回滚：revert 移动提交。
+
+- `V13-SPLIT-02`：widget 上提 product-ui：timeline/turn-view/result-card/draft-preview 及 composer 拆分件中纯产品 UI 部分迁入 `product-ui/workbench/`；桌面语义段（额度兑换、Skill/Scheme 采集、本地附件）留桌面经插槽组合；Web 工作台视图升级为共享 widget 直拼（REUSE-02 的一半）。
+
+  **裁定**：上提判定规则——组件只依赖 contracts/domain 类型与回调 → 上提；依赖 desktop-contracts/IPC/本地文件 → 留桌面。灰区组件留桌面，出现第二个宿主消费者时再上提。
+
+  验证：双端 E2E；视觉门禁（共享面双端同像素）。
+  回滚：按 widget 分卡 revert。
+
+- `V13-SPLIT-03`：workbench store 窄化：会话列表/运行态等服务端镜像移交 page controller + Query；`account/doubao-store`、`history/store` 跨域依赖改经编排层取数（feature 互导 baseline 相应缩减）；`WorkbenchState` 目标 ≤ 40 成员、store ≤ 500 行。
+
+  验证：工作台 E2E 全量；`check:boundaries`。
+  回滚：单卡 revert。
+
+- `V13-SPLIT-04`：其余巨型文件：`SchemeRuntimeDetail.tsx` 按详情段落拆组件；`OnboardingFlow.tsx` 按步骤拆；`AccountSection.tsx` 拆 section 子组件并复用 product-ui account 面；`max-lines` baseline 相应缩减。
+
+  验证：对应域 E2E；视觉门禁。
+  回滚：按文件分卡 revert。
+
+- `V13-REUSE-01`：feature 耦合裁定与消除：design-schemes×6 处 `generation/workbench` 深入导入逐条裁定（下沉共享类型到 domain/contracts、经编排层取数，或合并 feature）；settings×9 处同理。
+
+  **裁定**：合并 feature 仅在「业务上不可分」时采用；默认路径是下沉与编排层解耦。
+
+  验证：`renderer-features-isolated` baseline 下降；对应 E2E。
+  回滚：单条 revert。
+
+- `V13-REUSE-02`：Web 工作台共享面验收：Web generate 视图由 product-ui widget 组合完成，桌面扩展经插槽注入；记录「同一 widget 双端复用」清单进本卡（复用频率的过程度量）。
+
+  验证：Web E2E + 共享视觉门禁。
+  回滚：Web 视图可独立回退旧组合。
+
+- `V13-REUSE-03`：边界清零收口：`renderer-features-isolated` 与 `renderer-row-models-banned` baseline 归零、规则升 error；`max-lines` baseline 缩减至尾部清单（或清零）；补 `tests/repo/` 守卫测试锁三类回潮（互导、行模型上浮、超大文件）。
+
+  验证：`check:boundaries` 0 违规；全部门禁。
+  回滚：收口卡为规则提升，revert 需评估。
+
+### 完成条件
+
+- `GenerationWorkbench.tsx` ≤ 400 行（组合层）；`workbench/store.ts` ≤ 500 行；feature 互导 0；product-ui 消费方数量较基线上升（复用频率提升的度量）。
+
+## 6. 发布门禁
+
+以下门禁在 v1.3 视为完成的前提，缺一不可：
+
+1. 新增 depcruise/ESLint 规则全部上线且 baseline 只减不增；REUSE-03 收口后 baseline 归零。
+2. 渲染层与 product-ui 无 `desktop-contracts` 行模型 import；`DesktopExtras` 签名全部文档形状 + 组合扩展。
+3. Web `App.tsx` ≤ 300 行；桌面 pages 薄挂载；page-controllers 双端共用。
+4. store 无服务端镜像字段；持久化统一 persist middleware。
+5. 巨型文件清单消化至目标行数；`max-lines` 棘轮在 CI 生效。
+6. 桌面 E2E、Web E2E、共享视觉门禁、`check`、`check:v1.1` 全绿。
+7. `docs/README.md` 权威序更新，v1.2.2 相关节加接棒注记；`README.md` 文档入口更新。
+
+## 7. 风险与回滚
+
+| 风险 | 缓解 | 回滚 |
+|---|---|---|
+| ENT 逐域切换期间形状并存混淆 | 切换即删除；depcruise 止血规则先行 | 单域卡 revert |
+| Query 改变刷新时序导致 E2E 抖动 | 配置单点统一 retry/staleTime；按域迁移 | 按域卡 revert |
+| 编排 hook 下沉后隐式平台依赖漏网 | 显式 deps 注入、禁 Context 隐式；host-boundary 测试 | 骨架卡可整体 revert |
+| 工作台拆分行为回归 | SPLIT-01 零逻辑变更 + 视觉门禁像素比对 | revert 移动提交 |
+| 棘轮与日常开发冲突 | baseline 只登记存量，新文件才受 error 约束 | 规则提交独立 revert |
+| design-schemes/generation 裁定合并造成目录大迁移 | REUSE-01 先裁定后动手；合并是最后选项 | 纯移动提交可 revert |
+
+## 8. 相关文档
+
+- [系统架构](./V13-ARCHITECTURE.md)
+- [技术选型与决策](./V13-TECHNOLOGY-DECISIONS.md)
+- [v1.2.2 迁移计划](../v1.2.2/V122-MIGRATION-PLAN.md)（其第 6 节 v1.3+ 候选由本计划接棒）
