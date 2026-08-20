@@ -43,20 +43,14 @@ const QUALITY_OPTIONS: { id: ImageQuality; label: string }[] = [
 ];
 
 export function OnboardingFlow() {
-  // 订阅两个 store 里真正影响可见性的字段，让门控判断本身具备响应性。
-  const onboarded = useOnboardingStore((s) => s.onboarded);
-  const forced = useOnboardingStore((s) => s.forced);
-  const isVisible = useOnboardingStore((s) => s.isVisible);
-  const providersLoaded = useGenerationStore((s) => s.providersLoaded);
-  const providerCount = useGenerationStore((s) => s.providers.length);
+  const visible = useOnboardingStore((s) => s.isVisible());
+  // isVisible() 内部读取 generation store；必须在本组件订阅，否则那边变化不会重渲染。
+  useGenerationStore((s) => s.providersLoaded);
+  useGenerationStore((s) => s.providers.length);
   const step = useOnboardingStore((s) => s.step);
   const { isMac } = usePlatform();
   const isFullscreen = useWindowFullscreen();
   const needsMacTitlebarInset = isMac && !isFullscreen;
-
-  const visible = isVisible();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- 字段用于触发门控重新计算。
-  void onboarded, forced, providersLoaded, providerCount;
 
   if (!visible) return null;
 

@@ -248,7 +248,7 @@ export function runPreloadOriginMigration(deps: {
     return { pulled: false, written: 0 };
   }
 
-  let incoming: Record<string, string> = {};
+  let incoming: Record<string, string>;
   try {
     incoming = coerceStringMap(deps.sendSync(IPC.PREFS_PULL_ORIGIN_MIGRATION));
   } catch {

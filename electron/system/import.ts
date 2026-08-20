@@ -223,7 +223,7 @@ export async function loadEnvelope(path: string): Promise<ZipContents> {
   try {
     return { envelope: JSON.parse(raw) as ExportEnvelope, images: new Map() };
   } catch (err) {
-    throw new Error(`JSON 解析失败: ${(err as Error).message}`);
+    throw new Error(`JSON 解析失败: ${(err as Error).message}`, { cause: err });
   }
 }
 

@@ -12,8 +12,6 @@ interface DoubaoAccountState {
 
 let statusRequest: Promise<DoubaoWebAccountStatus> | null = null;
 let usageRequest: Promise<DoubaoWebUsageStatus> | null = null;
-let loginEventsBound = false;
-
 export const useDoubaoAccountStore = create<DoubaoAccountState>((set) => ({
   status: null,
   loading: false,
@@ -69,8 +67,7 @@ export const useDoubaoAccountStore = create<DoubaoAccountState>((set) => ({
   },
 }));
 
-if (typeof window !== 'undefined' && !loginEventsBound) {
-  loginEventsBound = true;
+if (typeof window !== 'undefined') {
   const onWebLoginChanged = api.provider?.onWebLoginChanged;
   if (onWebLoginChanged) {
     onWebLoginChanged((status) => {

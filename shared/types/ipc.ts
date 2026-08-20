@@ -288,9 +288,8 @@ export const IPC = {
 
 // ---------- 查询/请求类型 ----------
 
-export interface ListPromptsQuery extends LibraryQuerySnapshot {
-  /** 排序方向；缺省 desc（title 的 desc 语义为 A→Z，见 repositories/prompts.ts） */
-}
+/** IPC 侧提示词列表查询，与 LibraryQuerySnapshot 同构。排序方向缺省 desc（title 的 desc 语义为 A→Z，见 repositories/prompts.ts）。 */
+export type ListPromptsQuery = LibraryQuerySnapshot;
 
 export interface UpdateSmartSetPatch {
   name?: string;

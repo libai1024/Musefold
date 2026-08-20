@@ -110,6 +110,6 @@ export async function loadRelatedHistory(
     if (isMissingRelatedHistoryHandler(error)) {
       return loadDirectHistoryFallback(query, client, runtimeDbVersion);
     }
-    throw new Error('作品索引暂时无法读取，请重试。');
+    throw new Error('作品索引暂时无法读取，请重试。', { cause: error });
   }
 }

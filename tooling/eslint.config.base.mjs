@@ -55,25 +55,33 @@ export default tseslint.config(
     ...reactHooks.configs.flat.recommended,
   },
   {
-    // Stock-violation freeze from the first full run (2026-08-20).
-    // Do not fix these in v1.2.1 — counts are the v1.2.2 Phase 0 ratchet input.
+    // 这不是棘轮欠账，而是永久性的职责划分：
+    // TypeScript 编译器负责未定义标识符（含 NodeJS、RequestInit 等 ambient 类型）；
+    // ESLint no-undef 看不到这些声明，在 TS 上是 typescript-eslint 官方已知误报。
+    files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
+    rules: {
+      'no-undef': 'off',
+    },
+  },
+  {
+    // JS 没有编译器兜底，未定义标识符必须由这条规则抓住。
+    files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
+    rules: {
+      'no-undef': 'error',
+    },
+  },
+  {
+    // 存量违规冻结（首轮全量 2026-08-20）。第一批棘轮已收紧：违规最少的 8 条
+    // 已修复并重新启用。以下 8 条仍 off，违规数保持首轮基线，待后续棘轮。
     rules: {
       '@typescript-eslint/no-unused-vars': 'off', // 57; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/set-state-in-effect': 'off', // 47; ratchet: v1.2.2 Phase 0 重新启用
       '@typescript-eslint/no-explicit-any': 'off', // 41; ratchet: v1.2.2 Phase 0 重新启用
       '@typescript-eslint/no-require-imports': 'off', // 18; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/exhaustive-deps': 'off', // 12; ratchet: v1.2.2 Phase 0 重新启用
-      'no-useless-escape': 'off', // 8; ratchet: v1.2.2 Phase 0 重新启用
-      'no-useless-assignment': 'off', // 7; ratchet: v1.2.2 Phase 0 重新启用
-      'no-empty': 'off', // 5; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/refs': 'off', // 5; ratchet: v1.2.2 Phase 0 重新启用
-      'no-undef': 'off', // 4; ratchet: v1.2.2 Phase 0 重新启用
-      'preserve-caught-error': 'off', // 2; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/immutability': 'off', // 2; ratchet: v1.2.2 Phase 0 重新启用
       'react-hooks/incompatible-library': 'off', // 2; ratchet: v1.2.2 Phase 0 重新启用
-      'no-control-regex': 'off', // 1; ratchet: v1.2.2 Phase 0 重新启用
-      '@typescript-eslint/no-empty-object-type': 'off', // 1; ratchet: v1.2.2 Phase 0 重新启用
-      '@typescript-eslint/no-unused-expressions': 'off', // 1; ratchet: v1.2.2 Phase 0 重新启用
     },
   },
   eslintConfigPrettier,

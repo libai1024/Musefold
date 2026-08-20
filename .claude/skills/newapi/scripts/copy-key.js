@@ -31,11 +31,15 @@ function detectClipboard() {
   try {
     execSync("command -v xclip", { stdio: "ignore" });
     return "xclip -selection clipboard";
-  } catch {}
+  } catch {
+    // xclip 不在 PATH 时改试 xsel，不是错误。
+  }
   try {
     execSync("command -v xsel", { stdio: "ignore" });
     return "xsel --clipboard --input";
-  } catch {}
+  } catch {
+    // xsel 也不在 PATH；由调用方提示安装剪贴板工具。
+  }
   return null;
 }
 

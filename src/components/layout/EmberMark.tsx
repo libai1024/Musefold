@@ -121,7 +121,7 @@ export function EmberMark() {
     try {
       text = (await api.system.readClipboardText()).trim();
     } catch {
-      text = '';
+      // 剪贴板文本不可读：按无文字处理。
     }
     let imagePath: string | null = null;
     if (!text) {

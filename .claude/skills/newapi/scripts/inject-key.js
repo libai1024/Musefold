@@ -42,7 +42,9 @@ function writeFileAtomically(targetPath, content) {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
       }
-    } catch {}
+    } catch {
+      // 临时文件可能已不存在；清理失败不得掩盖主错误。
+    }
 
     throw new Error(
       `Failed to safely replace ${targetPath}. The original file was left untouched.`

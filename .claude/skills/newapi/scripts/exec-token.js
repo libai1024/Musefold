@@ -57,7 +57,7 @@ async function main() {
 
   const realCommand = commandTemplate.split(placeholder).join(fullKey);
 
-  let stdout = "";
+  let stdout;
   let stderr = "";
   let exitCode = 0;
 

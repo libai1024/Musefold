@@ -155,7 +155,7 @@ export function evaluateSchemeRun(input: RunEvaluationInput): RunEvaluationOutco
     try {
       bytes = statSync(output.imagePath).size;
     } catch {
-      bytes = null;
+      // 文件不存在或无法 stat：按无效输出计。
     }
     const probe = bytes && bytes > 0 ? probeImageSize(output.imagePath) : null;
     if (!bytes || bytes <= 0) invalidFiles += 1;

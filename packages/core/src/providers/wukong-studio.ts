@@ -86,7 +86,7 @@ export class WukongStudioProvider extends BaseProvider {
 
   async validateConnection(): Promise<ValidationResult> {
     // 1) catalog 连通性 + 产品存在性（可匿名）
-    let productOk = false;
+    let productOk: boolean;
     try {
       const res = await fetch(`${this.baseUrl}/catalog`, { signal: AbortSignal.timeout(SUBMIT_TIMEOUT_MS) });
       if (!res.ok) {

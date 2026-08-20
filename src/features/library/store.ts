@@ -530,13 +530,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   highlightPrompt: async (id) => {
     // 新条目是在 Composer 里落库的，当前 prompts 数组里没有 —— 必须先刷
     await get().reloadPrompts();
-    let target = get().prompts.find((p) => p.id === id);
+    const target = get().prompts.find((p) => p.id === id);
     if (!target) {
-      // 落在了当前筛选之外（比如正筛着某标签）：清掉筛选再找一次，
+      // 落在了当前筛选之外（比如正筛着某标签）：清掉筛选再刷一次，
       // 否则用户会看到「保存成功」但列表里什么都没有。
       get().clearFilters();
       await get().reloadPrompts();
-      target = get().prompts.find((p) => p.id === id);
     }
     set({ selectedPromptId: id, highlightPromptId: id });
     void get().reloadStats();

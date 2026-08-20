@@ -21,14 +21,14 @@ const SENSITIVE_PATTERN = new RegExp(
 
 function sanitize(content) {
   // Rule 1: sk- prefixed tokens
-  let result = content.replace(/sk-[A-Za-z0-9_\-]{4,}/g, "sk-<REDACTED>");
+  let result = content.replace(/sk-[A-Za-z0-9_-]{4,}/g, "sk-<REDACTED>");
 
   // Rule 2: Bearer tokens
-  result = result.replace(/Bearer\s+[A-Za-z0-9_.\-\/+=]{4,}/g, "Bearer <REDACTED>");
+  result = result.replace(/Bearer\s+[A-Za-z0-9_.\-/+=]{4,}/g, "Bearer <REDACTED>");
 
   // Rule 3: Credentials in connection strings (user:pass@host pattern)
   result = result.replace(
-    /[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+@[^\s]+/g,
+    /[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+@[^\s]+/g,
     "<REDACTED>"
   );
 
@@ -50,7 +50,7 @@ function sanitize(content) {
 
       // YAML: key: value  (unquoted or quoted)
       const yamlMatch = line.match(
-        /^(\s*([\w.\-]+)\s*:\s*)(.+)$/
+        /^(\s*([\w.-]+)\s*:\s*)(.+)$/
       );
       if (yamlMatch) {
         const [, prefix, key, value] = yamlMatch;
@@ -62,7 +62,7 @@ function sanitize(content) {
 
       // ENV / TOML: KEY=value  or  KEY = "value"
       const envMatch = line.match(
-        /^(\s*([\w.\-]+)\s*=\s*)(.+)$/
+        /^(\s*([\w.-]+)\s*=\s*)(.+)$/
       );
       if (envMatch) {
         const [, prefix, key] = envMatch;

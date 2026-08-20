@@ -320,7 +320,7 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
     async stop() {
       if (stopping) return stopping;
       stopping = (async () => {
-        for (const client of [...clients]) { try { client.end(); } catch {} } clients.clear();
+        for (const client of [...clients]) { try { client.end(); } catch { /* 关闭中的客户端可能已断开 */ } } clients.clear();
         generalLimiter.clear(); generationLimiter.clear(); const info = currentInfo; currentInfo = null;
         if (info) removeDiscoveryFileIfOwned(options.dataDir, { pid: process.pid, port: info.port, token: info.token });
         if (server) await new Promise<void>((resolve) => server!.close(() => resolve())); server = null; startedAt = null;

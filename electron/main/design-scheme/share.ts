@@ -166,7 +166,7 @@ export async function exportDesignScheme(
     try {
       scan = JSON.parse(snapshot.scan_json);
     } catch {
-      scan = {};
+      // scan_json 损坏时用空对象，不阻断分享包导出。
     }
     manifestSnapshots.push({
       dir,

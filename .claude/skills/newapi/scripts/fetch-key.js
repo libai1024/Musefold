@@ -24,7 +24,9 @@ async function fetchTokenKey(tokenId, { baseUrl, accessToken, userId }) {
     try {
       const errJson = JSON.parse(errText);
       if (errJson.message) msg = errJson.message;
-    } catch {}
+    } catch {
+      // 错误体不是 JSON 时沿用 HTTP 状态文案。
+    }
     throw new Error(msg);
   }
 

@@ -233,6 +233,7 @@ export function parseAgentSkillMarkdown(markdown: string): AppResult<ParsedAgent
       fieldPath: 'SKILL.md.frontmatter.description',
     });
   }
+  // eslint-disable-next-line no-control-regex -- 故意匹配 C0/DEL，拒绝 skill name 含不可见控制字符
   if (name.length > MAX_SKILL_NAME_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) {
     return scannerError('INVALID_TYPE', 'SKILL.md name 格式不正确或过长', {
       fieldPath: 'SKILL.md.frontmatter.name',
