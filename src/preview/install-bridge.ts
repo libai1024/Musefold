@@ -98,6 +98,14 @@ const updaterApi: Api['updater'] = {
   setChannel: async (channel) => ({ ok: true, channel, lockedByEnv: false }),
   onStateChanged: () => () => {},
   notifyContentReady: () => {},
+  getContentState: async () => ({
+    activeSource: 'builtin',
+    activeBundleVersion: null,
+    pendingVersion: null,
+    knownGoodVersion: null,
+    lastCheck: null,
+  }),
+  checkContentNow: async () => ({ status: 'trust_anchor_missing', at: Date.now() }),
 };
 
 // 顶层用 Proxy 兜底所有域：已知域走 domainProxy，window 域用具体桩。

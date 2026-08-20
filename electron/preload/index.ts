@@ -598,6 +598,8 @@ const api = {
         ipcRenderer.removeListener(IPC.UPDATER_STATE_CHANGED, listener);
     },
     notifyContentReady: () => ipcRenderer.send(IPC.UPDATER_CONTENT_READY),
+    getContentState: () => ipcRenderer.invoke(IPC.UPDATER_GET_CONTENT_STATE),
+    checkContentNow: () => ipcRenderer.invoke(IPC.UPDATER_CHECK_CONTENT_NOW),
   },
   log: {
     tail: (maxLines?: number) => ipcRenderer.invoke(IPC.LOG_TAIL, maxLines),

@@ -102,7 +102,9 @@ vi.mock('../system/logger', () => ({
 import { getBundleDir, getPendingVersion } from './content-bundle-store';
 import {
   CONTENT_UPDATE_CHECK_INITIAL_DELAY_MS,
+  getLastContentUpdateCheck,
   resetContentUpdateScheduleForTests,
+  resetLastContentUpdateCheckForTests,
   resolveContentUpdateSchedulePlan,
   runContentUpdateCheckOnce,
   scheduleContentUpdateChecks,
@@ -168,6 +170,7 @@ let userData: string;
 beforeEach(() => {
   storeState.reset(STORE_DEFAULTS);
   userData = tempDir('musefold-content-updater-');
+  resetLastContentUpdateCheckForTests();
 });
 
 afterEach(() => {
@@ -250,6 +253,9 @@ describe('runContentUpdateCheckOnce', () => {
 
     expect(result).toEqual({ status: 'installed', bundleVersion: VERSION });
     expect(getPendingVersion()).toBe(VERSION);
+    const lastCheck = getLastContentUpdateCheck();
+    expect(lastCheck).toEqual({ status: 'installed', at: expect.any(Number) });
+    expect(lastCheck).not.toHaveProperty('bundleVersion');
     const dest = getBundleDir(VERSION, userData);
     expect(readFileSync(join(dest, 'index.html'), 'utf8')).toBe('<html>index</html>');
     expect(readFileSync(join(dest, 'pet.html'), 'utf8')).toBe('<html>pet</html>');
@@ -273,6 +279,40 @@ describe('runContentUpdateCheckOnce', () => {
       customUrl,
       expect.objectContaining({ method: 'GET', redirect: 'error' }),
     );
+  });
+
+  it('records a redacted lastCheck snapshot without message or extra fields', async () => {
+    expect(getLastContentUpdateCheck()).toBeNull();
+
+    await runContentUpdateCheckOnce({
+      fetch: vi.fn(),
+      userDataRoot: userData,
+      channel: 'dev',
+    });
+    const missing = getLastContentUpdateCheck();
+    expect(missing).toEqual({ status: 'trust_anchor_missing', at: expect.any(Number) });
+    expect(Object.keys(missing as object).sort()).toEqual(['at', 'status']);
+
+    const { publicKey } = generateBundleSigningKeyPair();
+    const packed = packCompleteBundle();
+    const fakeSignature = Buffer.alloc(64).toString('base64');
+    await runContentUpdateCheckOnce({
+      fetch: vi.fn(
+        async () => new Response(JSON.stringify({ ...unsignedBody(packed), signature: fakeSignature })),
+      ),
+      publicKeys: [publicKey],
+      channel: 'dev',
+      currentShellVersion: '0.5.0-dev',
+      userDataRoot: userData,
+    });
+    const invalid = getLastContentUpdateCheck();
+    expect(invalid).toEqual({
+      status: 'manifest_invalid',
+      reason: 'invalid_signature',
+      at: expect.any(Number),
+    });
+    expect(JSON.stringify(invalid)).not.toMatch(/Manifest is not|signature is invalid/i);
+    expect(invalid).not.toHaveProperty('message');
   });
 });
 

@@ -25,6 +25,8 @@ import type { PetFrame, PetInteraction } from "./pet";
 import type { PromptSource } from "./enums";
 import type {
   Channel,
+  ContentLayerCheckSnapshot,
+  ContentLayerState,
   UpdateChannelInfo,
   UpdateChannelResult,
   UpdateStatus,
@@ -263,6 +265,10 @@ export const IPC = {
   UPDATER_STATE_CHANGED: "updater:stateChanged",
   /** 内容层启动信标：渲染进程首帧完成且 IPC 可用。单向 send，无应答。 */
   UPDATER_CONTENT_READY: "updater:contentReady",
+  /** 内容层窄状态：版本 / 来源 / 脱敏检查结果。无入参。 */
+  UPDATER_GET_CONTENT_STATE: "updater:getContentState",
+  /** 手动触发一次内容层检查；后续 E2E 的确定性触发点。无入参。 */
+  UPDATER_CHECK_CONTENT_NOW: "updater:checkContentNow",
   // share / deeplink（docs/product/15 TASK-DIF-05）
   SHARE_RENDER_CARD: "share:renderCard",
   SHARE_BUILD_DEEPLINK: "share:buildDeeplink",
@@ -969,6 +975,10 @@ export interface Api {
     onStateChanged: (cb: (status: UpdateStatus) => void) => () => void;
     /** 内容层启动信标。单向，无返回值。 */
     notifyContentReady: () => void;
+    /** 内容层窄状态（版本 / 来源 / 脱敏检查结果）。 */
+    getContentState: () => Promise<ContentLayerState>;
+    /** 手动触发一次内容层检查，返回与 lastCheck 同构的脱敏快照。 */
+    checkContentNow: () => Promise<ContentLayerCheckSnapshot>;
   };
   log: {
     /** 读取日志文件尾部（已脱敏，不含密钥） */

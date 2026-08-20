@@ -3,6 +3,7 @@
 
 import { app } from 'electron';
 import { usablePublicKeys, type Channel } from '@musefold/update-protocol';
+import type { ContentLayerCheckSnapshot } from '@shared/types/updater';
 import { getUpdateChannel } from '../settings/update-channel';
 import { createLogger } from '../system/logger';
 import {
@@ -61,8 +62,28 @@ export type ContentUpdateSchedulePlan = {
   checkDeps: ContentUpdateCheckDeps;
 };
 
+/** 本次进程内最近一次检查的脱敏快照；不落盘，进程退出即丢。 */
+let lastContentUpdateCheck: ContentLayerCheckSnapshot | null = null;
+
+export function getLastContentUpdateCheck(): ContentLayerCheckSnapshot | null {
+  return lastContentUpdateCheck;
+}
+
+/** 仅供测试：丢掉模块内存中的最近检查记录。 */
+export function resetLastContentUpdateCheckForTests(): void {
+  lastContentUpdateCheck = null;
+}
+
 export async function runContentUpdateCheckOnce(
   deps: ContentUpdateCheckDeps = {},
+): Promise<ContentUpdateCheckResult> {
+  const result = await executeContentUpdateCheckOnce(deps);
+  rememberContentUpdateCheck(result);
+  return result;
+}
+
+async function executeContentUpdateCheckOnce(
+  deps: ContentUpdateCheckDeps,
 ): Promise<ContentUpdateCheckResult> {
   const startedAt = Date.now();
   const publicKeys = usablePublicKeys(deps.publicKeys ?? BUNDLE_TRUST_PUBLIC_KEYS);
@@ -107,6 +128,15 @@ export async function runContentUpdateCheckOnce(
   }
 
   return installContentBundle(verified.manifest, installDepsFrom(deps, fetchFn, timeoutMs));
+}
+
+function rememberContentUpdateCheck(result: ContentUpdateCheckResult): void {
+  // 只留 status/reason/时间戳：message 是可能演进的英文句子，且可能夹带内部细节。
+  const at = Date.now();
+  lastContentUpdateCheck =
+    result.status === 'manifest_invalid'
+      ? { status: result.status, reason: result.reason, at }
+      : { status: result.status, at };
 }
 
 let contentUpdateScheduleStarted = false;
