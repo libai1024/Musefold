@@ -16,3 +16,10 @@ export interface PromptRepository {
   remove(id: string, expectedVersion: number): Promise<void>;
   use(id: string, input: PromptUseInput): Promise<PromptUseResult>;
 }
+
+export type { PromptGateway } from './prompt-gateway';
+export type { WorkbenchGateway } from './workbench-gateway';
+export type { GenerationEvent, GenerationGateway } from './generation-gateway';
+export type { HistoryGateway } from './history-gateway';
+export type { AccountGateway } from './account-gateway';
+export type { PlatformServices } from './platform-services';
