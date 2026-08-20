@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Ban, ImageOff, Images, Loader2, Power, RefreshCw } from '../../../components/ui/icons';
 import type { HistoryRecord, Prompt } from '@musefold/desktop-contracts/models';
+// 仅 system.relaunch：DesktopExtras 尚无对应方法。关联查询走 loadRelatedHistory。
 import api from '../../../lib/ipc';
 import { toImageSrc } from '../../../lib/media';
 import { formatTime } from '../../../lib/format';

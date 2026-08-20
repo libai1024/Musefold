@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { McpConnectionPage, NewPromptDocument } from '@musefold/contracts';
-import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
+import type {
+  HistoryLinkPromptRequest,
+  ListPromptsQuery,
+  RelatedHistoryQuery,
+  UpdatePromptPatch,
+} from '@musefold/desktop-contracts/ipc';
 import type { HistoryRecord, NewPrompt, Prompt } from '@musefold/desktop-contracts/models';
 import type {
   EnsureWorkbenchSessionCommand,
@@ -227,6 +232,20 @@ function createFakeApi() {
   const cloudSyncConflicts = vi.fn(async () => []);
   const cloudSyncResolve = vi.fn(async () => idleCloudSync);
   const cloudSyncOnChanged = vi.fn((_cb: (status: CloudSyncSummary) => void) => () => undefined);
+  const historyList = vi.fn(async (query?: { limit?: number; offset?: number }) => {
+    const all = [...histories.values()];
+    const offset = query?.offset ?? 0;
+    const limit = query?.limit ?? all.length;
+    return all.slice(offset, offset + limit);
+  });
+  const historyRelated = vi.fn(async (_q: RelatedHistoryQuery) => ({ items: [] as HistoryRecord[], total: 0 }));
+  const historyLinkPrompt = vi.fn(async (_req: HistoryLinkPromptRequest) => ({
+    linked: 0,
+    alreadyLinked: 0,
+    conflicts: [] as string[],
+    missing: [] as string[],
+  }));
+  const getVersion = vi.fn(async () => ({ app: '0.0.0-test', db: 10 }));
 
   const api = {
     prompt: {
@@ -278,18 +297,18 @@ function createFakeApi() {
       },
     },
     history: {
-      list: async (query?: { limit?: number; offset?: number }) => {
-        const all = [...histories.values()];
-        const offset = query?.offset ?? 0;
-        const limit = query?.limit ?? all.length;
-        return all.slice(offset, offset + limit);
-      },
+      list: historyList,
+      related: historyRelated,
+      linkPrompt: historyLinkPrompt,
       get: async (id: string) => histories.get(id) ?? null,
       delete: async (req: string | { id: string }) => {
         const id = typeof req === 'string' ? req : req.id;
         histories.delete(id);
         return { ok: true as const, deleted: 1 };
       },
+    },
+    system: {
+      getVersion,
     },
     image: {
       cancel: async (jobId: string) => {
@@ -354,6 +373,10 @@ function createFakeApi() {
     cloudSyncConflicts,
     cloudSyncResolve,
     cloudSyncOnChanged,
+    historyList,
+    historyRelated,
+    historyLinkPrompt,
+    getVersion,
   };
 }
 
@@ -456,6 +479,34 @@ describe('DesktopGateway DesktopExtras', () => {
 
     expect(fake.list).toHaveBeenCalledWith(query);
     expect(fake.list.mock.calls[0][0]).toBe(query);
+  });
+
+  it('relatedHistory / linkHistoryPrompt / listHistory 直通 api.history 行模型', async () => {
+    const fake = createFakeApi();
+    const gateway = createDesktopGateway(fake.api);
+    const query: RelatedHistoryQuery = {
+      promptId: 'prompt-1',
+      status: 'success',
+      limit: 40,
+      offset: 0,
+    };
+    const linkReq: HistoryLinkPromptRequest = { promptId: 'prompt-1', historyIds: ['h1', 'h2'] };
+    const listQuery = { status: 'success' as const, limit: 20 };
+
+    await gateway.relatedHistory(query);
+    expect(fake.historyRelated).toHaveBeenCalledWith(query);
+    expect(fake.historyRelated.mock.calls[0][0]).toBe(query);
+
+    await gateway.linkHistoryPrompt(linkReq);
+    expect(fake.historyLinkPrompt).toHaveBeenCalledWith(linkReq);
+    expect(fake.historyLinkPrompt.mock.calls[0][0]).toBe(linkReq);
+
+    await gateway.listHistory(listQuery);
+    expect(fake.historyList).toHaveBeenCalledWith(listQuery);
+    expect(fake.historyList.mock.calls[0][0]).toBe(listQuery);
+
+    await expect(gateway.getSystemVersion()).resolves.toEqual({ app: '0.0.0-test', db: 10 });
+    expect(fake.getVersion).toHaveBeenCalledOnce();
   });
 
   it('account extras forward to api.account and keep desktop AccountStatus', async () => {

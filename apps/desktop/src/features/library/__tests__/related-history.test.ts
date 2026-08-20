@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import {
@@ -6,6 +7,12 @@ import {
   linkHistoriesToPrompt,
   loadRelatedHistory,
 } from '../related-history';
+
+const relatedHistorySource = readFileSync(new URL('../related-history.ts', import.meta.url), 'utf8');
+const promptWorksPanelSource = readFileSync(
+  new URL('../components/PromptWorksPanel.tsx', import.meta.url),
+  'utf8',
+);
 
 function history(id: string, promptId: string | null, status: HistoryRecord['status'] = 'success'): HistoryRecord {
   return {
@@ -28,6 +35,15 @@ function history(id: string, promptId: string | null, status: HistoryRecord['sta
 }
 
 describe('related history compatibility', () => {
+  it('related-history 不再经 lib/ipc，查询走 extras.relatedHistory', () => {
+    expect(relatedHistorySource).not.toContain("from '../../lib/ipc'");
+    expect(relatedHistorySource).not.toContain('api.history');
+    expect(relatedHistorySource).toContain('relatedHistory');
+    expect(relatedHistorySource).toContain('linkHistoryPrompt');
+    expect(promptWorksPanelSource).not.toContain('api.history');
+    expect(promptWorksPanelSource).toContain('loadRelatedHistory');
+  });
+
   it('recognizes only the missing-handler transport error', () => {
     expect(isMissingRelatedHistoryHandler(new Error(
       "Error invoking remote method 'db:history:related': Error: No handler registered for 'db:history:related'",
@@ -49,61 +65,67 @@ describe('related history compatibility', () => {
   });
 
   it('DB v8 skips the unavailable channel and returns direct-only coverage', async () => {
-    const related = vi.fn();
-    const list = vi.fn().mockResolvedValue([history('direct', 'prompt-1')]);
+    const relatedHistory = vi.fn();
+    const listHistory = vi.fn().mockResolvedValue([history('direct', 'prompt-1')]);
     const result = await loadRelatedHistory(
       { promptId: 'prompt-1', status: 'success' },
       {
-        history: { list, related },
-        system: { getVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 8 }) },
+        listHistory,
+        relatedHistory,
+        getSystemVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 8 }),
       },
     );
-    expect(related).not.toHaveBeenCalled();
-    expect(list).toHaveBeenCalledWith({ status: 'success' });
+    expect(relatedHistory).not.toHaveBeenCalled();
+    expect(listHistory).toHaveBeenCalledWith({ status: 'success' });
     expect(result.coverage).toBe('direct-only');
     expect(result.runtimeDbVersion).toBe(8);
   });
 
-  it('DB v9 uses the indexed relation query', async () => {
-    const related = vi.fn().mockResolvedValue({
+  it('DB v9 uses extras.relatedHistory', async () => {
+    const relatedHistory = vi.fn().mockResolvedValue({
       items: [{ ...history('reference', null), promptRelations: [{ kind: 'reference', scope: 'excerpt' }] }],
       total: 1,
     });
-    const list = vi.fn();
+    const listHistory = vi.fn();
+    const query = { promptId: 'prompt-1' };
     const result = await loadRelatedHistory(
-      { promptId: 'prompt-1' },
+      query,
       {
-        history: { list, related },
-        system: { getVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 9 }) },
+        listHistory,
+        relatedHistory,
+        getSystemVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 9 }),
       },
     );
-    expect(related).toHaveBeenCalledWith({ promptId: 'prompt-1' });
-    expect(list).not.toHaveBeenCalled();
+    expect(relatedHistory).toHaveBeenCalledWith(query);
+    expect(relatedHistory.mock.calls[0][0]).toBe(query);
+    expect(listHistory).not.toHaveBeenCalled();
     expect(result.coverage).toBe('full');
   });
 
   it('links generated history only when the v10 main-process capability exists', async () => {
-    const linkPrompt = vi.fn().mockResolvedValue({
+    const linkHistoryPrompt = vi.fn().mockResolvedValue({
       linked: 2,
       alreadyLinked: 0,
       conflicts: [],
       missing: [],
     });
-    const client = {
-      history: { list: vi.fn(), related: vi.fn(), linkPrompt },
-      system: { getVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 10 }) },
+    const extras = {
+      listHistory: vi.fn(),
+      relatedHistory: vi.fn(),
+      linkHistoryPrompt,
+      getSystemVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 10 }),
     };
-    await expect(linkHistoriesToPrompt('prompt-1', ['h1', 'h1', 'h2'], client)).resolves.toEqual({
+    await expect(linkHistoriesToPrompt('prompt-1', ['h1', 'h1', 'h2'], extras)).resolves.toEqual({
       linked: 2,
       alreadyLinked: 0,
       conflicts: [],
       missing: [],
     });
-    expect(linkPrompt).toHaveBeenCalledWith({ promptId: 'prompt-1', historyIds: ['h1', 'h2'] });
+    expect(linkHistoryPrompt).toHaveBeenCalledWith({ promptId: 'prompt-1', historyIds: ['h1', 'h2'] });
 
-    client.system.getVersion.mockResolvedValue({ app: '0.1.0', db: 9 });
-    linkPrompt.mockClear();
-    await expect(linkHistoriesToPrompt('prompt-1', ['h1'], client)).resolves.toBeNull();
-    expect(linkPrompt).not.toHaveBeenCalled();
+    extras.getSystemVersion.mockResolvedValue({ app: '0.1.0', db: 9 });
+    linkHistoryPrompt.mockClear();
+    await expect(linkHistoriesToPrompt('prompt-1', ['h1'], extras)).resolves.toBeNull();
+    expect(linkHistoryPrompt).not.toHaveBeenCalled();
   });
 });

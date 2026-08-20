@@ -4,35 +4,33 @@ import type {
   RelatedHistoryQuery,
   RelatedHistoryResult,
 } from '@musefold/desktop-contracts/ipc';
-import api from '../../lib/ipc';
+import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
+import { desktopGateway } from '../../runtime';
 
 const RELATED_HISTORY_DB_VERSION = 9;
 const HISTORY_LINK_PROMPT_DB_VERSION = 10;
 
-interface RelatedHistoryClient {
-  history: {
-    list: typeof api.history.list;
-    related?: typeof api.history.related;
-    linkPrompt?: typeof api.history.linkPrompt;
-  };
-  system: {
-    getVersion: typeof api.system.getVersion;
-  };
+/** 关联历史只需 extras 的 related / link / list / 版本；测试可注入子集。 */
+interface RelatedHistoryExtras {
+  relatedHistory?: DesktopExtras['relatedHistory'];
+  linkHistoryPrompt?: DesktopExtras['linkHistoryPrompt'];
+  listHistory: DesktopExtras['listHistory'];
+  getSystemVersion: DesktopExtras['getSystemVersion'];
 }
 
 export async function linkHistoriesToPrompt(
   promptId: string,
   historyIds: string[],
-  client: RelatedHistoryClient = api,
+  extras: RelatedHistoryExtras = desktopGateway,
 ): Promise<HistoryLinkPromptResult | null> {
   const uniqueIds = [...new Set(historyIds.filter(Boolean))];
   if (uniqueIds.length === 0) {
     return { linked: 0, alreadyLinked: 0, conflicts: [], missing: [] };
   }
-  const version = await client.system.getVersion().catch(() => null);
-  if ((version?.db ?? 0) < HISTORY_LINK_PROMPT_DB_VERSION || !client.history.linkPrompt) return null;
+  const version = await extras.getSystemVersion().catch(() => null);
+  if ((version?.db ?? 0) < HISTORY_LINK_PROMPT_DB_VERSION || !extras.linkHistoryPrompt) return null;
   try {
-    return await client.history.linkPrompt({ promptId, historyIds: uniqueIds });
+    return await extras.linkHistoryPrompt({ promptId, historyIds: uniqueIds });
   } catch (error) {
     if (isMissingRelatedHistoryHandler(error)) return null;
     throw error;
@@ -73,10 +71,10 @@ export function directHistoryFallback(
 
 async function loadDirectHistoryFallback(
   query: RelatedHistoryQuery,
-  client: RelatedHistoryClient,
+  extras: RelatedHistoryExtras,
   runtimeDbVersion: number | null,
 ): Promise<RelatedHistoryLoadResult> {
-  const records = await client.history.list({ status: query.status });
+  const records = await extras.listHistory({ status: query.status });
   return {
     ...directHistoryFallback(records, query),
     coverage: 'direct-only',
@@ -86,29 +84,28 @@ async function loadDirectHistoryFallback(
 
 export async function loadRelatedHistory(
   query: RelatedHistoryQuery,
-  client: RelatedHistoryClient = api,
+  extras: RelatedHistoryExtras = desktopGateway,
 ): Promise<RelatedHistoryLoadResult> {
-  const version = await client.system.getVersion().catch(() => null);
+  const version = await extras.getSystemVersion().catch(() => null);
   const runtimeDbVersion = version?.db ?? null;
 
-  // During development the renderer can hot-reload while Electron's main
-  // process remains on DB v8. Avoid invoking a channel that cannot exist yet.
+  // 开发时渲染进程可能热更新，而主进程仍停在 DB v8。先别打尚不存在的通道。
   if (runtimeDbVersion != null && runtimeDbVersion < RELATED_HISTORY_DB_VERSION) {
-    return loadDirectHistoryFallback(query, client, runtimeDbVersion);
+    return loadDirectHistoryFallback(query, extras, runtimeDbVersion);
   }
 
   try {
-    if (!client.history.related) {
-      return loadDirectHistoryFallback(query, client, runtimeDbVersion);
+    if (!extras.relatedHistory) {
+      return loadDirectHistoryFallback(query, extras, runtimeDbVersion);
     }
     return {
-      ...(await client.history.related(query)),
+      ...(await extras.relatedHistory(query)),
       coverage: 'full',
       runtimeDbVersion,
     };
   } catch (error) {
     if (isMissingRelatedHistoryHandler(error)) {
-      return loadDirectHistoryFallback(query, client, runtimeDbVersion);
+      return loadDirectHistoryFallback(query, extras, runtimeDbVersion);
     }
     throw new Error('作品索引暂时无法读取，请重试。', { cause: error });
   }

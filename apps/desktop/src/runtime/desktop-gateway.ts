@@ -174,6 +174,28 @@ export class DesktopGateway
     return this.api.searchHistory.clear();
   }
 
+  relatedHistory(
+    q: Parameters<DesktopExtras['relatedHistory']>[0],
+  ): ReturnType<DesktopExtras['relatedHistory']> {
+    return this.api.history.related(q);
+  }
+
+  linkHistoryPrompt(
+    req: Parameters<DesktopExtras['linkHistoryPrompt']>[0],
+  ): ReturnType<DesktopExtras['linkHistoryPrompt']> {
+    return this.api.history.linkPrompt(req);
+  }
+
+  listHistory(
+    q?: Parameters<DesktopExtras['listHistory']>[0],
+  ): ReturnType<DesktopExtras['listHistory']> {
+    return this.api.history.list(q);
+  }
+
+  getSystemVersion(): ReturnType<DesktopExtras['getSystemVersion']> {
+    return this.api.system.getVersion();
+  }
+
   // ---------- DesktopExtras account / cloudSync（桌面状态直通 IPC，不经 AccountSession mapper） ----------
 
   accountStatus(): ReturnType<DesktopExtras['accountStatus']> {
