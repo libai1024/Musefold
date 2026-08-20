@@ -8,19 +8,18 @@
 //
 // URL 形态：media://local/?p=<encodeURIComponent(绝对路径)>
 
-import { app, protocol } from 'electron';
+import { protocol } from 'electron';
 import { readFile } from 'fs/promises';
-import { resolve, sep, extname, join } from 'path';
+import { resolve, sep, extname } from 'path';
 import { getPaths } from '../system/paths';
+import { resolveResourcePath } from './app-paths';
 import { registerPrivilegedSchemes } from './privileged-schemes';
 
 /** 允许被 media:// 读取的根目录（防目录穿越） */
 function allowedRoots(): string[] {
   const p = getPaths();
   // 桌宠 sprite 是随包分发的只读资源，和用户图片走同一条读盘通道
-  const petRoot = app.isPackaged
-    ? join(process.resourcesPath, 'pet')
-    : join(app.getAppPath(), 'resources', 'pet');
+  const petRoot = resolveResourcePath(['pet']);
   return [p.pictures, p.previews, p.backups, p.userData, petRoot].map((r) => resolve(r));
 }
 

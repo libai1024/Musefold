@@ -5,8 +5,9 @@
 // · linux: hidden（无边框），右上角自定义控件
 // 详见 docs/06-ui-design-system.md §2、docs/01-architecture.md §3.2
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
+import { resolveAppRoot, resolveResourcePath } from './app-paths';
 import { isAppOriginUrl, resolveMainWindowLoadUrl } from './app-protocol';
 import { originMigrationImportArgv } from './prefs-origin-migration';
 import { buildContentSecurityPolicy } from './csp';
@@ -24,10 +25,8 @@ export function getMainWindow(): BrowserWindow | null {
 export function createWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
   const isWin = process.platform === 'win32';
-  const appRoot = app.isPackaged ? app.getAppPath() : process.cwd();
-  const windowIcon = app.isPackaged
-    ? join(process.resourcesPath, 'icon.png')
-    : join(appRoot, 'resources/icon.png');
+  const appRoot = resolveAppRoot();
+  const windowIcon = resolveResourcePath(['icon.png']);
   const importArgv = originMigrationImportArgv();
 
   const win = new BrowserWindow({

@@ -5,6 +5,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
 import type { PetStateDef, PetTheme, PetThemeManifest } from '@shared/types/pet';
+import { resolveResourcePath } from '../app-paths';
 
 const DEFAULT_THEME = 'cat';
 
@@ -19,9 +20,12 @@ export function resolveThemeDir(
 ): string {
   // 主题名只允许小写字母数字连字符，挡掉 ../ 之类的路径穿越
   if (!/^[a-z0-9-]+$/.test(name)) throw new Error('PET_THEME_FORBIDDEN: 非法主题名');
-  return environment.packaged
-    ? join(environment.resourcesPath, 'pet', name)
-    : join(environment.appPath, 'resources', 'pet', name);
+  return resolveResourcePath(['pet', name], {
+    packaged: environment.packaged,
+    appPath: environment.appPath,
+    cwd: process.cwd(),
+    resourcesPath: environment.resourcesPath,
+  });
 }
 
 /**

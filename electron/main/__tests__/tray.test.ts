@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const trayInstances: FakeTray[] = [];
@@ -53,11 +54,18 @@ vi.mock('electron', () => ({
 }));
 
 import { createAppTray, destroyAppTray } from '../tray';
+import { resetAppRootCacheForTests } from '../app-paths';
+
+beforeEach(() => {
+  resetAppRootCacheForTests();
+  mocks.app.getAppPath.mockReturnValue(join(process.cwd(), 'out', 'main'));
+});
 
 afterEach(() => {
   destroyAppTray();
   vi.clearAllMocks();
   mocks.trayInstances.length = 0;
+  resetAppRootCacheForTests();
 });
 
 describe('application tray', () => {
@@ -69,7 +77,9 @@ describe('application tray', () => {
     const iconSize = process.platform === 'darwin' ? 18 : 20;
 
     expect(fakeTray?.image).toBe('resized-icon');
-    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledWith('/workspace/resources/icon.png');
+    expect(mocks.nativeImage.createFromPath).toHaveBeenCalledWith(
+      join(process.cwd(), 'resources', 'icon.png'),
+    );
     expect(mocks.icon.resize).toHaveBeenCalledWith({ width: iconSize, height: iconSize, quality: 'best' });
     expect(template[0]?.click).toBeTypeOf('function');
     expect(template[2]?.click).toBeTypeOf('function');

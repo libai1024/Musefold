@@ -1,6 +1,6 @@
 {
   "name": "musefold-app",
-  "version": "0.5.0-dev",
+  "version": "0.5.0-dev.1",
   "description": "Forge your image prompts — 跨平台生图提示词管理桌面 App",
   "main": "./out/main/index.js",
   "author": "Musefold",

@@ -1,15 +1,13 @@
 import { app, Menu, nativeImage, Tray } from 'electron';
-import { join } from 'path';
 import { APP_NAME } from '@shared/constants';
+import { resolveResourcePath } from './app-paths';
 
 let appTray: Tray | null = null;
 
 export function createAppTray(onOpenMainWindow: () => void): Tray {
   if (appTray && !appTray.isDestroyed()) return appTray;
 
-  const iconPath = app.isPackaged
-    ? join(process.resourcesPath, 'icon.png')
-    : join(app.getAppPath(), 'resources', 'icon.png');
+  const iconPath = resolveResourcePath(['icon.png']);
   const iconSize = process.platform === 'darwin' ? 18 : 20;
   const icon = nativeImage.createFromPath(iconPath).resize({
     width: iconSize,

@@ -12,8 +12,9 @@ import {
   writeFileSync,
 } from 'fs';
 import { homedir } from 'os';
-import { delimiter, dirname, join, resolve } from 'path';
+import { delimiter, dirname, join } from 'path';
 import { app, shell } from 'electron';
+import { resolveAppRoot } from './app-paths';
 import {
   MUSEFOLD_SKILL_MANIFEST_URL,
   MUSEFOLD_SKILL_URL,
@@ -75,13 +76,9 @@ export function resolveIntegrationPaths(): IntegrationPaths {
       nodeModulesPath: join(process.resourcesPath, 'integration', 'node_modules'),
     };
   }
-  // 开发态：Electron 二进制 + 仓库内产物（node scripts/build-cli.mjs 生成）。
-  // appPath 随启动方式漂移（electron . → 仓库根；electron out/main/index.js → out/main），
-  // 按候选目录扫描真实存在的产物。
-  const appPath = resolve(app.getAppPath());
-  const candidates = [appPath, resolve(appPath, '..'), resolve(appPath, '..', '..'), process.cwd()];
-  const repoRoot =
-    candidates.find((dir) => existsSync(join(dir, 'packages', 'mcp', 'dist', 'musefold-mcp.mjs'))) ?? appPath;
+  // 开发态产物在仓库 packages/ 下，必须先解析应用根；app.getAppPath() 在 electron-vite
+  // 未打包运行时指向 out/main。
+  const repoRoot = resolveAppRoot();
   return {
     execPath: process.execPath,
     mcpScriptPath: join(repoRoot, 'packages', 'mcp', 'dist', 'musefold-mcp.mjs'),
@@ -187,18 +184,10 @@ function skillTargets(): Record<'claude' | 'codex' | 'cursor', string> {
 }
 
 function skillSourceDir(): string {
-  const packaged = join(process.resourcesPath, 'integration', 'musefold-skill');
-  const appPath = resolve(app.getAppPath());
-  const candidates = app.isPackaged
-    ? [packaged]
-    : [
-        join(appPath, 'website', 'Musefold', 'skills', 'musefold'),
-        join(resolve(appPath, '..'), 'website', 'Musefold', 'skills', 'musefold'),
-        join(resolve(appPath, '..', '..'), 'website', 'Musefold', 'skills', 'musefold'),
-        join(process.cwd(), 'website', 'Musefold', 'skills', 'musefold'),
-      ];
-  const source = candidates.find((candidate) => existsSync(join(candidate, 'SKILL.md')));
-  if (!source) throw new Error('Musefold Skill 文档缺失');
+  const source = app.isPackaged
+    ? join(process.resourcesPath, 'integration', 'musefold-skill')
+    : join(resolveAppRoot(), 'website', 'Musefold', 'skills', 'musefold');
+  if (!existsSync(join(source, 'SKILL.md'))) throw new Error('Musefold Skill 文档缺失');
   return source;
 }
 

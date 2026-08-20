@@ -16,6 +16,7 @@
 import { app, BrowserWindow, powerMonitor, screen, shell } from 'electron';
 import type { Rectangle } from 'electron';
 import { join } from 'path';
+import { resolveAppRoot } from '../app-paths';
 import { isAppOriginUrl, resolvePetWindowLoadUrl } from '../app-protocol';
 import { isAllowedExternalUrl } from '../external-links';
 import { clampPetPosition, type PetPoint } from './movement';
@@ -56,7 +57,7 @@ export function createPetWindow(savedDesktopPosition?: PetPoint | null): Browser
   const existing = getPetWindow();
   if (existing) return existing;
 
-  const appRoot = app.isPackaged ? app.getAppPath() : process.cwd();
+  const appRoot = resolveAppRoot();
   const { workArea } = screen.getPrimaryDisplay();
   const defaultDesktopPosition = {
     // 首次运行停在左下角，避免与默认靠右的 Composer 停靠点视觉重合。

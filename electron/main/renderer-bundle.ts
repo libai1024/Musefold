@@ -6,9 +6,9 @@
 //
 // HOT-08 之前候选读取器默认返回空列表，一律回落到随包内置 out/renderer。
 
-import { app } from 'electron';
 import { statSync } from 'fs';
 import { join, resolve } from 'path';
+import { resolveAppRoot } from './app-paths';
 
 export type RendererBundleSource = 'bundle' | 'builtin';
 
@@ -29,10 +29,10 @@ export const emptyRendererBundleCandidateReader: RendererBundleCandidateReader =
 let cachedResolution: RendererRootResolution | undefined;
 
 function getAppRoot(): string {
-  return app.isPackaged ? app.getAppPath() : process.cwd();
+  return resolveAppRoot();
 }
 
-/** 随包内置渲染层根目录。算法与 window.ts / pet/window.ts 的 appRoot 一致。 */
+/** 随包内置渲染层根目录。未打包时与 window.ts 一样走 resolveAppRoot()，避免 cwd 漂移。 */
 export function getBuiltinRendererRoot(): string {
   return join(getAppRoot(), 'out/renderer');
 }

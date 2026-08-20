@@ -23,6 +23,7 @@ import {
   resetRendererRootCacheForTests,
   resolveRendererRoot,
 } from './renderer-bundle';
+import { resetAppRootCacheForTests } from './app-paths';
 
 const tempDirs: string[] = [];
 
@@ -52,10 +53,12 @@ function completeBundle(): string {
 beforeEach(() => {
   appState.isPackaged = false;
   resetRendererRootCacheForTests();
+  resetAppRootCacheForTests();
 });
 
 afterEach(() => {
   resetRendererRootCacheForTests();
+  resetAppRootCacheForTests();
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 

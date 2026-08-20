@@ -54,8 +54,8 @@ describe('Musefold brand boundary', () => {
     expect(APP_NAME).toBe('Musefold');
     // v0.4（D9）：npm 包名 musefold 保留给 CLI；根应用包是私有的 musefold-app。
     expect(packageJson.name).toBe('musefold-app');
-    // 具体版本号由发布流程管理；守卫只挡住旧品牌形态的版本串。
-    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+(-dev)?$/);
+    // 具体版本号由发布流程管理；开发期用 -dev.N 递增，守卫只挡旧品牌形态的版本串。
+    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+(-dev(\.\d+)?)?$/);
     expect(packageJson.author).toBe('Musefold');
     expect(builder).toMatch(/^appId:\s*com\.musefold\.app$/m);
     expect(builder).toMatch(/^productName:\s*Musefold$/m);
