@@ -28,8 +28,8 @@ import {
   PICTURES_DIR_NAME,
   PREVIEWS_DIR_NAME,
   STORE_NAME,
-} from '@shared/constants';
-import { estimateCostFromPricing, parseStoredProviderPricing } from '@shared/pricing';
+} from '@musefold/core/constants';
+import { estimateCostFromPricing, parseStoredProviderPricing } from '@musefold/core/pricing';
 import packageInfo from '../package.json';
 
 export interface ServeOptions {

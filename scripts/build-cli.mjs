@@ -19,7 +19,10 @@ const shared = {
     '@musefold/client': resolve(root, 'packages/client/src'),
     '@musefold/core': resolve(root, 'packages/core/src'),
     '@musefold/automation-server': resolve(root, 'packages/automation-server/src'),
-    '@shared': resolve(root, 'shared'),
+    '@musefold/domain': resolve(root, 'packages/domain/src'),
+    '@musefold/desktop-contracts': resolve(root, 'packages/desktop-contracts/src'),
+    '@musefold/contracts': resolve(root, 'packages/contracts/src'),
+    '@shared/types': resolve(root, 'packages/desktop-contracts/src'),
   },
   external: ['better-sqlite3'],
   banner: {

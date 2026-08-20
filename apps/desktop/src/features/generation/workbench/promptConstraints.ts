@@ -3,4 +3,4 @@ export {
   RATIO_CONSTRAINT_PREFIX,
   ratioPromptConstraint,
   composePromptWithRatioConstraint,
-} from '@shared/generation-prompt';
+} from '@musefold/domain/generation-prompt';

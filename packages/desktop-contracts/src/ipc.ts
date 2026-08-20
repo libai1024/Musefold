@@ -1,4 +1,4 @@
-// shared/types/ipc.ts
+// packages/desktop-contracts/src/ipc.ts
 // IPC 通道契约 —— 通道名 + 请求/响应类型。preload 与渲染进程都依赖它。
 // 详见 docs/07-ipc-contracts.md
 
@@ -46,7 +46,7 @@ import type {
   ValidationResult,
 } from "./providers";
 import type { HistoryStatus } from "./enums";
-import type { SharePayload } from "../share";
+import type { SharePayload } from "./share";
 import type {
   AiConnectionPreset,
   AiConnectionProfile,
@@ -55,7 +55,7 @@ import type {
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
 } from "./ai";
-import type { DiagnosticReport } from "../diagnostics";
+import type { DiagnosticReport } from "./diagnostics";
 import type { SkillRuntimeApi } from "./skill-runtime";
 import type { DesignSchemeApi } from "./design-scheme";
 import type {

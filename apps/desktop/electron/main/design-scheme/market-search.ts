@@ -4,7 +4,7 @@
  * 结果写入 market_candidates 缓存，网络失败时回退缓存候选，不伪造结果。
  */
 import type Database from 'better-sqlite3';
-import { appError, fail, ok, type AppResult } from '@shared/app-result';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import type { MarketCandidate, MarketSearchResult } from '@shared/types/design-scheme';
 
 const SEARCH_TIMEOUT_MS = 15_000;

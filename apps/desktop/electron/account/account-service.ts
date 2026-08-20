@@ -8,12 +8,14 @@
 import {
   ACCOUNT_DEFAULT_IMAGE_MODEL,
   ACCOUNT_DEFAULT_TEXT_MODEL,
-  ACCOUNT_QUOTA_PER_POINT,
-  ACCOUNT_QUOTA_PER_USD,
   DEFAULT_ACCOUNT_SERVER_FALLBACK_URL,
   DEFAULT_ACCOUNT_SERVER_URL,
   DEFAULT_ACCOUNT_SERVER_URLS,
-} from "@shared/constants";
+} from "@musefold/domain/constants";
+import {
+  ACCOUNT_QUOTA_PER_POINT,
+  ACCOUNT_QUOTA_PER_USD,
+} from "@musefold/contracts/billing.js";
 import type { AccountRedeemResult, AccountStatus } from "@shared/types/account";
 import type { NewApiClient, RelayAuthSession } from "./api-client";
 import {

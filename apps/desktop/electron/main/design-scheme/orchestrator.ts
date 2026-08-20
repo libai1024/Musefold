@@ -9,13 +9,13 @@
  */
 import { randomUUID } from 'crypto';
 import type Database from 'better-sqlite3';
-import { appError, fail, ok, type AppResult } from '@shared/app-result';
-import type { AnalystReport, CompilerOutput } from '@shared/design-scheme/agents';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
+import type { AnalystReport, CompilerOutput } from '@musefold/desktop-contracts/design-scheme/agents';
 import type {
   CompilationTraceItem,
   DesignSchemeRevisionDocument,
   SourceBinding,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import type {
   DesignSchemeCreationEvent,
   DesignSchemeCreationResult,

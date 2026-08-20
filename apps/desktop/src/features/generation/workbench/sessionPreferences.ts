@@ -1,4 +1,4 @@
-import { LOCAL_STORAGE_PREFIX } from "@shared/constants";
+import { LOCAL_STORAGE_PREFIX } from "@musefold/domain/constants";
 import {
   readPinnedSessionIds,
   readUnreadSessionIds,

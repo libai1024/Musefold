@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PRESET_ID } from '@shared/constants';
+import { DEFAULT_PRESET_ID } from '@musefold/domain/constants';
 import { pickPreset, recommendedPresets } from '../presets';
 
 describe('pickPreset', () => {

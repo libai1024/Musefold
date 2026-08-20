@@ -1,6 +1,6 @@
 import { safeStorage } from 'electron';
 import Store from 'electron-store';
-import { AI_CONNECTION_STORE_NAME } from '@shared/constants';
+import { AI_CONNECTION_STORE_NAME } from '@musefold/core/constants';
 
 export interface AiSecretKeychain {
   save(connectionId: string, apiKey: string): void;

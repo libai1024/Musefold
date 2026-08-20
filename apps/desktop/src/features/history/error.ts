@@ -5,7 +5,7 @@ import {
   toErrorCode,
   type ErrorAction,
   type ErrorGuidance,
-} from '@shared/errors';
+} from '@musefold/domain/errors';
 
 export interface HistoryErrorPresentation extends ErrorGuidance {
   /** UNKNOWN 时保留原始错误信息，避免把诊断线索吞掉。 */

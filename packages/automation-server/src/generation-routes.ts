@@ -15,7 +15,7 @@ import type {
   ImageGenerationProgress,
   LocalImageReference,
 } from '@shared/types/providers';
-import { resolveRatioOptionById } from '@shared/constants';
+import { resolveRatioOptionById } from '@musefold/domain/constants';
 import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from './server';
 
 export const CONFIRMATION_TIMEOUT_MS = 120_000;

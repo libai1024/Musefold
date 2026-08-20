@@ -9,7 +9,7 @@ import {
   LOGS_DIR_NAME,
   PICTURES_DIR_NAME,
   PREVIEWS_DIR_NAME,
-} from '@shared/constants';
+} from '@musefold/core/constants';
 import { configureCoreRuntime, type CorePaths, type CoreRuntime } from './runtime';
 
 export function testCorePaths(root: string): CorePaths {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ACCOUNT_SERVER_URL } from '@shared/constants';
+import { DEFAULT_ACCOUNT_SERVER_URL } from '@musefold/domain/constants';
 import {
   AccountStore,
   type AccountStoreBackend,

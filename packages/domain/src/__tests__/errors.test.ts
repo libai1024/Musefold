@@ -1,4 +1,4 @@
-// shared/__tests__/errors.test.ts
+// packages/domain/src/__tests__/errors.test.ts
 // TASK-GEN-03：错误码 → 友好文案 + 可执行动作
 
 import { describe, expect, it } from 'vitest';

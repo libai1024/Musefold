@@ -2,7 +2,7 @@
  * Repository Analyst：只做分析，不做转换（开发规范 §6）。
  * 输入固定 commit 快照的文本与图片清单，输出结构化分析报告。
  */
-import { analystReportSchema, type AnalystReport } from '@shared/design-scheme/agents';
+import { analystReportSchema, type AnalystReport } from '@musefold/desktop-contracts/design-scheme/agents';
 import { completeStructured, type OpenAiCompatibleTextAdapter } from '../text-adapter';
 
 const MAX_FILE_CHARS = 20_000;

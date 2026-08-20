@@ -2,7 +2,7 @@
 // 测试连接结果条：按错误码展示友好文案 + 可执行下一步（TASK-GEN-03）
 
 import { Check, AlertCircle, KeyRound, ExternalLink, RotateCw } from '../../../components/ui/icons';
-import { errorGuidance, type ErrorAction } from '@shared/errors';
+import { errorGuidance, type ErrorAction } from '@musefold/domain/errors';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 

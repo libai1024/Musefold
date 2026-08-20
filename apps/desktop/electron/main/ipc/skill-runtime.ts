@@ -8,12 +8,12 @@ import { ipcMain } from 'electron';
 import { stepCountIs, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { ulid } from 'ulid';
-import { MAX_SKILL_AI_INPUT_LENGTH } from '@shared/constants';
+import { MAX_SKILL_AI_INPUT_LENGTH } from '@musefold/domain/constants';
 import {
   composePromptWithImageIndexHint,
   composePromptWithRatioConstraint,
-} from '@shared/generation-prompt';
-import { appError, fail, ok, type AppResult } from '@shared/app-result';
+} from '@musefold/domain/generation-prompt';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import type { AiConnectionProfile, AiSkillImageReference, AiSkillSourceFile } from '@shared/types/ai';
 import type { ProviderType } from '@shared/types/enums';
 import { IPC } from '@shared/types/ipc';

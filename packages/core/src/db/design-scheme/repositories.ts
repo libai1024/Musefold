@@ -6,7 +6,7 @@ import {
   type Fidelity,
   type SchemeStatus,
   type SourceRole,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import type {
   DesignSchemeAssetSummary,
   DesignSchemeSourceSnapshotDetail,

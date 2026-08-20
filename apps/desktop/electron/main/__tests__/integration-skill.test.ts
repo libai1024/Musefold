@@ -4,7 +4,7 @@ import {
   MUSEFOLD_SKILL_MANIFEST_URL,
   MUSEFOLD_SKILL_URL,
   MUSEFOLD_SKILL_VERSION,
-} from '@shared/constants';
+} from '@musefold/domain/constants';
 import { validateMusefoldSkill } from '../integration-skill';
 
 const skill = validateMusefoldSkill(

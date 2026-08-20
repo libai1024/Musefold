@@ -3,9 +3,7 @@
 // 同一设备 sk- 令牌写入生图 Provider + 文本 AI 连接；已有活动通道时只供给不抢占。
 
 import { ulid } from 'ulid';
-import {
-  ACCOUNT_MANAGED_NAME,
-} from '@shared/constants';
+import { ACCOUNT_MANAGED_NAME } from '@musefold/domain/constants';
 import { getDb } from '@musefold/core/db/index';
 import { getAiConnectionStore } from '../ai/connection-store';
 import { deleteApiKey, getKeySuffix, saveApiKey } from '../security/keychain';

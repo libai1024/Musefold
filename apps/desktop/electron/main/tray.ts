@@ -1,5 +1,5 @@
 import { app, Menu, nativeImage, Tray } from 'electron';
-import { APP_NAME } from '@shared/constants';
+import { APP_NAME } from '@musefold/domain/constants';
 import { resolveResourcePath } from './app-paths';
 
 let appTray: Tray | null = null;

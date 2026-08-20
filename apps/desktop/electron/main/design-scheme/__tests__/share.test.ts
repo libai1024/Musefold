@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { exportDesignScheme, importDesignScheme, SHARE_FORMAT, SHARE_FORMAT_VERSION } from '../share';

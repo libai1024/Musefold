@@ -13,6 +13,7 @@
     { "path": "../client" },
     { "path": "../contracts" },
     { "path": "../core" },
-    { "path": "../../shared" }
+    { "path": "../desktop-contracts" },
+    { "path": "../domain" }
   ]
 }

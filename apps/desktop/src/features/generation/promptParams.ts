@@ -1,4 +1,7 @@
-import { parseCustomRatioId, RATIO_OPTIONS } from '@shared/constants';
+import {
+  parseCustomRatioId,
+  RATIO_OPTIONS,
+} from '@musefold/domain/constants';
 import type {
   ImageBackground,
   ImageQuality,

@@ -31,7 +31,7 @@ import {
 } from "../../../components/ui/icons";
 import type { Prompt, ProviderConfig } from "@shared/types/models";
 import type { ImageQuality } from "@shared/types/enums";
-import { RATIO_OPTIONS } from "@shared/constants";
+import { RATIO_OPTIONS } from "@musefold/domain/constants";
 import {
   MAX_REFERENCE_IMAGES,
   type LocalImageReference,

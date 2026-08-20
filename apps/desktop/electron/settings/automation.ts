@@ -2,7 +2,7 @@
 // 决策 D7/评审 2026-08-13：automation.enabled 默认开；预算默认 0（一切花钱须确认，P2 接入）。
 
 import Store from 'electron-store';
-import { STORE_NAME } from '@shared/constants';
+import { STORE_NAME } from '@musefold/core/constants';
 
 interface AutomationBudgetShape {
   /** 月度上限（积分）；0 = 一切花钱动作须确认（Q1 拍板默认） */

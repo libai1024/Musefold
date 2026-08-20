@@ -1,4 +1,4 @@
-// shared/errors.ts
+// packages/domain/src/errors.ts
 // 统一错误码 → 友好中文文案 + 处理建议
 // 主进程 normalizeError 产出这些 code，渲染进程用本表展示。
 // 详见 docs/10 §10（悟空）、docs/11 §8（TvT）

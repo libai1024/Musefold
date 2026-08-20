@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Power, QrCode, RefreshCw, ShieldCheck, X } from '../../../components/ui/icons';
 import type { ValidationResult, DoubaoWebUsageStatus } from '@shared/types/providers';
-import { DOUBAO_WEB_DAILY_IMAGE_LIMIT, PROVIDER_PRESETS } from '@shared/constants';
+import {
+  DOUBAO_WEB_DAILY_IMAGE_LIMIT,
+  PROVIDER_PRESETS,
+} from '@musefold/domain/constants';
 import api from '../../../lib/ipc';
 import { Button } from '../../../components/ui/button';
 import { useGenerationStore } from '../../generation/store';

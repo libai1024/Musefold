@@ -1,12 +1,12 @@
-// shared/pricing.ts
 // Provider 单价配置与成本估算的纯逻辑（主进程 IPC / Provider / 单测共用）。
+// 归入 core：运行时纯函数，但类型面是桌面 SQLite/IPC 行模型，domain 不能依赖 desktop-contracts。
 
 import type {
   ProviderPricingConfig,
   ProviderPricingMode,
-} from './types/models';
-import type { GenerateImageRequest } from './types/providers';
-import { ACCOUNT_QUOTA_PER_POINT } from './constants';
+} from '@shared/types/models';
+import type { GenerateImageRequest } from '@shared/types/providers';
+import { ACCOUNT_QUOTA_PER_POINT } from '@musefold/contracts/billing.js';
 
 /** 唯一成本口径：1 积分 = ¥0.1 = 50,000 服务端原始配额。 */
 export const CNY_CENTS_PER_POINT = 10;

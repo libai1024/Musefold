@@ -2,8 +2,8 @@
  * Scheme Reviser：按用户的修改要求更新一份既有设计方案（UI 规范 §8.3）。
  * 输出与 Scheme Compiler 同构（完整方案 JSON），经 zod 校验后由 Runtime 落成新 revision。
  */
-import { compilerOutputSchema, type CompilerOutput } from '@shared/design-scheme/agents';
-import type { DesignSchemeRevisionDocument } from '@shared/design-scheme/schema';
+import { compilerOutputSchema, type CompilerOutput } from '@musefold/desktop-contracts/design-scheme/agents';
+import type { DesignSchemeRevisionDocument } from '@musefold/desktop-contracts/design-scheme/schema';
 import { completeStructured, type OpenAiCompatibleTextAdapter } from '../text-adapter';
 
 export interface ReviserInput {

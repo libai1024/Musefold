@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import { IPC } from '@shared/types/ipc';
-import { SHARE_PROTOCOL, parseShareDeeplink, type SharePayload } from '@shared/share';
+import { SHARE_PROTOCOL, parseShareDeeplink, type SharePayload } from '@musefold/desktop-contracts/share';
 import { getMainWindow } from './window';
 
 interface PendingShareImport {

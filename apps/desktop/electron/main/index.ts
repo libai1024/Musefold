@@ -4,7 +4,7 @@
 import { app } from 'electron';
 import { appendFileSync, mkdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';
-import { LOGS_DIR_NAME } from '@shared/constants';
+import { LOGS_DIR_NAME } from '@musefold/core/constants';
 import { writeConsoleLine } from '../system/console-output';
 import { registerAppScheme } from './app-protocol';
 import { registerMediaScheme } from './media-protocol';

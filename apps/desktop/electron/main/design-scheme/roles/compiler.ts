@@ -2,7 +2,7 @@
  * Scheme Compiler：把分析结果（或纯想法）编译成结构化设计方案草稿。
  * 输出经 zod 校验后由 Runtime 落域写库（开发规范 §6.1）。
  */
-import { compilerOutputSchema, type AnalystReport, type CompilerOutput } from '@shared/design-scheme/agents';
+import { compilerOutputSchema, type AnalystReport, type CompilerOutput } from '@musefold/desktop-contracts/design-scheme/agents';
 import { completeStructured, type OpenAiCompatibleTextAdapter } from '../text-adapter';
 
 export interface CompilerInput {

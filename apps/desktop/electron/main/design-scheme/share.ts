@@ -12,11 +12,11 @@ import { basename, dirname, extname, isAbsolute, join } from 'path';
 import type Database from 'better-sqlite3';
 import archiver from 'archiver';
 import * as yauzl from 'yauzl';
-import { appError, fail, ok, type AppResult } from '@shared/app-result';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import {
   parseDesignSchemeRevisionDocument,
   type DesignSchemeRevisionDocument,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import type { DesignSchemeSummary } from '@shared/types/design-scheme';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { getPaths } from '../../system/paths';

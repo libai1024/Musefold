@@ -8,8 +8,8 @@ import {
   buildShareDeeplink,
   sanitizeSharePayload,
   type SharePayload,
-} from '@shared/share';
-import { parseShareDeeplink } from '@shared/share';
+} from '@musefold/desktop-contracts/share';
+import { parseShareDeeplink } from '@musefold/desktop-contracts/share';
 import { promptsRepo } from '@musefold/core/db/repositories/prompts';
 import { consumeQueuedShareImports } from '../share-protocol';
 

@@ -1,4 +1,4 @@
-// shared/types/api-method-versions.ts
+// packages/desktop-contracts/src/api-method-versions.ts
 // window.api 方法面 → 引入该能力的外壳 semver。
 //
 // 热更新体系的第一个会消费 bundle 的外壳是 0.5.0；更早的引入时间没有意义

@@ -5,7 +5,7 @@ import {
   RATIO_OPTIONS,
   resolveRatioOptionById,
   type RatioOption,
-} from '@shared/constants';
+} from '@musefold/domain/constants';
 import { cn } from '../../../lib/utils';
 
 function ratioShape(option: RatioOption, maxSize = 32, minSize = 10): { width: number; height: number } {

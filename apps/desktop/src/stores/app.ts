@@ -3,7 +3,7 @@
 
 import { create } from 'zustand';
 import type { SchemePriorityMode } from '@shared/types/design-scheme';
-import type { SharePayload } from '@shared/share';
+import type { SharePayload } from '@musefold/desktop-contracts/share';
 
 export type ViewKey = 'generate' | 'library' | 'design-schemes' | 'history' | 'settings';
 export type Theme = 'dark' | 'light';

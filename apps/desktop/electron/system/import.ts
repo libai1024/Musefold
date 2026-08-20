@@ -29,7 +29,7 @@ import { promptsRepo } from '@musefold/core/db/repositories/prompts';
 import { createLogger, redact } from './logger';
 import { getPaths } from './paths';
 import { createBackup } from './backup';
-import { validateEnvelope, EXPORT_IMAGES_DIR } from '@shared/export-format';
+import { validateEnvelope, EXPORT_IMAGES_DIR } from '@musefold/domain/export-format';
 import type {
   ExportEnvelope,
   ImportRequest,

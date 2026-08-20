@@ -17,7 +17,7 @@ import { BaseProvider } from './base';
 import { createLogger } from '../runtime';
 import { parseRetryAfter, withRetry } from './retry';
 import { parseExpectedSize, readImagePixelSize } from './image-dimensions';
-import { cnyCentsToPoints } from '@shared/pricing';
+import { cnyCentsToPoints } from '@musefold/core/pricing';
 
 const logger = createLogger('provider:wukong');
 

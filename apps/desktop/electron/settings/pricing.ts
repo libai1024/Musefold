@@ -2,7 +2,7 @@
 // Provider 单价配置：存于 electron-store 的 pricing.{providerId} 命名空间。
 
 import Store from 'electron-store';
-import { STORE_NAME } from '@shared/constants';
+import { STORE_NAME } from '@musefold/core/constants';
 import { getDb } from '@musefold/core/db/index';
 import type {
   ProviderPricingConfig,
@@ -14,7 +14,7 @@ import {
   normalizeProviderPricing,
   parseStoredProviderPricing,
   accountQuotaToPoints,
-} from '@shared/pricing';
+} from '@musefold/core/pricing';
 
 interface ProviderStore {
   keys: Record<string, string>;

@@ -8,7 +8,7 @@ import { dirname, extname, join } from 'path';
 import type Database from 'better-sqlite3';
 import { readPublicGithubAgentSkillRuntimeSource } from '../skill-import/github-reader';
 import type { AgentSkillRuntimeFile } from '../skill-import/zip-reader';
-import { ok, type AppResult } from '@shared/app-result';
+import { ok, type AppResult } from '@musefold/domain/app-result';
 import type {
   DesignSchemeHistorySourceItem,
   DesignSchemeSourceConfirmation,

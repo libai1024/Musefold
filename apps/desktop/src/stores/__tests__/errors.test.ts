@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDiagnosticReport } from '@shared/diagnostics';
+import { createDiagnosticReport } from '@musefold/desktop-contracts/diagnostics';
 import { diagnosticText, reportError, useErrorStore } from '../errors';
 
 describe('global error queue', () => {

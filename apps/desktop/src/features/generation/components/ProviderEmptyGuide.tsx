@@ -4,7 +4,10 @@
 // 其后是 BYOK 预设行与自定义添加入口。
 
 import { ArrowRight, Plus, QrCode, UserRound } from '../../../components/ui/icons';
-import { DOUBAO_WEB_DAILY_IMAGE_LIMIT, PROVIDER_PRESETS } from '@shared/constants';
+import {
+  DOUBAO_WEB_DAILY_IMAGE_LIMIT,
+  PROVIDER_PRESETS,
+} from '@musefold/domain/constants';
 import { useAppStore } from '../../../stores/app';
 import { useSettingsStore } from '../../settings/store';
 import { useAccountStore } from '../../account/store';

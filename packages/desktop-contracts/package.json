@@ -1,0 +1,21 @@
+{
+  "name": "@musefold/desktop-contracts",
+  "version": "0.0.0-internal",
+  "description": "Desktop IPC contracts, SQLite row models, and desktop-only domain schemas",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@musefold/contracts": "*",
+    "@musefold/domain": "*",
+    "@musefold/update-protocol": "*",
+    "zod": "^4.4.3"
+  }
+}

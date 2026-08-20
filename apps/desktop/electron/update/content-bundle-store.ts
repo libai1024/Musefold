@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import Store from 'electron-store';
 import { isStrictlyNewerBundleVersion } from '@musefold/update-protocol';
-import { STORE_NAME } from '@shared/constants';
+import { STORE_NAME } from '@musefold/core/constants';
 import { createLogger } from '../system/logger';
 
 const logger = createLogger('content-bundle-store');

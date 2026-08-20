@@ -1,4 +1,4 @@
-import type { AppResult } from '../app-result';
+import type { AppResult } from '@musefold/domain/app-result';
 import type { GenerateImageRequest, GenerateImageResult, LocalImageReference } from './providers';
 import type {
   SkillRuntimeExecutionMode,

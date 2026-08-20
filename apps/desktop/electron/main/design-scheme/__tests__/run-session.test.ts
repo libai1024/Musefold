@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import type {
   DesignSchemeCreationEvent,
   StartDesignSchemeRunRequest,

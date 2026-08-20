@@ -6,12 +6,12 @@
  */
 import { randomUUID } from 'crypto';
 import type Database from 'better-sqlite3';
-import { appError, fail, ok, type AppResult } from '@shared/app-result';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import type {
   CompilationTraceItem,
   DesignSchemeRevisionDocument,
   SourceBinding,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import type { DesignSchemeCheckUpdateResult } from '@shared/types/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';

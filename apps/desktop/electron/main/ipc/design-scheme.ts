@@ -4,8 +4,8 @@
  */
 import { join } from 'path';
 import { BrowserWindow, app, dialog, ipcMain } from 'electron';
-import { appError, fail, ok, type AppResult } from '@shared/app-result';
-import type { DesignSchemeRevisionDocument } from '@shared/design-scheme/schema';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
+import type { DesignSchemeRevisionDocument } from '@musefold/desktop-contracts/design-scheme/schema';
 import { IPC } from '@shared/types/ipc';
 import type {
   DesignSchemeAssetSummary,

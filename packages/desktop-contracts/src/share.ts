@@ -1,11 +1,11 @@
-import type { PromptParams } from './types/models';
+import type { PromptParams } from './models';
 import type {
   ImageBackground,
   ImageQuality,
   ImageSize,
   ModerationLevel,
   PromptTarget,
-} from './types/enums';
+} from './enums';
 
 export const SHARE_PROTOCOL = 'musefold';
 export const SHARE_IMPORT_HOST = 'import';

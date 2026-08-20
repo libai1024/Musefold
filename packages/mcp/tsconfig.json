@@ -12,6 +12,6 @@
     { "path": "../client" },
     { "path": "../core" },
     { "path": "../automation-server" },
-    { "path": "../../shared" }
+    { "path": "../desktop-contracts" }
   ]
 }

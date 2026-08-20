@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import { runDesignSchemeDbMigrations } from '../migrations';
 import { DesignSchemeRepository } from '../repositories';
 

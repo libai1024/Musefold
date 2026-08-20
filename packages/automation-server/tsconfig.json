@@ -11,6 +11,7 @@
   "references": [
     { "path": "../contracts" },
     { "path": "../core" },
-    { "path": "../../shared" }
+    { "path": "../desktop-contracts" },
+    { "path": "../domain" }
   ]
 }

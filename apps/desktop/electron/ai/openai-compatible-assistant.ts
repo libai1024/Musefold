@@ -1,6 +1,6 @@
 import { generateText } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { appError } from '@shared/app-result';
+import { appError } from '@musefold/domain/app-result';
 import type { AiConnectionProfile, AiTextModelInfo } from '@shared/types/ai';
 
 const REQUEST_TIMEOUT_MS = 90_000;

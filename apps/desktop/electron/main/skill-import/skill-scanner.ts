@@ -1,6 +1,6 @@
 import * as YAML from 'yaml';
-import type { SkillExecutionPolicy, SkillFileKind } from './types/enums';
-import { appError, fail, ok, type AppResult } from './app-result';
+import type { SkillExecutionPolicy, SkillFileKind } from '@shared/types/enums';
+import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 
 const MAX_FRONTMATTER_LENGTH = 64 * 1024;
 const MAX_FRONTMATTER_NODES = 2_000;

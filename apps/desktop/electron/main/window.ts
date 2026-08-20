@@ -13,7 +13,7 @@ import { originMigrationImportArgv } from './prefs-origin-migration';
 import { buildContentSecurityPolicy } from './csp';
 import { isAllowedExternalUrl } from './external-links';
 import { APP_VERSION } from '../system/app-version';
-import { APP_NAME } from '@shared/constants';
+import { APP_NAME } from '@musefold/domain/constants';
 import { reportMainDiagnostic, showNativeDiagnostic } from './diagnostics';
 
 let mainWindow: BrowserWindow | null = null;

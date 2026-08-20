@@ -4,16 +4,18 @@ import { describe, expect, it } from 'vitest';
 import {
   APP_DATA_NAMESPACE,
   APP_NAME,
+  LOCAL_STORAGE_PREFIX,
+} from '@musefold/domain/constants';
+import {
   BACKUPS_DIR_NAME,
   DB_NAME,
-  LOCAL_STORAGE_PREFIX,
   LOGS_DIR_NAME,
   PICTURES_DIR_NAME,
   PREVIEWS_DIR_NAME,
   STORE_NAME,
-} from '../constants';
-import { EXPORT_FORMAT, EXPORT_JSON_NAME, validateEnvelope } from '../export-format';
-import { SHARE_PROTOCOL, parseShareDeeplink } from '../share';
+} from '@musefold/core/constants';
+import { EXPORT_FORMAT, EXPORT_JSON_NAME, validateEnvelope } from '@musefold/domain/export-format';
+import { SHARE_PROTOCOL, parseShareDeeplink } from '@musefold/desktop-contracts/share';
 
 const builder = readFileSync('electron-builder.yml', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
@@ -119,7 +121,7 @@ describe('Musefold brand boundary', () => {
     const formerEnvPrefix = ['P', 'F_'].join('');
     const formerGlobalPrefix = ['__p', 'f'].join('');
     const productText = [
-      ...['apps/desktop/src', 'apps/desktop/electron', 'shared', 'packages', 'scripts', 'preview', 'tests', '.github'].map(readProductText),
+      ...['apps/desktop/src', 'apps/desktop/electron', 'packages', 'scripts', 'preview', 'tests', '.github'].map(readProductText),
       readFileSync('README.md', 'utf8'),
       readFileSync('package.json', 'utf8'),
       readFileSync('package-lock.json', 'utf8'),

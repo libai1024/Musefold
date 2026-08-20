@@ -13,7 +13,7 @@ import type {
 } from '@shared/types/providers';
 import type { ImageQuality, ImageBackground, ModerationLevel } from '@shared/types/enums';
 import type { SkillRuntimeSnapshot } from '@shared/types/skill-runtime';
-import { resolveRatioOptionById } from '@shared/constants';
+import { resolveRatioOptionById } from '@musefold/domain/constants';
 
 /** 精修面板的参数（比例而非像素，见文件头） */
 export interface RefineParams {

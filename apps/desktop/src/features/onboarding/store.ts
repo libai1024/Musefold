@@ -7,8 +7,12 @@
 
 import { create } from 'zustand';
 import type { ImageQuality } from '@shared/types/enums';
-import { PROVIDER_PRESETS, DEFAULT_PRESET_ID, RATIO_OPTIONS } from '@shared/constants';
-import { ACCOUNT_FALLBACK_TEXT_MODEL } from '@shared/constants';
+import {
+  PROVIDER_PRESETS,
+  DEFAULT_PRESET_ID,
+  RATIO_OPTIONS,
+} from '@musefold/domain/constants';
+import { ACCOUNT_FALLBACK_TEXT_MODEL } from '@musefold/domain/constants';
 import type { ValidationResult, GenerateImageResult } from '@shared/types/providers';
 import type { AiConnectionValidationResult } from '@shared/types/ai';
 import { useGenerationStore } from '../generation/store';

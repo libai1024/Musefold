@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { SharePayload } from '@shared/share';
+import type { SharePayload } from '@musefold/desktop-contracts/share';
 import { cn } from '../../lib/utils';
 
 interface Props {

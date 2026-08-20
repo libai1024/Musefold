@@ -1,13 +1,13 @@
 import { createHash } from 'crypto';
 import { lstat, readFile, readdir } from 'fs/promises';
 import { relative, resolve, sep } from 'path';
-import { appError, fail, ok, type AppError, type AppResult } from '@shared/app-result';
+import { appError, fail, ok, type AppError, type AppResult } from '@musefold/domain/app-result';
 import {
   classifyAgentSkillFile,
   scanAgentSkillFiles,
   type AgentSkillFileInput,
   type AgentSkillScanResult,
-} from '@shared/skill-scanner';
+} from './skill-scanner';
 
 export const SKILL_MAX_ENTRIES = 500;
 export const SKILL_MAX_TEXT_FILES = 100;

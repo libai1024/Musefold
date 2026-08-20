@@ -1,7 +1,7 @@
 // src/lib/format.ts
 // 时间/成本等格式化工具
 
-import { ACCOUNT_QUOTA_PER_POINT } from '@shared/constants';
+import { ACCOUNT_QUOTA_PER_POINT } from '@musefold/contracts/billing.js';
 
 export function formatTime(ts: number): string {
   const d = new Date(ts);

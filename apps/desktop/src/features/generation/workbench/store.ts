@@ -7,7 +7,10 @@ import type {
   LocalImageReference,
   PromptReference,
 } from '@shared/types/providers';
-import { LOCAL_STORAGE_PREFIX, RATIO_OPTIONS } from '@shared/constants';
+import {
+  LOCAL_STORAGE_PREFIX,
+  RATIO_OPTIONS,
+} from '@musefold/domain/constants';
 import { useAppStore } from '../../../stores/app';
 import { useGenerationStore } from '../store';
 import { useDoubaoAccountStore } from '../../account/doubao-store';

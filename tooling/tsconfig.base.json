@@ -16,7 +16,7 @@
     "disableSourceOfProjectReferenceRedirect": true,
     "baseUrl": "..",
     "paths": {
-      "@shared/*": ["shared/*"],
+      "@shared/types/*": ["packages/desktop-contracts/src/*"],
       "@electron/*": ["apps/desktop/electron/*"],
       "@renderer/*": ["apps/desktop/src/*"],
       "@musefold/core": ["packages/core/src/index.ts"],
@@ -31,6 +31,8 @@
       "@musefold/mcp/*": ["packages/mcp/src/*"],
       "@musefold/contracts": ["packages/contracts/src/index.ts"],
       "@musefold/contracts/*": ["packages/contracts/src/*"],
+      "@musefold/desktop-contracts": ["packages/desktop-contracts/src/index.ts"],
+      "@musefold/desktop-contracts/*": ["packages/desktop-contracts/src/*"],
       "@musefold/domain": ["packages/domain/src/index.ts"],
       "@musefold/domain/*": ["packages/domain/src/*"],
       "@musefold/ui": ["packages/ui/src/index.ts"],

@@ -1,10 +1,10 @@
 {
   "files": [],
   "references": [
-    { "path": "./shared" },
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.web.json" },
     { "path": "./packages/contracts" },
+    { "path": "./packages/desktop-contracts" },
     { "path": "./packages/domain" },
     { "path": "./packages/ui" },
     { "path": "./packages/product-ui" },

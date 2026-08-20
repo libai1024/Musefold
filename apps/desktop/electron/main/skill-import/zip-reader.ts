@@ -1,13 +1,13 @@
 import { createHash } from 'crypto';
 import { lstat } from 'fs/promises';
 import * as yauzl from 'yauzl';
-import { appError, fail, ok, type AppError, type AppResult } from '@shared/app-result';
+import { appError, fail, ok, type AppError, type AppResult } from '@musefold/domain/app-result';
 import {
   classifyAgentSkillFile,
   scanAgentSkillFiles,
   type AgentSkillFileInput,
   type AgentSkillScanResult,
-} from '@shared/skill-scanner';
+} from './skill-scanner';
 import {
   SKILL_MAX_ENTRIES,
   SKILL_MAX_FILE_BYTES,

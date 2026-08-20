@@ -11,8 +11,8 @@
 import {
   composePromptWithImageIndexHint,
   composePromptWithRatioConstraint,
-} from '../generation-prompt';
-import type { SchemePriorityMode } from '../types/design-scheme';
+} from '@musefold/domain/generation-prompt';
+import type { SchemePriorityMode } from '../design-scheme';
 import type { DesignSchemeRevisionDocument, InputSlot } from './schema';
 
 export interface CompileSchemePromptInput {

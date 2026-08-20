@@ -4,7 +4,7 @@ import {
   formatDiagnosticReport,
   type DiagnosticReport,
   type DiagnosticSource,
-} from '@shared/diagnostics';
+} from '@musefold/desktop-contracts/diagnostics';
 import { IPC } from '@shared/types/ipc';
 import { APP_VERSION } from '../system/app-version';
 import { createLogger } from '../system/logger';

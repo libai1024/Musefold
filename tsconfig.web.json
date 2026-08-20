@@ -11,8 +11,9 @@
   },
   "include": ["apps/desktop/src/**/*.ts", "apps/desktop/src/**/*.tsx"],
   "references": [
-    { "path": "./shared" },
     { "path": "./packages/contracts" },
+    { "path": "./packages/desktop-contracts" },
+    { "path": "./packages/domain" },
     { "path": "./packages/ui" },
     { "path": "./packages/product-ui" },
     { "path": "./packages/update-protocol" }

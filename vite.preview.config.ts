@@ -12,7 +12,10 @@ export default defineConfig({
   plugins: [previewApiBridge()],
   resolve: {
     alias: {
-      '@shared': resolve(__dirname, 'shared'),
+      '@shared/types': resolve(__dirname, 'packages/desktop-contracts/src'),
+      '@musefold/desktop-contracts': resolve(__dirname, 'packages/desktop-contracts/src'),
+      '@musefold/domain': resolve(__dirname, 'packages/domain/src'),
+      '@musefold/contracts': resolve(__dirname, 'packages/contracts/src'),
       '@renderer': resolve(__dirname, 'apps/desktop/src'),
     },
   },

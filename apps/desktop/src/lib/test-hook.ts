@@ -19,7 +19,7 @@ import { useSchemeCreationStore } from '../features/design-schemes/creationStore
 import { useSchemeRunStore } from '../features/design-schemes/runStore';
 import { useAccountStore } from '../features/account/store';
 import { useCloudConnectionsStore } from '../features/settings/cloud-connections-store';
-import type { SharePayload } from '@shared/share';
+import type { SharePayload } from '@musefold/desktop-contracts/share';
 
 interface TestHook {
   setView: (v: ViewKey) => void;

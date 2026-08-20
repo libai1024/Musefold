@@ -27,7 +27,7 @@ import {
   EXPORT_SCHEMA_VERSION,
   EXPORT_JSON_NAME,
   EXPORT_IMAGES_DIR,
-} from '@shared/export-format';
+} from '@musefold/domain/export-format';
 import type {
   ExportEnvelope,
   ExportMode,

@@ -21,7 +21,11 @@ import {
   Sparkles,
   UserRound,
 } from '../../components/ui/icons';
-import { DOUBAO_WEB_DAILY_IMAGE_LIMIT, PROVIDER_PRESETS, RATIO_OPTIONS } from '@shared/constants';
+import {
+  DOUBAO_WEB_DAILY_IMAGE_LIMIT,
+  PROVIDER_PRESETS,
+  RATIO_OPTIONS,
+} from '@musefold/domain/constants';
 import type { ImageQuality } from '@shared/types/enums';
 import { useOnboardingStore, EXAMPLE_PROMPT, type OnboardingStep } from './store';
 import { useGenerationStore } from '../generation/store';

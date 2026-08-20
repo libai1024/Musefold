@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { APP_DATA_NAMESPACE } from '@shared/constants';
+import { APP_DATA_NAMESPACE } from '@musefold/domain/constants';
 import { migrateAndRemoveLegacyRecipeDatabase } from '../../index';
 import { up } from '../0015_remove_recipes';
 

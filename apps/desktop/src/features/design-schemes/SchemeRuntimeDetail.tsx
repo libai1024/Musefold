@@ -47,7 +47,7 @@ import type {
   ImageRole,
   InputKind,
   SourceKind,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import { useSchemeCreationStore } from './creationStore';
 import { useSchemeRunStore } from './runStore';
 

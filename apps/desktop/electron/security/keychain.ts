@@ -4,7 +4,7 @@
 
 import { safeStorage } from 'electron';
 import Store from 'electron-store';
-import { STORE_NAME } from '@shared/constants';
+import { STORE_NAME } from '@musefold/core/constants';
 
 const store = new Store<{ keys: Record<string, string> }>({
   name: STORE_NAME,

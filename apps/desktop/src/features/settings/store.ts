@@ -2,7 +2,7 @@
 // 设置页导航状态 —— 当前分区（可被侧栏/状态栏定向打开）
 
 import { create } from 'zustand';
-import { LOCAL_STORAGE_PREFIX } from '@shared/constants';
+import { LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
 import type { AccountImageSource } from '../../lib/ai-access';
 
 export type SettingsSection =

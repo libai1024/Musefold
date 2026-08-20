@@ -11,7 +11,7 @@ import {
   UserRound,
 } from '../ui/icons';
 import { ModelBrandIcon, matchModelBrand } from '../ui/brand-icons';
-import { APP_NAME } from '@shared/constants';
+import { APP_NAME } from '@musefold/domain/constants';
 import { useAccountStore } from '../../features/account/store';
 import { useDoubaoAccountStore } from '../../features/account/doubao-store';
 import { useGenerationStore } from '../../features/generation/store';

@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Plus, Check, Trash2, Pencil, Zap, Loader2, KeyRound, ListChecks } from '../../../components/ui/icons';
 import type { ProviderConfig } from '@shared/types/models';
-import type { ErrorAction } from '@shared/errors';
-import { PROVIDER_PRESETS } from '@shared/constants';
+import type { ErrorAction } from '@musefold/domain/errors';
+import { PROVIDER_PRESETS } from '@musefold/domain/constants';
 import { useGenerationStore } from '../../generation/store';
 import { Button } from '../../../components/ui/button';
 import { ModelBrandIcon } from '../../../components/ui/brand-icons';

@@ -4,7 +4,7 @@
 import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'fs';
 import { dirname, join } from 'path';
-import { APP_DATA_NAMESPACE } from '@shared/constants';
+import { APP_DATA_NAMESPACE } from '@musefold/domain/constants';
 import { getPaths } from '../runtime';
 import { runMigrations } from './run-migrations';
 

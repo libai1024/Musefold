@@ -2,14 +2,14 @@ import { createHash } from 'crypto';
 import { mkdir, readdir, stat, unlink, utimes, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { appError, fail, ok, type AppError, type AppResult } from '@shared/app-result';
-import { GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE } from '@shared/constants';
+import { appError, fail, ok, type AppError, type AppResult } from '@musefold/domain/app-result';
+import { GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE } from '@musefold/domain/constants';
 import {
   classifyAgentSkillFile,
   scanAgentSkillFiles,
   type AgentSkillFileInput,
   type AgentSkillScanResult,
-} from '@shared/skill-scanner';
+} from './skill-scanner';
 import {
   SKILL_MAX_ENTRIES,
   SKILL_MAX_FILE_BYTES,

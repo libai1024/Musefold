@@ -6,7 +6,7 @@ import {
   type CreateDiagnosticReportInput,
   type DiagnosticReport,
   type DiagnosticSource,
-} from '@shared/diagnostics';
+} from '@musefold/desktop-contracts/diagnostics';
 
 export interface DiagnosticItem {
   report: DiagnosticReport;

@@ -7,7 +7,7 @@
  * 质量门不通过不阻断运行：输出已经存在，结论以警告呈现，由用户决定取舍。
  */
 import { openSync, readSync, closeSync, statSync } from 'fs';
-import { RATIO_OPTIONS } from '@shared/constants';
+import { RATIO_OPTIONS } from '@musefold/domain/constants';
 import type { SchemeRunEvaluationCheck } from '@shared/types/design-scheme';
 
 export interface ImageProbe {

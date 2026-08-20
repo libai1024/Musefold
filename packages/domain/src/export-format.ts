@@ -1,4 +1,4 @@
-// shared/export-format.ts
+// packages/domain/src/export-format.ts
 // 导出信封的**格式契约** —— 导出端与导入端共同的唯一事实来源。
 //
 // 为什么单独成文件而不放在 electron/system/export.ts：

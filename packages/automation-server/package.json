@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@musefold/contracts": "*",
-    "@musefold/core": "*"
+    "@musefold/core": "*",
+    "@musefold/desktop-contracts": "*",
+    "@musefold/domain": "*"
   }
 }

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,
-} from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/schema';
 import { createEventHub, createMusefoldCore, type MusefoldCore } from '@musefold/core';
 import { configureTestCoreRuntime } from '@musefold/core/testing';
 import { closeDb, getDb, initDb } from '@musefold/core/db/index';

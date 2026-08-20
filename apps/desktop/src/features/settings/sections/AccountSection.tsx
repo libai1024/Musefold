@@ -11,8 +11,8 @@ import {
 import {
   ACCOUNT_DEFAULT_IMAGE_MODEL,
   ACCOUNT_DEFAULT_TEXT_MODEL,
-  ACCOUNT_QUOTA_PER_USD,
-} from "@shared/constants";
+} from "@musefold/domain/constants";
+import { ACCOUNT_QUOTA_PER_USD } from "@musefold/contracts/billing.js";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { formatPoints } from "../../../lib/format";

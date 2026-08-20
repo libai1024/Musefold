@@ -4,7 +4,7 @@
 
 import Store from 'electron-store';
 import { CHANNELS, DEFAULT_CHANNEL, type Channel } from '@musefold/update-protocol';
-import { STORE_NAME } from '@shared/constants';
+import { STORE_NAME } from '@musefold/core/constants';
 
 export const UPDATE_CHANNEL_ENV = 'MUSEFOLD_UPDATE_CHANNEL';
 export const DEFAULT_UPDATE_CHANNEL: Channel = DEFAULT_CHANNEL;

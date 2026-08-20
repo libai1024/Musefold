@@ -9,8 +9,11 @@ import type {
   ProviderPricingMode,
 } from '@shared/types/models';
 import type { ModelInfo, ValidationResult } from '@shared/types/providers';
-import type { ErrorAction } from '@shared/errors';
-import { PROVIDER_PRESETS, type ProviderPreset } from '@shared/constants';
+import type { ErrorAction } from '@musefold/domain/errors';
+import {
+  PROVIDER_PRESETS,
+  type ProviderPreset,
+} from '@musefold/domain/constants';
 import { pickPreset } from '../presets';
 import { useGenerationStore } from '../store';
 import { Button } from '../../../components/ui/button';

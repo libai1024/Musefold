@@ -7,8 +7,8 @@ import {
   compileSchemePrompt,
   missingRequiredSlots,
   type CompiledSchemePrompt,
-} from '@shared/design-scheme/prompt-compiler';
-import type { DesignSchemeRevisionDocument } from '@shared/design-scheme/schema';
+} from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
+import type { DesignSchemeRevisionDocument } from '@musefold/desktop-contracts/design-scheme/schema';
 import type { DesignSchemeSummary, SchemePriorityMode } from '@shared/types/design-scheme';
 import { getDesignSchemeDb } from '../db/design-scheme';
 import { DesignSchemeRepository } from '../db/design-scheme/repositories';

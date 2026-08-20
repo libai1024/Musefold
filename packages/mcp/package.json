@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@musefold/automation-server": "*",
-    "@musefold/core": "*"
+    "@musefold/core": "*",
+    "@musefold/desktop-contracts": "*"
   }
 }

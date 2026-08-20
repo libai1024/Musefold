@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_ACCOUNT_SERVER_FALLBACK_URL,
   DEFAULT_ACCOUNT_SERVER_URL,
-} from "@shared/constants";
+} from "@musefold/domain/constants";
 import type { NewApiClient } from "../api-client";
 import { RelayApiError } from "../api-client";
 import { AccountService, type ManagedProvisioner } from "../account-service";

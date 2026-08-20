@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MULTI_IMAGE_INDEX_HINT, RATIO_CONSTRAINT_PREFIX } from '../../generation-prompt';
+import { MULTI_IMAGE_INDEX_HINT, RATIO_CONSTRAINT_PREFIX } from '@musefold/domain/generation-prompt';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,

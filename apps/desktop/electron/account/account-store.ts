@@ -6,9 +6,9 @@ import Store from 'electron-store';
 import {
   DEFAULT_ACCOUNT_SERVER_FALLBACK_URL,
   DEFAULT_ACCOUNT_SERVER_URL,
-} from '@shared/constants';
+} from '@musefold/domain/constants';
 import type { AccountHealth, AccountNotice } from '@shared/types/account';
-import { accountQuotaToPoints } from '@shared/pricing';
+import { accountQuotaToPoints } from '@musefold/core/pricing';
 
 export const ACCOUNT_STORE_NAME = 'musefold-account-v0.5.0';
 /** keychain 条目 id（复用 ElectronAiSecretKeychain 的加密存储） */

@@ -10,6 +10,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../contracts" },
-    { "path": "../../shared" }
+    { "path": "../desktop-contracts" },
+    { "path": "../domain" }
   ]
 }

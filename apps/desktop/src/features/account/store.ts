@@ -2,7 +2,7 @@
 // 渲染层账号状态（v0.5）。密码只作为 login/register 的瞬时参数，不进入 Zustand。
 
 import { create } from 'zustand';
-import { DEFAULT_ACCOUNT_SERVER_URL } from '@shared/constants';
+import { DEFAULT_ACCOUNT_SERVER_URL } from '@musefold/domain/constants';
 import type {
   AccountCredentialsInput,
   AccountErrorCode,

@@ -25,7 +25,10 @@ import type {
   UpdatePromptPatch,
   PromptStats,
 } from '@shared/types/ipc';
-import { SEARCH_DEBOUNCE_MS, UNFILED_FOLDER_ID } from '@shared/constants';
+import {
+  SEARCH_DEBOUNCE_MS,
+  UNFILED_FOLDER_ID,
+} from '@musefold/domain/constants';
 import api from '../../lib/ipc';
 import { toast } from '../../stores/toast';
 

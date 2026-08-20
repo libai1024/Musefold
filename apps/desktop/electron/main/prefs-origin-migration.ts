@@ -9,7 +9,7 @@ import Store from 'electron-store';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { IPC } from '@shared/types/ipc';
-import { STORE_NAME } from '@shared/constants';
+import { STORE_NAME } from '@musefold/core/constants';
 import { createLogger } from '../system/logger';
 import { getBuiltinRendererRoot } from './renderer-bundle';
 import {

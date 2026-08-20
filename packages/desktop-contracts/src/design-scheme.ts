@@ -4,12 +4,12 @@
  * renderer 只通过这里的类型与主进程 RuntimeFacade 通信；
  * 事件是 UI 展示与恢复的事实源（开发规范 §11）。
  */
-import type { AppResult } from '../app-result';
+import type { AppResult } from '@musefold/domain/app-result';
 import type {
   DesignSchemeRevisionDocument,
   Fidelity,
   SchemeStatus,
-} from '../design-scheme/schema';
+} from './design-scheme/schema';
 import type { GenerateImageRequest, GenerateImageResult } from './providers';
 
 /** 与 SkillRuntimeTraceItem 同构，便于复用对话轨迹渲染组件。 */

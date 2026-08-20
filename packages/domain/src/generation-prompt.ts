@@ -1,4 +1,4 @@
-// shared/generation-prompt.ts
+// packages/domain/src/generation-prompt.ts
 // 生图提示词的通用组合规则 —— 渲染进程 Composer 与主进程 Skill Agent 共用，
 // 保证「比例约束」「图 N 编号说明」在两条链路上措辞完全一致。
 

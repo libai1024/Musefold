@@ -1,10 +1,10 @@
 // electron/preload/index.ts
-// contextBridge 暴露 window.api —— 类型来自 shared/types/ipc.ts
+// contextBridge 暴露 window.api —— 类型来自 @shared/types/ipc
 // 只做转发，无业务逻辑。详见 docs/01-architecture.md §2、docs/07-ipc-contracts.md §4
 
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC } from "@shared/types/ipc";
-import type { DiagnosticReport } from "@shared/diagnostics";
+import type { DiagnosticReport } from "@musefold/desktop-contracts/diagnostics";
 import type { AccountErrorPayload } from "@shared/types/account";
 import {
   runPreloadOriginMigration,
@@ -538,11 +538,11 @@ const api = {
       ipcRenderer.invoke(IPC.SHARE_IMPORT, req),
     consumePending: () => ipcRenderer.invoke(IPC.SHARE_CONSUME_PENDING),
     onIncoming: (
-      cb: (payload: import("@shared/share").SharePayload) => void,
+      cb: (payload: import("@musefold/desktop-contracts/share").SharePayload) => void,
     ) => {
       const listener = (
         _event: unknown,
-        payload: import("@shared/share").SharePayload,
+        payload: import("@musefold/desktop-contracts/share").SharePayload,
       ) => cb(payload);
       ipcRenderer.on(IPC.SHARE_INCOMING, listener);
       return () => ipcRenderer.removeListener(IPC.SHARE_INCOMING, listener);

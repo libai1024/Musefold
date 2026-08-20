@@ -3,7 +3,7 @@
 // 服务商的切换收敛在侧栏底部的模型切换器，这里只管生成参数本身。
 import type { ImageBackground, ImageQuality } from '@shared/types/enums';
 import type { SchemePriorityMode } from '@shared/types/design-scheme';
-import { describePriorityMode, PRIORITY_MODE_LABEL } from '@shared/design-scheme/prompt-compiler';
+import { describePriorityMode, PRIORITY_MODE_LABEL } from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
 import { useAppStore } from '../../../stores/app';
 import { useGenerationWorkbenchStore } from '../../generation/workbench/store';
 import { SectionShell, SettingRow } from '../components/SectionShell';

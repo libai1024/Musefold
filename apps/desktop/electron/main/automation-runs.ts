@@ -10,7 +10,7 @@ import { getDb } from '@musefold/core/db/index';
 import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import type { GenerateImageRequest } from '@shared/types/providers';
 import { estimateProviderCost } from '../settings/pricing';
-import { resolveRatioOptionById } from '@shared/constants';
+import { resolveRatioOptionById } from '@musefold/domain/constants';
 import {
   remainingAutomationBudgetPoints,
   settleAutomationBudget,

@@ -4,7 +4,7 @@
 import type Database from 'better-sqlite3';
 import { ulid } from 'ulid';
 import { SCHEMA_SQL } from '../schema';
-import { SEED_TAG_GROUPS } from '@shared/constants';
+import { SEED_TAG_GROUPS } from '@musefold/domain/constants';
 import { seedLibrary } from '../seed-library';
 
 export function up(db: Database.Database): void {

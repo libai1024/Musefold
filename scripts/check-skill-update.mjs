@@ -31,7 +31,12 @@ const SOURCE_FILES = new Set([
 ]);
 const BUNDLED_SKILL_PREFIX = 'website/Musefold/skills/musefold/';
 const BUNDLED_SKILL_FILE = `${BUNDLED_SKILL_PREFIX}SKILL.md`;
-const VERSION_FILE = 'shared/constants.ts';
+/** 新路径优先；父 revision 取不到时回退旧路径，避免解散 shared 的提交被误判。 */
+export const SKILL_VERSION_FILES = [
+  'packages/domain/src/constants.ts',
+  'shared/constants.ts',
+];
+const VERSION_FILE = SKILL_VERSION_FILES[0];
 const VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
 function git(args, options = {}) {
@@ -160,6 +165,23 @@ function serializeSkillConstants(constants) {
   );
 }
 
+/**
+ * 新路径优先，父 revision 没有新文件时回退 `shared/constants.ts`。
+ * @param {(ref: string, path: string) => string} readPath
+ * @param {string} ref
+ */
+export function readSkillConstantsSource(readPath, ref) {
+  let lastError = null;
+  for (const path of SKILL_VERSION_FILES) {
+    try {
+      return { path, source: readPath(ref, path) };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error('Skill 常量文件不存在');
+}
+
 /** @returns {boolean} true = Skill 相关常量已变，或无法证明没变 */
 export function musefoldSkillConstantsChanged(beforeSource, afterSource) {
   const before = extractMusefoldSkillConstants(beforeSource);
@@ -173,8 +195,8 @@ function versionFileSkillConstantsChanged(ref, parentRef) {
   if (parentRef == null) return true;
   try {
     return musefoldSkillConstantsChanged(
-      readPathAt(parentRef, VERSION_FILE),
-      readPathAt(ref, VERSION_FILE),
+      readSkillConstantsSource(readPathAt, parentRef).source,
+      readSkillConstantsSource(readPathAt, ref).source,
     );
   } catch {
     // 新增、删除或任一侧读失败时，不能证明 Skill 常量没动
@@ -221,7 +243,7 @@ function validateUpdatedDecision({ label, paths, ref, parentRef, version }) {
     errors.push(`无法读取 ${BUNDLED_SKILL_FILE}`);
   }
   try {
-    appVersion = extractAppSkillVersion(readPathAt(ref, VERSION_FILE));
+    appVersion = extractAppSkillVersion(readSkillConstantsSource(readPathAt, ref).source);
   } catch {
     errors.push(`无法读取 ${VERSION_FILE}`);
   }
@@ -230,7 +252,7 @@ function validateUpdatedDecision({ label, paths, ref, parentRef, version }) {
 
   if (parentRef) {
     try {
-      const previous = extractAppSkillVersion(readPathAt(parentRef, VERSION_FILE));
+      const previous = extractAppSkillVersion(readSkillConstantsSource(readPathAt, parentRef).source);
       if (!previous) errors.push('无法解析父提交中的 MUSEFOLD_SKILL_VERSION');
       else if (compareVersions(version, previous) <= 0) errors.push(`Skill 版本必须提升：父提交 ${previous}，当前 ${version}`);
     } catch {
@@ -250,8 +272,9 @@ function validateDecision({ label, paths, message, ref, parentRef }) {
 
   const impact = parseSkillImpact(message);
   const bundledSkillChanged = paths.some((path) => path.startsWith(BUNDLED_SKILL_PREFIX));
+  const versionFileTouched = SKILL_VERSION_FILES.some((path) => paths.includes(path));
   const skillConstantsChanged =
-    paths.includes(VERSION_FILE) && versionFileSkillConstantsChanged(ref, parentRef);
+    versionFileTouched && versionFileSkillConstantsChanged(ref, parentRef);
   if (impact.kind === 'none') {
     if (bundledSkillChanged || skillConstantsChanged) {
       throw new Error(`${label} 修改了内置 Skill 或版本常量，不能声明 Skill-Impact: none`);
@@ -394,6 +417,21 @@ function selfTest() {
     '一侧解析不出任何 MUSEFOLD_SKILL_* → 已变更',
     musefoldSkillConstantsChanged(baseline, "export const APP_NAME = 'x';\n"),
     true,
+  );
+
+  const fakeRead = (ref, path) => {
+    if (ref === 'parent' && path === 'shared/constants.ts') return baseline;
+    if (ref === 'current' && path === 'packages/domain/src/constants.ts') return baseline;
+    throw new Error(`missing ${ref}:${path}`);
+  };
+  const parentHit = readSkillConstantsSource(fakeRead, 'parent');
+  const currentHit = readSkillConstantsSource(fakeRead, 'current');
+  assertEqual('跨路径移动：父 revision 回退旧路径', parentHit.path, 'shared/constants.ts');
+  assertEqual('跨路径移动：当前读到新路径', currentHit.path, 'packages/domain/src/constants.ts');
+  assertEqual(
+    '跨路径移动：父 revision 仅有旧路径、当前仅有新路径、值不变 → 未变更',
+    musefoldSkillConstantsChanged(parentHit.source, currentHit.source),
+    false,
   );
 
   process.stdout.write('check-skill-update self-test: all passed\n');

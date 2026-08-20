@@ -10,7 +10,7 @@ import type {
 } from '@shared/types/ipc';
 import type { PromptStats } from '@shared/types/ipc';
 import type { SyncUsageAction } from '@musefold/contracts';
-import { UNFILED_FOLDER_ID } from '@shared/constants';
+import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
 import { tagsRepo } from './tags';

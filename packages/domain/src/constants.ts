@@ -1,24 +1,20 @@
-// shared/constants.ts
-// 路径名、默认值、预设数据
+// 产品 / UI / 领域常量（与路径、文件系统无关）。
 
-import type { TagGroup } from './types/enums';
+/** 与 `@shared/types/enums` 的 TagGroup 同形；domain 不依赖 desktop-contracts。 */
+type TagGroup = '风格' | '场景' | '模型' | '主体' | '画质' | '自定义';
+/** 与 `@shared/types/enums` 的 ProviderType 同形。 */
+type ProviderType = 'openai' | 'openai-compatible' | 'wukong-studio' | 'doubao-web';
+/** 与 `@shared/types/enums` 的 ImageSize 同形。 */
+type ImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '2048x2048' | 'auto';
 
 export const APP_NAME = 'Musefold';
 /** Musefold v0.3.0 使用独立数据域，不读取旧品牌的数据与配置。 */
 export const APP_DATA_NAMESPACE = 'v0.3.0';
-export const DB_NAME = `musefold-data-${APP_DATA_NAMESPACE}.db`;
-export const STORE_NAME = `musefold-providers-${APP_DATA_NAMESPACE}`; // electron-store 文件名
-/** 文本 AI 连接与图片 Provider 分开存储，避免模型、激活态和密钥串线。 */
-export const AI_CONNECTION_STORE_NAME = `musefold-ai-connections-${APP_DATA_NAMESPACE}`;
 /**
  * 版本化的本地草稿命名空间，只用于工作台这类可重建状态。
  * 主题、密度、侧栏折叠这类全局 UI 偏好仍保留在独立的稳定 key。
  */
 export const LOCAL_STORAGE_PREFIX = `musefold:${APP_DATA_NAMESPACE}:`;
-export const PICTURES_DIR_NAME = `Musefold/${APP_DATA_NAMESPACE}`;
-export const BACKUPS_DIR_NAME = `musefold-backups-${APP_DATA_NAMESPACE}`;
-export const PREVIEWS_DIR_NAME = `musefold-previews-${APP_DATA_NAMESPACE}`;
-export const LOGS_DIR_NAME = `musefold-logs-${APP_DATA_NAMESPACE}`;
 
 export const GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE =
   '当前版本仅支持公开 GitHub 仓库。私有仓库请先下载到本机，再使用本地文件夹或 ZIP 导入；不要把 Token 写入地址。';
@@ -31,9 +27,6 @@ export const DEFAULT_PROVIDER = {
   baseUrl: 'https://api.openai.com/v1',
   model: DEFAULT_MODEL,
 };
-
-/** Provider 类型 */
-import type { ProviderType } from './types/enums';
 
 /** 一键接入预设 —— 填好 baseUrl/model，用户仅需粘贴 API Key（密钥不入库、系统级加密存储） */
 export interface ProviderPreset {
@@ -119,11 +112,6 @@ export const ACCOUNT_DEFAULT_IMAGE_MODEL = 'musefold-image-pro';
 /** 别名缺失（自建 new-api 未配置）时的兜底模型 */
 export const ACCOUNT_FALLBACK_TEXT_MODEL = 'gpt-5.4-mini';
 export const ACCOUNT_FALLBACK_IMAGE_MODEL = 'gpt-image-2';
-/** 计费口径单一定义在 contracts，Web 与桌面必须显示同一数值。 */
-export {
-  ACCOUNT_QUOTA_PER_USD,
-  ACCOUNT_QUOTA_PER_POINT,
-} from '@musefold/contracts/billing.js';
 /** 托管记录展示名（两栈一致） */
 export const ACCOUNT_MANAGED_NAME = 'Musefold 账号';
 
@@ -136,7 +124,7 @@ export interface RatioOption {
   id: string;
   label: string;
   ratio: string; // 悟空 payload.size
-  size: import('./types/enums').ImageSize; // OpenAI 像素档
+  size: ImageSize; // OpenAI 像素档
   hint?: string;
 }
 
@@ -196,9 +184,6 @@ export const SEED_TAG_GROUPS: { group: TagGroup; tags: string[] }[] = [
   { group: '主体', tags: ['人物', '风景', '物品', '抽象'] },
   { group: '画质', tags: ['高清', '稳定出图', '易崩坏'] },
 ];
-
-/** FTS5 配置 */
-export const FTS_TOKENIZE = 'unicode61';
 
 /** 豆包网页桥接的保守本地硬限制；所有豆包 Provider 共享。 */
 export const DOUBAO_WEB_DAILY_IMAGE_LIMIT = 10;

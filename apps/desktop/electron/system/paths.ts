@@ -4,13 +4,12 @@
 import { app } from 'electron';
 import { join } from 'path';
 import {
-  APP_NAME,
   DB_NAME,
   PICTURES_DIR_NAME,
   BACKUPS_DIR_NAME,
   PREVIEWS_DIR_NAME,
   LOGS_DIR_NAME,
-} from '@shared/constants';
+} from '@musefold/core/constants';
 
 export function getPaths() {
   const userData = app.getPath('userData');

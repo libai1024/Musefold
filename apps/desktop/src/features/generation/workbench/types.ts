@@ -17,7 +17,7 @@ import type {
   DesignSchemeSourceConfirmation,
   DesignSchemeSummary,
 } from "@shared/types/design-scheme";
-import type { InputSlot } from "@shared/design-scheme/schema";
+import type { InputSlot } from "@musefold/desktop-contracts/design-scheme/schema";
 
 export interface SchemeCreationDraftCard extends DesignSchemeSummary {
   creationSummary: string;

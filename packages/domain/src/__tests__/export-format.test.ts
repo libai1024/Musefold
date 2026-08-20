@@ -1,4 +1,4 @@
-// shared/__tests__/export-format.test.ts
+// packages/domain/src/__tests__/export-format.test.ts
 // 信封格式契约单测（TASK-SET-01/02）
 //
 // 这里只测纯逻辑。真正的库级往返（导出→导入→查得回来）在 tests/e2e：

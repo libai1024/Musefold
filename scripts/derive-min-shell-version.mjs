@@ -25,20 +25,19 @@
  * 下全部叶子方法计入——后续经别名调用的方法正则看不见，漏计会让 minShellVersion
  * 偏低，方向不安全。多计只会使门槛偏高。
  *
- * 登记表读取：动态 import('../shared/types/api-method-versions.ts')。该文件只有
- * 可擦除的 type 语法 + 纯数据对象；Node 24+（与仓库 CI / bundle:manifest 一致）
- * 默认类型剥离，脚本不依赖 workspace 包，保持独立可运行。
+ * 登记表读取：动态 import('@musefold/desktop-contracts/api-method-versions.ts')。
+ * 该文件只有可擦除的 type 语法 + 纯数据对象；Node 24+（与仓库 CI / bundle:manifest 一致）
+ * 默认类型剥离。按包名解析（v1.2.1 已预留），不再依赖 shared/ 文件路径。
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import process from 'node:process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const FLOOR = '0.5.0';
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SRC_ROOT = join(REPO_ROOT, 'apps/desktop/src');
-const REGISTRY_URL = new URL('../shared/types/api-method-versions.ts', import.meta.url);
 const PREVIEW_PREFIX = 'preview/';
 
 /**
@@ -228,7 +227,7 @@ export function listRendererSources(srcRoot = SRC_ROOT) {
 }
 
 export async function loadRegistry() {
-  const mod = await import(pathToFileURL(fileURLToPath(REGISTRY_URL)).href);
+  const mod = await import('@musefold/desktop-contracts/api-method-versions.ts');
   const registry = mod.API_METHOD_INTRODUCED_IN;
   if (registry === null || typeof registry !== 'object') {
     throw new Error('登记表 API_METHOD_INTRODUCED_IN 缺失或不是对象');

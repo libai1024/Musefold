@@ -1,6 +1,6 @@
 import Store from 'electron-store';
 import { ulid } from 'ulid';
-import { AI_CONNECTION_STORE_NAME } from '@shared/constants';
+import { AI_CONNECTION_STORE_NAME } from '@musefold/core/constants';
 import type {
   AiConnectionCapabilities,
   AiConnectionPreset,

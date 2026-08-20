@@ -80,7 +80,7 @@ function normalizeError(err) {
 
 // ---- 分发（channel -> handler） ----
 // args 为「位置参数数组」，与 window.api.<domain>.<method>(...args) 一一对应，
-// 见 shared/types/ipc.ts 的 Api 接口。返回值形态也严格对齐该契约。
+// 见 packages/desktop-contracts/src/ipc.ts 的 Api 接口。返回值形态也严格对齐该契约。
 async function dispatch(channel, args) {
   const [a0, a1] = args ?? [];
 
