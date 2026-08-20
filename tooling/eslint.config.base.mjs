@@ -148,7 +148,6 @@ export default tseslint.config(
       'apps/desktop/src/features/design-schemes/SchemeRuntimeDetail.tsx',
       'apps/desktop/electron/doubao-web/browser-service.ts',
       'packages/ui/src/extended-primitives.tsx',
-      'packages/desktop-contracts/src/ipc.ts',
       'apps/desktop/src/features/onboarding/OnboardingFlow.tsx',
       'apps/desktop/src/features/settings/components/AccountSection.tsx',
       'apps/desktop/electron/main/ipc/skill-runtime.ts',
@@ -161,7 +160,6 @@ export default tseslint.config(
       'apps/desktop/electron/main/integration.ts',
       'apps/desktop/src/runtime/desktop-gateway.ts',
       'apps/desktop/src/features/generation/components/ProviderDialog.tsx',
-      'apps/desktop/electron/preload/index.ts',
       'apps/desktop/src/features/generation/workbench/PromptReferenceSidebar.tsx',
     ],
     rules: {

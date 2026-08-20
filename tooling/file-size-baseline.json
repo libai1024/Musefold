@@ -8,7 +8,6 @@
   "apps/desktop/src/features/design-schemes/SchemeRuntimeDetail.tsx": 1131,
   "apps/desktop/electron/doubao-web/browser-service.ts": 1107,
   "packages/ui/src/extended-primitives.tsx": 1055,
-  "packages/desktop-contracts/src/ipc.ts": 1031,
   "apps/desktop/src/features/onboarding/OnboardingFlow.tsx": 886,
   "apps/desktop/src/features/settings/components/AccountSection.tsx": 855,
   "apps/desktop/electron/main/ipc/skill-runtime.ts": 796,
@@ -21,6 +20,5 @@
   "apps/desktop/electron/main/integration.ts": 641,
   "apps/desktop/src/runtime/desktop-gateway.ts": 637,
   "apps/desktop/src/features/generation/components/ProviderDialog.tsx": 622,
-  "apps/desktop/electron/preload/index.ts": 616,
   "apps/desktop/src/features/generation/workbench/PromptReferenceSidebar.tsx": 603
 }

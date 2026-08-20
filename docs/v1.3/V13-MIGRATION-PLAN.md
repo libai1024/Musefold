@@ -52,9 +52,11 @@
   验证：全仓 `tsc -b`、`check:boundaries`（69 known）、repo 测试 18、settings+design-schemes feature 测试 29 全绿。✅
   回滚：revert 移动提交。
 
-- `V13-GOV-04`：`desktop-contracts/src/ipc.ts` 拆为 `ipc/` 域模块（prompt/history/workbench/account/generation/system/…），`Api` 聚合类型与子路径导出面不变（消费方零改动）；`preload/index.ts` 按域拆组装模块，仍单次 `contextBridge.exposeInMainWorld` 单对象暴露。
+- `V13-GOV-04`：~~`desktop-contracts/src/ipc.ts` 拆为 `ipc/` 域模块（prompt/history/workbench/account/generation/system/…），`Api` 聚合类型与子路径导出面不变（消费方零改动）；`preload/index.ts` 按域拆组装模块，仍单次 `contextBridge.exposeInMainWorld` 单对象暴露。~~ **已完成（2026-08-21）**。`ipc.ts`（1,031 行）拆为 `ipc/{channels,prompt,history,workbench,generation,account,system,automation,share,misc,api,index}.ts`，原路径保留为 barrel（包 exports `./*` 通配与全部 `@musefold/desktop-contracts/ipc` 子路径消费方零改动）；`preload/index.ts`（616 行）拆为 `preload/api/{prompt,skill-runtime,design-scheme,generation,workbench,history,share,system,automation,account,misc}.ts`，index 收缩至 ~80 行（origin 迁移 + 组合 + 单次 expose）。两文件退出尺寸 baseline（23→21 条，棘轮收紧）。
 
-  验证：`workspace-bundling.test.ts` preload 断言；打包冒烟。
+  **裁定**：Api 按域抽为独立 namespace 接口（`PromptApi`、`HistoryApi` 等）再组合，形状与拆分前逐字段一致；不引入代码生成（D7）。
+
+  验证：全仓 `tsc -b`、desktop-contracts 测试 22、`workspace-bundling` preload 断言 2、全仓 build（含 electron-vite preload bundle）、全量 vitest 181 files / 1,042 tests 通过；桌面 E2E 222 例随后台门禁执行。✅
   回滚：revert 拆分提交（聚合类型不变，无级联）。
 
 ### 完成条件
