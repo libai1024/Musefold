@@ -10,7 +10,7 @@ import type {
   ImageBackground,
   ModerationLevel,
 } from './enums';
-import type { PromptReference } from './providers';
+import type { CostUnit, PromptReference } from './generation-snapshots';
 
 // 重新导出枚举，方便单点导入
 export type {
@@ -23,6 +23,7 @@ export type {
   ModerationLevel,
 };
 export type { ProviderType } from './enums';
+export type { CostUnit };
 
 /** 提示词（prompts 表） */
 export interface Prompt {
@@ -183,11 +184,6 @@ export interface HistoryRecord {
 }
 
 export type HistoryStatsGroupBy = 'day' | 'week' | 'month';
-
-/**
- * 唯一成本单位：用户可见积分（1 积分 = ¥0.1 = 50,000 服务端原始配额）。
- */
-export type CostUnit = 'point';
 
 export interface HistoryStatsQuery {
   from?: number;

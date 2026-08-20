@@ -2,12 +2,18 @@
 module.exports = {
   forbidden: [
     {
-      // §3.2 禁止全局 ← 循环依赖。Phase 0 先 warn 观察，不挡 CI。
+      // 动态 import 是刻意打破初始化顺序环的手段；把它算违规会逼人改写法绕过规则。
       name: 'no-circular',
-      comment: '§3.2 禁止全局：循环依赖。v1.2.2 Phase 0 以 warn 观察存量环，后续搬迁时再升 error。',
-      severity: 'warn',
+      comment:
+        '§3.2 禁止全局：静态循环依赖一律拦。动态 import 是刻意用来打破初始化顺序环的手段，环上只要有一条 dynamic-import 边即不算违规。',
+      severity: 'error',
       from: {},
-      to: { circular: true },
+      to: {
+        circular: true,
+        viaOnly: {
+          dependencyTypesNot: ['dynamic-import'],
+        },
+      },
     },
 
     {

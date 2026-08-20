@@ -1,7 +1,15 @@
 import type { AppResult } from '../app-result';
 import type { GenerateImageRequest, GenerateImageResult, LocalImageReference } from './providers';
+import type {
+  SkillRuntimeExecutionMode,
+  SkillRuntimeTraceItem,
+} from './generation-snapshots';
 
-export type SkillRuntimeExecutionMode = 'agent' | 'file-fallback' | 'direct-forward';
+export type {
+  SkillRuntimeExecutionMode,
+  SkillRuntimeSnapshot,
+  SkillRuntimeTraceItem,
+} from './generation-snapshots';
 
 export interface PrepareGithubSkillRuntimeRequest {
   repositoryUrl: string;
@@ -69,16 +77,6 @@ export interface SkillRuntimeExecution {
   generations: SkillRuntimeGenerationOutcome[];
 }
 
-export interface SkillRuntimeTraceItem {
-  id: string;
-  kind: 'tool' | 'assistant' | 'system';
-  title: string;
-  detail?: string;
-  output?: string;
-  status: 'running' | 'success' | 'warning' | 'error';
-  durationMs?: number;
-}
-
 /** 主进程实时推送的 Skill 执行事件；渲染进程据此把 Agent 过程渲染为对话内容。 */
 export type SkillRuntimeEvent =
   /** 新增或整体更新一条轨迹（真实工具调用、系统说明、assistant 段落状态）。 */
@@ -87,14 +85,6 @@ export type SkillRuntimeEvent =
   | { kind: 'assistant-delta'; executionId: string; itemId: string; text: string }
   | { kind: 'generation-start'; executionId: string; jobId: string; resultIndex: number }
   | { kind: 'generation-result'; executionId: string; outcome: SkillRuntimeGenerationOutcome };
-
-/** Stored with a workbench turn so the Agent process remains conversation content. */
-export interface SkillRuntimeSnapshot {
-  label: string;
-  repositoryUrl: string;
-  executionMode: SkillRuntimeExecutionMode;
-  trace: SkillRuntimeTraceItem[];
-}
 
 export interface SkillRuntimeApi {
   prepareGithub: (request: PrepareGithubSkillRuntimeRequest) => Promise<AppResult<SkillRuntimeAttachment>>;

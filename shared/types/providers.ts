@@ -8,18 +8,13 @@ import type {
   ImageBackground,
   ModerationLevel,
 } from './enums';
-import type { CostUnit } from './models';
-import type { SkillRuntimeSnapshot } from './skill-runtime';
+import type {
+  CostUnit,
+  PromptReference,
+  SkillRuntimeSnapshot,
+} from './generation-snapshots';
 
-export type PromptReferenceScope = 'full' | 'excerpt';
-
-/** 制作工作台引用的提示词快照。历史记录以这份快照为准，不跟随源提示词后续编辑。 */
-export interface PromptReference {
-  promptId: string;
-  title: string;
-  text: string;
-  scope: PromptReferenceScope;
-}
+export type { PromptReference, PromptReferenceScope } from './generation-snapshots';
 
 export interface WorkbenchRunContext {
   sessionId: string;
