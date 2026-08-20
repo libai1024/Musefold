@@ -496,6 +496,54 @@ function selfTest() {
     },
   );
   assertEqual(
+    'packages/core → shell+desktop (renderer does not import core)',
+    pick(classifyFiles(['packages/core/src/index.ts'], groups)),
+    {
+      content: false,
+      service: false,
+      shell: true,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'packages/domain → service+content+desktop',
+    pick(classifyFiles(['packages/domain/src/index.ts'], groups)),
+    {
+      content: true,
+      service: true,
+      shell: false,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'desktop tsconfig.node.json → shell+desktop (not infra)',
+    pick(classifyFiles(['apps/desktop/tsconfig.node.json'], groups)),
+    {
+      content: false,
+      service: false,
+      shell: true,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'desktop tsconfig.web.json → content+desktop (not infra)',
+    pick(classifyFiles(['apps/desktop/tsconfig.web.json'], groups)),
+    {
+      content: true,
+      service: false,
+      shell: false,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
     'unmapped path fail-open → desktop=true',
     pick(classifyFiles(['scripts/release-preflight.mjs'], groups)),
     { content: true, service: true, shell: true, desktop: true, docs_only: false, fail_open: true },

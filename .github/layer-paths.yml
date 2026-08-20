@@ -25,6 +25,13 @@
 # SQLite row types are consumed by the renderer (hot-update) and implemented by
 # the main process (tag-released shell, minShellVersion). Dual-listing is the
 # conservative trigger so neither lane is skipped.
+# `packages/core/**` is listed under shell: the main process imports SQLite /
+# Provider from @musefold/core. The renderer does not import core (DIR-02).
+# `packages/domain/**` is listed under both content and service: the renderer
+# consumes domain types, and apps/web-api depends on @musefold/domain.
+# `apps/desktop/tsconfig.node.json` / `tsconfig.web.json` are desktop compile
+# units, not infra (infra would light service). They follow electron/** → shell
+# and src/** → content.
 # Unmapped paths fail-open (all product layers and desktop true) in detect-layers.mjs.
 #
 # This file is parsed by a restricted subset parser (comments, `key:`, `- item`,
@@ -35,8 +42,6 @@ infra:
   - package-lock.json
   - turbo.json
   - tsconfig.json
-  - tsconfig.node.json
-  - tsconfig.web.json
   - eslint.config.mjs
   - tooling/**
   - .prettierrc
@@ -50,6 +55,7 @@ infra:
 content:
   - apps/desktop/src/**
   - apps/desktop/electron.vite.config.ts
+  - apps/desktop/tsconfig.web.json
   - apps/web/**
   - packages/ui/**
   - packages/product-ui/**
@@ -62,16 +68,20 @@ service:
   - apps/web-api/**
   - apps/generation-worker/**
   - packages/contracts/**
+  - packages/domain/**
 
 shell:
   - apps/desktop/electron/**
   - apps/desktop/electron.vite.config.ts
+  - apps/desktop/tsconfig.node.json
   - resources/**
   - electron-builder.yml
   # Protocol package is compiled into the main process; renderer consumes Channel types.
   - packages/update-protocol/**
   # IPC contracts are implemented by the main process; renderer consumes the types.
   - packages/desktop-contracts/**
+  # Main process imports SQLite / Provider; renderer does not import core.
+  - packages/core/**
 
 desktop:
   - apps/desktop/**
