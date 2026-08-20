@@ -15,6 +15,10 @@ import type {
 } from './cloud-sync';
 import type { HistoryStatus } from './enums';
 import type {
+  HistoryClearRequest,
+  HistoryClearResult,
+  HistoryDeleteRequest,
+  HistoryDeleteResult,
   HistoryLinkPromptRequest,
   HistoryLinkPromptResult,
   ListPromptsQuery,
@@ -22,7 +26,14 @@ import type {
   RelatedHistoryQuery,
   RelatedHistoryResult,
 } from './ipc';
-import type { HistoryRecord, NewPrompt, Prompt, SearchHistoryItem } from './models';
+import type {
+  HistoryRecord,
+  HistoryStats,
+  HistoryStatsQuery,
+  NewPrompt,
+  Prompt,
+  SearchHistoryItem,
+} from './models';
 
 /**
  * 桌面独有面（扁平方法，便于 DesktopGateway implements）。
@@ -59,6 +70,12 @@ export interface DesktopExtras {
     limit?: number;
     offset?: number;
   }): Promise<HistoryRecord[]>;
+  /** 对齐 Api.history.stats */
+  historyStats(q: HistoryStatsQuery): Promise<HistoryStats>;
+  /** 对齐 Api.history.delete（支持 deleteFile 物理删图） */
+  deleteHistory(req: string | HistoryDeleteRequest): Promise<HistoryDeleteResult>;
+  /** 对齐 Api.history.clear */
+  clearHistory(req?: number | HistoryClearRequest): Promise<HistoryClearResult>;
   /** 对齐 Api.system.getVersion；判断 related / linkPrompt 通道是否可用 */
   getSystemVersion(): Promise<{ app: string; db: number }>;
 

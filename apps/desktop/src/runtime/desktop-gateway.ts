@@ -192,6 +192,24 @@ export class DesktopGateway
     return this.api.history.list(q);
   }
 
+  historyStats(
+    q: Parameters<DesktopExtras['historyStats']>[0],
+  ): ReturnType<DesktopExtras['historyStats']> {
+    return this.api.history.stats(q);
+  }
+
+  deleteHistory(
+    req: Parameters<DesktopExtras['deleteHistory']>[0],
+  ): ReturnType<DesktopExtras['deleteHistory']> {
+    return this.api.history.delete(req);
+  }
+
+  clearHistory(
+    req?: Parameters<DesktopExtras['clearHistory']>[0],
+  ): ReturnType<DesktopExtras['clearHistory']> {
+    return this.api.history.clear(req);
+  }
+
   getSystemVersion(): ReturnType<DesktopExtras['getSystemVersion']> {
     return this.api.system.getVersion();
   }

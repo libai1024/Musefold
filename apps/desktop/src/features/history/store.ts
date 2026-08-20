@@ -5,8 +5,9 @@ import { create } from 'zustand';
 import type { HistoryClearRequest, HistoryDeleteResult } from '@musefold/desktop-contracts/ipc';
 import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from '@musefold/desktop-contracts/models';
 import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
-import api from '../../lib/ipc';
+import { desktopGateway } from '../../runtime';
 import { toast } from '../../stores/toast';
+import api from '../../lib/ipc';
 import {
   DEFAULT_HISTORY_FILTERS,
   countActiveHistoryFilters,
@@ -141,7 +142,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     const filtered = countActiveHistoryFilters(filters) > 0;
     const prevSelected = get().selectedId;
     try {
-      const records = await api.history.list(query);
+      const records = await desktopGateway.listHistory(query);
       // 筛选后若选中项不在结果里，清空选中
       const stillThere = prevSelected && records.some((r) => r.id === prevSelected);
       set({
@@ -163,7 +164,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   loadStats: async (q) => {
     set({ statsLoading: true, statsError: null });
     try {
-      const stats = await api.history.stats(q);
+      const stats = await desktopGateway.historyStats(q);
       set({ stats, statsLoading: false });
       return stats;
     } catch (err) {
@@ -174,7 +175,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 
   remove: async (id, opts) => {
-    const result = await api.history.delete(opts?.deleteFile ? { id, deleteFile: true } : id);
+    const result = await desktopGateway.deleteHistory(opts?.deleteFile ? { id, deleteFile: true } : id);
     set((s) => ({
       records: s.records.filter((r) => r.id !== id),
       selectedId: s.selectedId === id ? null : s.selectedId,
@@ -195,7 +196,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
   clear: async (req) => {
     try {
-      const result = await api.history.clear(req);
+      const result = await desktopGateway.clearHistory(req);
       if (result.deleted > 0) {
         toast.success('已清理历史', `${result.deleted} 条记录已移除`);
       } else {
