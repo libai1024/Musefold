@@ -3,15 +3,18 @@ import { promptDocumentSchema } from '@musefold/contracts';
 import type { Prompt, Tag } from '@musefold/desktop-contracts/models';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import {
+  applyPromptDocumentToRow,
   cloudSourceToDesktop,
   combinePromptListRows,
   desktopSourceToCloud,
   newPromptDocumentToRow,
+  newPromptRowToDocument,
   paginatePromptRows,
   pickReversiblePromptRow,
   promptDocumentToRow,
   promptListQueryToRowQuery,
   promptRowToDocument,
+  updatePatchToDocument,
   updatePromptDocumentToPatch,
 } from '../mappers/prompt';
 
@@ -139,5 +142,89 @@ describe('prompt row ↔ document mapping', () => {
     expect(rest.items.map((item) => item.id)).toEqual(['c']);
     expect(rest.nextCursor).toBeNull();
     expect(paginatePromptRows(rows, { cursor: 'nope' }).items[0].id).toBe('a');
+  });
+
+  it('applyPromptDocumentToRow overlays reversible fields and keeps cover paths', () => {
+    const prev = makeRow();
+    const doc = promptRowToDocument(
+      makeRow({
+        title: '改名',
+        content: 'rewritten body',
+        previewImagePath: '/tmp/other-preview.png',
+        coverImagePath: '/tmp/other-cover.png',
+      }),
+    );
+    const applied = applyPromptDocumentToRow(prev, doc);
+    expect(applied.title).toBe('改名');
+    expect(applied.content).toBe('rewritten body');
+    expect(pickReversiblePromptRow(applied)).toEqual(
+      pickReversiblePromptRow(
+        makeRow({ title: '改名', content: 'rewritten body' }),
+      ),
+    );
+    expect(applied.previewImagePath).toBe('/tmp/preview.png');
+    expect(applied.coverImagePath).toBe('/tmp/cover.png');
+
+    const roundTripped = applyPromptDocumentToRow(prev, promptRowToDocument(prev));
+    expect(pickReversiblePromptRow(roundTripped)).toEqual(pickReversiblePromptRow(prev));
+    expect(roundTripped.previewImagePath).toBe(prev.previewImagePath);
+    expect(roundTripped.coverImagePath).toBe(prev.coverImagePath);
+  });
+
+  it('maps NewPrompt to NewPromptDocument and drops previewImagePath', () => {
+    const doc = newPromptRowToDocument({
+      title: '草稿',
+      description: '湿润空气',
+      content: 'a quiet still',
+      contentNegative: 'blur',
+      isPinned: true,
+      folderId: 'folder-1',
+      modelId: 'gpt-image-2',
+      params: { schemaVersion: 1, size: '1024x1024' },
+      previewImagePath: '/tmp/preview.png',
+      rating: 3,
+      source: 'shared',
+      sourceUrl: 'https://example.com/share',
+      tagIds: ['tag-ink'],
+    });
+    expect(doc).toEqual({
+      title: '草稿',
+      description: '湿润空气',
+      content: 'a quiet still',
+      negative: 'blur',
+      folderId: 'folder-1',
+      tagIds: ['tag-ink'],
+      modelId: 'gpt-image-2',
+      params: { schemaVersion: 1, size: '1024x1024' },
+      rating: 3,
+      isPinned: true,
+      source: 'share',
+      sourceUrl: 'https://example.com/share',
+    });
+    expect(doc).not.toHaveProperty('previewImagePath');
+    expect(doc).not.toHaveProperty('pinOrder');
+
+    const back = newPromptDocumentToRow(doc);
+    expect(back.previewImagePath).toBeUndefined();
+    expect(back.contentNegative).toBe('blur');
+    expect(back.source).toBe('shared');
+  });
+
+  it('maps update patches with synthetic expectedVersion and drops previewImagePath', () => {
+    const doc = updatePatchToDocument({
+      title: '改名',
+      contentNegative: 'lowres',
+      previewImagePath: '/tmp/x.png',
+      source: 'shared',
+      isPinned: true,
+    });
+    expect(doc).toEqual({
+      expectedVersion: 1,
+      title: '改名',
+      negative: 'lowres',
+      source: 'share',
+      isPinned: true,
+    });
+    expect(doc).not.toHaveProperty('previewImagePath');
   });
 });

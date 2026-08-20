@@ -2,7 +2,10 @@
 // 提示词库状态 —— 详见 docs/product/10-library-deep-dive.md（TASK-LIB-02 为本文件主卡）
 //
 // 约定：
-//   1. 所有写操作都经 window.api.prompt.*，失败时 set(error) 且**不破坏现有列表**。
+//   1. 重叠写路径经 PromptGateway（update / delete / restore、copy 的 usage）；
+//      create 因封面字段（previewImagePath）暂留 api，留给 DesktopExtras（GW-07）。
+//      其余桌面独有面经 api（list / listDeleted / stats、togglePin / reorderPins /
+//      purge / purgeAll、searchHistory）。失败时 set(error) 且**不破坏现有列表**。
 //   2. 删除 / 收藏走乐观更新 + 失败回滚（验收明确要求）。
 //   3. 筛选类状态（搜索/筛选/排序）变更走 150ms 防抖 fetch，
 //      避免连续输入时打出一串 IPC。
@@ -11,6 +14,7 @@
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import type { PromptGateway } from '@musefold/domain';
 import type {
   Prompt,
   NewPrompt,
@@ -24,7 +28,21 @@ import type {
 } from '@musefold/desktop-contracts/ipc';
 import { SEARCH_DEBOUNCE_MS } from '@musefold/domain/constants';
 import api from '../../lib/ipc';
+import { desktopGateway } from '../../runtime';
+import {
+  DESKTOP_SYNTHETIC_ENTITY_VERSION,
+  applyPromptDocumentToRow,
+  promptDocumentToRow,
+  updatePatchToDocument,
+} from '../../runtime/mappers';
 import { toast } from '../../stores/toast';
+
+let promptGateway: PromptGateway = desktopGateway;
+
+/** 测试替换 PromptGateway；生产保持 desktopGateway 单例。 */
+export function setLibraryPromptGatewayForTests(next: PromptGateway): void {
+  promptGateway = next;
+}
 
 export type LibraryFilters = NonNullable<ListPromptsQuery['filters']>;
 export type SortKey = NonNullable<ListPromptsQuery['sort']>;
@@ -220,9 +238,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const created = await api.prompt.create(p);
       // 不做乐观插入：新条目是否落在当前筛选/排序里由后端决定，重拉才是真相
-	      await get().reloadPrompts();
-	      void get().reloadStats();
-	      set({ selectedPromptId: created.id, error: null });
+      await get().reloadPrompts();
+      void get().reloadStats();
+      set({ selectedPromptId: created.id, error: null });
       return created;
     } catch (err) {
       set({ error: message(err) });
@@ -233,6 +251,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   updatePrompt: async (id, patch) => {
     const prev = get().prompts;
+    const prevRow = prev.find((x) => x.id === id);
     // 乐观：先把可见字段贴上去，保证列表/检视栏即时反映
     set({
       prompts: prev.map((x) =>
@@ -255,14 +274,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       ),
     });
     try {
-      const updated = await api.prompt.update(id, patch);
-      // 用服务端结果覆盖（tags / updatedAt 等派生字段以后端为准）
+      const updatedDoc = await promptGateway.updatePrompt(id, updatePatchToDocument(patch));
+      const base = get().prompts.find((x) => x.id === id) ?? prevRow;
+      const updated = base
+        ? applyPromptDocumentToRow(base, updatedDoc)
+        : promptDocumentToRow(updatedDoc);
       set((s) => ({
         prompts: s.prompts.map((x) => (x.id === id ? updated : x)),
         error: null,
-	      }));
-	      void get().reloadStats();
-	      return updated;
+      }));
+      void get().reloadStats();
+      return updated;
     } catch (err) {
       set({ prompts: prev, error: message(err) });
       toast.error('保存失败', message(err));
@@ -280,8 +302,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       ...(wasSelected ? { selectedPromptId: null } : {}),
     });
     try {
-	      await api.prompt.delete(id);
-	      void get().reloadStats();
+      await promptGateway.deletePrompt(id, DESKTOP_SYNTHETIC_ENTITY_VERSION);
+      void get().reloadStats();
       toast.show({
         title: '已删除',
         description: target?.title,
@@ -353,12 +375,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       return false;
     }
     try {
-	      await api.prompt.incrementUsage(id);
+      const used = await promptGateway.usePrompt(id, { action: 'copy' });
       set((s) => ({
         prompts: s.prompts.map((x) =>
-          x.id === id ? { ...x, usageCount: x.usageCount + 1, lastUsedAt: Date.now() } : x
+          x.id === id ? applyPromptDocumentToRow(x, used.prompt) : x
         ),
-	      }));
+      }));
     } catch {
       /* 计数失败不影响「已复制」这件事本身 */
     }
@@ -378,11 +400,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   restorePrompt: async (id) => {
     try {
-      await api.prompt.restore(id);
+      await promptGateway.restorePrompt(id, DESKTOP_SYNTHETIC_ENTITY_VERSION);
       set((s) => ({ deleted: s.deleted.filter((x) => x.id !== id) }));
-	      await get().reloadPrompts();
-	      void get().reloadStats();
-	      toast.success('已恢复');
+      await get().reloadPrompts();
+      void get().reloadStats();
+      toast.success('已恢复');
     } catch (err) {
       set({ error: message(err) });
       toast.error('恢复失败', message(err));

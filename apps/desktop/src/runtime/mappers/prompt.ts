@@ -210,6 +210,64 @@ export function promptDocumentToRow(doc: PromptDocument): Prompt {
   };
 }
 
+/**
+ * 把网关返回的文档铺回已有行：可逆字段以文档为准，
+ * 保留 prev 的 previewImagePath / coverImagePath
+ * （文档侧无槽位，promptDocumentToRow 会填 null，整行替换会丢封面）。
+ */
+export function applyPromptDocumentToRow(prev: Prompt, doc: PromptDocument): Prompt {
+  const next = promptDocumentToRow(doc);
+  return {
+    ...next,
+    previewImagePath: prev.previewImagePath,
+    coverImagePath: prev.coverImagePath,
+  };
+}
+
+/**
+ * 桌面 NewPrompt → 云 NewPromptDocument。
+ * 有损：previewImagePath 无槽位，丢弃。
+ */
+export function newPromptRowToDocument(row: NewPrompt): NewPromptDocument {
+  return {
+    title: row.title,
+    description: row.description ?? null,
+    content: row.content,
+    negative: row.contentNegative ?? null,
+    folderId: row.folderId ?? null,
+    tagIds: row.tagIds ?? [],
+    modelId: row.modelId ?? null,
+    params: row.params ?? null,
+    rating: row.rating ?? 0,
+    isPinned: row.isPinned ?? false,
+    source: desktopSourceToCloud(row.source ?? 'manual'),
+    sourceUrl: row.sourceUrl ?? null,
+  };
+}
+
+/**
+ * 桌面 UpdatePromptPatch → 云 UpdatePromptDocument。
+ * expectedVersion 固定为合成 1（桌面无 version 列）。
+ * 有损：previewImagePath 无槽位，丢弃。
+ */
+export function updatePatchToDocument(patch: UpdatePromptPatch): UpdatePromptDocument {
+  const input: UpdatePromptDocument = {
+    expectedVersion: DESKTOP_SYNTHETIC_ENTITY_VERSION,
+  };
+  if (patch.title !== undefined) input.title = patch.title;
+  if (patch.description !== undefined) input.description = patch.description;
+  if (patch.content !== undefined) input.content = patch.content;
+  if (patch.contentNegative !== undefined) input.negative = patch.contentNegative;
+  if (patch.isPinned !== undefined) input.isPinned = patch.isPinned;
+  if (patch.folderId !== undefined) input.folderId = patch.folderId;
+  if (patch.modelId !== undefined) input.modelId = patch.modelId;
+  if (patch.params !== undefined) input.params = patch.params;
+  if (patch.rating !== undefined) input.rating = patch.rating;
+  if (patch.tagIds !== undefined) input.tagIds = patch.tagIds;
+  if (patch.source !== undefined) input.source = desktopSourceToCloud(patch.source);
+  return input;
+}
+
 export function newPromptDocumentToRow(input: NewPromptDocument): NewPrompt {
   const row: NewPrompt = {
     title: input.title,
