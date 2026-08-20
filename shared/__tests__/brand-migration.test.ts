@@ -40,9 +40,28 @@ const textExtensions = new Set([
   '.py', '.ts', '.tsx', '.yaml', '.yml',
 ]);
 
+// 守卫要守的是源码而非产物；并发构建写产物会让扫描出现 ENOENT 竞态。
+const EXCLUDED_SCAN_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  'out',
+  'build',
+  'release',
+  'coverage',
+  '.turbo',
+  '.tsout',
+  'test-results',
+  'test-output',
+  '__pycache__',
+  '.pytest_cache',
+  '.venv-test',
+]);
+
 function readProductText(path: string): string {
   return readdirSync(path, { withFileTypes: true }).map((entry) => {
     const child = join(path, entry.name);
+    // workspace 的 symlink 会把扫描带进 node_modules 里的其他包。
+    if (entry.isSymbolicLink() || EXCLUDED_SCAN_DIRECTORIES.has(entry.name)) return '';
     if (entry.isDirectory()) return readProductText(child);
     if (!textExtensions.has(extname(entry.name))) return '';
     return readFileSync(child, 'utf8');
