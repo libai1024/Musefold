@@ -186,13 +186,15 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 - `V121-HOT-03`：~~两个窗口切换到固定 origin~~ **已完成（2026-08-20）**。URL 由单一工具函数产出，禁止两处各写字面量。`ELECTRON_RENDERER_URL` 开发分支逐字符不变。完整 Electron E2E 通过（219 passed / 17 skipped，跳过项均为缺真实凭证的 live 用例）。
 - `V121-HOT-04`：~~CSP 放行新 origin~~ **已完成（2026-08-20，零改动）**。实测 `app://musefold` 页面上 `'self'` 已覆盖同源资产，未出现任何 CSP 拦截报错，因此按最小放行原则**不追加**任何指令；生产 `connect-src` 仍为 `'self'`，新增断言禁止其出现 `http:`/`https:`/通配。electron-vite 在生产把 renderer `base` 强制为 `./`，相对资产路径在固定 host 下自然成立。
 - `V121-HOT-13`：~~`file://` → `app://musefold` 的一次性偏好迁移~~ **已完成（2026-08-20）**。实现期新开的任务卡，见下方「origin 变更的偏好迁移」。
-- `V121-HOT-05`：实现 bundle 下载、SHA-256 校验、安全解压（拒绝绝对路径、`..` 与符号链接，限制大小与文件数）和原子改名。
+- `V121-HOT-05`：~~实现 bundle 下载、SHA-256 校验、安全解压（拒绝绝对路径、`..` 与符号链接，限制大小与文件数）和原子改名~~ **已完成（2026-08-20）**。归档定为 gzip 压缩的严格 ustar 子集（`.tar.gz`），打包与解压落在 `@musefold/update-protocol` 同一实现：自写解析器只收本包产出的 typeflag / 路径 / 头字段，攻击面小于完整 tar；头字段归一化（mode `0644`/`0755`、uid/gid `0`、mtime `0`、uname/gname 空、条目字典序），gzip mtime 清零且 OS 字节写 `0xff`（Node/zlib 的 OS_CODE 随平台变，不覆盖则跨平台 sha256 不可复现），同一目录树两次打包字节一致，CI 产物 sha256 才可复现。解压按不可信输入处理（只收 typeflag `0`/`5`，拒绝链接/PAX/GNU 扩展/绝对路径/`..`/坏 checksum/截断/尾部垃圾；条目上限 4096、解压总量 256 MiB，gunzip `maxOutputLength` 防炸弹）。CLI 新增 `pack`，stdout 输出 manifest 所需 `{bytes, sha256}`。
+
+  主进程：`content-bundle-store` 落在 `userData/content-bundles/{bundles,tmp}`（公证后改 `.app` 内文件会破坏签名）；`installId` 首次生成即持久化；`rejectedVersions` 上限 20 FIFO——列表只防回滚攻击与反复重试，老到淘汰的版本会被 `bundleVersion` 单调性挡住。安装路径 https-only、流式下载边读边计数边哈希、超 manifest `bytes` 早停、sha256 小写比对、解压到 tmp、以 `index.html`+`pet.html` 为完整性门槛、`renameSync` 原子落盘；全路径不抛异常、返回判别联合，日志脱敏。检查编排：信任锚为空直接短路不发网络请求（fail-closed 下拉了也白拉）；manifest 响应 1 MiB 上限；验签失败透传 `reason`。
 - `V121-HOT-06`：实现 `minShellVersion` / `maxShellVersion` 校验，并在 CI 中根据实际引用的 IPC 通道自动推导 `minShellVersion`。
-- `V121-HOT-07`：实现灰度分桶，哈希输入为 `installId + bundleVersion`，保证同一安装判定稳定。
-- `V121-HOT-08`：实现启动信标与自动回滚：连续两次未达「已知可用」即回退并记入拒绝列表。
-- `V121-HOT-09`：扩展 updater IPC 与设置页，显示内容层版本与状态，保持窄接口与脱敏约定。
+- `V121-HOT-07`：~~实现灰度分桶，哈希输入为 `installId + bundleVersion`，保证同一安装判定稳定~~ **已完成（2026-08-20）**。纯函数入协议包：`sha256(installId + '\n' + bundleVersion)` 取前 4 字节大端 uint32 模 100，小于 `percentage` 则命中。分隔符是为了避免 `("ab","c")` 与 `("a","bc")` 落入同一槽；`0` 与 `100` 显式短路，不依赖哈希分布——这两档是运营最常用的。`installId` 来自 store，首次启动生成 UUID 后持久化。
+- `V121-HOT-08`：~~实现启动信标与自动回滚：连续两次未达「已知可用」即回退并记入拒绝列表~~ **已完成（2026-08-20）**。启动状态机**先记尝试再加载**：`prepare` 在解析渲染根之前执行，`attemptCount >= 2` 时把 pending 写入拒绝列表并清空——这是上次运行崩在信标前、本次启动完成判决；若先加载再计数，崩掉的那次不会留痕。候选顺序 pending → knownGood → previousGood。信标必须绑定**实际被服务**的 bundle：pending 目录不完整时解析器会静默回落，比较冻结的 `resolution.root` 与 pending 目录，不一致则绝不提升 pending。渲染层两个入口在 `root.render()` 后各发一次单向信标（`updater:contentReady`），主进程幂等消费第一次。Vite 开发态只做 cleanup、不计数不判决——`attemptCount` 语义是「一次真实加载尝试」，未加载不得计数；由调用点显式传 `willLoadFromBundles`，模块不嗅探环境变量。调度为 app ready 后 30 秒首查 + 每 4 小时；三个测试环境变量仅未打包构建生效，打包版忽略并由单测锁死（把信任锚交给环境变量等于给已分发二进制开后门）。
+- `V121-HOT-09`：~~扩展 updater IPC 与设置页，显示内容层版本与状态，保持窄接口与脱敏约定~~ **已完成（2026-08-20）**。IPC 为 `updater:getContentState` / `updater:checkContentNow`（invoke）：只暴露 `activeSource`、`activeBundleVersion`（由冻结 resolution 反查三指针）、pending、knownGood、`lastCheck{status,reason,at}`，不含路径/URL/公钥/`message` 原文；`lastCheck` 只在模块内存、不落盘。手动检查用 in-flight promise 防重入。`MUSEFOLD_CONTENT_UPDATE_DISABLED` 只关后台调度、不关手动检查——后者是 E2E 的确定性触发点。设置页「应用更新」分区新增内容层行：版本显示「内置」或 bundle 版本、pending 重启提示、检查按钮；status/reason 全枚举中文映射，`trust_anchor_missing` 用中性文案「更新通道未启用」。
 - `V121-HOT-10`：在 CI 增加 renderer bundle 构建、签名与发布到 `dev` 通道。
-- `V121-HOT-11`：E2E 覆盖三条失败路径：验签失败、`minShellVersion` 不满足、连续两次启动失败自动回退。
+- `V121-HOT-11`：~~E2E 覆盖三条失败路径：验签失败、`minShellVersion` 不满足、连续两次启动失败自动回退~~ **已完成（2026-08-20）**。`tests/e2e/test_content_update_failures.py`：错误密钥签名 → `manifest_invalid` / `invalid_signature` 且零落盘零 pending；`minShellVersion: 99.0.0` → `incompatible_shell_version` 同样零残留；预置无 JS 的坏 bundle 连续两次真实启动未达信标 → 第三次启动回落 builtin、pending 清空、版本入拒绝列表。本地 http feed + CLI `keygen`/`sign` + 未打包 env 注入；`conftest` 增加 `extra_env` 入参，默认行为不变。
 - `V121-HOT-12`：打包冒烟新增一项，确认全新安装在无网络时可从内置 bundle 正常启动。
 
 ### origin 变更的偏好迁移（`V121-HOT-13`）
@@ -213,9 +215,9 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 ### 完成条件
 
 - 在 `dev` 通道上完成一次真实的端到端热更新并可回退。⏳ 阻塞于 `V121-CHAN-07`
-- 三条失败路径均有自动化测试覆盖且通过。⏳ 属 `V121-HOT-11`
+- 三条失败路径均有自动化测试覆盖且通过。✅ `tests/e2e/test_content_update_failures.py`（验签失败、`minShellVersion` 不满足、连续两次启动失败回退）
 - 热更新前后渲染层的 `localStorage` 与 `IndexedDB` 数据保持连续。✅ 固定 origin 已就位；跨 origin 的一次性迁移见 `V121-HOT-13`（渲染层不使用 IndexedDB，已全仓核实）
-- 断网、CDN 不可达、归档损坏三种情况下应用仍能正常启动。✅ 解析器在无候选时一律回落随包内置 `out/renderer`；完整能力待 `V121-HOT-05`
+- 断网、CDN 不可达、归档损坏三种情况下应用仍能正常启动。✅ 解析器在无候选时一律回落随包内置 `out/renderer`；下载/解压失败不抛异常、不改写 pending（`V121-HOT-05`）
 
 ### 已知缺陷（实现期发现，不属本里程碑）
 

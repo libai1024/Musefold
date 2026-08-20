@@ -21,7 +21,7 @@
 
 ## 1. 产物形态
 
-内容层 bundle 是一个压缩归档，解开后即为一个可直接由 webview 加载的静态站点根目录。
+内容层 bundle 是 gzip 压缩的严格 ustar 子集归档（`.tar.gz`），解开后即为一个可直接由 webview 加载的静态站点根目录。
 
 | Surface | 构建产物 | 归档内容根 | 入口 |
 |---|---|---|---|
@@ -34,6 +34,11 @@
 表中构建产物路径以当前目录布局为准；v1.2.2 目录重构后 `out/renderer` 变为 `apps/desktop/out/renderer`，协议本身不变。流水线与打包脚本应从构建配置读取路径。
 
 桌面 renderer 存在 `index.html` 与 `pet.html` 两个入口（见 `electron/main/window.ts` 与 `electron/main/pet/window.ts`），归档必须同时包含，切换时两者必须原子地一起切换，不允许出现主窗口与宠物窗口来自不同 bundle 的状态。
+
+**归档格式（2026-08-20 落死）**：gzip 压缩的严格 ustar 子集，扩展名 `.tar.gz`。生产端（CI 打包）与消费端（主进程解压）共用 `@musefold/update-protocol` 的同一实现，避免两边对「合法形态」的理解漂移；自写解析器只接受本包产出的 typeflag / 路径 / 头字段，攻击面小于完整 tar 实现。
+
+- **确定性打包**：头字段归一化（文件 mode `0644`、目录 `0755`、uid/gid `0`、mtime `0`、uname/gname 空、条目按路径字典序）；gzip 头的 mtime 清零，OS 字节写 `0xff`（Node/zlib 的 OS_CODE 随平台变化，不覆盖则跨平台 sha256 不可复现）。同一目录树两次打包字节一致，CI 产物的 `sha256` 可复现。
+- **消费端硬化**：归档仍按不可信输入处理，原则见 §3.4。实现只收 typeflag `0`/`5`，拒绝链接、PAX/GNU 扩展、绝对路径、`..`、坏 checksum、截断与尾部垃圾；条目上限 4096、解压总量上限 256 MiB；gunzip 使用 `maxOutputLength` 防炸弹。
 
 ## 2. 清单格式
 
@@ -52,12 +57,12 @@
   "maxShellVersion": null,
   "surfaces": {
     "electron-renderer": {
-      "url": "https://<cdn>/Musefold/bundles/dev/1.2.1-dev.412/renderer.tar.zst",
+      "url": "https://<cdn>/Musefold/bundles/dev/1.2.1-dev.412/renderer.tar.gz",
       "sha256": "<hex>",
       "bytes": 2431044
     },
     "capacitor-web": {
-      "url": "https://<cdn>/Musefold/bundles/dev/1.2.1-dev.412/capacitor.tar.zst",
+      "url": "https://<cdn>/Musefold/bundles/dev/1.2.1-dev.412/capacitor.tar.gz",
       "sha256": "<hex>",
       "bytes": 2380112
     }
@@ -120,6 +125,8 @@
 
 归档由自己的 CI 产出，但仍按不可信输入处理：拒绝绝对路径条目、拒绝 `..` 路径穿越、拒绝符号链接、限制解压后总大小与文件数上限。
 
+实现口径（2026-08-20）：只收 typeflag `0`/`5`（及 POSIX 的 NUL 作为普通文件），拒绝链接、PAX/GNU 扩展、绝对路径、`..`、坏 checksum、截断与尾部垃圾；条目上限 4096、解压总量上限 256 MiB；gunzip 使用 `maxOutputLength` 防炸弹。打包与解压共用同一实现，见 §1 归档格式。
+
 ## 4. 版本兼容
 
 内容层的发布频率远高于外壳层，用户机器上的外壳可能落后数月。兼容性由两侧共同保证：
@@ -136,6 +143,8 @@
 
 同一安装在同一 `bundleVersion` 上的判定结果必须稳定，否则会出现反复升降级。哈希输入为 `installId + bundleVersion`。
 
+实现口径（2026-08-20）：哈希函数为 `sha256(installId + '\n' + bundleVersion)`，取摘要前 4 字节大端 `uint32` 模 100。用换行做分隔符，避免 `("ab","c")` 与 `("a","bc")` 落入同一槽。`percentage` 为 0 或 100 时显式短路，不依赖哈希分布——这两档是运营最常用的。
+
 `stable` 通道默认节奏 5% → 20% → 100%，每档观察窗口不少于一个自然日。`dev` 通道直接 100%。
 
 ### 5.2 启动信标与自动回滚
@@ -145,6 +154,12 @@
 同一 bundle 连续两次未能到达「已知可用」即判定失败：回退到上一个已知可用的 bundle，将该 `bundleVersion` 记入拒绝列表，不再重复尝试，并把失败状态通过现有 updater IPC 通道暴露到设置页。
 
 若不存在可回退的历史 bundle，则回退到随包内置的 `out/renderer`。内置版本永远保留，是最终兜底。
+
+实现期三条决策（2026-08-20）：
+
+1. **尝试计数在加载前记录。** 客户端在解析渲染根、加载 bundle **之前**递增 `attemptCount`。连续两次未达信标的判决发生在下一次启动的 prepare 阶段（`attemptCount >= 2` 即拒绝 pending）——上次运行若崩在信标前，计数已经留痕，本次启动才能完成判决。
+2. **信标必须绑定实际被服务的 bundle。** pending 目录不完整时解析器会静默回落到 knownGood 或内置包；此时到达的信标绝不能把 pending 提升为已知可用。实现上比较冻结的渲染根与 pending 目录，不一致则忽略。渲染层两个入口在 `root.render()` 后各发一次单向信标，主进程幂等消费第一次。
+3. **开发态（Vite 加载）不计数、不判决。** `attemptCount` 的语义是「一次真实加载尝试」；窗口走 `ELECTRON_RENDERER_URL` 时并未加载 content bundle，计数或拒绝会把从未服务过的版本送进拒绝列表。调用点显式传入是否从 bundle 加载，状态机不嗅探环境变量。
 
 ### 5.3 服务端回滚
 
@@ -208,7 +223,14 @@ export const UPDATE_FEED_URL = 'https://zhaozhaoyue.top/Musefold/updates/stable/
 
 ### 7.5 IPC 与设置页
 
-内容层更新状态复用现有 updater IPC 的窄接口约定：只暴露当前 bundle 版本、目标版本、下载进度和脱敏错误文本，不暴露本地路径、签名细节或内部对象。设置页在现有「应用更新」分区下增加内容层版本显示与通道选择。
+内容层更新状态复用现有 updater IPC 的窄接口约定：不暴露本地路径、URL、公钥、签名细节、`message` 原文或内部对象。设置页在现有「应用更新」分区下增加内容层版本显示；通道选择已由 `V121-CHAN-03` 落地。
+
+实现口径（2026-08-20）：
+
+- 查询 `updater:getContentState`、手动触发 `updater:checkContentNow`（均为 invoke）。载荷为 `activeSource`、`activeBundleVersion`（由本次启动冻结的解析结果反查 pending / knownGood / previousGood 三指针）、`pendingVersion`、`knownGoodVersion`、`lastCheck{status,reason,at}`。`lastCheck` 只在模块内存，不落盘。
+- 手动检查用 in-flight promise 防重入：第二次 invoke 等待同一 promise，不并行开第二次检查。
+- `MUSEFOLD_CONTENT_UPDATE_DISABLED=1` 只关后台调度（app ready 后 30 秒首查 + 每 4 小时），不关手动检查——后者是 E2E 的确定性触发点。
+- 三个测试环境变量 `MUSEFOLD_CONTENT_TEST_PUBLIC_KEY`、`MUSEFOLD_CONTENT_TEST_FEED_URL`、`MUSEFOLD_CONTENT_CHECK_INITIAL_DELAY_MS` **仅未打包构建读取**；打包版忽略，并由单测锁死。把信任锚或 feed URL 交给环境变量，等于给已分发二进制开后门。
 
 ### 7.6 E2E 与打包
 
