@@ -80,14 +80,6 @@ const api = {
       patch: import("@musefold/desktop-contracts/ipc").UpdatePromptPatch,
     ) => ipcRenderer.invoke(IPC.PROMPTS_UPDATE, id, patch),
     delete: (id: string) => ipcRenderer.invoke(IPC.PROMPTS_DELETE, id),
-    batchAddTags: (ids: string[], tagIds: string[]) =>
-      ipcRenderer.invoke(IPC.PROMPTS_BATCH_ADD_TAGS, ids, tagIds),
-    batchMove: (ids: string[], folderId: string | null) =>
-      ipcRenderer.invoke(IPC.PROMPTS_BATCH_MOVE, ids, folderId),
-    batchSetPin: (ids: string[], pinned: boolean) =>
-      ipcRenderer.invoke(IPC.PROMPTS_BATCH_SET_PIN, ids, pinned),
-    batchDelete: (ids: string[]) =>
-      ipcRenderer.invoke(IPC.PROMPTS_BATCH_DELETE, ids),
     togglePin: (id: string, pinned: boolean) =>
       ipcRenderer.invoke(IPC.PROMPTS_TOGGLE_PIN, id, pinned),
     reorderPins: (ids: string[]) =>
@@ -102,41 +94,11 @@ const api = {
     purgeAll: () => ipcRenderer.invoke(IPC.PROMPTS_PURGE_ALL),
     stats: () => ipcRenderer.invoke(IPC.PROMPTS_STATS),
   },
-  smartSet: {
-    list: () => ipcRenderer.invoke(IPC.SMART_SETS_LIST),
-    create: (s: import("@musefold/desktop-contracts/models").NewSmartSet) =>
-      ipcRenderer.invoke(IPC.SMART_SETS_CREATE, s),
-    update: (
-      id: string,
-      patch: import("@musefold/desktop-contracts/ipc").UpdateSmartSetPatch,
-    ) => ipcRenderer.invoke(IPC.SMART_SETS_UPDATE, id, patch),
-    delete: (id: string) => ipcRenderer.invoke(IPC.SMART_SETS_DELETE, id),
-  },
   searchHistory: {
     list: (limit?: number) =>
       ipcRenderer.invoke(IPC.SEARCH_HISTORY_LIST, limit),
     add: (term: string) => ipcRenderer.invoke(IPC.SEARCH_HISTORY_ADD, term),
     clear: () => ipcRenderer.invoke(IPC.SEARCH_HISTORY_CLEAR),
-  },
-  folder: {
-    list: (parentId?: string) => ipcRenderer.invoke(IPC.FOLDERS_LIST, parentId),
-    create: (f: import("@musefold/desktop-contracts/models").NewFolder) =>
-      ipcRenderer.invoke(IPC.FOLDERS_CREATE, f),
-    update: (id: string, patch: import("@musefold/desktop-contracts/models").Folder) =>
-      ipcRenderer.invoke(IPC.FOLDERS_UPDATE, id, patch),
-    delete: (id: string) => ipcRenderer.invoke(IPC.FOLDERS_DELETE, id),
-    reorder: (ids: string[]) => ipcRenderer.invoke(IPC.FOLDERS_REORDER, ids),
-  },
-  tag: {
-    list: (group?: import("@musefold/desktop-contracts/models").Tag["tagGroup"]) =>
-      ipcRenderer.invoke(IPC.TAGS_LIST, group),
-    create: (t: import("@musefold/desktop-contracts/models").NewTag) =>
-      ipcRenderer.invoke(IPC.TAGS_CREATE, t),
-    update: (id: string, patch: import("@musefold/desktop-contracts/models").Tag) =>
-      ipcRenderer.invoke(IPC.TAGS_UPDATE, id, patch),
-    delete: (id: string) => ipcRenderer.invoke(IPC.TAGS_DELETE, id),
-    assignToPrompt: (promptId: string, tagIds: string[]) =>
-      ipcRenderer.invoke(IPC.TAGS_ASSIGN, promptId, tagIds),
   },
   skillRuntime: {
     prepareGithub: (

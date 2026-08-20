@@ -2,21 +2,18 @@
 // 提示词库状态 —— 详见 docs/product/10-library-deep-dive.md（TASK-LIB-02 为本文件主卡）
 //
 // 约定：
-//   1. 所有写操作都经 window.api.prompt|folder|tag.*，失败时 set(error) 且**不破坏现有列表**。
-//   2. 删除 / 收藏 / 移动 / 评分走乐观更新 + 失败回滚（验收明确要求）。
-//   3. 筛选类状态（搜索/标签/文件夹/筛选/排序）变更走 150ms 防抖 fetch，
-//      避免连续输入或连点标签时打出一串 IPC。
-//   4. 计数徽标来自 api.prompt.stats()，不用 prompts.length 现算
+//   1. 所有写操作都经 window.api.prompt.*，失败时 set(error) 且**不破坏现有列表**。
+//   2. 删除 / 收藏走乐观更新 + 失败回滚（验收明确要求）。
+//   3. 筛选类状态（搜索/筛选/排序）变更走 150ms 防抖 fetch，
+//      避免连续输入时打出一串 IPC。
+//   4. 回收站计数来自 api.prompt.stats()，不用 prompts.length 现算
 //      —— list() 有 LIMIT 且被筛选收敛过，现算必然偏小。
 
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type {
   Prompt,
-  Folder,
-  Tag,
   NewPrompt,
-  SmartSet,
   SearchHistoryItem,
   LibraryQuerySnapshot,
 } from '@musefold/desktop-contracts/models';
@@ -25,10 +22,7 @@ import type {
   UpdatePromptPatch,
   PromptStats,
 } from '@musefold/desktop-contracts/ipc';
-import {
-  SEARCH_DEBOUNCE_MS,
-  UNFILED_FOLDER_ID,
-} from '@musefold/domain/constants';
+import { SEARCH_DEBOUNCE_MS } from '@musefold/domain/constants';
 import api from '../../lib/ipc';
 import { toast } from '../../stores/toast';
 
@@ -48,19 +42,13 @@ const EMPTY_STATS: PromptStats = {
 interface LibraryState {
   // ---- 数据 ----
   prompts: Prompt[];
-  folders: Folder[];
-  tags: Tag[];
   stats: PromptStats;
-  smartSets: SmartSet[];
-  smartSetCounts: Record<string, number>;
   searchHistory: SearchHistoryItem[];
   /** 回收站列表（按需加载） */
   deleted: Prompt[];
 
   // ---- 查询态 ----
   search: string;
-  selectedTagIds: string[];
-  selectedFolderId: string | null;
   filters: LibraryFilters;
   sort: SortKey;
   sortDir: SortDir;
@@ -82,7 +70,6 @@ interface LibraryState {
   loadAll: () => Promise<void>;
   reloadPrompts: () => Promise<void>;
   reloadStats: () => Promise<void>;
-  reloadSmartSetCounts: () => Promise<void>;
   reloadSearchHistory: () => Promise<void>;
   /** 防抖版 reload，供筛选类 setter 内部使用 */
   scheduleReload: () => void;
@@ -137,17 +124,11 @@ function message(err: unknown): string {
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   prompts: [],
-  folders: [],
-  tags: [],
   stats: EMPTY_STATS,
-  smartSets: [],
-  smartSetCounts: {},
   searchHistory: [],
   deleted: [],
 
   search: '',
-  selectedTagIds: [],
-  selectedFolderId: null,
   filters: {},
   sort: 'updated',
   sortDir: 'desc',
@@ -164,25 +145,18 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   loadAll: async () => {
     set({ loading: true, error: null });
     try {
-      const [prompts, folders, tags, stats, smartSets, searchHistory] = await Promise.all([
+      const [prompts, stats, searchHistory] = await Promise.all([
         api.prompt.list(buildQuery(get())),
-        api.folder.list(),
-        api.tag.list(),
         api.prompt.stats(),
-        api.smartSet.list(),
         api.searchHistory.list(10),
       ]);
       set({
         prompts,
-        folders,
-        tags,
         stats,
-        smartSets,
         searchHistory,
         loading: false,
         initialized: true,
       });
-      void get().reloadSmartSetCounts();
     } catch (err) {
       // 首屏失败也要落 initialized，否则骨架屏会永久转
       set({ loading: false, initialized: true, error: message(err) });
@@ -213,26 +187,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ stats: await api.prompt.stats() });
     } catch {
       /* 计数是装饰性信息，失败静默 */
-    }
-  },
-
-  reloadSmartSetCounts: async () => {
-    const { smartSets, tags, folders } = get();
-    if (smartSets.length === 0) {
-      set({ smartSetCounts: {} });
-      return;
-    }
-    try {
-      const entries = await Promise.all(
-        smartSets.map(async (item) => {
-          const query = normalizeQueryForCurrentData(item.query, tags, folders);
-          const prompts = await api.prompt.list(query);
-          return [item.id, prompts.length] as const;
-        })
-      );
-      set({ smartSetCounts: Object.fromEntries(entries) });
-    } catch {
-      /* 命中数是装饰性信息，失败不打断主列表 */
     }
   },
 
@@ -268,7 +222,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // 不做乐观插入：新条目是否落在当前筛选/排序里由后端决定，重拉才是真相
 	      await get().reloadPrompts();
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
 	      set({ selectedPromptId: created.id, error: null });
       return created;
     } catch (err) {
@@ -309,7 +262,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         error: null,
 	      }));
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
 	      return updated;
     } catch (err) {
       set({ prompts: prev, error: message(err) });
@@ -330,7 +282,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
 	      await api.prompt.delete(id);
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
       toast.show({
         title: '已删除',
         description: target?.title,
@@ -367,7 +318,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         error: null,
 	      }));
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
 	      return true;
     } catch (err) {
       set({ prompts: prev, error: message(err) });
@@ -409,7 +359,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           x.id === id ? { ...x, usageCount: x.usageCount + 1, lastUsedAt: Date.now() } : x
         ),
 	      }));
-	      void get().reloadSmartSetCounts();
     } catch {
       /* 计数失败不影响「已复制」这件事本身 */
     }
@@ -433,7 +382,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set((s) => ({ deleted: s.deleted.filter((x) => x.id !== id) }));
 	      await get().reloadPrompts();
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
 	      toast.success('已恢复');
     } catch (err) {
       set({ error: message(err) });
@@ -447,7 +395,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
 	      await api.prompt.purge(id);
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
     } catch (err) {
       set({ deleted: prev, error: message(err) });
       toast.error('彻底删除失败', message(err));
@@ -460,7 +407,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
 	      const { purged } = await api.prompt.purgeAll();
 	      void get().reloadStats();
-	      void get().reloadSmartSetCounts();
       toast.success('回收站已清空', `彻底删除 ${purged} 条`);
     } catch (err) {
       set({ deleted: prev, error: message(err) });
@@ -519,12 +465,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     get().scheduleReload();
   },
   clearFilters: () => {
-    set({ filters: {}, search: '', selectedTagIds: [] });
+    set({ filters: {}, search: '' });
     get().scheduleReload();
   },
   hasActiveFilters: () => {
-    const { search, selectedTagIds, filters } = get();
-    return search.trim() !== '' || selectedTagIds.length > 0 || Object.keys(filters).length > 0;
+    const { search, filters } = get();
+    return search.trim() !== '' || Object.keys(filters).length > 0;
   },
 
   selectPrompt: (id) => set({ selectedPromptId: id }),
@@ -552,12 +498,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 /** 从当前状态组装 list 查询 */
 export function buildLibraryQuerySnapshot(s: Pick<
   LibraryState,
-  'search' | 'selectedTagIds' | 'selectedFolderId' | 'filters' | 'sort' | 'sortDir'
+  'search' | 'filters' | 'sort' | 'sortDir'
 >): LibraryQuerySnapshot {
   return {
     search: s.search.trim() || undefined,
-    tagIds: s.selectedTagIds.length > 0 ? s.selectedTagIds : undefined,
-    folderId: s.selectedFolderId ?? undefined,
     filters: Object.keys(s.filters).length > 0 ? s.filters : undefined,
     sort: s.sort,
     sortDir: s.sortDir,
@@ -566,26 +510,6 @@ export function buildLibraryQuerySnapshot(s: Pick<
 
 function buildQuery(s: LibraryState): ListPromptsQuery {
   return buildLibraryQuerySnapshot(s);
-}
-
-function normalizeQueryForCurrentData(
-  query: LibraryQuerySnapshot,
-  tags: Tag[],
-  folders: Folder[]
-): LibraryQuerySnapshot {
-  const existing = new Set(tags.map((tag) => tag.id));
-  const tagIds = (query.tagIds ?? []).filter((id) => existing.has(id));
-  const folderIds = new Set(folders.map((folder) => folder.id));
-  const folderId =
-    query.folderId === UNFILED_FOLDER_ID || (query.folderId && folderIds.has(query.folderId))
-      ? query.folderId
-      : undefined;
-  return {
-    ...query,
-    folderId,
-    ...(tagIds.length > 0 ? { tagIds } : { tagIds: undefined }),
-    filters: query.filters && Object.keys(query.filters).length > 0 ? query.filters : undefined,
-  };
 }
 
 // ---------- 派生选择器 ----------

@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const registrations = vi.hoisted(() => ({
   prompt: vi.fn(),
   smartSet: vi.fn(),
-  folder: vi.fn(),
-  tag: vi.fn(),
   provider: vi.fn(),
   settings: vi.fn(),
   image: vi.fn(),
@@ -27,8 +25,6 @@ vi.mock("../prompts", () => ({ registerPromptHandlers: registrations.prompt }));
 vi.mock("../smartSets", () => ({
   registerSmartSetHandlers: registrations.smartSet,
 }));
-vi.mock("../folders", () => ({ registerFolderHandlers: registrations.folder }));
-vi.mock("../tags", () => ({ registerTagHandlers: registrations.tag }));
 vi.mock("../providers", () => ({
   registerProviderHandlers: registrations.provider,
 }));

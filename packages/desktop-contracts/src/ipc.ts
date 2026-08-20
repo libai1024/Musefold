@@ -5,16 +5,10 @@
 import type {
   Prompt,
   NewPrompt,
-  Folder,
-  NewFolder,
-  Tag,
-  NewTag,
   HistoryRecord,
   HistoryStats,
   HistoryStatsQuery,
   LibraryQuerySnapshot,
-  SmartSet,
-  NewSmartSet,
   SearchHistoryItem,
   ProviderConfig,
   NewProviderConfig,
@@ -81,10 +75,6 @@ export const IPC = {
   PROMPTS_CREATE: "db:prompts:create",
   PROMPTS_UPDATE: "db:prompts:update",
   PROMPTS_DELETE: "db:prompts:delete",
-  PROMPTS_BATCH_ADD_TAGS: "db:prompts:batchAddTags",
-  PROMPTS_BATCH_MOVE: "db:prompts:batchMove",
-  PROMPTS_BATCH_SET_PIN: "db:prompts:batchSetPin",
-  PROMPTS_BATCH_DELETE: "db:prompts:batchDelete",
   PROMPTS_TOGGLE_PIN: "db:prompts:togglePin",
   PROMPTS_REORDER_PINS: "db:prompts:reorderPins",
   PROMPTS_INCREMENT_USAGE: "db:prompts:incrementUsage",
@@ -94,26 +84,10 @@ export const IPC = {
   PROMPTS_PURGE: "db:prompts:purge",
   PROMPTS_PURGE_ALL: "db:prompts:purgeAll",
   PROMPTS_STATS: "db:prompts:stats",
-  // smart sets / search history（docs/product/15 TASK-DIF-06）
-  SMART_SETS_LIST: "db:smartSets:list",
-  SMART_SETS_CREATE: "db:smartSets:create",
-  SMART_SETS_UPDATE: "db:smartSets:update",
-  SMART_SETS_DELETE: "db:smartSets:delete",
+  // search history（docs/product/15 TASK-DIF-06；智能集 IPC 已退役）
   SEARCH_HISTORY_LIST: "db:searchHistory:list",
   SEARCH_HISTORY_ADD: "db:searchHistory:add",
   SEARCH_HISTORY_CLEAR: "db:searchHistory:clear",
-  // folders
-  FOLDERS_LIST: "db:folders:list",
-  FOLDERS_CREATE: "db:folders:create",
-  FOLDERS_UPDATE: "db:folders:update",
-  FOLDERS_DELETE: "db:folders:delete",
-  FOLDERS_REORDER: "db:folders:reorder",
-  // tags
-  TAGS_LIST: "db:tags:list",
-  TAGS_CREATE: "db:tags:create",
-  TAGS_UPDATE: "db:tags:update",
-  TAGS_DELETE: "db:tags:delete",
-  TAGS_ASSIGN: "db:tags:assignToPrompt",
   WORKBENCH_SESSION_ENSURE: "workbenchSession:ensure",
   WORKBENCH_SESSION_LIST: "workbenchSession:list",
   WORKBENCH_SESSION_GET: "workbenchSession:get",
@@ -299,12 +273,6 @@ export const IPC = {
 /** IPC 侧提示词列表查询，与 LibraryQuerySnapshot 同构。排序方向缺省 desc（title 的 desc 语义为 A→Z，见 repositories/prompts.ts）。 */
 export type ListPromptsQuery = LibraryQuerySnapshot;
 
-export interface UpdateSmartSetPatch {
-  name?: string;
-  query?: LibraryQuerySnapshot;
-  sortOrder?: number;
-}
-
 export interface UpdatePromptPatch {
   title?: string;
   description?: string | null;
@@ -319,13 +287,6 @@ export interface UpdatePromptPatch {
   tagIds?: string[];
   /** 誊清：笺（slip）补全保存后翻转为 manual，离开笺匣（v0.3.3 §8） */
   source?: PromptSource;
-}
-
-export interface BatchPromptMutationResult {
-  requested: number;
-  affected: number;
-  skipped: number;
-  missingIds: string[];
 }
 
 export interface HistoryClearRequest {
@@ -757,19 +718,6 @@ export interface Api {
     create: (p: NewPrompt) => Promise<Prompt>;
     update: (id: string, patch: UpdatePromptPatch) => Promise<Prompt>;
     delete: (id: string) => Promise<{ ok: true }>;
-    batchAddTags: (
-      ids: string[],
-      tagIds: string[],
-    ) => Promise<BatchPromptMutationResult>;
-    batchMove: (
-      ids: string[],
-      folderId: string | null,
-    ) => Promise<BatchPromptMutationResult>;
-    batchSetPin: (
-      ids: string[],
-      pinned: boolean,
-    ) => Promise<BatchPromptMutationResult>;
-    batchDelete: (ids: string[]) => Promise<BatchPromptMutationResult>;
     togglePin: (id: string, pinned: boolean) => Promise<Prompt>;
     reorderPins: (ids: string[]) => Promise<{ ok: true }>;
     incrementUsage: (id: string) => Promise<{ ok: true }>;
@@ -784,33 +732,10 @@ export interface Api {
     /** 侧栏计数（文件夹/标签/回收站徽标） */
     stats: () => Promise<PromptStats>;
   };
-  smartSet: {
-    list: () => Promise<SmartSet[]>;
-    create: (s: NewSmartSet) => Promise<SmartSet>;
-    update: (id: string, patch: UpdateSmartSetPatch) => Promise<SmartSet>;
-    delete: (id: string) => Promise<{ ok: true }>;
-  };
   searchHistory: {
     list: (limit?: number) => Promise<SearchHistoryItem[]>;
     add: (term: string) => Promise<{ ok: true }>;
     clear: () => Promise<{ ok: true }>;
-  };
-  folder: {
-    list: (parentId?: string) => Promise<Folder[]>;
-    create: (f: NewFolder) => Promise<Folder>;
-    update: (id: string, patch: Partial<Folder>) => Promise<Folder>;
-    delete: (id: string) => Promise<{ ok: true }>;
-    reorder: (ids: string[]) => Promise<{ ok: true }>;
-  };
-  tag: {
-    list: (group?: Tag["tagGroup"]) => Promise<Tag[]>;
-    create: (t: NewTag) => Promise<Tag>;
-    update: (id: string, patch: Partial<Tag>) => Promise<Tag>;
-    delete: (id: string) => Promise<{ ok: true }>;
-    assignToPrompt: (
-      promptId: string,
-      tagIds: string[],
-    ) => Promise<{ ok: true }>;
   };
   skillRuntime: SkillRuntimeApi;
   designScheme: DesignSchemeApi;

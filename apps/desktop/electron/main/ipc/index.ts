@@ -3,8 +3,6 @@
 
 import { registerPromptHandlers } from "./prompts";
 import { registerSmartSetHandlers } from "./smartSets";
-import { registerFolderHandlers } from "./folders";
-import { registerTagHandlers } from "./tags";
 import { registerProviderHandlers } from "./providers";
 import { registerSettingsHandlers } from "./settings";
 import { registerImageHandlers } from "./images";
@@ -25,8 +23,6 @@ import { registerPrefsOriginMigrationHandlers } from "../prefs-origin-migration"
 export function registerAllHandlers(): void {
   registerPromptHandlers();
   registerSmartSetHandlers();
-  registerFolderHandlers();
-  registerTagHandlers();
   registerProviderHandlers();
   registerSettingsHandlers();
   registerImageHandlers();

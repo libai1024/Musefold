@@ -8,7 +8,6 @@ const root = `/tmp/musefold-core-services-${process.pid}`;
 configureTestCoreRuntime(root);
 
 import { getDb, initDb, closeDb } from "../../db/index";
-import { foldersRepo } from "../../db/repositories/folders";
 import {
   initDesignSchemeDb,
   closeDesignSchemeDb,
@@ -92,39 +91,19 @@ describe("LibraryService", () => {
   });
 
   it("search 支持 folderId 过滤", () => {
-    const folder = foldersRepo.create({ name: "服务测试夹" });
+    const folderId = "svc-folder-filter";
+    getDb()
+      .prepare(
+        "INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, NULL, 0, ?)",
+      )
+      .run(folderId, "服务测试夹", Date.now());
     const inFolder = library.create({
       title: "夹内提示词",
       content: "in folder",
-      folderId: folder.id,
+      folderId,
     });
-    const ids = library.search({ folderId: folder.id }).map((p) => p.id);
+    const ids = library.search({ folderId }).map((p) => p.id);
     expect(ids).toEqual([inFolder.id]);
-  });
-
-  it("删除父文件夹时保留子目录，并把直属提示词移到未分类", () => {
-    const parent = foldersRepo.create({ name: "待删除父目录" });
-    const child = foldersRepo.create({
-      name: "保留子目录",
-      parentId: parent.id,
-    });
-    const directPrompt = library.create({
-      title: "父目录直属提示词",
-      content: "direct",
-      folderId: parent.id,
-    });
-    const childPrompt = library.create({
-      title: "子目录提示词",
-      content: "child",
-      folderId: child.id,
-    });
-
-    foldersRepo.delete(parent.id);
-
-    expect(foldersRepo.get(parent.id)).toBeNull();
-    expect(foldersRepo.get(child.id)?.parentId).toBeNull();
-    expect(library.get(directPrompt.id)?.folderId).toBeNull();
-    expect(library.get(childPrompt.id)?.folderId).toBe(child.id);
   });
 
   it("search 不返回已软删的提示词（get 按回收站语义仍可读详情）", () => {

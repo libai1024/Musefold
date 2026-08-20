@@ -68,12 +68,8 @@ export function DataSection() {
   const afterReset = async () => {
     useLibraryStore.setState({
       selectedPromptId: null,
-      selectedFolderId: null,
-      selectedTagIds: [],
       search: '',
       filters: {},
-      smartSets: [],
-      smartSetCounts: {},
       searchHistory: [],
       deleted: [],
       trashOpen: false,

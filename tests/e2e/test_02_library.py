@@ -5,15 +5,14 @@ tests/e2e/test_02_library.py — 提示词库验收（v0.3.2 重塑版）。
   列表模式   960px 居中紧凑列表：置顶/全部分区、行尾「使用」、搜索 + 新建 + 溢出菜单
   详情模式   880px 轻量详情页（返回 > 头部 + 菜单/主动作 > 正文 > 相关作品 > 详情）
   编辑器     标题 + 正文必填，负面提示词折叠可选；脏检查二次确认
-  已退役 UI  文件夹树 / 标签云 / 评分 / 智能集 / 批量操作（数据与 IPC 保留，仍在
-             数据层用例中回归，防止后端契约悄悄漂移）
+  已退役 UI  文件夹树 / 标签云 / 评分 / 智能集 / 批量操作（数据表与导入导出保留；
+             folder/tag/smartSet IPC 已收缩，夹具改走 SQL 直写）
 
 原则：断言落在**数据库真相**（app.db_query）与**可见 UI**（testid）两侧，
 不信任「点了就等于成功」。
 """
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 
@@ -477,7 +476,7 @@ def test_trash_purge_all_double_confirm(app):
 
 def test_search_filter_combo_ipc(app):
     """FTS 搜索 + 筛选组合在 IPC 层继续生效（组织 UI 退役、数据契约不变）。"""
-    t = app.api_ok("tag.create", {"name": "夜景", "tagGroup": "场景"})
+    t = app.insert_tag("夜景", "场景")
     hit = mk(app, "夜景高分", "neon night city", rating=5, tagIds=[t["id"]])
     mk(app, "夜景低分", "neon night alley", rating=1, tagIds=[t["id"]])
     mk(app, "白天高分", "bright daylight", rating=5)
@@ -511,7 +510,7 @@ def test_sort_direction(app):
 
 def test_unfiled_filter_ipc(app):
     """「未归档」查询 → folder_id IS NULL（文件夹数据仍在，仅 UI 退役）。"""
-    f = app.api_ok("folder.create", {"name": "有家的"})
+    f = app.insert_folder("有家的")
     mk(app, "已归档", folderId=f["id"])
     mk(app, "没归档")
 
@@ -521,9 +520,9 @@ def test_unfiled_filter_ipc(app):
     assert "已归档" not in titles, "未归档筛选不应包含有文件夹的条目"
 
 
-def test_smart_sets_ipc_and_search_history_limit(app):
-    """智能集合 / 搜索历史：IPC 持久化、去重、最近 10 条淘汰（数据层保留）。"""
-    t = app.api_ok("tag.create", {"name": "Flux集合", "tagGroup": "模型"})
+def test_prompt_list_filters_and_search_history_limit(app):
+    """prompt.list 筛选契约 + 搜索历史去重/最近 10 条淘汰（智能集 IPC 已退役）。"""
+    t = app.insert_tag("Flux集合", "模型")
     hit = mk(app, "Flux 高分霓虹", "neon city", modelId="flux-pro", rating=5, tagIds=[t["id"]])
     mk(app, "Flux 低分霓虹", "neon city", modelId="flux-pro", rating=2, tagIds=[t["id"]])
 
@@ -534,13 +533,7 @@ def test_smart_sets_ipc_and_search_history_limit(app):
         "sort": "rating",
         "sortDir": "desc",
     }
-    created = app.api_ok("smartSet.create", {"name": "Flux 5 星", "query": query})
-    assert created["query"] == query
-    rows = app.db_query("SELECT name, query FROM smart_sets WHERE id = ?", (created["id"],))
-    assert rows[0]["name"] == "Flux 5 星"
-    assert json.loads(rows[0]["query"]) == query
-
-    matched = app.api_ok("prompt.list", created["query"])
+    matched = app.api_ok("prompt.list", query)
     assert [p["id"] for p in matched] == [hit["id"]]
 
     for i in range(11):

@@ -238,8 +238,8 @@ def seeded(app_shared, tmp_path_factory):
     会改库的导入用例一律用函数级 `app` fixture，互不污染。
     """
     a = app_shared
-    tag = a.api_ok("tag.create", {"name": "E2E导出标签", "tagGroup": "风格"})
-    folder = a.api_ok("folder.create", {"name": "E2E导出文件夹"})
+    tag = a.insert_tag("E2E导出标签", "风格")
+    folder = a.insert_folder("E2E导出文件夹")
     # 预览图落在当前数据域的 previews 目录 —— 白名单允许的两个根之一
     previews = a.user_data_dir / PREVIEWS_DIR_NAME
     previews.mkdir(parents=True, exist_ok=True)
@@ -256,12 +256,9 @@ def seeded(app_shared, tmp_path_factory):
             "previewImagePath": str(png),
         },
     )
-    smart_set = a.api_ok(
-        "smartSet.create",
-        {
-            "name": "E2E 智能集合",
-            "query": {"search": "lighthouse", "tagIds": [tag["id"]], "sort": "updated", "sortDir": "desc"},
-        },
+    smart_set = a.insert_smart_set(
+        "E2E 智能集合",
+        {"search": "lighthouse", "tagIds": [tag["id"]], "sort": "updated", "sortDir": "desc"},
     )
     return {"tag": tag, "folder": folder, "prompt": prompt, "png": png, "smartSet": smart_set}
 
@@ -555,14 +552,14 @@ def bundle(app, tmp_path) -> Path:
 def test_import_round_trip_restores_data(app, tmp_path):
     """导出 → 清库 → 导入：数据回来了，且 FTS 能搜到。"""
     a = app
-    tag = a.api_ok("tag.create", {"name": "回环标签", "tagGroup": "风格"})
+    tag = a.insert_tag("回环标签", "风格")
     a.api_ok(
         "prompt.create",
         {"title": "回环提示词", "content": "一只戴礼帽的柴犬在雨中散步", "tagIds": [tag["id"]]},
     )
-    smart_set = a.api_ok(
-        "smartSet.create",
-        {"name": "回环集合", "query": {"search": "柴犬", "tagIds": [tag["id"]]}},
+    smart_set = a.insert_smart_set(
+        "回环集合",
+        {"search": "柴犬", "tagIds": [tag["id"]]},
     )
 
     snapshot = tmp_path / "snapshot.json"
@@ -576,7 +573,7 @@ def test_import_round_trip_restores_data(app, tmp_path):
     }}), "utf-8")
     import_from(a, empty, strategy="replace")
     assert a.api_ok("prompt.list", {}) == []
-    assert a.api_ok("smartSet.list") == []
+    assert a.db_query("SELECT COUNT(*) AS n FROM smart_sets")[0]["n"] == 0
 
     res = import_from(a, snapshot, strategy="replace")
     assert res["dryRun"] is False
@@ -584,8 +581,11 @@ def test_import_round_trip_restores_data(app, tmp_path):
     restored = next(p for p in a.api_ok("prompt.list", {}) if p["title"] == "回环提示词")
     # 运行期 Prompt 带的是 join 出来的 tags 对象；tagIds 只是信封里的引用形式
     assert [t["id"] for t in restored["tags"]] == [tag["id"]], "标签关联没跟着回来"
-    restored_sets = a.api_ok("smartSet.list")
-    assert any(s["id"] == smart_set["id"] and s["query"]["search"] == "柴犬" for s in restored_sets)
+    restored_sets = a.db_query("SELECT id, query FROM smart_sets")
+    assert any(
+        s["id"] == smart_set["id"] and json.loads(s["query"]).get("search") == "柴犬"
+        for s in restored_sets
+    )
 
     # FTS 是独立表、无触发器 —— 不显式重建就搜不到，且不报错（静默失败）
     hits = a.api_ok("prompt.list", {"search": "柴犬"})
@@ -1170,12 +1170,11 @@ def test_reset_data_ui_requires_phrase_offers_export_and_clears_stores(app):
         """() => ({
           prompts: window.__musefold_test?.stores?.library?.getState?.().prompts.length,
           history: window.__musefold_test?.stores?.history?.getState?.().records.length,
-          smartSets: window.__musefold_test?.stores?.library?.getState?.().smartSets.length,
           searchHistory: window.__musefold_test?.stores?.library?.getState?.().searchHistory.length,
           turns: window.__musefold_test?.stores?.workbench?.getState?.().turns.length,
         })"""
     )
-    assert snapshot == {"prompts": 0, "history": 0, "smartSets": 0, "searchHistory": 0, "turns": 0}
+    assert snapshot == {"prompts": 0, "history": 0, "searchHistory": 0, "turns": 0}
     assert not a.console_errors(), a.console_errors()
 
 

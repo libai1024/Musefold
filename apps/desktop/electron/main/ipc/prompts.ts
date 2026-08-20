@@ -24,38 +24,6 @@ export function registerPromptHandlers(): void {
     scheduleCloudSync();
     return { ok: true as const };
   });
-  ipcMain.handle(
-    IPC.PROMPTS_BATCH_ADD_TAGS,
-    (_e, ids: string[], tagIds: string[]) =>
-      (() => {
-        const value = promptsRepo.batchAddTags(ids, tagIds);
-        scheduleCloudSync();
-        return value;
-      })(),
-  );
-  ipcMain.handle(
-    IPC.PROMPTS_BATCH_MOVE,
-    (_e, ids: string[], folderId: string | null) =>
-      (() => {
-        const value = promptsRepo.batchMove(ids, folderId);
-        scheduleCloudSync();
-        return value;
-      })(),
-  );
-  ipcMain.handle(
-    IPC.PROMPTS_BATCH_SET_PIN,
-    (_e, ids: string[], pinned: boolean) =>
-      (() => {
-        const value = promptsRepo.batchSetPin(ids, pinned);
-        scheduleCloudSync();
-        return value;
-      })(),
-  );
-  ipcMain.handle(IPC.PROMPTS_BATCH_DELETE, (_e, ids: string[]) => {
-    const value = promptsRepo.batchDelete(ids);
-    scheduleCloudSync();
-    return value;
-  });
   ipcMain.handle(IPC.PROMPTS_TOGGLE_PIN, (_e, id: string, pinned: boolean) => {
     const value = promptsRepo.togglePin(id, pinned);
     scheduleCloudSync();

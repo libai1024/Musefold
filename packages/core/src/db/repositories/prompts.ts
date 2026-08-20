@@ -4,7 +4,6 @@
 import { ulid } from 'ulid';
 import type { Prompt, NewPrompt, PromptParams } from '@musefold/desktop-contracts/models';
 import type {
-  BatchPromptMutationResult,
   ListPromptsQuery,
   UpdatePromptPatch,
 } from '@musefold/desktop-contracts/ipc';
@@ -58,23 +57,6 @@ function removeFts(id: string): void {
   const row = db.prepare('SELECT rowid FROM prompts WHERE id = ?').get(id) as
     { rowid: number } | undefined;
   if (row) db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
-}
-
-function uniqueIds(ids: string[]): string[] {
-  return Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
-}
-
-function batchResult(
-  ids: string[],
-  affected: number,
-  missingIds: string[],
-): BatchPromptMutationResult {
-  return {
-    requested: ids.length,
-    affected,
-    skipped: Math.max(0, ids.length - affected),
-    missingIds,
-  };
 }
 
 /**
@@ -398,143 +380,6 @@ export const promptsRepo = {
     })();
   },
 
-  batchAddTags(ids: string[], tagIds: string[]): BatchPromptMutationResult {
-    const promptIds = uniqueIds(ids);
-    const nextTagIds = uniqueIds(tagIds);
-    const db = getDb();
-    const missingIds: string[] = [];
-    let affected = 0;
-
-    const tagExists = db.prepare('SELECT 1 FROM tags WHERE id = ?');
-    for (const tagId of nextTagIds) {
-      if (!tagExists.get(tagId)) throw new Error(`Tag not found: ${tagId}`);
-    }
-
-    const promptExists = db.prepare(
-      'SELECT 1 FROM prompts WHERE id = ? AND deleted_at IS NULL',
-    );
-    const insertTag = db.prepare(
-      'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
-    );
-    const touchPrompt = db.prepare(
-      'UPDATE prompts SET updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-    );
-    const now = Date.now();
-
-    db.transaction(() => {
-      for (const id of promptIds) {
-        if (!promptExists.get(id)) {
-          missingIds.push(id);
-          continue;
-        }
-        for (const tagId of nextTagIds) insertTag.run(id, tagId);
-        touchPrompt.run(now, id);
-        syncFts(id);
-        enqueueActiveAccountMutation(db, 'prompt', id, 'update');
-        affected += 1;
-      }
-    })();
-
-    return batchResult(promptIds, affected, missingIds);
-  },
-
-  batchMove(ids: string[], folderId: string | null): BatchPromptMutationResult {
-    const promptIds = uniqueIds(ids);
-    const db = getDb();
-    if (
-      folderId &&
-      !db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId)
-    ) {
-      throw new Error(`Folder not found: ${folderId}`);
-    }
-
-    const missingIds: string[] = [];
-    let affected = 0;
-    const stmt = db.prepare(
-      'UPDATE prompts SET folder_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-    );
-    const now = Date.now();
-    db.transaction(() => {
-      for (const id of promptIds) {
-        const result = stmt.run(folderId, now, id);
-        if (result.changes > 0) {
-          enqueueActiveAccountMutation(db, 'prompt', id, 'update');
-          affected += 1;
-        } else missingIds.push(id);
-      }
-    })();
-    return batchResult(promptIds, affected, missingIds);
-  },
-
-  batchSetPin(ids: string[], pinned: boolean): BatchPromptMutationResult {
-    const promptIds = uniqueIds(ids);
-    const db = getDb();
-    const missingIds: string[] = [];
-    let affected = 0;
-    let maxOrder = (
-      db
-        .prepare(
-          'SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1',
-        )
-        .get() as { m: number }
-    ).m;
-    const getPrompt = db.prepare(
-      'SELECT is_pinned FROM prompts WHERE id = ? AND deleted_at IS NULL',
-    );
-    const keepPinned = db.prepare(
-      'UPDATE prompts SET is_pinned = 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-    );
-    const pin = db.prepare(
-      'UPDATE prompts SET is_pinned = 1, pin_order = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-    );
-    const unpin = db.prepare(
-      'UPDATE prompts SET is_pinned = 0, pin_order = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-    );
-    const now = Date.now();
-
-    db.transaction(() => {
-      for (const id of promptIds) {
-        const row = getPrompt.get(id) as { is_pinned: number } | undefined;
-        if (!row) {
-          missingIds.push(id);
-          continue;
-        }
-        if (!pinned) {
-          unpin.run(now, id);
-        } else if (row.is_pinned) {
-          keepPinned.run(now, id);
-        } else {
-          maxOrder += 1;
-          pin.run(maxOrder, now, id);
-        }
-        enqueueActiveAccountMutation(db, 'prompt', id, 'update');
-        affected += 1;
-      }
-    })();
-    return batchResult(promptIds, affected, missingIds);
-  },
-
-  batchDelete(ids: string[]): BatchPromptMutationResult {
-    const promptIds = uniqueIds(ids);
-    const db = getDb();
-    const missingIds: string[] = [];
-    let affected = 0;
-    const stmt = db.prepare(
-      'UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
-    );
-    const now = Date.now();
-    db.transaction(() => {
-      for (const id of promptIds) {
-        const result = stmt.run(now, now, id);
-        if (result.changes > 0) {
-          enqueueActiveAccountMutation(db, 'prompt', id, 'delete');
-          affected += 1;
-        } else missingIds.push(id);
-      }
-    })();
-    return batchResult(promptIds, affected, missingIds);
-  },
-
   // ---------- 回收站（docs/product/10 TASK-LIB-12） ----------
 
   /** 回收站列表：仅已软删除的条目，按删除时间倒序 */
@@ -646,12 +491,6 @@ export const promptsRepo = {
     }
 
     return { total, unfiled, trashed, pinned, byFolder, byTag };
-  },
-
-  /** 重建单条的 FTS 行（标签侧改动后由 tags handler 调用） */
-  resyncFts(id: string): void {
-    const db = getDb();
-    db.transaction(() => syncFts(id))();
   },
 
   /** 全量重建 FTS 索引（迁移/导入后调用） */

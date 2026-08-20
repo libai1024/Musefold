@@ -25,6 +25,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -529,6 +530,65 @@ class App:
             return [dict(r) for r in con.execute(sql, params).fetchall()]
         finally:
             con.close()
+
+    def db_exec(self, sql: str, params: tuple = ()):
+        """夹具写入。folder/tag/smartSet IPC 已退役，导入导出回归改走直写。"""
+        con = sqlite3.connect(str(self.db_path()), timeout=10)
+        try:
+            con.execute("PRAGMA busy_timeout=8000")
+            con.execute(sql, params)
+            con.commit()
+            # 让主进程那条 WAL 连接立刻看到夹具写入
+            con.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        finally:
+            con.close()
+
+    def insert_folder(self, name: str, parent_id: str | None = None, sort_order: int = 0) -> dict:
+        folder_id = uuid.uuid4().hex
+        now = int(time.time() * 1000)
+        self.db_exec(
+            "INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, ?, ?, ?)",
+            (folder_id, name, parent_id, sort_order, now),
+        )
+        return {
+            "id": folder_id,
+            "name": name,
+            "parentId": parent_id,
+            "sortOrder": sort_order,
+            "createdAt": now,
+        }
+
+    def insert_tag(self, name: str, tag_group: str | None = None, color: str | None = None) -> dict:
+        tag_id = uuid.uuid4().hex
+        now = int(time.time() * 1000)
+        self.db_exec(
+            "INSERT INTO tags (id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?)",
+            (tag_id, name, tag_group, color, now),
+        )
+        return {
+            "id": tag_id,
+            "name": name,
+            "tagGroup": tag_group,
+            "color": color,
+            "createdAt": now,
+        }
+
+    def insert_smart_set(self, name: str, query: dict, sort_order: int = 0) -> dict:
+        set_id = uuid.uuid4().hex
+        now = int(time.time() * 1000)
+        self.db_exec(
+            """INSERT INTO smart_sets (id, name, query, sort_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (set_id, name, json.dumps(query, ensure_ascii=False), sort_order, now, now),
+        )
+        return {
+            "id": set_id,
+            "name": name,
+            "query": query,
+            "sortOrder": sort_order,
+            "createdAt": now,
+            "updatedAt": now,
+        }
 
     def console_errors(self) -> list[str]:
         return list(self._errors)  # type: ignore[attr-defined]

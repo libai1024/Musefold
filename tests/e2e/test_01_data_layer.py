@@ -28,7 +28,7 @@ def test_smart_set_tables_created(app):
 
 
 def test_seed_folders_created(app):
-    folders = app.api_ok("folder.list")
+    folders = app.db_query("SELECT name FROM folders")
     names = {f["name"] for f in folders}
     assert len(folders) >= 4, folders
     assert "人物" in names and "场景" in names, names
@@ -54,8 +54,8 @@ def test_seed_prompts_idempotent_across_reload(app):
 
 
 def test_seed_tags_grouped(app):
-    tags = app.api_ok("tag.list")
-    groups = {t["tagGroup"] for t in tags}
+    tags = app.db_query("SELECT tag_group FROM tags")
+    groups = {t["tag_group"] for t in tags}
     assert {"风格", "场景", "模型", "主体", "画质"} <= groups, groups
 
 
@@ -89,8 +89,8 @@ def test_prompt_crud_roundtrip(app):
 
 
 def test_prompt_create_with_tags_and_folder(app):
-    folder = app.api_ok("folder.list")[0]
-    tags = app.api_ok("tag.list")[:2]
+    folder = app.db_query("SELECT id FROM folders LIMIT 1")[0]
+    tags = app.db_query("SELECT id FROM tags LIMIT 2")
     p = app.api_ok("prompt.create", {
         "title": "带标签与文件夹",
         "content": "a portrait of a woman",
@@ -164,7 +164,7 @@ def test_search_excludes_deleted(seeded):
 
 
 def test_search_matches_tag_names(app):
-    tag = next(t for t in app.api_ok("tag.list") if t["name"] == "赛博朋克")
+    tag = next(t for t in app.db_query("SELECT id, name FROM tags") if t["name"] == "赛博朋克")
     p = app.api_ok("prompt.create", {
         "title": "无关标题", "content": "unrelated content", "tagIds": [tag["id"]],
     })

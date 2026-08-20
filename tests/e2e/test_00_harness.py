@@ -19,9 +19,11 @@ def test_preload_api_bridge_available(app):
     shape = app.page.evaluate(
         "() => Object.keys(window.api ?? {}).sort()"
     )
-    for ns in ("prompt", "folder", "tag", "skillRuntime", "designScheme",
+    for ns in ("prompt", "skillRuntime", "designScheme",
                "provider", "settings", "image", "history", "system"):
         assert ns in shape, f"window.api.{ns} missing (got {shape})"
+    for retired in ("folder", "tag", "smartSet"):
+        assert retired not in shape, f"退役命名空间 window.api.{retired} 仍在暴露"
 
 
 def test_migrations_and_seed_applied(app):
@@ -31,7 +33,7 @@ def test_migrations_and_seed_applied(app):
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'history_prompt_references'"
     )
     # 预设标签 seed
-    tags = app.api_ok("tag.list")
+    tags = app.db_query("SELECT name FROM tags")
     assert len(tags) > 0, "seed tags missing"
 
 
