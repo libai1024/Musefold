@@ -83,8 +83,18 @@ M0 与 M1 可并行：M0 是服务器侧操作，M1 是仓库侧改动。M2 必�
 - `V121-CI-04`：~~实现路径过滤~~ **已完成（2026-08-20）**。映射集中在 `.github/layer-paths.yml`（发布三层 + `infra` + `desktop` E2E 门控组），判定脚本 `.github/scripts/detect-layers.mjs` 自带 self-test，未映射路径 fail-open。
 - `V121-CI-05`：~~包冒烟改为 tag 触发~~ **已完成（2026-08-20）**。迁至 `.github/workflows/package-smoke.yml`，`push: tags: v*` + `workflow_dispatch`。
 - `V121-CI-06`：~~修复硬编码 DMG 文件名~~ **已完成（2026-08-20）**。版本从根 `package.json` 派生；`scripts/release-windows-target-checklist.mjs` 的同类硬编码一并修复。
-- `V121-CI-07`：~~统一版本号口径~~ **已完成（2026-08-20）**。决议：应用 semver 的单一事实源是根 `package.json` 的 `version`（当前 `0.5.0-dev`），CI 与脚本一律从此派生；文档基线号（v1.2.1/v1.2.2）是交付里程碑编号，与应用 semver 无关。
+- `V121-CI-07`：~~统一版本号口径~~ **已完成（2026-08-20）**。决议：应用 semver 的单一事实源是根 `package.json` 的 `version`，CI 与脚本一律从此派生；文档基线号（v1.2.1/v1.2.2）是交付里程碑编号，与应用 semver 无关。
+
+  **开发期递进口径（2026-08-20 追加）**：每完成一项内容推进一个预发布号 `0.5.0-dev.N`（`0.5.0-dev` → `0.5.0-dev.1` → …）。选预发布标识而非 patch 位，是因为 `0.5.0-dev.N` 在 semver 下严格大于 `0.5.0-dev` 且仍小于 `0.5.0`，既不占用发布号、也不与站点上已发布的 `downloads/0.5.0-dev/` 产物命名冲突；客户端 `stable` 通道 `allowPrerelease = false`，这些开发号不会被推给用户。配套放宽了 `shared/__tests__/brand-migration.test.ts` 的版本守卫正则（允许 `-dev.N`，仍拦旧品牌形态的版本串）。
+
+  同时修复了 Skill 影响审查守卫的误报：`scripts/check-skill-update.mjs` 原先只要 `shared/constants.ts` 出现在变更清单里就禁止声明 `Skill-Impact: none`，而该文件是全仓通用常量文件，仅三个 `MUSEFOLD_SKILL_*` 常量与 Skill 有关。频繁误报的唯一现实出路是 `--no-verify` 或假装提升 Skill 版本，两者都会废掉这道审查，因此判定粒度从文件级收紧为符号级：比较两个版本中提取出的 `MUSEFOLD_SKILL_*` 声明映射，相等即放行。解析失败、缺失版本、以及内置 Skill 目录下的任何变更仍保守判定为已变更；新增 `--self-test` 用内联夹具覆盖六种判定分支。
 - `V121-CI-08`：~~引入 ESLint + Prettier 基线~~ **已完成（2026-08-20）**。ESLint 10 flat config（实体在 `tooling/eslint.config.base.mjs`），存量违规按规则冻结并注明棘轮计数（见配置内注释，合计 214 处 17 条规则；`react-hooks/rules-of-hooks` 保持 error，唯一误报行内豁免）；Prettier 配置就位但**未做全仓 format**（推迟到 v1.2.2 目录迁移后，保护 `git mv` 历史），`format:check` 未接入 CI。
+
+  **第一批棘轮已于 2026-08-20 收紧**：违规数最少的 8 条规则清零并启用（`no-useless-escape` 8、`no-useless-assignment` 8、`no-empty` 5、`preserve-caught-error` 2、`no-control-regex` 1、`@typescript-eslint/no-empty-object-type` 1、`@typescript-eslint/no-unused-expressions` 1，以及 `no-undef`）。修法要点：空块补中文原因注释（该规则不报含注释的块，注释同时说明了为何可以吞掉错误），重抛错误补 `cause`，死赋值删除，唯一故意匹配控制字符处用单行豁免并注明理由。
+
+  `no-undef` 单独处理：它报的几乎全是 `NodeJS.Timeout`、`RequestInit` 这类 TS ambient 类型，属 typescript-eslint 官方说明的已知误报（TS 编译器本就负责未定义标识符），因此在 TS 家族**永久关闭**并注明这不是棘轮欠账，在 JS 家族保持 `error`。开启后它在 JS 侧立即报出真缺陷：`preview/bridge-plugin.mjs` 的 `provider:validate` 分支引用了该作用域不存在的 `res` / `providerId` / `costPoints`，成功路径必抛 `ReferenceError` 并被 catch 成失败——那行本属 `image:generate`，已归位。
+
+  同批 `no-useless-escape` 还翻出一处潜在缺陷：`electron/doubao-web/browser-service.ts` 注入脚本的模板字符串里写了单反斜杠 `\s`，注入到页面后是字母 `s`，导致完成探测只能匹配「生成了1张」而漏掉「生成了 4 张」及其门控的 canvas 结果。已改为 `\\s`（注入后为 `\s`），与同函数其余正则一致；该改动严格更宽松，不会破坏已有匹配。
 
 ### 完成条件
 
@@ -209,7 +219,11 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 
 ### 已知缺陷（实现期发现，不属本里程碑）
 
-宠物窗口主题加载用 `app.getAppPath()` 解析 `resources/pet/cat/theme.json`，在 electron-vite 的**未打包构建**里会解析到 `out/main/resources/...` 而落空（打包构建走 `process.resourcesPath`，不受影响）。表现为直接运行构建产物时桌宠无法启动。已打包渠道与用户无关，留待桌面侧单独修复。
+~~宠物窗口主题加载用 `app.getAppPath()` 解析 `resources/pet/cat/theme.json`，在 electron-vite 的**未打包构建**里会解析到 `out/main/resources/...` 而落空。~~ **已于 2026-08-20 修复**。
+
+排查后发现这不是桌宠一处的问题，而是全主进程缺少统一的应用根解析：`media-protocol.ts`（桌宠 sprite）、`tray.ts`（托盘图标）同样直接拼 `app.getAppPath()`，而 `window.ts`、`renderer-bundle.ts` 用的是 `process.cwd()`——后者从仓库根启动才对，换工作目录同样会错。`integration.ts` 则自建了一套「候选目录逐个探测产物」的兜底。
+
+修法是新增 `electron/main/app-paths.ts` 作为唯一解析入口：`resolveAppRoot()` 打包时直接用 `app.getAppPath()`，未打包时从它逐级向上找同时含 `resources/` 与 `name` 为 `musefold-app` 的 `package.json` 的目录，失败依次回落 `process.cwd()`（同样校验）与原始 appPath，不抛错；`resolveResourcePath()` 在此之上按打包形态切换 `process.resourcesPath` 与 `<appRoot>/resources`。7 处调用点全部改走它，`integration.ts` 的候选扫描随之收敛。**打包期路径行为零变化**（仍走 `process.resourcesPath`），`about.ts` 的未打包文档路径一并接入。
 
 ## 8. M6：外壳发布流水线
 

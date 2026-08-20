@@ -32,10 +32,15 @@
 
 ### 任务
 
-- `V122-BASE-01`：~~补全 `packages/core`、`cli`、`client`、`automation-server` 的真实依赖~~ **已完成（2026-08-20）**。core：contracts/better-sqlite3/openai/ulid；cli：automation-server/client/core；automation-server：core；client 无生产 npm 依赖。`packages/mcp` 测试对 core/automation-server 的引用缺声明，留待 Phase 3。
+- `V122-BASE-01`：~~补全 `packages/core`、`cli`、`client`、`automation-server` 的真实依赖~~ **已完成（2026-08-20）**。core：contracts/better-sqlite3/openai/ulid；cli：automation-server/client/core；automation-server：core；client 无生产 npm 依赖。`packages/mcp` 测试对 core/automation-server 的引用已于 2026-08-20 补进其 `devDependencies`（原计划留待 Phase 3，因成本极低提前收口）；同批复查 16 个 workspace 包，无其余漏声明。根应用的同类缺口见下方 Phase 1 输入。
 - `V122-BASE-02`：~~zod 统一 v4~~ **已完成（2026-08-20）**。`@modelcontextprotocol/sdk` 1.30.0 的 peer 已允许 `^3.25 || ^4.0`，mcp 直接升到与根一致的 `^4.4.3`，无 API 适配，无例外。
 - `V122-BASE-03`：~~版本收口与 cli 改名~~ **已完成（2026-08-20）**。15 个 private 包统一 `0.0.0-internal`；实证 npm 11 下 `*` 引用正常链接 prerelease workspace 包（不去 registry），无需退到 `0.0.0`。cli 已改名 `@musefold/cli`，bin 不变。
-- `V122-BASE-04`：~~建立 `tooling/`~~ **已完成（2026-08-20）**。`tooling/{tsconfig.base.json, eslint.config.base.mjs, dependency-cruiser.cjs, dependency-cruiser-known-violations.json}`（扁平布局，未用子目录）；18 条分层规则映射架构 3.2 节；baseline 共 6 条存量违规（1 条 `web-no-desktop`：`apps/web/src/account-format.ts → shared/constants.ts`；5 条 `no-circular` warn），只许减不许增。
+- `V122-BASE-04`：~~建立 `tooling/`~~ **已完成（2026-08-20）**。`tooling/{tsconfig.base.json, eslint.config.base.mjs, dependency-cruiser.cjs, dependency-cruiser-known-violations.json}`（扁平布局，未用子目录）；18 条分层规则映射架构 3.2 节；baseline 初始 6 条存量违规（1 条 `web-no-desktop`：`apps/web/src/account-format.ts → shared/constants.ts`；5 条 `no-circular` warn），只许减不许增。
+
+  **baseline 已于 2026-08-20 归零**，`no-circular` 同步升为 `error`，`dependency-cruiser-known-violations.json` 现为空数组：
+  - `web-no-desktop`：越界内容只有计费常量 `ACCOUNT_QUOTA_PER_POINT`。它是服务端计费口径（new-api `QuotaPerUnit`），两端必须显示同一数值，因此归位到 `packages/contracts/src/billing.ts`（零 import 叶子模块），`shared/constants.ts` 改为 re-export 保持桌面侧调用不变。同时删掉 `apps/web` 的 vite/vitest `@shared` 别名，让该越界在解析层面不可达，而非只靠规则事后拦。
+  - 3 条 `no-circular`（web `runtime` ⇄ `fixture-runtime`、`electron/account` ⇄ `cloud-sync`、workbench `store` ⇄ `stores/app`）环上均有 `dynamic-import` 边——动态 import 正是刻意打破初始化顺序环的手段，计为违规会逼人改写法绕过规则。改用 dependency-cruiser 17.4.3 的 `to.viaOnly.dependencyTypesNot: ['dynamic-import']`（语义经源码 `src/validate/matchers.mjs` 核实：环上至少一条该类型边即不命中），静态环仍一律拦。
+  - 2 条 type-only 环（`shared/types/models` ⇄ `providers`、`providers` ⇄ `skill-runtime`）：被双向引用的类型抽到叶子模块 `shared/types/generation-snapshots.ts`，原路径 re-export 保持导出面不变。
 - `V122-BASE-05`：~~全仓 project references~~ **已完成（2026-08-20）**。18 个 composite 项目，根 `tsc -b` 单入口，include 无重叠；声明产物进 gitignored `.tsout/`。实测全仓冷编译峰值约 1.18 GiB、增量约 0.25s，`typecheck:mcp` 8 GiB 特例已删除。
 - `V122-BASE-06`：~~depcruise 接入 CI~~ **已完成（2026-08-20）**。`check:boundaries` 脚本 + turbo root task，ci.yml 主检查扩为 `typecheck test build lint check:boundaries`；与 `check:ui-boundaries` 并存。
 - `V122-BASE-07`：~~清理死代码~~ **已完成（2026-08-20）**。删除 `src/features/{chat,composer,studio}` 空目录、`useDebounce.ts`、library store 中零引用的文件夹/标签/智能集/批量 actions（store 约 978 行减至 614 行）。后端退役面（IPC/preload/core repositories 的 folder/tag/batch/smartSet 通道）按规则保留，见下方 Phase 3 输入。
@@ -52,7 +57,12 @@ Phase 0 于 2026-08-20 全部完成。
 
 - **`@shared/*` 别名消费清单**（Phase 3 拆迁 `shared/` 的依据）：`packages/core` 消费面最大（constants、pricing、types/{enums,models,providers,ipc,workbench,design-scheme}、design-scheme/{prompt-compiler,schema}）；`packages/cli` 生产代码消费 constants、pricing；`packages/automation-server` 生产代码消费 types/providers、constants；`packages/client` 零别名。
 - **退役后端面**（前端 store 死路径已删，以下保留待 Phase 3 决断）：`electron/main/ipc/{folders,tags,prompts,smartSets}.ts` 的 folder/tag/batch/smartSet 通道、preload 对应暴露、`packages/core` 的 folders/tags/smartSets repositories——导入导出与 E2E 仍在使用其中一部分，不能整体删除。
-- **已知测试竞态**：根 vitest 并行时 brand-migration 相关测试与 `packages/cli/dist` 写入偶发撞车（Phase 0 期间观测到一次），重跑即过；Phase 1 前应将该测试的临时目录与真实 `dist/` 隔离。
+- **已知测试竞态**：~~根 vitest 并行时 brand-migration 相关测试与 `packages/cli/dist` 写入偶发撞车~~ **已于 2026-08-20 修复**。根因不是临时目录问题，而是 `readProductText()` 递归扫描 `packages/**` 时把构建产物一起读了：该守卫要守的是源码，产物随时可重建，扫它既拖慢测试又会和并发构建抢文件。现按目录名跳过产物与依赖目录（`dist`/`out`/`node_modules`/`.turbo`/`.tsout` 等）并跳过符号链接；正反向都已验证（产物目录内放旧品牌串仍通过，`src/` 下放则失败）。
+
+### Phase 0 沉淀的 Phase 1 输入
+
+- **根应用的依赖声明缺口**（「缺口五」在根目录的残留）：`electron/` 与 `src/` 生产代码大量 import `@musefold/core`、`@musefold/automation-server`，但根 `package.json` 未声明，靠 `tooling/tsconfig.base.json` 与 `vitest.config.ts` 的别名解析。**不能只补声明**：electron-vite 的 `externalizeDepsPlugin` 以 `dependencies` 为准，一旦声明就会把它们外部化，打包后的主进程将在运行时 require TS 源码——必须同步加入 `electron.vite.config.ts` 的 `externalizeDeps.exclude`（现有 `cloud-client`/`contracts`/`update-protocol` 就是这么处理的，见 `electron/main/__tests__/workspace-bundling.test.ts`）。该路径只有完整打包并启动才能验证，不在 `typecheck test build lint check:boundaries` 门禁覆盖内，因此并入 Phase 1a 的 `V122-DIR-01`（App manifest 与构建配置本就要一起动）一次做完，而不是先单独补声明。
+- **lint 棘轮剩余 8 条**：`tooling/eslint.config.base.mjs` 首批 8 条低违规规则已于 2026-08-20 清零并启用（详见 v1.2.1 交付计划 `V121-CI-08` 的收紧记录）。剩余 `@typescript-eslint/no-unused-vars` 57、`react-hooks/set-state-in-effect` 47、`@typescript-eslint/no-explicit-any` 41、`@typescript-eslint/no-require-imports` 18、`react-hooks/exhaustive-deps` 12、`react-hooks/refs` 5、`react-hooks/immutability` 2、`react-hooks/incompatible-library` 2。其中 react-hooks 系列（合计 56 处）集中在渲染层，宜与 Phase 2 的 stores 切换同批处理，避免同一文件反复改动。`linterOptions.reportUnusedDisableDirectives` 仍为 `off`，其 6 处未使用指令中 5 处属 `exhaustive-deps`，须与该规则同批启用。
 
 ## 3. Phase 1：目录重构
 
