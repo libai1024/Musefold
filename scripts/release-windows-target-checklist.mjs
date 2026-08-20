@@ -223,7 +223,7 @@ async function collectArtifacts() {
 }
 
 function buildChecklist(artifacts) {
-  const installerName = artifacts.installer?.path.split('/').pop() ?? 'Musefold Setup 0.3.0-dev.exe';
+  const installerName = artifacts.installer?.path.split('/').pop() ?? `Musefold Setup ${artifacts.version}.exe`;
   return [
     `Copy ${installerName} to a real Windows on ARM64 device.`,
     `Verify installer hash in PowerShell: Get-FileHash '.\\${installerName}' -Algorithm SHA256`,

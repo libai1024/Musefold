@@ -1,0 +1,82 @@
+# Layer path mapping — the single source of truth for CI path filters.
+# Referenced by .github/scripts/detect-layers.mjs; do not copy globs into workflows.
+#
+# Allowed pattern forms (anything else is rejected at load time):
+#   1. Directory prefix: src/**
+#   2. Extension or exact file: *.md, electron-builder.yml
+#
+# Do not use brace expansion, negation, nested globs (src/**/*.ts), or
+# basename wildcards (tsconfig*). List exact files instead.
+#
+# Two mappings, two jobs:
+#   content / service / shell / docs  → 发布分层（热更新与部署车道）
+#   desktop                            → 桌面 E2E 门控（与发布分层解耦）
+# Desktop includes packages/** on purpose: ui / product-ui / contracts / domain
+# (and the rest) can affect the desktop renderer, so the E2E gate is conservative.
+#
+# Hitting any `infra` path treats content, service, shell, and desktop as changed.
+# `tooling/**` is the v1.2.2 shared engineering config (ESLint base, tsconfig.base,
+# depcruise rules + baseline). Changing it is a full-layer infra change.
+# `packages/contracts/**` is listed under both content and service (§3.3).
+# `packages/update-protocol/**` is listed under both content and shell: the
+# renderer consumes Channel as a type (via shared/), and the main process
+# compiles the protocol package into the shell.
+# Unmapped paths fail-open (all product layers and desktop true) in detect-layers.mjs.
+# v1.2.2 directory moves should update this file only.
+#
+# This file is parsed by a restricted subset parser (comments, `key:`, `- item`,
+# optional quotes). Do not add anchors, flow collections, or other YAML features.
+
+infra:
+  - package.json
+  - package-lock.json
+  - turbo.json
+  - tsconfig.json
+  - tsconfig.node.json
+  - tsconfig.web.json
+  - eslint.config.mjs
+  - tooling/**
+  - .prettierrc
+  - .prettierignore
+  - electron.vite.config.ts
+  - vitest.config.ts
+  - postcss.config.js
+  - tailwind.config.ts
+  - vite.preview.config.ts
+  - .github/**
+
+content:
+  - src/**
+  - apps/web/**
+  - packages/ui/**
+  - packages/product-ui/**
+  - packages/contracts/**
+  - packages/domain/**
+  - packages/update-protocol/**
+
+service:
+  - apps/web-api/**
+  - apps/generation-worker/**
+  - packages/contracts/**
+
+shell:
+  - electron/**
+  - resources/**
+  - electron-builder.yml
+  # Protocol package is compiled into the main process; renderer consumes Channel types.
+  - packages/update-protocol/**
+
+desktop:
+  - src/**
+  - electron/**
+  - shared/**
+  - packages/**
+  - resources/**
+  - tests/**
+  - requirements-test.txt
+  - electron-builder.yml
+
+docs:
+  - docs/**
+  - doc/**
+  - '*.md'

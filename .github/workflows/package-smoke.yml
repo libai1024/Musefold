@@ -1,0 +1,127 @@
+# Slow-lane package smoke (macOS + Windows).
+# Triggered by version tags (v*) and workflow_dispatch — not by ordinary push/PR.
+# Prerequisite: main-branch CI ("Source checks") is already green. These jobs no
+# longer `needs: check` because a tag push does not always run ci.yml.
+#
+# App semver single source of truth: the `version` field in the repo-root package.json.
+name: Package smoke
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  MUSEFOLD_TVT_KEY: ""
+  NODE_VERSION: "24"
+
+jobs:
+  mac-package-smoke:
+    name: macOS package smoke
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache Electron artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'electron-builder.yml') }}
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements-test.txt
+
+      - name: Build macOS package
+        run: npm run package:mac
+
+      - name: Verify DMG
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          hdiutil verify "release/Musefold-${VERSION}-arm64.dmg"
+
+      - name: macOS signing evidence reminder (macosDeveloperIdNotarization)
+        run: npm run release:macos:signing
+
+      - name: macOS package smoke test
+        run: python -m pytest tests/package/macos_package_smoke.py -q
+
+  windows-package-smoke:
+    name: Windows package and runtime smoke
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache Electron artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'electron-builder.yml') }}
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Build Windows package
+        run: npm run package:win -- --arm64
+
+      - name: Windows package smoke test
+        run: python -m pytest tests/package/windows_package_smoke.py -q
+
+      - name: Build Windows host package for runtime smoke
+        run: npm run package:win -- --x64
+
+      - name: Windows installed-package runtime smoke
+        run: python -m pytest tests/package/windows_runtime_smoke.py -q
+
+      - name: Write Windows hosted runtime evidence
+        run: npm run release:windows:hosted -- --runtime-smoke-passed --out release/windows-hosted-runtime-evidence.json
+
+      - name: Upload Windows hosted runtime evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-hosted-runtime-evidence
+          path: release/windows-hosted-runtime-evidence.json
