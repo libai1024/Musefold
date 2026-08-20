@@ -419,6 +419,23 @@ module.exports = {
       },
     },
 
+    {
+      // V13-ENT-01：行模型是存储细节。renderer 业务代码（features/components/pages/stores/lib）
+      // 禁止直接 import desktop-contracts 行模型（models）；实体形状一律走 @musefold/contracts。
+      // 例外：runtime/mappers/（唯一转换点）、runtime gateway 实现、全部测试。
+      name: 'renderer-row-models-banned',
+      comment:
+        'V13-ENT-01：渲染层业务代码禁止 import desktop-contracts/models 行模型。存储行类型只属于 core/主进程/IPC 传输签名/mappers；UI 与 store 的实体形状一律用 @musefold/contracts 文档形状（+ desktop-extras 组合扩展）。存量违规在 known-violations baseline 只减不增。',
+      severity: 'error',
+      from: {
+        path: '^apps/desktop/src/(features|components|pages|stores|lib|pet|preview)/',
+        pathNot: ['/__tests__/', '/__mocks__/', '\\.(test|spec)\\.(ts|tsx)$'],
+      },
+      to: {
+        path: ['^packages/desktop-contracts/src/models', '^@musefold/desktop-contracts/models'],
+      },
+    },
+
     ...RENDERER_FEATURES.map((feature) => ({
       name: `renderer-features-isolated-${feature}`,
       comment:

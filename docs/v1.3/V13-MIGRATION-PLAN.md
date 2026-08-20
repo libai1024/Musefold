@@ -67,9 +67,9 @@
 
 ### 任务
 
-- `V13-ENT-01`：depcruise 新规则 `renderer-row-models-banned`：`apps/desktop/src/{features,components,pages,stores,lib}/**` 禁止 import `@musefold/desktop-contracts` 行模型（`models` 及 re-export 它的子路径）。例外：`runtime/mappers/**`、`runtime/desktop-gateway.ts`、`__tests__`。存量引用进 baseline。
+- `V13-ENT-01`：~~depcruise 新规则 `renderer-row-models-banned`：`apps/desktop/src/{features,components,pages,stores,lib}/**` 禁止 import `@musefold/desktop-contracts` 行模型（`models` 及 re-export 它的子路径）。例外：`runtime/mappers/**`、`runtime/desktop-gateway.ts`、`__tests__`。存量引用进 baseline。~~ **已完成（2026-08-21）**。作用域补齐 `pet/`、`preview/` 两个渲染层目录；实测存量 **26 条边**（37 个文件中扣除 mappers/runtime/测试豁免），进 baseline（总计 95 条）。行模型泄漏自此冻结，新增即 CI 红。
 
-  验证：探针（features/history import models）先红后绿。
+  验证：探针（onboarding store import models）先红（`renderer-row-models-banned` error）后绿；repo 测试 18 通过。✅
   回滚：revert 规则提交。
 
 - `V13-ENT-02`：history 域文档化。`DesktopExtras` history 面签名从 `HistoryRecord` 改为 `DesktopGenerationEntry = GenerationJob & { localImagePath?; costUnit; promptId? }`；`mappers/history.ts` 扩展承接 extras 面；`features/history/store.ts` 与 `HistoryDetail` 类型切换；`HistoryDetail` 随类型统一下沉 `product-ui/history/`（它本就跨 generation/workbench/library 三域）。行模型引用在本域清零（baseline 相应缩减）。
