@@ -4,7 +4,7 @@
 >
 > **日期**：2026-08-20
 >
-> **前置**：v1.2.1 发布门禁全部通过（Phase 1 起）；Phase 0 可与 v1.2.1 M4–M7 并行
+> **前置**：Phase 1a 须 v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（已于 2026-08-20 达成）；Phase 1b 须 v1.2.1 发布门禁全部通过，且 Phase 1a 稳定运行一周；Phase 0 可与 v1.2.1 M4–M7 并行
 >
 > **总原则**：每个任务卡独立合并、独立可回滚；纯移动提交与内容修改严格分离；不改变任何用户可见行为
 
@@ -21,8 +21,8 @@
 | 阶段 | 内容 | 开工条件 | 预期节奏 |
 |---|---|---|---|
 | Phase 0 工程化地基 | 依赖声明、zod v4、tooling/、depcruise、project references | 随时（纯仓库侧，与 v1.2.1 M4–M7 并行） | 每卡半天到一天 |
-| Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 发布门禁全部通过 | 集中 2–3 天完成 |
-| Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
+| Phase 1a 源码目录迁移 | `src/`、`electron/`、`shared/` 归位；别名与 CI 映射同步 | v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿（2026-08-20 已达成） | 集中 2–3 天完成 |
+| Phase 1b App manifest 下移 | 根 package.json 变纯 workspace root | v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周 | 集中 1–2 天 + freeze 窗口 |
 | Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | Phase 1 完成 | 按 feature 逐卡推进 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | 可与 Phase 2 交错 | 按卡推进 |
 
@@ -65,6 +65,12 @@ Phase 0 于 2026-08-20 全部完成。
 - **lint 棘轮剩余 8 条**：`tooling/eslint.config.base.mjs` 首批 8 条低违规规则已于 2026-08-20 清零并启用（详见 v1.2.1 交付计划 `V121-CI-08` 的收紧记录）。剩余 `@typescript-eslint/no-unused-vars` 57、`react-hooks/set-state-in-effect` 47、`@typescript-eslint/no-explicit-any` 41、`@typescript-eslint/no-require-imports` 18、`react-hooks/exhaustive-deps` 12、`react-hooks/refs` 5、`react-hooks/immutability` 2、`react-hooks/incompatible-library` 2。其中 react-hooks 系列（合计 56 处）集中在渲染层，宜与 Phase 2 的 stores 切换同批处理，避免同一文件反复改动。`linterOptions.reportUnusedDisableDirectives` 仍为 `off`，其 6 处未使用指令中 5 处属 `exhaustive-deps`，须与该规则同批启用。
 
 ## 3. Phase 1：目录重构
+
+**2026-08-20 修订**：Phase 1a（仅移动桌面目录：`src/`、`electron/`、`shared/`）的开工门禁由「v1.2.1 发布门禁全部通过」改为「v1.2.1 仓库侧里程碑（M1、M4、M5、M7）完成且桌面回归安全网全绿」，该条件已于 2026-08-20 达成。Phase 1b 维持原门禁（v1.2.1 发布门禁全部通过 + Phase 1a 稳定运行一周）。
+
+1. [v1.2.1 交付原则 7](../v1.2.1/V121-DELIVERY-PLAN.md) 的目的是「迁移依赖 affected 流水线、自动部署与回滚作为回归安全网」。保护**桌面目录迁移**的安全网是：affected 流水线与 Turborepo 缓存（M1，已交付）、全仓 typecheck/test/build/lint/boundaries（Phase 0，已交付）、桌面 E2E 222 例与打包冒烟（M5 期间扩充，含 macOS 真包验证）——全部就绪且在用。
+2. v1.2.1 发布门禁中尚未达成的项全部是外部条件：对象存储与 CDN 采购（CHAN-07）、生产服务器的部署身份与自托管 runner（M0/M2/M3）、签名证书（M6）。Phase 1a 只移动桌面代码，不触碰服务部署面、不触碰发布链路语义（层级路径映射仍是单点定义，DIR-04 专卡处理）；这些外部项无论完成与否都不构成对桌面迁移的回归保护，让目录迁移无限期等待采购只产生停滞。
+3. 风险边界不变：Phase 1b 要动 `electron-builder.yml`、`infra/v1.1/Dockerfile` 与发布脚本（DIR-06/07/08），才真正依赖发布链路与服务器侧验证能力，因此 1b 门禁原样保留。1a 的回滚方式仍是 revert 单个迁移提交。
 
 ### Phase 1a：源码目录迁移（根 package.json 暂不动）
 
