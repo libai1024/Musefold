@@ -106,7 +106,22 @@ jobs:
 
       - name: Prove Electron binary
         run: |
-          python -c "from pathlib import Path; import os,sys; p=Path('node_modules/electron/dist')/('electron.exe' if os.name=='nt' else 'electron'); print(p.resolve()); sys.exit(0 if p.is_file() else 1)"
+          python -c "
+          from pathlib import Path
+          import os, sys
+          dist = Path('node_modules/electron/dist')
+          print('dist', dist, 'exists', dist.exists())
+          if dist.exists():
+              print('dist listing', sorted(p.name for p in dist.iterdir())[:30])
+          cands = [dist / ('electron.exe' if os.name == 'nt' else 'electron'), Path('node_modules/.bin/electron')]
+          if os.name != 'nt':
+              cands.append(Path('node_modules/.bin/electron.cmd'))
+          for path in cands:
+              print('candidate', path, 'is_file', path.is_file())
+              if path.is_file():
+                  sys.exit(0)
+          sys.exit(1)
+          "
 
       - name: Full Electron E2E
         if: runner.os == 'Linux'

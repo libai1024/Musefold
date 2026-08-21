@@ -48,6 +48,7 @@ def electron_executable() -> Path:
         candidates = [
             REPO / "node_modules" / "electron" / "dist" / "electron",
             REPO / "node_modules" / ".bin" / "electron",
+            REPO / "apps" / "desktop" / "node_modules" / "electron" / "dist" / "electron",
         ]
     for candidate in candidates:
         if candidate.is_file():
