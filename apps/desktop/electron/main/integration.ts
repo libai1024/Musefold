@@ -199,7 +199,7 @@ function bundledSkillFiles(): Map<string, string> {
     if (!existsSync(path)) throw new Error(`Musefold Skill 内置文件缺失：${relativePath}`);
     files.set(relativePath, readFileSync(path, 'utf8'));
   }
-  validateMusefoldSkill(files.get('SKILL.md')!);
+  files.set('SKILL.md', validateMusefoldSkill(files.get('SKILL.md')!));
   return files;
 }
 

@@ -168,8 +168,13 @@ jobs:
           python <<'PY'
           from pathlib import Path
           log = Path('e2e.log')
-          text = log.read_text(encoding='utf-8', errors='replace')[-2500:] if log.exists() else 'e2e.log missing'
-          escaped = text.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
+          text = log.read_text(encoding='utf-8', errors='replace') if log.exists() else 'e2e.log missing'
+          lines = [
+              line for line in text.splitlines()
+              if line.startswith(('FAILED ', 'ERROR ', '=')) or ' passed,' in line
+          ]
+          summary = '\n'.join(lines[-40:] if lines else text[-2000:].splitlines())
+          escaped = summary.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
           print(f'::error title=Electron E2E::{escaped}')
           PY
 

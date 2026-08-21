@@ -25,20 +25,7 @@ def write(data: bytes | str) -> None:
             check=True,
         )
         return
-    text = payload.decode("utf-8")
-    subprocess.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "$t = [Console]::In.ReadToEnd(); Set-Clipboard -Value $t",
-        ],
-        input=text,
-        text=True,
-        encoding="utf-8",
-        check=True,
-    )
+    _write_windows(payload.decode("utf-8"))
 
 
 def read() -> bytes:
@@ -52,19 +39,51 @@ def read() -> bytes:
             check=False,
         )
         return result.stdout
-    result = subprocess.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Get-Clipboard -Raw",
-        ],
-        capture_output=True,
-        check=False,
-        encoding="utf-8",
-    )
-    return (result.stdout or "").encode("utf-8")
+    return _read_windows().encode("utf-8")
+
+
+def _write_windows(text: str) -> None:
+    import ctypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    GMEM_MOVEABLE = 0x0002
+    CF_UNICODETEXT = 13
+    data = text.encode("utf-16-le") + b"\x00\x00"
+    if not user32.OpenClipboard(None):
+        raise OSError("OpenClipboard failed")
+    try:
+        user32.EmptyClipboard()
+        handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        locked = kernel32.GlobalLock(handle)
+        ctypes.memmove(locked, data, len(data))
+        kernel32.GlobalUnlock(handle)
+        if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+            kernel32.GlobalFree(handle)
+            raise OSError("SetClipboardData failed")
+    finally:
+        user32.CloseClipboard()
+
+
+def _read_windows() -> str:
+    import ctypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    CF_UNICODETEXT = 13
+    if not user32.OpenClipboard(None):
+        return ""
+    try:
+        handle = user32.GetClipboardData(CF_UNICODETEXT)
+        if not handle:
+            return ""
+        locked = kernel32.GlobalLock(handle)
+        try:
+            return ctypes.wstring_at(locked)
+        finally:
+            kernel32.GlobalUnlock(handle)
+    finally:
+        user32.CloseClipboard()
 
 
 def main() -> None:

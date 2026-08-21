@@ -38,23 +38,38 @@ REPO = Path(__file__).resolve().parents[2]
 MAIN = REPO / "apps" / "desktop" / "out" / "main" / "index.js"
 
 
+_ELECTRON_PATH: Path | None = None
+
+
 def electron_executable() -> Path:
     """Resolve the real Electron binary the same way Node does (`require('electron')`)."""
+    global _ELECTRON_PATH
     override = os.environ.get("ELECTRON_BIN")
     if override:
         path = Path(override)
         if path.is_file():
             return path
         raise FileNotFoundError(f"ELECTRON_BIN is not a file: {path}")
-    raw = subprocess.check_output(
-        ["node", "-e", "process.stdout.write(require('electron'))"],
-        cwd=str(REPO),
-        text=True,
-    ).strip()
-    path = Path(raw)
-    if path.is_file():
-        return path
-    raise FileNotFoundError(f"Electron binary missing at {path} (from require('electron'))")
+    if _ELECTRON_PATH is not None and _ELECTRON_PATH.is_file():
+        return _ELECTRON_PATH
+    deadline = time.time() + 90
+    last_raw = ""
+    while time.time() < deadline:
+        last_raw = subprocess.check_output(
+            ["node", "-e", "process.stdout.write(require('electron'))"],
+            cwd=str(REPO),
+            text=True,
+            stderr=subprocess.STDOUT,
+        )
+        lines = [line.strip() for line in last_raw.splitlines() if line.strip()]
+        candidate = Path(lines[-1]) if lines else Path()
+        if candidate.is_file():
+            _ELECTRON_PATH = candidate
+            return candidate
+        time.sleep(0.4)
+    raise FileNotFoundError(
+        f"Electron binary missing after require('electron'): {last_raw[-500:]!r}"
+    )
 
 
 ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear error
