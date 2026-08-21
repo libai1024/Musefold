@@ -87,4 +87,4 @@ v1.2.2 之后，包级结构（DAG、六端口 gateway、机器边界）已经�
 
 ### 遗留
 
-最大的一条：**图库与历史页仍是双端各写一套**——工作台已经双端共享，这两个页面没跟上，ORCH 卡下沉的是 controller，视图组合没下沉。其余包括 ENT-B（SQLite schema 迁移）、Web 手写 CSS 与桌面 Tailwind 未统一、`max-lines` 尾部 12 条（表单库那条已于同日裁定：不引入，沉 `useDraftForm`）。完整清单与各自的触发条件见[迁移计划 §8](./V13-MIGRATION-PLAN.md)。
+经逐文件复核，图库与历史两端已在 screen + controller 层共享，剩下的差异是**桌面独有能力**（回收站彻底删除、历史筛选栏、成本看板、虚拟化）而非重复实现——补齐是产品决定，不是架构欠账。真正的遗留是 ENT-B（SQLite schema 迁移）、Web 手写 CSS 与桌面 Tailwind 未统一、`max-lines` 尾部 12 条；表单库那条已于同日裁定（不引入，沉 `useDraftForm`）。完整清单与各自的触发条件见[迁移计划 §8](./V13-MIGRATION-PLAN.md)。
