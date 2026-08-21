@@ -45,7 +45,7 @@ npm run clean:artifacts -- --build
 
 - [文档总入口](docs/README.md)
 - [Musefold Agent Skills](https://github.com/libai1024/Musefold-Skills)
-- [v1.3 双端收敛](docs/v1.3/README.md)
+- [v1.3 双端收敛](docs/v1.3/README.md)（当前渲染层分层基线）
 - [v1.2.2 系统架构重构](docs/v1.2.2/README.md)
 - [v1.2.1 CI/CD 与持续交付](docs/v1.2.1/README.md)
 - [v1.1 Web 架构与开发文档](docs/v1.1/V11-WEB-ARCHITECTURE.md)

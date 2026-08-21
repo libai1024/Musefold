@@ -104,7 +104,7 @@ pnpm 的三项收益与对价：
 | pnpm / Yarn | 见 D4 | 包数量显著增长或安装时间成为瓶颈，且处于无大变更窗口 |
 | Nx | 边界能力被 depcruise 覆盖，其余为净增复杂度 | 需要分布式 CI 执行时 |
 | React 19 / React Compiler | 无痛点对应收益，保护 product-ui 稳定 | 依赖生态强制或出现明确渲染性能痛点 |
-| 实体统一（Prompt/History 单一模型） | 数据层改造，前置条件未满足 | 云同步真实多设备稳定运行后（v1.3+） |
+| 实体统一（Prompt/History 单一模型） | 数据层改造，前置条件未满足 | 渲染层部分已由 v1.3 ENT-01~04 完成；数据层（SQLite schema）仍待云同步真实多设备稳定运行后再评估 |
 | micro-frontend / module federation | 单团队单产品，无独立部署诉求 | — |
 
 ## 11. 相关文档

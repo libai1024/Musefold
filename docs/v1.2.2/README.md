@@ -29,7 +29,7 @@ v1.1 已经完成双端复用最难的一半：`packages/ui` + `packages/product
 | 属于 v1.2.2 | 不属于 v1.2.2 |
 |---|---|
 | 桌面 App 迁入 `apps/desktop`，根目录只留 workspace 配置 | 更换桌面壳（Tauri）、后端框架、前端框架 |
-| `shared/` 解散：类型进 `packages/desktop-contracts`，逻辑归位 domain/core | Prompt/History 实体的数据层统一（v1.3+ 候选） |
+| `shared/` 解散：类型进 `packages/desktop-contracts`，逻辑归位 domain/core | Prompt/History 实体的数据层统一（v1.3+ 候选；渲染层部分已由 v1.3 ENT 卡完成，SQLite 行模型本身仍未动） |
 | domain 端口补全 + `DesktopGateway`，stores 与组件不再直连 IPC | 切换包管理器到 pnpm（评估后冻结 npm，见技术决策 D4） |
 | dependency-cruiser 分层规则、依赖声明补全、zod v4 统一 | 新增产品功能、改变任何用户可见行为 |
 | TypeScript project references，`tsc -b` 单入口 typecheck | Web 端补注册/兑换 UI 等产品缺口（属产品版本） |
@@ -45,7 +45,9 @@ v1.1 已经完成双端复用最难的一半：`packages/ui` + `packages/product
 | Phase 2 桌面 Gateway | domain 端口做全、`DesktopGateway`、stores 逐个切换 | **已完成（2026-08-20）**：GW-01~09 + WebGateway/settings 补卡 + renderer 宿主 IO 收口 |
 | Phase 3 共享逻辑归位 | 纯函数、UI 原语、客户端去重、工作台 store 拆分 | **已完成（2026-08-20）**：SHARE-01~06 |
 
-Prompt/History 实体统一与宿主编排进一步收敛列为 v1.3+ 候选，理由见[架构文档第 5 节](./V122-ARCHITECTURE.md)。
+Prompt/History 实体统一与宿主编排进一步收敛当时列为 v1.3+ 候选，理由见[架构文档第 5 节](./V122-ARCHITECTURE.md)。
+
+> **v1.3 接棒（2026-08-21）**：这两项已由 [docs/v1.3](../v1.3/README.md) 实施完毕——渲染层实体形状统一到 `@musefold/contracts` 文档形状（ENT-01~04），服务端状态迁入 TanStack Query（STATE-01~03），页面编排下沉 product-ui 双端共用（ORCH-01~04），feature 互导清零（REUSE-01~03）。渲染层的实体、状态、编排与跨 feature 依赖规则以 v1.3 为准；本文档的相关论证保留为历史依据。
 
 ## 已知风险
 

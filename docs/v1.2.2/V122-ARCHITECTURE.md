@@ -253,6 +253,8 @@ SQLite 行模型与云文档模型的差异不是命名问题，是语义问题�
 2. **新功能以 contracts 为准**。任何新增实体或字段先进 `packages/contracts`，桌面侧如需本地持久化再在 `desktop-contracts` 建行模型并写 mapper；禁止再往 `desktop-contracts` 加与云语义重复但形状不同的新类型。
 3. **实体统一列为 v1.3+ 候选**。前置条件：云同步（v1.1 M4）在真实多设备环境稳定运行、`prompts` 表具备版本列迁移方案。届时统一的方向是 SQLite 行模型向 `PromptDocument` 靠拢，而不是相反。
 
+> **v1.3 接棒（2026-08-21）**：v1.3 ENT-01~04 已把**渲染层与 `DesktopExtras` 签名**统一到 contracts 文档形状，行模型退回存储细节（depcruise `renderer-row-models-banned` 强制，baseline 为 0）。仍未做的是数据层本身——SQLite schema 与 `prompts` 版本列迁移不在 v1.3 范围（ENT-B 明确排除），本节前置条件对那一步继续有效。
+
 ## 6. `shared/` 的去向
 
 Phase 1a DIR-02（2026-08-20，fcd614f）已按 import 图执行完毕。下表为实际归位，相对原预估的差异见裁定栏。

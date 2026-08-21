@@ -59,7 +59,13 @@ apps/desktop/src/features/<name>/
 
 规则：
 
-- **feature 同层不互导**（depcruise `renderer-features-isolated`，v1.3）：`features/<a>` 禁止 import `features/<b>`。跨域共享物下沉 product-ui / domain；业务不可分时合并 feature。
+- **feature 同层不互导**（depcruise `renderer-features-isolated`，v1.3；baseline 为 0，新增即红）：`features/<a>` 禁止 import `features/<b>`。跨域需求按性质选通道，优先级从上到下（详见 [v1.3 架构 §6.6](../v1.3/V13-ARCHITECTURE.md)）：
+
+  1. 纯函数/常量 → 下沉 `apps/desktop/src/lib/`（或 domain / contracts / product-ui）；
+  2. 跨域**写**副作用（A 域动作要求 B 域刷新）→ `runtime/*-side-effects.ts`，A 域不认识 B 域；
+  3. 跨域**读**（要用兄弟域的 store/UI）→ `runtime/*-access.ts` 单一入口。
+
+  业务确实不可分时才合并 feature。
 - **页面组件是薄挂载**：`apps/desktop/src/pages/*.tsx` 与 `apps/web/src/views/*.tsx` 只做路由挂载与平台差异，编排逻辑调 product-ui page-controller。
 - **文件尺寸**：`max-lines-per-file` warn 600 / error 1200，baseline 只减不增（v1.3 GOV-01）。
 - **测试就地放置**：`__tests__/` 与被测文件同目录；命名 `*.test.ts(x)`（不用 `.spec`）。
@@ -209,7 +215,7 @@ apps/web           ← contracts/domain/ui/product-ui/cloud-client；禁 desktop
 6. **测试**：mapper 单测 → controller 单测 → 双端 E2E 用例 → 视觉门禁。
 7. **提交**：`feat(library): add tag filter (Skill-Impact: none)`。
 
-v1.3 完成后，第 4–5 步双端只写一份。
+第 4–5 步双端只写一份（v1.3 已完成）。
 
 ## 9. 禁止事项速查（红线）
 

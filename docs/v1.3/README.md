@@ -2,7 +2,7 @@
 
 v1.3 是双端收敛版本。它不新增产品功能，交付的是：实体形状统一（contracts 成为唯一暴露给 UI 的实体形状）、状态分层（TanStack Query 接管服务端数据）、宿主编排收敛（页面编排 hook 下沉 product-ui）、巨型文件拆分与边界治理——目标是把「双端各写一套」的维护模式收敛为「一条变更路径」，降低双端开发难度与长期维护成本。
 
-**当前进度（2026-08-21）**：Phase 0~3 全部任务卡（GOV/ENT/STATE/ORCH/SPLIT/REUSE）已完成；边界 baseline 归零，进入发布门禁复核与收尾。
+**当前进度（2026-08-21）**：Phase 0~3 全部任务卡（GOV/ENT/STATE/ORCH/SPLIT/REUSE）已完成，24 个提交，全部门禁绿；交付数据与经验见文末[交付总结](#交付总结2026-08-21)。
 
 ## 文档
 
@@ -49,3 +49,44 @@ v1.2.2 之后，包级结构（DAG、六端口 gateway、机器边界）已经�
 | 编排 hook 下沉后 product-ui 依赖面扩大 | 只增 `@tanstack/react-query` 一个外部依赖；depcruise 规则同步收紧其余禁令；host-boundary 测试双端各留断言 |
 | 工作台拆分引入行为回归（2,932 行、72 处 store fan-in） | 按内联组件边界机械拆文件为第一步（零逻辑变更）；store 切片与 fan-in 收敛随后分卡；每卡 E2E + 视觉门禁 |
 | `max-lines` 棘轮与日常开发冲突 | baseline 只登记存量超标文件，新文件即受约束；存量清单随 SPLIT 卡消化，不要求日常开发顺手拆 |
+
+风险实际发生情况：Query 时序抖动出现过（history/settings 若干 E2E 断言依赖旧刷新时机），按「改断言查 DOM、不把字段镜像回 store」处理；工作台拆分未出现行为回归（机械拆分 + 视觉门禁）；棘轮与日常开发未起冲突。
+
+## 交付总结（2026-08-21）
+
+### 数字
+
+| 指标 | v1.3 前 | 现在 |
+|---|---|---|
+| feature 互导边（depcruise baseline） | 69 | **0**（known-violations 为空文件） |
+| 渲染层 `desktop-contracts/models` import | 存量泄漏 | **0**（规则 error） |
+| `max-lines` baseline 条目 | 23 | **12**，其中 `apps/desktop/src` **0** |
+| Web `App.tsx` | 1,201 行 | 258 行 |
+| `workbench/store.ts` | 1,932 行 | 99 行（切片 facade） |
+| `GenerationWorkbench.tsx` | 2,932 行 | 43 行（装配壳） |
+| 双端共同消费的 product-ui 导出 | 未度量 | 64 个（棘轮化） |
+| `npm run lint` | 78 error（未进门禁） | 0，已进 `check` |
+| 门禁 | typecheck/test/build | + lint、+ 3 类回潮守卫测试 |
+
+用户可见行为：无变更（全程以桌面 E2E 222 项、Web E2E 19 项、共享视觉门禁为准绳）。
+
+### 有效的做法
+
+1. **先立机器约束，再改代码**。GOV 卡先把规则和 baseline 落地（`renderer-features-isolated`、`max-lines` 棘轮、行模型禁令），后续每张卡只需把 baseline 往下压。人类共识（v1.2.2 已点名巨型文件）在 v1.3 前反而继续增长，机器棘轮上线后再没反弹。
+2. **baseline 归零而不是删机制**。空的 known-violations 文件仍在门禁链路里，一眼能看出「当前冻结了几条」；配合 `tests/repo/boundary-baselines.test.ts` 禁止两类规则重新进 baseline，比删掉规则文件更抗回潮。
+3. **消除耦合先看模块性质**。纯函数下沉、写副作用外移、读入口收口，三条通道优先级从高到低（架构 §6.6）。只有第三条是「把边搬个位置」。
+4. **过程度量要能被 CI 读出来**。「复用频率」落成 `product-ui-dual-host-reuse.test.ts` 的共享符号计数（当前 64，只增不减），比在文档里写「已复用」有约束力。
+5. **E2E 断言查 DOM，不查被迁走的 store 字段**。STATE/SPLIT 把状态挪进 Query 后，几处读 store 的断言静默失效；一律改查渲染结果，既修好又更贴近意图。
+
+### 踩过的坑
+
+1. **只跑相关 E2E 子集会漏**。REUSE-03 跑全量才发现 `test_28` 自 SPLIT-03 起就失效。**收口卡必须跑全量**，中间卡跑子集要明确记录「未跑全量」。
+2. **拆分留下的死代码不会自己消失**。SPLIT-01/02 之后积累 78 个 `no-unused-vars`（一处 57 个死解构），因为 `lint` 当时不在 `check` 里。拆分卡应当当场清理，或先把 lint 纳入门禁。
+3. **陈旧的门禁脚本会静默失真**。`check-shared-ui-boundaries.mjs` 曾指向 SPLIT-01 已改名的文件，规则形同虚设。移动文件时要同步 grep 所有门禁脚本与守卫测试里的硬编码路径——`file-size-ratchet` 现在会校验 ESLint 静音清单与 baseline 键集一致，就是为堵这类漂移。
+4. **CSS 媒体查询与 React state 不同步**。同一断点，遮罩用 CSS 类随视口同步翻转，`role` 要等 `matchMedia` 回调加一次渲染。E2E 里跨这两者的断言必须轮询。
+
+### 遗留
+
+- **ENT-B（SQLite schema 与 `prompts` 版本列迁移）未做**，触发条件仍以 v1.2.2 架构 §5 为准。
+- **`max-lines` 尾部 12 条**全在主进程与 packages（`core/sync/repository` 1,421 行最大），随各自领域卡消化。
+- **`desktop-gateway` 等 runtime 组装层**未做进一步拆分，当前均在阈值内。
