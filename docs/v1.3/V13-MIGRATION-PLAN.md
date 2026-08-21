@@ -305,7 +305,18 @@
 | 棘轮与日常开发冲突 | baseline 只登记存量，新文件才受 error 约束 | 规则提交独立 revert |
 | design-schemes/generation 裁定合并造成目录大迁移 | REUSE-01 先裁定后动手；合并是最后选项 | 纯移动提交可 revert |
 
-## 8. 相关文档
+## 8. v1.4+ 候选（不在本版本门禁内）
+
+v1.3 收官时的实测遗留，按「双端还要写两遍」的程度排序。列在这里不等于承诺做，每项都注明触发条件——没有触发条件的条目不该开卡。
+
+1. **图库与历史页仍是双端各写一套**（最大遗留）。`apps/web/src/views/PromptLibraryView.tsx`(453) 与 `apps/desktop/src/pages/LibraryPage.tsx`(460)、`HistoryView.tsx`(523) 与 `HistoryPage.tsx`(142) 各自实现列表、筛选、详情与批量操作；工作台已双端共享，这两个页面没跟上（桌面还多一层 `@tanstack/react-virtual` 虚拟化，Web 无）。ORCH 卡下沉的是 controller，**视图组合没下沉**。触发条件：这两个页面下次出现「双端都要改」的需求时，先把视图组合上提 product-ui 再改，不要再平行修一遍。
+2. **页面薄挂载只做到编排层，没做到视图层**。规范说 `pages/*.tsx` 与 `views/*.tsx` 只做路由挂载与平台差异，实际上述四个文件仍有 142~523 行。它们都在 600 行棘轮之下，**机器约束够不着**——这正是第 1 条的症状，不必单独立卡。
+3. **RHF + Zod 零采用**。`react-hook-form@7.83` 装在 `apps/desktop`，全仓 `useForm` 出现 **0 次**，8 个对话框/表单组件仍是手写 `useState`。开发规范写着「新表单一律 RHF+Zod」，与现实不符。触发条件：要么下一个新表单真的按规范写并沉一份范式出来，要么把规范改成「手写 useState + zod 校验」——**当前状态是规范说谎，两条路选一条**。
+4. **Web 手写 CSS 1,228 行 vs 桌面 Tailwind v4**。样式体系双端不统一（开发规范已标「v1.3 待统一」）。共享视觉门禁目前靠像素比对兜住结果，没有约束手段。触发条件：Web 端下次大改样式，或视觉门禁开始频繁因样式漂移误报。
+5. **ENT-B：SQLite schema 与 `prompts` 版本列迁移**。前置条件仍以 [v1.2.2 架构 §5](../v1.2.2/V122-ARCHITECTURE.md) 为准（云同步在真实多设备环境稳定运行）。v1.3 只做了类型暴露面。
+6. **`max-lines` 尾部 12 条**，全在主进程与 packages：`core/sync/repository.ts`(1,421)、`web-api/modules/prompts/service.ts`(1,121)、`electron/doubao-web/browser-service.ts`(1,107)、`ui/extended-primitives.tsx`(1,055) 领先。触发条件：改到哪个拆哪个，不要为拆而拆——棘轮保证它们只会变小。
+
+## 9. 相关文档
 
 - [系统架构](./V13-ARCHITECTURE.md)
 - [技术选型与决策](./V13-TECHNOLOGY-DECISIONS.md)
