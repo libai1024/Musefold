@@ -1,10 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const source = readFileSync(
-  new URL("../components/AccountSection.tsx", import.meta.url),
-  "utf8",
-);
+const source = [
+  readFileSync(
+    new URL("../components/AccountSection.tsx", import.meta.url),
+    "utf8",
+  ),
+  readFileSync(
+    new URL("../components/AccountCloudSyncPanel.tsx", import.meta.url),
+    "utf8",
+  ),
+].join("\n");
 const connectionsSource = readFileSync(
   new URL("../components/ConnectedAppsSection.tsx", import.meta.url),
   "utf8",

@@ -524,7 +524,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/onboarding/OnboardingFlow.tsx",
+    "from": "apps/desktop/src/features/onboarding/onboardingCrossFeature.ts",
     "to": "apps/desktop/src/features/account/doubao-store.ts",
     "unresolvedTo": "../account/doubao-store",
     "dependencyTypes": [
@@ -538,7 +538,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/onboarding/OnboardingFlow.tsx",
+    "from": "apps/desktop/src/features/onboarding/onboardingCrossFeature.ts",
     "to": "apps/desktop/src/features/generation/components/ValidationResultBanner.tsx",
     "unresolvedTo": "../generation/components/ValidationResultBanner",
     "dependencyTypes": [
@@ -552,7 +552,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/onboarding/OnboardingFlow.tsx",
+    "from": "apps/desktop/src/features/onboarding/onboardingCrossFeature.ts",
     "to": "apps/desktop/src/features/generation/store.ts",
     "unresolvedTo": "../generation/store",
     "dependencyTypes": [
@@ -692,9 +692,9 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/settings/components/AccountSection.tsx",
+    "from": "apps/desktop/src/features/settings/accountCrossFeature.ts",
     "to": "apps/desktop/src/features/account/store.ts",
-    "unresolvedTo": "../../account/store",
+    "unresolvedTo": "../account/store",
     "dependencyTypes": [
       "local",
       "import"

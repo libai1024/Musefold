@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~03 已落地；SPLIT-04 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~04 已落地；REUSE-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -233,7 +233,7 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 
 ### 6.3 其余巨型文件
 
-`SchemeRuntimeDetail.tsx`（1,131 行，design-schemes 桌面独有）按详情段落拆组件；`OnboardingFlow.tsx`（886 行）按步骤拆；`AccountSection.tsx`（855 行）拆 section 子组件并复用 product-ui account 面。主进程 `browser-service.ts`、`skill-runtime.ts` 等不属渲染层拆分范围，仅受 `max-lines` 棘轮约束渐进消化。
+`SchemeRuntimeDetail.tsx`、`OnboardingFlow.tsx`、`AccountSection.tsx` 已在 SPLIT-04 拆到 ≤600 并退出棘轮。主进程 `browser-service.ts`、`skill-runtime.ts` 等不属渲染层拆分范围，仅受 `max-lines` 棘轮约束渐进消化。
 
 ### 6.4 复用增强（REUSE）
 

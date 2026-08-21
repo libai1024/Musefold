@@ -7,7 +7,10 @@ const settings = readFileSync('apps/desktop/src/features/settings/components/Set
 const access = readFileSync('apps/desktop/src/features/settings/components/AccessModeSection.tsx', 'utf8');
 const transitions = readFileSync('apps/desktop/src/features/settings/components/AccessTransitions.tsx', 'utf8');
 const doubao = readFileSync('apps/desktop/src/features/settings/components/DoubaoSection.tsx', 'utf8');
-const account = readFileSync('apps/desktop/src/features/settings/components/AccountSection.tsx', 'utf8');
+const account = [
+  readFileSync('apps/desktop/src/features/settings/components/AccountSection.tsx', 'utf8'),
+  readFileSync('apps/desktop/src/features/settings/components/AccountSignedInPanel.tsx', 'utf8'),
+].join('\n');
 const providers = readFileSync('apps/desktop/src/features/settings/components/ProvidersSection.tsx', 'utf8');
 const agentConnections = readFileSync('apps/desktop/src/features/settings/components/AiConnectionsSection.tsx', 'utf8');
 const accountSwitch = readFileSync('apps/desktop/src/features/settings/account-source-switch.ts', 'utf8');

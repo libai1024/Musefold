@@ -35,6 +35,7 @@ const visibleUi = [
   'apps/desktop/src/index.html',
   'apps/desktop/src/components/layout/Sidebar.tsx',
   'apps/desktop/src/features/onboarding/OnboardingFlow.tsx',
+  'apps/desktop/src/features/onboarding/OnboardingStepWelcome.tsx',
   'apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx',
   'apps/desktop/src/features/design-schemes/DesignSchemesPage.tsx',
 ].map((path) => readFileSync(path, 'utf8')).join('\n');

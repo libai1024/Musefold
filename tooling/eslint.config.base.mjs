@@ -140,16 +140,10 @@ export default tseslint.config(
     // V13-GOV-01 baseline：存量超标文件由 repo 守卫棘轮管辖（tooling/file-size-baseline.json），
     // 此处静音避免噪音。清单只减不增，消化完成（SPLIT 卡）后此块整体删除。
     files: [
-      'apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx',
-      'apps/desktop/src/features/generation/workbench/store.ts',
       'packages/core/src/sync/repository.ts',
-      'apps/web/src/App.tsx',
       'apps/web-api/src/modules/prompts/service.ts',
-      'apps/desktop/src/features/design-schemes/SchemeRuntimeDetail.tsx',
       'apps/desktop/electron/doubao-web/browser-service.ts',
       'packages/ui/src/extended-primitives.tsx',
-      'apps/desktop/src/features/onboarding/OnboardingFlow.tsx',
-      'apps/desktop/src/features/settings/components/AccountSection.tsx',
       'apps/desktop/electron/main/ipc/skill-runtime.ts',
       'apps/web-api/src/modules/generation/service.ts',
       'apps/desktop/electron/main/skill-import/github-reader.ts',

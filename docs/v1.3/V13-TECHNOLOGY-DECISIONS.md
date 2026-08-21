@@ -67,7 +67,7 @@ v1.2.2 D3 描述 Web 状态为「gateway + query cache」，实际全仓（deskt
 
 ## 6. D5 文件尺寸治理：棘轮而非口号
 
-`GenerationWorkbench.tsx` 自 v1.2.2 文档标记（2,942 行）后仍继续增长至 2,932+ 行（含 14 个内联组件），证明缺乏机器约束的尺寸共识不成立。同类：`workbench/store.ts` 1,932 行、`SchemeRuntimeDetail.tsx` 1,131 行、`OnboardingFlow.tsx` 886 行、`AccountSection.tsx` 855 行；主进程侧 `browser-service.ts` 1,107 行、`preload/index.ts` 616 行。
+`GenerationWorkbench.tsx` 自 v1.2.2 文档标记（2,942 行）后仍继续增长至 2,932+ 行（含 14 个内联组件），证明缺乏机器约束的尺寸共识不成立。同类曾超标：`workbench/store.ts` 1,932 行、`SchemeRuntimeDetail.tsx` 1,131 行、`OnboardingFlow.tsx` 886 行、`AccountSection.tsx` 855 行；主进程侧 `browser-service.ts` 1,107 行、`preload/index.ts` 616 行。SPLIT-01~04 已把上述渲染层文件拆到 ≤600 并退出棘轮；主进程文件仍受棘轮约束。
 
 **结论**：ESLint `max-lines-per-file`（初始 warn 600 行 / error 1,200 行，作用于全部 `src/` 生产代码）上线时以 baseline 文件冻结存量超标清单，只减不增；SPLIT 任务卡逐个消化清单，清单清空后 error 阈值分步下调至 800。阈值依据：存量分布中 600 行以上文件仅 ~15 个（约 3%），说明 600 是该仓库的真实工作粒度而非激进值。
 

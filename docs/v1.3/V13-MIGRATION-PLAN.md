@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~03 已完成；SPLIT-04 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~04 已完成；REUSE-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -234,7 +234,12 @@
   验证：工作台 E2E 全量；`check:boundaries`。
   回滚：单卡 revert。
 
-- `V13-SPLIT-04`：其余巨型文件：`SchemeRuntimeDetail.tsx` 按详情段落拆组件；`OnboardingFlow.tsx` 按步骤拆；`AccountSection.tsx` 拆 section 子组件并复用 product-ui account 面；`max-lines` baseline 相应缩减。
+- `V13-SPLIT-04`：~~其余巨型文件：`SchemeRuntimeDetail.tsx` 按详情段落拆组件；`OnboardingFlow.tsx` 按步骤拆；`AccountSection.tsx` 拆 section 子组件并复用 product-ui account 面；`max-lines` baseline 相应缩减。~~ **已完成（2026-08-21）**。方案详情拆 album/dialogs/menu/sections；引导按步骤拆；账号拆 signed-in/out + 云同步面板，继续用 `AccountSummaryPanel`。三文件退出尺寸棘轮（1131/886/855 → 368/59/270）。跨 feature 导入经 `onboardingCrossFeature.ts` / `accountCrossFeature.ts`，互导 67 边数不变。
+
+  **裁定**：
+  1. **不换 `AccountScreen`**。设置页是 `SectionShell` 内联排版，全页面 `AccountScreen` 会改像素。
+  2. **拆文件不复制互导边**。跨域 import 集中到 feature 桥接文件，known-violations 只改 from 路径。
+  3. **本卡不上提 product-ui 新 widget**。方案详情与引导仍绑桌面 IPC/store。
 
   验证：对应域 E2E；视觉门禁。
   回滚：按文件分卡 revert。
