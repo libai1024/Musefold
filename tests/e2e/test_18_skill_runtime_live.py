@@ -22,10 +22,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_IMAGE = REPO_ROOT / "generated/v31-skill-research/source-landscape.jpg"
 EVIDENCE_DIR = REPO_ROOT / "generated/v032-real-skill-ui"
 
-pytestmark = pytest.mark.skipif(
-    not TEXT_KEY or not IMAGE_KEY or os.environ.get("MUSEFOLD_E2E_REAL_GITHUB") != "1",
-    reason="需要真实 GitHub 与文本/图片 API 临时凭证",
-)
+pytestmark = [
+    pytest.mark.gui,
+    pytest.mark.skipif(
+        not TEXT_KEY or not IMAGE_KEY or os.environ.get("MUSEFOLD_E2E_REAL_GITHUB") != "1",
+        reason="需要真实 GitHub 与文本/图片 API 临时凭证",
+    ),
+]
 
 
 def test_skill_runtime_agent_trace_to_image(app):

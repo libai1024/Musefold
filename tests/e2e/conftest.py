@@ -77,24 +77,29 @@ ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear err
 
 @pytest.fixture(scope="session", autouse=True)
 def _clipboard_shims():
-    """Windows CreateProcess does not find `pbcopy.cmd`. Route the macOS names to the OS clipboard."""
+    """Route the macOS pbcopy/pbpaste call sites to host_clipboard off macOS.
+
+    Tests read as if they were on a developer machine; only the backing tool
+    changes per platform (see tests/e2e/host_clipboard.py).
+    """
+    import host_clipboard
+
     if sys.platform == "darwin":
         yield
         return
-    from host_clipboard import read as clipboard_read, write as clipboard_write
 
     original_run = subprocess.run
 
     def run(args, **kwargs):
         command = args[0] if isinstance(args, (list, tuple)) and args else None
         name = Path(str(command)).name.lower() if command is not None else ""
-        if name in {"pbcopy", "pbcopy.cmd", "pbpaste", "pbpaste.cmd"}:
+        if name in {"pbcopy", "pbpaste"}:
             text_mode = bool(kwargs.get("text") or kwargs.get("universal_newlines"))
-            if name.startswith("pbcopy"):
-                clipboard_write(kwargs.get("input") or b"")
+            if name == "pbcopy":
+                host_clipboard.write(kwargs.get("input") or b"")
                 stdout = "" if text_mode else b""
             else:
-                stdout = clipboard_read()
+                stdout = host_clipboard.read()
                 if text_mode:
                     stdout = stdout.decode("utf-8", errors="replace")
             stderr = "" if text_mode else b""

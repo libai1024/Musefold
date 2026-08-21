@@ -81,6 +81,7 @@ def rejecting_text_ai_server():
         thread.join(timeout=2)
 
 
+@pytest.mark.gui
 def test_sk_01_pasted_github_url_becomes_ready_skill_chip(app):
     repo_url = "https://github.com/helloianneo/ian-xiaohei-illustrations"
     prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
@@ -134,6 +135,7 @@ def test_sk_01_pasted_github_url_becomes_ready_skill_chip(app):
         subprocess.run(["pbcopy"], input=clipboard_before, check=False)
 
 
+@pytest.mark.gui
 def test_sk_02_context_menu_imports_github_skill_or_explains_invalid_clipboard(app):
     repo_url = "https://github.com/helloianneo/ian-xiaohei-illustrations"
     clipboard_before = subprocess.run(
@@ -181,6 +183,7 @@ def test_sk_02_context_menu_imports_github_skill_or_explains_invalid_clipboard(a
         subprocess.run(["pbcopy"], input=clipboard_before, check=False)
 
 
+@pytest.mark.gui
 def test_sk_03_removing_skill_keeps_prompt_and_allows_same_url_again(app):
     repo_url = "https://github.com/helloianneo/ian-xiaohei-illustrations"
     prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
@@ -221,6 +224,7 @@ def test_sk_03_removing_skill_keeps_prompt_and_allows_same_url_again(app):
         subprocess.run(["pbcopy"], input=clipboard_before, check=False)
 
 
+@pytest.mark.gui
 def test_sk_04_invalid_github_skill_enters_recoverable_error_state(app):
     bad_url = "https://github.com/this-user-does-not-exist-xx/nope-404"
     prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
@@ -257,6 +261,7 @@ def test_sk_04_invalid_github_skill_enters_recoverable_error_state(app):
         subprocess.run(["pbcopy"], input=clipboard_before, check=False)
 
 
+@pytest.mark.gui
 def test_sk_13_cancelled_agent_run_has_no_permanent_spinner(app, hanging_text_ai_server):
     repo_url = "https://github.com/helloianneo/ian-xiaohei-illustrations"
     connection = app.api_ok("aiConnection.create", {
@@ -320,6 +325,7 @@ def test_sk_13_cancelled_agent_run_has_no_permanent_spinner(app, hanging_text_ai
         app.api("aiConnection.delete", connection["id"])
 
 
+@pytest.mark.gui
 def test_sk_14_skill_honors_portrait_ratio_and_two_results(app, tmp_path):
     """One real two-image Skill run verifies ratio/count propagation end to end."""
     import os
@@ -383,6 +389,7 @@ def test_sk_14_skill_honors_portrait_ratio_and_two_results(app, tmp_path):
         app.api("aiConnection.delete", connection["id"])
 
 
+@pytest.mark.gui
 def test_sk_20_no_text_ai_uses_file_fallback_and_still_generates(app):
     import base64
     import json
@@ -453,6 +460,7 @@ def test_sk_20_no_text_ai_uses_file_fallback_and_still_generates(app):
         thread.join(timeout=2)
 
 
+@pytest.mark.gui
 def test_sk_14_completed_trace_keeps_ratio_count_and_provider(app):
     import base64
 
@@ -522,6 +530,7 @@ def test_sk_14_completed_trace_keeps_ratio_count_and_provider(app):
         thread.join(timeout=2)
 
 
+@pytest.mark.gui
 def test_sk_21_failed_agent_connection_records_error_then_falls_back(app, rejecting_text_ai_server):
     import base64
 
@@ -602,6 +611,7 @@ def test_sk_21_failed_agent_connection_records_error_then_falls_back(app, reject
         image_thread.join(timeout=2)
 
 
+@pytest.mark.gui
 def test_sk_30_plain_skill_execution_does_not_create_design_scheme(app):
     import base64
 
@@ -670,6 +680,7 @@ def test_sk_30_plain_skill_execution_does_not_create_design_scheme(app):
         image_thread.join(timeout=2)
 
 
+@pytest.mark.gui
 def test_sk_31_design_plan_command_absorbs_ready_skill_chip(app):
     repo_url = "https://github.com/helloianneo/ian-xiaohei-illustrations"
     clipboard_before = subprocess.run(["pbpaste"], capture_output=True, check=False).stdout

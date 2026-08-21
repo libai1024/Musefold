@@ -269,11 +269,16 @@ async function checkDocsAndWorkflow() {
     'npx turbo run typecheck test build lint check:boundaries check:ui-boundaries',
     'npm run clean:artifacts',
     'npm run release:preflight',
-    'xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e',
+    'xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset"',
+    'python -m pytest "$PYTEST_TARGET"',
     'name: Desktop CI',
     'Windows Electron E2E',
     'Linux Electron E2E',
     'runs-on: windows-latest',
+    // Platform tiers: Linux blocks on the full suite, Windows skips the tests
+    // that need an interactive desktop it does not have.
+    'blocking: true',
+    'markers: not gui',
     'publish-installers',
     'scripts/deploy/publish-desktop.mjs',
     'version=latest',

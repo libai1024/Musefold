@@ -26,10 +26,13 @@ IMAGE_MODEL = os.environ.get("MUSEFOLD_TVT_MODEL", "gpt-image-2").strip()
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = REPO_ROOT / "generated/v032-skill-agent-xiaohei"
 
-pytestmark = pytest.mark.skipif(
-    not TEXT_KEY or not IMAGE_KEY or os.environ.get("MUSEFOLD_E2E_REAL_GITHUB") != "1",
-    reason="需要真实 GitHub 与文本/图片 API 临时凭证",
-)
+pytestmark = [
+    pytest.mark.gui,
+    pytest.mark.skipif(
+        not TEXT_KEY or not IMAGE_KEY or os.environ.get("MUSEFOLD_E2E_REAL_GITHUB") != "1",
+        reason="需要真实 GitHub 与文本/图片 API 临时凭证",
+    ),
+]
 
 
 def test_skill_agent_prompt_only_run(app):

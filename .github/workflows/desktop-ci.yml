@@ -11,6 +11,15 @@ on:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      tests:
+        description: 'pytest target, e.g. tests/e2e/test_29_ember_slip_paths.py::test_slip_pickup_from_selection'
+        required: false
+        default: tests/e2e
+      markers:
+        description: 'pytest -m expression; leave empty to keep the per-platform default'
+        required: false
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -48,12 +57,17 @@ jobs:
         id: detect
         run: node .github/scripts/detect-layers.mjs
 
+  # Platform tiers. Linux is Tier 1: full suite, blocks the merge. Windows is
+  # Tier 2: it proves a clean checkout builds and that path separators, CRLF and
+  # native modules behave, but it has no interactive window station, so the
+  # `gui` tests (real clipboard/focus) are covered on a real Windows desktop.
   e2e:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
+    continue-on-error: ${{ !matrix.blocking }}
     defaults:
       run:
         shell: bash
@@ -63,8 +77,15 @@ jobs:
         include:
           - os: ubuntu-latest
             name: Linux Electron E2E
+            blocking: true
+            markers: ''
           - os: windows-latest
             name: Windows Electron E2E
+            blocking: false
+            markers: not gui
+    env:
+      PYTEST_TARGET: ${{ inputs.tests || 'tests/e2e' }}
+      PYTEST_MARKERS: ${{ inputs.markers || matrix.markers }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -150,17 +171,20 @@ jobs:
               raise
           PY
 
-      - name: Full Electron E2E
+      - name: Electron E2E
         if: runner.os == 'Linux'
         run: |
           set -o pipefail
-          xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
+          xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" \
+            python -m pytest "$PYTEST_TARGET" ${PYTEST_MARKERS:+-m "$PYTEST_MARKERS"} \
+            -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
 
-      - name: Full Electron E2E
+      - name: Electron E2E
         if: runner.os == 'Windows'
         run: |
           set -o pipefail
-          python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
+          python -m pytest "$PYTEST_TARGET" ${PYTEST_MARKERS:+-m "$PYTEST_MARKERS"} \
+            -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
 
       - name: Annotate E2E failure
         if: failure()

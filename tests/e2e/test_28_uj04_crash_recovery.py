@@ -16,6 +16,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import psutil
 import pytest
 
 from conftest import _launch  # 复用真实 Electron 启动器（同目录重开）
@@ -86,8 +87,8 @@ def db_rows(path: Path, sql: str, params: tuple = ()):
         con.close()
 
 
-def hard_kill_and_relaunch(app, pw):
-    """SIGKILL 强杀整棵进程树（不是 terminate），再用同一 userDataDir 重开。
+def hard_kill_app(app):
+    """强杀整棵进程树（不是 terminate）。
 
     真实的「强制退出 / 断电」会带走主进程与全部 helper；只杀父进程会留下
     孤儿 helper，既不符合现实，也会让 Electron 的单实例判定出现歧义。
@@ -97,26 +98,25 @@ def hard_kill_and_relaunch(app, pw):
             app.browser.close()
     except Exception:  # noqa: BLE001
         pass
-    pid = app.proc.pid
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/F", "/T", "/PID", str(pid)],
-            check=False, capture_output=True,
-        )
+
+    # 先枚举再杀：杀掉父进程后子进程会被 reparent，届时就找不回这棵树了。
+    try:
+        parent = psutil.Process(app.proc.pid)
+        doomed = parent.children(recursive=True) + [parent]
+    except psutil.NoSuchProcess:
+        doomed = []
+    for process in doomed:
         try:
-            app.proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            app.proc.kill()
-            app.proc.wait(timeout=5)
-    else:
-        app.proc.kill()  # 关键：不给主进程任何收尾机会
-        app.proc.wait(timeout=10)
-        # 连同该 userDataDir 下的孤儿 helper 一起清掉（等价于 Force Quit）。
-        # 注意：模式不能以 `--` 开头，否则 macOS 的 pkill 会当成选项报错。
-        subprocess.run(
-            ["pkill", "-9", "-f", f"user-data-dir={app.user_data_dir}"],
-            check=False, capture_output=True,
-        )
+            process.kill()  # 关键：不给主进程任何收尾机会
+        except psutil.NoSuchProcess:
+            pass
+    psutil.wait_procs(doomed, timeout=10)
+    app.proc.wait(timeout=10)
+
+
+def hard_kill_and_relaunch(app, pw):
+    """强杀后用同一 userDataDir 重开。"""
+    hard_kill_app(app)
 
     # 修复后（singleton-lock.ts 启动时清理死进程锁），强杀后**立即**重开
     # 必须一次成功——不允许再靠重试兜底掩盖回归。
@@ -300,6 +300,10 @@ def _read_lock_pid(user_data_dir: Path) -> int | None:
     return int(target.rsplit("-", 1)[1])
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="SingletonLock 符号链接是 Chromium 的 POSIX 单实例机制，Windows 走命名互斥量",
+)
 def test_immediate_relaunch_after_hard_kill(app, _pw):
     """强杀后零等待重开 ×3：不得再出现「点了图标没反应」（静默 rc=0 退出）。
 
@@ -311,17 +315,7 @@ def test_immediate_relaunch_after_hard_kill(app, _pw):
     app.set_view("generate")
     for round_no in range(3):
         # 先杀（留下真实残骸），再确定性补种一个死进程锁。
-        try:
-            if app.browser:
-                app.browser.close()
-        except Exception:  # noqa: BLE001
-            pass
-        app.proc.kill()
-        app.proc.wait(timeout=10)
-        subprocess.run(
-            ["pkill", "-9", "-f", f"user-data-dir={app.user_data_dir}"],
-            check=False, capture_output=True,
-        )
+        hard_kill_app(app)
         stale_pid = _plant_stale_singleton_lock(app.user_data_dir)
 
         try:

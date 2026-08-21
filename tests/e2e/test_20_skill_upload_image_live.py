@@ -42,10 +42,13 @@ SKILL_CASES = [
     ),
 ]
 
-pytestmark = pytest.mark.skipif(
-    not TEXT_KEY or not IMAGE_KEY or os.environ.get("MUSEFOLD_E2E_REAL_GITHUB") != "1",
-    reason="需要真实 GitHub 与文本/图片 API 临时凭证",
-)
+pytestmark = [
+    pytest.mark.gui,
+    pytest.mark.skipif(
+        not TEXT_KEY or not IMAGE_KEY or os.environ.get("MUSEFOLD_E2E_REAL_GITHUB") != "1",
+        reason="需要真实 GitHub 与文本/图片 API 临时凭证",
+    ),
+]
 
 
 @pytest.mark.parametrize("slug,repo_url,prompt", SKILL_CASES)

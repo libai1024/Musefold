@@ -115,6 +115,7 @@ def test_slip_pickup_from_selection(app):
     assert slip_rows(app) == [], "撤销后不应残留素笺"
 
 
+@pytest.mark.gui
 def test_slip_glean_clipboard_text(app):
     """路径三：Alt+双击朱点 → 拾遗剪贴板文字入匣。
 
@@ -138,6 +139,7 @@ def test_slip_glean_clipboard_text(app):
     assert "焦糖色渐层" in rows[0]["content"]
 
 
+@pytest.mark.gui
 def test_slip_glean_empty_clipboard(app):
     """拾遗兜底：剪贴板为空时明确提示且不入库。"""
     app.set_view("generate")
