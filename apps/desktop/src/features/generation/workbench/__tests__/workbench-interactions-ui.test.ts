@@ -3,11 +3,19 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 function workbenchUiSource(): string {
-  const dir = "apps/desktop/src/features/generation/workbench";
-  return readdirSync(dir)
-    .filter((name) => /\.(ts|tsx)$/.test(name))
-    .map((name) => readFileSync(join(dir, name), "utf8"))
-    .join("\n");
+  const dirs = ["apps/desktop/src/features/generation/workbench"];
+  const extraFiles = [
+    "packages/product-ui/src/workbench/WorkbenchDraftImagesPreview.tsx",
+    "packages/product-ui/src/workbench/WorkbenchGenerationResultCard.tsx",
+  ];
+  return [
+    ...dirs.flatMap((dir) =>
+      readdirSync(dir)
+        .filter((name) => /\.(ts|tsx)$/.test(name))
+        .map((name) => readFileSync(join(dir, name), "utf8")),
+    ),
+    ...extraFiles.map((path) => readFileSync(path, "utf8")),
+  ].join("\n");
 }
 
 const workbench = workbenchUiSource();
@@ -105,7 +113,7 @@ describe("workbench image and message interaction contract", () => {
 
   it("supports long-press selection and batch saving for multi-image results", () => {
     expect(workbench).toContain("window.setTimeout(() =>");
-    expect(workbench).toContain("onEnterSelection();");
+    expect(workbench).toContain("onEnterSelection?.();");
     expect(workbench).toContain('data-testid="generation-selection-toolbar"');
     expect(workbench).toContain('data-testid="generation-batch-download"');
     expect(workbench).toContain("api.system.saveImages(paths)");

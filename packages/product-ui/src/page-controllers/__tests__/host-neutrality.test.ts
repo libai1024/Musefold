@@ -30,4 +30,13 @@ describe("product-ui host neutrality", () => {
     expect(source).not.toMatch(/desktop-contracts/);
     expect(source).not.toMatch(/from ['"][^'"]*stores\/toast['"]/);
   });
+
+  it("does not import host platform modules from workbench widgets", () => {
+    const source = collectSource(join(root, "workbench"));
+    expect(source).not.toMatch(/window\.api/);
+    expect(source).not.toMatch(/cloud-client/);
+    expect(source).not.toMatch(/from ['"]electron['"]/);
+    expect(source).not.toMatch(/desktop-contracts/);
+    expect(source).not.toMatch(/from ['"][^'"]*stores\/toast['"]/);
+  });
 });

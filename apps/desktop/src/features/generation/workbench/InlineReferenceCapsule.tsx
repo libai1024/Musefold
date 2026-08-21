@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FileText, X } from "../../../components/ui/icons";
-import { PromptFullTextCard } from "./PromptFullTextCard";
+import { WorkbenchPromptFullTextCard } from "@musefold/product-ui";
 import type { GenerationTurn } from "./types";
 
 export function InlineReferenceCapsule({
@@ -38,7 +38,7 @@ export function InlineReferenceCapsule({
         <X className="h-2.5 w-2.5" />
       </button>
       {anchor && (
-        <PromptFullTextCard
+        <WorkbenchPromptFullTextCard
           title={reference.title}
           text={reference.text}
           scope={reference.scope}

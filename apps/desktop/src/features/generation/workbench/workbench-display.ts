@@ -1,12 +1,16 @@
 import type { ImageQuality } from "@musefold/desktop-contracts/enums";
 import { RATIO_OPTIONS } from "@musefold/domain/constants";
+import {
+  WORKBENCH_QUALITY_OPTIONS,
+  workbenchFormatParams,
+} from "@musefold/product-ui";
 
-export const QUALITY_OPTIONS: { id: ImageQuality; label: string; hint: string }[] = [
-  { id: "auto", label: "自动", hint: "模型默认" },
-  { id: "low", label: "标准", hint: "更快" },
-  { id: "medium", label: "高清", hint: "平衡" },
-  { id: "high", label: "超清", hint: "细节优先" },
-];
+export const QUALITY_OPTIONS: { id: ImageQuality; label: string; hint: string }[] =
+  WORKBENCH_QUALITY_OPTIONS.map((option) => ({
+    id: option.id,
+    label: option.label,
+    hint: option.hint,
+  }));
 
 export const WORKBENCH_RATIO_OPTIONS = RATIO_OPTIONS.map((option) => ({
   id: option.id,
@@ -16,5 +20,5 @@ export const WORKBENCH_RATIO_OPTIONS = RATIO_OPTIONS.map((option) => ({
 }));
 
 export function formatParams(params: { ratioId: string; quality: string; n: number }) {
-  return `${params.ratioId} · ${params.quality} · ${params.n}张`;
+  return workbenchFormatParams(params);
 }

@@ -1,6 +1,4 @@
-import type { GenerationTurn } from "./types";
-
-export function PromptFullTextCard({
+export function WorkbenchPromptFullTextCard({
   title,
   text,
   scope,
@@ -8,7 +6,7 @@ export function PromptFullTextCard({
 }: {
   title: string;
   text: string;
-  scope?: GenerationTurn["references"][number]["scope"];
+  scope?: "full" | "excerpt";
   anchor: DOMRect;
 }) {
   const width = 320;

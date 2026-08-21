@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FileText, History, X } from "../../../components/ui/icons";
 import { WorkbenchPromptReferenceCard } from "@musefold/product-ui";
-import { PromptFullTextCard } from "./PromptFullTextCard";
+import { WorkbenchPromptFullTextCard } from "@musefold/product-ui";
 import type { GenerationSource } from "./types";
 
 // 来源芯片（提示词/历史引用）：Codex 式附件芯片，表达在 Composer 上方的上下文区；提示词来源悬停可看全文。
@@ -74,7 +74,7 @@ export function SourceChip({
         <X className="h-3.5 w-3.5" />
       </button>
       {anchor && previewText && (
-        <PromptFullTextCard
+        <WorkbenchPromptFullTextCard
           title={source.label ?? "提示词"}
           text={previewText}
           anchor={anchor}

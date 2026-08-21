@@ -4,10 +4,14 @@ import { describe, expect, it } from 'vitest';
 
 function workbenchUiSource(): string {
   const dir = 'apps/desktop/src/features/generation/workbench';
-  return readdirSync(dir)
-    .filter((name) => /\.(ts|tsx)$/.test(name))
-    .map((name) => readFileSync(join(dir, name), 'utf8'))
-    .join('\n');
+  const resultCard =
+    'packages/product-ui/src/workbench/WorkbenchGenerationResultCard.tsx';
+  return [
+    ...readdirSync(dir)
+      .filter((name) => /\.(ts|tsx)$/.test(name))
+      .map((name) => readFileSync(join(dir, name), 'utf8')),
+    readFileSync(resultCard, 'utf8'),
+  ].join('\n');
 }
 
 const workbench = workbenchUiSource();

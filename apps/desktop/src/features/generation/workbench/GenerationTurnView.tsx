@@ -12,13 +12,11 @@ import { titleFromPromptContent } from "@musefold/domain";
 import {
   GenerationSavePromptAction,
   WorkbenchAssistantAvatar,
-  WorkbenchAssistantFrame,
   WorkbenchAssistantHeader,
+  WorkbenchGenerationTurn,
   WorkbenchMessageActions,
-  WorkbenchResultGrid,
   WorkbenchTurnActionIcon,
   WorkbenchTurnActions,
-  WorkbenchTurnFrame,
   WorkbenchUserMessage,
   workbenchGenerationStatusLabel,
 } from "@musefold/product-ui";
@@ -283,10 +281,9 @@ export function GenerationTurnView({
   };
 
   return (
-    <WorkbenchTurnFrame
-      testId={`generation-turn-${turn.id}`}
+    <WorkbenchGenerationTurn
+      turnId={turn.id}
       status={turn.status}
-      userTestId="generation-user-message"
       userProps={{
         tabIndex: 0,
         onClick: (event) => {
@@ -355,236 +352,229 @@ export function GenerationTurnView({
           }
         />
       }
-    >
-      <WorkbenchAssistantFrame
-        testId="generation-result-group"
-        avatar={
-          isDoubaoTurn ? (
-            <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-white shadow-sm"
-              aria-label="豆包"
-              data-testid="doubao-generation-avatar"
-            >
-              <ModelBrandIcon model="doubao" className="h-[18px] w-[18px]" />
-            </span>
-          ) : (
-            <WorkbenchAssistantAvatar
-              imageUrl={musefoldIconUrl}
-              data-testid="generation-assistant-avatar"
+      avatar={
+        isDoubaoTurn ? (
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2f6bff] text-white shadow-sm"
+            aria-label="豆包"
+            data-testid="doubao-generation-avatar"
+          >
+            <ModelBrandIcon model="doubao" className="h-[18px] w-[18px]" />
+          </span>
+        ) : (
+          <WorkbenchAssistantAvatar
+            imageUrl={musefoldIconUrl}
+            data-testid="generation-assistant-avatar"
+          />
+        )
+      }
+      header={
+        <WorkbenchAssistantHeader
+          label={
+            isDoubaoTurn
+              ? turn.referenceImages.length > 0
+                ? "豆包网页改图"
+                : "豆包网页生图"
+              : "Musefold"
+          }
+          detail={
+            isDoubaoTurn
+              ? "Seedream 4.5 · 本机浏览器会话"
+              : workbenchGenerationStatusLabel(turn.status)
+          }
+        />
+      }
+      preface={
+        <>
+          {turn.source.kind === "skill" && (
+            <SkillRuntimeConversation
+              trace={turn.source.trace}
+              doneLabel={
+                turn.source.executionMode === "direct-forward"
+                  ? "已将 Skill 转发给豆包"
+                  : "已完成 Skill 调用"
+              }
             />
-          )
-        }
-        header={
-          <WorkbenchAssistantHeader
-            label={
-              isDoubaoTurn
-                ? turn.referenceImages.length > 0
-                  ? "豆包网页改图"
-                  : "豆包网页生图"
-                : "Musefold"
-            }
-            detail={
-              isDoubaoTurn
-                ? "Seedream 4.5 · 本机浏览器会话"
-                : workbenchGenerationStatusLabel(turn.status)
-            }
-          />
-        }
-      >
-        {turn.source.kind === "skill" && (
-          <SkillRuntimeConversation
-            trace={turn.source.trace}
-            doneLabel={
-              turn.source.executionMode === "direct-forward"
-                ? "已将 Skill 转发给豆包"
-                : "已完成 Skill 调用"
-            }
-          />
-        )}
-        {turn.source.kind === "scheme-creation" && (
-          <SchemeCreationConversation source={turn.source} />
-        )}
-        {turn.source.kind === "scheme-run" && (
-          <SchemeRunConversation turnId={turn.id} source={turn.source} />
-        )}
-        {/* Skill 轮在 Agent 阅读/编排阶段没有结果占位；生图真正开始后才补建卡片。 */}
-        {turn.results.length > 0 && (
-          <>
-            <WorkbenchResultGrid
-              count={turn.results.length}
-              aspectRatio={turn.params.ratioId}
-              provider={isDoubaoTurn ? "doubao-web" : undefined}
-            >
-              {turn.results.map((result) => (
-                <GenerationResultCard
-                  key={result.id}
-                  result={result}
-                  aspectRatio={turn.params.ratioId}
-                  busy={turn.status === "running"}
-                  onZoom={onZoom}
-                  onRetry={() => void retryResult(turn.id, result.id)}
-                  showRefineAction={turn.results.length > 1}
-                  refinementEnabled
-                  onRefine={() => startRefinement(turn.id, result.id)}
-                  onHistory={() => setView("history")}
-                  selectionEnabled={successful.length > 1}
-                  selectionMode={selectionMode}
-                  selected={selectedResultIds.includes(result.id)}
-                  deselecting={deselectingResultIds.includes(result.id)}
-                  refinementTargetDisabled={
-                    isGenerating || selectionTransitioning
-                  }
-                  savePromptState={
-                    savedPromptId ? "saved" : savingPrompt ? "saving" : "idle"
-                  }
-                  onSavePrompt={() => void savePrompt()}
-                  onEnterSelection={() => enterSelection(result.id)}
-                  onToggleSelection={() => toggleSelection(result.id)}
-                  onSetAsRefinementTarget={() =>
-                    chooseRefinementTarget(result.id)
-                  }
-                />
-              ))}
-            </WorkbenchResultGrid>
-            <div data-testid="generation-selection-toolbar">
-              <WorkbenchTurnActions
-                primary={
-                  selectionMode ? (
-                    <>
-                      <span className="mr-0.5 text-[11px] text-secondary">
-                        已选择 {selectedResultIds.length} 张
-                      </span>
+          )}
+          {turn.source.kind === "scheme-creation" && (
+            <SchemeCreationConversation source={turn.source} />
+          )}
+          {turn.source.kind === "scheme-run" && (
+            <SchemeRunConversation turnId={turn.id} source={turn.source} />
+          )}
+        </>
+      }
+      resultCount={turn.results.length}
+      resultAspectRatio={turn.params.ratioId}
+      resultProvider={isDoubaoTurn ? "doubao-web" : undefined}
+      results={turn.results.map((result) => (
+        <GenerationResultCard
+          key={result.id}
+          result={result}
+          aspectRatio={turn.params.ratioId}
+          busy={turn.status === "running"}
+          onZoom={onZoom}
+          onRetry={() => void retryResult(turn.id, result.id)}
+          showRefineAction={turn.results.length > 1}
+          refinementEnabled
+          onRefine={() => startRefinement(turn.id, result.id)}
+          onHistory={() => setView("history")}
+          selectionEnabled={successful.length > 1}
+          selectionMode={selectionMode}
+          selected={selectedResultIds.includes(result.id)}
+          deselecting={deselectingResultIds.includes(result.id)}
+          refinementTargetDisabled={isGenerating || selectionTransitioning}
+          savePromptState={
+            savedPromptId ? "saved" : savingPrompt ? "saving" : "idle"
+          }
+          onSavePrompt={() => void savePrompt()}
+          onEnterSelection={() => enterSelection(result.id)}
+          onToggleSelection={() => toggleSelection(result.id)}
+          onSetAsRefinementTarget={() => chooseRefinementTarget(result.id)}
+        />
+      ))}
+      actions={
+        turn.results.length > 0 ? (
+          <div data-testid="generation-selection-toolbar">
+            <WorkbenchTurnActions
+              primary={
+                selectionMode ? (
+                  <>
+                    <span className="mr-0.5 text-[11px] text-secondary">
+                      已选择 {selectedResultIds.length} 张
+                    </span>
+                    <button
+                      type="button"
+                      onClick={leaveSelection}
+                      className="action-button"
+                      data-testid="generation-selection-cancel"
+                    >
+                      <X className="h-3 w-3" /> 取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void saveSelectedImages()}
+                      disabled={selectedResultIds.length === 0 || batchSaving}
+                      className="action-button disabled:cursor-not-allowed disabled:opacity-45"
+                      data-testid="generation-batch-download"
+                    >
+                      {batchSaving ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Download className="h-3 w-3" />
+                      )}
+                      保存所选
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {successful.length > 0 && turn.results.length === 1 ? (
                       <button
                         type="button"
-                        onClick={leaveSelection}
+                        onClick={() =>
+                          startRefinement(turn.id, successful[0].id)
+                        }
+                        className="action-button bg-accent-soft text-accent hover:bg-accent/20"
+                        data-testid="generation-refine-turn"
+                      >
+                        <GitBranch className="h-3 w-3" /> 继续微调
+                      </button>
+                    ) : null}
+                    {successful.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => enterSelection()}
                         className="action-button"
-                        data-testid="generation-selection-cancel"
+                        data-testid="generation-select-images"
                       >
-                        <X className="h-3 w-3" /> 取消
+                        <ListChecks className="h-3 w-3" /> 选择图片
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void saveSelectedImages()}
-                        disabled={selectedResultIds.length === 0 || batchSaving}
-                        className="action-button disabled:cursor-not-allowed disabled:opacity-45"
-                        data-testid="generation-batch-download"
-                      >
-                        {batchSaving ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Download className="h-3 w-3" />
-                        )}
-                        保存所选
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {successful.length > 0 && turn.results.length === 1 ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            startRefinement(turn.id, successful[0].id)
+                    ) : null}
+                  </>
+                )
+              }
+              menuItems={[
+                successful[0]
+                  ? {
+                      id: "reuse",
+                      label: "再次制作",
+                      icon: <WorkbenchTurnActionIcon name="reuse" />,
+                      onSelect: () => reuseResult(turn.id, successful[0].id),
+                    }
+                  : null,
+                turn.prompt.trim() && turn.status !== "running"
+                  ? {
+                      id: "save-prompt",
+                      label: "存为提示词",
+                      onSelect: () => undefined,
+                      render: (close: () => void) => (
+                        <GenerationSavePromptAction
+                          role="menuitem"
+                          onSave={() => {
+                            void savePrompt();
+                            close();
+                          }}
+                          state={
+                            savedPromptId
+                              ? "saved"
+                              : savingPrompt
+                                ? "saving"
+                                : "idle"
                           }
-                          className="action-button bg-accent-soft text-accent hover:bg-accent/20"
-                          data-testid="generation-refine-turn"
-                        >
-                          <GitBranch className="h-3 w-3" /> 继续微调
-                        </button>
-                      ) : null}
-                      {successful.length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => enterSelection()}
-                          className="action-button"
-                          data-testid="generation-select-images"
-                        >
-                          <ListChecks className="h-3 w-3" /> 选择图片
-                        </button>
-                      ) : null}
-                    </>
-                  )
-                }
-                menuItems={[
-                  successful[0]
-                    ? {
-                        id: "reuse",
-                        label: "再次制作",
-                        icon: <WorkbenchTurnActionIcon name="reuse" />,
-                        onSelect: () => reuseResult(turn.id, successful[0].id),
-                      }
-                    : null,
-                  turn.prompt.trim() && turn.status !== "running"
-                    ? {
-                        id: "save-prompt",
-                        label: "存为提示词",
-                        onSelect: () => undefined,
-                        render: (close: () => void) => (
-                          <GenerationSavePromptAction
-                            role="menuitem"
-                            onSave={() => {
-                              void savePrompt();
-                              close();
-                            }}
-                            state={
-                              savedPromptId
-                                ? "saved"
-                                : savingPrompt
-                                  ? "saving"
-                                  : "idle"
-                            }
-                            className="mf-workbench-turn-menu-item"
-                          />
-                        ),
-                      }
-                    : null,
-                  {
-                    id: "history",
-                    label: "查看生成历史",
-                    icon: <WorkbenchTurnActionIcon name="history" />,
-                    onSelect: () => setView("history"),
-                  },
-                ].filter(
-                  (item): item is NonNullable<typeof item> => item !== null,
+                          className="mf-workbench-turn-menu-item"
+                        />
+                      ),
+                    }
+                  : null,
+                {
+                  id: "history",
+                  label: "查看生成历史",
+                  icon: <WorkbenchTurnActionIcon name="history" />,
+                  onSelect: () => setView("history"),
+                },
+              ].filter(
+                (item): item is NonNullable<typeof item> => item !== null,
+              )}
+            />
+          </div>
+        ) : undefined
+      }
+      appendix={
+        isDoubaoTurn && turn.providerResponse && turn.results.length > 0 ? (
+          <div
+            className="mt-3 max-w-[430px] border-t border-border-subtle pt-3"
+            data-testid="doubao-generation-response"
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px]">
+              <span className="inline-flex items-center gap-1.5 font-medium text-secondary">
+                <FileText className="h-3.5 w-3.5 text-[#2f6bff]" /> 豆包回复
+              </span>
+              <span
+                className={cn(
+                  "tabular-nums",
+                  turn.providerResponse.receivedImageCount <
+                    turn.providerResponse.expectedImageCount
+                    ? "text-warning"
+                    : "text-tertiary",
                 )}
-              />
-            </div>
-            {isDoubaoTurn && turn.providerResponse && (
-              <div
-                className="mt-3 max-w-[430px] border-t border-border-subtle pt-3"
-                data-testid="doubao-generation-response"
+                data-testid="doubao-generation-count"
               >
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px]">
-                  <span className="inline-flex items-center gap-1.5 font-medium text-secondary">
-                    <FileText className="h-3.5 w-3.5 text-[#2f6bff]" /> 豆包回复
-                  </span>
-                  <span
-                    className={cn(
-                      "tabular-nums",
-                      turn.providerResponse.receivedImageCount <
-                        turn.providerResponse.expectedImageCount
-                        ? "text-warning"
-                        : "text-tertiary",
-                    )}
-                    data-testid="doubao-generation-count"
-                  >
-                    1 次网页请求 · 返回{" "}
-                    {turn.providerResponse.receivedImageCount} /{" "}
-                    {turn.providerResponse.expectedImageCount} 张
-                  </span>
-                </div>
-                {turn.providerResponse.message && (
-                  <p
-                    className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-secondary"
-                    data-testid="doubao-generation-message"
-                  >
-                    {turn.providerResponse.message}
-                  </p>
-                )}
-              </div>
+                1 次网页请求 · 返回{" "}
+                {turn.providerResponse.receivedImageCount} /{" "}
+                {turn.providerResponse.expectedImageCount} 张
+              </span>
+            </div>
+            {turn.providerResponse.message && (
+              <p
+                className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-secondary"
+                data-testid="doubao-generation-message"
+              >
+                {turn.providerResponse.message}
+              </p>
             )}
-          </>
-        )}
-      </WorkbenchAssistantFrame>
-    </WorkbenchTurnFrame>
+          </div>
+        ) : undefined
+      }
+    />
   );
 }

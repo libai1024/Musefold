@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01 已落地；SPLIT-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~02 已落地；SPLIT-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -213,16 +213,16 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 
 ### 6.1 GenerationWorkbench.tsx（2,932 行 → 组合层 + widget 模块）
 
-按既有内联组件边界机械拆分为独立文件（SPLIT-01 已完成，文件在桌面 `features/generation/workbench/`；SPLIT-02 再上提 product-ui）：
+按既有内联组件边界机械拆分为独立文件（SPLIT-01）；SPLIT-02 把纯产品 UI 壳上提 product-ui，桌面保留 store/IPC 适配器：
 
 | 现内联组件（行号） | 去向 | 说明 |
 |---|---|---|
-| `GenerationWorkbench`（L142） | 桌面 `features/generation/workbench/`（组合层） | 只做装配与桌面扩展 |
-| `WorkbenchTimeline`（L177） | product-ui `workbench/` | 纯产品 UI |
-| `GenerationTurnView`（L307） | product-ui `workbench/` | 纯产品 UI |
-| `GenerationResultCard`（L997） | product-ui `workbench/` | 保存/揭示动作经回调注入 |
-| `WorkbenchComposer`（L1454–2646） | 拆 3–4 个子模块后上提 product-ui | 桌面附件/Skill/Scheme 采集器留桌面，经 composer 插槽组合 |
-| `DraftImagesPreview`（L2647） | product-ui `workbench/` | 图片源经适配注入 |
+| `GenerationWorkbench` | 桌面 `features/generation/workbench/`（组合层） | 只做装配与桌面扩展 |
+| `WorkbenchTimeline` | 桌面适配器 + product-ui `WorkbenchTimelineStage` | 空态/跳转最新/灯箱留宿主插槽 |
+| `GenerationTurnView` | 桌面适配器 + product-ui `WorkbenchGenerationTurn` | Skill/Scheme/豆包头像经 preface/avatar 插槽 |
+| `GenerationResultCard` | 桌面适配器 + product-ui `WorkbenchGenerationResultCard` | 另存/复制/打开目录/额度兑换经回调与 errorAction |
+| `WorkbenchComposer` | 桌面编排 + 已有 composer primitives | 附件/Skill/Scheme 采集器留桌面 |
+| `DraftImagesPreview` | 桌面适配器 + product-ui `WorkbenchDraftImagesPreview` | `src` 由宿主适配 |
 | 额度兑换/内联胶囊等桌面语义段 | 留桌面 | 不强行共享 |
 
 判断规则：组件只依赖 contracts/domain 类型与回调 → product-ui；依赖 desktop-contracts、IPC、本地文件 → 留桌面，边界以回调/插槽表达。

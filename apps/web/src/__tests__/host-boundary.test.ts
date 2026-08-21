@@ -32,6 +32,8 @@ describe('web host boundary', () => {
     expect(appSource).toMatch(/platform=\{platform\}/);
     expect(appSource).toMatch(/useGeneratePageController/);
     expect(generateView).toMatch(/GeneratePageController/);
+    expect(generateView).toMatch(/WorkbenchTimelineStage/);
+    expect(generateView).toMatch(/WorkbenchGenerationTurn/);
     expect(historyView).toMatch(/useHistoryPageController/);
     expect(libraryView).toMatch(/useLibraryPageController/);
     expect(navigation).toMatch(/buildSidebarNavItems/);

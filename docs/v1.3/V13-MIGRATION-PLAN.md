@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01 已完成；SPLIT-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~02 已完成；SPLIT-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -209,11 +209,17 @@
   验证：typecheck/test；工作台 E2E；视觉门禁。
   回滚：revert 移动提交。
 
-- `V13-SPLIT-02`：widget 上提 product-ui：timeline/turn-view/result-card/draft-preview 及 composer 拆分件中纯产品 UI 部分迁入 `product-ui/workbench/`；桌面语义段（额度兑换、Skill/Scheme 采集、本地附件）留桌面经插槽组合；Web 工作台视图升级为共享 widget 直拼（REUSE-02 的一半）。
+- `V13-SPLIT-02`：~~widget 上提 product-ui：timeline/turn-view/result-card/draft-preview 及 composer 拆分件中纯产品 UI 部分迁入 `product-ui/workbench/`；桌面语义段（额度兑换、Skill/Scheme 采集、本地附件）留桌面经插槽组合；Web 工作台视图升级为共享 widget 直拼（REUSE-02 的一半）。~~ **已完成（2026-08-21）**。上提 `WorkbenchTimelineStage` / `WorkbenchGenerationTurn` / `WorkbenchGenerationResultCard` / `WorkbenchDraftImagesPreview` / `WorkbenchPromptFullTextCard` / `WORKBENCH_QUALITY_OPTIONS`；桌面原文件改为 IPC/`toImageSrc`/额度兑换适配器。Web `GenerateView` 直拼 Stage + Turn（结果面仍用 `GenerationResultSurface`，避免另存/复制/打开目录像素变化）。
 
-  **裁定**：上提判定规则——组件只依赖 contracts/domain 类型与回调 → 上提；依赖 desktop-contracts/IPC/本地文件 → 留桌面。灰区组件留桌面，出现第二个宿主消费者时再上提。
+  **裁定**：
+  1. **上提判定规则不变**——只依赖 domain/回调 → product-ui；依赖 IPC/本地文件 → 留桌面。灰区（整份 Timeline/TurnView 仍绑 zustand）留桌面适配器，出现第二个宿主消费者时只复用壳。
+  2. **不把整份桌面 Timeline/TurnView 搬进 product-ui**。共享的是装配壳；Skill/Scheme/豆包/额度兑换走插槽。
+  3. **Web 结果卡不换成桌面结果卡**。Web 下载链 vs 桌面另存/复制/打开目录，像素不同；REUSE-02 再验收共享结果动作。
+  4. **不统一双端比例清单**。Web 仍 3 项，桌面继续 `domain` `RATIO_OPTIONS`。
+  5. **内联引用胶囊、微调目标、额度兑换留桌面**（架构 6.1 桌面语义段）。
+  6. **源码契约测试扫描上提后的 product-ui 文件**（testid 已随 widget 搬走）。
 
-  验证：双端 E2E；视觉门禁（共享面双端同像素）。
+  验证：typecheck/test；双端工作台 E2E；视觉门禁。
   回滚：按 widget 分卡 revert。
 
 - `V13-SPLIT-03`：workbench store 窄化：会话列表/运行态等服务端镜像移交 page controller + Query；`account/doubao-store`、`history/store` 跨域依赖改经编排层取数（feature 互导 baseline 相应缩减）；`WorkbenchState` 目标 ≤ 40 成员、store ≤ 500 行。
