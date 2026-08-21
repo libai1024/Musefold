@@ -13,4 +13,13 @@ describe("desktop host boundary", () => {
     expect(mainSource).toMatch(/desktopPlatformServices/);
     expect(mainSource).not.toMatch(/from ['"]electron['"]/);
   });
+
+  it("mounts history and library pages on the shared page controllers", () => {
+    const historyPage = readFileSync(new URL("../pages/HistoryPage.tsx", import.meta.url), "utf8");
+    const libraryPage = readFileSync(new URL("../pages/LibraryPage.tsx", import.meta.url), "utf8");
+    expect(historyPage).toMatch(/useHistoryPageController/);
+    expect(libraryPage).toMatch(/useLibraryPageController/);
+    expect(historyPage).toMatch(/desktopPlatformServices/);
+    expect(libraryPage).toMatch(/desktopPlatformServices/);
+  });
 });

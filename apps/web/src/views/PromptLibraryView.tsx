@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type NewPromptDocument,
   type PromptDocument,
   type UpdatePromptDocument,
 } from "@musefold/contracts";
+import type { PlatformServices, PromptGateway } from "@musefold/domain";
 import {
   PromptDetailScreen,
   PromptEditorForm,
   PromptLibraryHeaderActions,
   PromptLibraryScreen,
   PromptTrashScreen,
+  useLibraryPageController,
   type PromptDetailViewModel,
   type PromptEditorDraft,
   type PromptListItemViewModel,
@@ -18,40 +20,30 @@ import { Button } from "@musefold/ui";
 import { WebGatewayError } from "../runtime";
 
 export interface PromptLibraryViewProps {
-  prompts: PromptDocument[];
+  prompts: PromptGateway;
+  platform: PlatformServices;
   query: string;
   onQueryChange: (query: string) => void;
   onUse: (prompt: PromptDocument) => void;
-  onCreate: (input: NewPromptDocument) => Promise<PromptDocument>;
-  onGet: (id: string) => Promise<PromptDocument>;
-  onUpdate: (
-    id: string,
-    input: UpdatePromptDocument,
-  ) => Promise<PromptDocument>;
-  onDelete: (id: string, expectedVersion: number) => Promise<PromptDocument>;
-  onRestore: (id: string, expectedVersion: number) => Promise<PromptDocument>;
-  onListTrash: () => Promise<PromptDocument[]>;
-  onSearch?: (query: string) => Promise<void>;
 }
 
 export function PromptLibraryView({
   prompts,
+  platform,
   query,
   onQueryChange,
   onUse,
-  onCreate,
-  onGet,
-  onUpdate,
-  onDelete,
-  onRestore,
-  onListTrash,
-  onSearch,
 }: PromptLibraryViewProps) {
+  const page = useLibraryPageController<PromptDocument>({
+    prompts,
+    platform,
+    query,
+    onQueryChange,
+  });
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"list" | "detail" | "editor" | "trash">(
     "list",
   );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<PromptDocument | null>(null);
   const [editorRevision, setEditorRevision] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -63,47 +55,43 @@ export function PromptLibraryView({
     latest: PromptDocument;
     draft: PromptEditorDraft;
   } | null>(null);
-  const didMountSearch = useRef(false);
-  const searchRevision = useRef(0);
-
-  useEffect(() => {
-    if (!onSearch) return;
-    if (!didMountSearch.current) {
-      didMountSearch.current = true;
-      return;
-    }
-    const revision = ++searchRevision.current;
-    const timer = window.setTimeout(() => {
-      void onSearch(query).catch((cause) => {
-        if (revision !== searchRevision.current) return;
-        setError(cause instanceof Error ? cause.message : "提示词搜索失败");
-      });
-    }, 220);
-    return () => window.clearTimeout(timer);
-  }, [onSearch, query]);
-  const selected = prompts.find((prompt) => prompt.id === selectedId) ?? null;
+  const selectedId = page.selectedId;
+  const selected = page.items.find((prompt) => prompt.id === selectedId) ?? null;
   const items = useMemo<PromptListItemViewModel[]>(
-    () =>
-      prompts.map((prompt) => ({
-        id: prompt.id,
-        title: prompt.title,
-        content: prompt.content,
-        description: prompt.description,
-        usageCount: prompt.usageCount,
-        tags: prompt.tags.map((tag) => tag.name),
-        isPinned: prompt.isPinned,
-        updatedAtLabel: new Date(prompt.updatedAt).toLocaleString(),
-      })),
-    [prompts],
+    () => page.items.map((prompt) => toPromptListItemViewModel(prompt)),
+    [page.items],
   );
   const editorInitial = useMemo<PromptEditorDraft>(
     () => promptEditorDraft(editing),
     [editing?.id, editing?.version, editorRevision],
   );
 
+  const listTrash = page.listTrash;
+
+  useEffect(() => {
+    if (mode !== "trash") return;
+    let cancelled = false;
+    setTrashLoading(true);
+    setError(null);
+    void listTrash()
+      .then((next) => {
+        if (!cancelled) setTrash(next);
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : "回收站载入失败");
+      })
+      .finally(() => {
+        if (!cancelled) setTrashLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listTrash, mode]);
+
   const copyPrompt = async (prompt: PromptListItemViewModel) => {
     try {
-      await navigator.clipboard.writeText(prompt.content);
+      await page.copyText(prompt.content);
       setCopiedId(prompt.id);
       window.setTimeout(() => setCopiedId(null), 1_200);
     } catch {
@@ -124,12 +112,12 @@ export function PromptLibraryView({
     setError(null);
     try {
       const saved = editing
-        ? await onUpdate(
+        ? await page.update(
             editing.id,
             promptUpdateFromDraft(editing, draft, editing.version),
           )
-        : await onCreate(promptCreateFromDraft(draft));
-      setSelectedId(saved.id);
+        : await page.create(promptCreateFromDraft(draft));
+      page.select(saved.id);
       setEditing(null);
       setConflict(null);
       setMode("detail");
@@ -140,7 +128,7 @@ export function PromptLibraryView({
         cause.code === "PROMPT_VERSION_CONFLICT"
       ) {
         try {
-          const latest = await onGet(editing.id);
+          const latest = await page.get(editing.id);
           setConflict({ latest, draft });
           setError(null);
         } catch (reloadError) {
@@ -163,7 +151,7 @@ export function PromptLibraryView({
     setBusy(true);
     setError(null);
     try {
-      const saved = await onUpdate(
+      const saved = await page.update(
         conflict.latest.id,
         promptUpdateFromDraft(
           conflict.latest,
@@ -171,7 +159,7 @@ export function PromptLibraryView({
           conflict.latest.version,
         ),
       );
-      setSelectedId(saved.id);
+      page.select(saved.id);
       setEditing(null);
       setConflict(null);
       setMode("detail");
@@ -194,16 +182,16 @@ export function PromptLibraryView({
     setBusy(true);
     setError(null);
     try {
-      await onDelete(selected.id, selected.version);
-      setSelectedId(null);
+      await page.remove(selected.id, selected.version);
+      page.select(null);
       setMode("list");
     } catch (cause) {
       if (
         cause instanceof WebGatewayError &&
         cause.code === "PROMPT_VERSION_CONFLICT"
       ) {
-        const latest = await onGet(selected.id).catch(() => null);
-        if (latest) setSelectedId(latest.id);
+        const latest = await page.get(selected.id).catch(() => null);
+        if (latest) page.select(latest.id);
         setError("提示词已在其他设备更新，已载入最新版本，请重新确认删除。 ");
       } else {
         setError(cause instanceof Error ? cause.message : "删除失败");
@@ -213,18 +201,9 @@ export function PromptLibraryView({
     }
   };
 
-  const openTrash = async () => {
+  const openTrash = useCallback(() => {
     setMode("trash");
-    setTrashLoading(true);
-    setError(null);
-    try {
-      setTrash(await onListTrash());
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "回收站载入失败");
-    } finally {
-      setTrashLoading(false);
-    }
-  };
+  }, []);
 
   const restoreTrashPrompt = async (prompt: PromptDetailViewModel) => {
     const source = trash.find((item) => item.id === prompt.id);
@@ -232,14 +211,14 @@ export function PromptLibraryView({
     setBusyTrashId(source.id);
     setError(null);
     try {
-      await onRestore(source.id, source.version);
+      await page.restore(source.id, source.version);
       setTrash((current) => current.filter((item) => item.id !== source.id));
     } catch (cause) {
       if (
         cause instanceof WebGatewayError &&
         cause.code === "PROMPT_VERSION_CONFLICT"
       ) {
-        const latest = await onGet(source.id).catch(() => null);
+        const latest = await page.get(source.id).catch(() => null);
         if (latest) {
           setTrash((current) =>
             current.map((item) => (item.id === latest.id ? latest : item)),
@@ -322,7 +301,7 @@ export function PromptLibraryView({
             setBusy(true);
             setError(null);
             try {
-              await onUpdate(selected.id, {
+              await page.update(selected.id, {
                 expectedVersion: selected.version,
                 isPinned: !selected.isPinned,
               });
@@ -368,23 +347,23 @@ export function PromptLibraryView({
         headerAction={
           <PromptLibraryHeaderActions
             onCreate={() => openEditor(null)}
-            onOpenTrash={() => void openTrash()}
+            onOpenTrash={openTrash}
           />
         }
         onOpen={(prompt) => {
-          setSelectedId(prompt.id);
+          page.select(prompt.id);
           setError(null);
           setMode("detail");
         }}
         onCopy={(prompt) => void copyPrompt(prompt)}
         onUse={(prompt) => {
-          const source = prompts.find((item) => item.id === prompt.id);
+          const source = page.items.find((item) => item.id === prompt.id);
           if (source) onUse(source);
         }}
       />
-      {error && (
+      {(error || page.error) && (
         <p className="form-error library-error" role="alert">
-          {error}
+          {error ?? page.error}
         </p>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleUserRound, LoaderCircle } from '@musefold/ui/icons';
 import {
   cloudGenerationRequestSchema,
@@ -9,7 +10,6 @@ import {
   type GenerationHistoryQuery,
   type McpConnectionPage,
   type PromptDocument,
-  type PromptPage,
   type WorkbenchSession,
 } from '@musefold/contracts';
 import {
@@ -18,6 +18,7 @@ import {
   formatAccountPoints,
   generationRequestToPromptDraft,
   getProductCapabilities,
+  type PlatformServices,
 } from '@musefold/domain';
 import {
   useWorkbenchDraftSyncController,
@@ -28,6 +29,7 @@ import {
   ConnectedAppsScreen,
   GenerationResultSurface,
   latestWorkbenchGenerationSnapshot,
+  musefoldQueryKeys,
   sortWorkbenchGenerationSnapshots,
   upsertWorkbenchGenerationSnapshot,
   workbenchGenerationResultStatus,
@@ -45,6 +47,13 @@ import { GenerateView } from './views/GenerateView';
 import { HistoryView } from './views/HistoryView';
 import { PromptLibraryView } from './views/PromptLibraryView';
 import { getSafeOAuthReturnTo } from './oauth-return-to';
+import {
+  WEB_LIBRARY_LIST_KEY,
+  dropHistoryJob,
+  hydrateWorkspaceLists,
+  patchHistoryJob,
+  patchLibraryPrompt,
+} from './workspace-query-cache';
 
 type View = WebView;
 type Ratio = '1:1' | '16:9' | '9:16';
@@ -93,23 +102,21 @@ async function listAllGenerationHistory(
 
 interface AppProps {
   gateway: WebGateway;
+  platform: PlatformServices;
 }
 
-export function App({ gateway }: AppProps) {
+export function App({ gateway, platform }: AppProps) {
   useKeyboardInset();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<View>('generate');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [session, setSession] = useState<AccountSession | null>(null);
-  const [prompts, setPrompts] = useState<PromptPage>({
-    items: [],
-    nextCursor: null,
+  const { data: promptPage } = useQuery({
+    queryKey: musefoldQueryKeys.library.list(WEB_LIBRARY_LIST_KEY),
+    queryFn: () => gateway.listPrompts({ ...WEB_LIBRARY_LIST_KEY }),
   });
+  const prompts = promptPage ?? { items: [], nextCursor: null };
   const [promptQuery, setPromptQuery] = useState('');
-  const promptSearchRevision = useRef(0);
-  const [history, setHistory] = useState<GenerationHistoryPage>({
-    items: [],
-    nextCursor: null,
-  });
   const [connections, setConnections] = useState<McpConnectionPage>({
     items: [],
   });
@@ -249,7 +256,7 @@ export function App({ gateway }: AppProps) {
         nextWorkbenchPage,
       ] = await Promise.all([
         gateway.getSession(),
-        gateway.listPrompts({ limit: 20 }),
+        gateway.listPrompts({ ...WEB_LIBRARY_LIST_KEY }),
         gateway.listGenerationHistory({ limit: 20 }),
         listAllGenerationHistory(gateway, { limit: 100 }),
         gateway.listConnections(),
@@ -272,8 +279,7 @@ export function App({ gateway }: AppProps) {
           }
         : { items: [], nextCursor: null };
       setSession(nextSession);
-      setPrompts(nextPrompts);
-      setHistory(nextHistory);
+      hydrateWorkspaceLists(queryClient, nextPrompts, nextHistory);
       setTrackedGenerationJobs(nextGenerationSnapshots.items);
       setConnections(nextConnections);
       replaceWorkbenchSessions(nextWorkbenchPage.items);
@@ -346,12 +352,9 @@ export function App({ gateway }: AppProps) {
         if (job?.id === next.id) setJob(next);
         if (approvalRequest?.id === next.id) setApprovalJob(next);
         updateWorkbenchJob(next);
-        setHistory((current) => ({
-          ...current,
-          items: [next, ...current.items.filter((item) => item.id !== next.id)],
-        }));
+        patchHistoryJob(queryClient, next);
       },
-      [approvalRequest?.id, job?.id, updateWorkbenchJob],
+      [approvalRequest?.id, job?.id, queryClient, updateWorkbenchJob],
     ),
     onAuthRequired: useCallback(() => setAuthRequired(true), []),
     onError: useCallback(
@@ -396,7 +399,6 @@ export function App({ gateway }: AppProps) {
     });
     if (!(await beginNewDesign())) return;
     setPromptQuery('');
-    void searchPrompts('');
     setPromptText(request.prompt);
     setSelectedPromptId(prompt.id);
     setSelectedPrompt(prompt);
@@ -620,10 +622,7 @@ export function App({ gateway }: AppProps) {
       );
       setJob(nextJob);
       updateWorkbenchJob(nextJob);
-      setHistory((current) => ({
-        ...current,
-        items: [nextJob, ...current.items.filter((item) => item.id !== nextJob.id)],
-      }));
+      patchHistoryJob(queryClient, nextJob);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '无法创建生成任务');
     }
@@ -662,10 +661,7 @@ export function App({ gateway }: AppProps) {
       const nextJob = await gateway.cancelGeneration(job.id);
       setJob(nextJob);
       updateWorkbenchJob(nextJob);
-      setHistory((current) => ({
-        ...current,
-        items: [nextJob, ...current.items.filter((item) => item.id !== nextJob.id)],
-      }));
+      patchHistoryJob(queryClient, nextJob);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '无法取消任务');
     }
@@ -673,25 +669,9 @@ export function App({ gateway }: AppProps) {
 
   const createPromptFromGeneration = async (targetJob: GenerationJob) => {
     const created = await gateway.createPrompt(generationRequestToPromptDraft(targetJob.request));
-    setPrompts((current) => ({
-      ...current,
-      items: [created, ...current.items.filter((prompt) => prompt.id !== created.id)],
-    }));
+    patchLibraryPrompt(queryClient, created);
     return created;
   };
-
-  const searchPrompts = useCallback(
-    async (query: string) => {
-      const revision = ++promptSearchRevision.current;
-      const next = await gateway.listPrompts({
-        q: query.trim() || undefined,
-        limit: 20,
-        sort: 'updated-desc',
-      });
-      if (revision === promptSearchRevision.current) setPrompts(next);
-    },
-    [gateway],
-  );
 
   const saveGenerationPrompt = async (targetJob: GenerationJob | null = job) => {
     if (!targetJob || targetJob.status !== 'succeeded' || savingPromptJobId === targetJob.id)
@@ -721,10 +701,7 @@ export function App({ gateway }: AppProps) {
       const nextJob = await gateway.retryGeneration(targetJob.id, crypto.randomUUID());
       setJob(nextJob);
       updateWorkbenchJob(nextJob);
-      setHistory((current) => ({
-        ...current,
-        items: [nextJob, ...current.items.filter((item) => item.id !== nextJob.id)],
-      }));
+      patchHistoryJob(queryClient, nextJob);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '无法重试任务');
     } finally {
@@ -846,117 +823,31 @@ export function App({ gateway }: AppProps) {
         )}
         {view === 'prompts' && (
           <PromptLibraryView
-            prompts={prompts.items}
+            prompts={gateway}
+            platform={platform}
             query={promptQuery}
             onQueryChange={setPromptQuery}
             onUse={(prompt) => void selectPrompt(prompt)}
-            onCreate={async (input) => {
-              const created = await gateway.createPrompt(input);
-              setPrompts((current) => ({
-                ...current,
-                items: [created, ...current.items],
-              }));
-              return created;
-            }}
-            onGet={async (id) => {
-              const latest = await gateway.getPrompt(id);
-              setPrompts((current) => ({
-                ...current,
-                items: current.items.map((prompt) => (prompt.id === latest.id ? latest : prompt)),
-              }));
-              return latest;
-            }}
-            onUpdate={async (id, input) => {
-              const updated = await gateway.updatePrompt(id, input);
-              setPrompts((current) => ({
-                ...current,
-                items: current.items.map((prompt) => (prompt.id === updated.id ? updated : prompt)),
-              }));
-              return updated;
-            }}
-            onDelete={async (id, expectedVersion) => {
-              const deleted = await gateway.deletePrompt(id, expectedVersion);
-              setPrompts((current) => ({
-                ...current,
-                items: current.items.filter((prompt) => prompt.id !== id),
-              }));
-              return deleted;
-            }}
-            onRestore={async (id, expectedVersion) => {
-              const restored = await gateway.restorePrompt(id, expectedVersion);
-              setPrompts((current) => ({
-                ...current,
-                items: [restored, ...current.items.filter((prompt) => prompt.id !== id)],
-              }));
-              return restored;
-            }}
-            onListTrash={async () =>
-              (
-                await gateway.listPrompts({
-                  includeDeleted: true,
-                  limit: 100,
-                  sort: 'updated-desc',
-                })
-              ).items.filter((prompt) => prompt.deletedAt !== null)
-            }
-            onSearch={searchPrompts}
           />
         )}
         {view === 'history' && (
           <HistoryView
-            history={history}
+            history={gateway}
+            generation={gateway}
+            platform={platform}
             onReuse={(nextJob) => void openGenerationInWorkbench(nextJob)}
-            onGet={(id) => gateway.getGeneration(id)}
-            onRetry={async (id) => {
-              const next = await gateway.retryGeneration(id, crypto.randomUUID());
-              setHistory((current) => ({
-                ...current,
-                items: [next, ...current.items.filter((item) => item.id !== next.id)],
-              }));
-              updateWorkbenchJob(next);
-              return next;
-            }}
-            onCancel={async (id) => {
-              const next = await gateway.cancelGeneration(id);
-              setHistory((current) => ({
-                ...current,
-                items: current.items.map((item) => (item.id === next.id ? next : item)),
-              }));
+            onSavePrompt={createPromptFromGeneration}
+            onJobChanged={(next) => {
               updateWorkbenchJob(next);
               if (job?.id === next.id) setJob(next);
-              return next;
             }}
-            onDelete={async (id) => {
-              const deleted = await gateway.deleteGeneration(id);
-              setHistory((current) => ({
-                ...current,
-                items: current.items.filter((item) => item.id !== id),
-              }));
+            onJobRemoved={(id) => {
+              dropHistoryJob(queryClient, id);
               const remainingJobs = workbenchJobs.filter((item) => item.id !== id);
               removeTrackedGenerationJob(id);
               setWorkbenchJobs(sortWorkbenchGenerationSnapshots(remainingJobs));
               if (job?.id === id) setJob(latestWorkbenchGenerationSnapshot(remainingJobs));
-              return deleted;
             }}
-            onRestore={async (id) => {
-              const restored = await gateway.restoreGeneration(id);
-              setHistory((current) => ({
-                ...current,
-                items: [restored, ...current.items.filter((item) => item.id !== id)],
-              }));
-              updateWorkbenchJob(restored);
-              return restored;
-            }}
-            onListTrash={async () =>
-              (
-                await gateway.listGenerationHistory({
-                  includeDeleted: true,
-                  limit: 100,
-                })
-              ).items.filter((item) => Boolean(item.deletedAt))
-            }
-            onSavePrompt={createPromptFromGeneration}
-            onRefresh={async () => setHistory(await gateway.listGenerationHistory({ limit: 20 }))}
           />
         )}
         {view === 'connections' && (

@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01 已完成；ORCH-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~02 已完成；ORCH-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03、ORCH-01 已完成 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03、ORCH-01~02 已完成 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -153,10 +153,17 @@
   验证：全仓 `tsc -b`；vitest 189 files / 1065 tests；`check:boundaries` 850 modules / 69 known；host-boundary 双端断言 + page-controllers 中立性扫描。✅
   回滚：revert 本卡提交。
 
-- `V13-ORCH-02`：history + library 页面编排下沉。`useHistoryPageController` / `useLibraryPageController` 落地（取数 Query + 过滤/选中/分页 + 动作分发）；桌面 `HistoryPage`/`LibraryPage` 切换为薄挂载，feature store 对应编排段删除；Web `App.tsx` 的 history/library 编排段拆除改用同 controller。
+- `V13-ORCH-02`：~~history + library 页面编排下沉。~~ **已完成（2026-08-21）**。`useHistoryPageController` / `useLibraryPageController` 落地（Query 取数、选中/检视、软删恢复、搜索防抖、剪贴板经 `platform.writeClipboard`）。Web `HistoryView` / `PromptLibraryView` 改为调 controller；`App.tsx` 拆除 history/library 回调编排，只留跨页（`onUse` / `onReuse` / 工作台 job 同步）与 Query 水合。桌面 `HistoryPage` / `LibraryPage` 薄挂载同一 hook，经 `listFn` 注入 extras 列表（不把 desktop-contracts 泄入 product-ui）。
 
-  验证：双端 E2E 对应用例；视觉门禁；`App.tsx` 行数显著下降（过程指标）。
-  回滚：按端分卡 revert。
+  **裁定（相对原卡的差异）**：
+  1. **桌面 extras 列表用 `listFn` + `listKey` 注入，而不是 `HistoryGateway & DesktopHistoryExtrasLike`。** product-ui 禁止 desktop-contracts；桌面 `listHistory` 返回 `DesktopGenerationEntry[]`（裸数组），Web `listGenerationHistory` 返回 `{ items, nextCursor }`。控制器按缓存实际形状读写（`upsertListCache` / `dropListCache`），禁止把 page 对象写进桌面数组 key（会打坏 STATE-02 `cachedHistoryRecords`）。
+  2. **桌面 feature store 的写面（remove/retry/createPrompt 等）本卡不删。** workbench/store.ts（1932）与 DataSection / 命令面板 / 笺匣仍经 `useHistoryStore.getState().load()` 与 `useLibraryStore` 写路径；删掉会逼棘轮顶格文件扩 import。ORCH-03 / SPLIT-03 再迁。
+  3. **Web 生成页仍 `useQuery` 默认提示词列表**（`WEB_LIBRARY_LIST_KEY`），供草稿引用回填；这不是 library 页编排，随 ORCH-03 进 generate controller。
+  4. **搜索防抖 220ms 保持 Web 原值**（与 `PromptLibraryView` 原 `onSearch` 一致）；桌面搜索仍走 library store 已有 150ms 防抖，`listKey` 由宿主传入。
+  5. **动作失败不在 controller 内 toast**，避免 Web 从行内 error 变成 live region。宿主既有错误 UI 不变。
+
+  验证：全仓 `tsc -b`；vitest 190 files / 1072 tests；`check:boundaries` 853 modules / 69 known；`App.tsx` 1201 → 1092；Web E2E workspace history/library；桌面 E2E harness+library+history。
+  回滚：revert 本卡提交。
 
 - `V13-ORCH-03`：generate/workbench 编排收敛 + Web `App.tsx` 拆解完成。`useGeneratePageController`（工作台顶层编排：会话装配、草稿入口、生成提交入口）落地；Web `App.tsx` 收敛为视图切换 + 3 个薄 view + Provider 装配（目标 ≤ 300 行）；桌面工作台顶层编排对齐同 controller（与 SPLIT-03 协同）。
 

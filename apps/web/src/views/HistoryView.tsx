@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { type GenerationJob, type PromptDocument } from '@musefold/contracts';
 import {
-  type GenerationHistoryPage,
-  type GenerationJob,
-  type PromptDocument,
-} from '@musefold/contracts';
-import { canCancelGeneration } from '@musefold/domain';
+  canCancelGeneration,
+  type GenerationGateway,
+  type HistoryGateway,
+  type PlatformServices,
+} from '@musefold/domain';
 import {
   GenerationHistoryDetailActions,
   GenerationHistoryDetailContent,
@@ -14,9 +15,9 @@ import {
   GenerationHistoryScreen,
   GenerationHistoryTrashScreen,
   GenerationHistoryWorkspace,
-  useHistoryInspectorController,
   canShareImage,
   shareImageAsset,
+  useHistoryPageController,
   type GenerationHistoryDetailViewModel,
   type GenerationHistoryItemViewModel,
 } from '@musefold/product-ui';
@@ -24,32 +25,29 @@ import { Button, ImageLightbox } from '@musefold/ui';
 import { downloadImage } from '../download-image';
 
 export interface HistoryViewProps {
-  history: GenerationHistoryPage;
+  history: HistoryGateway;
+  generation: Pick<
+    GenerationGateway,
+    'getGeneration' | 'retryGeneration' | 'cancelGeneration'
+  >;
+  platform: PlatformServices;
   onReuse: (job: GenerationJob) => void;
-  onGet: (id: string) => Promise<GenerationJob>;
-  onRetry: (id: string) => Promise<GenerationJob>;
-  onCancel: (id: string) => Promise<GenerationJob>;
-  onDelete: (id: string) => Promise<GenerationJob>;
-  onRestore: (id: string) => Promise<GenerationJob>;
-  onListTrash: () => Promise<GenerationJob[]>;
   onSavePrompt: (job: GenerationJob) => Promise<PromptDocument>;
-  onRefresh: () => Promise<void>;
+  onJobChanged?: (job: GenerationJob) => void;
+  onJobRemoved?: (id: string) => void;
 }
 
 export function HistoryView({
   history,
+  generation,
+  platform,
   onReuse,
-  onGet,
-  onRetry,
-  onCancel,
-  onDelete,
-  onRestore,
-  onListTrash,
   onSavePrompt,
-  onRefresh,
+  onJobChanged,
+  onJobRemoved,
 }: HistoryViewProps) {
-  const [refreshing, setRefreshing] = useState(false);
-  const inspector = useHistoryInspectorController();
+  const page = useHistoryPageController({ history, generation, platform });
+  const inspector = page.inspector;
   const { mode, origin: detailOrigin } = inspector;
   const [selected, setSelected] = useState<GenerationJob | null>(null);
   const [trash, setTrash] = useState<GenerationJob[]>([]);
@@ -65,30 +63,27 @@ export function HistoryView({
 
   useEffect(() => {
     if (!selected || selected.deletedAt) return;
-    const latest = history.items.find((item) => item.id === selected.id);
+    const latest = page.items.find((item) => item.id === selected.id);
     if (latest) setSelected(latest);
-  }, [history.items, selected?.id, selected?.deletedAt]);
+  }, [page.items, selected?.id, selected?.deletedAt]);
 
   useEffect(() => setConfirmDelete(false), [selected?.id]);
 
   const items = useMemo<GenerationHistoryItemViewModel[]>(
     () =>
-      history.items.map((item) => ({
+      page.items.map((item) => ({
         ...toGenerationHistoryItemViewModel(item),
         selected: item.id === selected?.id && mode === 'detail',
       })),
-    [history.items, mode, selected?.id],
+    [page.items, mode, selected?.id],
   );
 
   const refresh = async () => {
-    setRefreshing(true);
     setError(null);
     try {
-      await onRefresh();
+      await page.refetch();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : '历史刷新失败');
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -98,7 +93,7 @@ export function HistoryView({
     setSelected(item);
     inspector.openDetail(item.id, origin);
     try {
-      setSelected(await onGet(item.id));
+      setSelected(await page.get(item.id));
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : '生成详情载入失败');
     }
@@ -110,7 +105,7 @@ export function HistoryView({
     setNotice(null);
     setTrashLoading(true);
     try {
-      setTrash(await onListTrash());
+      setTrash(await page.listTrash());
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : '回收站载入失败');
     } finally {
@@ -121,7 +116,7 @@ export function HistoryView({
   const copyPrompt = async () => {
     if (!selected) return;
     try {
-      await navigator.clipboard.writeText(selected.request.prompt);
+      await page.copyText(selected.request.prompt);
       setNotice('提示词已复制');
       setError(null);
     } catch {
@@ -142,9 +137,11 @@ export function HistoryView({
     setBusyAction('retry');
     setError(null);
     setNotice(null);
-    void onRetry(selected.id)
+    void page
+      .retry(selected.id, crypto.randomUUID())
       .then((next) => {
         setSelected(next);
+        onJobChanged?.(next);
         inspector.openDetail(next.id, 'list');
         setNotice('已创建重试任务');
       })
@@ -156,9 +153,11 @@ export function HistoryView({
     if (!selected) return;
     setBusyAction('cancel');
     setError(null);
-    void onCancel(selected.id)
+    void page
+      .cancel(selected.id)
       .then((next) => {
         setSelected(next);
+        onJobChanged?.(next);
         setNotice('任务已取消');
       })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : '取消失败'))
@@ -182,15 +181,18 @@ export function HistoryView({
 
   const deleteSelected = () => {
     if (!selected) return;
+    const id = selected.id;
     setConfirmDelete(false);
     setBusyAction('delete');
     setError(null);
-    void onDelete(selected.id)
+    inspector.openList();
+    setSelected(null);
+    void page
+      .remove(id)
       .then((deleted) => {
+        onJobRemoved?.(deleted.id);
         setTrash((current) => [deleted, ...current.filter((job) => job.id !== deleted.id)]);
-        setSelected(null);
         inspector.select(null);
-        inspector.openList();
       })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : '删除失败'))
       .finally(() => setBusyAction(null));
@@ -200,8 +202,10 @@ export function HistoryView({
     if (!selected) return;
     setBusyAction('restore');
     setError(null);
-    void onRestore(selected.id)
+    void page
+      .restore(selected.id)
       .then((restored) => {
+        onJobChanged?.(restored);
         setTrash((current) => current.filter((job) => job.id !== restored.id));
         setSelected(restored);
         inspector.openDetail(restored.id, 'list');
@@ -251,8 +255,10 @@ export function HistoryView({
             setSelected(trash.find((job) => job.id === item.id) ?? null);
             setBusyAction('restore');
             setError(null);
-            void onRestore(item.id)
-              .then(() => {
+            void page
+              .restore(item.id)
+              .then((restored) => {
+                onJobChanged?.(restored);
                 setTrash((current) => current.filter((job) => job.id !== item.id));
               })
               .catch((nextError) =>
@@ -298,7 +304,7 @@ export function HistoryView({
     mode === 'detail' && selected ? toGenerationHistoryDetailViewModel(selected) : null;
   const retryable = Boolean(selected && ['failed', 'cancelled'].includes(selected.status));
   const openHistoryItem = (item: GenerationHistoryItemViewModel) => {
-    const job = history.items.find((candidate) => candidate.id === item.id);
+    const job = page.items.find((candidate) => candidate.id === item.id);
     if (job) void openDetail(job, 'list');
   };
 
@@ -369,7 +375,7 @@ export function HistoryView({
       <GenerationHistoryScreen
         items={[]}
         count={items.length}
-        refreshing={refreshing}
+        refreshing={page.loading}
         onRefresh={() => void refresh()}
         onOpenTrash={() => void openTrash()}
         className="mf-history-screen-workspace"

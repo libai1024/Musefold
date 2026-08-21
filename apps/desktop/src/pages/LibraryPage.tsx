@@ -16,6 +16,7 @@ import {
   PromptLibraryHeaderActions,
   PromptListRow,
   PromptSectionHeading,
+  useLibraryPageController,
   type PromptListItemViewModel,
 } from '@musefold/product-ui';
 import {
@@ -26,12 +27,16 @@ import {
   X,
 } from '../components/ui/icons';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
+import { useLibraryStatsQuery } from '../features/library/use-library-queries';
 import {
-  useLibraryListQuery,
-  useLibraryStatsQuery,
-} from '../features/library/use-library-queries';
-import { selectNormal, selectPinned, useLibraryStore } from '../features/library/store';
+  getLibraryDesktopExtras,
+  selectNormal,
+  selectPinned,
+  useLibraryStore,
+} from '../features/library/store';
 import { useGenerationWorkbenchStore } from '../features/generation/workbench/store';
+import { desktopGateway } from '../runtime';
+import { desktopPlatformServices } from '../runtime/platform-services';
 import { useSettingsStore } from '../features/settings/store';
 import { PromptEditor } from '../features/library/components/PromptEditor';
 import { PromptDetailView } from '../features/library/components/PromptDetailView';
@@ -86,7 +91,19 @@ export function LibraryPage() {
   const queryStats = useLibraryStatsQuery();
   const storeStats = useLibraryStore((s) => s.stats);
   const stats = queryStats ?? storeStats;
-  const { loading, initialized, error, prompts } = useLibraryListQuery();
+  const listQuery = useLibraryStore((s) => s.listQuery);
+  const page = useLibraryPageController<DesktopLibraryPrompt>({
+    prompts: desktopGateway,
+    platform: desktopPlatformServices,
+    listKey: listQuery,
+    listFn: () => getLibraryDesktopExtras().listLibraryPrompts(listQuery),
+  });
+  const { loading, initialized, error, prompts } = {
+    loading: page.loading,
+    initialized: page.initialized,
+    error: page.error,
+    prompts: page.items,
+  };
   const pinned = useMemo(() => selectPinned({ prompts }), [prompts]);
   const normal = useMemo(() => selectNormal({ prompts }), [prompts]);
   const clearError = useLibraryStore((s) => s.clearError);

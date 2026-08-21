@@ -12,22 +12,35 @@ import { HistoryDetail } from '../features/history/components/HistoryDetail';
 import { HistoryCleanupMenu } from '../features/history/components/HistoryCleanupMenu';
 import { HistoryDiskUsage } from '../features/history/components/HistoryDiskUsage';
 import { CostDashboard } from '../features/history/components/CostDashboard';
-import { useHistoryListQuery } from '../features/history/use-history-queries';
-import { useHistoryStore } from '../features/history/store';
+import { toHistoryListQuery, toHistoryListQueryKey, useHistoryStore } from '../features/history/store';
 import { ImageLightbox } from '../components/image-lightbox';
 import { Button } from '../components/ui/button';
 import {
   GenerationHistoryWorkspace,
   GenerationHistoryScreen,
-  useHistoryInspectorController,
+  useHistoryPageController,
 } from '@musefold/product-ui';
+import { desktopGateway } from '../runtime';
+import { desktopPlatformServices } from '../runtime/platform-services';
 
 export function HistoryPage() {
-  const { records, loading, refetch } = useHistoryListQuery();
-  const count = records.length;
+  const filters = useHistoryStore((s) => s.filters);
   const selectedId = useHistoryStore((s) => s.selectedId);
   const select = useHistoryStore((s) => s.select);
-  const inspector = useHistoryInspectorController();
+  const page = useHistoryPageController({
+    history: desktopGateway,
+    platform: desktopPlatformServices,
+    listKey: toHistoryListQueryKey(filters),
+    listFn: () =>
+      desktopGateway.listHistory(toHistoryListQuery(useHistoryStore.getState().filters)),
+  });
+  const { records, loading, refetch } = {
+    records: page.items,
+    loading: page.loading,
+    refetch: page.refetch,
+  };
+  const count = records.length;
+  const inspector = page.inspector;
   const inspectorCollapsed = inspector.collapsed;
 
   useEffect(() => {

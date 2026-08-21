@@ -69,11 +69,25 @@ export {
   MUSEFOLD_QUERY_STALE_TIME_MS,
 } from './page-controllers/query-client';
 export {
+  DEFAULT_HISTORY_PAGE_LIST_KEY,
+  DEFAULT_LIBRARY_PAGE_LIST_KEY,
+  LIBRARY_PAGE_SEARCH_DEBOUNCE_MS,
+  asPagedItems,
+  dropListCache,
+  itemsFromQueryData,
+  libraryPageListKey,
+  upsertListCache,
+  upsertPagedItem,
+  dropPagedItem,
+} from './page-controllers/paged-items';
+export {
   useHistoryPageController,
+  type HistoryPageController,
   type HistoryPageControllerDeps,
 } from './page-controllers/history-page-controller';
 export {
   useLibraryPageController,
+  type LibraryPageController,
   type LibraryPageControllerDeps,
 } from './page-controllers/library-page-controller';
 export {

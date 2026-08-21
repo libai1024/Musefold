@@ -24,7 +24,7 @@ void webPlatformServices;
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App gateway={createWebGateway()} />
+      <App gateway={createWebGateway()} platform={webPlatformServices} />
     </QueryClientProvider>
   </StrictMode>,
 );

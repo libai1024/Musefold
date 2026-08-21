@@ -182,11 +182,13 @@ history（行类型泄漏最深）→ library（`PromptDocument` + 无损封面/
 ```ts
 // product-ui/src/page-controllers/history-page-controller.ts
 export function useHistoryPageController(deps: {
-  history: HistoryGateway & DesktopHistoryExtrasLike;  // 域端口 + 可选扩展面
-  platform: PlatformServicesLike;                       // toast/download 等
+  history: HistoryGateway;
+  platform: PlatformServices;
+  listKey?: unknown; // 稳定筛选快照，禁止 Date.now() 边界
+  listFn?: () => Promise<TItem[] | { items: TItem[] }>; // 桌面 extras 注入
 }) {
-  const query = useQuery(…); const filters = useState(…); …
-  return { page, filters, setFilters, remove: (id) => …, stats: … };
+  const query = useQuery(…); const inspector = useHistoryInspectorController();
+  return { items, inspector, remove, restore, … };
 }
 ```
 
