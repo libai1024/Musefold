@@ -626,6 +626,30 @@ function selfTest() {
       fail_open: false,
     },
   );
+  assertEqual(
+    'marketing homepage is content, not desktop E2E',
+    pick(classifyFiles(['website/Musefold/index.html'], groups)),
+    {
+      content: true,
+      service: false,
+      shell: false,
+      desktop: false,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'download service is service, not desktop E2E',
+    pick(classifyFiles(['services/musefold-downloads/server.py'], groups)),
+    {
+      content: false,
+      service: true,
+      shell: false,
+      desktop: false,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
 
   try {
     patternKind('tsconfig*');

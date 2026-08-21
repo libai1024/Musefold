@@ -9,29 +9,42 @@ import os
 import re
 import sqlite3
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 
 PLATFORM_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 VERSION_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$")
 DOWNLOAD_PATH_PREFIX = "/Musefold/downloads/"
+LATEST_VERSION = "latest"
+
+
+@dataclass(frozen=True)
+class CatalogDocument:
+    entries: dict[tuple[str, str], str]
+    current_version: str | None = None
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def load_catalog(path: str | os.PathLike[str]) -> dict[tuple[str, str], str]:
+def load_catalog_document(path: str | os.PathLike[str]) -> CatalogDocument:
     with Path(path).open("r", encoding="utf-8") as source:
         payload = json.load(source)
 
     entries = payload.get("downloads") if isinstance(payload, dict) else None
     if not isinstance(entries, list) or not entries:
         raise ValueError("catalog must contain a non-empty downloads list")
+
+    current_version = payload.get("currentVersion") if isinstance(payload, dict) else None
+    if current_version is not None:
+        if not isinstance(current_version, str) or not VERSION_PATTERN.fullmatch(current_version):
+            raise ValueError("currentVersion is invalid")
 
     catalog: dict[tuple[str, str], str] = {}
     for entry in entries:
@@ -65,7 +78,27 @@ def load_catalog(path: str | os.PathLike[str]) -> dict[tuple[str, str], str]:
             raise ValueError(f"duplicate catalog entry: {platform} {version}")
         catalog[key] = target
 
-    return catalog
+    return CatalogDocument(entries=catalog, current_version=current_version)
+
+
+def load_catalog(path: str | os.PathLike[str]) -> dict[tuple[str, str], str]:
+    return load_catalog_document(path).entries
+
+
+class LiveCatalog:
+    """Re-read catalog.json when the file changes so a publish job can docker cp without rebuild."""
+
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        self.path = Path(path)
+        self._mtime: float | None = None
+        self._document: CatalogDocument | None = None
+
+    def document(self) -> CatalogDocument:
+        mtime = self.path.stat().st_mtime
+        if self._document is None or mtime != self._mtime:
+            self._document = load_catalog_document(self.path)
+            self._mtime = mtime
+        return self._document
 
 
 class DownloadStore:
@@ -117,6 +150,8 @@ class DownloadStore:
         by_platform: dict[str, int] = {}
         by_version: dict[str, dict[str, Any]] = {}
         for platform, version in catalog:
+            if version == LATEST_VERSION:
+                continue
             by_platform.setdefault(platform, 0)
             version_entry = by_version.setdefault(version, {"total": 0, "byPlatform": {}})
             version_entry["byPlatform"].setdefault(platform, 0)
@@ -152,7 +187,14 @@ class DownloadStore:
 def make_handler(
     store: DownloadStore,
     catalog: dict[tuple[str, str], str],
+    current_version: str | None = None,
+    catalog_loader: Callable[[], CatalogDocument] | None = None,
 ) -> type[BaseHTTPRequestHandler]:
+    def snapshot() -> CatalogDocument:
+        if catalog_loader is not None:
+            return catalog_loader()
+        return CatalogDocument(entries=catalog, current_version=current_version)
+
     class DownloadHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "MusefoldDownloads/1.0"
@@ -187,7 +229,10 @@ def make_handler(
 
             if request.path == "/download-stats":
                 try:
-                    payload = store.statistics(catalog)
+                    document = snapshot()
+                    payload = store.statistics(document.entries)
+                    if document.current_version:
+                        payload["currentVersion"] = document.current_version
                 except sqlite3.Error:
                     logging.exception("download_statistics_read_failed")
                     self._json_response(503, {"error": "statistics_unavailable"}, head_only)
@@ -215,22 +260,29 @@ def make_handler(
 
             platform = platforms[0]
             version = versions[0]
-            target = catalog.get((platform, version))
+            document = snapshot()
+            target = document.entries.get((platform, version))
             if target is None:
                 self._json_response(404, {"error": "download_not_found"}, head_only)
                 return
 
+            recorded_version = (
+                document.current_version
+                if version == LATEST_VERSION and document.current_version
+                else version
+            )
+
             recorded = False
             if not head_only:
                 try:
-                    store.record(platform, version)
+                    store.record(platform, recorded_version)
                     recorded = True
                 except sqlite3.Error:
                     # A metrics failure must never block an installer download.
                     logging.exception(
                         "download_event_write_failed platform=%s version=%s",
                         platform,
-                        version,
+                        recorded_version,
                     )
 
             self.send_response(302)
@@ -263,12 +315,15 @@ def main() -> None:
     database_path = os.environ.get("DOWNLOAD_DB_PATH", "/data/downloads.sqlite3")
     catalog_path = os.environ.get("DOWNLOAD_CATALOG_PATH", "/app/catalog.json")
 
-    catalog = load_catalog(catalog_path)
+    live = LiveCatalog(catalog_path)
     store = DownloadStore(database_path)
-    server = ThreadingHTTPServer((host, port), make_handler(store, catalog))
+    server = ThreadingHTTPServer(
+        (host, port),
+        make_handler(store, {}, catalog_loader=live.document),
+    )
     server.daemon_threads = True
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    logging.info("download_service_started port=%s catalog_entries=%s", port, len(catalog))
+    logging.info("download_service_started port=%s catalog_entries=%s", port, len(live.document().entries))
     try:
         server.serve_forever()
     except KeyboardInterrupt:

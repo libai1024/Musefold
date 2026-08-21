@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import tempfile
 import threading
@@ -124,6 +125,59 @@ class DownloadServiceTest(unittest.TestCase):
         payload = json.loads(body)
         self.assertEqual(payload["total"], 30)
         self.assertEqual(payload["byPlatform"]["windows"], 30)
+
+
+    def test_latest_alias_records_current_version(self) -> None:
+        handler = make_handler(
+            self.store,
+            {
+                **CATALOG,
+                ("macos", "latest"): CATALOG[("macos", "0.3.2")],
+            },
+            current_version="0.3.2",
+        )
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        self.server.daemon_threads = True
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.port = self.server.server_address[1]
+
+        status, headers, _ = self.request("GET", "/download?platform=macos&version=latest")
+        self.assertEqual(status, 302)
+        self.assertEqual(headers["location"], CATALOG[("macos", "0.3.2")])
+        _, _, body = self.request("GET", "/download-stats")
+        payload = json.loads(body)
+        self.assertEqual(payload["currentVersion"], "0.3.2")
+        self.assertEqual(payload["byVersion"]["0.3.2"]["byPlatform"]["macos"], 1)
+        self.assertNotIn("latest", payload["byVersion"])
+
+    def test_catalog_reload_picks_up_current_version(self) -> None:
+        from server import LiveCatalog, load_catalog_document
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.json"
+            path.write_text(
+                json.dumps({"currentVersion": "0.3.2", "downloads": [
+                    {"platform": "macos", "version": "0.3.2", "path": "/Musefold/downloads/0.3.2/Musefold-0.3.2-arm64.dmg"},
+                    {"platform": "macos", "version": "latest", "path": "/Musefold/downloads/0.3.2/Musefold-0.3.2-arm64.dmg"},
+                ]}),
+                encoding="utf-8",
+            )
+            live = LiveCatalog(path)
+            self.assertEqual(live.document().current_version, "0.3.2")
+            path.write_text(
+                json.dumps({"currentVersion": "0.5.0-dev", "downloads": [
+                    {"platform": "macos", "version": "0.5.0-dev", "path": "/Musefold/downloads/0.5.0-dev/Musefold-0.5.0-dev-arm64.dmg"},
+                    {"platform": "macos", "version": "latest", "path": "/Musefold/downloads/0.5.0-dev/Musefold-0.5.0-dev-arm64.dmg"},
+                ]}),
+                encoding="utf-8",
+            )
+            os.utime(path, None)
+            self.assertEqual(live.document().current_version, "0.5.0-dev")
+            self.assertEqual(load_catalog_document(path).current_version, "0.5.0-dev")
 
 
 class CatalogTest(unittest.TestCase):

@@ -1,5 +1,16 @@
 {
+  "currentVersion": "0.5.0-dev",
   "downloads": [
+    {
+      "platform": "macos",
+      "version": "latest",
+      "path": "/Musefold/downloads/0.5.0-dev/Musefold-0.5.0-dev-arm64.dmg"
+    },
+    {
+      "platform": "windows",
+      "version": "latest",
+      "path": "/Musefold/downloads/0.5.0-dev/Musefold%20Setup%200.5.0-dev.exe"
+    },
     {
       "platform": "macos",
       "version": "0.3.2",

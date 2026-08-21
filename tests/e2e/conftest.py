@@ -35,10 +35,34 @@ from playwright.sync_api import sync_playwright, Page
 
 REPO = Path(__file__).resolve().parents[2]
 MAIN = REPO / "apps" / "desktop" / "out" / "main" / "index.js"
-ELECTRON_BIN = (
-    REPO / "node_modules" / "electron" / "dist" / "electron.exe"
-    if os.name == "nt"
-    else REPO / "node_modules" / ".bin" / "electron"
+
+
+def electron_executable() -> Path:
+    """Prefer the unpacked binary; the .bin shim is a shell script and flakes on Windows CI."""
+    if os.name == "nt":
+        candidates = [
+            REPO / "node_modules" / "electron" / "dist" / "electron.exe",
+            REPO / "apps" / "desktop" / "node_modules" / "electron" / "dist" / "electron.exe",
+        ]
+    else:
+        candidates = [
+            REPO / "node_modules" / "electron" / "dist" / "electron",
+            REPO / "node_modules" / ".bin" / "electron",
+        ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    listed = ", ".join(str(path) for path in candidates)
+    raise FileNotFoundError(f"Electron binary missing; looked at: {listed}")
+
+
+ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear error
+
+CI_ELECTRON_FLAGS = (
+    "--no-sandbox",
+    "--disable-gpu",
+    "--disable-dev-shm-usage",
+    "--disable-software-rasterizer",
 )
 
 
@@ -620,7 +644,7 @@ class App:
         return self
 
 
-def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_args=None, extra_env=None):
+def _launch(user_data_dir: Path, pw, *, executable: Path | None = None, app_args=None, extra_env=None):
     port = _free_port()
     env = dict(os.environ)
     if extra_env:
@@ -629,19 +653,28 @@ def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_arg
     env["MUSEFOLD_E2E_USER_DATA_DIR"] = str(user_data_dir)
     env["MUSEFOLD_E2E_REMOTE_DEBUGGING_PORT"] = str(port)
     env["ELECTRON_ENABLE_LOGGING"] = "1"
+    binary = executable or electron_executable()
+    extra_flags = []
+    if os.name == "nt":
+        extra_flags.extend(["--in-process-gpu", "--disable-features=CalculateNativeWinOcclusion"])
+    popen_kwargs: dict = {
+        "cwd": str(REPO),
+        "env": env,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+    }
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     proc = subprocess.Popen(
         [
-            str(executable),
+            str(binary),
             *(list(app_args) if app_args is not None else [str(MAIN)]),
             f"--remote-debugging-port={port}",
             f"--user-data-dir={user_data_dir}",
-            "--no-sandbox",
-            *(["--disable-gpu"] if os.name == "nt" else []),
+            *CI_ELECTRON_FLAGS,
+            *extra_flags,
         ],
-        cwd=str(REPO),
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        **popen_kwargs,
     )
     console_tail = _drain_stdout(proc)
 
@@ -653,7 +686,9 @@ def _launch(user_data_dir: Path, pw, *, executable: Path = ELECTRON_BIN, app_arg
         if proc.poll() is not None:
             time.sleep(0.3)
             out = "".join(console_tail)
-            raise RuntimeError(f"electron exited early rc={proc.returncode}\n{out[-4000:]}")
+            raise RuntimeError(
+                f"electron exited early rc={proc.returncode} bin={binary}\n{out[-4000:]}"
+            )
         try:
             if not _cdp_has_app_page(port):
                 time.sleep(0.3)

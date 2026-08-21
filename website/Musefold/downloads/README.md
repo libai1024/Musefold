@@ -1,19 +1,13 @@
 # Musefold website downloads
 
 Large release binaries are stored on the deployment server rather than copied
-into the source tree. The website links to the download event service, which
-maps a platform and version to a whitelisted file in
-`/Musefold/downloads/<version>/` before issuing a `302` redirect.
+into the source tree. The website links to `/Musefold/api/download?platform=...&version=latest`,
+which maps to a whitelisted file in `/Musefold/downloads/<version>/` and issues a `302`.
 
-The current public test files are Musefold `0.5.0-dev` for macOS Apple Silicon
-and Windows x64. They are unsigned internal-test packages, not production releases.
+Pushing a `v*` tag runs GitHub-hosted macOS/Windows packaging, then the
+`musefold-prod` runner copies installers onto the site and rewrites `catalog.json`.
+The homepage reads `currentVersion` from `/Musefold/api/download-stats`.
 
-For every production release:
-
-1. Upload signed and verified installers plus SHA-256 checksums.
-2. Add the platform/version paths to
-   `services/musefold-downloads/catalog.json`.
-3. Update the website version and system-requirement copy.
-4. Publish release notes and the electron-updater manifests under
-   `/Musefold/updates/stable/`.
-5. Keep the previous signed version available as the rollback target.
+These packages are unsigned internal-test builds until Developer ID / Authenticode
+are configured. Do not write unsigned builds into `/Musefold/updates/stable/`.
+Prerelease updater feeds go to `/Musefold/updates/dev/`.

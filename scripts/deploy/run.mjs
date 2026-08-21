@@ -15,6 +15,7 @@ import {
   rollbackRelease,
   switchRelease,
 } from './web-release.mjs';
+import { publishMarketingSite, syncDownloadService } from './marketing-site.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(here, '../..');
@@ -318,6 +319,9 @@ export async function deploy(options) {
     dockerRun(exec, ['tag', `${image}:${sha}`, `${image}:latest`]);
     nextState = recordLayer(nextState, 'service', sha);
     writeDeployState(statePath, nextState);
+    if (existsSync(join(repoRoot, 'services/musefold-downloads/server.py'))) {
+      syncDownloadService({ exec, repoRoot, siteRoot });
+    }
   }
 
   if (wanted.content) {
@@ -347,6 +351,10 @@ export async function deploy(options) {
     }
     nextState = recordLayer(nextState, 'web', sha, switched.previous);
     writeDeployState(statePath, nextState);
+    if (existsSync(join(repoRoot, 'website/Musefold/index.html'))) {
+      publishMarketingSite(repoRoot, siteRoot);
+      syncDownloadService({ exec, repoRoot, siteRoot });
+    }
   }
 
   return { ok: true, sha, state: nextState };

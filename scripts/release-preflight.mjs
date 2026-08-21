@@ -191,6 +191,7 @@ async function checkDocsAndWorkflow() {
     ['clean:artifacts', 'node scripts/clean-artifacts.mjs'],
     ['deploy:prod', 'node scripts/deploy/run.mjs'],
     ['deploy:rollback', 'node scripts/deploy/rollback.mjs'],
+    ['deploy:desktop', 'node scripts/deploy/publish-desktop.mjs'],
   ];
   const missingScripts = scriptExpectations
     .filter(([name, needle]) => !pkg.scripts?.[name]?.includes(needle))
@@ -268,11 +269,14 @@ async function checkDocsAndWorkflow() {
     'npx turbo run typecheck test build lint check:boundaries check:ui-boundaries',
     'npm run clean:artifacts',
     'npm run release:preflight',
-    'xvfb-run -a python -m pytest tests/e2e -q',
+    'xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -q',
     'name: Desktop CI',
     'Windows Electron E2E',
     'Linux Electron E2E',
     'runs-on: windows-latest',
+    'publish-installers',
+    'scripts/deploy/publish-desktop.mjs',
+    'version=latest',
     'npm run package:mac',
     'hdiutil verify',
     'npm run package:win -- --arm64',

@@ -6,6 +6,7 @@ import {
   type DiagnosticSource,
 } from '@musefold/desktop-contracts/diagnostics';
 import { IPC } from '@musefold/desktop-contracts/ipc';
+import { isAutomatedElectron } from './automation-env';
 import { APP_VERSION } from '../system/app-version';
 import { createLogger } from '../system/logger';
 
@@ -59,6 +60,7 @@ export function sendToRenderer(report: DiagnosticReport): boolean {
 }
 
 export async function showNativeDiagnostic(report: DiagnosticReport): Promise<void> {
+  if (isAutomatedElectron()) return;
   try {
     if (!app.isReady()) await app.whenReady();
     const text = formatDiagnosticReport(report);

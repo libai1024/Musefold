@@ -8,6 +8,7 @@ import { LOGS_DIR_NAME } from '@musefold/core/constants';
 import { writeConsoleLine } from '../system/console-output';
 import { registerAppScheme } from './app-protocol';
 import { registerMediaScheme } from './media-protocol';
+import { isAutomatedElectron } from './automation-env';
 import { reportMainDiagnostic, showNativeDiagnostic } from './diagnostics';
 
 const e2eUserData = process.env['MUSEFOLD_E2E_USER_DATA_DIR'];
@@ -38,6 +39,15 @@ if (process.env['MUSEFOLD_E2E'] === '1') {
   // Unsigned automation builds do not have a stable Keychain identity. Keep
   // safeStorage coverage deterministic without touching the user's Keychain.
   app.commandLine.appendSwitch('use-mock-keychain');
+}
+
+if (isAutomatedElectron()) {
+  // GitHub-hosted Windows Server (session 0) and Linux xvfb cannot use GPU /
+  // DWM materials. These switches must be set before ready.
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-dev-shm-usage');
 }
 
 // Privileged schemes must be declared synchronously before Electron becomes ready.

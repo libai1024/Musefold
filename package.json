@@ -62,6 +62,7 @@
     "clean:artifacts": "node scripts/clean-artifacts.mjs",
     "deploy:prod": "node scripts/deploy/run.mjs",
     "deploy:rollback": "node scripts/deploy/rollback.mjs",
+    "deploy:desktop": "node scripts/deploy/publish-desktop.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:status": "node scripts/release-gate-status.mjs",
     "release:evidence": "node scripts/release-gate-evidence.mjs",

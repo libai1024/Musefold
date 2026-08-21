@@ -66,6 +66,7 @@ content:
   - apps/desktop/electron.vite.config.ts
   - apps/desktop/tsconfig.web.json
   - apps/web/**
+  - website/Musefold/**
   - packages/ui/**
   - packages/product-ui/**
   - packages/contracts/**
@@ -77,6 +78,7 @@ content:
 service:
   - apps/web-api/**
   - apps/generation-worker/**
+  - services/musefold-downloads/**
   - packages/contracts/**
   - packages/domain/**
   - tests/repo/**

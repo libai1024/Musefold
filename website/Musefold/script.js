@@ -86,14 +86,35 @@
       }
 
       totalElement.textContent = formatCount(payload.total);
+      const currentVersion =
+        typeof payload.currentVersion === "string" && payload.currentVersion
+          ? payload.currentVersion
+          : null;
       countElements.forEach(function (element) {
-        const version = element.dataset.downloadVersion;
+        const version = currentVersion || element.dataset.downloadVersion;
         const platform = element.dataset.downloadCount;
         const count = payload.byVersion?.[version]?.byPlatform?.[platform];
         element.textContent = isCount(count)
           ? formatCount(count) + " 次"
           : "-- 次";
       });
+      document.querySelectorAll("[data-download-label]").forEach(function (element) {
+        const platform = element.getAttribute("data-download-label");
+        if (!currentVersion) return;
+        element.textContent =
+          platform === "macos"
+            ? "Apple Silicon · DMG · " + currentVersion
+            : "安装程序 · " + currentVersion;
+      });
+      const note = document.querySelector("[data-download-note]");
+      if (note && currentVersion) {
+        note.textContent =
+          "Windows：" +
+          currentVersion +
+          " · macOS：" +
+          currentVersion +
+          " · 当前内测包未签名/未公证，请仅在测试环境使用。";
+      }
       statusElement.textContent = "按下载开始统计";
       summary.dataset.state = "ready";
     } catch (error) {

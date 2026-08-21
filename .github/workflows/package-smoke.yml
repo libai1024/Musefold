@@ -1,4 +1,5 @@
-# Slow-lane package smoke (macOS + Windows).
+# Slow-lane package smoke (macOS + Windows) plus website publish.
+# Official site download buttons use /api/download?platform=...&version=latest
 # Triggered by version tags (v*) and workflow_dispatch — not by ordinary push/PR.
 # Prerequisite: main-branch CI ("Source checks") is already green. These jobs no
 # longer `needs: check` because a tag push does not always run ci.yml.
@@ -10,6 +11,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: copy installers onto zhaozhaoyue.top after smoke
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -66,6 +72,17 @@ jobs:
 
       - name: macOS package smoke test
         run: python -m pytest tests/package/macos_package_smoke.py -q
+
+      - name: Upload macOS installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-installers
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest-mac.yml
+          if-no-files-found: error
 
   windows-package-smoke:
     name: Windows package and runtime smoke
@@ -125,3 +142,59 @@ jobs:
         with:
           name: windows-hosted-runtime-evidence
           path: release/windows-hosted-runtime-evidence.json
+
+      - name: Upload Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-installers
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          if-no-files-found: error
+
+  publish-installers:
+    name: Publish installers to website
+    needs: [mac-package-smoke, windows-package-smoke]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: [self-hosted, musefold-prod]
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (runner-local, not host-wide)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Download macOS installers
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-installers
+          path: artifacts/mac-installers
+
+      - name: Download Windows installers
+        uses: actions/download-artifact@v4
+        with:
+          name: win-installers
+          path: artifacts/win-installers
+
+      - name: Publish to zhaozhaoyue.top downloads
+        env:
+          MUSEFOLD_SITE_ROOT: /opt/musefold/site/Musefold
+        run: |
+          set -euo pipefail
+          TAG_ARGS=()
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_ARGS=(--tag "${GITHUB_REF_NAME}")
+          fi
+          node scripts/deploy/publish-desktop.mjs \
+            "${TAG_ARGS[@]}" \
+            --mac-dir artifacts/mac-installers \
+            --win-dir artifacts/win-installers \
+            --site-root "${MUSEFOLD_SITE_ROOT}" \
+            --repo-root "$GITHUB_WORKSPACE"

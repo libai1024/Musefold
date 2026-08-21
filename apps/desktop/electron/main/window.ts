@@ -14,6 +14,7 @@ import { buildContentSecurityPolicy } from './csp';
 import { isAllowedExternalUrl } from './external-links';
 import { APP_VERSION } from '../system/app-version';
 import { APP_NAME } from '@musefold/domain/constants';
+import { isAutomatedElectron } from './automation-env';
 import { reportMainDiagnostic, showNativeDiagnostic } from './diagnostics';
 
 let mainWindow: BrowserWindow | null = null;
@@ -28,6 +29,7 @@ export function createWindow(): BrowserWindow {
   const appRoot = resolveAppRoot();
   const windowIcon = resolveResourcePath(['icon.png']);
   const importArgv = originMigrationImportArgv();
+  const automated = isAutomatedElectron();
 
   const win = new BrowserWindow({
     width: 1320,
@@ -35,15 +37,16 @@ export function createWindow(): BrowserWindow {
     minWidth: 940,
     minHeight: 600,
     show: false,
-    backgroundColor: '#00000000',
+    backgroundColor: automated ? '#0b0b0b' : '#00000000',
     title: `${APP_NAME} v${APP_VERSION}`,
     // mac 保留原生交通灯（内缩）；win/linux 完全无边框，控件自绘
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     trafficLightPosition: isMac ? { x: 14, y: 15 } : undefined,
     frame: isMac, // 非 mac 用无边框，自绘控件
-    vibrancy: isMac ? 'under-window' : undefined,
-    visualEffectState: isMac ? 'followWindow' : undefined,
-    backgroundMaterial: isWin ? 'mica' : undefined,
+    vibrancy: isMac && !automated ? 'under-window' : undefined,
+    visualEffectState: isMac && !automated ? 'followWindow' : undefined,
+    // Mica requires DWM; GitHub windows-latest is session 0 and exits immediately.
+    backgroundMaterial: isWin && !automated ? 'mica' : undefined,
     roundedCorners: true,
     icon: isMac ? undefined : windowIcon,
     webPreferences: {
