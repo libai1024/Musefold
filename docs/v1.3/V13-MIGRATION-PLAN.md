@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01 与 STATE-02 已完成；STATE-03 起继续
+> **状态**：Phase 0、Phase 1 与 STATE-01~03 已完成；ORCH-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01/02 已完成 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03 已完成 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -133,10 +133,15 @@
   验证：全仓 `tsc -b`；vitest 184 files / 1052 tests；`check:boundaries` 834 modules / 0 新违规 / 69 known；桌面 `test_00_harness.py` + `test_02_library.py` + `test_06_history.py` 42 passed。✅
   回滚：revert 本卡提交。
 
-- `V13-STATE-03`：持久化统一与写面收尾：`stores/app.ts` 手写 localStorage 迁移改 `persist` middleware（版本化 key + migrate）；`store-persist-only` 规则对已迁移 store 启用；剩余服务端写面 mutation 化。
+- `V13-STATE-03`：~~持久化统一与写面收尾。~~ **已完成（2026-08-21）**。`stores/app.ts`、`settings/store.ts`、`onboarding/store.ts` 改为 zustand `persist`（版本化 key + migrate）；旧手写 key（主题/密度/动效/默认 Provider/引导哨兵/账号图源）启动时读取、首次写入后清除。`store-persist-only`（`no-restricted-syntax`）对 store glob 从 off 改为 error。
 
-  验证：升级路径单测（旧 key 数据迁移）；E2E。
-  回滚：单卡 revert。
+  **裁定（相对原卡的差异）**：
+  1. **同步读新 key 再 persist 水合**，避免刷新时主题/密度闪回默认值。适配器每次现取 `localStorage`，不闭包模块加载时的 Storage 对象（测试 stub / 损坏的 jsdom 会把 `createJSONStorage` 打成 `setItem is not a function`）。
+  2. **工作台 `draftController` 偏好与 session pins 仍走 helper**，它们不在 store glob 内；本卡只锁 `stores/**` 与 `**/store.ts` / `**/*-store.ts`。
+  3. **写面 `useMutation` 仍不在本卡落地**（沿用 STATE-02 裁定 3：workbench/DataSection 非 React 调用方 + 棘轮顶格）。ORCH/SPLIT 再收口。
+
+  验证：全仓 `tsc -b`；vitest 186 files / 1061 tests；store glob eslint `--max-warnings=0`；`check:boundaries` 841 modules / 69 known；桌面 `test_00_harness.py` + 外观持久化 + 密度列表 + `test_07_onboarding.py` 13 passed。✅
+  回滚：revert 本卡提交（旧 key 读取路径仍在 migrate 里，回滚后旧安装不受影响）。
 
 - `V13-ORCH-01`：page-controllers 骨架 + `PlatformServices` 填充。建 `product-ui/src/page-controllers/`；domain `PlatformServices` 由空接口填充 toast/download/clipboard/openExternal（桌面接 toast store/IPC，Web 接浏览器 API）；host-boundary 测试双端各加断言（product-ui 不出现平台 import）。
 

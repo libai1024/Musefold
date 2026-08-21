@@ -2,10 +2,10 @@
 // 首启引导流状态机（TASK-SET-04）—— 4 步：欢迎→连接服务商→校验→出第一张图
 //
 // 门控：onboarded 未置位 且 provider:list 为空时触发（见 OnboardingFlow.tsx）。
-// onboarded 只是一个"已引导过"的哨兵，用字符串 '1' 存 localStorage（不是 JSON，
-// 与 stores/app.ts 的主题存法一致），绝不写入 Key。
+// onboarded 哨兵经 zustand persist 写入 musefold:onboarding；旧 key musefold:onboarded='1' 启动时迁移。绝不写入 API Key。
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { ImageQuality } from '@musefold/desktop-contracts/enums';
 import {
   PROVIDER_PRESETS,
@@ -22,8 +22,14 @@ import { useAccountStore } from '../account/store';
 import { useAiConnectionStore } from '../settings/ai-connection-store';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { desktopGateway } from '../../runtime';
-
-const ONBOARDED_KEY = 'musefold:onboarded';
+import {
+  clearOnboardingPreferences,
+  migrateOnboardingPreferences,
+  ONBOARDING_PREFERENCES_KEY,
+  ONBOARDING_PREFERENCES_VERSION,
+  onboardingPreferencesStorage,
+  readStoredOnboardingPreferences,
+} from '../../lib/onboarding-preferences';
 
 /** 首图示例提示词（docs/product/16 §4.1） */
 export const EXAMPLE_PROMPT = 'a cozy cabin in snowy forest, cinematic';
@@ -31,24 +37,6 @@ export const EXAMPLE_PROMPT = 'a cozy cabin in snowy forest, cinematic';
 export type OnboardingStep = 1 | 2 | 3 | 4;
 export type OnboardingTrack = 'doubao' | 'account' | 'byok';
 export type AccountOnboardingStage = 'choose' | 'auth' | 'redeem';
-
-function readOnboarded(): boolean {
-  if (typeof localStorage === 'undefined') return false;
-  try {
-    return localStorage.getItem(ONBOARDED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeOnboarded(): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(ONBOARDED_KEY, '1');
-  } catch {
-    /* 存不了就算了，下次仍会显示引导，不影响功能 */
-  }
-}
 
 /**
  * 是否在 E2E 测试harness 下启动（主进程 MUSEFOLD_E2E=1 时会给渲染层 URL 加 ?musefold_e2e=1，
@@ -132,8 +120,10 @@ interface OnboardingState {
   resetForTest: () => void;
 }
 
-export const useOnboardingStore = create<OnboardingState>((set, get) => ({
-  onboarded: readOnboarded(),
+export const useOnboardingStore = create<OnboardingState>()(
+  persist(
+    (set, get) => ({
+  onboarded: readStoredOnboardingPreferences().onboarded,
   forced: false,
   step: 1,
   track: null,
@@ -447,7 +437,6 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   },
 
   skip: () => {
-    writeOnboarded();
     set({ onboarded: true, forced: false });
     useAppStore.getState().setView('library');
   },
@@ -472,7 +461,6 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     } catch {
       /* 落印是仪式不是功能：任何异常都不阻塞完成引导 */
     }
-    writeOnboarded();
     set({ onboarded: true, forced: false });
     // 完成引导进入工作台开卷（skip 仍去提示词库，行为不变）
     useAppStore.getState().setView('generate');
@@ -508,14 +496,17 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     }),
 
   resetForTest: () => {
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.removeItem(ONBOARDED_KEY);
-      } catch {
-        /* noop */
-      }
-    }
+    clearOnboardingPreferences();
     get().forceShow();
     set({ onboarded: false });
   },
-}));
+    }),
+    {
+      name: ONBOARDING_PREFERENCES_KEY,
+      version: ONBOARDING_PREFERENCES_VERSION,
+      storage: onboardingPreferencesStorage,
+      partialize: (state) => ({ onboarded: state.onboarded }),
+      migrate: migrateOnboardingPreferences,
+    },
+  ),
+);

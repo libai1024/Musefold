@@ -45,8 +45,12 @@ vi.mock('../../../stores/app', () => ({
 }));
 
 import { useOnboardingStore } from '../store';
+import { ONBOARDING_PREFERENCES_KEY } from '../../../lib/onboarding-preferences';
+import { persistStateOf } from '../../../lib/zustand-persist';
 
-const ONBOARDED_KEY = 'musefold:onboarded';
+function onboardedPersist(): boolean {
+  return persistStateOf<{ onboarded?: boolean }>(localStorage.getItem(ONBOARDING_PREFERENCES_KEY))?.onboarded === true;
+}
 
 function installLocalStorage(): void {
   const values = new Map<string, string>();
@@ -183,7 +187,7 @@ describe('skip / finish', () => {
   it('skip sets onboarded, persists the sentinel, and routes to library', () => {
     useOnboardingStore.getState().skip();
     expect(useOnboardingStore.getState().onboarded).toBe(true);
-    expect(localStorage.getItem(ONBOARDED_KEY)).toBe('1');
+    expect(onboardedPersist()).toBe(true);
     expect(mocks.setView).toHaveBeenCalledWith('library');
   });
 
@@ -191,7 +195,7 @@ describe('skip / finish', () => {
   it('finish sets onboarded, persists the sentinel, and routes to the workbench', () => {
     useOnboardingStore.getState().finish();
     expect(useOnboardingStore.getState().onboarded).toBe(true);
-    expect(localStorage.getItem(ONBOARDED_KEY)).toBe('1');
+    expect(onboardedPersist()).toBe(true);
     expect(mocks.setView).toHaveBeenCalledWith('generate');
   });
 

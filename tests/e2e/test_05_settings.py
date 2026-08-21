@@ -1190,7 +1190,9 @@ def test_appearance_motion_density_and_persistence(app):
     page.wait_for_function("() => document.documentElement.dataset.density === 'compact'")
     compact_height = row.bounding_box()["height"]
     assert compact_height < comfortable_height, (comfortable_height, compact_height)
-    assert page.evaluate("() => localStorage.getItem('musefold:density')") == "compact"
+    assert page.evaluate(
+        """() => JSON.parse(localStorage.getItem('musefold:app-preferences') || '{}').state?.density"""
+    ) == "compact"
 
     # system 模式受操作系统偏好约束。
     page.emulate_media(reduced_motion="reduce")
@@ -1216,7 +1218,9 @@ def test_appearance_motion_density_and_persistence(app):
     assert full_duration_ms >= 100, full_duration_ms
     page.get_by_role("radio", name="减少", exact=True).click()
     page.wait_for_function("() => document.documentElement.classList.contains('reduce-motion')")
-    assert page.evaluate("() => localStorage.getItem('musefold:reduced-motion')") == "on"
+    assert page.evaluate(
+        """() => JSON.parse(localStorage.getItem('musefold:app-preferences') || '{}').state?.reducedMotion"""
+    ) == "on"
 
     page.reload(wait_until="domcontentloaded")
     page.wait_for_selector("#root > *", timeout=10000)

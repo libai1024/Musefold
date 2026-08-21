@@ -168,11 +168,10 @@ export default tseslint.config(
   },
   {
     // V13-GOV-03 预置 / V13-STATE-03 启用：store 持久化只经 zustand persist middleware。
-    // 现为 off（stores/app.ts 等存量手写 localStorage 待 STATE-03 迁移后分批启用）。
     files: ['apps/desktop/src/stores/**/*.ts', 'apps/desktop/src/features/**/store.ts', 'apps/desktop/src/features/**/*-store.ts'],
     rules: {
       'no-restricted-syntax': [
-        'off',
+        'error',
         {
           selector: "MemberExpression[object.name='localStorage'][property.name=/^(setItem|getItem|removeItem)$/]",
           message:
