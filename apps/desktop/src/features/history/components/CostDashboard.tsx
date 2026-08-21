@@ -19,7 +19,7 @@ import { Button } from '../../../components/ui/button';
 import { formatPoints } from '@musefold/domain';
 import { formatCost } from '../../../lib/format';
 import { cn } from '../../../lib/utils';
-import { useHistoryStore } from '../store';
+import { useHistoryStatsQuery } from '../use-history-queries';
 import { useAccountStore } from '../../account/store';
 
 type CostRange = 'month' | 'last30' | 'all';
@@ -43,10 +43,6 @@ export function CostDashboard({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const stats = useHistoryStore((s) => s.stats);
-  const loading = useHistoryStore((s) => s.statsLoading);
-  const error = useHistoryStore((s) => s.statsError);
-  const loadStats = useHistoryStore((s) => s.loadStats);
   const setView = useAppStore((s) => s.setView);
   const setSettingsSection = useSettingsStore((s) => s.setSection);
   const account = useAccountStore((s) => s.status);
@@ -56,12 +52,17 @@ export function CostDashboard({
   const [groupBy, setGroupBy] = useState<HistoryStatsGroupBy>('day');
 
   const query = useMemo(() => buildStatsQuery(range, groupBy), [range, groupBy]);
+  const statsQuery = useHistoryStatsQuery(query, open);
+  const stats = statsQuery.data ?? null;
+  const loading = statsQuery.isFetching;
+  const error = statsQuery.error instanceof Error ? statsQuery.error.message : null;
+  const refetchStats = statsQuery.refetch;
 
   useEffect(() => {
     if (!open) return;
-    void loadStats(query);
+    void refetchStats();
     if (account.loggedIn) void refreshQuota().catch(() => {});
-  }, [account.loggedIn, loadStats, open, query, refreshQuota]);
+  }, [account.loggedIn, open, query, refetchStats, refreshQuota]);
 
   const totalCount = stats?.totalCount ?? 0;
   const totals = stats?.totals ?? (stats ? [{
@@ -117,7 +118,7 @@ export function CostDashboard({
               size="sm"
               variant="ghost"
               className="ml-auto text-tertiary"
-              onClick={() => void loadStats(query)}
+              onClick={() => void statsQuery.refetch()}
               data-testid="history-cost-refresh"
             >
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarDays className="h-3.5 w-3.5" />}

@@ -74,7 +74,7 @@ export function DataSection() {
       deleted: [],
       trashOpen: false,
     });
-    useHistoryStore.setState({ records: [], selectedId: null, retryingIds: new Set(), error: null });
+    useHistoryStore.setState({ selectedId: null, retryingIds: new Set() });
     useGenerationWorkbenchStore.getState().newSession();
     await Promise.all([
       useLibraryStore.getState().loadAll(),

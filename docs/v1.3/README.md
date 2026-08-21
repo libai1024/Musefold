@@ -2,7 +2,7 @@
 
 v1.3 是双端收敛版本。它不新增产品功能，交付的是：实体形状统一（contracts 成为唯一暴露给 UI 的实体形状）、状态分层（TanStack Query 接管服务端数据）、宿主编排收敛（页面编排 hook 下沉 product-ui）、巨型文件拆分与边界治理——目标是把「双端各写一套」的维护模式收敛为「一条变更路径」，降低双端开发难度与长期维护成本。
 
-**当前进度（2026-08-21）**：Phase 0 与 Phase 1 完成；Phase 2 已完成 STATE-01（TanStack Query 管线：`createMusefoldQueryClient` + 双端 Provider）。STATE-02 起继续。
+**当前进度（2026-08-21）**：Phase 0 与 Phase 1 完成；Phase 2 已完成 STATE-01（Query 管线）与 STATE-02（桌面 history/library/account 读路径 query 化）。STATE-03 起继续。
 
 ## 文档
 

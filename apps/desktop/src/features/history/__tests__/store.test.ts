@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_HISTORY_FILTERS } from '@musefold/domain/history-filters';
+import { musefoldQueryKeys } from '@musefold/product-ui';
 import { historyEntryFixture } from './entry-fixture';
 
 const mocks = vi.hoisted(() => ({
@@ -18,21 +19,30 @@ vi.mock('../../../runtime', () => ({
   },
 }));
 
-import { useHistoryStore } from '../store';
+import { desktopQueryClient } from '../../../runtime/query-client';
+import { toHistoryListQueryKey, useHistoryStore } from '../store';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 
 const failedRecord = historyEntryFixture();
+const defaultListKey = musefoldQueryKeys.history.list(toHistoryListQueryKey(DEFAULT_HISTORY_FILTERS));
+
+function seedList(records: DesktopGenerationEntry[]): void {
+  desktopQueryClient.setQueryData(defaultListKey, records);
+}
+
+function cachedList(): DesktopGenerationEntry[] {
+  return desktopQueryClient.getQueryData<DesktopGenerationEntry[]>(defaultListKey) ?? [];
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
+  desktopQueryClient.clear();
   mocks.list.mockResolvedValue([]);
   mocks.clear.mockResolvedValue({ ok: true, deleted: 1 });
   mocks.delete.mockResolvedValue({ ok: true, deleted: 1 });
+  seedList([failedRecord]);
   useHistoryStore.setState({
-    records: [failedRecord],
-    loading: false,
-    error: null,
     filters: { ...DEFAULT_HISTORY_FILTERS },
-    filtered: false,
     selectedId: null,
     inspectorCollapsed: false,
     retryingIds: new Set(),
@@ -44,7 +54,7 @@ describe('history remove', () => {
     await useHistoryStore.getState().remove('history-1');
 
     expect(mocks.delete).toHaveBeenCalledWith('history-1');
-    expect(useHistoryStore.getState().records).toEqual([]);
+    expect(cachedList()).toEqual([]);
   });
 
   it('can request source file deletion', async () => {
@@ -53,26 +63,16 @@ describe('history remove', () => {
     await useHistoryStore.getState().remove('history-1', { deleteFile: true });
 
     expect(mocks.delete).toHaveBeenCalledWith({ id: 'history-1', deleteFile: true });
-    expect(useHistoryStore.getState().records).toEqual([]);
+    expect(cachedList()).toEqual([]);
   });
 });
 
 describe('history clear', () => {
-  it('passes status filters to IPC and reloads the list', async () => {
-    const successRecord = historyEntryFixture({
-      id: 'history-success',
-      status: 'succeeded',
-      error: null,
-      errorCode: null,
-      errorMessage: null,
-    });
-    mocks.list.mockResolvedValue([successRecord]);
-
+  it('passes status filters to IPC and invalidates the list', async () => {
     await useHistoryStore.getState().clearByStatus(['failed', 'cancelled']);
 
     expect(mocks.clear).toHaveBeenCalledWith({ statuses: ['failed', 'cancelled'] });
-    expect(mocks.list).toHaveBeenCalled();
-    expect(useHistoryStore.getState().records).toEqual([successRecord]);
+    expect(desktopQueryClient.getQueryState(defaultListKey)?.isInvalidated).toBe(true);
   });
 
   it('keeps current records when clear IPC rejects', async () => {
@@ -80,8 +80,7 @@ describe('history clear', () => {
 
     await useHistoryStore.getState().clear({ statuses: ['failed'] });
 
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(useHistoryStore.getState().records).toEqual([failedRecord]);
+    expect(cachedList()).toEqual([failedRecord]);
     expect(useHistoryStore.getState().selectedId).toBeNull();
   });
 });
@@ -105,13 +104,11 @@ describe('history retry state', () => {
     await first;
 
     expect(useHistoryStore.getState().retryingIds.has('history-1')).toBe(false);
-    expect(mocks.list).toHaveBeenCalled();
+    expect(desktopQueryClient.getQueryState(defaultListKey)?.isInvalidated).toBe(true);
   });
 
   it('does not retry errors that require recovery first', async () => {
-    useHistoryStore.setState({
-      records: [{ ...failedRecord, errorCode: 'AUTH', errorMessage: '401' }],
-    });
+    seedList([{ ...failedRecord, errorCode: 'AUTH', errorMessage: '401' }]);
 
     await useHistoryStore.getState().retry('history-1');
 
@@ -120,16 +117,14 @@ describe('history retry state', () => {
   });
 
   it('allows forced regeneration from non-failed history rows', async () => {
-    useHistoryStore.setState({
-      records: [
-        historyEntryFixture({
-          status: 'succeeded',
-          error: null,
-          errorCode: null,
-          errorMessage: null,
-        }),
-      ],
-    });
+    seedList([
+      historyEntryFixture({
+        status: 'succeeded',
+        error: null,
+        errorCode: null,
+        errorMessage: null,
+      }),
+    ]);
     mocks.retry.mockResolvedValue({ historyId: 'history-2', status: 'success' });
 
     await useHistoryStore.getState().retry('history-1', {
@@ -138,7 +133,17 @@ describe('history retry state', () => {
     });
 
     expect(mocks.retry).toHaveBeenCalledWith('history-1');
-    expect(mocks.list).toHaveBeenCalled();
     expect(useHistoryStore.getState().retryingIds.size).toBe(0);
+  });
+});
+
+describe('history list query key', () => {
+  it('stays stable across Date.now ticks for relative date presets', () => {
+    const first = toHistoryListQueryKey(DEFAULT_HISTORY_FILTERS);
+    const second = toHistoryListQueryKey(DEFAULT_HISTORY_FILTERS);
+    expect(first).toEqual(second);
+    expect(first).not.toHaveProperty('from');
+    expect(first).not.toHaveProperty('to');
+    expect(musefoldQueryKeys.history.list(first)).toEqual(musefoldQueryKeys.history.list(second));
   });
 });

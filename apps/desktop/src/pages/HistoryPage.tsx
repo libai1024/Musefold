@@ -12,6 +12,7 @@ import { HistoryDetail } from '../features/history/components/HistoryDetail';
 import { HistoryCleanupMenu } from '../features/history/components/HistoryCleanupMenu';
 import { HistoryDiskUsage } from '../features/history/components/HistoryDiskUsage';
 import { CostDashboard } from '../features/history/components/CostDashboard';
+import { useHistoryListQuery } from '../features/history/use-history-queries';
 import { useHistoryStore } from '../features/history/store';
 import { ImageLightbox } from '../components/image-lightbox';
 import { Button } from '../components/ui/button';
@@ -22,10 +23,8 @@ import {
 } from '@musefold/product-ui';
 
 export function HistoryPage() {
-  const records = useHistoryStore((s) => s.records);
-  const count = useHistoryStore((s) => s.records.length);
-  const loading = useHistoryStore((s) => s.loading);
-  const load = useHistoryStore((s) => s.load);
+  const { records, loading, refetch } = useHistoryListQuery();
+  const count = records.length;
   const selectedId = useHistoryStore((s) => s.selectedId);
   const select = useHistoryStore((s) => s.select);
   const inspector = useHistoryInspectorController();
@@ -70,7 +69,7 @@ export function HistoryPage() {
         items={[]}
         count={count}
         refreshing={loading}
-        onRefresh={() => void load({ limit: 200 })}
+        onRefresh={() => void refetch()}
         className="mf-history-screen-workspace"
         headerAction={
           <>

@@ -8,12 +8,13 @@ import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history
 import { historyThreadOf, type HistoryThreadItem } from '@musefold/domain/history-lineage';
 import { historyStatusMeta } from '@musefold/domain/history-status';
 import { useHistoryStore } from '../store';
+import { useHistoryListQuery } from '../use-history-queries';
 import { formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';
 import { cn } from '../../../lib/utils';
 
 export function HistoryLineagePanel({ record }: { record: DesktopGenerationEntry }) {
-  const records = useHistoryStore((s) => s.records);
+  const { records } = useHistoryListQuery();
   const select = useHistoryStore((s) => s.select);
   const thread = useMemo(() => historyThreadOf(records, record.id), [records, record.id]);
 

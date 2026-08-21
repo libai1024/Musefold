@@ -51,12 +51,15 @@ import { defaultHistoryPromptTitle, historyRecordToPromptInput } from '../save-p
 import { linkHistoriesToPrompt } from '../../library/related-history';
 import { historyStatusMeta } from '@musefold/domain/history-status';
 import { selectSelectedHistory, useHistoryStore } from '../store';
+import { useHistoryListQuery } from '../use-history-queries';
 import { extractUserPromptFromComposed } from '../../generation/workbench/references';
 import { HistoryLineagePanel } from './HistoryLineagePanel';
 import { displayModelName } from '../../../lib/model-catalog';
 
 export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string) => void }) {
-  const record = useHistoryStore(selectSelectedHistory);
+  const { records } = useHistoryListQuery();
+  const selectedId = useHistoryStore((s) => s.selectedId);
+  const record = selectSelectedHistory(records, selectedId);
   const remove = useHistoryStore((s) => s.remove);
   const retry = useHistoryStore((s) => s.retry);
   const retryingIds = useHistoryStore((s) => s.retryingIds);

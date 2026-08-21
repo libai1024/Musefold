@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { RotateCcw, Trash2 } from '../../../components/ui/icons';
 import { useLibraryStore } from '../store';
+import { useDeletedLibraryQuery } from '../use-library-queries';
 import { Button } from '../../../components/ui/button';
 import { EmptyState } from '../../../components/ui/empty-state';
 import {
@@ -21,7 +22,9 @@ import { formatTime } from '../../../lib/format';
 export function TrashDialog() {
   const open = useLibraryStore((s) => s.trashOpen);
   const setTrashOpen = useLibraryStore((s) => s.setTrashOpen);
-  const deleted = useLibraryStore((s) => s.deleted);
+  const storeDeleted = useLibraryStore((s) => s.deleted);
+  const deletedQuery = useDeletedLibraryQuery(open);
+  const deleted = deletedQuery.data ?? storeDeleted;
   const loadDeleted = useLibraryStore((s) => s.loadDeleted);
   const restorePrompt = useLibraryStore((s) => s.restorePrompt);
   const purgePrompt = useLibraryStore((s) => s.purgePrompt);

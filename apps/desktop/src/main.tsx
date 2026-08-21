@@ -4,7 +4,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMusefoldQueryClient } from '@musefold/product-ui';
+import { desktopQueryClient } from './runtime/query-client';
 import App from './App';
 import '@musefold/ui/tokens.css';
 import '@musefold/ui/primitives.css';
@@ -35,11 +35,10 @@ try {
 }
 installTestHook();
 
-const queryClient = createMusefoldQueryClient();
 const container = document.getElementById('root')!;
 createRoot(container).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={desktopQueryClient}>
       <GlobalErrorBoundary>
         <App />
       </GlobalErrorBoundary>

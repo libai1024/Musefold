@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { HardDrive, RefreshCw } from '../../../components/ui/icons';
 import type { DiskUsageResult } from '@musefold/desktop-contracts/ipc';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
-import { useHistoryStore } from '../store';
+import { useHistoryListQuery } from '../use-history-queries';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -19,7 +19,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function HistoryDiskUsage() {
-  const refreshKey = useHistoryStore((s) => s.records.length);
+  const refreshKey = useHistoryListQuery().records.length;
   const [usage, setUsage] = useState<DiskUsageResult | null>(null);
   const [loading, setLoading] = useState(false);
 

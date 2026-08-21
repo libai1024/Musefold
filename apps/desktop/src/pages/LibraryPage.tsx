@@ -27,10 +27,10 @@ import {
 } from '../components/ui/icons';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import {
-  useLibraryStore,
-  useNormalPrompts,
-  usePinnedPrompts,
-} from '../features/library/store';
+  useLibraryListQuery,
+  useLibraryStatsQuery,
+} from '../features/library/use-library-queries';
+import { selectNormal, selectPinned, useLibraryStore } from '../features/library/store';
 import { useGenerationWorkbenchStore } from '../features/generation/workbench/store';
 import { useSettingsStore } from '../features/settings/store';
 import { PromptEditor } from '../features/library/components/PromptEditor';
@@ -83,10 +83,12 @@ export function LibraryPage() {
   const search = useLibraryStore((s) => s.search);
   const setSearch = useLibraryStore((s) => s.setSearch);
   const clearFilters = useLibraryStore((s) => s.clearFilters);
-  const stats = useLibraryStore((s) => s.stats);
-  const loading = useLibraryStore((s) => s.loading);
-  const initialized = useLibraryStore((s) => s.initialized);
-  const error = useLibraryStore((s) => s.error);
+  const queryStats = useLibraryStatsQuery();
+  const storeStats = useLibraryStore((s) => s.stats);
+  const stats = queryStats ?? storeStats;
+  const { loading, initialized, error, prompts } = useLibraryListQuery();
+  const pinned = useMemo(() => selectPinned({ prompts }), [prompts]);
+  const normal = useMemo(() => selectNormal({ prompts }), [prompts]);
   const clearError = useLibraryStore((s) => s.clearError);
   const copyContent = useLibraryStore((s) => s.copyContent);
   const selectedPromptId = useLibraryStore((s) => s.selectedPromptId);
@@ -95,13 +97,8 @@ export function LibraryPage() {
   const highlightPrompt = useLibraryStore((s) => s.highlightPrompt);
   const highlightPromptId = useLibraryStore((s) => s.highlightPromptId);
   const setFilters = useLibraryStore((s) => s.setFilters);
-  // 笺匣（v0.3.3 §8）：source='slip' 的收件箱视图；计数取当前已加载列表
   const slipsOnly = useLibraryStore((s) => s.filters.source === 'slip');
-  const slipCount = useLibraryStore(
-    (s) => s.prompts.filter((p) => p.source === 'slip').length,
-  );
-  const pinned = usePinnedPrompts();
-  const normal = useNormalPrompts();
+  const slipCount = prompts.filter((p) => p.source === 'slip').length;
   const usePrompt = usePromptDraft();
   const density = useAppStore((s) => s.density);
 

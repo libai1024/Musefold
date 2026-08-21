@@ -4,7 +4,7 @@
 // 结构：原始生成为根，微调按时间正序缩进挂在其下（↳），
 // 行内容以提示词为主行，状态只在异常时发声；选中态为中性色。
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   GenerationHistoryRow,
@@ -17,6 +17,7 @@ import {
   Trash2,
 } from '../../../components/ui/icons';
 import { useHistoryStore } from '../store';
+import { useHistoryListQuery } from '../use-history-queries';
 import { historyStatusMeta } from '@musefold/domain/history-status';
 import { historyErrorPresentation } from '../error';
 import { formatHistoryCost } from '../format';
@@ -37,23 +38,19 @@ export function HistoryList({
 }) {
   const {
     records,
-    load,
-    remove,
-    retry,
-    retryingIds,
     loading,
     error,
     filtered,
-    clearFilters,
-    selectedId,
-    select,
-  } = useHistoryStore();
+    refetch,
+  } = useHistoryListQuery();
+  const remove = useHistoryStore((s) => s.remove);
+  const retry = useHistoryStore((s) => s.retry);
+  const retryingIds = useHistoryStore((s) => s.retryingIds);
+  const clearFilters = useHistoryStore((s) => s.clearFilters);
+  const selectedId = useHistoryStore((s) => s.selectedId);
+  const select = useHistoryStore((s) => s.select);
   const parentRef = useRef<HTMLDivElement>(null);
   const density = useAppStore((s) => s.density);
-
-  useEffect(() => {
-    void load({ limit: 200 });
-  }, [load]);
 
   const items = useMemo(() => flattenHistoryThreads(records), [records]);
 
@@ -78,7 +75,7 @@ export function HistoryList({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => void load({ limit: 200 })}
+            onClick={() => void refetch()}
             className="mt-1 rounded-full"
           >
             <RotateCcw className="mr-1 h-3.5 w-3.5" /> 重试

@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1 与 STATE-01 已完成；STATE-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01 与 STATE-02 已完成；STATE-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01 已完成 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01/02 已完成 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -117,13 +117,21 @@
 
   **裁定**：Query 默认偏保守——桌面窗口焦点频繁，默认 `refetchOnWindowFocus` 会把 IPC 打成风暴并让 E2E 抖动。失效约定以 `musefoldQueryKeys.<domain>.all` 前缀预埋，细粒度 key 留给 STATE-02。
 
-  验证：见本卡提交记录。
+  验证：全仓 `tsc -b`；vitest 184 files / 1051 tests；`check:boundaries` 830 modules / 0 新违规 / 69 known；Web 单测 15；桌面 `test_00_harness.py` + `test_02_library.py` 27 passed；`build:web` 通过。
   回滚：revert（无行为变化）。
 
-- `V13-STATE-02`：history/library/account 读路径 query 化：列表、统计、账号状态改为 `useQuery`；对应 store 的 `loading/error/statsLoading/…` 镜像字段与拉取 action 删除；写操作（删除/恢复/清空/置顶）改 `useMutation` + 精确失效。
+- `V13-STATE-02`：~~history/library/account 读路径 query 化。~~ **已完成（2026-08-21）**。桌面 history 列表/统计、library 列表/统计/回收站、account 状态写入 TanStack Query；history store 去掉 `records/loading/error/stats` 镜像；`desktopQueryClient` 模块单例供非 React 调用方 `setQueryData` / `invalidateQueries`。
 
-  验证：三域 E2E；store 单测改写；竞态场景（快速切过滤）手工 + E2E 验证。
-  回滚：按域分卡 revert。
+  **裁定（相对原卡的差异）**：
+  1. **Query key 用筛选快照，禁止把 `resolveDateRange(Date.now())` 写进 key。** 默认「近 30 天」的 from/to 每毫秒都变，写进 key 会导致每帧新查询、列表闪空、详情本地态（删除确认 / 存为提示词 / 灯箱）被卸掉。IPC 仍在 `queryFn` 里解析日期。
+  2. **成本看板 `staleTime: 0` 且打开时 refetch**，对齐旧 `loadStats(open)`。进程外写库（E2E `insert_history`）后再打开不能吃 30s 空缓存。
+  3. **写操作仍走 store action + 精确失效**，不在本卡改 `useMutation`。`workbench/store.ts`（1932 行棘轮顶格）与 DataSection 是非 React 调用方，仍用 `history.load()` 作为 `invalidateQueries` 别名；React 侧再包一层 mutation 与现有 action 重复。ORCH/SPLIT 再收口。
+  4. **Web `App.tsx` 读路径不改**（1201 行棘轮），与 ORCH-02 同批。
+  5. **`AccountSection.tsx`（855 行）仍读 `store.status`**，避免涨行；`initialize` / `onAccountChanged` 双写 query cache，`useAccountStatusQuery` 已就位供编排层挂载。
+  6. **library `store.prompts` 保留为写缓冲**（乐观删除/置顶），列表同时 `setQueryData`；`library/store.ts` 必须 < 600 行。
+
+  验证：全仓 `tsc -b`；vitest 184 files / 1052 tests；`check:boundaries` 834 modules / 0 新违规 / 69 known；桌面 `test_00_harness.py` + `test_02_library.py` + `test_06_history.py` 42 passed。✅
+  回滚：revert 本卡提交。
 
 - `V13-STATE-03`：持久化统一与写面收尾：`stores/app.ts` 手写 localStorage 迁移改 `persist` middleware（版本化 key + migrate）；`store-persist-only` 规则对已迁移 store 启用；剩余服务端写面 mutation 化。
 

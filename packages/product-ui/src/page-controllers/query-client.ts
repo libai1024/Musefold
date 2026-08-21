@@ -13,12 +13,27 @@ export const MUSEFOLD_QUERY_RETRY = 1;
 
 /**
  * 写操作失效约定：按域 `invalidateQueries({ queryKey: musefoldQueryKeys.history.all })`。
- * 细粒度 key 在 STATE-02 读路径落地时扩展，前缀保持稳定。
+ * 列表/统计用稳定前缀，便于精确失效。
  */
 export const musefoldQueryKeys = {
-  history: { all: ["history"] as const },
-  library: { all: ["library"] as const },
-  account: { all: ["account"] as const },
+  history: {
+    all: ["history"] as const,
+    lists: ["history", "list"] as const,
+    list: (query: unknown) => ["history", "list", query] as const,
+    stats: (query: unknown) => ["history", "stats", query] as const,
+  },
+  library: {
+    all: ["library"] as const,
+    lists: ["library", "list"] as const,
+    list: (query: unknown) => ["library", "list", query] as const,
+    stats: ["library", "stats"] as const,
+    deleted: ["library", "deleted"] as const,
+    searchHistory: ["library", "search-history"] as const,
+  },
+  account: {
+    all: ["account"] as const,
+    status: ["account", "status"] as const,
+  },
 };
 
 export function createMusefoldQueryClient(): QueryClient {

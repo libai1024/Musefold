@@ -4,6 +4,7 @@
 
 import { create } from 'zustand';
 import { DEFAULT_ACCOUNT_SERVER_URL } from '@musefold/domain/constants';
+import { musefoldQueryKeys } from '@musefold/product-ui';
 import type {
   AccountCredentialsInput,
   AccountErrorCode,
@@ -12,6 +13,7 @@ import type {
 } from '@musefold/desktop-contracts/account';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import { desktopGateway } from '../../runtime';
+import { desktopQueryClient } from '../../runtime/query-client';
 import { useGenerationStore } from '../generation/store';
 import { useAiConnectionStore } from '../settings/ai-connection-store';
 
@@ -97,6 +99,7 @@ export const useAccountStore = create<AccountState>((set) => {
     try {
       const result = await operation();
       const status = statusOf?.(result);
+      if (status) desktopQueryClient.setQueryData(musefoldQueryKeys.account.status, status);
       set({ ...(status ? { status } : {}), action: null, loaded: true });
       return result;
     } catch (error) {
@@ -120,6 +123,7 @@ export const useAccountStore = create<AccountState>((set) => {
           // 登录态翻转意味着主进程刚创建/回收了托管条目——无论由哪个入口
           // 发起（设置页、引导流、主进程自身），渲染层列表都要跟上。
           const loggedInBefore = useAccountStore.getState().status.loggedIn;
+          desktopQueryClient.setQueryData(musefoldQueryKeys.account.status, status);
           set({ status, loaded: true, ...(status.username ? { lastUsername: status.username } : {}) });
           if (loggedInBefore !== status.loggedIn) void reloadManagedStacks();
         });
@@ -127,6 +131,7 @@ export const useAccountStore = create<AccountState>((set) => {
       set({ loading: true, error: null });
       try {
         const status = await desktopExtras.accountStatus();
+        desktopQueryClient.setQueryData(musefoldQueryKeys.account.status, status);
         set({ status, loaded: true, loading: false, ...(status.username ? { lastUsername: status.username } : {}) });
       } catch (error) {
         set({ loaded: true, loading: false, error: uiError(error) });

@@ -22,6 +22,7 @@ vi.mock('../../settings/ai-connection-store', () => ({
   },
 }));
 
+import { desktopQueryClient } from '../../../runtime/query-client';
 import {
   getAccountDesktopExtras,
   setAccountDesktopExtrasForTests,
@@ -138,6 +139,7 @@ let extras: DesktopExtras;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  desktopQueryClient.clear();
   extras = createFakeExtras();
   setAccountDesktopExtrasForTests(extras);
   resetStore();

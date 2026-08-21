@@ -25,7 +25,8 @@ describe("createMusefoldQueryClient", () => {
 
   it("keeps domain query-key prefixes stable for later invalidation", () => {
     expect(musefoldQueryKeys.history.all).toEqual(["history"]);
+    expect(musefoldQueryKeys.history.lists).toEqual(["history", "list"]);
     expect(musefoldQueryKeys.library.all).toEqual(["library"]);
-    expect(musefoldQueryKeys.account.all).toEqual(["account"]);
+    expect(musefoldQueryKeys.account.status).toEqual(["account", "status"]);
   });
 });

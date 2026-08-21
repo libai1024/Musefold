@@ -1,15 +1,14 @@
 // src/features/history/store.ts
-// 生成历史 —— 列表/筛选/选中检视/删除（TASK-HIS-01/02/03）
+// 生成历史 UI 态 —— 列表/统计走 TanStack Query（V13-STATE-02）。
+// store 只留筛选、选中、检视折叠与重试中 id；拉取不再镜像 records/stats。
 
 import { create } from 'zustand';
 import type { HistoryClearRequest, HistoryDeleteResult } from '@musefold/desktop-contracts/ipc';
-import type {
-  DesktopGenerationEntry,
-  HistoryStats,
-  HistoryStatsQuery,
-} from '@musefold/desktop-contracts/history-documents';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
+import { musefoldQueryKeys } from '@musefold/product-ui';
 import { desktopGateway } from '../../runtime';
+import { desktopQueryClient } from '../../runtime/query-client';
 import { toast } from '../../stores/toast';
 import {
   DEFAULT_HISTORY_FILTERS,
@@ -41,18 +40,8 @@ export interface HistoryRemoveOptions {
 }
 
 interface HistoryState {
-  records: DesktopGenerationEntry[];
-  loading: boolean;
-  error: string | null;
-  stats: HistoryStats | null;
-  statsLoading: boolean;
-  statsError: string | null;
   filters: HistoryFilters;
-  filtered: boolean;
-
-  /** 当前选中记录 id（检视栏） */
   selectedId: string | null;
-  /** 右栏检视是否折叠 */
   inspectorCollapsed: boolean;
   /** 以历史 id 去重的重试中任务，供列表和详情共享进度态 */
   retryingIds: Set<string>;
@@ -66,8 +55,11 @@ interface HistoryState {
   toggleInspector: () => void;
   setInspectorCollapsed: (v: boolean) => void;
 
+  /**
+   * 失效历史查询。workbench / DataSection 等非 React 调用方仍走此别名，
+   * 避免在棘轮顶格的 workbench/store.ts 上扩 import（SPLIT-03 再改经编排层）。
+   */
   load: (q?: Pick<HistoryListQuery, 'limit' | 'offset'>) => Promise<void>;
-  loadStats: (q: HistoryStatsQuery) => Promise<HistoryStats | null>;
   remove: (id: string, opts?: HistoryRemoveOptions) => Promise<HistoryDeleteResult | null>;
   clear: (req?: number | HistoryClearRequest) => Promise<void>;
   clearByStatus: (statuses: HistoryStatus[]) => Promise<void>;
@@ -81,7 +73,26 @@ const FILTER_STATUS_TO_QUERY: Record<string, HistoryStatus> = {
   cancelled: 'cancelled',
 };
 
-function toListQuery(
+/**
+ * 列表 Query key 用筛选快照，不把 `resolveDateRange(Date.now())` 写进去。
+ * 相对预设的 from/to 每毫秒都变，写进 key 会导致每帧新查询、列表闪空、详情本地态被卸掉。
+ */
+export function toHistoryListQueryKey(
+  filters: HistoryFilters,
+  page?: Pick<HistoryListQuery, 'limit' | 'offset'>,
+) {
+  return {
+    status: filters.status,
+    datePreset: filters.datePreset,
+    customFrom: filters.customFrom,
+    customTo: filters.customTo,
+    providerId: filters.providerId,
+    limit: page?.limit ?? 200,
+    offset: page?.offset ?? 0,
+  };
+}
+
+export function toHistoryListQuery(
   filters: HistoryFilters,
   page?: Pick<HistoryListQuery, 'limit' | 'offset'>,
 ): HistoryListQuery {
@@ -96,15 +107,29 @@ function toListQuery(
   };
 }
 
+function cachedHistoryRecords(): DesktopGenerationEntry[] {
+  const merged = new Map<string, DesktopGenerationEntry>();
+  for (const [, records] of desktopQueryClient.getQueriesData<DesktopGenerationEntry[]>({
+    queryKey: musefoldQueryKeys.history.lists,
+  })) {
+    for (const record of records ?? []) merged.set(record.id, record);
+  }
+  return [...merged.values()];
+}
+
+function dropHistoryRecord(id: string): void {
+  desktopQueryClient.setQueriesData(
+    { queryKey: musefoldQueryKeys.history.lists },
+    (records: DesktopGenerationEntry[] | undefined) => records?.filter((row) => row.id !== id),
+  );
+}
+
+async function invalidateHistory(): Promise<void> {
+  await desktopQueryClient.invalidateQueries({ queryKey: musefoldQueryKeys.history.all });
+}
+
 export const useHistoryStore = create<HistoryState>((set, get) => ({
-  records: [],
-  loading: false,
-  error: null,
-  stats: null,
-  statsLoading: false,
-  statsError: null,
   filters: { ...DEFAULT_HISTORY_FILTERS },
-  filtered: false,
   selectedId: null,
   inspectorCollapsed: false,
   retryingIds: new Set(),
@@ -126,12 +151,10 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       next.customTo = tmp;
     }
     set({ filters: next });
-    void get().load();
   },
 
   clearFilters: () => {
     set({ filters: { ...DEFAULT_HISTORY_FILTERS } });
-    void get().load();
   },
 
   hasActiveFilters: () => countActiveHistoryFilters(get().filters) > 0,
@@ -139,57 +162,20 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
 
   select: (id) => {
     set({ selectedId: id });
-    // 选中时若检视折叠则自动展开，避免「点了没反应」
     if (id && get().inspectorCollapsed) set({ inspectorCollapsed: false });
   },
   toggleInspector: () => set((s) => ({ inspectorCollapsed: !s.inspectorCollapsed })),
   setInspectorCollapsed: (inspectorCollapsed) => set({ inspectorCollapsed }),
 
-  load: async (page) => {
-    set({ loading: true, error: null });
-    const filters = get().filters;
-    const query = toListQuery(filters, page);
-    const filtered = countActiveHistoryFilters(filters) > 0;
-    const prevSelected = get().selectedId;
-    try {
-      const records = await desktopGateway.listHistory(query);
-      // 筛选后若选中项不在结果里，清空选中
-      const stillThere = prevSelected && records.some((r) => r.id === prevSelected);
-      set({
-        records,
-        loading: false,
-        filtered,
-        selectedId: stillThere ? prevSelected : null,
-      });
-    } catch (err) {
-      console.error('[history] load failed:', err);
-      set({
-        loading: false,
-        filtered,
-        error: (err as Error)?.message ?? '加载历史失败',
-      });
-    }
-  },
-
-  loadStats: async (q) => {
-    set({ statsLoading: true, statsError: null });
-    try {
-      const stats = await desktopGateway.historyStats(q);
-      set({ stats, statsLoading: false });
-      return stats;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '加载成本看板失败';
-      set({ statsLoading: false, statsError: message });
-      return null;
-    }
+  load: async () => {
+    await invalidateHistory();
   },
 
   remove: async (id, opts) => {
     const result = await desktopGateway.deleteHistory(opts?.deleteFile ? { id, deleteFile: true } : id);
-    set((s) => ({
-      records: s.records.filter((r) => r.id !== id),
-      selectedId: s.selectedId === id ? null : s.selectedId,
-    }));
+    dropHistoryRecord(id);
+    set((s) => ({ selectedId: s.selectedId === id ? null : s.selectedId }));
+    void invalidateHistory();
     if (opts?.deleteFile) {
       if (result.fileDeleted) {
         toast.success('已删除记录和源文件');
@@ -209,10 +195,10 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       const result = await desktopGateway.clearHistory(req);
       if (result.deleted > 0) {
         toast.success('已清理历史', `${result.deleted} 条记录已移除`);
+        await invalidateHistory();
       } else {
         toast.info('无可清理', '没有匹配当前清理条件的生成历史。');
       }
-      await get().load({ limit: 200 });
     } catch (err) {
       const message = err instanceof Error ? err.message : '请稍后重试';
       toast.error('清理失败', message);
@@ -224,7 +210,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 
   retry: async (id, opts) => {
-    const record = get().records.find((r) => r.id === id);
+    const record = cachedHistoryRecords().find((row) => row.id === id);
     if (!record) return;
     if (!opts?.force && record.status !== 'failed') return;
     if (get().retryingIds.has(id)) return;
@@ -257,7 +243,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         const next = historyErrorPresentation(result.error?.code, result.error?.message);
         toast.error(next.displayTitle, next.hint);
       }
-      await get().load({ limit: 200 });
+      await invalidateHistory();
     } catch (err) {
       const message = err instanceof Error ? err.message : '无法发起重试';
       toast.error('重试失败', message);
@@ -271,9 +257,12 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 }));
 
-export function selectSelectedHistory(s: HistoryState): DesktopGenerationEntry | null {
-  if (!s.selectedId) return null;
-  return s.records.find((r) => r.id === s.selectedId) ?? null;
+export function selectSelectedHistory(
+  records: readonly DesktopGenerationEntry[],
+  selectedId: string | null,
+): DesktopGenerationEntry | null {
+  if (!selectedId) return null;
+  return records.find((row) => row.id === selectedId) ?? null;
 }
 
 export type { HistoryFilters, HistoryDatePreset } from '@musefold/domain/history-filters';

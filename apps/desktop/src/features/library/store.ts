@@ -28,7 +28,9 @@ import type {
   PromptStats,
 } from '@musefold/desktop-contracts/ipc';
 import { SEARCH_DEBOUNCE_MS } from '@musefold/domain/constants';
+import { musefoldQueryKeys } from '@musefold/product-ui';
 import { desktopGateway } from '../../runtime';
+import { desktopQueryClient } from '../../runtime/query-client';
 import {
   DESKTOP_SYNTHETIC_ENTITY_VERSION,
   applyPromptDocumentToDesktopLibraryPrompt,
@@ -50,6 +52,10 @@ export function setLibraryPromptGatewayForTests(next: PromptGateway): void {
 /** 测试替换 DesktopExtras；生产保持 desktopGateway 单例。 */
 export function setLibraryDesktopExtrasForTests(next: DesktopExtras): void {
   desktopExtras = next;
+}
+
+export function getLibraryDesktopExtras(): DesktopExtras {
+  return desktopExtras;
 }
 
 export type LibraryFilters = NonNullable<ListPromptsQuery['filters']>;
@@ -78,6 +84,8 @@ interface LibraryState {
   filters: LibraryFilters;
   sort: SortKey;
   sortDir: SortDir;
+  /** 已提交的列表查询（搜索防抖后写入，供 Query key 使用） */
+  listQuery: LibraryQuerySnapshot;
 
   // ---- UI 态 ----
   loading: boolean;
@@ -143,10 +151,8 @@ interface LibraryState {
 /** 防抖句柄：模块级，保证跨 action 共享同一个 timer */
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-function message(err: unknown): string {
-  const e = err as { message?: string; code?: string };
-  return e?.message || e?.code || '未知错误';
-}
+function message(err: unknown): string { const e = err as { message?: string; code?: string }; return e?.message || e?.code || '未知错误'; }
+function cacheLibraryList(prompts: DesktopLibraryPrompt[], query: LibraryQuerySnapshot): void { desktopQueryClient.setQueryData(musefoldQueryKeys.library.list(query), prompts); }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   prompts: [],
@@ -158,6 +164,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   filters: {},
   sort: 'updated',
   sortDir: 'desc',
+  listQuery: { sort: 'updated', sortDir: 'desc' },
 
   loading: false,
   initialized: false,
@@ -171,12 +178,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   loadAll: async () => {
     set({ loading: true, error: null });
     try {
+      const query = buildLibraryQuerySnapshot(get());
       const [prompts, stats, searchHistory] = await Promise.all([
-        desktopExtras.listLibraryPrompts(buildQuery(get())),
+        desktopExtras.listLibraryPrompts(query),
         desktopExtras.libraryStats(),
         desktopExtras.listSearchHistory(10),
       ]);
+      cacheLibraryList(prompts, query);
+      desktopQueryClient.setQueryData(musefoldQueryKeys.library.stats, stats);
+      desktopQueryClient.setQueryData(musefoldQueryKeys.library.searchHistory, searchHistory);
       set({
+        listQuery: query,
         prompts,
         stats,
         searchHistory,
@@ -184,7 +196,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         initialized: true,
       });
     } catch (err) {
-      // 首屏失败也要落 initialized，否则骨架屏会永久转
       set({ loading: false, initialized: true, error: message(err) });
     }
   },
@@ -196,21 +207,25 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
     set({ loading: true });
     try {
-      const prompts = await desktopExtras.listLibraryPrompts(buildQuery(get()));
+      const query = buildLibraryQuerySnapshot(get());
+      const prompts = await desktopExtras.listLibraryPrompts(query);
+      cacheLibraryList(prompts, query);
       set({
+        listQuery: query,
         prompts,
         loading: false,
         error: null,
       });
     } catch (err) {
-      // 失败保留旧列表，只报错
       set({ loading: false, error: message(err) });
     }
   },
 
   reloadStats: async () => {
     try {
-      set({ stats: await desktopExtras.libraryStats() });
+      const stats = await desktopExtras.libraryStats();
+      desktopQueryClient.setQueryData(musefoldQueryKeys.library.stats, stats);
+      set({ stats });
     } catch {
       /* 计数是装饰性信息，失败静默 */
     }
@@ -229,6 +244,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     reloadTimer = setTimeout(() => {
       reloadTimer = null;
       const term = get().search.trim();
+      const query = buildLibraryQuerySnapshot(get());
+      set({ listQuery: query });
       void get().reloadPrompts();
       if (term) {
         void desktopExtras.addSearchHistory(term)
@@ -282,6 +299,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           : x
       ),
     });
+    cacheLibraryList(get().prompts, get().listQuery);
     try {
       const updatedDoc = await promptGateway.updatePrompt(id, updatePatchToDocument(patch));
       const base = get().prompts.find((x) => x.id === id) ?? prevRow;
@@ -292,10 +310,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         prompts: s.prompts.map((x) => (x.id === id ? updated : x)),
         error: null,
       }));
+      cacheLibraryList(get().prompts, get().listQuery);
       void get().reloadStats();
       return updated;
     } catch (err) {
       set({ prompts: prev, error: message(err) });
+      cacheLibraryList(prev, get().listQuery);
       toast.error('保存失败', message(err));
       return null;
     }
@@ -310,6 +330,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       prompts: prev.filter((x) => x.id !== id),
       ...(wasSelected ? { selectedPromptId: null } : {}),
     });
+    cacheLibraryList(get().prompts, get().listQuery);
     try {
       await promptGateway.deletePrompt(id, DESKTOP_SYNTHETIC_ENTITY_VERSION);
       void get().reloadStats();
@@ -331,6 +352,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         ...(wasSelected ? { selectedPromptId: id } : {}),
         error: message(err),
       });
+      cacheLibraryList(prev, get().listQuery);
       toast.error('删除失败', message(err));
       return false;
     }
@@ -342,16 +364,19 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     if (!current) return false;
     const next = pinned ?? !current.isPinned;
     set({ prompts: prev.map((x) => (x.id === id ? { ...x, isPinned: next } : x)) });
+    cacheLibraryList(get().prompts, get().listQuery);
     try {
       const updated = await desktopExtras.toggleLibraryPin(id, next);
       set((s) => ({
         prompts: s.prompts.map((x) => (x.id === id ? updated : x)),
         error: null,
       }));
+      cacheLibraryList(get().prompts, get().listQuery);
       void get().reloadStats();
       return true;
     } catch (err) {
       set({ prompts: prev, error: message(err) });
+      cacheLibraryList(prev, get().listQuery);
       toast.error(next ? '收藏失败' : '取消收藏失败', message(err));
       return false;
     }
@@ -401,7 +426,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   loadDeleted: async () => {
     try {
-      set({ deleted: await desktopExtras.listDeletedLibraryPrompts(), error: null });
+      const deleted = await desktopExtras.listDeletedLibraryPrompts();
+      desktopQueryClient.setQueryData(musefoldQueryKeys.library.deleted, deleted);
+      set({ deleted, error: null });
     } catch (err) {
       set({ error: message(err) });
     }
@@ -551,12 +578,12 @@ function buildQuery(s: LibraryState): ListPromptsQuery {
 // 不要在组件里写 useLibraryStore(selectPinned)。
 
 /** 置顶区（按 pin_order 升序），供 PromptList 分区渲染 */
-export function selectPinned(s: LibraryState): DesktopLibraryPrompt[] {
+export function selectPinned(s: Pick<LibraryState, 'prompts'>): DesktopLibraryPrompt[] {
   return s.prompts.filter((p) => p.isPinned).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0));
 }
 
 /** 普通区（后端已排好序，此处保序） */
-export function selectNormal(s: LibraryState): DesktopLibraryPrompt[] {
+export function selectNormal(s: Pick<LibraryState, 'prompts'>): DesktopLibraryPrompt[] {
   return s.prompts.filter((p) => !p.isPinned);
 }
 

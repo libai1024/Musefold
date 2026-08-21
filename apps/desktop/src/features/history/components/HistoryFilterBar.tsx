@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Filter, X } from '../../../components/ui/icons';
 import { useHistoryStore } from '../store';
+import { useHistoryListQuery } from '../use-history-queries';
 import {
   DATE_PRESET_OPTIONS,
   STATUS_OPTIONS,
@@ -19,7 +20,7 @@ export function HistoryFilterBar() {
   const setFilters = useHistoryStore((s) => s.setFilters);
   const clearFilters = useHistoryStore((s) => s.clearFilters);
   const activeCount = useHistoryStore((s) => s.activeFilterCount());
-  const recordsLen = useHistoryStore((s) => s.records.length);
+  const recordsLen = useHistoryListQuery().records.length;
 
   const providers = useGenerationStore((s) => s.providers);
   const loadProviders = useGenerationStore((s) => s.loadProviders);
