@@ -46,8 +46,8 @@ def electron_executable() -> Path:
         ]
     else:
         candidates = [
-            REPO / "node_modules" / "electron" / "dist" / "electron",
             REPO / "node_modules" / ".bin" / "electron",
+            REPO / "node_modules" / "electron" / "dist" / "electron",
             REPO / "apps" / "desktop" / "node_modules" / "electron" / "dist" / "electron",
         ]
     for candidate in candidates:
@@ -64,6 +64,7 @@ CI_ELECTRON_FLAGS = (
     "--disable-gpu",
     "--disable-dev-shm-usage",
     "--disable-software-rasterizer",
+    "--headless=new",
 )
 
 
