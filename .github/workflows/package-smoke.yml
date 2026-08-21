@@ -30,6 +30,10 @@ jobs:
     name: macOS package smoke
     runs-on: macos-latest
     timeout-minutes: 35
+    env:
+      # Hosted runners have Xcode but no Developer ID. Unsigned ad-hoc packages
+      # still produce the DMG/ZIP the website publishes to updates/dev/.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,12 +63,24 @@ jobs:
       - name: Install Python deps
         run: python -m pip install --upgrade pip && python -m pip install -r requirements-test.txt
 
-      - name: Build macOS package
-        env:
-          # Hosted runners have Xcode but no Developer ID. Unsigned CI packages
-          # still produce the DMG/ZIP the website publishes to updates/dev/.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run package:mac -- --config.mac.identity=null
+      - name: Build renderer
+        run: npm run build
+
+      - name: Build CLI and MCP
+        run: node scripts/build-cli.mjs
+
+      - name: Package unsigned macOS app
+        run: node scripts/run-builder.mjs --mac --arm64 --dir
+
+      - name: Ad-hoc sign
+        run: node scripts/sign-macos-adhoc.mjs
+
+      - name: Wrap DMG and ZIP
+        run: node scripts/run-builder.mjs --mac dmg zip --arm64 --prepackaged ../../release/mac-arm64/Musefold.app
+
+      - name: List release outputs
+        if: failure()
+        run: ls -la release release/mac-arm64 packages/cli/dist packages/mcp/dist apps/desktop/out/main 2>&1 | head -80
 
       - name: Verify DMG
         run: |
