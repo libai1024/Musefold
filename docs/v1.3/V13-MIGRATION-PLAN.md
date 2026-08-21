@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0（GOV-01~04）与 ENT-01/02/03 已完成；ENT-04 起继续
+> **状态**：Phase 0（GOV-01~04）与 Phase 1（ENT-01~04）已完成；STATE-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -21,7 +21,7 @@
 | 阶段 | 内容 | 开工条件 | 相对规模 |
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
-| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **进行中**：ENT-01/02/03 已完成 |
+| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
 | Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | 大 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
@@ -95,10 +95,15 @@
   验证：全仓 `tsc -b`；vitest 181 files / 1046 tests；`check:boundaries` 826 modules / 0 新违规 / 72 known（行模型 3）；桌面 `test_02_library.py` + `test_06_history.py` 36 passed。
   回滚：单卡 revert。
 
-- `V13-ENT-04`：workbench 域收尾与 `models.ts` 收缩。`DesktopWorkbenchSessionDocument` 等对齐 contracts 文档形状后，`models.ts` 仅剩存储行类型且引用面全部落在 core/主进程/ipc 签名/mappers；`renderer-row-models-banned` baseline 归零，规则升 error（移出豁免清单）。
+- `V13-ENT-04`：~~workbench 域收尾与 `models.ts` 收缩。~~ **已完成（2026-08-21）**。`ProviderConfig` / `NewProviderConfig` / 定价类型从 `models.ts` 迁到 `providers.ts`（与 `ImageProvider` 同文件）；渲染层 generation/settings 从 `providers` 导入。workbench extras 本已返回 `WorkbenchSessionDocument`，无需二次映射。`renderer-row-models-banned` baseline 3→0；规则本已是 error，移出豁免后新增泄漏即 CI 红。`models.ts` 仅剩 Prompt/Folder/Tag/HistoryRecord 等存储行，并对迁出类型保留 core/主进程/ipc 用的 re-export。
 
-  验证：baseline 清零；全量 E2E。
-  回滚：单卡 revert；ENT-04 是收口卡， revert 需连同所依赖卡的类型面一起评估。
+  **裁定（相对原卡的差异）**：
+  1. **不包一层 `DesktopProviderDocument`**。`ProviderConfig` 已是 UI 使用的无损配置形状（无明文 key），与 SQLite 行同形；再包一层只会复制字段。迁文件即完成「渲染层不碰 models」。
+  2. **workbench 不重做会话形状**。`listDesktopWorkbenchSessions` / `getDesktopWorkbenchSession` 已是文档面；本卡只收口 Provider 泄漏。
+  3. **models 对 ProviderConfig 保留 re-export**，供 core / 主进程 / ipc / preload 继续单点导入（与 ENT-02/03 同一口径）。这不是给 UI 的兼容层。
+
+  验证：全仓 `tsc -b`；vitest 181 files / 1046 tests；`check:boundaries` 826 modules / 0 新违规 / 69 known（行模型 0）；桌面 `test_04_generate.py` + `test_05_settings.py` + `test_08_generation_workbench.py` + `test_02_library.py` + `test_06_history.py` 133 passed。
+  回滚：单卡 revert；ENT-04 是收口卡，revert 需连同所依赖卡的类型面一起评估。
 
 ### 完成条件
 

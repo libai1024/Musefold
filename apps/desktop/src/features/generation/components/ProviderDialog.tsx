@@ -7,7 +7,7 @@ import type {
   ProviderConfig,
   NewProviderConfig,
   ProviderPricingMode,
-} from '@musefold/desktop-contracts/models';
+} from '@musefold/desktop-contracts/providers';
 import type { ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
 import type { ErrorAction } from '@musefold/domain/errors';
 import {

@@ -969,59 +969,5 @@
       "severity": "error",
       "name": "renderer-features-isolated-share"
     }
-  },
-  {
-    "type": "dependency",
-    "from": "apps/desktop/src/features/generation/components/ProviderDialog.tsx",
-    "to": "packages/desktop-contracts/src/models.ts",
-    "unresolvedTo": "@musefold/desktop-contracts/models",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "renderer-row-models-banned"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "apps/desktop/src/features/generation/store.ts",
-    "to": "packages/desktop-contracts/src/models.ts",
-    "unresolvedTo": "@musefold/desktop-contracts/models",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "renderer-row-models-banned"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "apps/desktop/src/features/settings/components/ProvidersSection.tsx",
-    "to": "packages/desktop-contracts/src/models.ts",
-    "unresolvedTo": "@musefold/desktop-contracts/models",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "renderer-row-models-banned"
-    }
   }
 ]

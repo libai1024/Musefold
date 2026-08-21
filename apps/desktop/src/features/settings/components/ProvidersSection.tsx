@@ -2,7 +2,7 @@
 // 高级设置：生图中转站管理。
 import { useMemo, useState } from 'react';
 import { Plus, Check, Trash2, Pencil, Zap, Loader2, KeyRound, ListChecks } from '../../../components/ui/icons';
-import type { ProviderConfig } from '@musefold/desktop-contracts/models';
+import type { ProviderConfig } from '@musefold/desktop-contracts/providers';
 import type { ErrorAction } from '@musefold/domain/errors';
 import { PROVIDER_PRESETS } from '@musefold/domain/constants';
 import { useGenerationStore } from '../../generation/store';

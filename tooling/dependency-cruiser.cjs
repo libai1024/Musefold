@@ -425,7 +425,7 @@ module.exports = {
       // 例外：runtime/mappers/（唯一转换点）、runtime gateway 实现、全部测试。
       name: 'renderer-row-models-banned',
       comment:
-        'V13-ENT-01：渲染层业务代码禁止 import desktop-contracts/models 行模型。存储行类型只属于 core/主进程/IPC 传输签名/mappers；UI 与 store 的实体形状一律用 @musefold/contracts 文档形状（+ desktop-extras 组合扩展）。存量违规在 known-violations baseline 只减不增。',
+        'V13-ENT-01/04：渲染层业务代码禁止 import desktop-contracts/models 行模型。存储行类型只属于 core/主进程/IPC 传输签名/mappers；UI 与 store 的实体形状一律用 @musefold/contracts 文档形状（+ desktop-extras 组合扩展）。ENT-04 起 known-violations 中本规则条目为 0，新增即红。',
       severity: 'error',
       from: {
         path: '^apps/desktop/src/(features|components|pages|stores|lib|pet|preview)/',

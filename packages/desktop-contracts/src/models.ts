@@ -159,41 +159,11 @@ export interface HistoryRecord {
 
 /** HistoryStats 聚合族已迁至 history-documents（V13-ENT-02）；上方 re-export 保持导入面不变。 */
 
-/** Provider 成本估算配置（electron-store: pricing.{providerId}） */
-export type ProviderPricingMode = 'per-image' | 'per-1k-token';
-
-export interface ProviderPricingConfig {
-  mode: ProviderPricingMode;
-  /**
-   * 单位价格（积分）。per-image=每张；per-1k-token=每千 token。
-   */
-  unitPoints: number;
-}
-
-export interface ProviderPricingSetRequest extends ProviderPricingConfig {
-  providerId: string;
-}
-
-/** Provider 配置（providers 表，不含明文 key） */
-export interface ProviderConfig {
-  id: string;
-  name: string;
-  type: import('./enums').ProviderType;
-  baseUrl: string;
-  model: string;
-  hasKey: boolean;
-  keySuffix: string | null; // 末 4 位
-  isActive: boolean;
-  /** 账号托管标记（FR-GW-01/03）：'account' 的记录 baseUrl/Key 只读、不可单删、登出回收 */
-  managedBy: 'account' | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface NewProviderConfig {
-  name: string;
-  type: import('./enums').ProviderType;
-  baseUrl: string;
-  model: string;
-  isActive?: boolean;
-}
+/** ProviderConfig / 定价类型已迁至 providers.ts（V13-ENT-04）；下方 re-export 保持 core/ipc 单点导入。 */
+export type {
+  ProviderPricingMode,
+  ProviderPricingConfig,
+  ProviderPricingSetRequest,
+  ProviderConfig,
+  NewProviderConfig,
+} from './providers';

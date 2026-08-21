@@ -1,7 +1,8 @@
 // 桌面独有面：library 查询/写、关联历史、searchHistory、账号全量状态、cloudSync、
 // workbench 无损会话文档与原生进度事件。
 // V13-ENT-02 起历史面返回文档形状；V13-ENT-03 起 library 面返回 library-documents。
-// provider / account / workbench 面暂仍为行或桌面专用文档（V13-ENT-04 收尾）。
+// V13-ENT-04：provider 配置从 models 迁至 providers.ts；account 维持 AccountStatus；
+// workbench extras 已是 WorkbenchSessionDocument。
 // 故意不放进 ipc.ts，避免 IPC 通道契约文件继续胀大。
 // 运行时请按子路径导入：@musefold/desktop-contracts/desktop-extras
 
@@ -38,12 +39,8 @@ import type {
   HistoryStatsQuery,
 } from './history-documents';
 import type { DesktopLibraryPrompt, SearchHistoryItem } from './library-documents';
-import type {
-  NewPrompt,
-  NewProviderConfig,
-  ProviderConfig,
-} from './models';
-import type { ImageGenerationProgress, ModelInfo, ValidationResult } from './providers';
+import type { NewPrompt } from './models';
+import type { ImageGenerationProgress, ModelInfo, NewProviderConfig, ProviderConfig, ValidationResult } from './providers';
 import type {
   WorkbenchSessionDocument,
   WorkbenchSessionListQuery,

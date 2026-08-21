@@ -5,8 +5,12 @@
 // 这里不再保留旧的精修生成兼容状态，避免出现多个状态源。
 
 import { create } from 'zustand';
-import type { ProviderConfig, NewProviderConfig } from '@musefold/desktop-contracts/models';
-import type { ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
+import type {
+  ProviderConfig,
+  NewProviderConfig,
+  ModelInfo,
+  ValidationResult,
+} from '@musefold/desktop-contracts/providers';
 import type { AutomationProviderDraft } from '@musefold/desktop-contracts/ipc';
 import { gateway } from '../../runtime/gateway-context';
 

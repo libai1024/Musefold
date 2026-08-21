@@ -2,19 +2,17 @@
 // aiConnection / provider / settings(pricing) / image 域：Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
 
 import type {
-  ProviderConfig,
-  NewProviderConfig,
-  ProviderPricingConfig,
-  ProviderPricingSetRequest,
-} from "../models";
-import type {
   DoubaoWebAccountStatus,
   DoubaoWebUsageStatus,
   GenerateImageRequest,
   GenerateImageResult,
   ImageGenerationProgress,
   ModelInfo,
+  NewProviderConfig,
   PickLocalImagesResult,
+  ProviderConfig,
+  ProviderPricingConfig,
+  ProviderPricingSetRequest,
   StageLocalImageInput,
   ValidationResult,
 } from "../providers";

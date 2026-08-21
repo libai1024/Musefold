@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0 与 ENT-01/02/03 已落地；ENT-04 起继续
+> **状态**：Phase 0 与 Phase 1（ENT-01~04）已落地；STATE-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -160,7 +160,7 @@ web-api(kysely 行) → HTTP(contracts) → cloud-client
 
 ### 4.3 逐域切换顺序
 
-history（行类型泄漏最深、`HistoryDetail` 跨三域）→ library（`PromptRow`/`previewImagePath` 扩展）→ account（`AccountStatus` 面文档化）→ workbench（`DesktopWorkbenchSessionDocument` 已近文档形状，收尾）。每域一卡：签名切换 → mapper 扩展 → store 类型切换 → 行类型引用清除，独立合并独立回滚。
+history（行类型泄漏最深）→ library（`PromptDocument` + 无损封面/epoch）→ account（维持 `AccountStatus`，不合成 `AccountSession`）→ workbench（会话文档已就位）+ ProviderConfig 迁出 models。ENT-04 起渲染层 `models` import baseline 为 0。
 
 ### 4.4 ENT-B（不在本版本）
 

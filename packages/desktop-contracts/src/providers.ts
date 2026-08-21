@@ -183,3 +183,44 @@ export interface ImageProvider {
   generateImage(req: GenerateImageRequest, signal?: AbortSignal, onProgress?: ImageProgressHandler): Promise<GenerateImageResult>;
   validateConnection(): Promise<ValidationResult>;
 }
+
+/** Provider 成本估算配置（electron-store: pricing.{providerId}） */
+export type ProviderPricingMode = 'per-image' | 'per-1k-token';
+
+export interface ProviderPricingConfig {
+  mode: ProviderPricingMode;
+  /**
+   * 单位价格（积分）。per-image=每张；per-1k-token=每千 token。
+   */
+  unitPoints: number;
+}
+
+export interface ProviderPricingSetRequest extends ProviderPricingConfig {
+  providerId: string;
+}
+
+/**
+ * Provider 配置（providers 表，不含明文 key）。
+ * V13-ENT-04：从 models 迁出，渲染层可安全引用；SQLite 行与 IPC 形状相同，无需二次映射。
+ */
+export interface ProviderConfig {
+  id: string;
+  name: string;
+  type: ProviderType;
+  baseUrl: string;
+  model: string;
+  hasKey: boolean;
+  keySuffix: string | null;
+  isActive: boolean;
+  managedBy: 'account' | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface NewProviderConfig {
+  name: string;
+  type: ProviderType;
+  baseUrl: string;
+  model: string;
+  isActive?: boolean;
+}
