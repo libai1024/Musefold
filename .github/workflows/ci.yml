@@ -147,7 +147,7 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -r requirements-test.txt
 
       - name: Install Linux GUI deps
-        run: sudo python -m playwright install-deps
+        run: sudo --preserve-env=PATH "$(which python)" -m playwright install-deps
 
       - name: Build app
         run: npm run build
