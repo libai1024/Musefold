@@ -35,7 +35,7 @@ values are never printed.`);
 
 const requiredJobs = [
   { key: 'sourceChecks', label: 'Source checks', matchers: [/^source checks$/, /source.*checks?/] },
-  { key: 'electronE2E', label: 'Electron E2E', matchers: [/^electron e2e$/, /electron.*e2e/] },
+  { key: 'electronE2E', label: 'Electron E2E', matchers: [/^linux electron e2e$/, /^electron e2e$/, /electron.*e2e/] },
   { key: 'macosPackageSmoke', label: 'macOS package smoke', matchers: [/^macos package smoke$/, /macos.*package.*smoke/] },
   {
     key: 'windowsPackageAndRuntimeSmoke',

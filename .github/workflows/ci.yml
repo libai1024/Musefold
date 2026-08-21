@@ -1,4 +1,6 @@
-# Fast-lane CI (source checks + desktop E2E).
+# Fast-lane source checks. This workflow name (`CI`) is the deploy gate.
+# Desktop Linux/Windows Electron E2E lives in desktop-ci.yml so a red
+# hosted Electron run cannot skip Web/API production deploy.
 # App semver single source of truth: `apps/desktop/package.json`.
 # Document versions (v1.2.1, etc.) are independent of app semver.
 name: CI
@@ -117,40 +119,3 @@ jobs:
 
       - name: Local release preflight
         run: npm run release:preflight
-
-  e2e:
-    name: Electron E2E
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [changes, check]
-    # Desktop E2E is gated by the `desktop` path group, not by release layers.
-    if: needs.changes.outputs.desktop == 'true'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.14'
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Install Python deps
-        run: python -m pip install --upgrade pip && python -m pip install -r requirements-test.txt
-
-      - name: Install Linux GUI deps
-        run: sudo --preserve-env=PATH "$(which python)" -m playwright install-deps
-
-      - name: Build app
-        run: npm run build
-
-      - name: Full Electron E2E
-        run: xvfb-run -a python -m pytest tests/e2e -q

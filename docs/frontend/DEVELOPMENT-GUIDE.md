@@ -223,7 +223,7 @@ CI 源码检查（`ci.yml` 的 Source checks）跑：
 
 `typecheck / test / build / lint / check:boundaries / check:ui-boundaries`
 
-docs-only 变更跳过该 job。桌面 E2E 由 `.github/layer-paths.yml` 的 **`desktop` 组**门控，与 content / service / shell 发布分层解耦——那三层用于热更新车道，并不各自跑一套 E2E。`format:check` 仍不进 CI（v1.2.1 裁定：全仓 format 会淹没 `git mv` 历史）。
+docs-only 变更跳过该 job。桌面 Linux / Windows E2E 在 GitHub 托管 runner 上跑（`.github/workflows/desktop-ci.yml`），由 `.github/layer-paths.yml` 的 **`desktop` 组**门控，不进 `ci.yml`，因此不挡住 Web/API 自动部署。content / service / shell 是发布分层，并不各自跑一套 E2E。macOS 包冒烟仍走 tag 上的 `package-smoke.yml`。`format:check` 仍不进 CI（v1.2.1 裁定：全仓 format 会淹没 `git mv` 历史）。
 
 ## 8. 新功能开发流程（端到端清单）
 

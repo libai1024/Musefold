@@ -1,0 +1,113 @@
+# Desktop Linux + Windows CI on GitHub-hosted runners.
+# Gated by the `desktop` path group. Does not block Web/API deploy:
+# Deploy production listens to workflow `CI` (source checks) only.
+#
+# macOS packaging stays on tag-triggered package-smoke.yml.
+# Do not run these jobs on musefold-prod.
+name: Desktop CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  MUSEFOLD_TVT_KEY: ''
+  NODE_VERSION: '24'
+
+jobs:
+  changes:
+    name: Detect changed layers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      desktop: ${{ steps.detect.outputs.desktop }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Detect changed layers
+        id: detect
+        run: node .github/scripts/detect-layers.mjs
+
+  e2e:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux Electron E2E
+          - os: windows-latest
+            name: Windows Electron E2E
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Cache Electron artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-electron-artifacts-${{ hashFiles('package-lock.json', 'apps/desktop/electron-builder.yml') }}
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements-test.txt
+
+      - name: Install Linux GUI deps
+        if: runner.os == 'Linux'
+        run: sudo --preserve-env=PATH "$(which python)" -m playwright install-deps
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild
+
+      - name: Build app
+        run: npm run build
+
+      - name: Full Electron E2E
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python -m pytest tests/e2e -q
+
+      - name: Full Electron E2E
+        if: runner.os == 'Windows'
+        run: python -m pytest tests/e2e -q
