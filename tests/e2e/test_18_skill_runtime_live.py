@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from host_clipboard import paste_key
+
 
 REPO_URL = "https://github.com/LiamGvchi/gc-minimal-zine-poster"
 TEXT_KEY = os.environ.get("MUSEFOLD_TEXT_AI_KEY", "").strip()
@@ -61,7 +63,7 @@ def test_skill_runtime_agent_trace_to_image(app):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=REPO_URL.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function(
             "() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'",
             timeout=180_000,

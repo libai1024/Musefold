@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from host_clipboard import paste_key
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = REPO_ROOT / "generated" / "v033-acceptance"
@@ -89,7 +91,7 @@ def test_sk_01_pasted_github_url_becomes_ready_skill_chip(app):
     try:
         prompt_box.click()
         subprocess.run(["pbcopy"], input=repo_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
 
         chip = app.page.get_by_test_id("skill-runtime-chip")
         chip.wait_for(state="visible")
@@ -190,7 +192,7 @@ def test_sk_03_removing_skill_keeps_prompt_and_allows_same_url_again(app):
         prompt_box.fill("画一只在雨中等公交的小黑")
         prompt_box.click()
         subprocess.run(["pbcopy"], input=repo_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function(
             "() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'",
             timeout=60_000,
@@ -205,7 +207,7 @@ def test_sk_03_removing_skill_keeps_prompt_and_allows_same_url_again(app):
         assert prompt_box.input_value() == "画一只在雨中等公交的小黑"
 
         prompt_box.click()
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function(
             "() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'",
             timeout=60_000,
@@ -230,7 +232,7 @@ def test_sk_04_invalid_github_skill_enters_recoverable_error_state(app):
         prompt_box.fill("保留这段输入，不应被错误态清空")
         prompt_box.click()
         subprocess.run(["pbcopy"], input=bad_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function(
             "() => window.__musefold_test.stores.skillRuntime.getState().status === 'error'",
             timeout=60_000,
@@ -282,7 +284,7 @@ def test_sk_13_cancelled_agent_run_has_no_permanent_spinner(app, hanging_text_ai
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=repo_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function(
             "() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'",
             timeout=60_000,
@@ -351,7 +353,7 @@ def test_sk_14_skill_honors_portrait_ratio_and_two_results(app, tmp_path):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=repo_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function("() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'", timeout=180_000)
         app.page.get_by_test_id("refine-ratio-trigger").click()
         app.page.get_by_test_id("refine-ratio-9:16").click()
@@ -429,7 +431,7 @@ def test_sk_20_no_text_ai_uses_file_fallback_and_still_generates(app):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=b"https://github.com/helloianneo/ian-xiaohei-illustrations", check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function("() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'", timeout=60_000)
         prompt_box.fill("无 Agent 时用附件规则生成一张小黑文章配图")
         app.page.get_by_test_id("refine-generate").click()
@@ -492,7 +494,7 @@ def test_sk_14_completed_trace_keeps_ratio_count_and_provider(app):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=b"https://github.com/helloianneo/ian-xiaohei-illustrations", check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function("() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'", timeout=60_000)
         app.page.get_by_test_id("refine-ratio-trigger").click()
         app.page.get_by_test_id("refine-ratio-9:16").click()
@@ -571,7 +573,7 @@ def test_sk_21_failed_agent_connection_records_error_then_falls_back(app, reject
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=b"https://github.com/helloianneo/ian-xiaohei-illustrations", check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function("() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'", timeout=60_000)
         prompt_box.fill("Agent 连接失效后仍应按附件规则生成小黑配图")
         app.page.get_by_test_id("refine-generate").click()
@@ -643,7 +645,7 @@ def test_sk_30_plain_skill_execution_does_not_create_design_scheme(app):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=b"https://github.com/helloianneo/ian-xiaohei-illustrations", check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function("() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'", timeout=60_000)
         prompt_box.fill("直接生成一张小黑主题的文章配图，不创建设计方案")
         app.page.get_by_test_id("refine-generate").click()
@@ -686,7 +688,7 @@ def test_sk_31_design_plan_command_absorbs_ready_skill_chip(app):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=repo_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function("() => window.__musefold_test.stores.skillRuntime.getState().status === 'ready'", timeout=60_000)
         assert app.page.get_by_test_id("skill-runtime-chip").get_attribute("data-status") == "ready"
 

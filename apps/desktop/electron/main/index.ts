@@ -51,7 +51,6 @@ if (isAutomatedElectron()) {
   app.commandLine.appendSwitch('no-sandbox');
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-dev-shm-usage');
-  app.commandLine.appendSwitch('headless');
 }
 
 // Privileged schemes must be declared synchronously before Electron becomes ready.

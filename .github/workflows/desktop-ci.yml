@@ -98,7 +98,10 @@ jobs:
 
       - name: Install Linux GUI deps
         if: runner.os == 'Linux'
-        run: sudo --preserve-env=PATH "$(which python)" -m playwright install-deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xclip
+          sudo --preserve-env=PATH "$(which python)" -m playwright install-deps
 
       - name: Rebuild native modules for Electron
         run: npm run rebuild

@@ -62,27 +62,31 @@ ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear err
 
 @pytest.fixture(scope="session", autouse=True)
 def _clipboard_shims():
-    """Hosted Linux/Windows runners have no pbcopy/pbpaste; keep Skill clipboard tests portable."""
+    """Expose pbcopy/pbpaste on Linux/Windows as wrappers around the real OS clipboard."""
     if sys.platform == "darwin":
         yield
         return
+    helper = Path(__file__).resolve().parent / "host_clipboard.py"
     shim_dir = Path(tempfile.mkdtemp(prefix="mf-clip-"))
-    store = shim_dir / "board.bin"
-    store.write_bytes(b"")
+    python = sys.executable
     if os.name == "nt":
         (shim_dir / "pbcopy.cmd").write_text(
-            "@echo off\n"
-            f'python -c "import sys; open(r\'{store}\', \'wb\').write(sys.stdin.buffer.read())"\n',
+            f'@echo off\n"{python}" "{helper}" write\n',
             encoding="utf-8",
         )
         (shim_dir / "pbpaste.cmd").write_text(
-            "@echo off\n"
-            f'python -c "import sys; sys.stdout.buffer.write(open(r\'{store}\', \'rb\').read())"\n',
+            f'@echo off\n"{python}" "{helper}" read\n',
             encoding="utf-8",
         )
     else:
-        (shim_dir / "pbcopy").write_text(f"#!/bin/sh\ncat > '{store}'\n", encoding="utf-8")
-        (shim_dir / "pbpaste").write_text(f"#!/bin/sh\ncat '{store}'\n", encoding="utf-8")
+        (shim_dir / "pbcopy").write_text(
+            f"#!/bin/sh\nexec '{python}' '{helper}' write\n",
+            encoding="utf-8",
+        )
+        (shim_dir / "pbpaste").write_text(
+            f"#!/bin/sh\nexec '{python}' '{helper}' read\n",
+            encoding="utf-8",
+        )
         os.chmod(shim_dir / "pbcopy", 0o755)
         os.chmod(shim_dir / "pbpaste", 0o755)
     os.environ["PATH"] = f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}"
@@ -95,7 +99,6 @@ CI_ELECTRON_FLAGS = (
     "--disable-gpu",
     "--disable-dev-shm-usage",
     "--disable-software-rasterizer",
-    "--headless=new",
 )
 
 

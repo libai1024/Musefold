@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from host_clipboard import paste_key
+
 
 TEXT_KEY = os.environ.get("MUSEFOLD_TEXT_AI_KEY", "").strip()
 TEXT_BASE = os.environ.get("MUSEFOLD_TEXT_AI_BASE", "https://ai.tvt.wiki/v1").strip()
@@ -83,7 +85,7 @@ def test_skill_with_uploaded_image(app, slug: str, repo_url: str, prompt: str):
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
         prompt_box.click()
         subprocess.run(["pbcopy"], input=repo_url.encode("utf-8"), check=True)
-        app.page.keyboard.press("Meta+V")
+        app.page.keyboard.press(paste_key())
         app.page.wait_for_function(
             "() => ['ready', 'error'].includes(window.__musefold_test.stores.skillRuntime.getState().status)",
             timeout=240_000,
