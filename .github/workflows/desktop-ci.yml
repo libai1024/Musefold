@@ -126,7 +126,25 @@ jobs:
           "
 
       - name: Prove Playwright
-        run: python -c "import pytest, playwright; print('pytest', pytest.__version__, 'playwright', playwright.__version__)"
+        run: |
+          python <<'PY'
+          import sys
+          import traceback
+          print('executable', sys.executable)
+          print('version', sys.version)
+          try:
+              import pytest
+              from playwright.sync_api import sync_playwright
+              import playwright
+              print('pytest', pytest.__version__, 'playwright', playwright.__version__)
+          except Exception:
+              tb = traceback.format_exc()
+              print(tb)
+              escaped = tb.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
+              print(f'::error title=Playwright import::{escaped}')
+              raise
+          PY
+          python -m pip show pytest playwright
 
       - name: Full Electron E2E
         if: runner.os == 'Linux'
