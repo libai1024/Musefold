@@ -148,13 +148,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set -o pipefail
-          xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml --maxfail=3 | tee e2e.log
+          xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
 
       - name: Full Electron E2E
         if: runner.os == 'Windows'
         run: |
           set -o pipefail
-          python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml --maxfail=3 | tee e2e.log
+          python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
 
       - name: Annotate E2E failure
         if: failure()

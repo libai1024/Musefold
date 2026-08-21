@@ -12,9 +12,23 @@ import { scheduleContentUpdateChecks } from './content-updater';
 
 let updaterService: UpdaterService | null = null;
 
-// electron-updater is CommonJS and defines autoUpdater through a getter, so a
-// named ESM import works in TypeScript but fails when Electron loads the bundle.
-const { autoUpdater } = electronUpdater;
+// Do not read electronUpdater.autoUpdater at module load. That getter
+// constructs AppUpdater, which throws when unpackaged Linux/Windows report
+// version "0.0" (invalid semver). Development/E2E uses a no-op adapter.
+const noopAdapter: UpdaterAdapter = {
+  autoDownload: false,
+  autoInstallOnAppQuit: false,
+  allowPrerelease: false,
+  setFeedURL() {},
+  on() {},
+  async checkForUpdates() {
+    return {};
+  },
+  async downloadUpdate() {
+    return {};
+  },
+  quitAndInstall() {},
+};
 
 export interface InitializeUpdaterOptions {
   beforeInstall?: () => Promise<void> | void;
@@ -35,7 +49,9 @@ export function initializeUpdater(options: InitializeUpdaterOptions = {}): Updat
   const channel = getUpdateChannel();
 
   updaterService = new UpdaterService({
-    adapter: autoUpdater as unknown as UpdaterAdapter,
+    adapter: enabled
+      ? (electronUpdater.autoUpdater as unknown as UpdaterAdapter)
+      : noopAdapter,
     currentVersion: APP_VERSION,
     enabled,
     disabledReason,

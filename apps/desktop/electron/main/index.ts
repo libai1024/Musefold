@@ -10,6 +10,7 @@ import { registerAppScheme } from './app-protocol';
 import { registerMediaScheme } from './media-protocol';
 import { isAutomatedElectron } from './automation-env';
 import { reportMainDiagnostic, showNativeDiagnostic } from './diagnostics';
+import { APP_VERSION } from '../system/app-version';
 
 const e2eUserData = process.env['MUSEFOLD_E2E_USER_DATA_DIR'];
 
@@ -21,6 +22,8 @@ if (!app.isPackaged) {
   app.setName('musefold');
   app.setPath('userData', join(app.getPath('appData'), 'musefold'));
 }
+const setAppVersion = (app as typeof app & { setVersion?: (version: string) => void }).setVersion;
+setAppVersion?.(APP_VERSION);
 
 // Packaged smoke tests run alongside the user's development instance. Isolate
 // their profile before any application module reads Electron's standard paths.
