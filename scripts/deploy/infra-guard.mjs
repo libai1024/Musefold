@@ -50,7 +50,19 @@ export function loadDotEnv(path) {
 }
 
 export function migrationDatabaseUrl(env) {
-  return env.MIGRATION_DATABASE_URL || env.DATABASE_URL || '';
+  if (env.MIGRATION_DATABASE_URL) return env.MIGRATION_DATABASE_URL;
+  if (env.MIGRATION_DB_PASSWORD) {
+    return `postgres://musefold_migration:${env.MIGRATION_DB_PASSWORD}@db:5432/musefold`;
+  }
+  return env.DATABASE_URL || '';
+}
+
+export function workerDatabaseUrl(env) {
+  if (env.WORKER_DATABASE_URL) return env.WORKER_DATABASE_URL;
+  if (env.WORKER_DB_PASSWORD) {
+    return `postgres://musefold_worker:${env.WORKER_DB_PASSWORD}@db:5432/musefold`;
+  }
+  return migrationDatabaseUrl(env);
 }
 
 export function writeMarker(path, contents) {

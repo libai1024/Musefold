@@ -30,7 +30,7 @@
 | 项 | 内容 |
 |---|---|
 | 目的 | Caddyfile 与 compose 以仓库为事实源 |
-| 做法 | 每次部署把 `infra/v1.1/Caddyfile`、`infra/v1.1/remote-compose.yaml` 覆盖到 `/opt/musefold/`，旧文件进 `archive/` |
+| 做法 | 每次部署把 `infra/v1.1/Caddyfile` 覆盖到 `/opt/musefold/Caddyfile`，把 `infra/v1.1/remote-compose.yaml` 覆盖到 `/opt/musefold/remote-compose.yaml`。`docker-compose.yml` 是 Caddy/Postgres/new-api 宿主栈，**禁止覆盖**。compose 调用始终 `-f docker-compose.yml -f remote-compose.yaml`。旧文件进 `archive/` |
 | 验收 | 线上文件与当前 sha 的仓库副本一致；手工改线上文件会在下次部署被覆盖 |
 | 状态 | **仓库已落地**。 |
 

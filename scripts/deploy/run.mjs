@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadDotEnv, migrationDatabaseUrl, publishInfraFile } from './infra-guard.mjs';
+import { loadDotEnv, migrationDatabaseUrl, publishInfraFile, workerDatabaseUrl } from './infra-guard.mjs';
 import { recordLayer, readDeployState, writeDeployState } from './state.mjs';
 import {
   DEFAULT_KEEP,
@@ -24,6 +24,7 @@ export const DEFAULTS = {
   composeDir: '/opt/musefold',
   liveCaddy: '/opt/musefold/Caddyfile',
   liveCompose: '/opt/musefold/docker-compose.yml',
+  liveRemoteCompose: '/opt/musefold/remote-compose.yaml',
   archiveDir: '/opt/musefold/archive',
   image: 'musefold-v11',
   webUrl: 'https://zhaozhaoyue.top/Musefold/app/',
@@ -129,8 +130,8 @@ export function buildImage({ exec, repoRoot, image, sha, cpus, memory }) {
   }
 }
 
-function composeArgs(composeDir, composeFile, envFile) {
-  const args = ['compose', '--project-directory', composeDir, '-f', composeFile];
+function composeArgs(composeDir, composeFile, remoteComposeFile, envFile) {
+  const args = ['compose', '--project-directory', composeDir, '-f', composeFile, '-f', remoteComposeFile];
   if (envFile) args.push('--env-file', envFile);
   return args;
 }
@@ -139,6 +140,7 @@ export function migrateAndRoll({
   exec,
   composeDir,
   composeFile,
+  remoteComposeFile,
   image,
   sha,
   envFile,
@@ -147,9 +149,9 @@ export function migrateAndRoll({
   const env = { ...process.env, ...loadDotEnv(envFile), MUSEFOLD_IMAGE_TAG: sha };
   const migrationUrl = migrationDatabaseUrl(env);
   if (!migrationUrl) {
-    throw new Error('MIGRATION_DATABASE_URL or DATABASE_URL missing in compose env file');
+    throw new Error('MIGRATION_DATABASE_URL / MIGRATION_DB_PASSWORD / DATABASE_URL missing in compose env file');
   }
-  const workerUrl = env.WORKER_DATABASE_URL || env.WORKER_QUEUE_DATABASE_URL || migrationUrl;
+  const workerUrl = workerDatabaseUrl(env);
 
   dockerRun(
     exec,
@@ -190,16 +192,16 @@ export function migrateAndRoll({
 
   dockerRun(
     exec,
-    [...composeArgs(composeDir, composeFile, envFile), 'up', '-d', '--no-deps', '--force-recreate', 'v11-web-api', 'v11-worker'],
+    [...composeArgs(composeDir, composeFile, remoteComposeFile, envFile), 'up', '-d', '--no-deps', '--force-recreate', 'v11-web-api', 'v11-worker'],
     { cwd: composeDir, env },
   );
 }
 
-export function rollbackService({ exec, composeDir, composeFile, image, sha, envFile }) {
+export function rollbackService({ exec, composeDir, composeFile, remoteComposeFile, image, sha, envFile }) {
   const env = { ...process.env, ...loadDotEnv(envFile), MUSEFOLD_IMAGE_TAG: sha };
   dockerRun(
     exec,
-    [...composeArgs(composeDir, composeFile, envFile), 'up', '-d', '--no-deps', '--force-recreate', 'v11-web-api', 'v11-worker'],
+    [...composeArgs(composeDir, composeFile, remoteComposeFile, envFile), 'up', '-d', '--no-deps', '--force-recreate', 'v11-web-api', 'v11-worker'],
     { cwd: composeDir, env },
   );
   dockerRun(exec, ['tag', `${image}:${sha}`, `${image}:latest`], { allowFail: true });
@@ -211,7 +213,7 @@ export function reloadCaddy(exec) {
     .split(/\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const caddy = names.find((name) => /(^|-)caddy$/i.test(name) || name === 'caddy');
+  const caddy = names.find((name) => /caddy/i.test(name));
   if (!caddy) return false;
   dockerRun(exec, ['exec', caddy, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile'], { allowFail: true });
   return true;
@@ -226,6 +228,7 @@ export async function deploy(options) {
     composeDir = DEFAULTS.composeDir,
     liveCaddy = DEFAULTS.liveCaddy,
     liveCompose = DEFAULTS.liveCompose,
+    liveRemoteCompose = DEFAULTS.liveRemoteCompose,
     archiveDir = DEFAULTS.archiveDir,
     image = DEFAULTS.image,
     webUrl = DEFAULTS.webUrl,
@@ -261,7 +264,7 @@ export async function deploy(options) {
   if (dryRun) return { dryRun: true, plan, state };
 
   publishInfraFile(join(repoRoot, 'infra/v1.1/Caddyfile'), liveCaddy, archiveDir);
-  publishInfraFile(join(repoRoot, 'infra/v1.1/remote-compose.yaml'), liveCompose, archiveDir);
+  publishInfraFile(join(repoRoot, 'infra/v1.1/remote-compose.yaml'), liveRemoteCompose, archiveDir);
   reloadCaddy(exec);
 
   if (!skipBuild && (wanted.content || wanted.service)) {
@@ -282,6 +285,7 @@ export async function deploy(options) {
       exec,
       composeDir,
       composeFile: liveCompose,
+      remoteComposeFile: liveRemoteCompose,
       image,
       sha,
       envFile,
@@ -296,7 +300,15 @@ export async function deploy(options) {
     if (!ready.ok) {
       if (state.service.previous || state.service.current) {
         const rollbackTo = state.service.current;
-        rollbackService({ exec, composeDir, composeFile: liveCompose, image, sha: rollbackTo, envFile });
+        rollbackService({
+          exec,
+          composeDir,
+          composeFile: liveCompose,
+          remoteComposeFile: liveRemoteCompose,
+          image,
+          sha: rollbackTo,
+          envFile,
+        });
       }
       throw new Error(`/health/ready failed: ${ready.last}`);
     }
@@ -348,6 +360,7 @@ async function main(argv) {
     composeDir: args['compose-dir'] || DEFAULTS.composeDir,
     liveCaddy: args['live-caddy'] || DEFAULTS.liveCaddy,
     liveCompose: args['live-compose'] || DEFAULTS.liveCompose,
+    liveRemoteCompose: args['live-remote-compose'] || DEFAULTS.liveRemoteCompose,
     archiveDir: args['archive-dir'] || DEFAULTS.archiveDir,
     image: args.image || DEFAULTS.image,
     webUrl: args['web-url'] || DEFAULTS.webUrl,

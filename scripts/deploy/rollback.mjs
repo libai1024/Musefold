@@ -14,6 +14,7 @@ async function main(argv) {
   const composeDir = args['compose-dir'] || DEFAULTS.composeDir;
   const siteRoot = args['site-root'] || DEFAULTS.siteRoot;
   const liveCompose = args['live-compose'] || DEFAULTS.liveCompose;
+  const liveRemoteCompose = args['live-remote-compose'] || DEFAULTS.liveRemoteCompose;
   const statePath = args['state-path'] || join(composeDir, '.deploy-state.json');
   const image = args.image || DEFAULTS.image;
   const envFile = args['env-file'] || join(composeDir, '.env.v11');
@@ -28,6 +29,7 @@ async function main(argv) {
       exec,
       composeDir,
       composeFile: liveCompose,
+      remoteComposeFile: liveRemoteCompose,
       image,
       sha: target,
       envFile,

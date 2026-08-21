@@ -32,14 +32,18 @@ fi
 mkdir -p "${SITE_ROOT}/releases" "${COMPOSE_DIR}/archive" "${RUNNER_DIR}"
 touch "${COMPOSE_DIR}/.deploy-state.json"
 [[ -f "${COMPOSE_DIR}/Caddyfile" ]] || touch "${COMPOSE_DIR}/Caddyfile"
-[[ -f "${COMPOSE_DIR}/docker-compose.yml" ]] || touch "${COMPOSE_DIR}/docker-compose.yml"
+[[ -f "${COMPOSE_DIR}/remote-compose.yaml" ]] || touch "${COMPOSE_DIR}/remote-compose.yaml"
 
 chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "${SITE_ROOT}" "${COMPOSE_DIR}/archive" "${RUNNER_DIR}"
 chown "${DEPLOY_USER}:${DEPLOY_USER}" \
   "${COMPOSE_DIR}/Caddyfile" \
-  "${COMPOSE_DIR}/docker-compose.yml" \
+  "${COMPOSE_DIR}/remote-compose.yaml" \
   "${COMPOSE_DIR}/.deploy-state.json"
-chmod 644 "${COMPOSE_DIR}/Caddyfile" "${COMPOSE_DIR}/docker-compose.yml"
+chmod 644 "${COMPOSE_DIR}/Caddyfile"
+if [[ -f "${COMPOSE_DIR}/remote-compose.yaml" ]]; then
+  chmod 644 "${COMPOSE_DIR}/remote-compose.yaml"
+fi
+# Host stack compose (Caddy/Postgres/new-api) stays root-owned and is never overwritten.
 chmod 600 "${COMPOSE_DIR}/.deploy-state.json"
 
 if [[ -f "${COMPOSE_DIR}/.env.v11" ]]; then

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { REPO_ROOT } from '../../tooling/aliases.mjs';
 import { extractUpSource, lintMigrationSource } from '../../scripts/deploy/expand-contract.mjs';
-import { filesMatch, migrationDatabaseUrl, parseDotEnv } from '../../scripts/deploy/infra-guard.mjs';
+import { filesMatch, migrationDatabaseUrl, parseDotEnv, workerDatabaseUrl } from '../../scripts/deploy/infra-guard.mjs';
 import { deploy, parseLayers, waitHttp } from '../../scripts/deploy/run.mjs';
 import { emptyState, recordLayer } from '../../scripts/deploy/state.mjs';
 import {
@@ -116,6 +116,12 @@ describe('infra helpers', () => {
     expect(migrationDatabaseUrl(env)).toBe('migrate');
   });
 
+  it('builds role URLs from the production password keys', () => {
+    const env = parseDotEnv('MIGRATION_DB_PASSWORD=mig\nWORKER_DB_PASSWORD=wrk\n');
+    expect(migrationDatabaseUrl(env)).toContain('musefold_migration:mig@db');
+    expect(workerDatabaseUrl(env)).toContain('musefold_worker:wrk@db');
+  });
+
   it('compares files ignoring CR LF', () => {
     const dir = tempDir();
     writeFileSync(join(dir, 'a'), 'hello\r\nworld\n');
@@ -152,6 +158,8 @@ describe('deploy orchestration', () => {
     writeTree(src, { 'index.html': 'ok' });
     const liveCaddy = join(composeDir, 'Caddyfile');
     const liveCompose = join(composeDir, 'docker-compose.yml');
+    const liveRemoteCompose = join(composeDir, 'remote-compose.yaml');
+    writeFileSync(liveCompose, 'HOST STACK\n');
 
     const calls = [];
     const exec = (command, args) => {
@@ -173,6 +181,7 @@ describe('deploy orchestration', () => {
       composeDir,
       liveCaddy,
       liveCompose,
+      liveRemoteCompose,
       archiveDir: join(composeDir, 'archive'),
       statePath: join(composeDir, '.deploy-state.json'),
       skipBuild: true,
@@ -184,6 +193,8 @@ describe('deploy orchestration', () => {
     expect(result.ok).toBe(true);
     expect(currentReleaseName(site)).toBe('abc1234def');
     expect(readFileSync(liveCaddy, 'utf8')).toBe('caddy\n');
+    expect(readFileSync(liveCompose, 'utf8')).toBe('HOST STACK\n');
+    expect(readFileSync(liveRemoteCompose, 'utf8')).toBe('compose\n');
     expect(calls.some((row) => row[0] === 'docker' && row[1] === 'build')).toBe(false);
 
     const src2 = tempDir();
@@ -197,6 +208,7 @@ describe('deploy orchestration', () => {
         composeDir,
         liveCaddy,
         liveCompose,
+        liveRemoteCompose,
         archiveDir: join(composeDir, 'archive'),
         statePath: join(composeDir, '.deploy-state.json'),
         skipBuild: true,
@@ -234,6 +246,7 @@ describe('deploy orchestration', () => {
     writeFileSync(join(repo, 'infra/v1.1/Caddyfile'), 'caddy\n');
     writeFileSync(join(repo, 'infra/v1.1/remote-compose.yaml'), 'compose\n');
     writeFileSync(join(composeDir, '.env.v11'), 'DATABASE_URL=postgres://musefold_migration:x@db:5432/musefold\n');
+    writeFileSync(join(composeDir, 'docker-compose.yml'), 'HOST STACK\n');
     writeFileSync(join(composeDir, '.deploy-state.json'), JSON.stringify({
       web: { current: null, previous: null },
       service: { current: 'deadbee', previous: null },
@@ -251,6 +264,7 @@ describe('deploy orchestration', () => {
         composeDir,
         liveCaddy: join(composeDir, 'Caddyfile'),
         liveCompose: join(composeDir, 'docker-compose.yml'),
+        liveRemoteCompose: join(composeDir, 'remote-compose.yaml'),
         archiveDir: join(composeDir, 'archive'),
         statePath: join(composeDir, '.deploy-state.json'),
         envFile: join(composeDir, '.env.v11'),
@@ -270,6 +284,10 @@ describe('deploy orchestration', () => {
     expect(migrateAt).toBeGreaterThan(-1);
     expect(upAt).toBeGreaterThan(migrateAt);
     expect(rollbackAt).toBeGreaterThan(upAt);
+    expect(readFileSync(join(composeDir, 'docker-compose.yml'), 'utf8')).toBe('HOST STACK\n');
+    const up = commands.find((row) => row.args?.includes('--force-recreate'));
+    expect(up.args).toContain(join(composeDir, 'docker-compose.yml'));
+    expect(up.args).toContain(join(composeDir, 'remote-compose.yaml'));
   });
 });
 

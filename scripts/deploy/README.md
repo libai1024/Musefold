@@ -17,6 +17,7 @@ scripts/deploy/
 - 禁止 fork / pull_request
 - 文档-only 与纯外壳层变更会跳过
 - 镜像标签 = git sha；`latest` 只在 `/health/ready` 通过后作为别名
+- 只覆盖 `Caddyfile` 与 `remote-compose.yaml`；宿主 `docker-compose.yml`（Caddy/Postgres/new-api）不动
 
 ## 主机一次性
 
