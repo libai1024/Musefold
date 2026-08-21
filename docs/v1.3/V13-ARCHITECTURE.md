@@ -103,7 +103,8 @@ product-ui-query-allowed     product-ui 允许 @tanstack/react-query；其余禁
                             （window.api / cloud-client / electron / desktop-contracts 仍禁）
 
 新增 ESLint：
-max-lines-per-file           warn 600 / error 1200；baseline 冻结存量超标清单，只减不增
+max-lines                    ESLint warn 600；CI 硬门禁 `tests/repo/file-size-ratchet.test.ts`
+                            （新文件即受 600 约束；baseline 只登记存量，桌面渲染层已清零）
 store-persist-only           store 持久化只经 zustand persist middleware（禁手写 localStorage，
                             按 feature 迁移完成分批启用）
 

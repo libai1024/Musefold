@@ -20,9 +20,9 @@
 | 表单 | React Hook Form + Zod | **不用表单库**：受控草稿 + 纯函数校验（`useDraftForm`） | 刻意偏离：RHF 装了一年 0 调用点，对话框复杂度在异步副作用而非字段校验，见 §3a |
 | 契约校验 | Zod | Zod v4（全仓统一） | 一致；契约单一来源 `packages/contracts` |
 | 单元/组件测试 | Vitest + Testing Library | **Vitest 4**（渲染用 `renderToStaticMarkup`，无 jsdom/RTL） | 现状如此；新测试允许引入 RTL 评估，但存量测试体例（轻量 DOM 断言）继续有效 |
-| E2E | Playwright | **Python pytest + Playwright**（`tests/e2e/`，桌面 222 例）+ Web Playwright TS（`apps/web/e2e/`） | 双轨保持；桌面 E2E 是每张任务卡的回归安全网 |
-| Lint / 格式化 | ESLint + Prettier | ESLint（棘轮启用）+ Prettier | 一致；`max-lines-per-file` 棘轮 v1.3 上线 |
-| 边界强制 | — | **dependency-cruiser（20+ 条规则，CI 门禁）** | 超出业界标准配置，是本仓库核心竞争力 |
+| E2E | Playwright | **Python pytest + Playwright**（`tests/e2e/`）+ Web Playwright TS（`apps/web/e2e/`） | 双轨保持；桌面 E2E 是每张任务卡的回归安全网。用例数以当次 `pytest` 输出为准，不要把快照写进规范 |
+| Lint / 格式化 | ESLint + Prettier | ESLint（`max-lines` warn 600）+ Prettier | CI 硬尺寸门禁在 `tests/repo/file-size-ratchet.test.ts`，不是 ESLint error 1200；`lint` 已纳入 `npm run check` |
+| 边界强制 | — | **dependency-cruiser（CI 门禁）** | 静态规则 + 按 feature 目录动态生成的 `renderer-features-isolated-*`；条数随 feature 增减，以 `tooling/dependency-cruiser.cjs` 为准 |
 | CI | 完整配套 | GitHub Actions 四条发布 lane + affected 流水线 + 视觉门禁 | 一致且更严 |
 
 ## 1. 目录与文件组织
@@ -66,8 +66,8 @@ apps/desktop/src/features/<name>/
   3. 跨域**读**（要用兄弟域的 store/UI）→ `runtime/*-access.ts` 单一入口。
 
   业务确实不可分时才合并 feature。
-- **页面组件是薄挂载**：`apps/desktop/src/pages/*.tsx` 与 `apps/web/src/views/*.tsx` 只做路由挂载与平台差异，编排逻辑调 product-ui page-controller。
-- **文件尺寸**：`max-lines-per-file` warn 600 / error 1200，baseline 只减不增（v1.3 GOV-01）。
+- **页面组件把编排交给 page-controller**：`pages/*.tsx` 与 `views/*.tsx` 不重写过滤/分页/错误处理。它们仍会留下宿主胶水（store 订阅、虚拟化、桌面独有能力如回收站彻底删除）。目标是「编排单点」，不是把页面压到几十行。
+- **文件尺寸**：ESLint `max-lines` warn 600；新文件超过 600 行由 `tests/repo/file-size-ratchet.test.ts` 拦下。baseline 只登记存量超标、只减不增（桌面渲染层已清零，尾部在主进程与 packages）。
 - **测试就地放置**：`__tests__/` 与被测文件同目录；命名 `*.test.ts(x)`（不用 `.spec`）。
 
 ### 1.3 product-ui 三层内容
@@ -75,9 +75,10 @@ apps/desktop/src/features/<name>/
 ```text
 packages/product-ui/src/
   workbench/ library/ history/ account/ navigation/   # 共享产品组件
-  page-controllers/                                   # v1.3：页面编排 hook
+  forms/                                              # 受控草稿表单（useDraftForm）
+  page-controllers/                                   # 页面编排 hook
     query-client.ts                                   # createMusefoldQueryClient()
-  workbench/sessionPreferences.ts 等持久化 helper
+  workbench/workbenchSessionPreferences.ts            # 会话钉住/未读（localStorage helper）
 ```
 
 - 组件只依赖 `@musefold/ui`、`@musefold/contracts`、`@musefold/domain`、`react`、`@tanstack/react-query`；禁 `window.api`、`cloud-client`、`electron`、`desktop-contracts`。
@@ -85,7 +86,7 @@ packages/product-ui/src/
 
 ## 2. 分层与依赖规则（机器强制）
 
-v1.2.2 §3.2 全部规则继续有效（20 条），v1.3 新增 3 条。速查：
+v1.2.2 §3.2 全部规则继续有效，v1.3 新增 `renderer-features-isolated-*`、`renderer-row-models-banned`、`product-ui-query-allowed`。速查：
 
 ```text
 contracts          ← 仅 zod（叶子）
@@ -100,7 +101,7 @@ apps/web           ← contracts/domain/ui/product-ui/cloud-client；禁 desktop
 循环依赖            ← 静态环全局禁止（dynamic-import 断环合法）
 ```
 
-任何「规则禁止但确实需要」的场景：在 `tooling/dependency-cruiser-known-violations.json` 登记并注明理由，只减不增。
+`renderer-features-isolated-*` 与 `renderer-row-models-banned` 的 known-violations 已归零，禁止重新冻结（`tests/repo/boundary-baselines.test.ts`）。其余规则若确需豁免，才登记进 `tooling/dependency-cruiser-known-violations.json`，只减不增。
 
 ## 3. 实体与契约（v1.3 ENT）
 
@@ -173,7 +174,7 @@ const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
 
 ### 5.2 样式
 
-- **桌面**：Tailwind v4 原子类为主（49/54 feature tsx 已用）+ `@musefold/ui` 原语；组合类名用 `tailwind-merge` 收敛。
+- **桌面**：Tailwind v4 原子类为主 + `@musefold/ui` 原语；组合类名用 `tailwind-merge` 收敛。
 - **Web**：现状手写 CSS；新组件优先复用 product-ui（其样式来自 ui 包 token 类），避免再造本地 CSS 体系。
 - 设计 token 以 `packages/ui/src/tokens.css` 为单源；禁止在组件里硬编码色值/字号，使用 mf-ui token 类或 token CSS 变量。
 - 图标唯一入口 `packages/ui/src/icons.ts`（lucide-react 直连全仓禁用，ESLint 强制）。
@@ -181,7 +182,7 @@ const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
 
 ### 5.3 尺寸与拆分
 
-- 单文件 ≤ 600 行（warn）/ 1200（error）；组件超过 ~200 行且含多个内联子组件时，把子组件拆为独立文件。
+- 单文件 ≤ 600 行（编辑器 warn；新文件超标即 CI 失败）；组件超过 ~200 行且含多个内联子组件时，把子组件拆为独立文件。
 - 容器（编排）与展示分离：取数/分发进 page-controller，组件保持受控。
 - 拆分第一步永远是零逻辑变更的移动提交（便于 review 与 `git log --follow`）。
 
@@ -214,7 +215,7 @@ const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
 - 格式：`type(scope): subject`（feat/fix/refactor/test/docs/chore/…），subject 用祈使句。
 - **含 App 源码的提交必须带 `Skill-Impact:` trailer**（Agent Skill 同步声明；本地 hook + CI 强制，格式见 [CONTRIBUTING.md](../../CONTRIBUTING.md)）。
 - 纯移动（`git mv`）与内容修改严格分离。
-- 提交前自检门禁：`npm run typecheck && npm run test && npm run lint && npm run check:boundaries`。
+- 提交前自检门禁：`npm run check`（含 lint / typecheck / test / 双端 build）+ `npm run check:boundaries`。涉及共享 UI 时再加 `check:ui-boundaries` 与相关 E2E。
 
 ### 7.2 CI 门禁（每 PR 必绿）
 
@@ -238,7 +239,7 @@ const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
 
 - ❌ store 中存 gateway/IPC 返回的服务端数据（v1.3 起）
 - ❌ feature 直接 import 兄弟 feature 的模块/store（v1.3 起）
-- ❌ 渲染层 import `electron`、`lib/ipc`、裸 `window.api`（runtime 适配器 5 个入口除外）
+- ❌ 渲染层 import `electron`、`lib/ipc`、裸 `window.api`（仅 `runtime/desktop-host-services.ts` 可 import `lib/ipc`；裸 `window.api` 只属于 runtime 桥接、`lib/ipc`、预览桥、以及窗口壳探测 `lib/usePlatform.ts`）
 - ❌ product-ui 出现 `window.api` / `cloud-client` / `electron` / `desktop-contracts`
 - ❌ 渲染层/UI 引用 `desktop-contracts` 行模型（v1.3 起；mapper 与传输签名除外）
 - ❌ 手写 localStorage 持久化（persist middleware 之外）
