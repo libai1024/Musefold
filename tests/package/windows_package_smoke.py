@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import struct
 import subprocess
@@ -164,11 +165,18 @@ def pe_machine(path: Path) -> int:
 
 
 def asar_entries(asar: Path) -> list[str]:
+    """List asar contents via Node. Windows CreateProcess cannot find `npx.cmd`."""
     result = subprocess.run(
-        ["npx", "asar", "list", str(asar)],
+        [
+            "node",
+            "-e",
+            "process.stdout.write(require('@electron/asar').listPackage(process.env.MUSEFOLD_ASAR).join('\\n'))",
+        ],
         check=True,
         capture_output=True,
         text=True,
+        cwd=str(REPO),
+        env={**os.environ, "MUSEFOLD_ASAR": str(asar)},
     )
     return result.stdout.splitlines()
 
@@ -213,17 +221,18 @@ def test_windows_package_layout_candidates_follow_current_builder_output():
     repo = Path("/nonexistent/musefold")
     x64 = windows_package_layout_candidates(repo, version=version, arch="x64", meta=meta)
     arm64 = windows_package_layout_candidates(repo, version=version, arch="arm64", meta=meta)
+    output = (repo / "apps" / "desktop" / meta.output_dir).resolve()
 
     assert meta.product_name == "Musefold"
     assert meta.output_dir == "../../release"
     assert meta.default_arch == "x64"
-    assert x64[0].installer == repo / f"release/Musefold Setup {version}.exe"
-    assert x64[0].unpacked == repo / "release/win-unpacked"
-    assert arm64[0].installer == repo / f"release/Musefold Setup {version}.exe"
-    assert arm64[0].unpacked == repo / "release/win-arm64-unpacked"
-    assert arm64[1].installer == repo / f"release/Musefold Setup {version}-arm64.exe"
-    assert x64[-1].unpacked == repo / "release/v0.3.0/windows-x64/win-unpacked"
-    assert arm64[-1].unpacked == repo / "release/v0.3.0/windows-arm64/win-arm64-unpacked"
+    assert x64[0].installer == output / f"Musefold Setup {version}.exe"
+    assert x64[0].unpacked == output / "win-unpacked"
+    assert arm64[0].installer == output / f"Musefold Setup {version}.exe"
+    assert arm64[0].unpacked == output / "win-arm64-unpacked"
+    assert arm64[1].installer == output / f"Musefold Setup {version}-arm64.exe"
+    assert x64[-1].unpacked == repo / "release" / "v0.3.0" / "windows-x64" / "win-unpacked"
+    assert arm64[-1].unpacked == repo / "release" / "v0.3.0" / "windows-arm64" / "win-arm64-unpacked"
     assert all("v0.3.0" not in layout.unpacked.as_posix() for layout in x64[:-1])
     assert all("v0.3.0" not in layout.unpacked.as_posix() for layout in arm64[:-1])
 
