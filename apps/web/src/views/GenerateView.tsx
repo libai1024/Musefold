@@ -11,6 +11,7 @@ import {
   WorkbenchComposerSaveStatus,
   WorkbenchComposerSubmitButton,
   WorkbenchContextMenu,
+  WorkbenchDraftConflictNotice,
   WorkbenchEmptyState,
   WorkbenchGenerationSettingsPopover,
   WorkbenchGenerationTurn,
@@ -31,22 +32,20 @@ import {
   workbenchGenerationResultStatus,
   workbenchGenerationStatusLabel,
   workbenchComposerPlaceholder,
+  workbenchRatioOptions,
   canShareImage,
   shareImageAsset,
   type GeneratePageController,
 } from '@musefold/product-ui';
-import { Button, ImageLightbox } from '@musefold/ui';
+import { ImageLightbox } from '@musefold/ui';
 import { downloadImage } from '../download-image';
 import musefoldIconUrl from '../../../../website/Musefold/assets/musefold-icon.png';
 import musefoldLogoUrl from '../../../../docs/v0.3/logo.png';
 
 type Ratio = '1:1' | '16:9' | '9:16';
 
-const WORKBENCH_RATIO_OPTIONS = [
-  { id: '1:1', label: '方图', ratio: '1:1', detail: '1024x1024' },
-  { id: '16:9', label: '宽屏', ratio: '16:9', detail: '1536x1024' },
-  { id: '9:16', label: '手机竖屏', ratio: '9:16', detail: '1024x1536' },
-] as const;
+// Web 只暴露三档比例；桌面用完整目录（V13-REUSE-02 裁定：目录共享，清单按宿主取子集）
+const WORKBENCH_RATIO_OPTIONS = workbenchRatioOptions(['1:1', '16:9', '9:16']);
 
 export function GenerateView({
   page,
@@ -353,7 +352,7 @@ export function GenerateView({
                 />
                 <WorkbenchRatioPicker
                   value={ratio}
-                  options={[...WORKBENCH_RATIO_OPTIONS]}
+                  options={WORKBENCH_RATIO_OPTIONS}
                   onChange={(value) => setRatio(value as Ratio)}
                   testIdPrefix="refine-ratio"
                 />
@@ -414,24 +413,10 @@ export function GenerateView({
               maxLength={12_000}
             />
             {draftConflict && (
-              <div
-                className="composer-conflict"
-                role="alert"
-                data-testid="workbench-draft-conflict"
-              >
-                <div>
-                  <strong>云端草稿已更新</strong>
-                  <span>请选择保留的版本</span>
-                </div>
-                <div className="composer-conflict-actions">
-                  <Button variant="secondary" onClick={useCloudDraft}>
-                    使用云端
-                  </Button>
-                  <Button variant="primary" onClick={overwriteCloudDraft}>
-                    保留本机
-                  </Button>
-                </div>
-              </div>
+              <WorkbenchDraftConflictNotice
+                onUseRemote={useCloudDraft}
+                onKeepLocal={overwriteCloudDraft}
+              />
             )}
           </WorkbenchComposerFrame>
         }

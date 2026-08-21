@@ -83,7 +83,13 @@ v1.2.2 D3 描述 Web 状态为「gateway + query cache」，实际全仓（deskt
 
 **结论**：`ipc.ts` 按域拆分为 `ipc/{prompt,history,workbench,account,generation,system,…}.ts` 组合面，`Api` 聚合类型保持不变（消费方零改动）；preload 同步按域拆模块，`contextBridge.exposeInMainWorld` 仍单次调用、单对象暴露（Electron 安全要求），只是组装来源分域。不引入从类型自动生成绑定代码的方案：收益（省去手写透传）小于引入构建步骤与调试黑盒的成本，且分域拆分已把单文件压力消解。
 
-## 9. 明确不采用与复审触发器
+## 9. D8 复用度量：共享符号棘轮，而非「像素相同」
+
+v1.3 的复用目标此前只有定性表述（「product-ui 消费方数量较基线上升」），无法判定某张卡是否真的提高了复用。视觉门禁只能证明两端长得像，证明不了两端用的是同一份代码——Web 曾用手写 JSX 拼出与共享 widget 相同的像素。
+
+**结论**：以「Web 与桌面生产源码同时 import 的 product-ui 导出符号数」为过程度量，棘轮化在 `tests/repo/product-ui-dual-host-reuse.test.ts`（REUSE-02 立基线 64）。只数生产源码，测试文件的 import 不计。指标下降即意味着某侧改回了宿主本地实现，CI 拦截。宿主特定面（结果卡动作、分享、桌面语义段）在架构 §6.5 逐条登记，属显式豁免而非遗漏。
+
+## 10. 明确不采用与复审触发器
 
 | 技术 | 不采用原因 | 复审触发器 |
 |---|---|---|
@@ -96,7 +102,7 @@ v1.2.2 D3 描述 Web 状态为「gateway + query cache」，实际全仓（deskt
 | pnpm | 维持 v1.2.2 D4 冻结 | 同 v1.2.2 触发器 |
 | ENT-B schema 迁移 | 见 D1，前置条件未满足 | 云同步真实多设备稳定运行 |
 
-## 10. 相关文档
+## 11. 相关文档
 
 - [系统架构](./V13-ARCHITECTURE.md)
 - [迁移计划](./V13-MIGRATION-PLAN.md)

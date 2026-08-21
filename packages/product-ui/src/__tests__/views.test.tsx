@@ -24,6 +24,8 @@ import { WorkbenchAssistantHeader } from "../workbench/WorkbenchAssistantHeader"
 import { WorkbenchAssistantAvatar } from "../workbench/WorkbenchAssistantAvatar";
 import { WorkbenchComposerSurface } from "../workbench/WorkbenchComposerSurface";
 import { WorkbenchComposerFrame } from "../workbench/WorkbenchComposerFrame";
+import { WorkbenchDraftConflictNotice } from "../workbench/WorkbenchDraftConflictNotice";
+import { workbenchRatioOptions } from "../workbench/workbenchDisplay";
 import { WorkbenchTurnFrame } from "../workbench/WorkbenchTurnFrame";
 import { WorkbenchUserMessage } from "../workbench/WorkbenchUserMessage";
 import { WorkbenchMessageActions } from "../workbench/WorkbenchMessageActions";
@@ -500,6 +502,35 @@ describe("shared product views", () => {
     expect(html).toContain('class="mf-workbench-composer-leading"');
     expect(html).toContain('class="mf-workbench-composer-trailing"');
     expect(html).toContain('class="mf-workbench-composer-footer"');
+  });
+
+  it("shares the draft conflict prompt so both hosts resolve drafts identically", () => {
+    const html = renderToStaticMarkup(
+      <WorkbenchDraftConflictNotice
+        onUseRemote={() => undefined}
+        onKeepLocal={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('data-testid="workbench-draft-conflict"');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("云端草稿已更新");
+    expect(html).toContain("使用云端");
+    expect(html).toContain("保留本机");
+  });
+
+  it("derives the ratio catalog from domain options and honours host subsets", () => {
+    const all = workbenchRatioOptions();
+    const web = workbenchRatioOptions(["1:1", "16:9", "9:16"]);
+
+    expect(all.length).toBeGreaterThan(web.length);
+    expect(all.at(-1)).toMatchObject({ id: "auto", detail: "由模型决定" });
+    expect(web).toEqual([
+      { id: "1:1", label: "方图", ratio: "1:1", detail: "1024x1024" },
+      { id: "16:9", label: "宽屏", ratio: "16:9", detail: "1536x1024" },
+      { id: "9:16", label: "手机竖屏", ratio: "9:16", detail: "1024x1536" },
+    ]);
+    expect(workbenchRatioOptions(["nope"])).toEqual([]);
   });
 
   it("shares conversation turn structure without owning host content", () => {

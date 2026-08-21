@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~04 与 REUSE-01 已落地；REUSE-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~04 与 REUSE-01~02 已落地；REUSE-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -240,6 +240,28 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 - 跨 feature 共享组件下沉：`HistoryDetail`（跨 generation/workbench/library 三域）在 ENT history 卡中随类型统一下沉 product-ui `history/`。
 - workbench widget 上提后 Web 侧即时受益：Web 工作台由 product-ui 面直拼，桌面扩展经插槽注入。
 - 复用判定以 depcruise 佐证：feature 互导 baseline 归零之日即「全部共享物已归位」之时。
+
+### 6.5 双端复用清单与度量（REUSE-02 验收）
+
+「复用频率」用**双端同时消费的 product-ui 导出符号数**度量，只统计生产源码（排除测试），由 `tests/repo/product-ui-dual-host-reuse.test.ts` 棘轮化：**64 个**（REUSE-02 前 63）。
+
+| 面 | 双端共享的 product-ui 导出 |
+|---|---|
+| 工作台装配壳 | `WorkbenchPageFrame`、`WorkbenchTimelineStage`、`WorkbenchGenerationTurn`、`WorkbenchEmptyState`、`WorkbenchBrand`、`useWorkbenchTimelineController` |
+| 会话轮次 | `WorkbenchUserMessage`、`WorkbenchMessageActions`、`WorkbenchAssistantHeader`、`WorkbenchAssistantAvatar`、`WorkbenchTurnActions`、`WorkbenchTurnActionIcon`、`GenerationSavePromptAction`、`workbenchGenerationStatusLabel` |
+| Composer | `WorkbenchComposerFrame`、`WorkbenchComposerPrompt`、`WorkbenchComposerSubmitButton`、`WorkbenchContextMenu`、`WorkbenchRatioPicker`、`WorkbenchGenerationSettingsPopover`、`WorkbenchPromptReferenceCard`、`workbenchComposerPlaceholder`、`WORKBENCH_QUALITY_OPTIONS`、`workbenchRatioOptions` |
+| 会话列表与导航 | `WorkbenchSessionList`、`WorkbenchSessionContextMenu`、`WorkbenchSessionMenuTrigger`、`WorkbenchSessionDeleteDialog`、`WorkbenchSessionRenameDialog`、会话偏好 6 个符号、`ProductSidebar`、`ProductSidebarLayout`、`ProductTopbar`、`ProductViewIcon`、`productTopbarDisplayTitle`、`buildSidebarNavItems` |
+| 提示词库 / 历史 / 账号 | `PromptLibraryScreen`、`PromptLibraryHeaderActions`、`PromptDetailScreen`、`PromptEditorForm`、`GenerationHistoryScreen`、`GenerationHistoryWorkspace`、`GenerationHistoryRow`、`GenerationHistoryDetailContent`、`GenerationHistoryDetailActions`、`GenerationHistoryInspectorPanel`、`ConnectedAppsScreen` + 5 个视图模型类型 |
+| 编排与查询 | `useGeneratePageController`、`useHistoryPageController`、`useLibraryPageController`、`createMusefoldQueryClient`、`musefoldQueryKeys`、`upsertListCache` |
+
+宿主特定面（不计入共享，属既定裁定）：
+
+| 面 | Web | 桌面 | 原因 |
+|---|---|---|---|
+| 结果卡动作 | `GenerationResultSurface` + `<a download>` | `WorkbenchGenerationResultCard`（另存/复制/打开目录/微调/选择） | 动作集依赖 IPC 与本地文件；两端共享的是 Surface 壳，卡是桌面组合层 |
+| 草稿冲突 | `WorkbenchDraftConflictNotice` | 无（本地草稿无云端冲突） | 桌面不产生该状态，强加会改变可见行为 |
+| 分享 | `canShareImage`/`shareImageAsset`（Web Share API） | 桌面 IPC | 平台能力差异 |
+| Skill/Scheme/额度兑换/内联胶囊 | 无 | 桌面语义段经插槽注入 | §6.1 判定规则 |
 
 ## 7. 与 v1.2.2 / v1.2.1 的衔接
 

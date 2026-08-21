@@ -34,6 +34,7 @@ export * from './workbench/WorkbenchMessageActions';
 export * from './workbench/WorkbenchPromptReferenceCard';
 export * from './workbench/WorkbenchPromptFullTextCard';
 export * from './workbench/WorkbenchDraftImagesPreview';
+export * from './workbench/WorkbenchDraftConflictNotice';
 export * from './workbench/WorkbenchTimelineStage';
 export * from './workbench/WorkbenchGenerationTurn';
 export * from './workbench/WorkbenchGenerationResultCard';

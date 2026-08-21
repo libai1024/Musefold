@@ -82,7 +82,7 @@ for (const entry of [
 }
 
 for (const entry of [
-  "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+  "apps/desktop/src/features/generation/workbench/WorkbenchComposerView.tsx",
   "apps/web/src/views/GenerateView.tsx",
 ]) {
   const source = readFileSync(resolve(root, entry), "utf8");

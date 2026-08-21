@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~04 与 REUSE-01 已完成；REUSE-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~04 与 REUSE-01~02 已完成；REUSE-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -254,9 +254,15 @@
   验证：`renderer-features-isolated` baseline 下降；对应 E2E。
   回滚：单条 revert。
 
-- `V13-REUSE-02`：Web 工作台共享面验收：Web generate 视图由 product-ui widget 组合完成，桌面扩展经插槽注入；记录「同一 widget 双端复用」清单进本卡（复用频率的过程度量）。
+- `V13-REUSE-02`：~~Web 工作台共享面验收：Web generate 视图由 product-ui widget 组合完成，桌面扩展经插槽注入；记录「同一 widget 双端复用」清单进本卡（复用频率的过程度量）。~~ **已完成（2026-08-21）**。Web `GenerateView`（463 → 447 行）最后两处手写结构收口：草稿冲突面上提 `WorkbenchDraftConflictNotice`，比例清单改取 `workbenchRatioOptions` 共享目录。双端共享符号 63 → 64，清单见架构 §6.5，棘轮落在 `tests/repo/product-ui-dual-host-reuse.test.ts`。
 
-  验证：Web E2E + 共享视觉门禁。
+  **裁定**：
+  1. **结果卡动作面维持宿主特定**（承接 SPLIT-02 裁定 3）。共享的是 `GenerationResultSurface` 壳；Web 下载链 vs 桌面另存/复制/打开目录/微调/多选依赖 IPC 与本地文件，合并会改像素与语义。桌面 `WorkbenchGenerationResultCard` 就是该壳的桌面组合层，不再要求 Web 复用。
+  2. **比例目录共享、清单按宿主取子集**（细化 SPLIT-02 裁定 4）。`workbenchRatioOptions(ids?)` 由 `domain` `RATIO_OPTIONS` 派生：桌面取全量（含自定义比例入口），Web 仍 3 项且顺序不变。共享的是映射规则，不是清单长度。
+  3. **草稿冲突面只上提组件、不上提状态**。桌面本地草稿无云端冲突态，`WorkbenchDraftConflictNotice` 暂为 Web 单端消费；样式仍由 `apps/web/src/styles.css` 的 `.composer-conflict` 承担，桌面接入时再迁 CSS。
+  4. **复用度量只数生产源码**。测试文件里的 import 不计入共享符号，避免用测试刷指标。
+
+  验证：Web E2E 19 例、共享视觉门禁、桌面工作台 E2E、`check`。
   回滚：Web 视图可独立回退旧组合。
 
 - `V13-REUSE-03`：边界清零收口：`renderer-features-isolated` 与 `renderer-row-models-banned` baseline 归零、规则升 error；`max-lines` baseline 缩减至尾部清单（或清零）；补 `tests/repo/` 守卫测试锁三类回潮（互导、行模型上浮、超大文件）。
@@ -266,7 +272,7 @@
 
 ### 完成条件
 
-- `GenerationWorkbench.tsx` ≤ 400 行（组合层）；`workbench/store.ts` ≤ 500 行；feature 互导 0；product-ui 消费方数量较基线上升（复用频率提升的度量）。
+- `GenerationWorkbench.tsx` ≤ 400 行（组合层，现 43 行）；`workbench/store.ts` ≤ 500 行（现 99 行）；feature 互导 0（现 17，REUSE-03 收口）；双端共享 product-ui 符号只增不减（REUSE-02 立基线 64，见技术决策 D8）。
 
 ## 6. 发布门禁
 
