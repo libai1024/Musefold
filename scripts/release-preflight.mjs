@@ -269,7 +269,7 @@ async function checkDocsAndWorkflow() {
     'npx turbo run typecheck test build lint check:boundaries check:ui-boundaries',
     'npm run clean:artifacts',
     'npm run release:preflight',
-    'xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -q',
+    'xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e',
     'name: Desktop CI',
     'Windows Electron E2E',
     'Linux Electron E2E',

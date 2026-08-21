@@ -38,23 +38,22 @@ MAIN = REPO / "apps" / "desktop" / "out" / "main" / "index.js"
 
 
 def electron_executable() -> Path:
-    """Prefer the unpacked binary; the .bin shim is a shell script and flakes on Windows CI."""
-    if os.name == "nt":
-        candidates = [
-            REPO / "node_modules" / "electron" / "dist" / "electron.exe",
-            REPO / "apps" / "desktop" / "node_modules" / "electron" / "dist" / "electron.exe",
-        ]
-    else:
-        candidates = [
-            REPO / "node_modules" / ".bin" / "electron",
-            REPO / "node_modules" / "electron" / "dist" / "electron",
-            REPO / "apps" / "desktop" / "node_modules" / "electron" / "dist" / "electron",
-        ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-    listed = ", ".join(str(path) for path in candidates)
-    raise FileNotFoundError(f"Electron binary missing; looked at: {listed}")
+    """Resolve the real Electron binary the same way Node does (`require('electron')`)."""
+    override = os.environ.get("ELECTRON_BIN")
+    if override:
+        path = Path(override)
+        if path.is_file():
+            return path
+        raise FileNotFoundError(f"ELECTRON_BIN is not a file: {path}")
+    raw = subprocess.check_output(
+        ["node", "-e", "process.stdout.write(require('electron'))"],
+        cwd=str(REPO),
+        text=True,
+    ).strip()
+    path = Path(raw)
+    if path.is_file():
+        return path
+    raise FileNotFoundError(f"Electron binary missing at {path} (from require('electron'))")
 
 
 ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear error

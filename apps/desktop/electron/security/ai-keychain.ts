@@ -1,6 +1,6 @@
-import { safeStorage } from 'electron';
 import Store from 'electron-store';
 import { AI_CONNECTION_STORE_NAME } from '@musefold/core/constants';
+import { resolveSafeStorage } from './e2e-safe-storage';
 
 export interface AiSecretKeychain {
   save(connectionId: string, apiKey: string): void;
@@ -28,7 +28,7 @@ export class ElectronAiSecretKeychain implements AiSecretKeychain {
       name: AI_CONNECTION_STORE_NAME,
       defaults: { keys: {} },
     }),
-    private readonly encryption: SafeStorageLike = safeStorage,
+    private readonly encryption: SafeStorageLike = resolveSafeStorage(),
   ) {}
 
   save(connectionId: string, apiKey: string): void {

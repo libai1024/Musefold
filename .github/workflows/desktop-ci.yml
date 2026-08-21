@@ -106,6 +106,9 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Build CLI
+        run: node scripts/build-cli.mjs
+
       - name: Prove Electron binary
         run: |
           python -c "
