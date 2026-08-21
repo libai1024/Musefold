@@ -29,6 +29,10 @@ const BANNED: Array<{ pattern: RegExp; reason: string }> = [
     reason: 'E2E 用例数以 pytest 输出为准，不要冻进规范',
   },
   {
+    pattern: /四条 lane/,
+    reason: 'E2E 只由 desktop 组门控；content/service/shell 是发布分层',
+  },
+  {
     pattern: /只做路由挂载与平台差异/,
     reason: '页面仍含宿主胶水；规范应写「编排单点」而不是「薄到只剩路由」',
   },

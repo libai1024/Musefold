@@ -215,11 +215,15 @@ const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
 - 格式：`type(scope): subject`（feat/fix/refactor/test/docs/chore/…），subject 用祈使句。
 - **含 App 源码的提交必须带 `Skill-Impact:` trailer**（Agent Skill 同步声明；本地 hook + CI 强制，格式见 [CONTRIBUTING.md](../../CONTRIBUTING.md)）。
 - 纯移动（`git mv`）与内容修改严格分离。
-- 提交前自检门禁：`npm run check`（含 lint / typecheck / test / 双端 build）+ `npm run check:boundaries`。涉及共享 UI 时再加 `check:ui-boundaries` 与相关 E2E。
+- 提交前自检门禁：`npm run check`（lint、两条边界检查、typecheck、test、双端 build）。触及桌面行为再跑桌面 E2E；触及共享 UI 再跑 `check:v1.1` / Web E2E / 共享视觉门禁。
 
 ### 7.2 CI 门禁（每 PR 必绿）
 
-`typecheck / test / build / lint / check:boundaries / check:ui-boundaries` + 按层级触发 E2E（`layer-paths.yml` 四条 lane：content / service / shell / infra；桌面变更必跑桌面 E2E）。
+CI 源码检查（`ci.yml` 的 Source checks）跑：
+
+`typecheck / test / build / lint / check:boundaries / check:ui-boundaries`
+
+docs-only 变更跳过该 job。桌面 E2E 由 `.github/layer-paths.yml` 的 **`desktop` 组**门控，与 content / service / shell 发布分层解耦——那三层用于热更新车道，并不各自跑一套 E2E。`format:check` 仍不进 CI（v1.2.1 裁定：全仓 format 会淹没 `git mv` 历史）。
 
 ## 8. 新功能开发流程（端到端清单）
 

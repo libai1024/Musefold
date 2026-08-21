@@ -261,7 +261,7 @@ async function checkDocsAndWorkflow() {
   const workflowNeedles = [
     'fetch-depth: 0',
     'npm run skill:check:ci',
-    'npx turbo run typecheck test build lint check:boundaries',
+    'npx turbo run typecheck test build lint check:boundaries check:ui-boundaries',
     'npm run clean:artifacts',
     'npm run release:preflight',
     'xvfb-run -a python -m pytest tests/e2e -q',

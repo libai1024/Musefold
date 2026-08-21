@@ -133,6 +133,19 @@
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"
       ]
+    },
+    "check:ui-boundaries": {},
+    "//#check:ui-boundaries": {
+      "inputs": [
+        "package.json",
+        "scripts/check-shared-ui-boundaries.mjs",
+        "packages/ui/src/tokens.css",
+        "apps/desktop/src/**",
+        "apps/web/src/**",
+        "packages/product-ui/src/**",
+        "!**/.tsout/**",
+        "!**/*.tsbuildinfo"
+      ]
     }
   }
 }
