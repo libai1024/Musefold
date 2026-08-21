@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 import urllib.error
 import urllib.parse
@@ -17,7 +18,8 @@ def read_discovery(app):
     path = app.user_data_dir / "automation.json"
     assert path.exists(), "App 启动后应写入发现文件"
     mode = stat.S_IMODE(path.stat().st_mode)
-    assert mode == 0o600, f"发现文件权限应为 0600，实际 {oct(mode)}"
+    if os.name != "nt":
+        assert mode == 0o600, f"发现文件权限应为 0600，实际 {oct(mode)}"
     return json.loads(path.read_text("utf8"))
 
 

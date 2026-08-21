@@ -26,6 +26,11 @@ describe('公开 Musefold Agent Skill', () => {
     expect(skill).toContain('description: >-');
   });
 
+  it('accepts CRLF Skill files from Windows checkouts', () => {
+    const crlf = readFileSync('website/Musefold/skills/musefold/SKILL.md', 'utf8').replace(/\n/g, '\r\n');
+    expect(validateMusefoldSkill(crlf).startsWith('---\nname: musefold\n')).toBe(true);
+  });
+
   it('documents direct generation, reference images, and GitHub visual Skills', () => {
     expect(skill).toContain('musefold status --json');
     expect(skill).toContain('musefold generate -p');

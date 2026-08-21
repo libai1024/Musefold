@@ -22,6 +22,7 @@ import shutil
 import socket
 import subprocess
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -57,6 +58,37 @@ def electron_executable() -> Path:
 
 
 ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear error
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _clipboard_shims():
+    """Hosted Linux/Windows runners have no pbcopy/pbpaste; keep Skill clipboard tests portable."""
+    if sys.platform == "darwin":
+        yield
+        return
+    shim_dir = Path(tempfile.mkdtemp(prefix="mf-clip-"))
+    store = shim_dir / "board.bin"
+    store.write_bytes(b"")
+    if os.name == "nt":
+        (shim_dir / "pbcopy.cmd").write_text(
+            "@echo off\n"
+            f'python -c "import sys; open(r\'{store}\', \'wb\').write(sys.stdin.buffer.read())"\n',
+            encoding="utf-8",
+        )
+        (shim_dir / "pbpaste.cmd").write_text(
+            "@echo off\n"
+            f'python -c "import sys; sys.stdout.buffer.write(open(r\'{store}\', \'rb\').read())"\n',
+            encoding="utf-8",
+        )
+    else:
+        (shim_dir / "pbcopy").write_text(f"#!/bin/sh\ncat > '{store}'\n", encoding="utf-8")
+        (shim_dir / "pbpaste").write_text(f"#!/bin/sh\ncat '{store}'\n", encoding="utf-8")
+        os.chmod(shim_dir / "pbcopy", 0o755)
+        os.chmod(shim_dir / "pbpaste", 0o755)
+    os.environ["PATH"] = f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+    yield
+    shutil.rmtree(shim_dir, ignore_errors=True)
+
 
 CI_ELECTRON_FLAGS = (
     "--no-sandbox",
