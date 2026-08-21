@@ -324,10 +324,9 @@ export async function deploy(options) {
     promoteAppDirectory(siteRoot);
     const staging = join(siteRoot, 'releases', `.staging-${sha}`);
     mkdirSync(staging, { recursive: true });
-    if (skipBuild) {
-      const source = options.webSource;
-      if (!source || !existsSync(source)) throw new Error('--web-source is required when --skip-build');
-      copyTree(source, staging);
+    if (options.webSource) {
+      if (!existsSync(options.webSource)) throw new Error('--web-source is missing');
+      copyTree(options.webSource, staging);
     } else {
       extractWebDist({ exec, image: `${image}:${sha}`, dest: staging });
     }
@@ -346,7 +345,7 @@ export async function deploy(options) {
       if (switched.previous) rollbackRelease(siteRoot, switched.previous);
       throw new Error(`web reachability failed: ${reachable.last}`);
     }
-    nextState = recordLayer(nextState, 'web', sha);
+    nextState = recordLayer(nextState, 'web', sha, switched.previous);
     writeDeployState(statePath, nextState);
   }
 

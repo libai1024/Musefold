@@ -140,6 +140,8 @@ describe('deploy orchestration', () => {
     const next = recordLayer(emptyState(), 'web', 'aaa1111');
     const again = recordLayer(next, 'web', 'bbb2222');
     expect(again.web).toEqual({ current: 'bbb2222', previous: 'aaa1111' });
+    const hinted = recordLayer(emptyState(), 'web', 'bbb2222', 'pre-symlink');
+    expect(hinted.web).toEqual({ current: 'bbb2222', previous: 'pre-symlink' });
   });
 
   it('skips when no layers are requested', async () => {

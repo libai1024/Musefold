@@ -32,7 +32,7 @@ export function writeDeployState(path, state) {
   writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`);
 }
 
-export function recordLayer(state, layer, sha) {
+export function recordLayer(state, layer, sha, previousHint = null) {
   const next = {
     web: { ...state.web },
     service: { ...state.service },
@@ -40,6 +40,7 @@ export function recordLayer(state, layer, sha) {
   const slot = next[layer];
   if (!slot) throw new Error(`unknown deploy layer: ${layer}`);
   if (slot.current && slot.current !== sha) slot.previous = slot.current;
+  else if (!slot.previous && previousHint && previousHint !== sha) slot.previous = previousHint;
   slot.current = sha;
   return next;
 }
