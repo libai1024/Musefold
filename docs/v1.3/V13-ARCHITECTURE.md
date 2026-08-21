@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~04 与 REUSE-01~02 已落地；REUSE-03 起继续
+> **状态**：Phase 0~3 全部任务卡已落地（GOV/ENT/STATE/ORCH/SPLIT/REUSE），边界 baseline 归零
 >
 > **日期**：2026-08-21
 >
@@ -95,7 +95,7 @@ v1.2.2 §3.2 全部规则继续有效。v1.3 新增/修订：
 ```text
 新增 depcruise：
 renderer-features-isolated   apps/desktop/src/features/<a>/** 禁止 import features/<b>/**
-                            baseline 冻结存量（26+ 文件），只减不增
+                            baseline 自 REUSE-03 归零（known-violations 为空文件）
 renderer-row-models-banned   apps/desktop/src/{features,components,pages,stores,lib}/**
                             禁止 import desktop-contracts 行模型（models 及 re-export 路径）
                             例外：runtime/mappers/**、runtime/desktop-gateway.ts、__tests__
@@ -239,7 +239,7 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 
 - 跨 feature 共享组件下沉：`HistoryDetail`（跨 generation/workbench/library 三域）在 ENT history 卡中随类型统一下沉 product-ui `history/`。
 - workbench widget 上提后 Web 侧即时受益：Web 工作台由 product-ui 面直拼，桌面扩展经插槽注入。
-- 复用判定以 depcruise 佐证：feature 互导 baseline 归零之日即「全部共享物已归位」之时。
+- 复用判定以 depcruise 佐证：feature 互导 baseline 已于 REUSE-03 归零，即「全部共享物已归位」。
 
 ### 6.5 双端复用清单与度量（REUSE-02 验收）
 
@@ -262,6 +262,18 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 | 草稿冲突 | `WorkbenchDraftConflictNotice` | 无（本地草稿无云端冲突） | 桌面不产生该状态，强加会改变可见行为 |
 | 分享 | `canShareImage`/`shareImageAsset`（Web Share API） | 桌面 IPC | 平台能力差异 |
 | Skill/Scheme/额度兑换/内联胶囊 | 无 | 桌面语义段经插槽注入 | §6.1 判定规则 |
+
+### 6.6 跨 feature 的三条合法通道（REUSE-03 收口）
+
+`features/<a>` 不得 import `features/<b>`，任何跨域需求按性质走下面三条之一；depcruise 与 `tests/repo/boundary-baselines.test.ts` 双重锁定，baseline 为空。
+
+| 需求性质 | 通道 | 例 |
+|---|---|---|
+| 纯函数/常量（无 store、无 IPC 依赖注入以外的状态） | 下沉 `apps/desktop/src/lib/`（或 domain/contracts/product-ui） | `lib/prompt-params`、`lib/prompt-references`、`lib/related-history`、`lib/generation-params` |
+| 跨域**写**副作用（A 域动作要求 B 域刷新） | `runtime/*-side-effects.ts`，A 域只喊一声，不认识 B 域 | `runtime/workbench-side-effects`（生图完成 → 历史失效/豆包用量）、`runtime/account-side-effects`（登录态翻转 → 重载托管服务商与 Agent 连接） |
+| 跨域**读**（组件或编排流要用兄弟域的 store/UI） | `runtime/*-access.ts` 单一入口 | `workbench-access`、`generation-access`、`account-access`、`settings-access`、`library-access`、`history-access`、`scheme-access`、`share-access` |
+
+判断顺序是从上往下：能下沉就不要桥接。桥接只解决「谁能看见谁」，下沉才真正减少耦合——REUSE-03 的 17 条边里有 5 条是靠下沉消掉的，2 条靠副作用外移，其余 10 条是读取入口收口。
 
 ## 7. 与 v1.2.2 / v1.2.1 的衔接
 

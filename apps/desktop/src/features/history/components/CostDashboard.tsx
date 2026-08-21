@@ -7,7 +7,7 @@ import type {
   HistoryStatsQuery,
 } from '@musefold/desktop-contracts/history-documents';
 import { useAppStore } from '../../../stores/app';
-import { useSettingsStore } from '../../settings/store';
+import { useSettingsStore } from '../../../runtime/settings-access';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import { formatPoints } from '@musefold/domain';
 import { formatCost } from '../../../lib/format';
 import { cn } from '../../../lib/utils';
 import { useHistoryStatsQuery } from '../use-history-queries';
-import { useAccountStore } from '../../account/store';
+import { useAccountStore } from '../../../runtime/account-access';
 
 type CostRange = 'month' | 'last30' | 'all';
 

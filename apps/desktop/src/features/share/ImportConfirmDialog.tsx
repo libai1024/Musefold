@@ -4,7 +4,7 @@ import { ShareCard } from './ShareCard';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
-import { useLibraryStore } from '../library/store';
+import { useLibraryStore } from '../../runtime/library-access';
 import {
   Dialog,
   DialogContent,

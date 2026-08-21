@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~04 与 REUSE-01~02 已完成；REUSE-03 起继续
+> **状态**：Phase 0~3 全部任务卡已完成（GOV/ENT/STATE/ORCH/SPLIT/REUSE），边界 baseline 归零
 >
 > **日期**：2026-08-21
 >
@@ -23,7 +23,7 @@
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
 | Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解、共享导航配置 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **已完成（2026-08-21）** |
-| Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
+| Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | **已完成（2026-08-21）** |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
 
@@ -265,9 +265,17 @@
   验证：Web E2E 19 例、共享视觉门禁、桌面工作台 E2E、`check`。
   回滚：Web 视图可独立回退旧组合。
 
-- `V13-REUSE-03`：边界清零收口：`renderer-features-isolated` 与 `renderer-row-models-banned` baseline 归零、规则升 error；`max-lines` baseline 缩减至尾部清单（或清零）；补 `tests/repo/` 守卫测试锁三类回潮（互导、行模型上浮、超大文件）。
+- `V13-REUSE-03`：~~边界清零收口：`renderer-features-isolated` 与 `renderer-row-models-banned` baseline 归零、规则升 error；`max-lines` baseline 缩减至尾部清单（或清零）；补 `tests/repo/` 守卫测试锁三类回潮（互导、行模型上浮、超大文件）。~~ **已完成（2026-08-21）**。互导 17 → 0，`dependency-cruiser-known-violations.json` 变空文件；`max-lines` baseline 14 → 12（桌面渲染层清零）；新增 `tests/repo/boundary-baselines.test.ts`；`npm run lint` 从 78 error 清到 0 并纳入 `check`。
 
-  验证：`check:boundaries` 0 违规；全部门禁。
+  **裁定**：
+  1. **消除互导先看模块性质，不一律套桥接**。纯函数下沉 `src/lib/`（`promptParams` → `lib/prompt-params`、`workbench/references` → `lib/prompt-references`、`library/related-history` → `lib/related-history`，一次消 5 条边）；跨域**写**副作用进 `runtime/*-side-effects`（账号登录态翻转后重载托管服务商/Agent 连接 → `runtime/account-side-effects`，account store 不再认识 generation 与 settings）；跨域**读**才用 `runtime/*-access` 桥接。只有第三类是「把边搬个位置」，它换来的是单一入口与可 grep 的依赖面。
+  2. **引导流是跨域向导，不拆不合**。`onboarding/store` 天然要驱动生图 + 账号 + Agent 连接三域，经三个 runtime access 入口访问即符合 D4「跨 feature 通信走 runtime 编排入口」。
+  3. **baseline 归零而非删除机制**。`--ignore-known` 与空 JSON 文件保留：机制还在，能一眼看出「当前冻结了几条」。`tests/repo/boundary-baselines.test.ts` 禁止这两类规则重新进 baseline，并独立复算互导与行模型（不依赖 depcruise 是否被跑）。
+  4. **尺寸尾部清单不清零**。剩余 12 条是主进程（`browser-service` / `skill-runtime` / `integration` 等）与 packages（`core/sync/repository`、`ui/extended-primitives`）存量，不属渲染层拆分范围，随各自领域卡消化；桌面渲染层（`apps/desktop/src`）已清零并由守卫锁住。
+  5. **`lint` 进 `check`**。78 个 `no-unused-vars` 全是 SPLIT-01/02 拆分留下的死解构与死类型 import（`WorkbenchComposerView` 一处就 57 个）；清完后把 `lint` 放在 `check` 首位，避免再次积累。
+  6. **本卡跑了桌面 E2E 全量（此前各卡只跑相关子集）**，因此暴露出 `test_28_uj04_crash_recovery` 自 SPLIT-03 起失效：它读的 `workbench.sessions` 已随会话列表迁入 Query。断言改查渲染出来的会话行状态（`[data-conversation-row][data-status="running"]`），比读 store 字段更贴近「侧栏不得有常亮运行指示」这条意图。存量 E2E 断言凡引用被迁走的 store 字段，一律照此改成查 DOM，而不是把字段镜像回 store。
+
+  验证：`check:boundaries` 0 违规、`check`（含 lint）、`check:v1.1`、桌面 E2E 全量、Web E2E、共享视觉门禁。
   回滚：收口卡为规则提升，revert 需评估。
 
 ### 完成条件
@@ -278,11 +286,11 @@
 
 以下门禁在 v1.3 视为完成的前提，缺一不可：
 
-1. 新增 depcruise/ESLint 规则全部上线且 baseline 只减不增；REUSE-03 收口后 baseline 归零。
+1. ~~新增 depcruise/ESLint 规则全部上线且 baseline 只减不增；REUSE-03 收口后 baseline 归零。~~ **已达成**：互导与行模型 baseline 为空文件，`lint` 纳入 `check`。
 2. 渲染层与 product-ui 无 `desktop-contracts` 行模型 import；`DesktopExtras` 签名全部文档形状 + 组合扩展。
 3. Web `App.tsx` ≤ 300 行；桌面 pages 薄挂载；page-controllers 双端共用。
 4. store 无服务端镜像字段；持久化统一 persist middleware。
-5. 巨型文件清单消化至目标行数；`max-lines` 棘轮在 CI 生效。
+5. ~~巨型文件清单消化至目标行数；`max-lines` 棘轮在 CI 生效。~~ **已达成**：桌面渲染层清零，尾部 12 条为主进程/packages 存量，棘轮与 ESLint 静音清单由 `tests/repo/file-size-ratchet.test.ts` 双向校验。
 6. 桌面 E2E、Web E2E、共享视觉门禁、`check`、`check:v1.1` 全绿。
 7. `docs/README.md` 权威序更新，v1.2.2 相关节加接棒注记；`README.md` 文档入口更新。
 

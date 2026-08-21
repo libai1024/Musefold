@@ -21,72 +21,24 @@ import {
   isDuplicateReference,
   MAX_DRAFT_REFERENCES,
   MAX_REFERENCE_TEXT_LENGTH,
-} from './references';
+} from '../../../lib/prompt-references';
+import {
+  clampFrame,
+  DEFAULT_PANEL_HEIGHT,
+  DEFAULT_PANEL_WIDTH,
+  MIN_PANEL_HEIGHT,
+  MIN_PANEL_WIDTH,
+  PANEL_MARGIN,
+  RESIZE_HANDLES,
+  type DragState,
+  type PanelFrame,
+  type ResizeDirection,
+  type ResizeState,
+} from './promptReferencePanelFrame';
 
 interface SelectionSnapshot {
   promptId: string;
   text: string;
-}
-
-interface DragState {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
-type ResizeDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
-
-interface PanelFrame {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface ResizeState {
-  pointerId: number;
-  direction: ResizeDirection;
-  startX: number;
-  startY: number;
-  frame: PanelFrame;
-  boundsWidth: number;
-  boundsHeight: number;
-}
-
-const DEFAULT_PANEL_WIDTH = 304;
-const DEFAULT_PANEL_HEIGHT = 414;
-const MIN_PANEL_WIDTH = 280;
-const MIN_PANEL_HEIGHT = 220;
-const PANEL_MARGIN = 12;
-
-const RESIZE_HANDLES: Array<{ direction: ResizeDirection; className: string }> = [
-  { direction: 'n', className: 'left-4 right-4 top-0 h-2 cursor-ns-resize' },
-  { direction: 'ne', className: 'right-0 top-0 h-4 w-4 cursor-nesw-resize' },
-  { direction: 'e', className: 'bottom-4 right-0 top-4 w-2 cursor-ew-resize' },
-  { direction: 'se', className: 'bottom-0 right-0 h-4 w-4 cursor-nwse-resize' },
-  { direction: 's', className: 'bottom-0 left-4 right-4 h-2 cursor-ns-resize' },
-  { direction: 'sw', className: 'bottom-0 left-0 h-4 w-4 cursor-nesw-resize' },
-  { direction: 'w', className: 'bottom-4 left-0 top-4 w-2 cursor-ew-resize' },
-  { direction: 'nw', className: 'left-0 top-0 h-4 w-4 cursor-nwse-resize' },
-];
-
-function clampFrame(frame: PanelFrame, boundsWidth: number, boundsHeight: number): PanelFrame {
-  const maxWidth = Math.max(MIN_PANEL_WIDTH, boundsWidth - PANEL_MARGIN * 2);
-  const maxHeight = Math.max(MIN_PANEL_HEIGHT, boundsHeight - PANEL_MARGIN * 2);
-  const width = Math.min(maxWidth, Math.max(MIN_PANEL_WIDTH, frame.width));
-  const height = Math.min(maxHeight, Math.max(MIN_PANEL_HEIGHT, frame.height));
-  return {
-    x: Math.min(Math.max(PANEL_MARGIN, frame.x), Math.max(PANEL_MARGIN, boundsWidth - width - PANEL_MARGIN)),
-    y: Math.min(Math.max(PANEL_MARGIN, frame.y), Math.max(PANEL_MARGIN, boundsHeight - height - PANEL_MARGIN)),
-    width,
-    height,
-  };
 }
 
 export function PromptReferenceSidebar({

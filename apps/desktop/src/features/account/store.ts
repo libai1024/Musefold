@@ -14,20 +14,7 @@ import type {
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import { desktopGateway } from '../../runtime';
 import { desktopQueryClient } from '../../runtime/query-client';
-import { useGenerationStore } from '../generation/store';
-import { useAiConnectionStore } from '../settings/ai-connection-store';
-
-/**
- * 登录/登出/换服务器会在主进程创建或回收托管服务商与 Agent 连接，
- * 渲染层两份列表必须跟着重载，否则侧栏与设置里会出现「登录了却看不到」
- * 或「登出后还能选中幽灵托管条目」。引导流登录另有自己的重载逻辑。
- */
-async function reloadManagedStacks(): Promise<void> {
-  await Promise.allSettled([
-    useGenerationStore.getState().loadProviders(),
-    useAiConnectionStore.getState().load(),
-  ]);
-}
+import { reloadAccountManagedStacks as reloadManagedStacks } from '../../runtime/account-side-effects';
 
 export interface AccountUiError {
   code: AccountErrorCode | 'UNKNOWN';

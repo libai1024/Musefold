@@ -10,7 +10,7 @@ import {
 
 const relatedHistorySource = readFileSync(new URL('../related-history.ts', import.meta.url), 'utf8');
 const promptWorksPanelSource = readFileSync(
-  new URL('../components/PromptWorksPanel.tsx', import.meta.url),
+  new URL('../../features/library/components/PromptWorksPanel.tsx', import.meta.url),
   'utf8',
 );
 

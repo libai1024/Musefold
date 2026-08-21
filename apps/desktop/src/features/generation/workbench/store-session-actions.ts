@@ -1,6 +1,6 @@
 import { useAppStore } from '../../../stores/app';
 import { getWorkbenchIO } from './io';
-import type { GenerationResultItem, GenerationTurn, RefinementContext } from './types';
+import type { GenerationResultItem, RefinementContext } from './types';
 import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
 import { workbenchSessionErrorMessage } from './sessionErrors';
 import {

@@ -22,7 +22,8 @@ import {
 } from "@musefold/product-ui";
 import { useAppStore } from "../../../stores/app";
 import { useGenerationStore } from "../store";
-import { useLibraryStore, linkHistoriesToPrompt } from "@renderer/runtime/library-access";
+import { useLibraryStore } from "@renderer/runtime/library-access";
+import { linkHistoriesToPrompt } from "@renderer/lib/related-history";
 import {
   SchemeCreationConversation,
   SchemeRunConversation,

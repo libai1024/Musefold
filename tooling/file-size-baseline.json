@@ -1,5 +1,5 @@
 {
-  "comment": "V13-GOV-01 文件尺寸棘轮 baseline。键为仓库根相对路径，值为登记的行数上限。只减不增：文件缩小或删除后必须同步调低/移除条目；新文件超过 600 行必须先拆分。CI 强制在 tests/repo/file-size-ratchet.test.ts，ESLint max-lines(warn 600) 负责编辑器内即时可见。",
+  "comment": "V13-GOV-01 文件尺寸棘轮 baseline。键为仓库根相对路径，值为登记的行数上限。只减不增：文件缩小或删除后必须同步调低/移除条目；新文件超过 600 行必须先拆分。CI 强制在 tests/repo/file-size-ratchet.test.ts，ESLint max-lines(warn 600) 负责编辑器内即时可见。V13-REUSE-03 起 apps/desktop/src（桌面渲染层）条目为 0，剩余尾部清单是主进程与 packages 侧存量。",
   "packages/core/src/sync/repository.ts": 1421,
   "apps/web-api/src/modules/prompts/service.ts": 1121,
   "apps/desktop/electron/doubao-web/browser-service.ts": 1107,
@@ -11,7 +11,5 @@
   "apps/desktop/electron/system/import.ts": 706,
   "packages/cloud-client/src/index.ts": 675,
   "packages/core/src/db/design-scheme/repositories.ts": 644,
-  "apps/desktop/electron/main/integration.ts": 641,
-  "apps/desktop/src/features/generation/components/ProviderDialog.tsx": 622,
-  "apps/desktop/src/features/generation/workbench/PromptReferenceSidebar.tsx": 603
+  "apps/desktop/electron/main/integration.ts": 641
 }

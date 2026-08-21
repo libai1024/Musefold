@@ -456,7 +456,8 @@ module.exports = {
       name: `renderer-features-isolated-${feature}`,
       comment:
         `V13-GOV-02：features/${feature} 禁止 import 其他 feature（同层不互导）。` +
-        '跨域共享物下沉 product-ui/domain，业务不可分时合并 feature；存量违规在 known-violations baseline 只减不增。',
+        '跨域共享物下沉 product-ui/domain/lib，跨域读写经 runtime/*-access 与 runtime/*-side-effects；' +
+        'REUSE-03 起 known-violations 为空文件，任何新互导边直接红。',
       severity: 'error',
       from: {
         path: `^apps/desktop/src/features/${feature}/`,

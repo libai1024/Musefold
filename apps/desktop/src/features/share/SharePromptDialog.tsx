@@ -16,7 +16,7 @@ import {
 } from '../../components/ui/dialog';
 import { Textarea } from '../../components/ui/textarea';
 import { ShareCard } from './ShareCard';
-import { promptTargetFromParams } from '../generation/promptParams';
+import { promptTargetFromParams } from '../../lib/prompt-params';
 
 interface Props {
   open: boolean;

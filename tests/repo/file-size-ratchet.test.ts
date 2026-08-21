@@ -141,6 +141,21 @@ describe('V13-GOV-01 文件尺寸棘轮', () => {
     expect(stale.join('\n'), '失效 baseline 条目').toBe('');
   });
 
+  it('ESLint 静音清单与 baseline 键集逐条一致（V13-REUSE-03）', () => {
+    const config = readFileSync(join(REPO_ROOT, 'tooling/eslint.config.base.mjs'), 'utf8');
+    const block = config.slice(config.indexOf('V13-GOV-01 baseline'));
+    const files = block.slice(block.indexOf('files: ['), block.indexOf(']'));
+    const silenced = [...files.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
+    expect(silenced, 'ESLint max-lines 静音清单').toEqual([...baseline.keys()].sort());
+  });
+
+  it('桌面渲染层不再有超标文件（尾部清单只剩主进程与 packages）', () => {
+    const rendererEntries = [...baseline.keys()].filter((path) =>
+      path.startsWith('apps/desktop/src/'),
+    );
+    expect(rendererEntries, '桌面渲染层尺寸棘轮应保持清零').toEqual([]);
+  });
+
   it('baseline 与扫描范围一致（登记的路径必须位于扫描根内且是生产源码）', () => {
     const rootsAbs = roots.map((r) => resolve(REPO_ROOT, r));
     const offenders: string[] = [];

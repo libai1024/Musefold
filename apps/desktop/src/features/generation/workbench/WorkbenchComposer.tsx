@@ -11,8 +11,8 @@ import {
 } from "@musefold/desktop-contracts/providers";
 import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
 import { toast } from "../../../stores/toast";
-import { promptParamsToRefineParams } from "../promptParams";
-import { exactGithubSkillUrl, matchDesignPlanCommand } from "./composerIntent";
+import { promptParamsToRefineParams } from "../../../lib/prompt-params";
+import { matchDesignPlanCommand } from "./composerIntent";
 import { useWorkbenchComposerStore } from "./useWorkbenchComposerStore";
 import { useGenerationWorkbenchStore } from "./store";
 import { useSkillRuntimeStore } from "./skill-runtime-store";
@@ -22,12 +22,9 @@ export function WorkbenchComposer() {
   const store = useWorkbenchComposerStore();
   const {
     prompt,
-    negative,
     source,
     draftCommand,
     setDraftCommand,
-    draftHistorySource,
-    setDraftHistorySource,
     references,
     draftImages,
     params,
@@ -55,8 +52,6 @@ export function WorkbenchComposer() {
     executeSchemeRun,
     submissionProvider,
     doubaoImageMode,
-    composedPrompt,
-    overLimit,
     designPlanIntent,
     commandHints,
     commandChipVisible,

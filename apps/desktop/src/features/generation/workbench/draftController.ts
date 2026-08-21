@@ -7,7 +7,7 @@ import {
   isDuplicateReference,
   MAX_DRAFT_REFERENCES,
   MAX_REFERENCE_TEXT_LENGTH,
-} from './references';
+} from '../../../lib/prompt-references';
 import { uniqueReferenceImages } from './imageReferences';
 
 export const DEFAULT_WORKBENCH_PARAMS: RefineParams = {

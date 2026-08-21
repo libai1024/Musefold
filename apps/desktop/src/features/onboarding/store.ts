@@ -15,11 +15,12 @@ import {
 import { ACCOUNT_FALLBACK_TEXT_MODEL } from '@musefold/domain/constants';
 import type { ValidationResult, GenerateImageResult } from '@musefold/desktop-contracts/providers';
 import type { AiConnectionValidationResult } from '@musefold/desktop-contracts/ai';
-import { useGenerationStore } from '../generation/store';
 import { useAppStore } from '../../stores/app';
 import { hatchMotionAllowed, useEmberHatchStore } from '../../stores/emberHatch';
-import { useAccountStore } from '../account/store';
-import { useAiConnectionStore } from '../settings/ai-connection-store';
+// 引导流是跨域向导（生图 + 账号 + Agent 连接），跨 feature 一律经 runtime 编排入口。
+import { useGenerationStore } from '../../runtime/generation-access';
+import { useAccountStore } from '../../runtime/account-access';
+import { useAiConnectionStore } from '../../runtime/settings-access';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { desktopGateway } from '../../runtime';
 import {

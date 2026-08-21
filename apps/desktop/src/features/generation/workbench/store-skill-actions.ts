@@ -1,7 +1,4 @@
-import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
-import type { RefineParams } from '../../../lib/generation-params';
-import type { GenerationSource, GenerationTurn } from './types';
-import type { SkillRuntimeGenerationOutcome, SkillRuntimeTraceItem } from '@musefold/desktop-contracts/skill-runtime';
+import type { GenerationTurn } from './types';
 import { getWorkbenchIO } from './io';
 import { notifyWorkbenchHistoryChanged } from '../../../runtime/workbench-side-effects';
 import { workbenchSessionErrorMessage } from './sessionErrors';

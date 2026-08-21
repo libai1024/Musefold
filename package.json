@@ -57,7 +57,7 @@
     "test:staging:mcp-sdk": "node scripts/test-v1.1-mcp-staging.mjs",
     "test:staging:mcp-full": "node scripts/test-v1.1-mcp-full.mjs",
     "openapi:check": "node scripts/check-v1.1-openapi.mjs",
-    "check": "npm run typecheck && npm run test && npm run build && npm run build:web",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run build:web",
     "check:v1.1": "npm run check:ui-boundaries && npm run typecheck:v1.1 && npm run test:v1.1 && npm run check:production --workspace @musefold/web",
     "clean:artifacts": "node scripts/clean-artifacts.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",

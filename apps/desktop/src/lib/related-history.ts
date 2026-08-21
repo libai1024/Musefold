@@ -7,7 +7,7 @@ import type {
   RelatedHistoryQuery,
 } from '@musefold/desktop-contracts/ipc';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
-import { desktopGateway } from '../../runtime';
+import { desktopGateway } from '../runtime';
 
 const RELATED_HISTORY_DB_VERSION = 9;
 const HISTORY_LINK_PROMPT_DB_VERSION = 10;

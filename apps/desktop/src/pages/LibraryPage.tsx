@@ -44,7 +44,7 @@ import { TrashDialog } from '../features/library/components/TrashDialog';
 import { toImageSrc } from '../lib/media';
 import { formatTime } from '../lib/format';
 import { toast } from '../stores/toast';
-import { promptParamsToRefineParams } from '../features/generation/promptParams';
+import { promptParamsToRefineParams } from '../lib/prompt-params';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../stores/app';
 

@@ -138,7 +138,8 @@ export default tseslint.config(
   },
   {
     // V13-GOV-01 baseline：存量超标文件由 repo 守卫棘轮管辖（tooling/file-size-baseline.json），
-    // 此处静音避免噪音。清单只减不增，消化完成（SPLIT 卡）后此块整体删除。
+    // 此处静音避免噪音。清单必须与 baseline 键集逐条一致（tests/repo/file-size-ratchet.test.ts 校验），
+    // 只减不增；REUSE-03 起桌面渲染层已清零，剩余为主进程与 packages 存量。
     files: [
       'packages/core/src/sync/repository.ts',
       'apps/web-api/src/modules/prompts/service.ts',
@@ -152,9 +153,6 @@ export default tseslint.config(
       'packages/cloud-client/src/index.ts',
       'packages/core/src/db/design-scheme/repositories.ts',
       'apps/desktop/electron/main/integration.ts',
-      'apps/desktop/src/runtime/desktop-gateway.ts',
-      'apps/desktop/src/features/generation/components/ProviderDialog.tsx',
-      'apps/desktop/src/features/generation/workbench/PromptReferenceSidebar.tsx',
     ],
     rules: {
       'max-lines': 'off',

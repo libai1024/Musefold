@@ -5,7 +5,7 @@ import {
   useGenerationWorkbenchStore,
   WORKBENCH_PROMPT_LIMIT,
 } from "./store";
-import { composePromptWithReferences } from "./references";
+import { composePromptWithReferences } from "../../../lib/prompt-references";
 import { composePromptWithRatioConstraint } from "./promptConstraints";
 import {
   composePromptWithImageIndexHint,

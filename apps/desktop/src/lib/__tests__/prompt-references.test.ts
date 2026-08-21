@@ -4,7 +4,7 @@ import {
   composePromptWithReferences,
   extractUserPromptFromComposed,
   isDuplicateReference,
-} from '../references';
+} from '../prompt-references';
 
 const full: PromptReference = {
   promptId: 'prompt-1',

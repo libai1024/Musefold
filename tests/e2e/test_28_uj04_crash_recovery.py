@@ -228,9 +228,12 @@ def test_uj04_hard_kill_leaves_no_running_state(app, _pw, slow_provider_server):
     assert "success" in ui["statuses"], ui
 
     # 6. 侧栏不得有常亮运行指示。
+    # 会话列表自 V13-SPLIT-03 起由 Query 持有，不再镜像进 workbench store；
+    # 直接查渲染出来的行状态（running 覆盖 queued，见 Sidebar 的映射）。
     running_sessions = app.page.evaluate(
-        """() => window.__musefold_test.stores.workbench.getState()
-              .sessions.filter((x) => x.latestStatus === 'running' || x.latestStatus === 'queued').length"""
+        """() => document.querySelectorAll(
+            '[data-conversation-row][data-status="running"]'
+        ).length"""
     )
     assert running_sessions == 0, "侧栏仍有常亮的运行指示"
 

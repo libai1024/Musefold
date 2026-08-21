@@ -1,15 +1,9 @@
-import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
-import type { RefineParams } from '../../../lib/generation-params';
-import type { GenerationTurn, SchemeCreationDraftCard } from './types';
+import type { GenerationTurn } from './types';
 import type {
-  DesignSchemeCreationTraceItem,
-  DesignSchemeRunGeneration,
-  DesignSchemeRunMode,
 } from '@musefold/desktop-contracts/design-scheme';
 import { getWorkbenchIO } from './io';
 import { workbenchSessionErrorMessage } from './sessionErrors';
 import {
-  applyImageResult,
   resultStatus,
   sessionHasRunningTurn,
   withRunRegistered,

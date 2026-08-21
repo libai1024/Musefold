@@ -6,13 +6,13 @@ import { useState } from "react";
 import { Blocks, Share2 } from "../../../components/ui/icons";
 import type { DesktopLibraryPrompt } from "@musefold/desktop-contracts/library-documents";
 import { useLibraryStore } from "../store";
-import { useGenerationWorkbenchStore } from "../../generation/workbench/store";
+import { useGenerationWorkbenchStore } from "../../../runtime/workbench-access";
 import { useAppStore } from "../../../stores/app";
 import { toImageSrc } from "../../../lib/media";
 import { formatTime } from "../../../lib/format";
 import { toast } from "../../../stores/toast";
-import { promptParamsToRefineParams } from "../../generation/promptParams";
-import { SharePromptDialog } from "../../share/SharePromptDialog";
+import { promptParamsToRefineParams } from "../../../lib/prompt-params";
+import { SharePromptDialog } from "../../../runtime/share-access";
 import { PromptWorksPanel } from "./PromptWorksPanel";
 import {
   PromptDetailScreen,

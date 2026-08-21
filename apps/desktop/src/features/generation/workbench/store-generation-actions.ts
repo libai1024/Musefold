@@ -8,7 +8,7 @@ import {
 import { getWorkbenchIO } from './io';
 import { buildImageRequest } from '../../../lib/generation-params';
 import type { GenerationResultItem, GenerationTurn } from './types';
-import { composePromptWithReferences } from './references';
+import { composePromptWithReferences } from '../../../lib/prompt-references';
 import { workbenchSessionErrorMessage } from './sessionErrors';
 import { composePromptWithRatioConstraint } from './promptConstraints';
 import {

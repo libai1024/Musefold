@@ -566,10 +566,6 @@ export function buildLibraryQuerySnapshot(s: Pick<
   };
 }
 
-function buildQuery(s: LibraryState): ListPromptsQuery {
-  return buildLibraryQuerySnapshot(s);
-}
-
 // ---------- 派生选择器 ----------
 //
 // 注意：zustand v5 的 useStore 用 Object.is 比较选择器结果，

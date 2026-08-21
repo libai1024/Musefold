@@ -12,7 +12,7 @@ import { toImageSrc } from '../../../lib/media';
 import { formatTime } from '../../../lib/format';
 import { ImageLightbox } from '../../../components/image-lightbox';
 import { cn } from '../../../lib/utils';
-import { loadRelatedHistory } from '../related-history';
+import { loadRelatedHistory } from '../../../lib/related-history';
 import { promptRelationLabel } from '../prompt-relation-label';
 
 export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
