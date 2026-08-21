@@ -1,12 +1,12 @@
 # Musefold v1.2.1 CI/CD 交付计划
 
-> **状态**：仓库侧 M1/M4/M5/M7 已完成；生产部署与真实发布门禁仍受外部条件阻塞
+> **状态**：仓库侧 M1/M2/M3/M4/M5/M7 已完成（M2/M3 待生产 runner 实跑）；真实发布门禁仍受外部条件阻塞
 >
-> **日期**：2026-08-20
+> **日期**：2026-08-21
 >
 > **范围**：生产环境收敛、流水线提速、Web/服务层自动部署、通道化、内容层热更新、外壳发布自动化
 >
-> **当前实现状态（2026-08-20）**：仓库侧 affected CI、通道/签名协议、内容层热更新实现与 iOS 预留已完成；本地全仓门禁已通过。生产环境收敛、Web/API/Worker 自动部署、对象存储/CDN、真实 dev 通道热更新与签名公证安装包仍未完成，详见第 10 节发布门禁。
+> **当前实现状态（2026-08-21）**：仓库侧 affected CI、通道/签名协议、内容层热更新实现、iOS 预留、Web/API 自动部署脚本与 `Deploy production` workflow 已完成。生产环境 runner、非 root 实跑、对象存储/CDN、真实 dev 通道热更新与签名公证安装包仍未完成，详见第 10 节发布门禁与 [执行卡片](./V121-DEPLOY-CARDS.md)。
 
 ## 0. 交付原则
 
@@ -51,13 +51,13 @@ M0 与 M1 可并行：M0 是服务器侧操作，M1 是仓库侧改动。M2 必�
 
 - `V121-ENV-04`：~~创建 `/opt/musefold/site/Musefold/updates/stable/` 并放入正确的 `latest.yml` 与 `latest-mac.yml`。~~ **已完成（2026-08-20）**。清单指向完整的 `0.3.2`（Windows exe + macOS zip），绝对 URL 指向 `downloads/0.3.2/`，不复制安装包。`0.5.0-dev` 因缺 zip 且为 prerelease 未写入通道。
 - `V121-ENV-05`：补齐 `downloads/0.5.0-dev/` 的产物。缺 `.zip`（macOS 静默更新依赖）、缺 `dmg.blockmap`、缺 `SHA256SUMS.txt`；同时存在 `Musefold Setup 0.5.0-dev.exe` 与 `Musefold-Setup-0.5.0-dev.exe` 两个不同命名、不同大小的安装包，需确定唯一命名并删除多余项。
-- `V121-ENV-06`：清除站点目录下的 macOS 资源派生文件（`._Musefold`、`._index.html`、`._styles.css` 等 163 字节 `._*` 文件），并在后续传输环节显式排除。
+- `V121-ENV-06`：清除站点目录下的 macOS 资源派生文件（`._Musefold`、`._index.html`、`._styles.css` 等 163 字节 `._*` 文件），并在后续传输环节显式排除。**传输排除已完成（2026-08-21）**（`copyTree` 丢弃 `._*`）。线上存量文件随第一次 Web 发布目录切换离开 `app/` 对外路径。
 
 ### 2.3 权限与基础设施
 
-- `V121-ENV-07`：创建专用部署用户，授予部署所需的受限 `sudo` 条目，停止以 `root` 执行部署。
-- `V121-ENV-08`：把 `Caddyfile` 与 `remote-compose.yaml` 的事实源固定在仓库，建立部署前的一致性校验。当前两者与仓库逐字节一致，但一致性靠人工维持——服务器上留有 5 份 `Caddyfile.bak-*` 与 3 份 `docker-compose.yml.bak-*`。
-- `V121-ENV-09`：把镜像标签从 `musefold-v11:latest` 改为按 `gitSha` 打标，`latest` 仅作为别名。
+- `V121-ENV-07`：创建专用部署用户，停止以 `root` 执行部署。**仓库侧已完成（2026-08-21）**：`scripts/deploy/bootstrap-runner.sh` 创建 `musefold-deploy` 并加入 `docker` 组。生产机执行与 runner 注册仍是外部门禁。不使用宽泛 sudoers：写权限靠文件属主，`docker` 组即可 `docker exec` 重载 Caddy。
+- `V121-ENV-08`：~~把 `Caddyfile` 与 `remote-compose.yaml` 的事实源固定在仓库。~~ **仓库侧已完成（2026-08-21）**。部署覆盖 `/opt/musefold/` 并把旧文件归档。
+- `V121-ENV-09`：~~把镜像标签从 `musefold-v11:latest` 改为按 `gitSha` 打标，`latest` 仅作为别名。~~ **仓库侧已完成（2026-08-21）**。
 
 ### 2.4 清理
 
@@ -115,12 +115,12 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 
 ### 任务
 
-- `V121-WEB-01`：在生产主机部署自托管 runner，标签 `musefold-prod`，以 `V121-ENV-07` 创建的部署用户运行。
-- `V121-WEB-02`：为 runner 配置 CPU 与内存上限（参考基线 4 vCPU / 3 GiB），禁止 fork PR 触发，限定仅本仓库 workflow 可用。
-- `V121-WEB-03`：实现发布目录结构 `/opt/musefold/site/Musefold/releases/<gitSha>/`，以及 `app -> releases/<gitSha>` 的**相对**符号链接。
-- `V121-WEB-04`：实现部署 job：构建 `apps/web`、落盘到新 release 目录、原子切换 symlink；传输时排除 macOS 资源派生文件。
-- `V121-WEB-05`：部署后可达性验证，失败自动切回上一个 release。
-- `V121-WEB-06`：保留最近 5 个 release 目录，实现一条命令手动回滚。
+- `V121-WEB-01`：在生产主机部署自托管 runner，标签 `musefold-prod`，以 `V121-ENV-07` 创建的部署用户运行。**仓库侧引导脚本已完成（2026-08-21）**：`scripts/deploy/bootstrap-runner.sh`。注册 token 与主机执行仍是外部门禁。
+- `V121-WEB-02`：为 runner 配置 CPU 与内存上限（参考基线 4 vCPU / 4 GiB），禁止 fork PR 触发，限定仅本仓库 workflow 可用。**workflow 已完成（2026-08-21）**：只接受 `main`/`master` 上 CI 的 `push` 成功或 `workflow_dispatch`。systemd drop-in 随 runner 安装。
+- `V121-WEB-03`：~~实现发布目录结构 `/opt/musefold/site/Musefold/releases/<gitSha>/`，以及 `app -> releases/<gitSha>` 的**相对**符号链接。~~ **已完成（2026-08-21）**。`scripts/deploy/web-release.mjs`；rsync 时代的实目录会晋升为 `releases/pre-symlink`。
+- `V121-WEB-04`：~~实现部署 job：构建 `apps/web`、落盘到新 release 目录、原子切换 symlink；传输时排除 macOS 资源派生文件。~~ **已完成（2026-08-21）**。产物从 Docker 镜像 `docker cp`，宿主机不需要 Node。
+- `V121-WEB-05`：~~部署后可达性验证，失败自动切回上一个 release。~~ **已完成（2026-08-21）**。校验 `release-sha.txt`。
+- `V121-WEB-06`：~~保留最近 5 个 release 目录，实现一条命令手动回滚。~~ **已完成（2026-08-21）**。`npm run deploy:rollback`。
 
 ### 完成条件
 
@@ -134,15 +134,15 @@ M1 仓库侧于 2026-08-20 完成；GitHub 侧的实际运行验证（required c
 
 ### 任务
 
-- `V121-SVC-01`：在自托管 runner 上实现容器内镜像构建，复用 `infra/v1.1/Dockerfile`；宿主机没有 Node 与 npm，构建不得依赖宿主机工具链。**仓库侧前置已验证（2026-08-20）**：修正 Phase 1a 后残留的 `COPY shared` 与缺失的 `COPY tooling`，本地真实 `docker build` 通过；自托管 runner 部署与生产流水线实跑仍未完成。
-- `V121-SVC-02`：把数据库迁移拆为独立前置步骤，使用 `musefold_migration` 角色执行，失败即中止部署。
-- `V121-SVC-03`：在 CI 增加 expand/contract 静态检查，拒绝在同一次变更中同时移除写入与删除列。
-- `V121-SVC-04`：把流量切换条件从 `/health/live` 改为 `/health/ready`，确认迁移版本匹配与依赖可用后才切。
-- `V121-SVC-05`：为 Caddy 上游配置重试，隐藏容器重启期间的抖动。
-- `V121-SVC-06`：实现镜像回滚，回退到上一个 `gitSha` 标签。
-- `V121-SVC-07`：实现契约后向兼容门禁，用最近 3 个已发布客户端版本的 `@musefold/contracts` schema 校验新 API 响应。
-- `V121-SVC-08`：`generation-worker` 同步纳入部署流程，确认在途任务不因重启丢失。
-- `V121-SVC-09`：部署前校验线上 `Caddyfile` 与 `remote-compose.yaml` 与仓库版本一致，不一致即中止并告警。
+- `V121-SVC-01`：在自托管 runner 上实现容器内镜像构建，复用 `infra/v1.1/Dockerfile`；宿主机没有 Node 与 npm，构建不得依赖宿主机工具链。**仓库侧已完成（2026-08-21）**：Dockerfile 纳入 `generation-worker`；流水线 `docker build` 后按 sha 打标。生产 runner 实跑仍待 WEB-01。
+- `V121-SVC-02`：~~把数据库迁移拆为独立前置步骤，使用 `musefold_migration` 角色执行，失败即中止部署。~~ **仓库侧已完成（2026-08-21）**。
+- `V121-SVC-03`：~~在 CI 增加 expand/contract 静态检查，拒绝在同一次变更中同时移除写入与删除列。~~ **已完成（2026-08-21）**。只扫本次 diff 里的迁移；存量 `000002` 不回溯。
+- `V121-SVC-04`：~~把流量切换条件从 `/health/live` 改为 `/health/ready`，确认迁移版本匹配与依赖可用后才切。~~ **已完成（2026-08-21）**。compose healthcheck 与部署轮询均用 ready。
+- `V121-SVC-05`：~~为 Caddy 上游配置重试，隐藏容器重启期间的抖动。~~ **已完成（2026-08-21）**。`(v11_api)` snippet。
+- `V121-SVC-06`：~~实现镜像回滚，回退到上一个 `gitSha` 标签。~~ **已完成（2026-08-21）**。
+- `V121-SVC-07`：实现契约后向兼容门禁，用最近 3 个已发布客户端版本的 `@musefold/contracts` schema 校验新 API 响应。**未做**：contracts 仍为 `0.0.0-internal`，没有三份已发布快照，不做假门禁。
+- `V121-SVC-08`：~~`generation-worker` 同步纳入部署流程，确认在途任务不因重启丢失。~~ **仓库侧已完成（2026-08-21）**：同一镜像、`stop_grace_period: 30s`、先 `queue:migrate`。在途任务需生产实跑确认。
+- `V121-SVC-09`：~~部署前校验线上 `Caddyfile` 与 `remote-compose.yaml` 与仓库版本一致，不一致即中止并告警。~~ **裁定（2026-08-21）**：仓库为事实源，部署时覆盖线上文件并把旧副本归档到 `/opt/musefold/archive/`。手工热修必须回仓，否则下次部署覆盖。
 
 ### 完成条件
 
@@ -288,6 +288,7 @@ v1.2.1 只交付协议与认证侧的预留，实际接入属于 v3.0。
 
 ## 11. 相关文档
 
+- [自动推送与部署执行卡片](./V121-DEPLOY-CARDS.md)
 - [CI/CD 与持续交付架构](./V121-CICD-ARCHITECTURE.md)
 - [技术选型与决策](./V121-TECHNOLOGY-DECISIONS.md)
 - [热更新协议](./V121-HOT-UPDATE-PROTOCOL.md)

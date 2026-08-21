@@ -60,6 +60,8 @@
     "check": "npm run lint && npm run check:boundaries && npm run check:ui-boundaries && npm run typecheck && npm run test && npm run build && npm run build:web",
     "check:v1.1": "npm run check:ui-boundaries && npm run typecheck:v1.1 && npm run test:v1.1 && npm run check:production --workspace @musefold/web",
     "clean:artifacts": "node scripts/clean-artifacts.mjs",
+    "deploy:prod": "node scripts/deploy/run.mjs",
+    "deploy:rollback": "node scripts/deploy/rollback.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:status": "node scripts/release-gate-status.mjs",
     "release:evidence": "node scripts/release-gate-evidence.mjs",

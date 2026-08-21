@@ -460,6 +460,30 @@ function selfTest() {
     },
   );
   assertEqual(
+    'infra/v1.1 Dockerfile is infra → all layers',
+    pick(classifyFiles(['infra/v1.1/Dockerfile'], groups)),
+    {
+      content: true,
+      service: true,
+      shell: true,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'scripts/deploy is infra → all layers',
+    pick(classifyFiles(['scripts/deploy/run.mjs'], groups)),
+    {
+      content: true,
+      service: true,
+      shell: true,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
     'mixed docs + renderer',
     pick(classifyFiles(['docs/v1.2.1/V121-DELIVERY-PLAN.md', 'apps/desktop/src/pages/LibraryPage.tsx'], groups)),
     {

@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web ./apps/web
 COPY apps/web-api ./apps/web-api
+COPY apps/generation-worker ./apps/generation-worker
 COPY packages ./packages
 COPY scripts ./scripts
 COPY tooling ./tooling
@@ -13,7 +14,7 @@ COPY generated ./generated
 COPY docs ./docs
 COPY tsconfig*.json ./
 
-RUN npm ci --ignore-scripts --workspace @musefold/web --workspace @musefold/web-api --include-workspace-root=false
+RUN npm ci --ignore-scripts --workspace @musefold/web --workspace @musefold/web-api --workspace @musefold/generation-worker --include-workspace-root=false
 RUN npm run build:web
 
 ENV NODE_ENV=production

@@ -1,0 +1,124 @@
+# Production deploy (content + service).
+# Hosted CI verifies. This workflow only runs on the self-hosted musefold-prod
+# runner after CI on main is green. It never runs for pull requests or forks.
+#
+# App semver is unrelated; this job deploys git SHA tags, not product versions.
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: git sha to deploy (empty = this commit)
+        required: false
+        type: string
+      layers:
+        description: which layers to deploy
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - content
+          - service
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: musefold-prod
+    runs-on: [self-hosted, musefold-prod]
+    timeout-minutes: 45
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        (
+          github.event.workflow_run.head_branch == 'main' ||
+          github.event.workflow_run.head_branch == 'master'
+        )
+      )
+    steps:
+      - name: Resolve sha
+        id: ref
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            SHA="${{ inputs.sha }}"
+            SHA="${SHA:-${GITHUB_SHA}}"
+          else
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+          if ! printf '%s' "$SHA" | grep -Eq '^[0-9a-f]{7,40}$'; then
+            echo "refusing non-hex sha: $SHA" >&2
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node (runner-local, not host-wide)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Detect layers
+        id: detect
+        run: |
+          set -euo pipefail
+          SHA="${{ steps.ref.outputs.sha }}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ inputs.layers }}" ] && [ "${{ inputs.layers }}" != "all" ]; then
+            if [ "${{ inputs.layers }}" = "content" ]; then
+              echo "content=true" >> "$GITHUB_OUTPUT"
+              echo "service=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "content=false" >> "$GITHUB_OUTPUT"
+              echo "service=true" >> "$GITHUB_OUTPUT"
+            fi
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED="${RUNNER_TEMP}/changed.txt"
+          if git rev-parse --verify "${SHA}^" >/dev/null 2>&1; then
+            git diff --name-only "${SHA}^" "${SHA}" > "$CHANGED"
+            node .github/scripts/detect-layers.mjs --files-from "$CHANGED"
+          else
+            echo "content=true" >> "$GITHUB_OUTPUT"
+            echo "service=true" >> "$GITHUB_OUTPUT"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        if: steps.detect.outputs.docs_only != 'true' && (steps.detect.outputs.content == 'true' || steps.detect.outputs.service == 'true')
+        env:
+          MUSEFOLD_SITE_ROOT: /opt/musefold/site/Musefold
+          MUSEFOLD_COMPOSE_DIR: /opt/musefold
+        run: |
+          set -euo pipefail
+          LAYERS=""
+          if [ "${{ steps.detect.outputs.content }}" = "true" ]; then
+            LAYERS="content"
+          fi
+          if [ "${{ steps.detect.outputs.service }}" = "true" ]; then
+            LAYERS="${LAYERS:+$LAYERS,}service"
+          fi
+          node scripts/deploy/run.mjs \
+            --sha "${{ steps.ref.outputs.sha }}" \
+            --layers "$LAYERS" \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --site-root "${MUSEFOLD_SITE_ROOT}" \
+            --compose-dir "${MUSEFOLD_COMPOSE_DIR}"

@@ -88,6 +88,27 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
         run: npx turbo run typecheck test build lint check:boundaries check:ui-boundaries ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
+      - name: Expand/contract migration gate
+        run: |
+          set -euo pipefail
+          BASE="${TURBO_SCM_BASE:-}"
+          if [ -z "$BASE" ]; then
+            BASE="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          fi
+          files=()
+          if [ -n "$BASE" ]; then
+            while IFS= read -r file; do
+              [ -n "$file" ] && files+=("$file")
+            done < <(git diff --name-only "$BASE" HEAD -- apps/web-api/migrations || true)
+          fi
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "expand-contract: no migration files in this change"
+            exit 0
+          fi
+          node scripts/deploy/expand-contract.mjs apps/web-api/migrations "${files[@]}"
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+
       - name: Dependency audit
         run: npm audit --json
 

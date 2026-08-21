@@ -169,7 +169,8 @@ async function checkDocsAndWorkflow() {
   const readme = await readText('docs/product/README.md');
   const sourceWorkflow = await readText('.github/workflows/ci.yml');
   const packageWorkflow = await readText('.github/workflows/package-smoke.yml');
-  const workflow = `${sourceWorkflow}\n${packageWorkflow}`;
+  const deployWorkflow = await readText('.github/workflows/deploy.yml');
+  const workflow = `${sourceWorkflow}\n${packageWorkflow}\n${deployWorkflow}`;
 
   const scriptExpectations = [
     ['hooks:install', 'node scripts/install-git-hooks.mjs'],
@@ -187,6 +188,8 @@ async function checkDocsAndWorkflow() {
     ['release:signing:precheck', 'node scripts/release-signing-precheck.mjs'],
     ['release:windows:target', 'node scripts/release-windows-target-checklist.mjs'],
     ['clean:artifacts', 'node scripts/clean-artifacts.mjs'],
+    ['deploy:prod', 'node scripts/deploy/run.mjs'],
+    ['deploy:rollback', 'node scripts/deploy/rollback.mjs'],
   ];
   const missingScripts = scriptExpectations
     .filter(([name, needle]) => !pkg.scripts?.[name]?.includes(needle))
@@ -275,16 +278,19 @@ async function checkDocsAndWorkflow() {
     'npm run release:macos:signing',
     'macosDeveloperIdNotarization',
     'MUSEFOLD_TVT_KEY: ""',
+    'musefold-prod',
+    'scripts/deploy/run.mjs',
+    'workflow_run',
   ];
   const workflowMissing = workflowNeedles.filter((needle) => !workflow.includes(needle));
   const duplicatedPathBlock = /(^|\n)[ \t]+path:\s*\|\s*\r?\n[ \t]+path:\s*\|/.test(workflow);
   if (workflowMissing.length === 0 && !duplicatedPathBlock) {
-    pass('CI workflow covers source, E2E, package, and Windows host runtime smoke', '.github/workflows/ci.yml + package-smoke.yml');
+    pass('CI workflow covers source, E2E, package, Windows host runtime smoke, and production deploy', '.github/workflows/ci.yml + package-smoke.yml + deploy.yml');
   } else {
     const details = [];
     if (workflowMissing.length > 0) details.push(`missing: ${workflowMissing.join(', ')}`);
     if (duplicatedPathBlock) details.push('malformed duplicate path: | block');
-    fail('CI workflow covers source, E2E, package, and Windows host runtime smoke', details.join('; '));
+    fail('CI workflow covers source, E2E, package, Windows host runtime smoke, and production deploy', details.join('; '));
   }
 }
 

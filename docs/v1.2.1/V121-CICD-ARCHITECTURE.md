@@ -329,7 +329,7 @@ Caddy 当前对 `/Musefold/*` 设置了 `Cache-Control: no-cache`，配合 Vite 
 
 迁移作为独立步骤在容器启动前执行，使用 `musefold_migration` 角色。迁移失败则整个部署中止，旧容器不受影响。
 
-`infra/v1.1/remote-compose.yaml` 中 `v11-web-api` 已有 `http://127.0.0.1:60160/health/live` 健康检查。v1.2.1 需要额外用 `/health/ready` 作为流量切换条件——`live` 只表示进程存活，`ready` 才表示迁移版本匹配且依赖可用。
+`infra/v1.1/remote-compose.yaml` 中 `v11-web-api` 使用 `/health/ready` 作为容器健康检查，部署流水线也轮询公开的 `/health/ready`——`live` 只表示进程存活，`ready` 才表示迁移版本匹配且依赖可用。
 
 Caddy 侧配置重试，使重启期间的抖动对用户不可见。这不是零停机部署，但对当前规模足够；真正的蓝绿部署留到出现可测量的停机影响时再引入。
 

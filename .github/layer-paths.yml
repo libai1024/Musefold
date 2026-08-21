@@ -15,6 +15,9 @@
 # (and the rest) can affect the desktop renderer, so the E2E gate is conservative.
 #
 # Hitting any `infra` path treats content, service, shell, and desktop as changed.
+# `infra/**` is the production Caddy/compose/Dockerfile tree. `scripts/deploy/**`
+# is the production deploy tooling. Both are infra so a deploy-script change
+# cannot skip the Web/API lanes.
 # `tooling/**` is the v1.2.2 shared engineering config (ESLint base, tsconfig.base,
 # depcruise rules + baseline). Changing it is a full-layer infra change.
 # `packages/contracts/**` is listed under both content and service (§3.3).
@@ -44,6 +47,8 @@ infra:
   - tsconfig.json
   - eslint.config.mjs
   - tooling/**
+  - infra/**
+  - scripts/deploy/**
   - .prettierrc
   - .prettierignore
   - vitest.config.ts

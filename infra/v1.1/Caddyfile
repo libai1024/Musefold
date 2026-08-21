@@ -3,6 +3,13 @@
 	default_sni 45.207.211.136
 }
 
+(v11_api) {
+	reverse_proxy v11-web-api:60160 {
+		lb_try_duration 8s
+		lb_try_interval 250ms
+	}
+}
+
 45.207.211.136 {
 	tls {
 		issuer acme {
@@ -16,23 +23,23 @@ zhaozhaoyue.top, www.zhaozhaoyue.top {
 	redir /Musefold /Musefold/ permanent
 
 	handle /health/* {
-		reverse_proxy v11-web-api:60160
+		import v11_api
 	}
 
 	handle /api/musefold/mcp {
-		reverse_proxy v11-web-api:60160
+		import v11_api
 	}
 
 	handle /api/musefold/v1/* {
-		reverse_proxy v11-web-api:60160
+		import v11_api
 	}
 
 	handle /.well-known/oauth-protected-resource* {
-		reverse_proxy v11-web-api:60160
+		import v11_api
 	}
 
 	handle /.well-known/oauth-authorization-server {
-		reverse_proxy v11-web-api:60160
+		import v11_api
 	}
 
 	handle /musefold-local/* {

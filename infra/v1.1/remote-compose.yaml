@@ -12,7 +12,7 @@ services:
       - musefold_default
 
   v11-web-api:
-    image: musefold-v11:latest
+    image: musefold-v11:${MUSEFOLD_IMAGE_TAG:-latest}
     restart: unless-stopped
     command: ["npm", "run", "start", "--workspace", "@musefold/web-api"]
     env_file:
@@ -28,17 +28,19 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:60160/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        - "fetch('http://127.0.0.1:60160/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 40s
     networks:
       - musefold_default
 
   v11-worker:
-    image: musefold-v11:latest
+    image: musefold-v11:${MUSEFOLD_IMAGE_TAG:-latest}
     restart: unless-stopped
     command: ["npm", "run", "start", "--workspace", "@musefold/generation-worker"]
+    stop_grace_period: 30s
     env_file:
       - .env.v11
     environment:
