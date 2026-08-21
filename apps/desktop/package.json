@@ -1,6 +1,6 @@
 {
   "name": "musefold-app",
-  "version": "0.5.0-dev.51",
+  "version": "0.5.0-dev.52",
   "description": "Forge your image prompts — 跨平台生图提示词管理桌面 App",
   "main": "./out/main/index.js",
   "author": "Musefold",
@@ -36,6 +36,7 @@
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-toast": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.1.5",
+    "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-virtual": "^3.14.9",
     "ai": "7.0.58",
     "archiver": "7.0.1",

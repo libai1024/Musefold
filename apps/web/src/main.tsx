@@ -1,5 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createMusefoldQueryClient } from '@musefold/product-ui';
 import { App } from './App';
 import { createWebGateway } from './runtime';
 import '@musefold/ui/tokens.css';
@@ -15,8 +17,12 @@ if (!root) {
 
 document.documentElement.dataset.productHost = 'web';
 
+const queryClient = createMusefoldQueryClient();
+
 createRoot(root).render(
   <StrictMode>
-    <App gateway={createWebGateway()} />
+    <QueryClientProvider client={queryClient}>
+      <App gateway={createWebGateway()} />
+    </QueryClientProvider>
   </StrictMode>,
 );

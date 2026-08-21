@@ -61,3 +61,10 @@ export * from './navigation/ProductSidebar';
 export * from './navigation/ProductSidebarLayout';
 export * from './navigation/ProductTopbar';
 export * from './navigation/ProductPageHeader';
+export {
+  createMusefoldQueryClient,
+  musefoldQueryKeys,
+  MUSEFOLD_QUERY_GC_TIME_MS,
+  MUSEFOLD_QUERY_RETRY,
+  MUSEFOLD_QUERY_STALE_TIME_MS,
+} from './page-controllers/query-client';

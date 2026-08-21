@@ -157,7 +157,7 @@ module.exports = {
       // 任务卡允许 ui / contracts / domain（及外部包）。
       name: 'product-ui-allowed-deps',
       comment:
-        '§3.2 product-ui ← ui；禁止 cloud-client、electron、window.api。任务卡：只准 import ui/contracts/domain（及外部包），不得 import apps/desktop/src/、apps/desktop/electron/、apps/、packages/core。',
+        '§3.2 / V13-STATE-01 product-ui ← ui + contracts + domain + @tanstack/react-query；禁止 cloud-client、electron、window.api、desktop-contracts。不得 import apps/desktop/src/、apps/desktop/electron/、apps/、packages/core。',
       severity: 'error',
       from: { path: '^packages/product-ui/' },
       to: {
@@ -171,6 +171,22 @@ module.exports = {
           '^@shared',
           '^@musefold/desktop-contracts',
           '^apps/',
+        ],
+      },
+    },
+
+    {
+      // V13-STATE-01：product-ui 只放行 TanStack Query，禁止再引入第二套服务端状态库。
+      name: 'product-ui-query-allowed',
+      comment:
+        'V13-STATE-01：product-ui 允许 @tanstack/react-query 作为唯一查询库。禁止 SWR / Redux / Zustand / Jotai 等第二套服务端状态方案；window.api / cloud-client / electron / desktop-contracts 仍由 product-ui-allowed-deps 禁止。',
+      severity: 'error',
+      from: { path: '^packages/product-ui/' },
+      to: {
+        path: [
+          '(^|/)(swr|zustand|jotai|recoil|react-redux)(/|$)',
+          '(^|/)@reduxjs/',
+          '(^|/)@tanstack/react-query-persist',
         ],
       },
     },

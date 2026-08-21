@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0（GOV-01~04）与 Phase 1（ENT-01~04）已完成；STATE-01 起继续
+> **状态**：Phase 0、Phase 1 与 STATE-01 已完成；STATE-02 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | 大 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01 已完成 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -113,9 +113,11 @@
 
 ### 任务
 
-- `V13-STATE-01`：引入 TanStack Query。依赖声明（product-ui + 双宿主）；`product-ui/src/page-controllers/query-client.ts` 导出 `createMusefoldQueryClient()`；双端 Provider 装配；depcruise `product-ui-query-allowed` 放行。本卡只铺管线，无读路径迁移。
+- `V13-STATE-01`：~~引入 TanStack Query。~~ **已完成（2026-08-21）**。`@tanstack/react-query@^5.101.4` 写入 product-ui + 双宿主；`createMusefoldQueryClient()` 单点配置（staleTime 30s、query retry 1、mutation retry 0、关闭 window-focus/reconnect 自动重拉）；桌面 `main.tsx` 与 Web `main.tsx` 各自实例化并套 `QueryClientProvider`。depcruise `product-ui-query-allowed` 禁止再引入 SWR/Redux/Zustand 等第二套查询库。本卡无读路径迁移。
 
-  验证：typecheck/boundaries；双端渲染冒烟。
+  **裁定**：Query 默认偏保守——桌面窗口焦点频繁，默认 `refetchOnWindowFocus` 会把 IPC 打成风暴并让 E2E 抖动。失效约定以 `musefoldQueryKeys.<domain>.all` 前缀预埋，细粒度 key 留给 STATE-02。
+
+  验证：见本卡提交记录。
   回滚：revert（无行为变化）。
 
 - `V13-STATE-02`：history/library/account 读路径 query 化：列表、统计、账号状态改为 `useQuery`；对应 store 的 `loading/error/statsLoading/…` 镜像字段与拉取 action 删除；写操作（删除/恢复/清空/置顶）改 `useMutation` + 精确失效。
