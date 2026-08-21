@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：v1.3 文档冻结，实施未开始
+> **状态**：Phase 0（GOV-01~04）与 ENT-01/ENT-02 已完成；ENT-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -21,7 +21,7 @@
 | 阶段 | 内容 | 开工条件 | 相对规模 |
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
-| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | 中 |
+| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **进行中**：ENT-01/02 已完成 |
 | Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | 大 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
@@ -72,11 +72,16 @@
   验证：探针（onboarding store import models）先红（`renderer-row-models-banned` error）后绿；repo 测试 18 通过。✅
   回滚：revert 规则提交。
 
-- `V13-ENT-02`：history 域文档化。`DesktopExtras` history 面签名从 `HistoryRecord` 改为 `DesktopGenerationEntry = GenerationJob & { localImagePath?; costUnit; promptId? }`；`mappers/history.ts` 扩展承接 extras 面；`features/history/store.ts` 与 `HistoryDetail` 类型切换；`HistoryDetail` 随类型统一下沉 `product-ui/history/`（它本就跨 generation/workbench/library 三域）。行模型引用在本域清零（baseline 相应缩减）。
+- `V13-ENT-02`：~~history 域文档化。`DesktopExtras` history 面签名从 `HistoryRecord` 改为 `DesktopGenerationEntry`；`mappers/history.ts` 扩展承接 extras 面；`features/history/store.ts` 与 `HistoryDetail` 类型切换；行模型引用在本域清零。~~ **已完成（2026-08-21）**。新增 `packages/desktop-contracts/src/history-documents.ts`；extras 的 `listHistory` / `getHistory` / `relatedHistory` 经 mapper 返回文档形状；history store / 列表 / 详情 / 微调链 / 关联作品 / 方案来源选择器全部改用 `DesktopGenerationEntry`。`renderer-row-models-banned` 从 26 条边降到 13 条（history 域 + `promptParams`/`format` 清零）。
 
-  **裁定**：`success`→`succeeded` 枚举、epoch→ISO、offset↔cursor 的转换继续在 mapper；UI 层自此只见文档形状。桌面列表查询面（search+多维 filters+sortDir）保留在 extras 签名上，形状文档化。
+  **裁定（相对原卡的差异）**：
+  1. **组合类型保留无损桌面字段**，而不是架构草稿里的三字段交集。`DesktopGenerationEntry extends GenerationJob` 另保留 `providerId` / `imagePath` / `cost` / `costUnit` / `params` / `createdAtMs` / 原始错误码 / `promptReferences` / `promptRelations`。丢掉这些会改变封面、成本、多图参数与关联作品文案。云契约无槽位的字段放扩展面，不平行再造一套历史模型。
+  2. **`HistoryDetail` 不整文件搬进 product-ui**。共享呈现已是 `GenerationHistoryDetailContent` / `Actions` / `InspectorPanel`；桌面 `HistoryDetail` 是宿主适配器（reveal 文件、存为提示词、微调链、工作台回填）。整文件下沉会把 IPC/toast/workbench store 带进 product-ui，违反平台中立。编排薄挂载留给 ORCH-02。
+  3. **查询面仍用桌面词表**：`listHistory({ status: 'success' })` 的 IPC 枚举不变；store 把 UI 的 `succeeded` 映射回 `success`。`historyStatusMeta` 同时接受 `success` 以免漏网行状态显示成失败。
+  4. **`PromptParams` 迁到 `generation-snapshots`**，渲染层可安全引用生成参数包，不再经 `models`。
+  5. **models 对 HistoryStats / PromptHistoryRelation 保留 re-export**，供 core / 主进程 / ipc 传输签名继续单点导入；渲染层由 depcruise 禁止 `models`。这不是给 UI 的兼容层。
 
-  验证：history 单测 + 库/历史 E2E + 视觉门禁。
+  验证：全仓 `tsc -b`；vitest 181 files / 1045 tests；history/mapper/gateway/domain 定向 61；`check:boundaries` 825 modules / 0 新违规 / 82 known（行模型 13）；桌面历史 E2E `test_06_history.py` 15 passed。
   回滚：单卡 revert（类型面局部）。
 
 - `V13-ENT-03`：library + account 域文档化。`PromptRow` 面收敛为 `PromptDocument & { previewImagePath? }`（create/list/searchHistory 的 extras 签名）；`AccountStatus`/cloudSync 面以 contracts account 形状 + 桌面扩展表达。`library/store.ts`、`account/*store` 类型切换，行引用清零。

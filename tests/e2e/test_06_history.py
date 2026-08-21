@@ -274,7 +274,7 @@ def test_history_detail_file_actions_copy_and_open_path(app):
     )
 
     goto_history(app)
-    success_row = app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    success_row = app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history prompt hist-success-file"
     )
     success_row.click()
@@ -375,7 +375,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
         timeout=5_000,
     )
 
-    app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete keep source file"
     ).click()
     app.page.click('[data-testid="history-detail-delete"]')
@@ -387,7 +387,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     assert keep_file.exists(), "默认删除记录应保留磁盘源文件"
     assert app.db_query("SELECT id FROM history WHERE id = ?", ("hist-delete-keep-file",)) == []
 
-    app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete source file"
     ).click()
     app.page.click('[data-testid="history-detail-delete-file"]')
@@ -404,7 +404,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     assert usage["imagesCount"] == baseline["imagesCount"] + 1
     assert usage["imagesBytes"] == baseline["imagesBytes"] + len(PNG_1PX)
 
-    app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete missing source file"
     ).click()
     app.page.click('[data-testid="history-detail-delete-file"]')
@@ -416,7 +416,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     )
     assert app.db_query("SELECT id FROM history WHERE id = ?", ("hist-delete-missing-file",)) == []
 
-    app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete outside source file"
     ).click()
     app.page.click('[data-testid="history-detail-delete-file"]')
@@ -936,7 +936,7 @@ def test_history_save_as_prompt_persists_fields_and_jumps_to_library(app):
     )
 
     goto_history(app)
-    row = app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    row = app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text=prompt_text
     )
     row.click()
@@ -964,7 +964,7 @@ def test_history_save_as_prompt_persists_fields_and_jumps_to_library(app):
     app.page.wait_for_selector(f'[data-testid="prompt-row"][data-prompt-id="{created_id}"]')
 
     app.set_view("history")
-    row = app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    row = app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text=prompt_text
     )
     row.click()
@@ -1017,7 +1017,7 @@ def test_history_again_make_prefills_produce_without_submitting(app, image_serve
     )
 
     goto_history(app)
-    app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+    app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text=prompt_text
     ).click()
     app.page.click('[data-testid="history-detail-regen"]')
@@ -1177,7 +1177,7 @@ def test_history_save_as_prompt_ipc_failure_shows_error(app):
 
     try:
         goto_history(app)
-        app.page.locator('[data-testid="history-row"][data-status="success"]').filter(
+        app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
             has_text=prompt_text
         ).click()
         app.page.click('[data-testid="history-detail-save"]')

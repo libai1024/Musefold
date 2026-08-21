@@ -10,7 +10,8 @@ import type {
   ImageBackground,
   ModerationLevel,
 } from './enums';
-import type { CostUnit, PromptReference } from './generation-snapshots';
+import type { CostUnit, PromptReference, PromptParams } from './generation-snapshots';
+import type { PromptHistoryRelation } from './history-documents';
 
 // 重新导出枚举，方便单点导入
 export type {
@@ -24,6 +25,18 @@ export type {
 };
 export type { ProviderType } from './enums';
 export type { CostUnit };
+// V13-ENT-02 迁出类型的兼容 re-export（core / 主进程继续从 models 单点导入；
+// 渲染层业务代码禁用 models，改从 generation-snapshots / history-documents 导入）。
+export type { PromptParams } from './generation-snapshots';
+export type {
+  PromptHistoryRelation,
+  HistoryStatsGroupBy,
+  HistoryStatsQuery,
+  HistoryStatsBucket,
+  HistoryStatsProvider,
+  HistoryStatsTotal,
+  HistoryStats,
+} from './history-documents';
 
 /** 提示词（prompts 表） */
 export interface Prompt {
@@ -68,20 +81,7 @@ export interface NewPrompt {
   tagIds?: string[];
 }
 
-/** 生成参数包（前向兼容，带 schema_version） */
-export interface PromptParams {
-  schemaVersion: number;
-  sampler?: string;
-  steps?: number;
-  cfg?: number;
-  seed?: number;
-  size?: ImageSize;
-  quality?: ImageQuality;
-  n?: number;
-  background?: ImageBackground;
-  moderation?: ModerationLevel;
-  [key: string]: unknown;
-}
+/** 生成参数包已迁至 generation-snapshots（V13-ENT-02）；上方 re-export 保持导入面不变。 */
 
 /** 文件夹 */
 export interface Folder {
@@ -150,13 +150,7 @@ export interface SearchHistoryItem {
   usedAt: number;
 }
 
-/** `history.related` 对某条提示词的命中原因。普通 history.list 不填。 */
-export interface PromptHistoryRelation {
-  kind: 'source' | 'reference' | 'saved';
-  scope?: PromptReference['scope'];
-  title?: string;
-  excerpt?: string;
-}
+/** PromptHistoryRelation 已迁至 history-documents（V13-ENT-02）；上方 re-export 保持导入面不变。 */
 
 /** 历史记录（history 表） */
 export interface HistoryRecord {
@@ -183,54 +177,7 @@ export interface HistoryRecord {
   promptRelations?: PromptHistoryRelation[];
 }
 
-export type HistoryStatsGroupBy = 'day' | 'week' | 'month';
-
-export interface HistoryStatsQuery {
-  from?: number;
-  to?: number;
-  groupBy: HistoryStatsGroupBy;
-  providerId?: string;
-}
-
-export interface HistoryStatsBucket {
-  key: string;
-  cost: number;
-  count: number;
-  /** 成本单位，固定为 point。 */
-  unit?: CostUnit;
-}
-
-export interface HistoryStatsProvider {
-  providerId: string;
-  name: string;
-  cost: number;
-  count: number;
-  /** 成本单位，固定为 point。 */
-  unit?: CostUnit;
-}
-
-/** 单一记账单位内的汇总（有消费的单位才出现） */
-export interface HistoryStatsTotal {
-  unit: CostUnit;
-  cost: number;
-  count: number;
-  avgCost: number;
-}
-
-export interface HistoryStats {
-  /** 积分汇总（仅 success）。 */
-  totals?: HistoryStatsTotal[];
-  /** @deprecated 使用 totals；值同样为积分。 */
-  totalCost: number;
-  /** @deprecated 使用 totals；值同样为积分。 */
-  avgCost: number;
-  /** 全部成功次数（跨单位） */
-  totalCount: number;
-  /** (时间桶 × 单位) 粒度 */
-  buckets: HistoryStatsBucket[];
-  /** (Provider × 单位) 粒度 */
-  byProvider: HistoryStatsProvider[];
-}
+/** HistoryStats 聚合族已迁至 history-documents（V13-ENT-02）；上方 re-export 保持导入面不变。 */
 
 /** Provider 成本估算配置（electron-store: pricing.{providerId}） */
 export type ProviderPricingMode = 'per-image' | 'per-1k-token';

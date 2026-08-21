@@ -1,4 +1,4 @@
-// 微调链（refinement lineage）—— 把扁平的历史记录按 parentHistoryId 组装成线程。
+// 微调链（refinement lineage）—— 把扁平的历史记录按 parentRunId 组装成线程。
 //
 // 规则：
 // - 线程 = 一条原始生成 + 它派生出的所有微调（可分叉成树）。
@@ -7,13 +7,14 @@
 // - 父记录已被删除（或不在当前筛选结果里）的微调，降级为独立根，仅保留「微调」标记。
 // - 防御环引用：任何记录只输出一次。
 //
-// 类型面只依赖结构化节点（id / parentHistoryId / createdAt），不引用 desktop-contracts。
+// 类型面只依赖结构化节点（id / parentRunId / createdAt），不引用 desktop-contracts。
+// V13-ENT-02：节点形状对齐 contracts GenerationJob（ISO 时间 + parentRunId），Web 云任务可直接复用。
 
-/** 组装微调链所需的最小记录形状（桌面 HistoryRecord 结构兼容）。 */
+/** 组装微调链所需的最小记录形状（contracts GenerationJob 结构兼容）。 */
 export interface HistoryLineageNode {
   id: string;
-  parentHistoryId?: string;
-  createdAt: number;
+  parentRunId?: string | null;
+  createdAt: string;
 }
 
 export interface HistoryThreadItem<T extends HistoryLineageNode = HistoryLineageNode> {
@@ -45,7 +46,7 @@ function buildIndex<T extends HistoryLineageNode>(records: T[]): ThreadIndex<T> 
 
   const parentOf = new Map<string, string>();
   for (const r of records) {
-    const pid = r.parentHistoryId;
+    const pid = r.parentRunId ?? undefined;
     if (!pid || pid === r.id || !byId.has(pid)) continue;
     parentOf.set(r.id, pid);
   }
@@ -72,9 +73,9 @@ function buildIndex<T extends HistoryLineageNode>(records: T[]): ThreadIndex<T> 
     if (list) list.push(child);
     else childrenByParent.set(pid, [child]);
   }
-  // 微调按时间正序（迭代顺序）
+  // 微调按时间正序（迭代顺序）；createdAt 为 ISO 字符串，字典序即时间序
   for (const list of childrenByParent.values()) {
-    list.sort((a, b) => a.createdAt - b.createdAt);
+    list.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
   }
 
   return { byId, childrenByParent, parentOf };
@@ -103,7 +104,7 @@ function flattenThread<T extends HistoryLineageNode>(
       refinementIndex: depth === 0 ? 0 : ++refinementCounter,
       childCount: children.length,
       threadSize: 0, // 结尾统一回填
-      orphan: depth === 0 && Boolean(record.parentHistoryId),
+      orphan: depth === 0 && Boolean(record.parentRunId),
     });
     for (const child of children) visit(child, depth + 1);
   };

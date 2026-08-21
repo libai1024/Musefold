@@ -101,7 +101,7 @@ export const DATE_PRESET_OPTIONS: { id: HistoryDatePreset; label: string }[] = [
 
 export const STATUS_OPTIONS: { id: HistoryStatus | 'all'; label: string }[] = [
   { id: 'all', label: '全部状态' },
-  { id: 'success', label: '成功' },
+  { id: 'succeeded', label: '成功' },
   { id: 'failed', label: '失败' },
   { id: 'cancelled', label: '已取消' },
 ];

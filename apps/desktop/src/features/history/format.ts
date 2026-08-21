@@ -1,13 +1,13 @@
 // src/features/history/format.ts
 // 历史详情展示格式化 —— 纯逻辑可单测（TASK-HIS-03）
 
-import type { PromptParams } from '@musefold/desktop-contracts/models';
+import type { PromptParams, CostUnit } from '@musefold/desktop-contracts/generation-snapshots';
 import { formatCost } from '../../lib/format';
 
 /** 历史账本中的成本文案；成功但 cost=null 表示该 Provider 未配置单价。 */
 export function formatHistoryCost(
   cost: number | null | undefined,
-  unit: import('@musefold/desktop-contracts/models').CostUnit = 'point',
+  unit: CostUnit = 'point',
 ): string {
   return cost == null ? '未配单价' : formatCost(cost, unit);
 }

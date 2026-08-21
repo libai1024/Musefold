@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PromptParams } from '@musefold/desktop-contracts/models';
+import type { PromptParams } from '@musefold/desktop-contracts/generation-snapshots';
 import { historyParamsToRefineParams } from '../refine';
 
 const params = (patch: Partial<PromptParams>): PromptParams => ({

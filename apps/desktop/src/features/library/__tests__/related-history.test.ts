@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import {
   directHistoryFallback,
   isMissingRelatedHistoryHandler,
@@ -14,23 +14,37 @@ const promptWorksPanelSource = readFileSync(
   'utf8',
 );
 
-function history(id: string, promptId: string | null, status: HistoryRecord['status'] = 'success'): HistoryRecord {
+function history(
+  id: string,
+  promptId: string | null,
+  status: DesktopGenerationEntry['status'] = 'succeeded',
+): DesktopGenerationEntry {
   return {
     id,
+    sessionId: null,
+    parentRunId: null,
     promptId,
-    providerId: 'provider',
-    model: 'model',
-    promptText: id,
-    negativeText: null,
-    params: null,
+    actorType: 'web',
+    approvalStatus: 'not_required',
     status,
-    errorCode: null,
-    errorMessage: null,
-    imagePath: status === 'success' ? `/tmp/${id}.png` : null,
+    progress: status === 'succeeded' ? 100 : 0,
+    request: { prompt: id, size: 'auto', quality: 'auto', count: 1 },
+    providerModel: 'model',
+    costPoints: null,
+    assets: [],
+    error: null,
+    createdAt: '2026-01-01T00:00:00.000+00:00',
+    startedAt: '2026-01-01T00:00:00.000+00:00',
+    finishedAt: '2026-01-01T00:00:00.000+00:00',
+    providerId: 'provider',
+    imagePath: status === 'succeeded' ? `/tmp/${id}.png` : null,
     cost: null,
     costUnit: 'point',
     durationMs: null,
-    createdAt: 1,
+    params: null,
+    createdAtMs: 1,
+    errorCode: null,
+    errorMessage: null,
   };
 }
 

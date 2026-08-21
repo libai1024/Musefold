@@ -4,7 +4,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Ban, ImageOff, Images, Loader2, Power, RefreshCw } from '../../../components/ui/icons';
-import type { HistoryRecord, Prompt } from '@musefold/desktop-contracts/models';
+import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 // 仅 system.relaunch：DesktopExtras 尚无对应方法。关联查询走 loadRelatedHistory。
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toImageSrc } from '../../../lib/media';
@@ -16,7 +17,7 @@ import { promptRelationLabel } from '../prompt-relation-label';
 
 export function PromptWorksPanel({ prompt }: { prompt: Prompt }) {
   const [includeAll, setIncludeAll] = useState(false);
-  const [items, setItems] = useState<HistoryRecord[]>([]);
+  const [items, setItems] = useState<DesktopGenerationEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,11 +59,11 @@ export function PromptWorksPanel({ prompt }: { prompt: Prompt }) {
   }, [includeAll, prompt.id, reloadKey]);
 
   const successful = useMemo(
-    () => items.filter((item) => item.status === 'success' && item.imagePath),
+    () => items.filter((item) => item.status === 'succeeded' && item.imagePath),
     [items],
   );
   const nonSuccessful = useMemo(
-    () => items.filter((item) => item.status !== 'success'),
+    () => items.filter((item) => item.status !== 'succeeded'),
     [items],
   );
   const lightboxIndex = successful.findIndex((item) => item.id === lightboxId);
@@ -174,7 +175,7 @@ export function PromptWorksPanel({ prompt }: { prompt: Prompt }) {
                         />
                       )}
                       <span className="absolute inset-x-0 bottom-0 bg-black/55 px-1.5 py-1 text-[8.5px] text-white/85 opacity-0 transition-opacity group-hover:opacity-100">
-                        {formatTime(item.createdAt)}
+                        {formatTime(item.createdAtMs)}
                       </span>
                     </button>
                   );
@@ -202,7 +203,7 @@ export function PromptWorksPanel({ prompt }: { prompt: Prompt }) {
                         {item.errorMessage || item.errorCode || '没有更多错误信息'}
                       </span>
                     </span>
-                    <span className="shrink-0 text-[8.5px] text-quaternary">{formatTime(item.createdAt)}</span>
+                    <span className="shrink-0 text-[8.5px] text-quaternary">{formatTime(item.createdAtMs)}</span>
                   </div>
                 ))}
               </div>
@@ -213,7 +214,7 @@ export function PromptWorksPanel({ prompt }: { prompt: Prompt }) {
 
       <ImageLightbox
         path={lightbox?.imagePath ?? null}
-        prompt={lightbox?.promptText}
+        prompt={lightbox?.request.prompt}
         onClose={() => setLightboxId(null)}
         hasPrevious={lightboxIndex > 0}
         hasNext={lightboxIndex >= 0 && lightboxIndex < successful.length - 1}

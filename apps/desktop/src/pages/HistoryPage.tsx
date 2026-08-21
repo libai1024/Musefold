@@ -39,7 +39,7 @@ export function HistoryPage() {
   const [costDashboardOpen, setCostDashboardOpen] = useState(false);
 
   const imageRecords = useMemo(
-    () => records.filter((r) => r.status === 'success' && Boolean(r.imagePath)),
+    () => records.filter((r) => r.status === 'succeeded' && Boolean(r.imagePath)),
     [records],
   );
   const lightboxIndex = imageRecords.findIndex((r) => r.id === lightboxId);
@@ -114,7 +114,7 @@ export function HistoryPage() {
           />
           <ImageLightbox
             path={lightboxRecord?.imagePath ?? null}
-            prompt={lightboxRecord?.promptText}
+            prompt={lightboxRecord?.request.prompt}
             onClose={() => setLightboxId(null)}
             onPrevious={() => goLightbox(-1)}
             onNext={() => goLightbox(1)}

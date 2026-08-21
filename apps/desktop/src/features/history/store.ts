@@ -3,7 +3,11 @@
 
 import { create } from 'zustand';
 import type { HistoryClearRequest, HistoryDeleteResult } from '@musefold/desktop-contracts/ipc';
-import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from '@musefold/desktop-contracts/models';
+import type {
+  DesktopGenerationEntry,
+  HistoryStats,
+  HistoryStatsQuery,
+} from '@musefold/desktop-contracts/history-documents';
 import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 import { desktopGateway } from '../../runtime';
 import { toast } from '../../stores/toast';
@@ -37,7 +41,7 @@ export interface HistoryRemoveOptions {
 }
 
 interface HistoryState {
-  records: HistoryRecord[];
+  records: DesktopGenerationEntry[];
   loading: boolean;
   error: string | null;
   stats: HistoryStats | null;
@@ -70,13 +74,20 @@ interface HistoryState {
   retry: (id: string, opts?: HistoryRetryOptions) => Promise<void>;
 }
 
+/** 筛选状态（cloud 词表 'succeeded'）→ IPC 查询的桌面词表（'success'） */
+const FILTER_STATUS_TO_QUERY: Record<string, HistoryStatus> = {
+  succeeded: 'success',
+  failed: 'failed',
+  cancelled: 'cancelled',
+};
+
 function toListQuery(
   filters: HistoryFilters,
   page?: Pick<HistoryListQuery, 'limit' | 'offset'>,
 ): HistoryListQuery {
   const range = resolveDateRange(filters);
   return {
-    status: filters.status,
+    status: filters.status ? FILTER_STATUS_TO_QUERY[filters.status] : undefined,
     providerId: filters.providerId,
     from: range.from,
     to: range.to,
@@ -260,7 +271,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 }));
 
-export function selectSelectedHistory(s: HistoryState): HistoryRecord | null {
+export function selectSelectedHistory(s: HistoryState): DesktopGenerationEntry | null {
   if (!s.selectedId) return null;
   return s.records.find((r) => r.id === s.selectedId) ?? null;
 }

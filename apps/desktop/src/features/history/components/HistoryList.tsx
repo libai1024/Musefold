@@ -21,7 +21,7 @@ import { historyStatusMeta } from '@musefold/domain/history-status';
 import { historyErrorPresentation } from '../error';
 import { formatHistoryCost } from '../format';
 import { flattenHistoryThreads, type HistoryThreadItem } from '@musefold/domain/history-lineage';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import { Button } from '../../../components/ui/button';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Spinner } from '@musefold/ui';
@@ -164,7 +164,7 @@ function HistoryRow({
   onRetry,
   onDelete,
 }: {
-  item: HistoryThreadItem<HistoryRecord>;
+  item: HistoryThreadItem<DesktopGenerationEntry>;
   selected: boolean;
   retrying: boolean;
   onSelect: () => void;
@@ -181,22 +181,22 @@ function HistoryRow({
   const isRefinement = item.depth > 0 || item.orphan;
   const refinementCount = item.depth === 0 ? item.threadSize - 1 : 0;
   const metadata = [
-    displayModelName(r.model),
-    ...(meta.status === 'success'
+    displayModelName(r.providerModel),
+    ...(meta.status === 'succeeded'
       ? [formatHistoryCost(r.cost, r.costUnit), formatDuration(r.durationMs)]
       : []),
     ...(error ? [error.displayTitle] : []),
-    formatTime(r.createdAt),
+    formatTime(r.createdAtMs),
   ];
   const viewModel: GenerationHistoryItemViewModel = {
     id: r.id,
-    prompt: r.promptText,
+    prompt: r.request.prompt,
     imageUrl:
-      r.status === 'success' && r.imagePath ? toImageSrc(r.imagePath) : null,
+      r.status === 'succeeded' && r.imagePath ? toImageSrc(r.imagePath) : null,
     statusKey: meta.status,
     statusLabel: retrying ? '重试中…' : meta.label,
     statusTone:
-      meta.status === 'success'
+      meta.status === 'succeeded'
         ? 'success'
         : meta.status === 'failed'
           ? 'danger'
@@ -222,7 +222,7 @@ function HistoryRow({
       item={viewModel}
       onOpen={onSelect}
       onOpenImage={
-        r.status === 'success' && r.imagePath ? onOpenLightbox : undefined
+        r.status === 'succeeded' && r.imagePath ? onOpenLightbox : undefined
       }
       actions={
         <>

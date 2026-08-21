@@ -12,7 +12,7 @@ import {
 import { useGenerationStore } from '../../generation/store';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
-import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
+import type { HistoryStatus } from '@musefold/domain/history-status';
 
 export function HistoryFilterBar() {
   const filters = useHistoryStore((s) => s.filters);

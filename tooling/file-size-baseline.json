@@ -18,7 +18,6 @@
   "packages/cloud-client/src/index.ts": 675,
   "packages/core/src/db/design-scheme/repositories.ts": 644,
   "apps/desktop/electron/main/integration.ts": 641,
-  "apps/desktop/src/runtime/desktop-gateway.ts": 637,
   "apps/desktop/src/features/generation/components/ProviderDialog.tsx": 622,
   "apps/desktop/src/features/generation/workbench/PromptReferenceSidebar.tsx": 603
 }

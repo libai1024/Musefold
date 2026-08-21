@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { historyStatusMeta } from '../history-status';
 
 describe('historyStatusMeta', () => {
-  it('success is green, not retryable', () => {
-    const m = historyStatusMeta('success');
+  it('succeeded is green, not retryable', () => {
+    const m = historyStatusMeta('succeeded');
     expect(m.label).toBe('成功');
     expect(m.colorClass).toBe('text-success');
     expect(m.canRetry).toBe(false);
@@ -30,5 +30,10 @@ describe('historyStatusMeta', () => {
   it('unknown status falls back without throwing', () => {
     const m = historyStatusMeta('weird');
     expect(m.status).toBe('failed');
+  });
+
+  it('desktop storage vocab success aliases to succeeded', () => {
+    expect(historyStatusMeta('success').status).toBe('succeeded');
+    expect(historyStatusMeta('success').label).toBe('成功');
   });
 });

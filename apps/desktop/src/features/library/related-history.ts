@@ -1,8 +1,10 @@
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type {
+  DesktopGenerationEntry,
+  DesktopRelatedHistoryResult,
+} from '@musefold/desktop-contracts/history-documents';
 import type {
   HistoryLinkPromptResult,
   RelatedHistoryQuery,
-  RelatedHistoryResult,
 } from '@musefold/desktop-contracts/ipc';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import { desktopGateway } from '../../runtime';
@@ -37,7 +39,7 @@ export async function linkHistoriesToPrompt(
   }
 }
 
-export interface RelatedHistoryLoadResult extends RelatedHistoryResult {
+export interface RelatedHistoryLoadResult extends DesktopRelatedHistoryResult {
   coverage: 'full' | 'direct-only';
   runtimeDbVersion: number | null;
 }
@@ -52,9 +54,9 @@ export function isMissingRelatedHistoryHandler(error: unknown): boolean {
 }
 
 export function directHistoryFallback(
-  records: HistoryRecord[],
+  records: DesktopGenerationEntry[],
   query: RelatedHistoryQuery,
-): RelatedHistoryResult {
+): DesktopRelatedHistoryResult {
   const matching = records
     .filter((record) => record.promptId === query.promptId)
     .map((record) => ({

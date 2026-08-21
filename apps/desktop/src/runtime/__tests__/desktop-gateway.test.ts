@@ -545,8 +545,10 @@ describe('DesktopGateway DesktopExtras', () => {
     await gateway.getLibraryPrompt('missing');
   });
 
-  it('relatedHistory / linkHistoryPrompt / listHistory 直通 api.history 行模型', async () => {
+  it('relatedHistory / listHistory / getHistory map IPC rows to DesktopGenerationEntry', async () => {
     const fake = createFakeApi();
+    fake.histories.set('h1', historyRow('h1'));
+    fake.historyRelated.mockResolvedValue({ items: [historyRow('rel-1')], total: 1 });
     const gateway = createDesktopGateway(fake.api);
     const query: RelatedHistoryQuery = {
       promptId: 'prompt-1',
@@ -557,18 +559,34 @@ describe('DesktopGateway DesktopExtras', () => {
     const linkReq: HistoryLinkPromptRequest = { promptId: 'prompt-1', historyIds: ['h1', 'h2'] };
     const listQuery = { status: 'success' as const, limit: 20 };
 
-    await gateway.relatedHistory(query);
+    const related = await gateway.relatedHistory(query);
     expect(fake.historyRelated).toHaveBeenCalledWith(query);
-    expect(fake.historyRelated.mock.calls[0][0]).toBe(query);
+    expect(related.total).toBe(1);
+    expect(related.items[0]).toMatchObject({
+      id: 'rel-1',
+      status: 'succeeded',
+      imagePath: '/tmp/rel-1.png',
+      providerModel: 'gpt-image-2',
+    });
 
     await gateway.linkHistoryPrompt(linkReq);
     expect(fake.historyLinkPrompt).toHaveBeenCalledWith(linkReq);
     expect(fake.historyLinkPrompt.mock.calls[0][0]).toBe(linkReq);
 
-    await gateway.listHistory(listQuery);
+    const listed = await gateway.listHistory(listQuery);
     expect(fake.historyList).toHaveBeenCalledWith(listQuery);
-    expect(fake.historyList.mock.calls[0][0]).toBe(listQuery);
-    await gateway.getHistory('missing');
+    expect(listed[0]).toMatchObject({
+      id: 'h1',
+      status: 'succeeded',
+      request: expect.objectContaining({ prompt: 'a cat' }),
+      createdAtMs: 1_728_000_000_000,
+    });
+    await expect(gateway.getHistory('missing')).resolves.toBeNull();
+    await expect(gateway.getHistory('h1')).resolves.toMatchObject({
+      id: 'h1',
+      status: 'succeeded',
+      imagePath: '/tmp/h1.png',
+    });
 
     await expect(gateway.getSystemVersion()).resolves.toEqual({ app: '0.0.0-test', db: 10 });
     expect(fake.getVersion).toHaveBeenCalledOnce();

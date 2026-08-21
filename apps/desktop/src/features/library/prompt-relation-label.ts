@@ -1,6 +1,6 @@
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 
-export function promptRelationLabel(item: HistoryRecord): string {
+export function promptRelationLabel(item: DesktopGenerationEntry): string {
   const relations = item.promptRelations ?? [];
   const direct = relations.some((relation) => relation.kind === 'source');
   const saved = relations.some((relation) => relation.kind === 'saved');

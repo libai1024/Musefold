@@ -39,6 +39,8 @@ export {
   generationHistoryQueryToListArgs,
   paginateGenerationJobs,
   historyRecordToGenerationJob,
+  historyRecordToDesktopGenerationEntry,
+  relatedHistoryRowsToDocuments,
   markGenerationJobDeleted,
 } from './history';
 export { DESKTOP_PLACEHOLDER_CSRF_TOKEN, accountStatusToSession } from './account';

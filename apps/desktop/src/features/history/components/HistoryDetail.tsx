@@ -18,7 +18,7 @@ import {
   GenerationHistoryInspectorPanel,
   type GenerationHistoryDetailViewModel,
 } from '@musefold/product-ui';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -124,26 +124,26 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   const provider = providers.find((p) => p.id === record.providerId);
   const error = historyErrorPresentation(record.errorCode, record.errorMessage);
   const isRetrying = retryingIds.has(record.id);
-  const canOpenImage = meta.status === 'success' && Boolean(record.imagePath);
+  const canOpenImage = meta.status === 'succeeded' && Boolean(record.imagePath);
   const detailViewModel: GenerationHistoryDetailViewModel = {
     id: record.id,
-    prompt: record.promptText,
-    negative: record.negativeText,
+    prompt: record.request.prompt,
+    negative: record.request.negative ?? null,
     imageUrl: canOpenImage ? toImageSrc(record.imagePath!) : null,
-    imageUnavailableLabel: meta.status === 'success' ? '图片不可用' : '无生成图片',
+    imageUnavailableLabel: meta.status === 'succeeded' ? '图片不可用' : '无生成图片',
     statusKey: meta.status,
     statusLabel: meta.label,
     statusTone:
-      meta.status === 'success'
+      meta.status === 'succeeded'
         ? 'success'
         : meta.status === 'failed'
           ? 'danger'
           : 'neutral',
-    modelLabel: displayModelName(record.model),
+    modelLabel: displayModelName(record.providerModel),
     metadata: [
       providerName,
-      formatTime(record.createdAt),
-      ...(meta.status === 'success'
+      formatTime(record.createdAtMs),
+      ...(meta.status === 'succeeded'
         ? [formatHistoryCost(record.cost, record.costUnit), formatDuration(record.durationMs)]
         : []),
     ],
@@ -162,7 +162,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
 
   const copyPrompt = async () => {
     try {
-      await navigator.clipboard.writeText(record.promptText);
+      await navigator.clipboard.writeText(record.request.prompt);
       toast.success('已复制提示词');
     } catch {
       toast.error('复制失败', '剪贴板不可用');
@@ -203,7 +203,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   const createDesignScheme = () => {
     setDraftCommand('design-plan');
     setDraftPrompt(
-      `把下面这段提示词整理成一个可复用方案，区分固定规则、必需变量和可选补充：\n\n${record.promptText}`,
+      `把下面这段提示词整理成一个可复用方案，区分固定规则、必需变量和可选补充：\n\n${record.request.prompt}`,
     );
     setView('generate');
     toast.success('已进入方案创建', '确认需求后发送，Agent 会创建设计方案草稿。');
@@ -233,8 +233,8 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
     const references = detailedRecord?.promptReferences ?? [];
     const mappedParams = historyParamsToRefineParams(record.params) ?? {};
     openDraft({
-      prompt: extractUserPromptFromComposed(record.promptText, references),
-      negative: record.negativeText ?? '',
+      prompt: extractUserPromptFromComposed(record.request.prompt, references),
+      negative: record.request.negative ?? '',
       params: mappedParams,
       source: {
         kind: 'history',
@@ -449,7 +449,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
               className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md bg-inset px-2 py-1.5 font-mono text-[10.5px] leading-relaxed text-tertiary"
               data-testid="history-save-preview"
             >
-              {record.promptText || '未记录'}
+              {record.request.prompt || '未记录'}
             </pre>
           </div>
           <DialogFooter>
@@ -495,7 +495,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   );
 }
 
-async function resolveSourceLabel(record: HistoryRecord): Promise<string> {
+async function resolveSourceLabel(record: DesktopGenerationEntry): Promise<string> {
   let promptTitle: string | null = null;
 
   if (record.promptId) {

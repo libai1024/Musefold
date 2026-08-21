@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CornerDownRight, ImageOff } from '../../../components/ui/icons';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import { historyThreadOf, type HistoryThreadItem } from '@musefold/domain/history-lineage';
 import { historyStatusMeta } from '@musefold/domain/history-status';
 import { useHistoryStore } from '../store';
@@ -12,7 +12,7 @@ import { formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';
 import { cn } from '../../../lib/utils';
 
-export function HistoryLineagePanel({ record }: { record: HistoryRecord }) {
+export function HistoryLineagePanel({ record }: { record: DesktopGenerationEntry }) {
   const records = useHistoryStore((s) => s.records);
   const select = useHistoryStore((s) => s.select);
   const thread = useMemo(() => historyThreadOf(records, record.id), [records, record.id]);
@@ -54,7 +54,7 @@ function LineageNode({
   current,
   onSelect,
 }: {
-  item: HistoryThreadItem<HistoryRecord>;
+  item: HistoryThreadItem<DesktopGenerationEntry>;
   current: boolean;
   onSelect: () => void;
 }) {
@@ -77,18 +77,18 @@ function LineageNode({
       data-history-id={r.id}
       data-current={current ? 'true' : 'false'}
       aria-current={current ? 'true' : undefined}
-      title={r.promptText}
+      title={r.request.prompt}
     >
       {item.depth > 0 && (
         <CornerDownRight className="h-3 w-3 shrink-0 text-quaternary" strokeWidth={1.8} aria-hidden="true" />
       )}
-      <NodeThumb path={r.status === 'success' ? r.imagePath : null} />
+      <NodeThumb path={r.status === 'succeeded' ? r.imagePath : null} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className={cn('truncate text-[11px] leading-4', current ? 'font-semibold text-primary' : 'font-medium text-secondary')}>
             {label}
           </span>
-          {meta.status !== 'success' && (
+          {meta.status !== 'succeeded' && (
             <span className={cn('shrink-0 text-[9px]', meta.colorClass)}>{meta.label}</span>
           )}
           {current && (
@@ -98,7 +98,7 @@ function LineageNode({
           )}
         </span>
         <span className="mt-px block truncate font-mono text-[9px] leading-3.5 text-quaternary">
-          {formatTime(r.createdAt)}
+          {formatTime(r.createdAtMs)}
         </span>
       </span>
     </button>

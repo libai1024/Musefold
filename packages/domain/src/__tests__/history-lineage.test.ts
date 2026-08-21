@@ -7,13 +7,15 @@ import {
   type HistoryLineageNode,
 } from '../history-lineage';
 
-function rec(id: string, createdAt: number, parentHistoryId?: string): HistoryLineageNode {
-  return { id, createdAt, parentHistoryId };
+function rec(id: string, createdAtMs: number, parentRunId?: string): HistoryLineageNode {
+  return { id, createdAt: new Date(createdAtMs).toISOString(), parentRunId };
 }
 
-/** 模拟 history.list：createdAt 倒序 */
+/** 模拟 history.list：createdAt（ISO）倒序 */
 function listed(...records: HistoryLineageNode[]): HistoryLineageNode[] {
-  return [...records].sort((a, b) => b.createdAt - a.createdAt);
+  return [...records].sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0,
+  );
 }
 
 describe('flattenHistoryThreads', () => {

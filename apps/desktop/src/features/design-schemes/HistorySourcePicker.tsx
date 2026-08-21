@@ -8,7 +8,7 @@ import { Check, History, Loader2, X } from '../../components/ui/icons';
 import { desktopGateway } from '../../runtime';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
+import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import type { DesignSchemeHistorySourceItem } from '@musefold/desktop-contracts/design-scheme';
 
 /** 默认提取说明（UI 规范 §10.2）：保留视觉方向，排除具体主体。 */
@@ -44,7 +44,7 @@ export function HistorySourcePicker({
   /** 重新调整范围时带入已选中的历史 id。 */
   initialSelectedIds?: string[];
 }) {
-  const [records, setRecords] = useState<HistoryRecord[]>([]);
+  const [records, setRecords] = useState<DesktopGenerationEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set(initialSelectedIds ?? []));
@@ -99,7 +99,7 @@ export function HistorySourcePicker({
     const items: DesignSchemeHistorySourceItem[] = selectedRecords.map((record) => ({
       historyId: record.id,
       imagePath: record.imagePath as string,
-      ...(includePrompts && record.promptText.trim() ? { promptText: record.promptText.trim() } : {}),
+      ...(includePrompts && record.request.prompt.trim() ? { promptText: record.request.prompt.trim() } : {}),
     }));
     onConfirm({ items, note });
   };
@@ -139,7 +139,7 @@ export function HistorySourcePicker({
                         active ? 'border-accent ring-1 ring-accent/45' : 'border-border-subtle hover:border-border-default',
                       )}
                       aria-pressed={active}
-                      title={record.promptText.slice(0, 120)}
+                      title={record.request.prompt.slice(0, 120)}
                       data-testid={`history-pick-${record.id}`}
                     >
                       <img src={toImageSrc(record.imagePath as string)} alt="" className="h-full w-full object-cover" loading="lazy" />

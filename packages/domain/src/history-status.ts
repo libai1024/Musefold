@@ -1,8 +1,9 @@
 // 历史记录三态展示元数据 —— 纯逻辑，可单测（TASK-HIS-01）
-// 与 `@musefold/desktop-contracts/enums` 的 HistoryStatus 同形；domain 不依赖 desktop-contracts。
+// V13-ENT-02：词表对齐 contracts 的 GenerationStatus（'succeeded'），双端共用同一份元数据。
+// 桌面列表查询仍用 desktop-contracts/enums 的桌面词表（'success'），映射见 history store。
 
-/** 桌面本地历史三态；Web 云任务用 contracts 的 GenerationStatus，不是同一套词表。 */
-export type HistoryStatus = 'success' | 'failed' | 'cancelled';
+/** 云任务三态（与 @musefold/contracts 的 GenerationStatus 同形）；domain 不依赖 contracts。 */
+export type HistoryStatus = 'succeeded' | 'failed' | 'cancelled';
 
 export interface HistoryStatusMeta {
   status: HistoryStatus;
@@ -17,8 +18,8 @@ export interface HistoryStatusMeta {
 }
 
 const META: Record<HistoryStatus, HistoryStatusMeta> = {
-  success: {
-    status: 'success',
+  succeeded: {
+    status: 'succeeded',
     label: '成功',
     colorClass: 'text-success',
     canRetry: false,
@@ -40,10 +41,10 @@ const META: Record<HistoryStatus, HistoryStatusMeta> = {
   },
 };
 
-/** 归一化未知 status，避免 UI 崩；未知当 failed 处理但保留原串不可用时回落 */
+/** 归一化未知 status，避免 UI 崩；未知当 failed 处理但保留原串不可用时回落。
+ * 桌面存储词表 `success` 视为 `succeeded`，防止 IPC 行状态漏进展示层时被当成失败。 */
 export function historyStatusMeta(status: string | null | undefined): HistoryStatusMeta {
-  if (status === 'success' || status === 'failed' || status === 'cancelled') {
-    return META[status];
-  }
+  if (status === 'success' || status === 'succeeded') return META.succeeded;
+  if (status === 'failed' || status === 'cancelled') return META[status];
   return META.failed;
 }

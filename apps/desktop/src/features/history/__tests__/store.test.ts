@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import { DEFAULT_HISTORY_FILTERS } from '@musefold/domain/history-filters';
+import { historyEntryFixture } from './entry-fixture';
 
 const mocks = vi.hoisted(() => ({
   retry: vi.fn(),
@@ -20,23 +20,7 @@ vi.mock('../../../runtime', () => ({
 
 import { useHistoryStore } from '../store';
 
-const failedRecord: HistoryRecord = {
-  id: 'history-1',
-  promptId: null,
-  providerId: 'provider-1',
-  model: 'gpt-image-2',
-  promptText: 'a quiet room',
-  negativeText: null,
-  params: null,
-  status: 'failed',
-  errorCode: 'RATE_LIMIT',
-  errorMessage: '429',
-  imagePath: null,
-  cost: null,
-  costUnit: 'point',
-  durationMs: 120,
-  createdAt: Date.now(),
-};
+const failedRecord = historyEntryFixture();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -75,13 +59,13 @@ describe('history remove', () => {
 
 describe('history clear', () => {
   it('passes status filters to IPC and reloads the list', async () => {
-    const successRecord: HistoryRecord = {
-      ...failedRecord,
+    const successRecord = historyEntryFixture({
       id: 'history-success',
-      status: 'success',
+      status: 'succeeded',
+      error: null,
       errorCode: null,
       errorMessage: null,
-    };
+    });
     mocks.list.mockResolvedValue([successRecord]);
 
     await useHistoryStore.getState().clearByStatus(['failed', 'cancelled']);
@@ -137,7 +121,14 @@ describe('history retry state', () => {
 
   it('allows forced regeneration from non-failed history rows', async () => {
     useHistoryStore.setState({
-      records: [{ ...failedRecord, status: 'success', errorCode: null, errorMessage: null }],
+      records: [
+        historyEntryFixture({
+          status: 'succeeded',
+          error: null,
+          errorCode: null,
+          errorMessage: null,
+        }),
+      ],
     });
     mocks.retry.mockResolvedValue({ historyId: 'history-2', status: 'success' });
 

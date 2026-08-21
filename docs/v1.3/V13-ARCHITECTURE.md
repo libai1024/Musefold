@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：v1.3 文档冻结，实施未开始
+> **状态**：Phase 0 与 ENT-01/ENT-02 已落地；ENT-03 起继续
 >
 > **日期**：2026-08-21
 >
@@ -128,10 +128,19 @@ import type { GenerationJob } from '@musefold/contracts';
 
 /** 桌面历史条目：contracts 形状 + 本地语义扩展 */
 export type DesktopGenerationEntry = GenerationJob & {
-  localImagePath?: string;   // 本地文件路径（云为签名 URL/资产）
-  costUnit: CostUnit;        // 记账单位快照
-  promptId?: string;         // 本地提示词外键
+  providerId: string;
+  imagePath: string | null;
+  cost: number | null;
+  costUnit: CostUnit;
+  durationMs: number | null;
+  params: PromptParams | null;
+  createdAtMs: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  promptReferences?: PromptReference[];
+  promptRelations?: PromptHistoryRelation[];
 };
+
 ```
 
 4. **mapper 仍是唯一转换点**。行↔文档转换全部集中在 `runtime/mappers/`；extras 实现内部走 mapper，不再直通行模型到签名。

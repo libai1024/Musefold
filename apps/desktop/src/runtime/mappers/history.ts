@@ -10,6 +10,10 @@ import type {
   GenerationSize,
   GenerationStatus,
 } from '@musefold/contracts';
+import type {
+  DesktopGenerationEntry,
+  DesktopRelatedHistoryResult,
+} from '@musefold/desktop-contracts/history-documents';
 import type { HistoryRecord } from '@musefold/desktop-contracts/models';
 import {
   epochMsToIso,
@@ -134,6 +138,41 @@ export function markGenerationJobDeleted(
   deletedAtMs = Date.now(),
 ): GenerationJob {
   return { ...job, deletedAt: epochMsToIso(deletedAtMs) };
+}
+
+/**
+ * 行 → 桌面历史文档条目（V13-ENT-02）：基类走 GenerationJob 云形状，
+ * 本地语义字段（providerId/imagePath/cost/params/原始错误码/引用快照等）在扩展面无损保留。
+ */
+export function historyRecordToDesktopGenerationEntry(
+  row: HistoryRecord,
+): DesktopGenerationEntry {
+  const job = historyRecordToGenerationJob(row);
+  const entry: DesktopGenerationEntry = {
+    ...job,
+    providerId: row.providerId,
+    imagePath: row.imagePath,
+    cost: row.cost,
+    costUnit: row.costUnit,
+    durationMs: row.durationMs,
+    params: row.params,
+    createdAtMs: row.createdAt,
+    errorCode: row.errorCode,
+    errorMessage: row.errorMessage,
+  };
+  if (row.promptReferences) entry.promptReferences = row.promptReferences;
+  if (row.promptRelations) entry.promptRelations = row.promptRelations;
+  return entry;
+}
+
+/** relatedHistory IPC 行结果 → 文档结果。 */
+export function relatedHistoryRowsToDocuments(
+  result: { items: HistoryRecord[]; total: number },
+): DesktopRelatedHistoryResult {
+  return {
+    items: result.items.map(historyRecordToDesktopGenerationEntry),
+    total: result.total,
+  };
 }
 
 function toCloudSize(size: unknown): GenerationSize {

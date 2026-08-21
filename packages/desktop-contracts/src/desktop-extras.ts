@@ -1,6 +1,7 @@
 // 桌面独有面：library 查询/写、关联历史、searchHistory、账号全量状态、cloudSync、
 // workbench 无损会话文档与原生进度事件。
-// 类型只来自行模型（desktop-contracts），禁止引用 domain/contracts 云形状。
+// V13-ENT-02 起历史面返回文档形状（history-documents 的组合类型），
+// library / provider / account / workbench 面暂仍为行模型（V13-ENT-03/04 逐域文档化）。
 // 故意不放进 ipc.ts，避免 IPC 通道契约文件继续胀大。
 // 运行时请按子路径导入：@musefold/desktop-contracts/desktop-extras
 
@@ -29,12 +30,14 @@ import type {
   ListPromptsQuery,
   PromptStats,
   RelatedHistoryQuery,
-  RelatedHistoryResult,
 } from './ipc';
 import type {
-  HistoryRecord,
+  DesktopGenerationEntry,
+  DesktopRelatedHistoryResult,
   HistoryStats,
   HistoryStatsQuery,
+} from './history-documents';
+import type {
   NewPrompt,
   NewProviderConfig,
   Prompt,
@@ -48,13 +51,16 @@ import type {
   WorkbenchSessionListResult,
 } from './workbench';
 
+/** 输入 DTO 经 extras 面导出（V13-ENT-02：渲染层禁 models，输入类型随消费的方法导出）。 */
+export type { NewPrompt } from './models';
+
 /**
  * 桌面独有面（扁平方法，便于 DesktopGateway implements）。
- * library / searchHistory 对齐 Api.prompt / Api.searchHistory，返回桌面行模型。
- * 关联历史对齐 Api.history.related / linkPrompt / list 与 Api.system.getVersion，
- * 直通行模型，不经 HistoryGateway 的 GenerationJob mapper。
+ * library / searchHistory 对齐 Api.prompt / Api.searchHistory，返回桌面行模型
+ * （V13-ENT-03 文档化）。关联历史与 history 读写自 V13-ENT-02 起返回
+ * history-documents 文档形状，行→文档转换集中在 runtime/mappers/history.ts。
  * account / cloudSync 对齐 Api.account / Api.cloudSync，返回桌面 AccountStatus /
- * CloudSyncSummary，禁止经 AccountSession mapper。workbench 保留摘要计数、runs 与
+ * CloudSyncSummary（V13-ENT-03 文档化）。workbench 保留摘要计数、runs 与
  * 无 seq 的 Provider 重试进度，禁止经云端 WorkbenchSession / SSE 形状有损转换。
  * 命名避开 library 前缀，以免与现有方法撞名。
  */
@@ -103,11 +109,12 @@ export interface DesktopExtras {
   /** 对齐 Api.provider.listModels */
   listProviderModels(id: string): Promise<ModelInfo[]>;
 
-  /** 对齐 Api.history.related */
-  relatedHistory(q: RelatedHistoryQuery): Promise<RelatedHistoryResult>;
+  /** 对齐 Api.history.related；返回文档形状（V13-ENT-02）。 */
+  relatedHistory(q: RelatedHistoryQuery): Promise<DesktopRelatedHistoryResult>;
   /** 对齐 Api.history.linkPrompt */
   linkHistoryPrompt(req: HistoryLinkPromptRequest): Promise<HistoryLinkPromptResult>;
-  /** 对齐 Api.history.list；关联历史在旧 DB 上回退直连记录时用 */
+  /** 对齐 Api.history.list；关联历史在旧 DB 上回退直连记录时用。查询面保持桌面形状
+   *  （HistoryStatus 词表 + epoch from/to），返回文档形状。 */
   listHistory(q?: {
     status?: HistoryStatus;
     providerId?: string;
@@ -115,9 +122,10 @@ export interface DesktopExtras {
     to?: number;
     limit?: number;
     offset?: number;
-  }): Promise<HistoryRecord[]>;
-  /** 对齐 Api.history.get；需要桌面 promptReferences 等无损字段的宿主读取面。 */
-  getHistory(id: string): Promise<HistoryRecord | null>;
+  }): Promise<DesktopGenerationEntry[]>;
+  /** 对齐 Api.history.get；需要桌面 promptReferences 等无损字段的宿主读取面。
+   * 返回文档形状（V13-ENT-02），promptReferences 在扩展字段上无损保留。 */
+  getHistory(id: string): Promise<DesktopGenerationEntry | null>;
   /** 对齐 Api.history.stats */
   historyStats(q: HistoryStatsQuery): Promise<HistoryStats>;
   /** 对齐 Api.history.delete（支持 deleteFile 物理删图） */
