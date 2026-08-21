@@ -14,6 +14,7 @@ import { useGSAP } from '@gsap/react';
 import { useAppStore } from '../../stores/app';
 import { useEmberHatchStore } from '../../stores/emberHatch';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
+import { useDesktopWorkbenchSessionList } from '../../features/generation/workbench/workbench-session-query';
 import { useSkillRuntimeStore } from '../../features/generation/workbench/skill-runtime-store';
 import { useSchemeRunStore } from '../../features/design-schemes/run-store';
 import { useExternalTasksStore } from '../../stores/externalTasks';
@@ -31,9 +32,8 @@ gsap.registerPlugin(useGSAP);
 
 export function EmberMark() {
   const isGenerating = useGenerationWorkbenchStore((s) => s.isGenerating);
-  const hasRunningSession = useGenerationWorkbenchStore((s) =>
-    s.sessions.some((session) => session.latestStatus === 'running'),
-  );
+  const { sessions } = useDesktopWorkbenchSessionList();
+  const hasRunningSession = sessions.some((session) => session.latestStatus === 'running');
   const skillBusy = useSkillRuntimeStore((s) => s.status === 'detecting' || s.status === 'executing');
   const schemeBusy = useSchemeRunStore((s) => s.running);
   // 外部 Agent（控制面）发起的任务同样点亮呼吸态（SET-02）

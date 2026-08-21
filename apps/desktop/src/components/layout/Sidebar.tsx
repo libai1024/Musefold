@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Power } from "../ui/icons";
 import { useAppStore, type ViewKey } from "../../stores/app";
 import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
+import { useDesktopWorkbenchSessionList } from "../../features/generation/workbench/workbench-session-query";
 import { Button } from "../ui/button";
 import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
 import { WORKBENCH_SESSION_RESTART_REQUIRED } from "../../features/generation/workbench/sessionErrors";
@@ -59,7 +60,12 @@ export function Sidebar() {
 
 function ConversationList() {
   const currentView = useAppStore((s) => s.currentView);
-  const sessions = useGenerationWorkbenchStore((s) => s.sessions);
+  const {
+    sessions,
+    loading,
+    error: queryError,
+    refetch,
+  } = useDesktopWorkbenchSessionList();
   const activeSessionId = useGenerationWorkbenchStore((s) => s.activeSessionId);
   // 并行生成：逐会话点亮运行指示（稳定字符串选择器避免无谓重渲）。
   const runningSessionKey = useGenerationWorkbenchStore((s) =>
@@ -68,9 +74,8 @@ function ConversationList() {
       .sort()
       .join(","),
   );
-  const loading = useGenerationWorkbenchStore((s) => s.sessionsLoading);
-  const error = useGenerationWorkbenchStore((s) => s.sessionsError);
-  const loadSessions = useGenerationWorkbenchStore((s) => s.loadSessions);
+  const mutationError = useGenerationWorkbenchStore((s) => s.sessionsError);
+  const error = mutationError ?? queryError;
   const openSession = useGenerationWorkbenchStore((s) => s.openSession);
   const renameSession = useGenerationWorkbenchStore((s) => s.renameSession);
   const archiveSession = useGenerationWorkbenchStore((s) => s.archiveSession);
@@ -119,10 +124,6 @@ function ConversationList() {
     sessions,
     unreadSessionIds,
   ]);
-
-  useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
 
   useEffect(() => {
     const syncPins = () => setPinnedSessionIds(readPinnedSessionIds());
@@ -193,7 +194,7 @@ function ConversationList() {
         onContextMenu={(item, anchor) => {
           setContextMenu({ id: item.id, title: item.title, ...anchor });
         }}
-        onRetry={() => void loadSessions()}
+        onRetry={() => void refetch()}
       />
       {contextMenu && (
         <WorkbenchSessionContextMenu

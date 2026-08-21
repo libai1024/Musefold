@@ -17,6 +17,7 @@ import { useSettingsStore, type SettingsSection } from '../../features/settings/
 import { Kbd } from '@musefold/ui';
 import { cn } from '../../lib/utils';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
+import { useDesktopWorkbenchSessionList } from '../../features/generation/workbench/workbench-session-query';
 import { capabilities } from '../../runtime/capabilities';
 import {
   matchProductModifierShortcut,
@@ -46,7 +47,7 @@ export function CommandPalette() {
 
   const prompts = useLibraryStore((s) => s.prompts);
   const setSettingsSection = useSettingsStore((s) => s.setSection);
-  const sessions = useGenerationWorkbenchStore((s) => s.sessions);
+  const { sessions } = useDesktopWorkbenchSessionList();
   const loadSessions = useGenerationWorkbenchStore((s) => s.loadSessions);
   const openSession = useGenerationWorkbenchStore((s) => s.openSession);
   const openDraft = useGenerationWorkbenchStore((s) => s.openDraft);

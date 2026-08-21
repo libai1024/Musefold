@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   sessionRename: vi.fn(),
   sessionArchive: vi.fn(),
   sessionDelete: vi.fn(),
-  historyLoad: vi.fn(),
   appSetView: vi.fn(),
   // 完成生成时的未读判定读取当前视图；默认模拟用户停留在制作工作台。
   appView: { current: 'generate' },
@@ -54,10 +53,6 @@ vi.stubGlobal('localStorage', {
   get length() { return storageValues.size; },
 } as Storage);
 
-vi.mock('../../../history/store', () => ({
-  useHistoryStore: { getState: () => ({ load: mocks.historyLoad }) },
-}));
-
 import {
   clearSessionTurnsCacheForTests,
   composeRefinementPrompt,
@@ -65,6 +60,11 @@ import {
   useGenerationWorkbenchStore,
   WORKBENCH_PROMPT_LIMIT,
 } from '../store';
+import {
+  readDesktopWorkbenchSessions,
+  resetDesktopWorkbenchSessionQueriesForTests,
+  replaceDesktopWorkbenchSessions,
+} from '../workbench-session-query';
 import { composePromptWithRatioConstraint } from '../promptConstraints';
 import { composePromptWithRefinementImageHint } from '../imageReferences';
 import { WORKBENCH_SESSION_RESTART_REQUIRED } from '../sessionErrors';
@@ -91,6 +91,7 @@ function reset(): void {
   mocks.appView.current = 'generate';
   storageValues.clear();
   clearSessionTurnsCacheForTests();
+  resetDesktopWorkbenchSessionQueriesForTests();
   mocks.sessionEnsure.mockResolvedValue({});
   mocks.sessionList.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 });
   useGenerationWorkbenchStore.setState({
@@ -108,8 +109,6 @@ function reset(): void {
     cancelRequested: false,
     lastError: null,
     activeSessionId: null,
-    sessions: [],
-    archivedSessions: [],
     sessionsLoading: false,
     sessionsError: null,
     refinementContext: null,
@@ -130,12 +129,12 @@ describe('session creation timing', () => {
     expect(useGenerationWorkbenchStore.getState()).toMatchObject({
       isGenerating: true,
       activeSessionId: state.sessionId,
-      sessions: [{
-        id: state.sessionId,
-        title: '一张 极简的 城市海报',
-        conversationKind: 'chat',
-        latestStatus: 'running',
-      }],
+    });
+    expect(readDesktopWorkbenchSessions()[0]).toMatchObject({
+      id: state.sessionId,
+      title: '一张 极简的 城市海报',
+      conversationKind: 'chat',
+      latestStatus: 'running',
     });
     expect(mocks.sessionEnsure).toHaveBeenCalledWith(expect.objectContaining({
       id: state.sessionId,
@@ -389,7 +388,7 @@ describe('submitDraft', () => {
     await state.submitDraft();
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(useGenerationWorkbenchStore.getState().activeSessionId).toBe(state.sessionId);
-    expect(useGenerationWorkbenchStore.getState().sessions[0]).toMatchObject({ title: 'blocked' });
+    expect(readDesktopWorkbenchSessions()[0]).toMatchObject({ title: 'blocked' });
   });
 
   it('passes a staged local image to the provider and clears it after submission', async () => {
@@ -677,9 +676,8 @@ describe('reuse and session restore', () => {
     useGenerationWorkbenchStore.setState({
       sessionId: summary.id,
       activeSessionId: summary.id,
-      sessions: [summary],
-      archivedSessions: [],
     });
+    replaceDesktopWorkbenchSessions(false, [summary]);
 
     mocks.sessionRename.mockResolvedValueOnce({
       ...summary,
@@ -687,7 +685,7 @@ describe('reuse and session restore', () => {
       updatedAt: 210,
     });
     await useGenerationWorkbenchStore.getState().renameSession(summary.id, '新标题');
-    expect(useGenerationWorkbenchStore.getState().sessions[0]).toMatchObject({
+    expect(readDesktopWorkbenchSessions()[0]).toMatchObject({
       title: '新标题',
       turnCount: 3,
       runCount: 4,
@@ -702,11 +700,13 @@ describe('reuse and session restore', () => {
     await useGenerationWorkbenchStore.getState().archiveSession(summary.id);
     expect(useGenerationWorkbenchStore.getState()).toMatchObject({
       activeSessionId: null,
-      sessions: [],
-      archivedSessions: [expect.objectContaining({ id: summary.id, turnCount: 3 })],
       sessionsLoading: false,
       sessionsError: null,
     });
+    expect(readDesktopWorkbenchSessions()).toEqual([]);
+    expect(readDesktopWorkbenchSessions(true)).toEqual([
+      expect.objectContaining({ id: summary.id, turnCount: 3 }),
+    ]);
 
     mocks.sessionArchive.mockResolvedValueOnce({
       ...summary,
@@ -715,10 +715,10 @@ describe('reuse and session restore', () => {
       archivedAt: null,
     });
     await useGenerationWorkbenchStore.getState().archiveSession(summary.id, false);
-    expect(useGenerationWorkbenchStore.getState()).toMatchObject({
-      sessions: [expect.objectContaining({ id: summary.id, title: '新标题' })],
-      archivedSessions: [],
-    });
+    expect(readDesktopWorkbenchSessions()).toEqual([
+      expect.objectContaining({ id: summary.id, title: '新标题' }),
+    ]);
+    expect(readDesktopWorkbenchSessions(true)).toEqual([]);
 
     mocks.sessionDelete.mockResolvedValueOnce({
       ...summary,
@@ -728,11 +728,11 @@ describe('reuse and session restore', () => {
     });
     await useGenerationWorkbenchStore.getState().deleteSession(summary.id);
     expect(useGenerationWorkbenchStore.getState()).toMatchObject({
-      sessions: [],
-      archivedSessions: [],
       sessionsLoading: false,
       sessionsError: null,
     });
+    expect(readDesktopWorkbenchSessions()).toEqual([]);
+    expect(readDesktopWorkbenchSessions(true)).toEqual([]);
   });
 
   it('preserves session lists and exposes mutation errors', async () => {
@@ -749,14 +749,14 @@ describe('reuse and session restore', () => {
       conversationKind: 'prompt' as const,
       latestStatus: null,
     };
-    useGenerationWorkbenchStore.setState({ sessions: [summary] });
+    replaceDesktopWorkbenchSessions(false, [summary]);
     mocks.sessionRename.mockRejectedValueOnce(new Error('IPC unavailable'));
 
     await expect(
       useGenerationWorkbenchStore.getState().renameSession(summary.id, '失败标题'),
     ).rejects.toThrow('IPC unavailable');
+    expect(readDesktopWorkbenchSessions()).toEqual([summary]);
     expect(useGenerationWorkbenchStore.getState()).toMatchObject({
-      sessions: [summary],
       sessionsLoading: false,
       sessionsError: 'IPC unavailable',
     });

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { LibraryBig, PanelLeft, Search } from "../ui/icons";
 import { useAppStore } from "../../stores/app";
 import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
+import { useDesktopWorkbenchSessionList } from "../../features/generation/workbench/workbench-session-query";
 import {
   readPinnedSessionIds,
   SESSION_PINS_CHANGED_EVENT,
@@ -44,7 +45,7 @@ export function TitleBar() {
   const currentView = useAppStore((state) => state.currentView);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const turns = useGenerationWorkbenchStore((state) => state.turns);
-  const sessions = useGenerationWorkbenchStore((state) => state.sessions);
+  const { sessions } = useDesktopWorkbenchSessionList();
   const activeSessionId = useGenerationWorkbenchStore(
     (state) => state.activeSessionId,
   );

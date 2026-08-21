@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { WorkbenchConversationKind, WorkbenchSessionSummary } from '@musefold/desktop-contracts/workbench';
 import {
   Archive,
@@ -22,7 +22,7 @@ import {
 } from '../../../components/ui/dialog';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
-import { useGenerationWorkbenchStore } from '../../generation/workbench/store';
+import { useDesktopWorkbenchSessionList, useGenerationWorkbenchStore } from '../../generation/workbench/store';
 import { WORKBENCH_SESSION_RESTART_REQUIRED } from '../../generation/workbench/sessionErrors';
 import { SectionShell } from '../components/SectionShell';
 
@@ -41,10 +41,14 @@ function formatUpdatedAt(timestamp: number): string {
 }
 
 export function ArchivedChatsSection() {
-  const archivedSessions = useGenerationWorkbenchStore((state) => state.archivedSessions);
-  const loading = useGenerationWorkbenchStore((state) => state.sessionsLoading);
-  const error = useGenerationWorkbenchStore((state) => state.sessionsError);
-  const loadSessions = useGenerationWorkbenchStore((state) => state.loadSessions);
+  const {
+    sessions: archivedSessions,
+    loading,
+    error: queryError,
+    refetch,
+  } = useDesktopWorkbenchSessionList(true);
+  const mutationError = useGenerationWorkbenchStore((state) => state.sessionsError);
+  const error = mutationError ?? queryError;
   const openSession = useGenerationWorkbenchStore((state) => state.openSession);
   const archiveSession = useGenerationWorkbenchStore((state) => state.archiveSession);
   const deleteSession = useGenerationWorkbenchStore((state) => state.deleteSession);
@@ -56,10 +60,6 @@ export function ArchivedChatsSection() {
     [archivedSessions],
   );
   const restartRequired = error === WORKBENCH_SESSION_RESTART_REQUIRED;
-
-  useEffect(() => {
-    void loadSessions(true);
-  }, [loadSessions]);
 
   const restore = async (session: WorkbenchSessionSummary) => {
     setRestoringId(session.id);
@@ -95,7 +95,7 @@ export function ArchivedChatsSection() {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => void loadSessions(true)}
+          onClick={() => void refetch()}
           disabled={loading}
           data-testid="settings-archived-refresh"
         >
@@ -120,7 +120,7 @@ export function ArchivedChatsSection() {
                 立即重启
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={() => void loadSessions(true)}>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
               <RefreshCw className="h-3.5 w-3.5" />
               重试
             </Button>

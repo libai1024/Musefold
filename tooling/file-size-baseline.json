@@ -1,6 +1,5 @@
 {
   "comment": "V13-GOV-01 文件尺寸棘轮 baseline。键为仓库根相对路径，值为登记的行数上限。只减不增：文件缩小或删除后必须同步调低/移除条目；新文件超过 600 行必须先拆分。CI 强制在 tests/repo/file-size-ratchet.test.ts，ESLint max-lines(warn 600) 负责编辑器内即时可见。",
-  "apps/desktop/src/features/generation/workbench/store.ts": 1932,
   "packages/core/src/sync/repository.ts": 1421,
   "apps/web-api/src/modules/prompts/service.ts": 1121,
   "apps/desktop/src/features/design-schemes/SchemeRuntimeDetail.tsx": 1131,

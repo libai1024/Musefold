@@ -370,34 +370,6 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/store.ts",
-    "to": "apps/desktop/src/features/account/doubao-store.ts",
-    "unresolvedTo": "../../account/doubao-store",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "renderer-features-isolated-generation"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/store.ts",
-    "to": "apps/desktop/src/features/history/store.ts",
-    "unresolvedTo": "../../history/store",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "renderer-features-isolated-generation"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "apps/desktop/src/features/history/components/CostDashboard.tsx",
     "to": "apps/desktop/src/features/account/store.ts",
     "unresolvedTo": "../../account/store",

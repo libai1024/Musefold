@@ -56,8 +56,8 @@ interface HistoryState {
   setInspectorCollapsed: (v: boolean) => void;
 
   /**
-   * 失效历史查询。workbench / DataSection 等非 React 调用方仍走此别名，
-   * 避免在棘轮顶格的 workbench/store.ts 上扩 import（SPLIT-03 再改经编排层）。
+   * 失效历史查询。DataSection / 命令面板等非 React 调用方仍走此别名。
+   * workbench 写完成后经 runtime 编排层 invalidate `musefoldQueryKeys.history.all`。
    */
   load: (q?: Pick<HistoryListQuery, 'limit' | 'offset'>) => Promise<void>;
   remove: (id: string, opts?: HistoryRemoveOptions) => Promise<HistoryDeleteResult | null>;

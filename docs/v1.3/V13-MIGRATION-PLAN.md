@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~02 已完成；SPLIT-03 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~03 已完成；SPLIT-04 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解、共享导航配置 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **已完成（2026-08-21）**：服务端镜像字段清零留给 SPLIT-03 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解、共享导航配置 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **已完成（2026-08-21）** |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -191,7 +191,7 @@
 
 ### 完成条件
 
-- Web `App.tsx` ≤ 300 行；桌面 pages 均为薄挂载；page-controllers 覆盖 history/library/generate 三面且双端共用；共享导航/命令目录落地；持久化全走 persist middleware。store 中服务端镜像字段清零交给 SPLIT-03。
+- Web `App.tsx` ≤ 300 行；桌面 pages 均为薄挂载；page-controllers 覆盖 history/library/generate 三面且双端共用；共享导航/命令目录落地；持久化全走 persist middleware。store 中会话列表镜像已在 SPLIT-03 清零。
 
 ## 5. Phase 3：拆分与复用
 
@@ -222,7 +222,14 @@
   验证：typecheck/test；双端工作台 E2E；视觉门禁。
   回滚：按 widget 分卡 revert。
 
-- `V13-SPLIT-03`：workbench store 窄化：会话列表/运行态等服务端镜像移交 page controller + Query；`account/doubao-store`、`history/store` 跨域依赖改经编排层取数（feature 互导 baseline 相应缩减）；`WorkbenchState` 目标 ≤ 40 成员、store ≤ 500 行。
+- `V13-SPLIT-03`：~~workbench store 窄化：会话列表/运行态等服务端镜像移交 page controller + Query；`account/doubao-store`、`history/store` 跨域依赖改经编排层取数；`workbench/store.ts` ≤ 500 行。~~ **已完成（2026-08-21）**。桌面会话列表进 Query（key `{ limit: 200 }` / 归档 `{ limit: 200, archived: true }`，不改 Web `{ limit: 20 }`）；侧栏/标题栏/命令面板/归档设置/EmberMark 读 Query 缓存；`loadSessions` 变为 invalidate/refetch 别名。跨域副作用经 `runtime/workbench-side-effects.ts`（history Query invalidate + 豆包用量刷新）。store 拆为 shared/types/skill/scheme/generation/session 切片，`store.ts` 99 行，棘轮条目移除。feature 互导 69 → 67。
+
+  **裁定**：
+  1. **桌面会话 Query 与 Web 分键**。桌面 extras 仍 `limit: 200` 裸数组；禁止把 Web `{ limit: 20 }` 或 page 对象写进桌面 key。
+  2. **GeneratePage 仍 `listEnabled: false`**。共享 controller 的 session 形状是 contracts（含 draft），桌面侧栏消费的是 summary；不能把 summary 列表塞进同一 `listFn`。
+  3. **运行态（`runningTurns` / `isGenerating`）留 generationSync 切片**。那是客户端 in-flight，不是服务端镜像；Web controller 用 `trackedGenerationJobs`，桌面提交路径仍在 Zustand。
+  4. **`WorkbenchState` ≤ 40 交给 REUSE-01**。本卡清零的是会话列表镜像；Skill/Scheme 写面仍挂在 store 上（design-schemes 9 条入边），成员数随那些动作迁出后才能掉到 40。
+  5. **`history.load()` 仍是 invalidate 别名**。workbench 不再调用它，改经编排层 `musefoldQueryKeys.history.all`。
 
   验证：工作台 E2E 全量；`check:boundaries`。
   回滚：单卡 revert。

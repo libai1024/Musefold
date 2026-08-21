@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~02 已落地；SPLIT-03 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~03 已落地；SPLIT-04 起继续
 >
 > **日期**：2026-08-21
 >
@@ -227,9 +227,9 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 
 判断规则：组件只依赖 contracts/domain 类型与回调 → product-ui；依赖 desktop-contracts、IPC、本地文件 → 留桌面，边界以回调/插槽表达。
 
-### 6.2 workbench/store.ts（1,932 行 → 窄 store + controller 复用）
+### 6.2 workbench/store.ts（已拆为窄组合层 + Query 会话列表）
 
-三 controller（draft/session/generationSync，v1.2.2 SHARE-04）已就位；v1.3 把 `WorkbenchState`（约 123 成员）中的服务端镜像（会话列表、运行态）移入 page controller + Query，把跨域依赖（`account/doubao-store`、`history/store`）改经编排层/Query 取数，store 收敛为草稿与 UI 态。72 处 fan-in 随组件拆分与 controller 迁移同步收敛。
+三 controller（draft/session/generationSync，v1.2.2 SHARE-04）已就位；v1.3 SPLIT-03 把会话列表镜像移入 Query（桌面 `{ limit: 200 }`），跨域依赖改经 `runtime/workbench-side-effects`。`workbench/store.ts` 收敛为组合层（99 行）；写面切片在 `store-*-actions.ts`。运行态仍是客户端 in-flight。Skill/Scheme 动作成员与 design-schemes 入边留给 REUSE-01。
 
 ### 6.3 其余巨型文件
 
