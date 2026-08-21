@@ -13,6 +13,10 @@
 #   desktop                            → 桌面 E2E 门控（与发布分层解耦）
 # Desktop includes packages/** on purpose: ui / product-ui / contracts / domain
 # (and the rest) can affect the desktop renderer, so the E2E gate is conservative.
+# tests/repo/** is the source-check ratchet (docker context, file-size, boundaries).
+# It is content+service so a guard-only change still runs hosted checks, but does
+# not light Electron E2E. tests/e2e, tests/package, and tests/fixtures stay on the
+# desktop E2E group.
 #
 # Hitting any `infra` path treats content, service, shell, and desktop as changed.
 # `infra/**` is the production Caddy/compose/Dockerfile tree. `scripts/deploy/**`
@@ -68,12 +72,14 @@ content:
   - packages/domain/**
   - packages/desktop-contracts/**
   - packages/update-protocol/**
+  - tests/repo/**
 
 service:
   - apps/web-api/**
   - apps/generation-worker/**
   - packages/contracts/**
   - packages/domain/**
+  - tests/repo/**
 
 shell:
   - apps/desktop/electron/**
@@ -93,7 +99,9 @@ desktop:
   - apps/desktop/**
   - packages/**
   - resources/**
-  - tests/**
+  - tests/e2e/**
+  - tests/package/**
+  - tests/fixtures/**
   - requirements-test.txt
   - apps/desktop/electron-builder.yml
 

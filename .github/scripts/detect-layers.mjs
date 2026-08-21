@@ -602,6 +602,30 @@ function selfTest() {
       fail_open: false,
     },
   );
+  assertEqual(
+    'tests/repo is content+service, not desktop E2E',
+    pick(classifyFiles(['tests/repo/web-api-docker-context.test.ts'], groups)),
+    {
+      content: true,
+      service: true,
+      shell: false,
+      desktop: false,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'tests/e2e is desktop E2E only',
+    pick(classifyFiles(['tests/e2e/test_00_harness.py'], groups)),
+    {
+      content: false,
+      service: false,
+      shell: false,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
 
   try {
     patternKind('tsconfig*');

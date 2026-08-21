@@ -13,14 +13,16 @@ describe('Web API Docker build context', () => {
     expect(dockerfile).not.toMatch(/^COPY shared(?:\s|$)/m);
   });
 
-  it('installs only the Web workspaces and excludes the Desktop App dependency graph', () => {
+  it('installs Web, API, and Worker workspaces and excludes the Desktop App graph', () => {
     expect(dockerfile).not.toContain('COPY apps ./apps');
     expect(dockerfile).toContain('COPY apps/web ./apps/web');
     expect(dockerfile).toContain('COPY apps/web-api ./apps/web-api');
+    expect(dockerfile).toContain('COPY apps/generation-worker ./apps/generation-worker');
     expect(dockerfile).toContain('--workspace @musefold/web');
     expect(dockerfile).toContain('--workspace @musefold/web-api');
+    expect(dockerfile).toContain('--workspace @musefold/generation-worker');
     expect(dockerfile).toContain('--include-workspace-root=false');
     expect(dockerignore).toMatch(/^apps\/desktop$/m);
-    expect(dockerignore).toMatch(/^apps\/generation-worker$/m);
+    expect(dockerignore).not.toMatch(/^apps\/generation-worker$/m);
   });
 });
