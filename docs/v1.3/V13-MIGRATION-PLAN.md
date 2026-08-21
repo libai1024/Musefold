@@ -273,7 +273,7 @@
   3. **baseline 归零而非删除机制**。`--ignore-known` 与空 JSON 文件保留：机制还在，能一眼看出「当前冻结了几条」。`tests/repo/boundary-baselines.test.ts` 禁止这两类规则重新进 baseline，并独立复算互导与行模型（不依赖 depcruise 是否被跑）。
   4. **尺寸尾部清单不清零**。剩余 12 条是主进程（`browser-service` / `skill-runtime` / `integration` 等）与 packages（`core/sync/repository`、`ui/extended-primitives`）存量，不属渲染层拆分范围，随各自领域卡消化；桌面渲染层（`apps/desktop/src`）已清零并由守卫锁住。
   5. **`lint` 进 `check`**。78 个 `no-unused-vars` 全是 SPLIT-01/02 拆分留下的死解构与死类型 import（`WorkbenchComposerView` 一处就 57 个）；清完后把 `lint` 放在 `check` 首位，避免再次积累。
-  6. **本卡跑了桌面 E2E 全量（此前各卡只跑相关子集）**，因此暴露出 `test_28_uj04_crash_recovery` 自 SPLIT-03 起失效：它读的 `workbench.sessions` 已随会话列表迁入 Query。断言改查渲染出来的会话行状态（`[data-conversation-row][data-status="running"]`），比读 store 字段更贴近「侧栏不得有常亮运行指示」这条意图。存量 E2E 断言凡引用被迁走的 store 字段，一律照此改成查 DOM，而不是把字段镜像回 store。
+  6. **本卡跑了桌面 E2E 全量（此前各卡只跑相关子集）**，因此暴露出 `test_28_uj04_crash_recovery` 自 SPLIT-03 起失效：它读的 `workbench.sessions` 已随会话列表迁入 Query。断言改查渲染出来的会话行状态（`[data-conversation-row][data-status="running"]`），比读 store 字段更贴近「侧栏不得有常亮运行指示」这条意图。存量 E2E 断言凡引用被迁走的 store 字段，一律照此改成查 DOM，而不是把字段镜像回 store。同批修掉 `test_08` 素材库窄屏断言的竞态：遮罩由 CSS 媒体查询随视口同步翻转，`role` 要等 `matchMedia` 回调 + React 重渲染，满负载下差一帧——改轮询 `[role="dialog"]`，不是加 sleep。
 
   验证：`check:boundaries` 0 违规、`check`（含 lint）、`check:v1.1`、桌面 E2E 全量、Web E2E、共享视觉门禁。
   回滚：收口卡为规则提升，revert 需评估。

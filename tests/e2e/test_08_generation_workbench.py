@@ -462,7 +462,9 @@ def test_prompt_reference_sidebar_layout_toggle_and_overlay(app):
     app.page.set_viewport_size({"width": 640, "height": 760})
     backdrop = app.page.locator('[data-testid="workbench-reference-backdrop"]')
     backdrop.wait_for(state="visible")
-    assert sidebar.get_attribute("role") == "dialog"
+    # 遮罩是纯 CSS 媒体查询（随视口同步翻转），role 要等 matchMedia 回调 + React 重渲染，
+    # 两者天然差一帧：满负载跑全量时立即读会读到旧值，所以这里轮询而不是瞬时断言。
+    app.page.wait_for_selector('[data-testid="workbench-reference-sidebar"][role="dialog"]')
     backdrop.click(position={"x": 5, "y": 20})
     app.page.wait_for_function(
         "() => document.querySelector('[data-testid=\"workbench-reference-sidebar\"]') === null",
