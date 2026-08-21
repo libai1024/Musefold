@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { History, LibraryBig, Link2, PanelLeft, Search, Sparkles } from '@musefold/ui/icons';
+import { getProductCapabilities, productViewTitle } from '@musefold/domain';
+import { PanelLeft, Search, Sparkles } from '@musefold/ui/icons';
 import { IconButton } from '@musefold/ui';
 import {
   ProductSidebar,
@@ -17,10 +18,13 @@ import {
   SESSION_UNREAD_CHANGED_EVENT,
   setSessionPinned,
   setSessionUnread,
-  type ProductSidebarNavItem,
+  buildSidebarNavItems,
+  resolveProductViewKey,
   type WorkbenchSessionListItemViewModel,
 } from '@musefold/product-ui';
 import type { WebGateway } from '../runtime';
+
+const webCapabilities = getProductCapabilities('web');
 
 export type WebView = 'generate' | 'prompts' | 'history' | 'connections' | 'account';
 
@@ -103,30 +107,13 @@ export function WebSidebar({
   );
 
   const closeDeleteDialog = () => setDeleteTarget(null);
-  const navItems: ProductSidebarNavItem[] = [
-    {
-      id: 'prompts',
-      label: '提示词库',
-      icon: <LibraryBig aria-hidden="true" />,
-      count: promptCount,
-      active: view === 'prompts',
-      onSelect: () => onNavigate('prompts'),
-    },
-    {
-      id: 'history',
-      label: '生成历史',
-      icon: <History aria-hidden="true" />,
-      active: view === 'history',
-      onSelect: () => onNavigate('history'),
-    },
-    {
-      id: 'connections',
-      label: '已连接应用',
-      icon: <Link2 aria-hidden="true" />,
-      active: view === 'connections',
-      onSelect: () => onNavigate('connections'),
-    },
-  ];
+  const navItems = buildSidebarNavItems({
+    surface: 'web',
+    capabilities: webCapabilities,
+    currentView: view,
+    onSelect: (id) => onNavigate(id as WebView),
+    counts: { prompts: promptCount },
+  });
 
   return (
     <>
@@ -253,21 +240,14 @@ export function WebTopbar({
     return () => window.removeEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
   }, []);
 
-  const titles: Record<WebView, string> = {
-    generate: '新设计',
-    prompts: '提示词库',
-    history: '生成历史',
-    connections: '已连接应用',
-    account: '账户',
-  };
-  const fullTitle = view === 'generate' && workbenchTitle ? workbenchTitle : titles[view];
+  const fullTitle = view === 'generate' && workbenchTitle ? workbenchTitle : productViewTitle(view);
 
   return (
     <>
       <ProductTopbar
         title={fullTitle}
         displayTitle={productTopbarDisplayTitle(fullTitle)}
-        icon={<ProductViewIcon view={view === 'prompts' ? 'library' : view} />}
+        icon={<ProductViewIcon view={resolveProductViewKey(view)} />}
         statusLabel={mode === 'fixture' ? '开发预览' : undefined}
         titleSuffix={
           view === 'generate' && workbenchSession ? (

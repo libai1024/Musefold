@@ -62,6 +62,12 @@ export * from './navigation/ProductSidebarLayout';
 export * from './navigation/ProductTopbar';
 export * from './navigation/ProductPageHeader';
 export {
+  buildSidebarNavItems,
+  productCommandIcon,
+  productCommandLabel,
+  resolveProductViewKey,
+} from './navigation/product-nav';
+export {
   createMusefoldQueryClient,
   musefoldQueryKeys,
   MUSEFOLD_QUERY_GC_TIME_MS,

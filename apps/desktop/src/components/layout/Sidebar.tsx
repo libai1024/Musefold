@@ -3,8 +3,8 @@
 // 详见 docs/06-ui-design-system.md §6.2
 
 import { useEffect, useMemo, useState } from "react";
-import { Blocks, LibraryBig, History, Power } from "../ui/icons";
-import { useAppStore } from "../../stores/app";
+import { Power } from "../ui/icons";
+import { useAppStore, type ViewKey } from "../../stores/app";
 import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
 import { Button } from "../ui/button";
 import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
@@ -25,12 +25,9 @@ import {
   WorkbenchSessionDeleteDialog,
   type WorkbenchSessionListItemViewModel,
   ProductSidebar,
-  type ProductSidebarNavItem,
+  buildSidebarNavItems,
 } from "@musefold/product-ui";
-import {
-  SIDEBAR_NAV_CAPABILITY,
-  isCapabilityEntryVisible,
-} from "../../runtime/capabilities";
+import { capabilities } from "../../runtime/capabilities";
 
 export function Sidebar() {
   const { isMac } = usePlatform();
@@ -39,29 +36,12 @@ export function Sidebar() {
   const setView = useAppStore((s) => s.setView);
   const newConversation = useAppStore((s) => s.newConversation);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
-  const navItems: ProductSidebarNavItem[] = [
-    {
-      id: "library",
-      label: "提示词库",
-      icon: <LibraryBig aria-hidden="true" />,
-      active: currentView === "library",
-      onSelect: () => setView("library"),
-    },
-    {
-      id: "design-schemes",
-      label: "设计方案",
-      icon: <Blocks aria-hidden="true" />,
-      active: currentView === "design-schemes",
-      onSelect: () => setView("design-schemes"),
-    },
-    {
-      id: "history",
-      label: "生成历史",
-      icon: <History aria-hidden="true" />,
-      active: currentView === "history",
-      onSelect: () => setView("history"),
-    },
-  ].filter((item) => isCapabilityEntryVisible(SIDEBAR_NAV_CAPABILITY, item.id));
+  const navItems = buildSidebarNavItems({
+    surface: "desktop",
+    capabilities,
+    currentView,
+    onSelect: (id) => setView(id as ViewKey),
+  });
 
   return (
     <ProductSidebar

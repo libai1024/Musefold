@@ -24,5 +24,13 @@ describe("desktop host boundary", () => {
     expect(generatePage).toMatch(/desktopPlatformServices/);
     expect(historyPage).toMatch(/desktopPlatformServices/);
     expect(libraryPage).toMatch(/desktopPlatformServices/);
+    const sidebar = readFileSync(new URL('../components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+    const commandPalette = readFileSync(
+      new URL('../components/command/CommandPalette.tsx', import.meta.url),
+      'utf8',
+    );
+    expect(sidebar).toMatch(/buildSidebarNavItems/);
+    expect(commandPalette).toMatch(/visibleProductCommands/);
+    expect(commandPalette).toMatch(/matchProductModifierShortcut/);
   });
 });

@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~03 已完成；ORCH-04 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03、ORCH-01~03 已完成 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解、共享导航配置 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **已完成（2026-08-21）**：服务端镜像字段清零留给 SPLIT-03 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -177,14 +177,21 @@
   验证：全仓 `tsc -b`；vitest 191 files / 1079 tests；`check:boundaries` 862 modules / 69 known；`App.tsx` 1092 → 258；Web E2E workspace 11；桌面 harness+generate+workbench 58。
   回滚：按端分卡 revert。
 
-- `V13-ORCH-04`：共享导航配置与命令路由（v1.2.2 迁移计划 §6 预埋候选）。双端视图清单、快捷键、命令面板项的声明式配置收敛 domain/product-ui，宿主只注册差异项。
+- `V13-ORCH-04`：~~共享导航配置与命令路由（v1.2.2 迁移计划 §6 预埋候选）。双端视图清单、快捷键、命令面板项的声明式配置收敛 domain/product-ui，宿主只注册差异项。~~ **已完成（2026-08-21）**。`packages/domain/src/navigation-catalog.ts` 持有侧栏清单、快捷键、命令面板静态项；product-ui `buildSidebarNavItems` / `productCommandIcon` 装配图标与主题文案。桌面 Sidebar / CommandPalette / AboutSection 与 Web 侧栏/顶栏标题消费同一份目录；宿主只绑定 `run`（Skill 草稿、设置分区、主题/侧栏）以及会话/提示词检索命中。
 
-  验证：命令面板 E2E；导航回归。
+  **裁定**：
+  1. **Web 提示词库侧栏 id 保持 `prompts`**（E2E `nav-prompts`），语义 id 为 `library`；不统一成 desktop 的 `library`。
+  2. **本卡不给 Web 加命令面板**。命令目录 `hosts: desktop`；Web 只消费侧栏/标题/快捷键展示形状。
+  3. **设置分区闸门仍留桌面 `SETTINGS_SECTION_CAPABILITY`**，不进导航目录。
+  4. **命令面板的会话/提示词命中仍由宿主注入**（运行时检索，不是声明式配置）。
+  5. **文案、快捷键、testid 不变**。⌘K / ⌘N 监听抽到 `matchProductModifierShortcut`，F / Enter 仍只出现在关于页。
+
+  验证：domain/product-ui 单测；桌面 capabilities / navigation-routing / host-boundary；命令面板 E2E + 导航回归。
   回滚：单卡 revert。
 
 ### 完成条件
 
-- Web `App.tsx` ≤ 300 行；桌面 pages 均为薄挂载；page-controllers 覆盖 history/library/generate 三面且双端共用；store 中服务端镜像字段为 0；持久化全走 persist middleware。
+- Web `App.tsx` ≤ 300 行；桌面 pages 均为薄挂载；page-controllers 覆盖 history/library/generate 三面且双端共用；共享导航/命令目录落地；持久化全走 persist middleware。store 中服务端镜像字段清零交给 SPLIT-03。
 
 ## 5. Phase 3：拆分与复用
 

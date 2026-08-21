@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Kbd } from '@musefold/ui';
+import { PRODUCT_SHORTCUTS, shortcutDisplayKeys } from '@musefold/domain';
 import { MusefoldLogoAnimated } from '../../../components/brand/MusefoldLogoAnimated';
 import { SectionShell } from '../components/SectionShell';
 import { THIRD_PARTY_PACKAGES } from '../third-party-notices';
@@ -106,13 +107,10 @@ export function AboutSection() {
     };
   }, []);
 
-  const shortcuts: { keys: string[]; label: string }[] = [
-    { keys: [mod, 'K'], label: '命令面板' },
-    { keys: [mod, 'N'], label: '新建' },
-    { keys: [mod, 'F'], label: '搜索' },
-    { keys: ['Enter'], label: '发送（生成）' },
-    { keys: ['Shift', 'Enter'], label: '换行' },
-  ];
+  const shortcuts = PRODUCT_SHORTCUTS.map((spec) => ({
+    keys: shortcutDisplayKeys(spec, mod),
+    label: spec.label,
+  }));
 
   const versionText = version ? `Musefold ${version.app} · DB ${version.db}` : 'Musefold 未读取 · DB 未读取';
 

@@ -62,8 +62,8 @@ describe('desktop capability entry mapping', () => {
     const commandPalette = source('apps/desktop/src/components/command/CommandPalette.tsx');
 
     expect(sidebar).toContain('from "../../runtime/capabilities"');
-    expect(sidebar).toContain('SIDEBAR_NAV_CAPABILITY');
-    expect(sidebar).toContain('isCapabilityEntryVisible');
+    expect(sidebar).toContain('buildSidebarNavItems');
+    expect(sidebar).toContain('capabilities');
     expect(sidebar).not.toContain("getProductCapabilities(");
 
     expect(settingsView).toContain("from '../../../runtime/capabilities'");
@@ -73,14 +73,10 @@ describe('desktop capability entry mapping', () => {
     expect(settingsView).not.toContain("getProductCapabilities(");
 
     expect(commandPalette).toContain("from '../../runtime/capabilities'");
-    expect(commandPalette).toContain('COMMAND_ACTION_CAPABILITY');
-    expect(commandPalette).toContain('isCapabilityEntryVisible');
-    expect(commandPalette).toContain("id: 'nav-design-schemes'");
-    expect(commandPalette).toContain("id: 'act-import-skill'");
-    expect(commandPalette).toContain("id: 'act-providers'");
-    expect(commandPalette).toContain("id: 'act-ai-connections'");
-    expect(commandPalette).toContain("setSettingsSection('providers')");
-    expect(commandPalette).toContain("setSettingsSection('ai')");
+    expect(commandPalette).toContain('visibleProductCommands');
+    expect(commandPalette).toContain("from '@musefold/domain'");
+    expect(commandPalette).toContain('runCommand');
+    expect(commandPalette).toContain("go('generate')");
     expect(commandPalette).not.toContain("getProductCapabilities(");
   });
 });

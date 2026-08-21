@@ -6,31 +6,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  LibraryBig,
-  Blocks,
-  History,
-  SquarePen,
-  Package,
-  Sun,
-  Moon,
-  PanelLeft,
   Search,
   CornerDownLeft,
   FileText,
-  Settings2,
-  Server,
   MessageSquareText,
 } from '../ui/icons';
 import { useAppStore, type ViewKey } from '../../stores/app';
 import { useLibraryStore } from '../../features/library/store';
-import { useSettingsStore } from '../../features/settings/store';
+import { useSettingsStore, type SettingsSection } from '../../features/settings/store';
 import { Kbd } from '@musefold/ui';
 import { cn } from '../../lib/utils';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
+import { capabilities } from '../../runtime/capabilities';
 import {
-  COMMAND_ACTION_CAPABILITY,
-  isCapabilityEntryVisible,
-} from '../../runtime/capabilities';
+  matchProductModifierShortcut,
+  visibleProductCommands,
+  type ProductCommandSpec,
+} from '@musefold/domain';
+import { productCommandIcon, productCommandLabel } from '@musefold/product-ui';
 
 interface CommandAction {
   id: string;
@@ -63,15 +56,14 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // 全局快捷键：⌘K / Ctrl+K 开合面板；⌘N / Ctrl+N 新设计（Codex 开新对话）
+  // 全局快捷键：⌘K / Ctrl+K 开合面板；⌘N / Ctrl+N 新设计（共享 shortcut 目录）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
-      const key = e.key.toLowerCase();
-      if (key === 'k') {
+      const match = matchProductModifierShortcut(e);
+      if (match === 'command-palette') {
         e.preventDefault();
         useAppStore.getState().toggleCommand();
-      } else if (key === 'n') {
+      } else if (match === 'new-design') {
         e.preventDefault();
         useAppStore.getState().newConversation();
         useAppStore.getState().setCommandOpen(false);
@@ -96,51 +88,47 @@ export function CommandPalette() {
     setOpen(false);
   };
 
+  const runCommand = (spec: ProductCommandSpec) => {
+    switch (spec.action) {
+      case 'new-design':
+        newConversation();
+        setOpen(false);
+        return;
+      case 'import-skill': {
+        const workbench = useGenerationWorkbenchStore.getState();
+        workbench.newSession();
+        workbench.setDraftCommand('design-plan');
+        go('generate');
+        return;
+      }
+      case 'navigate':
+        if (spec.navigate) go(spec.navigate as ViewKey);
+        return;
+      case 'settings':
+        if (spec.settingsSection) setSettingsSection(spec.settingsSection as SettingsSection);
+        go((spec.navigate ?? 'settings') as ViewKey);
+        return;
+      case 'toggle-theme':
+        toggleTheme();
+        setOpen(false);
+        return;
+      case 'toggle-sidebar':
+        toggleSidebar();
+        setOpen(false);
+    }
+  };
+
   const actions = useMemo<CommandAction[]>(
-    () => [
-      // 快速动作（Codex ⌘K：一开就有下一步）
-      { id: 'act-new-conversation', label: '新设计', hint: '开一条新的设计对话（⌘N）', group: '快速动作', icon: SquarePen, keywords: 'new conversation chat design xin sheji duihua', run: () => { newConversation(); setOpen(false); } },
-      { id: 'act-import-skill', label: '用 Skill 创建设计方案', hint: '粘贴 GitHub Skill 地址', group: '快速动作', icon: Package, keywords: 'skill import daoru github design scheme', run: () => { const workbench = useGenerationWorkbenchStore.getState(); workbench.newSession(); workbench.setDraftCommand('design-plan'); go('generate'); } },
-      // 导航：制作工作台不设导航项——「新设计」或对话列表即入口（Codex 逻辑）
-      { id: 'nav-library', label: '提示词库', hint: '浏览与管理', group: '导航', icon: LibraryBig, keywords: 'library prompt tkck', run: () => go('library') },
-      { id: 'nav-design-schemes', label: '设计方案', hint: '创建、探索与运行', group: '导航', icon: Blocks, keywords: 'design scheme agent skill sheji fang an', run: () => go('design-schemes') },
-      { id: 'nav-history', label: '生成历史', hint: '生图记录', group: '导航', icon: History, keywords: 'history lishi', run: () => go('history') },
-      { id: 'nav-settings', label: '设置', hint: '服务商 · 生成 · 外观', group: '导航', icon: Settings2, keywords: 'settings preferences shezhi peizhi', run: () => go('settings') },
-      {
-        id: 'act-providers',
-        label: '管理生图模型',
-        hint: '生图接入 / 密钥 / 测试连接',
-        group: '操作',
-        icon: Server,
-        keywords: 'provider api key fuwushang moxing',
-        run: () => { setSettingsSection('providers'); go('settings'); },
-      },
-      {
-        id: 'act-ai-connections',
-        label: '管理 Agent 模型',
-        hint: '文本模型 / 密钥 / 能力检测',
-        group: '操作',
-        icon: MessageSquareText,
-        keywords: 'ai agent assistant api key text model design',
-        run: () => { setSettingsSection('ai'); go('settings'); },
-      },
-      {
-        id: 'act-theme',
-        label: theme === 'dark' ? '切换到浅色' : '切换到深色',
-        group: '操作',
-        icon: theme === 'dark' ? Sun : Moon,
-        keywords: 'theme dark light zhuti',
-        run: () => { toggleTheme(); setOpen(false); },
-      },
-      {
-        id: 'act-sidebar',
-        label: '折叠 / 展开侧栏',
-        group: '操作',
-        icon: PanelLeft,
-        keywords: 'sidebar collapse cebian',
-        run: () => { toggleSidebar(); setOpen(false); },
-      },
-    ].filter((action) => isCapabilityEntryVisible(COMMAND_ACTION_CAPABILITY, action.id)),
+    () =>
+      visibleProductCommands('desktop', capabilities).map((spec) => ({
+        id: spec.id,
+        label: productCommandLabel(spec, theme),
+        hint: spec.hint,
+        group: spec.group,
+        icon: productCommandIcon(spec.id, theme),
+        keywords: spec.keywords,
+        run: () => runCommand(spec),
+      })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [theme]
   );

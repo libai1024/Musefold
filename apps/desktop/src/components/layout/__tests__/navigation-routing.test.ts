@@ -15,15 +15,19 @@ describe("desktop navigation wiring", () => {
     const commandPalette = source("apps/desktop/src/components/command/CommandPalette.tsx");
     const app = source("apps/desktop/src/App.tsx");
 
-    expect(sidebar).toContain('id: "design-schemes"');
+    expect(sidebar).toContain("buildSidebarNavItems");
     expect(productSidebar).toContain("data-testid={item.testId ?? `nav-${item.id}`}");
     expect(sidebar).not.toContain('key: "recipes"');
     expect(productSidebar).not.toContain("recipes");
 
-    expect(commandPalette).toContain("id: 'nav-design-schemes'");
-    expect(commandPalette).toContain("go('design-schemes')");
+    expect(commandPalette).toContain("visibleProductCommands");
+    expect(commandPalette).toContain("runCommand");
     expect(commandPalette).not.toContain("id: 'nav-recipes'");
 
+    const catalog = source("packages/domain/src/navigation-catalog.ts");
+    expect(catalog).toContain('id: "nav-design-schemes"');
+    expect(catalog).toContain('navigate: "design-schemes"');
+    expect(catalog).not.toContain("nav-recipes");
     expect(app).toContain("'design-schemes': DesignSchemesPage");
     expect(app).not.toContain("RecipesPage");
     expect(app).not.toContain("recipes:");

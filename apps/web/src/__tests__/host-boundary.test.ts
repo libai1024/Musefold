@@ -6,6 +6,7 @@ const mainSource = readFileSync(new URL('../main.tsx', import.meta.url), 'utf8')
 const historyView = readFileSync(new URL('../views/HistoryView.tsx', import.meta.url), 'utf8');
 const libraryView = readFileSync(new URL('../views/PromptLibraryView.tsx', import.meta.url), 'utf8');
 const generateView = readFileSync(new URL('../views/GenerateView.tsx', import.meta.url), 'utf8');
+const navigation = readFileSync(new URL('../layout/WebNavigation.tsx', import.meta.url), 'utf8');
 
 describe('web host boundary', () => {
   it('assembles the shared QueryClient at the window root', () => {
@@ -33,5 +34,7 @@ describe('web host boundary', () => {
     expect(generateView).toMatch(/GeneratePageController/);
     expect(historyView).toMatch(/useHistoryPageController/);
     expect(libraryView).toMatch(/useLibraryPageController/);
+    expect(navigation).toMatch(/buildSidebarNavItems/);
+    expect(navigation).toMatch(/productViewTitle/);
   });
 });

@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~03 已落地；ORCH-04 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01 起继续
 >
 > **日期**：2026-08-21
 >
@@ -206,6 +206,8 @@ export function useHistoryPageController(deps: {
 | 桌面独有能力 | DesktopHostServices | 不变 |
 
 Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（调 page controller）+ Provider 装配；桌面 `pages/` 同步切换到同一组 controller，feature store 中对应的服务端面删除。`PlatformServices` 空接口（v1.2.2 遗留）在 ORCH 阶段填充 toast/download/clipboard/openExternal 的双端实现。
+
+导航与命令路由（ORCH-04）：双端侧栏清单、快捷键、命令面板静态项声明在 `packages/domain/src/navigation-catalog.ts`；product-ui `buildSidebarNavItems` 装配图标。宿主只绑定桌面差异动作（Skill 草稿、设置分区、主题/侧栏）以及命令面板的会话/提示词检索命中。Web 提示词库侧栏 id 保持 `prompts`。设置分区闸门仍在桌面 `SETTINGS_SECTION_CAPABILITY`。
 
 ## 6. 巨型文件拆分与复用（SPLIT/REUSE）
 
