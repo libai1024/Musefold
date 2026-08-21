@@ -77,36 +77,33 @@ ELECTRON_BIN = None  # resolved at launch so a missing binary yields a clear err
 
 @pytest.fixture(scope="session", autouse=True)
 def _clipboard_shims():
-    """Expose pbcopy/pbpaste on Linux/Windows as wrappers around the real OS clipboard."""
+    """Windows CreateProcess does not find `pbcopy.cmd`. Route the macOS names to the OS clipboard."""
     if sys.platform == "darwin":
         yield
         return
-    helper = Path(__file__).resolve().parent / "host_clipboard.py"
-    shim_dir = Path(tempfile.mkdtemp(prefix="mf-clip-"))
-    python = sys.executable
-    if os.name == "nt":
-        (shim_dir / "pbcopy.cmd").write_text(
-            f'@echo off\n"{python}" "{helper}" write\n',
-            encoding="utf-8",
-        )
-        (shim_dir / "pbpaste.cmd").write_text(
-            f'@echo off\n"{python}" "{helper}" read\n',
-            encoding="utf-8",
-        )
-    else:
-        (shim_dir / "pbcopy").write_text(
-            f"#!/bin/sh\nexec '{python}' '{helper}' write\n",
-            encoding="utf-8",
-        )
-        (shim_dir / "pbpaste").write_text(
-            f"#!/bin/sh\nexec '{python}' '{helper}' read\n",
-            encoding="utf-8",
-        )
-        os.chmod(shim_dir / "pbcopy", 0o755)
-        os.chmod(shim_dir / "pbpaste", 0o755)
-    os.environ["PATH"] = f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+    from host_clipboard import read as clipboard_read, write as clipboard_write
+
+    original_run = subprocess.run
+
+    def run(args, **kwargs):
+        command = args[0] if isinstance(args, (list, tuple)) and args else None
+        name = Path(str(command)).name.lower() if command is not None else ""
+        if name in {"pbcopy", "pbcopy.cmd", "pbpaste", "pbpaste.cmd"}:
+            text_mode = bool(kwargs.get("text") or kwargs.get("universal_newlines"))
+            if name.startswith("pbcopy"):
+                clipboard_write(kwargs.get("input") or b"")
+                stdout = "" if text_mode else b""
+            else:
+                stdout = clipboard_read()
+                if text_mode:
+                    stdout = stdout.decode("utf-8", errors="replace")
+            stderr = "" if text_mode else b""
+            return subprocess.CompletedProcess(args, 0, stdout, stderr)
+        return original_run(args, **kwargs)
+
+    subprocess.run = run
     yield
-    shutil.rmtree(shim_dir, ignore_errors=True)
+    subprocess.run = original_run
 
 
 CI_ELECTRON_FLAGS = (

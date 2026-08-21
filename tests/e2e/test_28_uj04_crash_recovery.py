@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 import threading
@@ -96,14 +97,26 @@ def hard_kill_and_relaunch(app, pw):
             app.browser.close()
     except Exception:  # noqa: BLE001
         pass
-    app.proc.kill()  # 关键：不给主进程任何收尾机会
-    app.proc.wait(timeout=10)
-    # 连同该 userDataDir 下的孤儿 helper 一起清掉（等价于 Force Quit）。
-    # 注意：模式不能以 `--` 开头，否则 macOS 的 pkill 会当成选项报错。
-    subprocess.run(
-        ["pkill", "-9", "-f", f"user-data-dir={app.user_data_dir}"],
-        check=False, capture_output=True,
-    )
+    pid = app.proc.pid
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            check=False, capture_output=True,
+        )
+        try:
+            app.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            app.proc.kill()
+            app.proc.wait(timeout=5)
+    else:
+        app.proc.kill()  # 关键：不给主进程任何收尾机会
+        app.proc.wait(timeout=10)
+        # 连同该 userDataDir 下的孤儿 helper 一起清掉（等价于 Force Quit）。
+        # 注意：模式不能以 `--` 开头，否则 macOS 的 pkill 会当成选项报错。
+        subprocess.run(
+            ["pkill", "-9", "-f", f"user-data-dir={app.user_data_dir}"],
+            check=False, capture_output=True,
+        )
 
     # 修复后（singleton-lock.ts 启动时清理死进程锁），强杀后**立即**重开
     # 必须一次成功——不允许再靠重试兜底掩盖回归。
