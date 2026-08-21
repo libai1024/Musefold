@@ -142,10 +142,17 @@ def _windows_packaged_layout(arch: str, *, repo: Path = REPO) -> WindowsPackageL
         repo, version=version, arch=arch, meta=meta
     )
     exe_name = f"{meta.product_name}.exe"
-    for layout in candidates:
-        if (layout.unpacked / exe_name).is_file():
-            return layout
-    return candidates[0]
+    complete = [
+        layout
+        for layout in candidates
+        if (layout.unpacked / exe_name).is_file() and layout.installer.is_file()
+    ]
+    if complete:
+        return complete[0]
+    unpacked_only = [
+        layout for layout in candidates if (layout.unpacked / exe_name).is_file()
+    ]
+    return unpacked_only[0] if unpacked_only else candidates[0]
 
 
 def pe_machine(path: Path) -> int:
@@ -223,13 +230,15 @@ def test_windows_package_layout_candidates_follow_current_builder_output():
 
 def test_windows_x64_package_structure():
     layout = _windows_packaged_layout("x64")
-    if not (layout.unpacked / f"{layout.product_name}.exe").is_file():
+    app_exe = layout.unpacked / f"{layout.product_name}.exe"
+    if not app_exe.is_file() or not layout.installer.is_file():
         pytest.skip("missing package; run `npm run package:win -- --x64` first")
     assert_windows_target(layout, PE_MACHINE_AMD64)
 
 
 def test_windows_arm64_package_structure():
     layout = _windows_packaged_layout("arm64")
-    if not (layout.unpacked / f"{layout.product_name}.exe").is_file():
+    app_exe = layout.unpacked / f"{layout.product_name}.exe"
+    if not app_exe.is_file() or not layout.installer.is_file():
         pytest.skip("missing package; run `npm run package:win -- --arm64` first")
     assert_windows_target(layout, PE_MACHINE_ARM64)
