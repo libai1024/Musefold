@@ -152,6 +152,7 @@ export function migrateAndRoll({
     throw new Error('MIGRATION_DATABASE_URL / MIGRATION_DB_PASSWORD / DATABASE_URL missing in compose env file');
   }
   const workerUrl = workerDatabaseUrl(env);
+  const fileArgs = envFile ? ['--env-file', envFile] : [];
 
   dockerRun(
     exec,
@@ -160,6 +161,7 @@ export function migrateAndRoll({
       '--rm',
       '--network',
       dockerNetwork,
+      ...fileArgs,
       '-e',
       `DATABASE_URL=${migrationUrl}`,
       `${image}:${sha}`,
@@ -178,6 +180,7 @@ export function migrateAndRoll({
       '--rm',
       '--network',
       dockerNetwork,
+      ...fileArgs,
       '-e',
       `DATABASE_URL=${workerUrl}`,
       `${image}:${sha}`,

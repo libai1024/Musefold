@@ -1,5 +1,8 @@
 import { runMigrations } from 'graphile-worker';
-import { loadWorkerConfig } from './config.js';
 
-const config = loadWorkerConfig();
-await runMigrations({ connectionString: config.DATABASE_URL });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is required for queue migrations');
+}
+
+await runMigrations({ connectionString });
