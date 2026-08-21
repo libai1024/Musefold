@@ -17,7 +17,7 @@
 | 架构方法 | Feature-Sliced Design | **monorepo 包级 FSD 等价实现**（contracts→domain→product-ui→hosts，v1.3 起 feature 级同层不互导） | FSD 的 layers/slices 语义由包结构承载，不再 `src/` 内重排七层目录 |
 | 服务端状态 | TanStack Query | **TanStack Query（v1.3 引入）** | gateway 六端口即 queryFn 边界；此前 18 个 store 手写缓存，v1.3 STATE 卡迁移 |
 | 样式 | Tailwind CSS + shadcn/ui | **Tailwind v4（桌面）+ `@musefold/ui` 原语库（mf-ui token 类）**；Web 端手写 CSS（v1.3 待统一） | 不引入 shadcn/ui：`@musefold/ui` 是等价的内部组件库，且被像素级视觉门禁锁定 |
-| 表单 | React Hook Form + Zod | **React Hook Form + Zod**（已装） | 已符合；v1.3 规范为「新表单一律 RHF+Zod」，存量表单迁移分批 |
+| 表单 | React Hook Form + Zod | **不用表单库**：受控草稿 + 纯函数校验（`useDraftForm`） | 刻意偏离：RHF 装了一年 0 调用点，对话框复杂度在异步副作用而非字段校验，见 §3a |
 | 契约校验 | Zod | Zod v4（全仓统一） | 一致；契约单一来源 `packages/contracts` |
 | 单元/组件测试 | Vitest + Testing Library | **Vitest 4**（渲染用 `renderToStaticMarkup`，无 jsdom/RTL） | 现状如此；新测试允许引入 RTL 评估，但存量测试体例（轻量 DOM 断言）继续有效 |
 | E2E | Playwright | **Python pytest + Playwright**（`tests/e2e/`，桌面 222 例）+ Web Playwright TS（`apps/web/e2e/`） | 双轨保持；桌面 E2E 是每张任务卡的回归安全网 |
@@ -110,12 +110,29 @@ apps/web           ← contracts/domain/ui/product-ui/cloud-client；禁 desktop
 - **新增实体流程**：先 `packages/contracts` 定 schema → domain 端口（如需）→ 双端 gateway 实现 → mapper（桌面）→ page-controller → 组件。一步到位，不留「先在桌面行模型上做、以后再统一」。
 - Zod schema 即文档：字段注释写业务语义（成本单位、快照冻结时机等），与 mapper 内的有损字段注释配对。
 
-## 3a. 表单（React Hook Form + Zod）
+## 3a. 表单（受控草稿 + 纯函数校验）
 
-- **新表单一律 RHF + Zod**（`useForm` + `zodResolver`），schema 放 feature 内或 domain（跨端共享时）。
-- 受控轻输入（单 toggle、单选）不必上 RHF；中等复杂度以上（多字段、校验、脏检查、默认值回填）必须。
-- zodResolver 的 schema 与 contracts 实体 schema 分开维护——表单 schema 描述「输入约束」，契约 schema 描述「传输形状」，二者经 `z.input`/`z.output` 或显式映射桥接，不共用。
-- 提交动作用 `useMutation`（见 §4），RHF `handleSubmit` 内只做校验与取值，不写副作用。
+**不引入表单库。** 2026-08-21 复核：`react-hook-form` 装了近一年、`useForm` 调用点 0 个，规范与现实不符；依赖已移除，规范改为描述实际范式。理由是本应用的「表单」复杂度不在字段校验上——`ProviderDialog`(20 个 useState / 12 处 await)、`AiConnectionDialog`(17 / 9) 的状态大半是拉模型列表、测连接、写系统钥匙串这类异步副作用与远端结果，表单库管不到；真正的字段部分（`PromptEditorForm`）只有草稿对象加 touched。引入表单库要在 product-ui 加运行时依赖，收益覆盖不了这个代价（v1.3 D3 只批准了 `@tanstack/react-query` 一个新依赖）。
+
+范式是 `useDraftForm`（`@musefold/product-ui`）：
+
+```tsx
+const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
+// validate 是纯函数 (draft) => Partial<Record<Field, string>>，可用 zod 实现，也可以直接写判断
+<Input
+  value={form.draft.title}
+  onChange={(e) => form.setField("title", e.target.value)}
+  onBlur={() => form.markTouched("title")}
+  aria-invalid={Boolean(form.errorFor("title"))}
+/>;
+// 提交：form.touchAll(["title", "content"]) 后判 form.valid
+```
+
+- `errorFor` 只在字段被碰过后吐错误；提交路径用 `touchAll` 一次点亮。
+- `dirty` 与 `initial` 逐值比较；宿主换 `initial`（保存成功后）草稿与 touched 自动归位。
+- 校验一律是纯函数，不在其中做 IO；跨端共享的校验放 domain。
+- 提交副作用用 `useMutation`（见 §4），不写在校验里。
+- 参考实现：`packages/product-ui/src/library/PromptEditorForm.tsx`。
 
 ## 4. 数据获取与状态（v1.3 STATE）
 

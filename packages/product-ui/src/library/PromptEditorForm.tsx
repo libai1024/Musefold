@@ -1,13 +1,14 @@
 import { ChevronDown, Pin, X } from "@musefold/ui/icons";
 import { Button, IconButton, Input, Textarea } from "@musefold/ui";
 import {
+  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
+import { useDraftForm } from "../forms/useDraftForm";
 import type { PromptEditorDraft } from "../models";
 
 const emptyDraft: PromptEditorDraft = {
@@ -74,44 +75,37 @@ export function PromptEditorForm({
   onCancel,
   onSubmit,
 }: PromptEditorFormProps) {
-  const [draft, setDraft] = useState<PromptEditorDraft>(initial);
-  const [touched, setTouched] = useState<{
-    title?: boolean;
-    content?: boolean;
-  }>({});
+  const validate = useCallback(
+    (current: PromptEditorDraft) => {
+      const next: { title?: string; content?: string } = {};
+      if (!current.title.trim()) next.title = "标题必填";
+      else if (current.title.length > titleMaxLength) {
+        next.title = `标题不超过 ${titleMaxLength} 字`;
+      }
+      if (!current.content.trim()) next.content = "正文必填";
+      return next;
+    },
+    [titleMaxLength],
+  );
+  const form = useDraftForm<PromptEditorDraft, "title" | "content">({
+    initial,
+    validate,
+  });
+  const { draft, setField, dirty, valid } = form;
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [negativeOpen, setNegativeOpen] = useState(
     !negativeCollapsible || Boolean(initial.negative),
   );
-  const initialRef = useRef(initial);
   const formRef = useRef<HTMLElement>(null);
 
+  // 草稿与 touched 由 useDraftForm 随 initial 归位；这里只重置本组件自己的开合状态。
   useEffect(() => {
-    setDraft(initial);
-    initialRef.current = initial;
-    setTouched({});
     setConfirmDiscard(false);
     setNegativeOpen(!negativeCollapsible || Boolean(initial.negative));
   }, [initial, negativeCollapsible]);
 
-  const errors = useMemo(() => {
-    const next: { title?: string; content?: string } = {};
-    if (!draft.title.trim()) next.title = "标题必填";
-    else if (draft.title.length > titleMaxLength) {
-      next.title = `标题不超过 ${titleMaxLength} 字`;
-    }
-    if (!draft.content.trim()) next.content = "正文必填";
-    return next;
-  }, [draft.content, draft.title, titleMaxLength]);
-
-  const valid = Object.keys(errors).length === 0;
-  const dirty = useMemo(
-    () => JSON.stringify(draft) !== JSON.stringify(initialRef.current),
-    [draft],
-  );
-
   const submit = () => {
-    setTouched({ title: true, content: true });
+    form.touchAll(["title", "content"]);
     if (!valid || busy) return;
     void onSubmit({
       ...draft,
@@ -186,22 +180,16 @@ export function PromptEditorForm({
           submit();
         }}
       >
-        <EditorField
-          label="标题"
-          required
-          error={touched.title ? errors.title : undefined}
-        >
+        <EditorField label="标题" required error={form.errorFor("title")}>
           <Input
             value={draft.title}
             maxLength={titleMaxLength}
             autoFocus
             placeholder={titlePlaceholder}
-            aria-invalid={Boolean(touched.title && errors.title)}
+            aria-invalid={Boolean(form.errorFor("title"))}
             data-testid={ids.title}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, title: event.target.value }))
-            }
-            onBlur={() => setTouched((current) => ({ ...current, title: true }))}
+            onChange={(event) => setField("title", event.target.value)}
+            onBlur={() => form.markTouched("title")}
           />
         </EditorField>
 
@@ -211,31 +199,20 @@ export function PromptEditorForm({
             maxLength={500}
             placeholder={descriptionPlaceholder}
             data-testid={ids.description}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                description: event.target.value,
-              }))
-            }
+            onChange={(event) => setField("description", event.target.value)}
           />
         </EditorField>
 
-        <EditorField
-          label="正文"
-          required
-          error={touched.content ? errors.content : undefined}
-        >
+        <EditorField label="正文" required error={form.errorFor("content")}>
           <Textarea
             value={draft.content}
             maxLength={contentMaxLength}
             rows={10}
             placeholder={contentPlaceholder}
-            aria-invalid={Boolean(touched.content && errors.content)}
+            aria-invalid={Boolean(form.errorFor("content"))}
             data-testid={ids.content}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, content: event.target.value }))
-            }
-            onBlur={() => setTouched((current) => ({ ...current, content: true }))}
+            onChange={(event) => setField("content", event.target.value)}
+            onBlur={() => form.markTouched("content")}
           />
         </EditorField>
 
@@ -260,12 +237,7 @@ export function PromptEditorForm({
                 rows={4}
                 placeholder={negativePlaceholder}
                 data-testid={ids.negative}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    negative: event.target.value,
-                  }))
-                }
+                onChange={(event) => setField("negative", event.target.value)}
               />
             )}
           </div>
@@ -277,9 +249,7 @@ export function PromptEditorForm({
               rows={4}
               placeholder={negativePlaceholder}
               data-testid={ids.negative}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, negative: event.target.value }))
-              }
+              onChange={(event) => setField("negative", event.target.value)}
             />
           </EditorField>
         )}
@@ -289,12 +259,7 @@ export function PromptEditorForm({
             <input
               type="checkbox"
               checked={draft.isPinned}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  isPinned: event.target.checked,
-                }))
-              }
+              onChange={(event) => setField("isPinned", event.target.checked)}
             />
             <Pin aria-hidden="true" />
             <span>置顶</span>

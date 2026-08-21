@@ -45,7 +45,7 @@
 | 原生毛玻璃 | Electron `vibrancy`(mac) / `backgroundMaterial`(win) | 原生系统提供，非 CSS 模拟 |
 | 标题栏 | mac: `titleBarStyle:'hiddenInset'` + `vibrancy:'under-window'`<br>win: `titleBarStyle:'hidden'` + `titleBarOverlay:true` + `backgroundMaterial:'mica'` | 2026 官方标准，保留原生系统按钮 |
 | 状态 | **zustand v5 + immer v11** | 轻量、活跃 |
-| 表单 | **react-hook-form v7 + zod v4** | 主流、活跃 |
+| 表单 | **不用表单库**：受控草稿 + 纯函数校验（`useDraftForm`，2026-08-21 裁定，见[前端开发规范 §3a](./frontend/DEVELOPMENT-GUIDE.md)）；zod v4 仍用于契约与 IPC 边界 | 对话框复杂度在异步副作用而非字段校验 |
 | 拖拽 | **@dnd-kit/core** | 无更好替代，功能仍可用（接受发布停滞风险） |
 | 树形 | **react-arborist** | 2026-07 仍活跃，虚拟化+拖拽内置 |
 | 虚拟化 | @tanstack/react-virtual | 极活跃，列表场景备用 |

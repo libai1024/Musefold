@@ -1,6 +1,6 @@
 {
   "name": "musefold-app",
-  "version": "0.5.0-dev.68",
+  "version": "0.5.0-dev.69",
   "description": "Forge your image prompts — 跨平台生图提示词管理桌面 App",
   "main": "./out/main/index.js",
   "author": "Musefold",
@@ -56,7 +56,6 @@
     "react": "^18.3.1",
     "react-arborist": "^3.16.0",
     "react-dom": "^18.3.1",
-    "react-hook-form": "^7.83.0",
     "tailwind-merge": "^2.5.0",
     "ulid": "^3.0.1",
     "yaml": "^2.9.0",
