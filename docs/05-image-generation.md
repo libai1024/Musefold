@@ -111,6 +111,33 @@ export async function loadApiKey(providerId: string): Promise<string | null> {
 - 渲染进程不持有明文 key：查询 Provider 配置只返回 `hasKey` + `keySuffix`（末 4 位）
 - 明文 key 只在主进程 Provider 实例内存中短暂存在，请求后释放
 
+### 4.3 Windows：密文只在主密钥落盘之后才写
+
+Chromium 在 Windows 上把 DPAPI 包裹的 safeStorage 主密钥写进 userData 的
+`Local State`（pref 名 `os_crypt.encrypted_key`）。`os_crypt_win.cc` 只调用
+`PrefService::SetString`，不调用 `CommitPendingWrite`，因此这次写入要等
+`JsonPrefStore` 的 10 秒提交定时器。定时器到期前强制退出（崩溃、断电、任务
+管理器结束进程），重启后 Chromium 找不到密钥就会另生成一把，此前写下的密文
+全部作废，界面表现为「未配置密钥」。
+
+Chromium 没有暴露强制落盘的接口，所以 `electron/security/os-crypt-durability.ts`
+把因果反过来：**主密钥在盘上之后才允许写密文**。`saveApiKey` 与
+`ElectronAiSecretKeychain.save` 在加密前调用 `ensureOsCryptKeyPersisted()`，
+它轮询 `Local State` 直到 `os_crypt.encrypted_key` 出现（预算 20s，Chromium 的
+定时器是 10s）。
+
+- 等待是同步的。渲染进程独立于主进程，主进程短暂阻塞不会冻结界面；而
+  `saveApiKey` 的调用方（IPC、automation `LocalAdminOps`、账号编排）全是同步
+  接口，改异步要穿透三条链路。代价只落在「装机后头 10 秒内保存密钥」，一台机器
+  一生至多遇到一次；此后 `Local State` 已在盘上，探测是一次 `readFileSync`。
+- 超时（20s）后放行并打日志：挡住保存比丢一次密钥更糟。
+- macOS 不受影响（密钥在系统钥匙串，独立于 userData）。Linux 走
+  `setUsePlainTextEncryption` 亦不受影响，故该等待只在 `win32` 生效。
+- 密文在但解不开时 `loadApiKey` 仍返回 `null`（界面显示「未配置」），但会打一行
+  warn，便于把「没配过」和「主密钥换了」区分开。
+- 回归用例：`tests/e2e/test_28_uj04_crash_recovery.py::test_uj04_hard_kill_leaves_no_running_state`
+  （强杀后重开，已存密钥必须仍可解密）。Windows E2E 不再降级为明文存储。
+
 ---
 
 ## 5. 错误处理与重试

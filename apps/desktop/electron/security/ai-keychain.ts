@@ -1,6 +1,7 @@
 import Store from 'electron-store';
 import { AI_CONNECTION_STORE_NAME } from '@musefold/core/constants';
 import { resolveSafeStorage } from './e2e-safe-storage';
+import { ensureOsCryptKeyPersisted } from './os-crypt-durability';
 
 export interface AiSecretKeychain {
   save(connectionId: string, apiKey: string): void;
@@ -37,6 +38,7 @@ export class ElectronAiSecretKeychain implements AiSecretKeychain {
     if (!this.encryption.isEncryptionAvailable()) {
       throw new Error('系统不支持 safeStorage 加密，无法保存密钥');
     }
+    ensureOsCryptKeyPersisted();
     const encrypted = this.encryption.encryptString(normalized).toString('base64');
     this.store.set(`keys.${connectionId}`, encrypted);
   }
@@ -47,6 +49,8 @@ export class ElectronAiSecretKeychain implements AiSecretKeychain {
     try {
       return this.encryption.decryptString(Buffer.from(encrypted, 'base64'));
     } catch {
+      // 密文在但解不开 = 系统主密钥换了，界面只会显示「未配置」。留一行日志好定位。
+      console.warn(`[security] AI 连接 ${connectionId} 的密钥无法解密，系统主密钥可能已变更`);
       return null;
     }
   }

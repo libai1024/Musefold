@@ -5,6 +5,7 @@
 import Store from 'electron-store';
 import { STORE_NAME } from '@musefold/core/constants';
 import { resolveSafeStorage } from './e2e-safe-storage';
+import { ensureOsCryptKeyPersisted } from './os-crypt-durability';
 
 const store = new Store<{ keys: Record<string, string> }>({
   name: STORE_NAME,
@@ -22,6 +23,7 @@ export function saveApiKey(providerId: string, apiKey: string): void {
   if (!encryption.isEncryptionAvailable()) {
     throw new Error('系统不支持 safeStorage 加密，无法保存密钥');
   }
+  ensureOsCryptKeyPersisted();
   const encrypted = encryption.encryptString(apiKey);
   store.set(`keys.${providerId}`, encrypted.toString('base64'));
 }
@@ -34,6 +36,8 @@ export function loadApiKey(providerId: string): string | null {
     const buf = Buffer.from(b64, 'base64');
     return resolveSafeStorage().decryptString(buf);
   } catch {
+    // 密文在但解不开 = 系统主密钥换了，界面只会显示「未配置」。留一行日志好定位。
+    console.warn(`[security] provider ${providerId} 的密钥无法解密，系统主密钥可能已变更`);
     return null;
   }
 }
