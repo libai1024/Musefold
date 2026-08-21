@@ -23,6 +23,8 @@ env:
   CI: true
   MUSEFOLD_TVT_KEY: ''
   NODE_VERSION: '24'
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
 
 jobs:
   changes:
@@ -123,18 +125,38 @@ jobs:
           sys.exit(1)
           "
 
+      - name: Prove Playwright
+        run: python -c "import pytest, playwright; print('pytest', pytest.__version__, 'playwright', playwright.__version__)"
+
       - name: Full Electron E2E
         if: runner.os == 'Linux'
-        run: xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -q --junitxml=e2e-junit.xml --maxfail=8
+        run: |
+          set -o pipefail
+          xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml --maxfail=3 | tee e2e.log
 
       - name: Full Electron E2E
         if: runner.os == 'Windows'
-        run: python -m pytest tests/e2e -q --junitxml=e2e-junit.xml --maxfail=8
+        run: |
+          set -o pipefail
+          python -m pytest tests/e2e -vv --tb=short --junitxml=e2e-junit.xml --maxfail=3 | tee e2e.log
+
+      - name: Annotate E2E failure
+        if: failure()
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          log = Path('e2e.log')
+          text = log.read_text(encoding='utf-8', errors='replace')[-2500:] if log.exists() else 'e2e.log missing'
+          escaped = text.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
+          print(f'::error title=Electron E2E::{escaped}')
+          PY
 
       - name: Upload E2E report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-report-${{ runner.os }}
-          path: e2e-junit.xml
+          path: |
+            e2e-junit.xml
+            e2e.log
           if-no-files-found: ignore
