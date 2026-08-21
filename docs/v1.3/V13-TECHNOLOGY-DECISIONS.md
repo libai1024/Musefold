@@ -61,7 +61,7 @@ v1.2.2 D3 描述 Web 状态为「gateway + query cache」，实际全仓（deskt
 
 实测 renderer `features/*` 存在 26+ 文件跨 feature 相对导入（settings×9、design-schemes×6 深入 `generation/workbench/store`，workbench store 反向依赖 `account`、`history` store，`HistoryDetail` 同时导入三个 feature 的模块）。features 因此是目录分类而非模块边界——与 FSD「同层 slice 禁止互导」的核心规则相悖，也让「删掉一个 feature」不可想象。
 
-**结论**：新增 depcruise 规则 `renderer-features-isolated`：`apps/desktop/src/features/<a>/**` 禁止 import `features/<b>/**`。存量违规进 baseline 冻结只减不增。消除路径两选一：多个 feature 都要的模块**下沉** product-ui（或 domain），业务上不可分的**合并** feature（design-schemes 与 generation 若判不可分，合并比虚假分离诚实）。跨 feature 通信走编排 hook 或 gateway，禁止 store 直接 import 兄弟 store。
+**结论**：新增 depcruise 规则 `renderer-features-isolated`：`apps/desktop/src/features/<a>/**` 禁止 import `features/<b>/**`。存量违规进 baseline 冻结只减不增。消除路径两选一：多个 feature 都要的模块**下沉** product-ui（或 domain/contracts/lib），业务上不可分的**合并** feature。跨 feature 通信走 runtime 编排入口或 gateway，禁止 store 直接 import 兄弟 store。REUSE-01 裁定不合并 design-schemes×generation；baseline 67→17（剩下 history/library/onboarding/account/share）。
 
 不采用：照搬 FSD 七层目录重排（monorepo 包结构已等价实现其分层语义，目录重排是无对价 churn）。
 

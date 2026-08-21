@@ -17,7 +17,7 @@ import {
   parseDesignPlanBody,
   parseDesignPlanIntent,
 } from "./composerIntent";
-import { useSchemeRunStore, useSchemeCreationStore } from "./workbenchCrossFeature";
+import { useSchemeRunStore, useSchemeCreationStore } from "@renderer/runtime/scheme-access";
 
 export function useWorkbenchComposerStore() {
   const prompt = useGenerationWorkbenchStore((s) => s.draftPrompt);

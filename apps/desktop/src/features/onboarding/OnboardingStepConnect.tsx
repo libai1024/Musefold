@@ -19,7 +19,8 @@ import {
   PROVIDER_PRESETS,
 } from '@musefold/domain/constants';
 import { useOnboardingStore } from './store';
-import { useDoubaoAccountStore, ValidationResultBanner } from './onboardingCrossFeature';
+import { useDoubaoAccountStore } from '@renderer/runtime/account-access';
+import { ValidationResultBanner } from '@renderer/runtime/generation-access';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { formatPoints } from '@musefold/domain';

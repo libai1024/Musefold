@@ -9,7 +9,7 @@ import type {
   PromptTarget,
 } from '@musefold/desktop-contracts/enums';
 import type { PromptParams } from '@musefold/desktop-contracts/generation-snapshots';
-import { DEFAULT_REFINE_PARAMS, REFINE_COUNTS, type RefineParams } from './params';
+import { DEFAULT_REFINE_PARAMS, REFINE_COUNTS, type RefineParams } from '../../lib/generation-params';
 
 const QUALITIES = new Set<ImageQuality>(['low', 'medium', 'high', 'auto']);
 const BACKGROUNDS = new Set<ImageBackground>(['auto', 'transparent', 'opaque']);

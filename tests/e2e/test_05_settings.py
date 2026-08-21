@@ -1167,14 +1167,24 @@ def test_reset_data_ui_requires_phrase_offers_export_and_clears_stores(app):
     for table in ("prompts", "folders", "tags", "smart_sets", "search_history", "history_prompt_references", "history", "prompts_fts"):
         assert a.db_query(f"SELECT COUNT(*) AS n FROM {table}")[0]["n"] == 0
     snapshot = page.evaluate(
-        """() => ({
-          prompts: window.__musefold_test?.stores?.library?.getState?.().prompts.length,
-          history: window.__musefold_test?.stores?.history?.getState?.().records.length,
-          searchHistory: window.__musefold_test?.stores?.library?.getState?.().searchHistory.length,
-          turns: window.__musefold_test?.stores?.workbench?.getState?.().turns.length,
-        })"""
+        """() => {
+          const library = window.__musefold_test?.stores?.library?.getState?.() ?? {};
+          const history = window.__musefold_test?.stores?.history?.getState?.() ?? {};
+          const workbench = window.__musefold_test?.stores?.workbench?.getState?.() ?? {};
+          return {
+            prompts: Array.isArray(library.prompts) ? library.prompts.length : 0,
+            historyHasRecordMirror: Array.isArray(history.records),
+            searchHistory: Array.isArray(library.searchHistory) ? library.searchHistory.length : 0,
+            turns: Array.isArray(workbench.turns) ? workbench.turns.length : 0,
+          };
+        }"""
     )
-    assert snapshot == {"prompts": 0, "history": 0, "searchHistory": 0, "turns": 0}
+    assert snapshot == {
+        "prompts": 0,
+        "historyHasRecordMirror": False,
+        "searchHistory": 0,
+        "turns": 0,
+    }
     assert not a.console_errors(), a.console_errors()
 
 

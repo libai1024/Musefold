@@ -16,7 +16,7 @@ import type {
 import {
   getAccountDesktopExtras,
   useAccountStore,
-} from "../accountCrossFeature";
+} from "@renderer/runtime/account-access";
 import { useSettingsStore } from "../store";
 import {
   type AuthMode,

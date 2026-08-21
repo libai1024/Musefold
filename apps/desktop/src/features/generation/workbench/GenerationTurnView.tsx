@@ -22,12 +22,11 @@ import {
 } from "@musefold/product-ui";
 import { useAppStore } from "../../../stores/app";
 import { useGenerationStore } from "../store";
+import { useLibraryStore, linkHistoriesToPrompt } from "@renderer/runtime/library-access";
 import {
-  useLibraryStore,
-  linkHistoriesToPrompt,
   SchemeCreationConversation,
   SchemeRunConversation,
-} from "./workbenchCrossFeature";
+} from "@renderer/runtime/scheme-access";
 import { useGenerationWorkbenchStore } from "./store";
 import type { GenerationTurn } from "./types";
 import { cn } from "../../../lib/utils";
@@ -36,7 +35,7 @@ import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
 import { ModelBrandIcon } from "../../../components/ui/brand-icons";
 import musefoldIconUrl from "../../../../../../website/Musefold/assets/musefold-icon.png";
 import { DESIGN_PLAN_COMMAND_LABEL } from "./composerIntent";
-import { SkillRuntimeConversation } from "./SkillRuntimeAttachment";
+import { SkillRuntimeConversation } from "../../../components/SkillRuntimeConversation";
 import { GenerationResultCard } from "./GenerationResultCard";
 import { GenerationTurnUserAttachments } from "./GenerationTurnUserAttachments";
 import { formatParams } from "./workbench-display";

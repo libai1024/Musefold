@@ -9,8 +9,8 @@ import {
   PROVIDER_PRESETS,
 } from '@musefold/domain/constants';
 import { useAppStore } from '../../../stores/app';
-import { useSettingsStore } from '../../settings/store';
-import { useAccountStore } from '../../account/store';
+import { useSettingsStore } from '@renderer/runtime/settings-access';
+import { useAccountStore } from '@renderer/runtime/account-access';
 import { useGenerationStore } from '../store';
 import { cn } from '../../../lib/utils';
 

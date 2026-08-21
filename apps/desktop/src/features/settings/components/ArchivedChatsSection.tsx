@@ -22,8 +22,11 @@ import {
 } from '../../../components/ui/dialog';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
-import { useDesktopWorkbenchSessionList, useGenerationWorkbenchStore } from '../../generation/workbench/store';
-import { WORKBENCH_SESSION_RESTART_REQUIRED } from '../../generation/workbench/sessionErrors';
+import {
+  useDesktopWorkbenchSessionList,
+  useGenerationWorkbenchStore,
+  WORKBENCH_SESSION_RESTART_REQUIRED,
+} from '@renderer/runtime/workbench-access';
 import { SectionShell } from '../components/SectionShell';
 
 const TYPE_META: Record<WorkbenchConversationKind, { label: string; icon: LucideIcon }> = {

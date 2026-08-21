@@ -3,7 +3,7 @@ import type {
   LocalImageReference,
 } from '@musefold/desktop-contracts/providers';
 import { useAppStore } from '../../../stores/app';
-import { DEFAULT_REFINE_PARAMS, type RefineParams, type RefineSource } from '../params';
+import { DEFAULT_REFINE_PARAMS, type RefineParams, type RefineSource } from '../../../lib/generation-params';
 import type { GenerationResultItem, GenerationSource, GenerationTurn } from './types';
 import type { GenerationRun, WorkbenchSessionDocument } from '@musefold/desktop-contracts/workbench';
 import type {

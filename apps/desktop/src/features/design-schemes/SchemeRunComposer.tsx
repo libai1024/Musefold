@@ -11,8 +11,8 @@ import { cn } from '../../lib/utils';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
 import type { DesignSchemeSummary } from '@musefold/desktop-contracts/design-scheme';
-import { useGenerationWorkbenchStore } from '../generation/workbench/store';
-import type { GenerationSource } from '../generation/workbench/types';
+import { useGenerationWorkbenchStore } from '@renderer/runtime/workbench-access';
+import type { GenerationSource } from '@musefold/desktop-contracts/generation-source';
 import { useSchemeRunStore } from './run-store';
 
 type SchemeDraftSource = Extract<GenerationSource, { kind: 'scheme' }>;

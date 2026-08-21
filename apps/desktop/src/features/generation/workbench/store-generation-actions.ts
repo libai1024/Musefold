@@ -6,7 +6,7 @@ import {
   notifyWorkbenchHistoryChanged,
 } from '../../../runtime/workbench-side-effects';
 import { getWorkbenchIO } from './io';
-import { buildImageRequest } from '../params';
+import { buildImageRequest } from '../../../lib/generation-params';
 import type { GenerationResultItem, GenerationTurn } from './types';
 import { composePromptWithReferences } from './references';
 import { workbenchSessionErrorMessage } from './sessionErrors';

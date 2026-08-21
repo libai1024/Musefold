@@ -9,7 +9,7 @@ import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { MAX_REFERENCE_IMAGES, type LocalImageReference } from '@musefold/desktop-contracts/providers';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { parseGithubSkillUrl } from './githubSkillUrl';
-import { buildImageRequest, type RefineParams } from '../params';
+import { buildImageRequest, type RefineParams } from '../../../lib/generation-params';
 import { useGenerationWorkbenchStore } from './store';
 
 export type SkillRuntimeStatus = 'idle' | 'detecting' | 'ready' | 'executing' | 'complete' | 'error';

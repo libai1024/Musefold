@@ -1,6 +1,6 @@
 import type { SkillRuntimeTraceItem } from "@musefold/desktop-contracts/skill-runtime";
 import { MusefoldAssistantAvatar } from "../../../components/brand/MusefoldAssistantAvatar";
-import { SkillRuntimeConversation } from "./SkillRuntimeAttachment";
+import { SkillRuntimeConversation } from "../../../components/SkillRuntimeConversation";
 
 export function PendingSkillConversation({
   prompt,

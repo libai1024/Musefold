@@ -1,6 +1,6 @@
 import type { LocalImageReference, PromptReference } from '@musefold/desktop-contracts/providers';
 import type { StoreApi } from 'zustand';
-import type { RefineParams } from '../params';
+import type { RefineParams } from '../../../lib/generation-params';
 import type {
   DesignSchemeCreationTraceItem,
   DesignSchemeHistorySourceItem,

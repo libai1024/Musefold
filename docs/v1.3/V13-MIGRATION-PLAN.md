@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~04 已完成；REUSE-01 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01~04 与 REUSE-01 已完成；REUSE-02 起继续
 >
 > **日期**：2026-08-21
 >
@@ -228,7 +228,7 @@
   1. **桌面会话 Query 与 Web 分键**。桌面 extras 仍 `limit: 200` 裸数组；禁止把 Web `{ limit: 20 }` 或 page 对象写进桌面 key。
   2. **GeneratePage 仍 `listEnabled: false`**。共享 controller 的 session 形状是 contracts（含 draft），桌面侧栏消费的是 summary；不能把 summary 列表塞进同一 `listFn`。
   3. **运行态（`runningTurns` / `isGenerating`）留 generationSync 切片**。那是客户端 in-flight，不是服务端镜像；Web controller 用 `trackedGenerationJobs`，桌面提交路径仍在 Zustand。
-  4. **`WorkbenchState` ≤ 40 交给 REUSE-01**。本卡清零的是会话列表镜像；Skill/Scheme 写面仍挂在 store 上（design-schemes 9 条入边），成员数随那些动作迁出后才能掉到 40。
+  4. **`WorkbenchState` ≤ 40 交给 REUSE-01**。本卡清零的是会话列表镜像；Skill/Scheme 写面仍挂在 store 上。REUSE-01 裁定写面留下（会话文档单一写入点），经 runtime 编排访问，不靠拆成员数达标。
   5. **`history.load()` 仍是 invalidate 别名**。workbench 不再调用它，改经编排层 `musefoldQueryKeys.history.all`。
 
   验证：工作台 E2E 全量；`check:boundaries`。
@@ -244,9 +244,12 @@
   验证：对应域 E2E；视觉门禁。
   回滚：按文件分卡 revert。
 
-- `V13-REUSE-01`：feature 耦合裁定与消除：design-schemes×6 处 `generation/workbench` 深入导入逐条裁定（下沉共享类型到 domain/contracts、经编排层取数，或合并 feature）；settings×9 处同理。
+- `V13-REUSE-01`：~~feature 耦合裁定与消除：design-schemes×6 处 `generation/workbench` 深入导入逐条裁定（下沉共享类型到 domain/contracts、经编排层取数，或合并 feature）；settings×9 处同理。~~ **已完成（2026-08-21）**。`renderer-features-isolated` 67→17。design-schemes 与 settings 入边清零；generation 侧 `workbenchCrossFeature` 一并迁到 runtime。
 
-  **裁定**：合并 feature 仅在「业务上不可分」时采用；默认路径是下沉与编排层解耦。
+  **裁定**：
+  1. **不合并 design-schemes 与 generation**。方案库与工作台对话可分；不可分的是「会话文档上的 turn 写入」，仍留在 workbench store。
+  2. **`WorkbenchState` ≤ 40 不再作为本卡目标**。Skill/Scheme 写面若迁出 store 会拆会话文档的单一写入点；经 `runtime/workbench-access` 访问即可。
+  3. **共享物下沉 + 编排层**。`GenerationSource` → `desktop-contracts/generation-source`；`RefineParams`/`buildImageRequest` → `lib/generation-params`；`SkillRuntimeConversation` → `src/components`。其余 store/UI 经 `runtime/*-access.ts`，禁止 feature 直连兄弟 feature。
 
   验证：`renderer-features-isolated` baseline 下降；对应 E2E。
   回滚：单条 revert。

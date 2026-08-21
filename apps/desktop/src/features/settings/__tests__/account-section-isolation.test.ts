@@ -16,7 +16,7 @@ const ACCOUNT_UI_FILES = [
 ];
 
 describe('account section feature isolation', () => {
-  it('imports the account store only through accountCrossFeature', () => {
+  it('imports the account store only through runtime/account-access', () => {
     for (const file of ACCOUNT_UI_FILES) {
       const source = readFileSync(join(componentsDir, file), 'utf8');
       expect(source, `${file} must not import account/store directly`).not.toContain('account/store');

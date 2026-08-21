@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ConnectedAppsScreen } from '@musefold/product-ui';
-import { useAccountStore } from '../../account/store';
+import { useAccountStore } from '@renderer/runtime/account-access';
 import { useCloudConnectionsStore } from '../cloud-connections-store';
 
 export function ConnectedAppsSection() {

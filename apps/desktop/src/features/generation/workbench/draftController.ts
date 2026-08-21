@@ -1,7 +1,7 @@
 import type { LocalImageReference, PromptReference } from '@musefold/desktop-contracts/providers';
 import type { DesignSchemeHistorySourceItem } from '@musefold/desktop-contracts/design-scheme';
 import { LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
-import { DEFAULT_REFINE_PARAMS, type RefineParams } from '../params';
+import { DEFAULT_REFINE_PARAMS, type RefineParams } from '../../../lib/generation-params';
 import type { GenerationSource } from './types';
 import {
   isDuplicateReference,

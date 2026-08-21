@@ -18,9 +18,9 @@ import {
   WorkbenchRatioPicker,
 } from "@musefold/product-ui";
 import { useAppStore } from "../../../stores/app";
-import { REFINE_COUNTS } from "../params";
+import { REFINE_COUNTS } from "../../../lib/generation-params";
 import { WORKBENCH_PROMPT_LIMIT } from "./store";
-import { SchemeRunPickerPopover } from "./workbenchCrossFeature";
+import { SchemeRunPickerPopover } from "@renderer/runtime/scheme-access";
 import { PromptPickerPopover } from "./PromptPickerPopover";
 import { QUALITY_OPTIONS, WORKBENCH_RATIO_OPTIONS } from "./workbench-display";
 import type { WorkbenchComposerViewProps } from "./workbenchComposerViewProps";

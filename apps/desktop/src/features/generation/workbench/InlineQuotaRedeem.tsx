@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useAccountStore } from "./workbenchCrossFeature";
+import { useAccountStore } from "@renderer/runtime/account-access";
 
 /**
  * 额度不足的就地恢复：在失败卡上直接兑换，成功后自动重试本张。

@@ -7,12 +7,12 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const onboardingDir = join(dir, '..');
 
 describe('onboarding feature isolation', () => {
-  it('keeps generation and account imports in onboardingCrossFeature', () => {
+  it('does not import generation or account features directly', () => {
     const files = readdirSync(onboardingDir).filter(
       (name) => name.endsWith('.ts') || name.endsWith('.tsx'),
     );
     for (const file of files) {
-      if (file === 'onboardingCrossFeature.ts' || file === 'store.ts') continue;
+      if (file === 'store.ts') continue;
       const source = readFileSync(join(onboardingDir, file), 'utf8');
       expect(source, `${file} must not import generation directly`).not.toContain('../generation/');
       expect(source, `${file} must not import account directly`).not.toContain('../account/');

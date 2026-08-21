@@ -5,14 +5,14 @@ import { Plus, Check, Trash2, Pencil, Zap, Loader2, KeyRound, ListChecks } from 
 import type { ProviderConfig } from '@musefold/desktop-contracts/providers';
 import type { ErrorAction } from '@musefold/domain/errors';
 import { PROVIDER_PRESETS } from '@musefold/domain/constants';
-import { useGenerationStore } from '../../generation/store';
+import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { Button } from '../../../components/ui/button';
 import { ModelBrandIcon } from '../../../components/ui/brand-icons';
 import { displayModelName } from '../../../lib/model-catalog';
 import { SectionShell } from '../components/SectionShell';
 import { ConnectionRow, InlineConfirm } from '../components/ConnectionRow';
-import { ValidationResultBanner } from '../../generation/components/ValidationResultBanner';
-import { ProviderEmptyGuide } from '../../generation/components/ProviderEmptyGuide';
+import { ValidationResultBanner } from '@renderer/runtime/generation-access';
+import { ProviderEmptyGuide } from '@renderer/runtime/generation-access';
 import { accessModeOfProvider } from '../../../lib/ai-access';
 
 export function ProvidersSection() {

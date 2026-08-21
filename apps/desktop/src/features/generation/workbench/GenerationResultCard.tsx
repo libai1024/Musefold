@@ -3,7 +3,7 @@ import { toImageSrc } from "../../../lib/media";
 import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
 import { toast } from "../../../stores/toast";
 import { WorkbenchGenerationResultCard } from "@musefold/product-ui";
-import { useSettingsStore } from "./workbenchCrossFeature";
+import { useSettingsStore } from "@renderer/runtime/settings-access";
 import { InlineQuotaRedeem } from "./InlineQuotaRedeem";
 import type { GenerationResultItem } from "./types";
 

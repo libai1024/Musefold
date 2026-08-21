@@ -4,7 +4,7 @@
 
 import { LockKeyhole } from '../../components/ui/icons';
 import { useOnboardingStore } from './store';
-import { useGenerationStore } from './onboardingCrossFeature';
+import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { cn } from '../../lib/utils';
 import { usePlatform, useWindowFullscreen } from '../../lib/usePlatform';
 import { OnboardingHeader } from './onboarding-ui';

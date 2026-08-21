@@ -1,5 +1,5 @@
 import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
-import type { RefineParams } from '../params';
+import type { RefineParams } from '../../../lib/generation-params';
 import type { GenerationTurn, SchemeCreationDraftCard } from './types';
 import type {
   DesignSchemeCreationTraceItem,

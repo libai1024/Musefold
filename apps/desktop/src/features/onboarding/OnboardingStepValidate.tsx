@@ -5,7 +5,7 @@ import {
 import { formatPoints } from '@musefold/domain';
 import { Button } from '../../components/ui/button';
 import { useOnboardingStore } from './store';
-import { ValidationResultBanner } from './onboardingCrossFeature';
+import { ValidationResultBanner } from '@renderer/runtime/generation-access';
 import { OnboardingActions, StepIntro, ValidationLine } from './onboarding-ui';
 
 export function StepValidate() {

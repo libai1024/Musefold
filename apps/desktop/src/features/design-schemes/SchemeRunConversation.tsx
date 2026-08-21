@@ -4,8 +4,8 @@
  * 轨迹条目与 Skill 执行同构，直接复用 SkillRuntimeConversation 渲染。
  */
 import type { SkillRuntimeTraceItem } from '@musefold/desktop-contracts/skill-runtime';
-import type { GenerationSource } from '../generation/workbench/types';
-import { SkillRuntimeConversation } from '../generation/workbench/SkillRuntimeAttachment';
+import type { GenerationSource } from '@musefold/desktop-contracts/generation-source';
+import { SkillRuntimeConversation } from '../../components/SkillRuntimeConversation';
 import { toImageSrc } from '../../lib/media';
 import { cn } from '../../lib/utils';
 import { useAppStore } from '../../stores/app';

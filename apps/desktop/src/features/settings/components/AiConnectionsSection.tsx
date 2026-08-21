@@ -23,7 +23,7 @@ import { useAiConnectionStore } from '../ai-connection-store';
 import { AiConnectionDialog } from '../components/AiConnectionDialog';
 import { ConnectionRow, InlineConfirm } from '../components/ConnectionRow';
 import { SectionShell } from '../components/SectionShell';
-import { useGenerationStore } from '../../generation/store';
+import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { accessModeOfProvider } from '../../../lib/ai-access';
 
 export function AiConnectionsSection() {

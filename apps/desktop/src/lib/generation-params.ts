@@ -1,4 +1,4 @@
-// src/features/generation/params.ts
+// src/lib/generation-params.ts
 // 精修面板的参数模型 → 生图请求的纯映射（无 store / 无 IPC，可单测）
 //
 // 为什么不直接让面板存 `size`：两类 Provider 的尺寸语义不同（docs/product/12 §1.3）——

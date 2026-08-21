@@ -19,9 +19,9 @@ import {
 import { displayModelName } from '../../../lib/model-catalog';
 import { cn } from '../../../lib/utils';
 import { toast } from '../../../stores/toast';
-import { useAccountStore } from '../../account/store';
-import { useDoubaoAccountStore } from '../../account/doubao-store';
-import { useGenerationStore } from '../../generation/store';
+import { useAccountStore } from '@renderer/runtime/account-access';
+import { useDoubaoAccountStore } from '@renderer/runtime/account-access';
+import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { useAiConnectionStore } from '../ai-connection-store';
 import {
   AccessModeTransition,

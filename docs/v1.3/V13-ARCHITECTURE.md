@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~04 已落地；REUSE-01 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01~04 与 REUSE-01 已落地；REUSE-02 起继续
 >
 > **日期**：2026-08-21
 >
@@ -229,7 +229,7 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 
 ### 6.2 workbench/store.ts（已拆为窄组合层 + Query 会话列表）
 
-三 controller（draft/session/generationSync，v1.2.2 SHARE-04）已就位；v1.3 SPLIT-03 把会话列表镜像移入 Query（桌面 `{ limit: 200 }`），跨域依赖改经 `runtime/workbench-side-effects`。`workbench/store.ts` 收敛为组合层（99 行）；写面切片在 `store-*-actions.ts`。运行态仍是客户端 in-flight。Skill/Scheme 动作成员与 design-schemes 入边留给 REUSE-01。
+三 controller（draft/session/generationSync，v1.2.2 SHARE-04）已就位；v1.3 SPLIT-03 把会话列表镜像移入 Query（桌面 `{ limit: 200 }`），跨域依赖改经 `runtime/workbench-side-effects`。`workbench/store.ts` 收敛为组合层（99 行）；写面切片在 `store-*-actions.ts`。运行态仍是客户端 in-flight。REUSE-01 裁定：Skill/Scheme 写面留在 workbench store（会话文档单一写入点），其它 feature 经 `runtime/workbench-access` 取数；不合并 design-schemes 目录。
 
 ### 6.3 其余巨型文件
 

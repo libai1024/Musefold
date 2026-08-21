@@ -5,10 +5,10 @@ import type { ImageBackground, ImageQuality } from '@musefold/desktop-contracts/
 import type { SchemePriorityMode } from '@musefold/desktop-contracts/design-scheme';
 import { describePriorityMode, PRIORITY_MODE_LABEL } from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
 import { useAppStore } from '../../../stores/app';
-import { useGenerationWorkbenchStore } from '../../generation/workbench/store';
+import { useGenerationWorkbenchStore } from '@renderer/runtime/workbench-access';
 import { SectionShell, SettingRow } from '../components/SectionShell';
 import { ChoiceChips } from '../components/ChoiceChips';
-import { RatioPicker } from '../../generation/components/RatioPicker';
+import { RatioPicker } from '@renderer/runtime/generation-access';
 
 const QUALITIES: { value: ImageQuality; label: string }[] = [
   { value: 'low', label: '标准' },

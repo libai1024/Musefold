@@ -16,7 +16,7 @@ import {
   HistorySourcePicker,
   SchemeRunAttachment,
   SchemeRunVariableFields,
-} from "./workbenchCrossFeature";
+} from "@renderer/runtime/scheme-access";
 import { SkillRuntimeAttachment } from "./SkillRuntimeAttachment";
 import { DraftImagesPreview } from "./DraftImagesPreview";
 import { RefinementTargetReference } from "./RefinementTargetReference";

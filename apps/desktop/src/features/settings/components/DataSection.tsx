@@ -14,9 +14,9 @@ import { ExportDialog } from '../components/ExportDialog';
 import { ImportDialog } from '../components/ImportDialog';
 import { BackupPanel } from '../components/BackupPanel';
 import { DangerZonePanel } from '../components/DangerZonePanel';
-import { useLibraryStore } from '../../library/store';
-import { useHistoryStore } from '../../history/store';
-import { useGenerationWorkbenchStore } from '../../generation/workbench/store';
+import { useLibraryStore } from '@renderer/runtime/library-access';
+import { useHistoryStore } from '@renderer/runtime/history-access';
+import { useGenerationWorkbenchStore } from '@renderer/runtime/workbench-access';
 
 interface Paths {
   userData: string;

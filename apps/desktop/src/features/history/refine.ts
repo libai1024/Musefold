@@ -7,7 +7,7 @@ import {
   DEFAULT_REFINE_PARAMS,
   REFINE_COUNTS,
   type RefineParams,
-} from '../generation/params';
+} from '../../lib/generation-params';
 
 const QUALITY_VALUES = new Set<ImageQuality>(['low', 'medium', 'high', 'auto']);
 const BACKGROUND_VALUES = new Set<ImageBackground>(['auto', 'transparent', 'opaque']);

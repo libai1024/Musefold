@@ -39,6 +39,10 @@ const skillRuntimeAttachment = readFileSync(
   "apps/desktop/src/features/generation/workbench/SkillRuntimeAttachment.tsx",
   "utf8",
 );
+const skillRuntimeConversation = readFileSync(
+  "apps/desktop/src/components/SkillRuntimeConversation.tsx",
+  "utf8",
+);
 
 describe("workbench image and message interaction contract", () => {
   it("uses one image path for picker, paste and drag-drop staging", () => {
@@ -135,11 +139,11 @@ describe("workbench image and message interaction contract", () => {
     expect(workbench).toContain('data-testid="generation-skill-reference"');
     expect(workbench).toContain('data-testid="skill-runtime-pending-turn"');
     expect(workbench).not.toContain("<SkillRuntimeTrace />");
-    expect(skillRuntimeAttachment).toContain(
+    expect(skillRuntimeConversation).toContain(
       'data-testid="skill-runtime-conversation"',
     );
-    expect(skillRuntimeAttachment).toContain('data-placement="conversation"');
-    expect(skillRuntimeAttachment).not.toContain(
+    expect(skillRuntimeConversation).toContain('data-placement="conversation"');
+    expect(skillRuntimeConversation).not.toContain(
       'data-testid="skill-runtime-trace"',
     );
     expect(skillRuntimeAttachment).toContain(

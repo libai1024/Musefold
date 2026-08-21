@@ -2,7 +2,7 @@
 // 精修参数 → 生图请求的映射（docs/product/12 §1.3 两类 Provider 的尺寸语义差异）
 
 import { describe, it, expect } from 'vitest';
-import { buildImageRequest, resolveRatio, DEFAULT_REFINE_PARAMS, type RefineParams } from '../params';
+import { buildImageRequest, resolveRatio, DEFAULT_REFINE_PARAMS, type RefineParams } from '../../../lib/generation-params';
 
 const base: RefineParams = { ...DEFAULT_REFINE_PARAMS };
 

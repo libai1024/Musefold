@@ -24,9 +24,9 @@ vi.mock('../skill-runtime-store', () => ({
   useSkillRuntimeStore: <T,>(selector: (state: typeof runtimeState) => T) => selector(runtimeState),
 }));
 
-let SkillRuntimeConversation: typeof import('../SkillRuntimeAttachment').SkillRuntimeConversation;
+let SkillRuntimeConversation: typeof import('../../../../components/SkillRuntimeConversation').SkillRuntimeConversation;
 beforeAll(async () => {
-  ({ SkillRuntimeConversation } = await import('../SkillRuntimeAttachment'));
+  ({ SkillRuntimeConversation } = await import('../../../../components/SkillRuntimeConversation'));
 });
 
 const trace = [

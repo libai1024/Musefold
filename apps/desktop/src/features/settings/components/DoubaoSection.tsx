@@ -7,9 +7,9 @@ import {
 } from '@musefold/domain/constants';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { Button } from '../../../components/ui/button';
-import { useGenerationStore } from '../../generation/store';
-import { useDoubaoAccountStore } from '../../account/doubao-store';
-import { ValidationResultBanner } from '../../generation/components/ValidationResultBanner';
+import { useGenerationStore } from '@renderer/runtime/generation-access';
+import { useDoubaoAccountStore } from '@renderer/runtime/account-access';
+import { ValidationResultBanner } from '@renderer/runtime/generation-access';
 import { SectionShell, SettingRow } from '../components/SectionShell';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { toast } from '../../../stores/toast';

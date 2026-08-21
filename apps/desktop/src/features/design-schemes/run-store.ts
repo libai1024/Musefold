@@ -15,9 +15,9 @@ import type {
 import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
 import { toast } from '../../stores/toast';
 import { useAppStore } from '../../stores/app';
-import { buildImageRequest, type RefineParams } from '../generation/params';
-import { useGenerationWorkbenchStore } from '../generation/workbench/store';
-import type { GenerationSource } from '../generation/workbench/types';
+import { buildImageRequest, type RefineParams } from '../../lib/generation-params';
+import { useGenerationWorkbenchStore } from '@renderer/runtime/workbench-access';
+import type { GenerationSource } from '@musefold/desktop-contracts/generation-source';
 
 type SchemeDraftSource = Extract<GenerationSource, { kind: 'scheme' }>;
 
