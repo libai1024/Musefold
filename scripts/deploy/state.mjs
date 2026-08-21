@@ -12,7 +12,9 @@ export function emptyState() {
 
 export function readDeployState(path) {
   if (!existsSync(path)) return emptyState();
-  const raw = JSON.parse(readFileSync(path, 'utf8'));
+  const text = readFileSync(path, 'utf8').trim();
+  if (!text) return emptyState();
+  const raw = JSON.parse(text);
   return {
     web: {
       current: raw?.web?.current ?? null,
