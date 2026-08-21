@@ -26,7 +26,7 @@ import {
   Wand2,
   X,
 } from "../../../components/ui/icons";
-import type { Prompt } from "@musefold/desktop-contracts/models";
+import type { DesktopLibraryPrompt } from "@musefold/desktop-contracts/library-documents";
 import type { ImageQuality } from "@musefold/desktop-contracts/enums";
 import { RATIO_OPTIONS } from "@musefold/domain/constants";
 import { titleFromPromptContent } from "@musefold/domain";
@@ -1951,7 +1951,7 @@ function WorkbenchComposer() {
 
   // 快捷引用提示词：与提示词库「使用」同一套逻辑 —— 正文/负向/参数预填，来源挂芯片（表达在 Composer 上方）。
   // 引用提示词 = 行内胶囊（Codex 式）：全文收敛进胶囊，正文只留用户补充；同一条重复引用时替换旧胶囊。
-  const applyPromptReference = (target: Prompt) => {
+  const applyPromptReference = (target: DesktopLibraryPrompt) => {
     const referenceText = target.content.trim();
     const existingIndex = references.findIndex(
       (item) => item.promptId === target.id,

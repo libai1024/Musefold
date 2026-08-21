@@ -2,8 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PromptGateway } from '@musefold/domain';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import { desktopGateway } from '../../../runtime';
-import { DESKTOP_SYNTHETIC_ENTITY_VERSION, promptRowToDocument } from '../../../runtime/mappers';
+import {
+  DESKTOP_SYNTHETIC_ENTITY_VERSION,
+  promptRowToDesktopLibraryPrompt,
+  promptRowToDocument,
+} from '../../../runtime/mappers';
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -62,7 +67,7 @@ const EMPTY_STATS = {
   byTag: {},
 };
 
-function makePrompt(patch: Partial<Prompt> = {}): Prompt {
+function makeRow(patch: Partial<Prompt> = {}): Prompt {
   return {
     id: 'prompt-1',
     title: '雨巷海报',
@@ -95,6 +100,10 @@ function makePrompt(patch: Partial<Prompt> = {}): Prompt {
     deletedAt: null,
     ...patch,
   };
+}
+
+function makePrompt(patch: Partial<Prompt> = {}): DesktopLibraryPrompt {
+  return promptRowToDesktopLibraryPrompt(makeRow(patch));
 }
 
 function unusedGatewayMethod(name: string) {
@@ -310,7 +319,7 @@ describe('library store PromptGateway wiring', () => {
     const prev = makePrompt();
     resetStore({ prompts: [prev] });
     const returned = promptRowToDocument(
-      makePrompt({ title: '改名', previewImagePath: null, coverImagePath: null }),
+      makeRow({ title: '改名', previewImagePath: null, coverImagePath: null }),
     );
     vi.mocked(gateway.updatePrompt).mockResolvedValue(returned);
 
@@ -348,7 +357,7 @@ describe('library store PromptGateway wiring', () => {
     const prev = makePrompt();
     resetStore({ prompts: [prev], selectedPromptId: prev.id });
     vi.mocked(gateway.deletePrompt).mockResolvedValue(
-      promptRowToDocument(makePrompt({ deletedAt: 1_900_000_000_000 })),
+      promptRowToDocument(makeRow({ deletedAt: 1_900_000_000_000 })),
     );
 
     const ok = await useLibraryStore.getState().deletePrompt('prompt-1');
@@ -378,7 +387,7 @@ describe('library store PromptGateway wiring', () => {
     const trashed = makePrompt({ deletedAt: 1_900_000_000_000 });
     const restored = makePrompt({ deletedAt: null });
     resetStore({ deleted: [trashed], prompts: [] });
-    vi.mocked(gateway.restorePrompt).mockResolvedValue(promptRowToDocument(restored));
+    vi.mocked(gateway.restorePrompt).mockResolvedValue(promptRowToDocument(makeRow({ deletedAt: null })));
     vi.mocked(extras.listLibraryPrompts).mockResolvedValue([restored]);
 
     await useLibraryStore.getState().restorePrompt('prompt-1');
@@ -401,7 +410,7 @@ describe('library store PromptGateway wiring', () => {
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     vi.mocked(gateway.usePrompt).mockResolvedValue({
       prompt: promptRowToDocument(
-        makePrompt({
+        makeRow({
           usageCount: 8,
           lastUsedAt: 1_910_000_000_000,
           previewImagePath: null,

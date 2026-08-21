@@ -11,6 +11,7 @@ import type {
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { NewPrompt, Prompt, PromptParams, Tag } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import type { PromptSource as DesktopPromptSource, TagGroup } from '@musefold/desktop-contracts/enums';
 import {
   epochMsToIso,
@@ -178,6 +179,37 @@ export function promptRowToDocument(row: Prompt): PromptDocument {
     // 有损（桌面独有，文档侧无槽位，直接丢弃）：
     // - previewImagePath：本地预览图路径
     // - coverImagePath：派生封面路径（最新关联成功作品）
+  };
+}
+
+/** 行 → 桌面库文档条目（V13-ENT-03）：基类走 PromptDocument，封面与 epoch 在扩展面无损保留。 */
+export function promptRowToDesktopLibraryPrompt(row: Prompt): DesktopLibraryPrompt {
+  const { params: _cloudParams, ...doc } = promptRowToDocument(row);
+  return {
+    ...doc,
+    params: toDesktopParams(row.params),
+    previewImagePath: row.previewImagePath,
+    coverImagePath: row.coverImagePath,
+    contentNegative: row.contentNegative,
+    createdAtMs: row.createdAt,
+    updatedAtMs: row.updatedAt,
+    lastUsedAtMs: row.lastUsedAt,
+    deletedAtMs: row.deletedAt,
+  };
+}
+
+/**
+ * 把网关返回的文档铺回已有桌面库条目：可逆字段以文档为准，保留 prev 的封面路径。
+ */
+export function applyPromptDocumentToDesktopLibraryPrompt(
+  prev: DesktopLibraryPrompt,
+  doc: PromptDocument,
+): DesktopLibraryPrompt {
+  const next = promptRowToDesktopLibraryPrompt(promptDocumentToRow(doc));
+  return {
+    ...next,
+    previewImagePath: prev.previewImagePath,
+    coverImagePath: prev.coverImagePath,
   };
 }
 

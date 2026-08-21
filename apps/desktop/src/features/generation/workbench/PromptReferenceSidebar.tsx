@@ -11,7 +11,7 @@ import {
   Star,
   X,
 } from '../../../components/ui/icons';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import type { PromptReference } from '@musefold/desktop-contracts/providers';
 import { desktopGateway } from '../../../runtime';
 import { cn } from '../../../lib/utils';
@@ -97,7 +97,7 @@ export function PromptReferenceSidebar({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [prompts, setPrompts] = useState<DesktopLibraryPrompt[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const [promptLoading, setPromptLoading] = useState(true);
@@ -275,7 +275,7 @@ export function PromptReferenceSidebar({
     };
   }, []);
 
-  const captureSelection = (prompt: Prompt, container: HTMLElement) => {
+  const captureSelection = (prompt: DesktopLibraryPrompt, container: HTMLElement) => {
     const current = window.getSelection();
     if (!current || current.isCollapsed || current.rangeCount === 0) {
       setSelection((existing) => (existing?.promptId === prompt.id ? null : existing));

@@ -25,7 +25,7 @@ import {
   Upload,
   X,
 } from '../components/ui/icons';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import {
   useLibraryStore,
   useNormalPrompts,
@@ -50,7 +50,7 @@ const COLUMN_GAP = 28;
 
 function usePromptDraft() {
   const openDraft = useGenerationWorkbenchStore((s) => s.openDraft);
-  return (prompt: Prompt) => {
+  return (prompt: DesktopLibraryPrompt) => {
     const params = prompt.params
       ? promptParamsToRefineParams(prompt.params)
       : undefined;
@@ -64,7 +64,7 @@ function usePromptDraft() {
   };
 }
 
-function toPromptListItem(prompt: Prompt): PromptListItemViewModel {
+function toPromptListItem(prompt: DesktopLibraryPrompt): PromptListItemViewModel {
   return {
     id: prompt.id,
     title: prompt.title,
@@ -72,7 +72,7 @@ function toPromptListItem(prompt: Prompt): PromptListItemViewModel {
     description: prompt.description,
     imageUrl: prompt.coverImagePath ? toImageSrc(prompt.coverImagePath) : null,
     usageCount: prompt.usageCount,
-    updatedAtLabel: formatTime(prompt.updatedAt),
+    updatedAtLabel: formatTime(prompt.updatedAtMs),
     tags: prompt.tags.map((tag) => tag.name),
     isPinned: prompt.isPinned,
   };
@@ -111,7 +111,7 @@ export function LibraryPage() {
 
   const [pageMode, setPageMode] = useState<PageMode>('list');
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<Prompt | null>(null);
+  const [editing, setEditing] = useState<DesktopLibraryPrompt | null>(null);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -194,7 +194,7 @@ export function LibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightPromptId, normal, columns]);
 
-  const openEditor = (p: Prompt | null) => {
+  const openEditor = (p: DesktopLibraryPrompt | null) => {
     setEditing(p);
     setEditorOpen(true);
   };
@@ -215,7 +215,7 @@ export function LibraryPage() {
     columnGap: `${COLUMN_GAP}px`,
   } as const;
 
-  const renderRow = (p: Prompt) => (
+  const renderRow = (p: DesktopLibraryPrompt) => (
     <PromptListRow
       key={p.id}
       prompt={toPromptListItem(p)}

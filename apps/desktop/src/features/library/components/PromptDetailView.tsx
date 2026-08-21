@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { Blocks, Share2 } from "../../../components/ui/icons";
-import type { Prompt } from "@musefold/desktop-contracts/models";
+import type { DesktopLibraryPrompt } from "@musefold/desktop-contracts/library-documents";
 import { useLibraryStore } from "../store";
 import { useGenerationWorkbenchStore } from "../../generation/workbench/store";
 import { useAppStore } from "../../../stores/app";
@@ -19,11 +19,12 @@ import {
   type PromptDetailViewModel,
 } from "@musefold/product-ui";
 
-const SOURCE_LABEL: Record<Prompt["source"], string> = {
+const SOURCE_LABEL: Record<DesktopLibraryPrompt["source"], string> = {
   manual: "本机创建",
   import: "导入",
-  shared: "分享导入",
+  share: "分享导入",
   slip: "笺 · 朱点速记",
+  generation: "生成入库",
 };
 
 export function PromptDetailView({
@@ -31,9 +32,9 @@ export function PromptDetailView({
   onBack,
   onEdit,
 }: {
-  prompt: Prompt;
+  prompt: DesktopLibraryPrompt;
   onBack: () => void;
-  onEdit: (p: Prompt) => void;
+  onEdit: (p: DesktopLibraryPrompt) => void;
 }) {
   const copyContent = useLibraryStore((s) => s.copyContent);
   const togglePin = useLibraryStore((s) => s.togglePin);
@@ -92,8 +93,8 @@ export function PromptDetailView({
     tags: prompt.tags.map((tag) => tag.name),
     isPinned: prompt.isPinned,
     sourceLabel: SOURCE_LABEL[prompt.source] ?? "本机创建",
-    createdAtLabel: formatTime(prompt.createdAt),
-    updatedAtLabel: formatTime(prompt.updatedAt),
+    createdAtLabel: formatTime(prompt.createdAtMs),
+    updatedAtLabel: formatTime(prompt.updatedAtMs),
     deletedAtLabel: null,
   };
 

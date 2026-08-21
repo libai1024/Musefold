@@ -12,6 +12,7 @@ import type {
 } from './enums';
 import type { CostUnit, PromptReference, PromptParams } from './generation-snapshots';
 import type { PromptHistoryRelation } from './history-documents';
+import type { LibraryQuerySnapshot } from './library-documents';
 
 // 重新导出枚举，方便单点导入
 export type {
@@ -37,6 +38,7 @@ export type {
   HistoryStatsTotal,
   HistoryStats,
 } from './history-documents';
+export type { LibraryQuerySnapshot, SearchHistoryItem } from './library-documents';
 
 /** 提示词（prompts 表） */
 export interface Prompt {
@@ -112,23 +114,7 @@ export interface NewTag {
   color?: string;
 }
 
-/** Library 智能集合保存的查询快照（DIF-06），与 db:prompts:list 入参保持同构。 */
-export interface LibraryQuerySnapshot {
-  folderId?: string;
-  tagIds?: string[];
-  search?: string;
-  filters?: {
-    modelId?: string;
-    isPinned?: boolean;
-    ratingGte?: number;
-    usageCountGte?: number;
-    createdAfter?: number;
-    /** 按来源过滤；笺匣视图 = 'slip' */
-    source?: PromptSource;
-  };
-  sort?: 'updated' | 'created' | 'title' | 'rating' | 'usage';
-  sortDir?: 'asc' | 'desc';
-}
+/** LibraryQuerySnapshot / SearchHistoryItem 已迁至 library-documents（V13-ENT-03）；上方 re-export 保持导入面不变。 */
 
 export interface SmartSet {
   id: string;
@@ -142,12 +128,6 @@ export interface SmartSet {
 export interface NewSmartSet {
   name: string;
   query: LibraryQuerySnapshot;
-}
-
-export interface SearchHistoryItem {
-  id: string;
-  term: string;
-  usedAt: number;
 }
 
 /** PromptHistoryRelation 已迁至 history-documents（V13-ENT-02）；上方 re-export 保持导入面不变。 */

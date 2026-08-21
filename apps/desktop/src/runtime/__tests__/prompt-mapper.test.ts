@@ -14,6 +14,7 @@ import {
   promptDocumentToRow,
   promptListQueryToRowQuery,
   promptRowToDocument,
+  promptRowToDesktopLibraryPrompt,
   updatePatchToDocument,
   updatePromptDocumentToPatch,
 } from '../mappers/prompt';
@@ -226,5 +227,23 @@ describe('prompt row ↔ document mapping', () => {
       isPinned: true,
     });
     expect(doc).not.toHaveProperty('previewImagePath');
+  });
+});
+
+describe('prompt row → desktop library prompt', () => {
+  it('keeps lossless cover paths and epoch fields on top of PromptDocument', () => {
+    const entry = promptRowToDesktopLibraryPrompt(makeRow());
+    expect(promptDocumentSchema.parse(entry)).toMatchObject({
+      id: 'prompt-1',
+      source: 'share',
+      negative: 'blur, watermark',
+    });
+    expect(entry.previewImagePath).toBe('/tmp/preview.png');
+    expect(entry.coverImagePath).toBe('/tmp/cover.png');
+    expect(entry.contentNegative).toBe('blur, watermark');
+    expect(entry.createdAtMs).toBe(1_719_000_000_000);
+    expect(entry.updatedAtMs).toBe(1_722_000_000_000);
+    expect(entry.lastUsedAtMs).toBe(1_721_000_000_000);
+    expect(entry.deletedAtMs).toBeNull();
   });
 });

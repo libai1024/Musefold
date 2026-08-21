@@ -1,10 +1,14 @@
 // DesktopExtras 的 IPC 直通实现（V13-ENT-02 自 desktop-gateway.ts 抽出）。
-// 该面是桌面独有数据面：library/aiConnection/provider/account/cloudSync/workbench 直通行模型，
-// history 面经 mappers 转文档形状。DesktopGateway 继承本类以同时满足 domain 端口与 DesktopExtras。
+// 该面是桌面独有数据面：aiConnection/provider/account/cloudSync/workbench 直通行模型，
+// library / history 面经 mappers 转文档形状。DesktopGateway 继承本类以同时满足 domain 端口与 DesktopExtras。
 
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import type { Api } from '@musefold/desktop-contracts/ipc';
-import { historyRecordToDesktopGenerationEntry, relatedHistoryRowsToDocuments } from './mappers';
+import {
+  historyRecordToDesktopGenerationEntry,
+  promptRowToDesktopLibraryPrompt,
+  relatedHistoryRowsToDocuments,
+} from './mappers';
 
 /** DesktopGateway 的 Extras 基类：持有 window.api 并直通 IPC。 */
 export class DesktopExtrasImpl implements DesktopExtras {
@@ -15,15 +19,15 @@ export class DesktopExtrasImpl implements DesktopExtras {
   listLibraryPrompts(
     q?: Parameters<DesktopExtras['listLibraryPrompts']>[0],
   ): ReturnType<DesktopExtras['listLibraryPrompts']> {
-    return this.api.prompt.list(q);
+    return this.api.prompt.list(q).then((rows) => rows.map(promptRowToDesktopLibraryPrompt));
   }
 
   getLibraryPrompt(id: string): ReturnType<DesktopExtras['getLibraryPrompt']> {
-    return this.api.prompt.get(id);
+    return this.api.prompt.get(id).then((row) => row && promptRowToDesktopLibraryPrompt(row));
   }
 
   listDeletedLibraryPrompts(): ReturnType<DesktopExtras['listDeletedLibraryPrompts']> {
-    return this.api.prompt.listDeleted();
+    return this.api.prompt.listDeleted().then((rows) => rows.map(promptRowToDesktopLibraryPrompt));
   }
 
   libraryStats(): ReturnType<DesktopExtras['libraryStats']> {
@@ -33,11 +37,11 @@ export class DesktopExtrasImpl implements DesktopExtras {
   createLibraryPrompt(
     p: Parameters<DesktopExtras['createLibraryPrompt']>[0],
   ): ReturnType<DesktopExtras['createLibraryPrompt']> {
-    return this.api.prompt.create(p);
+    return this.api.prompt.create(p).then(promptRowToDesktopLibraryPrompt);
   }
 
   toggleLibraryPin(id: string, pinned: boolean): ReturnType<DesktopExtras['toggleLibraryPin']> {
-    return this.api.prompt.togglePin(id, pinned);
+    return this.api.prompt.togglePin(id, pinned).then(promptRowToDesktopLibraryPrompt);
   }
 
   reorderLibraryPins(ids: string[]): ReturnType<DesktopExtras['reorderLibraryPins']> {

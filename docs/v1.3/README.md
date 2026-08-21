@@ -2,7 +2,7 @@
 
 v1.3 是双端收敛版本。它不新增产品功能，交付的是：实体形状统一（contracts 成为唯一暴露给 UI 的实体形状）、状态分层（TanStack Query 接管服务端数据）、宿主编排收敛（页面编排 hook 下沉 product-ui）、巨型文件拆分与边界治理——目标是把「双端各写一套」的维护模式收敛为「一条变更路径」，降低双端开发难度与长期维护成本。
 
-**当前进度（2026-08-21）**：Phase 0（GOV-01~04）完成；Phase 1 已完成 ENT-01（行模型禁令）与 ENT-02（history 域文档化）。前置版本 [v1.2.2 系统架构重构](../v1.2.2/README.md) 已完成。
+**当前进度（2026-08-21）**：Phase 0（GOV-01~04）完成；Phase 1 已完成 ENT-01/02/03（history + library 文档化；account 维持 AccountStatus 无损面）。ENT-04 待做。
 
 ## 文档
 
@@ -36,7 +36,7 @@ v1.2.2 之后，包级结构（DAG、六端口 gateway、机器边界）已经�
 | 阶段 | 内容 | 依据 |
 |---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | **已完成（2026-08-21）** |
-| Phase 1 实体统一 | ENT-01~04：行模型 storage-only 止血 → `DesktopExtras` 逐域文档化 → stores 类型切换 → `models.ts` 收缩 | **进行中**：ENT-01/02 已完成 |
+| Phase 1 实体统一 | ENT-01~04：行模型 storage-only 止血 → `DesktopExtras` 逐域文档化 → stores 类型切换 → `models.ts` 收缩 | **进行中**：ENT-01/02/03 已完成 |
 | Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；编排 hook 下沉、`App.tsx` 拆解、桌面切换同一编排层 | 共享编排需要平台无关取数（Query 先行） |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台/store/方案详情拆分，widget 上提 product-ui，跨域组件下沉 | 最大改动面最后做，直接种进新结构 |
 

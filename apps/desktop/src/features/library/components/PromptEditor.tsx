@@ -2,7 +2,7 @@
 // validation, keyboard and discard interactions cannot drift between hosts.
 
 import { useMemo, useState } from 'react';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import {
   PromptEditorForm,
   type PromptEditorDraft,
@@ -13,11 +13,11 @@ import { Dialog, DialogContent } from '../../../components/ui/dialog';
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  prompt?: Prompt | null;
-  onSaved?: (prompt: Prompt) => void;
+  prompt?: DesktopLibraryPrompt | null;
+  onSaved?: (prompt: DesktopLibraryPrompt) => void;
 }
 
-function toDraft(prompt?: Prompt | null): PromptEditorDraft {
+function toDraft(prompt?: DesktopLibraryPrompt | null): PromptEditorDraft {
   return {
     title: prompt?.title ?? '',
     description: prompt?.description ?? '',

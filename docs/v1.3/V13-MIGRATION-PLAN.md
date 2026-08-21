@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0（GOV-01~04）与 ENT-01/ENT-02 已完成；ENT-03 起继续
+> **状态**：Phase 0（GOV-01~04）与 ENT-01/02/03 已完成；ENT-04 起继续
 >
 > **日期**：2026-08-21
 >
@@ -21,7 +21,7 @@
 | 阶段 | 内容 | 开工条件 | 相对规模 |
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
-| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **进行中**：ENT-01/02 已完成 |
+| Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **进行中**：ENT-01/02/03 已完成 |
 | Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | 大 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
@@ -84,9 +84,15 @@
   验证：全仓 `tsc -b`；vitest 181 files / 1045 tests；history/mapper/gateway/domain 定向 61；`check:boundaries` 825 modules / 0 新违规 / 82 known（行模型 13）；桌面历史 E2E `test_06_history.py` 15 passed。
   回滚：单卡 revert（类型面局部）。
 
-- `V13-ENT-03`：library + account 域文档化。`PromptRow` 面收敛为 `PromptDocument & { previewImagePath? }`（create/list/searchHistory 的 extras 签名）；`AccountStatus`/cloudSync 面以 contracts account 形状 + 桌面扩展表达。`library/store.ts`、`account/*store` 类型切换，行引用清零。
+- `V13-ENT-03`：~~library + account 域文档化。~~ **已完成（2026-08-21）**。新增 `packages/desktop-contracts/src/library-documents.ts`；extras 的 list/get/create/togglePin/listDeleted 经 mapper 返回 `DesktopLibraryPrompt`（`PromptDocument` + 封面路径 + epoch 便捷字段 + `contentNegative` + 桌面 `PromptParams`）。library store / 编辑器 / 详情 / 列表 / 笺 / 分享 / 工作台引用选择器全部改用文档形状。`renderer-row-models-banned` 从 13 条边降到 3 条（仅剩 ProviderConfig：generation store / ProviderDialog / ProvidersSection，留给 ENT-04）。`SearchHistoryItem` / `LibraryQuerySnapshot` 迁出 models，渲染层从 library-documents 导入。
 
-  验证：库/账号 E2E；`check:boundaries` baseline 下降。
+  **裁定（相对原卡的差异）**：
+  1. **组合类型保留无损桌面字段**，不是草稿里的单字段 `previewImagePath?`。丢掉 `coverImagePath` 会让列表封面空白；丢掉 epoch 便捷字段会让 `formatTime` 把 ISO 串当成 Invalid Date。
+  2. **create 仍接受 `NewPrompt`**（含 `previewImagePath`），结果映射为文档。IPC 写面不变。
+  3. **AccountStatus 不合成 AccountSession**。`AccountSession` 无法表达未登录，且会丢掉 `health` / `notices` / `deviceTokenSuffix` / `serverUrl` / `estImagesRemaining`（GW-05 已裁定走 extras 直通）。AccountStatus 本就不是 SQLite 行，account store 无 models 引用。cloudSync 同理。
+  4. **source 词表跟云契约**：`shared`→`share`；SOURCE_LABEL 补 `generation`。筛选查询面仍用桌面 `PromptSource`（含 `slip`）。
+
+  验证：全仓 `tsc -b`；vitest 181 files / 1046 tests；`check:boundaries` 826 modules / 0 新违规 / 72 known（行模型 3）；桌面 `test_02_library.py` + `test_06_history.py` 36 passed。
   回滚：单卡 revert。
 
 - `V13-ENT-04`：workbench 域收尾与 `models.ts` 收缩。`DesktopWorkbenchSessionDocument` 等对齐 contracts 文档形状后，`models.ts` 仅剩存储行类型且引用面全部落在 core/主进程/ipc 签名/mappers；`renderer-row-models-banned` baseline 归零，规则升 error（移出豁免清单）。

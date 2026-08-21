@@ -168,7 +168,7 @@ function createFakeApi() {
         color: null,
         createdAt: now,
       })),
-      previewImagePath: null,
+      previewImagePath: input.previewImagePath ?? null,
       coverImagePath: null,
       createdAt: now,
       updatedAt: now,
@@ -519,11 +519,13 @@ describe('DesktopGateway DesktopExtras', () => {
       source: 'slip',
     };
 
-    await gateway.createLibraryPrompt(input);
+    const created = await gateway.createLibraryPrompt(input);
 
     expect(fake.create).toHaveBeenCalledWith(input);
-    expect(fake.create.mock.calls[0][0]).toBe(input);
     expect(fake.create.mock.calls[0][0].previewImagePath).toBe('/tmp/slip.png');
+    expect(created.previewImagePath).toBe('/tmp/slip.png');
+    expect(created.source).toBe('slip');
+    expect(created.createdAtMs).toEqual(expect.any(Number));
   });
 
   it('listLibraryPrompts forwards ListPromptsQuery as-is to api.prompt.list', async () => {
@@ -538,11 +540,19 @@ describe('DesktopGateway DesktopExtras', () => {
       sortDir: 'desc',
     };
 
-    await gateway.listLibraryPrompts(query);
+    fake.list.mockResolvedValueOnce([promptRow('p-rain')]);
+    const listed = await gateway.listLibraryPrompts(query);
 
     expect(fake.list).toHaveBeenCalledWith(query);
-    expect(fake.list.mock.calls[0][0]).toBe(query);
-    await gateway.getLibraryPrompt('missing');
+    expect(listed[0]).toMatchObject({
+      id: 'p-rain',
+      negative: 'blur',
+      contentNegative: 'blur',
+      previewImagePath: '/tmp/p-rain-preview.png',
+      coverImagePath: '/tmp/p-rain-cover.png',
+      createdAtMs: 1_700_000_000_000,
+    });
+    await expect(gateway.getLibraryPrompt('missing')).resolves.toBeNull();
   });
 
   it('relatedHistory / listHistory / getHistory map IPC rows to DesktopGenerationEntry', async () => {

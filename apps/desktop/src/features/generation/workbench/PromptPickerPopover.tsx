@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, Search, X } from '../../../components/ui/icons';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import { desktopGateway } from '../../../runtime';
 import { toImageSrc } from '../../../lib/media';
 import { useAppStore } from '../../../stores/app';
@@ -15,10 +15,10 @@ export function PromptPickerPopover({
   onPick,
 }: {
   onClose: () => void;
-  onPick: (prompt: Prompt) => void;
+  onPick: (prompt: DesktopLibraryPrompt) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [prompts, setPrompts] = useState<DesktopLibraryPrompt[]>([]);
   const [loading, setLoading] = useState(true);
 
   // 独立拉取一次快照，不借用提示词库页的 store（避免污染其搜索/筛选状态）。

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, ImageDown, Loader2, Save } from '../../components/ui/icons';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import type { ShareRenderCardResult } from '@musefold/desktop-contracts/ipc';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toImageSrc } from '../../lib/media';
@@ -20,7 +20,7 @@ import { promptTargetFromParams } from '../generation/promptParams';
 
 interface Props {
   open: boolean;
-  prompt: Prompt | null;
+  prompt: DesktopLibraryPrompt | null;
   onOpenChange: (open: boolean) => void;
 }
 

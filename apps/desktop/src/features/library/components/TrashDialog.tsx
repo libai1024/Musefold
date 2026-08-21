@@ -73,9 +73,9 @@ export function TrashDialog() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-medium text-primary">{p.title}</p>
                   <p className="truncate font-mono text-[10px] text-quaternary">{p.content}</p>
-                  {p.deletedAt && (
+                  {p.deletedAtMs != null && (
                     <p className="mt-0.5 text-[10px] text-quaternary">
-                      删除于 {formatTime(p.deletedAt)}
+                      删除于 {formatTime(p.deletedAtMs)}
                     </p>
                   )}
                 </div>

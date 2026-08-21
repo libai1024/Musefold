@@ -16,12 +16,12 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { PromptGateway } from '@musefold/domain';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
+import type { NewPrompt } from '@musefold/desktop-contracts/desktop-extras';
 import type {
-  Prompt,
-  NewPrompt,
-  SearchHistoryItem,
+  DesktopLibraryPrompt,
   LibraryQuerySnapshot,
-} from '@musefold/desktop-contracts/models';
+  SearchHistoryItem,
+} from '@musefold/desktop-contracts/library-documents';
 import type {
   ListPromptsQuery,
   UpdatePromptPatch,
@@ -31,9 +31,11 @@ import { SEARCH_DEBOUNCE_MS } from '@musefold/domain/constants';
 import { desktopGateway } from '../../runtime';
 import {
   DESKTOP_SYNTHETIC_ENTITY_VERSION,
-  applyPromptDocumentToRow,
+  applyPromptDocumentToDesktopLibraryPrompt,
   promptDocumentToRow,
+  promptRowToDesktopLibraryPrompt,
   updatePatchToDocument,
+  epochMsToIso,
 } from '../../runtime/mappers';
 import { toast } from '../../stores/toast';
 
@@ -65,11 +67,11 @@ const EMPTY_STATS: PromptStats = {
 
 interface LibraryState {
   // ---- 数据 ----
-  prompts: Prompt[];
+  prompts: DesktopLibraryPrompt[];
   stats: PromptStats;
   searchHistory: SearchHistoryItem[];
   /** 回收站列表（按需加载） */
-  deleted: Prompt[];
+  deleted: DesktopLibraryPrompt[];
 
   // ---- 查询态 ----
   search: string;
@@ -99,8 +101,8 @@ interface LibraryState {
   scheduleReload: () => void;
 
   // ---- prompt 写操作 ----
-  createPrompt: (p: NewPrompt) => Promise<Prompt | null>;
-  updatePrompt: (id: string, patch: UpdatePromptPatch) => Promise<Prompt | null>;
+  createPrompt: (p: NewPrompt) => Promise<DesktopLibraryPrompt | null>;
+  updatePrompt: (id: string, patch: UpdatePromptPatch) => Promise<DesktopLibraryPrompt | null>;
   /** 软删 + 5s 内可撤销 toast */
   deletePrompt: (id: string) => Promise<boolean>;
   /** 收藏开关；pinned 省略时按当前值取反。返回是否成功（拖拽收藏需要据此决定要不要接着重排） */
@@ -268,13 +270,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
               ...(patch.description !== undefined ? { description: patch.description } : {}),
               ...(patch.content !== undefined ? { content: patch.content } : {}),
               ...(patch.contentNegative !== undefined
-                ? { contentNegative: patch.contentNegative }
+                ? { contentNegative: patch.contentNegative, negative: patch.contentNegative }
                 : {}),
               ...(patch.isPinned !== undefined ? { isPinned: patch.isPinned } : {}),
               ...(patch.folderId !== undefined ? { folderId: patch.folderId } : {}),
               ...(patch.modelId !== undefined ? { modelId: patch.modelId } : {}),
               ...(patch.rating !== undefined ? { rating: patch.rating } : {}),
-              updatedAt: Date.now(),
+              updatedAtMs: Date.now(),
+              updatedAt: epochMsToIso(Date.now()),
             }
           : x
       ),
@@ -283,8 +286,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const updatedDoc = await promptGateway.updatePrompt(id, updatePatchToDocument(patch));
       const base = get().prompts.find((x) => x.id === id) ?? prevRow;
       const updated = base
-        ? applyPromptDocumentToRow(base, updatedDoc)
-        : promptDocumentToRow(updatedDoc);
+        ? applyPromptDocumentToDesktopLibraryPrompt(base, updatedDoc)
+        : promptRowToDesktopLibraryPrompt(promptDocumentToRow(updatedDoc));
       set((s) => ({
         prompts: s.prompts.map((x) => (x.id === id ? updated : x)),
         error: null,
@@ -384,7 +387,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const used = await promptGateway.usePrompt(id, { action: 'copy' });
       set((s) => ({
         prompts: s.prompts.map((x) =>
-          x.id === id ? applyPromptDocumentToRow(x, used.prompt) : x
+          x.id === id ? applyPromptDocumentToDesktopLibraryPrompt(x, used.prompt) : x
         ),
       }));
     } catch {
@@ -548,21 +551,21 @@ function buildQuery(s: LibraryState): ListPromptsQuery {
 // 不要在组件里写 useLibraryStore(selectPinned)。
 
 /** 置顶区（按 pin_order 升序），供 PromptList 分区渲染 */
-export function selectPinned(s: LibraryState): Prompt[] {
+export function selectPinned(s: LibraryState): DesktopLibraryPrompt[] {
   return s.prompts.filter((p) => p.isPinned).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0));
 }
 
 /** 普通区（后端已排好序，此处保序） */
-export function selectNormal(s: LibraryState): Prompt[] {
+export function selectNormal(s: LibraryState): DesktopLibraryPrompt[] {
   return s.prompts.filter((p) => !p.isPinned);
 }
 
 /** 置顶区（引用稳定） */
-export function usePinnedPrompts(): Prompt[] {
+export function usePinnedPrompts(): DesktopLibraryPrompt[] {
   return useLibraryStore(useShallow(selectPinned));
 }
 
 /** 普通区（引用稳定） */
-export function useNormalPrompts(): Prompt[] {
+export function useNormalPrompts(): DesktopLibraryPrompt[] {
   return useLibraryStore(useShallow(selectNormal));
 }

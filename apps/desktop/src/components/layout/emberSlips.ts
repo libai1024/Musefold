@@ -1,7 +1,7 @@
 // 朱点速记的共享工具（v0.3.3 §4/§6/§8）：
 // 选区拾取、图片 src 反解、笺标题派生、落库。素笺卡与拾选/拾遗共用。
 import { useLibraryStore } from '../../features/library/store';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 
 /** 笺标题：内容首行前 12 字；纯图笺叫「图像一笺」 */
 export function slipTitle(content: string): string {
@@ -76,7 +76,7 @@ export function capturePageSelection(): CapturedSelection | null {
 }
 
 /** 落一枚笺（source='slip'）；失败时 store 已弹 toast，返回 null。 */
-export async function createSlip(input: { text?: string; imagePath?: string | null }): Promise<Prompt | null> {
+export async function createSlip(input: { text?: string; imagePath?: string | null }): Promise<DesktopLibraryPrompt | null> {
   const content = clampSlipText(input.text ?? '');
   if (!content && !input.imagePath) return null;
   return useLibraryStore.getState().createPrompt({

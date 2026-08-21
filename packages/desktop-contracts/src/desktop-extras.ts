@@ -1,7 +1,7 @@
 // 桌面独有面：library 查询/写、关联历史、searchHistory、账号全量状态、cloudSync、
 // workbench 无损会话文档与原生进度事件。
-// V13-ENT-02 起历史面返回文档形状（history-documents 的组合类型），
-// library / provider / account / workbench 面暂仍为行模型（V13-ENT-03/04 逐域文档化）。
+// V13-ENT-02 起历史面返回文档形状；V13-ENT-03 起 library 面返回 library-documents。
+// provider / account / workbench 面暂仍为行或桌面专用文档（V13-ENT-04 收尾）。
 // 故意不放进 ipc.ts，避免 IPC 通道契约文件继续胀大。
 // 运行时请按子路径导入：@musefold/desktop-contracts/desktop-extras
 
@@ -37,12 +37,11 @@ import type {
   HistoryStats,
   HistoryStatsQuery,
 } from './history-documents';
+import type { DesktopLibraryPrompt, SearchHistoryItem } from './library-documents';
 import type {
   NewPrompt,
   NewProviderConfig,
-  Prompt,
   ProviderConfig,
-  SearchHistoryItem,
 } from './models';
 import type { ImageGenerationProgress, ModelInfo, ValidationResult } from './providers';
 import type {
@@ -53,24 +52,26 @@ import type {
 
 /** 输入 DTO 经 extras 面导出（V13-ENT-02：渲染层禁 models，输入类型随消费的方法导出）。 */
 export type { NewPrompt } from './models';
+export type { DesktopLibraryPrompt, SearchHistoryItem } from './library-documents';
 
 /**
  * 桌面独有面（扁平方法，便于 DesktopGateway implements）。
- * library / searchHistory 对齐 Api.prompt / Api.searchHistory，返回桌面行模型
- * （V13-ENT-03 文档化）。关联历史与 history 读写自 V13-ENT-02 起返回
- * history-documents 文档形状，行→文档转换集中在 runtime/mappers/history.ts。
+ * library / searchHistory 自 V13-ENT-03 起返回 library-documents 文档形状，
+ * 行→文档转换集中在 runtime/mappers/prompt.ts。create 仍接受 NewPrompt 以保留
+ * previewImagePath。关联历史与 history 读写自 V13-ENT-02 起返回
+ * history-documents 文档形状。
  * account / cloudSync 对齐 Api.account / Api.cloudSync，返回桌面 AccountStatus /
  * CloudSyncSummary（V13-ENT-03 文档化）。workbench 保留摘要计数、runs 与
  * 无 seq 的 Provider 重试进度，禁止经云端 WorkbenchSession / SSE 形状有损转换。
  * 命名避开 library 前缀，以免与现有方法撞名。
  */
 export interface DesktopExtras {
-  listLibraryPrompts(q?: ListPromptsQuery): Promise<Prompt[]>;
-  getLibraryPrompt(id: string): Promise<Prompt | null>;
-  listDeletedLibraryPrompts(): Promise<Prompt[]>;
+  listLibraryPrompts(q?: ListPromptsQuery): Promise<DesktopLibraryPrompt[]>;
+  getLibraryPrompt(id: string): Promise<DesktopLibraryPrompt | null>;
+  listDeletedLibraryPrompts(): Promise<DesktopLibraryPrompt[]>;
   libraryStats(): Promise<PromptStats>;
-  createLibraryPrompt(p: NewPrompt): Promise<Prompt>;
-  toggleLibraryPin(id: string, pinned: boolean): Promise<Prompt>;
+  createLibraryPrompt(p: NewPrompt): Promise<DesktopLibraryPrompt>;
+  toggleLibraryPin(id: string, pinned: boolean): Promise<DesktopLibraryPrompt>;
   reorderLibraryPins(ids: string[]): Promise<{ ok: true }>;
   purgeLibraryPrompt(id: string): Promise<{ ok: true }>;
   purgeLibraryPrompts(): Promise<{ purged: number }>;

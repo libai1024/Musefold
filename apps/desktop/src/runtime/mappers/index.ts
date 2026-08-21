@@ -16,6 +16,8 @@ export {
   promptRowToDocument,
   promptDocumentToRow,
   applyPromptDocumentToRow,
+  promptRowToDesktopLibraryPrompt,
+  applyPromptDocumentToDesktopLibraryPrompt,
   newPromptRowToDocument,
   updatePatchToDocument,
   newPromptDocumentToRow,

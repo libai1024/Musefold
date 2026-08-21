@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Ban, ImageOff, Images, Loader2, Power, RefreshCw } from '../../../components/ui/icons';
-import type { Prompt } from '@musefold/desktop-contracts/models';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 // 仅 system.relaunch：DesktopExtras 尚无对应方法。关联查询走 loadRelatedHistory。
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
@@ -15,7 +15,7 @@ import { cn } from '../../../lib/utils';
 import { loadRelatedHistory } from '../related-history';
 import { promptRelationLabel } from '../prompt-relation-label';
 
-export function PromptWorksPanel({ prompt }: { prompt: Prompt }) {
+export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
   const [includeAll, setIncludeAll] = useState(false);
   const [items, setItems] = useState<DesktopGenerationEntry[]>([]);
   const [total, setTotal] = useState(0);
