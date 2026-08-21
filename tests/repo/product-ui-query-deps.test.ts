@@ -14,7 +14,7 @@ const web = JSON.parse(
 describe("V13-STATE-01 Query 管线依赖面", () => {
   it("product-ui 只新增 @tanstack/react-query 一个外部运行时依赖", () => {
     const deps = Object.keys(productUi.dependencies ?? {}).sort();
-    expect(deps).toEqual(["@musefold/ui", "@tanstack/react-query", "react"]);
+    expect(deps).toEqual(["@musefold/domain", "@musefold/ui", "@tanstack/react-query", "react"]);
   });
 
   it("双宿主都声明同一查询库以便装配 QueryClientProvider", () => {

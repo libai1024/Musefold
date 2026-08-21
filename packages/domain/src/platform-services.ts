@@ -1,7 +1,17 @@
 /**
- * 平台能力端口（toast / 下载 / 剪贴板 / 外链一类）。
- * WebGateway 现行方法面不含这些能力，故不发明方法；空接口是有意贴合现状。
- * 宿主侧若日后把对应辅助函数收进 WebGateway，再按同样形状补签名。
+ * 平台能力端口（toast / 下载 / 剪贴板 / 外链）。
+ * 与六数据端口分离：不挂在 WebGateway / DesktopGateway 上，由宿主注入 page controller。
+ * 方法面只覆盖编排层真正需要的反馈与系统动作，不发明业务 API。
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- WebGateway 无对应方法，空接口避免发明新抽象
-export interface PlatformServices {}
+export interface PlatformToast {
+  success(title: string, description?: string): void;
+  error(title: string, description?: string): void;
+  info(title: string, description?: string): void;
+}
+
+export interface PlatformServices {
+  toast: PlatformToast;
+  writeClipboard(text: string): Promise<void>;
+  download(url: string, filename?: string): Promise<void>;
+  openExternal(url: string): Promise<void>;
+}

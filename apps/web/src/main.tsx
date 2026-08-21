@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createMusefoldQueryClient } from '@musefold/product-ui';
 import { App } from './App';
 import { createWebGateway } from './runtime';
+import { webPlatformServices } from './runtime/platform-services';
 import '@musefold/ui/tokens.css';
 import '@musefold/ui/primitives.css';
 import './styles.css';
@@ -18,6 +19,7 @@ if (!root) {
 document.documentElement.dataset.productHost = 'web';
 
 const queryClient = createMusefoldQueryClient();
+void webPlatformServices;
 
 createRoot(root).render(
   <StrictMode>

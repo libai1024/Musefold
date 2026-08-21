@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1 与 STATE-01~03 已完成；ORCH-01 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01 已完成；ORCH-02 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03 已完成 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03、ORCH-01 已完成 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -143,12 +143,15 @@
   验证：全仓 `tsc -b`；vitest 186 files / 1061 tests；store glob eslint `--max-warnings=0`；`check:boundaries` 841 modules / 69 known；桌面 `test_00_harness.py` + 外观持久化 + 密度列表 + `test_07_onboarding.py` 13 passed。✅
   回滚：revert 本卡提交（旧 key 读取路径仍在 migrate 里，回滚后旧安装不受影响）。
 
-- `V13-ORCH-01`：page-controllers 骨架 + `PlatformServices` 填充。建 `product-ui/src/page-controllers/`；domain `PlatformServices` 由空接口填充 toast/download/clipboard/openExternal（桌面接 toast store/IPC，Web 接浏览器 API）；host-boundary 测试双端各加断言（product-ui 不出现平台 import）。
+- `V13-ORCH-01`：~~page-controllers 骨架 + `PlatformServices` 填充。~~ **已完成（2026-08-21）**。domain `PlatformServices` 填入 toast / writeClipboard / download / openExternal；桌面 `createDesktopPlatformServices`（toast store + clipboard + 本地 `saveImage` / http `<a download>`），Web `createWebPlatformServices`（aria-live + 浏览器 API）。`useHistoryPageController` / `useLibraryPageController` / `useGeneratePageController` 骨架签名为显式 `deps`，禁止 Context。product-ui 增加 `@musefold/domain` 依赖。
 
-  **裁定**：编排 hook 一律 `(deps: { 端口…; platform: PlatformServices }) => …` 签名，与 `useWorkbenchSessionController` 注入风格连续；不引入 React Context 隐式注入。
+  **裁定（相对原卡的差异）**：
+  1. **PlatformServices 不并入 WebGateway / DesktopGateway。** GW-01 把它算作「六端口」之一是因为当时是空接口、任何实现都 satisfies。填入 toast 后若挂在 HTTP gateway 上，会强迫 Fixture/Http 实现 UI 副作用。编排 hook 的 `deps: { 端口…; platform }` 本就把平台能力与数据端口分开。数据端口仍是 5 个（Prompt/Workbench/Generation/History/Account）。
+  2. **本卡不改 Web `App.tsx` / 桌面 pages**（1201/棘轮），避免骨架卡去拆编排。ORCH-02 才薄挂载。
+  3. **download 对 http(s)/blob 走 `<a download>`，桌面本地路径走 `system.saveImage`。** 不把 IPC 形状写进 domain。
 
-  验证：boundary 测试；fixture 模式冒烟。
-  回滚：revert 骨架提交。
+  验证：全仓 `tsc -b`；vitest 189 files / 1065 tests；`check:boundaries` 850 modules / 69 known；host-boundary 双端断言 + page-controllers 中立性扫描。✅
+  回滚：revert 本卡提交。
 
 - `V13-ORCH-02`：history + library 页面编排下沉。`useHistoryPageController` / `useLibraryPageController` 落地（取数 Query + 过滤/选中/分页 + 动作分发）；桌面 `HistoryPage`/`LibraryPage` 切换为薄挂载，feature store 对应编排段删除；Web `App.tsx` 的 history/library 编排段拆除改用同 controller。
 

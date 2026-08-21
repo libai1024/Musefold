@@ -29,7 +29,6 @@ import type {
   AccountGateway,
   GenerationGateway,
   HistoryGateway,
-  PlatformServices,
   PromptGateway,
   WorkbenchGateway,
 } from '@musefold/domain';
@@ -41,8 +40,7 @@ export interface WebGateway
     WorkbenchGateway,
     GenerationGateway,
     HistoryGateway,
-    AccountGateway,
-    PlatformServices {
+    AccountGateway {
   readonly mode: 'api' | 'fixture';
 }
 

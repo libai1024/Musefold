@@ -68,3 +68,15 @@ export {
   MUSEFOLD_QUERY_RETRY,
   MUSEFOLD_QUERY_STALE_TIME_MS,
 } from './page-controllers/query-client';
+export {
+  useHistoryPageController,
+  type HistoryPageControllerDeps,
+} from './page-controllers/history-page-controller';
+export {
+  useLibraryPageController,
+  type LibraryPageControllerDeps,
+} from './page-controllers/library-page-controller';
+export {
+  useGeneratePageController,
+  type GeneratePageControllerDeps,
+} from './page-controllers/generate-page-controller';

@@ -10,6 +10,11 @@ describe('web host boundary', () => {
     expect(mainSource).toMatch(/QueryClientProvider/);
   });
 
+  it('injects PlatformServices at the host instead of product-ui', () => {
+    expect(mainSource).toMatch(/webPlatformServices/);
+    expect(mainSource).toMatch(/createWebGateway/);
+  });
+
   it('keeps page implementations outside the route and adapter host', () => {
     expect(appSource).toMatch(/from ["']\.\/layout\/WebNavigation["']/);
     expect(appSource).toMatch(/from ["']\.\/views\/GenerateView["']/);

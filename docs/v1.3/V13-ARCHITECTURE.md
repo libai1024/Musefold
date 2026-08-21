@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1 与 STATE-01~03 已落地；ORCH-01 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01 已落地；ORCH-02 起继续
 >
 > **日期**：2026-08-21
 >

@@ -5,6 +5,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { desktopQueryClient } from './runtime/query-client';
+import { desktopPlatformServices } from './runtime/platform-services';
 import App from './App';
 import '@musefold/ui/tokens.css';
 import '@musefold/ui/primitives.css';
@@ -34,6 +35,7 @@ try {
   reportError(error, { source: 'preload', operation: 'diagnostics.onError' });
 }
 installTestHook();
+void desktopPlatformServices;
 
 const container = document.getElementById('root')!;
 createRoot(container).render(

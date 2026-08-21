@@ -14,6 +14,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@musefold/domain": "*",
     "@musefold/ui": "*",
     "@tanstack/react-query": "^5.101.4",
     "react": "^18.3.1"

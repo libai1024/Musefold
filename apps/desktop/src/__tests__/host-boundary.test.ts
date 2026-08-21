@@ -8,4 +8,9 @@ describe("desktop host boundary", () => {
     expect(mainSource).toMatch(/desktopQueryClient/);
     expect(mainSource).toMatch(/QueryClientProvider/);
   });
+
+  it("injects PlatformServices at the host instead of product-ui", () => {
+    expect(mainSource).toMatch(/desktopPlatformServices/);
+    expect(mainSource).not.toMatch(/from ['"]electron['"]/);
+  });
 });

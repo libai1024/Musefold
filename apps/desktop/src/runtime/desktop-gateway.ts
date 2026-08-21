@@ -1,10 +1,9 @@
-// DesktopGateway：domain 六端口的桌面实现。只调 window.api；字段转换全部在 mappers/。
+// DesktopGateway：domain 五数据端口的桌面实现。只调 window.api；字段转换全部在 mappers/。
 
 import type {
   AccountGateway,
   GenerationGateway,
   HistoryGateway,
-  PlatformServices,
   PromptGateway,
   WorkbenchGateway,
 } from '@musefold/domain';
@@ -47,7 +46,6 @@ export class DesktopGateway
     GenerationGateway,
     HistoryGateway,
     AccountGateway,
-    PlatformServices,
     DesktopExtras
 {
   constructor(api: WindowApi) {
