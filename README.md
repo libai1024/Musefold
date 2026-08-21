@@ -29,11 +29,9 @@ npm run check:v1.1
 常用门禁：
 
 ```bash
-npm run typecheck
-npm run test
-npm run build
-npm run build:web
-npm run check
+npm run check                 # lint、边界、typecheck、单测、双端 build
+npm run check:v1.1            # Web 共享 UI 与生产边界
+npm run release:preflight     # 本地发布预检（不替代签名/远端 CI/真机）
 npm run clean:artifacts -- --build
 ```
 
