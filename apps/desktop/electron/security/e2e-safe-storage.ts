@@ -13,11 +13,17 @@ const plaintext: SafeStorageLike = {
 };
 
 /**
- * Hosted Linux/Windows CI has no gnome-keyring / DPAPI session.
- * Keep production on real safeStorage; E2E may fall back to in-process bytes.
+ * Hosted CI has no stable OS credential store to bind ciphertext to.
+ *
+ * Linux has no gnome-keyring at all. Windows DPAPI is available, but Chromium
+ * keeps its key in `Local State`, which an unflushed hard kill loses — the
+ * crash-recovery suite would then decrypt garbage and report "no API key".
+ * macOS keeps the deterministic mock keychain, so it still covers the real
+ * safeStorage path. Production is never affected: this needs MUSEFOLD_E2E=1.
  */
 export function resolveSafeStorage(): SafeStorageLike {
   if (process.env['MUSEFOLD_E2E'] === '1') {
+    if (process.platform === 'win32') return plaintext;
     try {
       if (process.platform === 'linux') {
         const linuxSafeStorage = safeStorage as typeof safeStorage & {
