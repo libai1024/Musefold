@@ -178,7 +178,14 @@ def asar_entries(asar: Path) -> list[str]:
         cwd=str(REPO),
         env={**os.environ, "MUSEFOLD_ASAR": str(asar)},
     )
-    return result.stdout.splitlines()
+    return [_posix_asar_entry(line) for line in result.stdout.splitlines() if line.strip()]
+
+
+def _posix_asar_entry(entry: str) -> str:
+    text = entry.strip().replace("\\", "/")
+    if text and not text.startswith("/"):
+        text = f"/{text}"
+    return text
 
 
 def assert_windows_target(layout: WindowsPackageLayout, expected_machine: int):
@@ -210,6 +217,12 @@ def assert_windows_target(layout: WindowsPackageLayout, expected_machine: int):
     assert "/apps/desktop/out/preload/index.cjs" in joined
     assert "/apps/desktop/out/renderer/index.html" in joined
     assert "/src/features/composer" not in joined
+
+
+def test_posix_asar_entry_normalizes_windows_separators():
+    assert _posix_asar_entry("\\apps\\desktop\\out\\main\\index.js") == "/apps/desktop/out/main/index.js"
+    assert _posix_asar_entry("/node_modules/better-sqlite3") == "/node_modules/better-sqlite3"
+    assert _posix_asar_entry("node_modules\\better-sqlite3") == "/node_modules/better-sqlite3"
 
 
 def test_windows_package_layout_candidates_follow_current_builder_output():
