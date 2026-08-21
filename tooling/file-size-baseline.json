@@ -3,7 +3,6 @@
   "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx": 2932,
   "apps/desktop/src/features/generation/workbench/store.ts": 1932,
   "packages/core/src/sync/repository.ts": 1421,
-  "apps/web/src/App.tsx": 1092,
   "apps/web-api/src/modules/prompts/service.ts": 1121,
   "apps/desktop/src/features/design-schemes/SchemeRuntimeDetail.tsx": 1131,
   "apps/desktop/electron/doubao-web/browser-service.ts": 1107,

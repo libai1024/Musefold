@@ -3,6 +3,7 @@ import type { PromptDocument } from '@musefold/contracts';
 import {
   applyPromptToGeneration,
   canTransitionGeneration,
+  composerToGenerationRequest,
   generationRequestToPromptDraft,
   getProductCapabilities,
   normalizePromptDraft,
@@ -95,6 +96,23 @@ describe('prompt application rules', () => {
       promptId: '01K1PROMPT',
       size: 'auto',
       aspectRatio: '16:9',
+      quality: 'medium',
+      count: 1,
+    });
+  });
+
+  it('maps composer fields to a cloud generation request', () => {
+    expect(composerToGenerationRequest({
+      prompt: '  quiet glass  ',
+      promptId: '01K1PROMPT',
+      size: '1024x1024',
+      aspectRatio: '1:1',
+      quality: 'medium',
+    })).toEqual({
+      prompt: 'quiet glass',
+      promptId: '01K1PROMPT',
+      size: '1024x1024',
+      aspectRatio: '1:1',
       quality: 'medium',
       count: 1,
     });

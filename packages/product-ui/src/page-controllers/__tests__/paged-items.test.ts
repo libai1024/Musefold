@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_HISTORY_PAGE_LIST_KEY,
   DEFAULT_LIBRARY_PAGE_LIST_KEY,
+  DEFAULT_WORKBENCH_SESSION_LIST_KEY,
   asPagedItems,
   dropListCache,
   itemsFromQueryData,
   libraryPageListKey,
+  replaceListCache,
   upsertListCache,
   upsertPagedItem,
 } from "../paged-items";
@@ -13,6 +15,7 @@ import {
 describe("page-controller list cache helpers", () => {
   it("keeps the web history/library list keys stable (no Date.now bounds)", () => {
     expect(DEFAULT_HISTORY_PAGE_LIST_KEY).toEqual({ limit: 20 });
+    expect(DEFAULT_WORKBENCH_SESSION_LIST_KEY).toEqual({ limit: 20 });
     expect(DEFAULT_LIBRARY_PAGE_LIST_KEY).toEqual({
       limit: 20,
       sort: "updated-desc",
@@ -66,6 +69,16 @@ describe("page-controller list cache helpers", () => {
     ).toEqual({
       items: [{ id: "a" }],
       nextCursor: "z",
+    });
+  });
+
+  it("replaces list contents without changing the cache shape", () => {
+    expect(replaceListCache([{ id: "a" }], [{ id: "b" }])).toEqual([{ id: "b" }]);
+    expect(
+      replaceListCache({ items: [{ id: "a" }], nextCursor: "n" }, [{ id: "c" }]),
+    ).toEqual({
+      items: [{ id: "c" }],
+      nextCursor: "n",
     });
   });
 });

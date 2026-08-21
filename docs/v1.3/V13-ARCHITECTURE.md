@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01 已落地；ORCH-02 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~03 已落地；ORCH-04 起继续
 >
 > **日期**：2026-08-21
 >
@@ -190,6 +190,8 @@ export function useHistoryPageController(deps: {
   const query = useQuery(…); const inspector = useHistoryInspectorController();
   return { items, inspector, remove, restore, … };
 }
+
+// generate-page-controller：会话 Query + 草稿同步 + 提交入口；桌面 extras 同样走 listFn
 ```
 
 宿主职责收敛为：

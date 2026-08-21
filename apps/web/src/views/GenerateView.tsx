@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import { ArrowDownToLine, ArrowUp, FileText, Square } from '@musefold/ui/icons';
 import {
-  type GenerationJob,
-  type GenerationQuality,
-  type WorkbenchSession,
-} from '@musefold/contracts';
-import {
   GenerationResultSurface,
   GenerationRetryAction,
   WorkbenchAssistantFrame,
@@ -40,8 +35,7 @@ import {
   workbenchComposerPlaceholder,
   canShareImage,
   shareImageAsset,
-  type GenerationSavePromptState,
-  type WorkbenchDraftSaveStatus,
+  type GeneratePageController,
 } from '@musefold/product-ui';
 import { Button, ImageLightbox } from '@musefold/ui';
 import { downloadImage } from '../download-image';
@@ -62,61 +56,40 @@ const WORKBENCH_QUALITY_OPTIONS = [
   { id: 'high', label: '超清', hint: '细节优先' },
 ] as const;
 
-export interface GenerateViewProps {
-  promptText: string;
-  ratio: Ratio;
-  quality: GenerationQuality;
-  job: GenerationJob | null;
-  jobs: GenerationJob[];
-  savePromptState: (job: GenerationJob) => GenerationSavePromptState;
-  error: string | null;
-  draftSaveStatus: WorkbenchDraftSaveStatus;
-  draftConflict: WorkbenchSession | null;
-  selectedPrompt: { id: string; title: string; content: string } | null;
-  canGenerate: boolean;
-  onPromptTextChange: (value: string) => void;
-  onRatioChange: (value: Ratio) => void;
-  onQualityChange: (value: GenerationQuality) => void;
-  onOpenPromptLibrary: () => void;
-  onSubmit: () => void;
-  onCancel: () => void;
-  onSavePrompt: (job: GenerationJob) => void;
-  retrying: (job: GenerationJob) => boolean;
-  onRetry: (job: GenerationJob) => void;
-  onReuse: (job: GenerationJob) => void;
-  onOpenHistory: () => void;
-  onUseCloudDraft: () => void;
-  onOverwriteCloudDraft: () => void;
-  onClearPromptReference: () => void;
-}
-
 export function GenerateView({
-  promptText,
-  ratio,
-  quality,
-  job,
-  jobs,
-  savePromptState,
-  error,
-  draftSaveStatus,
-  draftConflict,
-  selectedPrompt,
-  canGenerate,
-  onPromptTextChange,
-  onRatioChange,
-  onQualityChange,
+  page,
   onOpenPromptLibrary,
-  onSubmit,
-  onCancel,
-  onSavePrompt,
-  retrying,
-  onRetry,
-  onReuse,
   onOpenHistory,
-  onUseCloudDraft,
-  onOverwriteCloudDraft,
-  onClearPromptReference,
-}: GenerateViewProps) {
+}: {
+  page: GeneratePageController;
+  onOpenPromptLibrary: () => void;
+  onOpenHistory: () => void;
+}) {
+  const {
+    promptText,
+    setPromptText,
+    ratio,
+    setRatio,
+    quality,
+    setQuality,
+    job,
+    jobs,
+    savePromptState,
+    actionError: error,
+    draftSaveStatus,
+    draftConflict,
+    selectedPrompt,
+    canGenerate,
+    submit,
+    cancel,
+    savePrompt,
+    retrying,
+    retry,
+    reuse,
+    useCloudDraft,
+    overwriteCloudDraft,
+    clearPromptReference,
+  } = page;
   const active = job && isWorkbenchGenerationActive(job.status);
   const [messageActionsOpenId, setMessageActionsOpenId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
@@ -154,7 +127,7 @@ export function GenerateView({
                 <WorkbenchEmptyState
                   brand={<WorkbenchBrand src={musefoldLogoUrl} alt="Musefold / 未像" />}
                   onSelectSuggestion={(suggestion) => {
-                    onPromptTextChange(suggestion);
+                    setPromptText(suggestion);
                     window.requestAnimationFrame(() => {
                       const textarea =
                         document.querySelector<HTMLTextAreaElement>('#generation-prompt');
@@ -222,7 +195,7 @@ export function GenerateView({
                                 }
                               }}
                               onEdit={() => {
-                                onPromptTextChange(turnJob.request.prompt);
+                                setPromptText(turnJob.request.prompt);
                                 setMessageActionsOpenId(null);
                                 window.requestAnimationFrame(() => {
                                   timeline.scrollToLatest('auto');
@@ -311,14 +284,14 @@ export function GenerateView({
                             footerActions={
                               assetIndex === 0 && retryable ? (
                                 <GenerationRetryAction
-                                  onRetry={() => onRetry(turnJob)}
+                                  onRetry={() => retry(turnJob)}
                                   busy={retrying(turnJob)}
                                 />
                               ) : asset ? (
                                 <div className="result-actions">
                                   <GenerationSavePromptAction
                                     state={savePromptState(turnJob)}
-                                    onSave={() => onSavePrompt(turnJob)}
+                                    onSave={() => savePrompt(turnJob)}
                                     className="button button-secondary result-save-prompt"
                                   />
                                 </div>
@@ -334,7 +307,7 @@ export function GenerateView({
                                 id: 'reuse',
                                 label: '再次制作',
                                 icon: <WorkbenchTurnActionIcon name="reuse" />,
-                                onSelect: () => onReuse(turnJob),
+                                onSelect: () => reuse(turnJob),
                               }
                             : null,
                           turnJob.request.prompt.trim() && turnJob.status !== 'running'
@@ -347,7 +320,7 @@ export function GenerateView({
                                     role="menuitem"
                                     state={savePromptState(turnJob)}
                                     onSave={() => {
-                                      onSavePrompt(turnJob);
+                                      savePrompt(turnJob);
                                       close();
                                     }}
                                     className="mf-workbench-turn-menu-item"
@@ -377,7 +350,7 @@ export function GenerateView({
                 <WorkbenchPromptReferenceCard
                   title={selectedPrompt.title}
                   text={selectedPrompt.content}
-                  onClear={onClearPromptReference}
+                  onClear={clearPromptReference}
                 />
               ) : undefined
             }
@@ -398,14 +371,14 @@ export function GenerateView({
                 <WorkbenchRatioPicker
                   value={ratio}
                   options={[...WORKBENCH_RATIO_OPTIONS]}
-                  onChange={(value) => onRatioChange(value as Ratio)}
+                  onChange={(value) => setRatio(value as Ratio)}
                   testIdPrefix="refine-ratio"
                 />
                 <WorkbenchGenerationSettingsPopover
                   quality={quality}
                   qualityOptions={[...WORKBENCH_QUALITY_OPTIONS]}
                   count={1}
-                  onQualityChange={(value) => onQualityChange(value as GenerationQuality)}
+                  onQualityChange={(value) => setQuality(value as typeof quality)}
                 />
               </>
             }
@@ -415,14 +388,14 @@ export function GenerateView({
                 {active ? (
                   <WorkbenchComposerSubmitButton
                     active
-                    onClick={onCancel}
+                    onClick={cancel}
                     activeLabel="取消生成"
                     activeIcon={<Square aria-hidden="true" />}
                   />
                 ) : (
                   <WorkbenchComposerSubmitButton
                     disabled={!promptText.trim() || !canGenerate}
-                    onClick={onSubmit}
+                    onClick={submit}
                     idleLabel="生成图片"
                     idleIcon={<ArrowUp aria-hidden="true" />}
                   />
@@ -441,14 +414,14 @@ export function GenerateView({
               id="generation-prompt"
               data-testid="generation-composer-prompt"
               value={promptText}
-              onChange={(event) => onPromptTextChange(event.target.value)}
+              onChange={(event) => setPromptText(event.target.value)}
               onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing) return;
                 const shouldSubmit =
                   event.key === 'Enter' && (!event.shiftKey || event.metaKey || event.ctrlKey);
                 if (shouldSubmit) {
                   event.preventDefault();
-                  if (promptText.trim() && canGenerate && !active) onSubmit();
+                  if (promptText.trim() && canGenerate && !active) submit();
                 }
               }}
               placeholder={workbenchComposerPlaceholder({
@@ -468,10 +441,10 @@ export function GenerateView({
                   <span>请选择保留的版本</span>
                 </div>
                 <div className="composer-conflict-actions">
-                  <Button variant="secondary" onClick={onUseCloudDraft}>
+                  <Button variant="secondary" onClick={useCloudDraft}>
                     使用云端
                   </Button>
-                  <Button variant="primary" onClick={onOverwriteCloudDraft}>
+                  <Button variant="primary" onClick={overwriteCloudDraft}>
                     保留本机
                   </Button>
                 </div>

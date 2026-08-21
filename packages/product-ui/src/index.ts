@@ -71,6 +71,7 @@ export {
 export {
   DEFAULT_HISTORY_PAGE_LIST_KEY,
   DEFAULT_LIBRARY_PAGE_LIST_KEY,
+  DEFAULT_WORKBENCH_SESSION_LIST_KEY,
   LIBRARY_PAGE_SEARCH_DEBOUNCE_MS,
   asPagedItems,
   dropListCache,
@@ -79,6 +80,7 @@ export {
   upsertListCache,
   upsertPagedItem,
   dropPagedItem,
+  replaceListCache,
 } from './page-controllers/paged-items';
 export {
   useHistoryPageController,
@@ -92,5 +94,15 @@ export {
 } from './page-controllers/library-page-controller';
 export {
   useGeneratePageController,
+  type GeneratePageController,
   type GeneratePageControllerDeps,
+  type GeneratePageHydrateInput,
+  areWorkbenchDraftsEqual,
+  buildWorkbenchDraft,
+  collectGatewayPages,
+  type GeneratePagePromptRef,
+  type GeneratePageQuality,
+  type GeneratePageRatio,
+  type GeneratePageSession,
+  type WorkbenchDraftInput,
 } from './page-controllers/generate-page-controller';

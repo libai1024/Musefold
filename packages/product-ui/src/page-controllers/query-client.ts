@@ -34,6 +34,11 @@ export const musefoldQueryKeys = {
     all: ["account"] as const,
     status: ["account", "status"] as const,
   },
+  workbench: {
+    all: ["workbench"] as const,
+    sessions: ["workbench", "sessions"] as const,
+    list: (query: unknown) => ["workbench", "sessions", query] as const,
+  },
 };
 
 export function createMusefoldQueryClient(): QueryClient {

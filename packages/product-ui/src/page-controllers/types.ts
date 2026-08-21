@@ -11,7 +11,7 @@ import type {
  *
  * `listKey` / `listFn` 是桌面 extras 的注入点：product-ui 不引用宿主
  * 扩展类型，宿主把 extras 列表收成与 Query key 同形状的回调。
- * 未传时走 HistoryGateway / PromptGateway。
+ * 未传时走 HistoryGateway / PromptGateway / WorkbenchGateway。
  */
 export interface HistoryPageControllerDeps {
   history: HistoryGateway;
@@ -38,6 +38,22 @@ export interface LibraryPageControllerDeps {
 export interface GeneratePageControllerDeps {
   workbench: WorkbenchGateway;
   platform: PlatformServices;
+  generation?: GenerationGateway;
+  prompts?: PromptGateway;
+  history?: HistoryGateway;
+  /** 稳定筛选快照。禁止写入 `Date.now()` 解析出的 from/to（STATE-02）。 */
+  listKey?: unknown;
+  listEnabled?: boolean;
+  canGenerate?: boolean;
+  isConflictError?: (error: unknown) => boolean;
+  createIdempotencyKey?: () => string;
+  onShowGenerate?: () => void;
+  onSessionUrlChange?: (sessionId: string | null) => void;
+  onAuthRequired?: () => void;
+  onHistoryJob?: (
+    job: Awaited<ReturnType<GenerationGateway["createGeneration"]>>,
+  ) => void;
+  onLibraryPrompt?: (prompt: Awaited<ReturnType<PromptGateway["getPrompt"]>>) => void;
 }
 
 export function requirePageControllerDeps<T extends { platform: PlatformServices }>(

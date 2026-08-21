@@ -8,7 +8,11 @@ import { useHistoryPageController } from "../history-page-controller";
 import { useLibraryPageController } from "../library-page-controller";
 import { useGeneratePageController } from "../generate-page-controller";
 import { createMusefoldQueryClient, musefoldQueryKeys } from "../query-client";
-import { DEFAULT_HISTORY_PAGE_LIST_KEY, DEFAULT_LIBRARY_PAGE_LIST_KEY } from "../paged-items";
+import {
+  DEFAULT_HISTORY_PAGE_LIST_KEY,
+  DEFAULT_LIBRARY_PAGE_LIST_KEY,
+  DEFAULT_WORKBENCH_SESSION_LIST_KEY,
+} from "../paged-items";
 import { requirePageControllerDeps } from "../types";
 
 const platform: PlatformServices = {
@@ -23,9 +27,6 @@ describe("page-controller deps", () => {
     expect(() => requirePageControllerDeps(undefined, "useHistoryPageController")).toThrow(
       /explicit platform deps/,
     );
-    expect(
-      useGeneratePageController({ workbench: {} as WorkbenchGateway, platform }).platform,
-    ).toBe(platform);
   });
 
   it("loads history via HistoryGateway list when the Query cache is warm", async () => {
@@ -98,5 +99,48 @@ describe("page-controller deps", () => {
       createElement(QueryClientProvider, { client }, createElement(Probe)),
     );
     expect(ids).toEqual(["p-1"]);
+  });
+
+  it("loads workbench sessions via WorkbenchGateway when the Query cache is warm", async () => {
+    const session = {
+      id: "s-1",
+      title: "未命名创作",
+      draft: {
+        prompt: "",
+        negative: "",
+        params: {},
+        promptReferenceIds: [],
+      },
+      version: 1,
+      createdAt: "2026-08-21T00:00:00.000Z",
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      archivedAt: null,
+      deletedAt: null,
+    };
+    const workbench = {
+      async listWorkbenchSessions() {
+        return { items: [session], nextCursor: null };
+      },
+    } as unknown as WorkbenchGateway;
+    const client = createMusefoldQueryClient();
+    await client.prefetchQuery({
+      queryKey: musefoldQueryKeys.workbench.list(DEFAULT_WORKBENCH_SESSION_LIST_KEY),
+      queryFn: () => workbench.listWorkbenchSessions({ limit: 20 }),
+    });
+
+    let ids: string[] = [];
+    function Probe() {
+      const page = useGeneratePageController({
+        workbench,
+        platform,
+        listEnabled: true,
+      });
+      ids = page.sessionItems.map((item) => item.id);
+      return null;
+    }
+    renderToStaticMarkup(
+      createElement(QueryClientProvider, { client }, createElement(Probe)),
+    );
+    expect(ids).toEqual(["s-1"]);
   });
 });

@@ -17,6 +17,9 @@ export const DEFAULT_LIBRARY_PAGE_LIST_KEY = {
   sort: "updated-desc",
 } as const;
 
+/** 工作台会话列表。禁止把 `Date.now()` 解析出的边界写进 key。 */
+export const DEFAULT_WORKBENCH_SESSION_LIST_KEY = { limit: 20 } as const;
+
 export const LIBRARY_PAGE_SEARCH_DEBOUNCE_MS = 220;
 
 export function libraryPageListKey(query: string): {
@@ -91,4 +94,12 @@ export function dropListCache<TItem extends { id: string }>(
     return (current as TItem[]).filter((entry) => entry.id !== id);
   }
   return dropPagedItem(asPagedItems<TItem>(current), id);
+}
+
+export function replaceListCache<TItem extends { id: string }>(
+  current: unknown,
+  items: TItem[],
+): unknown {
+  if (Array.isArray(current)) return items;
+  return { items, nextCursor: asPagedItems<TItem>(current).nextCursor };
 }

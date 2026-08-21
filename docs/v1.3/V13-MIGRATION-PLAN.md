@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~02 已完成；ORCH-03 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~03 已完成；ORCH-04 起继续
 >
 > **日期**：2026-08-21
 >
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | Phase 0 治理地基 | GOV-01~04：尺寸棘轮、feature 隔离、命名统一、ipc/preload 分域 | 随时（纯仓库侧） | 小 |
 | Phase 1 实体统一 | ENT-01~04：行模型止血、history/library/account→workbench 逐域文档化、models 收缩 | Phase 0 的 GOV-01/02 已上线 | **已完成（2026-08-21）** |
-| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03、ORCH-01~02 已完成 |
+| Phase 2 状态与编排 | STATE-01~03 + ORCH-01~04：Query 引入与读路径迁移；page-controllers 下沉、App.tsx 拆解 | ENT-02/03 完成后编排 hook 才有统一实体可操作；STATE-01 先于全部 ORCH 卡 | **进行中**：STATE-01~03、ORCH-01~03 已完成 |
 | Phase 3 拆分与复用 | SPLIT-01~04 + REUSE-01~03：工作台拆分与上提、巨型文件消化、互导清零 | STATE/ORCH 主卡完成（新结构就位） | 大 |
 
 卡间依赖细目：ENT-01 → ENT-02~04；STATE-01 → ORCH-01~04；ORCH-02/03 ↔ ENT-02/03（同域类型与编排可同批）；SPLIT-02 依赖 SPLIT-01；REUSE-03 依赖 REUSE-01。
@@ -165,9 +165,16 @@
   验证：全仓 `tsc -b`；vitest 190 files / 1072 tests；`check:boundaries` 853 modules / 69 known；`App.tsx` 1201 → 1092；Web E2E workspace history/library；桌面 E2E harness+library+history。
   回滚：revert 本卡提交。
 
-- `V13-ORCH-03`：generate/workbench 编排收敛 + Web `App.tsx` 拆解完成。`useGeneratePageController`（工作台顶层编排：会话装配、草稿入口、生成提交入口）落地；Web `App.tsx` 收敛为视图切换 + 3 个薄 view + Provider 装配（目标 ≤ 300 行）；桌面工作台顶层编排对齐同 controller（与 SPLIT-03 协同）。
+- `V13-ORCH-03`：~~generate/workbench 编排收敛 + Web `App.tsx` 拆解完成。~~ **已完成（2026-08-21）**。`useGeneratePageController` 落地（会话 Query、草稿入口、生成提交/取消/重试/存提示词、跨页 reuse）。Web `App.tsx` 1092 → ≤300：视图切换 + 薄 view + 登录/审批 screens + Provider 装配。桌面 `GeneratePage` 挂载同一 hook（`listEnabled: false`）。
 
-  验证：工作台 E2E 全量；Web E2E。
+  **裁定（相对原卡的差异）**：
+  1. **桌面不在本卡改 workbench/store.ts（1932 顶格）。** 共享 `WorkbenchGateway.updateWorkbenchSession` / `GenerationGateway.createGeneration` 在桌面未实现（草稿在渲染层、生成走 extras）。本卡只把 GeneratePage 顶层挂载对齐，会话镜像消费留给 SPLIT-03，避免 Generate 页多打一轮 IPC。
+  2. **会话列表进 Query**（`musefoldQueryKeys.workbench.list`，默认 `{ limit: 20 }`）。Web 登录后 `listEnabled`，水合后再 enable。写后 `setQueryData` + `void invalidate()`，不 await。
+  3. **product-ui 不 import contracts**，会话/任务类型从 gateway `ReturnType` 推断。composer→请求走 domain `composerToGenerationRequest`。
+  4. **Web 专有登录/审批/MCP 连接留在宿主 screens**，controller 只管工作台会话/草稿/提交。动作失败不 toast，Web 行内 `actionError`。
+  5. **桌面 feature store 写面不删**（ORCH-02 裁定延续）。
+
+  验证：全仓 `tsc -b`；vitest 191 files / 1079 tests；`check:boundaries` 862 modules / 69 known；`App.tsx` 1092 → 258；Web E2E workspace 11；桌面 harness+generate+workbench 58。
   回滚：按端分卡 revert。
 
 - `V13-ORCH-04`：共享导航配置与命令路由（v1.2.2 迁移计划 §6 预埋候选）。双端视图清单、快捷键、命令面板项的声明式配置收敛 domain/product-ui，宿主只注册差异项。

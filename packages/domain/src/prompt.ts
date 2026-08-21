@@ -60,6 +60,28 @@ export function applyPromptToGeneration(
   });
 }
 
+export interface ComposerGenerationRequestInput {
+  prompt: string;
+  promptId?: string | null;
+  size: GenerationSize;
+  aspectRatio: string;
+  quality: GenerationQuality;
+}
+
+/** 工作台 composer 字段装配为云端生图请求。product-ui 不直接依赖 contracts schema。 */
+export function composerToGenerationRequest(
+  input: ComposerGenerationRequestInput,
+): CloudGenerationRequest {
+  return cloudGenerationRequestSchema.parse({
+    prompt: input.prompt,
+    promptId: input.promptId ?? undefined,
+    size: input.size,
+    aspectRatio: input.aspectRatio,
+    quality: input.quality,
+    count: 1,
+  });
+}
+
 export function titleFromPromptContent(
   content: string,
   fallback = '生成提示词',

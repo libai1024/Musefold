@@ -28,5 +28,11 @@ describe("createMusefoldQueryClient", () => {
     expect(musefoldQueryKeys.history.lists).toEqual(["history", "list"]);
     expect(musefoldQueryKeys.library.all).toEqual(["library"]);
     expect(musefoldQueryKeys.account.status).toEqual(["account", "status"]);
+    expect(musefoldQueryKeys.workbench.all).toEqual(["workbench"]);
+    expect(musefoldQueryKeys.workbench.list({ limit: 20 })).toEqual([
+      "workbench",
+      "sessions",
+      { limit: 20 },
+    ]);
   });
 });
