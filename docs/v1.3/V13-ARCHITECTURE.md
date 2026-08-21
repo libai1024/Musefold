@@ -1,6 +1,6 @@
 # Musefold v1.3 系统架构
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已落地；SPLIT-01 已落地；SPLIT-02 起继续
 >
 > **日期**：2026-08-21
 >
@@ -213,7 +213,7 @@ Web `App.tsx` 由约 1,373 行编排拆解为：视图切换 + 3 个薄 view（�
 
 ### 6.1 GenerationWorkbench.tsx（2,932 行 → 组合层 + widget 模块）
 
-按既有内联组件边界机械拆分为独立文件（第一步零逻辑变更）：
+按既有内联组件边界机械拆分为独立文件（SPLIT-01 已完成，文件在桌面 `features/generation/workbench/`；SPLIT-02 再上提 product-ui）：
 
 | 现内联组件（行号） | 去向 | 说明 |
 |---|---|---|

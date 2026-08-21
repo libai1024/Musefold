@@ -1,10 +1,16 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const workbench = readFileSync(
-  'apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx',
-  'utf8',
-);
+function workbenchUiSource(): string {
+  const dir = 'apps/desktop/src/features/generation/workbench';
+  return readdirSync(dir)
+    .filter((name) => /\.(ts|tsx)$/.test(name))
+    .map((name) => readFileSync(join(dir, name), 'utf8'))
+    .join('\n');
+}
+
+const workbench = workbenchUiSource();
 const avatar = readFileSync(
   'apps/desktop/src/components/brand/MusefoldAssistantAvatar.tsx',
   'utf8',

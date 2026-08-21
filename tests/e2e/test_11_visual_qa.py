@@ -442,31 +442,12 @@ def test_shared_library_and_history_visual_contracts(app):
         "window.__musefold_test.stores.library.getState().initialized === true"
     )
     app.page.evaluate(
-        """(items) => {
-          const pinned = items.filter((item) => item.isPinned).length;
-          const unfiled = items.filter((item) => !item.folderId).length;
-          window.__musefold_test.stores.library.setState({
-            prompts: items,
-            stats: {
-              total: items.length,
-              unfiled,
-              trashed: 0,
-              pinned,
-              byFolder: {},
-              byTag: {},
-            },
-            search: '',
-            loading: false,
-            initialized: true,
-          });
-        }""",
-        fixture_prompts,
+        """async () => {
+          await window.__musefold_test.stores.library.getState().loadAll();
+        }"""
     )
-    app.page.wait_for_selector(f'[data-prompt-id="{night_prompt_id}"]')
-    app.page.wait_for_function(
-        "(count) => document.querySelectorAll('[data-testid=prompt-row]').length === count",
-        arg=len(fixture_prompts),
-    )
+    for item in fixture_prompts:
+        app.page.wait_for_selector(f'[data-prompt-id="{item["id"]}"]')
     capture_shared_surface(
         app,
         "shared-library-list-1440x900.png",

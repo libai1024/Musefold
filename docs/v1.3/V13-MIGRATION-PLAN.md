@@ -1,6 +1,6 @@
 # Musefold v1.3 迁移计划
 
-> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01 起继续
+> **状态**：Phase 0、Phase 1、STATE-01~03 与 ORCH-01~04 已完成；SPLIT-01 已完成；SPLIT-02 起继续
 >
 > **日期**：2026-08-21
 >
@@ -197,9 +197,16 @@
 
 ### 任务
 
-- `V13-SPLIT-01`：`GenerationWorkbench.tsx` 机械拆分：14 个内联组件按[架构文档 6.1](./V13-ARCHITECTURE.md) 边界拆为独立文件，**零逻辑变更**（纯移动 + import/props 透传修正）。
+- `V13-SPLIT-01`：~~`GenerationWorkbench.tsx` 机械拆分：14 个内联组件按[架构文档 6.1](./V13-ARCHITECTURE.md) 边界拆为独立文件，**零逻辑变更**（纯移动 + import/props 透传修正）。~~ **已完成（2026-08-21）**。内联组件迁到 `features/generation/workbench/` 同级文件；`WorkbenchComposer` 因超过 600 行再拆为 store hook / 编排 / chrome / view。`GenerationWorkbench.tsx` 退出尺寸 baseline（2932 → 组合层）。上提 product-ui 留给 SPLIT-02。
 
-  验证：typecheck/test；工作台 E2E 全量 + 视觉门禁（像素不变即证明零行为变更）。
+  **裁定**：
+  1. **本卡不把 widget 上提 product-ui**（SPLIT-02）。先落在桌面 workbench 目录，保持 IPC/store 依赖原地。
+  2. **新文件一律 ≤ 600**。TurnView 抽出 `GenerationTurnUserAttachments`；Composer 抽出 `useWorkbenchComposerStore` + `WorkbenchComposerChrome` + `WorkbenchComposerView`。
+  3. **源码契约测试改为扫描 workbench 目录**，不断言单一巨型文件。
+  4. **跨 feature 导入集中到 `workbenchCrossFeature.ts`**，known-violations 的 from 从 `GenerationWorkbench.tsx` 平移到该桥接文件（边数不变）。拆文件不得把同一条边复制成多条新违规。
+  5. **视觉 QA 的 library 列表不再注入 zustand**（读面已在 ORCH-02 改走 Query）；改为 `loadAll` 后等待已创建条目的 `data-prompt-id`。
+
+  验证：typecheck/test；工作台 E2E；视觉门禁。
   回滚：revert 移动提交。
 
 - `V13-SPLIT-02`：widget 上提 product-ui：timeline/turn-view/result-card/draft-preview 及 composer 拆分件中纯产品 UI 部分迁入 `product-ui/workbench/`；桌面语义段（额度兑换、Skill/Scheme 采集、本地附件）留桌面经插槽组合；Web 工作台视图升级为共享 widget 直拼（REUSE-02 的一半）。

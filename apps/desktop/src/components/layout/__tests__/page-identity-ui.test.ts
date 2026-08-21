@@ -12,7 +12,7 @@ const settingsView = readFileSync(
   "utf8",
 );
 const workbench = readFileSync(
-  "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+  "apps/desktop/src/features/generation/workbench/WorkbenchTimeline.tsx",
   "utf8",
 );
 const emptyState = readFileSync(

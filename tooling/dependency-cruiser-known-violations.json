@@ -230,7 +230,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/account/store.ts",
     "unresolvedTo": "../../account/store",
     "dependencyTypes": [
@@ -244,7 +244,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/design-schemes/creation-store.ts",
     "unresolvedTo": "../../design-schemes/creation-store",
     "dependencyTypes": [
@@ -258,7 +258,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/design-schemes/HistorySourcePicker.tsx",
     "unresolvedTo": "../../design-schemes/HistorySourcePicker",
     "dependencyTypes": [
@@ -272,7 +272,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/design-schemes/run-store.ts",
     "unresolvedTo": "../../design-schemes/run-store",
     "dependencyTypes": [
@@ -286,7 +286,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/design-schemes/SchemeCreationConversation.tsx",
     "unresolvedTo": "../../design-schemes/SchemeCreationConversation",
     "dependencyTypes": [
@@ -300,7 +300,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/design-schemes/SchemeRunComposer.tsx",
     "unresolvedTo": "../../design-schemes/SchemeRunComposer",
     "dependencyTypes": [
@@ -314,7 +314,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/design-schemes/SchemeRunConversation.tsx",
     "unresolvedTo": "../../design-schemes/SchemeRunConversation",
     "dependencyTypes": [
@@ -328,7 +328,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/library/related-history.ts",
     "unresolvedTo": "../../library/related-history",
     "dependencyTypes": [
@@ -342,7 +342,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/library/store.ts",
     "unresolvedTo": "../../library/store",
     "dependencyTypes": [
@@ -356,7 +356,7 @@
   },
   {
     "type": "dependency",
-    "from": "apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx",
+    "from": "apps/desktop/src/features/generation/workbench/workbenchCrossFeature.ts",
     "to": "apps/desktop/src/features/settings/store.ts",
     "unresolvedTo": "../../settings/store",
     "dependencyTypes": [
