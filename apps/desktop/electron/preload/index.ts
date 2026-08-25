@@ -14,7 +14,6 @@ import { designSchemeApi } from "./api/design-scheme";
 import {
   aiConnectionApi,
   providerApi,
-  settingsApi,
   imageApi,
 } from "./api/generation";
 import { workbenchSessionApi } from "./api/workbench";
@@ -54,7 +53,6 @@ const api = {
   designScheme: designSchemeApi,
   aiConnection: aiConnectionApi,
   provider: providerApi,
-  settings: settingsApi,
   image: imageApi,
   workbenchSession: workbenchSessionApi,
   history: historyApi,

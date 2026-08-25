@@ -4,10 +4,10 @@ import { pickPreset, recommendedPresets } from '../provider-presets';
 
 describe('pickPreset', () => {
   it('returns exact preset by id', () => {
-    const p = pickPreset('wukong');
-    expect(p.id).toBe('wukong');
-    expect(p.model).toBe('image_gptImage2');
-    expect(p.modelLabel).toBe('产品 ID');
+    const p = pickPreset('doubao-web');
+    expect(p.id).toBe('doubao-web');
+    expect(p.type).toBe('doubao-web');
+    expect(p.model).toBe('seedream-4.5');
   });
 
   it('falls back to default recommended for unknown/empty', () => {

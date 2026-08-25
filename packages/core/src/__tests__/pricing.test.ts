@@ -1,26 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   estimateCostFromPricing,
-  normalizeProviderPricing,
   parseStoredProviderPricing,
 } from '../pricing';
 
-describe('provider pricing validation', () => {
-  it('accepts non-negative point values', () => {
-    expect(normalizeProviderPricing({ mode: 'per-image', unitPoints: 3.2 })).toEqual({
-      mode: 'per-image',
-      unitPoints: 3.2,
-    });
-    expect(normalizeProviderPricing({ mode: 'per-1k-token', unitPoints: 0 })).toEqual({
-      mode: 'per-1k-token',
-      unitPoints: 0,
-    });
-  });
-
-  it('rejects invalid mode, non-number, and negative points', () => {
-    expect(() => normalizeProviderPricing({ mode: 'bad', unitPoints: 1 })).toThrow(/计费方式/);
-    expect(() => normalizeProviderPricing({ mode: 'per-image', unitPoints: Number.NaN })).toThrow(/有效积分/);
-    expect(() => normalizeProviderPricing({ mode: 'per-image', unitPoints: -1 })).toThrow(/负数/);
+describe('managed provider pricing storage parsing', () => {
+  it('rejects invalid or retired modes and negative points', () => {
+    expect(parseStoredProviderPricing({ mode: 'bad', unitPoints: 1 })).toBeNull();
+    expect(parseStoredProviderPricing({ mode: 'per-1k-token', unitPoints: 2 })).toBeNull();
+    expect(parseStoredProviderPricing({ mode: 'per-image', unitPoints: Number.NaN })).toBeNull();
+    expect(parseStoredProviderPricing({ mode: 'per-image', unitPoints: -1 })).toBeNull();
     expect(parseStoredProviderPricing({ mode: 'per-image', unitCents: -1 })).toBeNull();
   });
 
@@ -38,9 +27,9 @@ describe('estimateCostFromPricing', () => {
     expect(estimateCostFromPricing({ mode: 'per-image', unitPoints: 3.2 }, { n: 3 })).toBe(9.6);
   });
 
-  it('calculates per-token cost only when usage is present', () => {
-    expect(estimateCostFromPricing({ mode: 'per-1k-token', unitPoints: 2 }, { n: 1 }, 2500)).toBe(5);
-    expect(estimateCostFromPricing({ mode: 'per-1k-token', unitPoints: 2 }, { n: 1 }, undefined)).toBeNull();
+  it('uses one image when request count is invalid', () => {
+    expect(estimateCostFromPricing({ mode: 'per-image', unitPoints: 2 }, { n: 0 })).toBe(2);
+    expect(estimateCostFromPricing({ mode: 'per-image', unitPoints: 2 }, {})).toBe(2);
   });
 
   it('returns null when pricing is not configured', () => {

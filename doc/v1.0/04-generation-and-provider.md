@@ -46,7 +46,6 @@ Automation 主机进一步以 `realpath` 校验路径根，只允许受控 uploa
 | type | 实现 | 关键行为 |
 | --- | --- | --- |
 | `openai`、`openai-compatible` | `OpenAICompatibleProvider` | OpenAI SDK；`/models`；文本生图和 `/images/edits` 参考图；原始 b64 写 PNG。 |
-| `wukong-studio` | `WukongStudioProvider` | `POST /submit` 后轮询 `/poll?task_id`；下载 URL；不支持参考图。 |
 | `doubao-web` | `DoubaoWebProvider` | 委托 Electron 注入的网页自动化 runtime；不读 API key；模型固定为 `seedream-4.5`。 |
 
 Core 对外只返回不含 secret 的 `ProviderConfig`，包括 `managedBy`。UI 不允许编辑 account-managed Provider。
@@ -56,10 +55,6 @@ Core 对外只返回不含 secret 的 `ProviderConfig`，包括 `managedBy`。UI
 读取 runtime 的 key，OpenAI SDK `maxRetries=0`，由自身重试逻辑控制。生成调用 `client.images.generate`，携带 model/prompt/n/size/quality/background/moderation；有参考图时使用 multipart `/images/edits` 并附 Authorization。b64 内容写入 `getPaths().pictures/{jobId}.png`，再读取真实像素尺寸并返回 mismatch 警告。
 
 错误会归一化为 `AUTH`、`NO_BALANCE`、`MODEL_NOT_FOUND`、`BAD_REQUEST`、`RATE_LIMIT`、`SERVER`、`NETWORK`。支持 Retry-After 和指数退避。
-
-### Wukong Studio
-
-默认 API `/catalog` 获取模型，`POST /submit` 使用 `product_id` 和 `{prompt,size:ratio}`，每 2500ms 轮询，超时 180s；成功下载 URL 并写 PNG。Provider 边界把 `billing.yuan` 换算为积分后返回。不接受参考图；错误包括 WRONG_GROUP、AUTH、NO_BALANCE、RATE_LIMIT、SERVER、TIMEOUT。
 
 ### Doubao 网页版
 
@@ -88,16 +83,16 @@ Provider 错误映射：
 
 所有 Provider、历史、Automation、CLI 和 MCP 成本统一为用户可见积分，`costUnit` 固定为 `point`。`1 积分 = ¥0.1 = 50,000` 账号原始配额；人民币金额和原始配额只能在 Provider/旧数据边界换算，不进入预算判断。
 
-估算是零成本操作；实际成本在成功后结算自动化预算，失败不扣预算。账号额度、Provider pricing 和模型价格来自服务端/本地 pricing cache，不能把缓存价格当成永久定价。
+账号托管 Provider 从服务器同步单价并通过内部 cache 估算，成功记录服务器提供的积分成本；托管价格未知时，自动化仍需要确认。非托管 Provider 不读取本地 pricing，成功记录的 `history.cost` 为 `NULL`，预算门按不计费放行。Doubao 成本固定为 0，并继续纳入云端 quota、budget 和审计体系。
 
 ## 7. Provider 预设
 
-`shared/constants.ts` 提供：Doubao 网页 `https://www.doubao.com/chat/create-image`、TvT OpenAI-compatible `https://ai.tvt.wiki/v1` / `gpt-image-2`、Wukong `https://wkapi.vip/api/v1/studio` / `image_gptImage2`。这些是预设，不代表服务可用、价格稳定或密钥已配置。
+`packages/domain/src/constants.ts` 提供 Doubao 网页 `https://www.doubao.com/chat/create-image` 和 TvT OpenAI-compatible `https://ai.tvt.wiki/v1` / `gpt-image-2`。这些是预设，不代表服务可用、价格稳定或密钥已配置。
 
 ### 源码证据
 
 - `packages/core/src/services/generation.ts`
-- `packages/core/src/providers/{registry,openai-compatible,wukong-studio,doubao-web,local-image,retry}.ts`
+- `packages/core/src/providers/{registry,openai-compatible,doubao-web,local-image,retry}.ts`
 - `electron/doubao-web/{browser-service,usage-limit}.ts`
 - `src/features/generation/{params.ts,workbench/store.ts}`
-- `shared/constants.ts`
+- `packages/domain/src/constants.ts`

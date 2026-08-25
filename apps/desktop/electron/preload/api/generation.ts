@@ -1,5 +1,5 @@
 // electron/preload/api/generation.ts
-// aiConnection / provider / settings(pricing) / image 域的 window.api 组装（V13-GOV-04 自 preload/index.ts 分域拆出）。
+// aiConnection / provider / image 域的 window.api 组装（V13-GOV-04 自 preload/index.ts 分域拆出）。
 
 import { ipcRenderer } from "electron";
 import { IPC } from "@musefold/desktop-contracts/ipc";
@@ -60,17 +60,6 @@ export const providerApi = {
   validate: (id: string) => ipcRenderer.invoke(IPC.PROVIDER_VALIDATE, id),
   listModels: (id: string) => ipcRenderer.invoke(IPC.PROVIDER_LIST_MODELS, id),
   setActive: (id: string) => ipcRenderer.invoke(IPC.PROVIDER_SET_ACTIVE, id),
-};
-
-export const settingsApi = {
-  pricing: {
-    get: (providerId: string) =>
-      ipcRenderer.invoke(IPC.SETTINGS_PRICING_GET, providerId),
-    set: (req: import("@musefold/desktop-contracts/models").ProviderPricingSetRequest) =>
-      ipcRenderer.invoke(IPC.SETTINGS_PRICING_SET, req),
-    delete: (providerId: string) =>
-      ipcRenderer.invoke(IPC.SETTINGS_PRICING_DELETE, providerId),
-  },
 };
 
 export const imageApi = {

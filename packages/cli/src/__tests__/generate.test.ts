@@ -45,7 +45,7 @@ beforeAll(async () => {
         return { historyId: req.jobId ?? 'his-x', status: 'success', imagePath: assetPath, cost: 18, durationMs: 30 };
       }),
       cancel: vi.fn(() => true),
-      estimate: vi.fn(() => ({ points: 18, providerId: 'prov', providerName: '测试站', model: 'gpt-image-2', n: 1 })),
+      estimate: vi.fn(() => ({ points: 18, managedByAccount: true, providerId: 'prov', providerName: '测试站', model: 'gpt-image-2', n: 1 })),
       budget: { remainingPoints: () => 0, settle: vi.fn() },
       requestConfirmation: vi.fn(async () => 'denied' as const),
       authorizeReferencePath: () => true,

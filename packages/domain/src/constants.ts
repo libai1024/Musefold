@@ -3,7 +3,7 @@
 /** 与 `@musefold/desktop-contracts/enums` 的 TagGroup 同形；domain 不依赖 desktop-contracts。 */
 type TagGroup = '风格' | '场景' | '模型' | '主体' | '画质' | '自定义';
 /** 与 `@musefold/desktop-contracts/enums` 的 ProviderType 同形。 */
-type ProviderType = 'openai' | 'openai-compatible' | 'wukong-studio' | 'doubao-web';
+type ProviderType = 'openai' | 'openai-compatible' | 'doubao-web';
 /** 与 `@musefold/desktop-contracts/enums` 的 ImageSize 同形。 */
 type ImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '2048x2048' | 'auto';
 
@@ -41,16 +41,15 @@ export interface ProviderPreset {
   keyUrl?: string;
   /** 是否推荐（默认服务商） */
   recommended?: boolean;
-  /** model 字段在该 Provider 语义下的标签（如悟空为 product_id） */
+  /** model 字段在该 Provider 语义下的标签 */
   modelLabel?: string;
   modelHint?: string;
 }
 
 /**
- * 当前内置三种接入：
+ * 当前内置两种接入：
  * - 豆包网页版（实验，持久浏览器会话）
  * - TvT（默认，OpenAI 兼容，同步 b64_json）
- * - 悟空云 生图组（可选，异步 submit/poll，model 字段存 product_id）
  */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
@@ -71,17 +70,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     hint: '默认服务商 · OpenAI 兼容中转，生图用 gpt-image-2，出图快（约 10–30s）',
     keyUrl: 'https://ai.tvt.wiki/login/',
     recommended: true,
-  },
-  {
-    id: 'wukong',
-    name: '悟空云 · 生图组',
-    type: 'wukong-studio',
-    baseUrl: 'https://wkapi.vip/api/v1/studio',
-    model: 'image_gptImage2',
-    hint: '可选服务商 · 创作台生图组（异步出图）。Key 必须属于「生图组」分组。',
-    keyUrl: 'https://wkapi.vip/wkapi-docs.html',
-    modelLabel: '产品 ID',
-    modelHint: 'GPT-Image-2 用 image_gptImage2；其余见 /catalog。',
   },
 ];
 
@@ -116,14 +104,14 @@ export const ACCOUNT_FALLBACK_IMAGE_MODEL = 'gpt-image-2';
 export const ACCOUNT_MANAGED_NAME = 'Musefold 账号';
 
 /**
- * 创作台「图片比例」选项 —— 同时给两类 Provider 用：
+ * 创作台「图片比例」选项：
  * - size：映射到 gpt-image-2 支持的像素档位（TvT / OpenAI 兼容）
- * - ratio：直接给悟空生图组 payload.size（比例字符串）
+ * - ratio：比例字符串（历史快照与自定义比例推导仍引用）
  */
 export interface RatioOption {
   id: string;
   label: string;
-  ratio: string; // 悟空 payload.size
+  ratio: string;
   size: ImageSize; // OpenAI 像素档
   hint?: string;
 }
@@ -144,7 +132,7 @@ export const RATIO_OPTIONS: RatioOption[] = [
 
 // ---------- 自定义比例（设置「默认比例」与 Composer 画幅共用） ----------
 // ratioId 形如 `custom:W:H`（W/H 为 1–99 的整数），比例限制在 1:4 ~ 4:1。
-// 语义与预设一致：ratio 原样给悟空；OpenAI 兼容站只有三档像素位，按纵横倾向就近映射。
+// 语义与预设一致：ratio 保留比例语义；OpenAI 兼容站只有三档像素位，按纵横倾向就近映射。
 
 export const CUSTOM_RATIO_LIMIT = 4;
 

@@ -17,8 +17,6 @@ const ENDPOINT = '/__preview_api__';
 const providers = new Map();
 /** @type {Map<string, string>} providerId -> apiKey（明文，仅内存） */
 const keys = new Map();
-/** @type {Map<string, {mode:'per-image'|'per-1k-token', unitPoints:number}>} providerId -> pricing */
-const pricing = new Map();
 const previewBackups = [];
 const previewPrompts = new Map();
 const previewAiConnections = new Map();
@@ -28,35 +26,6 @@ let activeAiConnectionId = null;
 
 const now = () => Date.now();
 const rid = (p) => `${p}_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
-
-function normalizePricing(raw) {
-  if (!raw || (raw.mode !== 'per-image' && raw.mode !== 'per-1k-token')) {
-    throw new Error('计费方式无效');
-  }
-  if (typeof raw.unitPoints !== 'number' || !Number.isFinite(raw.unitPoints)) {
-    throw new Error('单价必须是有效积分数');
-  }
-  if (raw.unitPoints < 0) throw new Error('单价不能为负数');
-  return { mode: raw.mode, unitPoints: raw.unitPoints };
-}
-
-function usageTokens(raw) {
-  const usage = raw?.usage;
-  if (!usage) return undefined;
-  if (Number.isFinite(usage.total_tokens)) return usage.total_tokens;
-  const input = Number.isFinite(usage.input_tokens) ? usage.input_tokens : 0;
-  const output = Number.isFinite(usage.output_tokens) ? usage.output_tokens : 0;
-  const total = input + output;
-  return total > 0 ? total : undefined;
-}
-
-function estimateCost(providerId, req, usage) {
-  const p = pricing.get(providerId);
-  if (!p) return undefined;
-  if (p.mode === 'per-image') return p.unitPoints * Math.max(1, Math.floor(req?.n ?? 1));
-  if (!Number.isFinite(usage)) return undefined;
-  return Math.round(((usage / 1000) * p.unitPoints) * 1_000_000) / 1_000_000;
-}
 
 function clientFor(providerId) {
   const p = providers.get(providerId);
@@ -251,7 +220,6 @@ async function dispatch(channel, args) {
       // a0: id
       providers.delete(a0);
       keys.delete(a0);
-      pricing.delete(a0);
       if (activeId === a0) activeId = providers.keys().next().value ?? null;
       return { ok: true };
     }
@@ -301,22 +269,7 @@ async function dispatch(channel, args) {
       }
     }
 
-    // -------- settings.pricing --------
-    case 'settings:pricing:get':
-      if (!providers.has(a0)) throw new Error('Provider 不存在');
-      return pricing.get(a0) ?? null;
-
-    case 'settings:pricing:set': {
-      if (!providers.has(a0?.providerId)) throw new Error('Provider 不存在');
-      const value = normalizePricing(a0);
-      pricing.set(a0.providerId, value);
-      return { ok: true, pricing: value };
-    }
-
-    case 'settings:pricing:delete':
-      if (!providers.has(a0)) throw new Error('Provider 不存在');
-      pricing.delete(a0);
-      return { ok: true };
+    // -------- settings.pricing 已随中转站本地计费一并移除 --------
 
     // -------- image --------
     case 'image:pickLocal':
@@ -358,13 +311,12 @@ async function dispatch(channel, args) {
         });
         const b64 = res.data?.[0]?.b64_json;
         if (!b64) throw new Error('返回中缺少 b64_json 图像数据');
-        const costPoints = estimateCost(providerId ?? activeId, a0, usageTokens(res));
         return {
           historyId: jobId ?? rid('hist'),
           status: 'success',
           imagePath: `data:image/png;base64,${b64}`,
-          cost: costPoints,
-          costPoints,
+          cost: null,
+          costPoints: null,
           costUnit: 'point',
           durationMs: now() - started,
         };

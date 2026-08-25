@@ -79,7 +79,7 @@ beforeAll(async () => {
         durationMs: 5,
       })),
       cancel: () => true,
-      estimate: () => ({ points: 2, providerId: 'prov-mcp', providerName: 'MCP站', model: 'gpt-image-2', n: 1 }),
+      estimate: () => ({ points: 2, managedByAccount: true, providerId: 'prov-mcp', providerName: 'MCP站', model: 'gpt-image-2', n: 1 }),
       budget: { remainingPoints: () => 10_000, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,

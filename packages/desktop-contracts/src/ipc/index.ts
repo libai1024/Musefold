@@ -24,7 +24,6 @@ export type { WorkbenchSessionApi } from "./workbench";
 export type {
   AiConnectionApi,
   ProviderApi,
-  SettingsApi,
   ImageApi,
 } from "./generation";
 export type { AccountApi, CloudSyncApi, CloudConnectionsApi } from "./account";

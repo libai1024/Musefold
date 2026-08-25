@@ -170,11 +170,11 @@ def choose_count(app, count: int):
 
 
 def switch_provider_via_sidebar(app, provider_id: str):
-    """服务商切换收敛在侧栏模型切换器（设置页不再有默认服务商行）。"""
+    """服务商切换收敛在侧栏身份菜单（设置页不再有默认服务商行）。"""
     app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.wait_for_selector('[data-testid="relay-model-switcher"]')
+    app.page.wait_for_selector('[data-testid="identity-switcher"]')
     app.page.click(f'[data-testid="relay-model-option-{provider_id}"]')
-    app.page.wait_for_function("() => document.querySelector('[data-testid=\"relay-model-switcher\"]') === null")
+    app.page.wait_for_function("() => document.querySelector('[data-testid=\"identity-switcher\"]') === null")
 
 
 def open_provider_settings(app):
@@ -182,7 +182,7 @@ def open_provider_settings(app):
     app.page.click('[data-testid="sidebar-settings"]')
     app.page.get_by_test_id("sidebar-settings-open").click()
     app.page.wait_for_function("() => window.__musefold_test?.getView?.() === 'settings'", timeout=5_000)
-    app.page.get_by_role("button", name="生图中转站", exact=True).click()
+    app.page.get_by_role("button", name="中转站", exact=True).click()
 
 
 def wb(app, expr: str):
@@ -321,97 +321,77 @@ def test_key_state_never_exposes_plaintext(app):
     assert app.page.get_by_text(p["name"], exact=True).count() >= 1
 
 
-def test_provider_pricing_ui_and_history_cost(app, fake_openai_server):
-    """HIS-13：设置页配置单价 → 生图成功后按单价写 history.cost。"""
+def test_provider_discard_selects_provider_persisted_by_refresh(app, fake_openai_server):
+    app.set_view("settings")
+    app.page.evaluate(
+        "() => window.__musefold_test.stores.settings.getState().setSection('providers')"
+    )
+    app.page.get_by_test_id("provider-add-first").click()
+    panel = app.page.get_by_test_id("settings-provider-detail")
+    panel.get_by_test_id("provider-name").fill("E2E 预存服务商")
+    panel.get_by_test_id("provider-base-url").fill(fake_openai_server["base"])
+    panel.get_by_test_id("provider-model").fill("gpt-image-2")
+    panel.get_by_test_id("provider-load-models").click()
+    row = app.page.locator('[data-testid^="settings-provider-row-"]').first
+    row.wait_for(state="visible", timeout=5000)
+    app.page.wait_for_function(
+        """() => {
+          const button = document.querySelector('[data-testid="provider-load-models"]');
+          return button instanceof HTMLButtonElement && !button.disabled;
+        }""",
+        timeout=5000,
+    )
+
+    panel.get_by_test_id("provider-name").fill("未保存服务商更名")
+    panel.get_by_role("button", name="放弃", exact=True).click()
+
+    app.page.wait_for_function(
+        """() => {
+          const row = document.querySelector('[data-testid^="settings-provider-row-"]');
+          return row?.getAttribute('data-active') === 'true'
+            && row?.getAttribute('aria-current') === 'true';
+        }""",
+        timeout=5000,
+    )
+    assert row.get_by_text("E2E 预存服务商", exact=True).is_visible()
+    assert panel.get_by_test_id("provider-name").input_value() == "E2E 预存服务商"
+
+
+
+def test_unmanaged_provider_has_no_pricing_ui_and_history_cost(app, fake_openai_server):
+    """中转站不做本地计费：无单价 UI，成功历史 cost 保持 NULL。"""
     app.set_view("settings")
     app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('providers')")
-    app.page.wait_for_selector('[data-testid="settings-provider-new"]')
-    app.page.click('[data-testid="settings-provider-new"]')
+    app.page.wait_for_selector('[data-testid="provider-add-first"]')
+    app.page.click('[data-testid="provider-add-first"]')
     app.page.wait_for_selector('[data-testid="provider-name"]')
 
-    app.page.fill('[data-testid="provider-name"]', "E2E 单价服务商")
+    app.page.fill('[data-testid="provider-name"]', "E2E 不计费中转站")
     app.page.fill('[data-testid="provider-base-url"]', fake_openai_server["base"])
     app.page.fill('[data-testid="provider-model"]', "gpt-image-2")
-    app.page.click('[data-testid="provider-pricing-per-image"]')
-    app.page.fill('[data-testid="provider-pricing-unit-points"]', "-1")
-    app.page.wait_for_selector('[data-testid="provider-pricing-error"]')
-    assert app.page.locator('[data-testid="provider-save"]').is_disabled(), "负数单价应被 UI 拦截"
-
-    app.page.fill('[data-testid="provider-pricing-unit-points"]', "3.2")
-    assert not app.page.locator('[data-testid="provider-save"]').is_disabled()
+    assert app.page.locator('[data-testid^="provider-pricing-"]').count() == 0
     app.page.click('[data-testid="provider-save"]')
     app.page.wait_for_timeout(350)
 
-    provider = next(p for p in app.api_ok("provider.list") if p["name"] == "E2E 单价服务商")
-    assert app.api_ok("settings.pricing.get", provider["id"]) == {
-        "mode": "per-image",
-        "unitPoints": 3.2,
-    }
-
-    # IPC 层也要拒绝非法输入，并保留原配置不被污染。
-    bad = app.api("settings.pricing.set", {
-        "providerId": provider["id"],
-        "mode": "per-image",
-        "unitPoints": -1,
-    })
-    assert not bad["ok"] and "负数" in bad["error"]
-    bad = app.api("settings.pricing.set", {
-        "providerId": provider["id"],
-        "mode": "per-image",
-        "unitPoints": "abc",
-    })
-    assert not bad["ok"] and "积分" in bad["error"]
-    assert app.api_ok("settings.pricing.get", provider["id"])["unitPoints"] == 3.2
-
-    app.api_ok("provider.saveKey", provider["id"], "sk-pricing-e2e-1234")
+    provider = next(p for p in app.api_ok("provider.list") if p["name"] == "E2E 不计费中转站")
+    app.api_ok("provider.saveKey", provider["id"], "sk-unmetered-e2e-1234")
     app.api_ok("provider.setActive", provider["id"])
     res = app.api_ok("image.generate", {
-        "jobId": "pricing-e2e-per-image",
+        "jobId": "unmetered-relay-e2e",
         "providerId": provider["id"],
-        "prompt": "pricing e2e image",
-        "size": "1024x1024",
-        "quality": "medium",
-        "n": 1,
-    })
-    assert res["status"] == "success", res
-    assert res["cost"] == 3.2
-    row = app.db_query("SELECT status, cost FROM history WHERE id = ?", ("pricing-e2e-per-image",))[0]
-    assert row == {"status": "success", "cost": 3.2}
-    assert fake_openai_server["requests"][-1]["body"]["prompt"] == "pricing e2e image"
-
-    app.api_ok("settings.pricing.set", {
-        "providerId": provider["id"],
-        "mode": "per-1k-token",
-        "unitPoints": 2,
-    })
-    res = app.api_ok("image.generate", {
-        "jobId": "pricing-e2e-token-missing",
-        "providerId": provider["id"],
-        "prompt": "pricing e2e token missing",
+        "prompt": "unmetered relay e2e image",
         "size": "1024x1024",
         "quality": "medium",
         "n": 1,
     })
     assert res["status"] == "success", res
     assert res.get("cost") is None
-    row = app.db_query("SELECT status, cost FROM history WHERE id = ?", ("pricing-e2e-token-missing",))[0]
+    row = app.db_query("SELECT status, cost FROM history WHERE id = ?", ("unmetered-relay-e2e",))[0]
     assert row == {"status": "success", "cost": None}
+    assert fake_openai_server["requests"][-1]["body"]["prompt"] == "unmetered relay e2e image"
 
-    app.api_ok("settings.pricing.delete", provider["id"])
-    res = app.api_ok("image.generate", {
-        "jobId": "pricing-e2e-unconfigured",
-        "providerId": provider["id"],
-        "prompt": "pricing e2e no configured price",
-        "size": "1024x1024",
-        "quality": "medium",
-        "n": 1,
-    })
-    assert res["status"] == "success", res
-    assert res.get("cost") is None
-    row = app.db_query("SELECT status, cost FROM history WHERE id = ?", ("pricing-e2e-unconfigured",))[0]
-    assert row == {"status": "success", "cost": None}
     app.set_view("history")
-    app.page.wait_for_selector("text=未配单价", timeout=5000)
+    app.page.wait_for_selector("text=未记录成本", timeout=5000)
 
 
 def test_generation_defaults_provider_and_background(app, fake_openai_server):
@@ -423,6 +403,8 @@ def test_generation_defaults_provider_and_background(app, fake_openai_server):
     app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('generation')")
     app.page.wait_for_selector('[data-testid="settings-default-background-transparent"]')
     app.page.click('[data-testid="settings-default-background-transparent"]')
+    # 设置页为全屏 workspace（无侧栏身份菜单），切回工作台再走侧栏切换。
+    app.set_view("generate")
     switch_provider_via_sidebar(app, p1["id"])
     app.page.wait_for_function(
         """(pid) => {

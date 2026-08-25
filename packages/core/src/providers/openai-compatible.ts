@@ -197,7 +197,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
       }
       await writeFile(imgPath, imageBuffer);
 
-      const cost = estimateProviderCost(this.id, req, extractUsageTokens(result)) ?? undefined;
+      const cost = estimateProviderCost(this.id, req) ?? undefined;
 
       return {
         historyId,
@@ -228,7 +228,6 @@ export class OpenAICompatibleProvider extends BaseProvider {
 
   private async editImage(req: GenerateImageRequest, signal: AbortSignal): Promise<{
     data?: Array<{ b64_json?: string; url?: string }>;
-    usage?: { total_tokens?: number; input_tokens?: number; output_tokens?: number };
   }> {
     const references = req.referenceImages ?? [];
     if (references.length === 0) throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
@@ -257,7 +256,6 @@ export class OpenAICompatibleProvider extends BaseProvider {
     });
     const payload = await response.json().catch(() => ({})) as {
       data?: Array<{ b64_json?: string; url?: string }>;
-      usage?: { total_tokens?: number; input_tokens?: number; output_tokens?: number };
       error?: { message?: string; code?: string };
       message?: string;
     };
@@ -284,22 +282,6 @@ function enrichRetryError(err: unknown): Error {
     (wrapped as { retryAfterMs?: number }).retryAfterMs = parseRetryAfter(source.headers?.get?.('retry-after'));
   }
   return wrapped;
-}
-
-function extractUsageTokens(result: unknown): number | undefined {
-  const usage = (result as {
-    usage?: {
-      total_tokens?: number;
-      input_tokens?: number;
-      output_tokens?: number;
-    };
-  })?.usage;
-  if (!usage) return undefined;
-  if (Number.isFinite(usage.total_tokens)) return usage.total_tokens;
-  const input = Number.isFinite(usage.input_tokens) ? usage.input_tokens ?? 0 : 0;
-  const output = Number.isFinite(usage.output_tokens) ? usage.output_tokens ?? 0 : 0;
-  const total = input + output;
-  return total > 0 ? total : undefined;
 }
 
 function uniqueModels(models: ModelInfo[]): ModelInfo[] {

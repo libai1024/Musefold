@@ -89,10 +89,6 @@ export const IPC = {
   PROVIDER_VALIDATE: "provider:validate",
   PROVIDER_LIST_MODELS: "provider:listModels",
   PROVIDER_SET_ACTIVE: "provider:setActive",
-  // settings
-  SETTINGS_PRICING_GET: "settings:pricing:get",
-  SETTINGS_PRICING_SET: "settings:pricing:set",
-  SETTINGS_PRICING_DELETE: "settings:pricing:delete",
   // one-shot file:// → app://musefold localStorage import (preload-only; not on window.api)
   PREFS_PULL_ORIGIN_MIGRATION: "prefs:pullOriginMigration",
   PREFS_ORIGIN_MIGRATION_APPLIED: "prefs:originMigrationApplied",

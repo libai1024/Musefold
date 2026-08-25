@@ -5,6 +5,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { ulid } from 'ulid';
 import { IPC } from '@musefold/desktop-contracts/ipc';
+import { isProviderType } from '@musefold/desktop-contracts/enums';
 import type { ProviderConfig, NewProviderConfig } from '@musefold/desktop-contracts/models';
 import { getDb } from '@musefold/core/db/index';
 import { saveApiKey, deleteApiKey, hasApiKey, getKeySuffix } from '../../security/keychain';
@@ -58,6 +59,7 @@ export function registerProviderHandlers(): void {
   });
 
   ipcMain.handle(IPC.PROVIDER_CREATE, (_e, p: NewProviderConfig) => {
+    if (!isProviderType(p?.type)) throw new Error('Provider 类型不受支持');
     const db = getDb();
     const id = ulid();
     const now = Date.now();

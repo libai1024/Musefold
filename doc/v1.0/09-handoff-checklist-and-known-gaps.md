@@ -12,8 +12,8 @@
 ### 账号与 Provider
 
 - [ ] 用真实账号验证 register/login/refresh/logout、设备 token、managed image/text stack、额度同步和 logout 回退 BYOK。
-- [ ] 用至少一个 OpenAI-compatible、Wukong 和 Doubao 网页账户验证模型列表、密钥无泄漏、超时、重试、额度和历史记录。
-- [ ] 确认服务端 `musefold-image-pro` 价格、`quotaType=1`、group ratio 与本地 pricing cache 一致。
+- [ ] 用至少一个 OpenAI-compatible 和 Doubao 网页账户验证模型列表、密钥无泄漏、超时、重试、额度和历史记录。
+- [ ] 确认服务端 `musefold-image-pro` 价格、`quotaType=1`、group ratio 与托管 Provider 内部 pricing cache 一致；非托管 Provider 不使用本地单价。
 - [ ] 确认官方域名不可达时的 fallback IP 证书/路由可用；自定义 server 不应被错误 failover。
 
 ### 数据与升级
@@ -40,7 +40,7 @@
 | Headless | `serve-runtime.ts` 注释明确只读 + 普通生图 | 设计方案/Skill 运行需要桌面宿主，不要把 headless 宣传成全功能服务器。 |
 | Doubao | 网页 DOM 自动化、登录态和页面结构依赖外部站点 | 需持续维护选择器/页面变化和人工验证流程。 |
 | 账号价格 | pricing/notices/quota 来自远端且有 cache | 不能硬编码产品页面价格；必须显示 health/更新时间。 |
-| Provider 可靠性 | OpenAI-compatible/Wukong 由外部服务决定 | 代码只提供归一化错误、重试和熔断，无法保证服务端成功。 |
+| Provider 可靠性 | OpenAI-compatible 由外部服务决定 | 代码只提供归一化错误、重试和熔断，无法保证服务端成功。 |
 | 图片账本 | 数据库路径和文件资产分离 | 仅备份数据库不足以恢复图片；导出需包含允许的资产。 |
 | 设计方案 | formal/unsupported/quality gate 有严格状态门 | Draft 或 unsupported 不能假设可运行。 |
 | CLI/MCP 版本 | CLI usage 体现 v0.4 设计；MCP info 固定 0.4.0 | 需在发布时确认协议兼容，不以应用包版本替代。 |
@@ -56,7 +56,7 @@
 
 ## 4. 风险与监控建议
 
-- 监控 Provider 失败率、429/NO_BALANCE、模型不存在和 Wukong 轮询超时；三次失败 breaker 只在进程内生效。
+- 监控 Provider 失败率、429/NO_BALANCE 和模型不存在；三次失败 breaker 只在进程内生效。
 - 监控账号 refresh/token-invalid、fallback IP 使用率、pricing sync 失败和 quota stale 时间。
 - 监控 Doubao 选择器失败、verification 出现、partial stability 超时、图片签名拒绝和每日额度耗尽。
 - 监控 owner.lock 残留、automation discovery 与进程不匹配、SSE 连接数和 token rotation。

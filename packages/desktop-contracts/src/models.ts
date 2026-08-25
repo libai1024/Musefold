@@ -159,11 +159,8 @@ export interface HistoryRecord {
 
 /** HistoryStats 聚合族已迁至 history-documents（V13-ENT-02）；上方 re-export 保持导入面不变。 */
 
-/** ProviderConfig / 定价类型已迁至 providers.ts（V13-ENT-04）；下方 re-export 保持 core/ipc 单点导入。 */
+/** ProviderConfig / NewProviderConfig 已迁至 providers.ts（V13-ENT-04）。 */
 export type {
-  ProviderPricingMode,
-  ProviderPricingConfig,
-  ProviderPricingSetRequest,
   ProviderConfig,
   NewProviderConfig,
 } from './providers';

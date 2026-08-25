@@ -69,8 +69,7 @@ export interface GenerateImageRequest {
   prompt: string;
   negative?: string;
   size: ImageSize;
-  /** 输出比例（如 "1:1" / "16:9"）——异步创作台类 Provider（悟空生图组）用它，
-   *  OpenAI 兼容 Provider 忽略此字段、只用 size。 */
+  /** 输出比例（如 "1:1" / "16:9"），用于请求快照和支持比例参数的 Provider。 */
   aspectRatio?: string;
   quality: ImageQuality;
   n: number;
@@ -182,21 +181,6 @@ export interface ImageProvider {
   /** signal：来自主进程的取消信号；Provider 应把它并入自身的超时控制。 */
   generateImage(req: GenerateImageRequest, signal?: AbortSignal, onProgress?: ImageProgressHandler): Promise<GenerateImageResult>;
   validateConnection(): Promise<ValidationResult>;
-}
-
-/** Provider 成本估算配置（electron-store: pricing.{providerId}） */
-export type ProviderPricingMode = 'per-image' | 'per-1k-token';
-
-export interface ProviderPricingConfig {
-  mode: ProviderPricingMode;
-  /**
-   * 单位价格（积分）。per-image=每张；per-1k-token=每千 token。
-   */
-  unitPoints: number;
-}
-
-export interface ProviderPricingSetRequest extends ProviderPricingConfig {
-  providerId: string;
 }
 
 /**

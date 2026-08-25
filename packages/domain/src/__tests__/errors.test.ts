@@ -12,10 +12,11 @@ import {
 describe('toErrorCode', () => {
   it('maps known codes case-insensitively', () => {
     expect(toErrorCode('auth')).toBe('AUTH');
-    expect(toErrorCode('WRONG_GROUP')).toBe('WRONG_GROUP');
+    expect(toErrorCode('no_balance')).toBe('NO_BALANCE');
   });
   it('falls back to UNKNOWN', () => {
     expect(toErrorCode('nope')).toBe('UNKNOWN');
+    expect(toErrorCode('WRONG_GROUP')).toBe('UNKNOWN');
     expect(toErrorCode(null)).toBe('UNKNOWN');
   });
   it('accepts legacy provider/document aliases', () => {
@@ -33,12 +34,6 @@ describe('errorGuidance', () => {
     const g = errorGuidance('AUTH');
     expect(g.title).toMatch(/Key|密钥/i);
     expect(g.actions.map((a) => a.kind)).toEqual(['update_key']);
-  });
-
-  it('WRONG_GROUP → 查看说明 + 更新密钥', () => {
-    const g = errorGuidance('WRONG_GROUP');
-    expect(g.title).toMatch(/生图组/);
-    expect(g.actions.map((a) => a.kind)).toEqual(['open_url', 'update_key']);
   });
 
   it('NO_BALANCE → 去充值', () => {
@@ -75,7 +70,6 @@ describe('friendlyError', () => {
       'BAD_REQUEST',
       'NO_PROVIDER',
       'NO_KEY',
-      'WRONG_GROUP',
       'CANCELLED',
       'UNKNOWN',
     ] as const) {

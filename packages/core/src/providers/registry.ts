@@ -4,7 +4,6 @@
 import type { ImageProvider } from '@musefold/desktop-contracts/providers';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { OpenAICompatibleProvider } from './openai-compatible';
-import { WukongStudioProvider } from './wukong-studio';
 import { DoubaoWebProvider } from './doubao-web';
 
 type ProviderFactory = (id: string, baseUrl: string, model: string, name: string) => ImageProvider;
@@ -16,9 +15,6 @@ registry.set('openai', (id, baseUrl, model, name) =>
 );
 registry.set('openai-compatible', (id, baseUrl, model, name) =>
   new OpenAICompatibleProvider(id, baseUrl, model, name)
-);
-registry.set('wukong-studio', (id, baseUrl, model, name) =>
-  new WukongStudioProvider(id, baseUrl, model, name)
 );
 registry.set('doubao-web', (id, baseUrl, model, name) =>
   new DoubaoWebProvider(id, baseUrl, model, name)

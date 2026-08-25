@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { formatHistoryCost, formatParamsSummary, formatSourceLabel } from '../format';
 
 describe('formatHistoryCost', () => {
-  it('explains missing pricing instead of showing a bare dash', () => {
-    expect(formatHistoryCost(null)).toBe('未配单价');
-    expect(formatHistoryCost(undefined)).toBe('未配单价');
+  it('explains missing cost instead of showing a bare dash', () => {
+    expect(formatHistoryCost(null)).toBe('未记录成本');
+    expect(formatHistoryCost(undefined)).toBe('未记录成本');
     expect(formatHistoryCost(3.2)).toBe('3.2 积分');
   });
 
   it('displays canonical point records without a second conversion', () => {
     expect(formatHistoryCost(0.4, 'point')).toBe('0.4 积分');
-    expect(formatHistoryCost(null, 'point')).toBe('未配单价');
+    expect(formatHistoryCost(null, 'point')).toBe('未记录成本');
   });
 });
 

@@ -62,7 +62,7 @@ export interface SetupStatus {
 
 export interface ProviderSetupDraft {
   name?: string;
-  type?: 'openai' | 'openai-compatible' | 'wukong-studio';
+  type?: 'openai' | 'openai-compatible';
   baseUrl?: string;
   model?: string;
 }
@@ -158,7 +158,7 @@ export class MusefoldClient {
   // —— 生图闭环（V04-API-03/04） ——
   estimateGeneration(body: Record<string, unknown>) {
     return this.request<{
-      points: number | null; providerId: string; providerName: string; model: string; n: number;
+      points: number | null; managedByAccount: boolean; providerId: string; providerName: string; model: string; n: number;
       remainingBudgetPoints: number;
     }>('/v1/generations/estimate', { method: 'POST', body: JSON.stringify(body) });
   }

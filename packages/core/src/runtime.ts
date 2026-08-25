@@ -36,7 +36,6 @@ export interface CoreRuntime {
   estimateProviderCost(
     providerId: string,
     req: { n?: number },
-    usageTokens?: number | null,
   ): number | null;
   doubaoWeb?: DoubaoWebRuntime;
 }
@@ -65,7 +64,7 @@ export function loadApiKey(providerId: string): string | null {
 }
 
 /**
- * 惰性 logger：搬移代码有模块作用域的 createLogger 调用（如 wukong-studio），
+ * 惰性 logger：搬移代码有模块作用域的 createLogger 调用（如 openai-compatible），
  * 与原 system/logger 语义一致——创建时安全，写日志时才解析环境；
  * runtime 未配置时退回 console（仅测试/异常场景会走到）。
  */
@@ -86,9 +85,8 @@ export function createLogger(scope: string): Logger {
 export function estimateProviderCost(
   providerId: string,
   req: { n?: number },
-  usageTokens?: number | null,
 ): number | null {
-  return getCoreRuntime().estimateProviderCost(providerId, req, usageTokens);
+  return getCoreRuntime().estimateProviderCost(providerId, req);
 }
 
 export function getDoubaoWebRuntime(): DoubaoWebRuntime {

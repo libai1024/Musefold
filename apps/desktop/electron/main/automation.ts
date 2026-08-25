@@ -128,6 +128,7 @@ function createElectronGenerationHost(): GenerationHost {
       const n = body.n ?? 1;
       return {
         points: estimatePointsFromRow(row, n),
+        managedByAccount: row.managed_by === 'account',
         providerId: row.id as string,
         providerName: row.name as string,
         model: body.model ?? (row.model as string),
@@ -186,10 +187,12 @@ async function authorizeExternalSpend(summary: {
   model: string;
   n: number;
   estimatedPoints: number | null;
+  managedByAccount: boolean;
   promptPreview: string;
 }): Promise<void> {
-  if (externalSpendCovered(summary.estimatedPoints)) return;
-  const confirmation: ConfirmationSummary = { confirmationId: randomUUID(), ...summary };
+  if (externalSpendCovered(summary.estimatedPoints, summary.managedByAccount)) return;
+  const { managedByAccount: _managedByAccount, ...confirmationSummary } = summary;
+  const confirmation: ConfirmationSummary = { confirmationId: randomUUID(), ...confirmationSummary };
   getCoreEventHub().sink.emit({ type: 'confirmation.required', payload: confirmation });
   const verdict = await Promise.race([
     requestRendererConfirmation(confirmation),

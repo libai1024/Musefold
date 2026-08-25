@@ -13,7 +13,7 @@ import { getMainWindow } from './window';
 import { getMusefoldCore } from './core-instance';
 import { createElectronLocalAdminOps } from './automation-local';
 
-const PROVIDER_TYPES = new Set<ProviderConfig['type']>(['openai', 'openai-compatible', 'wukong-studio']);
+const PROVIDER_TYPES = new Set<ProviderConfig['type']>(['openai', 'openai-compatible']);
 const SENSITIVE_FIELD = /(api[-_]?key|password|token|secret|credential)/i;
 
 export interface AutomationSetupDependencies {

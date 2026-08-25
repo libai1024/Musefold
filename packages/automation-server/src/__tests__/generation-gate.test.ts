@@ -33,6 +33,7 @@ interface Fixture {
 async function fixture(overrides: {
   remaining?: number;
   estimatePoints?: number | null;
+  managedByAccount?: boolean;
   confirm?: 'approved' | 'denied' | 'hang';
   runResult?: Partial<GenerateImageResult>;
 } = {}): Promise<Fixture> {
@@ -54,6 +55,7 @@ async function fixture(overrides: {
     cancel: vi.fn(() => true),
     estimate: vi.fn(() => ({
       points: overrides.estimatePoints === undefined ? 18 : overrides.estimatePoints,
+      managedByAccount: overrides.managedByAccount ?? true,
       providerId: 'prov-gate',
       providerName: '闸门测试站',
       model: 'gpt-image-2',
@@ -226,10 +228,18 @@ describe('策略闸门四分支', () => {
     expect(f.host.run).toHaveBeenCalledOnce();
   });
 
-  it('估算未知成本（无单价）时不可走预算，必须确认', async () => {
-    const f = await fixture({ remaining: 10_000, estimatePoints: null, confirm: 'approved' });
+  it('托管 Provider 估算未知时不可走预算，必须确认', async () => {
+    const f = await fixture({ remaining: 10_000, estimatePoints: null, managedByAccount: true, confirm: 'approved' });
     await post(f.info, '/v1/generations', { prompt: '未知成本' });
     expect(f.host.requestConfirmation).toHaveBeenCalledOnce();
+  });
+
+  it('非托管 Provider 不计费，估算为 null 时自动放行', async () => {
+    const f = await fixture({ remaining: 0, estimatePoints: null, managedByAccount: false });
+    const response = await post(f.info, '/v1/generations', { prompt: '中转站不计费' });
+    expect(response.status).toBe(202);
+    expect(f.host.requestConfirmation).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(f.host.run).toHaveBeenCalledOnce());
   });
 
   it('参数校验：缺 prompt 400；n 越界 400', async () => {
@@ -261,7 +271,7 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
         historyId: 'his-fail', status: 'failed', error: { code: 'PROVIDER_ERROR', message: 'boom' },
       } as GenerateImageResult)),
       cancel: () => true,
-      estimate: () => ({ points: 10, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
+      estimate: () => ({ points: 10, managedByAccount: true, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
       budget: { remainingPoints: () => 10_000, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,
@@ -312,7 +322,7 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
         historyId: req.jobId ?? 'h', status: 'success', imagePath: '/tmp/a.png', cost: 18, durationMs: 5,
       } as GenerateImageResult)),
       cancel: () => true,
-      estimate: () => ({ points: 18, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
+      estimate: () => ({ points: 18, managedByAccount: true, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
       budget: { remainingPoints: () => 100, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,

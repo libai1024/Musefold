@@ -16,7 +16,12 @@ export type PromptTarget =
 export type TagGroup = '风格' | '场景' | '模型' | '主体' | '画质' | '自定义';
 
 /** Provider 类型 */
-export type ProviderType = 'openai' | 'openai-compatible' | 'wukong-studio' | 'doubao-web';
+export const PROVIDER_TYPES = ['openai', 'openai-compatible', 'doubao-web'] as const;
+export type ProviderType = (typeof PROVIDER_TYPES)[number];
+
+export function isProviderType(value: unknown): value is ProviderType {
+  return typeof value === 'string' && PROVIDER_TYPES.includes(value as ProviderType);
+}
 
 /** 提示词来源；slip = 朱点速记的「笺」（v0.3.3 笺匣，docs/v0.3.3/V03.3-EMBER-MARK-UI-SPEC.md §8） */
 export type PromptSource = 'manual' | 'import' | 'shared' | 'slip';

@@ -88,10 +88,20 @@ def capture(app, name: str, test_id: str):
         app.page.screenshot(path=str(target / f"{name}.png"), full_page=False)
 
 
+def wait_result_theater_idle(app):
+    """THEATER-04：结果面截图必须等显形落定（idle 钩）后再拍。"""
+    app.page.wait_for_selector(
+        '[data-testid="generation-result-group"] '
+        '.mf-generation-result-surface[data-theater-idle]'
+    )
+
+
 def capture_shared_workbench(app):
     target = output_dir()
     if not target:
         return
+    if app.page.locator('[data-testid="workbench-empty"]').count() > 0:
+        app.page.wait_for_selector('[data-testid="workbench-empty"][data-theater-idle]')
     app.page.locator('[data-testid="generation-workbench"]').screenshot(
         path=str(target / "shared-workbench-1440x900.png"),
     )
@@ -349,6 +359,7 @@ def test_shared_workbench_visual_contract(app):
     )
     app.page.wait_for_selector('[data-testid="generation-result-group"]')
     app.page.wait_for_selector('[data-testid="generate-result-card"] img')
+    wait_result_theater_idle(app)
     capture_shared_surface(
         app,
         "shared-workbench-result-1440x900.png",
@@ -370,6 +381,7 @@ def test_shared_generation_result_state_visual_contracts(app):
     app.page.wait_for_selector(
         '[data-testid="generation-result-group"] [data-status="failed"]'
     )
+    wait_result_theater_idle(app)
     capture_shared_surface(
         app,
         "shared-workbench-result-failed-1440x900.png",
@@ -380,6 +392,7 @@ def test_shared_generation_result_state_visual_contracts(app):
     app.page.wait_for_selector(
         '[data-testid="generation-result-group"] [data-status="cancelled"]'
     )
+    wait_result_theater_idle(app)
     capture_shared_surface(
         app,
         "shared-workbench-result-cancelled-1440x900.png",
@@ -390,6 +403,7 @@ def test_shared_generation_result_state_visual_contracts(app):
     app.page.wait_for_selector(
         '[data-testid="generation-result-group"] [data-status="cancelled"]'
     )
+    wait_result_theater_idle(app)
     capture_shared_surface(
         app,
         "shared-workbench-result-cancelled-390x844.png",
@@ -536,6 +550,333 @@ def test_shared_library_and_history_visual_contracts(app):
         "shared-history-detail-compact.png",
         "history-detail-content",
     )
+
+
+def test_settings_workspace_matches_operate_contract(app):
+    """Lock the settings shell, aligned control rail, and compact toolbar geometry."""
+    set_visual_state(app, width=1440, height=900, theme="dark", density="comfortable")
+    app.page.evaluate(
+        """() => {
+          window.__musefold_test.stores.settings.getState().setSection('appearance');
+          window.__musefold_test.setView('settings');
+        }"""
+    )
+    app.page.wait_for_selector('[data-testid="appearance-theme-row"]')
+
+    geometry = app.page.evaluate(
+        """() => {
+          const workspace = document.querySelector('[data-testid="settings-workspace"]');
+          const sidebar = workspace?.querySelector('.mf-settings-sidebar');
+          const section = workspace?.querySelector('.mf-settings-section');
+          const title = workspace?.querySelector('.mf-settings-section-title');
+          const card = workspace?.querySelector('.mf-settings-card');
+          const row = workspace?.querySelector('.mf-settings-row');
+          const rowControl = workspace?.querySelector('.mf-settings-row-control');
+          const segmented = workspace?.querySelector('.mf-settings-segmented');
+          const compactHeader = workspace?.querySelector('.mf-settings-compact-header');
+          const pane = workspace?.querySelector('.mf-settings-pane');
+          const layout = document.querySelector('[data-testid="product-sidebar-layout"]');
+          const rail = document.querySelector('[data-testid="product-sidebar-rail"]');
+          if (!workspace || !sidebar || !section || !title || !card || !row || !rowControl ||
+              !segmented || !compactHeader || !pane) {
+            return null;
+          }
+          const style = (element, pseudo) => getComputedStyle(element, pseudo);
+          const workspaceRect = workspace.getBoundingClientRect();
+          return {
+            viewportWidth: innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            workspaceLeft: workspaceRect.left,
+            workspaceWidth: workspaceRect.width,
+            layoutLeft: layout?.getBoundingClientRect().left,
+            layoutWidth: layout?.getBoundingClientRect().width,
+            railWidth: rail?.getBoundingClientRect().width,
+            railOpen: rail?.getAttribute('data-open'),
+            currentView: window.__musefold_test.getView(),
+            hiddenShellCount: document.querySelectorAll('[data-titlebar-hidden="true"]').length,
+            titlebarCount: document.querySelectorAll('[data-testid="titlebar"]').length,
+            emberMarkCount: document.querySelectorAll('[data-testid="ember-mark"]').length,
+            sidebarWidth: sidebar.getBoundingClientRect().width,
+            sectionWidth: section.getBoundingClientRect().width,
+            titleSize: style(title).fontSize,
+            cardRadius: style(card).borderRadius,
+            rowPaddingLeft: style(row).paddingLeft,
+            rowPaddingRight: style(row).paddingRight,
+            rowColumns: style(row).gridTemplateColumns,
+            rowControlWidth: rowControl.getBoundingClientRect().width,
+            segmentedRadius: style(segmented).borderRadius,
+            compactHeaderDisplay: style(compactHeader).display,
+            paneScrollbarGutter: style(pane).scrollbarGutter,
+          };
+        }"""
+    )
+    assert geometry is not None
+    assert geometry["documentWidth"] <= geometry["viewportWidth"] + 1, geometry
+    assert geometry["railWidth"] <= 1, (
+        geometry["railWidth"],
+        geometry["railOpen"],
+        geometry["currentView"],
+        geometry["hiddenShellCount"],
+    )
+    assert abs(geometry["workspaceLeft"]) <= 1, geometry
+    assert abs(geometry["workspaceWidth"] - geometry["viewportWidth"]) <= 1, geometry
+    assert geometry["titlebarCount"] == 0, geometry
+    assert geometry["emberMarkCount"] == 0, geometry
+    assert abs(geometry["sidebarWidth"] - 240) <= 1, geometry
+    assert geometry["sectionWidth"] <= 897, geometry
+    assert geometry["titleSize"] == "24px", geometry
+    assert geometry["cardRadius"] == "12px", geometry
+    assert geometry["rowPaddingLeft"] == "16px", geometry
+    assert geometry["rowPaddingRight"] == "16px", geometry
+    assert len(geometry["rowColumns"].split()) == 2, geometry
+    assert 191 <= geometry["rowControlWidth"] <= 289, geometry
+    assert geometry["segmentedRadius"] == "6px", geometry
+    assert geometry["compactHeaderDisplay"] == "none", geometry
+    assert geometry["paneScrollbarGutter"] == "stable", geometry
+    capture(app, "settings-operate-dark-1440x900", "settings-workspace")
+
+    app.page.evaluate(
+        "() => window.__musefold_test.stores.settings.getState().setSection('automation')"
+    )
+    app.page.wait_for_selector('[data-testid="automation-toggle"]')
+    switch_geometry = app.page.locator('[data-testid="automation-toggle"]').evaluate(
+        """element => {
+          const style = (pseudo) => getComputedStyle(element, pseudo);
+          const rect = element.getBoundingClientRect();
+          return {
+            width: rect.width,
+            height: rect.height,
+            hitWidth: style('::after').width,
+            hitHeight: style('::after').height,
+          };
+        }"""
+    )
+    assert abs(switch_geometry["width"] - 36) <= 1, switch_geometry
+    assert abs(switch_geometry["height"] - 20) <= 1, switch_geometry
+    assert switch_geometry["hitWidth"] == "44px", switch_geometry
+    assert switch_geometry["hitHeight"] == "44px", switch_geometry
+
+    app.page.evaluate(
+        "() => window.__musefold_test.stores.settings.getState().setSection('appearance')"
+    )
+    app.page.wait_for_selector('[data-testid="appearance-theme-row"]')
+    set_visual_state(app, width=800, height=760, theme="dark", density="comfortable")
+    compact = app.page.evaluate(
+        """() => {
+          const sidebar = document.querySelector('.mf-settings-sidebar');
+          const compactHeader = document.querySelector('[data-testid="settings-compact-header"]');
+          const compactSearch = document.querySelector('[data-testid="settings-compact-search"]');
+          const compactBack = compactHeader?.querySelector('.mf-settings-header-action-button');
+          const tabs = document.querySelector('.mf-settings-tabs');
+          return {
+            viewportWidth: innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            sidebarDisplay: sidebar ? getComputedStyle(sidebar).display : null,
+            compactHeaderDisplay: compactHeader ? getComputedStyle(compactHeader).display : null,
+            compactHeaderPaddingTop: compactHeader ? getComputedStyle(compactHeader).paddingTop : null,
+            compactSearchDisplay: compactSearch ? getComputedStyle(compactSearch).display : null,
+            compactBackDisplay: compactBack ? getComputedStyle(compactBack).display : null,
+            compactBackHeight: compactBack?.getBoundingClientRect().height ?? null,
+            tabsDisplay: tabs ? getComputedStyle(tabs).display : null,
+            tabHeights: tabs
+              ? [...tabs.querySelectorAll('.mf-settings-tab-item')].map(
+                  (item) => item.getBoundingClientRect().height
+                )
+              : [],
+          };
+        }"""
+    )
+    assert compact["documentWidth"] <= compact["viewportWidth"] + 1, compact
+    assert compact["sidebarDisplay"] == "none", compact
+    assert compact["compactHeaderDisplay"] == "flex", compact
+    assert compact["compactHeaderPaddingTop"] == "44px", compact
+    assert compact["compactSearchDisplay"] == "block", compact
+    assert compact["compactBackDisplay"] == "flex", compact
+    assert compact["compactBackHeight"] >= 44, compact
+    assert compact["tabsDisplay"] == "block", compact
+    assert compact["tabHeights"] and min(compact["tabHeights"]) >= 44, compact
+    capture(app, "settings-operate-dark-800x760", "settings-workspace")
+
+    for width in (639, 390):
+        set_visual_state(app, width=width, height=760, theme="dark", density="comfortable")
+        narrow = app.page.evaluate(
+            """() => {
+              const workspace = document.querySelector('[data-testid="settings-workspace"]');
+              const card = workspace?.querySelector('.mf-settings-card');
+              const row = workspace?.querySelector('.mf-settings-row');
+              const rowControl = workspace?.querySelector('.mf-settings-row-control');
+              const segmented = workspace?.querySelector('.mf-settings-segmented');
+              const compactBack = workspace?.querySelector(
+                '.mf-settings-compact-header .mf-settings-header-action-button'
+              );
+              const tabItems = [...(workspace?.querySelectorAll('.mf-settings-tab-item') ?? [])];
+              if (
+                !workspace || !card || !row || !rowControl || !segmented || !compactBack
+                || tabItems.length === 0
+              ) return null;
+              const workspaceRect = workspace.getBoundingClientRect();
+              const cardRect = card.getBoundingClientRect();
+              const controlRect = rowControl.getBoundingClientRect();
+              return {
+                viewportWidth: innerWidth,
+                documentWidth: document.documentElement.scrollWidth,
+                workspaceLeft: workspaceRect.left,
+                workspaceRight: workspaceRect.right,
+                cardLeft: cardRect.left,
+                cardRight: cardRect.right,
+                rowColumns: getComputedStyle(row).gridTemplateColumns,
+                controlLeft: controlRect.left,
+                controlRight: controlRect.right,
+                segmentedWidth: segmented.getBoundingClientRect().width,
+                compactBackHeight: compactBack.getBoundingClientRect().height,
+                tabHeights: tabItems.map((item) => item.getBoundingClientRect().height),
+              };
+            }"""
+        )
+        assert narrow is not None
+        assert narrow["documentWidth"] <= narrow["viewportWidth"] + 1, narrow
+        assert narrow["workspaceLeft"] >= -1, narrow
+        assert narrow["workspaceRight"] <= narrow["viewportWidth"] + 1, narrow
+        assert narrow["cardLeft"] >= -1, narrow
+        assert narrow["cardRight"] <= narrow["viewportWidth"] + 1, narrow
+        assert len(narrow["rowColumns"].split()) == 1, narrow
+        assert narrow["controlLeft"] >= narrow["cardLeft"], narrow
+        assert narrow["controlRight"] <= narrow["cardRight"], narrow
+        assert narrow["segmentedWidth"] <= narrow["cardRight"] - narrow["cardLeft"], narrow
+        assert narrow["compactBackHeight"] >= 44, narrow
+        assert min(narrow["tabHeights"]) >= 44, narrow
+        capture(app, f"settings-operate-dark-{width}x760", "settings-workspace")
+    set_visual_state(app, width=1440, height=900, theme="dark", density="comfortable")
+    app.page.evaluate(
+        "() => window.__musefold_test.stores.settings.getState().setSection('automation')"
+    )
+    app.page.wait_for_selector('[data-testid="integration-guide"]')
+    integration_metrics = app.page.locator('[data-testid="integration-guide"]').evaluate(
+        """element => ({
+          nestedCards: element.querySelectorAll('.settings-integration-item > .rounded-md.border').length,
+          listCount: element.querySelectorAll('.settings-integration-list').length,
+          itemCount: element.querySelectorAll('.settings-integration-item').length,
+          right: element.getBoundingClientRect().right,
+          viewportWidth: innerWidth,
+        })"""
+    )
+    assert integration_metrics["nestedCards"] == 0, integration_metrics
+    assert integration_metrics["listCount"] == 1, integration_metrics
+    assert integration_metrics["itemCount"] == 5, integration_metrics
+    assert integration_metrics["right"] <= integration_metrics["viewportWidth"] + 1, integration_metrics
+
+    token_metrics = app.page.locator('[data-testid="automation-token-row"]').evaluate(
+        """element => {
+          const control = element.querySelector('.mf-settings-row-control');
+          const controls = element.querySelector('.settings-token-controls');
+          const token = controls?.querySelector('code');
+          const buttons = controls ? [...controls.querySelectorAll('button')] : [];
+          if (!control || !controls || !token || buttons.length !== 3) return null;
+          return {
+            columns: getComputedStyle(element).gridTemplateColumns,
+            controlWidth: control.getBoundingClientRect().width,
+            controlsWidth: controls.getBoundingClientRect().width,
+            tokenWidth: token.getBoundingClientRect().width,
+            buttonHeights: buttons.map(button => button.getBoundingClientRect().height),
+            buttonWhiteSpace: buttons.map(button => getComputedStyle(button).whiteSpace),
+          };
+        }"""
+    )
+    assert token_metrics is not None
+    assert len(token_metrics["columns"].split()) == 2, token_metrics
+    assert 359 <= token_metrics["controlWidth"] <= 441, token_metrics
+    assert token_metrics["controlsWidth"] <= token_metrics["controlWidth"] + 1, token_metrics
+    assert token_metrics["tokenWidth"] > 0, token_metrics
+    assert max(token_metrics["buttonHeights"]) <= 32, token_metrics
+    assert all(value == "nowrap" for value in token_metrics["buttonWhiteSpace"]), token_metrics
+    capture(app, "settings-open-capabilities-dark-1440x900", "settings-workspace")
+
+    provider = app.api_ok(
+        "provider.create",
+        {
+            "name": "视觉检查中转站",
+            "type": "openai-compatible",
+            "baseUrl": "http://127.0.0.1:9/v1",
+            "model": "gpt-image-1",
+        },
+    )
+    app.page.evaluate(
+        """async (providerId) => {
+          await window.__musefold_test.stores.generation.getState().loadProviders();
+          window.__musefold_test.stores.settings.getState().setSection('providers');
+          window.__musefold_test.stores.generation.setState({ activeProviderId: providerId });
+        }""",
+        provider["id"],
+    )
+    app.page.wait_for_selector('[data-testid="settings-provider-master-detail"]')
+    master_detail = app.page.locator('[data-testid="settings-provider-master-detail"]').evaluate(
+        """element => {
+          const rail = element.querySelector('.settings-md-rail');
+          const detail = element.querySelector('.settings-md-detail');
+          const selected = element.querySelector('.settings-md-item[data-active="true"]');
+          if (!rail || !detail || !selected) return null;
+          return {
+            columns: getComputedStyle(element).gridTemplateColumns,
+            railWidth: rail.getBoundingClientRect().width,
+            detailWidth: detail.getBoundingClientRect().width,
+            hasPricingFields: Boolean(element.querySelector('[data-testid="provider-pricing-fields"]')),
+            documentWidth: document.documentElement.scrollWidth,
+            viewportWidth: innerWidth,
+          };
+        }"""
+    )
+    assert master_detail is not None
+    assert len(master_detail["columns"].split()) == 2, master_detail
+    assert 239 <= master_detail["railWidth"] <= 241, master_detail
+    assert master_detail["detailWidth"] > master_detail["railWidth"], master_detail
+    assert master_detail["hasPricingFields"] is False, master_detail
+    assert master_detail["documentWidth"] <= master_detail["viewportWidth"] + 1, master_detail
+    capture(app, "settings-relay-master-detail-dark-1440x900", "settings-workspace")
+
+    set_visual_state(app, width=390, height=760, theme="dark", density="comfortable")
+    delete_button = app.page.get_by_test_id("provider-delete")
+    delete_button.scroll_into_view_if_needed()
+    delete_button.click()
+    app.page.wait_for_selector(".settings-inline-confirm")
+    narrow_actions = app.page.locator(
+        '[data-testid="settings-provider-master-detail"]'
+    ).evaluate(
+        """element => {
+          const card = element.closest('.mf-settings-card');
+          const actions = element.querySelector('.settings-md-actions');
+          const dangerSlot = element.querySelector('.settings-md-danger-slot');
+          const confirmation = element.querySelector('.settings-inline-confirm');
+          const actionGroup = element.querySelector('.settings-md-action-group');
+          if (!card || !actions || !dangerSlot || !confirmation || !actionGroup) return null;
+          const rect = (node) => {
+            const value = node.getBoundingClientRect();
+            return { left: value.left, right: value.right, top: value.top, bottom: value.bottom };
+          };
+          return {
+            viewportWidth: innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            card: rect(card),
+            actions: rect(actions),
+            dangerSlot: rect(dangerSlot),
+            confirmation: rect(confirmation),
+            actionGroup: rect(actionGroup),
+          };
+        }"""
+    )
+    assert narrow_actions is not None
+    assert narrow_actions["documentWidth"] <= narrow_actions["viewportWidth"] + 1, narrow_actions
+    for key in ("actions", "dangerSlot", "confirmation", "actionGroup"):
+        bounds = narrow_actions[key]
+        assert bounds["left"] >= narrow_actions["card"]["left"] - 1, narrow_actions
+        assert bounds["right"] <= narrow_actions["card"]["right"] + 1, narrow_actions
+        assert bounds["left"] >= -1, narrow_actions
+        assert bounds["right"] <= narrow_actions["viewportWidth"] + 1, narrow_actions
+        assert bounds["top"] >= narrow_actions["actions"]["top"] - 1, narrow_actions
+        assert bounds["bottom"] <= narrow_actions["actions"]["bottom"] + 1, narrow_actions
+    assert narrow_actions["actionGroup"]["top"] >= narrow_actions["dangerSlot"]["bottom"] - 1, (
+        narrow_actions
+    )
+    capture(app, "settings-relay-master-detail-dark-390x760", "settings-workspace")
 
 
 def test_shared_account_and_connections_visual_contracts(app):

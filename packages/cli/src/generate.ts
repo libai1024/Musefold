@@ -99,7 +99,11 @@ export async function commandGenerate(
 
   // 估算 + 确认（TTY 且未 --yes 时询问；--yes/确认通过 = 交互同意放行）
   const estimate = await client.estimateGeneration(body);
-  const costLabel = estimate.points != null ? `${estimate.points} 积分` : '未知（未配置单价）';
+  const costLabel = estimate.managedByAccount
+    ? estimate.points != null
+      ? `${estimate.points} 积分`
+      : '未知'
+    : '不计费';
   if (context.maxCostPoints != null && estimate.points != null && estimate.points > context.maxCostPoints) {
     context.io.stderr(`musefold: 预估成本 ${costLabel} 超过 --max-cost 上限，已取消`);
     if (context.json) printJson(context.io, { type: 'error', code: 'BUDGET_EXCEEDED', message: '超出 --max-cost' });

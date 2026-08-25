@@ -167,8 +167,8 @@ def open_ai_section(app):
     app.page.evaluate(
         "() => window.__musefold_test?.stores?.settings?.getState?.().setSection?.('ai')"
     )
-    # 分区改名「Agent 模型」后，导航项与标题同文案；用动作按钮定位更稳。
-    app.page.get_by_test_id("settings-ai-new").wait_for(state="visible", timeout=5000)
+    # v2 设置整合：生图/Agent 合并为中转站分区的两个 tab；用分段控件定位。
+    app.page.get_by_test_id("relay-tab-ai").wait_for(state="visible", timeout=5000)
 
 
 def test_cloud_mcp_connections_use_shared_screen_when_signed_out(app):
@@ -182,45 +182,89 @@ def test_cloud_mcp_connections_use_shared_screen_when_signed_out(app):
     assert screen.get_by_text("登录 Musefold 账号后可管理 Cloud MCP 连接").is_visible()
 
 
+def test_ai_connection_discard_selects_connection_persisted_by_refresh(app, fake_text_ai_server):
+    open_ai_section(app)
+    app.page.get_by_test_id("settings-ai-quick-tvt").click()
+    panel = app.page.get_by_test_id("ai-connection-detail")
+    panel.get_by_test_id("ai-preset-custom").click()
+    panel.get_by_test_id("ai-connection-name").fill("E2E 预存连接")
+    panel.get_by_test_id("ai-connection-base-url").fill(fake_text_ai_server["base"])
+    panel.get_by_test_id("ai-connection-model").fill("text-model-a")
+    panel.get_by_test_id("ai-connection-api-key").fill("discard-test-key")
+    panel.get_by_test_id("ai-connection-load-models").click()
+    panel.get_by_test_id("ai-connection-model-options").wait_for(state="visible", timeout=5000)
+
+    panel.get_by_test_id("ai-connection-name").fill("未保存更名")
+    panel.get_by_role("button", name="放弃", exact=True).click()
+
+    row = app.page.locator('[data-testid^="settings-ai-row-"]').first
+    app.page.wait_for_function(
+        """() => {
+          const row = document.querySelector('[data-testid^="settings-ai-row-"]');
+          return row?.getAttribute('data-active') === 'true'
+            && row?.getAttribute('aria-current') === 'true';
+        }""",
+        timeout=5000,
+    )
+    assert row.get_by_text("E2E 预存连接", exact=True).is_visible()
+    assert panel.get_by_test_id("ai-connection-name").input_value() == "E2E 预存连接"
+
+
+
 def test_ai_connection_settings_model_fallback_and_export_isolation(app, fake_text_ai_server, tmp_path):
     key = "test-ai-key-ends-4821"
     open_ai_section(app)
-    app.page.get_by_test_id("settings-ai-new").click()
-    dialog = app.page.get_by_test_id("ai-connection-dialog")
-    dialog.get_by_test_id("ai-preset-custom").click()
-    dialog.get_by_test_id("ai-connection-name").fill("E2E 文本模型")
-    dialog.get_by_test_id("ai-connection-base-url").fill(fake_text_ai_server["base"])
-    dialog.get_by_test_id("ai-connection-model").fill("text-model-a")
-    dialog.get_by_test_id("ai-connection-api-key").fill(key)
-    dialog.get_by_test_id("ai-connection-load-models").click()
-    dialog.get_by_test_id("ai-connection-model-options").wait_for(state="visible", timeout=5000)
-    assert dialog.get_by_test_id("ai-model-option-text-model-b").is_visible()
-    dialog.get_by_test_id("ai-connection-test").click()
-    dialog.get_by_test_id("ai-connection-capabilities").wait_for(state="visible", timeout=5000)
-    dialog.get_by_test_id("ai-connection-save").click()
-    dialog.wait_for(state="hidden", timeout=5000)
+    # RELAY-SETTINGS-UI 第二步:空态快捷预设就地新建,编辑在 master-detail 详情面板完成(无弹窗)
+    app.page.get_by_test_id("settings-ai-quick-tvt").click()
+    panel = app.page.get_by_test_id("ai-connection-detail")
+    panel.wait_for(state="visible", timeout=5000)
+    panel.get_by_test_id("ai-preset-custom").click()
+    panel.get_by_test_id("ai-connection-name").fill("E2E 文本模型")
+    panel.get_by_test_id("ai-connection-base-url").fill(fake_text_ai_server["base"])
+    panel.get_by_test_id("ai-connection-model").fill("text-model-a")
+    panel.get_by_test_id("ai-connection-api-key").fill(key)
+    panel.get_by_test_id("ai-connection-load-models").click()
+    panel.get_by_test_id("ai-connection-model-options").wait_for(state="visible", timeout=5000)
+    assert panel.get_by_test_id("ai-model-option-text-model-b").is_visible()
+    panel.get_by_test_id("ai-connection-test").click()
+    panel.get_by_test_id("ai-connection-capabilities").wait_for(state="visible", timeout=5000)
+    panel.get_by_test_id("ai-connection-save").click()
 
     row = app.page.locator('[data-testid^="settings-ai-row-"]').first
+    row.wait_for(state="visible", timeout=5000)
+    app.page.wait_for_function(
+        """() => {
+          const row = document.querySelector('[data-testid^="settings-ai-row-"]');
+          return row?.getAttribute('data-active') === 'true'
+            && row?.getAttribute('aria-current') === 'true';
+        }""",
+        timeout=5000,
+    )
     assert row.get_by_text("E2E 文本模型", exact=True).is_visible()
-    assert row.get_by_text("Key ····4821", exact=True).is_visible()
+    # 测试通过后左栏行状态点转绿(状态点 testid 派生为 {row}-status,tone 挂在点上)
+    assert app.page.locator('[data-testid$="-status"][data-tone="success"]').count() >= 1
     assert "E2E 文本模型" not in app.page.evaluate(
         "() => JSON.stringify(window.__musefold_test.stores.generation.getState())"
     )
 
-    row.get_by_role("button", name="编辑").click()
-    dialog.get_by_test_id("ai-connection-base-url").fill(fake_text_ai_server["manual_base"])
-    dialog.get_by_test_id("ai-connection-model").fill("manual-model")
-    dialog.get_by_test_id("ai-connection-load-models").click()
-    dialog.get_by_test_id("ai-connection-model-error").wait_for(state="visible", timeout=5000)
-    assert dialog.get_by_test_id("ai-connection-model").input_value() == "manual-model"
-    dialog.get_by_test_id("ai-connection-test").click()
-    dialog.get_by_test_id("ai-connection-capabilities").wait_for(state="visible", timeout=5000)
-    dialog.get_by_test_id("ai-connection-save").click()
-    dialog.wait_for(state="hidden", timeout=5000)
+    # 就地编辑:点左栏行,右栏详情面板直接改
+    row.click()
+    panel.get_by_test_id("ai-connection-base-url").fill(fake_text_ai_server["manual_base"])
+    panel.get_by_test_id("ai-connection-model").fill("manual-model")
+    panel.get_by_test_id("ai-connection-load-models").click()
+    panel.get_by_test_id("ai-connection-model-error").wait_for(state="visible", timeout=5000)
+    assert panel.get_by_test_id("ai-connection-model").input_value() == "manual-model"
+    panel.get_by_test_id("ai-connection-test").click()
+    panel.get_by_test_id("ai-connection-capabilities").wait_for(state="visible", timeout=5000)
+    panel.get_by_test_id("ai-connection-save").click()
 
-    row.get_by_role("button", name="撤销 Key").click()
-    row.get_by_role("button", name="撤销", exact=True).click()
-    row.get_by_text("缺少 Key", exact=True).wait_for(state="visible", timeout=5000)
+    # 撤销 Key 在详情面板的 API Key 字段旁
+    panel.get_by_test_id("ai-connection-revoke-key").click()
+    panel.get_by_test_id("ai-connection-revoke-key").wait_for(state="hidden", timeout=5000)
+    # 撤销后缺密钥,左栏状态点转 warning
+    app.page.locator('[data-testid$="-status"][data-tone="warning"]').first.wait_for(
+        state="visible", timeout=5000
+    )
 
     target = tmp_path / "without-ai-connection.json"
     export_to(app, target, mode="db-only")
@@ -670,6 +714,30 @@ def test_import_never_restores_keys(app, tmp_path):
     rows = a.db_query("SELECT has_key, key_suffix FROM providers WHERE id = ?", ("prov-imported-1",))
     assert rows[0]["has_key"] in (0, None)
     assert rows[0]["key_suffix"] in ("", None)
+
+
+def test_import_skips_retired_provider_types(app, tmp_path):
+    """旧备份中的退役 Provider 不能绕过迁移重新落库。"""
+    src_env = {
+        "format": "musefold-export", "schemaVersion": 3, "dbUserVersion": 19,
+        "appVersion": "0.5.0", "exportedAt": 1, "mode": "db-only", "counts": {},
+        "data": {
+            "prompts": [], "folders": [], "tags": [], "smartSets": [],
+            "providers": [{
+                "id": "retired-provider", "name": "旧版服务商", "type": "wukong-studio",
+                "baseUrl": "https://retired.invalid/api/v1/studio", "model": "legacy-image",
+                "isActive": True, "createdAt": 1, "updatedAt": 1,
+            }],
+        },
+    }
+    src = tmp_path / "retired-provider.json"
+    src.write_text(json.dumps(src_env), "utf-8")
+
+    result = import_from(app, src, strategy="merge", autoBackup=False)
+
+    assert result["byType"]["providers"]["failed"] == 1
+    assert any("已退役" in warning or "不支持" in warning for warning in result["warnings"])
+    assert app.db_query("SELECT id FROM providers WHERE id = ?", ("retired-provider",)) == []
 
 
 def test_import_dangling_folder_id_downgraded(app, tmp_path):

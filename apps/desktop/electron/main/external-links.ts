@@ -1,7 +1,5 @@
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   'ai.tvt.wiki',
-  'wkapi.vip',
-  'wkapi.club',
 ]);
 
 /**

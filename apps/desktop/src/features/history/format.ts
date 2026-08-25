@@ -4,12 +4,12 @@
 import type { PromptParams, CostUnit } from '@musefold/desktop-contracts/generation-snapshots';
 import { formatCost } from '../../lib/format';
 
-/** 历史账本中的成本文案；成功但 cost=null 表示该 Provider 未配置单价。 */
+/** 历史账本中的成本文案；cost=null 表示本次没有记录成本。 */
 export function formatHistoryCost(
   cost: number | null | undefined,
   unit: CostUnit = 'point',
 ): string {
-  return cost == null ? '未配单价' : formatCost(cost, unit);
+  return cost == null ? '未记录成本' : formatCost(cost, unit);
 }
 
 /** 把 PromptParams 收成一行可读摘要 */

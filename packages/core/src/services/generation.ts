@@ -347,8 +347,8 @@ export async function generate(
     effectiveReq.referenceImages?.length ? `mode=image-edit(${effectiveReq.referenceImages.length})` : 'mode=image-generation',
   );
 
-  // 参数快照：重试要靠它重建请求，所以两种 Provider 的形状字段都得留下 ——
-  // aspectRatio 少存一个，悟空的重试就会丢掉比例、出一张形状不同的图。
+  // 参数快照：重试要靠它重建请求，所以请求的形状字段都得留下 ——
+  // aspectRatio 少存一个，重试就会丢掉比例、出一张形状不同的图。
   const paramsJson = withGenerationMetadata({
     size: effectiveReq.size,
     aspectRatio: effectiveReq.aspectRatio,

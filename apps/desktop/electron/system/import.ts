@@ -30,6 +30,7 @@ import { createLogger, redact } from './logger';
 import { getPaths } from './paths';
 import { createBackup } from './backup';
 import { validateEnvelope, EXPORT_IMAGES_DIR } from '@musefold/domain/export-format';
+import { isProviderType } from '@musefold/desktop-contracts/enums';
 import type {
   ExportEnvelope,
   ImportRequest,
@@ -40,7 +41,6 @@ import type {
 } from '@musefold/desktop-contracts/ipc';
 
 const logger = createLogger('import');
-
 /** 参与导入的表名（byType 的 key 集合） */
 const TYPES = [
   'prompts',
@@ -519,9 +519,9 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
     const type = asStr(r.type);
     const baseUrl = asStr(r.baseUrl);
     const model = asStr(r.model);
-    if (!id || !name || !type || !baseUrl || !model) {
+    if (!id || !name || !baseUrl || !model || !isProviderType(type)) {
       stats.providers.failed += 1;
-      warn(ctx, '服务商缺少必填字段，已跳过');
+      warn(ctx, type && !isProviderType(type) ? `服务商「${name}」使用已退役或不支持的类型，已跳过` : '服务商缺少必填字段，已跳过');
       continue;
     }
     const incomingUpdated = asNum(r.updatedAt, now);

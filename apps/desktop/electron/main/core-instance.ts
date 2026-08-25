@@ -6,8 +6,9 @@ import { createEventHub, createMusefoldCore, type EventHub, type MusefoldCore } 
 import { configureCoreRuntime } from '@musefold/core/runtime';
 import { createLogger } from '../system/logger';
 import { getPaths } from '../system/paths';
-import { loadApiKey } from '../security/keychain';
-import { estimateProviderCost } from '../settings/pricing';
+import { getDb, initDb } from '@musefold/core/db/index';
+import { loadApiKey, sweepOrphanedProviderKeys } from '../security/keychain';
+import { estimateProviderCost, sweepUnmanagedProviderPricing } from '../settings/pricing';
 import { electronPathsPort, electronSecretsPort } from './core-adapters';
 import { doubaoWebRuntime } from '../doubao-web/browser-service';
 
@@ -25,6 +26,7 @@ export function initMusefoldCore(): MusefoldCore {
     estimateProviderCost,
     doubaoWeb: doubaoWebRuntime,
   });
+  initDb();
   hub = createEventHub();
   core = createMusefoldCore({
     paths: electronPathsPort(),
@@ -32,6 +34,14 @@ export function initMusefoldCore(): MusefoldCore {
     events: hub.sink,
     logger: createLogger('core'),
   });
+  // 清掉旧版本遗留的非托管价格与已删除 Provider 密文（幂等，失败不阻断启动）。
+  try {
+    sweepUnmanagedProviderPricing();
+    const rows = getDb().prepare('SELECT id FROM providers').all() as Array<{ id: string }>;
+    sweepOrphanedProviderKeys(new Set(rows.map((row) => row.id)));
+  } catch (error) {
+    createLogger('core').warn('provider cleanup failed', error);
+  }
   return core;
 }
 

@@ -15,6 +15,7 @@ import { up as migration_0016 } from "./migrations/0016_cost_points";
 import { up as migration_0017 } from "./migrations/0017_cloud_prompt_sync";
 import { up as migration_0018 } from "./migrations/0018_cloud_sync_snapshot";
 import { up as migration_0019 } from "./migrations/0019_cloud_sync_usage_events";
+import { up as migration_0020 } from "./migrations/0020_remove_wukong_studio";
 
 interface Migration {
   version: number;
@@ -32,6 +33,7 @@ const migrations: Migration[] = [
   { version: 17, up: migration_0017 },
   { version: 18, up: migration_0018 },
   { version: 19, up: migration_0019 },
+  { version: 20, up: migration_0020 },
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -153,7 +153,8 @@ def test_account_register_provisions_both_stacks_and_point_history(app, fake_new
     app.page.evaluate("() => window.__musefold_test.setView('settings')")
     app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('account')")
     app.page.wait_for_selector('[data-testid="settings-account-signed-out"]')
-    app.page.get_by_role("tab", name="注册").click()
+    # 登录/注册切换已改为分段控件（role=radio），不再是 tab。
+    app.page.get_by_role("radio", name="注册").click()
 
     # 通过可访问标签填写（密码只存在于表单/单次 IPC，不进 Zustand）。
     app.page.get_by_label("用户名").fill("e2euser")
@@ -238,7 +239,7 @@ def test_account_register_provisions_both_stacks_and_point_history(app, fake_new
 
 
 def test_account_model_source_switch(app, fake_newapi):
-    """「AI 接入」切换：账号 ⇄ 双栈中转站，验证后同步两栈 active。"""
+    """左下角身份菜单切换：账号 ⇄ 双栈中转站，验证后同步两栈 active（v2 设置整合）。"""
     app.api_ok("account.setServerUrl", fake_newapi["base"])
     app.api_ok("account.login", {"username": "e2euser", "password": "Password123"})
 
@@ -272,17 +273,17 @@ def test_account_model_source_switch(app, fake_newapi):
         timeout=5_000,
     )
 
-    app.page.evaluate("() => window.__musefold_test.setView('settings')")
-    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('access')")
-    app.page.wait_for_selector('[data-testid="settings-access-mode-account"][aria-checked="true"]')
+    # 身份菜单挂在侧栏 footer，需停留在带侧栏的视图（设置页全屏无侧栏）。
+    app.set_view("generate")
+    app.page.click('[data-testid="provider-quick-switch"]')
+    app.page.wait_for_selector('[data-testid="identity-switcher"]')
 
-    # 切到中转站：先验证生图和 Agent 两条通道，再同步激活。
-    app.page.click('[data-testid="settings-access-mode-relay"]')
-    app.page.wait_for_selector('[data-testid="settings-relay-summary"]', timeout=15_000)
+    # 切到中转站：先验证生图通道，跨模式时连 Agent 通道一起验证，再同步激活。
+    app.page.click(f'[data-testid="relay-model-option-{relay_provider["id"]}"]')
     app.page.wait_for_function(
         "(id) => window.__musefold_test.stores.generation.getState().providers.find((p) => p.id === id)?.isActive === true",
         arg=relay_provider["id"],
-        timeout=5_000,
+        timeout=15_000,
     )
     providers = app.api_ok("provider.list")
     assert next(p for p in providers if p["id"] == relay_provider["id"])["isActive"] is True
@@ -293,11 +294,12 @@ def test_account_model_source_switch(app, fake_newapi):
     )["isActive"] is True
 
     # 切回账号模式：官方账号的托管双栈重新激活。
-    app.page.click('[data-testid="settings-access-mode-account"]')
-    app.page.wait_for_selector('[data-testid="settings-account-source-picker"]', timeout=15_000)
+    app.page.click('[data-testid="provider-quick-switch"]')
+    app.page.wait_for_selector('[data-testid="identity-switcher"]')
+    app.page.click('[data-testid="account-source-option-official"]')
     app.page.wait_for_function(
         "() => window.__musefold_test.stores.generation.getState().providers.find((p) => p.managedBy === 'account')?.isActive === true",
-        timeout=5_000,
+        timeout=15_000,
     )
     assert next(p for p in app.api_ok("provider.list") if p["managedBy"] == "account")["isActive"] is True
     assert next(

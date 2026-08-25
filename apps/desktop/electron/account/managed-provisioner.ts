@@ -7,7 +7,7 @@ import { ACCOUNT_MANAGED_NAME } from '@musefold/domain/constants';
 import { getDb } from '@musefold/core/db/index';
 import { getAiConnectionStore } from '../ai/connection-store';
 import { deleteApiKey, getKeySuffix, saveApiKey } from '../security/keychain';
-import { deleteProviderPricing, setProviderPricing } from '../settings/pricing';
+import { deleteProviderPricing, setManagedProviderPricing } from '../settings/pricing';
 import type { ManagedProvisioner } from './account-service';
 
 function relayV1Url(serverUrl: string): string {
@@ -162,7 +162,7 @@ export function createManagedProvisioner(): ManagedProvisioner {
         `SELECT 1 FROM providers WHERE id = ? AND managed_by = 'account'`,
       ).get(providerId);
       if (!row) return;
-      setProviderPricing({ providerId, mode: 'per-image', unitPoints: pricePoints });
+      setManagedProviderPricing(providerId, pricePoints);
     },
   };
 }

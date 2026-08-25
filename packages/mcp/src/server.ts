@@ -93,7 +93,7 @@ function registerSetupTools(
     description: 'Focus Musefold and open its native provider form, optionally prefilling non-secret fields. The user must enter the API key and test connectivity inside Musefold.',
     inputSchema: {
       name: z.string().max(80).optional(),
-      type: z.enum(['openai', 'openai-compatible', 'wukong-studio']).optional(),
+      type: z.enum(['openai', 'openai-compatible']).optional(),
       baseUrl: z.string().max(2048).optional(),
       model: z.string().max(160).optional(),
     },

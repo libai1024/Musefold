@@ -6,6 +6,7 @@ import Store from 'electron-store';
 import { STORE_NAME } from '@musefold/core/constants';
 import { resolveSafeStorage } from './e2e-safe-storage';
 import { ensureOsCryptKeyPersisted } from './os-crypt-durability';
+import { orphanedProviderKeyIds } from './provider-key-cleanup';
 
 const store = new Store<{ keys: Record<string, string> }>({
   name: STORE_NAME,
@@ -45,6 +46,13 @@ export function loadApiKey(providerId: string): string | null {
 /** 删除 API key */
 export function deleteApiKey(providerId: string): void {
   store.delete(`keys.${providerId}`);
+}
+
+/** 删除不再有 SQLite Provider 行的遗留密文。 */
+export function sweepOrphanedProviderKeys(validProviderIds: ReadonlySet<string>): number {
+  const orphanedIds = orphanedProviderKeyIds(store.get('keys'), validProviderIds);
+  for (const providerId of orphanedIds) store.delete(`keys.${providerId}`);
+  return orphanedIds.length;
 }
 
 /** 获取 key 末 4 位用于显示（不暴露完整 key） */

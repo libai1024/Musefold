@@ -4,7 +4,6 @@
 import { registerPromptHandlers } from "./prompts";
 import { registerSmartSetHandlers } from "./smartSets";
 import { registerProviderHandlers } from "./providers";
-import { registerSettingsHandlers } from "./settings";
 import { registerImageHandlers } from "./images";
 import { registerHistoryHandlers } from "./history";
 import { registerSystemHandlers } from "./system";
@@ -24,7 +23,6 @@ export function registerAllHandlers(): void {
   registerPromptHandlers();
   registerSmartSetHandlers();
   registerProviderHandlers();
-  registerSettingsHandlers();
   registerImageHandlers();
   registerHistoryHandlers();
   registerSystemHandlers();

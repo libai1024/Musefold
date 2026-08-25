@@ -45,8 +45,10 @@ export interface GenerationGateOptions {
 }
 
 export interface GenerationEstimate {
-  /** 估算成本（积分）；null = 无单价配置 → 必须确认 */
+  /** 估算成本（积分）；非托管 Provider 不计费时为 null。 */
   points: number | null;
+  /** 官方账号托管 Provider；仅此类价格未知时仍需确认。 */
+  managedByAccount: boolean;
   providerId: string;
   providerName: string;
   model: string;
@@ -366,16 +368,17 @@ export function createGenerationGate(
         }
       }
 
-      // b. 预算覆盖估算 → 自动放行（估算未知成本不可走预算，必须确认）；
-      //    调用方声明的一次性预算须同时 ≤ 剩余额度（§5.4 b）
+      // b. 非托管 Provider 不计费，自动放行；托管 Provider 按预算覆盖估算；
+      //    托管价格未知时不可走预算，必须确认。调用方声明的一次性预算须同时 ≤ 剩余额度。
       const remaining = host.budget.remainingPoints();
       const declared = body.declaredBudgetPoints;
+      const unmeteredProvider = !estimate.managedByAccount;
       const budgetCovered =
         estimate.points != null &&
         estimate.points <= remaining &&
         (declared == null || (estimate.points <= declared && declared <= remaining));
       // 交互同意：人已在本机确认（CLI TTY / --yes），等价 App 卡片放行
-      const covered = budgetCovered || body.consent === 'interactive';
+      const covered = unmeteredProvider || budgetCovered || body.consent === 'interactive';
 
       if (!covered) {
         // c. 需确认：挂起 + 202
@@ -440,7 +443,11 @@ export function createGenerationGate(
         }
       }
 
-      const approvedVia = body.consent === 'interactive' ? 'consent' : budgetCovered ? 'budget' : 'confirmation';
+      const approvedVia = body.consent === 'interactive'
+        ? 'consent'
+        : unmeteredProvider || budgetCovered
+          ? 'budget'
+          : 'confirmation';
       const record = launch(body, estimate, references, approvedVia);
       if (idempotencyKey) approvedIdempotencyKeys.set(idempotencyKey, record.jobId);
       context.json(jobPayload(record), 202);

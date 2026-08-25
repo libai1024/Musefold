@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, CalendarDays, Info, Loader2, Settings2 } from '../../../components/ui/icons';
+import { BarChart3, CalendarDays, Info, Loader2 } from '../../../components/ui/icons';
 import type {
   HistoryStatsBucket,
   HistoryStatsGroupBy,
   HistoryStatsProvider,
   HistoryStatsQuery,
 } from '@musefold/desktop-contracts/history-documents';
-import { useAppStore } from '../../../stores/app';
-import { useSettingsStore } from '../../../runtime/settings-access';
 import {
   Dialog,
   DialogContent,
@@ -43,8 +41,6 @@ export function CostDashboard({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const setView = useAppStore((s) => s.setView);
-  const setSettingsSection = useSettingsStore((s) => s.setSection);
   const account = useAccountStore((s) => s.status);
   const refreshQuota = useAccountStore((s) => s.refreshQuota);
 
@@ -75,12 +71,6 @@ export function CostDashboard({
   const hasData = totalCount > 0;
   const unpriced = hasData && totals.every((total) => total.cost === 0);
 
-  const configurePricing = () => {
-    onOpenChange(false);
-    setSettingsSection('providers');
-    setView('settings');
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[86vh] max-w-3xl overflow-y-auto p-0">
@@ -93,7 +83,7 @@ export function CostDashboard({
               成本看板
             </DialogTitle>
             <DialogDescription>
-              仅统计生成成功的历史；账号消费按服务器计费单价记录，手动服务商沿用本地估算。
+              仅统计生成成功且记录了成本的历史；账号消费按服务器计费单价记录。
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -164,7 +154,7 @@ export function CostDashboard({
               <BarChart3 className="mb-3 h-7 w-7 text-quaternary" />
               <p className="text-[13px] font-medium text-primary">还没有可统计的成功记录</p>
               <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-tertiary">
-                成功生成后，这里会按时间和 Provider 汇总本地估算成本。
+                成功生成且 Provider 返回了成本后，这里会按时间和 Provider 汇总。
               </p>
             </div>
           ) : (
@@ -172,7 +162,7 @@ export function CostDashboard({
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[12px] font-semibold text-primary">{groupLabel(groupBy)}分布</h3>
-                  <span className="text-[10px] text-tertiary">{rangeLabel(range)}</span>
+                  <span className="text-meta text-tertiary">{rangeLabel(range)}</span>
                 </div>
                 <BucketChart buckets={stats?.buckets ?? []} loading={loading} />
               </section>
@@ -186,19 +176,15 @@ export function CostDashboard({
 
           {unpriced && (
             <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11.5px] leading-relaxed text-warning" data-testid="history-cost-unpriced">
-              这些成功记录的成本为 0 或未配置单价；看板会按 0 聚合。
+              这些成功记录的成本为 0 或未记录成本；看板会按 0 聚合。
             </div>
           )}
 
           <div className="flex flex-col gap-2 border-t border-border-subtle pt-3 text-[11.5px] leading-relaxed text-tertiary sm:flex-row sm:items-center" data-testid="history-cost-disclaimer">
             <Info className="h-3.5 w-3.5 shrink-0 text-info" />
             <span className="min-w-0 flex-1">
-              所有成本均以积分统计；账号消费来自服务器计费，手动服务商来自本地单价估算。
+              所有成本均以积分统计；账号消费来自服务器计费，非托管中转站不做本地计费。
             </span>
-            <Button size="xs" variant="outline" onClick={configurePricing} data-testid="history-cost-configure">
-              <Settings2 className="h-3 w-3" />
-              配置单价
-            </Button>
           </div>
         </div>
       </DialogContent>
@@ -219,11 +205,11 @@ function SummaryCard({
 }) {
   return (
     <div className="bg-transparent px-3 py-3">
-      <p className="text-[10.5px] text-tertiary">{label}</p>
+      <p className="text-meta text-tertiary">{label}</p>
       <p className="mt-1 font-mono text-[16px] font-semibold tabular-nums text-primary" data-testid={testId}>
         {value}
       </p>
-      {detail && <p className="mt-0.5 text-[10px] text-quaternary">{detail}</p>}
+      {detail && <p className="mt-0.5 text-meta text-quaternary">{detail}</p>}
     </div>
   );
 }
@@ -243,7 +229,7 @@ function Segmented({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10.5px] text-tertiary">{label}</span>
+      <span className="text-meta text-tertiary">{label}</span>
       <div className="flex rounded-lg border border-border-subtle bg-inset/65 p-0.5">
         {options.map((option) => {
           const active = option.id === value;
@@ -307,7 +293,7 @@ function BucketChart({ buckets, loading }: { buckets: HistoryStatsBucket[]; load
                 data-cost={bucket.cost}
                 data-count={bucket.count}
               />
-              <span className="max-w-[44px] truncate font-mono text-[9px] text-quaternary" title={bucket.key}>
+              <span className="max-w-[44px] truncate font-mono text-meta text-quaternary" title={bucket.key}>
                 {shortBucketKey(bucket.key)}
               </span>
             </div>
@@ -352,7 +338,7 @@ function ProviderBreakdown({ providers, loading }: { providers: HistoryStatsProv
               <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-primary">{provider.name}</span>
               <span className="font-mono text-[11px] tabular-nums text-primary">{formatCost(provider.cost)}</span>
-              <span className="font-mono text-[10px] tabular-nums text-tertiary">{provider.count} 张</span>
+              <span className="font-mono text-meta tabular-nums text-tertiary">{provider.count} 张</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-inset">
               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(5, Math.round(ratio * 100))}%` }} />

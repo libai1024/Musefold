@@ -1,4 +1,6 @@
-# 10 · 悟空 API 创作台生图开发文档
+# 10 · 悟空 API 创作台生图开发文档（已退役）
+
+> **退役说明（2026-08-24）**：Musefold 已删除 `wukong-studio` Provider、预设和错误引导；旧数据库行会在迁移中清理，旧备份导入也不会恢复该类型。本文仅保留历史调研，不再作为当前实现或接入依据。
 
 > 面向 PromptForge / 第三方客户端接入 **悟空 API（wkapi.vip）「生图组」** 的开发说明。  
 > 内容基于官方文档 [`/wkapi-docs.html`](https://wkapi.vip/wkapi-docs.html) 与 2026-08 实测验证。

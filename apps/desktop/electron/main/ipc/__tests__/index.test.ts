@@ -4,7 +4,6 @@ const registrations = vi.hoisted(() => ({
   prompt: vi.fn(),
   smartSet: vi.fn(),
   provider: vi.fn(),
-  settings: vi.fn(),
   image: vi.fn(),
   history: vi.fn(),
   system: vi.fn(),
@@ -27,9 +26,6 @@ vi.mock("../smartSets", () => ({
 }));
 vi.mock("../providers", () => ({
   registerProviderHandlers: registrations.provider,
-}));
-vi.mock("../settings", () => ({
-  registerSettingsHandlers: registrations.settings,
 }));
 vi.mock("../images", () => ({ registerImageHandlers: registrations.image }));
 vi.mock("../history", () => ({

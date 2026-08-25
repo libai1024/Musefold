@@ -1,5 +1,5 @@
 // packages/desktop-contracts/src/ipc/generation.ts
-// aiConnection / provider / settings(pricing) / image 域：Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
+// aiConnection / provider / image 域：Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
 
 import type {
   DoubaoWebAccountStatus,
@@ -11,8 +11,6 @@ import type {
   NewProviderConfig,
   PickLocalImagesResult,
   ProviderConfig,
-  ProviderPricingConfig,
-  ProviderPricingSetRequest,
   StageLocalImageInput,
   ValidationResult,
 } from "../providers";
@@ -58,14 +56,6 @@ export interface ProviderApi {
   validate: (id: string) => Promise<ValidationResult>;
   listModels: (id: string) => Promise<ModelInfo[]>;
   setActive: (id: string) => Promise<{ ok: true }>;
-}
-
-export interface SettingsApi {
-  pricing: {
-    get: (providerId: string) => Promise<ProviderPricingConfig | null>;
-    set: (req: ProviderPricingSetRequest) => Promise<{ ok: true; pricing: ProviderPricingConfig }>;
-    delete: (providerId: string) => Promise<{ ok: true }>;
-  };
 }
 
 export interface ImageApi {

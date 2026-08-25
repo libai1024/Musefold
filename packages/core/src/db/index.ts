@@ -129,6 +129,7 @@ export function getDb(): Database.Database {
 }
 
 export function initDb(): Database.Database {
+  if (dbInstance) return dbInstance;
   const paths = getPaths();
   mkdirSync(dirname(paths.db), { recursive: true });
 

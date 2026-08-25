@@ -1,7 +1,6 @@
 // packages/domain/src/errors.ts
 // 统一错误码 → 友好中文文案 + 处理建议
 // 主进程 normalizeError 产出这些 code，渲染进程用本表展示。
-// 详见 docs/10 §10（悟空）、docs/11 §8（TvT）
 
 import { DOUBAO_WEB_DAILY_IMAGE_LIMIT } from './constants';
 
@@ -17,7 +16,6 @@ export type ErrorCode =
   | 'BAD_REQUEST' // 400 参数错误
   | 'NO_PROVIDER' // 未配置服务商
   | 'NO_KEY' // 未配置 API Key
-  | 'WRONG_GROUP' // 悟空 Key 不在生图组
   | 'CANCELLED' // 用户取消
   | 'UNKNOWN';
 
@@ -51,7 +49,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, FriendlyError> = {
   },
   TIMEOUT: {
     title: '生成超时',
-    hint: '本次任务超过了等待上限。可重试；悟空云任务可凭 task_id 到控制台核对。',
+    hint: '本次任务超过了等待上限，请稍后重试。',
   },
   NETWORK: {
     title: '网络连接失败',
@@ -68,10 +66,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, FriendlyError> = {
   NO_KEY: {
     title: '尚未配置 API Key',
     hint: '该服务商还没有保存密钥，请在服务商设置里填写并保存。',
-  },
-  WRONG_GROUP: {
-    title: 'Key 分组不正确',
-    hint: '悟空云生图必须使用「生图组」分组的 Key，请在控制台确认分组后重试。',
   },
   CANCELLED: {
     title: '已取消生成',
@@ -126,7 +120,6 @@ export interface ErrorGuidance extends FriendlyError {
 }
 
 const ACTION_UPDATE_KEY: ErrorAction = { kind: 'update_key', label: '更新密钥' };
-const ACTION_OPEN_DOCS: ErrorAction = { kind: 'open_url', label: '查看说明' };
 const ACTION_TOP_UP: ErrorAction = { kind: 'open_url', label: '去充值' };
 const ACTION_RETRY: ErrorAction = { kind: 'retry', label: '重试' };
 const ACTION_CHECK_MODEL: ErrorAction = { kind: 'check_model', label: '检查模型' };
@@ -138,12 +131,6 @@ export function errorGuidance(code?: string | null): ErrorGuidance {
   switch (c) {
     case 'AUTH':
       return { ...base, actions: [ACTION_UPDATE_KEY] };
-    case 'WRONG_GROUP':
-      return {
-        title: 'Key 需属于「生图组」',
-        hint: '悟空云生图必须使用「生图组」分组的 Key，请到控制台确认分组或更换 Key。',
-        actions: [ACTION_OPEN_DOCS, ACTION_UPDATE_KEY],
-      };
     case 'NO_BALANCE':
       return { ...base, actions: [ACTION_TOP_UP] };
     case 'RATE_LIMIT':

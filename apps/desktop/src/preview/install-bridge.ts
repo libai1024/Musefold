@@ -59,17 +59,6 @@ const windowApi: Api['window'] = {
   onFullscreenChange: () => () => {},
 };
 
-const settingsApi: Api['settings'] = {
-  pricing: {
-    get: (providerId) =>
-      invoke('settings:pricing:get', [providerId]) as Promise<Awaited<ReturnType<Api['settings']['pricing']['get']>>>,
-    set: (req) =>
-      invoke('settings:pricing:set', [req]) as Promise<Awaited<ReturnType<Api['settings']['pricing']['set']>>>,
-    delete: (providerId) =>
-      invoke('settings:pricing:delete', [providerId]) as Promise<Awaited<ReturnType<Api['settings']['pricing']['delete']>>>,
-  },
-};
-
 const imageApi: Api['image'] = {
   pickLocal: () => invoke('image:pickLocal', []) as Promise<Awaited<ReturnType<Api['image']['pickLocal']>>>,
   stageLocal: (input) => invoke('image:stageLocal', [input]) as Promise<Awaited<ReturnType<Api['image']['stageLocal']>>>,
@@ -113,7 +102,6 @@ const api = new Proxy({} as Api, {
   get(_t, domain: string) {
     if (domain === 'window') return windowApi;
     if (domain === 'diagnostics') return diagnosticsApi;
-    if (domain === 'settings') return settingsApi;
     if (domain === 'image') return imageApi;
     if (domain === 'share') return shareApi;
     if (domain === 'updater') return updaterApi;

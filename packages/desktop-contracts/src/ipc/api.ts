@@ -4,7 +4,7 @@
 import type { PromptApi, SearchHistoryApi } from "./prompt";
 import type { HistoryApi } from "./history";
 import type { WorkbenchSessionApi } from "./workbench";
-import type { AiConnectionApi, ProviderApi, SettingsApi, ImageApi } from "./generation";
+import type { AiConnectionApi, ProviderApi, ImageApi } from "./generation";
 import type { AccountApi, CloudSyncApi, CloudConnectionsApi } from "./account";
 import type {
   SystemApi,
@@ -31,7 +31,6 @@ export interface Api {
   designScheme: DesignSchemeApi;
   aiConnection: AiConnectionApi;
   provider: ProviderApi;
-  settings: SettingsApi;
   image: ImageApi;
   workbenchSession: WorkbenchSessionApi;
   history: HistoryApi;

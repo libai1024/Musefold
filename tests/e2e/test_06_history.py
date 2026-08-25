@@ -619,11 +619,8 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
     month_key = app.page.locator('[data-testid="history-cost-bucket"]').nth(0).get_attribute("data-key")
     assert month_key and len(month_key) == 7 and month_key[4] == "-", month_key
     assert "积分" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-    assert "本地单价估算" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-
-    app.page.click('[data-testid="history-cost-configure"]')
-    app.page.wait_for_function("() => window.__musefold_test?.getView?.() === 'settings'", timeout=5_000)
-    assert app.page.evaluate("() => window.__musefold_test.stores.settings.getState().section") == "providers"
+    assert "非托管中转站不做本地计费" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
+    assert app.page.locator('[data-testid="history-cost-configure"]').count() == 0
 
 
 def test_history_cost_dashboard_empty_and_unpriced_states(app):
@@ -661,7 +658,7 @@ def test_history_cost_dashboard_empty_and_unpriced_states(app):
         timeout=5_000,
     )
     assert "0 积分" in app.page.inner_text('[data-testid="history-cost-total"]')
-    assert "未配置单价" in app.page.inner_text('[data-testid="history-cost-unpriced"]')
+    assert "未记录成本" in app.page.inner_text('[data-testid="history-cost-unpriced"]')
 
 
 def test_history_cleanup_menu_clears_old_noise_and_all_records(app):

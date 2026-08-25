@@ -29,7 +29,6 @@ import {
   PREVIEWS_DIR_NAME,
   STORE_NAME,
 } from '@musefold/core/constants';
-import { estimateCostFromPricing, parseStoredProviderPricing } from '@musefold/core/pricing';
 import packageInfo from '../package.json';
 
 export interface ServeOptions {
@@ -63,7 +62,6 @@ function envKeyName(providerId: string): string {
 }
 
 interface ProvidersStoreShape {
-  pricing?: Record<string, unknown>;
   automation?: { budget?: {
     monthlyLimitPoints?: number;
     usedPoints?: number;
@@ -120,10 +118,7 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
       warn: (...args: unknown[]) => log(`[${scope}] WARN ${args.map(String).join(' ')}`),
       error: (...args: unknown[]) => log(`[${scope}] ERROR ${args.map(String).join(' ')}`),
     }),
-    estimateProviderCost: (providerId, req, usageTokens) => {
-      const pricing = parseStoredProviderPricing(readProvidersStore(dataDir).pricing?.[providerId]);
-      return estimateCostFromPricing(pricing, { n: req.n ?? 1 }, usageTokens ?? undefined);
-    },
+    estimateProviderCost: () => null,
   });
 
   initDb();
@@ -179,9 +174,9 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
         throw Object.assign(new Error('没有激活的图像 Provider'), { code: 'INVALID_STATE', details: {} });
       }
       const n = body.n ?? 1;
-      const pricing = parseStoredProviderPricing(readProvidersStore(dataDir).pricing?.[row.id as string]);
       return {
-        points: estimateCostFromPricing(pricing, { n } as { n: number }, undefined),
+        points: null,
+        managedByAccount: false,
         providerId: row.id as string,
         providerName: row.name as string,
         model: body.model ?? (row.model as string),

@@ -186,7 +186,7 @@ export async function commandProvider(context: CliContext, rest: string[]): Prom
   if (action === 'setup') {
     const draft = {
       ...(typeof context.args.flags.name === 'string' ? { name: context.args.flags.name } : {}),
-      ...(typeof context.args.flags.type === 'string' ? { type: context.args.flags.type as 'openai' | 'openai-compatible' | 'wukong-studio' } : {}),
+      ...(typeof context.args.flags.type === 'string' ? { type: context.args.flags.type as 'openai' | 'openai-compatible' } : {}),
       ...(typeof context.args.flags['base-url'] === 'string' ? { baseUrl: context.args.flags['base-url'] } : {}),
       ...(typeof context.args.flags.model === 'string' ? { model: context.args.flags.model } : {}),
     };

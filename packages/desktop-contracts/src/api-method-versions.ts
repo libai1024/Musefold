@@ -24,7 +24,7 @@ const BASELINE = '0.5.0';
  * 将 window.api 的方法面映射为「引入该能力的外壳 semver」。
  *
  * 理想的两层形状是 `{ readonly [G in keyof Api]: { readonly [M in keyof Api[G]]: string } }`，
- * 但 Api 含非函数成员（`settings.pricing`、`automation.budget`），那些键必须递归映射为
+ * 但 Api 含非函数成员（`automation.budget`），那些键必须递归映射为
  * 嵌套对象，不能写成 string。函数叶子必须是 string。
  */
 export type ApiMethodIntroducedIn = {
@@ -121,13 +121,6 @@ export const API_METHOD_INTRODUCED_IN: ApiMethodIntroducedIn = {
     validate: BASELINE,
     listModels: BASELINE,
     setActive: BASELINE,
-  },
-  settings: {
-    pricing: {
-      get: BASELINE,
-      set: BASELINE,
-      delete: BASELINE,
-    },
   },
   image: {
     pickLocal: BASELINE,

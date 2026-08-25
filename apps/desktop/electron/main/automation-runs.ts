@@ -41,7 +41,14 @@ interface ExternalRun {
 const externalRuns = new Map<string, ExternalRun>();
 
 interface SpendAuthorizer {
-  (summary: { providerName: string; model: string; n: number; estimatedPoints: number | null; promptPreview: string }): Promise<void>;
+  (summary: {
+    providerName: string;
+    model: string;
+    n: number;
+    estimatedPoints: number | null;
+    managedByAccount: boolean;
+    promptPreview: string;
+  }): Promise<void>;
 }
 
 interface ProviderPick {
@@ -131,14 +138,20 @@ export function createExternalRunRoutes(
       }
       const provider = pickProvider(body.providerId);
       const estimated = estimatePointsFor(provider, n);
+      const managedByAccount = provider.managedBy === 'account';
       const approvedVia: 'budget' | 'confirmation' | 'consent' =
-        body.consent === 'interactive' ? 'consent' : externalSpendCovered(estimated) ? 'budget' : 'confirmation';
+        body.consent === 'interactive'
+          ? 'consent'
+          : externalSpendCovered(estimated, managedByAccount)
+            ? 'budget'
+            : 'confirmation';
       if (body.consent !== 'interactive') {
         await authorizeSpend({
           providerName: provider.name,
           model: provider.model,
           n,
           estimatedPoints: estimated,
+          managedByAccount,
           promptPreview: `运行方案「${detail.summary.name}」`,
         });
       }
@@ -258,14 +271,20 @@ export function createExternalRunRoutes(
       }
       const provider = pickProvider(body.providerId);
       const estimated = estimatePointsFor(provider, n);
+      const managedByAccount = provider.managedBy === 'account';
       const approvedVia: 'budget' | 'confirmation' | 'consent' =
-        body.consent === 'interactive' ? 'consent' : externalSpendCovered(estimated) ? 'budget' : 'confirmation';
+        body.consent === 'interactive'
+          ? 'consent'
+          : externalSpendCovered(estimated, managedByAccount)
+            ? 'budget'
+            : 'confirmation';
       if (body.consent !== 'interactive') {
         await authorizeSpend({
           providerName: provider.name,
           model: provider.model,
           n,
           estimatedPoints: estimated,
+          managedByAccount,
           promptPreview: `运行 GitHub Skill：${body.url}`,
         });
       }
@@ -378,7 +397,14 @@ function cancelExternalRun(id: string, kind: 'scheme' | 'skill') {
   return { jobId: run.id, cancelling: true };
 }
 
-/** 供预算判定复用（与生图闸门一致的口径）。 */
-export function externalSpendCovered(estimatedPoints: number | null): boolean {
+/**
+ * 供预算判定复用（与生图闸门一致的口径）。
+ * v0.6：非托管 Provider 视为不计费，自动放行；托管 Provider 仍按预算覆盖估算。
+ */
+export function externalSpendCovered(
+  estimatedPoints: number | null,
+  managedByAccount: boolean,
+): boolean {
+  if (!managedByAccount) return true;
   return estimatedPoints != null && estimatedPoints <= remainingAutomationBudgetPoints();
 }
