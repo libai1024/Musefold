@@ -7,7 +7,7 @@
 .mf-ui-button {
   min-height: var(--control-md);
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   padding: 0 11px;
   display: inline-flex;
   align-items: center;
@@ -45,7 +45,26 @@
 }
 
 .mf-ui-button:active:not(:disabled) {
-  transform: translateY(1px) scale(0.98);
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* v2.0:键盘焦点 Ember 环,不参与布局尺寸(00 §16.1)。 */
+.mf-ui-button:focus-visible,
+.mf-ui-icon-button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* busy 态 spinner 占据图标槽位,替换而非追加内容,避免按钮宽度跳动(09 §9)。 */
+.mf-ui-button-spinner {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
+  border-radius: 999px;
+  animation: mf-ui-spin 0.7s linear infinite;
 }
 
 .mf-ui-button-default {
@@ -255,10 +274,10 @@
   transform: translate(-50%, -50%);
   gap: 1rem;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-dialog);
   padding: 1.25rem;
   background: var(--bg-popover);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-dialog);
   color: var(--fg-primary);
   outline: none;
   animation: mf-ui-dialog-in var(--dur-base) var(--ease-out);
@@ -361,7 +380,7 @@
 
 .mf-ui-tabs-list {
   display: inline-flex;
-  height: 2.25rem;
+  height: 2.125rem;
   align-items: flex-end;
   justify-content: center;
   gap: 0.25rem;
@@ -371,7 +390,7 @@
 
 .mf-ui-tabs-trigger {
   display: inline-flex;
-  height: 2.25rem;
+  height: 2.125rem;
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
@@ -403,6 +422,11 @@
   border-bottom-color: var(--accent);
 }
 
+.mf-ui-tabs-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .mf-ui-tabs-trigger:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
@@ -418,7 +442,7 @@
   max-width: 18rem;
   overflow: hidden;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-tooltip);
   padding: 0.25rem 0.5rem;
   background: var(--bg-popover);
   color: var(--fg-secondary);
@@ -492,7 +516,7 @@
 .mf-ui-textarea {
   width: 100%;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--bg-elevated);
   color: var(--fg-primary);
   font: inherit;
@@ -523,8 +547,20 @@
 
 .mf-ui-input:focus-visible,
 .mf-ui-textarea:focus-visible {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+/* v2.0 error 态:边框 + focus 环使用语义 danger,错误文案与恢复说明由调用方渲染(09 §11)。 */
+.mf-ui-input[aria-invalid='true'],
+.mf-ui-textarea[aria-invalid='true'] {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-default));
+}
+
+.mf-ui-input[aria-invalid='true']:focus-visible,
+.mf-ui-textarea[aria-invalid='true']:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 22%, transparent);
 }
 
 .mf-ui-input:disabled,
@@ -828,8 +864,8 @@
   user-select: none;
   align-items: center;
   gap: 0.5rem;
-  border-radius: var(--radius-xs);
-  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-tooltip);
+  padding: 0.5rem;
   color: var(--fg-primary);
   font-size: 0.75rem;
   line-height: 1rem;
@@ -866,6 +902,12 @@
 .mf-ui-select-item {
   padding-left: 1.75rem;
   gap: 0;
+}
+
+/* v2.0:当前选中项 = check 指示 + accent-soft 底,highlight 仍在其上(09 §12)。 */
+.mf-ui-dropdown-item[data-state='checked'],
+.mf-ui-select-item[data-state='checked'] {
+  background: var(--accent-soft);
 }
 
 .mf-ui-dropdown-item:focus,
@@ -942,7 +984,7 @@
   justify-content: space-between;
   gap: 0.5rem;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   padding: 0 0.625rem;
   background: var(--bg-elevated);
   color: var(--fg-primary);
@@ -1091,6 +1133,11 @@
 .mf-ui-segmented-option:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.mf-ui-segmented-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .mf-ui-segmented-icon,

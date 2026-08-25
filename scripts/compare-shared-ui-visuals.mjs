@@ -177,31 +177,60 @@ function comparePng(leftPath, rightPath) {
   const height = Math.min(left.height, right.height);
   const leftOffset = Math.floor((left.width - width) / 2);
   const rightOffset = Math.floor((right.width - width) / 2);
-  let total = 0;
-  let changed = 0;
-  const pixels = width * height;
-  for (let row = 0; row < height; row += 1) {
-    for (let column = 0; column < width; column += 1) {
-      const leftIndex = (row * left.width + leftOffset + column) * 4;
-      const rightIndex = (row * right.width + rightOffset + column) * 4;
-      const delta =
-        (Math.abs(left.data[leftIndex] - right.data[rightIndex]) +
-          Math.abs(left.data[leftIndex + 1] - right.data[rightIndex + 1]) +
-          Math.abs(left.data[leftIndex + 2] - right.data[rightIndex + 2])) /
-        (255 * 3);
-      total += delta;
-      if (delta > 0.08) changed += 1;
+  let best;
+
+  // Locator screenshots can round fractional CSS coordinates differently in
+  // Chromium and Electron. Align by at most one device pixel before comparing;
+  // larger geometry differences remain visible to the existing thresholds.
+  for (let alignmentY = -1; alignmentY <= 1; alignmentY += 1) {
+    for (let alignmentX = -1; alignmentX <= 1; alignmentX += 1) {
+      const startColumn = Math.max(0, -alignmentX);
+      const endColumn = Math.min(width, width - alignmentX);
+      const startRow = Math.max(0, -alignmentY);
+      const endRow = Math.min(height, height - alignmentY);
+      let total = 0;
+      let changed = 0;
+      const pixels =
+        (endColumn - startColumn) * (endRow - startRow);
+
+      for (let row = startRow; row < endRow; row += 1) {
+        for (let column = startColumn; column < endColumn; column += 1) {
+          const leftIndex =
+            (row * left.width + leftOffset + column) * 4;
+          const rightIndex =
+            ((row + alignmentY) * right.width +
+              rightOffset +
+              column +
+              alignmentX) *
+            4;
+          const delta =
+            (Math.abs(left.data[leftIndex] - right.data[rightIndex]) +
+              Math.abs(left.data[leftIndex + 1] - right.data[rightIndex + 1]) +
+              Math.abs(left.data[leftIndex + 2] - right.data[rightIndex + 2])) /
+            (255 * 3);
+          total += delta;
+          if (delta > 0.08) changed += 1;
+        }
+      }
+
+      const candidate = {
+        alignmentX,
+        alignmentY,
+        comparedWidth: endColumn - startColumn,
+        comparedHeight: endRow - startRow,
+        meanError: total / pixels,
+        changedPixelRatio: changed / pixels,
+      };
+      if (!best || candidate.meanError < best.meanError) best = candidate;
     }
   }
+
   return {
     leftWidth: left.width,
     leftHeight: left.height,
     rightWidth: right.width,
     rightHeight: right.height,
-    comparedWidth: width,
-    comparedHeight: height,
-    meanError: total / pixels,
-    changedPixelRatio: changed / pixels,
+    ...best,
   };
 }
 

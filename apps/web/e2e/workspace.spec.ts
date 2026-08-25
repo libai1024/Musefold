@@ -545,11 +545,12 @@ test('shared sidebar resizes, collapses, and becomes a compact drawer', async ({
 
   const rail = page.getByTestId('product-sidebar-rail');
   const resizeHandle = page.getByTestId('sidebar-resize-handle');
-  await expect(rail).toHaveCSS('width', '244px');
+  // v2.0 Phase B(10 §4.2):默认 248px,键盘 ArrowLeft 步进 16px,双击回默认。
+  await expect(rail).toHaveCSS('width', '248px');
   await resizeHandle.press('ArrowLeft');
-  await expect(rail).toHaveCSS('width', '228px');
+  await expect(rail).toHaveCSS('width', '232px');
   await resizeHandle.dblclick();
-  await expect(rail).toHaveCSS('width', '244px');
+  await expect(rail).toHaveCSS('width', '248px');
 
   await page.getByTestId('sidebar-collapse').click();
   await expect(rail).toHaveCSS('width', '0px');

@@ -29,18 +29,17 @@ describe("shared workbench composer surfaces", () => {
     expect(html).toContain("两张图片");
   });
 
-  it("shows three starter directions and keeps additional inspiration collapsed", () => {
+  it("shows at most three low-weight starter directions without an expander", () => {
     const html = renderToStaticMarkup(
       <WorkbenchEmptyState
-        brand={<span aria-hidden="true">mark</span>}
         suggestions={suggestions}
         onSelectSuggestion={() => undefined}
       />,
     );
 
+    // v2.0(02 §6 / 11 §6.2):建议最多三条,无「浏览灵感」展开器,只回填草稿。
     expect(html.match(/data-testid="generation-example"/g)).toHaveLength(3);
-    expect(html).toContain('data-testid="generation-directions-toggle"');
-    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain('data-testid="generation-directions-toggle"');
     expect(html).toContain("方向一");
     expect(html).toContain("方向三");
     expect(html).not.toContain(">方向四</button>");
@@ -48,12 +47,7 @@ describe("shared workbench composer surfaces", () => {
   });
 
   it("falls back to defaults when an empty suggestion list is supplied", () => {
-    const html = renderToStaticMarkup(
-      <WorkbenchEmptyState
-        brand={<span aria-hidden="true">mark</span>}
-        suggestions={[]}
-      />,
-    );
+    const html = renderToStaticMarkup(<WorkbenchEmptyState suggestions={[]} />);
 
     expect(html.match(/data-testid="generation-example"/g)).toHaveLength(3);
     expect(html).toContain("漂浮在云层上的小型图书馆");

@@ -2,15 +2,17 @@
   color-scheme: light;
 
   --bg-window: #f6f6f4;
-  --bg-sidebar: #f3f3f1;
+  --bg-sidebar: #efefec;
+  --bg-work: #fafaf8;
+  --bg-dock: #efefec;
   --bg-elevated: #ffffff;
   --bg-popover: #fdfcf9;
-  --bg-inset: rgba(24, 24, 29, 0.045);
+  --bg-inset: #f0f0ed;
   --bg-hover: rgba(24, 24, 29, 0.06);
   --bg-active: rgba(24, 24, 29, 0.09);
 
   --fg-primary: #202124;
-  --fg-secondary: #4f5156;
+  --fg-secondary: #55575c;
   --fg-tertiary: #74777c;
   --fg-quaternary: #a1a3a9;
 
@@ -61,8 +63,44 @@
 
   --shadow-sm: 0 1px 2px rgba(28, 30, 34, 0.06);
   --shadow-pop: 0 16px 40px rgba(28, 30, 34, 0.08);
+  --shadow-dialog: 0 24px 70px rgba(20, 20, 24, 0.16);
   --shadow-composer:
     0 12px 36px rgba(28, 30, 34, 0.1), 0 2px 8px rgba(28, 30, 34, 0.05);
+
+  /*
+   * v2.0 语义表面层(Phase A):新组件只引用 surface-*,旧 bg-* token 继续兼容。
+   * 层级:window < sidebar < work < raised ≤ popover;media 在深色下比 raised 更亮,
+   * 让图片结果获得比背景更亮的承托面(docs/v2.0/ui-design/00 §3)。
+   */
+  --surface-window: var(--bg-window);
+  --surface-sidebar: var(--bg-sidebar);
+  --surface-work: var(--bg-work);
+  --surface-raised: var(--bg-elevated);
+  --surface-inset: var(--bg-inset);
+  --surface-popover: var(--bg-popover);
+  --surface-media: var(--bg-elevated);
+
+  /* v2.0 Shell 几何(Phase A/B):侧栏与右侧 Dock 的默认/最小宽度。 */
+  --shell-sidebar-width: 248px;
+  --shell-sidebar-min-width: 220px;
+  --shell-dock-width: 304px;
+
+  /* v2.0 空隙阶梯:1px 只用于 Shell 分缝,组件内部保持 8-16px 可读空间。 */
+  --gap-shell: 1px;
+  --gap-surface-inset: 4px;
+  --gap-content: 8px;
+  --gap-section: 16px;
+  --gap-page: 24px;
+
+  /* v2.0 圆角语义阶梯:状态切换不改变圆角。 */
+  --radius-tooltip: 6px;
+  --radius-control: 8px;
+  --radius-work: 12px;
+  --radius-media: 14px;
+  --radius-dialog: 16px;
+  --radius-theater: 20px;
+
+  --border-focus: var(--accent-ring);
 
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
@@ -102,11 +140,13 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg-window: #18191b;
-  --bg-sidebar: #202124;
+  --bg-window: #151619;
+  --bg-sidebar: #1b1c1f;
+  --bg-work: #1d1f22;
+  --bg-dock: #1b1c1f;
   --bg-elevated: #25272a;
-  --bg-popover: #2a2c30;
-  --bg-inset: rgba(0, 0, 0, 0.28);
+  --bg-popover: #2b2d31;
+  --bg-inset: #121315;
   --bg-hover: rgba(255, 255, 255, 0.065);
   --bg-active: rgba(255, 255, 255, 0.1);
 
@@ -133,8 +173,12 @@
   --info: #78b7d5;
   --on-danger: #24100f;
 
-  --shadow-sm: 0 1px 2px rgba(5, 6, 8, 0.38);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.38);
   --shadow-pop: 0 18px 46px rgba(0, 0, 0, 0.5);
+  --shadow-dialog: 0 28px 80px rgba(0, 0, 0, 0.62);
   --shadow-composer:
     0 14px 38px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.22);
+
+  /* 深色下媒体承托面比 raised 更亮,图片结果不沉入背景(00 §3)。 */
+  --surface-media: #2a2c30;
 }

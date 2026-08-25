@@ -81,7 +81,11 @@ export const Button = forwardRef<HTMLButtonElement, UiButtonProps>(
         disabled={disabled || busy}
         aria-busy={busy || undefined}
       >
-        {icon}
+        {busy ? (
+          <span className="mf-ui-button-spinner" aria-hidden="true" />
+        ) : (
+          icon
+        )}
         {busy && busyLabel !== undefined ? busyLabel : children}
       </Component>
     );

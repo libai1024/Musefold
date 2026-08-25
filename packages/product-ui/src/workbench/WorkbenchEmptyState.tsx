@@ -1,8 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { Button } from "@musefold/ui";
-import { ChevronDown, Sparkles } from "@musefold/ui/icons";
-import { useTheaterIdle } from "./useTheaterIdle";
+import { Button, MusefoldMark } from "@musefold/ui";
 
 const DEFAULT_SUGGESTIONS = [
   "漂浮在云层上的小型图书馆，克制电影感，阴天漫射光，细腻阴影",
@@ -20,104 +18,70 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 export interface WorkbenchEmptyStateProps {
-  brand: ReactNode;
+  /** 空态内联 Composer(v2.0 11 §3:品牌锁定区与 Composer 共用 760px 中心轴)。 */
+  composer?: ReactNode;
   suggestions?: string[];
   onSelectSuggestion?: (suggestion: string) => void;
 }
 
+/**
+ * v2.0 新对话首屏(docs/v2.0/ui-design/11):品牌锁定区(Logo + 名称 + 换行提示语)
+ * + 最多三条低权重快捷建议 + 内联 Composer。不再是营销 Hero:无大插画、无渐变文字、
+ * 无独立 CTA;建议只回填草稿,不自动生成。
+ */
 export function WorkbenchEmptyState({
-  brand,
+  composer,
   suggestions = DEFAULT_SUGGESTIONS,
   onSelectSuggestion,
 }: WorkbenchEmptyStateProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [directionsOpen, setDirectionsOpen] = useState(false);
-  useTheaterIdle(rootRef, 160);
-
   const items = useMemo(() => {
     const source = suggestions.length > 0 ? suggestions : DEFAULT_SUGGESTIONS;
-    return source.slice(0, 6);
+    return source.slice(0, 3);
   }, [suggestions]);
-  const primary = items[0];
-  const starters = items.slice(0, 3);
-  const moreDirections = items.slice(3);
 
   return (
-    <div
-      ref={rootRef}
-      className="mf-workbench-empty"
-      data-testid="workbench-empty"
-      data-ui-register="theater"
-    >
-      <div className="mf-workbench-empty-copy" data-brand-slogan>
-        <h2 data-testid="workbench-empty-slogan">
-          让灵感<span className="mf-workbench-empty-accent">成为图像。</span>
-        </h2>
-        <p>从一张图、一段文字或一个方向开始</p>
-        <Button
-          unstyled
-          type="button"
-          className="mf-workbench-empty-cta"
-          data-testid="workbench-empty-cta"
-          onClick={() => primary && onSelectSuggestion?.(primary)}
-        >
-          <Sparkles aria-hidden="true" />
-          从这条开始
-        </Button>
-      </div>
-      <div className="mf-workbench-empty-brand" data-brand-hero>
-        {brand}
-      </div>
-      <div
-        className="mf-workbench-directions"
-        aria-label="创作方向"
-        data-testid="generation-directions"
-      >
-        {starters.map((suggestion) => (
-          <Button
-            unstyled
-            type="button"
-            className="mf-workbench-direction-item"
-            key={suggestion}
-            onClick={() => onSelectSuggestion?.(suggestion)}
-            title={suggestion}
-            data-testid="generation-example"
+    <div className="mf-workbench-empty" data-testid="workbench-empty">
+      <div className="mf-workbench-empty-brand" data-testid="workbench-empty-brand">
+        <div className="mf-workbench-empty-brand-line">
+          <MusefoldMark aria-hidden="true" focusable="false" />
+          <span
+            className="mf-workbench-empty-name"
+            data-testid="workbench-empty-name"
           >
-            {suggestion}
-          </Button>
-        ))}
-        {moreDirections.length > 0 && (
-          <>
+            Musefold
+          </span>
+        </div>
+        <p
+          className="mf-workbench-empty-tagline"
+          data-testid="workbench-empty-slogan"
+        >
+          把想法变成可生成的视觉
+        </p>
+      </div>
+      {items.length > 0 ? (
+        <div
+          className="mf-workbench-directions"
+          aria-label="快捷建议"
+          data-testid="generation-directions"
+        >
+          {items.map((suggestion) => (
             <Button
               unstyled
               type="button"
-              className="mf-workbench-directions-toggle"
-              aria-expanded={directionsOpen}
-              onClick={() => setDirectionsOpen((open) => !open)}
-              data-testid="generation-directions-toggle"
+              className="mf-workbench-direction-item"
+              key={suggestion}
+              onClick={() => onSelectSuggestion?.(suggestion)}
+              title={suggestion}
+              data-testid="generation-example"
             >
-              浏览灵感
-              <ChevronDown
-                aria-hidden="true"
-                className={directionsOpen ? "rotate-180" : undefined}
-              />
+              {suggestion}
             </Button>
-            {directionsOpen &&
-              moreDirections.map((suggestion) => (
-                <Button
-                  unstyled
-                  type="button"
-                  className="mf-workbench-direction-item"
-                  key={suggestion}
-                  onClick={() => onSelectSuggestion?.(suggestion)}
-                  title={suggestion}
-                >
-                  {suggestion}
-                </Button>
-              ))}
-          </>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : null}
+      {composer ? (
+        <div className="mf-workbench-empty-composer">{composer}</div>
+      ) : null}
     </div>
   );
 }

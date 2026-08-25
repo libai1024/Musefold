@@ -584,14 +584,18 @@ def test_prompt_references_full_excerpt_persist_query_and_reuse(app, fake_workbe
     assert workbench(app, "s.draftReferences.length") == 2
 
 
-def test_workbench_starts_as_single_surface_with_provider_empty_state(app):
-    """空态是单一 hero 平面（标语 + 示例方向 + composer）；无服务商时发送禁用并说明原因。"""
+def test_workbench_starts_as_brand_lockup_with_inline_composer(app):
+    """v2.0 空态：品牌锁定区(Logo + 名称 + 换行提示语)+ 最多三条建议 + 内联 Composer；无服务商时发送禁用并说明原因。"""
     app.page.wait_for_selector('[data-testid="generation-workbench"]')
     assert app.page.locator('[data-testid^="generate-mode-"]').count() == 0
-    app.page.wait_for_selector('[data-testid="workbench-empty"]')
-    slogan = app.page.locator('[data-testid="workbench-empty-slogan"]').inner_text()
-    assert "".join(slogan.split()) == "让灵感成为图像。"
-    assert app.page.locator('[data-testid="generation-example"]').count() >= 3
+    empty = app.page.locator('[data-testid="workbench-empty"]')
+    empty.wait_for()
+    assert empty.locator('[data-testid="workbench-empty-name"]').inner_text() == "Musefold"
+    tagline = empty.locator('[data-testid="workbench-empty-slogan"]').inner_text()
+    assert "".join(tagline.split()) == "把想法变成可生成的视觉"
+    # 快捷建议最多三条,Composer 内联在空态内容列中(v2.0 11 §3/§6)。
+    assert empty.locator('[data-testid="generation-example"]').count() == 3
+    assert empty.locator('[data-testid="workbench-composer"]').is_visible()
 
     app.page.fill('[data-testid="refine-prompt"]', "空态探针")
     send = app.page.locator('[data-testid="refine-generate"]')
@@ -723,7 +727,7 @@ def test_generation_surfaces_use_canonical_terminology(app):
     app.page.wait_for_selector('[data-testid="generation-workbench"]')
     body = app.page.locator("body").inner_text()
     assert "生成" in body
-    assert "让灵感成为图像" in "".join(body.split()), "空态 hero 标语应可见"
+    assert "把想法变成可生成的视觉" in "".join(body.split()), "空态品牌提示语应可见"
     assert "对话生图" not in body
     assert "极速" not in body and "精修" not in body
     # 制作工作台不再有独立导航入口（Codex 逻辑：新设计 / 对话列表即入口）
@@ -801,7 +805,7 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
     app.page.set_viewport_size({"width": 360, "height": 740})
     app.page.wait_for_timeout(300)
     app.page.screenshot(path=str(tmp_path / "generation-narrow.png"))
-    assert "让灵感成为图像" in "".join(app.page.locator("body").inner_text().split())
+    assert "把想法变成可生成的视觉" in "".join(app.page.locator("body").inner_text().split())
     assert_no_horizontal_overflow()
 
     if app.page.locator('[data-testid="workbench-reference-backdrop"]').count():
@@ -972,7 +976,12 @@ def test_ratio_picker_uses_custom_preview_cards_in_workbench_and_settings(app):
         assert preview["y"] >= card["y"] - 1, {"ratio": ratio, "card": card, "preview": preview}
         assert preview["x"] + preview["width"] <= card["x"] + card["width"] + 1, {"ratio": ratio, "card": card, "preview": preview}
         assert preview["y"] + preview["height"] <= card["y"] + card["height"] + 1, {"ratio": ratio, "card": card, "preview": preview}
-    last_card = app.page.locator('[data-testid="refine-ratio-auto"]').bounding_box()
+    # v2.0:空态 Composer 内联后菜单位于页面中部,可用高度变小、菜单内部滚动;
+    # 先把「自动」卡滚进菜单视口再断言包含关系。
+    auto_option = app.page.locator('[data-testid="refine-ratio-auto"]')
+    auto_option.scroll_into_view_if_needed()
+    last_card = auto_option.bounding_box()
+    workbench_menu = app.page.locator('[data-testid="refine-ratio-menu"]').bounding_box()
     assert last_card and last_card["y"] + last_card["height"] <= workbench_menu["y"] + workbench_menu["height"] + 1
     app.page.click('[data-testid="refine-ratio-9:16"]')
     app.page.wait_for_function(
@@ -1160,6 +1169,7 @@ def test_workbench_message_actions_ratio_constraint_and_result_viewport_height(a
         assert box and box["height"] <= 820 * 0.4, {"index": index, "box": box}
     assert fake_workbench_server["requests"][-1]["body"]["prompt"] == constrained_prompt(second_prompt, "9:16")
 
+
     app.page.evaluate(
         """() => {
           window.__musefold_copiedMessage = null;
@@ -1181,6 +1191,42 @@ def test_workbench_message_actions_ratio_constraint_and_result_viewport_height(a
         "() => document.activeElement === document.querySelector('[data-workbench-testid=\\\"workbench-prompt\\\"]')",
         timeout=2_000,
     )
+
+
+def test_existing_session_composer_stays_centered_above_mainview_bottom(app, fake_workbench_server):
+    setup_provider(app, fake_workbench_server)
+    app.page.set_viewport_size({"width": 940, "height": 600})
+    app.page.fill('[data-workbench-testid="workbench-prompt"]', "已有会话 Composer 定位探针")
+    app.page.click('[data-workbench-testid="workbench-submit"]')
+    settle(app)
+
+    def assert_geometry():
+        geometry = app.page.evaluate(
+            """() => {
+              const mainview = document.querySelector('[data-testid="mainview-surface"]')?.getBoundingClientRect();
+              const workbench = document.querySelector('[data-testid="generation-workbench"]')?.getBoundingClientRect();
+              const composer = document.querySelector('[data-testid="workbench-composer-surface"]')?.getBoundingClientRect();
+              return { mainview, workbench, composer };
+            }"""
+        )
+        assert geometry["mainview"] and geometry["workbench"] and geometry["composer"], geometry
+        mainview = geometry["mainview"]
+        workbench_box = geometry["workbench"]
+        composer = geometry["composer"]
+        composer_center = composer["left"] + composer["width"] / 2
+        workbench_center = workbench_box["left"] + workbench_box["width"] / 2
+        assert abs(composer_center - workbench_center) <= 1, geometry
+        assert composer["top"] >= workbench_box["top"], geometry
+        assert composer["bottom"] <= mainview["bottom"] + 1, geometry
+        assert 8 <= mainview["bottom"] - composer["bottom"] <= 24, geometry
+
+    assert_geometry()
+
+    session_id = workbench(app, "s.activeSessionId")
+    app.page.locator(f'[data-conversation-row="{session_id}"] .mf-workbench-session-open').click()
+    settle(app)
+    app.page.wait_for_selector('[data-testid="workbench-composer-surface"]')
+    assert_geometry()
 
 
 def test_single_workbench_groups_runs_into_one_persisted_session(app, fake_workbench_server):

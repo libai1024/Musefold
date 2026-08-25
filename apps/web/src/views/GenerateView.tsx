@@ -5,7 +5,6 @@ import {
   GenerationRetryAction,
   WorkbenchAssistantAvatar,
   WorkbenchAssistantHeader,
-  WorkbenchBrand,
   WorkbenchComposerFrame,
   WorkbenchComposerPrompt,
   WorkbenchComposerSaveStatus,
@@ -94,11 +93,140 @@ export function GenerateView({
     itemCount: turnJobs.length,
   });
 
+  // v2.0(11 §1/§5):新对话空态把 Composer 内联到品牌锁定区下方(flow + empty),
+  // 已有会话保持 floating 贴底;两种形态共享同一份数据与交互骨架。
+  const isEmpty = turnJobs.length === 0;
+  const composerFrame = (placement: 'floating' | 'empty') => (
+    <WorkbenchComposerFrame
+      layout={placement === 'empty' ? 'flow' : 'floating'}
+      variant={placement === 'empty' ? 'empty' : 'active'}
+      running={Boolean(active)}
+      attachments={
+        selectedPrompt ? (
+          <WorkbenchPromptReferenceCard
+            title={selectedPrompt.title}
+            text={selectedPrompt.content}
+            onClear={clearPromptReference}
+          />
+        ) : undefined
+      }
+      leadingControls={
+        <>
+          <WorkbenchContextMenu
+            actions={[
+              {
+                id: 'ref-prompt',
+                section: '引用',
+                label: '提示词',
+                hint: '从库中引用',
+                icon: <FileText aria-hidden="true" />,
+                onSelect: onOpenPromptLibrary,
+              },
+            ]}
+          />
+          <WorkbenchRatioPicker
+            value={ratio}
+            options={WORKBENCH_RATIO_OPTIONS}
+            onChange={(value) => setRatio(value as Ratio)}
+            testIdPrefix="refine-ratio"
+          />
+          <WorkbenchGenerationSettingsPopover
+            quality={quality}
+            qualityOptions={[...WORKBENCH_QUALITY_OPTIONS]}
+            count={1}
+            onQualityChange={(value) => setQuality(value as typeof quality)}
+          />
+        </>
+      }
+      trailingControls={
+        <>
+          <WorkbenchComposerSaveStatus status={draftSaveStatus} />
+          {active ? (
+            <WorkbenchComposerSubmitButton
+              active
+              onClick={cancel}
+              activeLabel="取消生成"
+              activeIcon={<Square aria-hidden="true" />}
+            />
+          ) : (
+            <WorkbenchComposerSubmitButton
+              disabled={!promptText.trim() || !canGenerate}
+              onClick={submit}
+              idleLabel="生成图片"
+              idleIcon={<ArrowUp aria-hidden="true" />}
+            />
+          )}
+        </>
+      }
+      footer={
+        error ? (
+          <p className="form-error m-0 px-[15px] pb-[10px]" role="alert">
+            {error}
+          </p>
+        ) : undefined
+      }
+    >
+      <div
+        className="mf-workbench-composer-mode"
+        data-testid="composer-mode"
+        role="tablist"
+        aria-label="工作模式"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected="true"
+          className="mf-workbench-composer-mode-option"
+          data-active="true"
+        >
+          图像
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected="false"
+          className="mf-workbench-composer-mode-option"
+          disabled
+          title="设计方案目前仅支持桌面端"
+        >
+          <Wand2 aria-hidden="true" />
+          设计方案
+        </button>
+      </div>
+      <WorkbenchComposerPrompt
+        id="generation-prompt"
+        data-testid="generation-composer-prompt"
+        value={promptText}
+        onChange={(event) => setPromptText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) return;
+          const shouldSubmit =
+            event.key === 'Enter' && (!event.shiftKey || event.metaKey || event.ctrlKey);
+          if (shouldSubmit) {
+            event.preventDefault();
+            if (promptText.trim() && canGenerate && !active) submit();
+          }
+        }}
+        placeholder={workbenchComposerPlaceholder({
+          hasTurns: turnJobs.length > 0,
+          hasPromptReference: Boolean(selectedPrompt),
+        })}
+        maxLength={12_000}
+      />
+      {draftConflict && (
+        <WorkbenchDraftConflictNotice
+          onUseRemote={useCloudDraft}
+          onKeepLocal={overwriteCloudDraft}
+        />
+      )}
+    </WorkbenchComposerFrame>
+  );
+
   return (
     <>
       {/* workbench-page / workbench-scroll 类名保留：680px 媒体块的键盘 inset 规则挂在其上 */}
       <WorkbenchPageFrame
-        className="workbench-page relative min-h-0 flex-1 overflow-hidden bg-elevated"
+        className="workbench-page relative min-h-0 flex-1 overflow-hidden"
         stageClassName="relative h-full min-h-0"
         timeline={
           <WorkbenchTimelineStage
@@ -114,7 +242,7 @@ export function GenerateView({
             }}
             empty={
               <WorkbenchEmptyState
-                brand={<WorkbenchBrand aria-hidden="true" focusable="false" />}
+                composer={composerFrame('empty')}
                 onSelectSuggestion={(suggestion) => {
                   setPromptText(suggestion);
                   window.requestAnimationFrame(() => {
@@ -324,128 +452,7 @@ export function GenerateView({
             })}
           </WorkbenchTimelineStage>
         }
-        composer={
-          <WorkbenchComposerFrame
-            attachments={
-              selectedPrompt ? (
-                <WorkbenchPromptReferenceCard
-                  title={selectedPrompt.title}
-                  text={selectedPrompt.content}
-                  onClear={clearPromptReference}
-                />
-              ) : undefined
-            }
-            leadingControls={
-              <>
-                <WorkbenchContextMenu
-                  actions={[
-                    {
-                      id: 'ref-prompt',
-                      section: '引用',
-                      label: '提示词',
-                      hint: '从库中引用',
-                      icon: <FileText aria-hidden="true" />,
-                      onSelect: onOpenPromptLibrary,
-                    },
-                  ]}
-                />
-                <WorkbenchRatioPicker
-                  value={ratio}
-                  options={WORKBENCH_RATIO_OPTIONS}
-                  onChange={(value) => setRatio(value as Ratio)}
-                  testIdPrefix="refine-ratio"
-                />
-                <WorkbenchGenerationSettingsPopover
-                  quality={quality}
-                  qualityOptions={[...WORKBENCH_QUALITY_OPTIONS]}
-                  count={1}
-                  onQualityChange={(value) => setQuality(value as typeof quality)}
-                />
-              </>
-            }
-            trailingControls={
-              <>
-                <WorkbenchComposerSaveStatus status={draftSaveStatus} />
-                {active ? (
-                  <WorkbenchComposerSubmitButton
-                    active
-                    onClick={cancel}
-                    activeLabel="取消生成"
-                    activeIcon={<Square aria-hidden="true" />}
-                  />
-                ) : (
-                  <WorkbenchComposerSubmitButton
-                    disabled={!promptText.trim() || !canGenerate}
-                    onClick={submit}
-                    idleLabel="生成图片"
-                    idleIcon={<ArrowUp aria-hidden="true" />}
-                  />
-                )}
-              </>
-            }
-            footer={
-              error ? (
-                <p className="form-error m-0 px-[15px] pb-[10px]" role="alert">
-                  {error}
-                </p>
-              ) : undefined
-            }
-          >
-            <div
-              className="mf-workbench-composer-mode"
-              data-testid="composer-mode"
-              role="tablist"
-              aria-label="工作模式"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected="true"
-                className="mf-workbench-composer-mode-option"
-                data-active="true"
-              >
-                图像
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected="false"
-                className="mf-workbench-composer-mode-option"
-                disabled
-                title="设计方案目前仅支持桌面端"
-              >
-                <Wand2 aria-hidden="true" />
-                设计方案
-              </button>
-            </div>
-            <WorkbenchComposerPrompt
-              id="generation-prompt"
-              data-testid="generation-composer-prompt"
-              value={promptText}
-              onChange={(event) => setPromptText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return;
-                const shouldSubmit =
-                  event.key === 'Enter' && (!event.shiftKey || event.metaKey || event.ctrlKey);
-                if (shouldSubmit) {
-                  event.preventDefault();
-                  if (promptText.trim() && canGenerate && !active) submit();
-                }
-              }}
-              placeholder={workbenchComposerPlaceholder({
-                hasTurns: turnJobs.length > 0,
-                hasPromptReference: Boolean(selectedPrompt),
-              })}
-              maxLength={12_000}
-            />
-            {draftConflict && (
-              <WorkbenchDraftConflictNotice
-                onUseRemote={useCloudDraft}
-                onKeepLocal={overwriteCloudDraft}
-              />
-            )}
-          </WorkbenchComposerFrame>
-        }
+        composer={isEmpty ? null : composerFrame('floating')}
       />
       <ImageLightbox
         src={preview?.url ?? null}

@@ -567,11 +567,11 @@
 
 .mf-settings-switch {
   position: relative;
-  width: 36px;
-  height: 20px;
+  width: 30px;
+  height: 18px;
   flex: none;
   border: 0;
-  border-radius: 999px;
+  border-radius: 9px;
   padding: 0;
   background: var(--bg-active);
   cursor: pointer;
@@ -580,7 +580,8 @@
 
 .mf-settings-switch::after {
   position: absolute;
-  inset: -12px -4px;
+  /* 轨道缩小到 30x18 后,命中区仍保持 44x44(v2.0 09 §14 + 既有触控契约)。 */
+  inset: -13px -7px;
   content: '';
 }
 
@@ -597,11 +598,13 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--fg-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow:
+    inset 0 0 1px rgba(20, 20, 24, 0.16),
+    0 1px 2px rgba(20, 20, 24, 0.18);
   pointer-events: none;
   transition:
     transform var(--dur-base) var(--ease-out),
@@ -610,7 +613,7 @@
 
 .mf-settings-switch[data-checked='true'] .mf-settings-switch-thumb {
   background: var(--on-accent);
-  transform: translateX(16px);
+  transform: translateX(12px);
 }
 
 .mf-settings-checkbox {
@@ -1416,7 +1419,7 @@
   height: 100dvh;
   display: flex;
   overflow: hidden;
-  background: var(--bg-elevated);
+  background: var(--bg-window);
   color: var(--fg-primary);
 }
 
@@ -1494,10 +1497,55 @@
   box-shadow: var(--shadow-pop);
 }
 
+/*
+ * v2.0 MainView(10 §4/§6):frame 提供相对 Window 的 4px 视觉内缩,
+ * surface 是 12px 圆角的 bg-work 工作台;侧栏与 MainView 的 1px 分缝
+ * 由 rail 的 border-right 承担。页面内容的唯一主滚动容器仍在 surface 内部。
+ */
+.mf-mainview-frame {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  padding: var(--gap-surface-inset);
+  background: var(--bg-window);
+}
+
+.mf-mainview-surface {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-work);
+  background: var(--bg-work);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 设置等全屏工作区:取消内缩与圆角,不被 MainView 外壳截断(10 §B4)。 */
+.mf-product-sidebar-layout.settings-product-shell .mf-mainview-frame {
+  padding: 0;
+}
+
+.mf-product-sidebar-layout.settings-product-shell .mf-mainview-surface {
+  border-radius: 0;
+  box-shadow: none;
+}
+
 @media (max-width: 680px) {
   .mf-product-sidebar-layout[data-compact='true'] .mf-product-sidebar-rail[data-open='true'] {
     border-right-width: 0;
     box-shadow: 8px 0 32px rgb(28 30 34 / 16%);
+  }
+
+  /* v2.0 窄屏:MainView 内缩降到 2px、圆角降到 8px,给安全区留位(10 §8.4)。 */
+  .mf-mainview-frame {
+    padding: 2px;
+  }
+
+  .mf-mainview-surface {
+    border-radius: var(--radius-control);
   }
 
   .mf-product-sidebar-account {
@@ -1585,7 +1633,7 @@
 
 .mf-product-sidebar-new {
   flex: none;
-  padding: 10px 8px 2px;
+  padding: 8px 8px 2px;
 }
 
 .mf-product-sidebar-new-button,
@@ -1597,7 +1645,7 @@
   align-items: center;
   gap: 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 0 10px;
   background: transparent;
   color: var(--fg-secondary);
@@ -1609,11 +1657,22 @@
     transform var(--dur-fast) var(--ease-spring);
 }
 
+/* v2.0(10 §5.3):New Design 是侧栏唯一高权重入口——36px raised 面、
+   Ember 图标、hover 才显现 shadow-sm;浅色用 default 边框,深色回落 subtle。 */
 .mf-product-sidebar-new-button {
-  border: 1px solid var(--border-subtle);
+  min-height: 36px;
+  border: 1px solid var(--border-default);
   background: var(--bg-elevated);
   font-weight: 600;
   color: var(--fg-primary);
+}
+
+[data-theme='dark'] .mf-product-sidebar-new-button {
+  border-color: var(--border-subtle);
+}
+
+.mf-product-sidebar-new-button > svg {
+  color: var(--accent);
 }
 
 .mf-product-sidebar-new-button:active:not(:disabled) {
@@ -1629,6 +1688,7 @@
 .mf-product-sidebar-new-button:hover {
   border-color: var(--border-strong);
   background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
   color: var(--fg-primary);
 }
 
@@ -1786,8 +1846,10 @@
   padding: 4px 8px 10px;
 }
 
+/* v2.0(10 §6.2):TitleBar 视觉上属于 MainView 顶部,与 surface 共享工作区背景,
+   只用 1px subtle border 分层,高度 44px。 */
 .mf-product-topbar {
-  height: 52px;
+  height: 44px;
   flex: none;
   display: flex;
   align-items: center;
@@ -1795,7 +1857,7 @@
   gap: 12px;
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 8px 0 12px;
-  background: var(--bg-elevated);
+  background: transparent;
 }
 
 .mf-product-topbar-title-group,
@@ -1869,7 +1931,8 @@
   min-height: 0;
   height: 100%;
   flex-direction: column;
-  background: var(--bg-elevated);
+  /* v2.0(02 §4):工作台直接落在 MainView 工作面上。 */
+  background: var(--bg-work);
 }
 
 .mf-workbench-stage {
@@ -1887,7 +1950,8 @@
 .mf-workbench-timeline-content {
   display: flex;
   width: 100%;
-  max-width: 620px;
+  /* v2.0(11 §5.2):消息流与 Composer 共享同一内容列宽度(约 728px)。 */
+  max-width: 728px;
   min-height: 100%;
   margin: 0 auto;
   flex-direction: column;
@@ -1896,6 +1960,11 @@
 
 .mf-workbench-timeline-content[data-bottom-inset='attachments'] {
   padding-bottom: 292px;
+}
+
+/* v2.0 空态:Composer 内联进内容列,不再为 floating Composer 预留底部空间(11 §3.2)。 */
+.mf-workbench-timeline-content:has(.mf-workbench-empty) {
+  padding-bottom: 0;
 }
 
 .mf-workbench-turn-list {
@@ -1911,24 +1980,24 @@
   gap: 16px;
 }
 
+/* v2.0(02 §25):用户输入是时间线里的轻量内容块,不使用右对齐聊天气泡。 */
 .mf-workbench-turn-user {
-  max-width: min(88%, 460px);
-  margin-left: auto;
-  padding-left: 40px;
+  max-width: none;
 }
 
 .mf-workbench-user-message {
   display: grid;
-  justify-items: end;
+  justify-items: stretch;
   gap: 6px;
   min-width: 0;
 }
 
 .mf-workbench-user-bubble {
   max-width: 100%;
-  border-radius: 16px 16px 4px 16px;
-  padding: 12px 16px;
-  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--bg-elevated);
   color: var(--fg-primary);
   font-size: 13px;
   line-height: 1.55;
@@ -1937,7 +2006,7 @@
 .mf-workbench-user-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
   margin-bottom: 6px;
   color: var(--fg-tertiary);
@@ -2029,11 +2098,12 @@
   z-index: 3;
   pointer-events: none;
   padding: 0 16px 14px;
-  background: var(--bg-elevated);
+  /* v2.0:底色由 MainView surface(bg-work)承担,floating 轨道保持透明。 */
+  background: transparent;
 }
 
 .mf-workbench-composer[data-layout='floating'] .mf-workbench-composer-attachments {
-  width: min(100%, 620px);
+  width: min(100%, 728px);
   margin: 0 auto 8px;
   pointer-events: auto;
 }
@@ -2044,11 +2114,11 @@
 }
 
 .mf-workbench-composer[data-layout='floating'] .mf-workbench-composer-surface {
-  width: min(100%, 620px);
+  width: min(100%, 728px);
   margin: 0 auto;
   overflow: visible;
   border: 1px solid var(--border-default);
-  border-radius: 12px;
+  border-radius: var(--radius-work);
   padding: 10px 12px 10px;
   background: var(--bg-elevated);
   box-shadow: var(--shadow-composer);
@@ -2057,6 +2127,47 @@
     border-color var(--dur-fast) var(--ease-out),
     background-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
+}
+
+/* v2.0(11 §5):空态 flow 变体——内联在 760px 内容列中,20px 品牌焦点外框。 */
+.mf-workbench-composer[data-layout='flow'] {
+  width: 100%;
+}
+
+.mf-workbench-composer[data-layout='flow'] .mf-workbench-composer-attachments {
+  width: min(100%, 728px);
+  margin: 0 auto 8px;
+}
+
+.mf-workbench-composer[data-layout='flow'] .mf-workbench-composer-surface {
+  width: min(100%, 728px);
+  margin: 0 auto;
+  overflow: visible;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-work);
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-composer);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.mf-workbench-composer[data-layout='flow'][data-variant='empty']
+  .mf-workbench-composer-surface {
+  border-radius: var(--radius-theater);
+}
+
+[data-theme='dark']
+  .mf-workbench-composer[data-layout='flow'][data-variant='empty']
+  .mf-workbench-composer-surface {
+  border-color: var(--border-subtle);
+}
+
+/* 运行中:边框用 Ember 20-30% 提示状态,不改变外框尺寸(02 §7)。 */
+.mf-workbench-composer-surface[data-running='true'] {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .mf-workbench-composer[data-layout='floating'] .mf-workbench-composer-surface:focus-within {
@@ -2114,7 +2225,7 @@
   margin-bottom: 6px;
   padding: 2px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--bg-inset);
 }
 
@@ -2125,7 +2236,7 @@
   justify-content: center;
   gap: 5px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-tooltip);
   padding: 0 8px;
   background: transparent;
   color: var(--fg-tertiary);
@@ -2143,14 +2254,19 @@
   height: 13px;
 }
 
-.mf-workbench-composer-mode-option:hover:not(:disabled),
-.mf-workbench-composer-mode-option[data-active='true'] {
-  background: var(--bg-elevated);
+.mf-workbench-composer-mode-option:hover:not(:disabled) {
+  background: var(--bg-hover);
   color: var(--fg-primary);
 }
 
+/* v2.0(02 §23):selected = accent-soft 底 + Ember 图标,不使用浮起卡片。 */
 .mf-workbench-composer-mode-option[data-active='true'] {
-  box-shadow: var(--shadow-sm);
+  background: var(--accent-soft);
+  color: var(--fg-primary);
+}
+
+.mf-workbench-composer-mode-option[data-active='true'] svg {
+  color: var(--accent);
 }
 
 .mf-workbench-composer-mode-option:focus-visible {
@@ -2216,8 +2332,8 @@
   align-items: center;
   gap: 10px;
   overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
   padding: 0 8px 0 4px;
   background: var(--bg-elevated);
   box-shadow: none;
@@ -2279,8 +2395,9 @@
 
 .mf-workbench-prompt-reference-clear:hover,
 .mf-workbench-prompt-reference-clear:focus-visible {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+  /* v2.0(02 §22):移除按钮默认弱化,hover 变 danger。 */
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
 }
 
 .mf-workbench-prompt-reference-clear svg {
@@ -3062,25 +3179,28 @@
     font-size: 13px;
   }
 
+  /* v2.0 移动空态(11 §10.3):Logo 28px、名称 20px、提示语 12px、Composer 16px 外框。 */
   .mf-workbench-empty {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'copy'
-      'dirs';
-    justify-items: start;
-    text-align: left;
+    padding: clamp(48px, 12vh, 96px) 12px 32px;
   }
 
-  .mf-workbench-empty-copy h2 {
-    font-size: 22px;
+  .mf-workbench-empty-brand-line svg {
+    width: 28px;
+    height: 28px;
   }
 
-  .mf-workbench-empty-copy p {
-    font-size: 13px;
+  .mf-workbench-empty-name {
+    font-size: 20px;
   }
 
+  .mf-workbench-empty-tagline,
   .mf-workbench-direction-item {
     font-size: 12px;
+  }
+
+  .mf-workbench-composer[data-layout='flow'][data-variant='empty']
+    .mf-workbench-composer-surface {
+    border-radius: var(--radius-dialog);
   }
 
   .mf-workbench-context-menu button {
@@ -3129,205 +3249,112 @@
   }
 }
 
+/*
+ * v2.0 新对话首屏(11 §3):760px 内容列,Brand Lockup 与 Composer 共用中心轴;
+ * 垂直定位用 padding-block 呼吸空间,不用 top: 50%,键盘打开/Composer 增高时不重叠。
+ */
 .mf-workbench-empty {
-  min-height: 390px;
-  flex: 1;
-  min-width: 0;
-  padding: 28px 20px 12px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px;
-  grid-template-areas:
-    'copy brand'
-    'dirs dirs';
-  align-items: center;
-  column-gap: 28px;
-  row-gap: 24px;
-  text-align: left;
-}
-
-.mf-workbench-empty-brand {
-  grid-area: brand;
-  width: 96px;
-  height: 96px;
-  margin: 0;
   display: flex;
-  justify-content: flex-end;
-  justify-self: end;
-  color: var(--fg-primary);
+  width: min(760px, 100%);
+  min-width: 0;
+  min-height: 100%;
+  margin: 0 auto;
+  flex: 1;
+  flex-direction: column;
+  padding: clamp(72px, 16vh, 140px) 16px 48px;
 }
 
-.mf-workbench-empty-brand > * {
-  width: 100%;
-  height: 100%;
-}
-
-.mf-workbench-empty-copy {
-  grid-area: copy;
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-  max-width: 36rem;
-}
-
-.mf-workbench-empty-copy h2 {
-  margin: 0;
-  color: var(--fg-primary);
-  font-family: var(--font-theater);
-  font-size: clamp(28px, 3.6vw, 42px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-}
-
-.mf-workbench-empty-accent {
-  display: block;
-  color: var(--accent);
-}
-
-.mf-workbench-empty-copy p {
-  margin: 0;
-  color: var(--fg-secondary);
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.mf-workbench-empty-cta {
-  margin-top: 10px;
-  display: inline-flex;
+/* Brand Lockup(11 §4):Logo + 名称一行,提示语换行,低对比,不做营销 Hero。 */
+.mf-workbench-empty-brand {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--on-accent);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition:
-    transform var(--dur-fast) var(--ease-spring),
-    filter var(--dur-fast) var(--ease-out);
+  text-align: center;
 }
 
-.mf-workbench-empty-cta svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 1.75;
-}
-
-.mf-workbench-empty-cta:hover {
-  transform: translateY(-1px);
-}
-
-.mf-workbench-empty-cta:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.mf-workbench-empty-cta:focus-visible {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 1px;
-}
-
-.mf-workbench-directions {
-  grid-area: dirs;
-  width: 100%;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.mf-workbench-empty-brand-line {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  color: var(--fg-primary);
 }
 
-.mf-workbench-direction-item,
-.mf-workbench-directions-toggle {
-  max-width: 100%;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  padding: 7px 12px;
-  background: var(--bg-elevated);
-  color: var(--fg-secondary);
+.mf-workbench-empty-brand-line svg {
+  width: 32px;
+  height: 32px;
+}
+
+.mf-workbench-empty-name {
+  color: var(--fg-primary);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.mf-workbench-empty-tagline {
+  margin: 0;
+  color: var(--fg-tertiary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* 快捷建议(02 §6 / 11 §6.2):最多三条低权重 chip,只回填草稿,不自动生成。 */
+.mf-workbench-directions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 20px 0 0;
+}
+
+.mf-workbench-direction-item {
+  max-width: 240px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--fg-tertiary);
   cursor: pointer;
   font-size: var(--text-meta);
   line-height: 1.45;
-  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
-.mf-workbench-direction-item:hover,
-.mf-workbench-direction-item:focus-visible,
-.mf-workbench-directions-toggle:hover,
-.mf-workbench-directions-toggle:focus-visible {
-  color: var(--fg-primary);
+.mf-workbench-direction-item:hover {
   border-color: var(--border-strong);
-  outline: 0;
+  color: var(--fg-primary);
 }
 
-.mf-workbench-directions-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 32px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  padding: 7px 12px;
-  background: transparent;
-  color: var(--fg-secondary);
-  cursor: pointer;
-  font-size: var(--text-meta);
-}
-
-.mf-workbench-directions-toggle svg {
-  width: 14px;
-  height: 14px;
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-
-.mf-workbench-direction-item:focus-visible,
-.mf-workbench-directions-toggle:focus-visible {
+.mf-workbench-direction-item:focus-visible {
   outline: 2px solid var(--accent-ring);
   outline-offset: 1px;
 }
 
-@keyframes mf-theater-empty-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+/* Composer 紧跟品牌区与建议,共用内容列中心轴(11 §3.2:gap 24-32px)。 */
+.mf-workbench-empty-composer {
+  margin-top: 24px;
+}
+
+/* v2.0(11 §10.3):软键盘挤压视口时快捷建议让位,Composer 与发送按钮保持可见。 */
+@media (max-width: 680px) and (max-height: 560px) {
+  .mf-workbench-directions {
+    display: none;
   }
-  to {
-    opacity: 1;
-    transform: none;
+
+  .mf-workbench-empty {
+    padding-top: 16px;
+    padding-bottom: 12px;
   }
-}
 
-.mf-workbench-empty-copy,
-.mf-workbench-empty-brand,
-.mf-workbench-directions {
-  animation: mf-theater-empty-enter var(--dur-theater-enter) var(--ease-spring) both;
-}
-
-.mf-workbench-empty-brand {
-  animation-delay: 80ms;
-}
-
-.mf-workbench-directions {
-  animation-delay: 140ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html:not([data-motion='off']) .mf-workbench-empty-copy,
-  html:not([data-motion='off']) .mf-workbench-empty-brand,
-  html:not([data-motion='off']) .mf-workbench-directions {
-    animation: none;
+  .mf-workbench-empty-composer {
+    margin-top: 16px;
   }
-}
-
-html.reduce-motion .mf-workbench-empty-copy,
-html.reduce-motion .mf-workbench-empty-brand,
-html.reduce-motion .mf-workbench-directions {
-  animation: none;
 }
 
 /* THEATER-04 结果就位：一张纸落到桌上。data-theater-reveal 只在转场显形期间存在，
@@ -3397,11 +3424,12 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
   min-width: 0;
 }
 
+/* v2.0(01 §20.3):会话行普通 44px / 紧凑 40px,8px 圆角;hover 动作绝对定位,不改变行高。 */
 .mf-workbench-session-open {
   width: 100%;
-  min-height: 31px;
+  min-height: 44px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 0 10px;
   display: flex;
   align-items: center;
@@ -3414,6 +3442,10 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
 
 .mf-workbench-session-row[data-action-count='1'] .mf-workbench-session-open {
   padding-right: 34px;
+}
+
+[data-density='compact'] .mf-workbench-session-open {
+  min-height: 40px;
 }
 
 .mf-workbench-session-row[data-action-count='2'] .mf-workbench-session-open {
@@ -3744,8 +3776,9 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  border-radius: var(--radius-media);
+  background: var(--surface-media);
+  box-shadow: var(--shadow-sm);
   transition:
     border-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);

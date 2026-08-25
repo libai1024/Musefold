@@ -60,7 +60,7 @@ export function AppShell({ children, hideSidebar = false, hideTitleBar = false }
           className={hideSidebar ? 'settings-product-shell' : undefined}
         >
           <div
-            className="relative z-0 flex min-w-0 flex-1 flex-col bg-elevated"
+            className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col"
             data-ui-register="operate"
             data-titlebar-hidden={hideTitleBar || undefined}
           >
@@ -76,7 +76,8 @@ export function AppShell({ children, hideSidebar = false, hideTitleBar = false }
             ) : (
               <TitleBar />
             )}
-            <main className="relative min-h-0 flex-1 overflow-hidden bg-elevated">
+            {/* 背景由 MainView surface(bg-work)提供,页面内容直接落在工作面上(v2.0 Phase B) */}
+            <main className="relative min-h-0 flex-1 overflow-hidden">
               {children}
               {/* 朱点：全应用单实例，坐在内容视口右上角的引首印位置（v0.3.3 §1.1） */}
               {hideTitleBar ? null : <EmberMark />}

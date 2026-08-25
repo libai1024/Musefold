@@ -37,12 +37,7 @@ async function captureCanonicalSurface(
 ): Promise<void> {
   const surface = page.getByTestId(testId);
   await expect(surface).toBeVisible();
-  if (testId === "generation-workbench") {
-    const empty = page.getByTestId("workbench-empty");
-    if ((await empty.count()) > 0) {
-      await expect(empty).toHaveAttribute("data-theater-idle", "true");
-    }
-  }
+  // v2.0:新对话空态为无入场动画的品牌锁定区,可见即可拍(11 §7)。
   if (testId === "generation-result-group") {
     // THEATER-04：结果面截图必须等显形落定后再拍。
     const results = page.locator(".mf-generation-result-surface");

@@ -194,9 +194,10 @@ export function App({ gateway, platform }: AppProps) {
         />
       }
     >
-      {/* app-main 类名保留：680px 媒体块的 100dvh / 键盘 inset 规则挂在它上（批次 5 收口） */}
+      {/* app-main 类名保留：680px 媒体块的 100dvh / 键盘 inset 规则挂在它上（批次 5 收口）。
+          v2.0 Phase B:背景上移到 MainView surface(bg-work),main 自身保持透明。 */}
       <main
-        className="app-main flex min-h-0 min-w-0 flex-1 flex-col bg-elevated"
+        className="app-main flex min-h-0 min-w-0 flex-1 flex-col"
         data-ui-register="operate"
       >
         {view !== 'settings' ? (

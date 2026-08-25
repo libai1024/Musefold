@@ -10,7 +10,9 @@ import { REPO_ROOT } from '../../tooling/aliases.mjs';
  * 数量只增不减。统计只看生产源码（排除 __tests__/.test.），避免用测试文件刷数。
  */
 
-const BOTH_HOSTS_BASELINE = 68;
+// v2.0(docs/v2.0/ui-design/11):空态 Hero 图形(WorkbenchBrand)按设计退役,
+// 品牌锁定区内置进 WorkbenchEmptyState,双端宿主不再各自注入 brand —— 基线 68 → 67。
+const BOTH_HOSTS_BASELINE = 67;
 
 const HOSTS = {
   web: 'apps/web/src',

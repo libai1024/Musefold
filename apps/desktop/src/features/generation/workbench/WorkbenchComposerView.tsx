@@ -82,6 +82,8 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
     composerMode,
     composerModeLocked,
     setComposerMode,
+    composerVariant,
+    composerLayout,
   } = props;
 
   const { leadingControls, trailingControls } = workbenchComposerControls(props);
@@ -92,6 +94,9 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
 
   return (
     <WorkbenchComposerFrame
+      variant={composerVariant}
+      layout={composerLayout}
+      running={generatingHere}
       attachments={
         (sourceBlockVisible || attachmentStripVisible || promptReferences.length > 0) && (
           <WorkbenchComposerContextTray>

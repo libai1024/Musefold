@@ -45,6 +45,8 @@ import { isWorkbenchTimelineNearLatest } from "../workbench/useWorkbenchTimeline
 import { ProductNavButton, ProductSidebar } from "../navigation/ProductSidebar";
 import {
   PRODUCT_SIDEBAR_DEFAULT_WIDTH,
+  PRODUCT_SIDEBAR_MAX_WIDTH,
+  PRODUCT_SIDEBAR_MIN_WIDTH,
   ProductSidebarLayout,
 } from "../navigation/ProductSidebarLayout";
 import {
@@ -659,10 +661,23 @@ describe("shared product views", () => {
   it("shares the workbench empty state and composer controls", () => {
     const empty = renderToStaticMarkup(
       <WorkbenchEmptyState
-        brand={<img src="/logo.png" alt="Musefold / 未像" />}
+        composer={<div data-testid="empty-composer-slot">Composer</div>}
         onSelectSuggestion={() => undefined}
       />,
     );
+
+    // v2.0(11 §4):品牌锁定区 = Logo + 名称 + 换行提示语;不再有营销 Hero/CTA。
+    expect(empty).toContain('data-testid="workbench-empty-brand"');
+    expect(empty).toContain('data-testid="workbench-empty-name"');
+    expect(empty).toContain("Musefold");
+    expect(empty).toContain('data-testid="workbench-empty-slogan"');
+    expect(empty).toContain("把想法变成可生成的视觉");
+    expect(empty).toContain('data-testid="generation-directions"');
+    expect(empty.match(/data-testid="generation-example"/g)).toHaveLength(3);
+    // Composer 空态内联,与品牌锁定区共用内容列中心轴(11 §3)。
+    expect(empty).toContain('data-testid="empty-composer-slot"');
+    expect(empty).not.toContain("workbench-empty-cta");
+    expect(empty).not.toContain("generation-directions-ticker");
     const ratio = renderToStaticMarkup(
       <WorkbenchRatioPicker
         value="16:9"
@@ -700,11 +715,6 @@ describe("shared product views", () => {
       />,
     );
 
-    expect(empty).toContain('data-testid="generation-directions"');
-    expect(empty.match(/data-testid="generation-example"/g)).toHaveLength(3);
-    expect(empty).toContain('data-testid="workbench-empty-cta"');
-    expect(empty).toContain("从这条开始");
-    expect(empty).not.toContain("generation-directions-ticker");
     expect(ratio).toContain('data-testid="refine-ratio-trigger"');
     expect(ratio).toContain("图片比例：16:9 宽屏");
     expect(settings).toContain('data-testid="workbench-more-settings"');
@@ -859,6 +869,16 @@ describe("shared product views", () => {
     expect(html).toContain('aria-label="调整侧栏宽度"');
     expect(html).toContain("导航");
     expect(html).toContain("工作区");
+    // v2.0 Phase B:MainView frame + surface 是双端共享壳层的一部分(10 §4.1)。
+    expect(html).toContain('data-testid="mainview-frame"');
+    expect(html).toContain('data-testid="mainview-surface"');
+  });
+
+  it("locks the v2.0 sidebar geometry baseline (10 §4.2)", () => {
+    // 默认 248 / 最小 220 / 最大 360;历史 200-219px 值由 readInitialWidth clamp 到 220。
+    expect(PRODUCT_SIDEBAR_DEFAULT_WIDTH).toBe(248);
+    expect(PRODUCT_SIDEBAR_MIN_WIDTH).toBe(220);
+    expect(PRODUCT_SIDEBAR_MAX_WIDTH).toBe(360);
   });
 
   it("shares page heading structure and action slots between hosts", () => {

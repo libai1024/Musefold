@@ -51,4 +51,7 @@ export type WorkbenchComposerViewProps = Store & {
   composerMode: ComposerPresentationMode;
   composerModeLocked: boolean;
   setComposerMode: (mode: "image" | "design-plan") => void;
+  /** v2.0 空态内联变体(11 §5):empty + flow 时 Composer 渲染在品牌锁定区下方。 */
+  composerVariant?: "empty" | "active";
+  composerLayout?: "floating" | "flow";
 };

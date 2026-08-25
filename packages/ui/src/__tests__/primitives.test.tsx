@@ -58,6 +58,21 @@ describe("shared UI primitives", () => {
     expect(html).toContain("mf-ui-button mf-ui-button-unstyled mf-prompt-main");
   });
 
+  it("keeps busy buttons on the same geometry with an inline spinner", () => {
+    const html = renderToStaticMarkup(
+      <Button variant="primary" busy busyLabel="保存中">
+        保存
+      </Button>,
+    );
+
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('aria-busy="true"');
+    // busy 时 spinner 占据图标槽位,配合 busyLabel 替换文案,不改变按钮几何(09 §9)。
+    expect(html).toContain("mf-ui-button-spinner");
+    expect(html).toContain("保存中");
+    expect(html).not.toContain(">保存<");
+  });
+
   it("keeps the Musefold mark scalable and theme-aware", () => {
     const html = renderToStaticMarkup(<MusefoldMark className="brand-mark" />);
 

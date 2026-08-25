@@ -8,8 +8,11 @@ import {
   type ReactNode,
 } from 'react';
 
-export const PRODUCT_SIDEBAR_DEFAULT_WIDTH = 244;
-export const PRODUCT_SIDEBAR_MIN_WIDTH = 200;
+// v2.0 Phase B(docs/v2.0/ui-design/10 §4.2):默认 248 / 最小 220 / 最大 360,
+// 超宽窗口另受 32vw 约束,优先保护 MainView 与结果网格。
+export const PRODUCT_SIDEBAR_DEFAULT_WIDTH = 248;
+export const PRODUCT_SIDEBAR_MIN_WIDTH = 220;
+export const PRODUCT_SIDEBAR_MAX_WIDTH = 360;
 /**
  * Канонические адаптивные брейкпоинты, общие для web- и desktop-хостов.
  * CSS-медиазапросы в product-ui/styles.css и стилях хостов должны
@@ -39,8 +42,9 @@ function readInitialWidth(storageKey: string, defaultWidth: number, minWidth: nu
   const raw = window.localStorage.getItem(storageKey);
   if (raw === null) return defaultWidth;
   const saved = Number(raw);
+  // v2.0:历史 200-219px 等旧值统一 clamp 进 220-360 区间(10 §B2)。
   return Number.isFinite(saved)
-    ? Math.min(Math.max(saved, minWidth), defaultWidth * 2)
+    ? Math.min(Math.max(saved, minWidth), PRODUCT_SIDEBAR_MAX_WIDTH)
     : defaultWidth;
 }
 
@@ -69,9 +73,12 @@ export function ProductSidebarLayout({
   const maxSidebarWidth = useCallback(
     () =>
       typeof window === 'undefined'
-        ? defaultSidebarWidth * 2
-        : Math.max(minSidebarWidth, Math.floor(window.innerWidth * 0.5)),
-    [defaultSidebarWidth, minSidebarWidth],
+        ? PRODUCT_SIDEBAR_MAX_WIDTH
+        : Math.max(
+            minSidebarWidth,
+            Math.min(PRODUCT_SIDEBAR_MAX_WIDTH, Math.floor(window.innerWidth * 0.32)),
+          ),
+    [minSidebarWidth],
   );
 
   const applySidebarWidth = useCallback(
@@ -235,7 +242,13 @@ export function ProductSidebarLayout({
         />
       ) : null}
 
-      {children}
+      {/* v2.0 Phase B:frame 负责 4px 内缩,surface 负责 12px 圆角与 bg-work 工作面。
+          settings 全屏由 .settings-product-shell modifier 取消 inset 与圆角。 */}
+      <div className="mf-mainview-frame" data-testid="mainview-frame">
+        <div className="mf-mainview-surface" data-testid="mainview-surface">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

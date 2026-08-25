@@ -100,8 +100,9 @@ def capture_shared_workbench(app):
     target = output_dir()
     if not target:
         return
+    # v2.0:空态改为无入场动画的品牌锁定区,直接等待可见即可。
     if app.page.locator('[data-testid="workbench-empty"]').count() > 0:
-        app.page.wait_for_selector('[data-testid="workbench-empty"][data-theater-idle]')
+        app.page.wait_for_selector('[data-testid="workbench-empty"]')
     app.page.locator('[data-testid="generation-workbench"]').screenshot(
         path=str(target / "shared-workbench-1440x900.png"),
     )
@@ -651,8 +652,9 @@ def test_settings_workspace_matches_operate_contract(app):
           };
         }"""
     )
-    assert abs(switch_geometry["width"] - 36) <= 1, switch_geometry
-    assert abs(switch_geometry["height"] - 20) <= 1, switch_geometry
+    # v2.0 09 §14:开关轨道收紧为 30x18,命中区仍由 ::after 撑到 44x44。
+    assert abs(switch_geometry["width"] - 30) <= 1, switch_geometry
+    assert abs(switch_geometry["height"] - 18) <= 1, switch_geometry
     assert switch_geometry["hitWidth"] == "44px", switch_geometry
     assert switch_geometry["hitHeight"] == "44px", switch_geometry
 

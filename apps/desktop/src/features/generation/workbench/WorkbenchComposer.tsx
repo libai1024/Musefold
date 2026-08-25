@@ -22,7 +22,14 @@ import {
   composerPresentationModeLocked,
 } from "./composerPresentation";
 
-export function WorkbenchComposer() {
+export function WorkbenchComposer({
+  composerVariant,
+  composerLayout,
+}: {
+  /** v2.0 空态内联变体(11 §5):仅新对话首屏传 empty + flow。 */
+  composerVariant?: "empty" | "active";
+  composerLayout?: "floating" | "flow";
+}) {
   const store = useWorkbenchComposerStore();
   const {
     prompt,
@@ -469,6 +476,8 @@ export function WorkbenchComposer() {
       composerMode={composerMode}
       composerModeLocked={composerModeLocked}
       setComposerMode={setComposerMode}
+      composerVariant={composerVariant}
+      composerLayout={composerLayout}
     />
   );
 }

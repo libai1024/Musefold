@@ -1,7 +1,7 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { ArrowDown } from "../../../components/ui/icons";
 import {
-  WorkbenchBrand,
   WorkbenchEmptyState,
   WorkbenchTimelineStage,
   useWorkbenchTimelineController,
@@ -12,7 +12,12 @@ import { useSkillRuntimeStore } from "./skill-runtime-store";
 import { GenerationTurnView } from "./GenerationTurnView";
 import { PendingSkillConversation } from "./PendingSkillConversation";
 
-export function WorkbenchTimeline() {
+export function WorkbenchTimeline({
+  emptyComposer,
+}: {
+  /** v2.0(11 §3):新对话空态时内联在品牌锁定区下方的 Composer。 */
+  emptyComposer?: ReactNode;
+}) {
   const turns = useGenerationWorkbenchStore((s) => s.turns);
   const setDraftPrompt = useGenerationWorkbenchStore((s) => s.setDraftPrompt);
   const attachmentsActive = useGenerationWorkbenchStore(
@@ -60,7 +65,7 @@ export function WorkbenchTimeline() {
       bottomInset={attachmentsActive ? "attachments" : "composer"}
       empty={
         <WorkbenchEmptyState
-          brand={<WorkbenchBrand aria-hidden="true" focusable="false" />}
+          composer={emptyComposer}
           onSelectSuggestion={(suggestion) => {
             setDraftPrompt(suggestion);
             window.requestAnimationFrame(() => {

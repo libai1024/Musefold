@@ -39,9 +39,12 @@ describe("single page identity contract", () => {
     expect(pageHeader).toContain('data-testid="page-toolbar"');
   });
 
-  it("uses the shared v0.3 logo on the new conversation and merged about surfaces", () => {
+  it("uses the shared logo lockup on the new conversation and merged about surfaces", () => {
     expect(workbench).toContain("<WorkbenchEmptyState");
-    expect(emptyState).toContain("data-brand-hero");
+    // v2.0(11 §4):空态品牌锁定区由共享层内置 MusefoldMark + 名称 + 提示语,
+    // 不再有 data-brand-hero 大插画插槽。
+    expect(emptyState).toContain("MusefoldMark");
+    expect(emptyState).toContain('data-testid="workbench-empty-brand"');
     expect(aboutSection).toContain("<MusefoldLogoAnimated");
     expect(workbench).not.toContain("job-msna7heh-3.png");
     expect(aboutSection).not.toContain("job-msna7heh-3.png");
