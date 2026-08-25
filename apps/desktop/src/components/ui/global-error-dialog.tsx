@@ -53,7 +53,7 @@ function ErrorDetails({ item }: { item: DiagnosticItem }) {
         <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-secondary hover:text-primary">
           查看技术详情
         </summary>
-        <pre className="max-h-[34vh] overflow-auto border-t border-border-default px-3 py-2 font-mono text-[10px] leading-relaxed text-secondary whitespace-pre-wrap break-words">
+        <pre className="max-h-[34vh] overflow-auto border-t border-border-default px-3 py-2 font-mono text-meta leading-relaxed text-secondary whitespace-pre-wrap break-words">
           {diagnosticText(item)}
         </pre>
       </details>

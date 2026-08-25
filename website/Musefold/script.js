@@ -1,49 +1,25 @@
 (function () {
-  const revealItems = document.querySelectorAll(".reveal");
-  if (
-    "IntersectionObserver" in window &&
-    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    const observer = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.14 },
-    );
-    revealItems.forEach(function (item) {
-      observer.observe(item);
-    });
-  } else {
-    revealItems.forEach(function (item) {
-      item.classList.add("is-visible");
-    });
-  }
-
   const summary = document.querySelector("[data-download-summary]");
   const totalElement = document.querySelector("[data-download-total]");
   const statusElement = document.querySelector("[data-download-status]");
   const countElements = document.querySelectorAll("[data-download-count]");
   const skillUrlElement = document.querySelector("[data-skill-url]");
   const skillCopyButton = document.querySelector("[data-skill-copy]");
+  const skillCopyLabel = skillCopyButton?.querySelector("span");
   const skillCopyStatus = document.querySelector("[data-skill-copy-status]");
 
   if (skillUrlElement && skillCopyButton) {
     skillCopyButton.addEventListener("click", async function () {
       try {
         await navigator.clipboard.writeText(skillUrlElement.textContent.trim());
-        skillCopyButton.textContent = "已复制";
+        if (skillCopyLabel) skillCopyLabel.textContent = "已复制";
         if (skillCopyStatus)
           skillCopyStatus.textContent = "网址已复制，可以直接粘贴给 AI";
         window.setTimeout(function () {
-          skillCopyButton.textContent = "复制网址";
+          if (skillCopyLabel) skillCopyLabel.textContent = "复制网址";
           if (skillCopyStatus)
             skillCopyStatus.textContent =
-              "SKILL.md · Cloud / Local MCP · CLI 回退";
+              "SKILL.md · 先审阅，再调用";
         }, 1800);
       } catch (error) {
         if (skillCopyStatus)

@@ -4,20 +4,31 @@ import { MusefoldLogoAnimated } from '../../components/brand/MusefoldLogoAnimate
 import { cn } from '../../lib/utils';
 import type { OnboardingStep } from './store';
 
-export function OnboardingHeader({ step }: { step: OnboardingStep }) {
+export function OnboardingHeader({
+  step,
+  receded = false,
+}: {
+  step: OnboardingStep;
+  receded?: boolean;
+}) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-subtle px-5 sm:px-8">
+    <header
+      className={cn(
+        'flex h-14 shrink-0 items-center justify-between px-5 sm:px-8',
+        step === 1 || receded ? 'border-b border-transparent' : 'border-b border-border-subtle',
+      )}
+    >
       <div className="flex min-w-0 items-center">
         {step === 1 ? (
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-tertiary">首次设置</span>
+          <span className="sr-only">首次设置</span>
         ) : (
-          <div className="flex items-center gap-2.5">
+          <div className={cn('flex items-center gap-2.5', receded && 'opacity-70')}>
             <MusefoldLogoAnimated className="h-7 w-7" />
             <span className="text-[13px] font-semibold tracking-tight text-primary">Musefold</span>
           </div>
         )}
       </div>
-      <ProgressDots step={step} />
+      {step === 1 || receded ? null : <ProgressDots step={step} />}
     </header>
   );
 }
@@ -40,7 +51,7 @@ export function ProgressDots({ step }: { step: OnboardingStep }) {
           />
         ))}
       </div>
-      <span className="font-mono text-[10px] tabular-nums text-tertiary">{step} / 4</span>
+      <span className="sr-only">{`第 ${step} 步，共 4 步`}</span>
     </div>
   );
 }
@@ -78,7 +89,7 @@ export function ValidationLine({ label, ok, detail }: { label: string; ok: boole
         ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
         : <AlertCircle className="h-4 w-4 shrink-0 text-danger" />}
       <span className="min-w-0 flex-1 text-[12px] font-medium text-primary">{label}</span>
-      <span className={cn('max-w-[58%] break-words text-right text-[10.5px] leading-relaxed', ok ? 'text-tertiary' : 'text-danger')} title={detail}>
+      <span className={cn('max-w-[58%] break-words text-right text-meta leading-relaxed', ok ? 'text-tertiary' : 'text-danger')} title={detail}>
         {detail}
       </span>
     </div>

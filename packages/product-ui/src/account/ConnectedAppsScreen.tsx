@@ -1,4 +1,14 @@
-import { Check, Link2, LockKeyhole, Pause, Play, Trash2, X } from "@musefold/ui/icons";
+import {
+  Check,
+  Copy,
+  Link2,
+  LockKeyhole,
+  Pause,
+  Play,
+  Sparkles,
+  Trash2,
+  X,
+} from "@musefold/ui/icons";
 import {
   Button,
   Dialog,
@@ -9,26 +19,48 @@ import {
   Input,
 } from "@musefold/ui";
 import { useState, type FormEvent } from "react";
+import { SettingsSegmentedControl } from "../settings/SettingsComponents";
 
 export type ConnectedAppStatus = "active" | "suspended" | "revoked";
 export type ConnectedAppMode = "ask_each_time" | "auto_with_limits";
+export type ConnectedAppScope = (typeof CONNECTED_APP_SCOPES)[number];
+
+export const CONNECTED_APP_SCOPES = [
+  "account:read",
+  "prompts:read",
+  "prompts:write",
+  "skills:read",
+  "generations:read",
+  "generations:write",
+] as const;
+
+export const CONNECTED_APP_SCOPE_LABELS: Record<ConnectedAppScope, string> = {
+  "account:read": "账户信息",
+  "prompts:read": "提示词·读",
+  "prompts:write": "提示词·写",
+  "skills:read": "技能·读",
+  "generations:read": "生图·读",
+  "generations:write": "生图·写",
+};
 
 export interface ConnectedAppViewModel {
   id: string;
   clientName: string;
-  scopes: string[];
+  scopes: ConnectedAppScope[];
   mode: ConnectedAppMode;
   maxPointsPerGeneration: number;
   maxPointsPerDay: number;
   spentPointsToday: number;
   reservedPointsToday: number;
   status: ConnectedAppStatus;
+  lastUsedAt?: string | null;
 }
 
 export interface ConnectedAppPatch {
   mode?: ConnectedAppMode;
   maxPointsPerGeneration?: number;
   maxPointsPerDay?: number;
+  scopes?: ConnectedAppScope[];
   suspended?: boolean;
   reauthPassword?: string;
 }
@@ -40,8 +72,11 @@ export interface ConnectedAppsScreenProps {
   loading?: boolean;
   loadError?: string | null;
   emptyLabel?: string;
+  /** 提供后在空态渲染「复制服务器地址」，引导首个 AI 客户端接入。 */
+  mcpServerUrl?: string;
   title?: string;
   description?: string;
+  showHeading?: boolean;
   className?: string;
   testId?: string;
 }
@@ -52,6 +87,24 @@ function statusLabel(status: ConnectedAppStatus): string {
   return "已撤销";
 }
 
+function relativeTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const timestamp = Date.parse(iso);
+  if (Number.isNaN(timestamp)) return null;
+  const minutes = Math.round((Date.now() - timestamp) / 60_000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
+function hasAllScopes(scopes: string[]): boolean {
+  return CONNECTED_APP_SCOPES.every((scope) => scopes.includes(scope));
+}
+
 /** Shared Cloud MCP connection policy surface. */
 export function ConnectedAppsScreen({
   items,
@@ -60,8 +113,10 @@ export function ConnectedAppsScreen({
   loading = false,
   loadError = null,
   emptyLabel = "还没有连接 AI 客户端",
+  mcpServerUrl,
   title = "已连接应用",
   description = "管理 AI 客户端访问 Musefold Cloud MCP 的授权、范围和预算。",
+  showHeading = true,
   className,
   testId,
 }: ConnectedAppsScreenProps) {
@@ -73,6 +128,7 @@ export function ConnectedAppsScreen({
   } | null>(null);
   const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null);
   const [reauthPassword, setReauthPassword] = useState("");
+  const [serverUrlCopied, setServerUrlCopied] = useState(false);
   const displayError = loadError ?? error;
 
   const update = async (id: string, input: ConnectedAppPatch) => {
@@ -83,6 +139,8 @@ export function ConnectedAppsScreen({
       (input.maxPointsPerGeneration !== undefined &&
         input.maxPointsPerGeneration > connection.maxPointsPerGeneration) ||
       (input.maxPointsPerDay !== undefined && input.maxPointsPerDay > connection.maxPointsPerDay) ||
+      (input.scopes !== undefined &&
+        input.scopes.some((scope) => !connection.scopes.includes(scope))) ||
       (input.suspended === false && connection.status === "suspended");
     if (needsReauth && !input.reauthPassword) {
       setPendingReauth({ id, input });
@@ -98,6 +156,18 @@ export function ConnectedAppsScreen({
     } finally {
       setBusyId(null);
     }
+  };
+
+  const toggleScope = (connection: ConnectedAppViewModel, scope: ConnectedAppScope) => {
+    const enabled = connection.scopes.includes(scope);
+    if (enabled && connection.scopes.length <= 1) {
+      setError("至少保留一项能力");
+      return;
+    }
+    const scopes = enabled
+      ? connection.scopes.filter((value) => value !== scope)
+      : [...connection.scopes, scope];
+    void update(connection.id, { scopes });
   };
 
   const submitReauth = async (event: FormEvent) => {
@@ -122,15 +192,28 @@ export function ConnectedAppsScreen({
     }
   };
 
+  const copyServerUrl = async () => {
+    if (!mcpServerUrl) return;
+    try {
+      await navigator.clipboard.writeText(mcpServerUrl);
+      setServerUrlCopied(true);
+      window.setTimeout(() => setServerUrlCopied(false), 2_000);
+    } catch {
+      setError("复制服务器地址失败，请手动复制");
+    }
+  };
+
   return (
     <section
       className={`mf-connected-apps-screen${className ? ` ${className}` : ""}`}
       data-testid={testId}
     >
-      <header className="mf-connected-apps-heading">
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </header>
+      {showHeading ? (
+        <header className="mf-connected-apps-heading">
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </header>
+      ) : null}
       {displayError ? (
         <p className="mf-connected-apps-error" role="alert">
           {displayError}
@@ -139,6 +222,7 @@ export function ConnectedAppsScreen({
       <div className="mf-connected-apps-list">
         {!loading && items.map((connection) => {
           const disabled = connection.status === "revoked" || busyId === connection.id;
+          const usedAt = relativeTime(connection.lastUsedAt);
           return (
             <article className="mf-connected-app-row" key={connection.id} data-testid="connection-row">
               <div className="mf-connected-app-heading">
@@ -147,40 +231,71 @@ export function ConnectedAppsScreen({
                 </span>
                 <div>
                   <strong>{connection.clientName}</strong>
-                  <span>{statusLabel(connection.status)}</span>
+                  <span>
+                    {statusLabel(connection.status)}
+                    {usedAt ? ` · 最近使用 ${usedAt}` : " · 尚未使用"}
+                  </span>
                 </div>
+                {hasAllScopes(connection.scopes) ? (
+                  <span className="mf-connected-app-all-badge" data-testid="connection-all-capabilities">
+                    <Sparkles aria-hidden="true" />
+                    全部能力
+                  </span>
+                ) : null}
                 <span
                   className="mf-connected-app-status-dot"
                   data-active={connection.status === "active"}
                   aria-label={statusLabel(connection.status)}
                 />
               </div>
-              <div className="mf-connected-app-scopes">
-                {connection.scopes.map((scope) => <span key={scope}>{scope}</span>)}
+              <div className="mf-connected-app-scopes" aria-label="已授权能力">
+                {CONNECTED_APP_SCOPES.map((scope) => {
+                  const enabled = connection.scopes.includes(scope);
+                  return (
+                    <button
+                      type="button"
+                      key={scope}
+                      className="mf-connected-app-scope-chip"
+                      data-on={enabled}
+                      aria-pressed={enabled}
+                      disabled={disabled}
+                      data-testid={`connection-scope-${scope}`}
+                      title={enabled ? `收窄：移除${CONNECTED_APP_SCOPE_LABELS[scope]}` : `扩大：授予${CONNECTED_APP_SCOPE_LABELS[scope]}（需密码确认）`}
+                      onClick={() => toggleScope(connection, scope)}
+                    >
+                      {CONNECTED_APP_SCOPE_LABELS[scope]}
+                    </button>
+                  );
+                })}
               </div>
               <div className="mf-connected-app-controls">
-                <label>
+                <div>
                   <span>生图模式</span>
-                  <select
+                  <SettingsSegmentedControl
                     value={connection.mode}
+                    options={[
+                      { value: "ask_each_time" as const, label: "每次审批" },
+                      { value: "auto_with_limits" as const, label: "预算内自动" },
+                    ]}
                     disabled={disabled}
-                    onChange={(event) => void update(connection.id, { mode: event.target.value as ConnectedAppMode })}
-                  >
-                    <option value="ask_each_time">每次审批</option>
-                    <option value="auto_with_limits">预算内自动</option>
-                  </select>
-                </label>
+                    ariaLabel="生图模式"
+                    testIdPrefix={`connection-mode-${connection.id}`}
+                    onChange={(mode) => void update(connection.id, { mode })}
+                  />
+                </div>
                 <BudgetInput
-                  label="单次预算"
+                  label="单次预算（积分）"
                   value={connection.maxPointsPerGeneration}
+                  max={10_000_000}
                   disabled={disabled}
                   inputKey={`${connection.id}-generation-${connection.maxPointsPerGeneration}`}
                   onCommit={(value) => void update(connection.id, { maxPointsPerGeneration: value })}
                   onError={setError}
                 />
                 <BudgetInput
-                  label="每日预算"
+                  label="每日预算（积分）"
                   value={connection.maxPointsPerDay}
+                  max={100_000_000}
                   disabled={disabled}
                   inputKey={`${connection.id}-day-${connection.maxPointsPerDay}`}
                   onCommit={(value) => void update(connection.id, { maxPointsPerDay: value })}
@@ -189,7 +304,7 @@ export function ConnectedAppsScreen({
               </div>
               <div className="mf-connected-app-footer">
                 <span>
-                  今日已用 {connection.spentPointsToday.toLocaleString()} · 已预留 {connection.reservedPointsToday.toLocaleString()} 点
+                  今日已用 {connection.spentPointsToday.toLocaleString()} · 已预留 {connection.reservedPointsToday.toLocaleString()} 积分
                 </span>
                 <div>
                   {connection.status !== "revoked" ? (
@@ -224,7 +339,23 @@ export function ConnectedAppsScreen({
         {loading ? (
           <div className="mf-connected-app-empty" role="status">正在读取连接...</div>
         ) : items.length === 0 ? (
-          <div className="mf-connected-app-empty">{emptyLabel}</div>
+          <div className="mf-connected-app-empty">
+            <p>{emptyLabel}</p>
+            <div className="mf-connected-app-empty-guide">
+              <span>在 AI 客户端中添加 Musefold MCP 服务器即可连接，新连接默认开放全部能力。</span>
+              {mcpServerUrl ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="connection-copy-server-url"
+                  icon={<Copy aria-hidden="true" />}
+                  onClick={() => void copyServerUrl()}
+                >
+                  {serverUrlCopied ? "已复制" : "复制服务器地址"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </div>
       <Dialog
@@ -244,7 +375,7 @@ export function ConnectedAppsScreen({
               <span className="mf-connected-app-icon" aria-hidden="true"><LockKeyhole /></span>
               <div>
                 <DialogTitle id="connected-app-reauth-title">确认自动化权限</DialogTitle>
-                <DialogDescription>提高预算或恢复连接前，请再次验证你的账号。</DialogDescription>
+                <DialogDescription>扩大能力、提高预算或恢复连接前，请再次验证你的账号。</DialogDescription>
               </div>
               <IconButton className="mf-connected-app-icon-button" label="取消重新认证" title="取消" onClick={() => setPendingReauth(null)}><X aria-hidden="true" /></IconButton>
             </div>
@@ -266,6 +397,7 @@ export function ConnectedAppsScreen({
 function BudgetInput({
   label,
   value,
+  max,
   disabled,
   inputKey,
   onCommit,
@@ -273,6 +405,7 @@ function BudgetInput({
 }: {
   label: string;
   value: number;
+  max: number;
   disabled: boolean;
   inputKey: string;
   onCommit: (value: number) => void;
@@ -284,7 +417,7 @@ function BudgetInput({
       <Input
         type="number"
         min="0"
-        max={label === "单次预算" ? 10_000_000 : 100_000_000}
+        max={max}
         inputMode="numeric"
         key={inputKey}
         defaultValue={value}

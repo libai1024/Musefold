@@ -278,7 +278,7 @@ body,
   padding: 0 0.2rem;
   color: var(--fg-tertiary);
   background: var(--bg-inset);
-  font-size: 9px;
+  font-size: var(--text-meta);
   line-height: 1.25;
   vertical-align: baseline;
 }
@@ -350,4 +350,343 @@ textarea:focus-visible {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 设置页统一骨架：侧栏负责定位，内容区负责阅读，列表负责操作。
+ * 这些规则只作用于 SettingsView，不改变工作台、历史和资源库的密度。 */
+.settings-view {
+  --settings-nav-width: 248px;
+  --settings-content-gutter: clamp(24px, 4vw, 64px);
+  min-width: 0;
+  background: var(--bg-window);
+  color: var(--fg-primary);
+}
+
+.settings-layout {
+  background: var(--bg-window);
+}
+
+.settings-sidebar {
+  width: var(--settings-nav-width);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.settings-sidebar__heading {
+  flex: none;
+  padding: 28px 24px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-sidebar__nav {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 16px 28px;
+}
+
+.settings-nav__group {
+  margin-bottom: 22px;
+}
+
+.settings-nav__group:last-child {
+  margin-bottom: 0;
+}
+
+.settings-nav__group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  letter-spacing: 0;
+}
+
+.settings-nav__item {
+  position: relative;
+  width: 100%;
+  padding-inline: 12px;
+  border: 1px solid transparent;
+  color: var(--fg-secondary);
+}
+
+.settings-nav__item:hover {
+  border-color: var(--border-subtle);
+}
+
+.settings-nav__item:focus-visible,
+.settings-mobile-trigger:focus-visible,
+.settings-mobile-section-item:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.settings-nav__item.bg-pressed {
+  border-color: var(--border-subtle);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.settings-mobile-nav {
+  flex: none;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-sidebar);
+}
+
+.settings-mobile-trigger__mark {
+  display: inline-flex;
+  height: 28px;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+
+.settings-mobile-section-menu {
+  z-index: 30;
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-pop);
+}
+
+.settings-content {
+  background: var(--bg-window);
+  scrollbar-gutter: stable;
+}
+
+.settings-section {
+  padding-bottom: 48px;
+}
+
+.settings-section__header {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-section__title {
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.settings-section__description {
+  max-width: 68ch;
+  color: var(--fg-secondary);
+  font-size: 12px;
+}
+
+.settings-section__body {
+  margin-top: 24px;
+}
+
+.settings-subsection__title {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  color: var(--fg-secondary);
+  letter-spacing: 0;
+}
+
+.settings-brand-panel {
+  padding-block: 20px;
+}
+
+.settings-note {
+  color: var(--fg-tertiary);
+}
+
+.settings-list {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+
+.settings-list > .settings-row,
+.settings-list > .settings-item,
+.settings-list > [data-testid^='settings-ai-row-'] {
+  padding-inline: 20px;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: calc(var(--control-lg) + (2 * var(--density-setting-row-y)));
+  gap: 32px;
+  padding-top: var(--density-setting-row-y);
+  padding-bottom: var(--density-setting-row-y);
+  border-color: var(--border-subtle);
+  background: transparent;
+}
+
+.settings-row:hover {
+  background: var(--bg-hover);
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-row__copy > p:first-child,
+.settings-row > div > p:first-child {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.settings-row__copy > p + p,
+.settings-row > div > p + p {
+  margin-top: 4px;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-row__control {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.settings-choice-group {
+  max-width: 100%;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+}
+
+.settings-choice-option {
+  min-height: var(--control-sm);
+  border-color: transparent;
+  padding-inline: 11px;
+  white-space: nowrap;
+}
+
+.settings-choice-option[aria-checked='true'] {
+  border-color: var(--border-default);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  color: var(--accent);
+}
+
+.settings-choice-option:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.settings-connection-row {
+  min-height: 72px;
+}
+
+.settings-connection-row:hover {
+  background: var(--bg-hover);
+}
+
+/* 默认项：左侧 Ember 指示条 + 内嵌底色，与设置导航选中态同语言（写在 :hover 之后，选中行 hover 不闪烁） */
+.settings-connection-row[data-active='true'] {
+  background: var(--bg-inset);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.settings-connection-row__actions {
+  opacity: 1;
+}
+
+.settings-connection-row__icon {
+  border-radius: var(--radius-md);
+}
+
+/* Cloud MCP 连接也进入设置页的统一标题、宽度与列表表面。 */
+.settings-connected-apps {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.settings-connected-apps .mf-connected-apps-list {
+  margin-top: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+
+.settings-connected-apps .mf-connected-app-row {
+  padding-inline: 20px;
+}
+
+.settings-connected-apps .mf-connected-app-row:last-child {
+  border-bottom: 0;
+}
+
+@media (max-width: 639px) {
+  .settings-connected-apps .mf-connected-app-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-connected-apps .mf-connected-app-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-connected-apps .mf-connected-app-footer > div {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 959px) {
+  .settings-section {
+    padding-bottom: 32px;
+  }
+
+  .settings-content {
+    padding-inline: 20px;
+    padding-top: 28px;
+  }
+}
+
+@media (max-width: 639px) {
+  .settings-section__header {
+    gap: 16px;
+    padding-bottom: 18px;
+  }
+
+  .settings-section__title {
+    font-size: 18px;
+  }
+
+  .settings-section__body {
+    margin-top: 20px;
+  }
+
+  .settings-list > .settings-row,
+  .settings-list > .settings-item,
+  .settings-list > [data-testid^='settings-ai-row-'] {
+    padding-inline: 16px;
+  }
+
+  .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 12px;
+    min-height: 0;
+    padding-top: var(--density-setting-row-y);
+    padding-bottom: var(--density-setting-row-y);
+  }
+
+  .settings-row__control {
+    justify-content: flex-start;
+  }
+
+  .settings-choice-group {
+    width: 100%;
+  }
+
+  .settings-choice-option {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }

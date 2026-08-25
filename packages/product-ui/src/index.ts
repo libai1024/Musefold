@@ -23,6 +23,7 @@ export * from './history/useHistoryInspectorController';
 export * from './workbench/WorkbenchComposerToolbar';
 export * from './workbench/WorkbenchComposerSurface';
 export * from './workbench/WorkbenchComposerFrame';
+export * from './workbench/WorkbenchComposerContextTray';
 export * from './workbench/WorkbenchComposerPrompt';
 export * from './workbench/WorkbenchComposerSaveStatus';
 export * from './workbench/WorkbenchComposerSubmitButton';
@@ -70,6 +71,8 @@ export * from './navigation/ProductSidebar';
 export * from './navigation/ProductSidebarLayout';
 export * from './navigation/ProductTopbar';
 export * from './navigation/ProductPageHeader';
+export * from './settings/SettingsWorkspace';
+export * from './settings/SettingsComponents';
 export {
   buildSidebarNavItems,
   productCommandIcon,

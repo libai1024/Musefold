@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@musefold/ui";
+import { ChevronDown, Sparkles } from "@musefold/ui/icons";
+import { useTheaterIdle } from "./useTheaterIdle";
 
 const DEFAULT_SUGGESTIONS = [
   "漂浮在云层上的小型图书馆，克制电影感，阴天漫射光，细腻阴影",
@@ -28,71 +30,93 @@ export function WorkbenchEmptyState({
   suggestions = DEFAULT_SUGGESTIONS,
   onSelectSuggestion,
 }: WorkbenchEmptyStateProps) {
-  const rows = useMemo(() => {
-    const source = suggestions.length >= 12 ? suggestions : DEFAULT_SUGGESTIONS;
-    return Array.from({ length: 3 }, (_, index) =>
-      source.slice(index * 4, index * 4 + 4),
-    );
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  useTheaterIdle(rootRef, 160);
+
+  const items = useMemo(() => {
+    const source = suggestions.length > 0 ? suggestions : DEFAULT_SUGGESTIONS;
+    return source.slice(0, 6);
   }, [suggestions]);
+  const primary = items[0];
+  const starters = items.slice(0, 3);
+  const moreDirections = items.slice(3);
 
   return (
-    <div className="mf-workbench-empty" data-testid="workbench-empty">
+    <div
+      ref={rootRef}
+      className="mf-workbench-empty"
+      data-testid="workbench-empty"
+      data-ui-register="theater"
+    >
+      <div className="mf-workbench-empty-copy" data-brand-slogan>
+        <h2 data-testid="workbench-empty-slogan">
+          让灵感<span className="mf-workbench-empty-accent">成为图像。</span>
+        </h2>
+        <p>从一张图、一段文字或一个方向开始</p>
+        <Button
+          unstyled
+          type="button"
+          className="mf-workbench-empty-cta"
+          data-testid="workbench-empty-cta"
+          onClick={() => primary && onSelectSuggestion?.(primary)}
+        >
+          <Sparkles aria-hidden="true" />
+          从这条开始
+        </Button>
+      </div>
       <div className="mf-workbench-empty-brand" data-brand-hero>
         {brand}
-      </div>
-      <div className="mf-workbench-empty-copy" data-brand-slogan>
-        <h2 data-testid="workbench-empty-slogan">让灵感成为图像。</h2>
-        <p>从一张图、一段文字或一个方向开始</p>
       </div>
       <div
         className="mf-workbench-directions"
         aria-label="创作方向"
         data-testid="generation-directions"
       >
-        {rows.map((row, rowIndex) => (
-          <div
-            className="mf-workbench-direction-row"
-            data-direction-row
-            key={rowIndex}
+        {starters.map((suggestion) => (
+          <Button
+            unstyled
+            type="button"
+            className="mf-workbench-direction-item"
+            key={suggestion}
+            onClick={() => onSelectSuggestion?.(suggestion)}
+            title={suggestion}
+            data-testid="generation-example"
           >
-            <div
-              className="mf-workbench-direction-ticker"
-              data-testid={`generation-directions-ticker-${rowIndex + 1}`}
-            >
-              {[0, 1].map((group) => (
-                <div
-                  className="mf-workbench-direction-group"
-                  data-direction-group={group === 0 ? rowIndex : undefined}
-                  aria-hidden={group === 1 ? true : undefined}
-                  key={group}
-                >
-                  {row.map((suggestion, suggestionIndex) => (
-                    <span
-                      className="mf-workbench-direction-item"
-                      key={`${group}-${suggestion}`}
-                    >
-                      <Button
-                        unstyled
-                        type="button"
-                        onClick={() => onSelectSuggestion?.(suggestion)}
-                        tabIndex={group === 1 ? -1 : 0}
-                        title={suggestion}
-                        data-testid={
-                          group === 0 && suggestionIndex === 0
-                            ? "generation-example"
-                            : undefined
-                        }
-                      >
-                        {suggestion}
-                      </Button>
-                      <span aria-hidden="true" />
-                    </span>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+            {suggestion}
+          </Button>
         ))}
+        {moreDirections.length > 0 && (
+          <>
+            <Button
+              unstyled
+              type="button"
+              className="mf-workbench-directions-toggle"
+              aria-expanded={directionsOpen}
+              onClick={() => setDirectionsOpen((open) => !open)}
+              data-testid="generation-directions-toggle"
+            >
+              浏览灵感
+              <ChevronDown
+                aria-hidden="true"
+                className={directionsOpen ? "rotate-180" : undefined}
+              />
+            </Button>
+            {directionsOpen &&
+              moreDirections.map((suggestion) => (
+                <Button
+                  unstyled
+                  type="button"
+                  className="mf-workbench-direction-item"
+                  key={suggestion}
+                  onClick={() => onSelectSuggestion?.(suggestion)}
+                  title={suggestion}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+          </>
+        )}
       </div>
     </div>
   );

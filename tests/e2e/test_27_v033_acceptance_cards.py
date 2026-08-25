@@ -705,9 +705,9 @@ def test_sk_31_design_plan_command_absorbs_ready_skill_chip(app):
 
         app.page.get_by_test_id("workbench-image-picker").click()
         app.page.get_by_test_id("composer-menu-design-plan").click()
-        command_chip = app.page.get_by_test_id("composer-command-chip")
-        command_chip.wait_for(state="visible")
-        assert command_chip.get_attribute("data-command") == "design-plan"
+        mode = app.page.get_by_test_id("composer-mode")
+        mode.get_by_role("tab", name="设计方案").wait_for(state="visible")
+        assert mode.get_by_role("tab", name="设计方案").get_attribute("data-active") == "true"
         prompt_box.fill("把小黑插画规则整理成可复用的编辑配图方案")
         app.page.locator('[data-workbench-testid="workbench-submit"]').click()
 
@@ -719,7 +719,7 @@ def test_sk_31_design_plan_command_absorbs_ready_skill_chip(app):
         assert not any(item["source"]["kind"] == "skill" for item in app.page.evaluate(
             "() => window.__musefold_test.stores.workbench.getState().turns",
         ))
-        assert app.page.get_by_test_id("composer-command-chip").count() == 0
+        assert app.page.get_by_test_id("composer-mode").get_by_role("tab", name="图像").get_attribute("data-active") == "true"
         assert app.page.get_by_test_id("scheme-creation-confirm").inner_text()
         EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
         app.page.screenshot(path=str(EVIDENCE_DIR / "SK-31-skill-to-scheme-confirm.png"), full_page=True)
@@ -897,7 +897,7 @@ def test_sc_10_prompt_creation_entry_prefills_and_compiles_text_only_scheme(app)
         app.page.get_by_test_id("scheme-create").click()
         app.page.get_by_test_id("scheme-create-menu").get_by_role("menuitem", name="从提示词创建").click()
         prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
-        app.page.get_by_test_id("composer-command-chip").wait_for(state="visible")
+        app.page.get_by_test_id("composer-mode").get_by_role("tab", name="设计方案").wait_for(state="visible")
         seeded = prompt_box.input_value()
         assert seeded.startswith("把下面这段提示词整理成一个可复用方案")
         prompt_box.fill(f"{seeded}城市夜景播客封面：深蓝背景，暖黄色窗光，底部留白放节目标题。")
@@ -929,11 +929,11 @@ def test_sc_11_prompt_detail_sends_content_to_scheme_composer(app):
     app.page.click(f'[data-prompt-id="{prompt["id"]}"] [data-testid="prompt-row-open"]')
     app.page.get_by_test_id("detail-menu").click()
     app.page.get_by_test_id("detail-create-scheme").click()
-    command = app.page.get_by_test_id("composer-command-chip")
-    command.wait_for(state="visible")
+    mode = app.page.get_by_test_id("composer-mode")
+    mode.get_by_role("tab", name="设计方案").wait_for(state="visible")
     prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
     value = prompt_box.input_value()
-    assert command.get_attribute("data-command") == "design-plan"
+    assert mode.get_by_role("tab", name="设计方案").get_attribute("data-active") == "true"
     assert prompt["content"] in value
     assert prompt["contentNegative"] in value
     assert "区分固定规则" in value
@@ -996,7 +996,7 @@ def test_sc_12_history_picker_creates_scheme_from_selected_images(app):
         assert app.page.get_by_test_id("history-selected-count").inner_text() == "已选择 2 张作品"
         app.page.get_by_test_id("history-suggestion-保留生成参数").click()
         app.page.get_by_test_id("history-source-confirm").click()
-        app.page.get_by_test_id("composer-command-chip").wait_for(state="visible")
+        app.page.get_by_test_id("composer-mode").get_by_role("tab", name="设计方案").wait_for(state="visible")
         app.page.locator('[data-workbench-testid="workbench-submit"]').click()
         app.page.get_by_test_id("scheme-creation-draft-card").wait_for(state="visible", timeout=60_000)
         turn = app.page.evaluate("() => window.__musefold_test.stores.workbench.getState().turns.filter((item) => item.source.kind === 'scheme-creation').at(-1)")

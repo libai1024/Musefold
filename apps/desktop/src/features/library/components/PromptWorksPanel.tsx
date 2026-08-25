@@ -83,14 +83,14 @@ export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
     <section className="border-t border-border-subtle pt-5" data-testid="prompt-works-panel">
       <div className="flex items-center gap-2">
         <h2 className="text-[13px] font-semibold text-primary">相关作品</h2>
-        <span className="text-[10px] tabular-nums text-tertiary">
+        <span className="text-meta tabular-nums text-tertiary">
           {loading ? '统计中' : error ? '' : total}
         </span>
         <button
           type="button"
           onClick={() => setIncludeAll((value) => !value)}
           className={cn(
-            'ml-auto min-h-7 rounded-md px-2 text-[10.5px] transition-colors',
+            'ml-auto min-h-7 rounded-md px-2 text-meta transition-colors',
             includeAll ? 'bg-active text-primary' : 'text-tertiary hover:bg-hover hover:text-primary',
           )}
           aria-pressed={includeAll}
@@ -101,7 +101,7 @@ export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
       </div>
 
       {coverage === 'direct-only' && !loading && (
-        <div className="mt-3 rounded-md border border-warning/25 bg-warning/5 px-2.5 py-2 text-[10px] leading-relaxed text-secondary" data-testid="prompt-works-restart-notice">
+        <div className="mt-3 rounded-md border border-warning/25 bg-warning/5 px-2.5 py-2 text-meta leading-relaxed text-secondary" data-testid="prompt-works-restart-notice">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
             <div className="min-w-0 flex-1">
@@ -126,11 +126,11 @@ export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
 
       <div className="mt-3">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-[10.5px] text-tertiary" data-testid="prompt-works-loading">
+          <div className="flex items-center justify-center gap-2 py-12 text-meta text-tertiary" data-testid="prompt-works-loading">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> 加载作品
           </div>
         ) : error ? (
-          <div className="rounded-md border border-danger/25 bg-danger/5 p-3 text-[10.5px] text-danger" data-testid="prompt-works-error">
+          <div className="rounded-md border border-danger/25 bg-danger/5 p-3 text-meta text-danger" data-testid="prompt-works-error">
             <p>{error}</p>
             <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="mt-2 inline-flex items-center gap-1 text-secondary hover:text-primary">
               <RefreshCw className="h-3 w-3" /> 重试
@@ -140,7 +140,7 @@ export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
           <div className="flex flex-col items-center justify-center py-10 text-center" data-testid="prompt-works-empty">
             <Images className="h-5 w-5 text-quaternary" />
             <p className="mt-3 text-[12px] text-secondary">还没有基于这条提示词生成的作品</p>
-            <p className="mt-1 max-w-[46ch] text-[10.5px] leading-relaxed text-tertiary">
+            <p className="mt-1 max-w-[46ch] text-meta leading-relaxed text-tertiary">
               只有从这条提示词进入制作，或在制作中引用它的记录会显示在这里。
             </p>
           </div>
@@ -162,7 +162,7 @@ export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
                         {promptRelationLabel(item)}
                       </span>
                       {isBroken ? (
-                        <span className="flex h-full flex-col items-center justify-center gap-1 text-[9.5px] text-tertiary">
+                        <span className="flex h-full flex-col items-center justify-center gap-1 text-meta text-tertiary">
                           <ImageOff className="h-4 w-4" /> 图片无法加载
                         </span>
                       ) : (
@@ -193,13 +193,13 @@ export function PromptWorksPanel({ prompt }: { prompt: DesktopLibraryPrompt }) {
                       <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[10.5px] font-medium text-secondary">
+                      <span className="block text-meta font-medium text-secondary">
                         {item.status === 'cancelled' ? '已取消' : '生成失败'}
                       </span>
-                      <span className="mt-0.5 block text-[9px] font-medium text-accent/85">
+                      <span className="mt-0.5 block text-meta font-medium text-accent/85">
                         {promptRelationLabel(item)}
                       </span>
-                      <span className="mt-0.5 line-clamp-2 block text-[9.5px] leading-relaxed text-tertiary">
+                      <span className="mt-0.5 line-clamp-2 block text-meta leading-relaxed text-tertiary">
                         {item.errorMessage || item.errorCode || '没有更多错误信息'}
                       </span>
                     </span>

@@ -47,4 +47,33 @@ for (const file of walk(ROOT)) {
 
 console.log(violations.length ? 'ICON CONTRACT FAIL:' : 'icon contract OK (single export point)');
 for (const v of violations) console.log('  - ' + v);
+
+// SITE-03：官网 Lucide 同源 sprite 契约。
+// <use> 引用必须 ⊆ icons.json 清单；官网 HTML 禁止内联手绘图形与外部图标库。
+const siteRoot = path.resolve('website/Musefold');
+const manifestPath = path.join(siteRoot, 'icons.json');
+if (fs.existsSync(manifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const allowed = new Set(manifest.map((name) => `i-${name}`));
+  for (const entry of fs.readdirSync(siteRoot, { withFileTypes: true })) {
+    if (!entry.isFile() || !/\.html?$/.test(entry.name)) continue;
+    const html = fs.readFileSync(path.join(siteRoot, entry.name), 'utf8');
+    for (const match of html.matchAll(/<use\s[^>]*href="assets\/icons\.svg#([a-z0-9-]+)"/g)) {
+      if (!allowed.has(match[1])) {
+        violations.push(`${entry.name}: <use> 引用清单外字形 ${match[1]}，先登记 icons.json`);
+      }
+    }
+    const handDrawn = /<(path|circle|rect|polygon|polyline|line|ellipse)\b/.test(
+      html.replace(/<use\s[^>]*>/g, ''),
+    );
+    if (handDrawn) {
+      violations.push(`${entry.name}: 内联手绘 SVG 图形，官网图形一律走 assets/icons.svg sprite`);
+    }
+    if (/font-?awesome|fontawesome|fa-solid/i.test(html)) {
+      violations.push(`${entry.name}: 引用 Font Awesome，禁止第二图标源`);
+    }
+  }
+  console.log(violations.length ? 'SITE ICON CONTRACT FAIL:' : 'site icon contract OK (sprite only)');
+  for (const v of violations) console.log('  - ' + v);
+}
 process.exit(violations.length ? 1 : 0);

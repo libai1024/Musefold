@@ -57,9 +57,6 @@ beforeEach(() => {
     loaded: false,
     loading: false,
     error: null,
-    dialogOpen: false,
-    editingConnection: null,
-    dialogPresetId: null,
     testStatus: {},
   });
 });
@@ -130,12 +127,10 @@ describe('AI connection settings store', () => {
     expect(useAiConnectionStore.getState().testStatus['ai-1']).toEqual({ state: 'idle' });
   });
 
-  it('does not open or update an account-managed connection', async () => {
+  it('does not update an account-managed connection', async () => {
     const managed = profile({ managedBy: 'account' });
     useAiConnectionStore.setState({ connections: [managed] });
 
-    useAiConnectionStore.getState().openDialog(managed);
-    expect(useAiConnectionStore.getState().dialogOpen).toBe(false);
     await expect(
       useAiConnectionStore.getState().updateConnection(managed.id, { model: 'other-model' }),
     ).rejects.toThrow('固定管理');

@@ -43,7 +43,7 @@ const PREVIEW_PREFIX = 'preview/';
 /**
  * 匹配 `api.<g>.<m>` / `window.api.<g>.<m>`，含可选链与跨行空白。
  * 例：api.prompt.list()、window.api?.updater?.checkContentNow?.()、
- *     api.settings.pricing.get()、api.automation.budget.get()。
+ *     api.automation.budget.get()。
  *
  * 前缀约束：`api` 前不能是标识符或点（避免 myapi / foo.api），但允许 `window.` /
  * `window?.` 作为唯一合法前缀。
@@ -290,7 +290,7 @@ const FIXTURE_REGISTRY = {
   prompt: { list: '0.5.0', get: '0.6.0' },
   updater: { checkContentNow: '0.5.0', notifyContentReady: '0.5.0' },
   pet: { ready: '0.5.0' },
-  settings: { pricing: { get: '0.5.0', set: '0.7.0' } },
+  automation: { budget: { get: '0.5.0', set: '0.7.0' } },
   legacy: { ping: '0.4.0' },
 };
 
@@ -353,7 +353,7 @@ async function selfTest() {
   assertEqual('引用版本低于 floor 时仍取 floor', belowFloor.minShellVersion, '0.5.0');
 
   const nestedMax = deriveFromSource(
-    'api.prompt.list(); api.settings.pricing.set();',
+    'api.prompt.list(); api.automation.budget.set();',
     FIXTURE_REGISTRY,
   );
   assertEqual('max 取被引用方法引入版本的最大者', nestedMax.minShellVersion, '0.7.0');

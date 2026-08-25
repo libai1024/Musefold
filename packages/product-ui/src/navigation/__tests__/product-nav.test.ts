@@ -24,13 +24,13 @@ describe("shared product nav helpers", () => {
     });
 
     expect(desktop.map((item) => item.id)).toEqual(["library", "design-schemes", "history"]);
-    expect(web.map((item) => item.id)).toEqual(["prompts", "history", "connections"]);
+    expect(web.map((item) => item.id)).toEqual(["prompts", "history", "settings"]);
     expect(desktop[0]?.active).toBe(true);
     expect(web[0]?.count).toBe(3);
     expect(web.map((item) => `nav-${item.id}`)).toEqual([
       "nav-prompts",
       "nav-history",
-      "nav-connections",
+      "nav-settings",
     ]);
   });
 

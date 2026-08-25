@@ -53,22 +53,22 @@ function SchemeAttachmentPopover({
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-background"><Blocks className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[12px] font-semibold text-primary">{source.label}</p>
-          <p className="mt-0.5 text-[10px] text-tertiary">
+          <p className="mt-0.5 text-meta text-tertiary">
             {source.sourceLabel} · {FIDELITY_LABEL[source.fidelity] ?? source.fidelity}
             {source.mode === 'trial' ? ' · 试运行' : source.mode === 'modify' ? ' · 修改中' : ''}
           </p>
         </div>
       </div>
-      {source.summary && <p className="mt-2.5 text-[10.5px] leading-5 text-secondary">{source.summary}</p>}
+      {source.summary && <p className="mt-2.5 text-meta leading-5 text-secondary">{source.summary}</p>}
       {source.inputs.length > 0 && (
         <div className="mt-3 border-t border-border-subtle pt-2.5">
-          <p className="text-[10px] font-medium text-secondary">需要提供</p>
+          <p className="text-meta font-medium text-secondary">需要提供</p>
           <ul className="mt-1.5 space-y-1">
             {source.inputs.map((slot) => (
-              <li key={slot.id} className="flex items-center gap-2 text-[10.5px] text-primary">
+              <li key={slot.id} className="flex items-center gap-2 text-meta text-primary">
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', slot.required ? 'bg-accent' : 'bg-border-default')} aria-hidden />
                 <span className="min-w-0 truncate">{slot.label}</span>
-                <span className="ml-auto shrink-0 text-[9.5px] text-tertiary">
+                <span className="ml-auto shrink-0 text-meta text-tertiary">
                   {slot.kind === 'image' || slot.kind === 'image-set' ? '图片' : '文本'}{slot.required ? ' · 必需' : ' · 可选'}
                 </span>
               </li>
@@ -83,7 +83,7 @@ function SchemeAttachmentPopover({
             onClose();
             useAppStore.getState().requestSchemeCenter({ detailId: source.schemeId });
           }}
-          className="min-h-7 rounded-md px-2 text-[10.5px] font-medium text-secondary hover:bg-hover hover:text-primary"
+          className="min-h-7 rounded-md px-2 text-meta font-medium text-secondary hover:bg-hover hover:text-primary"
           data-testid="scheme-attachment-detail"
         >
           查看详情
@@ -91,7 +91,7 @@ function SchemeAttachmentPopover({
         <button
           type="button"
           onClick={() => { onClose(); onSwap(); }}
-          className="min-h-7 rounded-md px-2 text-[10.5px] font-medium text-secondary hover:bg-hover hover:text-primary"
+          className="min-h-7 rounded-md px-2 text-meta font-medium text-secondary hover:bg-hover hover:text-primary"
           data-testid="scheme-attachment-swap"
         >
           更换
@@ -99,7 +99,7 @@ function SchemeAttachmentPopover({
         <button
           type="button"
           onClick={() => { onClose(); onClear(); }}
-          className="ml-auto min-h-7 rounded-md px-2 text-[10.5px] font-medium text-danger hover:bg-danger/10"
+          className="ml-auto min-h-7 rounded-md px-2 text-meta font-medium text-danger hover:bg-danger/10"
           data-testid="scheme-attachment-remove"
         >
           移除
@@ -168,10 +168,10 @@ export function SchemeRunAttachment({
                 {trial && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block max-w-[220px] truncate text-[10.5px] font-medium text-primary">
+                <span className="block max-w-[220px] truncate text-meta font-medium text-primary">
                   {trial ? `试运行 · ${source.label}` : modify ? `修改方案 · ${source.label}` : source.label}
                 </span>
-                <span className="mt-0.5 block max-w-[220px] truncate text-[9.5px] text-tertiary">
+                <span className="mt-0.5 block max-w-[220px] truncate text-meta text-tertiary">
                   {source.sourceLabel} · {FIDELITY_LABEL[source.fidelity] ?? source.fidelity}
                 </span>
               </span>
@@ -206,7 +206,7 @@ export function SchemeRunAttachment({
               type="button"
               onClick={onPickImage}
               className={cn(
-                'flex h-12 min-w-[94px] shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-medium',
+                'flex h-12 min-w-[94px] shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-meta font-medium',
                 filled
                   ? 'border-border-default bg-inset/55 text-secondary'
                   : slot.required
@@ -223,7 +223,7 @@ export function SchemeRunAttachment({
           );
         })}
       </div>
-      <p className="mt-1 px-1 text-[9.5px] text-tertiary" data-testid="scheme-run-mode-hint">
+      <p className="mt-1 px-1 text-meta text-tertiary" data-testid="scheme-run-mode-hint">
         {modify
           ? '描述要修改的内容，Agent 会更新方案；修改后需要重新试运行验证。'
           : trial ? '本次输入只用于验证方案，不会修改方案本身。' : '方案决定稳定的视觉方向，本次输入只影响这一次生成。'}
@@ -280,12 +280,12 @@ export function SchemeRunVariableFields() {
             key={slot.id}
             className="flex min-h-8 min-w-0 items-center gap-2 rounded-md bg-inset/55 px-2.5 focus-within:ring-1 focus-within:ring-accent/35"
           >
-            <span className="shrink-0 text-[10px] font-medium text-accent">@{slot.label}</span>
+            <span className="shrink-0 text-meta font-medium text-accent">@{slot.label}</span>
             <input
               value={values[slot.id] ?? ''}
               onChange={(event) => setValue(slot.id, event.target.value)}
               placeholder={slot.description ?? (slot.required ? '必填' : '可选')}
-              className="min-w-0 flex-1 bg-transparent text-[10.5px] text-primary outline-none placeholder:text-quaternary"
+              className="min-w-0 flex-1 bg-transparent text-meta text-primary outline-none placeholder:text-quaternary"
               autoFocus={!slot.required && added.includes(slot.id)}
               data-testid={`scheme-run-variable-${slot.id}`}
             />
@@ -312,7 +312,7 @@ export function SchemeRunVariableFields() {
           <button
             type="button"
             onClick={() => setAddMenuOpen((value) => !value)}
-            className="inline-flex min-h-7 items-center gap-1 rounded-md border border-dashed border-border-default px-2 text-[10px] font-medium text-tertiary hover:border-border-default hover:bg-hover hover:text-primary"
+            className="inline-flex min-h-7 items-center gap-1 rounded-md border border-dashed border-border-default px-2 text-meta font-medium text-tertiary hover:border-border-default hover:bg-hover hover:text-primary"
             aria-haspopup="menu"
             aria-expanded={addMenuOpen}
             data-testid="scheme-run-add-variable"
@@ -330,8 +330,8 @@ export function SchemeRunVariableFields() {
                   className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-hover"
                   data-testid={`scheme-run-add-variable-${slot.id}`}
                 >
-                  <span className="text-[10px] font-medium text-accent">@{slot.label}</span>
-                  {slot.description && <span className="min-w-0 truncate text-[9.5px] text-tertiary">{slot.description}</span>}
+                  <span className="text-meta font-medium text-accent">@{slot.label}</span>
+                  {slot.description && <span className="min-w-0 truncate text-meta text-tertiary">{slot.description}</span>}
                 </button>
               ))}
             </div>
@@ -446,9 +446,9 @@ export function SchemeRunPickerPopover({ onClose }: { onClose: () => void }) {
         </span>
         <span className="min-w-0">
           <span className="block truncate text-[11px] font-medium text-primary">{scheme.name}</span>
-          <span className="mt-0.5 block truncate text-[9.5px] text-tertiary">{scheme.summary || scheme.sourceLabel}</span>
+          <span className="mt-0.5 block truncate text-meta text-tertiary">{scheme.summary || scheme.sourceLabel}</span>
         </span>
-        <span className="text-[10px] text-secondary">使用</span>
+        <span className="text-meta text-secondary">使用</span>
       </button>
     );
   };
@@ -475,16 +475,16 @@ export function SchemeRunPickerPopover({ onClose }: { onClose: () => void }) {
       </div>
       <div className="max-h-[300px] overflow-y-auto p-1.5">
         {!schemes && !error && (
-          <div className="flex items-center justify-center gap-2 py-8 text-[10.5px] text-tertiary"><Loader2 className="h-3.5 w-3.5 animate-spin" />正在读取方案…</div>
+          <div className="flex items-center justify-center gap-2 py-8 text-meta text-tertiary"><Loader2 className="h-3.5 w-3.5 animate-spin" />正在读取方案…</div>
         )}
-        {error && <p className="px-3 py-6 text-center text-[10.5px] text-danger">{error}</p>}
+        {error && <p className="px-3 py-6 text-center text-meta text-danger">{error}</p>}
         {schemes && flat.length === 0 && (
           <div className="px-3 py-8 text-center">
-            <p className="text-[10.5px] text-tertiary">{normalized ? '没有匹配的正式方案' : '还没有正式方案；草稿完成试运行并设为正式后会出现在这里。'}</p>
+            <p className="text-meta text-tertiary">{normalized ? '没有匹配的正式方案' : '还没有正式方案；草稿完成试运行并设为正式后会出现在这里。'}</p>
             <button
               type="button"
               onClick={() => { onClose(); useAppStore.getState().requestSchemeCenter({ surface: 'discover' }); }}
-              className="mt-3 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border-default px-3 text-[10.5px] font-medium text-primary hover:bg-hover"
+              className="mt-3 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border-default px-3 text-meta font-medium text-primary hover:bg-hover"
               data-testid="scheme-run-picker-discover"
             >
               前往发现
@@ -493,13 +493,13 @@ export function SchemeRunPickerPopover({ onClose }: { onClose: () => void }) {
         )}
         {recent.length > 0 && (
           <>
-            <p className="px-2 pb-1 pt-1.5 text-[9.5px] font-medium text-tertiary">最近使用</p>
+            <p className="px-2 pb-1 pt-1.5 text-meta font-medium text-tertiary">最近使用</p>
             {recent.map(renderRow)}
           </>
         )}
         {rest.length > 0 && (
           <>
-            {(recent.length > 0 || !normalized) && <p className="px-2 pb-1 pt-1.5 text-[9.5px] font-medium text-tertiary">我的方案</p>}
+            {(recent.length > 0 || !normalized) && <p className="px-2 pb-1 pt-1.5 text-meta font-medium text-tertiary">我的方案</p>}
             {rest.map(renderRow)}
           </>
         )}
@@ -507,7 +507,7 @@ export function SchemeRunPickerPopover({ onClose }: { onClose: () => void }) {
       <button
         type="button"
         onClick={() => { onClose(); useAppStore.getState().requestSchemeCenter({ surface: 'mine' }); }}
-        className="flex min-h-10 w-full items-center gap-2 border-t border-border-subtle px-3 text-[10.5px] text-secondary hover:bg-hover hover:text-primary"
+        className="flex min-h-10 w-full items-center gap-2 border-t border-border-subtle px-3 text-meta text-secondary hover:bg-hover hover:text-primary"
         data-testid="scheme-run-picker-browse"
       >
         <Blocks className="h-3.5 w-3.5" />浏览全部方案

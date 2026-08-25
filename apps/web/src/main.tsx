@@ -7,7 +7,9 @@ import { createWebGateway } from './runtime';
 import { webPlatformServices } from './runtime/platform-services';
 import '@musefold/ui/tokens.css';
 import '@musefold/ui/primitives.css';
+import '@musefold/ui/theater-fonts.css';
 import './styles.css';
+import './settings.css';
 import '@musefold/product-ui/styles.css';
 
 const root = document.getElementById('root');

@@ -22,6 +22,8 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
+import { SettingsCheckbox } from '@musefold/product-ui';
+import { ChoiceCards } from './ChoiceCards';
 
 interface Props {
   open: boolean;
@@ -173,15 +175,13 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
       <DialogContent className="max-w-[500px]" data-testid="import-dialog">
         <DialogHeader>
           <DialogTitle>导入数据</DialogTitle>
-          <DialogDescription>
-            从 Musefold 导出文件（.json / .zip）恢复数据。
-          </DialogDescription>
+          <DialogDescription>从 Musefold 导出文件（.json / .zip）恢复数据。</DialogDescription>
         </DialogHeader>
 
         {/* ── 结果态 ── */}
         {done ? (
           <div className="flex flex-col gap-2" data-testid="import-done">
-            <div className="rounded-lg border border-border-subtle bg-elevated px-3.5 py-3">
+            <div className="rounded-md border border-border-subtle bg-elevated px-3.5 py-3">
               <p className="text-[12px] font-medium text-primary">
                 新增 {done.imported} · 覆盖 {done.updated} · 跳过 {done.skipped}
                 {done.failed > 0 && ` · 失败 ${done.failed}`}
@@ -190,7 +190,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
                 {Object.entries(done.byType)
                   .filter(([, s]) => s.imported + s.updated + s.skipped + s.failed > 0)
                   .map(([type, s]) => (
-                    <p key={type} className="font-mono text-[10.5px] text-tertiary">
+                    <p key={type} className="font-mono text-meta text-tertiary">
                       {type}: +{s.imported} ~{s.updated} ={s.skipped}
                       {s.failed > 0 && ` ✕${s.failed}`}
                     </p>
@@ -204,7 +204,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
             )}
             {done.warnings.length > 0 && (
               <div
-                className="rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5"
+                className="rounded-md border border-warning/30 bg-warning/10 px-3.5 py-2.5"
                 data-testid="import-warnings"
               >
                 <p className="text-[11px] font-medium text-primary">
@@ -212,7 +212,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
                 </p>
                 <ul className="mt-1 flex max-h-32 flex-col gap-0.5 overflow-auto">
                   {done.warnings.map((w, i) => (
-                    <li key={i} className="text-[10.5px] leading-relaxed text-tertiary">
+                    <li key={i} className="text-meta leading-relaxed text-tertiary">
                       · {w}
                     </li>
                   ))}
@@ -223,7 +223,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
         ) : error ? (
           /* ── 错误态 ── */
           <div className="flex flex-col gap-2.5" data-testid="import-error">
-            <div className="flex items-start gap-2.5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-3">
+            <div className="flex items-start gap-2.5 rounded-md border border-danger/30 bg-danger/10 px-3.5 py-3">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
               <p className="text-[11px] leading-relaxed text-secondary">{error}</p>
             </div>
@@ -241,13 +241,13 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
           /* ── 策略选择态 ── */
           <div className="flex flex-col gap-2">
             <div
-              className="rounded-lg border border-border-subtle bg-inset/40 px-3.5 py-2.5"
+              className="rounded-md border border-border-subtle bg-inset/40 px-3.5 py-2.5"
               data-testid="import-source"
             >
               <p className="truncate font-mono text-[11px] text-secondary">
                 {fileName(preview.sourcePath)}
               </p>
-              <p className="mt-0.5 text-[10.5px] text-tertiary">
+              <p className="mt-0.5 text-meta text-tertiary">
                 格式 v{src?.schemaVersion} · 由 Musefold {src?.appVersion} 于{' '}
                 {fmtTime(src?.exportedAt ?? 0)} 导出
               </p>
@@ -257,78 +257,48 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
             </div>
 
             <p className="mt-0.5 px-1 text-[11px] font-medium text-secondary">遇到 id 冲突时：</p>
-            {STRATEGIES.map((s) => {
-              const active = strategy === s.value;
-              return (
-                <button
-                  key={s.value}
-                  type="button"
-                  onClick={() => changeStrategy(s.value)}
-                  data-testid={`import-strategy-${s.value}`}
-                  data-active={active}
-                  aria-pressed={active}
-                  className={`no-drag flex items-start gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors duration-[var(--dur-fast)] ${
-                    active
-                      ? s.danger
-                        ? 'border-danger bg-danger/10'
-                        : 'border-primary bg-pressed'
-                      : 'border-border-subtle bg-elevated hover:border-border-default'
-                  }`}
-                >
-                  <span
-                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                      active ? (s.danger ? 'border-danger' : 'border-primary') : 'border-border-default'
-                    }`}
-                  >
-                    {active && (
-                      <span
-                        className={`h-2 w-2 rounded-full ${s.danger ? 'bg-danger' : 'bg-primary'}`}
-                      />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1.5 text-[12px] font-medium text-primary">
-                      {s.title}
-                      {s.danger && <AlertTriangle className="h-3 w-3 text-warning" />}
-                    </p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">{s.detail}</p>
-                  </div>
-                </button>
-              );
-            })}
+            <ChoiceCards
+              value={strategy}
+              onChange={changeStrategy}
+              testIdPrefix="import-strategy"
+              aria-label="id 冲突处理策略"
+              options={STRATEGIES.map((s) => ({
+                value: s.value,
+                title: s.title,
+                description: s.detail,
+                danger: s.danger,
+                titleExtra: s.danger ? (
+                  <AlertTriangle className="h-3 w-3 text-warning" aria-hidden="true" />
+                ) : undefined,
+              }))}
+            />
 
             {/* 预览计数：真实事务跑出来的，不是拍脑袋估的 */}
             <p className="px-1 text-[11px] text-tertiary" data-testid="import-preview">
-              按此策略将：新增 {preview.imported} · 覆盖 {preview.updated} · 跳过{' '}
-              {preview.skipped}
+              按此策略将：新增 {preview.imported} · 覆盖 {preview.updated} · 跳过 {preview.skipped}
               {preview.failed > 0 && ` · 失败 ${preview.failed}`}
             </p>
 
-            <label
-              className={`no-drag flex items-start gap-2.5 rounded-lg border border-border-subtle bg-elevated px-3.5 py-2.5 ${
-                strategy === 'replace' ? 'opacity-60' : 'cursor-pointer'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={strategy === 'replace' ? true : autoBackup}
-                // 替换策略强制备份，不给关（doc 16 验收标准）
-                disabled={strategy === 'replace'}
-                onChange={(e) => setAutoBackup(e.target.checked)}
-                data-testid="import-auto-backup"
-                className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
-              />
-              <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-tertiary">
-                导入前自动备份当前数据库
-                {strategy === 'replace' && (
-                  <span className="text-warning">（替换策略下强制开启）</span>
-                )}
-              </span>
-            </label>
+            <SettingsCheckbox
+              className="no-drag mt-1"
+              checked={strategy === 'replace' ? true : autoBackup}
+              // 替换策略强制备份，不给关（doc 16 验收标准）
+              disabled={strategy === 'replace'}
+              onCheckedChange={setAutoBackup}
+              label={
+                <>
+                  导入前自动备份当前数据库
+                  {strategy === 'replace' && (
+                    <span className="text-warning">（替换策略下强制开启）</span>
+                  )}
+                </>
+              }
+              testId="import-auto-backup"
+            />
 
             {strategy === 'replace' && (
               <div
-                className="flex items-start gap-2.5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5"
+                className="flex items-start gap-2.5 rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5"
                 data-testid="import-replace-warning"
               >
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />

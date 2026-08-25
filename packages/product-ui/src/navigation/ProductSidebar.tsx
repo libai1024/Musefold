@@ -1,4 +1,4 @@
-import { Button, IconButton } from "@musefold/ui";
+import { Button, IconButton, MusefoldMark } from "@musefold/ui";
 import { PanelLeft, SquarePen } from "@musefold/ui/icons";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -16,6 +16,7 @@ export interface ProductSidebarAccount {
   name: string;
   detail?: string;
   avatar?: ReactNode;
+  active?: boolean;
   onSelect: () => void;
   testId?: string;
 }
@@ -85,6 +86,10 @@ export function ProductSidebar({
           } as CSSProperties
         }
       >
+        <div className="mf-product-sidebar-brand" aria-label="Musefold / 未像">
+          <MusefoldMark aria-hidden="true" focusable="false" />
+          <span>Musefold</span>
+        </div>
         <IconButton
           onClick={onCollapse}
           className="mf-product-sidebar-icon-button no-drag"
@@ -127,6 +132,7 @@ export function ProductSidebar({
           unstyled
           type="button"
           onClick={account.onSelect}
+          aria-current={account.active ? 'page' : undefined}
           className="mf-product-sidebar-account no-drag"
           data-testid={account.testId ?? "sidebar-account"}
         >

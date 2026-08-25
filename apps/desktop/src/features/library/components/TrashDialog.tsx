@@ -75,9 +75,9 @@ export function TrashDialog() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-medium text-primary">{p.title}</p>
-                  <p className="truncate font-mono text-[10px] text-quaternary">{p.content}</p>
+                  <p className="truncate font-mono text-meta text-quaternary">{p.content}</p>
                   {p.deletedAtMs != null && (
-                    <p className="mt-0.5 text-[10px] text-quaternary">
+                    <p className="mt-0.5 text-meta text-quaternary">
                       删除于 {formatTime(p.deletedAtMs)}
                     </p>
                   )}
@@ -132,7 +132,7 @@ export function TrashDialog() {
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
             {purgeAllStage === 0 && (
               <>
-                <span className="text-[10px] text-quaternary">
+                <span className="text-meta text-quaternary">
                   共 {deleted.length} 条可恢复
                 </span>
                 <Button

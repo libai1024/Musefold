@@ -234,13 +234,13 @@ export function SchemeRuntimeDetail({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-[20px] font-semibold text-primary">{scheme.name}</h1>
-              <span className="text-[10.5px] text-tertiary">{scheme.status === 'formal' ? '正式' : '草稿'}</span>
-              <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-[9px] text-secondary">
+              <span className="text-meta text-tertiary">{scheme.status === 'formal' ? '正式' : '草稿'}</span>
+              <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-meta text-secondary">
                 {FIDELITY_LABEL[scheme.fidelity] ?? scheme.fidelity}
               </span>
             </div>
             <p className="mt-1.5 max-w-[62ch] text-[12px] leading-5 text-secondary">{scheme.summary}</p>
-            <p className="mt-2 flex items-center gap-1.5 truncate text-[10.5px] text-tertiary">
+            <p className="mt-2 flex items-center gap-1.5 truncate text-meta text-tertiary">
               {scheme.sourcePresentation === 'skill' ? <GitBranch className="h-3 w-3 shrink-0" /> : <Sparkles className="h-3 w-3 shrink-0" />}
               {scheme.sourcePresentation === 'skill' ? 'Skill' : 'Musefold 创建'} · {scheme.sourceLabel}
             </p>
@@ -298,7 +298,7 @@ export function SchemeRuntimeDetail({
             <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="text-[11.5px] font-medium text-primary">这个方案有一个待验证的新版本</p>
-              <p className="mt-0.5 text-[10.5px] text-tertiary">当前正式版本继续可用；新版本完成一次成功试运行后可以替换它。</p>
+              <p className="mt-0.5 text-meta text-tertiary">当前正式版本继续可用；新版本完成一次成功试运行后可以替换它。</p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <button
@@ -332,7 +332,7 @@ export function SchemeRuntimeDetail({
         </div>
 
         {loadError && (
-          <div className="mt-8 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger">{loadError}</div>
+          <div className="mt-8 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">{loadError}</div>
         )}
         {!document && !loadError && (
           <div className="mt-10 py-8 text-center text-[11px] text-tertiary">正在读取方案内容…</div>

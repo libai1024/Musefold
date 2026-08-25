@@ -119,12 +119,12 @@ export function RatioSelectionPreview({
         />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[10px] font-medium text-tertiary">{label}</span>
+        <span className="block text-meta font-medium text-tertiary">{label}</span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
           <span className="truncate text-[13px] font-semibold text-primary">{ratioDisplayId(option)}</span>
           <span className="truncate text-[11px] text-secondary">{option.label}</span>
         </span>
-        <span className="mt-1 block truncate font-mono text-[10px] text-quaternary">
+        <span className="mt-1 block truncate font-mono text-meta text-quaternary">
           {option.id === 'auto' ? option.hint ?? '由模型决定' : sizeText}
         </span>
       </span>
@@ -289,10 +289,10 @@ function RatioCard({
         <span className={cn('block text-[12px] font-semibold leading-[14px] tabular-nums text-primary', variant !== 'rows' && 'w-full text-center')}>
           {option.id}
         </span>
-        <span className={cn('block truncate whitespace-nowrap text-[10px] font-medium leading-[14px]', variant !== 'rows' && 'w-full text-center', active ? 'text-secondary' : 'text-quaternary')}>
+        <span className={cn('block truncate whitespace-nowrap text-meta font-medium leading-[14px]', variant !== 'rows' && 'w-full text-center', active ? 'text-secondary' : 'text-quaternary')}>
           {option.label}
         </span>
-        <span className={cn('truncate font-mono text-[9px] leading-[12px] text-quaternary', variant === 'cards' ? 'block w-full text-center' : 'sr-only')}>
+        <span className={cn('truncate font-mono text-meta leading-[12px] text-quaternary', variant === 'cards' ? 'block w-full text-center' : 'sr-only')}>
           {option.id === 'auto' ? '模型决定' : formatRatioSize(option.size)}
         </span>
       </span>
@@ -397,10 +397,10 @@ export function RatioPicker({
               <RatioPreview option={selected} size="sm" className="text-accent" testId={testIdPrefix ? `${testIdPrefix}-selected-preview` : undefined} />
             </span>
             <span className="min-w-0 flex-1 leading-tight">
-              <span className="block text-[9px] font-medium text-tertiary">图片比例</span>
+              <span className="block text-meta font-medium text-tertiary">图片比例</span>
               <span className="block truncate font-semibold">{ratioDisplayId(selected)} · {selected.label}</span>
             </span>
-            <span className="font-mono text-[9px] text-tertiary max-[440px]:hidden">
+            <span className="font-mono text-meta text-tertiary max-[440px]:hidden">
               {formatRatioSize(selected.size)}
             </span>
           </>
@@ -428,7 +428,7 @@ export function RatioPicker({
         >
           <div className="mb-2 flex h-7 items-center justify-between gap-2 px-1">
             <span className="text-[11px] font-semibold text-primary">图片比例</span>
-            <span className="pt-0.5 font-mono text-[9px] text-quaternary">{ratioTone(selected)}</span>
+            <span className="pt-0.5 font-mono text-meta text-quaternary">{ratioTone(selected)}</span>
           </div>
           {variant !== 'compact' && (
             <RatioSelectionPreview
@@ -490,7 +490,7 @@ function CustomRatioRow({
   return (
     <div className="mt-2 border-t border-border-subtle pt-2">
       <div className="flex items-center gap-1.5 px-1">
-        <span className={cn('flex-1 text-[10.5px] font-medium', isCustom ? 'text-primary' : 'text-tertiary')}>
+        <span className={cn('flex-1 text-meta font-medium', isCustom ? 'text-primary' : 'text-tertiary')}>
           自定义
           {isCustom && <Check className="ml-1 inline h-3 w-3 text-primary" aria-hidden="true" />}
         </span>
@@ -521,7 +521,7 @@ function CustomRatioRow({
           disabled={!candidate}
           data-testid={testIdPrefix ? `${testIdPrefix}-custom-apply` : undefined}
           className={cn(
-            'no-drag rounded-full border px-2.5 py-1 text-[10.5px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-45',
+            'no-drag rounded-full border px-2.5 py-1 text-meta font-medium transition-colors disabled:pointer-events-none disabled:opacity-45',
             valid
               ? 'border-transparent bg-primary text-background hover:opacity-85'
               : 'border-border-subtle bg-transparent text-secondary hover:border-border-default hover:text-primary',
@@ -531,12 +531,12 @@ function CustomRatioRow({
         </button>
       </div>
       {touched && candidate !== '' && !valid && (
-        <p className="mt-1 px-1 text-[9.5px] text-danger" data-testid={testIdPrefix ? `${testIdPrefix}-custom-error` : undefined}>
+        <p className="mt-1 px-1 text-meta text-danger" data-testid={testIdPrefix ? `${testIdPrefix}-custom-error` : undefined}>
           比例需在 1:4 与 4:1 之间（两端为 1–99 的整数）
         </p>
       )}
-      <p className="mt-1 px-1 text-[9px] leading-relaxed text-quaternary">
-        OpenAI 档位就近取 1024/1536 像素档；悟空按原比例出图
+      <p className="mt-1 px-1 text-meta leading-relaxed text-quaternary">
+        OpenAI 档位就近取 1024/1536 像素档
       </p>
     </div>
   );

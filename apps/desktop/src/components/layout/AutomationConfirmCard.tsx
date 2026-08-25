@@ -49,7 +49,7 @@ export function AutomationConfirmCard() {
         {active.promptPreview}
       </p>
       {queue.length > 1 && (
-        <p className="mt-1.5 text-[10.5px] text-quaternary">还有 {queue.length - 1} 个等待确认</p>
+        <p className="mt-1.5 text-meta text-quaternary">还有 {queue.length - 1} 个等待确认</p>
       )}
       <div className="mt-3 flex justify-end gap-2">
         <button

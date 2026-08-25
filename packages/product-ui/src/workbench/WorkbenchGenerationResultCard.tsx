@@ -199,7 +199,7 @@ export function WorkbenchGenerationResultCard({
           type="button"
           onClick={onSetAsRefinementTarget}
           disabled={refinementTargetDisabled}
-          className="absolute bottom-2 left-2 z-10 inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-black/75 px-2 text-[10px] font-medium text-white shadow-sm transition-colors hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-wait disabled:opacity-55"
+          className="absolute bottom-2 left-2 z-10 inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-black/75 px-2 text-[11px] font-medium text-white shadow-sm transition-colors hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-wait disabled:opacity-55"
           title="以这张图作为微调目标"
           aria-label="以这张图作为微调目标"
           data-testid="result-set-refinement-target"

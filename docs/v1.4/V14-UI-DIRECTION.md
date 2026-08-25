@@ -5,6 +5,8 @@
 > **日期**：2026-08-22
 >
 > **一句话读法**：把 Musefold 读成「本地优先的视觉创作工具」给创作者，语言是安静的石墨案头；Theater 面把浏览器当成折页画布，Operate 面把窗口当成精密仪器。两面共用 Ember，不许长出第二套品牌。
+>
+> **修订（2026-08-22）**：按仓库核实事实精确化 §6.2 动效实现边界与 §10 / §11 的门禁表述（门禁是双端实时对比、无提交基线；GSAP 不进共享层）。方向不变。
 
 ## 0. 设计读法
 
@@ -177,6 +179,8 @@ Operate 继续现有 token（90–260ms）。Theater 另开一组，不得泄漏
 
 缓动：`--ease-smooth` / `--ease-spring` 已在 `tokens.css`。Theater 弹簧只用在落印与主 CTA，不用在每一张卡片。
 
+实现边界：GSAP 只进桌面叶子（引导、朱点）与官网动效岛；共享 `product-ui` 内的 Theater 瞬间（结果就位、空态入场）一律用上表 token + CSS 实现，只动 `transform` / `opacity`，不把 GSAP 引进共享包（见技术选型 D3）。
+
 ### 6.3 减少动效
 
 `prefers-reduced-motion` 与设置里的「减少动效」必须同时生效（桌面已有 `useAppStore.reducedMotion`）。Theater 退化为静态编辑构图；朱点呼吸关闭；官网 ScrollTrigger `kill`。
@@ -193,7 +197,7 @@ Operate 继续现有 token（90–260ms）。Theater 另开一组，不得泄漏
 - 官网：构建一步生成 Lucide SVG sprite（只用到的 glyph），`<use href="#i-download">`。禁止手绘路径、禁止 Font Awesome、禁止 emoji 字符。
 - 线宽：产品锁定 1.75（选中 2.25），与 v0.2.2 对齐；`docs/06` 写的 2.0 在本版本改掉。
 - 语义唯一表继续有效（Retry = `RotateCcw`，Reload = `RefreshCw`）。
-- 界面字符串禁止 emoji。机器约束见落实计划 GOV-03。
+- 界面字符串禁止 emoji。机器约束见[落实计划 GOV-03](./V14-DELIVERY-PLAN.md)。
 - 官网删除：hero 版本号、`SCROLL TO EXPLORE`、`01 / 04` 计数器、装饰性圆点、底部 `BRAND. MOTION.` 类字带。
 
 ## 8. 材质与颜色
@@ -235,7 +239,7 @@ Theater 额外允许：
 - 两条以上横向 marquee
 - Three.js 粒子当背景
 - 同一页面两个「开始 / 下载」意图的 CTA 文案不一致
-- 视觉门禁未重打基线就合并 Operate 卡
+- Operate 卡合并前未重跑 `test:visual:shared`（双端实时对比），或阈值上调未在卡内登记
 
 ## 11. 验收
 
@@ -244,7 +248,7 @@ Theater 额外允许：
 - WCAG AA：正文 4.5:1，大字 3:1；Ember 按钮上的 `on-accent` 已满足则不得改成浅字浅底。
 - 800px / 390px 无横向滚动、无不可达操作；桌面导航单行、高度 ≤ 80px。
 - 减少动效路径可点完全流程。
-- `npm run test:visual:shared` 在新基线上绿。
+- `npm run test:visual:shared`（双端实时对比）在收口后的终值阈值上绿。
 - 桌面 E2E 与 Web E2E 全绿。
 - 全仓 `rg` 产品表面无 emoji 字符。
 - 无业务组件新增硬编码品牌色。

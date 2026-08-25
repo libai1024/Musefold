@@ -23,7 +23,7 @@ describe("product navigation catalog", () => {
     expect(visibleProductNav("web", getProductCapabilities("web")).map((item) => item.sidebarId)).toEqual([
       "prompts",
       "history",
-      "connections",
+      "settings",
     ]);
     expect(PRODUCT_NAV_CATALOG.map((item) => item.id)).toEqual([
       "library",
@@ -156,5 +156,6 @@ describe("product shortcuts", () => {
     expect(productViewTitle("prompts")).toBe("提示词库");
     expect(productViewTitle("generate")).toBe("新设计");
     expect(productViewTitle("connections")).toBe("已连接应用");
+    expect(productViewTitle("web-settings")).toBe("设置");
   });
 });

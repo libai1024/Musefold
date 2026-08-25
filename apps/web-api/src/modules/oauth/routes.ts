@@ -58,11 +58,11 @@ export const oauthRoutes: FastifyPluginAsync<OAuthRoutesOptions> = async (
 
     const clientId = stringParam(interaction.params.client_id);
     const client = await options.provider.Client.find(clientId);
-    const scopes = parseMcpScopes(stringParam(interaction.params.scope));
+    parseMcpScopes(stringParam(interaction.params.scope));
     return reply.type("text/html; charset=utf-8").send(
       renderConsent({
         clientName: client?.clientName ?? clientId,
-        scopes,
+        scopes: [...MCP_SCOPES],
         csrfToken: session.csrfToken,
       }),
     );
@@ -103,6 +103,7 @@ export const oauthRoutes: FastifyPluginAsync<OAuthRoutesOptions> = async (
     }
 
     const clientId = stringParam(interaction.params.client_id);
+    // 校验请求的 scope 合法；ensureGrant 固定授予全集（默认开放全部能力）。
     const scopes = parseMcpScopes(stringParam(interaction.params.scope));
     const grant = await options.service.ensureGrant(
       session.ownerId,
@@ -114,7 +115,7 @@ export const oauthRoutes: FastifyPluginAsync<OAuthRoutesOptions> = async (
       clientId,
     });
     providerGrant.jti = grant.id;
-    providerGrant.addResourceScope(options.resourceUrl, scopes);
+    providerGrant.addResourceScope(options.resourceUrl, grant.scopes);
     await providerGrant.save();
 
     await options.provider.interactionFinished(
@@ -309,13 +310,25 @@ function parseMcpScopes(value: string): McpScope[] {
   return scopes;
 }
 
+const MCP_SCOPE_LABELS: Record<McpScope, string> = {
+  "account:read": "账户信息",
+  "prompts:read": "提示词·读",
+  "prompts:write": "提示词·写",
+  "skills:read": "技能·读",
+  "generations:read": "生图·读",
+  "generations:write": "生图·写",
+};
+
 function renderConsent(input: {
   clientName: string;
   scopes: string[];
   csrfToken: string;
 }): string {
-  const scopes = input.scopes.map(escapeHtml).join(", ");
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>连接 Musefold</title><style>body{font-family:system-ui,-apple-system,sans-serif;background:#f4f6f8;color:#18212b;margin:0;padding:48px 20px}.panel{max-width:480px;margin:auto;background:#fff;border:1px solid #dfe4e8;border-radius:8px;padding:28px;box-shadow:0 8px 24px #18212b14}h1{font-size:24px;margin:0 0 12px}p{line-height:1.6}.scopes{background:#f4f6f8;border-radius:6px;padding:12px;word-break:break-word}.actions{display:flex;gap:12px;margin-top:24px}button{border:0;border-radius:6px;padding:11px 18px;font-size:15px;cursor:pointer}button[name=decision][value=approve]{background:#155eef;color:#fff}button[name=decision][value=deny]{background:#e9edf1;color:#18212b}</style><main class="panel"><h1>连接 ${escapeHtml(input.clientName)}</h1><p>该 AI 客户端请求访问你的 Musefold 云端能力：</p><p class="scopes">${scopes}</p><form method="post"><input type="hidden" name="csrf" value="${escapeHtml(input.csrfToken)}"><div class="actions"><button name="decision" value="approve">允许访问</button><button name="decision" value="deny">拒绝</button></div></form></main></html>`;
+  const scopes = input.scopes
+    .map((scope) => MCP_SCOPE_LABELS[scope as McpScope] ?? scope)
+    .map(escapeHtml)
+    .join("、");
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>连接 Musefold</title><style>body{font-family:system-ui,-apple-system,sans-serif;background:#f4f6f8;color:#18212b;margin:0;padding:48px 20px}.panel{max-width:480px;margin:auto;background:#fff;border:1px solid #dfe4e8;border-radius:8px;padding:28px;box-shadow:0 8px 24px #18212b14}h1{font-size:24px;margin:0 0 12px}p{line-height:1.6}.scopes{background:#f4f6f8;border-radius:6px;padding:12px;word-break:break-word}.actions{display:flex;gap:12px;margin-top:24px}button{border:0;border-radius:6px;padding:11px 18px;font-size:15px;cursor:pointer}button[name=decision][value=approve]{background:#155eef;color:#fff}button[name=decision][value=deny]{background:#e9edf1;color:#18212b}</style><main class="panel"><h1>连接 ${escapeHtml(input.clientName)}</h1><p>允许后将默认开放全部能力，并给予 100 积分默认额度（生图仍逐次审批）。能力可在 Musefold 的「已连接应用」中随时收窄：</p><p class="scopes">${scopes}</p><form method="post"><input type="hidden" name="csrf" value="${escapeHtml(input.csrfToken)}"><div class="actions"><button name="decision" value="approve">允许访问</button><button name="decision" value="deny">拒绝</button></div></form></main></html>`;
 }
 
 function escapeHtml(value: string): string {

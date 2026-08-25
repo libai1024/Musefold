@@ -25,13 +25,13 @@ export function HistoryLineagePanel({ record }: { record: DesktopGenerationEntry
   return (
     <section data-testid="history-lineage-panel">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-quaternary">微调链</div>
-        <span className="font-mono text-[9px] tabular-nums text-quaternary">{thread.length} 步</span>
+        <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">微调链</div>
+        <span className="font-mono text-meta tabular-nums text-quaternary">{thread.length} 步</span>
       </div>
       <div className="overflow-hidden rounded-md border border-border-subtle">
         {orphan && (
           <p
-            className="border-b border-border-subtle bg-inset/60 px-2 py-1.5 text-[10px] leading-snug text-tertiary"
+            className="border-b border-border-subtle bg-inset/60 px-2 py-1.5 text-meta leading-snug text-tertiary"
             data-testid="history-lineage-missing-parent"
           >
             这是一次微调，但来源记录已删除或不在当前筛选结果里。
@@ -90,7 +90,7 @@ function LineageNode({
             {label}
           </span>
           {meta.status !== 'succeeded' && (
-            <span className={cn('shrink-0 text-[9px]', meta.colorClass)}>{meta.label}</span>
+            <span className={cn('shrink-0 text-meta', meta.colorClass)}>{meta.label}</span>
           )}
           {current && (
             <span className="shrink-0 rounded-full border border-border-strong px-1.5 py-px font-mono text-[8.5px] leading-[12px] text-secondary">
@@ -98,7 +98,7 @@ function LineageNode({
             </span>
           )}
         </span>
-        <span className="mt-px block truncate font-mono text-[9px] leading-3.5 text-quaternary">
+        <span className="mt-px block truncate font-mono text-meta leading-3.5 text-quaternary">
           {formatTime(r.createdAtMs)}
         </span>
       </span>

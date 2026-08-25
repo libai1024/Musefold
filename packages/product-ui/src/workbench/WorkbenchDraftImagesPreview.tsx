@@ -27,7 +27,7 @@ export function WorkbenchDraftImagesPreview({
       data-testid="workbench-draft-images"
       data-position="above-composer"
     >
-      <span className="shrink-0 self-center px-0.5 text-[10px] text-secondary">
+      <span className="shrink-0 self-center px-0.5 text-[11px] text-secondary">
         {supportingRefinement ? "其他图片" : "参考图片"}
       </span>
       {images.map((image, index) => {

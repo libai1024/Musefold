@@ -237,7 +237,7 @@ export function HistoryView({
 
   if (mode === 'trash') {
     return (
-      <div className="page">
+      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <GenerationHistoryTrashScreen
           items={trash.map(toGenerationHistoryDetailViewModel)}
           loading={trashLoading}
@@ -275,7 +275,7 @@ export function HistoryView({
     const detail = toGenerationHistoryDetailViewModel(selected);
     const retryable = ['failed', 'cancelled'].includes(selected.status);
     return (
-      <div className="page">
+      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <GenerationHistoryDetailScreen
           detail={detail}
           backLabel="回收站"
@@ -371,7 +371,7 @@ export function HistoryView({
     ) : null;
 
   return (
-    <div className="page page-history">
+    <div className="page page-history min-h-0 min-w-0 flex-1 overflow-hidden px-[24px] pt-[20px] pb-[16px]">
       <GenerationHistoryScreen
         items={[]}
         count={items.length}
@@ -386,7 +386,7 @@ export function HistoryView({
             list={
               <>
                 {error && mode === 'list' ? (
-                  <p className="library-error" role="alert">
+                  <p className="mt-[14px]" role="alert">
                     {error}
                   </p>
                 ) : null}

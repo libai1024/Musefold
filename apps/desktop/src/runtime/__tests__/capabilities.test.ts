@@ -22,10 +22,8 @@ describe('desktop capability entry mapping', () => {
       history: 'generationHistory',
     });
     expect(SETTINGS_SECTION_CAPABILITY).toEqual({
-      connections: 'cloudMcpConnections',
-      providers: 'byokProviders',
-      ai: 'agent',
-      automation: 'automation',
+      relay: ['byokProviders', 'agent'],
+      open: ['automation', 'cloudMcpConnections'],
     });
     expect(COMMAND_ACTION_CAPABILITY).toEqual({
       'nav-library': 'localPrompts',
@@ -43,16 +41,22 @@ describe('desktop capability entry mapping', () => {
       expect(isCapabilityEntryVisible(SIDEBAR_NAV_CAPABILITY, id)).toBe(capabilities[flag]);
       expect(capabilities[flag]).toBe(true);
     }
-    for (const [key, flag] of Object.entries(SETTINGS_SECTION_CAPABILITY)) {
-      expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, key)).toBe(capabilities[flag]);
-      expect(capabilities[flag]).toBe(true);
+    for (const [key, flag] of Object.entries(SETTINGS_SECTION_CAPABILITY) as Array<
+      [string, string | readonly string[]]
+    >) {
+      const expected = typeof flag === 'string'
+        ? capabilities[flag as keyof typeof capabilities]
+        : flag.some((entry) => capabilities[entry as keyof typeof capabilities]);
+      expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, key)).toBe(expected);
+      expect(expected).toBe(true);
     }
     for (const [id, flag] of Object.entries(COMMAND_ACTION_CAPABILITY)) {
       expect(isCapabilityEntryVisible(COMMAND_ACTION_CAPABILITY, id)).toBe(capabilities[flag]);
       expect(capabilities[flag]).toBe(true);
     }
     expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, 'account')).toBe(true);
-    expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, 'about')).toBe(true);
+    expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, 'preferences')).toBe(true);
+    expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, 'archived')).toBe(true);
     expect(isCapabilityEntryVisible(COMMAND_ACTION_CAPABILITY, 'act-new-conversation')).toBe(true);
   });
 
@@ -69,7 +73,10 @@ describe('desktop capability entry mapping', () => {
     expect(settingsView).toContain("from '../../../runtime/capabilities'");
     expect(settingsView).toContain('SETTINGS_SECTION_CAPABILITY');
     expect(settingsView).toContain('isCapabilityEntryVisible');
-    expect(settingsView).toContain("key: 'connections', label: '已连接应用'");
+    // v2 设置整合：分组导航收敛为 6 分区，relay/open 由任一能力开启即显示
+    expect(settingsView).toContain("id: 'relay'");
+    expect(settingsView).toContain("label: '中转站'");
+    expect(settingsView).toContain("id: 'open'");
     expect(settingsView).not.toContain("getProductCapabilities(");
 
     expect(commandPalette).toContain("from '../../runtime/capabilities'");

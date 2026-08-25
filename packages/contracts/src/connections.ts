@@ -32,6 +32,8 @@ export const updateMcpConnectionSchema = z.object({
   mode: mcpConnectionSchema.shape.mode.optional(),
   maxPointsPerGeneration: z.number().int().min(0).max(10_000_000).optional(),
   maxPointsPerDay: z.number().int().min(0).max(100_000_000).optional(),
+  // v2：连接能力可编辑；扩大（新集合含旧集合没有的 scope）需 reauthPassword。
+  scopes: z.array(mcpScopeSchema).min(1).optional(),
   suspended: z.boolean().optional(),
   reauthPassword: z.string().min(8).max(128).optional(),
 });

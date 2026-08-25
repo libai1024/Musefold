@@ -15,6 +15,13 @@ export const MCP_SCOPES = [
 ] as const;
 export type McpScope = (typeof MCP_SCOPES)[number];
 
+/**
+ * v2 开放能力默认值：新连接默认授予全部 MCP scope，并附带 100 积分的
+ * 单次/每日预算初始额度（生图仍默认每次审批，预算只影响「预算内自动」）。
+ */
+export const MCP_ALL_SCOPES: readonly McpScope[] = [...MCP_SCOPES];
+export const MCP_DEFAULT_BUDGET_POINTS = 100;
+
 export interface McpAuthInfo {
   token: string;
   ownerId: number;
@@ -51,11 +58,19 @@ export class OAuthService {
     clientId: string,
     requestedScopes: string[],
   ): Promise<McpGrant> {
-    const scopes = normalizeScopes(requestedScopes);
+    // 只校验请求合法；实际授予固定为全集（默认开放全部能力）。
+    normalizeScopes(requestedScopes);
+    const scopes = [...MCP_ALL_SCOPES];
     const proposedId = randomUUID();
     await sql`
-      INSERT INTO auth.oauth_grants(id, owner_id, client_id, scopes)
-      VALUES (${proposedId}, ${ownerId}, ${clientId}, ${scopes})
+      INSERT INTO auth.oauth_grants(
+        id, owner_id, client_id, scopes,
+        max_points_per_generation, max_points_per_day
+      )
+      VALUES (
+        ${proposedId}, ${ownerId}, ${clientId}, ${scopes},
+        ${MCP_DEFAULT_BUDGET_POINTS}, ${MCP_DEFAULT_BUDGET_POINTS}
+      )
       ON CONFLICT (owner_id, client_id) DO UPDATE
       SET scopes = EXCLUDED.scopes,
           revoked_at = NULL,
@@ -247,17 +262,20 @@ export class OAuthService {
       maxPointsPerGeneration?: number;
       maxPointsPerDay?: number;
       suspended?: boolean;
+      scopes?: McpScope[];
     },
     reauthenticated = false,
   ): Promise<void> {
+    const scopes = input.scopes ? normalizeScopes(input.scopes) : undefined;
     await this.db.transaction().execute(async (trx) => {
       const current = await sql<{
         mode: "ask_each_time" | "auto_with_limits";
         max_points_per_generation: number;
         max_points_per_day: number;
+        scopes: string[];
         suspended_at: Date | string | null;
       }>`
-        SELECT mode, max_points_per_generation, max_points_per_day, suspended_at
+        SELECT mode, max_points_per_generation, max_points_per_day, scopes, suspended_at
         FROM auth.oauth_grants
         WHERE id = ${grantId} AND owner_id = ${ownerId} AND revoked_at IS NULL
         FOR UPDATE
@@ -266,6 +284,9 @@ export class OAuthService {
       if (!row) {
         throw new AppError("OAUTH_INVALID_GRANT", "MCP 连接不存在", 404);
       }
+      const wideningScopes =
+        scopes !== undefined &&
+        scopes.some((scope) => !normalizeScopes(row.scopes).includes(scope));
       const requiresReauthentication =
         (input.mode === "auto_with_limits" &&
           row.mode !== "auto_with_limits") ||
@@ -273,6 +294,7 @@ export class OAuthService {
           input.maxPointsPerGeneration > row.max_points_per_generation) ||
         (input.maxPointsPerDay !== undefined &&
           input.maxPointsPerDay > row.max_points_per_day) ||
+        wideningScopes ||
         (input.suspended === false && row.suspended_at !== null);
       if (requiresReauthentication && !reauthenticated) {
         throw new AppError(
@@ -293,6 +315,7 @@ export class OAuthService {
         input.suspended === undefined
           ? null
           : sql`suspended_at = ${input.suspended ? sql`now()` : sql`NULL`}`,
+        scopes === undefined ? null : sql`scopes = ${scopes}`,
       ].filter((value): value is ReturnType<typeof sql> => value !== null);
       if (!sets.length) {
         throw new AppError("VALIDATION_FAILED", "没有可更新的连接策略", 400);

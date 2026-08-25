@@ -423,7 +423,7 @@
   background: var(--bg-popover);
   color: var(--fg-secondary);
   box-shadow: var(--shadow-pop);
-  font-size: 0.6875rem;
+  font-size: var(--text-meta);
   font-weight: 600;
   animation: mf-ui-scale-in var(--dur-fast) var(--ease-out);
 }
@@ -478,7 +478,7 @@
 
 .mf-ui-toast-description {
   color: var(--fg-secondary);
-  font-size: 0.6875rem;
+  font-size: var(--text-meta);
   line-height: 1.5;
 }
 
@@ -577,7 +577,7 @@
 .mf-ui-empty-state-hint {
   max-width: 17rem;
   color: var(--fg-tertiary);
-  font-size: 0.6875rem;
+  font-size: var(--text-meta);
   line-height: 1.5;
 }
 
@@ -588,7 +588,7 @@
 
 .mf-ui-loading-state {
   color: var(--fg-tertiary);
-  font-size: 0.6875rem;
+  font-size: var(--text-meta);
 }
 
 .mf-ui-loading-state > svg {
@@ -601,7 +601,7 @@
   border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border-default));
   border-radius: var(--radius-sm);
   color: var(--danger);
-  font-size: 0.6875rem;
+  font-size: var(--text-meta);
 }
 
 .mf-ui-error-state > svg {
@@ -913,7 +913,7 @@
 .mf-ui-dropdown-label {
   padding: 0.25rem 0.5rem;
   color: var(--fg-tertiary);
-  font-size: 10px;
+  font-size: var(--text-meta);
   font-weight: 500;
   letter-spacing: 0.025em;
   text-transform: uppercase;
@@ -930,7 +930,7 @@
   padding-left: 1rem;
   color: var(--fg-tertiary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
+  font-size: var(--text-meta);
   letter-spacing: 0.025em;
 }
 
@@ -1109,7 +1109,7 @@
   background: var(--bg-inset);
   color: var(--fg-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
+  font-size: var(--text-meta);
   font-weight: 500;
   line-height: 1;
 }
@@ -1187,7 +1187,7 @@
   background: var(--bg-inset);
   color: var(--fg-tertiary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
+  font-size: var(--text-meta);
   font-weight: 500;
   line-height: 1;
 }

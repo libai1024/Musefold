@@ -3,7 +3,7 @@
 // 未登录时首行给「登录 Musefold 账号」推荐路径（与引导流一致），
 // 其后是 BYOK 预设行与自定义添加入口。
 
-import { ArrowRight, Plus, QrCode, UserRound } from '../../../components/ui/icons';
+import { ArrowRight, Image, Plus, QrCode, UserRound } from '../../../components/ui/icons';
 import {
   DOUBAO_WEB_DAILY_IMAGE_LIMIT,
   PROVIDER_PRESETS,
@@ -20,6 +20,8 @@ interface Props {
   className?: string;
   /** 覆盖 data-testid 根节点（生成 e2e 用 generate-empty-provider） */
   testId?: string;
+  /** 覆盖「新增服务商」入口(RELAY-SETTINGS-UI 第二步:settings 场景走就地新建,不开弹窗) */
+  onOpenNew?: (presetId?: string) => void;
 }
 
 const COPY: Record<NonNullable<Props['context']>, { title: string; hint: string }> = {
@@ -41,6 +43,7 @@ export function ProviderEmptyGuide({
   context = 'settings',
   className,
   testId = 'provider-empty-guide',
+  onOpenNew,
 }: Props) {
   const openProviderDialog = useGenerationStore((s) => s.openProviderDialog);
   const setView = useAppStore((s) => s.setView);
@@ -49,6 +52,10 @@ export function ProviderEmptyGuide({
   const copy = COPY[context];
 
   const openNew = (presetId?: string) => {
+    if (onOpenNew) {
+      onOpenNew(presetId);
+      return;
+    }
     openProviderDialog(null, presetId ? { presetId } : undefined);
   };
 
@@ -63,10 +70,25 @@ export function ProviderEmptyGuide({
 
   return (
     <div
-      className={cn('flex w-full flex-col px-6 py-8', context !== 'settings' && 'mx-auto max-w-[26rem]', className)}
+      className={cn(
+        'flex w-full flex-col px-6 py-8',
+        context === 'settings' ? 'mx-auto max-w-md' : 'mx-auto max-w-[26rem]',
+        className,
+      )}
       data-testid={testId}
     >
-      <p className="text-[13px] font-medium text-primary">{copy.title}</p>
+      {/* settings 分支:大 icon 砖引导头 + 居中限宽,与 Agent 空态同一行式节奏 */}
+      {context === 'settings' && (
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-subtle bg-inset text-secondary"
+          aria-hidden="true"
+        >
+          <Image className="h-5 w-5" />
+        </span>
+      )}
+      <p className={cn('text-[13px] font-medium text-primary', context === 'settings' && 'mt-3')}>
+        {copy.title}
+      </p>
       <p className="mt-1.5 text-[11.5px] leading-relaxed text-tertiary">{copy.hint}</p>
 
       <div className="mt-5 divide-y divide-border-subtle border-y border-border-subtle">
@@ -81,9 +103,9 @@ export function ProviderEmptyGuide({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[12px] font-medium text-primary">
                 豆包扫码登录
-                <span className="text-[10px] font-normal text-tertiary">每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次</span>
+                <span className="text-meta font-normal text-tertiary">每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次</span>
               </span>
-              <span className="mt-0.5 block text-[10.5px] leading-relaxed text-tertiary">使用本机独立浏览器会话，无需 API Key。</span>
+              <span className="mt-0.5 block text-meta leading-relaxed text-tertiary">使用本机独立浏览器会话，无需 API Key。</span>
             </span>
             <ArrowRight className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
           </button>
@@ -99,9 +121,9 @@ export function ProviderEmptyGuide({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[12px] font-medium text-primary">
                 登录 Musefold 账号
-                <span className="rounded-full border border-border-default px-1.5 py-px text-[9px] font-medium text-tertiary">推荐</span>
+                <span className="rounded-full border border-border-default px-1.5 py-px text-meta font-medium text-tertiary">推荐</span>
               </span>
-              <span className="mt-0.5 block text-[10.5px] leading-relaxed text-tertiary">
+              <span className="mt-0.5 block text-meta leading-relaxed text-tertiary">
                 一次登录，生图与 Agent 自动配置，无需 API Key。
               </span>
             </span>
@@ -119,9 +141,9 @@ export function ProviderEmptyGuide({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[12px] font-medium text-primary">
                 {preset.name}
-                {preset.recommended && <span className="text-[10px] font-normal text-tertiary">自备推荐</span>}
+                {preset.recommended && <span className="text-meta font-normal text-tertiary">自备推荐</span>}
               </span>
-              <span className="mt-0.5 line-clamp-2 block text-[10.5px] leading-relaxed text-tertiary">{preset.hint}</span>
+              <span className="mt-0.5 line-clamp-2 block text-meta leading-relaxed text-tertiary">{preset.hint}</span>
             </span>
             <ArrowRight className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
           </button>

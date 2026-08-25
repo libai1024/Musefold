@@ -405,6 +405,10 @@ describe("shared product views", () => {
     );
     expect(busy).toContain('aria-busy="true"');
     expect(busy).toContain('data-busy="true"');
+
+    // THEATER-04：静态挂载的成功终态不携带 theater 属性；显形只属于挂载后的转场。
+    expect(success).not.toContain("data-theater-reveal");
+    expect(success).not.toContain('data-ui-register="theater"');
   });
 
   it("shares result grid batch geometry", () => {
@@ -698,6 +702,9 @@ describe("shared product views", () => {
 
     expect(empty).toContain('data-testid="generation-directions"');
     expect(empty.match(/data-testid="generation-example"/g)).toHaveLength(3);
+    expect(empty).toContain('data-testid="workbench-empty-cta"');
+    expect(empty).toContain("从这条开始");
+    expect(empty).not.toContain("generation-directions-ticker");
     expect(ratio).toContain('data-testid="refine-ratio-trigger"');
     expect(ratio).toContain("图片比例：16:9 宽屏");
     expect(settings).toContain('data-testid="workbench-more-settings"');
@@ -927,11 +934,46 @@ describe("shared product views", () => {
             spentPointsToday: 20,
             reservedPointsToday: 0,
             status: "active",
+            lastUsedAt: "2026-08-24T00:00:00.000Z",
           },
         ]}
         onUpdate={async () => undefined}
         onRevoke={async () => undefined}
         testId="connected-apps-screen"
+      />,
+    );
+    const fullScopeConnections = renderToStaticMarkup(
+      <ConnectedAppsScreen
+        items={[
+          {
+            id: "connection-full",
+            clientName: "Claude",
+            scopes: [
+              "account:read",
+              "prompts:read",
+              "prompts:write",
+              "skills:read",
+              "generations:read",
+              "generations:write",
+            ],
+            mode: "auto_with_limits",
+            maxPointsPerGeneration: 1000,
+            maxPointsPerDay: 3000,
+            spentPointsToday: 0,
+            reservedPointsToday: 0,
+            status: "active",
+          },
+        ]}
+        onUpdate={async () => undefined}
+        onRevoke={async () => undefined}
+      />,
+    );
+    const emptyWithGuide = renderToStaticMarkup(
+      <ConnectedAppsScreen
+        items={[]}
+        mcpServerUrl="https://cloud.example.com/api/musefold/mcp"
+        onUpdate={async () => undefined}
+        onRevoke={async () => undefined}
       />,
     );
 
@@ -941,6 +983,23 @@ describe("shared product views", () => {
     expect(connections).toContain('data-testid="connection-row"');
     expect(connections).toContain("每次审批");
     expect(connections).toContain("撤销授权");
+    // v2：能力 chip 可切换（aria-pressed），中文标签；模式为分段控件。
+    expect(connections).toContain('data-testid="connection-scope-account:read"');
+    expect(connections).toContain('aria-pressed="true"');
+    expect(connections).toContain("提示词·写");
+    expect(connections).toContain('data-testid="connection-mode-connection-1-ask_each_time"');
+    expect(connections).toContain("单次预算（积分）");
+    // lastUsedAt 渲染为相对时间；部分能力时不出「全部能力」徽标。
+    expect(connections).toContain("最近使用");
+    expect(connections).not.toContain("全部能力");
+    // 全部 6 项能力时展示徽标。
+    expect(fullScopeConnections).toContain('data-testid="connection-all-capabilities"');
+    expect(fullScopeConnections).toContain("全部能力");
+    expect(fullScopeConnections).toContain("预算内自动");
+    // 空态带连接引导与服务器地址复制入口。
+    expect(emptyWithGuide).toContain("MCP 服务器");
+    expect(emptyWithGuide).toContain('data-testid="connection-copy-server-url"');
+    expect(emptyWithGuide).toContain("复制服务器地址");
 
     const loadingConnections = renderToStaticMarkup(
       <ConnectedAppsScreen

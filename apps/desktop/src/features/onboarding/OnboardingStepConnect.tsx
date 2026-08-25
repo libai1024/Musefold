@@ -99,7 +99,7 @@ export function StepConnect() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[15px] font-medium text-primary">
                 豆包扫码登录
-                <span className="rounded-full border border-border-default px-2 py-px text-[9px] font-medium text-tertiary">每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次</span>
+                <span className="rounded-full border border-border-default px-2 py-px text-meta font-medium text-tertiary">每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次</span>
               </span>
               <span className="mt-1 block text-[11px] leading-relaxed text-tertiary">
                 使用豆包网页版会员生图，无需 API Key；出现安全验证时由你手动完成。
@@ -119,7 +119,7 @@ export function StepConnect() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[15px] font-medium text-primary">
                 登录 Musefold 账号
-                <span className="rounded-full border border-border-default px-2 py-px text-[9px] font-medium text-tertiary">稳定推荐</span>
+                <span className="rounded-full border border-border-default px-2 py-px text-meta font-medium text-tertiary">稳定推荐</span>
               </span>
               <span className="mt-1 block text-[11px] leading-relaxed text-tertiary">
                 一次登录，Agent 与生图模型自动配置，按账号积分使用。
@@ -128,7 +128,7 @@ export function StepConnect() {
             <ArrowRight className="h-4 w-4 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
           </button>
         </div>
-        <p className="mt-4 text-[10.5px] leading-relaxed text-quaternary">
+        <p className="mt-4 text-meta leading-relaxed text-quaternary">
           自备 API 与中转站仍可在“设置 → 高级设置”中配置。
         </p>
         <OnboardingActions>
@@ -162,7 +162,7 @@ export function StepConnect() {
               <p className="mt-1 text-[11px] leading-relaxed text-tertiary">
                 网页会话保存在本机专用浏览器分区。Musefold 不读取、导出或上传 Cookie。
               </p>
-              <p className="mt-2 text-[10.5px] leading-relaxed text-quaternary">
+              <p className="mt-2 text-meta leading-relaxed text-quaternary">
                 为减少高频自动化风险，每个本地自然日最多提交 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次豆包网页生图；失败请求也计入次数。
               </p>
             </div>
@@ -236,7 +236,7 @@ export function StepConnect() {
                 {formatPoints(accountQuota)} 积分已到账
               </p>
             )}
-            <p className="mt-3 text-[10.5px] text-quaternary">兑换码请向管理员获取，兑换后即时到账。</p>
+            <p className="mt-3 text-meta text-quaternary">兑换码请向管理员获取，兑换后即时到账。</p>
             <div className="mt-7 flex items-center justify-between">
               <Button type="button" variant="ghost" size="sm" className="rounded-full shadow-none" onClick={continueWithoutRedeem}>
                 稍后兑换
@@ -327,13 +327,13 @@ export function StepConnect() {
                 required
               />
               {confirmPassword && confirmPassword !== password && (
-                <span className="mt-1 block text-[10.5px] text-danger">两次输入的密码不一致</span>
+                <span className="mt-1 block text-meta text-danger">两次输入的密码不一致</span>
               )}
             </label>
           )}
           {accountError && <p className="border-l border-danger pl-3 text-[11px] leading-relaxed text-danger">{accountError}</p>}
           {authMode === 'login' && (
-            <p className="text-[10.5px] text-quaternary">忘记密码？联系管理员重置。</p>
+            <p className="text-meta text-quaternary">忘记密码？联系管理员重置。</p>
           )}
           <OnboardingActions>
             <Button type="button" variant="ghost" size="sm" className="rounded-full shadow-none" onClick={back}>
@@ -386,9 +386,9 @@ export function StepConnect() {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-[12.5px] font-medium text-primary">
                     <span className="truncate">{p.name}</span>
-                    {p.recommended && <span className="shrink-0 text-[10px] font-normal text-tertiary">推荐</span>}
+                    {p.recommended && <span className="shrink-0 text-meta font-normal text-tertiary">推荐</span>}
                   </span>
-                  <span className="mt-0.5 block line-clamp-2 text-[10.5px] leading-relaxed text-tertiary">{p.hint}</span>
+                  <span className="mt-0.5 block line-clamp-2 text-meta leading-relaxed text-tertiary">{p.hint}</span>
                 </span>
                 {active && <Check className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />}
               </button>
@@ -446,7 +446,7 @@ export function StepConnect() {
             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        <p className="mt-2 flex items-start gap-1.5 text-[10.5px] leading-relaxed text-tertiary">
+        <p className="mt-2 flex items-start gap-1.5 text-meta leading-relaxed text-tertiary">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>连接地址已按预设填好。密钥使用系统级加密保存，不会写入应用数据。</span>
         </p>

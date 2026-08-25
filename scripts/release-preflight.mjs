@@ -309,6 +309,51 @@ async function checkDocsAndWorkflow() {
   }
 }
 
+function releaseVersionFamily(version) {
+  const match = String(version).match(/^(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+)?)(?:\.\d+)?$/);
+  return match?.[1] ?? String(version);
+}
+
+async function checkV14ReleaseVersionSync() {
+  const pkg = JSON.parse(await readText('apps/desktop/package.json'));
+  const websiteHtml = await readText('website/Musefold/index.html');
+  const jsonLdMatch = websiteHtml.match(/<script\s+type="application\/ld\+json">([\s\S]*?)<\/script>/i);
+  let websiteVersion;
+  try {
+    websiteVersion = JSON.parse(jsonLdMatch?.[1] ?? '{}').softwareVersion ?? '';
+  } catch {
+    fail('v1.4 release versions stay synchronized', 'website JSON-LD is not valid JSON');
+    return;
+  }
+
+  const catalogPaths = ['website/Musefold/downloads/catalog.json', 'services/musefold-downloads/catalog.json'];
+  const catalogs = await Promise.all(catalogPaths.map(async (path) => ({ path, value: JSON.parse(await readText(path)) })));
+  const appVersion = String(pkg.version);
+  const expectedFamily = releaseVersionFamily(appVersion);
+  const formalRelease = !appVersion.includes('-');
+  const expectedVersion = formalRelease ? appVersion : expectedFamily;
+  const versions = [websiteVersion, ...catalogs.map(({ value }) => String(value.currentVersion))];
+  const versionMismatch = versions.filter((version) => version !== expectedVersion);
+  const latestPathMismatch = catalogs.flatMap(({ path, value }) =>
+    (Array.isArray(value.downloads) ? value.downloads : [])
+      .filter((entry) => entry?.version === 'latest')
+      .filter((entry) => !String(entry.path).includes(`/downloads/${value.currentVersion}/`))
+      .map((entry) => `${path}: ${entry.path}`),
+  );
+
+  if (versionMismatch.length === 0 && latestPathMismatch.length === 0) {
+    pass(
+      'v1.4 release versions stay synchronized',
+      `${formalRelease ? 'formal' : 'development'} release version ${expectedVersion}; website JSON-LD and both catalogs agree`,
+    );
+  } else {
+    const details = [];
+    if (versionMismatch.length > 0) details.push(`versions: ${versions.join(', ')}`);
+    if (latestPathMismatch.length > 0) details.push(`latest paths: ${latestPathMismatch.join(', ')}`);
+    fail('v1.4 release versions stay synchronized', details.join('; '));
+  }
+}
+
 async function checkNoLikelyLiveKeys() {
   const files = [
     ...(await collectFiles('apps/desktop/src', new Set(['.ts', '.tsx', '.js', '.jsx']))),
@@ -382,6 +427,7 @@ async function main() {
   await checkRatioOptions();
   await checkRoadmap();
   await checkDocsAndWorkflow();
+  await checkV14ReleaseVersionSync();
   await checkNoLikelyLiveKeys();
   await checkGeneratedArtifactsClean();
 

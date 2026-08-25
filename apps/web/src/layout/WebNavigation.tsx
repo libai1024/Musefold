@@ -26,10 +26,12 @@ import type { WebGateway } from '../runtime';
 
 const webCapabilities = getProductCapabilities('web');
 
-export type WebView = 'generate' | 'prompts' | 'history' | 'connections' | 'account';
+export type WebView = 'generate' | 'prompts' | 'history' | 'settings';
+export type WebSettingsSection = 'account' | 'connections';
 
 interface WebSidebarProps {
   view: WebView;
+  settingsSection: WebSettingsSection;
   accountName: string;
   mode: WebGateway['mode'];
   promptCount: number;
@@ -37,6 +39,7 @@ interface WebSidebarProps {
   sessionListLoading: boolean;
   sessionListError: string | null;
   onNavigate: (view: WebView) => void;
+  onSettingsSectionChange: (section: WebSettingsSection) => void;
   onNewDesign: () => void;
   onCollapse: () => void;
   onOpenWorkbenchSession: (item: WorkbenchSessionListItemViewModel) => void;
@@ -51,6 +54,7 @@ interface WebSidebarProps {
 
 export function WebSidebar({
   view,
+  settingsSection,
   accountName,
   mode,
   promptCount,
@@ -58,6 +62,7 @@ export function WebSidebar({
   sessionListLoading,
   sessionListError,
   onNavigate,
+  onSettingsSectionChange,
   onNewDesign,
   onCollapse,
   onOpenWorkbenchSession,
@@ -158,7 +163,11 @@ export function WebSidebar({
         account={{
           name: accountName,
           detail: mode === 'fixture' ? '开发数据' : '个人账户',
-          onSelect: () => onNavigate('account'),
+          active: view === 'settings' && settingsSection === 'account',
+          onSelect: () => {
+            onSettingsSectionChange('account');
+            onNavigate('settings');
+          },
         }}
       />
       {contextMenu ? (
@@ -295,8 +304,12 @@ export function WebTopbar({
             >
               <Search aria-hidden="true" />
             </IconButton>
-            <div className="quota-readout" aria-label={`可用额度 ${quota}`}>
-              <Sparkles aria-hidden="true" />
+            {/* quota-readout 类名保留：680px 媒体块的移动端尺寸规则挂在它上（批次 5 收口） */}
+            <div
+              className="quota-readout inline-flex h-[28px] items-center gap-[6px] rounded-sm border border-solid border-subtle px-[8px] text-[11px] text-secondary tabular-nums"
+              aria-label={`可用额度 ${quota}`}
+            >
+              <Sparkles aria-hidden="true" className="h-[13px] w-[13px] text-accent" />
               <span>{quota}</span>
             </div>
           </>

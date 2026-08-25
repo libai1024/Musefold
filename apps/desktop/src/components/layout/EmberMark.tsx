@@ -338,7 +338,7 @@ export function EmberMark() {
         onClick={handleRecall}
         title={annotation.slipId ? '点击抽回这枚笺' : undefined}
         className={cn(
-          'no-drag absolute right-full top-1/2 mr-1 -translate-y-1/2 whitespace-nowrap rounded-full border border-border-subtle bg-elevated px-2.5 py-1 text-[10.5px] text-secondary shadow-sm animate-fade-in',
+          'no-drag absolute right-full top-1/2 mr-1 -translate-y-1/2 whitespace-nowrap rounded-full border border-border-subtle bg-elevated px-2.5 py-1 text-meta text-secondary shadow-sm animate-fade-in',
           annotation.slipId
             ? 'cursor-pointer transition-colors hover:border-border-default hover:text-primary'
             : 'cursor-default',

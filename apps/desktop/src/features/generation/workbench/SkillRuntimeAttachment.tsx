@@ -32,8 +32,8 @@ export function SkillRuntimeAttachment() {
         {busy && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-accent" />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[10.5px] font-medium text-primary">{attachment?.name || repository}</span>
-        <span className={cn('mt-0.5 flex min-w-0 items-center gap-1 text-[9.5px]', error ? 'text-danger' : 'text-accent')}>
+        <span className="block truncate text-meta font-medium text-primary">{attachment?.name || repository}</span>
+        <span className={cn('mt-0.5 flex min-w-0 items-center gap-1 text-meta', error ? 'text-danger' : 'text-accent')}>
           {busy ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <ShieldCheck className="h-3 w-3 shrink-0" />}
           <span className="truncate">{detail}</span>
         </span>

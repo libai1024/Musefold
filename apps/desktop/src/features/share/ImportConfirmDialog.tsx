@@ -94,7 +94,7 @@ export function ImportConfirmDialog() {
               </div>
 
               <div className="rounded-lg border border-border-subtle bg-inset/40 px-3.5 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-quaternary">
+                <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
                   白名单内容
                 </div>
                 <dl className="mt-2 space-y-1.5 text-[11px]">

@@ -1,5 +1,6 @@
 // src/features/generation/components/ValidationResultBanner.tsx
-// 测试连接结果条：按错误码展示友好文案 + 可执行下一步（TASK-GEN-03）
+// 测试连接结果条：成功/失败统一同构面板(标题 + 明细 + 副行,左侧 3px 状态色条),
+// 按错误码展示友好文案 + 可执行下一步（TASK-GEN-03）。
 
 import { Check, AlertCircle, KeyRound, ExternalLink, RotateCcw } from '../../../components/ui/icons';
 import { errorGuidance, type ErrorAction } from '@musefold/domain/errors';
@@ -29,18 +30,20 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
     return (
       <div
         className={cn(
-          'flex items-start gap-1.5 rounded-md bg-success/10 px-2.5 py-2 text-[11px] leading-relaxed text-success',
+          'rounded-md border-l-[3px] border-success bg-success/5 px-2.5 py-2 text-[11px] leading-relaxed text-success',
           className
         )}
         data-testid="validation-result"
         data-ok="true"
       >
-        <Check className="mt-0.5 h-3 w-3 shrink-0" />
-        <div className="min-w-0">
-          <p className="font-medium">{result.message || '连接成功'}</p>
-          {typeof result.modelCount === 'number' && result.modelCount > 0 && (
-            <p className="mt-0.5 text-success/80">探测到 {result.modelCount} 个模型</p>
-          )}
+        <div className="flex items-start gap-1.5">
+          <Check className="mt-0.5 h-3 w-3 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-medium">{result.message || '连接成功'}</p>
+            {typeof result.modelCount === 'number' && result.modelCount > 0 && (
+              <p className="mt-0.5 text-success/80">探测到 {result.modelCount} 个模型</p>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -57,7 +60,7 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 rounded-md bg-danger/10 px-2.5 py-2 text-[11px] leading-relaxed text-danger',
+        'flex flex-col gap-2 rounded-md border-l-[3px] border-danger bg-danger/5 px-2.5 py-2 text-[11px] leading-relaxed text-danger',
         className
       )}
       data-testid="validation-result"
@@ -74,7 +77,7 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
             {guidance.hint}
           </p>
           {showDetail && (
-            <p className="mt-1 font-mono text-[10px] text-danger/70" data-testid="validation-detail">
+            <p className="mt-1 font-mono text-meta text-danger/70" data-testid="validation-detail">
               {detail}
             </p>
           )}

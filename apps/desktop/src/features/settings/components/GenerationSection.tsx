@@ -3,10 +3,13 @@
 // 服务商的切换收敛在侧栏底部的模型切换器，这里只管生成参数本身。
 import type { ImageBackground, ImageQuality } from '@musefold/desktop-contracts/enums';
 import type { SchemePriorityMode } from '@musefold/desktop-contracts/design-scheme';
-import { describePriorityMode, PRIORITY_MODE_LABEL } from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
+import {
+  describePriorityMode,
+  PRIORITY_MODE_LABEL,
+} from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
 import { useAppStore } from '../../../stores/app';
 import { useGenerationWorkbenchStore } from '@renderer/runtime/workbench-access';
-import { SectionShell, SettingRow } from '../components/SectionShell';
+import { SettingRow, SettingsCard } from '../components/SectionShell';
 import { ChoiceChips } from '../components/ChoiceChips';
 import { RatioPicker } from '@renderer/runtime/generation-access';
 
@@ -31,11 +34,8 @@ export function GenerationSection() {
   const setParams = useGenerationWorkbenchStore((s) => s.setParams);
 
   return (
-    <SectionShell
-      title="生成默认值"
-      description="管理新设计和方案运行时的默认生成设置。"
-    >
-      <div className="settings-list flex flex-col">
+    <>
+      <SettingsCard title="生成参数" description="设置新设计默认使用的画幅、质量、背景和生成数量">
         <SettingRow label="默认比例" hint="与工作台一致的画幅下拉">
           <RatioPicker
             value={params.ratioId}
@@ -47,7 +47,11 @@ export function GenerationSection() {
         </SettingRow>
 
         <SettingRow label="默认质量" hint="质量越高，耗时和成本越高">
-          <ChoiceChips value={params.quality} options={QUALITIES} onChange={(quality) => setParams({ quality })} />
+          <ChoiceChips
+            value={params.quality}
+            options={QUALITIES}
+            onChange={(quality) => setParams({ quality })}
+          />
         </SettingRow>
 
         <SettingRow label="默认背景" hint="透明背景需上游模型支持">
@@ -59,30 +63,32 @@ export function GenerationSection() {
           />
         </SettingRow>
 
+        <SettingRow label="默认数量" hint="自由创作与方案运行都可在提交前调整">
+          <ChoiceChips
+            value={params.n}
+            options={COUNTS.map((count) => ({ value: count, label: `${count} 张` }))}
+            onChange={(n) => setParams({ n })}
+            testIdPrefix="settings-default-count"
+          />
+        </SettingRow>
+      </SettingsCard>
+
+      <SettingsCard
+        title="方案运行"
+        description="控制方案、用户输入与 Agent 调解之间的默认优先关系"
+      >
         <SettingRow label="方案运行优先级" hint={describePriorityMode(schemePriorityMode)}>
           <ChoiceChips
             value={schemePriorityMode}
-            options={PRIORITY_MODES.map((mode) => ({ value: mode, label: PRIORITY_MODE_LABEL[mode] }))}
+            options={PRIORITY_MODES.map((mode) => ({
+              value: mode,
+              label: PRIORITY_MODE_LABEL[mode],
+            }))}
             onChange={(mode) => setSchemePriorityMode(mode)}
             testIdPrefix="settings-scheme-priority"
           />
         </SettingRow>
-
-        <div className="settings-row mt-2 border-b border-border-subtle py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[12.5px] font-medium text-primary">默认数量</p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">自由创作与方案运行都可在提交前调整</p>
-            </div>
-            <ChoiceChips
-              value={params.n}
-              options={COUNTS.map((count) => ({ value: count, label: `${count} 张` }))}
-              onChange={(n) => setParams({ n })}
-              testIdPrefix="settings-default-count"
-            />
-          </div>
-        </div>
-      </div>
-    </SectionShell>
+      </SettingsCard>
+    </>
   );
 }

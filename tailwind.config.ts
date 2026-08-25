@@ -63,8 +63,14 @@ export default {
         'control-md': 'var(--control-md)',
         'control-lg': 'var(--control-lg)',
       },
+      fontFamily: {
+        theater: ['var(--font-theater)'],
+      },
       fontSize: {
-        xxs: ['0.6875rem', { lineHeight: '0.9rem' }],
+        page: ['var(--text-page)', { lineHeight: '1.25', fontWeight: '600' }],
+        section: ['var(--text-section)', { lineHeight: '1.35', fontWeight: '600' }],
+        body: ['var(--text-body)', { lineHeight: '1.45' }],
+        meta: ['var(--text-meta)', { lineHeight: '1.4', fontWeight: '400' }],
       },
       maxWidth: {
         chat: '48rem',

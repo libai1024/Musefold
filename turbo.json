@@ -114,6 +114,7 @@
         "infra/**",
         "preview/**",
         "tests/**",
+        "website/Musefold/**",
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"
       ]

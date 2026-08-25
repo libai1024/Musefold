@@ -142,7 +142,7 @@ def force_show(app):
     app.page.evaluate(
         "() => window.__musefold_test.stores.onboarding.getState().forceShow()"
     )
-    app.page.wait_for_timeout(150)
+    app.page.wait_for_selector('[data-testid="onboarding-step-1"][data-theater-idle]')
 
 
 HIST_COLS = "id, status, error_code, provider_id, image_path"
@@ -158,8 +158,6 @@ def test_normal_flow_full_run_reaches_workbench_with_seed(app, fake_provider_ser
     """正常：强制打开 → 4 步跑通 → 首图成功 → 完成后进工作台开卷（v0.3.3 有意变更：
     finish → generate；skip 仍去 library）。seed 示例在库里可查。"""
     force_show(app)
-    app.page.wait_for_selector('[data-testid="onboarding-step-1"]')
-
     app.page.click('[data-testid="onboarding-start"]')
     app.page.wait_for_selector('[data-testid="onboarding-step-2"]')
 
@@ -193,10 +191,11 @@ def test_normal_flow_full_run_reaches_workbench_with_seed(app, fake_provider_ser
     assert active["isActive"] is True, "校验成功应 setActive"
 
     app.page.click('[data-testid="onboarding-continue"]')
-    app.page.wait_for_selector('[data-testid="onboarding-step-4"]')
+    app.page.wait_for_selector('[data-testid="onboarding-step-4"][data-theater-idle]')
 
     app.page.click('[data-testid="onboarding-generate"]')
     app.page.wait_for_selector('[data-testid="onboarding-result"]', timeout=20_000)
+    app.page.wait_for_selector('[data-testid="onboarding-step-4"][data-theater-idle]')
     assert app.page.is_visible('[data-testid="onboarding-result-image"]')
 
     app.page.click('[data-testid="onboarding-finish"]')
@@ -235,7 +234,7 @@ def test_boundary_skip_after_step2_goes_directly_to_library(app):
     app.page.click('[data-testid="sidebar-settings"]')
     app.page.get_by_test_id("sidebar-settings-open").click()
     app.page.wait_for_function("() => window.__musefold_test?.getView?.() === 'settings'", timeout=5_000)
-    app.page.get_by_role("button", name="生图中转站", exact=True).click()
+    app.page.get_by_role("button", name="中转站", exact=True).click()
     app.page.wait_for_selector('[data-testid="settings-empty-provider"]')
 
 
@@ -300,6 +299,60 @@ def test_abnormal_wrong_key_shows_401_then_update_and_retry_succeeds(
     )
     validation2 = ob(app, "s.validation")
     assert validation2 and validation2["ok"] is True, validation2
+
+
+@pytest.mark.parametrize("channel", ["pref", "system"])
+def test_reduced_motion_channels_keep_onboarding_clickable(app, fake_provider_server, channel):
+    """THEATER Phase 3 收口：减少动效双通道（用户显式 on / 系统 reduce）下，
+    引导全流程可点完，idle 钩立即出现（跳过编排，不等待动画）。"""
+    if channel == "pref":
+        app.page.evaluate(
+            "() => window.__musefold_test.stores.app.getState().setReducedMotion('on')"
+        )
+        app.page.wait_for_function(
+            "() => document.documentElement.classList.contains('reduce-motion')"
+        )
+    else:
+        app.page.evaluate(
+            "() => window.__musefold_test.stores.app.getState().setReducedMotion('system')"
+        )
+        app.page.emulate_media(reduced_motion="reduce")
+        app.page.wait_for_function(
+            "() => window.matchMedia('(prefers-reduced-motion: reduce)').matches"
+        )
+
+    force_show(app)  # 内部已等待 step-1 idle
+    app.page.click('[data-testid="onboarding-start"]')
+    app.page.wait_for_selector('[data-testid="onboarding-step-2"]')
+
+    created = app.api_ok("provider.create", {
+        "name": f"E2E 减动效假站 {channel}",
+        "type": "openai-compatible",
+        "baseUrl": fake_provider_server["base"],
+        "model": "gpt-image-2",
+        "isActive": True,
+    })
+    app.page.evaluate(
+        "(id) => window.__musefold_test.stores.onboarding.setState({ providerId: id })",
+        created["id"],
+    )
+    app.page.fill('[data-testid="onboarding-api-key"]', "sk-reduced-motion-key")
+    app.page.click('[data-testid="onboarding-connect"]')
+    app.page.wait_for_selector('[data-testid="onboarding-step-3"]')
+    app.page.wait_for_function(
+        "() => window.__musefold_test.stores.onboarding.getState().validating === false",
+        timeout=15_000,
+    )
+    assert ob(app, "s.validation")["ok"] is True
+
+    app.page.click('[data-testid="onboarding-continue"]')
+    app.page.wait_for_selector('[data-testid="onboarding-step-4"][data-theater-idle]')
+    app.page.click('[data-testid="onboarding-generate"]')
+    app.page.wait_for_selector('[data-testid="onboarding-result"]', timeout=20_000)
+    app.page.wait_for_selector('[data-testid="onboarding-step-4"][data-theater-idle]')
+    app.page.click('[data-testid="onboarding-finish"]')
+    app.page.wait_for_timeout(300)
+    assert app.page.locator('[data-testid="onboarding-flow"]').count() == 0
 
 
 def test_key_never_written_to_localstorage_or_history_row(app, fake_provider_server):

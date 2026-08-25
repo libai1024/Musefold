@@ -66,8 +66,8 @@ export function SchemeCreationConversation({ source }: { source: SchemeCreationS
             <GitBranch className="h-3.5 w-3.5 text-accent" />
             引入来源仓库？
           </div>
-          <p className="mt-1.5 break-all text-[10.5px] text-tertiary">{confirmation.repositoryUrl}</p>
-          <div className="mt-3 space-y-1.5 border-y border-border-subtle py-2.5 text-[10.5px] text-secondary">
+          <p className="mt-1.5 break-all text-meta text-tertiary">{confirmation.repositoryUrl}</p>
+          <div className="mt-3 space-y-1.5 border-y border-border-subtle py-2.5 text-meta text-secondary">
             <p className="flex items-center gap-2">
               <FileCheck2 className="h-3.5 w-3.5 text-success" />
               {confirmation.textFileCount} 个文本文件 · {confirmation.imageFileCount} 张参考图（固定 commit {confirmation.commitHash?.slice(0, 10) ?? confirmation.resolvedRef}）
@@ -100,20 +100,20 @@ export function SchemeCreationConversation({ source }: { source: SchemeCreationS
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-[12.5px] font-semibold text-primary">{draft.name}</span>
-                  <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[9px] text-secondary">
+                  <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-meta text-secondary">
                     {draft.status === 'formal' ? '新版本待验证' : '草稿'}
                   </span>
-                  <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[9px] text-secondary">{FIDELITY_LABEL[draft.fidelity] ?? draft.fidelity}</span>
+                  <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-meta text-secondary">{FIDELITY_LABEL[draft.fidelity] ?? draft.fidelity}</span>
                 </div>
-                <p className="mt-1 text-[10.5px] leading-relaxed text-secondary">{draft.summary}</p>
+                <p className="mt-1 text-meta leading-relaxed text-secondary">{draft.summary}</p>
                 {draft.inputLabels.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {draft.inputLabels.map((label) => (
-                      <span key={label} className="rounded-md border border-border-subtle bg-elevated px-1.5 py-0.5 text-[9.5px] text-secondary">{label}</span>
+                      <span key={label} className="rounded-md border border-border-subtle bg-elevated px-1.5 py-0.5 text-meta text-secondary">{label}</span>
                     ))}
                   </div>
                 )}
-                <p className="mt-2 text-[9.5px] text-tertiary">来源：{draft.sourceLabel}</p>
+                <p className="mt-2 text-meta text-tertiary">来源：{draft.sourceLabel}</p>
               </div>
             </div>
             <div className="mt-3 flex justify-end gap-2 border-t border-border-subtle pt-3">

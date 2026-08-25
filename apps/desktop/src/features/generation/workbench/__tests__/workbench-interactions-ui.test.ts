@@ -43,8 +43,25 @@ const skillRuntimeConversation = readFileSync(
   "apps/desktop/src/components/SkillRuntimeConversation.tsx",
   "utf8",
 );
+const composerView = readFileSync(
+  "apps/desktop/src/features/generation/workbench/WorkbenchComposerView.tsx",
+  "utf8",
+);
 
 describe("workbench image and message interaction contract", () => {
+  it("keeps composer context above the prompt and exposes a locked mode state", () => {
+    const tray = composerView.indexOf("<WorkbenchComposerContextTray>");
+    const prompt = composerView.indexOf("<WorkbenchComposerPrompt");
+
+    expect(tray).toBeGreaterThan(-1);
+    expect(tray).toBeLessThan(prompt);
+    expect(composerView).toContain('data-testid="composer-mode"');
+    expect(composerView).toContain('role="tablist"');
+    expect(composerView).toContain('aria-selected={composerMode === "image"}');
+    expect(composerView).toContain("composerModeLocked");
+    expect(composerView).not.toContain("inlineChipsRef");
+    expect(composerView).not.toContain("inlineChipsIndent");
+  });
   it("uses one image path for picker, paste and drag-drop staging", () => {
     expect(workbench).toContain("<WorkbenchContextMenu");
     expect(sharedContextMenu).toContain('<Plus aria-hidden="true" />');

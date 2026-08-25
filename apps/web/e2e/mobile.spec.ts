@@ -42,11 +42,6 @@ async function openCompactSidebar(page: Page): Promise<void> {
   await expect(page.getByTestId('product-sidebar')).toBeVisible();
 }
 
-async function chooseCompactNav(page: Page, testId: string): Promise<void> {
-  await openCompactSidebar(page);
-  await page.getByTestId('product-sidebar').getByTestId(testId).click();
-}
-
 async function expectTouchMediaEmulated(page: Page): Promise<void> {
   expect(
     await page.evaluate(() => ({
@@ -225,7 +220,12 @@ test('left drawer holds functions, conversations and account; main stays the com
 
   await expect(page.getByRole('navigation', { name: '移动端导航' })).toHaveCount(0);
   await expect(page.getByTestId('workbench-composer-surface')).toBeVisible();
-  await expect(page.getByTestId('generation-directions')).toBeHidden();
+  await expect(page.getByTestId('generation-directions')).toBeVisible();
+  const initialWidth = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    client: document.documentElement.clientWidth,
+  }));
+  expect(initialWidth.scroll).toBeLessThanOrEqual(initialWidth.client + 1);
   await expect(page.getByTestId('web-topbar-search')).toBeVisible();
   await expect(page.getByLabel(/可用额度/)).toBeVisible();
 
@@ -234,7 +234,7 @@ test('left drawer holds functions, conversations and account; main stays the com
   await expect(sidebar.getByText('功能', { exact: true })).toBeVisible();
   await expect(sidebar.getByTestId('nav-prompts')).toBeVisible();
   await expect(sidebar.getByTestId('nav-history')).toBeVisible();
-  await expect(sidebar.getByTestId('nav-connections')).toBeVisible();
+  await expect(sidebar.getByTestId('nav-settings')).toBeVisible();
   await expect(sidebar.getByTestId('workbench-session-list')).toBeVisible();
   await expect(sidebar.getByTestId('sidebar-account')).toBeVisible();
 
@@ -262,29 +262,38 @@ test('left drawer holds functions, conversations and account; main stays the com
   expect(drawerMetrics!.accountAtBottom).toBe(true);
   expect(drawerMetrics!.accountHeight).toBeGreaterThanOrEqual(44);
 
-  await chooseCompactNav(page, 'nav-connections');
+  await openCompactSidebar(page);
+  await page.getByTestId('product-sidebar').getByTestId('nav-settings').click();
+  await page
+    .getByRole('navigation', { name: '设置分区' })
+    .getByRole('button', { name: '已连接应用' })
+    .click();
   await expect(page.getByTestId('connected-apps-screen')).toBeVisible();
   const gutters = await page.getByTestId('connected-apps-screen').evaluate((el) => {
     const rect = el.getBoundingClientRect();
-    const intro = el.querySelector('p')?.getBoundingClientRect();
-    const select = el.querySelector('select')?.getBoundingClientRect();
+    const connectionRow = el
+      .querySelector('[data-testid="connection-row"]')
+      ?.getBoundingClientRect();
+    const modeOption = el.querySelector('[role="radio"]')?.getBoundingClientRect();
     return {
       left: Math.round(rect.left),
       right: Math.round(rect.right),
-      introLeft: intro ? Math.round(intro.left) : 0,
-      selectHeight: select ? Math.round(select.height) : 0,
+      connectionLeft: connectionRow ? Math.round(connectionRow.left) : 0,
+      modeOptionHeight: modeOption ? Math.round(modeOption.height) : 0,
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
     };
   });
   expect(gutters.left).toBeGreaterThanOrEqual(12);
   expect(gutters.clientWidth - gutters.right).toBeGreaterThanOrEqual(12);
-  expect(gutters.introLeft).toBeGreaterThanOrEqual(12);
-  expect(gutters.selectHeight).toBeGreaterThanOrEqual(44);
+  expect(gutters.connectionLeft).toBeGreaterThanOrEqual(gutters.left);
+  expect(gutters.modeOptionHeight).toBeGreaterThanOrEqual(44);
   expect(gutters.scrollWidth).toBeLessThanOrEqual(gutters.clientWidth + 1);
 
-  await openCompactSidebar(page);
-  await page.getByTestId('sidebar-account').click();
+  await page
+    .getByRole('navigation', { name: '设置分区' })
+    .getByRole('button', { name: 'Musefold 账号' })
+    .click();
   await expect(page.getByTestId('account-screen')).toBeVisible();
   const accountLeft = await page
     .getByTestId('account-screen')

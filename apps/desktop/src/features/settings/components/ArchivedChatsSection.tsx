@@ -27,7 +27,7 @@ import {
   useGenerationWorkbenchStore,
   WORKBENCH_SESSION_RESTART_REQUIRED,
 } from '@renderer/runtime/workbench-access';
-import { SectionShell } from '../components/SectionShell';
+import { SectionShell, SettingsCard } from '../components/SectionShell';
 
 const TYPE_META: Record<WorkbenchConversationKind, { label: string; icon: LucideIcon }> = {
   chat: { label: '普通聊天', icon: MessageSquareText },
@@ -107,13 +107,17 @@ export function ArchivedChatsSection() {
         </Button>
       }
     >
+      <SettingsCard
+        title="归档记录"
+        description="恢复暂时收起的聊天，或删除不再需要的记录"
+      >
       {loading && sessions.length === 0 ? (
-        <div className="flex min-h-32 items-center justify-center gap-2 border-y border-border-subtle text-[12px] text-tertiary" data-testid="settings-archived-loading">
+        <div className="flex min-h-32 items-center justify-center gap-2 px-6 text-[12px] text-tertiary" data-testid="settings-archived-loading">
           <Loader2 className="h-4 w-4 animate-spin" />
           正在读取归档聊天…
         </div>
       ) : error && sessions.length === 0 ? (
-        <div className="border-y border-border-subtle py-5" role="alert" data-testid="settings-archived-error">
+        <div className="px-6 py-5" role="alert" data-testid="settings-archived-error">
           <p className="text-[13px] font-medium text-primary">{restartRequired ? '需要重启应用' : '归档聊天读取失败'}</p>
           <p className="mt-1 text-[11px] leading-relaxed text-secondary">{error}</p>
           <div className="mt-3 flex gap-2">
@@ -130,12 +134,12 @@ export function ArchivedChatsSection() {
           </div>
         </div>
       ) : sessions.length === 0 ? (
-        <div className="flex min-h-40 flex-col items-center justify-center border-y border-border-subtle px-4 text-center" data-testid="settings-archived-empty">
+        <div className="flex min-h-40 flex-col items-center justify-center px-4 text-center" data-testid="settings-archived-empty">
           <Archive className="h-5 w-5 text-quaternary" />
           <p className="mt-3 text-[13px] font-medium text-primary">还没有已归档聊天</p>
         </div>
       ) : (
-        <div className="divide-y divide-border-subtle border-y border-border-subtle" data-testid="settings-archived-list">
+        <div data-testid="settings-archived-list">
           {sessions.map((session) => {
             const kind = session.conversationKind ?? 'chat';
             const meta = TYPE_META[kind];
@@ -144,7 +148,7 @@ export function ArchivedChatsSection() {
             return (
               <div
                 key={session.id}
-                className="group flex flex-col gap-3 py-[var(--density-setting-row-y)] sm:flex-row sm:items-center"
+                className="setting-item group"
                 data-testid={`settings-archived-row-${session.id}`}
               >
                 <button
@@ -196,6 +200,7 @@ export function ArchivedChatsSection() {
           })}
         </div>
       )}
+      </SettingsCard>
 
       <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
         <DialogContent className="max-w-sm">

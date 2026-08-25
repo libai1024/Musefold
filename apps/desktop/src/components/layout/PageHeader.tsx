@@ -25,7 +25,7 @@ export function PageHeader({ count, actions, afterTitle, className }: PageHeader
       )}
     >
       {typeof count === 'number' && (
-        <span className="shrink-0 font-mono text-[10px] leading-none tabular-nums text-tertiary">
+        <span className="shrink-0 font-mono text-meta leading-none tabular-nums text-tertiary">
           {count} 项
         </span>
       )}
@@ -42,7 +42,7 @@ export function PageHeader({ count, actions, afterTitle, className }: PageHeader
 /** 面板小头（组合画布三栏用） */
 export function PanelHeader({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-quaternary">
+    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-3 text-meta font-semibold uppercase tracking-[0.08em] text-quaternary">
       {children}
       {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
     </div>

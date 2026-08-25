@@ -59,7 +59,7 @@ export function SchemeRuntimeDocumentSections({
                 <button
                   type="button"
                   onClick={beginInputEdit}
-                  className="inline-flex min-h-7 items-center gap-1.5 rounded-md px-2 text-[10.5px] font-medium text-secondary transition-colors hover:bg-hover hover:text-primary"
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-md px-2 text-meta font-medium text-secondary transition-colors hover:bg-hover hover:text-primary"
                   data-testid="runtime-scheme-edit-inputs"
                 >
                   <Pencil className="h-3 w-3" />编辑
@@ -108,7 +108,7 @@ export function SchemeRuntimeDocumentSections({
                               <button
                                 type="button"
                                 onClick={() => setInputEdits((prev) => prev!.map((item) => item.id === input.id ? { ...item, removed: false } : item))}
-                                className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[10.5px] font-medium text-secondary hover:bg-hover hover:text-primary"
+                                className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-meta font-medium text-secondary hover:bg-hover hover:text-primary"
                                 data-testid={`runtime-scheme-input-restore-${input.id}`}
                               >
                                 <Undo2 className="h-3 w-3" />恢复
@@ -124,7 +124,7 @@ export function SchemeRuntimeDocumentSections({
                                       aria-checked={edit.required === value}
                                       onClick={() => setInputEdits((prev) => prev!.map((item) => item.id === input.id ? { ...item, required: value } : item))}
                                       className={cn(
-                                        'min-h-6 rounded-[5px] px-2 text-[10px] font-medium transition-colors',
+                                        'min-h-6 rounded-[5px] px-2 text-meta font-medium transition-colors',
                                         edit.required === value ? 'bg-elevated text-primary shadow-sm' : 'text-tertiary hover:text-primary',
                                       )}
                                       data-testid={`runtime-scheme-input-${value ? 'required' : 'optional'}-${input.id}`}
@@ -152,12 +152,12 @@ export function SchemeRuntimeDocumentSections({
                     })}
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3 border-t border-border-subtle pt-3">
-                    <span className="text-[10px] text-tertiary">保存后生成新版本，需要重新试运行才能设为正式。</span>
+                    <span className="text-meta text-tertiary">保存后生成新版本，需要重新试运行才能设为正式。</span>
                     <span className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setInputEdits(null)}
-                        className="min-h-7 rounded-md px-2.5 text-[10.5px] font-medium text-secondary hover:bg-hover hover:text-primary"
+                        className="min-h-7 rounded-md px-2.5 text-meta font-medium text-secondary hover:bg-hover hover:text-primary"
                         data-testid="runtime-scheme-inputs-cancel"
                       >
                         取消
@@ -166,7 +166,7 @@ export function SchemeRuntimeDocumentSections({
                         type="button"
                         disabled={!inputEditsDirty || inputSaveBusy}
                         onClick={() => void saveInputEdits()}
-                        className="inline-flex min-h-7 items-center gap-1.5 rounded-md bg-primary px-2.5 text-[10.5px] font-semibold text-background hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="inline-flex min-h-7 items-center gap-1.5 rounded-md bg-primary px-2.5 text-meta font-semibold text-background hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
                         data-testid="runtime-scheme-inputs-save"
                       >
                         保存更改
@@ -186,7 +186,7 @@ export function SchemeRuntimeDocumentSections({
                     <li key={constraint.id} className="flex items-start gap-2.5">
                       <span
                         className={cn(
-                          'mt-0.5 shrink-0 rounded-full border px-1.5 py-0.5 text-[9px]',
+                          'mt-0.5 shrink-0 rounded-full border px-1.5 py-0.5 text-meta',
                           constraint.mode === 'required'
                             ? 'border-accent/35 bg-accent-soft text-accent'
                             : constraint.mode === 'avoid'

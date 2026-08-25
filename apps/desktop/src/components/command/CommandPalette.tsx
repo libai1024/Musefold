@@ -13,7 +13,7 @@ import {
 } from '../ui/icons';
 import { useAppStore, type ViewKey } from '../../stores/app';
 import { useLibraryStore } from '../../features/library/store';
-import { useSettingsStore, type SettingsSection } from '../../features/settings/store';
+import { useSettingsStore, type SettingsSectionInput } from '../../features/settings/store';
 import { Kbd } from '@musefold/ui';
 import { cn } from '../../lib/utils';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
@@ -106,7 +106,7 @@ export function CommandPalette() {
         if (spec.navigate) go(spec.navigate as ViewKey);
         return;
       case 'settings':
-        if (spec.settingsSection) setSettingsSection(spec.settingsSection as SettingsSection);
+        if (spec.settingsSection) setSettingsSection(spec.settingsSection as SettingsSectionInput);
         go((spec.navigate ?? 'settings') as ViewKey);
         return;
       case 'toggle-theme':
@@ -317,7 +317,7 @@ export function CommandPalette() {
           </div>
 
           {/* 底栏提示 */}
-          <div className="flex items-center justify-between border-t border-border-subtle bg-inset/40 px-3.5 py-2 text-[10px] text-tertiary">
+          <div className="flex items-center justify-between border-t border-border-subtle bg-inset/40 px-3.5 py-2 text-meta text-tertiary">
             <span className="flex items-center gap-1.5">
               <Kbd>↑</Kbd><Kbd>↓</Kbd> 移动
             </span>
@@ -334,7 +334,7 @@ export function CommandPalette() {
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-1">
-      <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium text-tertiary">
+      <div className="px-2.5 pb-1 pt-1.5 text-meta font-medium text-tertiary">
         {label}
       </div>
       {children}
@@ -374,7 +374,7 @@ function Row({
       </span>
       {hint && <span className="truncate text-[11px] text-tertiary">{hint}</span>}
       {group && (
-        <span className="rounded-sm border border-border-subtle px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-quaternary">
+        <span className="rounded-sm border border-border-subtle px-1.5 py-0.5 text-meta uppercase tracking-wide text-quaternary">
           {group}
         </span>
       )}

@@ -1,11 +1,10 @@
-"""Offline UI checks for the Codex-style composer command interaction.
+"""Offline UI checks for the composer command interaction.
 
 - "/" opens a floating hint popover anchored above the composer (like the +
   menu), filtered live by the typed prefix.
-- Selecting a hint (click / Enter) mounts an inline command chip at the text
-  start position inside the prompt box; body text flows after it (text-indent).
-- Typing a full command converts to the chip automatically; Backspace at the
-  start of the text (or the chip's X) removes it.
+- Selecting a hint (click / Enter) switches the composer into design-plan mode.
+- Typing a full command switches mode automatically; Backspace at the start
+  clears the mode while preserving the body text.
 """
 from __future__ import annotations
 
@@ -13,14 +12,20 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-EVIDENCE_DIR = REPO_ROOT / "generated/v032-command-chip"
+EVIDENCE_DIR = REPO_ROOT / "generated/v032-command-mode"
 
 
-def _chip(app):
-    return app.page.locator('[data-testid="composer-command-chip"]')
+def _mode(app):
+    return app.page.locator('[data-testid="composer-mode"]')
 
 
-def test_command_hints_filter_and_chip_lifecycle(app):
+def _assert_design_plan_mode(app):
+    mode = _mode(app)
+    mode.wait_for(state="visible")
+    assert mode.locator('[data-active="true"]').inner_text() == "设计方案"
+
+
+def test_command_hints_filter_and_mode_lifecycle(app):
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     prompt_box = app.page.locator('[data-workbench-testid="workbench-prompt"]')
     prompt_box.click()
@@ -41,42 +46,38 @@ def test_command_hints_filter_and_chip_lifecycle(app):
     prompt_box.fill("/xyz")
     assert app.page.locator('[data-testid="composer-command-hints"]').count() == 0
 
-    # Enter 选中当前指令 → 行内芯片出现在输入文字起始处，正文清空且缩进避开芯片
+    # Enter 选中当前指令 → 切换到设计方案模式，正文保持为空
     prompt_box.fill("/创建")
     assert app.page.locator('[data-testid="composer-command-hint"]').count() == 1
     prompt_box.press("Enter")
-    app.page.wait_for_selector('[data-testid="composer-command-chip"][data-command="design-plan"]')
-    chip_box = _chip(app).bounding_box()
-    prompt_rect = prompt_box.bounding_box()
-    assert chip_box["y"] >= prompt_rect["y"]  # 芯片叠在输入区首行位置（行内）
-    assert chip_box["x"] >= prompt_rect["x"]
-    indent = prompt_box.evaluate("el => parseFloat(getComputedStyle(el).textIndent) || 0")
-    assert indent >= chip_box["width"]  # 正文从芯片后开始
+    _assert_design_plan_mode(app)
     assert prompt_box.input_value() == ""
     assert app.page.locator('[data-testid="composer-command-hints"]').count() == 0
-    app.page.screenshot(path=str(EVIDENCE_DIR / "03-chip-mounted.png"), full_page=True)
+    app.page.screenshot(path=str(EVIDENCE_DIR / "03-design-plan-mode.png"), full_page=True)
 
-    # 光标在正文最前 Backspace 移除芯片
+    # 光标在正文最前 Backspace 清除模式
     prompt_box.click()
     prompt_box.press("Backspace")
-    assert _chip(app).count() == 0
+    assert _mode(app).locator('[data-active="true"]').inner_text() == "图像"
 
-    # 输入完整指令自动收敛为芯片，正文保留想法
+    # 输入完整指令自动切换模式，正文保留想法
     prompt_box.fill("/create design plan 做一套贴纸方案")
-    app.page.wait_for_selector('[data-testid="composer-command-chip"]')
+    _assert_design_plan_mode(app)
     assert prompt_box.input_value() == "做一套贴纸方案"
-    app.page.screenshot(path=str(EVIDENCE_DIR / "03b-chip-with-text.png"), full_page=True)
+    app.page.screenshot(path=str(EVIDENCE_DIR / "03b-mode-with-text.png"), full_page=True)
 
-    # X 按钮移除芯片，正文不动
-    app.page.click('[data-testid="composer-command-chip-remove"]')
-    assert _chip(app).count() == 0
+    # 光标在正文最前 Backspace 清除模式，正文不动
+    prompt_box.click()
+    prompt_box.press("Home")
+    prompt_box.press("Backspace")
+    assert _mode(app).locator('[data-active="true"]').inner_text() == "图像"
     assert prompt_box.input_value() == "做一套贴纸方案"
 
-    # + 菜单「生成设计方案」也挂芯片而不是立即执行
+    # + 菜单「生成设计方案」切换模式而不是立即执行
     prompt_box.fill("")
     app.page.click('[data-testid="workbench-image-picker"]')
     app.page.wait_for_selector('[data-testid="composer-menu-design-plan"]')
     app.page.click('[data-testid="composer-menu-design-plan"]')
-    app.page.wait_for_selector('[data-testid="composer-command-chip"]')
+    _assert_design_plan_mode(app)
     assert app.page.locator('[data-testid="scheme-creation-conversation"]').count() == 0
-    app.page.screenshot(path=str(EVIDENCE_DIR / "04-chip-from-menu.png"), full_page=True)
+    app.page.screenshot(path=str(EVIDENCE_DIR / "04-mode-from-menu.png"), full_page=True)

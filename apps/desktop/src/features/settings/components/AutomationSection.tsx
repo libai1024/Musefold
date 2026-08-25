@@ -10,7 +10,11 @@ import type {
   IntegrationInfo,
 } from '@musefold/desktop-contracts/ipc';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
-import { SectionShell, SettingRow } from '../components/SectionShell';
+import { SettingRow, SettingsCard } from '../components/SectionShell';
+import { SettingsSwitch } from '@musefold/product-ui';
+import { IconButton } from '@musefold/ui';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
 import { cn } from '../../../lib/utils';
 
 function maskToken(token: string): string {
@@ -80,7 +84,10 @@ export function AutomationSection() {
   const copySnippet = async (key: string, text: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedSnippet(key);
-    window.setTimeout(() => setCopiedSnippet((current) => (current === key ? null : current)), 1500);
+    window.setTimeout(
+      () => setCopiedSnippet((current) => (current === key ? null : current)),
+      1500,
+    );
   };
 
   const runIntegration = async (action: IntegrationAction) => {
@@ -129,78 +136,66 @@ export function AutomationSection() {
   };
 
   return (
-    <SectionShell
-      title="自动化"
-      description="把 Musefold 的能力开放给本机的 Agent（Claude Code / Codex / Cursor）与脚本。控制面只监听 127.0.0.1；花钱动作始终需要确认或预算授权。"
-    >
-      <div className="settings-list flex flex-col">
+    <>
+      <SettingsCard title="本地控制面" description="配置监听状态、访问令牌与每月自动化积分预算">
         <SettingRow
           label="本地控制面"
-          hint={status?.running ? `运行中 · 127.0.0.1:${status.port} · API v1` : '已停止（发现文件已删除）'}
+          hint={
+            status?.running
+              ? `运行中 · 127.0.0.1:${status.port} · API v1`
+              : '已停止（发现文件已删除）'
+          }
           data-testid="automation-toggle-row"
         >
-          <button
-            type="button"
-            role="switch"
-            aria-checked={status?.enabled ?? false}
-            aria-label="启用本地控制面"
-            title={status?.enabled ? '关闭本地控制面' : '启用本地控制面'}
+          <SettingsSwitch
+            checked={status?.enabled ?? false}
+            onCheckedChange={() => void toggle()}
+            label={status?.enabled ? '关闭本地控制面' : '启用本地控制面'}
             disabled={!status || busy}
-            data-testid="automation-toggle"
-            onClick={() => void toggle()}
-            className={cn(
-              'no-drag relative h-5 w-9 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] disabled:opacity-50',
-              status?.enabled ? 'border-accent bg-accent' : 'border-border-strong bg-inset',
-            )}
-          >
-            <span
-              className={cn(
-                'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-                status?.enabled ? 'translate-x-4' : 'translate-x-0',
-              )}
-            />
-          </button>
+            testId="automation-toggle"
+          />
         </SettingRow>
 
         <SettingRow
+          className="settings-automation-token-row"
           label="访问 token"
-          hint="等同「操作 Musefold 的钥匙」（但拿到它也读不出任何 API Key）。泄露疑虑时立即轮换。"
+          hint="等同「操作 Musefold 的钥匙」；泄露疑虑时立即轮换。"
           data-testid="automation-token-row"
         >
-          <div className="flex items-center gap-2">
+          <div className="settings-token-controls">
             <code
               className="max-w-[220px] truncate rounded bg-inset px-2 py-1 font-mono text-[11px] text-secondary"
               data-testid="automation-token-value"
-              title={revealed ? status?.token ?? '' : undefined}
+              title={revealed ? (status?.token ?? '') : undefined}
             >
               {status?.token ? (revealed ? status.token : maskToken(status.token)) : '—'}
             </code>
-            <button
-              type="button"
-              className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+            <Button
+              size="sm"
+              variant="outline"
               disabled={!status?.token}
               onClick={() => setRevealed((value) => !value)}
             >
               {revealed ? '隐藏' : '显示'}
-            </button>
-            <button
-              type="button"
-              className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               disabled={!status?.token}
               data-testid="automation-token-copy"
               onClick={() => void copyToken()}
             >
               {copied ? '已复制' : '复制'}
-            </button>
-            <button
-              type="button"
-              className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               disabled={!status?.running || busy}
               data-testid="automation-token-rotate"
               onClick={() => void rotate()}
             >
               轮换
-            </button>
+            </Button>
           </div>
         </SettingRow>
 
@@ -215,19 +210,19 @@ export function AutomationSection() {
         >
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-quaternary">积分</span>
-            <input
+            <Input
               type="number"
               min="0"
               step="0.5"
               value={budgetDraft}
               onChange={(event) => setBudgetDraft(event.target.value)}
               data-testid="automation-budget-input"
-              className="no-drag h-7 w-20 rounded-md border border-border-default bg-transparent px-2 text-right text-[12px] text-primary focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+              className="settings-budget-input no-drag w-20 px-2 text-right text-[12px] text-primary"
             />
             <span className="text-[11px] text-quaternary">/月</span>
-            <button
-              type="button"
-              className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+            <Button
+              size="sm"
+              variant="outline"
               disabled={busy || budget == null || Number.isNaN(Number(budgetDraft))}
               data-testid="automation-budget-save"
               onClick={() =>
@@ -242,238 +237,244 @@ export function AutomationSection() {
               }
             >
               保存
-            </button>
+            </Button>
           </div>
         </SettingRow>
-
-      </div>
+      </SettingsCard>
 
       {/* —— 接入向导（私下分发零依赖：App 内置 MCP 服务器与 CLI，配置不含密钥） —— */}
       <div className="mt-8" data-testid="integration-guide">
         <p className="text-[12.5px] font-medium text-primary">在 Agent 里使用 Musefold</p>
         <p className="mt-1 text-[11px] leading-relaxed text-tertiary">
-          MCP 服务器与命令行工具已内置在应用里，无需安装 Node 或其他依赖；配置中不含任何密钥。
-          Agent 可检查接入状态、唤起原生账号或中转站表单，并等待生图完成通知；凭据始终只在 Musefold 内输入，花钱动作仍经过本应用确认或预算。
+          MCP 服务器与命令行工具已内置在应用里，无需安装 Node 或其他依赖；配置中不含任何密钥。 Agent
+          可检查接入状态、唤起原生账号或中转站表单，并等待生图完成通知；凭据始终只在 Musefold
+          内输入，花钱动作仍经过本应用确认或预算。
         </p>
         {!integration?.bundledReady && (
-          <p className="mt-2 rounded bg-inset px-2 py-1.5 text-[11px] text-[var(--danger-text,#e5484d)]">
+          <p className="settings-integration-item-error mt-2 rounded bg-inset px-2 py-1.5 text-[11px]">
             内置产物缺失（开发模式请先运行 node scripts/build-cli.mjs）。
           </p>
         )}
         {integrationNotice && (
-          <p className="mt-2 rounded bg-inset px-2 py-1.5 text-[11px] text-secondary" data-testid="integration-notice">
+          <p
+            className="mt-2 rounded bg-inset px-2 py-1.5 text-[11px] text-secondary"
+            data-testid="integration-notice"
+          >
             {integrationNotice}
           </p>
         )}
 
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="settings-integration-list mt-3">
           {/* Cursor */}
-          <div className="rounded-lg border border-border-subtle p-3" data-testid="integration-cursor">
-            <div className="flex items-center gap-2">
+          <div className="settings-integration-item" data-testid="integration-cursor">
+            <div className="settings-integration-item-header">
               <p className="min-w-0 flex-1 text-[12px] font-medium text-primary">
                 Cursor
                 {integration?.clients.cursor.registered && (
-                  <span className="ml-2 text-[10.5px] font-normal text-tertiary">已配置</span>
+                  <span className="ml-2 text-meta font-normal text-tertiary">已配置</span>
                 )}
               </p>
-              <button
-                type="button"
-                className="no-drag rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              <Button
+                size="sm"
+                variant="primary"
                 disabled={busy || !integration?.bundledReady}
                 data-testid="integration-cursor-install"
                 onClick={() => void runIntegration('open-cursor-deeplink')}
               >
                 一键添加到 Cursor
-              </button>
-              <button
-                type="button"
-                className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary"
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
                 disabled={!integration}
                 onClick={() => void copySnippet('cursor', integration!.snippets.cursorJson)}
               >
                 {copiedSnippet === 'cursor' ? '已复制' : '复制 JSON'}
-              </button>
+              </Button>
             </div>
-            <p className="mt-1 text-[10.5px] text-quaternary">或手动粘贴到 ~/.cursor/mcp.json</p>
+            <p className="mt-1 text-meta text-quaternary">或手动粘贴到 ~/.cursor/mcp.json</p>
           </div>
 
           {/* Codex 与支持本地 stdio MCP 的 OpenAI 客户端 */}
-          <div className="rounded-lg border border-border-subtle p-3" data-testid="integration-codex">
-            <div className="flex items-center gap-2">
+          <div className="settings-integration-item" data-testid="integration-codex">
+            <div className="settings-integration-item-header">
               <p className="min-w-0 flex-1 text-[12px] font-medium text-primary">
                 Codex / ChatGPT 桌面版
                 {integration?.clients.codex.registered && (
-                  <span className="ml-2 text-[10.5px] font-normal text-tertiary">已配置</span>
+                  <span className="ml-2 text-meta font-normal text-tertiary">已配置</span>
                 )}
               </p>
-              <button
-                type="button"
-                className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary"
+              <Button
+                size="sm"
+                variant="outline"
                 disabled={!integration}
                 data-testid="integration-codex-copy"
                 onClick={() => void copySnippet('codex', integration!.snippets.codexToml)}
               >
                 {copiedSnippet === 'codex' ? '已复制' : '复制 TOML 片段'}
-              </button>
+              </Button>
             </div>
-            <p className="mt-1 text-[10.5px] text-quaternary">
+            <p className="mt-1 text-meta text-quaternary">
               Codex 可粘贴到 ~/.codex/config.toml；ChatGPT 桌面版只有在当前版本提供本地 MCP servers
               配置时才能按相同 command / args / env 字段添加
             </p>
           </div>
 
           {/* Claude Code */}
-          <div className="rounded-lg border border-border-subtle p-3" data-testid="integration-claude">
-            <div className="flex items-center gap-2">
+          <div className="settings-integration-item" data-testid="integration-claude">
+            <div className="settings-integration-item-header">
               <p className="min-w-0 flex-1 text-[12px] font-medium text-primary">
                 Claude Code
                 {integration?.clients.claudeCode.registered && (
-                  <span className="ml-2 text-[10.5px] font-normal text-tertiary">已配置</span>
+                  <span className="ml-2 text-meta font-normal text-tertiary">已配置</span>
                 )}
               </p>
               {integration?.clients.claudeCode.cliDetected ? (
-                <button
-                  type="button"
-                  className="no-drag rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                <Button
+                  size="sm"
+                  variant="primary"
                   disabled={busy || !integration.bundledReady}
                   data-testid="integration-claude-register"
                   onClick={() => void runIntegration('register-claude-code')}
                 >
                   一键注册
-                </button>
+                </Button>
               ) : (
-                <span className="text-[10.5px] text-quaternary">未检测到 claude 命令</span>
+                <span className="text-meta text-quaternary">未检测到 claude 命令</span>
               )}
-              <button
-                type="button"
-                className="no-drag rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary"
+              <Button
+                size="sm"
+                variant="outline"
                 disabled={!integration}
                 onClick={() => void copySnippet('claude', integration!.snippets.claudeCommand)}
               >
                 {copiedSnippet === 'claude' ? '已复制' : '复制命令'}
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* 公开 Agent Skill */}
-          <div className="rounded-lg border border-border-subtle p-3" data-testid="integration-skill">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="settings-integration-item" data-testid="integration-skill">
+            <div className="settings-integration-item-header settings-integration-item-header--wrap">
               <div className="min-w-0 flex-1">
                 <p className="text-[12px] font-medium text-primary">Musefold 自动化 Skill</p>
-                <p className="mt-1 text-[10.5px] text-tertiary" data-testid="integration-skill-status">
+                <p className="mt-1 text-meta text-tertiary" data-testid="integration-skill-status">
                   {skillVersionSummary}
                   {integration?.skills.checkedAt
                     ? ` · 已检查 ${new Date(integration.skills.checkedAt).toLocaleString('zh-CN', { hour12: false })}`
                     : ' · 尚未联网检查'}
                 </p>
               </div>
-              <button
-                type="button"
-                className="no-drag inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              <Button
+                size="sm"
+                variant="primary"
                 disabled={busy || !integration?.bundledReady}
                 data-testid="integration-skill-install"
                 onClick={() => void runIntegration('install-skill-all')}
               >
-                <Download aria-hidden="true" size={13} />
+                <Download aria-hidden="true" className="h-3 w-3" />
                 {installedSkillCount === 0
                   ? '安装'
                   : integration?.skills.updateAvailable
                     ? '更新'
                     : '重新安装'}
-              </button>
-              <button
-                type="button"
-                className="no-drag inline-flex items-center gap-1 rounded-md border border-border-default px-2 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
                 disabled={busy || !integration}
                 data-testid="integration-skill-check"
                 onClick={() => void runIntegration('check-skill-update')}
               >
-                <RefreshCw aria-hidden="true" size={13} />
+                <RefreshCw aria-hidden="true" className="h-3 w-3" />
                 检查
-              </button>
-              <button
-                type="button"
-                className="no-drag inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-default text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+              </Button>
+              <IconButton
+                label="打开 Skill 发布页"
+                size="sm"
                 disabled={busy || !integration}
                 data-testid="integration-skill-open"
-                title="打开 Skill 发布页"
                 onClick={() => void runIntegration('open-skill-url')}
               >
-                <ExternalLink aria-hidden="true" size={13} />
-              </button>
-              <button
-                type="button"
-                className="no-drag inline-flex h-7 w-7 items-center justify-center rounded-md border border-border-default text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+                <ExternalLink aria-hidden="true" className="h-3 w-3" />
+              </IconButton>
+              <IconButton
+                label={copiedSnippet === 'skill-url' ? '已复制 Skill 地址' : '复制 Skill 地址'}
+                size="sm"
                 disabled={!integration}
                 data-testid="integration-skill-copy"
-                title={copiedSnippet === 'skill-url' ? '已复制 Skill 地址' : '复制 Skill 地址'}
                 onClick={() => void copySnippet('skill-url', integration!.snippets.skillUrl)}
               >
-                <Copy aria-hidden="true" size={13} />
-              </button>
+                <Copy aria-hidden="true" className="h-3 w-3" />
+              </IconButton>
             </div>
-            <div className="mt-2 flex items-center justify-between gap-3 border-t border-border-subtle pt-2">
+            <div className="settings-integration-item-divider mt-2 flex items-center justify-between gap-3 pt-2">
               <div className="min-w-0">
-                <p className="text-[10.5px] text-secondary">自动更新</p>
-                <p className="mt-0.5 text-[10px] text-quaternary">
+                <p className="text-meta text-secondary">自动更新</p>
+                <p className="mt-0.5 text-meta text-quaternary">
                   启动时检查并更新已安装项；下载内容通过 SHA-256 校验，旧目录保留备份
                 </p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={integration?.skills.autoUpdate ?? false}
-                aria-label="自动更新 Musefold Skill"
+              <SettingsSwitch
+                checked={integration?.skills.autoUpdate ?? false}
+                onCheckedChange={() =>
+                  void runIntegration(
+                    integration?.skills.autoUpdate
+                      ? 'disable-skill-auto-update'
+                      : 'enable-skill-auto-update',
+                  )
+                }
+                label="自动更新 Musefold Skill"
                 disabled={busy || !integration}
-                data-testid="integration-skill-auto-update"
-                onClick={() => void runIntegration(
-                  integration?.skills.autoUpdate
-                    ? 'disable-skill-auto-update'
-                    : 'enable-skill-auto-update',
-                )}
-                className={cn(
-                  'no-drag relative h-5 w-9 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] disabled:opacity-50',
-                  integration?.skills.autoUpdate ? 'border-accent bg-accent' : 'border-border-strong bg-inset',
-                )}
-              >
-                <span
-                  className={cn(
-                    'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-                    integration?.skills.autoUpdate ? 'translate-x-4' : 'translate-x-0',
-                  )}
-                />
-              </button>
+                testId="integration-skill-auto-update"
+              />
             </div>
             {integration?.skills.checkError && (
-              <p className="mt-2 text-[10.5px] text-[var(--danger-text,#e5484d)]" data-testid="integration-skill-error">
-                {integration.skills.checkError}；仍可安装 App 内置版本 {integration.skills.bundledVersion}
+              <p
+                className="settings-integration-item-error mt-2 text-meta"
+                data-testid="integration-skill-error"
+              >
+                {integration.skills.checkError}；仍可安装 App 内置版本{' '}
+                {integration.skills.bundledVersion}
               </p>
             )}
             <code
-              className="mt-2 block truncate font-mono text-[10px] text-quaternary"
+              className="mt-2 block truncate font-mono text-meta text-quaternary"
               data-testid="integration-skill-url"
               title={integration?.snippets.skillUrl}
             >
               {integration?.snippets.skillUrl ?? '正在获取网址…'}
             </code>
             {integration && (
-              <p className="mt-1 text-[10px] text-quaternary">
-                Codex {integration.skills.installed.codex ? integration.skills.installedVersions.codex ?? '旧版' : '未安装'}
-                {' · '}Claude {integration.skills.installed.claude ? integration.skills.installedVersions.claude ?? '旧版' : '未安装'}
-                {' · '}Cursor {integration.skills.installed.cursor ? integration.skills.installedVersions.cursor ?? '旧版' : '未安装'}
+              <p className="mt-1 text-meta text-quaternary">
+                Codex{' '}
+                {integration.skills.installed.codex
+                  ? (integration.skills.installedVersions.codex ?? '旧版')
+                  : '未安装'}
+                {' · '}Claude{' '}
+                {integration.skills.installed.claude
+                  ? (integration.skills.installedVersions.claude ?? '旧版')
+                  : '未安装'}
+                {' · '}Cursor{' '}
+                {integration.skills.installed.cursor
+                  ? (integration.skills.installedVersions.cursor ?? '旧版')
+                  : '未安装'}
               </p>
             )}
-            <p className="mt-1 text-[10.5px] text-quaternary">
+            <p className="mt-1 text-meta text-quaternary">
               新版 Skill 会先探测 App 能力；旧版 App 缺少新接口时会降级或明确提示升级，不会猜测调用
             </p>
           </div>
 
           {/* CLI */}
-          <div className="rounded-lg border border-border-subtle p-3" data-testid="integration-cli">
-            <div className="flex items-center gap-2">
+          <div className="settings-integration-item" data-testid="integration-cli">
+            <div className="settings-integration-item-header">
               <p className="min-w-0 flex-1 text-[12px] font-medium text-primary">
                 命令行工具（musefold）
-                <span className="ml-2 text-[10.5px] font-normal text-tertiary" data-testid="integration-cli-status">
+                <span
+                  className="ml-2 text-meta font-normal text-tertiary"
+                  data-testid="integration-cli-status"
+                >
                   {!integration
                     ? '检测中…'
                     : !integration.cli.installed
@@ -485,9 +486,9 @@ export function AutomationSection() {
                           : `已自动安装 · ${integration.cli.path}`}
                 </span>
               </p>
-              <button
-                type="button"
-                className="no-drag rounded-md border border-border-default px-2.5 py-1 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
+              <Button
+                size="sm"
+                variant="outline"
                 disabled={busy || !integration?.bundledReady}
                 data-testid="integration-cli-install"
                 onClick={() =>
@@ -503,12 +504,12 @@ export function AutomationSection() {
                   : integration?.cli.installed
                     ? '修复安装'
                     : '安装到 PATH'}
-              </button>
+              </Button>
             </div>
-            <p className="mt-1 text-[10.5px] text-quaternary">
-              正式版会为当前用户自动安装，无需管理员权限。macOS 在首次从 Applications
-              启动时写入 ~/.local/bin；Windows 安装器写入 %USERPROFILE%\.musefold\bin。
-              已打开的终端或 Agent 需重新启动；此按钮用于修复或移除。
+            <p className="mt-1 text-meta text-quaternary">
+              正式版会为当前用户自动安装，无需管理员权限。macOS 在首次从 Applications 启动时写入
+              ~/.local/bin；Windows 安装器写入 %USERPROFILE%\.musefold\bin。 已打开的终端或 Agent
+              需重新启动；此按钮用于修复或移除。
             </p>
           </div>
         </div>
@@ -517,52 +518,55 @@ export function AutomationSection() {
       <div className="mt-8">
         <div className="flex items-center justify-between">
           <p className="text-[12.5px] font-medium text-primary">最近调用</p>
-          <button
-            type="button"
-            className="no-drag text-[11px] text-tertiary transition-colors hover:text-primary"
-            onClick={() => void refresh()}
-          >
+          <Button variant="ghost" size="xs" onClick={() => void refresh()}>
             刷新
-          </button>
+          </Button>
         </div>
         {audit.length === 0 ? (
-          <p className="mt-3 text-[11.5px] text-quaternary" data-testid="automation-audit-empty">
+          <p
+            className="settings-audit-empty mt-3 text-[11.5px] text-quaternary"
+            data-testid="automation-audit-empty"
+          >
             还没有外部调用记录。
           </p>
         ) : (
-          <div className="mt-3 flex flex-col gap-px" data-testid="automation-audit-list">
+          <div className="settings-audit-list mt-3" data-testid="automation-audit-list">
             {audit.map((entry) => (
               <button
                 type="button"
                 key={entry.id}
-                onClick={() => setExpandedAuditId((current) => (current === entry.id ? null : entry.id))}
-                className="no-drag rounded-md px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-hover"
+                onClick={() =>
+                  setExpandedAuditId((current) => (current === entry.id ? null : entry.id))
+                }
+                className="settings-audit-item no-drag text-[11px]"
               >
                 <div className="flex items-center gap-3">
                   <span
                     className={cn(
                       'w-12 shrink-0 font-medium',
-                      entry.status === 'success'
-                        ? 'text-tertiary'
-                        : 'text-[var(--danger-text,#e5484d)]',
+                      entry.status === 'success' ? 'text-tertiary' : 'settings-audit-status-danger',
                     )}
                   >
                     {AUDIT_STATUS_LABEL[entry.status] ?? entry.status}
                   </span>
-                  <span className="w-20 shrink-0 font-mono text-quaternary">{AUDIT_ACTION_LABEL[entry.action] ?? entry.action}</span>
+                  <span className="w-20 shrink-0 font-mono text-quaternary">
+                    {AUDIT_ACTION_LABEL[entry.action] ?? entry.action}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-secondary">
                     {entry.promptText ? entry.promptText.slice(0, 60) : '—'}
                   </span>
                   <span className="shrink-0 text-quaternary">
                     {entry.actualPoints != null ? `${entry.actualPoints} 积分` : '-'}
                   </span>
-                  <span className="shrink-0 text-quaternary">{AUDIT_VIA_LABEL[entry.approvedVia] ?? entry.approvedVia}</span>
+                  <span className="shrink-0 text-quaternary">
+                    {AUDIT_VIA_LABEL[entry.approvedVia] ?? entry.approvedVia}
+                  </span>
                   <span className="shrink-0 text-quaternary">
                     {new Date(entry.at).toLocaleTimeString('zh-CN', { hour12: false })}
                   </span>
                 </div>
                 {expandedAuditId === entry.id && entry.promptText && (
-                  <p className="mt-1.5 whitespace-pre-wrap break-words rounded bg-inset px-2 py-1.5 font-mono text-[10.5px] text-secondary">
+                  <p className="settings-audit-detail whitespace-pre-wrap break-words font-mono text-meta text-secondary">
                     {entry.promptText}
                   </p>
                 )}
@@ -571,6 +575,6 @@ export function AutomationSection() {
           </div>
         )}
       </div>
-    </SectionShell>
+    </>
   );
 }

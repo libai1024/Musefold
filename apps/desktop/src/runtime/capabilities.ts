@@ -18,13 +18,14 @@ export const SIDEBAR_NAV_CAPABILITY = productSidebarCapabilityMap('desktop') as 
   DesktopCapabilityFlag
 >;
 
-/** 设置分区 key → 能力 flag。account / data / appearance / about 等未列入的永远显示。 */
+/**
+ * 设置分区 key → 能力 flag。account / data / preferences / archived 等未列入的永远显示。
+ * 数组表示「任一能力开启即显示」：中转站含生图+Agent 两条通道，开放能力含自动化+已连接应用。
+ */
 export const SETTINGS_SECTION_CAPABILITY = {
-  connections: 'cloudMcpConnections',
-  providers: 'byokProviders',
-  ai: 'agent',
-  automation: 'automation',
-} as const satisfies Record<string, DesktopCapabilityFlag>;
+  relay: ['byokProviders', 'agent'],
+  open: ['automation', 'cloudMcpConnections'],
+} as const satisfies Record<string, DesktopCapabilityFlag | readonly DesktopCapabilityFlag[]>;
 
 /**
  * 命令面板动作 id → 能力 flag。
@@ -36,11 +37,15 @@ export const COMMAND_ACTION_CAPABILITY = productCommandCapabilityMap('desktop') 
   DesktopCapabilityFlag
 >;
 
-/** 无对应 flag 的入口保持可见；有 flag 则跟清单走。 */
+/** 无对应 flag 的入口保持可见；有 flag 则跟清单走（数组 = 任一开启即可见）。 */
 export function isCapabilityEntryVisible(
-  mapping: { readonly [id: string]: DesktopCapabilityFlag },
+  mapping: {
+    readonly [id: string]: DesktopCapabilityFlag | readonly DesktopCapabilityFlag[];
+  },
   id: string,
 ): boolean {
   const flag = mapping[id];
-  return flag === undefined || capabilities[flag];
+  if (flag === undefined) return true;
+  if (typeof flag !== 'string') return flag.some((entry) => capabilities[entry]);
+  return capabilities[flag];
 }

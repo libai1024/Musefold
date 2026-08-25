@@ -55,13 +55,13 @@ export function SourceSnapshotDialog({
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-inset text-secondary"><FolderOpen className="h-4 w-4" /></span>
           <div className="min-w-0 flex-1">
             <h2 id="scheme-source-title" className="text-[14px] font-semibold text-primary">方案来源</h2>
-            <p className="mt-1 text-[10.5px] text-tertiary">来源快照在创建时锁定，之后不会变化，也不会执行其中的脚本。</p>
+            <p className="mt-1 text-meta text-tertiary">来源快照在创建时锁定，之后不会变化，也不会执行其中的脚本。</p>
           </div>
           <button type="button" onClick={onClose} className="icon-action" aria-label="关闭" title="关闭"><X className="h-4 w-4" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[11px] leading-6 text-secondary">
           {error ? (
-            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger">{error}</div>
+            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">{error}</div>
           ) : !snapshots ? (
             <div className="flex items-center justify-center gap-2 py-10 text-tertiary"><Loader2 className="h-4 w-4 animate-spin" />正在读取来源快照…</div>
           ) : (
@@ -69,7 +69,7 @@ export function SourceSnapshotDialog({
               {briefExcerpt && (
                 <div>
                   <p className="flex items-center gap-1.5 font-medium text-primary"><Sparkles className="h-3.5 w-3.5" />你的想法</p>
-                  <p className="mt-1 whitespace-pre-wrap rounded-md bg-inset/55 px-3 py-2 text-[10.5px] leading-5">{briefExcerpt}</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-md bg-inset/55 px-3 py-2 text-meta leading-5">{briefExcerpt}</p>
                 </div>
               )}
               {snapshots.length === 0 && !briefExcerpt && (
@@ -81,19 +81,19 @@ export function SourceSnapshotDialog({
                     {snapshot.packageKind === 'github' ? <GitBranch className="h-3.5 w-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
                     {PACKAGE_KIND_LABEL[snapshot.packageKind]}
                     {snapshot.repositoryUrl && (
-                      <button type="button" onClick={() => window.open(snapshot.repositoryUrl!, '_blank', 'noopener,noreferrer')} className="inline-flex items-center gap-1 text-[10.5px] font-normal text-primary hover:underline">
+                      <button type="button" onClick={() => window.open(snapshot.repositoryUrl!, '_blank', 'noopener,noreferrer')} className="inline-flex items-center gap-1 text-meta font-normal text-primary hover:underline">
                         <ExternalLink className="h-3 w-3" />{snapshot.repositoryUrl.replace(/^https:\/\/github\.com\//, '')}
                       </button>
                     )}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-tertiary">
+                  <p className="mt-0.5 text-meta text-tertiary">
                     {snapshot.commitHash ? `commit ${snapshot.commitHash.slice(0, 10)}` : `引用 ${snapshot.ref}`}
                     {snapshot.license ? ` · ${snapshot.license}` : ''}
                     {` · 固化于 ${new Date(snapshot.createdAt).toLocaleString()}`}
                   </p>
                   <ul className="mt-2 space-y-0.5 border-l border-border-subtle pl-3">
                     {snapshot.files.map((file) => (
-                      <li key={file.path} className="text-[10.5px]">
+                      <li key={file.path} className="text-meta">
                         {file.kind === 'text' && file.textExcerpt ? (
                           <details>
                             <summary className="flex cursor-pointer list-none items-center gap-1.5">
@@ -101,7 +101,7 @@ export function SourceSnapshotDialog({
                               <span className="min-w-0 truncate text-primary">{file.path}</span>
                               <span className="shrink-0 text-tertiary">{formatBytes(file.sizeBytes)}</span>
                             </summary>
-                            <pre className="mt-1 max-h-44 overflow-y-auto whitespace-pre-wrap rounded-md bg-inset/55 px-2.5 py-2 font-mono text-[9.5px] leading-4 text-secondary">{file.textExcerpt}</pre>
+                            <pre className="mt-1 max-h-44 overflow-y-auto whitespace-pre-wrap rounded-md bg-inset/55 px-2.5 py-2 font-mono text-meta leading-4 text-secondary">{file.textExcerpt}</pre>
                           </details>
                         ) : (
                           <span className="flex items-center gap-1.5">
@@ -112,7 +112,7 @@ export function SourceSnapshotDialog({
                         )}
                       </li>
                     ))}
-                    {snapshot.files.length === 0 && <li className="text-[10px] text-tertiary">快照内没有文件</li>}
+                    {snapshot.files.length === 0 && <li className="text-meta text-tertiary">快照内没有文件</li>}
                   </ul>
                 </div>
               ))}
@@ -172,7 +172,7 @@ export function RenameDialog({
             className="w-full rounded-md border border-border-subtle bg-inset px-3 py-2 text-[12px] text-primary outline-none focus:border-accent/50"
             data-testid="scheme-rename-input"
           />
-          <p className="mt-2 text-[10px] text-tertiary">只影响展示名称；方案规则与版本记录保持不变。</p>
+          <p className="mt-2 text-meta text-tertiary">只影响展示名称；方案规则与版本记录保持不变。</p>
           <div className="mt-4 flex justify-end gap-2">
             <button type="button" onClick={onClose} className="action-button">取消</button>
             <button

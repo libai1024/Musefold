@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>GOV-05 字体锁定核验页</title>
+<style>
+  @font-face {
+    font-family: "Syne";
+    src: url("../packages/ui/fonts/syne-var.woff2") format("woff2");
+    font-weight: 400 800;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Noto Sans SC Theater";
+    src: url("../packages/ui/fonts/noto-sans-sc-var-subset.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: swap;
+  }
+  :root { --accent: #d6653f; }
+  body {
+    margin: 0; padding: 48px; background: #f6f6f4; color: #202124;
+    font-family: "Syne", "Noto Sans SC Theater", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  }
+  .hero { font-size: 92px; font-weight: 800; line-height: 1.1; letter-spacing: 0; margin: 0 0 24px; }
+  .hero .ember { color: var(--accent); }
+  .latin { font-size: 56px; font-weight: 700; line-height: 1.1; margin: 0 0 24px; }
+  .weights { display: flex; gap: 24px; font-size: 34px; margin: 0 0 24px; }
+  .fallback { font-size: 34px; font-weight: 600; margin: 0 0 24px; }
+  .meta { font-size: 14px; color: #4f5156; font-family: "PingFang SC", system-ui, sans-serif; }
+  .dark { background: #18191b; color: #f4f4f1; padding: 32px 48px; margin: 0 -48px -48px; }
+  .dark .ember { color: #ef7a52; }
+</style>
+</head>
+<body>
+  <h1 class="hero">让灵感<br><span class="ember">成为图像。</span></h1>
+  <p class="latin">Musefold — images, made. y g j p q 0123456789</p>
+  <div class="weights">
+    <span style="font-weight:400">未像 400</span>
+    <span style="font-weight:600">未像 600</span>
+    <span style="font-weight:800">未像 800</span>
+  </div>
+  <p class="fallback">子集外字符回落核验：骤雨鷗鷺（应回落系统苹方，不出现豆腐块）</p>
+  <p class="meta">核验项：CJK 不破行、descender（y g j p q）不被裁切、Ember 强调不换字体家族、字重梯度平滑、回落无豆腐。</p>
+  <div class="dark">
+    <h2 class="hero" style="font-size:64px">深色章节 <span class="ember">Theme Lock</span></h2>
+  </div>
+</body>
+</html>

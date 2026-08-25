@@ -1,14 +1,9 @@
 // src/features/settings/components/DataSection.tsx
 // 数据与存储 —— 导出/导入 + 备份 + 存储路径 + 诊断日志（版本信息在「关于」）
 import { useEffect, useState } from 'react';
-import {
-  FolderOpen,
-  RefreshCw,
-  Download,
-  Upload,
-} from '../../../components/ui/icons';
+import { FolderOpen, RefreshCw, Download, Upload } from '../../../components/ui/icons';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
-import { SectionShell } from '../components/SectionShell';
+import { SettingsCard } from '../components/SectionShell';
 import { Button } from '../../../components/ui/button';
 import { ExportDialog } from '../components/ExportDialog';
 import { ImportDialog } from '../components/ImportDialog';
@@ -36,12 +31,18 @@ export function DataSection() {
   useEffect(() => {
     // 防御：preload 桥缺失时（如纯前端预览）优雅降级，避免整页崩溃
     if (!api?.system) return;
-    api.system.getPaths().then(setPaths).catch(() => {});
+    api.system
+      .getPaths()
+      .then(setPaths)
+      .catch(() => {});
   }, []);
 
   const refreshLog = () => {
     if (!api?.log) return;
-    api.log.tail(300).then((t) => setLogText(t || '（暂无日志）')).catch(() => setLogText('（读取日志失败）'));
+    api.log
+      .tail(300)
+      .then((t) => setLogText(t || '（暂无日志）'))
+      .catch(() => setLogText('（读取日志失败）'));
   };
 
   const toggleLog = () => {
@@ -76,20 +77,17 @@ export function DataSection() {
     });
     useHistoryStore.setState({ selectedId: null, retryingIds: new Set() });
     useGenerationWorkbenchStore.getState().newSession();
-    await Promise.all([
-      useLibraryStore.getState().loadAll(),
-      useHistoryStore.getState().load(),
-    ]);
+    await Promise.all([useLibraryStore.getState().loadAll(), useHistoryStore.getState().load()]);
     setBackupRefreshKey((value) => value + 1);
   };
 
   return (
-    <SectionShell
-      title="数据与存储"
-      description="生成的图片与数据库存放在本机。密钥单独经系统密钥库加密，不在这些目录内以明文存在。"
-    >
+    <>
       {/* 与其他分区一致的连续细线列表：无前置图标、统一行节奏（v0.3.x 设置一致性） */}
-      <div className="settings-list flex flex-col">
+      <SettingsCard
+        title="本地数据"
+        description="导出、导入、备份并查看 Musefold 在当前设备上的存储位置"
+      >
         {/* 导出与导入 —— 备份迁移闭环（TASK-SET-03） */}
         <div className="settings-row flex items-center gap-6 border-b border-border-subtle py-[var(--density-setting-row-y)] first:border-t">
           <div className="min-w-0 flex-1">
@@ -99,10 +97,20 @@ export function DataSection() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button size="sm" variant="outline" onClick={() => setExportOpen(true)} data-testid="open-export">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setExportOpen(true)}
+              data-testid="open-export"
+            >
               <Download className="h-3 w-3" /> 导出
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} data-testid="open-import">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              data-testid="open-import"
+            >
               <Upload className="h-3 w-3" /> 导入
             </Button>
           </div>
@@ -117,7 +125,9 @@ export function DataSection() {
           >
             <div className="min-w-0 flex-1">
               <p className="text-[12.5px] font-medium text-primary">{r.label}</p>
-              <p className="mt-0.5 truncate font-mono text-[11px] text-tertiary">{r.path ?? '未读取'}</p>
+              <p className="mt-0.5 truncate font-mono text-[11px] text-tertiary">
+                {r.path ?? '未读取'}
+              </p>
             </div>
             <Button
               size="sm"
@@ -149,17 +159,21 @@ export function DataSection() {
             </div>
           </div>
           {logOpen && (
-            <div className="mb-4 overflow-hidden rounded-lg border border-border-subtle">
+            <div className="mb-4 overflow-hidden rounded-md border border-border-subtle">
               <div className="flex items-center justify-between px-3.5 py-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-quaternary">最近 300 行</span>
-                <button
+                <span className="text-meta uppercase tracking-wide text-quaternary">
+                  最近 300 行
+                </span>
+                <Button
+                  type="button"
+                  unstyled
                   onClick={refreshLog}
-                  className="no-drag flex items-center gap-1 text-[10px] text-tertiary hover:text-secondary"
+                  className="no-drag flex items-center gap-1 text-meta text-tertiary hover:text-secondary"
                 >
                   <RefreshCw className="h-3 w-3" /> 刷新
-                </button>
+                </Button>
               </div>
-              <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-border-subtle bg-inset/40 px-3.5 py-2.5 font-mono text-[10px] leading-relaxed text-secondary">
+              <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-border-subtle bg-inset/40 px-3.5 py-2.5 font-mono text-meta leading-relaxed text-secondary">
                 {logText ?? '加载中…'}
               </pre>
             </div>
@@ -167,10 +181,10 @@ export function DataSection() {
         </div>
 
         <DangerZonePanel onExport={() => setExportOpen(true)} onReset={afterReset} />
-      </div>
+      </SettingsCard>
 
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={afterImport} />
-    </SectionShell>
+    </>
   );
 }

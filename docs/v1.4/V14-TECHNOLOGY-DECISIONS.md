@@ -5,6 +5,8 @@
 > **日期**：2026-08-22
 >
 > **目的**：把「Awwwards 级 UI」收成可执行、可回滚的工程决策，避免在实现期重开配色、字体、动效库和官网形态
+>
+> **修订（2026-08-22）**：按仓库核实事实精确化 D3 与 D9 的机制表述——视觉门禁是双端实时对比、仓库无提交基线；GSAP 仅为桌面依赖，共享层 Theater 瞬间用 CSS token；官网验收设施属本版本新建。冻结结论不变。
 
 v1.4 **不重开** Electron / Fastify / Vite / React 18 / npm / TanStack Query。那些是 v1.2.2 / v1.3 的冻结。本文件只处理视觉层会碰到的选型。
 
@@ -14,13 +16,13 @@ v1.4 **不重开** Electron / Fastify / Vite / React 18 / npm / TanStack Query�
 |---|---|---|
 | D1 双寄存器 | 每个表面声明 `theater` 或 `operate`；token 与约束按寄存器分叉，品牌世界不分叉 | 新增 |
 | D2 样式体系统一 | Web 迁入 Tailwind v4 + `packages/ui` token；删除 `apps/web/src/styles.css` 里与 token/原语重复的规则 | 解冻 v1.3 遗留 |
-| D3 动效库 | Operate：CSS token。Theater 与朱点：GSAP + `@gsap/react`（已在桌面）。禁止同一组件树混用 GSAP 与 Motion | 重估后保留 GSAP |
+| D3 动效库 | Operate：CSS token。Theater：GSAP 只进桌面叶子（引导、朱点）与官网岛；共享 `product-ui` 的 Theater 瞬间一律 CSS token。禁止同一组件树混用 GSAP 与 Motion | 重估后保留 GSAP |
 | D4 3D / WebGL | 默认不引入 Three.js。官网签名画面用 CSS/SVG mask + 图像 | 拒绝 |
 | D5 字体 | Operate 继续系统栈。Theater 自托管一款 sans display + Noto Sans SC 子集。禁止 Inter | 新增分叉 |
 | D6 图标 | 维持 Lucide 单入口。官网 sprite 同源。禁止第二图标库 | 重申 |
 | D7 表情符号 | 产品与官网零 emoji；ESLint / 守卫测试强制 | 新增门禁 |
 | D8 官网形态 | 保留 `website/Musefold/` 静态站点 + 动效岛，不并入 `apps/web` SPA | 保留并升级 |
-| D9 视觉门禁 | Operate 每张卡更新对应 surface 基线；Theater 官网另开 Lighthouse + 几何契约，不进像素比对 | 修订流程 |
+| D9 视觉门禁 | 门禁是双端实时对比，无提交基线；Operate 每张卡合并前重跑声明 surface 并登记阈值差；官网另开 Lighthouse + 几何契约（本版本新建），不进像素比对 | 修订流程 |
 | D10 图像 | 真截图 + 真生成图 + 用户当前图。禁止生成装饰背景、禁止假 UI | 新增 |
 | D11 品牌色 | 不改 Graphite / Ember hex。高级感不靠换色 | 冻结 |
 | D12 产品版本 | 用户可见切割为 0.6.0；文档版本 v1.4 | 新增 |
@@ -58,7 +60,7 @@ v1.4 **不重开** Electron / Fastify / Vite / React 18 / npm / TanStack Query�
 
 不采用：把桌面改回手写 CSS；引入 shadcn/ui（内部原语库已被门禁锁定）。
 
-风险：统一过程中像素会抖。必须 **先 WEB-01 迁样式、视觉门禁仍按旧像素绿**，再在 OPERATE 卡里故意改外观并重打基线。禁止「迁 CSS 的同时改设计」。
+风险：统一过程中像素会抖。必须 **先 WEB-01 迁样式、视觉门禁在现行阈值下仍绿**，再在 OPERATE 卡里故意改外观并按 D9 协议登记阈值差。禁止「迁 CSS 的同时改设计」。
 
 ## 4. D3 动效库
 
@@ -69,7 +71,13 @@ v1.4 **不重开** Electron / Fastify / Vite / React 18 / npm / TanStack Query�
 | Motion (`motion/react`) | 布局过渡友好，但与 GSAP 抢帧；再加一个运行时依赖对 product-ui 不划算 |
 | CSS scroll-driven animations | 好，但 Safari / Electron 覆盖仍要 fallback；官网主叙事不拿它当唯一实现 |
 
-**结论**：不引入 Motion。Theater 叶子用 GSAP。Operate 用 CSS。官网滚动叙事用 GSAP ScrollTrigger，打成独立 IIFE / ESM 岛，不把 React 打进官网。
+**结论**：不引入 Motion。Operate 用 CSS。官网滚动叙事用 GSAP ScrollTrigger，打成独立 IIFE / ESM 岛，不把 React 打进官网。
+
+**GSAP 的边界（按依赖事实划定）**：`gsap` 与 `@gsap/react` 目前只是 `apps/desktop` 的依赖，`packages/product-ui`、`packages/ui`、`apps/web` 均不依赖它。这条边界在 v1.4 保持不变——`product-ui` 被双端消费且被像素门禁锁定，给它加动效运行时等于同时给 Web 加。因此：
+
+- GSAP 只允许出现在桌面叶子（引导两步、朱点）与官网 `motion.js` 岛；
+- 共享层的 Theater 瞬间（结果就位、工作台空态入场）一律用 CSS token 实现：`--dur-theater-*` + `--ease-spring`，只动 `transform` / `opacity`；
+- 若某个共享层动效被证明 CSS 做不到，先把该组件的动效壳下放到桌面叶子，再考虑 GSAP，不把 GSAP 提进共享包。
 
 GSAP 标准许可已在桌面第三方声明中。官网若用 GSAP，必须同步 `third-party-notices` 与官网页脚许可，不得默默加。
 
@@ -101,7 +109,7 @@ Lucide 已是全仓唯一图标实现。v1.4 只补官网同源 sprite，以及 
 
 允许：单元测试夹具里描述「用户输入了 emoji」的字符串；第三方许可文本。
 
-`Sparkles` 在 Lucide 里是合法图标，不是 emoji。引导「第一张图」若用 `Sparkles`，语义是「显形」，不要换成 ✨。
+`Sparkles` 在 Lucide 里是合法图标，不是 emoji。引导「第一张图」若用 `Sparkles`，语义是「显形」，不要换成 emoji 字符（U+2728）。
 
 ## 8. D8 官网保持静态站点
 
@@ -113,12 +121,14 @@ Lucide 已是全仓唯一图标实现。v1.4 只补官网同源 sprite，以及 
 
 ## 9. D9 视觉门禁协议
 
-像素门禁是双端一致的执行机制（v1.2.2 D1 保留 Electron 的理由之一）。v1.4 会故意改像素，所以协议必须先于改外观：
+像素门禁是双端一致的执行机制（v1.2.2 D1 保留 Electron 的理由之一）。v1.4 会故意改像素，所以协议必须先于改外观。
 
-1. Phase 1 的 CSS 统一：**零视觉变更**，旧基线必须绿。
-2. 每张 OPERATE / THEATER（产品内）卡：只动声明的 surface，更新 `scripts/compare-shared-ui-visuals.mjs` 对应截图产物与阈值说明。
-3. 阈值不得偷偷放宽。若 mean error 需要上调，卡内写明原因，收口阶段再压回。
-4. 官网不进 `test:visual:shared`。官网验收 = Playwright 几何契约（无横向溢出、CTA 可见、390/768/1440）+ Lighthouse CI（LCP < 2.5s、CLS < 0.1）。
+先钉住门禁的真实形态：`scripts/compare-shared-ui-visuals.mjs` 是 **Web 对桌面的双端实时对比**——运行时先跑 Web Playwright 再跑桌面 pytest，把同名截图现场 diff，产物落在 gitignored 的 `artifacts/`。仓库里**没有提交基线**，「重打基线」不是一个存在的操作。协议按此表述：
+
+1. Phase 1 的 CSS 统一：**零视觉变更**，现行阈值下门禁必须绿。
+2. 每张 OPERATE / THEATER（产品内）卡：只动声明的 surface。共享 `product-ui` 的改动天然双端同步；**桌面与 Web 表现分叉的中间态不得跨卡存在**。卡片合并前必须重跑 `test:visual:shared`，并把关键 surface 的 `artifacts/` 截图附进 PR 留痕。
+3. 阈值不得偷偷放宽。若某 surface 的 `maxMeanError` / `maxChangedPixels` 需要上调，卡内写明原因，收口阶段（REL-02）再压回；阈值及其理由的唯一登记处是脚本内注释。
+4. 官网不进 `test:visual:shared`。官网验收 = Playwright 几何契约（无横向溢出、CTA 可见、390/768/1440）+ Lighthouse CI（LCP < 2.5s、CLS < 0.1）。仓库当前没有任何官网自动化测试与 Lighthouse 设施，这套验收设施属 v1.4 从零新建，落实为[落实计划 SITE-05](./V14-DELIVERY-PLAN.md)。
 
 ## 10. D10 图像材料
 

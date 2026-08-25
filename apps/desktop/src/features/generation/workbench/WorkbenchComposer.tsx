@@ -17,6 +17,10 @@ import { useWorkbenchComposerStore } from "./useWorkbenchComposerStore";
 import { useGenerationWorkbenchStore } from "./store";
 import { useSkillRuntimeStore } from "./skill-runtime-store";
 import { WorkbenchComposerView } from "./WorkbenchComposerView";
+import {
+  composerPresentationMode,
+  composerPresentationModeLocked,
+} from "./composerPresentation";
 
 export function WorkbenchComposer() {
   const store = useWorkbenchComposerStore();
@@ -54,8 +58,6 @@ export function WorkbenchComposer() {
     doubaoImageMode,
     designPlanIntent,
     commandHints,
-    commandChipVisible,
-    referenceCapsulesVisible,
     skillComposerAttachmentVisible,
     schemeSource,
     schemeModifyCanSubmit,
@@ -81,11 +83,6 @@ export function WorkbenchComposer() {
   const [historySourceOpen, setHistorySourceOpen] = useState(false);
   const [commandHintIndex, setCommandHintIndex] = useState(0);
   const [commandHintsDismissed, setCommandHintsDismissed] = useState(false);
-  // 行内指令胶囊：正文通过 text-indent 从胶囊后开始（Codex 式）。
-  const inlineChipsRef = useRef<HTMLSpanElement>(null);
-  const [inlineChipsIndent, setInlineChipsIndent] = useState(0);
-  const [inlineChipsPadTop, setInlineChipsPadTop] = useState(0);
-  const [composerScrollTop, setComposerScrollTop] = useState(0);
 
   useLayoutEffect(() => {
     const animationFrame = window.requestAnimationFrame(() => {
@@ -111,30 +108,6 @@ export function WorkbenchComposer() {
     setCommandHintIndex(0);
     textareaRef.current?.focus();
   };
-  const inlineChipsVisible = commandChipVisible || referenceCapsulesVisible;
-  useLayoutEffect(() => {
-    if (!inlineChipsVisible) {
-      setInlineChipsIndent(0);
-      setInlineChipsPadTop(0);
-      setComposerScrollTop(0);
-      return;
-    }
-    const container = inlineChipsRef.current;
-    const chips = container
-      ? (Array.from(container.children) as HTMLElement[])
-      : [];
-    const lastChip = chips[chips.length - 1];
-    if (!container || !lastChip) return;
-    // 胶囊仍在首行：正文用 text-indent 从胶囊后开始，composer 高度不变；
-    // 胶囊折行（引用较多）：退化为把正文下移到胶囊区块之下。
-    if (lastChip.offsetTop <= 4) {
-      setInlineChipsIndent(lastChip.offsetLeft + lastChip.offsetWidth + 7);
-      setInlineChipsPadTop(0);
-    } else {
-      setInlineChipsIndent(0);
-      setInlineChipsPadTop(container.offsetHeight + 12);
-    }
-  }, [inlineChipsVisible, commandChipVisible, references]);
   const handleClearSource = () => {
     const current = source;
     clearSource();
@@ -144,6 +117,18 @@ export function WorkbenchComposer() {
       );
       if (index >= 0) removeReference(index);
     }
+  };
+  const composerMode = composerPresentationMode({
+    refinementContext,
+    schemeSource,
+    skillRuntimeStatus,
+    designPlanIntent,
+    draftCommand,
+  });
+  const composerModeLocked = composerPresentationModeLocked(composerMode);
+  const setComposerMode = (mode: "image" | "design-plan") => {
+    if (composerModeLocked || doubaoImageMode) return;
+    setDraftCommand(mode === "design-plan" ? "design-plan" : null);
   };
   const effectiveGenerationParams = doubaoImageMode
     ? { ...params, n: 1 }
@@ -450,7 +435,6 @@ export function WorkbenchComposer() {
       composerSurfaceRef={composerSurfaceRef}
       imageInputRef={imageInputRef}
       dragDepthRef={dragDepthRef}
-      inlineChipsRef={inlineChipsRef}
       imageBusy={imageBusy}
       dragActive={dragActive}
       setDragActive={setDragActive}
@@ -467,13 +451,8 @@ export function WorkbenchComposer() {
       commandHintIndex={commandHintIndex}
       setCommandHintIndex={setCommandHintIndex}
       setCommandHintsDismissed={setCommandHintsDismissed}
-      inlineChipsIndent={inlineChipsIndent}
-      inlineChipsPadTop={inlineChipsPadTop}
-      composerScrollTop={composerScrollTop}
-      setComposerScrollTop={setComposerScrollTop}
       commandHintsVisible={commandHintsVisible}
       activeCommandHintIndex={activeCommandHintIndex}
-      inlineChipsVisible={inlineChipsVisible}
       effectiveImageCount={effectiveImageCount}
       sourceBlockVisible={sourceBlockVisible}
       attachmentStripVisible={attachmentStripVisible}
@@ -487,6 +466,9 @@ export function WorkbenchComposer() {
       handleSubmit={handleSubmit}
       stageImageFiles={stageImageFiles}
       removeReferenceAt={removeReferenceAt}
+      composerMode={composerMode}
+      composerModeLocked={composerModeLocked}
+      setComposerMode={setComposerMode}
     />
   );
 }

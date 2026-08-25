@@ -1,9 +1,9 @@
 // src/lib/generation-params.ts
 // 精修面板的参数模型 → 生图请求的纯映射（无 store / 无 IPC，可单测）
 //
-// 为什么不直接让面板存 `size`：两类 Provider 的尺寸语义不同（docs/product/12 §1.3）——
-// OpenAI 兼容站吃像素档 `size`，悟空创作台吃比例 `aspectRatio`。面板只让用户选「比例」，
-// 由这里同时算出两者，请求里都带上，Provider 各取所需。
+// 为什么不直接让面板存 `size`：尺寸语义随 Provider 不同（docs/product/12 §1.3）——
+// OpenAI 兼容站吃像素档 `size`。面板只让用户选「比例」，由这里算出像素档与
+// 比例字符串，请求里都带上，Provider 各取所需。
 
 import type {
   GenerateImageRequest,

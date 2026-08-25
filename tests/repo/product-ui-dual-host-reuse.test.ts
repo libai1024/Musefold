@@ -10,7 +10,7 @@ import { REPO_ROOT } from '../../tooling/aliases.mjs';
  * 数量只增不减。统计只看生产源码（排除 __tests__/.test.），避免用测试文件刷数。
  */
 
-const BOTH_HOSTS_BASELINE = 64;
+const BOTH_HOSTS_BASELINE = 68;
 
 const HOSTS = {
   web: 'apps/web/src',
@@ -89,6 +89,7 @@ describe('V13-REUSE-02 product-ui 双端复用', () => {
       'WorkbenchContextMenu',
       'useWorkbenchTimelineController',
       'useGeneratePageController',
+      'SettingsWorkspace',
     ];
     expect(required.filter((symbol) => !shared.includes(symbol))).toEqual([]);
   });

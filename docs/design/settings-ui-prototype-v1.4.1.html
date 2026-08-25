@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Musefold 设置 - 1.4.1 设计原型</title>
+  <style>
+    /* ===== 设计系统 Tokens ===== */
+    :root {
+      /* 浅色模式 */
+      --bg-app: #f6f6f4;
+      --bg-sidebar: #f1f1ee;
+      --bg-elevated: #ffffff;
+      --bg-hover: #f0f0ed;
+      --bg-pressed: #e8e8e4;
+      --bg-inset: #e9e9e6;
+      
+      --fg-primary: #202124;
+      --fg-secondary: #55575c;
+      --fg-tertiary: #74777c;
+      --fg-quaternary: #9a9da3;
+      
+      --border-subtle: #e5e5e1;
+      --border-default: #d5d5d1;
+      
+      --accent: #d6653f;
+      --accent-hover: #bc5535;
+      --accent-soft: rgba(214, 101, 63, 0.12);
+      
+      --success: #2a7b4a;
+      --warning: #a96d1d;
+      --danger: #b54935;
+      --info: #3f739e;
+      
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-pop: 0 4px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+      
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      
+      --dur-fast: 0.15s;
+      --dur-base: 0.25s;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    /* 深色模式 */
+    [data-theme='dark'] {
+      --bg-app: #1a1a1c;
+      --bg-sidebar: #222224;
+      --bg-elevated: #2a2a2c;
+      --bg-hover: #323234;
+      --bg-pressed: #3a3a3c;
+      --bg-inset: #1f1f21;
+      
+      --fg-primary: #f0f0f2;
+      --fg-secondary: #b8b9bd;
+      --fg-tertiary: #8a8b8f;
+      --fg-quaternary: #6a6b6f;
+      
+      --border-subtle: #3a3a3c;
+      --border-default: #4a4a4c;
+      
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+      --shadow-pop: 0 4px 16px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    /* ===== 基础重置 ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      height: 100%;
+      font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'PingFang SC', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--fg-primary);
+      background: var(--bg-app);
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    button, input, select {
+      font-family: inherit;
+      font-size: inherit;
+    }
+    
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+    
+    /* ===== 布局结构 ===== */
+    .app-container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    /* ===== 左侧导航 ===== */
+    .sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    
+    .sidebar-header {
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    
+    .back-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--fg-secondary);
+      font-size: 13px;
+      text-decoration: none;
+      padding: 6px 8px;
+      margin: -6px -8px 12px;
+      border-radius: var(--radius-sm);
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .back-link:hover {
+      background: var(--bg-hover);
+      color: var(--fg-primary);
+    }
+    
+    .sidebar-search {
+      position: relative;
+    }
+    
+    .sidebar-search input {
+      width: 100%;
+      height: 32px;
+      padding: 0 12px 0 32px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      outline: none;
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .sidebar-search input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    
+    .sidebar-search input::placeholder {
+      color: var(--fg-quaternary);
+    }
+    
+    .sidebar-search .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--fg-quaternary);
+      pointer-events: none;
+    }
+    
+    .nav-groups {
+      flex: 1;
+      padding: 16px 12px;
+    }
+    
+    .nav-group {
+      margin-bottom: 24px;
+    }
+    
+    .nav-group-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 8px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-quaternary);
+    }
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 8px 12px;
+      margin-bottom: 2px;
+      border-radius: var(--radius-sm);
+      color: var(--fg-secondary);
+      font-size: 13px;
+      text-align: left;
+      transition: all var(--dur-fast) var(--ease-out);
+      position: relative;
+    }
+    
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--fg-primary);
+    }
+    
+    .nav-item.active {
+      background: var(--bg-pressed);
+      color: var(--fg-primary);
+      font-weight: 500;
+    }
+    
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+    }
+    
+    .nav-item svg {
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+    
+    .nav-item.active svg {
+      opacity: 1;
+      color: var(--accent);
+    }
+    
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    
+    .sidebar-footer .nav-item {
+      margin-bottom: 4px;
+    }
+    
+    /* ===== 右侧内容区 ===== */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 40px;
+    }
+    
+    .content-wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .page-header {
+      margin-bottom: 32px;
+    }
+    
+    .page-title {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    
+    .page-description {
+      font-size: 14px;
+      color: var(--fg-tertiary);
+    }
+    
+    /* ===== 设置卡片 ===== */
+    .settings-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    
+    .settings-card__header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    
+    .settings-card__title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--fg-primary);
+    }
+    
+    .settings-card__description {
+      font-size: 12px;
+      color: var(--fg-tertiary);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    
+    .settings-card__body {
+      padding: 8px 0;
+    }
+    
+    /* ===== 设置项 ===== */
+    .setting-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 14px 24px;
+      transition: background-color var(--dur-fast) var(--ease-out);
+    }
+    
+    .setting-item:not(:last-child) {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    
+    .setting-item:hover {
+      background: var(--bg-hover);
+    }
+    
+    .setting-item__content {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .setting-item__label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .setting-item__badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 500;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 4px;
+    }
+    
+    .setting-item__hint {
+      font-size: 12px;
+      color: var(--fg-tertiary);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    
+    .setting-item__control {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    /* ===== 控件样式 ===== */
+    /* 下拉选择 */
+    .select-control {
+      position: relative;
+      min-width: 160px;
+    }
+    
+    .select-control select {
+      width: 100%;
+      height: 32px;
+      padding: 0 32px 0 12px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      font-size: 13px;
+      appearance: none;
+      cursor: pointer;
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .select-control select:hover {
+      border-color: var(--fg-quaternary);
+    }
+    
+    .select-control select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    
+    .select-control::after {
+      content: '';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--fg-tertiary);
+      pointer-events: none;
+    }
+    
+    /* 开关 */
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      cursor: pointer;
+      z-index: 1;
+    }
+    
+    .switch__track {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-pressed);
+      border-radius: 999px;
+      transition: background var(--dur-base) var(--ease-out);
+    }
+    
+    .switch__thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: var(--fg-primary);
+      border-radius: 50%;
+      transition: transform var(--dur-base) var(--ease-out);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    
+    .switch input:checked + .switch__track {
+      background: var(--accent);
+    }
+    
+    .switch input:checked + .switch__track .switch__thumb {
+      transform: translateX(20px);
+      background: #fff;
+    }
+    
+    /* 文本输入 */
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    
+    .input-group input {
+      width: 280px;
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      font-size: 13px;
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .input-group input::placeholder {
+      color: var(--fg-quaternary);
+    }
+    
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    
+    /* 按钮 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .btn--outline {
+      border: 1px solid var(--border-default);
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+    }
+    
+    .btn--outline:hover {
+      background: var(--bg-hover);
+      border-color: var(--fg-quaternary);
+    }
+    
+    .btn--primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+    }
+    
+    .btn--primary:hover {
+      background: var(--accent-hover);
+    }
+    
+    .btn--sm {
+      height: 28px;
+      padding: 0 12px;
+      font-size: 12px;
+    }
+    
+    /* 按钮组 */
+    .segmented-control {
+      display: flex;
+      background: var(--bg-inset);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+    }
+    
+    .segmented-control button {
+      flex: 1;
+      height: 28px;
+      padding: 0 16px;
+      border: none;
+      background: transparent;
+      color: var(--fg-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: calc(var(--radius-sm) - 2px);
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .segmented-control button:hover {
+      color: var(--fg-primary);
+    }
+    
+    .segmented-control button.active {
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      box-shadow: var(--shadow-sm);
+    }
+    
+    /* 步进器 */
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .stepper button {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border-default);
+      background: var(--bg-elevated);
+      color: var(--fg-secondary);
+      border-radius: var(--radius-sm);
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .stepper button:hover {
+      background: var(--bg-hover);
+      color: var(--fg-primary);
+    }
+    
+    .stepper input {
+      width: 60px;
+      height: 28px;
+      text-align: center;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* 标签页导航（响应式） */
+    .tabs-nav {
+      display: none;
+      padding: 16px 20px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      overflow-x: auto;
+    }
+    
+    .tabs-nav__list {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .tabs-nav__item {
+      padding: 10px 16px;
+      border: none;
+      background: none;
+      color: var(--fg-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .tabs-nav__item:hover {
+      color: var(--fg-primary);
+    }
+    
+    .tabs-nav__item.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    
+    /* 主题切换按钮 */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--fg-secondary);
+      transition: all var(--dur-fast) var(--ease-out);
+    }
+    
+    .theme-toggle:hover {
+      background: var(--bg-hover);
+      color: var(--fg-primary);
+    }
+    
+    /* 响应式 */
+    @media (max-width: 959px) {
+      .sidebar {
+        display: none;
+      }
+      
+      .tabs-nav {
+        display: block;
+      }
+      
+      .main-content {
+        padding: 24px 20px;
+      }
+    }
+    
+    /* 工具类 */
+    .icon {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .text-success { color: var(--success); }
+    .text-warning { color: var(--warning); }
+    .text-danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+    </svg>
+  </button>
+  
+  <div class="app-container">
+    <!-- 左侧导航 -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="back-link">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          返回工作区
+        </a>
+        <div class="sidebar-search">
+          <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" placeholder="搜索设置...">
+        </div>
+      </div>
+      
+      <div class="nav-groups">
+        <div class="nav-group">
+          <div class="nav-group-label">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            基础设置
+          </div>
+          <button class="nav-item" data-section="general">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+            </svg>
+            常规
+          </button>
+          <button class="nav-item active" data-section="appearance">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            外观
+          </button>
+          <button class="nav-item" data-section="model">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              <polyline points="2 17 12 22 22 17"/>
+              <polyline points="2 12 12 17 22 12"/>
+            </svg>
+            模型设置
+          </button>
+          <button class="nav-item" data-section="browser">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            浏览器
+          </button>
+        </div>
+        
+        <div class="nav-group">
+          <div class="nav-group-label">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a10 10 0 1 0 10 10H12V2z"/>
+              <path d="M12 2a10 10 0 0 1 10 10h-10V2z"/>
+            </svg>
+            Agent 能力
+          </div>
+          <button class="nav-item" data-section="memory">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            记忆
+          </button>
+          <button class="nav-item" data-section="subagent">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            子智能体
+          </button>
+          <button class="nav-item" data-section="plugins">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            插件
+          </button>
+          <button class="nav-item" data-section="mcp">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            MCP 服务器
+          </button>
+        </div>
+        
+        <div class="nav-group">
+          <div class="nav-group-label">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+            数据与统计
+          </div>
+          <button class="nav-item" data-section="data">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+            数据管理
+          </button>
+          <button class="nav-item" data-section="stats">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"/>
+              <line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            使用统计
+          </button>
+        </div>
+      </div>
+      
+      <div class="sidebar-footer">
+        <button class="nav-item">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          引导
+        </button>
+        <button class="nav-item">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <line x1="20" y1="8" x2="20" y2="14"/>
+            <line x1="23" y1="11" x2="17" y2="11"/>
+          </svg>
+          连接使用
+        </button>
+      </div>
+    </nav>
+    
+    <!-- 标签页导航（响应式） -->
+    <div class="tabs-nav">
+      <div class="tabs-nav__list">
+        <button class="tabs-nav__item">常规</button>
+        <button class="tabs-nav__item active">外观</button>
+        <button class="tabs-nav__item">模型设置</button>
+        <button class="tabs-nav__item">浏览器</button>
+        <button class="tabs-nav__item">Agent 能力</button>
+        <button class="tabs-nav__item">数据</button>
+      </div>
+    </div>
+    
+    <!-- 右侧内容区 -->
+    <main class="main-content">
+      <div class="content-wrapper">
+        <header class="page-header">
+          <h1 class="page-title">外观</h1>
+          <p class="page-description">自定义 Musefold 的界面外观和显示效果</p>
+        </header>
+        
+        <!-- 卡片 1：界面设置 -->
+        <div class="settings-card">
+          <div class="settings-card__header">
+            <h2 class="settings-card__title">界面设置</h2>
+            <p class="settings-card__description">设置应用主题和界面文字大小</p>
+          </div>
+          <div class="settings-card__body">
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">界面主题</div>
+                <div class="setting-item__hint">选择浅色、深色或跟随系统主题</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="select-control">
+                  <select>
+                    <option>跟随系统</option>
+                    <option selected>深色</option>
+                    <option>浅色</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">界面字号</div>
+                <div class="setting-item__hint">调整应用界面的文字大小，图标和布局尺寸不受影响</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="stepper">
+                  <button>-</button>
+                  <input type="text" value="14" readonly>
+                  <button>+</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">界面密度</div>
+                <div class="setting-item__hint">紧凑模式可减少间距，显示更多内容</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="segmented-control">
+                  <button>舒适</button>
+                  <button class="active">紧凑</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">减少动效</div>
+                <div class="setting-item__hint">关闭过渡、入场和循环动画</div>
+              </div>
+              <div class="setting-item__control">
+                <label class="switch">
+                  <input type="checkbox">
+                  <span class="switch__track">
+                    <span class="switch__thumb"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 卡片 2：代码显示 -->
+        <div class="settings-card">
+          <div class="settings-card__header">
+            <h2 class="settings-card__title">代码显示</h2>
+            <p class="settings-card__description">设置代码内容的主题、字号和显示方式</p>
+          </div>
+          <div class="settings-card__body">
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">浅色代码主题</div>
+                <div class="setting-item__hint">浅色界面下代码内容使用的高亮主题</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="select-control">
+                  <select>
+                    <option>GitHub Light</option>
+                    <option selected>GitHub Light</option>
+                    <option>One Light</option>
+                    <option>Solarized Light</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">深色代码主题</div>
+                <div class="setting-item__hint">深色界面下代码内容使用的高亮主题</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="select-control">
+                  <select>
+                    <option>GitHub Dark</option>
+                    <option selected>GitHub Dark</option>
+                    <option>One Dark</option>
+                    <option>Dracula</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">显示行号</div>
+                <div class="setting-item__hint">在代码内容和差异视图中显示行号</div>
+              </div>
+              <div class="setting-item__control">
+                <label class="switch">
+                  <input type="checkbox" checked>
+                  <span class="switch__track">
+                    <span class="switch__thumb"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">长行自动换行</div>
+                <div class="setting-item__hint">代码内容过长时自动换行</div>
+              </div>
+              <div class="setting-item__control">
+                <label class="switch">
+                  <input type="checkbox">
+                  <span class="switch__track">
+                    <span class="switch__thumb"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">代码字号</div>
+                <div class="setting-item__hint">调整代码块、文件预览和差异视图的默认字号</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="stepper">
+                  <button>-</button>
+                  <input type="text" value="12" readonly>
+                  <button>+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 卡片 3：编辑器 -->
+        <div class="settings-card">
+          <div class="settings-card__header">
+            <h2 class="settings-card__title">编辑器</h2>
+            <p class="settings-card__description">配置代码编辑器的行为和外观</p>
+          </div>
+          <div class="settings-card__body">
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">
+                  自动保存
+                  <span class="setting-item__badge">新增</span>
+                </div>
+                <div class="setting-item__hint">编辑文件后自动保存，无需手动操作</div>
+              </div>
+              <div class="setting-item__control">
+                <label class="switch">
+                  <input type="checkbox" checked>
+                  <span class="switch__track">
+                    <span class="switch__thumb"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">自动保存延迟</div>
+                <div class="setting-item__hint">停止编辑后延迟自动保存的时间</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="select-control">
+                  <select>
+                    <option>500 毫秒</option>
+                    <option selected>1 秒</option>
+                    <option>2 秒</option>
+                    <option>5 秒</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="setting-item">
+              <div class="setting-item__content">
+                <div class="setting-item__label">缩进大小</div>
+                <div class="setting-item__hint">设置代码缩进的空格数</div>
+              </div>
+              <div class="setting-item__control">
+                <div class="segmented-control">
+                  <button>2</button>
+                  <button class="active">4</button>
+                  <button>8</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+    }
+    
+    // 导航交互
+    document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item[data-section]').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+    
+    // 标签页交互
+    document.querySelectorAll('.tabs-nav__item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.tabs-nav__item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+    
+    // 开关交互
+    document.querySelectorAll('.switch input').forEach(input => {
+      input.addEventListener('change', () => {
+        // 可以在这里添加保存逻辑
+        console.log('Setting changed:', input.checked);
+      });
+    });
+  </script>
+</body>
+</html>

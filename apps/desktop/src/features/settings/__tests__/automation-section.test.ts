@@ -5,9 +5,9 @@ const section = readFileSync('apps/desktop/src/features/settings/components/Auto
 
 describe('automation settings UI contract', () => {
   it('renders an unambiguous, theme-aware local control-plane switch', () => {
-    expect(section).toContain('aria-label="启用本地控制面"');
-    expect(section).toContain("status?.enabled ? 'border-accent bg-accent'");
-    expect(section).toContain('absolute left-0.5 top-0.5');
+    // v1.4.1：开关统一走共享 SettingsSwitch 原语（role=switch + 主题 token 由原语保证）
+    expect(section).toContain('<SettingsSwitch');
+    expect(section).toContain("label={status?.enabled ? '关闭本地控制面' : '启用本地控制面'}");
     expect(section).not.toContain('--accent-solid');
   });
 
@@ -31,7 +31,7 @@ describe('automation settings UI contract', () => {
 
   it('explains native credential handoff and completion notifications', () => {
     expect(section).toContain('唤起原生账号或中转站表单');
-    expect(section).toContain('凭据始终只在 Musefold 内输入');
+    expect(section).toContain('凭据始终只在 Musefold');
     expect(section).toContain('等待生图完成通知');
   });
 });

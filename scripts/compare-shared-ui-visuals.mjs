@@ -41,6 +41,9 @@ run(pytest, ["tests/e2e/test_11_visual_qa.py", "-q"], {
   MUSEFOLD_VISUAL_OUTPUT_DIR: desktopOutput,
 });
 
+// REL-02 audit (2026-08-22): these are the original shared visual contract
+// values; v1.4 did not widen any threshold. The current run's highest observed
+// pair is history-detail-compact meanError=0.0994 / changedPixelRatio=0.1301.
 const surfaces = [
   {
     id: "product-sidebar",

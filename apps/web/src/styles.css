@@ -1,338 +1,95 @@
-:root {
-  font-family:
-    'SF Pro Text',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI Variable',
-    'Segoe UI',
-    'PingFang SC',
-    system-ui,
-    sans-serif;
-  font-size: 13px;
-  line-height: 1.45;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  letter-spacing: 0;
-  color: var(--fg-primary);
-  background: var(--bg-window);
+/* v1.4 WEB-01：接入与桌面同源的 Tailwind v4 主题与工具类（@musefold/ui token 映射见根 tailwind.config.ts）。
+ * 刻意不引 preflight（tailwindcss/preflight.css）：本文件既有的重置即现行像素基线，
+ * preflight 对齐属像素变更，推迟到 OPERATE-01（届时像素本来就要动并过门禁）。
+ * 层序显式声明：base 在 utilities 之前，宿主元素重置永远压不过工具类。
+ * 注意：无 preflight 意味着 border 工具类必须显式搭配 border-solid（preflight 的
+ * border-style 重置不存在），转换规则时逐处检查。 */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@config '../tailwind.config.ts';
+
+/* 宿主基础层：元素级重置与焦点环。只允许元素/伪类选择器，不放业务类。 */
+@layer base {
+  :root {
+    font-family:
+      'SF Pro Text',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI Variable',
+      'Segoe UI',
+      'PingFang SC',
+      system-ui,
+      sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    letter-spacing: 0;
+    color: var(--fg-primary);
+    background: var(--bg-window);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-width: 320px;
+    margin: 0;
+  }
+  body {
+    overflow: hidden;
+    background: var(--bg-window);
+  }
+  button,
+  input,
+  textarea {
+    font: inherit;
+    letter-spacing: 0;
+  }
+  button {
+    color: inherit;
+  }
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    stroke-width: 2;
+  }
 }
 
-* {
-  box-sizing: border-box;
-}
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  min-width: 320px;
-  margin: 0;
-}
-body {
-  overflow: hidden;
-  background: var(--bg-window);
-}
-button,
-input,
-textarea {
-  font: inherit;
-  letter-spacing: 0;
-}
-button {
-  color: inherit;
-}
-button,
-a {
-  -webkit-tap-highlight-color: transparent;
-}
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  stroke-width: 2;
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
+/* page / page-history 的桌面样式已转为工具类（WEB-01 批次 4）。
+ * 类名保留：680px（PRODUCT_MOBILE_BREAKPOINT）媒体块改 padding，
+ * 且 .page > .mf-prompt-* 去内边距。
+ * workbench-page / workbench-scroll / generated-asset / result-download
+ * 的基础样式已转为工具类（批次 3b），类名保留给媒体块与 e2e。 */
 
-.nav-button {
-  position: relative;
-  width: 100%;
-  min-height: 32px;
-  border: 0;
-  border-radius: 6px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: transparent;
-  color: var(--fg-secondary);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
-}
-.nav-button:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-.nav-button[data-active='true'] {
-  background: var(--bg-active);
-  color: var(--fg-primary);
-  font-weight: 550;
-}
-.nav-button[data-active='true'] svg {
-  color: var(--accent);
-  stroke-width: 2.3;
-}
-.nav-button > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.nav-button small {
-  margin-left: auto;
-  border-radius: 999px;
-  padding: 2px 6px;
-  background: var(--bg-inset);
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.app-main {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-elevated);
-}
-.icon-button {
-  width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--fg-tertiary);
-  cursor: pointer;
-}
-.icon-button:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-.quota-readout {
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 0 8px;
-  color: var(--fg-secondary);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.quota-readout svg {
-  width: 13px;
-  height: 13px;
-  color: var(--accent);
-}
-
-.page {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px 48px;
-}
-.page-history {
-  overflow: hidden;
-  padding-bottom: 16px;
-}
-.workbench-page {
-  position: relative;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-  background: var(--bg-elevated);
-}
-.workbench-stage {
-  position: relative;
-  height: 100%;
-  min-height: 0;
-}
-.workbench-scroll {
-  height: 100%;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-.generated-asset {
-  position: relative;
-  width: min(100%, 480px);
-  margin-top: 8px;
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--bg-inset);
-}
-.result-download {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 6px;
-  background: rgba(32, 33, 36, 0.8);
-  color: #fff;
-  text-decoration: none;
-}
-.result-download svg {
-  width: 14px;
-  height: 14px;
-}
-.mf-generation-result-media-actions .result-download {
-  position: static;
-  margin-left: auto;
-}
-.result-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 7px;
-}
-.mf-generation-result-footer .result-actions {
-  margin-top: 0;
-}
+/* 以下未分层规则是有意的宿主胶水（WEB-02 清点）：
+ * result-save-prompt / button* / composer-conflict —— product-ui 仍发射这些非 mf-* 类名，
+ *   未分层才能压过分层工具类；迁入 product-ui 并改 mf-* 属双端改动，本卡不动。
+ * form-error / spin —— web 宿主状态样式。
+ * login-form 后裔 —— 穿过 @musefold/ui Input 打到 native <input>。
+ * login-submit / approval-submit —— 未分层才能压过 .button 的 32px 高。 */
 .result-save-prompt:disabled {
   cursor: default;
   opacity: 0.65;
 }
-.generation-progress {
-  min-height: 96px;
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--fg-tertiary);
-  font-size: 11px;
-}
-.generation-progress svg {
-  color: var(--accent);
-}
-.recent-prompts {
-  width: min(100%, 620px);
-  margin: 12px auto 0;
-}
-.recent-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 0 2px 7px;
-  color: var(--fg-secondary);
-  font-size: 11px;
-}
-.recent-heading > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-.recent-heading svg {
-  width: 14px;
-  height: 14px;
-}
-.recent-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px 18px;
-}
-.recent-item {
-  min-width: 0;
-  min-height: 52px;
-  border: 0;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 7px 2px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.recent-item:hover,
-.recent-item[data-active='true'] {
-  background: var(--bg-hover);
-}
-.recent-item > span:last-child {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-.recent-item strong,
-.recent-item small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.recent-item strong {
-  font-size: 11px;
-  font-weight: 550;
-}
-.recent-item small {
-  color: var(--fg-tertiary);
-  font-size: 10px;
-}
-.recent-icon {
-  width: 24px;
-  height: 24px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--fg-tertiary);
-}
-.recent-icon svg {
-  width: 12px;
-  height: 12px;
-}
-.recent-item[data-active='true'] .recent-icon {
-  color: var(--accent);
-  border-color: rgba(214, 101, 63, 0.35);
-}
-.text-action {
-  border: 0;
-  padding: 4px 5px;
-  background: transparent;
-  color: var(--fg-secondary);
-  font-size: 11px;
-  cursor: pointer;
-}
-.text-action:hover {
-  color: var(--accent);
-}
+
 .composer-conflict {
   margin: 3px 9px 0;
   border-top: 1px solid var(--border-subtle);
@@ -355,7 +112,7 @@ svg {
 }
 .composer-conflict span {
   color: var(--fg-tertiary);
-  font-size: 10px;
+  font-size: var(--text-meta);
 }
 .composer-conflict-actions {
   flex: none;
@@ -369,7 +126,7 @@ svg {
   padding: 0 8px;
   background: var(--bg-elevated);
   color: var(--fg-secondary);
-  font-size: 10px;
+  font-size: var(--text-meta);
   cursor: pointer;
 }
 .composer-conflict-actions button:last-child {
@@ -377,459 +134,12 @@ svg {
   background: var(--fg-primary);
   color: var(--bg-elevated);
 }
-.composer-icon,
-.submit-icon {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--fg-tertiary);
-  cursor: pointer;
-}
-.composer-icon:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-.composer-icon span {
-  font-size: 20px;
-  font-weight: 300;
-  line-height: 1;
-}
-.segmented-control {
-  min-width: 0;
-  border: 0;
-  margin: 0;
-  padding: 2px;
-  display: flex;
-  border-radius: 6px;
-  background: var(--bg-inset);
-}
-.segmented-control legend {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-}
-.segmented-control button {
-  height: 24px;
-  min-width: 38px;
-  border: 0;
-  border-radius: 5px;
-  padding: 0 7px;
-  background: transparent;
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  cursor: pointer;
-}
-.segmented-control button[data-active='true'] {
-  background: var(--bg-elevated);
-  color: var(--fg-primary);
-  box-shadow: var(--shadow-sm);
-}
-.composer-settings {
-  min-width: 0;
-  margin-left: 2px;
-  border: 0;
-  border-radius: 6px;
-  padding: 5px 7px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: transparent;
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  cursor: pointer;
-}
-.composer-settings:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-.composer-settings svg {
-  width: 13px;
-  height: 13px;
-}
-.composer-settings-wrap {
-  position: relative;
-  min-width: 0;
-}
-.composer-save-status {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  white-space: nowrap;
-}
-.composer-save-status svg {
-  width: 12px;
-  height: 12px;
-}
-.composer-options {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 5;
-  width: 220px;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-  background: var(--bg-popover);
-  box-shadow: var(--shadow-pop);
-}
-.composer-options strong {
-  font-size: 11px;
-  font-weight: 600;
-}
-.composer-options > span {
-  color: var(--fg-tertiary);
-  font-size: 10px;
-}
-.option-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
-  padding: 3px;
-  border-radius: 6px;
-  background: var(--bg-inset);
-}
-.option-row button {
-  height: 28px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  cursor: pointer;
-}
-.option-row button[data-active='true'] {
-  background: var(--bg-elevated);
-  color: var(--accent);
-  box-shadow: var(--shadow-sm);
-}
-.submit-icon {
-  margin-left: auto;
-  background: var(--fg-primary);
-  color: var(--bg-elevated);
-}
-.submit-icon:hover:not(:disabled) {
-  background: #000;
-}
-.submit-icon:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-.submit-icon.submit-cancel {
-  background: var(--accent);
-}
-.submit-icon svg {
-  width: 14px;
-  height: 14px;
-}
-.composer-error {
-  margin: 0;
-  padding: 0 15px 10px;
-}
+
 .form-error {
   color: var(--danger);
   font-size: 11px;
 }
 
-.library-page {
-  width: min(100%, 960px);
-  margin: 0 auto;
-}
-.library-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.library-heading > div {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.library-heading h1 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-.library-heading > div > span {
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-.library-toolbar {
-  margin: 18px 0 26px;
-}
-.search-field {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 0 10px;
-  background: var(--bg-elevated);
-  color: var(--fg-tertiary);
-}
-.search-field:focus-within {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.search-field input {
-  min-width: 0;
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--fg-primary);
-  font-size: 12px;
-}
-.search-field svg {
-  width: 14px;
-  height: 14px;
-}
-.prompt-section {
-  margin-top: 26px;
-}
-.prompt-section-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 0 2px 8px;
-}
-.prompt-section-heading h2 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-.prompt-section-heading span {
-  color: var(--fg-tertiary);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-.prompt-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 28px;
-}
-.prompt-row {
-  min-width: 0;
-  min-height: 72px;
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 8px 2px;
-}
-.prompt-row:hover {
-  background: var(--bg-hover);
-}
-.prompt-thumb {
-  width: 56px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  background: var(--bg-inset);
-  color: var(--fg-tertiary);
-}
-.prompt-thumb svg {
-  width: 17px;
-  height: 17px;
-}
-.prompt-row-main {
-  min-width: 0;
-}
-.prompt-title-line h2 {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 600;
-}
-.prompt-row-main p {
-  margin: 4px 0 4px;
-  overflow: hidden;
-  color: var(--fg-tertiary);
-  font-size: 10.5px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tag-line {
-  display: flex;
-  min-width: 0;
-  gap: 8px;
-  color: var(--fg-quaternary);
-  font-size: 9.5px;
-}
-.tag-line span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.prompt-actions {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-}
-.prompt-actions .icon-button {
-  width: 26px;
-  height: 26px;
-}
-.empty-row {
-  padding: 64px 0;
-  color: var(--fg-tertiary);
-  text-align: center;
-}
-.prompt-create-form {
-  margin: 16px 0 22px;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 12px;
-  display: grid;
-  gap: 9px;
-  background: var(--bg-popover);
-}
-.prompt-create-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--fg-secondary);
-  font-size: 12px;
-}
-.prompt-create-form input,
-.prompt-create-form textarea {
-  width: 100%;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  padding: 8px 9px;
-  background: var(--bg-elevated);
-  color: var(--fg-primary);
-  outline: 0;
-  font: inherit;
-  font-size: 11px;
-}
-.prompt-create-form textarea {
-  min-height: 100px;
-  resize: vertical;
-  line-height: 1.5;
-}
-.prompt-create-form input:focus,
-.prompt-create-form textarea:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.prompt-create-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 7px;
-}
-.library-error {
-  margin-top: 14px;
-}
-.prompt-conflict {
-  margin-top: 18px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-default));
-  border-radius: 7px;
-  padding: 11px;
-  background: var(--accent-soft);
-  color: var(--fg-secondary);
-}
-.prompt-conflict strong {
-  color: var(--fg-primary);
-  font-size: 11px;
-}
-.prompt-conflict p {
-  margin: 4px 0 10px;
-  font-size: 10.5px;
-  line-height: 1.5;
-}
-.prompt-conflict > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 7px;
-}
-.history-page {
-  width: min(100%, 960px);
-  margin: 0 auto;
-}
-.history-list {
-  margin-top: 18px;
-  border-top: 1px solid var(--border-default);
-}
-.history-row {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 9px 2px;
-}
-.history-row:hover {
-  background: var(--bg-hover);
-}
-.history-thumb {
-  width: 56px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: 7px;
-  background: var(--bg-inset);
-  color: var(--fg-tertiary);
-}
-.history-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.history-main {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-.history-main strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 550;
-}
-.history-main span {
-  overflow: hidden;
-  color: var(--fg-tertiary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-}
-.danger-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--danger);
-}
-.danger-action svg {
-  width: 12px;
-  height: 12px;
-}
 .button {
   min-height: 32px;
   border: 1px solid transparent;
@@ -860,71 +170,6 @@ svg {
   color: var(--fg-primary);
 }
 
-.center-screen,
-.login-screen {
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--bg-elevated);
-}
-.approval-screen {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--bg-window);
-}
-.approval-panel {
-  width: min(100%, 460px);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 24px;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-pop);
-}
-.approval-panel h1 {
-  margin: 25px 0 14px;
-  font-size: 17px;
-  font-weight: 600;
-}
-.approval-prompt {
-  margin: 0;
-  border-radius: 7px;
-  padding: 11px;
-  background: var(--bg-inset);
-  color: var(--fg-secondary);
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-.approval-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin: 13px 0 18px;
-  color: var(--fg-tertiary);
-  font-size: 10px;
-}
-.approval-panel .button {
-  width: 100%;
-  min-height: 38px;
-}
-.approval-result {
-  margin-top: 16px;
-}
-.center-screen {
-  align-content: center;
-  gap: 10px;
-  color: var(--fg-secondary);
-  text-align: center;
-  font-size: 11px;
-}
-.loading-mark {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-}
 .spin {
   animation: spin 0.75s linear infinite;
 }
@@ -933,36 +178,10 @@ svg {
     transform: rotate(360deg);
   }
 }
-.login-form {
-  width: min(100%, 360px);
-  padding: 26px;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-pop);
-}
-.brand-lockup-login {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.brand-lockup-login img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-.brand-lockup-login div {
-  display: grid;
-  line-height: 1.15;
-}
-.brand-lockup-login strong {
-  font-size: 14px;
-  font-weight: 650;
-}
-.brand-lockup-login span {
-  color: var(--fg-tertiary);
-  font-size: 10px;
-}
+
+/* login-form 后裔选择器保留：命中 @musefold/ui Input 内部 native input，
+ * 工具类加在 <Input> 上到不了真正的 <input>。login-screen / login-form / login-submit
+ * 的盒模型已转工具类；类名留给 680px / pointer:coarse 媒体块覆盖。 */
 .login-form h1 {
   margin: 24px 0 20px;
   font-size: 17px;
@@ -985,20 +204,18 @@ svg {
   color: var(--fg-primary);
   outline: 0;
 }
-.login-submit {
+/* 未分层，必须压过 .button 的 min-height: 32px（工具类赢不了）。 */
+.login-submit,
+.approval-submit {
   width: 100%;
   min-height: 38px;
+}
+.login-submit {
   margin-top: 20px;
 }
 
-/* Компактный брейкпоинт (760px) синхронизирован с
-   PRODUCT_SIDEBAR_COMPACT_BREAKPOINT в product-ui. */
-@media (max-width: 760px) {
-  .prompt-grid {
-    column-gap: 18px;
-  }
-}
-
+/* 680px = PRODUCT_MOBILE_BREAKPOINT（左抽屉 / 键盘 inset / 触控字号）。
+ * 760px COMPACT 侧栏折叠由 product-ui 自己的媒体查询负责，不要把两档写进同一块。 */
 @media (max-width: 680px) {
   :root {
     /* Базовый шрифт крупнее: 13px десктопной плотности слишком мелко для телефона. */
@@ -1036,12 +253,6 @@ svg {
   .login-submit {
     min-height: 48px;
     margin-top: 24px;
-  }
-
-  .prompt-create-form input,
-  .prompt-create-form textarea,
-  .search-field input {
-    font-size: 16px;
   }
 
   .quota-readout {
@@ -1108,8 +319,8 @@ svg {
   }
   .mf-product-topbar h1 {
     max-width: 42vw;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--text-page);
+    font-weight: var(--text-page-weight);
   }
   .quota-readout {
     height: 32px;
@@ -1141,56 +352,10 @@ svg {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-  .ratio-control button {
-    min-width: 35px;
-    padding: 0 5px;
-  }
-  .composer-settings {
-    max-width: 88px;
-  }
-  .composer-settings span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .composer-save-status {
-    font-size: 0;
-  }
-  .recent-prompts {
-    margin-top: 6px;
-  }
-  .recent-list {
-    grid-template-columns: 1fr;
-  }
-  .recent-item:nth-child(n + 3) {
-    display: none;
-  }
-  .prompt-grid {
-    grid-template-columns: 1fr;
-  }
-  .prompt-row {
-    min-height: 68px;
-  }
-  .library-toolbar {
-    margin-top: 14px;
-    margin-bottom: 18px;
-  }
-  .history-row {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-    gap: 8px;
-  }
-  .history-thumb {
-    width: 48px;
-    height: 48px;
-  }
 }
 
 /* Touch-first (v1.1.1): тач-цели и :active-отклик для живых web-классов. */
 @media (pointer: coarse) {
-  .nav-button {
-    min-height: 44px;
-  }
-
   .button {
     min-height: 44px;
   }
@@ -1206,13 +371,6 @@ svg {
   .result-download {
     width: 40px;
     height: 40px;
-  }
-}
-
-@media (hover: none) {
-  .nav-button:active {
-    background: var(--bg-hover);
-    color: var(--fg-primary);
   }
 }
 

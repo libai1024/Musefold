@@ -111,6 +111,20 @@ apps/web           ← contracts/domain/ui/product-ui/cloud-client；禁 desktop
 - **新增实体流程**：先 `packages/contracts` 定 schema → domain 端口（如需）→ 双端 gateway 实现 → mapper（桌面）→ page-controller → 组件。一步到位，不留「先在桌面行模型上做、以后再统一」。
 - Zod schema 即文档：字段注释写业务语义（成本单位、快照冻结时机等），与 mapper 内的有损字段注释配对。
 
+### 3.1 契约字段变更全流程（双端贯穿）
+
+以「给 `PromptDocument` 加一个字段」为完整走线（§8 是简化版速查）：
+
+1. **contracts**：定 schema + 字段注释 + schema 测试（默认值、旧文档无该字段时的解析行为）。
+2. **兼容性结论写进注释**：新字段 optional/带默认与否；旧客户端读新文档、新客户端读旧文档各自的行为是什么，一句话写清。
+3. **web-api**：路由出入参校验 + 存储（需要列变更时走 expand/contract 迁移闸门，流程见 `apps/web-api/AGENTS.md`）。
+4. **cloud-client**：透传，不重新定义形状。
+5. **桌面**：`desktop-contracts` 行模型（如需）→ core repository → SQLite 迁移（新建迁移文件 + 登记 `run-migrations.ts` 清单，两处都要）→ `runtime/mappers/` 行↔文档映射 → mapper 测试逐字段断言。桌面存不下的字段在 mapper 里显式声明丢弃并注释原因。
+6. **消费**：page-controller 的 Query/参数扩展 → 组件（双端一份）。
+7. **门禁**：`npm run openapi:check` + `npm run check`；触及桌面行为跑 E2E；触及共享面跑视觉门禁。
+
+**有损字段声明约定**：凡 mapper 中存在「文档有、行没有」或语义降级（精度损失、枚举合并）的字段，必须在转换处逐条注释，contracts 侧字段注释与之配对。禁止静默丢字段。枚举映射用 `as const satisfies Record<行枚举, 文档枚举>` 保证穷举——新增枚举值而漏映射必须编译失败，而不是运行时 undefined。
+
 ## 3a. 表单（受控草稿 + 纯函数校验）
 
 **不引入表单库。** 2026-08-21 复核：`react-hook-form` 装了近一年、`useForm` 调用点 0 个，规范与现实不符；依赖已移除，规范改为描述实际范式。理由是本应用的「表单」复杂度不在字段校验上——`ProviderDialog`(20 个 useState / 12 处 await)、`AiConnectionDialog`(17 / 9) 的状态大半是拉模型列表、测连接、写系统钥匙串这类异步副作用与远端结果，表单库管不到；真正的字段部分（`PromptEditorForm`）只有草稿对象加 touched。引入表单库要在 product-ui 加运行时依赖，收益覆盖不了这个代价（v1.3 D3 只批准了 `@tanstack/react-query` 一个新依赖）。
@@ -171,6 +185,22 @@ const form = useDraftForm<Draft, "title" | "content">({ initial, validate });
 | 跨 domain 纯逻辑 | `domain` |
 
 灰区规则：拿不准留宿主；出现第二个宿主消费者时再上提。
+
+### 5.1b 多端复用与上提工作流（product-ui ⇄ 宿主）
+
+组件出现跨端需求时按此流程上提，禁止「复制一份改改」：
+
+1. **确认第二消费者是真的**：双端都要用，还是「将来可能」？拿不准留宿主（灰区规则）。
+2. **去平台化体检**（上提前逐项过）：
+   - 依赖清单只含 `ui` / `contracts` / `domain` / `@tanstack/react-query` / `react`；出现 `window.api`、`cloud-client`、`electron`、`desktop-contracts` 或平台分支 → 先把差异改成 props / 端口注入（platform、ports 经 page-controller 传入，不在组件里探测平台）；
+   - 数据获取在 page-controller，组件保持受控；toast / 剪贴板 / 下载等副作用一律经 `PlatformServices` 注入；
+   - 样式只用 token 类与原子类；断点分工——移动档（`PRODUCT_MOBILE_BREAKPOINT`）归宿主媒体块，compact 折叠归 product-ui 自有媒体查询，两档不混写；
+   - 图标经 `@musefold/ui` icons 唯一入口。
+3. **零逻辑变更移动提交**（`git mv` 与内容修改分离），落位 `packages/product-ui/src/<域>/`。
+4. **双宿主验证**：`tests/repo/product-ui-dual-host-reuse.test.ts` + `npm run test:visual:shared`（双端同像素，阈值只收紧不放宽）+ `npm run check:v1.1`。
+5. **成为共享面后**：新 surface 纳入共享视觉门禁清单；query 依赖经 `tests/repo/product-ui-query-deps.test.ts` 守卫。
+
+反向规则：共享组件长出单端专属行为时，不在 product-ui 里堆平台分支；把差异上移宿主，或拆成「共享内核 + 宿主外壳」两个组件。
 
 ### 5.2 样式
 
@@ -255,6 +285,7 @@ docs-only 变更跳过该 job。桌面 Linux / Windows E2E 在 GitHub 托管 run
 
 ## 10. 相关文档
 
+- 根 `AGENTS.md` 与 `apps/desktop` / `packages` / `apps/web` / `apps/web-api` 的就近 AGENTS.md——AI 代理开发约束入口（人类同样适用）
 - [v1.3 系统架构](../v1.3/V13-ARCHITECTURE.md)——目标架构与迁移卡
 - [v1.2.2 系统架构](../v1.2.2/V122-ARCHITECTURE.md)——现行分层基线与依赖规则
 - [v1.1 共享 UI 架构](../v1.1/V11-SHARED-UI-ARCHITECTURE.md)——product-ui 边界规则

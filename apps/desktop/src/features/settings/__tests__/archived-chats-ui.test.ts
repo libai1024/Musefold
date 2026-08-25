@@ -17,12 +17,11 @@ const sessionList = readFileSync(
 
 describe("archived chat UI contract", () => {
   it("keeps archived chats as the final settings destination and out of the sidebar header", () => {
-    const aboutIndex = settingsView.indexOf("key: 'about', label: '关于'");
-    const archivedIndex = settingsView.indexOf(
-      "key: 'archived', label: '已归档聊天'",
-    );
-    expect(aboutIndex).toBeGreaterThan(-1);
-    expect(archivedIndex).toBeGreaterThan(aboutIndex);
+    // v2 设置整合：6 分区导航——已归档聊天仍是最后一个设置分区
+    const dataIndex = settingsView.indexOf("id: 'data'");
+    const archivedIndex = settingsView.indexOf("id: 'archived'");
+    expect(dataIndex).toBeGreaterThan(-1);
+    expect(archivedIndex).toBeGreaterThan(dataIndex);
     expect(sidebar).not.toContain("查看已归档对话");
     expect(sidebar).not.toContain("返回最近对话");
   });

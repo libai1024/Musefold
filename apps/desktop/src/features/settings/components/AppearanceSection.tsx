@@ -7,7 +7,7 @@ import {
   type ReducedMotion,
   type ThemeSource,
 } from '../../../stores/app';
-import { SectionShell, SettingRow } from '../components/SectionShell';
+import { SettingRow, SettingsCard } from '../components/SectionShell';
 import { ChoiceChips } from '../components/ChoiceChips';
 
 const OPTIONS = [
@@ -37,11 +37,8 @@ export function AppearanceSection() {
   const setDensity = useAppStore((s) => s.setDensity);
 
   return (
-    <SectionShell
-      title="外观"
-      description="窗口材质由系统提供（macOS 毛玻璃 / Windows Mica），主题控制内容区明暗。"
-    >
-      <div className="settings-list flex flex-col">
+    <>
+      <SettingsCard title="界面设置" description="设置应用主题、界面密度和动效表现">
         <SettingRow
           data-testid="appearance-theme-row"
           label="主题"
@@ -88,7 +85,7 @@ export function AppearanceSection() {
             options={DENSITY_OPTIONS}
           />
         </SettingRow>
-      </div>
-    </SectionShell>
+      </SettingsCard>
+    </>
   );
 }

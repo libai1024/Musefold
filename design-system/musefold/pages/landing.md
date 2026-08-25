@@ -1,33 +1,7 @@
-# Musefold Landing Surface Override
+# 本文件已退役（v1.4 GOV-01）
 
-The generated master system is a searchable starting point, not the brand authority. The existing Musefold brand plan in `docs/v0.3/MUSEFOLD-BRAND-PLAN.md` wins for identity, copy, palette, and product claims.
+> 历史版本主张「用应用壳当官网框架、13px UI 字号」。该路线在 v1.4 被判定为「应用铬放大」反模式并废除。
 
-## Direction
+官网（`website/Musefold/`）的设计权威是 [v1.4 视觉方向](../../../docs/v1.4/V14-UI-DIRECTION.md)（Theater 寄存器、折页 Hero、图像策略 §4），落实卡片见 [v1.4 落实计划](../../../docs/v1.4/V14-DELIVERY-PLAN.md) 的 `SITE-*`。
 
-- Use the existing app shell as the website frame: a 244px sidebar, a 52px title bar, compact 13px UI type, rounded-md controls, active navigation rows, and a scrollable work area.
-- Keep the product legible before the story becomes expressive. The first viewport must show the app navigation, title bar, Musefold promise, a real workbench capture, and a path to downloads.
-- Reuse the app's Graphite/Porcelain surfaces, active row states, and Ember action color. No gradients, neon effects, generic AI imagery, fake metrics, or fabricated product UI.
-- Use real captures from `generated/` and the existing mark from `resources/icon.png`.
-
-## Tokens
-
-| Token | Value | Use |
-|---|---|---|
-| Ember 500 | `#D6653F` | Primary action and story marker |
-| Ember 400 | `#EF7A52` | Dark-surface emphasis |
-| Graphite 950 | `#18191B` | Hero, proof, and footer surfaces |
-| Graphite 900 | `#202124` | Framed product captures |
-| Porcelain | `#F1EEE8` | Paper surfaces and light text |
-
-## Content
-
-- Primary Chinese promise: `让灵感成为图像。`
-- Supporting line: `把一张参考图、一段文字或一个还说不清楚的方向，放到同一张可靠的创作桌上。`
-- Product proof: collect fragments, shape reusable design schemes, reveal a direction, and keep the result.
-- Download labels must remain honest until signed artifacts are published. The local preview uses `待审核接入` and does not link to an unpublished binary.
-
-## Acceptance
-
-- Verify 375px, 390px, 768px, 1024px, and 1440px widths.
-- No horizontal scroll, hidden focus, or content beneath the sticky header.
-- Respect `prefers-reduced-motion` and keep all product imagery local.
+历史版本中仍然有效的口径已由上游文档接管：Ember / Graphite / Porcelain 色值以 `packages/ui/src/tokens.css` 为准；中文主张「让灵感成为图像。」继续有效；下载文案必须诚实。

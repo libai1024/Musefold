@@ -23,7 +23,6 @@ export interface DesktopHostServices {
     | 'webUsage'
     | 'webStatus'
   >;
-  readonly settings: Api['settings'];
   readonly share: Api['share'];
   readonly skillRuntime: Api['skillRuntime'];
   readonly system: Api['system'];

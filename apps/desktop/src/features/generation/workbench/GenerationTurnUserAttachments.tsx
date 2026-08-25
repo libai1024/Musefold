@@ -43,10 +43,10 @@ export function GenerationTurnUserAttachments({
                       <Blocks className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-[10.5px] font-medium text-primary">
+                      <span className="block truncate text-meta font-medium text-primary">
                         {turn.source.label}
                       </span>
-                      <span className="block text-[9px] text-tertiary">
+                      <span className="block text-meta text-tertiary">
                         {turn.source.mode === "trial"
                           ? "设计方案 · 试运行"
                           : "引用设计方案"}
@@ -68,10 +68,10 @@ export function GenerationTurnUserAttachments({
                       <GitBranch className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-[10.5px] font-medium text-primary">
+                      <span className="block truncate text-meta font-medium text-primary">
                         {turn.source.label}
                       </span>
-                      <span className="block text-[9px] text-tertiary">
+                      <span className="block text-meta text-tertiary">
                         {turn.source.executionMode === "direct-forward"
                           ? "GitHub Skill · 直传豆包"
                           : "GitHub Skill"}
@@ -93,10 +93,10 @@ export function GenerationTurnUserAttachments({
                         <GitBranch className="h-3.5 w-3.5" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-[10.5px] font-medium text-primary">
+                        <span className="block truncate text-meta font-medium text-primary">
                           {turn.source.label}
                         </span>
-                        <span className="block text-[9px] text-tertiary">
+                        <span className="block text-meta text-tertiary">
                           方案来源
                         </span>
                       </span>
@@ -137,7 +137,7 @@ export function GenerationTurnUserAttachments({
                     {turn.references.map((reference, index) => (
                       <span
                         key={`${reference.promptId}:${index}`}
-                        className="inline-flex h-[22px] max-w-[200px] items-center gap-1 rounded-md border border-border-subtle bg-elevated px-1.5 text-[10.5px] font-medium leading-none text-primary"
+                        className="inline-flex h-[22px] max-w-[200px] items-center gap-1 rounded-md border border-border-subtle bg-elevated px-1.5 text-meta font-medium leading-none text-primary"
                         title={
                           reference.text.length > 300
                             ? `${reference.text.slice(0, 300)}…`

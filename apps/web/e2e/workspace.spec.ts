@@ -466,20 +466,26 @@ test('shared account and Cloud MCP connection policies keep their actions determ
   await page.locator('input[autocomplete="username"]').fill('musefold');
   await page.locator('input[type="password"]').fill('password123');
   await page.getByRole('button', { name: '登录' }).click();
-  await page.getByTestId('sidebar-new-design').click();
+  await page.getByRole('button', { name: '返回工作区' }).click();
   await expect(page.getByTestId('generation-workbench')).toBeVisible();
 
-  await page.getByTestId('product-sidebar').getByTestId('nav-connections').click();
+  await page.getByTestId('nav-settings').click();
+  await page
+    .getByRole('navigation', { name: '设置分区' })
+    .getByRole('button', { name: '已连接应用' })
+    .click();
   await expect(page.getByTestId('connected-apps-screen')).toBeVisible();
   const connection = page.getByTestId('connection-row');
   await expect(connection).toContainText('Musefold Preview Client');
 
-  await connection.locator('select').selectOption('auto_with_limits');
+  const modeControl = connection.getByRole('radiogroup', { name: '生图模式' });
+  const automaticMode = modeControl.getByRole('radio', { name: '预算内自动' });
+  await automaticMode.click();
   const reauth = page.getByRole('dialog', { name: '确认自动化权限' });
   await expect(reauth).toBeVisible();
   await reauth.locator('input[type="password"]').fill('password123');
   await reauth.getByRole('button', { name: '确认修改' }).click();
-  await expect(connection.locator('select')).toHaveValue('auto_with_limits');
+  await expect(automaticMode).toBeChecked();
 
   await connection.getByRole('button', { name: '暂停连接' }).click();
   await expect(connection.getByRole('button', { name: '恢复连接' })).toBeVisible();

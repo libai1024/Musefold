@@ -30,7 +30,7 @@ import {
 import { Kbd } from '@musefold/ui';
 import { PRODUCT_SHORTCUTS, shortcutDisplayKeys } from '@musefold/domain';
 import { MusefoldLogoAnimated } from '../../../components/brand/MusefoldLogoAnimated';
-import { SectionShell } from '../components/SectionShell';
+import { SettingsCard } from '../components/SectionShell';
 import { THIRD_PARTY_PACKAGES } from '../third-party-notices';
 import { CHANNEL_LABELS, UpdateChannelRow } from './UpdateChannelRow';
 
@@ -86,16 +86,20 @@ export function AboutSection() {
 
   useEffect(() => {
     let mounted = true;
-    api.system.getVersion()
+    api.system
+      .getVersion()
       .then((value) => mounted && setVersion(value))
       .catch(() => mounted && setVersion(null));
-    api.updater.getState()
+    api.updater
+      .getState()
       .then((value) => mounted && setUpdateStatus(value))
       .catch(() => mounted && setUpdateStatus(null));
-    api.updater.getChannel()
+    api.updater
+      .getChannel()
       .then((value) => mounted && setChannelInfo(value))
       .catch(() => mounted && setChannelInfo(DEFAULT_CHANNEL_INFO));
-    api.updater.getContentState()
+    api.updater
+      .getContentState()
       .then((value) => mounted && setContentState(value))
       .catch(() => mounted && setContentState(null));
     const unsubscribe = api.updater.onStateChanged((value) => {
@@ -112,7 +116,9 @@ export function AboutSection() {
     label: spec.label,
   }));
 
-  const versionText = version ? `Musefold ${version.app} · DB ${version.db}` : 'Musefold 未读取 · DB 未读取';
+  const versionText = version
+    ? `Musefold ${version.app} · DB ${version.db}`
+    : 'Musefold 未读取 · DB 未读取';
 
   const copyVersion = async () => {
     try {
@@ -129,7 +135,10 @@ export function AboutSection() {
     try {
       await api.system.openAboutResource('product-docs');
     } catch (error) {
-      toast.error('文档打开失败', error instanceof Error ? error.message : '请检查安装文件是否完整');
+      toast.error(
+        '文档打开失败',
+        error instanceof Error ? error.message : '请检查安装文件是否完整',
+      );
     }
   };
 
@@ -197,98 +206,96 @@ export function AboutSection() {
   };
 
   return (
-    <SectionShell title="关于" description="品牌、版本、支持资源与开源许可。">
-      <div className="flex flex-col gap-6">
+    <>
+      <div>
         {/* 品牌 + 版本 —— 原「品牌信息」分区并入此处 */}
-        <div className="flex items-center gap-4 border-y border-border-subtle py-5" data-testid="about-brand">
-          <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-elevated shadow-sm">
-            <MusefoldLogoAnimated className="h-11 w-11" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold tracking-tight text-primary">Musefold</p>
-            <p className="mt-0.5 text-[11.5px] text-secondary">未像 · 让灵感成为图像</p>
-            <p className="mt-1 text-[10.5px] text-tertiary">视觉灵感与 AI 生图工作台 · 收集 · 折叠 · 显形 · 继续</p>
-            <p className="mt-1 text-[10.5px] text-quaternary">开发者：昭昭月科技有限公司</p>
-          </div>
-          <button
-            type="button"
-            onClick={copyVersion}
-            className="group flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--accent-ring)]"
-            title="复制版本信息"
-            data-testid="about-version"
-          >
-            <span className="font-mono text-[11px] leading-tight text-secondary">
-              <span className="block">v{version?.app ?? '未读取'}</span>
-              <span className="block text-[10px] text-quaternary">DB schema {version?.db ?? '未读取'}</span>
-            </span>
-            {copied
-              ? <Check className="h-3.5 w-3.5 text-success" />
-              : <Copy className="h-3.5 w-3.5 text-quaternary group-hover:text-secondary" />}
-          </button>
-        </div>
-
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-tertiary">应用更新</p>
-          <div className="divide-y divide-border-subtle border-y border-border-subtle">
-            <UpdateChannelRow info={channelInfo} onCommit={commitChannel} />
-            <ContentLayerRow
-              state={contentState}
-              checking={contentChecking}
-              onCheck={() => void checkContentNow()}
-            />
-            <UpdateRow status={updateStatus} channel={channelInfo.channel} onAction={updateAction} />
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-tertiary">
-            支持
-          </p>
-          <div className="divide-y divide-border-subtle border-y border-border-subtle">
-            <SupportRow
-              title="产品文档"
-              description="打开随应用提供的功能与数据说明"
-              action="打开"
-              onClick={openDocs}
-              testId="about-open-docs"
-            />
-            <SupportRow
-              title="问题反馈"
-              description="复制版本、系统与复现信息模板"
-              action="复制信息"
-              onClick={copyFeedbackInfo}
-              testId="about-copy-feedback"
-            />
-            <SupportRow
-              title="开源许可"
-              description="Musefold 使用 MIT 许可，并包含第三方开源组件"
-              action="查看"
-              onClick={() => setLicensesOpen(true)}
-              testId="about-open-licenses"
-            />
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-tertiary">
-            键盘快捷键
-          </p>
-          <div className="flex flex-col divide-y divide-border-subtle border-y border-border-subtle">
-            {shortcuts.map((shortcut) => (
-              <div key={shortcut.label} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="text-[12px] text-secondary">{shortcut.label}</span>
-                <span className="flex shrink-0 items-center gap-1">
-                  {shortcut.keys.map((key) => <Kbd key={key}>{key}</Kbd>)}
+        <SettingsCard title="应用信息" description="Musefold 版本、品牌与数据库结构信息">
+          <div className="settings-brand-panel setting-item" data-testid="about-brand">
+            <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-elevated shadow-sm">
+              <MusefoldLogoAnimated className="h-11 w-11" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold tracking-tight text-primary">Musefold</p>
+              <p className="mt-0.5 text-[11.5px] text-secondary">未像 · 让灵感成为图像</p>
+              <p className="mt-1 text-meta text-tertiary">
+                视觉灵感与 AI 生图工作台 · 收集 · 折叠 · 显形 · 继续
+              </p>
+              <p className="mt-1 text-meta text-quaternary">开发者：昭昭月科技有限公司</p>
+            </div>
+            <button
+              type="button"
+              onClick={copyVersion}
+              className="group flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--accent-ring)]"
+              title="复制版本信息"
+              data-testid="about-version"
+            >
+              <span className="font-mono text-[11px] leading-tight text-secondary">
+                <span className="block">v{version?.app ?? '未读取'}</span>
+                <span className="block text-meta text-quaternary">
+                  DB schema {version?.db ?? '未读取'}
                 </span>
-              </div>
-            ))}
+              </span>
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-success" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 text-quaternary group-hover:text-secondary" />
+              )}
+            </button>
           </div>
-        </div>
+        </SettingsCard>
 
-        <div className="flex items-start gap-2 border-t border-border-subtle pt-4">
+        <SettingsCard title="应用更新" description="选择更新通道并检查应用与内容层版本">
+          <UpdateChannelRow info={channelInfo} onCommit={commitChannel} />
+          <ContentLayerRow
+            state={contentState}
+            checking={contentChecking}
+            onCheck={() => void checkContentNow()}
+          />
+          <UpdateRow status={updateStatus} channel={channelInfo.channel} onAction={updateAction} />
+        </SettingsCard>
+
+        <SettingsCard title="支持" description="查看文档、反馈问题和开源许可">
+          <SupportRow
+            title="产品文档"
+            description="打开随应用提供的功能与数据说明"
+            action="打开"
+            onClick={openDocs}
+            testId="about-open-docs"
+          />
+          <SupportRow
+            title="问题反馈"
+            description="复制版本、系统与复现信息模板"
+            action="复制信息"
+            onClick={copyFeedbackInfo}
+            testId="about-copy-feedback"
+          />
+          <SupportRow
+            title="开源许可"
+            description="Musefold 使用 MIT 许可，并包含第三方开源组件"
+            action="查看"
+            onClick={() => setLicensesOpen(true)}
+            testId="about-open-licenses"
+          />
+        </SettingsCard>
+
+        <SettingsCard title="键盘快捷键" description="当前工作区可用的主要快捷操作">
+          {shortcuts.map((shortcut) => (
+            <div key={shortcut.label} className="setting-item">
+              <span className="text-[12px] text-secondary">{shortcut.label}</span>
+              <span className="flex shrink-0 items-center gap-1">
+                {shortcut.keys.map((key) => (
+                  <Kbd key={key}>{key}</Kbd>
+                ))}
+              </span>
+            </div>
+          ))}
+        </SettingsCard>
+
+        <div className="settings-note flex items-start gap-2 border-t border-border-subtle pt-4">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
           <p className="text-[11px] leading-relaxed text-tertiary">
-            本地优先：创作内容与应用数据留在当前设备；API 密钥经系统级加密（macOS Keychain / Windows DPAPI）保存，仅主进程可解密，永不写入日志或暴露给渲染进程。
+            本地优先：创作内容与应用数据留在当前设备；API 密钥经系统级加密（macOS Keychain / Windows
+            DPAPI）保存，仅主进程可解密，永不写入日志或暴露给渲染进程。
           </p>
         </div>
       </div>
@@ -301,23 +308,27 @@ export function AboutSection() {
               Musefold 采用 MIT License。以下为发行包中的直接运行时依赖；各组件版权归原作者所有。
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[min(58vh,440px)] overflow-y-auto rounded-lg border border-border-subtle bg-inset/35">
+          <div className="max-h-[min(58vh,440px)] overflow-y-auto rounded-md border border-border-subtle bg-inset/35">
             {THIRD_PARTY_PACKAGES.map((item) => (
               <div
                 key={item.name}
                 className="flex items-center justify-between gap-4 border-b border-border-subtle px-3 py-2 last:border-b-0"
               >
-                <span className="min-w-0 truncate font-mono text-[11px] text-secondary">{item.name}</span>
-                <span className="shrink-0 text-[10px] font-medium text-tertiary">{item.license}</span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-secondary">
+                  {item.name}
+                </span>
+                <span className="shrink-0 text-meta font-medium text-tertiary">{item.license}</span>
               </div>
             ))}
           </div>
           <div className="flex justify-end">
-            <Button variant="primary" size="sm" onClick={() => setLicensesOpen(false)}>完成</Button>
+            <Button variant="primary" size="sm" onClick={() => setLicensesOpen(false)}>
+              完成
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </SectionShell>
+    </>
   );
 }
 
@@ -339,7 +350,10 @@ function ContentLayerRow({
   const checkLabel = formatContentCheckLabel(state?.lastCheck ?? null);
 
   return (
-    <div className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]" data-testid="about-content-layer">
+    <div
+      className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]"
+      data-testid="about-content-layer"
+    >
       <div className="min-w-0 flex-1">
         <p className="text-[12.5px] font-medium text-primary">内容层 · {versionLabel}</p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">{checkLabel}</p>
@@ -356,9 +370,11 @@ function ContentLayerRow({
         disabled={checking}
         data-testid="about-content-check-action"
       >
-        {checking
-          ? <Loader2 className="h-3 w-3 animate-spin" />
-          : <RefreshCw className="h-3 w-3" />}
+        {checking ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <RefreshCw className="h-3 w-3" />
+        )}
         检查内容更新
       </Button>
     </div>
@@ -389,53 +405,59 @@ function UpdateRow({
   const disabledReason = status?.state === 'disabled' ? status.reason : undefined;
   const progress = status?.state === 'downloading' ? status.progress : null;
   const errorMessage = status?.state === 'error' ? status.message : undefined;
-  const title = state === 'disabled'
-    ? '自动更新暂不可用'
-    : state === 'not-available'
-      ? '已是最新版本'
+  const title =
+    state === 'disabled'
+      ? '自动更新暂不可用'
+      : state === 'not-available'
+        ? '已是最新版本'
+        : state === 'available'
+          ? `发现新版本 v${versionLabel}`
+          : state === 'downloaded'
+            ? `v${versionLabel} 已下载`
+            : state === 'downloading'
+              ? `正在下载 v${versionLabel}`
+              : state === 'installing'
+                ? '正在重启安装'
+                : state === 'error'
+                  ? '更新检查失败'
+                  : state === 'checking'
+                    ? '正在检查更新'
+                    : '检查应用更新';
+  const description =
+    state === 'disabled'
+      ? disabledReason === 'development'
+        ? '开发环境不会连接更新服务器'
+        : '当前平台或运行配置不支持自动更新'
       : state === 'available'
-        ? `发现新版本 v${versionLabel}`
+        ? '下载完成后可重启 Musefold 完成更新'
         : state === 'downloaded'
-          ? `v${versionLabel} 已下载`
+          ? '重启应用即可完成安装，创作数据不会被删除'
           : state === 'downloading'
-            ? `正在下载 v${versionLabel}`
-            : state === 'installing'
-              ? '正在重启安装'
-              : state === 'error'
-                ? '更新检查失败'
-                : state === 'checking'
-                  ? '正在检查更新'
-                  : '检查应用更新';
-  const description = state === 'disabled'
-    ? disabledReason === 'development'
-      ? '开发环境不会连接更新服务器'
-      : '当前平台或运行配置不支持自动更新'
-    : state === 'available'
-      ? '下载完成后可重启 Musefold 完成更新'
+            ? `${Math.round(progress?.percent ?? 0)}% · ${formatBytes(progress?.transferred ?? 0)} / ${formatBytes(progress?.total ?? 0)}`
+            : state === 'error'
+              ? (errorMessage ?? '请稍后重试')
+              : channel === 'stable'
+                ? '从 zhaozhaoyue.top 获取已签名的稳定版本'
+                : `当前为${CHANNEL_LABELS[channel]}通道，版本可能不稳定`;
+  const action =
+    state === 'available'
+      ? '下载'
       : state === 'downloaded'
-      ? '重启应用即可完成安装，创作数据不会被删除'
-      : state === 'downloading'
-          ? `${Math.round(progress?.percent ?? 0)}% · ${formatBytes(progress?.transferred ?? 0)} / ${formatBytes(progress?.total ?? 0)}`
-          : state === 'error'
-            ? errorMessage ?? '请稍后重试'
-            : channel === 'stable'
-              ? '从 zhaozhaoyue.top 获取已签名的稳定版本'
-              : `当前为${CHANNEL_LABELS[channel]}通道，版本可能不稳定`;
-  const action = state === 'available'
-    ? '下载'
-    : state === 'downloaded'
-      ? '重启更新'
-      : state === 'disabled'
-        ? '不可用'
-        : state === 'not-available'
-          ? '重新检查'
-          : state === 'error'
-            ? '重试'
-            : '检查更新';
+        ? '重启更新'
+        : state === 'disabled'
+          ? '不可用'
+          : state === 'not-available'
+            ? '重新检查'
+            : state === 'error'
+              ? '重试'
+              : '检查更新';
   const Icon = isBusy ? Loader2 : state === 'downloaded' ? Download : RefreshCw;
 
   return (
-    <div className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]" data-testid="about-updater">
+    <div
+      className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]"
+      data-testid="about-updater"
+    >
       <div className="min-w-0 flex-1">
         <p className="text-[12.5px] font-medium text-primary">{title}</p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">{description}</p>
@@ -480,7 +502,9 @@ function SupportRow({
         <p className="text-[12.5px] font-medium text-primary">{title}</p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">{description}</p>
       </div>
-      <Button size="sm" variant="outline" onClick={onClick} data-testid={testId}>{action}</Button>
+      <Button size="sm" variant="outline" onClick={onClick} data-testid={testId}>
+        {action}
+      </Button>
     </div>
   );
 }

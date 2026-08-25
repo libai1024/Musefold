@@ -327,7 +327,7 @@ export function GenerationTurnView({
           prefix={
             turn.source.kind === "scheme-creation" ? (
               <span
-                className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-md bg-accent-soft px-2 text-[10.5px] font-medium text-accent"
+                className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-md bg-accent-soft px-2 text-meta font-medium text-accent"
                 data-testid="generation-command-tag"
               >
                 <Wand2 className="h-3 w-3" /> {DESIGN_PLAN_COMMAND_LABEL}
@@ -545,7 +545,7 @@ export function GenerationTurnView({
             className="mt-3 max-w-[430px] border-t border-border-subtle pt-3"
             data-testid="doubao-generation-response"
           >
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta">
               <span className="inline-flex items-center gap-1.5 font-medium text-secondary">
                 <FileText className="h-3.5 w-3.5 text-[#2f6bff]" /> 豆包回复
               </span>

@@ -23,7 +23,7 @@ export function ShareCard({ payload, compact = false, className }: Props) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-quaternary">
+          <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
             分享预览
           </div>
           <h3
@@ -37,7 +37,7 @@ export function ShareCard({ payload, compact = false, className }: Props) {
           </h3>
         </div>
         {payload.target && (
-          <span className="shrink-0 rounded-full bg-inset px-2 py-0.5 text-[10px] font-medium text-secondary">
+          <span className="shrink-0 rounded-full bg-inset px-2 py-0.5 text-meta font-medium text-secondary">
             {payload.target}
           </span>
         )}
@@ -86,7 +86,7 @@ export function ShareCard({ payload, compact = false, className }: Props) {
 
       <div className="mt-3 flex flex-wrap gap-1.5" data-testid="share-card-chips">
         {chips.map((chip) => (
-          <span key={chip} className="rounded-full bg-inset px-2 py-0.5 text-[10px] text-secondary">
+          <span key={chip} className="rounded-full bg-inset px-2 py-0.5 text-meta text-secondary">
             {chip}
           </span>
         ))}

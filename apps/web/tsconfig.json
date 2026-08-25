@@ -1,20 +1,40 @@
 {
   "extends": "../../tooling/tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "rootDir": ".",
     "outDir": ".tsout",
     "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo",
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts"
+  ],
   "references": [
-    { "path": "../../packages/cloud-client" },
-    { "path": "../../packages/contracts" },
-    { "path": "../../packages/domain" },
-    { "path": "../../packages/product-ui" },
-    { "path": "../../packages/ui" }
+    {
+      "path": "../../packages/cloud-client"
+    },
+    {
+      "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/product-ui"
+    },
+    {
+      "path": "../../packages/ui"
+    }
   ]
 }

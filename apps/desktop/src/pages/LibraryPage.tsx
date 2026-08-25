@@ -329,7 +329,7 @@ export function LibraryPage() {
               {error && (
                 <div
                   role="alert"
-                  className="mt-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger"
+                  className="mt-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger"
                   data-testid="library-error"
                 >
                   <span className="min-w-0 flex-1 truncate">{error}</span>
@@ -358,7 +358,7 @@ export function LibraryPage() {
                 <p className="mt-3 text-[12px] text-secondary">
                   没有找到匹配的提示词
                 </p>
-                <p className="mt-1 text-[10.5px] text-tertiary">
+                <p className="mt-1 text-meta text-tertiary">
                   换一个标题或正文关键词试试
                 </p>
               </div>
@@ -371,7 +371,7 @@ export function LibraryPage() {
                 <p className="mt-4 text-[12px] font-medium text-primary">
                   匣中无笺
                 </p>
-                <p className="mx-auto mt-1 max-w-[42ch] text-[10.5px] leading-relaxed text-tertiary">
+                <p className="mx-auto mt-1 max-w-[42ch] text-meta leading-relaxed text-tertiary">
                   任何页面双击右上角的朱点，随手记一笔。
                 </p>
               </div>
@@ -381,7 +381,7 @@ export function LibraryPage() {
                 <p className="mt-3 text-[12px] font-medium text-primary">
                   还没有提示词
                 </p>
-                <p className="mx-auto mt-1 max-w-[42ch] text-[10.5px] leading-relaxed text-tertiary">
+                <p className="mx-auto mt-1 max-w-[42ch] text-meta leading-relaxed text-tertiary">
                   生成满意的结果后可以「存为提示词」，也可以现在新建一条。
                 </p>
                 <button

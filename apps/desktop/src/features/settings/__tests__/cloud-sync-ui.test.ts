@@ -27,21 +27,24 @@ const settingsView = readFileSync(
 describe("account cloud sync UI contract", () => {
   it("keeps sync controls in the existing account settings surface", () => {
     expect(source).toContain('data-testid="account-cloud-sync"');
-    expect(source).toContain('role="switch"');
+    // v1.4.1：开关统一走共享 SettingsSwitch（role=switch 由原语保证）
+    expect(source).toContain("<SettingsSwitch");
     expect(source).toContain("cloudSyncSetEnabled");
     expect(source).toContain("cloudSyncNow");
     expect(source).not.toContain("window.api.cloudSync");
   });
 
   it("offers explicit conflict outcomes and only duplicates supported entities", () => {
-    expect(source).toContain('onResolve(conflict.id, "remote")');
-    expect(source).toContain('onResolve(conflict.id, "local")');
-    expect(source).toContain('onResolve(conflict.id, "duplicate")');
+    expect(source).toContain("onResolve(conflict.id, 'remote')");
+    expect(source).toContain("onResolve(conflict.id, 'local')");
+    expect(source).toContain("onResolve(conflict.id, 'duplicate')");
     expect(source).toContain("conflict.canDuplicate");
   });
 
   it("uses the shared Cloud MCP connection surface through a narrow preload adapter", () => {
-    expect(settingsView).toContain("key: 'connections', label: '已连接应用'");
+    // v2 设置整合：已连接应用并入「开放能力」分区
+    expect(settingsView).toContain("id: 'open'");
+    expect(settingsView).toContain("label: '开放能力'");
     expect(connectionsSource).toContain("<ConnectedAppsScreen");
     expect(connectionsSource).toContain("useCloudConnectionsStore");
     expect(connectionsStoreSource).toContain("listConnections");

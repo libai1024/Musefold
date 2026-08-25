@@ -38,10 +38,10 @@ describe('resolveRatio', () => {
 });
 
 describe('buildImageRequest', () => {
-  it('同时给出像素档与比例串，两类 Provider 各取所需', () => {
+  it('同时给出像素档与比例串，请求与历史快照各取所需', () => {
     const req = build({ params: { ...base, ratioId: '16:9' } });
     expect(req.size).toBe('1536x1024'); // OpenAI 兼容站
-    expect(req.aspectRatio).toBe('16:9'); // 悟空创作台
+    expect(req.aspectRatio).toBe('16:9'); // 历史快照保留比例语义
   });
 
   it('n 恒为 1：张数靠调用方循环，保证逐张计费/写史/可单独重试', () => {

@@ -7,7 +7,6 @@ import {
   useWorkbenchTimelineController,
 } from "@musefold/product-ui";
 import { ImageLightbox } from "../../../components/image-lightbox";
-import musefoldBrandUrl from "../../../../../../docs/v0.3/logo.png";
 import { useGenerationWorkbenchStore } from "./store";
 import { useSkillRuntimeStore } from "./skill-runtime-store";
 import { GenerationTurnView } from "./GenerationTurnView";
@@ -61,9 +60,7 @@ export function WorkbenchTimeline() {
       bottomInset={attachmentsActive ? "attachments" : "composer"}
       empty={
         <WorkbenchEmptyState
-          brand={
-            <WorkbenchBrand src={musefoldBrandUrl} alt="Musefold / 未像" />
-          }
+          brand={<WorkbenchBrand aria-hidden="true" focusable="false" />}
           onSelectSuggestion={(suggestion) => {
             setDraftPrompt(suggestion);
             window.requestAnimationFrame(() => {

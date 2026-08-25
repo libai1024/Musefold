@@ -189,11 +189,11 @@ export function EmberSlipCard({
       <div className="flex shrink-0 items-center justify-between">
         <span className="flex items-center gap-1.5 text-tertiary">
           <SlipMark className="h-[13px] w-[13px]" />
-          <span className="text-[10.5px] font-medium tracking-[0.16em]">素笺</span>
+          <span className="text-meta font-medium tracking-[0.16em]">素笺</span>
         </span>
         <span className="flex items-center gap-1.5">
           {text.length > 0 && (
-            <span className="font-mono text-[9.5px] tabular-nums text-quaternary">{text.length}</span>
+            <span className="font-mono text-meta tabular-nums text-quaternary">{text.length}</span>
           )}
           <button
             type="button"
@@ -230,7 +230,7 @@ export function EmberSlipCard({
           data-testid="ember-slip-clip"
           className="mt-2 flex shrink-0 items-start gap-1.5 rounded-md border border-border-subtle bg-inset/60 px-2 py-1.5"
         >
-          <span className="shrink-0 pt-px text-[9.5px] font-medium tracking-wide text-quaternary">拾得</span>
+          <span className="shrink-0 pt-px text-meta font-medium tracking-wide text-quaternary">拾得</span>
           <span className="min-w-0 flex-1 truncate text-[11px] leading-[18px] text-secondary" title={clipText}>
             {clipText}
           </span>
@@ -248,7 +248,7 @@ export function EmberSlipCard({
       {image && (
         <div className="mt-2 flex shrink-0 items-center gap-2" data-testid="ember-slip-image">
           <img src={toImageSrc(image.path)} alt="" className="h-9 w-9 rounded-md border border-border-subtle object-cover" />
-          <span className="min-w-0 flex-1 truncate text-[10.5px] text-tertiary">{image.name}</span>
+          <span className="min-w-0 flex-1 truncate text-meta text-tertiary">{image.name}</span>
           <button
             type="button"
             aria-label="移除图片"
@@ -261,7 +261,7 @@ export function EmberSlipCard({
       )}
 
       {/* 页脚提示：留出右下角折角的空当（pr-9） */}
-      <p className="mt-2.5 shrink-0 pr-9 text-[9.5px] leading-relaxed text-quaternary">
+      <p className="mt-2.5 shrink-0 pr-9 text-meta leading-relaxed text-quaternary">
         {!image && '⌘V 可贴一张图 · '}Enter 收入笺匣 · Esc / × 散去
       </p>
 

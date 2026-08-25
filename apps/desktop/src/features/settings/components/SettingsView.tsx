@@ -1,220 +1,148 @@
-// src/features/settings/components/SettingsView.tsx
-// 设置主视图 —— Codex 式极简：左侧分组纯文字导航（排版承重，不用图标），右侧窄栏内容。
-// 窄屏收敛为自绘分区菜单。
-import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown } from '../../../components/ui/icons';
+import { useState } from 'react';
+import {
+  Archive,
+  ArrowLeft,
+  Blocks,
+  Database,
+  HardDrive,
+  LayoutGrid,
+  Palette,
+  Server,
+  SlidersHorizontal,
+  UserRound,
+} from '../../../components/ui/icons';
+import { SettingsWorkspace, type SettingsNavigationGroup } from '@musefold/product-ui';
+import { useAppStore } from '../../../stores/app';
 import { useSettingsStore, type SettingsSection } from '../store';
-import { ProvidersSection } from '../components/ProvidersSection';
-import { GenerationSection } from '../components/GenerationSection';
-import { AppearanceSection } from '../components/AppearanceSection';
-import { DataSection } from '../components/DataSection';
-import { AboutSection } from '../components/AboutSection';
-import { AiConnectionsSection } from '../components/AiConnectionsSection';
-import { ArchivedChatsSection } from '../components/ArchivedChatsSection';
-import { AutomationSection } from '../components/AutomationSection';
-import { AccountSection } from '../components/AccountSection';
-import { ConnectedAppsSection } from '../components/ConnectedAppsSection';
-import { DoubaoSection } from '../components/DoubaoSection';
-import { AccessModeSection } from '../components/AccessModeSection';
-import { cn } from '../../../lib/utils';
+import { RelaySection } from './RelaySection';
+import { AccountSettingsSection } from './AccountSettingsSection';
+import { PreferencesSection } from './PreferencesSection';
+import { OpenCapabilitiesSection } from './OpenCapabilitiesSection';
+import { DataAndAboutSection } from './DataAndAboutSection';
+import { ArchivedChatsSection } from './ArchivedChatsSection';
 import {
   SETTINGS_SECTION_CAPABILITY,
   isCapabilityEntryVisible,
 } from '../../../runtime/capabilities';
 
-interface NavGroup {
+interface DesktopSettingsNavigationItem {
+  id: SettingsSection;
   label: string;
-  items: { key: SettingsSection; label: string }[];
+  icon: JSX.Element;
+  keywords: readonly string[];
 }
 
-const NAV_GROUPS: NavGroup[] = [
+interface DesktopSettingsNavigationGroup extends Omit<SettingsNavigationGroup, 'items'> {
+  items: readonly DesktopSettingsNavigationItem[];
+}
+
+// v2 设置整合：12 分区收敛为 6 分区；旧分区 key 由 settings store 的别名翻译兼容深链。
+const NAV_GROUPS: readonly DesktopSettingsNavigationGroup[] = [
   {
-    label: '接入方式',
+    id: 'access',
+    label: '账户与接入',
+    icon: <LayoutGrid />,
     items: [
-      { key: 'access', label: 'AI 接入' },
-      { key: 'doubao', label: '豆包网页版' },
-      { key: 'account', label: 'Musefold 账号' },
-      { key: 'connections', label: '已连接应用' },
+      {
+        id: 'account',
+        label: '账号',
+        icon: <UserRound />,
+        keywords: ['登录', '注册', '积分', '云同步', '豆包', '体验通道', '扫码', '兑换码', '服务器'],
+      },
+      {
+        id: 'relay',
+        label: '中转站',
+        icon: <Server />,
+        keywords: ['服务商', 'API Key', '模型', '网关', '文本模型', 'Agent', '生图'],
+      },
     ],
   },
   {
-    label: '高级设置',
+    id: 'general',
+    label: '通用',
+    icon: <SlidersHorizontal />,
     items: [
-      { key: 'providers', label: '生图中转站' },
-      { key: 'ai', label: 'Agent 中转站' },
+      {
+        id: 'preferences',
+        label: '偏好',
+        icon: <Palette />,
+        keywords: ['比例', '质量', '背景', '数量', '方案优先级', '主题', '深色', '浅色', '动效', '密度'],
+      },
+      {
+        id: 'open',
+        label: '开放能力',
+        icon: <Blocks />,
+        keywords: ['本地控制面', 'Token', '预算', 'CLI', 'Skill', 'Cloud MCP', '授权'],
+      },
     ],
   },
   {
-    label: '创作偏好',
+    id: 'application',
+    label: '数据与应用',
+    icon: <Database />,
     items: [
-      { key: 'generation', label: '生成默认值' },
-      { key: 'appearance', label: '外观' },
-    ],
-  },
-  {
-    label: '数据',
-    items: [
-      { key: 'data', label: '数据与存储' },
-    ],
-  },
-  {
-    label: '开放能力',
-    items: [
-      { key: 'automation', label: '自动化' },
-    ],
-  },
-  {
-    label: '应用',
-    items: [
-      { key: 'about', label: '关于' },
-      { key: 'archived', label: '已归档聊天' },
+      {
+        id: 'data',
+        label: '数据与关于',
+        icon: <HardDrive />,
+        keywords: ['导入', '导出', '备份', '路径', '日志', '重置', '版本', '更新', '文档', '许可', '快捷键'],
+      },
+      {
+        id: 'archived',
+        label: '已归档聊天',
+        icon: <Archive />,
+        keywords: ['恢复聊天', '删除聊天'],
+      },
     ],
   },
 ];
 
-const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
-
-/** 运行时按能力清单滤入口；源码仍保留全部分组，既有契约测试读字符串不受影响。 */
-const VISIBLE_NAV_GROUPS: NavGroup[] = NAV_GROUPS
-  .map((group) => ({
-    ...group,
-    items: group.items.filter((item) =>
-      isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, item.key),
-    ),
-  }))
-  .filter((group) => group.items.length > 0);
+const VISIBLE_NAV_GROUPS: SettingsNavigationGroup[] = NAV_GROUPS.map((group) => ({
+  ...group,
+  items: group.items.filter((item) =>
+    isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, item.id),
+  ),
+})).filter((group) => group.items.length > 0);
 
 const SECTIONS: Record<SettingsSection, () => JSX.Element> = {
-  access: AccessModeSection,
-  doubao: DoubaoSection,
-  account: AccountSection,
-  connections: ConnectedAppsSection,
-  providers: ProvidersSection,
-  ai: AiConnectionsSection,
-  generation: GenerationSection,
-  appearance: AppearanceSection,
-  data: DataSection,
-  automation: AutomationSection,
-  about: AboutSection,
+  account: AccountSettingsSection,
+  relay: RelaySection,
+  preferences: PreferencesSection,
+  open: OpenCapabilitiesSection,
+  data: DataAndAboutSection,
   archived: ArchivedChatsSection,
 };
 
 export function SettingsView() {
-  const section = useSettingsStore((s) => s.section);
-  const setSection = useSettingsStore((s) => s.setSection);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const mobileNavRef = useRef<HTMLDivElement>(null);
-  const Active = SECTIONS[section];
-  const activeNav = NAV_ITEMS.find((item) => item.key === section) ?? NAV_ITEMS[0];
-
-  useEffect(() => {
-    if (!mobileNavOpen) return;
-    const closeOnOutsidePress = (event: PointerEvent) => {
-      if (!mobileNavRef.current?.contains(event.target as Node)) setMobileNavOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNavOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutsidePress);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePress);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [mobileNavOpen]);
-
-  const chooseSection = (nextSection: SettingsSection) => {
-    setSection(nextSection);
-    setMobileNavOpen(false);
-  };
+  const section = useSettingsStore((state) => state.section);
+  const setSection = useSettingsStore((state) => state.setSection);
+  const setView = useAppStore((state) => state.setView);
+  const [search, setSearch] = useState('');
+  const ActiveSection = SECTIONS[section];
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex min-h-0 flex-1 flex-col min-[960px]:flex-row">
-        {/* 窄屏只显示当前分区，展开时仍是应用内自绘菜单而非原生 select。 */}
-        <div ref={mobileNavRef} className="relative z-20 border-b border-border-subtle p-2 min-[960px]:hidden">
-          <button
-            type="button"
-            aria-haspopup="listbox"
-            aria-expanded={mobileNavOpen}
-            data-testid="settings-mobile-section-trigger"
-            onClick={() => setMobileNavOpen((open) => !open)}
-                className="settings-mobile-trigger no-drag flex h-9 w-full items-center gap-2 border-b border-border-subtle bg-transparent px-1 text-left text-[13px] font-medium text-primary transition-colors hover:border-border-default focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-          >
-            <span className="min-w-0 flex-1 truncate">{activeNav.label}</span>
-            <ChevronDown className={cn('h-4 w-4 shrink-0 text-tertiary transition-transform', mobileNavOpen && 'rotate-180')} />
-          </button>
-          {mobileNavOpen && (
-            <div
-              role="listbox"
-              aria-label="设置分区"
-              data-testid="settings-mobile-section-menu"
-              className="absolute left-2 right-2 top-full -mt-1 rounded-lg border border-border-default bg-popover p-1 shadow-pop animate-scale-fade-in"
-            >
-              {VISIBLE_NAV_GROUPS.map((group) => (
-                <div key={group.label || group.items[0].key} role="group" aria-label={group.label || group.items[0].label}>
-                  {group.label && <p className="px-2.5 pb-0.5 pt-2 text-[9.5px] font-medium text-quaternary first:pt-1">{group.label}</p>}
-                  {group.items.map((item) => {
-                    const active = item.key === section;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        role="option"
-                        aria-selected={active}
-                        data-testid={`settings-mobile-section-${item.key}`}
-                        onClick={() => chooseSection(item.key)}
-                        className={cn(
-                          'no-drag flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12.5px] transition-colors',
-                          active ? 'bg-pressed text-primary' : 'text-secondary hover:bg-hover hover:text-primary',
-                        )}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                        {active && <Check className="h-3.5 w-3.5 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 桌面左侧分区导航：纯文字 + 分组标签，Codex 式排版承重 */}
-        <nav className="settings-nav hidden w-[204px] shrink-0 flex-col overflow-y-auto border-r border-border-subtle px-4 pb-6 pt-7 min-[960px]:flex" aria-label="设置分区">
-          <h1 className="px-2 pb-4 text-[15px] font-semibold tracking-tight text-primary">设置</h1>
-          {VISIBLE_NAV_GROUPS.map((group) => (
-            <div key={group.label || group.items[0].key} className="mb-4 last:mb-0">
-              {group.label && <p className="px-2 pb-1 text-[9.5px] font-medium tracking-wide text-quaternary">{group.label}</p>}
-              <div className="flex flex-col gap-px">
-                {group.items.map((item) => {
-                  const active = item.key === section;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => chooseSection(item.key)}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(
-                        'settings-nav__item no-drag flex h-7 items-center rounded-md px-2 text-left text-[12.5px] transition-colors',
-                        active
-                          ? 'bg-pressed font-medium text-primary'
-                          : 'text-secondary hover:bg-hover hover:text-primary'
-                      )}
-                    >
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        {/* 右侧内容 */}
-        <div className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto scroll-smooth px-6 py-8 min-[960px]:px-12 min-[960px]:py-10">
-          <Active />
-        </div>
+    <SettingsWorkspace
+      className="settings-view"
+      testId="settings-workspace"
+      groups={VISIBLE_NAV_GROUPS}
+      activeSection={section}
+      onSectionChange={(nextSection) => setSection(nextSection as SettingsSection)}
+      searchValue={search}
+      onSearchChange={setSearch}
+      headerAction={
+        <button
+          type="button"
+          className="mf-settings-header-action-button"
+          onClick={() => setView('generate')}
+        >
+          <ArrowLeft aria-hidden="true" />
+          返回工作区
+        </button>
+      }
+    >
+      <div className="mf-settings-content">
+        <ActiveSection />
       </div>
-    </div>
+    </SettingsWorkspace>
   );
 }

@@ -494,7 +494,8 @@ def test_prompt_references_full_excerpt_persist_query_and_reuse(app, fake_workbe
     row.wait_for(state="visible")
     row.locator('[data-testid="workbench-reference-expand"]').click()
     row.locator('[data-testid="workbench-reference-full"]').click()
-    assert app.page.locator('[data-testid="workbench-reference-chip"]').count() == 1
+    app.page.wait_for_selector('[data-testid="workbench-context-tray"]')
+    assert app.page.locator('[data-testid="workbench-attachments"] [data-testid="refine-source"]').count() == 1
     assert fake_workbench_server["requests"] == [], "引用动作不能自动生图"
 
     # 引用保存快照；源提示词随后编辑，不应改变当前引用。
@@ -518,8 +519,11 @@ def test_prompt_references_full_excerpt_persist_query_and_reuse(app, fake_workbe
         }"""
     )
     row.locator('[data-testid="workbench-reference-selection"]').click()
-    assert app.page.locator('[data-testid="workbench-reference-chip"]').count() == 2
+    assert app.page.locator('[data-testid="workbench-context-tray"]').count() == 1
+    assert app.page.locator('[data-testid="workbench-attachments"] [data-testid="refine-source"]').count() == 2
+    assert workbench(app, "s.draftReferences.length") == 2
     assert workbench(app, "s.draftReferences[0].text") == full_prompt["content"]
+    assert workbench(app, "s.draftReferences[1].text") == "阴天漫射光，干净背景，柔和阴影"[:5]
     assert app.page.evaluate(
         "() => window.__musefold_test.stores.library.getState().search"
     ) == "library-filter-marker"
@@ -585,7 +589,8 @@ def test_workbench_starts_as_single_surface_with_provider_empty_state(app):
     app.page.wait_for_selector('[data-testid="generation-workbench"]')
     assert app.page.locator('[data-testid^="generate-mode-"]').count() == 0
     app.page.wait_for_selector('[data-testid="workbench-empty"]')
-    assert app.page.locator('[data-testid="workbench-empty-slogan"]').inner_text() == "让灵感成为图像。"
+    slogan = app.page.locator('[data-testid="workbench-empty-slogan"]').inner_text()
+    assert "".join(slogan.split()) == "让灵感成为图像。"
     assert app.page.locator('[data-testid="generation-example"]').count() >= 3
 
     app.page.fill('[data-testid="refine-prompt"]', "空态探针")
@@ -596,11 +601,12 @@ def test_workbench_starts_as_single_surface_with_provider_empty_state(app):
 
 
 def test_workbench_empty_provider_dialog_cancel_keeps_empty_state(app):
-    """CHT-10：无 Provider 时从侧栏直达服务商设置引导，取消配置后不留下半成品状态。"""
+    """CHT-10：无 Provider 时从侧栏直达服务商设置引导，取消配置后不留下半成品状态。
+    RELAY-SETTINGS-UI 第二步:空态引导在 settings 场景就地新建(详情面板),取消同样不落库。"""
     app.page.wait_for_selector('[data-testid="workbench-empty"]')
     app.page.click('[data-testid="sidebar-settings"]')
     app.page.get_by_test_id("sidebar-settings-open").click()
-    app.page.get_by_role("button", name="生图中转站", exact=True).click()
+    app.page.get_by_role("button", name="中转站", exact=True).click()
     app.page.wait_for_selector('[data-testid="settings-empty-provider"]')
     app.page.click('[data-testid="provider-add-first"]')
     app.page.wait_for_selector('[data-testid="provider-api-key"]')
@@ -635,25 +641,21 @@ def test_workbench_empty_provider_without_key_guides_to_key_entry(app, fake_work
 
     app.page.click('[data-testid="provider-quick-switch"]')
     app.page.click('[data-testid="relay-model-manage"]')
-    app.page.get_by_role("button", name="编辑").click()
+    # RELAY-SETTINGS-UI 第二步:中转站为 master-detail,点左栏行即在右栏就地编辑(无弹窗)
+    app.page.locator('[data-testid^="settings-provider-row-"]').first.click()
     app.page.wait_for_selector('[data-testid="provider-api-key"]')
-    app.page.get_by_role("button", name="取消").click()
-    app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"provider-api-key\"]') === null",
-    )
     assert workbench(app, "s.turns.length") == 0
     assert fake_workbench_server["requests"] == []
 
 
 def test_workbench_empty_examples_fill_prompt_without_submitting(app, fake_workbench_server):
-    """CHT-10：空态示例（滚动创作方向）只回填输入框并聚焦，交由用户确认后提交。"""
+    """CHT-10：空态示例只回填输入框并聚焦，交由用户确认后提交。"""
     setup_provider(app, fake_workbench_server)
     app.page.wait_for_selector('[data-testid="workbench-empty"]')
     first_example = app.page.locator('[data-testid="generation-example"]').first
     example_text = first_example.get_attribute("title")
     assert example_text
-    # 跑马灯持续位移，直接派发点击事件（悬停暂停属于人手交互路径）
-    first_example.dispatch_event("click")
+    first_example.click()
 
     app.page.wait_for_function(
         f"() => window.__musefold_test.stores.workbench.getState().draftPrompt === {json.dumps(example_text)}",
@@ -721,7 +723,7 @@ def test_generation_surfaces_use_canonical_terminology(app):
     app.page.wait_for_selector('[data-testid="generation-workbench"]')
     body = app.page.locator("body").inner_text()
     assert "生成" in body
-    assert "让灵感成为图像" in body, "空态 hero 标语应可见"
+    assert "让灵感成为图像" in "".join(body.split()), "空态 hero 标语应可见"
     assert "对话生图" not in body
     assert "极速" not in body and "精修" not in body
     # 制作工作台不再有独立导航入口（Codex 逻辑：新设计 / 对话列表即入口）
@@ -742,7 +744,9 @@ def test_generation_surfaces_use_canonical_terminology(app):
     app.set_view("settings")
     app.page.wait_for_selector('[data-testid="settings-default-ratio-trigger"]')
     settings_text = app.page.locator("body").inner_text()
-    assert "生成默认值" in settings_text
+    # v2 设置整合：生成默认值并入「偏好」分区，卡内分组为「生成参数」。
+    assert "偏好" in settings_text
+    assert "生成参数" in settings_text
     assert "创作台偏好" not in settings_text
 
 
@@ -797,7 +801,7 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
     app.page.set_viewport_size({"width": 360, "height": 740})
     app.page.wait_for_timeout(300)
     app.page.screenshot(path=str(tmp_path / "generation-narrow.png"))
-    assert "让灵感成为图像" in app.page.locator("body").inner_text()
+    assert "让灵感成为图像" in "".join(app.page.locator("body").inner_text().split())
     assert_no_horizontal_overflow()
 
     if app.page.locator('[data-testid="workbench-reference-backdrop"]').count():
@@ -825,16 +829,12 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
     app.set_view("settings")
     app.page.wait_for_selector('[data-testid="settings-default-ratio-trigger"]')
     app.page.screenshot(path=str(tmp_path / "settings-narrow.png"))
-    assert "生成默认值" in app.page.locator("body").inner_text()
+    assert "生成参数" in app.page.locator("body").inner_text()
     assert_no_horizontal_overflow()
 
-    app.page.click('[data-testid="settings-mobile-section-trigger"]')
-    app.page.wait_for_selector('[data-testid="settings-mobile-section-menu"]')
+    app.page.wait_for_selector('[data-testid="settings-mobile-section-preferences"]')
     app.page.screenshot(path=str(tmp_path / "settings-mobile-menu.png"))
-    app.page.click('[data-testid="settings-mobile-section-appearance"]')
-    app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"settings-mobile-section-menu\"]') === null",
-    )
+    # v2：生成默认值与外观合并为「偏好」，同分区内即可见密度设置。
     assert "界面密度" in app.page.locator("body").inner_text()
     assert_no_horizontal_overflow()
 
@@ -1533,7 +1533,7 @@ def test_workbench_uses_global_provider_switch_without_leaking_keys(app, fake_wo
     assert secret_b not in app.page.locator("body").inner_text()
 
     app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.wait_for_selector('[data-testid="relay-model-switcher"]')
+    app.page.wait_for_selector('[data-testid="identity-switcher"]')
     app.page.click(f'[data-testid="relay-model-option-{first["id"]}"]')
     app.page.wait_for_function(
         f"() => window.__musefold_test.stores.generation.getState().activeProviderId === '{first['id']}'",

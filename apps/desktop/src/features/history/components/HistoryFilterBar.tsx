@@ -78,7 +78,7 @@ export function HistoryFilterBar() {
             testId="history-filter-from"
             onChange={(ms) => setFilters({ customFrom: ms, datePreset: 'custom' })}
           />
-          <span className="text-[10px] text-quaternary">→</span>
+          <span className="text-meta text-quaternary">→</span>
           <DateInput
             label="止"
             value={filters.customTo}
@@ -232,7 +232,7 @@ function DateInput({
   // datetime-local wants local "YYYY-MM-DDTHH:mm"
   const display = value != null ? toLocalInputValue(value) : '';
   return (
-    <label className="flex items-center gap-1 text-[10px] text-quaternary">
+    <label className="flex items-center gap-1 text-meta text-quaternary">
       <span>{label}</span>
       <input
         type="datetime-local"
@@ -247,7 +247,7 @@ function DateInput({
           const ms = new Date(v).getTime();
           if (!Number.isNaN(ms)) onChange(ms);
         }}
-        className="no-drag h-6.5 rounded-md border border-border-subtle bg-inset px-1.5 font-mono text-[10px] text-secondary outline-none focus-visible:border-border-strong"
+        className="no-drag h-6.5 rounded-md border border-border-subtle bg-inset px-1.5 font-mono text-meta text-secondary outline-none focus-visible:border-border-strong"
       />
     </label>
   );

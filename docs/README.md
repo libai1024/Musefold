@@ -4,6 +4,8 @@
 
 | 文档 | 作用 |
 |---|---|
+| [AI 代理开发约束](../AGENTS.md) | 根入口：项目地图、按改动类型的命令矩阵、全局红线；`apps/desktop`、`packages`、`apps/web`、`apps/web-api` 各有就近约束（AI 编码代理与人类通用） |
+| [v1.4 视觉切割索引](v1.4/README.md) | 双寄存器（Theater / Operate）视觉方向、选型与 UI 落实计划；SITE-01…06 与 SHOT-01 已完成，REL-01 待真实 0.6.0 构建 |
 | [v1.3 双端收敛索引](v1.3/README.md) | 实体类型统一、TanStack Query 状态分层、页面编排下沉 product-ui、巨型文件拆分与边界治理（已实施，渲染层分层以此为准） |
 | [前端开发规范](frontend/DEVELOPMENT-GUIDE.md) | 技术栈对照、目录与分层、实体/状态/表单/组件/样式/测试规范、端到端开发清单与红线 |
 | [v1.2.2 系统架构重构索引](v1.2.2/README.md) | 双端 monorepo 目标结构、桌面 Gateway 抽象、技术栈重估和分阶段迁移计划 |
@@ -17,7 +19,8 @@
 
 ## 长期有效的桌面规格
 
-- `00-overview.md` 至 `11-ai-tvt-wiki-api.md`：桌面端基础架构、数据、IPC、UI 和 Provider 参考。
+- `00-overview.md` 至 `09-developer-acceptance-and-glossary.md`、`11-ai-tvt-wiki-api.md`：桌面端基础架构、数据、IPC、UI 和当前 Provider 参考。
+- `10-wkapi-studio-image-api.md`：已退役 Provider 的历史调研资料，不是当前接入规格。
 - `v0.2/DEVELOPMENT-RULES.md`：Local-first、单一状态源和安全开发规则。
 - `v0.2/V02.2-UI-DEVELOPMENT-CONSTRAINTS.md`：桌面 UI 控件与图标约束。
 - `v0.3/`、`v0.3.2/`、`v0.3.3/`：品牌、多图/精修、Agent/方案和朱点规格。

@@ -91,15 +91,22 @@ describe("cloud-safe contracts", () => {
     });
     const update = updateMcpConnectionSchema.parse({
       maxPointsPerDay: 8_000,
+      scopes: ["account:read", "prompts:write"],
       reauthPassword: "current-password",
       spentPointsToday: 0,
     });
     expect(update).toEqual({
       maxPointsPerDay: 8_000,
+      scopes: ["account:read", "prompts:write"],
       reauthPassword: "current-password",
     });
     expect(
       updateMcpConnectionSchema.safeParse({ reauthPassword: "short" }).success,
+    ).toBe(false);
+    // v2：能力可编辑，但至少保留一项，且只接受已知 scope。
+    expect(updateMcpConnectionSchema.safeParse({ scopes: [] }).success).toBe(false);
+    expect(
+      updateMcpConnectionSchema.safeParse({ scopes: ["prompts:admin"] }).success,
     ).toBe(false);
   });
 });

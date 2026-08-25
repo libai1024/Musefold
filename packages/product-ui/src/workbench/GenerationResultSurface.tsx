@@ -14,6 +14,7 @@ import {
   type Ref,
 } from "react";
 import type { GenerationResultSurfaceStatus } from "../models";
+import { useResultTheaterReveal } from "./useResultTheaterReveal";
 
 export interface GenerationResultSurfaceProps {
   id?: string;
@@ -93,6 +94,7 @@ export function GenerationResultSurface({
   const [broken, setBroken] = useState(false);
   const hasImage = status === "success" && Boolean(imageUrl);
   const imageAvailable = hasImage && !broken;
+  const { revealing, idle, mediaRef } = useResultTheaterReveal(imageAvailable);
 
   useEffect(() => {
     setBroken(false);
@@ -124,10 +126,14 @@ export function GenerationResultSurface({
       data-busy={busy || undefined}
       aria-busy={busy || undefined}
       data-image-available={imageAvailable || undefined}
+      data-theater-idle={idle || undefined}
     >
       <div
+        ref={mediaRef}
         className={`mf-generation-result-media${(!imageAvailable || status !== "success") ? " mf-generation-result-media-muted" : ""}`}
         style={mediaStyle}
+        data-ui-register={revealing ? "theater" : undefined}
+        data-theater-reveal={revealing || undefined}
       >
         {imageAvailable ? (
           <Button

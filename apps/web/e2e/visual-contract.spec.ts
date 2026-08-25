@@ -37,6 +37,23 @@ async function captureCanonicalSurface(
 ): Promise<void> {
   const surface = page.getByTestId(testId);
   await expect(surface).toBeVisible();
+  if (testId === "generation-workbench") {
+    const empty = page.getByTestId("workbench-empty");
+    if ((await empty.count()) > 0) {
+      await expect(empty).toHaveAttribute("data-theater-idle", "true");
+    }
+  }
+  if (testId === "generation-result-group") {
+    // THEATER-04：结果面截图必须等显形落定后再拍。
+    const results = page.locator(".mf-generation-result-surface");
+    const count = await results.count();
+    for (let index = 0; index < count; index += 1) {
+      await expect(results.nth(index)).toHaveAttribute(
+        "data-theater-idle",
+        "true",
+      );
+    }
+  }
   if (testId === "prompt-reference-preview") {
     await surface.evaluate((element) => {
       (element as HTMLElement).style.animation = "none";
@@ -235,7 +252,12 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
   );
   await expect(page.getByLabel("生成图片")).toBeEnabled();
   await page.getByLabel("生成图片").click();
-  await expect(page.locator(".generated-asset img")).toBeVisible({
+  await expect(page.getByTestId("generation-result-surface")).toHaveAttribute(
+    "data-status",
+    "success",
+    { timeout: 8_000 },
+  );
+  await expect(page.locator(".generated-asset")).toBeVisible({
     timeout: 8_000,
   });
   await captureCanonicalSurface(
@@ -300,8 +322,8 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
     "account-screen",
   );
   await page
-    .getByTestId("product-sidebar")
-    .getByTestId("nav-connections")
+    .getByRole("navigation", { name: "设置分区" })
+    .getByRole("button", { name: "已连接应用" })
     .click();
   await captureCanonicalSurface(
     page,

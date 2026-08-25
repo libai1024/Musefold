@@ -21,7 +21,7 @@ export function WorkbenchPromptFullTextCard({
       role="tooltip"
       data-testid="prompt-reference-preview"
     >
-      <span className="block truncate text-[10px] font-medium text-tertiary">
+      <span className="block truncate text-[11px] font-medium text-tertiary">
         {title}
         {scope ? ` · ${scope === "full" ? "整条引用" : "选段引用"}` : ""}
       </span>

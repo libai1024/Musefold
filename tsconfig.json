@@ -1,24 +1,62 @@
 {
   "files": [],
   "references": [
-    { "path": "./apps/desktop/tsconfig.node.json" },
-    { "path": "./apps/desktop/tsconfig.web.json" },
-    { "path": "./packages/contracts" },
-    { "path": "./packages/desktop-contracts" },
-    { "path": "./packages/domain" },
-    { "path": "./packages/ui" },
-    { "path": "./packages/product-ui" },
-    { "path": "./packages/cloud-client" },
-    { "path": "./packages/new-api-client" },
-    { "path": "./packages/server-crypto" },
-    { "path": "./packages/core" },
-    { "path": "./packages/client" },
-    { "path": "./packages/automation-server" },
-    { "path": "./packages/cli" },
-    { "path": "./packages/mcp" },
-    { "path": "./packages/update-protocol" },
-    { "path": "./apps/web" },
-    { "path": "./apps/web-api" },
-    { "path": "./apps/generation-worker" }
+    {
+      "path": "./apps/desktop/tsconfig.node.json"
+    },
+    {
+      "path": "./apps/desktop/tsconfig.web.json"
+    },
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./packages/desktop-contracts"
+    },
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/ui"
+    },
+    {
+      "path": "./packages/product-ui"
+    },
+    {
+      "path": "./packages/cloud-client"
+    },
+    {
+      "path": "./packages/new-api-client"
+    },
+    {
+      "path": "./packages/server-crypto"
+    },
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/client"
+    },
+    {
+      "path": "./packages/automation-server"
+    },
+    {
+      "path": "./packages/cli"
+    },
+    {
+      "path": "./packages/mcp"
+    },
+    {
+      "path": "./packages/update-protocol"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./apps/web-api"
+    },
+    {
+      "path": "./apps/generation-worker"
+    }
   ]
 }

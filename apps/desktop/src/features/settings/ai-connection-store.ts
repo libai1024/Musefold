@@ -47,16 +47,8 @@ interface AiConnectionSettingsState {
   loaded: boolean;
   loading: boolean;
   error: string | null;
-  dialogOpen: boolean;
-  editingConnection: AiConnectionProfile | null;
-  dialogPresetId: AiConnectionPreset['id'] | null;
   testStatus: Record<string, AiConnectionTestState>;
   load: () => Promise<void>;
-  openDialog: (
-    connection?: AiConnectionProfile | null,
-    presetId?: AiConnectionPreset['id'],
-  ) => void;
-  closeDialog: () => void;
   createConnection: (input: CreateAiConnectionInput) => Promise<AiConnectionProfile>;
   updateConnection: (id: string, patch: UpdateAiConnectionInput) => Promise<AiConnectionProfile>;
   deleteConnection: (id: string) => Promise<void>;
@@ -91,9 +83,6 @@ export const useAiConnectionStore = create<AiConnectionSettingsState>((set, get)
   loaded: false,
   loading: false,
   error: null,
-  dialogOpen: false,
-  editingConnection: null,
-  dialogPresetId: null,
   testStatus: {},
 
   load: async () => {
@@ -112,16 +101,6 @@ export const useAiConnectionStore = create<AiConnectionSettingsState>((set, get)
       set({ loading: false });
     }
   },
-
-  openDialog: (connection, presetId) => {
-    if (connection?.managedBy === 'account') return;
-    set({
-      dialogOpen: true,
-      editingConnection: connection ?? null,
-      dialogPresetId: connection ? null : (presetId ?? null),
-    });
-  },
-  closeDialog: () => set({ dialogOpen: false, editingConnection: null, dialogPresetId: null }),
 
   createConnection: async (input) => {
     const created = await aiConnectionIO.createAiConnection(input);

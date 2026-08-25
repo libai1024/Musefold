@@ -4,14 +4,16 @@ import {
   X,
 } from "../../../components/ui/icons";
 import {
+  WorkbenchComposerContextTray,
   WorkbenchComposerFrame,
   WorkbenchComposerPrompt,
+  WorkbenchPromptReferenceCard,
   workbenchComposerPlaceholder,
 } from "@musefold/product-ui";
 import { WORKBENCH_PROMPT_LIMIT } from "./store";
 import { ImageLightbox } from "../../../components/image-lightbox";
 import { cn } from "../../../lib/utils";
-import { DESIGN_PLAN_COMMAND_LABEL, exactGithubSkillUrl } from "./composerIntent";
+import { exactGithubSkillUrl } from "./composerIntent";
 import {
   HistorySourcePicker,
   SchemeRunAttachment,
@@ -20,7 +22,6 @@ import {
 import { SkillRuntimeAttachment } from "./SkillRuntimeAttachment";
 import { DraftImagesPreview } from "./DraftImagesPreview";
 import { RefinementTargetReference } from "./RefinementTargetReference";
-import { InlineReferenceCapsule } from "./InlineReferenceCapsule";
 import { SourceChip } from "./SourceChip";
 import { workbenchComposerControls } from "./WorkbenchComposerChrome";
 import type { WorkbenchComposerViewProps } from "./workbenchComposerViewProps";
@@ -52,14 +53,11 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
     overLimit,
     historyAttached,
     commandHints,
-    commandChipVisible,
-    referenceCapsulesVisible,
     canSubmit,
     textareaRef,
     composerSurfaceRef,
     imageInputRef,
     dragDepthRef,
-    inlineChipsRef,
     dragActive,
     setDragActive,
     previewPath,
@@ -69,13 +67,8 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
     setHistorySourceOpen,
     setCommandHintIndex,
     setCommandHintsDismissed,
-    inlineChipsIndent,
-    inlineChipsPadTop,
-    composerScrollTop,
-    setComposerScrollTop,
     commandHintsVisible,
     activeCommandHintIndex,
-    inlineChipsVisible,
     selectCommandHint,
     pickImage,
     handleClearSource,
@@ -86,19 +79,22 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
     attachmentStripVisible,
     plainSource,
     plainSourcePreview,
+    composerMode,
+    composerModeLocked,
+    setComposerMode,
   } = props;
 
   const { leadingControls, trailingControls } = workbenchComposerControls(props);
-
+  const promptSourceId = plainSource?.kind === "prompt" ? plainSource.id : null;
+  const promptReferences = references.filter(
+    (reference) => !promptSourceId || reference.promptId !== promptSourceId,
+  );
 
   return (
     <WorkbenchComposerFrame
       attachments={
-        (sourceBlockVisible || attachmentStripVisible) && (
-          <div
-            className="pointer-events-auto mx-auto mb-2 max-w-[620px] space-y-1.5"
-            data-position="above-composer"
-          >
+        (sourceBlockVisible || attachmentStripVisible || promptReferences.length > 0) && (
+          <WorkbenchComposerContextTray>
             {!refinementContext && schemeSource && (
               <SchemeRunAttachment
                 source={schemeSource}
@@ -108,9 +104,9 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                 onSwap={() => setSchemePickerOpen(true)}
               />
             )}
-            {attachmentStripVisible && (
+            { (attachmentStripVisible || promptReferences.length > 0) && (
               <div
-                className="flex items-center gap-2 overflow-x-auto pb-0.5"
+                className="flex min-w-max items-center gap-2 overflow-x-auto pb-0.5"
                 data-testid="workbench-attachments"
               >
                 <SkillRuntimeAttachment />
@@ -130,7 +126,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                         title="点击重新选择历史范围"
                         data-testid="history-source-chip-body"
                       >
-                        <span className="block truncate text-[10.5px] font-medium text-primary">
+                        <span className="block truncate text-meta font-medium text-primary">
                           历史 · {draftHistorySource.items.length} 张图片
                           {draftHistorySource.items.some(
                             (item) => item.promptText,
@@ -138,7 +134,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                             ? ` + ${draftHistorySource.items.filter((item) => item.promptText).length} 条提示词`
                             : ""}
                         </span>
-                        <span className="mt-0.5 block text-[9.5px] text-tertiary">
+                        <span className="mt-0.5 block text-meta text-tertiary">
                           作为方案来源 · 点击调整范围
                         </span>
                       </button>
@@ -161,6 +157,24 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                     previewText={plainSourcePreview}
                   />
                 )}
+                {promptReferences.map((reference) => (
+                  <WorkbenchPromptReferenceCard
+                    key={`${reference.promptId ?? "reference"}-${reference.scope}-${reference.text}`}
+                    title={reference.title}
+                    text={reference.text}
+                    subtitle={
+                      reference.scope === "full"
+                        ? "引用提示词 · 整条"
+                        : "引用提示词 · 选中片段"
+                    }
+                    onClear={() => {
+                      const index = references.indexOf(reference);
+                      if (index >= 0) removeReferenceAt(index);
+                    }}
+                    testId="refine-source"
+                    workbenchTestId="workbench-source"
+                  />
+                ))}
                 {refinementContext && (
                   <RefinementTargetReference
                     context={refinementContext}
@@ -178,7 +192,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                 )}
               </div>
             )}
-          </div>
+          </WorkbenchComposerContextTray>
         )
       }
       surfaceRef={composerSurfaceRef}
@@ -265,9 +279,48 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
           松开以添加图片
         </div>
       )}
+      <div
+        className="mf-workbench-composer-mode"
+        data-testid="composer-mode"
+        role="tablist"
+        aria-label="工作模式"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={composerMode === "image"}
+          className="mf-workbench-composer-mode-option"
+          data-active={composerMode === "image"}
+          disabled={composerModeLocked}
+          onClick={() => setComposerMode("image")}
+        >
+          图像
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={composerMode === "design-plan"}
+          className="mf-workbench-composer-mode-option"
+          data-active={composerMode === "design-plan"}
+          disabled={composerModeLocked}
+          onClick={() => setComposerMode("design-plan")}
+        >
+          <Wand2 aria-hidden="true" />
+          设计方案
+        </button>
+        {composerModeLocked && (
+          <span className="mf-workbench-composer-mode-status">
+            {composerMode === "refinement"
+              ? "微调"
+              : composerMode === "scheme"
+                ? "方案运行"
+                : "Skill"}
+          </span>
+        )}
+      </div>
       {overLimit && (
         <p
-          className="mb-1.5 px-1 text-[10.5px] text-danger"
+          className="mb-1.5 px-1 text-meta text-danger"
           data-testid="workbench-reference-over-limit"
         >
           {refinementContext
@@ -295,7 +348,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
           aria-label="指令建议"
           data-testid="composer-command-hints"
         >
-          <p className="px-2.5 py-1 text-[10px] font-medium text-secondary">
+          <p className="px-2.5 py-1 text-meta font-medium text-secondary">
             指令
           </p>
           {commandHints.map((hint, index) => (
@@ -318,7 +371,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
               <span className="font-mono text-[11px] font-medium text-primary">
                 {hint.command}
               </span>
-              <span className="min-w-0 flex-1 truncate text-right text-[10px] text-tertiary">
+              <span className="min-w-0 flex-1 truncate text-right text-meta text-tertiary">
                 {hint.description}
               </span>
             </button>
@@ -326,50 +379,6 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
         </div>
       )}
       <div className="relative">
-        {inlineChipsVisible && (
-          <span
-            ref={inlineChipsRef}
-            className="absolute left-2 right-2 z-10 flex flex-wrap items-center gap-1 sm:left-2.5 sm:right-2.5"
-            style={{ top: 8 - composerScrollTop }}
-            data-testid="composer-inline-chips"
-          >
-            {commandChipVisible && (
-              <span
-                className="inline-flex h-[21px] items-center gap-1 rounded-md bg-accent-soft pl-1.5 pr-0.5 text-[11px] font-medium leading-none text-accent"
-                data-testid="composer-command-chip"
-                data-command={draftCommand}
-                title="Agent 会把你的想法整理成方案草稿"
-              >
-                <Wand2 className="h-3 w-3 shrink-0" />
-                {DESIGN_PLAN_COMMAND_LABEL}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftCommand(null);
-                    textareaRef.current?.focus();
-                  }}
-                  className="flex h-4 w-4 items-center justify-center rounded-[4px] transition-colors hover:bg-accent/15"
-                  aria-label="移除指令"
-                  title="移除指令（Backspace）"
-                  data-testid="composer-command-chip-remove"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </span>
-            )}
-            {referenceCapsulesVisible &&
-              references.map((reference, index) => (
-                <InlineReferenceCapsule
-                  key={`${reference.promptId}-${index}`}
-                  reference={reference}
-                  onRemove={() => {
-                    removeReferenceAt(index);
-                    textareaRef.current?.focus();
-                  }}
-                />
-              ))}
-          </span>
-        )}
         <WorkbenchComposerPrompt
           ref={textareaRef}
           value={prompt}
@@ -381,23 +390,6 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
             setCommandHintsDismissed(false);
             setCommandHintIndex(0);
           }}
-          onScroll={(event) => {
-            if (inlineChipsVisible)
-              setComposerScrollTop(event.currentTarget.scrollTop);
-          }}
-          style={
-            inlineChipsVisible &&
-            (inlineChipsIndent > 0 || inlineChipsPadTop > 0)
-              ? {
-                  ...(inlineChipsIndent > 0
-                    ? { textIndent: inlineChipsIndent }
-                    : {}),
-                  ...(inlineChipsPadTop > 0
-                    ? { paddingTop: inlineChipsPadTop }
-                    : {}),
-                }
-              : undefined
-          }
           onKeyDown={(event) => {
             if (
               event.nativeEvent.isComposing ||
@@ -436,7 +428,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
               event.currentTarget.selectionStart === 0 &&
               event.currentTarget.selectionEnd === 0
             ) {
-              if (referenceCapsulesVisible) {
+              if (references.length > 0 && !refinementContext) {
                 event.preventDefault();
                 removeReferenceAt(references.length - 1);
                 return;

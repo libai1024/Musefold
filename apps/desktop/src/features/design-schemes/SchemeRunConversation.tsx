@@ -51,7 +51,7 @@ export function SchemeRunConversation({ turnId, source }: { turnId: string; sour
           <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-secondary" />
           <div className="min-w-0 flex-1">
             <p className="text-[11.5px] font-medium text-primary">质量门发现可修复的偏差</p>
-            <p className="mt-0.5 text-[10.5px] leading-5 text-secondary" data-testid="scheme-run-repair-hint">{source.repairHint}</p>
+            <p className="mt-0.5 text-meta leading-5 text-secondary" data-testid="scheme-run-repair-hint">{source.repairHint}</p>
           </div>
           <button
             type="button"
@@ -89,7 +89,7 @@ export function SchemeRunConversation({ turnId, source }: { turnId: string; sour
           ) : (
             <>
               <p className="text-[11.5px] font-medium text-primary">试运行成功，选择封面后可设为正式</p>
-              <p className="mt-0.5 text-[10px] text-tertiary">试运行结果已加入草稿相册；成功不会自动转正，需要你确认。</p>
+              <p className="mt-0.5 text-meta text-tertiary">试运行结果已加入草稿相册；成功不会自动转正，需要你确认。</p>
               <div className="mt-2.5 flex flex-wrap gap-2" data-testid="scheme-run-cover-candidates">
                 {coverCandidates.map((outcome) => {
                   const selected = source.coverAssetId === outcome.assetId;

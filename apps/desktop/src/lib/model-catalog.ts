@@ -11,15 +11,13 @@ export const NON_TEXT_MODEL_PATTERN = /embed|whisper|tts|audio|rerank|moderation
 
 /**
  * 过滤出生图模型。
- * - wukong-studio 以产品 ID 标识模型，不适用命名过滤；
  * - BYOK 站全部滤空说明命名规则不适配，回退原列表（宁可多显示不可无选项）；
  * - 托管站（账号）不回退：Agent 别名混进生图选择器就是事故（用户报告的 bug）。
  */
 export function filterImageModels<T extends { id: string }>(
   models: T[],
-  options: { managed?: boolean; providerType?: string } = {},
+  options: { managed?: boolean } = {},
 ): T[] {
-  if (options.providerType === 'wukong-studio') return models;
   const filtered = models.filter((model) => IMAGE_MODEL_PATTERN.test(model.id));
   if (filtered.length > 0) return filtered;
   return options.managed ? [] : models;

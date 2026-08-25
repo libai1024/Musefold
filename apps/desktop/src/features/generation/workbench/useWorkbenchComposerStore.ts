@@ -172,8 +172,6 @@ export function useWorkbenchComposerStore() {
   // / 指令建议：随输入实时筛选；Esc 临时收起，输入变化后恢复。
   const commandHints =
     draftCommand || doubaoImageMode ? [] : filterCommandHints(prompt);
-  const commandChipVisible = Boolean(draftCommand) && !doubaoImageMode;
-  const referenceCapsulesVisible = !refinementContext && references.length > 0;
   const skillCanSubmit = Boolean(
     skillRuntimeStatus === "ready" &&
     prompt.trim() &&
@@ -306,8 +304,6 @@ export function useWorkbenchComposerStore() {
     historyAttached,
     designPlanReady,
     commandHints,
-    commandChipVisible,
-    referenceCapsulesVisible,
     skillCanSubmit,
     skillIsAttached,
     skillComposerAttachmentVisible,

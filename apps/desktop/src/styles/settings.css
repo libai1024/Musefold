@@ -1,0 +1,573 @@
+.settings-view {
+  min-width: 0;
+  min-height: 0;
+}
+
+.settings-product-shell > .mf-product-sidebar-rail {
+  display: none;
+  width: 0 !important;
+}
+
+.settings-window-drag-region {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 32px;
+}
+
+.settings-window-controls {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  display: flex;
+  height: 32px;
+  align-items: flex-start;
+}
+
+[data-titlebar-hidden='true'] .mf-settings-sidebar-header {
+  padding-top: 52px;
+}
+
+[data-titlebar-hidden='true'] .mf-settings-content {
+  padding-top: 40px;
+}
+
+/* 仍含桌面专属行为的复杂行，沿用同一模板节奏。 */
+.settings-list {
+  overflow: hidden;
+  margin-bottom: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 8px 0;
+  background: var(--bg-elevated);
+}
+
+.mf-settings-workspace .settings-row,
+.mf-settings-workspace .setting-item {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+}
+
+.mf-settings-workspace .settings-row:not(:last-child),
+.mf-settings-workspace .setting-item:not(:last-child) {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mf-settings-workspace .settings-row:hover,
+.mf-settings-workspace .setting-item:hover {
+  background: transparent;
+}
+
+/* 中转站 master-detail 分栏(RELAY-SETTINGS-UI 第二步)。
+   左栏 240px 列表 + 右栏详情;<960px 左栏降级为顶部横向可滚动列表,
+   与 SettingsWorkspace 侧栏 → tabs 的响应式节奏一致。 */
+.mf-settings-card-body.settings-md-card {
+  padding: 0;
+}
+
+.settings-md {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.settings-md-rail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--border-subtle);
+  padding: 6px;
+}
+
+.settings-md-detail {
+  min-width: 0;
+  padding: 18px 24px 20px;
+}
+
+/* 左栏行:选中态复用 SettingsWorkspace 侧栏导航视觉(radius-sm / bg-active / 无框) */
+.settings-md-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--fg-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.settings-md-item:hover {
+  color: var(--fg-primary);
+  background: var(--bg-hover);
+}
+
+.settings-md-item[data-active='true'] {
+  color: var(--fg-primary);
+  background: var(--bg-active);
+  font-weight: 500;
+}
+
+/* 左栏行第二行 meta(模型 ID / Base URL):11px 三级灰,单行 truncate */
+.settings-md-item-meta {
+  margin-top: 1px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 400;
+}
+
+.settings-md-item:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* 新建入口:与列表主体 hairline 分隔,hover 点亮 */
+.settings-md-new {
+  margin-top: 4px;
+  justify-content: flex-start;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0;
+  padding-top: 8px;
+  color: var(--fg-tertiary);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.settings-md-new:hover,
+.settings-md-new:focus-visible {
+  color: var(--fg-primary);
+}
+
+/* 详情面板底部操作条:sticky 沉底,负 margin 撑满详情列(列内边距 16px 20px 20px) */
+.settings-md-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 18px -24px -20px;
+  padding: 10px 24px 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.settings-md-danger-slot {
+  min-width: 0;
+}
+
+.settings-md-action-group {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.settings-inline-confirm {
+  min-width: 0;
+}
+
+/* dirty 圆点:有未保存修改时出现在操作条按钮组左侧 */
+.settings-md-dirty-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.settings-md-default-badge {
+  flex: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  color: var(--fg-tertiary);
+  background: var(--bg-inset);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 14px;
+}
+
+/* 详情页共用的节奏:标题、字段栈和分组分隔统一由桌面宿主控制。 */
+.settings-detail-root {
+  min-width: 0;
+}
+
+.settings-detail-header {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 12px;
+}
+
+.settings-detail-form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.settings-detail-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-detail-section--divider {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 16px;
+}
+
+.settings-detail-section-title {
+  min-height: 16px;
+}
+
+.settings-detail-connection-fields {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-detail-form input {
+  width: 100%;
+  max-width: 560px;
+}
+
+.settings-detail-form [data-testid='provider-base-url'],
+.settings-detail-form [data-testid='provider-api-key'],
+.settings-detail-form [data-testid='ai-connection-base-url'],
+.settings-detail-form [data-testid='ai-connection-api-key'] {
+  max-width: none;
+}
+
+.settings-detail-route-control {
+  width: min(100%, 320px);
+}
+
+.settings-detail-status-row,
+.settings-detail-inset {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.settings-detail-status-row {
+  margin-bottom: 6px;
+}
+
+.settings-detail-preset-grid {
+  gap: 6px;
+}
+
+.settings-detail-result {
+  margin-top: 0;
+}
+
+/* 自动化与审计使用连续列表表面,项目之间只保留 hairline。 */
+.settings-integration-list,
+.settings-audit-list {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.settings-integration-item {
+  padding: 12px 16px;
+}
+
+.settings-integration-item + .settings-integration-item,
+.settings-audit-item + .settings-audit-item {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settings-integration-item-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-integration-item-header > p {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-integration-item-header > button,
+.settings-integration-item-header > [role='button'] {
+  flex: none;
+}
+
+.settings-integration-item-action {
+  flex: none;
+}
+
+.settings-integration-item-divider {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settings-integration-item-error,
+.settings-audit-status-danger {
+  color: var(--danger);
+}
+
+.settings-audit-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  text-align: left;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.settings-audit-item:hover {
+  background: var(--bg-hover);
+}
+
+.settings-audit-detail {
+  margin-top: 6px;
+  border-radius: var(--radius-xs);
+  padding: 6px 8px;
+  background: var(--bg-inset);
+}
+
+.settings-audit-empty {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  background: var(--bg-inset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 桌面端用户显式选择「完整动效」(data-motion='off')时优先于系统偏好;
+     与 product-ui styles.css / motion.css 门控语义一致。 */
+  html:not([data-motion='off']) .settings-md-new,
+  html:not([data-motion='off']) .settings-audit-item {
+    transition: none;
+  }
+}
+
+@media (max-width: 959px) {
+  .settings-md {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-md-rail {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 6px 12px;
+  }
+
+  .settings-md-item {
+    width: auto;
+    flex: none;
+    margin-bottom: 0;
+  }
+
+  .settings-md-item-meta {
+    display: none;
+  }
+
+  .settings-md-new {
+    margin-top: 0;
+    flex: none;
+    border-top: 0;
+    border-radius: var(--radius-sm);
+    padding-top: 0;
+  }
+}
+
+.mf-settings-workspace .settings-budget-input {
+  width: 80px;
+}
+
+.settings-token-controls {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.settings-token-controls > code {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-token-controls > button {
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .mf-settings-row.settings-automation-token-row {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  }
+}
+
+.settings-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border-subtle);
+}
+
+.settings-facts > * {
+  min-width: 0;
+  padding: 16px;
+  background: var(--bg-elevated);
+}
+
+.mf-settings-card-body.settings-facts {
+  padding: 0;
+}
+
+.mf-settings-card .settings-list {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.mf-settings-card .mf-connected-apps-list {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.settings-account-card > *,
+.settings-account-form > * {
+  margin-right: 24px;
+  margin-left: 24px;
+}
+
+.settings-account-card > .mf-settings-row {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.settings-account-form {
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.settings-connected-apps {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.settings-connected-apps .mf-connected-app-row {
+  padding-inline: 24px;
+}
+
+/* 中转站合并页：生图 / Agent 分段控件与后续卡片的间距 */
+.relay-tab-bar {
+  margin-bottom: var(--density-list-gap, 12px);
+}
+
+@media (max-width: 639px) {
+  .mf-settings-workspace .settings-row,
+  .mf-settings-workspace .setting-item {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .settings-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-facts > * {
+    padding: 16px;
+  }
+
+  .settings-md-detail {
+    padding: 16px;
+  }
+
+  .settings-md-actions {
+    flex-wrap: wrap;
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .settings-md-danger-slot {
+    width: 100%;
+  }
+
+  .settings-inline-confirm {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-md-action-group {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .settings-md-action-group > .mf-ui-button {
+    flex: none;
+  }
+
+  .settings-integration-item {
+    padding: 12px;
+  }
+
+  .settings-integration-item-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .settings-integration-item-header--wrap > div,
+  .settings-integration-item-header--wrap > p {
+    flex-basis: 100%;
+  }
+
+  .settings-audit-item {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 959px) {
+  [data-titlebar-hidden='true'] .mf-settings-compact-header {
+    padding-top: 44px;
+  }
+
+  [data-titlebar-hidden='true'] .mf-settings-content {
+    padding-top: 24px;
+  }
+}

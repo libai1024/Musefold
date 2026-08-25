@@ -111,7 +111,7 @@ export function HistorySourcePicker({
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-inset text-secondary"><History className="h-4 w-4" /></span>
           <div className="min-w-0 flex-1">
             <h2 id="history-source-title" className="text-[14px] font-semibold text-primary">选择历史来源</h2>
-            <p className="mt-1 text-[10.5px] text-tertiary">只提取你选中的作品；范围之后仍可重新调整。</p>
+            <p className="mt-1 text-meta text-tertiary">只提取你选中的作品；范围之后仍可重新调整。</p>
           </div>
           <button type="button" onClick={onCancel} className="icon-action" aria-label="关闭" title="关闭"><X className="h-4 w-4" /></button>
         </div>
@@ -120,7 +120,7 @@ export function HistorySourcePicker({
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-14 text-[11px] text-tertiary"><Loader2 className="h-4 w-4 animate-spin" />正在读取历史作品…</div>
           ) : error ? (
-            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger">{error}</div>
+            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">{error}</div>
           ) : records.length === 0 ? (
             <p className="py-14 text-center text-[11px] text-tertiary">还没有生成成功的历史作品；先在工作台生成图片，再从这里创建方案。</p>
           ) : (
@@ -144,7 +144,7 @@ export function HistorySourcePicker({
                     >
                       <img src={toImageSrc(record.imagePath as string)} alt="" className="h-full w-full object-cover" loading="lazy" />
                       <span className={cn(
-                        'absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border text-[9px] font-semibold',
+                        'absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border text-meta font-semibold',
                         active ? 'border-accent bg-accent text-[color:var(--on-accent)]' : 'border-white/60 bg-black/30 text-transparent group-hover:text-white/70',
                       )}>
                         {active ? order : <Check className="h-3 w-3" />}
@@ -163,11 +163,11 @@ export function HistorySourcePicker({
                   data-testid="history-include-prompts"
                 />
                 包含这些作品的生成提示词
-                <span className="ml-auto text-[10px] text-tertiary">帮助提取固定规则</span>
+                <span className="ml-auto text-meta text-tertiary">帮助提取固定规则</span>
               </label>
 
               <div className="mt-4 border-t border-border-subtle pt-4">
-                <p className="text-[10.5px] font-medium text-secondary">提取说明（进入 Composer 后仍可修改）</p>
+                <p className="text-meta font-medium text-secondary">提取说明（进入 Composer 后仍可修改）</p>
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
@@ -184,7 +184,7 @@ export function HistorySourcePicker({
                         type="button"
                         onClick={() => appendSuggestion(suggestion)}
                         className={cn(
-                          'min-h-7 rounded-md border px-2 text-[10px] transition-colors',
+                          'min-h-7 rounded-md border px-2 text-meta transition-colors',
                           active ? 'border-accent/35 bg-accent-soft text-accent' : 'border-border-subtle text-tertiary hover:bg-hover',
                         )}
                         data-testid={`history-suggestion-${suggestion}`}
@@ -200,7 +200,7 @@ export function HistorySourcePicker({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border-subtle px-5 py-3">
-          <span className="text-[10px] text-tertiary" data-testid="history-selected-count">已选择 {selected.size} 张作品</span>
+          <span className="text-meta text-tertiary" data-testid="history-selected-count">已选择 {selected.size} 张作品</span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onCancel} className="action-button">取消</button>
             <button

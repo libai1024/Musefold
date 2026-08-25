@@ -106,7 +106,9 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
       <div className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]">
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-medium text-primary">数据库备份</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">保留最近的手动、导入前和升级前快照</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">
+            保留最近的手动、导入前和升级前快照
+          </p>
         </div>
         <Button
           size="iconSm"
@@ -119,25 +121,44 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
         </Button>
-        <Button size="sm" variant="outline" onClick={() => void createNow()} disabled={creating || restoring} data-testid="backup-now">
-          {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void createNow()}
+          disabled={creating || restoring}
+          data-testid="backup-now"
+        >
+          {creating ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <ShieldCheck className="h-3 w-3" />
+          )}
           {creating ? '备份中…' : '立即备份'}
         </Button>
       </div>
 
       {error && !selected && (
-        <p className="mb-3 rounded-md border border-danger/20 bg-danger/5 px-2.5 py-2 text-[11px] text-danger" data-testid="backup-error">
+        <p
+          className="mb-3 rounded-md border border-danger/20 bg-danger/5 px-2.5 py-2 text-[11px] text-danger"
+          data-testid="backup-error"
+        >
           {error}
         </p>
       )}
 
-      <div className="mb-4 overflow-hidden rounded-lg border border-border-subtle" data-testid="backup-list">
+      <div
+        className="mb-4 overflow-hidden rounded-md border border-border-subtle"
+        data-testid="backup-list"
+      >
         {loading && backups.length === 0 ? (
           <div className="flex h-16 items-center justify-center text-[11px] text-tertiary">
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> 加载中…
           </div>
         ) : backups.length === 0 ? (
-          <div className="flex h-16 items-center justify-center text-[11px] text-tertiary" data-testid="backup-empty">
+          <div
+            className="flex h-16 items-center justify-center text-[11px] text-tertiary"
+            data-testid="backup-empty"
+          >
             暂无数据库备份
           </div>
         ) : (
@@ -150,16 +171,19 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
                 data-backup-file={backup.file}
               >
                 <span
-                  className={`min-w-10 shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${
+                  className={`min-w-10 shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-center text-meta font-medium ${
                     backup.kind === 'manual' ? 'bg-pressed text-primary' : 'bg-inset text-tertiary'
                   }`}
                 >
                   {backup.kind === 'manual' ? '手动' : '自动'}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-[10.5px] text-secondary" title={backup.file}>{backup.file}</p>
-                  <p className="mt-0.5 flex items-center gap-1 text-[10px] text-quaternary">
-                    <Clock3 className="h-2.5 w-2.5" /> {formatDate(backup.createdAt)} · {formatBytes(backup.size)}
+                  <p className="truncate font-mono text-meta text-secondary" title={backup.file}>
+                    {backup.file}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1 text-meta text-quaternary">
+                    <Clock3 className="h-2.5 w-2.5" /> {formatDate(backup.createdAt)} ·{' '}
+                    {formatBytes(backup.size)}
                   </p>
                 </div>
                 <Button
@@ -181,36 +205,50 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
       </div>
 
       <Dialog open={selected !== null} onOpenChange={closeDialog}>
-        <DialogContent className="max-w-[440px]" hideClose={Boolean(restored)} data-testid="backup-confirm-dialog">
+        <DialogContent
+          className="max-w-[440px]"
+          hideClose={Boolean(restored)}
+          data-testid="backup-confirm-dialog"
+        >
           <DialogHeader>
             <DialogTitle>{restored ? '数据库已恢复' : '恢复数据库备份'}</DialogTitle>
             <DialogDescription>
-              {restored ? '需要立即重启 Musefold，才能使用恢复后的数据。' : '恢复会覆盖当前数据库。当前状态会先自动保存为安全备份。'}
+              {restored
+                ? '需要立即重启 Musefold，才能使用恢复后的数据。'
+                : '恢复会覆盖当前数据库。当前状态会先自动保存为安全备份。'}
             </DialogDescription>
           </DialogHeader>
 
           {selected && (
-            <div className="rounded-lg border border-border-subtle bg-inset/50 px-3.5 py-3">
+            <div className="rounded-md border border-border-subtle bg-inset/50 px-3.5 py-3">
               <p className="truncate font-mono text-[11px] text-primary">{selected.file}</p>
-              <p className="mt-1 text-[10.5px] text-tertiary">{formatDate(selected.createdAt)} · {formatBytes(selected.size)}</p>
+              <p className="mt-1 text-meta text-tertiary">
+                {formatDate(selected.createdAt)} · {formatBytes(selected.size)}
+              </p>
             </div>
           )}
 
           {!restored && (
-            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
+            <div className="rounded-md border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
               API 密钥和生成图片不会改变；未备份的数据库修改将被替换。
             </div>
           )}
 
           {restored && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-[11px] text-secondary" data-testid="backup-restored">
+            <div
+              className="flex items-start gap-2.5 rounded-md border border-success/30 bg-success/10 px-3.5 py-2.5 text-[11px] text-secondary"
+              data-testid="backup-restored"
+            >
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
               恢复完成，原数据库也已自动保留。应用重启前请勿继续编辑数据。
             </div>
           )}
 
           {error && selected && (
-            <p className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger" data-testid="backup-restore-error">
+            <p
+              className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger"
+              data-testid="backup-restore-error"
+            >
               {error}
             </p>
           )}
@@ -218,15 +256,33 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
           <DialogFooter>
             {!restored && (
               <>
-                <Button variant="ghost" size="sm" onClick={() => closeDialog(false)} disabled={restoring}>取消</Button>
-                <Button variant="danger" size="sm" onClick={() => void restore()} disabled={restoring} data-testid="backup-confirm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => closeDialog(false)}
+                  disabled={restoring}
+                >
+                  取消
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => void restore()}
+                  disabled={restoring}
+                  data-testid="backup-confirm"
+                >
                   {restoring && <Loader2 className="h-3 w-3 animate-spin" />}
                   {restoring ? '恢复中…' : '恢复数据库'}
                 </Button>
               </>
             )}
             {restored && (
-              <Button size="sm" variant="primary" onClick={() => void api.system.relaunch()} data-testid="backup-restart">
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => void api.system.relaunch()}
+                data-testid="backup-restart"
+              >
                 <RefreshCw className="h-3 w-3" /> 立即重启
               </Button>
             )}

@@ -35,6 +35,13 @@ export function isWorkbenchTimelineNearLatest({
   return scrollHeight - scrollTop - clientHeight < threshold;
 }
 
+export function shouldFollowWorkbenchTimelineResize(
+  itemCount: number,
+  nearLatest: boolean,
+): boolean {
+  return itemCount > 0 && nearLatest;
+}
+
 /**
  * Shared scroll behavior for the Desktop and Web workbench timelines.
  * The caller owns the rendered turns; this controller only owns viewport state.
@@ -84,7 +91,7 @@ export function useWorkbenchTimelineController({
     if (!element || !content || typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver(() => {
-      if (nearLatestRef.current) {
+      if (shouldFollowWorkbenchTimelineResize(itemCount, nearLatestRef.current)) {
         element.scrollTo({ top: element.scrollHeight });
       }
     });

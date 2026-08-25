@@ -88,12 +88,12 @@ function RuntimeSchemeRow({ scheme, onOpen, onRun, onRemove }: { scheme: DesignS
         <span className="flex min-w-0 items-center gap-2">
           {scheme.status === 'draft' && !scheme.hasSuccessfulTrial && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />}
           <span className="truncate text-[12.5px] font-semibold text-primary">{scheme.name}</span>
-          <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[9px] text-secondary">
+          <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-meta text-secondary">
             {RUNTIME_FIDELITY_LABEL[scheme.fidelity] ?? scheme.fidelity}
           </span>
         </span>
-        <span className="mt-0.5 block truncate text-[10.5px] text-secondary">{scheme.summary}</span>
-        <span className="mt-0.5 flex items-center gap-1.5 truncate text-[9.5px] text-tertiary">
+        <span className="mt-0.5 block truncate text-meta text-secondary">{scheme.summary}</span>
+        <span className="mt-0.5 flex items-center gap-1.5 truncate text-meta text-tertiary">
           <GitBranch className="h-3 w-3 shrink-0" />
           {scheme.sourceLabel}
           {scheme.status === 'draft' && <span>· {scheme.hasSuccessfulTrial ? '已有成功试运行' : '等待试运行'}</span>}
@@ -180,7 +180,7 @@ function ListRemoveDialog({ name, isDraft, busy, onCancel, onConfirm }: {
 }
 
 function EmptyList({ surface }: { surface: Surface }) {
-  return <div className="col-span-full py-16 text-center"><Search className="mx-auto h-5 w-5 text-quaternary" /><p className="mt-3 text-[12px] text-secondary">没有找到匹配的{surface === 'mine' ? '方案' : '结果'}</p><p className="mt-1 text-[10.5px] text-tertiary">换一个名称、作者或仓库地址试试</p></div>;
+  return <div className="col-span-full py-16 text-center"><Search className="mx-auto h-5 w-5 text-quaternary" /><p className="mt-3 text-[12px] text-secondary">没有找到匹配的{surface === 'mine' ? '方案' : '结果'}</p><p className="mt-1 text-meta text-tertiary">换一个名称、作者或仓库地址试试</p></div>;
 }
 
 function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
@@ -189,7 +189,7 @@ function Section({ title, count, children }: { title: string; count: number; chi
     <section className="mt-7 first:mt-0">
       <div className="mb-2 flex items-center gap-2 border-b border-border-subtle pb-2">
         <h2 className="text-[13px] font-semibold text-primary">{title}</h2>
-        <span className="text-[10px] tabular-nums text-tertiary">{count}</span>
+        <span className="text-meta tabular-nums text-tertiary">{count}</span>
       </div>
       <div className="grid grid-cols-2 gap-x-7 gap-y-1 max-[980px]:grid-cols-1">{children}</div>
     </section>
@@ -211,7 +211,7 @@ function CreateMenu({ onClose, onChoose }: { onClose: () => void; onChoose: (kin
   }, [onClose]);
   return (
     <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-[286px] rounded-lg border border-border-default bg-popover p-1.5 shadow-pop animate-scale-fade-in" role="menu" aria-label="新建方案" data-testid="scheme-create-menu">
-      {items.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" role="menuitem" onClick={() => onChoose(item.id)} className="flex min-h-12 w-full items-center gap-3 rounded-md px-2.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"><Icon className="h-4 w-4 shrink-0 text-secondary" /><span className="min-w-0"><span className="block text-[11.5px] font-medium text-primary">{item.label}</span><span className="block truncate text-[10px] text-tertiary">{item.hint}</span></span></button>; })}
+      {items.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" role="menuitem" onClick={() => onChoose(item.id)} className="flex min-h-12 w-full items-center gap-3 rounded-md px-2.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"><Icon className="h-4 w-4 shrink-0 text-secondary" /><span className="min-w-0"><span className="block text-[11.5px] font-medium text-primary">{item.label}</span><span className="block truncate text-meta text-tertiary">{item.hint}</span></span></button>; })}
     </div>
   );
 }
@@ -241,16 +241,16 @@ function MarketCandidateRow({ candidate, installed, onAdd, onOpenInstalled }: {
       <div className="min-w-0">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[12.5px] font-semibold text-primary">{candidate.fullName}</span>
-          {candidate.license && <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[9px] text-secondary">{candidate.license}</span>}
+          {candidate.license && <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-meta text-secondary">{candidate.license}</span>}
         </span>
-        <span className="mt-0.5 block truncate text-[10.5px] text-secondary">{candidate.description ?? '仓库未提供描述'}</span>
-        <span className="mt-1 flex min-w-0 items-center gap-2 text-[9.5px] text-tertiary">
+        <span className="mt-0.5 block truncate text-meta text-secondary">{candidate.description ?? '仓库未提供描述'}</span>
+        <span className="mt-1 flex min-w-0 items-center gap-2 text-meta text-tertiary">
           <span className="flex shrink-0 items-center gap-1"><Star className="h-3 w-3" />{candidate.stars}</span>
           <span className="shrink-0">{marketUpdatedLabel(candidate.updatedAt)}</span>
           <span className="truncate">· {candidate.matchReason}</span>
         </span>
         {candidate.riskSummary && (
-          <span className="mt-1 block truncate text-[9.5px] text-warning" data-testid={`market-risk-${candidate.candidateId}`}>{candidate.riskSummary}</span>
+          <span className="mt-1 block truncate text-meta text-warning" data-testid={`market-risk-${candidate.candidateId}`}>{candidate.riskSummary}</span>
         )}
       </div>
       <button
@@ -274,7 +274,7 @@ function MarketInstallDialog({ candidate, onCancel, onConfirm }: { candidate: Ma
           <SchemeMark compact />
           <div className="min-w-0 flex-1">
             <h2 id="market-install-title" className="text-[14px] font-semibold text-primary">添加为草稿</h2>
-            <p className="mt-1 truncate text-[10.5px] text-tertiary">{candidate.repositoryUrl}</p>
+            <p className="mt-1 truncate text-meta text-tertiary">{candidate.repositoryUrl}</p>
           </div>
           <button type="button" onClick={onCancel} className="icon-action" aria-label="关闭" title="关闭"><X className="h-4 w-4" /></button>
         </div>
@@ -285,7 +285,7 @@ function MarketInstallDialog({ candidate, onCancel, onConfirm }: { candidate: Ma
             <p className="flex items-center gap-2"><FileCheck2 className="h-3.5 w-3.5 text-success" />只读取规则、提示词与参考图片</p>
             <p className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-success" />不会执行仓库脚本</p>
           </div>
-          {candidate.riskSummary && <p className="mt-3 text-[10.5px] leading-5 text-warning">{candidate.riskSummary}</p>}
+          {candidate.riskSummary && <p className="mt-3 text-meta leading-5 text-warning">{candidate.riskSummary}</p>}
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" onClick={onCancel} className="action-button">取消</button>
             <button type="button" onClick={onConfirm} className="action-button bg-primary text-background hover:opacity-85" data-testid="market-install-confirm"><Download className="h-3.5 w-3.5" />添加为草稿</button>
@@ -505,7 +505,7 @@ export function DesignSchemesPage() {
             </button>
           )}
         </div>
-        {runtimeError && surface === 'mine' && <div className="mt-4 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] text-danger">{runtimeError}</div>}
+        {runtimeError && surface === 'mine' && <div className="mt-4 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">{runtimeError}</div>}
         {surface === 'mine' ? <div className="mt-7">{runtimeLoading && mineEmpty ? <div className="py-16 text-center text-[11px] text-tertiary">正在读取方案…</div> : mineEmpty ? <div className="grid"><EmptyList surface={surface} /></div> : <><Section title="草稿" count={runtimeDrafts.length}>{runtimeDrafts.map((scheme) => <RuntimeSchemeRow key={scheme.id} scheme={scheme} onOpen={() => setRuntimeDetailId(scheme.id)} onRun={() => runRuntimeScheme(scheme)} onRemove={() => setRemoveTarget({ id: scheme.id, name: scheme.name, isDraft: true })} />)}</Section><Section title="正式" count={runtimeFormal.length}>{runtimeFormal.map((scheme) => <RuntimeSchemeRow key={scheme.id} scheme={scheme} onOpen={() => setRuntimeDetailId(scheme.id)} onRun={() => runRuntimeScheme(scheme)} onRemove={() => setRemoveTarget({ id: scheme.id, name: scheme.name, isDraft: false })} />)}</Section></>}</div> : (
           <div className="mt-7" data-testid="market-discover">
             {marketLoading ? (
@@ -513,13 +513,13 @@ export function DesignSchemesPage() {
             ) : marketError ? (
               <div className="mx-auto max-w-[420px] py-14 text-center">
                 <p className="text-[12px] font-medium text-primary">搜索市场失败</p>
-                <p className="mt-1.5 text-[10.5px] leading-5 text-tertiary">{marketError}</p>
+                <p className="mt-1.5 text-meta leading-5 text-tertiary">{marketError}</p>
                 <button type="button" onClick={() => { void runMarketSearch(); }} className="action-button mx-auto mt-4">重试</button>
               </div>
             ) : marketResult ? (
               <>
                 {marketResult.fromCache && (
-                  <p className="mb-3 rounded-md border border-border-subtle bg-inset/45 px-3 py-2 text-[10.5px] text-secondary" data-testid="market-cache-notice">网络暂不可用，以下是最近一次搜索的候选缓存。</p>
+                  <p className="mb-3 rounded-md border border-border-subtle bg-inset/45 px-3 py-2 text-meta text-secondary" data-testid="market-cache-notice">网络暂不可用，以下是最近一次搜索的候选缓存。</p>
                 )}
                 <Section title={`「${marketResult.query}」的候选`} count={marketResult.candidates.length}>
                   {marketResult.candidates.map((candidate) => {
@@ -541,10 +541,10 @@ export function DesignSchemesPage() {
               <div className="mx-auto max-w-[460px] py-14 text-center">
                 <Search className="mx-auto h-5 w-5 text-quaternary" />
                 <p className="mt-3 text-[12px] font-medium text-primary">从 GitHub 市场寻找设计方案</p>
-                <p className="mt-1.5 text-[10.5px] leading-5 text-tertiary">输入创作方向后点「搜索市场」。候选会显示许可证与风险提示，添加后需要本机试运行才能正式使用。</p>
+                <p className="mt-1.5 text-meta leading-5 text-tertiary">输入创作方向后点「搜索市场」。候选会显示许可证与风险提示，添加后需要本机试运行才能正式使用。</p>
                 <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                   {['插画 skill', 'poster prompt', 'illustration style'].map((suggestion) => (
-                    <button key={suggestion} type="button" onClick={() => { void runMarketSearch(suggestion); }} className="rounded-full border border-border-subtle px-2.5 py-1 text-[10px] text-secondary transition-colors hover:bg-hover hover:text-primary">
+                    <button key={suggestion} type="button" onClick={() => { void runMarketSearch(suggestion); }} className="rounded-full border border-border-subtle px-2.5 py-1 text-meta text-secondary transition-colors hover:bg-hover hover:text-primary">
                       {suggestion}
                     </button>
                   ))}

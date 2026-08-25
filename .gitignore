@@ -5,6 +5,7 @@ release/
 dist/
 test-results/
 test-output/
+.lighthouseci/
 .pytest_cache/
 __pycache__/
 .venv-test/
@@ -22,6 +23,7 @@ backups/
 *.db-wal
 .electron-driver/
 .claude/settings.local.json
+.zcode/
 
 # 更新源清单由发布流水线生成并直接写到分发站点，仓库内不保留副本以免出现第二份事实源。
 website/Musefold/updates/

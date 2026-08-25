@@ -78,16 +78,18 @@ def test_first_run_offers_doubao_or_account_and_adapts_to_narrow_window(app, tmp
     assert metrics["documentWidth"] <= metrics["viewport"] + 1, metrics
     app.page.screenshot(path=str(tmp_path / "doubao-settings-narrow.png"))
 
-    app.page.click('[data-testid="settings-mobile-section-trigger"]')
-    menu_text = app.page.locator('[data-testid="settings-mobile-section-menu"]').inner_text()
-    assert "高级设置" in menu_text
-    assert "生图中转站" in menu_text
-    assert "Agent 中转站" in menu_text
+    # v2 窄屏为横向分区 tabs（settings-mobile-section-*），分组标签不渲染；
+    # 生图/Agent 中转站合并为一个「中转站」分区。
+    menu_text = app.page.locator('[data-testid="settings-workspace"]').inner_text()
+    assert "账号" in menu_text
+    assert "中转站" in menu_text
+    assert "数据与关于" in menu_text
+    assert "已归档聊天" in menu_text
 
     app.page.set_viewport_size({"width": 1200, "height": 760})
     app.page.keyboard.press("Escape")
-    assert "接入方式" in app.page.locator("body").inner_text()
-    assert "高级设置" in app.page.locator("body").inner_text()
+    assert "账户与接入" in app.page.locator("body").inner_text()
+    assert "通用" in app.page.locator("body").inner_text()
     app.page.screenshot(path=str(tmp_path / "doubao-settings-desktop.png"))
 
 

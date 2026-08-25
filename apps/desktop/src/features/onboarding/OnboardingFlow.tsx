@@ -19,9 +19,12 @@ export function OnboardingFlow() {
   useGenerationStore((s) => s.providersLoaded);
   useGenerationStore((s) => s.providers.length);
   const step = useOnboardingStore((s) => s.step);
+  const generatedImagePath = useOnboardingStore((s) => s.generatedImagePath);
   const { isMac } = usePlatform();
   const isFullscreen = useWindowFullscreen();
   const needsMacTitlebarInset = isMac && !isFullscreen;
+  const fullBleed = step === 1 || step === 4;
+  const imageRevealed = step === 4 && Boolean(generatedImagePath);
 
   if (!visible) return null;
 
@@ -29,16 +32,21 @@ export function OnboardingFlow() {
     <div
       className="fixed inset-0 z-[200] bg-background text-primary"
       data-testid="onboarding-flow"
+      data-ui-register="theater"
       data-step={step}
     >
       <div className={cn('flex h-full min-h-0 flex-col', needsMacTitlebarInset && 'pt-[52px]')}>
-        <OnboardingHeader step={step} />
+        <OnboardingHeader step={step} receded={imageRevealed} />
 
-        <main className="min-h-0 flex-1 overflow-y-auto">
-          {/* key 让每一步换页时整块内容重新淡入，衔接更从容 */}
+        <main className={cn('min-h-0 flex-1', fullBleed ? 'overflow-hidden' : 'overflow-y-auto')}>
           <div
             key={step}
-            className="animate-fade-in mx-auto flex min-h-full w-full max-w-[760px] flex-col justify-center px-6 py-10 sm:px-10 sm:py-14"
+            className={cn(
+              'mx-auto flex w-full flex-col',
+              fullBleed
+                ? 'h-full min-h-0 justify-stretch'
+                : 'animate-fade-in min-h-full max-w-[760px] justify-center px-6 py-10 sm:px-10 sm:py-14',
+            )}
           >
             {step === 1 && <StepWelcome />}
             {step === 2 && <StepConnect />}
@@ -47,12 +55,19 @@ export function OnboardingFlow() {
           </div>
         </main>
 
-        <footer className="flex shrink-0 justify-center border-t border-border-subtle px-6 py-3">
-          <p className="flex items-center gap-1.5 text-[11px] text-tertiary">
+        {!fullBleed || step === 1 ? (
+        <footer
+          className={cn(
+            'flex shrink-0 justify-center px-6 py-3',
+            step === 1 ? '' : 'border-t border-border-subtle',
+          )}
+        >
+          <p className="flex items-center gap-1.5 text-meta text-tertiary">
             <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
             本地优先 · 登录会话与密钥只保存在本机
           </p>
         </footer>
+        ) : null}
       </div>
     </div>
   );

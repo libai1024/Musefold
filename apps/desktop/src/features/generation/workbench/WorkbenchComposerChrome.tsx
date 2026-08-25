@@ -178,7 +178,7 @@ export function workbenchComposerControls(props: WorkbenchComposerViewProps) {
           />
           {composedPrompt.length >= WORKBENCH_PROMPT_LIMIT * 0.9 && (
             <span
-              className="ml-1 shrink-0 font-mono text-[10px] text-quaternary"
+              className="ml-1 shrink-0 font-mono text-meta text-quaternary"
               data-testid="workbench-prompt-count"
             >
               {composedPrompt.length}/{WORKBENCH_PROMPT_LIMIT}

@@ -16,6 +16,7 @@ import {
   Input,
   Kbd,
   LoadingState,
+  MusefoldMark,
   ScrollArea,
   SegmentedControl,
   Select,
@@ -57,6 +58,15 @@ describe("shared UI primitives", () => {
     expect(html).toContain("mf-ui-button mf-ui-button-unstyled mf-prompt-main");
   });
 
+  it("keeps the Musefold mark scalable and theme-aware", () => {
+    const html = renderToStaticMarkup(<MusefoldMark className="brand-mark" />);
+
+    expect(html).toContain('viewBox="0 0 100 100"');
+    expect(html).toContain('class="brand-mark"');
+    expect(html).toContain('fill="currentColor"');
+    expect(html).toContain('fill="var(--accent)"');
+    expect(html).toContain('aria-label="Musefold / 未像"');
+  });
   it("requires an accessible name and provides a tooltip for icon controls", () => {
     const html = renderToStaticMarkup(
       <IconButton label="刷新历史">

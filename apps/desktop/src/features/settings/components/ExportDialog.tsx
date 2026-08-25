@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
+import { SettingsCheckbox } from '@musefold/product-ui';
+import { ChoiceCards } from './ChoiceCards';
 
 interface Props {
   open: boolean;
@@ -121,62 +123,34 @@ export function ExportDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="flex flex-col gap-2">
-          {MODES.map((m) => {
-            const active = mode === m.value;
-            return (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => setMode(m.value)}
-                data-testid={`export-mode-${m.value}`}
-                data-active={active}
-                aria-pressed={active}
-                className={`no-drag flex items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition-colors duration-[var(--dur-fast)] ${
-                  active
-                    ? 'border-accent bg-accent-soft'
-                    : 'border-border-subtle bg-elevated hover:border-border-default'
-                }`}
-              >
-                <span
-                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                    active ? 'border-accent' : 'border-border-default'
-                  }`}
-                >
-                  {active && <span className="h-2 w-2 rounded-full bg-accent" />}
+          <ChoiceCards
+            value={mode}
+            onChange={setMode}
+            testIdPrefix="export-mode"
+            aria-label="导出内容"
+            options={MODES.map((m) => ({
+              value: m.value,
+              title: m.title,
+              icon: m.icon,
+              description: m.lines.map((l) => (
+                <span key={l} className="mt-0.5 block">
+                  {l}
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 text-[12px] font-medium text-primary">
-                    <m.icon className="h-3.5 w-3.5 text-tertiary" />
-                    {m.title}
-                  </p>
-                  {m.lines.map((l) => (
-                    <p key={l} className="mt-0.5 text-[11px] leading-relaxed text-tertiary">
-                      {l}
-                    </p>
-                  ))}
-                </div>
-              </button>
-            );
-          })}
+              )),
+            }))}
+          />
 
-          <label className="no-drag mt-1 flex cursor-pointer items-start gap-2.5 rounded-lg border border-border-subtle bg-elevated px-3.5 py-2.5">
-            <input
-              type="checkbox"
-              checked={includeHistory}
-              onChange={(e) => setIncludeHistory(e.target.checked)}
-              data-testid="export-include-history"
-              className="mt-0.5 h-3.5 w-3.5 accent-[var(--accent)]"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[12px] font-medium text-primary">包含生成历史</span>
-              <span className="block text-[11px] leading-relaxed text-tertiary">
-                历史含每次生成的提示词快照与成本，默认不导出。
-              </span>
-            </span>
-          </label>
+          <SettingsCheckbox
+            className="no-drag mt-1"
+            checked={includeHistory}
+            onCheckedChange={setIncludeHistory}
+            label="包含生成历史"
+            description="历史含每次生成的提示词快照与成本，默认不导出。"
+            testId="export-include-history"
+          />
 
           {/* 安全声明 —— 密钥永不出现在导出产物里（doc 16 §4.7 红线） */}
-          <div className="mt-1 flex items-start gap-2.5 rounded-lg border border-border-subtle bg-inset/40 px-3.5 py-2.5">
+          <div className="mt-1 flex items-start gap-2.5 rounded-md border border-border-subtle bg-inset/40 px-3.5 py-2.5">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
             <p className="text-[11px] leading-relaxed text-tertiary">
               导出内容<span className="text-secondary">不包含任何 API 密钥</span>

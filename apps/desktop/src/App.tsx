@@ -44,9 +44,11 @@ export default function App() {
   const setView = useAppStore((s) => s.setView);
   const setSettingsSection = useSettingsStore((s) => s.setSection);
   const requestAccountSetup = useSettingsStore((s) => s.requestAccountSetup);
-  const doubaoDeveloperMode = useSettingsStore((s) => s.doubaoDeveloperMode);
+  const doubaoForeground = useSettingsStore((s) => s.doubaoForeground);
   const { name: platformName } = usePlatform();
   const Page = pages[currentView];
+  // 设置使用独立分区导航，进入时让内容占满应用工作区。
+  const settingsFullscreen = currentView === 'settings';
 
   // 主题属性：data-theme 由 tailwind darkMode class 策略读取
   useEffect(() => {
@@ -85,8 +87,8 @@ export default function App() {
   }, [initializeAccount, loadAiConnections, loadProviders]);
 
   useEffect(() => {
-    void api.provider.setWebDeveloperVisible(doubaoDeveloperMode).catch(() => {});
-  }, [doubaoDeveloperMode]);
+    void api.provider.setWebDeveloperVisible(doubaoForeground).catch(() => {});
+  }, [doubaoForeground]);
 
   useEffect(() => {
     let offSetup = () => {};
@@ -119,9 +121,13 @@ export default function App() {
 
   return (
     <>
-      <AppShell>
+      <AppShell hideSidebar={settingsFullscreen} hideTitleBar={settingsFullscreen}>
         <Page />
-        <ProviderDialog open={providerDialogOpen} onOpenChange={setProviderDialogOpen} provider={editingProvider} />
+        <ProviderDialog
+          open={providerDialogOpen}
+          onOpenChange={setProviderDialogOpen}
+          provider={editingProvider}
+        />
       </AppShell>
       <OnboardingFlow />
       <EmberHatchOverlay />

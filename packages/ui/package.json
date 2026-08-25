@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./icons": "./src/icons.ts",
     "./tokens.css": "./src/tokens.css",
-    "./primitives.css": "./src/primitives.css"
+    "./primitives.css": "./src/primitives.css",
+    "./theater-fonts.css": "./src/theater-fonts.css"
   },
   "scripts": {
     "test": "vitest run",

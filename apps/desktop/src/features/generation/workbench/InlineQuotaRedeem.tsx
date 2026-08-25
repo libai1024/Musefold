@@ -22,7 +22,7 @@ export function InlineQuotaRedeem({
     return (
       <button
         type="button"
-        className="no-drag mt-1 rounded-full border border-danger/35 px-3 py-1 text-[10px] font-medium text-danger transition-colors hover:border-danger"
+        className="no-drag mt-1 rounded-full border border-danger/35 px-3 py-1 text-meta font-medium text-danger transition-colors hover:border-danger"
         onClick={() => setOpen(true)}
         data-testid="result-redeem-open"
       >
@@ -60,14 +60,14 @@ export function InlineQuotaRedeem({
         placeholder="兑换码"
         autoFocus
         spellCheck={false}
-        className="no-drag h-7 rounded-full border border-danger/35 bg-transparent px-3 text-center font-mono text-[10px] text-primary outline-none transition-colors placeholder:text-quaternary focus:border-danger"
+        className="no-drag h-7 rounded-full border border-danger/35 bg-transparent px-3 text-center font-mono text-meta text-primary outline-none transition-colors placeholder:text-quaternary focus:border-danger"
         data-testid="result-redeem-code"
       />
       <div className="flex items-center justify-center gap-1.5">
         <button
           type="submit"
           disabled={busy || disabled || !code.trim()}
-          className="no-drag rounded-full border border-danger/35 px-3 py-1 text-[10px] font-medium text-danger transition-colors hover:border-danger disabled:opacity-45"
+          className="no-drag rounded-full border border-danger/35 px-3 py-1 text-meta font-medium text-danger transition-colors hover:border-danger disabled:opacity-45"
           data-testid="result-redeem-submit"
         >
           {busy ? "兑换中…" : "兑换并重试"}
@@ -78,13 +78,13 @@ export function InlineQuotaRedeem({
             setOpen(false);
             setMessage(null);
           }}
-          className="no-drag rounded-full px-2 py-1 text-[10px] text-tertiary transition-colors hover:text-primary"
+          className="no-drag rounded-full px-2 py-1 text-meta text-tertiary transition-colors hover:text-primary"
         >
           取消
         </button>
       </div>
       {message && (
-        <span className="text-center text-[9.5px] leading-relaxed">
+        <span className="text-center text-meta leading-relaxed">
           {message}
         </span>
       )}

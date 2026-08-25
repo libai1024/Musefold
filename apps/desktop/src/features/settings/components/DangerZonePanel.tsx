@@ -61,9 +61,16 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
       <div className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]">
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-medium text-primary">危险区</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">清空提示词、组合内容和生成历史</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">
+            清空提示词、组合内容和生成历史
+          </p>
         </div>
-        <Button size="sm" variant="danger" onClick={() => setOpen(true)} data-testid="reset-data-open">
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => setOpen(true)}
+          data-testid="reset-data-open"
+        >
           <Trash2 className="h-3 w-3" /> 清空全部数据
         </Button>
       </div>
@@ -73,27 +80,33 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
           <DialogHeader>
             <DialogTitle>{done ? '业务数据已清空' : '清空全部数据'}</DialogTitle>
             <DialogDescription>
-              {done ? '可通过刚创建的数据库备份恢复。' : '此操作会删除所有业务内容与历史，执行前会自动创建数据库备份。'}
+              {done
+                ? '可通过刚创建的数据库备份恢复。'
+                : '此操作会删除所有业务内容与历史，执行前会自动创建数据库备份。'}
             </DialogDescription>
           </DialogHeader>
 
           {done ? (
-            <div className="flex items-start gap-2.5 rounded-lg border border-success/30 bg-success/10 px-3.5 py-3" data-testid="reset-data-done">
+            <div
+              className="flex items-start gap-2.5 rounded-md border border-success/30 bg-success/10 px-3.5 py-3"
+              data-testid="reset-data-done"
+            >
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
               <div className="min-w-0">
                 <p className="text-[11px] font-medium text-primary">清空完成</p>
-                <p className="mt-1 truncate font-mono text-[10px] text-tertiary">{done.backupPath}</p>
-                <p className="mt-1 text-[10.5px] text-tertiary">Provider、API 密钥与磁盘图片未改变。</p>
+                <p className="mt-1 truncate font-mono text-meta text-tertiary">{done.backupPath}</p>
+                <p className="mt-1 text-meta text-tertiary">Provider、API 密钥与磁盘图片未改变。</p>
               </div>
             </div>
           ) : (
             <>
-              <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
+              <div className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
                 提示词、文件夹、标签、片段、模板、组合和生成历史将被永久清空。
               </div>
               <label className="flex flex-col gap-1.5 text-[11px] text-secondary">
                 <span>
-                  输入 <span className="font-mono font-semibold text-danger">{CONFIRM_PHRASE}</span> 以确认
+                  输入 <span className="font-mono font-semibold text-danger">{CONFIRM_PHRASE}</span>{' '}
+                  以确认
                 </span>
                 <Input
                   value={phrase}
@@ -105,7 +118,10 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
                 />
               </label>
               {error && (
-                <p className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger" data-testid="reset-data-error">
+                <p
+                  className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger"
+                  data-testid="reset-data-error"
+                >
                   {error}
                 </p>
               )}
@@ -114,7 +130,9 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
 
           <DialogFooter>
             {done ? (
-              <Button size="sm" onClick={() => changeOpen(false)}>完成</Button>
+              <Button size="sm" onClick={() => changeOpen(false)}>
+                完成
+              </Button>
             ) : (
               <>
                 <Button
@@ -136,7 +154,11 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
                   disabled={busy || phrase !== CONFIRM_PHRASE}
                   data-testid="reset-data-confirm"
                 >
-                  {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  {busy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" />
+                  )}
                   {busy ? '清空中…' : '永久清空'}
                 </Button>
               </>

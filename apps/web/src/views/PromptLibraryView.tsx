@@ -235,7 +235,7 @@ export function PromptLibraryView({
 
   if (mode === "editor") {
     return (
-      <div className="page">
+      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <PromptEditorForm
           key={`${editing?.id ?? "new"}:${editing?.version ?? 0}:${editorRevision}`}
           heading={editing ? "编辑提示词" : "新建提示词"}
@@ -245,12 +245,15 @@ export function PromptLibraryView({
           submitLabel={editing ? "保存修改" : "创建提示词"}
           notice={
             conflict ? (
-              <div className="prompt-conflict" role="alert">
-                <strong>检测到其他设备的更新</strong>
-                <p>
+              <div
+                className="mt-[18px] rounded-[7px] border border-solid border-[color-mix(in_srgb,var(--accent)_30%,var(--border-default))] bg-accent-soft p-[11px] text-secondary"
+                role="alert"
+              >
+                <strong className="text-[11px] text-primary">检测到其他设备的更新</strong>
+                <p className="mx-0 mt-[4px] mb-[10px] text-meta leading-[1.5]">
                   你的修改仍在。请选择载入云端版本，或基于最新版保留本次修改。
                 </p>
-                <div>
+                <div className="flex justify-end gap-[7px]">
                   <Button
                     variant="secondary"
                     className="button button-secondary"
@@ -284,7 +287,7 @@ export function PromptLibraryView({
 
   if (mode === "detail" && selected) {
     return (
-      <div className="page">
+      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <PromptDetailScreen
           prompt={toPromptDetailViewModel(selected)}
           busy={busy}
@@ -321,7 +324,7 @@ export function PromptLibraryView({
 
   if (mode === "trash") {
     return (
-      <div className="page">
+      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <PromptTrashScreen
           prompts={trash.map(toPromptDetailViewModel)}
           loading={trashLoading}
@@ -338,7 +341,7 @@ export function PromptLibraryView({
   }
 
   return (
-    <div className="page">
+    <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
       <PromptLibraryScreen
         prompts={items}
         query={query}
@@ -362,7 +365,7 @@ export function PromptLibraryView({
         }}
       />
       {(error || page.error) && (
-        <p className="form-error library-error" role="alert">
+        <p className="form-error mt-[14px]" role="alert">
           {error ?? page.error}
         </p>
       )}

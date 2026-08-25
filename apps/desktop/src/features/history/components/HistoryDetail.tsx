@@ -326,7 +326,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
       <KeyRound className="h-3 w-3" /> 更新密钥
     </Button>
   ) : error.primaryAction ? (
-    <span className="text-[10px] text-tertiary" data-testid="history-detail-error-action">
+    <span className="text-meta text-tertiary" data-testid="history-detail-error-action">
       建议：{error.primaryAction.label}
     </span>
   ) : null;
@@ -401,14 +401,14 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
                 <span className="flex items-center justify-end gap-1">
                   <button
                     type="button"
-                    className="rounded px-1.5 py-0.5 text-[10px] text-secondary hover:bg-hover"
+                    className="rounded px-1.5 py-0.5 text-meta text-secondary hover:bg-hover"
                     onClick={() => setConfirmDelete(false)}
                   >
                     取消
                   </button>
                   <button
                     type="button"
-                    className="rounded bg-danger px-1.5 py-0.5 text-[10px] text-on-danger hover:brightness-105"
+                    className="rounded bg-danger px-1.5 py-0.5 text-meta text-on-danger hover:brightness-105"
                     data-testid="history-detail-delete-confirm"
                     onClick={() => {
                       setConfirmDelete(false);
@@ -445,11 +445,11 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
               }}
               data-testid="history-save-title"
             />
-            <p className="text-[10px] text-quaternary">
+            <p className="text-meta text-quaternary">
               留空将使用提示词前 20 字。保存后可从提示词库继续管理和生成。
             </p>
             <pre
-              className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md bg-inset px-2 py-1.5 font-mono text-[10.5px] leading-relaxed text-tertiary"
+              className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md bg-inset px-2 py-1.5 font-mono text-meta leading-relaxed text-tertiary"
               data-testid="history-save-preview"
             >
               {record.request.prompt || '未记录'}

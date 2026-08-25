@@ -13,8 +13,12 @@ import type { WebGateway } from '../runtime';
 
 export function LoadingScreen() {
   return (
-    <div className="center-screen" role="status" aria-live="polite">
-      <img className="loading-mark" src={musefoldIconUrl} alt="" />
+    <div
+      className="grid min-h-full place-items-center content-center gap-[10px] bg-elevated p-[24px] text-center text-[11px] text-secondary"
+      role="status"
+      aria-live="polite"
+    >
+      <img className="h-[38px] w-[38px] object-contain" src={musefoldIconUrl} alt="" />
       <LoaderCircle className="spin" aria-hidden="true" />
       <span>正在载入</span>
     </div>
@@ -23,8 +27,8 @@ export function LoadingScreen() {
 
 export function FailureScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="center-screen">
-      <img className="loading-mark" src={musefoldIconUrl} alt="Musefold" />
+    <div className="grid min-h-full place-items-center content-center gap-[10px] bg-elevated p-[24px] text-center text-[11px] text-secondary">
+      <img className="h-[38px] w-[38px] object-contain" src={musefoldIconUrl} alt="Musefold" />
       <strong>暂时无法连接</strong>
       <span>{message}</span>
       <Button variant="primary" className="button button-primary" type="button" onClick={onRetry}>
@@ -69,13 +73,16 @@ export function LoginScreen({
   };
 
   return (
-    <main className="login-screen">
-      <form className="login-form" onSubmit={(event) => void submit(event)}>
-        <div className="brand-lockup brand-lockup-login">
-          <img src={musefoldIconUrl} alt="" />
-          <div>
-            <strong>Musefold</strong>
-            <span>未像</span>
+    <main className="login-screen grid min-h-full place-items-center bg-elevated p-[24px]">
+      <form
+        className="login-form w-full max-w-[360px] rounded-md border border-solid border-default bg-elevated p-[26px] shadow-pop"
+        onSubmit={(event) => void submit(event)}
+      >
+        <div className="flex items-center gap-[9px]">
+          <img className="h-[28px] w-[28px] object-contain" src={musefoldIconUrl} alt="" />
+          <div className="grid leading-[1.15]">
+            <strong className="text-[14px] font-[650]">Musefold</strong>
+            <span className="text-meta text-tertiary">未像</span>
           </div>
         </div>
         <h1>登录个人账户</h1>
@@ -140,26 +147,28 @@ export function ApprovalScreen({
     }
   };
   return (
-    <main className="approval-screen">
-      <div className="approval-panel">
-        <div className="brand-lockup brand-lockup-login">
-          <img src={musefoldIconUrl} alt="" />
-          <div>
-            <strong>Musefold</strong>
-            <span>Cloud MCP</span>
+    <main className="grid min-h-dvh place-items-center bg-background p-[24px]">
+      <div className="w-full max-w-[460px] rounded-md border border-solid border-default bg-elevated p-[24px] shadow-pop">
+        <div className="flex items-center gap-[9px]">
+          <img className="h-[28px] w-[28px] object-contain" src={musefoldIconUrl} alt="" />
+          <div className="grid leading-[1.15]">
+            <strong className="text-[14px] font-[650]">Musefold</strong>
+            <span className="text-meta text-tertiary">Cloud MCP</span>
           </div>
         </div>
-        <h1>确认这次生图</h1>
+        <h1 className="mt-[25px] mb-[14px] text-[17px] font-semibold">确认这次生图</h1>
         {loading && (
-          <div className="generation-progress">
-            <LoaderCircle className="spin" aria-hidden="true" />
+          <div className="mt-[8px] flex min-h-[96px] items-center gap-[8px] text-[11px] text-tertiary">
+            <LoaderCircle className="spin text-accent" aria-hidden="true" />
             <span>正在载入任务</span>
           </div>
         )}
         {job && (
           <>
-            <p className="approval-prompt">{job.request.prompt}</p>
-            <div className="approval-facts">
+            <p className="approval-prompt m-0 rounded-[7px] bg-inset p-[11px] text-[12px] leading-[1.55] text-secondary whitespace-pre-wrap">
+              {job.request.prompt}
+            </p>
+            <div className="approval-facts my-[13px] mb-[18px] flex flex-wrap gap-x-[14px] gap-y-[8px] text-meta text-tertiary">
               <span>来源：Cloud MCP</span>
               <span>
                 状态：
@@ -168,7 +177,7 @@ export function ApprovalScreen({
             </div>
             <Button
               variant="primary"
-              className="button button-primary"
+              className="button button-primary approval-submit"
               type="button"
               disabled={approving || job.status !== 'pending_approval'}
               onClick={() => void approve()}
@@ -181,7 +190,7 @@ export function ApprovalScreen({
               {job.status === 'pending_approval' ? '允许生成' : '已处理'}
             </Button>
             <GenerationResultSurface
-              className="approval-result"
+              className="mt-[16px]"
               testId="approval-generation-result"
               imageTestId="approval-generation-result-image"
               status={workbenchGenerationResultStatus(job.status)}

@@ -1,16 +1,12 @@
-import type { ImgHTMLAttributes } from "react";
+import type { MusefoldMarkProps } from "@musefold/ui";
+import { MusefoldMark } from "@musefold/ui";
 
-export interface WorkbenchBrandProps extends Omit<
-  ImgHTMLAttributes<HTMLImageElement>,
-  "className"
-> {
-  className?: string;
-}
+export type WorkbenchBrandProps = MusefoldMarkProps;
 
-/** Shared empty-workbench brand rendering used by Desktop and Web. */
+/** Shared empty-workbench mark kept as the host-neutral brand entry point. */
 export function WorkbenchBrand({ className, ...props }: WorkbenchBrandProps) {
   return (
-    <img
+    <MusefoldMark
       {...props}
       className={["mf-workbench-brand-image", className]
         .filter(Boolean)

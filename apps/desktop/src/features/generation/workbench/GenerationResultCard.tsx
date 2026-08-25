@@ -93,7 +93,7 @@ export function GenerationResultCard({
     ) : result.errorCode?.startsWith("ACCOUNT/") ? (
       <button
         type="button"
-        className="no-drag mt-1 rounded-full border border-danger/35 px-3 py-1 text-[10px] font-medium text-danger transition-colors hover:border-danger"
+        className="no-drag mt-1 rounded-full border border-danger/35 px-3 py-1 text-meta font-medium text-danger transition-colors hover:border-danger"
         onClick={() => {
           setSettingsSection(
             result.errorCode === "ACCOUNT/MODEL_NOT_FOUND"

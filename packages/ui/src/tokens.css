@@ -43,6 +43,14 @@
   --control-md: 32px;
   --control-lg: 38px;
 
+  /* v1.4 OPERATE-01：Operate 字阶（方向 §5.1）。Meta 是正文下限，禁止更小的正文。 */
+  --text-page: 16px;
+  --text-page-weight: 600;
+  --text-section: 13px;
+  --text-section-weight: 600;
+  --text-body: 13px;
+  --text-meta: 11px;
+
   --density-page-padding: 1.5rem;
   --density-card-padding: 0.75rem;
   --density-setting-row-y: 0.75rem;
@@ -65,6 +73,20 @@
   --dur-base: 180ms;
   --dur-med: 220ms;
   --dur-slow: 260ms;
+}
+
+/*
+ * v1.4 双寄存器（GOV-02）：每个可见表面在根节点声明 data-ui-register="theater" | "operate"。
+ * Operate 是默认寄存器，直接使用 :root token，不需要覆盖。
+ * Theater 专用 token 只定义在 theater 作用域内——Operate 子树引用 --dur-theater-* 会解析失败，
+ * 这是有意为之的泄漏防护（技术选型 D1 / 方向 §6.2）。颜色不分叉，仍引用同一 --accent。
+ */
+[data-ui-register="theater"] {
+  --dur-theater-enter: 640ms;
+  --dur-theater-fold: 900ms;
+  --dur-theater-hold: 1200ms;
+  --font-theater: "Syne", "Noto Sans SC Theater", "PingFang SC", "Noto Sans SC",
+    "Hiragino Sans GB", system-ui, sans-serif;
 }
 
 [data-density="compact"] {

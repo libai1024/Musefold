@@ -154,14 +154,14 @@ export function SharePromptDialog({ open, prompt, onOpenChange }: Props) {
                 compact
               />
               <div className="space-y-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-quaternary">
+                <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
                   deeplink
                 </div>
                 <Textarea
                   readOnly
                   value={result.deeplink}
                   mono
-                  className="min-h-[9rem] resize-none text-[10.5px]"
+                  className="min-h-[9rem] resize-none text-meta"
                   data-testid="share-deeplink"
                 />
               </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDownToLine, ArrowUp, FileText, Square } from '@musefold/ui/icons';
+import { ArrowDownToLine, ArrowUp, FileText, Square, Wand2 } from '@musefold/ui/icons';
 import {
   GenerationResultSurface,
   GenerationRetryAction,
@@ -40,7 +40,6 @@ import {
 import { ImageLightbox } from '@musefold/ui';
 import { downloadImage } from '../download-image';
 import musefoldIconUrl from '../../../../website/Musefold/assets/musefold-icon.png';
-import musefoldLogoUrl from '../../../../docs/v0.3/logo.png';
 
 type Ratio = '1:1' | '16:9' | '9:16';
 
@@ -97,13 +96,14 @@ export function GenerateView({
 
   return (
     <>
+      {/* workbench-page / workbench-scroll 类名保留：680px 媒体块的键盘 inset 规则挂在其上 */}
       <WorkbenchPageFrame
-        className="workbench-page"
-        stageClassName="workbench-stage"
+        className="workbench-page relative min-h-0 flex-1 overflow-hidden bg-elevated"
+        stageClassName="relative h-full min-h-0"
         timeline={
           <WorkbenchTimelineStage
             controller={timeline}
-            className="workbench-scroll"
+            className="workbench-scroll h-full overflow-y-auto [scrollbar-gutter:stable]"
             testId="generation-timeline"
             itemCount={turnJobs.length}
             onPointerDown={(event) => {
@@ -114,7 +114,7 @@ export function GenerateView({
             }}
             empty={
               <WorkbenchEmptyState
-                brand={<WorkbenchBrand src={musefoldLogoUrl} alt="Musefold / 未像" />}
+                brand={<WorkbenchBrand aria-hidden="true" focusable="false" />}
                 onSelectSuggestion={(suggestion) => {
                   setPromptText(suggestion);
                   window.requestAnimationFrame(() => {
@@ -143,9 +143,7 @@ export function GenerateView({
                   turnId={turnJob.id}
                   status={turnJob.status}
                   userTestId={
-                    isCurrent
-                      ? 'generation-user-message'
-                      : `generation-user-message-${turnJob.id}`
+                    isCurrent ? 'generation-user-message' : `generation-user-message-${turnJob.id}`
                   }
                   userProps={{
                     tabIndex: 0,
@@ -231,7 +229,7 @@ export function GenerateView({
                           ? 'generation-result-image'
                           : `generation-result-image-${turnJob.id}-${assetIndex}`
                       }
-                      className="generated-asset"
+                      className="generated-asset relative mt-[8px] w-full max-w-[480px] overflow-hidden rounded-md border border-solid border-subtle bg-inset"
                       status={resultSurfaceStatus}
                       imageUrl={asset?.url ?? null}
                       aspectRatio={turnJob.request.aspectRatio ?? ratio}
@@ -253,14 +251,15 @@ export function GenerateView({
                       }
                       mediaActions={
                         asset ? (
+                          // result-download 类名保留：pointer:coarse 媒体块的触控尺寸挂在它上
                           <a
-                            className="result-download"
+                            className="result-download ml-auto grid h-[30px] w-[30px] place-items-center rounded-sm border border-solid border-[rgba(255,255,255,0.8)] bg-[rgba(32,33,36,0.8)] text-white no-underline"
                             href={asset.url}
                             download
                             title="下载图片"
                             aria-label="下载图片"
                           >
-                            <ArrowDownToLine aria-hidden="true" />
+                            <ArrowDownToLine aria-hidden="true" className="h-[14px] w-[14px]" />
                           </a>
                         ) : undefined
                       }
@@ -271,7 +270,7 @@ export function GenerateView({
                             busy={retrying(turnJob)}
                           />
                         ) : asset ? (
-                          <div className="result-actions">
+                          <div className="result-actions flex justify-end">
                             <GenerationSavePromptAction
                               state={savePromptState(turnJob)}
                               onSave={() => savePrompt(turnJob)}
@@ -386,12 +385,39 @@ export function GenerateView({
             }
             footer={
               error ? (
-                <p className="form-error composer-error" role="alert">
+                <p className="form-error m-0 px-[15px] pb-[10px]" role="alert">
                   {error}
                 </p>
               ) : undefined
             }
           >
+            <div
+              className="mf-workbench-composer-mode"
+              data-testid="composer-mode"
+              role="tablist"
+              aria-label="工作模式"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected="true"
+                className="mf-workbench-composer-mode-option"
+                data-active="true"
+              >
+                图像
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected="false"
+                className="mf-workbench-composer-mode-option"
+                disabled
+                title="设计方案目前仅支持桌面端"
+              >
+                <Wand2 aria-hidden="true" />
+                设计方案
+              </button>
+            </div>
             <WorkbenchComposerPrompt
               id="generation-prompt"
               data-testid="generation-composer-prompt"

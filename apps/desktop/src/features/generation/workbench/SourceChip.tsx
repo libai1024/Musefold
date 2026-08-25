@@ -49,12 +49,12 @@ export function SourceChip({
       </span>
       <span className="min-w-0 flex-1">
         <span
-          className="block truncate text-[10.5px] font-medium text-primary"
+          className="block truncate text-meta font-medium text-primary"
           title={source.label ?? ""}
         >
           {source.label ?? (fromPrompt ? "提示词" : "历史记录")}
         </span>
-        <span className="mt-0.5 block truncate text-[9.5px] text-tertiary">
+        <span className="mt-0.5 block truncate text-meta text-tertiary">
           {fromPrompt
             ? previewText
               ? "引用提示词 · 悬停查看全文"

@@ -435,7 +435,7 @@ export function PromptReferenceSidebar({
             )}
           </label>
           {!minimized && (
-            <div className="mt-2 flex items-center justify-between px-0.5 text-[9.5px] text-tertiary">
+            <div className="mt-2 flex items-center justify-between px-0.5 text-meta text-tertiary">
               <span>{query.trim() ? `搜索结果 ${resultCount}` : '最近更新'}</span>
               <span data-testid="workbench-reference-count">已引用 {references.length}/{MAX_DRAFT_REFERENCES}</span>
             </div>
@@ -444,13 +444,13 @@ export function PromptReferenceSidebar({
 
         {!minimized && <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-[10.5px] text-tertiary">
+            <div className="flex items-center justify-center gap-2 py-12 text-meta text-tertiary">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> 加载提示词
             </div>
           ) : error ? (
-            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[10.5px] leading-relaxed text-danger">{error}</div>
+            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta leading-relaxed text-danger">{error}</div>
           ) : prompts.length === 0 ? (
-            <div className="px-4 py-12 text-center text-[10.5px] text-tertiary">没有找到提示词</div>
+            <div className="px-4 py-12 text-center text-meta text-tertiary">没有找到提示词</div>
           ) : (
             <div className="space-y-1">
               {prompts.map((prompt) => {
@@ -491,11 +491,11 @@ export function PromptReferenceSidebar({
                           <span className="truncate">{prompt.title}</span>
                           {prompt.isPinned && <Star className="h-3 w-3 shrink-0 fill-current text-warning" />}
                         </span>
-                        <span className="mt-1 line-clamp-2 text-[10px] leading-[1.45] text-tertiary">{prompt.content}</span>
+                        <span className="mt-1 line-clamp-2 text-meta leading-[1.45] text-tertiary">{prompt.content}</span>
                         {prompt.tags.length > 0 && (
                           <span className="mt-1.5 flex flex-wrap gap-1">
                             {prompt.tags.slice(0, 3).map((tag) => (
-                              <span key={tag.id} className="rounded-sm bg-inset px-1 py-0.5 text-[9px] text-tertiary">{tag.name}</span>
+                              <span key={tag.id} className="rounded-sm bg-inset px-1 py-0.5 text-meta text-tertiary">{tag.name}</span>
                             ))}
                           </span>
                         )}
@@ -509,13 +509,13 @@ export function PromptReferenceSidebar({
                           tabIndex={0}
                           onMouseUp={(event) => captureSelection(prompt, event.currentTarget)}
                           onKeyUp={(event) => captureSelection(prompt, event.currentTarget)}
-                          className="max-h-52 select-text overflow-y-auto whitespace-pre-wrap rounded-md bg-inset/55 px-2.5 py-2 text-[10.5px] leading-relaxed text-secondary outline-none focus:ring-2 focus:ring-accent/15"
+                          className="max-h-52 select-text overflow-y-auto whitespace-pre-wrap rounded-md bg-inset/55 px-2.5 py-2 text-meta leading-relaxed text-secondary outline-none focus:ring-2 focus:ring-accent/15"
                           data-testid="workbench-reference-content"
                         >
                           {prompt.content}
                         </div>
                         {selectedText && (
-                          <p className={cn('mt-1.5 text-[9.5px]', selectionTooLong ? 'text-danger' : 'text-tertiary')}>
+                          <p className={cn('mt-1.5 text-meta', selectionTooLong ? 'text-danger' : 'text-tertiary')}>
                             已选择 {selectedText.length} 字{selectionTooLong ? `，请缩短到 ${MAX_REFERENCE_TEXT_LENGTH} 字以内` : ''}
                           </p>
                         )}
@@ -525,7 +525,7 @@ export function PromptReferenceSidebar({
                               type="button"
                               disabled={selectionTooLong || excerptReferenced}
                               onClick={() => add({ ...fullReference, text: selectedText, scope: 'excerpt' })}
-                              className="inline-flex h-7 items-center gap-1 rounded-md border border-border-default bg-elevated px-2 text-[10px] text-secondary hover:bg-hover hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                              className="inline-flex h-7 items-center gap-1 rounded-md border border-border-default bg-elevated px-2 text-meta text-secondary hover:bg-hover hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                               data-testid="workbench-reference-selection"
                             >
                               <Quote className="h-3 w-3" /> {excerptReferenced ? '已引用' : '引用选中内容'}
@@ -535,7 +535,7 @@ export function PromptReferenceSidebar({
                             type="button"
                             disabled={fullReferenced}
                             onClick={() => add(fullReference)}
-                            className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-[10px] font-medium text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-meta font-medium text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
                             data-testid="workbench-reference-full"
                           >
                             {fullReferenced ? '已引用' : '引用整条'}

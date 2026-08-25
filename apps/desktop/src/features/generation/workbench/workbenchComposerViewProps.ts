@@ -3,6 +3,13 @@ import type { DesktopLibraryPrompt } from "@musefold/desktop-contracts/library-d
 import type { GenerationSource } from "./types";
 import type { useWorkbenchComposerStore } from "./useWorkbenchComposerStore";
 
+export type ComposerPresentationMode =
+  | "image"
+  | "design-plan"
+  | "refinement"
+  | "scheme"
+  | "skill";
+
 type Store = ReturnType<typeof useWorkbenchComposerStore>;
 
 export type WorkbenchComposerViewProps = Store & {
@@ -10,7 +17,6 @@ export type WorkbenchComposerViewProps = Store & {
   composerSurfaceRef: { current: HTMLDivElement | null };
   imageInputRef: { current: HTMLInputElement | null };
   dragDepthRef: MutableRefObject<number>;
-  inlineChipsRef: { current: HTMLSpanElement | null };
   imageBusy: boolean;
   dragActive: boolean;
   setDragActive: Dispatch<SetStateAction<boolean>>;
@@ -27,13 +33,8 @@ export type WorkbenchComposerViewProps = Store & {
   commandHintIndex: number;
   setCommandHintIndex: Dispatch<SetStateAction<number>>;
   setCommandHintsDismissed: Dispatch<SetStateAction<boolean>>;
-  inlineChipsIndent: number;
-  inlineChipsPadTop: number;
-  composerScrollTop: number;
-  setComposerScrollTop: Dispatch<SetStateAction<number>>;
   commandHintsVisible: boolean;
   activeCommandHintIndex: number;
-  inlineChipsVisible: boolean;
   effectiveImageCount: number;
   sourceBlockVisible: boolean;
   attachmentStripVisible: boolean;
@@ -47,4 +48,7 @@ export type WorkbenchComposerViewProps = Store & {
   handleSubmit: (event?: FormEvent) => void | Promise<void>;
   stageImageFiles: (files: File[]) => void | Promise<void>;
   removeReferenceAt: (index: number) => void;
+  composerMode: ComposerPresentationMode;
+  composerModeLocked: boolean;
+  setComposerMode: (mode: "image" | "design-plan") => void;
 };

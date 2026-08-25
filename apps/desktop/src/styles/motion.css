@@ -141,6 +141,11 @@
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
+/* THEATER-01：欢迎步在 GSAP 就绪前隐藏，避免首帧闪出终态。减少动效路径直接标 idle。 */
+[data-ui-register='theater'] [data-testid='onboarding-step-1']:not([data-theater-ready]):not([data-theater-idle]) {
+  visibility: hidden;
+}
+
 /* 用户显式开启减少动效。 */
 .reduce-motion *,
 .reduce-motion *::before,

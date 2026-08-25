@@ -88,13 +88,13 @@ export function PromptPickerPopover({
             </span>
             <span className="min-w-0">
               <span className="block truncate text-[11px] font-medium text-primary">{prompt.title}</span>
-              <span className="mt-0.5 block truncate text-[9.5px] text-tertiary">{prompt.content}</span>
+              <span className="mt-0.5 block truncate text-meta text-tertiary">{prompt.content}</span>
             </span>
-            <span className="text-[10px] text-secondary">引用</span>
+            <span className="text-meta text-secondary">引用</span>
           </button>
         ))}
         {!loading && matched.length === 0 && (
-          <p className="px-3 py-8 text-center text-[10.5px] text-tertiary" data-testid="prompt-picker-empty">
+          <p className="px-3 py-8 text-center text-meta text-tertiary" data-testid="prompt-picker-empty">
             {prompts.length === 0 ? '提示词库还是空的' : '没有匹配的提示词'}
           </p>
         )}
@@ -105,7 +105,7 @@ export function PromptPickerPopover({
           useAppStore.getState().setView('library');
           onClose();
         }}
-        className="flex min-h-10 w-full items-center gap-2 border-t border-border-subtle px-3 text-[10.5px] text-secondary hover:bg-hover hover:text-primary"
+        className="flex min-h-10 w-full items-center gap-2 border-t border-border-subtle px-3 text-meta text-secondary hover:bg-hover hover:text-primary"
         data-testid="prompt-picker-open-library"
       >
         <FileText className="h-3.5 w-3.5" />

@@ -55,7 +55,7 @@ export const PRODUCT_NAV_CATALOG: readonly ProductNavSpec[] = [
   {
     id: "connections",
     label: "已连接应用",
-    sidebarId: { web: "connections" },
+    sidebarId: { web: "settings" },
     capability: { web: "cloudMcpConnections" },
   },
 ];
@@ -69,6 +69,7 @@ export const PRODUCT_VIEW_TITLES: Readonly<Record<string, string>> = {
   settings: "设置",
   connections: "已连接应用",
   account: "账户",
+  "web-settings": "设置",
 };
 
 export type ProductCommandAction =

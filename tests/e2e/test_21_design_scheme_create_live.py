@@ -94,19 +94,20 @@ def test_create_scheme_from_idea_only(app):
         app.page.screenshot(path=str(EVIDENCE_DIR / "idea-01-command-hints.png"), full_page=True)
 
         prompt_box.fill("/创建设计方案 做一套胶片颗粒感的城市夜景插画方案：蓝橙对比色，画面下三分之一留白放标题，适合做播客封面。")
-        # 完整指令收敛为 Codex 式指令芯片，正文只留想法文本
-        app.page.wait_for_selector('[data-testid="composer-command-chip"][data-command="design-plan"]')
+        # 完整指令切换为设计方案模式，正文只留想法文本
+        app.page.wait_for_selector('[data-testid="composer-mode"] [data-active="true"]')
+        assert app.page.locator('[data-testid="composer-mode"] [data-active="true"]').inner_text() == "设计方案"
         assert "/创建设计方案" not in prompt_box.input_value()
-        app.page.screenshot(path=str(EVIDENCE_DIR / "idea-01b-command-chip.png"), full_page=True)
+        app.page.screenshot(path=str(EVIDENCE_DIR / "idea-01b-design-plan-mode.png"), full_page=True)
         app.page.click('[data-workbench-testid="workbench-submit"]')
 
         # 创建轮立即出现在对话里，且没有任何图片骨架
         app.page.wait_for_selector('[data-testid="scheme-creation-conversation"]', timeout=30_000)
         assert app.page.locator('[data-testid="refine-results"]').count() == 0
         assert app.page.locator('[data-testid="generate-result-card"]').count() == 0
-        # 用户消息里保留指令标签（图标+指令名），指令芯片已随提交清空
+        # 用户消息里保留指令标签（图标+指令名），模式状态已随提交清空
         app.page.wait_for_selector('[data-testid="generation-command-tag"]')
-        assert app.page.locator('[data-testid="composer-command-chip"]').count() == 0
+        assert app.page.locator('[data-testid="composer-mode"] [data-active="true"]').inner_text() == "图像"
         app.page.screenshot(path=str(EVIDENCE_DIR / "idea-02-agent-running.png"), full_page=True)
 
         turn = _wait_for_terminal_creation(app)

@@ -6,6 +6,7 @@ export interface AccountScreenProps {
   account: AccountSummaryViewModel;
   description?: string;
   onLogout: () => Promise<void>;
+  showHeading?: boolean;
   className?: string;
   testId?: string;
 }
@@ -15,6 +16,7 @@ export function AccountScreen({
   account,
   description = "个人账户与生图额度",
   onLogout,
+  showHeading = true,
   className,
   testId,
 }: AccountScreenProps) {
@@ -23,10 +25,12 @@ export function AccountScreen({
       className={`mf-account-screen${className ? ` ${className}` : ""}`}
       data-testid={testId}
     >
-      <header className="mf-account-screen-heading">
-        <h1>账户</h1>
-        <p>{description}</p>
-      </header>
+      {showHeading ? (
+        <header className="mf-account-screen-heading">
+          <h1>账户</h1>
+          <p>{description}</p>
+        </header>
+      ) : null}
       <AccountSummaryPanel
         testId="account-summary-panel"
         account={account}

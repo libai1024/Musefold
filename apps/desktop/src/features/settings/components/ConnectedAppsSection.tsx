@@ -31,10 +31,16 @@ export function ConnectedAppsSection() {
   return (
     <ConnectedAppsScreen
       testId="connected-apps-screen"
+      className="settings-connected-apps"
       items={connections.items}
       loading={loading}
       loadError={loadError}
       emptyLabel={emptyLabel}
+      mcpServerUrl={
+        account.isDefaultServer && account.serverUrl
+          ? `${account.serverUrl.replace(/\/+$/, '')}/api/musefold/mcp`
+          : undefined
+      }
       onUpdate={async (id, input) => {
         await update(id, input);
       }}

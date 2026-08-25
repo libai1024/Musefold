@@ -1,0 +1,18 @@
+/* v1.4 Theater display stack (GOV-05 / THEATER-01). Scoped by family name;
+ * only [data-ui-register="theater"] should set font-family to --font-theater. */
+
+@font-face {
+  font-family: "Syne";
+  src: url("../fonts/syne-var.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC Theater";
+  src: url("../fonts/noto-sans-sc-var-subset.woff2") format("woff2");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}

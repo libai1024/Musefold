@@ -25,7 +25,7 @@ export function RuntimeAlbum({
       <div className="flex min-h-[280px] flex-col items-center justify-center rounded-md border border-dashed border-border-default bg-inset/35 px-6 text-center">
         <Images className="h-6 w-6 text-quaternary" />
         <p className="mt-3 text-[12px] font-medium text-primary">还没有本机试运行结果</p>
-        <p className="mt-1 text-[10.5px] text-tertiary">完成一次试运行后，这里会展示生成的示例。</p>
+        <p className="mt-1 text-meta text-tertiary">完成一次试运行后，这里会展示生成的示例。</p>
       </div>
     );
   }
@@ -67,18 +67,18 @@ export function RuntimeAlbum({
             <img src={toImageSrc(active.path)} alt="方案示例" className="h-full w-full object-contain" />
           </button>
         </div>
-        <div className="flex min-h-8 items-center gap-2 text-[10.5px] text-tertiary">
+        <div className="flex min-h-8 items-center gap-2 text-meta text-tertiary">
           <span>{ASSET_ORIGIN_LABEL[active.origin]}</span>
           <span>·</span>
           <span className="tabular-nums">{activeIndex + 1} / {assets.length}</span>
-          {active.id === coverAssetId && <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-[9px]">封面</span>}
+          {active.id === coverAssetId && <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-meta">封面</span>}
           <div className="ml-auto flex items-center gap-1">
             {active.id !== coverAssetId && (
               <button
                 type="button"
                 disabled={coverBusy}
                 onClick={() => onSetCover(active.id)}
-                className="mr-2 min-h-8 rounded-md px-2 text-[10.5px] font-medium text-primary hover:bg-hover disabled:cursor-wait disabled:opacity-50"
+                className="mr-2 min-h-8 rounded-md px-2 text-meta font-medium text-primary hover:bg-hover disabled:cursor-wait disabled:opacity-50"
                 data-testid="runtime-scheme-set-cover"
               >
                 设为封面

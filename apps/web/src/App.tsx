@@ -13,8 +13,7 @@ import { WebGatewayError, type WebGateway } from './runtime';
 import { GenerateView } from './views/GenerateView';
 import { HistoryView } from './views/HistoryView';
 import { PromptLibraryView } from './views/PromptLibraryView';
-import { AccountView } from './views/AccountView';
-import { ConnectionsView } from './views/ConnectionsView';
+import { WebSettingsView, type WebSettingsSection } from './views/SettingsView';
 import {
   ApprovalScreen,
   FailureScreen,
@@ -43,6 +42,7 @@ export function App({ gateway, platform }: AppProps) {
   useKeyboardInset();
   const queryClient = useQueryClient();
   const [view, setView] = useState<View>('generate');
+  const [settingsSection, setSettingsSection] = useState<WebSettingsSection>('account');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [session, setSession] = useState<AccountSession | null>(null);
   const [promptQuery, setPromptQuery] = useState('');
@@ -74,6 +74,17 @@ export function App({ gateway, platform }: AppProps) {
     onHistoryJob: (job) => patchHistoryJob(queryClient, job),
     onLibraryPrompt: (prompt) => patchLibraryPrompt(queryClient, prompt),
   });
+
+  const openProductView = (nextView: View) => {
+    setView(nextView);
+    if (nextView !== 'settings') setSidebarOpen(true);
+  };
+
+  const openSettingsSection = (section: WebSettingsSection) => {
+    setSettingsSection(section);
+    setView('settings');
+    setSidebarOpen(false);
+  };
 
   const loadWorkspace = async () => {
     generate.resetDraft();
@@ -164,10 +175,12 @@ export function App({ gateway, platform }: AppProps) {
       sidebar={
         <WebSidebar
           view={view}
+          settingsSection={settingsSection}
           accountName={session.account.displayName ?? session.account.username}
           mode={gateway.mode}
           promptCount={generate.libraryItems.length}
-          onNavigate={setView}
+          onNavigate={openProductView}
+          onSettingsSectionChange={openSettingsSection}
           workbenchSessions={generate.sessionItems}
           sessionListLoading={generate.sessionListLoading}
           sessionListError={generate.sessionListError}
@@ -181,27 +194,33 @@ export function App({ gateway, platform }: AppProps) {
         />
       }
     >
-      <main className="app-main">
-        <WebTopbar
-          view={view}
-          quota={`${formatAccountPoints(session.account.quota)} 积分`}
-          mode={gateway.mode}
-          workbenchTitle={generate.session?.title ?? null}
-          workbenchSession={
-            generate.sessionItems.find((item) => item.id === generate.session?.id) ?? null
-          }
-          sidebarOpen={sidebarOpen}
-          onOpenSidebar={() => setSidebarOpen(true)}
-          onSearch={() => {
-            setView('prompts');
-            window.requestAnimationFrame(() => {
-              document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
-            });
-          }}
-          onRenameSession={(item, title) => generate.renameSession(item, title)}
-          onArchiveSession={(item) => generate.archiveSession(item.id)}
-          onDeleteSession={(item) => generate.deleteSession(item)}
-        />
+      {/* app-main 类名保留：680px 媒体块的 100dvh / 键盘 inset 规则挂在它上（批次 5 收口） */}
+      <main
+        className="app-main flex min-h-0 min-w-0 flex-1 flex-col bg-elevated"
+        data-ui-register="operate"
+      >
+        {view !== 'settings' ? (
+          <WebTopbar
+            view={view}
+            quota={`${formatAccountPoints(session.account.quota)} 积分`}
+            mode={gateway.mode}
+            workbenchTitle={generate.session?.title ?? null}
+            workbenchSession={
+              generate.sessionItems.find((item) => item.id === generate.session?.id) ?? null
+            }
+            sidebarOpen={sidebarOpen}
+            onOpenSidebar={() => setSidebarOpen(true)}
+            onSearch={() => {
+              setView('prompts');
+              window.requestAnimationFrame(() => {
+                document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
+              });
+            }}
+            onRenameSession={(item, title) => generate.renameSession(item, title)}
+            onArchiveSession={(item) => generate.archiveSession(item.id)}
+            onDeleteSession={(item) => generate.deleteSession(item)}
+          />
+        ) : null}
         {view === 'generate' && (
           <GenerateView
             page={generate}
@@ -235,17 +254,15 @@ export function App({ gateway, platform }: AppProps) {
             }}
           />
         )}
-        {view === 'connections' && (
-          <ConnectionsView
-            gateway={gateway}
-            connections={connections}
-            onConnectionsChange={setConnections}
-          />
-        )}
-        {view === 'account' && (
-          <AccountView
+        {view === 'settings' && (
+          <WebSettingsView
+            section={settingsSection}
+            onSectionChange={setSettingsSection}
+            onBack={() => openProductView('generate')}
             gateway={gateway}
             session={session}
+            connections={connections}
+            onConnectionsChange={setConnections}
             onLoggedOut={() => {
               setSession(null);
               setAuthRequired(true);
