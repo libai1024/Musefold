@@ -106,7 +106,7 @@
   +(默认徽标);行 testid 沿用 `settings-provider-row-{id}` / `settings-ai-row-{id}`。
 - 选中态复用 `SettingsWorkspace` 侧栏导航视觉:`radius-sm`(6px)、`bg-active`、
   无框、左侧 3px accent 条。
-- 底部「+ 新建服务商 / 添加连接」ghost 按钮,testid 沿用 `settings-provider-new` /
+- 底部「+ 新建服务商 / 新建连接」ghost 按钮,testid 沿用 `settings-provider-new` /
   `settings-ai-new`。
 - **无「预设/自定义」分组标题**:数据没有分组概念,按数据现实不虚构。
 

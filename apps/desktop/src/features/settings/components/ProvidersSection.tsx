@@ -2,7 +2,7 @@
 // 中转站分区「生图」tab 内容：master-detail 分栏，就地编辑。
 // v2 设置整合：外壳与「通道边界」事实卡上移/删除，本组件只承担生图通道面板。
 import { useMemo, useState } from 'react';
-import { Plus, Loader2, ListChecks } from '../../../components/ui/icons';
+import { Plus } from '../../../components/ui/icons';
 import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { Button } from '../../../components/ui/button';
 import { ModelBrandIcon } from '../../../components/ui/brand-icons';
@@ -18,8 +18,6 @@ export function ProvidersRelayPanel() {
   const providers = useGenerationStore((s) => s.providers);
   const activeProviderId = useGenerationStore((s) => s.activeProviderId);
   const testStatus = useGenerationStore((s) => s.testStatus);
-  const testingAll = useGenerationStore((s) => s.testingAll);
-  const testAll = useGenerationStore((s) => s.testAll);
   const stationProviders = useMemo(
     () =>
       providers.filter(
@@ -41,28 +39,6 @@ export function ProvidersRelayPanel() {
       stationProviders[0] ??
       null;
 
-  // 汇总当前列表内各 Provider 的测试结果（忽略已删除 Provider 的残留状态）
-  const summary = useMemo(() => {
-    let ok = 0;
-    let failed = 0;
-    let skipped = 0;
-    let tested = 0;
-    for (const p of stationProviders) {
-      const st = testStatus[p.id]?.state;
-      if (st === 'ok') {
-        ok += 1;
-        tested += 1;
-      } else if (st === 'failed') {
-        failed += 1;
-        tested += 1;
-      } else if (st === 'skipped') {
-        skipped += 1;
-        tested += 1;
-      }
-    }
-    return { ok, failed, skipped, tested };
-  }, [stationProviders, testStatus]);
-
   const startCreate = (presetId?: string) => {
     setSelectedId(null);
     setCreating(presetId ? { presetId } : {});
@@ -75,40 +51,6 @@ export function ProvidersRelayPanel() {
   return (
     <SettingsCard
       title="已配置服务商"
-      description={
-        summary.tested > 0 || testingAll ? (
-          <span
-            className="flex flex-wrap items-center gap-x-2 gap-y-0.5"
-            data-testid="settings-provider-test-summary"
-          >
-            {testingAll && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />}
-            <span className="font-medium text-secondary">
-              {testingAll ? '正在测试全部服务商…' : '测试结果'}
-            </span>
-            {!testingAll && (
-              <span className="flex flex-wrap items-center gap-x-2 text-tertiary">
-                <span className="text-success">{summary.ok} 正常</span>
-                <span className={summary.failed > 0 ? 'text-danger' : undefined}>
-                  {summary.failed} 失败
-                </span>
-                <span>{summary.skipped} 跳过（无密钥）</span>
-              </span>
-            )}
-          </span>
-        ) : undefined
-      }
-      action={
-        stationProviders.length > 0 ? (
-          <Button size="sm" variant="outline" onClick={() => testAll()} disabled={testingAll}>
-            {testingAll ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ListChecks className="h-3.5 w-3.5" />
-            )}
-            测试全部
-          </Button>
-        ) : undefined
-      }
       bodyClassName="settings-md-card"
       data-testid="settings-provider-list"
     >

@@ -282,7 +282,7 @@
 - `electron/providers/openai-compatible.ts`（`normalizeError` 已产 AUTH/RATE_LIMIT/SERVER/NO_BALANCE/BAD_REQUEST）
 - `electron/providers/wukong-studio.ts`（`normalizeStudioError` 已产 WRONG_GROUP/NO_BALANCE 等）
 - `src/features/generation/components/ProviderDialog.tsx`（结果条按 code 给引导按钮）
-- `src/features/settings/sections/ProvidersSection.tsx`（`testProvider`/`testAll` 结果展示，已具备基础）
+- `src/features/settings/sections/ProvidersSection.tsx`（`testProvider` 结果展示，已具备基础；卡片级「测试全部」批量入口已随 v2 设置整合移除）
 
 **IPC 契约**（docs/07 §3.5）：`provider:validate` → `ValidationResult { ok, message, code?, models? }`。
 

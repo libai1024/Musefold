@@ -38,8 +38,6 @@ interface GenerationState {
   dialogDraft: AutomationProviderDraft | null;
   /** 各 Provider 连通性测试状态（按 id 索引） */
   testStatus: Record<string, ProviderTest>;
-  /** 是否正在批量测试全部 */
-  testingAll: boolean;
 
   setProviderDialogOpen: (open: boolean) => void;
   /** 打开浮层：不传=新建，传 provider=编辑；opts.presetId 指定新建时预填的预设 */
@@ -57,8 +55,6 @@ interface GenerationState {
   listModels: (id: string) => Promise<ModelInfo[]>;
   /** 测试单个 Provider 的连通性，并把结果写入 testStatus */
   testProvider: (id: string) => Promise<ProviderTest>;
-  /** 顺序测试全部已配置密钥的 Provider（无密钥的记为 skipped） */
-  testAll: () => Promise<void>;
 }
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
@@ -70,7 +66,6 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   dialogPresetId: null,
   dialogDraft: null,
   testStatus: {},
-  testingAll: false,
 
   setProviderDialogOpen: (open) =>
     set(
@@ -172,21 +167,6 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       };
       set((s) => ({ testStatus: { ...s.testStatus, [id]: result } }));
       return result;
-    }
-  },
-
-  testAll: async () => {
-    if (get().testingAll) return;
-    set({ testingAll: true });
-    try {
-      // 顺序执行，避免多个 Provider 并发打满配额；无密钥的记为 skipped
-      for (const p of get().providers.filter(
-        (provider) => provider.managedBy !== 'account' && provider.type !== 'doubao-web',
-      )) {
-        await get().testProvider(p.id);
-      }
-    } finally {
-      set({ testingAll: false });
     }
   },
 

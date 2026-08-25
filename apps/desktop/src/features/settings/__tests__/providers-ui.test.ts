@@ -37,11 +37,12 @@ describe('provider settings master-detail UI contract(RELAY-SETTINGS-UI 第二�
     expect(section).toContain('data-testid="settings-provider-new"');
   });
 
-  it('keeps the test summary at card level and drops the boundary fact card (v2 设置整合)', () => {
-    expect(section).toContain('data-testid="settings-provider-test-summary"');
+  it('drops the batch test entry and boundary fact card (v2 设置整合)', () => {
+    // 「测试全部」批量入口与卡片级汇总已随 testAll 移除;单 Provider 测试仍在详情面板
+    expect(section).not.toContain('settings-provider-test-summary');
+    expect(section).not.toContain('测试全部');
     expect(section).toContain('data-testid="settings-provider-list"');
     expect(section).not.toContain('data-testid="settings-provider-boundary"');
-    expect(section).toContain('测试全部');
   });
 
   it('renders rail rows with status dot and a nav-like selected state(radius 6,无框)', () => {

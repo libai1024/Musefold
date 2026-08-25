@@ -59,7 +59,6 @@ beforeEach(() => {
     editingProvider: null,
     dialogPresetId: null,
     testStatus: {},
-    testingAll: false,
   });
 });
 
@@ -74,19 +73,6 @@ describe('provider settings store', () => {
       useGenerationStore.getState().updateProvider(managed.id, { model: 'other-model' }),
     ).rejects.toThrow('固定管理');
     expect(providerApi.update).not.toHaveBeenCalled();
-  });
-
-  it('batch-tests station providers only', async () => {
-    const managed = provider({ id: 'managed', managedBy: 'account' });
-    const station = provider({ id: 'station', isActive: false });
-    const doubao = provider({ id: 'doubao', type: 'doubao-web', isActive: false });
-    useGenerationStore.setState({ providers: [managed, station, doubao] });
-    providerApi.validate.mockResolvedValue({ ok: true, message: 'ok' });
-
-    await useGenerationStore.getState().testAll();
-
-    expect(providerApi.validate).toHaveBeenCalledTimes(1);
-    expect(providerApi.validate).toHaveBeenCalledWith('station');
   });
 
   it('validates a Doubao web provider even before a browser session is marked ready', async () => {

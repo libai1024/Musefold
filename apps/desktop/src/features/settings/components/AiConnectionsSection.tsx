@@ -80,23 +80,22 @@ export function AiConnectionsRelayPanel() {
   }
 
   if (!showMasterDetail) {
-    // 空态对齐生图行式节奏:引导头 + divider 行 + chevron hover 位移
+    // 空态对齐生图版式:居中 max-w-md 列、图标砖在标题上方、divider 行 + chevron hover 位移
     return (
-      <div className="flex w-full flex-col px-6 py-8" data-testid="settings-ai-empty">
-        <div className="flex items-start gap-3">
-          <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-inset text-secondary"
-            aria-hidden="true"
-          >
-            <MessageSquareText className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 pt-0.5">
-            <p className="text-[13px] font-medium text-primary">连接一个可用的文本模型</p>
-            <p className="mt-1 max-w-[62ch] text-[11.5px] leading-relaxed text-tertiary">
-              API Key 由你提供并在本机加密保存。没有连接也不影响空白搭建、Prompt 标注、YAML 或 Skill 手动导入。
-            </p>
-          </div>
-        </div>
+      <div
+        className="mx-auto flex w-full max-w-md flex-col px-6 py-8"
+        data-testid="settings-ai-empty"
+      >
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-subtle bg-inset text-secondary"
+          aria-hidden="true"
+        >
+          <MessageSquareText className="h-5 w-5" />
+        </span>
+        <p className="mt-3 text-[13px] font-medium text-primary">连接一个可用的文本模型</p>
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-tertiary">
+          API Key 由你提供并在本机加密保存。没有连接也不影响空白搭建、Prompt 标注、YAML 或 Skill 手动导入。
+        </p>
 
         <div className="mt-5 divide-y divide-border-subtle border-y border-border-subtle">
           {presets.slice(0, 6).map((preset) => (
@@ -180,7 +179,7 @@ export function AiConnectionsRelayPanel() {
               onClick={() => startCreate()}
               data-testid="settings-ai-new"
             >
-              <Plus className="h-3.5 w-3.5" /> 添加连接
+              <Plus className="h-3.5 w-3.5" /> 新建连接
             </Button>
           </>
         }
