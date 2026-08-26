@@ -278,6 +278,11 @@ export function HistoryView({
           onBack={closeDetail}
           onOpenImage={detail.imageUrl ? () => setPreviewUrl(detail.imageUrl ?? null) : undefined}
           onCopyPrompt={() => void copyPrompt()}
+          onDownload={
+            detail.imageUrl
+              ? () => void platform.download(detail.imageUrl!, 'musefold-generation')
+              : undefined
+          }
           onRetry={!selected.deletedAt && retryable ? retrySelected : undefined}
           onCancel={
             !selected.deletedAt && canCancelGeneration(selected) ? cancelSelected : undefined
@@ -328,6 +333,11 @@ export function HistoryView({
               !selected.deletedAt && canCancelGeneration(selected) ? cancelSelected : undefined
             }
             downloadUrl={detail.imageUrl}
+            onDownload={
+              detail.imageUrl
+                ? () => void platform.download(detail.imageUrl!, 'musefold-generation')
+                : undefined
+            }
             onSavePrompt={
               !selected.deletedAt && selected.status === 'succeeded'
                 ? saveSelectedPrompt

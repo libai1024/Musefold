@@ -351,7 +351,8 @@ InspectorError
 - 内容独立滚动。
 - section 间距 16px。
 - 底部 action bar。
-- 窄屏转换为 Bottom Sheet。
+- History 在 `<=680px` 使用 modal Bottom Sheet；Prompt 查看与编辑保持全页子状态，不进入 Sheet。
+- History 在 `681-760px` 继续使用既有单页 Inspector 降级，手机 Sheet 不提前生效。
 
 不能共享业务数据：
 
