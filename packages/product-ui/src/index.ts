@@ -81,12 +81,24 @@ export {
   resolveProductViewKey,
 } from './navigation/product-nav';
 export {
+  clearMusefoldUserQueryCache,
   createMusefoldQueryClient,
   musefoldQueryKeys,
   MUSEFOLD_QUERY_GC_TIME_MS,
   MUSEFOLD_QUERY_RETRY,
   MUSEFOLD_QUERY_STALE_TIME_MS,
 } from './page-controllers/query-client';
+export {
+  accountStatusQueryOptions,
+  refreshAccountQuery,
+  useAccountQueryController,
+  type AccountQueryController,
+  type AccountQueryControllerDeps,
+} from './page-controllers/account-query-controller';
+export {
+  createGenerationTerminalObserver,
+  isAccountRefreshGenerationTerminal,
+} from './page-controllers/generation-terminal-observer';
 export {
   DEFAULT_HISTORY_PAGE_LIST_KEY,
   DEFAULT_LIBRARY_PAGE_LIST_KEY,

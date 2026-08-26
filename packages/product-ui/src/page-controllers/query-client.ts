@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from '@tanstack/react-query';
 
 /**
  * 双端 Query 配置单点（V13-STATE-01）。
@@ -17,29 +17,48 @@ export const MUSEFOLD_QUERY_RETRY = 1;
  */
 export const musefoldQueryKeys = {
   history: {
-    all: ["history"] as const,
-    lists: ["history", "list"] as const,
-    list: (query: unknown) => ["history", "list", query] as const,
-    stats: (query: unknown) => ["history", "stats", query] as const,
+    all: ['history'] as const,
+    lists: ['history', 'list'] as const,
+    list: (query: unknown) => ['history', 'list', query] as const,
+    stats: (query: unknown) => ['history', 'stats', query] as const,
   },
   library: {
-    all: ["library"] as const,
-    lists: ["library", "list"] as const,
-    list: (query: unknown) => ["library", "list", query] as const,
-    stats: ["library", "stats"] as const,
-    deleted: ["library", "deleted"] as const,
-    searchHistory: ["library", "search-history"] as const,
+    all: ['library'] as const,
+    lists: ['library', 'list'] as const,
+    list: (query: unknown) => ['library', 'list', query] as const,
+    stats: ['library', 'stats'] as const,
+    deleted: ['library', 'deleted'] as const,
+    searchHistory: ['library', 'search-history'] as const,
   },
   account: {
-    all: ["account"] as const,
-    status: ["account", "status"] as const,
+    all: ['account'] as const,
+    status: ['account', 'status'] as const,
+  },
+  connections: {
+    all: ['connections'] as const,
   },
   workbench: {
-    all: ["workbench"] as const,
-    sessions: ["workbench", "sessions"] as const,
-    list: (query: unknown) => ["workbench", "sessions", query] as const,
+    all: ['workbench'] as const,
+    sessions: ['workbench', 'sessions'] as const,
+    list: (query: unknown) => ['workbench', 'sessions', query] as const,
   },
 };
+
+const USER_QUERY_ROOTS = [
+  musefoldQueryKeys.account.all,
+  musefoldQueryKeys.library.all,
+  musefoldQueryKeys.history.all,
+  musefoldQueryKeys.workbench.all,
+  musefoldQueryKeys.connections.all,
+] as const;
+
+/** Cancels and removes all server state owned by the authenticated user. */
+export function clearMusefoldUserQueryCache(queryClient: QueryClient): void {
+  for (const queryKey of USER_QUERY_ROOTS) {
+    void queryClient.cancelQueries({ queryKey });
+    queryClient.removeQueries({ queryKey });
+  }
+}
 
 export function createMusefoldQueryClient(): QueryClient {
   return new QueryClient({

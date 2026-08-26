@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import type { AccountSummary, GenerationJob, McpConnectionPage } from '@musefold/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { GenerationJob, McpConnectionPage } from '@musefold/contracts';
 import {
   formatAccountPoints,
   getProductCapabilities,
   type PlatformServices,
 } from '@musefold/domain';
-import { ProductSidebarLayout, useGeneratePageController } from '@musefold/product-ui';
+import {
+  ProductSidebarLayout,
+  clearMusefoldUserQueryCache,
+  createGenerationTerminalObserver,
+  musefoldQueryKeys,
+  useAccountQueryController,
+  useGeneratePageController,
+} from '@musefold/product-ui';
 import { WebSidebar, WebTopbar, type WebView } from './layout/WebNavigation';
 import { useKeyboardInset } from './layout/useKeyboardInset';
 import { WebGatewayError, type WebGateway } from './runtime';
@@ -39,12 +46,49 @@ export function App({ gateway, platform }: AppProps) {
   const [view, setView] = useState<View>('generate');
   const [settingsSection, setSettingsSection] = useState<WebSettingsSection>('account');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [account, setAccount] = useState<AccountSummary | null>(null);
   const [promptQuery, setPromptQuery] = useState('');
-  const [connections, setConnections] = useState<McpConnectionPage>({ items: [] });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
+  const enterAuthState = useCallback(() => {
+    clearMusefoldUserQueryCache(queryClient);
+    setAuthRequired(true);
+  }, [queryClient]);
+  const handleAccountRefreshError = useCallback(
+    (error: unknown) => {
+      if (
+        error instanceof WebGatewayError &&
+        ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
+      ) {
+        enterAuthState();
+      }
+    },
+    [enterAuthState],
+  );
+  const accountQuery = useAccountQueryController({
+    account: gateway,
+    enabled: !authRequired,
+    onRefreshError: handleAccountRefreshError,
+  });
+  const account = accountQuery.account;
+  const connectionsQuery = useQuery<McpConnectionPage>({
+    queryKey: musefoldQueryKeys.connections.all,
+    queryFn: () => gateway.listConnections(),
+    enabled: Boolean(account) && !authRequired,
+  });
+  const connections = connectionsQuery.data ?? { items: [] };
+  const terminalObserver = useRef(
+    createGenerationTerminalObserver(() => {
+      void accountQuery.scheduleRefresh();
+    }),
+  );
+  const handleHistoryJob = useCallback(
+    (job: GenerationJob) => {
+      patchHistoryJob(queryClient, job);
+      terminalObserver.current.observe(job);
+    },
+    [queryClient],
+  );
   const approvalRequest = useMemo(() => {
     const match = window.location.pathname.match(/\/approvals\/([^/]+)$/);
     const token = new URLSearchParams(window.location.search).get('token');
@@ -65,8 +109,8 @@ export function App({ gateway, platform }: AppProps) {
       error instanceof WebGatewayError && error.code === 'WORKBENCH_VERSION_CONFLICT',
     onShowGenerate: () => setView('generate'),
     onSessionUrlChange: replaceWorkbenchSessionUrl,
-    onAuthRequired: () => setAuthRequired(true),
-    onHistoryJob: (job) => patchHistoryJob(queryClient, job),
+    onAuthRequired: enterAuthState,
+    onHistoryJob: handleHistoryJob,
     onLibraryPrompt: (prompt) => patchLibraryPrompt(queryClient, prompt),
   });
 
@@ -87,9 +131,7 @@ export function App({ gateway, platform }: AppProps) {
     setLoadError(null);
     try {
       const snapshot = await loadWebWorkspace(gateway);
-      setAccount(snapshot.account);
       hydrateWorkspaceLists(queryClient, snapshot.prompts, snapshot.history);
-      setConnections(snapshot.connections);
       generate.hydrate({
         sessions: snapshot.workbenchPage.items,
         selected: snapshot.selected,
@@ -97,13 +139,12 @@ export function App({ gateway, platform }: AppProps) {
         sessionJobs: snapshot.sessionJobs,
         prompts: snapshot.prompts.items,
       });
-      setAuthRequired(false);
     } catch (error) {
       if (
         error instanceof WebGatewayError &&
         ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
       ) {
-        setAuthRequired(true);
+        enterAuthState();
       } else {
         setLoadError(error instanceof Error ? error.message : '无法载入 Musefold');
       }
@@ -111,6 +152,16 @@ export function App({ gateway, platform }: AppProps) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const queryError = accountQuery.error ?? connectionsQuery.error;
+    if (
+      queryError instanceof WebGatewayError &&
+      ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(queryError.code)
+    ) {
+      enterAuthState();
+    }
+  }, [accountQuery.error, connectionsQuery.error, enterAuthState]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -132,14 +183,29 @@ export function App({ gateway, platform }: AppProps) {
       .finally(() => setApprovalLoading(false));
   }, [account, approvalRequest, gateway]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading || accountQuery.loading) return <LoadingScreen />;
   if (authRequired) {
     return (
       <LoginScreen
         gateway={gateway}
         onAuthenticated={() => {
           setView('generate');
-          void loadWorkspace();
+          void accountQuery.refresh().then(
+            () => {
+              setAuthRequired(false);
+              void loadWorkspace();
+            },
+            (error) => {
+              if (
+                error instanceof WebGatewayError &&
+                ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
+              ) {
+                enterAuthState();
+              } else {
+                setLoadError(error instanceof Error ? error.message : '无法载入 Musefold');
+              }
+            },
+          );
         }}
       />
     );
@@ -250,7 +316,10 @@ export function App({ gateway, platform }: AppProps) {
             platform={platform}
             onReuse={(nextJob) => void generate.reuse(nextJob)}
             onSavePrompt={generate.createPromptFromGeneration}
-            onJobChanged={generate.upsertJob}
+            onJobChanged={(job) => {
+              generate.upsertJob(job);
+              handleHistoryJob(job);
+            }}
             onJobRemoved={(id) => {
               dropHistoryJob(queryClient, id);
               generate.dropJob(id);
@@ -265,11 +334,10 @@ export function App({ gateway, platform }: AppProps) {
             gateway={gateway}
             account={account}
             connections={connections}
-            onConnectionsChange={setConnections}
-            onLoggedOut={() => {
-              setAccount(null);
-              setAuthRequired(true);
-            }}
+            onConnectionsChange={(next) =>
+              queryClient.setQueryData(musefoldQueryKeys.connections.all, next)
+            }
+            onLoggedOut={enterAuthState}
           />
         )}
       </main>
