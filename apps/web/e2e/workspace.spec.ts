@@ -176,9 +176,12 @@ test('desktop prompt to generation to history flow', async ({ page }, testInfo) 
     0,
   );
   await expect(page.getByTestId('history-detail-prompt')).toContainText('雨后的夜间建筑摄影');
+  await page.getByTestId('history-detail-menu').click();
   await expect(page.getByTestId('history-detail-download')).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.getByTestId('history-detail-save').click();
   await expect(page.getByText('已存入个人提示词库')).toBeVisible();
+  await page.getByTestId('history-detail-menu').click();
   await page.getByTestId('history-detail-delete').click();
   await page.getByTestId('history-detail-delete-confirm').click();
   await expect(page.getByTestId('history-page')).toBeVisible();
@@ -466,8 +469,9 @@ test('shared account and Cloud MCP connection policies keep their actions determ
   await page.locator('input[autocomplete="username"]').fill('musefold');
   await page.locator('input[type="password"]').fill('password123');
   await page.getByRole('button', { name: '登录' }).click();
-  await page.getByRole('button', { name: '返回工作区' }).click();
   await expect(page.getByTestId('generation-workbench')).toBeVisible();
+  await page.getByRole('button', { name: '展开侧栏' }).click();
+  await expect(page.getByTestId('product-sidebar')).toBeVisible();
 
   await page.getByTestId('nav-settings').click();
   await page

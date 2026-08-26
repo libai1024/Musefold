@@ -66,7 +66,7 @@ describe('Web account gateway boundary', () => {
     await expect(gateway.getAccount()).resolves.toMatchObject({ username: 'preview' });
     await expect(gateway.redeem('CODE')).resolves.toMatchObject({
       account: { id: 'fixture-account', username: 'preview' },
-      creditedQuota: 0,
+      creditedQuota: 500_000,
     });
   });
 });

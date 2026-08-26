@@ -300,6 +300,11 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
     "history-detail-1440-light-comfortable",
     "history-detail",
   );
+  await page.getByTestId("history-detail-close").click();
+  await expect(page.getByTestId("history-workspace")).toHaveAttribute(
+    "data-detail-open",
+    "false",
+  );
 
   await page.setViewportSize({ width: 390, height: 844 });
   await openCompactSidebar(page);
