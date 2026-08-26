@@ -556,7 +556,7 @@ test('shared sidebar resizes, collapses, and becomes a compact drawer', async ({
   await expect(rail).toHaveCSS('width', '0px');
   await expect(page.getByRole('button', { name: '展开侧栏' })).toBeVisible();
 
-  await page.setViewportSize({ width: 640, height: 760 });
+  await page.setViewportSize({ width: 760, height: 900 });
   const toggle = page.getByRole('button', { name: '展开侧栏' });
   await toggle.focus();
   await toggle.click();
@@ -603,6 +603,15 @@ test('shared sidebar resizes, collapses, and becomes a compact drawer', async ({
   await expect(scrim).toBeVisible();
   await scrim.click({ position: { x: 500, y: 30 } });
   await expect(drawer).toHaveCount(0);
+
+  await page.setViewportSize({ width: 680, height: 844 });
+  await page.getByRole('button', { name: '展开侧栏' }).click();
+  await page.getByTestId('product-sidebar').getByTestId('nav-settings').click();
+  const settingsNavigation = page.getByRole('navigation', { name: '设置分区' });
+  await expect(settingsNavigation).toBeVisible();
+  await settingsNavigation.getByRole('button', { name: 'Musefold 账号' }).click();
+  await expect(page.getByTestId('account-screen')).toBeVisible();
+  await expect(page.getByRole('button', { name: '返回设置' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   expect(browserErrors).toEqual([]);
 });
