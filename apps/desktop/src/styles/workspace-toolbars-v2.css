@@ -1,5 +1,9 @@
 /* Desktop v2 control decks, based on ZCode's quiet two-row utility hierarchy. */
 
+.mf-prompt-library-workspace .mf-prompt-library-inspector-bar {
+  padding-right: 64px;
+}
+
 .mf-library-workspace,
 .mf-scheme-workspace {
   display: flex;
@@ -147,6 +151,12 @@
   .mf-history-workspace-back svg {
     width: 16px;
     height: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .mf-prompt-library-workspace .mf-prompt-library-inspector-bar {
+    padding-right: 0;
   }
 }
 

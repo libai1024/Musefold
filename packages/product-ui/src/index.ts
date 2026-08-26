@@ -6,6 +6,7 @@ export * from './account/AccountSummaryPanel';
 export * from './account/AccountScreen';
 export * from './account/ConnectedAppsScreen';
 export * from './library/PromptLibraryScreen';
+export * from './library/PromptLibraryWorkspace';
 export * from './library/PromptLibraryHeaderActions';
 export * from './library/PromptListRow';
 export * from './library/PromptSearchField';

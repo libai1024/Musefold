@@ -30,11 +30,13 @@ export function PromptDetailView({
   onBack,
   onEdit,
   layout = 'page',
+  showNavigation = true,
 }: {
   prompt: DesktopLibraryPrompt;
   onBack: () => void;
   onEdit: (p: DesktopLibraryPrompt) => void;
   layout?: 'page' | 'inspector';
+  showNavigation?: boolean;
 }) {
   const copyContent = useLibraryStore((s) => s.copyContent);
   const togglePin = useLibraryStore((s) => s.togglePin);
@@ -101,6 +103,7 @@ export function PromptDetailView({
       <PromptDetailScreen
         prompt={detailViewModel}
         layout={layout}
+        showNavigation={showNavigation}
         onBack={onBack}
         onUse={use}
         onEdit={() => onEdit(prompt)}

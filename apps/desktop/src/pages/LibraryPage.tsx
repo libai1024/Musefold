@@ -13,8 +13,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { DropdownMenuItem } from '@musefold/ui';
 import {
-  PromptLibraryScreen,
   PromptLibraryHeaderActions,
+  PromptLibraryScreen,
+  PromptLibraryWorkspace,
   PromptListRow,
   PromptSectionHeading,
   useLibraryPageController,
@@ -119,7 +120,7 @@ export function LibraryPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<DesktopLibraryPrompt | null>(null);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [listOffset, setListOffset] = useState(0);
   const [columns, setColumns] = useState(2);
@@ -209,6 +210,10 @@ export function LibraryPage() {
     setPageMode('detail');
   };
 
+  const closeDetail = () => {
+    setPageMode('list');
+  };
+
   const openImport = () => {
     useSettingsStore.getState().setSection('data');
     setView('settings');
@@ -225,9 +230,7 @@ export function LibraryPage() {
       key={p.id}
       prompt={toPromptListItem(p)}
       compact={compact}
-      highlighted={
-        highlightPromptId === p.id || (pageMode === 'detail' && selectedPromptId === p.id)
-      }
+      highlighted={highlightPromptId === p.id || selectedPromptId === p.id}
       copied={copiedPromptId === p.id}
       onOpen={() => openDetail(p.id)}
       onCopy={() => {
@@ -246,14 +249,15 @@ export function LibraryPage() {
 
   return (
     <div className="h-full bg-work" data-testid="library-shell">
-      <div className="mf-library-workspace" data-inspector-open={inspectorOpen ? 'true' : 'false'}>
-        <div
-          ref={scrollRef}
-          className="mf-library-list-pane mf-workspace-list-pane relative h-full min-w-0 flex-1 overflow-y-auto"
-          data-testid="prompt-list"
-        >
+      <PromptLibraryWorkspace
+        detailOpen={inspectorOpen}
+        onClose={closeDetail}
+        listRef={(node) => {
+          scrollRef.current = node;
+        }}
+        list={
           <PromptLibraryScreen
-            className={`mf-workspace-list-content${inspectorOpen ? ' mf-workspace-list-content-wide' : ''}`}
+            className={inspectorOpen ? 'mf-workspace-list-content-wide' : undefined}
             prompts={[...pinned, ...normal].map(toPromptListItem)}
             query={search}
             onQueryChange={setSearch}
@@ -425,25 +429,19 @@ export function LibraryPage() {
               </div>
             }
           />
-        </div>
-
-        {inspectorOpen && selectedPrompt ? (
-          <aside
-            className="mf-library-inspector-shell mf-workspace-inspector-shell"
-            aria-label="提示词详情"
-            data-testid="prompt-inspector"
-          >
-            <div className="mf-library-inspector mf-workspace-inspector">
-              <PromptDetailView
-                prompt={selectedPrompt}
-                layout="inspector"
-                onBack={() => setPageMode('list')}
-                onEdit={openEditor}
-              />
-            </div>
-          </aside>
-        ) : null}
-      </div>
+        }
+        detail={
+          inspectorOpen && selectedPrompt ? (
+            <PromptDetailView
+              prompt={selectedPrompt}
+              layout="inspector"
+              showNavigation={false}
+              onBack={closeDetail}
+              onEdit={openEditor}
+            />
+          ) : undefined
+        }
+      />
 
       <PromptEditor
         open={editorOpen}

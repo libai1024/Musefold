@@ -53,7 +53,7 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
-大屏可使用双列列表，但每个条目仍然保持行结构；不能把列表改成纯卡片网格导致扫描效率下降。
+大屏 `>760px` 使用双列工作区，但每个条目仍然保持行结构；不能把列表改成纯卡片网格导致扫描效率下降。打开详情后列表继续可见，右侧固定为共享 Prompt Inspector。
 
 ## 4. Light / Dark 页面配色
 
@@ -165,7 +165,7 @@ hover 不能导致标题或摘要横向跳动；右侧动作区需要预留宽�
 
 ## 9. Prompt Detail Inspector
 
-选中提示词后，详情可以作为右侧 Dock 或独立轻量详情页。优先采用右侧 Dock 以保持 ZCode 的连续工作模型。
+选中提示词后，`>760px` 的双宿主统一使用右侧 Inspector，并保留中央列表上下文。`681-760px` compact shell 切为单页详情；`<=680px` 的查看与编辑继续使用全页子状态。Prompt 详情不使用 bottom sheet。
 
 ```text
 ┌────────────────────────┐
@@ -331,13 +331,13 @@ Dialog：
 └──────────────────┴──────────────────────────────┴──────────────┘
 ```
 
-窄屏：
-
 ```text
-Prompt List → Prompt Detail Page / Bottom Sheet
+>760px:  Prompt List + Prompt Inspector
+681-760px: Prompt List → Prompt Detail Page
+<=680px:  Prompt List → Prompt Detail / Editor Full-page Substate
 ```
 
-Inspector 默认不覆盖列表；只有在窄屏或明确打开详情时，才转换为 sheet 或独立页面。
+Inspector 默认不覆盖列表。`681-760px` compact 不保留右侧固定 Inspector，而是切换到单页详情；`<=680px` 查看和编辑都使用全页子状态，不转换为 bottom sheet。
 
 ## 17. Light / Dark 表面决策
 
@@ -668,14 +668,15 @@ Musefold 比 ZCode 多一个必须保持的关系：
 
 ### 27.2 详情呈现
 
-推荐：
+冻结规则：
 
 ```text
-右侧 Inspector 为默认详情
-独立详情页作为编辑或深度阅读状态
+>760px 右侧 Inspector 为默认详情，列表同时保留
+681-760px 使用单页详情，不保留固定 Inspector
+<=680px 查看与编辑使用全页子状态，不使用 bottom sheet
 ```
 
-这样用户查看提示词后可以直接送入制作，不需要频繁离开列表。
+这样用户在大屏查看提示词后可以直接送入制作，不需要频繁离开列表；compact 与手机也不会被固定右栏挤压。
 
 ### 27.3 主动作
 
@@ -721,3 +722,25 @@ tests/e2e/test_42_prompt_overlays_v2_desktop.py
 ```
 
 该门禁只使用 1440x900 桌面视口，覆盖顶部菜单和详情菜单的 Light / Dark 表面、圆角、阴影、首项焦点、Home / End 与 Escape 焦点归还。按当前开发约定，本批不执行手机端测试。
+
+## 30. UI-02 双宿主工作区进度（2026-08-26）
+
+提示词库的 list / detail 几何已上提到 `PromptLibraryWorkspace`，Desktop 与 Web 同批接入：
+
+- `>760px` 同时保留列表和 404px Prompt Inspector；Inspector 使用 `aside` 与可访问名称，不覆盖列表。
+- `681-760px` 进入 compact 单页详情，不保留右侧固定 Inspector。
+- `<=680px` 查看与编辑保持全页子状态，明确不使用 bottom sheet。
+- 关闭详情后保留当前选中行，并将焦点归还最后打开详情的行控件；selected 同时使用表面、内边界和 `aria-current` 表达。
+- Desktop 的本地导入、笺匣、虚拟列表、Prompt Editor Dialog 与回收站仍留在宿主；Web 的云冲突、编辑器与回收站 adapter 仍留在 Web。
+- workspace 只接受 list / detail slots、`detailOpen` 与 `onClose`，不包含平台 API 或业务数据编排。
+
+对应实现与门禁：
+
+```text
+packages/product-ui/src/library/PromptLibraryWorkspace.tsx
+packages/product-ui/src/library/__tests__/PromptLibraryWorkspace.test.tsx
+apps/desktop/src/pages/LibraryPage.tsx
+apps/web/src/views/PromptLibraryView.tsx
+apps/web/e2e/prompt-library.spec.ts
+tests/e2e/test_02_library.py
+```

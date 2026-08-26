@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   type NewPromptDocument,
   type PromptDocument,
   type UpdatePromptDocument,
-} from "@musefold/contracts";
-import type { PlatformServices, PromptGateway } from "@musefold/domain";
+} from '@musefold/contracts';
+import type { PlatformServices, PromptGateway } from '@musefold/domain';
 import {
   PromptDetailScreen,
   PromptEditorForm,
   PromptLibraryHeaderActions,
   PromptLibraryScreen,
+  PromptLibraryWorkspace,
   PromptTrashScreen,
   useLibraryPageController,
   type PromptDetailViewModel,
   type PromptEditorDraft,
   type PromptListItemViewModel,
-} from "@musefold/product-ui";
-import { Button } from "@musefold/ui";
-import { WebGatewayError } from "../runtime";
+} from '@musefold/product-ui';
+import { Button } from '@musefold/ui';
+import { WebGatewayError } from '../runtime';
 
 export interface PromptLibraryViewProps {
   prompts: PromptGateway;
@@ -41,9 +42,7 @@ export function PromptLibraryView({
     onQueryChange,
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"list" | "detail" | "editor" | "trash">(
-    "list",
-  );
+  const [mode, setMode] = useState<'list' | 'detail' | 'editor' | 'trash'>('list');
   const [editing, setEditing] = useState<PromptDocument | null>(null);
   const [editorRevision, setEditorRevision] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -69,7 +68,7 @@ export function PromptLibraryView({
   const listTrash = page.listTrash;
 
   useEffect(() => {
-    if (mode !== "trash") return;
+    if (mode !== 'trash') return;
     let cancelled = false;
     setTrashLoading(true);
     setError(null);
@@ -79,7 +78,7 @@ export function PromptLibraryView({
       })
       .catch((cause) => {
         if (cancelled) return;
-        setError(cause instanceof Error ? cause.message : "回收站载入失败");
+        setError(cause instanceof Error ? cause.message : '回收站载入失败');
       })
       .finally(() => {
         if (!cancelled) setTrashLoading(false);
@@ -95,7 +94,7 @@ export function PromptLibraryView({
       setCopiedId(prompt.id);
       window.setTimeout(() => setCopiedId(null), 1_200);
     } catch {
-      setError("剪贴板不可用");
+      setError('剪贴板不可用');
     }
   };
 
@@ -104,7 +103,7 @@ export function PromptLibraryView({
     setConflict(null);
     setError(null);
     setEditorRevision((revision) => revision + 1);
-    setMode("editor");
+    setMode('editor');
   };
 
   const submitEditor = async (draft: PromptEditorDraft) => {
@@ -112,34 +111,23 @@ export function PromptLibraryView({
     setError(null);
     try {
       const saved = editing
-        ? await page.update(
-            editing.id,
-            promptUpdateFromDraft(editing, draft, editing.version),
-          )
+        ? await page.update(editing.id, promptUpdateFromDraft(editing, draft, editing.version))
         : await page.create(promptCreateFromDraft(draft));
       page.select(saved.id);
       setEditing(null);
       setConflict(null);
-      setMode("detail");
+      setMode('detail');
     } catch (cause) {
-      if (
-        editing &&
-        cause instanceof WebGatewayError &&
-        cause.code === "PROMPT_VERSION_CONFLICT"
-      ) {
+      if (editing && cause instanceof WebGatewayError && cause.code === 'PROMPT_VERSION_CONFLICT') {
         try {
           const latest = await page.get(editing.id);
           setConflict({ latest, draft });
           setError(null);
         } catch (reloadError) {
-          setError(
-            reloadError instanceof Error
-              ? reloadError.message
-              : "无法载入云端最新版本",
-          );
+          setError(reloadError instanceof Error ? reloadError.message : '无法载入云端最新版本');
         }
       } else {
-        setError(cause instanceof Error ? cause.message : "提示词保存失败");
+        setError(cause instanceof Error ? cause.message : '提示词保存失败');
       }
     } finally {
       setBusy(false);
@@ -153,18 +141,14 @@ export function PromptLibraryView({
     try {
       const saved = await page.update(
         conflict.latest.id,
-        promptUpdateFromDraft(
-          conflict.latest,
-          conflict.draft,
-          conflict.latest.version,
-        ),
+        promptUpdateFromDraft(conflict.latest, conflict.draft, conflict.latest.version),
       );
       page.select(saved.id);
       setEditing(null);
       setConflict(null);
-      setMode("detail");
+      setMode('detail');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "冲突合并失败");
+      setError(cause instanceof Error ? cause.message : '冲突合并失败');
     } finally {
       setBusy(false);
     }
@@ -184,25 +168,27 @@ export function PromptLibraryView({
     try {
       await page.remove(selected.id, selected.version);
       page.select(null);
-      setMode("list");
+      setMode('list');
     } catch (cause) {
-      if (
-        cause instanceof WebGatewayError &&
-        cause.code === "PROMPT_VERSION_CONFLICT"
-      ) {
+      if (cause instanceof WebGatewayError && cause.code === 'PROMPT_VERSION_CONFLICT') {
         const latest = await page.get(selected.id).catch(() => null);
         if (latest) page.select(latest.id);
-        setError("提示词已在其他设备更新，已载入最新版本，请重新确认删除。 ");
+        setError('提示词已在其他设备更新，已载入最新版本，请重新确认删除。 ');
       } else {
-        setError(cause instanceof Error ? cause.message : "删除失败");
+        setError(cause instanceof Error ? cause.message : '删除失败');
       }
     } finally {
       setBusy(false);
     }
   };
 
+  const closeDetail = useCallback(() => {
+    setError(null);
+    setMode('list');
+  }, []);
+
   const openTrash = useCallback(() => {
-    setMode("trash");
+    setMode('trash');
   }, []);
 
   const restoreTrashPrompt = async (prompt: PromptDetailViewModel) => {
@@ -214,35 +200,30 @@ export function PromptLibraryView({
       await page.restore(source.id, source.version);
       setTrash((current) => current.filter((item) => item.id !== source.id));
     } catch (cause) {
-      if (
-        cause instanceof WebGatewayError &&
-        cause.code === "PROMPT_VERSION_CONFLICT"
-      ) {
+      if (cause instanceof WebGatewayError && cause.code === 'PROMPT_VERSION_CONFLICT') {
         const latest = await page.get(source.id).catch(() => null);
         if (latest) {
-          setTrash((current) =>
-            current.map((item) => (item.id === latest.id ? latest : item)),
-          );
+          setTrash((current) => current.map((item) => (item.id === latest.id ? latest : item)));
         }
-        setError("云端版本已变化，已刷新该提示词，请再次恢复。");
+        setError('云端版本已变化，已刷新该提示词，请再次恢复。');
       } else {
-        setError(cause instanceof Error ? cause.message : "恢复失败");
+        setError(cause instanceof Error ? cause.message : '恢复失败');
       }
     } finally {
       setBusyTrashId(null);
     }
   };
 
-  if (mode === "editor") {
+  if (mode === 'editor') {
     return (
       <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <PromptEditorForm
-          key={`${editing?.id ?? "new"}:${editing?.version ?? 0}:${editorRevision}`}
-          heading={editing ? "编辑提示词" : "新建提示词"}
+          key={`${editing?.id ?? 'new'}:${editing?.version ?? 0}:${editorRevision}`}
+          heading={editing ? '编辑提示词' : '新建提示词'}
           initial={editorInitial}
           busy={busy}
           error={error}
-          submitLabel={editing ? "保存修改" : "创建提示词"}
+          submitLabel={editing ? '保存修改' : '创建提示词'}
           notice={
             conflict ? (
               <div
@@ -277,7 +258,7 @@ export function PromptLibraryView({
           onCancel={() => {
             setConflict(null);
             setError(null);
-            setMode(editing ? "detail" : "list");
+            setMode(editing ? 'detail' : 'list');
           }}
           onSubmit={submitEditor}
         />
@@ -285,44 +266,7 @@ export function PromptLibraryView({
     );
   }
 
-  if (mode === "detail" && selected) {
-    return (
-      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
-        <PromptDetailScreen
-          prompt={toPromptDetailViewModel(selected)}
-          busy={busy}
-          error={error}
-          confirmDelete
-          onBack={() => {
-            setError(null);
-            setMode("list");
-          }}
-          onUse={() => onUse(selected)}
-          onEdit={() => openEditor(selected)}
-          onCopy={() => void copyPrompt(toPromptListItemViewModel(selected))}
-          onTogglePin={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              await page.update(selected.id, {
-                expectedVersion: selected.version,
-                isPinned: !selected.isPinned,
-              });
-            } catch (cause) {
-              setError(
-                cause instanceof Error ? cause.message : "置顶状态更新失败",
-              );
-            } finally {
-              setBusy(false);
-            }
-          }}
-          onDelete={deleteSelected}
-        />
-      </div>
-    );
-  }
-
-  if (mode === "trash") {
+  if (mode === 'trash') {
     return (
       <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
         <PromptTrashScreen
@@ -332,7 +276,7 @@ export function PromptLibraryView({
           busyId={busyTrashId}
           onBack={() => {
             setError(null);
-            setMode("list");
+            setMode('list');
           }}
           onRestore={(prompt) => void restoreTrashPrompt(prompt)}
         />
@@ -340,42 +284,82 @@ export function PromptLibraryView({
     );
   }
 
+  const detailOpen = mode === 'detail' && Boolean(selected);
+
   return (
-    <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
-      <PromptLibraryScreen
-        prompts={items}
-        query={query}
-        onQueryChange={onQueryChange}
-        copiedId={copiedId}
-        headerAction={
-          <PromptLibraryHeaderActions
-            onCreate={() => openEditor(null)}
-            onOpenTrash={openTrash}
-          />
+    <div className="page-prompt-library min-h-0 min-w-0 flex-1 overflow-hidden">
+      <PromptLibraryWorkspace
+        detailOpen={detailOpen}
+        onClose={closeDetail}
+        list={
+          <>
+            <PromptLibraryScreen
+              prompts={items}
+              query={query}
+              onQueryChange={onQueryChange}
+              copiedId={copiedId}
+              selectedId={selectedId}
+              headerAction={
+                <PromptLibraryHeaderActions
+                  onCreate={() => openEditor(null)}
+                  onOpenTrash={openTrash}
+                />
+              }
+              onOpen={(prompt) => {
+                page.select(prompt.id);
+                setError(null);
+                setMode('detail');
+              }}
+              onCopy={(prompt) => void copyPrompt(prompt)}
+              onUse={(prompt) => {
+                const source = page.items.find((item) => item.id === prompt.id);
+                if (source) onUse(source);
+              }}
+            />
+            {(error || page.error) && (
+              <p className="form-error mt-[14px]" role="alert">
+                {error ?? page.error}
+              </p>
+            )}
+          </>
         }
-        onOpen={(prompt) => {
-          page.select(prompt.id);
-          setError(null);
-          setMode("detail");
-        }}
-        onCopy={(prompt) => void copyPrompt(prompt)}
-        onUse={(prompt) => {
-          const source = page.items.find((item) => item.id === prompt.id);
-          if (source) onUse(source);
-        }}
+        detail={
+          detailOpen && selected ? (
+            <PromptDetailScreen
+              prompt={toPromptDetailViewModel(selected)}
+              layout="inspector"
+              showNavigation={false}
+              busy={busy}
+              error={error}
+              confirmDelete
+              onBack={closeDetail}
+              onUse={() => onUse(selected)}
+              onEdit={() => openEditor(selected)}
+              onCopy={() => void copyPrompt(toPromptListItemViewModel(selected))}
+              onTogglePin={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  await page.update(selected.id, {
+                    expectedVersion: selected.version,
+                    isPinned: !selected.isPinned,
+                  });
+                } catch (cause) {
+                  setError(cause instanceof Error ? cause.message : '置顶状态更新失败');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              onDelete={deleteSelected}
+            />
+          ) : undefined
+        }
       />
-      {(error || page.error) && (
-        <p className="form-error mt-[14px]" role="alert">
-          {error ?? page.error}
-        </p>
-      )}
     </div>
   );
 }
 
-function toPromptListItemViewModel(
-  prompt: PromptDocument,
-): PromptListItemViewModel {
+function toPromptListItemViewModel(prompt: PromptDocument): PromptListItemViewModel {
   return {
     id: prompt.id,
     title: prompt.title,
@@ -388,36 +372,32 @@ function toPromptListItemViewModel(
   };
 }
 
-function toPromptDetailViewModel(
-  prompt: PromptDocument,
-): PromptDetailViewModel {
+function toPromptDetailViewModel(prompt: PromptDocument): PromptDetailViewModel {
   return {
     ...toPromptListItemViewModel(prompt),
     negative: prompt.negative,
     sourceLabel:
-      prompt.source === "generation"
-        ? "生成记录"
-        : prompt.source === "import"
-          ? "导入"
-          : prompt.source === "share"
-            ? "分享导入"
-            : prompt.source === "slip"
-              ? "笺"
-              : "手动创建",
+      prompt.source === 'generation'
+        ? '生成记录'
+        : prompt.source === 'import'
+          ? '导入'
+          : prompt.source === 'share'
+            ? '分享导入'
+            : prompt.source === 'slip'
+              ? '笺'
+              : '手动创建',
     createdAtLabel: new Date(prompt.createdAt).toLocaleString(),
     updatedAtLabel: new Date(prompt.updatedAt).toLocaleString(),
-    deletedAtLabel: prompt.deletedAt
-      ? new Date(prompt.deletedAt).toLocaleString()
-      : null,
+    deletedAtLabel: prompt.deletedAt ? new Date(prompt.deletedAt).toLocaleString() : null,
   };
 }
 
 function promptEditorDraft(prompt: PromptDocument | null): PromptEditorDraft {
   return {
-    title: prompt?.title ?? "",
-    description: prompt?.description ?? "",
-    content: prompt?.content ?? "",
-    negative: prompt?.negative ?? "",
+    title: prompt?.title ?? '',
+    description: prompt?.description ?? '',
+    content: prompt?.content ?? '',
+    negative: prompt?.negative ?? '',
     isPinned: prompt?.isPinned ?? false,
   };
 }
@@ -434,7 +414,7 @@ function promptCreateFromDraft(draft: PromptEditorDraft): NewPromptDocument {
     params: null,
     rating: 0,
     isPinned: draft.isPinned,
-    source: "manual",
+    source: 'manual',
     sourceUrl: null,
   };
 }

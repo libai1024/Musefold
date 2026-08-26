@@ -1,6 +1,6 @@
-import { Button, IconButton } from "@musefold/ui";
-import { Check, Copy, FileText } from "@musefold/ui/icons";
-import type { PromptListItemViewModel } from "../models";
+import { Button, IconButton } from '@musefold/ui';
+import { Check, Copy, FileText } from '@musefold/ui/icons';
+import type { PromptListItemViewModel } from '../models';
 
 export interface PromptListRowProps {
   prompt: PromptListItemViewModel;
@@ -25,11 +25,12 @@ export function PromptListRow({
   return (
     <article
       className="mf-prompt-row"
-      data-compact={compact ? "true" : "false"}
-      data-highlighted={highlighted ? "true" : "false"}
+      data-compact={compact ? 'true' : 'false'}
+      data-highlighted={highlighted ? 'true' : 'false'}
       data-prompt-id={prompt.id}
       data-testid="prompt-row"
       role="listitem"
+      aria-current={highlighted ? 'true' : undefined}
     >
       <Button
         unstyled
@@ -60,9 +61,7 @@ export function PromptListRow({
         <span className="mf-prompt-meta">
           {prompt.usageCount > 0 && <span>使用 {prompt.usageCount} 次</span>}
           {prompt.updatedAtLabel && <span>{prompt.updatedAtLabel}</span>}
-          {prompt.tags && prompt.tags.length > 0 && (
-            <span>{prompt.tags.join(" · ")}</span>
-          )}
+          {prompt.tags && prompt.tags.length > 0 && <span>{prompt.tags.join(' · ')}</span>}
         </span>
       </Button>
       <div className="mf-row-actions">
@@ -73,11 +72,7 @@ export function PromptListRow({
             label={`复制 ${prompt.title}`}
             title="复制提示词"
           >
-            {copied ? (
-              <Check aria-hidden="true" />
-            ) : (
-              <Copy aria-hidden="true" />
-            )}
+            {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
           </IconButton>
         )}
         <Button

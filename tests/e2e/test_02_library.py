@@ -3,7 +3,7 @@ tests/e2e/test_02_library.py — 提示词库验收（v0.3.2 重塑版）。
 
 页面契约：
   列表模式   960px 居中紧凑列表：置顶/全部分区、行尾「使用」、搜索 + 新建 + 溢出菜单
-  详情模式   880px 轻量详情页（返回 > 头部 + 菜单/主动作 > 正文 > 相关作品 > 详情）
+  详情模式   >760px 为共享 404px Inspector；<=760px 为单页详情
   编辑器     标题 + 正文必填，负面提示词折叠可选；脏检查二次确认
   已退役 UI  文件夹树 / 标签云 / 评分 / 智能集 / 批量操作（数据表与导入导出保留；
              folder/tag/smartSet IPC 已收缩，夹具改走 SQL 直写）
@@ -101,20 +101,30 @@ def test_prompt_detail_opens_as_a_non_overlaying_inspector(app):
     assert inspector and prompt_list
     assert prompt_list["x"] + prompt_list["width"] <= inspector["x"] + 1
     assert selected_row.get_attribute("data-highlighted") == "true"
+    assert app.page.get_by_test_id("prompt-library-workspace").get_attribute(
+        "data-detail-open"
+    ) == "true"
+    assert app.page.get_by_test_id("prompt-inspector").get_attribute("aria-hidden") == "false"
     assert app.page.get_by_test_id("library-search").is_visible()
 
-    app.page.set_viewport_size({"width": 960, "height": 760})
+    app.page.set_viewport_size({"width": 760, "height": 760})
     app.page.wait_for_function(
         "() => getComputedStyle(document.querySelector('[data-testid=\"prompt-list\"]')).display === 'none'"
     )
-    narrow_workspace = app.page.locator(".mf-library-workspace").bounding_box()
+    narrow_workspace = app.page.get_by_test_id("prompt-library-workspace").bounding_box()
     narrow_inspector = app.page.get_by_test_id("prompt-inspector").bounding_box()
     assert narrow_workspace and narrow_inspector
     assert abs(narrow_workspace["width"] - narrow_inspector["width"]) <= 1
 
     app.page.get_by_test_id("detail-back").click()
-    app.page.get_by_test_id("prompt-inspector").wait_for(state="detached")
+    assert app.page.get_by_test_id("prompt-inspector").get_attribute("aria-hidden") == "true"
+    assert app.page.get_by_test_id("prompt-library-workspace").get_attribute(
+        "data-detail-open"
+    ) == "false"
     assert app.page.get_by_test_id("library-search").is_visible()
+    assert selected_row.get_by_test_id("prompt-row-open").evaluate(
+        "element => element === document.activeElement"
+    )
 
 
 def open_detail_menu(app):
