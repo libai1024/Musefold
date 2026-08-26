@@ -5,6 +5,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react';
+import { Switch } from '@musefold/ui';
 
 function classes(...values: Array<string | undefined>): string {
   return values.filter(Boolean).join(' ');
@@ -171,21 +172,16 @@ export function SettingsSwitch({
   ...props
 }: SettingsSwitchProps) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
+    <Switch
+      {...props}
+      checked={checked}
+      onCheckedChange={onCheckedChange}
       aria-label={label}
       title={label}
       disabled={disabled}
       data-testid={testId}
-      data-checked={checked || undefined}
       className={classes('mf-settings-switch', className)}
-      onClick={() => onCheckedChange(!checked)}
-      {...props}
-    >
-      <span className="mf-settings-switch-thumb" aria-hidden="true" />
-    </button>
+    />
   );
 }
 

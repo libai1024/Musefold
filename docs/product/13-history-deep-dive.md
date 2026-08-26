@@ -56,11 +56,11 @@
 | **再次制作 / 失败重试** | 回填制作 / 同参恢复 | ✅ 详情主动作进入 Workbench 制作并回填 prompt/negative/params；失败态独立接 `image.retry` | 达标 |
 | 清理历史 | 按时间清 / 清失败取消 | ✅ 顶栏清理菜单 + 二次确认；`clear({before,statuses})` 支持按时间/状态组合，返回 deleted 数 | 达标 |
 | 图片文件管理 | 删源文件 + 磁盘占用 | ✅ `delete({deleteFile})` 可删源文件；`system:diskUsage` 统计图片输出目录并在顶栏展示 | 达标 |
-| **成本看板**（累计/按日周月/按 Provider/图表） | V1 差异化 | ✅ 顶栏入口 + `CostDashboard` 三汇总卡、分桶柱图、Provider 明细、空态、未配单价提示与设置入口 | 达标（HIS-14） |
+| **使用统计**（累计/趋势/渠道/模型/账号积分） | V2 数据视图 | ✅ 已移至设置 / 使用统计；History 只保留单条成本元数据 | 达标（V2） |
 | 打开所在文件夹 | reveal in folder | ✅ `system:openInFolder` 对文件用 `shell.showItemInFolder`，目录用 `openPath`；缺失路径返回可读错误 | 达标 |
 | 空态文案 | 对齐融合双入口 | 🟡 现写「在创作台生成图像后…」（Studio 心智，与 Chat/Generate 不一致） | **修复** |
 
-**一句话**：**History 的结果专业化、图片文件管理、成本聚合查询、单价配置与成本看板 UI 已全部达标；History 14/14 收口完成。**
+**一句话**：**History 聚焦结果回看、复用与文件管理；跨记录聚合由设置 / 使用统计承载。**
 
 ---
 
@@ -156,26 +156,14 @@ hover：背景微亮 bg-elevated；显示 [重试(仅失败)][更多⋯][删除]
 └──────────────────────────────────────────┘
 ```
 
-### 4.4 成本看板（CostDashboard，V1 · P2）
+### 4.4 使用统计边界（V2）
 
 ```
-┌ 📊 成本看板 ──────────────────────── ✕ ┐
-│ 时间范围 [本月▾]   分组 [按天▾]          │
-│ ┌──────────┬──────────┬──────────────┐  │
-│ │ 累计花费  │ 生图次数  │ 平均单张      │  │  ← 汇总卡（仅统计 success）
-│ │ ¥ 42.80  │  134 张   │ ¥0.32        │  │
-│ └──────────┴──────────┴──────────────┘  │
-│ 按天分布                                 │
-│ ¥ ▁▂▅▃▇▂▁▁▃▅▂▁ …（柱状，hover 显当日额）│  ← 简单 SVG/div 柱图，不引重库
-│ ────────────────────────────────────── │
-│ 按 Provider                             │
-│ ● 我的 OneAPI   ¥ 31.20   98 张 ▇▇▇▇▇    │
-│ ● 官方 OpenAI   ¥ 11.60   36 张 ▇▇       │
-│ ────────────────────────────────────── │
-│ ⓘ 成本为本地估算：按各 Provider 配置的单价│  ← 口径说明（去设置改单价 ↗）
-│   计算，非真实账单。[配置单价 ↗]          │
-└──────────────────────────────────────────┘
+History：记录检索 → 单条详情 → 再次制作 / 文件管理
+Settings / Usage：累计摘要 → 活动热力图 → 渠道趋势 → 模型与渠道分布
 ```
+
+History 顶栏不再显示累计成本入口。单条详情可以继续显示本次生成的渠道、模型、耗时与积分；统计页只把账号托管渠道的成功记录汇总为积分，豆包体验和用户自建 Provider 只统计用量与成功率。
 
 ### 4.5 错误码 → 用户文案表（失败重试 UX，对齐 docs/05 §5）
 
@@ -787,37 +775,37 @@ SQL 要点：`WHERE status='success'` + 时间区间；分组用 `strftime` 对 
 
 ---
 
-### <a id="task-his-14"></a>[TASK-HIS-14] 成本看板 UI（累计 + 按日周月 + 按 Provider + 图表）
+### <a id="task-his-14"></a>[TASK-HIS-14] 成本看板 UI（已被 V2 使用统计替代）
 
-- **状态**：✅ 已完成（2026-08-05：History 顶栏成本看板入口、累计/张数/均价三卡、按日/周/月柱图、按 Provider 明细、空态、未配单价提示与「配置单价」跳设置）
+- **状态**：↪ V1 已完成；V2 已迁移到设置 / 使用统计，History 入口与 `CostDashboard.tsx` 已删除
 - **优先级**：P2 · V1 差异化
 - **所属大功能**：History
 - **依赖**：TASK-HIS-12, TASK-HIS-13
 - **预估**：M
 
-**目标**：History 顶栏「📊 成本看板」→ 抽屉/视图展示：累计花费/张数/均价三卡 + 按日周月柱图 + 按 Provider 明细 + 口径说明（docs/05 §8）。
+**V2 目标**：由固定设置导航进入“使用统计”，展示累计生成、成功率、活跃天数、账号积分、53 周热力图、多渠道趋势、模型分布和渠道明细。
 
 **涉及文件**：
-- `src/features/history/components/CostDashboard.tsx`（新建）
-- `src/features/history/store.ts`（`loadStats(query)` 调 `history.stats`）
-- `src/pages/HistoryPage.tsx`（新增顶栏「成本看板」入口）
-- `tests/e2e/test_06_history.py`（新增成本看板 UI 验收）
+- `src/features/settings/components/UsageStatisticsSection.tsx`
+- `src/features/settings/UsageStatisticsCharts.tsx`
+- `src/pages/HistoryPage.tsx`（不再含累计成本入口）
+- `tests/e2e/test_06_history.py`、`test_39_usage_statistics_v2_desktop.py`
 
 **IPC 契约**：消费 `db:history:stats`（TASK-HIS-12）。
 
-**交互与 UI/UX**：见 §4.4。时间范围 + 分组切换即拉 stats；图表用轻量 SVG/div 柱状（不引 chart 重库）；hover 显具体值；底部口径说明 + [配置单价 ↗]（跳设置）。
+**交互与 UI/UX**：见 `docs/v2.0/ui-design/06-settings-and-integrations.md` §28。
 
 **验收标准**：
-- [x] 三张汇总卡（累计/张数/均价）数值与 stats 一致
-- [x] 按日/周/月切换重新聚合、柱图刷新
-- [x] 按 Provider 明细列出各家花费/张数
-- [x] 明确「本地估算，非真实账单」口径 + 配置单价入口
-- [x] 空数据（无 success）显友好空态
+- [x] 五项摘要、53 周热力图、趋势、模型和渠道明细与 stats 一致
+- [x] 近 7/30/90 日与累计切换重新聚合
+- [x] 账号、豆包和各自建 Provider 分渠道展示
+- [x] 仅账号成功记录汇总积分，非账号渠道固定显示“不计积分”
+- [x] 趋势、模型和渠道均覆盖空态
 
 **测试场景**：
-1. 正常：本月按天 → 柱图 + 汇总正确。
-2. 边界：单一 Provider → 明细仅一行。
-3. 异常：全部 cost=null → 显「未配单价，去设置 ↗」引导。
+1. 正常：三个渠道、多个模型 → 摘要与趋势正确。
+2. 边界：自建 Provider 存在 cost → 仍不计入账号积分。
+3. 异常：无成功记录 → 分区空态保持稳定几何。
 
 **质量门禁**：
 - [x] `npm run typecheck` 通过

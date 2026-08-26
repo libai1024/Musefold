@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -94,7 +95,7 @@ export function GlobalErrorDialog() {
             应用捕获到一个异常。请复制错误信息，便于定位问题。
           </DialogDescription>
         </DialogHeader>
-        {item && <ErrorDetails item={item} />}
+        <DialogBody className="gap-2">{item && <ErrorDetails item={item} />}</DialogBody>
         <DialogFooter className="pt-1">
           <Button
             type="button"
@@ -103,9 +104,11 @@ export function GlobalErrorDialog() {
             onClick={copy}
             data-testid="global-error-copy"
           >
-            {copied
-              ? <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+            {copied ? (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
             {copied ? '已复制' : '复制错误信息'}
           </Button>
           <Button

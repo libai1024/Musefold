@@ -2,12 +2,28 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const sidebar = readFileSync('apps/desktop/src/components/layout/Sidebar.tsx', 'utf8');
-const switcher = readFileSync('apps/desktop/src/components/layout/SidebarAccessSwitcher.tsx', 'utf8');
-const settings = readFileSync('apps/desktop/src/features/settings/components/SettingsView.tsx', 'utf8');
+const switcher = readFileSync(
+  'apps/desktop/src/components/layout/SidebarAccessSwitcher.tsx',
+  'utf8',
+);
+const overlays = readFileSync('apps/desktop/src/styles/overlays-v2.css', 'utf8');
+const settings = readFileSync(
+  'apps/desktop/src/features/settings/components/SettingsView.tsx',
+  'utf8',
+);
 const settingsStore = readFileSync('apps/desktop/src/features/settings/store.ts', 'utf8');
-const relaySection = readFileSync('apps/desktop/src/features/settings/components/RelaySection.tsx', 'utf8');
-const transitions = readFileSync('apps/desktop/src/features/settings/components/AccessTransitions.tsx', 'utf8');
-const doubao = readFileSync('apps/desktop/src/features/settings/components/DoubaoSection.tsx', 'utf8');
+const relaySection = readFileSync(
+  'apps/desktop/src/features/settings/components/RelaySection.tsx',
+  'utf8',
+);
+const transitions = readFileSync(
+  'apps/desktop/src/features/settings/components/AccessTransitions.tsx',
+  'utf8',
+);
+const doubao = readFileSync(
+  'apps/desktop/src/features/settings/components/DoubaoSection.tsx',
+  'utf8',
+);
 const account = [
   readFileSync('apps/desktop/src/features/settings/components/AccountSection.tsx', 'utf8'),
   readFileSync('apps/desktop/src/features/settings/components/AccountSignedInPanel.tsx', 'utf8'),
@@ -21,7 +37,10 @@ const agentConnections = [
   readFileSync('apps/desktop/src/features/settings/components/AiConnectionsSection.tsx', 'utf8'),
   readFileSync('apps/desktop/src/features/settings/components/AiConnectionDetailPanel.tsx', 'utf8'),
 ].join('\n');
-const accountSwitch = readFileSync('apps/desktop/src/features/settings/account-source-switch.ts', 'utf8');
+const accountSwitch = readFileSync(
+  'apps/desktop/src/features/settings/account-source-switch.ts',
+  'utf8',
+);
 const doubaoBrowser = readFileSync('apps/desktop/electron/doubao-web/browser-service.ts', 'utf8');
 
 describe('AI access identity menu and sidebar contract', () => {
@@ -35,6 +54,27 @@ describe('AI access identity menu and sidebar contract', () => {
     expect(switcher).toContain('data-testid="identity-switcher"');
     expect(switcher).toContain('account-source-option-${account.source}');
     expect(switcher).toContain('relay-model-option-${provider.id}');
+  });
+
+  it('uses shared dropdown semantics for both sidebar access menus', () => {
+    expect(switcher).toContain('<DropdownMenu modal={false}');
+    expect(switcher).toContain('<DropdownMenuTrigger asChild>');
+    expect(switcher).toContain('<DropdownMenuContent');
+    expect(switcher).toContain('<DropdownMenuLabel>生图账号</DropdownMenuLabel>');
+    expect(switcher).toContain('<DropdownMenuSeparator />');
+    expect(switcher).toContain('side="top"');
+    expect(switcher).toContain('w-[292px]');
+    expect(switcher).toContain('w-[220px]');
+    expect(switcher).toContain('void chooseRelayProvider(provider.id)');
+    expect(switcher).toContain('onCloseAutoFocus={(event) => {');
+    expect(switcher).toContain('identityTriggerRef.current?.focus()');
+    expect(switcher).toContain('settingsTriggerRef.current?.focus()');
+    expect(overlays).toContain('border-radius: var(--radius-lg);');
+    expect(overlays).toContain('z-index: 75;');
+    expect(switcher).not.toContain('createPortal');
+    expect(switcher).not.toContain('document.addEventListener');
+    expect(switcher).not.toContain('menuAnchor');
+    expect(switcher).not.toContain('settingsAnchor');
   });
 
   it('lets the identity menu switch between Doubao and the official account', () => {
@@ -83,7 +123,9 @@ describe('AI access identity menu and sidebar contract', () => {
     expect(relaySection).toContain('ProvidersRelayPanel');
     expect(relaySection).toContain('AiConnectionsRelayPanel');
     expect(relaySection).toContain('testIdPrefix="relay-tab"');
-    expect(settingsStore).toContain("relayTab: input === 'providers' || input === 'ai' ? input : state.relayTab");
+    expect(settingsStore).toContain(
+      "relayTab: input === 'providers' || input === 'ai' ? input : state.relayTab",
+    );
   });
 
   it('does not let configuration and login bypass the access-mode switch', () => {

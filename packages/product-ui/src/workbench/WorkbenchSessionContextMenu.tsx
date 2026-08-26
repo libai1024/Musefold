@@ -19,6 +19,7 @@ import { Button } from "@musefold/ui";
 
 export interface WorkbenchSessionContextMenuProps {
   anchor: { x: number; y: number };
+  returnFocusTarget?: HTMLElement | null;
   title: string;
   pinned: boolean;
   onClose: () => void;
@@ -32,6 +33,7 @@ export interface WorkbenchSessionContextMenuProps {
 /** Shared recent-conversation menu. Hosts only provide persistence actions. */
 export function WorkbenchSessionContextMenu({
   anchor,
+  returnFocusTarget,
   title,
   pinned,
   onClose,
@@ -42,6 +44,7 @@ export function WorkbenchSessionContextMenu({
   onDelete,
 }: WorkbenchSessionContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [position, setPosition] = useState(anchor);
 
   useLayoutEffect(() => {
@@ -60,8 +63,19 @@ export function WorkbenchSessionContextMenu({
   }, [anchor.x, anchor.y]);
 
   useEffect(() => {
-    menuRef.current?.focus();
-  }, []);
+    returnFocusRef.current =
+      returnFocusTarget ??
+      (document.activeElement as HTMLElement | null);
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+  }, [returnFocusTarget]);
+
+  const closeAndRestoreFocus = () => {
+    const returnFocus = returnFocusRef.current;
+    onClose();
+    window.requestAnimationFrame(() => {
+      if (returnFocus?.isConnected) returnFocus.focus();
+    });
+  };
 
   useEffect(() => {
     const closeOnPointerDown = (event: PointerEvent) => {
@@ -74,7 +88,10 @@ export function WorkbenchSessionContextMenu({
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAndRestoreFocus();
+      }
     };
     document.addEventListener("pointerdown", closeOnPointerDown);
     document.addEventListener("keydown", closeOnEscape);
@@ -171,7 +188,7 @@ export function WorkbenchSessionContextMenu({
         onMarkUnread,
         "conversation-context-unread",
       )}
-      <div className="mf-workbench-session-context-separator" />
+      <div className="mf-workbench-session-context-separator" role="separator" />
       {action(
         "删除聊天",
         <Trash2 aria-hidden="true" />,

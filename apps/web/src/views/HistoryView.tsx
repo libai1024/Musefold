@@ -26,10 +26,7 @@ import { downloadImage } from '../download-image';
 
 export interface HistoryViewProps {
   history: HistoryGateway;
-  generation: Pick<
-    GenerationGateway,
-    'getGeneration' | 'retryGeneration' | 'cancelGeneration'
-  >;
+  generation: Pick<GenerationGateway, 'getGeneration' | 'retryGeneration' | 'cancelGeneration'>;
   platform: PlatformServices;
   onReuse: (job: GenerationJob) => void;
   onSavePrompt: (job: GenerationJob) => Promise<PromptDocument>;
@@ -57,7 +54,6 @@ export function HistoryView({
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedPromptIds, setSavedPromptIds] = useState<Set<string>>(() => new Set());
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -66,8 +62,6 @@ export function HistoryView({
     const latest = page.items.find((item) => item.id === selected.id);
     if (latest) setSelected(latest);
   }, [page.items, selected?.id, selected?.deletedAt]);
-
-  useEffect(() => setConfirmDelete(false), [selected?.id]);
 
   const items = useMemo<GenerationHistoryItemViewModel[]>(
     () =>
@@ -129,7 +123,6 @@ export function HistoryView({
     else inspector.openList();
     setError(null);
     setNotice(null);
-    setConfirmDelete(false);
   };
 
   const retrySelected = () => {
@@ -182,7 +175,6 @@ export function HistoryView({
   const deleteSelected = () => {
     if (!selected) return;
     const id = selected.id;
-    setConfirmDelete(false);
     setBusyAction('delete');
     setError(null);
     inspector.openList();
@@ -325,6 +317,7 @@ export function HistoryView({
         }
         actions={
           <GenerationHistoryDetailActions
+            contextKey={selected.id}
             layout="stacked"
             deleted={Boolean(selected.deletedAt)}
             busyAction={busyAction}
@@ -342,29 +335,12 @@ export function HistoryView({
             }
             savePromptLabel={savedPromptIds.has(selected.id) ? '已存为提示词' : '存为提示词'}
             onCopyPrompt={() => void copyPrompt()}
-            onDelete={!selected.deletedAt ? () => setConfirmDelete(true) : undefined}
-            extraActions={
-              confirmDelete ? (
-                <span className="mf-history-delete-confirm" role="group">
-                  <Button
-                    variant="secondary"
-                    className="mf-secondary-button"
-                    onClick={() => setConfirmDelete(false)}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    variant="danger"
-                    className="mf-danger-button"
-                    disabled={Boolean(busyAction)}
-                    onClick={deleteSelected}
-                    data-testid="history-detail-delete-confirm"
-                  >
-                    {busyAction === 'delete' ? '处理中...' : '移到回收站'}
-                  </Button>
-                </span>
-              ) : null
-            }
+            onDelete={!selected.deletedAt ? deleteSelected : undefined}
+            deleteConfirmation={{
+              title: '将这条生成记录移到回收站？',
+              description: '图片资产会保留，可从回收站恢复。',
+              confirmLabel: '移到回收站',
+            }}
           />
         }
       />

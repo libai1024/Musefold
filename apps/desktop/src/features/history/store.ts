@@ -41,12 +41,14 @@ export interface HistoryRemoveOptions {
 
 interface HistoryState {
   filters: HistoryFilters;
+  searchQuery: string;
   selectedId: string | null;
   inspectorCollapsed: boolean;
   /** 以历史 id 去重的重试中任务，供列表和详情共享进度态 */
   retryingIds: Set<string>;
 
   setFilters: (patch: Partial<HistoryFilters>) => void;
+  setSearchQuery: (query: string) => void;
   clearFilters: () => void;
   hasActiveFilters: () => boolean;
   activeFilterCount: () => number;
@@ -130,6 +132,7 @@ async function invalidateHistory(): Promise<void> {
 
 export const useHistoryStore = create<HistoryState>((set, get) => ({
   filters: { ...DEFAULT_HISTORY_FILTERS },
+  searchQuery: '',
   selectedId: null,
   inspectorCollapsed: false,
   retryingIds: new Set(),
@@ -153,12 +156,16 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({ filters: next });
   },
 
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+
   clearFilters: () => {
-    set({ filters: { ...DEFAULT_HISTORY_FILTERS } });
+    set({ filters: { ...DEFAULT_HISTORY_FILTERS }, searchQuery: '' });
   },
 
-  hasActiveFilters: () => countActiveHistoryFilters(get().filters) > 0,
-  activeFilterCount: () => countActiveHistoryFilters(get().filters),
+  hasActiveFilters: () =>
+    countActiveHistoryFilters(get().filters) > 0 || Boolean(get().searchQuery.trim()),
+  activeFilterCount: () =>
+    countActiveHistoryFilters(get().filters) + (get().searchQuery.trim() ? 1 : 0),
 
   select: (id) => {
     set({ selectedId: id });
@@ -172,7 +179,9 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 
   remove: async (id, opts) => {
-    const result = await desktopGateway.deleteHistory(opts?.deleteFile ? { id, deleteFile: true } : id);
+    const result = await desktopGateway.deleteHistory(
+      opts?.deleteFile ? { id, deleteFile: true } : id,
+    );
     dropHistoryRecord(id);
     set((s) => ({ selectedId: s.selectedId === id ? null : s.selectedId }));
     void invalidateHistory();

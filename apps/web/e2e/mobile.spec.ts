@@ -251,7 +251,7 @@ test('left drawer holds functions, conversations and account; main stays the com
       navBelowHeader: navBox.top > rootBox.top,
       sessionsBelowNav: sessionBox.top >= navBox.bottom - 1,
       accountBelowSessions: accountBox.top >= sessionBox.bottom - 1,
-      accountAtBottom: Math.round(rootBox.bottom - accountBox.bottom) <= 2,
+      accountBottomInset: Math.round(rootBox.bottom - accountBox.bottom),
       accountHeight: Math.round(accountBox.height),
     };
   });
@@ -259,7 +259,8 @@ test('left drawer holds functions, conversations and account; main stays the com
   expect(drawerMetrics!.navBelowHeader).toBe(true);
   expect(drawerMetrics!.sessionsBelowNav).toBe(true);
   expect(drawerMetrics!.accountBelowSessions).toBe(true);
-  expect(drawerMetrics!.accountAtBottom).toBe(true);
+  expect(drawerMetrics!.accountBottomInset).toBeGreaterThanOrEqual(6);
+  expect(drawerMetrics!.accountBottomInset).toBeLessThanOrEqual(10);
   expect(drawerMetrics!.accountHeight).toBeGreaterThanOrEqual(44);
 
   await openCompactSidebar(page);

@@ -5,7 +5,6 @@ import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import * as SliderPrimitive from '@radix-ui/react-slider';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
-import * as ToastPrimitive from '@radix-ui/react-toast';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import {
   AlertCircle,
@@ -90,6 +89,12 @@ export const DialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttribute
     return (
       <div ref={ref} className={mergeClassNames('mf-ui-dialog-header', className)} {...props} />
     );
+  },
+);
+
+export const DialogBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  function DialogBody({ className, ...props }, ref) {
+    return <div ref={ref} className={mergeClassNames('mf-ui-dialog-body', className)} {...props} />;
   },
 );
 
@@ -233,83 +238,6 @@ export const TooltipContent = React.forwardRef<
   );
 });
 
-export const ToastProvider = ToastPrimitive.Provider;
-
-export const ToastViewport = React.forwardRef<
-  React.ComponentRef<typeof ToastPrimitive.Viewport>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitive.Viewport>
->(function ToastViewport({ className, ...props }, ref) {
-  return (
-    <ToastPrimitive.Viewport
-      ref={ref}
-      className={mergeClassNames('mf-ui-toast-viewport', className)}
-      {...props}
-    />
-  );
-});
-
-export type UiToastVariant = 'default' | 'success' | 'danger' | 'warning' | 'accent';
-
-export interface UiToastProps extends React.ComponentPropsWithoutRef<typeof ToastPrimitive.Root> {
-  variant?: UiToastVariant;
-}
-
-export const Toast = React.forwardRef<React.ComponentRef<typeof ToastPrimitive.Root>, UiToastProps>(
-  function Toast({ className, variant = 'default', ...props }, ref) {
-    return (
-      <ToastPrimitive.Root
-        ref={ref}
-        data-variant={variant}
-        className={mergeClassNames('mf-ui-toast', className)}
-        {...props}
-      />
-    );
-  },
-);
-
-export const ToastTitle = React.forwardRef<
-  React.ComponentRef<typeof ToastPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitive.Title>
->(function ToastTitle({ className, ...props }, ref) {
-  return (
-    <ToastPrimitive.Title
-      ref={ref}
-      className={mergeClassNames('mf-ui-toast-title', className)}
-      {...props}
-    />
-  );
-});
-
-export const ToastDescription = React.forwardRef<
-  React.ComponentRef<typeof ToastPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitive.Description>
->(function ToastDescription({ className, ...props }, ref) {
-  return (
-    <ToastPrimitive.Description
-      ref={ref}
-      className={mergeClassNames('mf-ui-toast-description', className)}
-      {...props}
-    />
-  );
-});
-
-export const ToastClose = React.forwardRef<
-  React.ComponentRef<typeof ToastPrimitive.Close>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitive.Close>
->(function ToastClose({ className, ...props }, ref) {
-  return (
-    <ToastPrimitive.Close asChild ref={ref} {...props}>
-      <IconButton
-        className={mergeClassNames('mf-ui-toast-close', className)}
-        label="关闭通知"
-        size="xs"
-      >
-        <X aria-hidden="true" />
-      </IconButton>
-    </ToastPrimitive.Close>
-  );
-});
-
 export interface UiInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   mono?: boolean;
 }
@@ -413,6 +341,7 @@ export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
+export { DropdownMenuContent } from './dropdown-menu-content';
 
 export const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubTrigger>,
@@ -444,23 +373,6 @@ export const DropdownMenuSubContent = React.forwardRef<
       {...props}
     />
   );
-});
-
-export const DropdownMenuContent = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(function DropdownMenuContent({ className, sideOffset = 4, ...props }, ref) {
-  const content = (
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={mergeClassNames('mf-ui-dropdown-content', className)}
-      {...props}
-    />
-  );
-  // Node 静态渲染没有 document，Portal 会丢掉内容；浏览器仍走 Portal。
-  if (typeof document === 'undefined') return content;
-  return <DropdownMenuPrimitive.Portal>{content}</DropdownMenuPrimitive.Portal>;
 });
 
 export const DropdownMenuItem = React.forwardRef<

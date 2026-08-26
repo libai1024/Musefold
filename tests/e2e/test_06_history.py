@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -110,6 +111,177 @@ def goto_history(app):
     app.set_view("history")
     app.page.wait_for_selector('[data-testid="history-list"]', timeout=15_000)
     app.page.wait_for_selector('[data-testid="history-row"]', timeout=15_000)
+
+
+def open_detail_actions(app):
+    app.page.get_by_test_id("history-detail-menu").click()
+    menu = app.page.get_by_role("menu", name="生成记录操作")
+    menu.wait_for()
+    return menu
+
+
+def test_history_v2_shell_search_and_inspector_geometry(app):
+    """2.0 桌面历史页保持唯一标题，并以独立 Dock 展示当前记录。"""
+    visual_output = os.environ.get("MUSEFOLD_VISUAL_OUTPUT_DIR")
+    output = Path(visual_output) if visual_output else None
+    if output:
+        output.mkdir(parents=True, exist_ok=True)
+    app.page.set_viewport_size({"width": 1440, "height": 900})
+    app.page.evaluate(
+        """() => {
+          const store = window.__musefold_test.stores.app.getState();
+          store.setThemeSource('dark');
+          store.setDensity('comfortable');
+        }"""
+    )
+    app.page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
+    prompt = "V2 history inspector geometry"
+    insert_history(
+        app,
+        hid="history-v2-layout",
+        provider_id="provider-v2-layout",
+        created_at=int(time.time() * 1000),
+        status="success",
+        prompt_text=prompt,
+    )
+    goto_history(app)
+
+    assert app.page.get_by_test_id("titlebar-title").inner_text() == "生成历史"
+    assert app.page.get_by_test_id("history-page").locator("h1").count() == 0
+    assert app.page.get_by_test_id("history-inspector-toggle").is_disabled()
+    filter_toggle = app.page.get_by_test_id("history-filter-toggle")
+    assert filter_toggle.get_attribute("aria-expanded") == "false"
+    assert app.page.get_by_test_id("history-filter-bar").count() == 0
+    collapsed_geometry = app.page.evaluate(
+        """() => {
+          const toolbar = document.querySelector('.mf-history-shell-toolbar');
+          const count = document.querySelector('.mf-history-shell-count');
+          const actions = document.querySelector('.mf-history-shell-actions');
+          const toggle = document.querySelector('[data-testid="history-filter-toggle"]');
+          if (!toolbar || !count || !actions || !toggle) return null;
+          const rect = element => element.getBoundingClientRect();
+          const style = element => getComputedStyle(element);
+          return {
+            toolbar: rect(toolbar),
+            count: rect(count),
+            actions: rect(actions),
+            toggle: rect(toggle),
+            toggleRadius: style(toggle).borderRadius,
+            documentWidth: document.documentElement.scrollWidth,
+            viewportWidth: innerWidth,
+          };
+        }"""
+    )
+    assert collapsed_geometry is not None
+    assert collapsed_geometry["toolbar"]["height"] == 40
+    assert collapsed_geometry["count"]["x"] < collapsed_geometry["actions"]["x"]
+    assert abs(
+        collapsed_geometry["count"]["y"]
+        + collapsed_geometry["count"]["height"] / 2
+        - collapsed_geometry["actions"]["y"]
+        - collapsed_geometry["actions"]["height"] / 2
+    ) <= 1
+    assert collapsed_geometry["toggle"]["height"] == 28
+    assert collapsed_geometry["toggleRadius"] == "8px"
+    assert collapsed_geometry["documentWidth"] <= collapsed_geometry["viewportWidth"] + 1
+    if output:
+        app.page.screenshot(path=str(output / "history-filter-collapsed-dark.png"))
+
+    filter_toggle.click()
+    assert filter_toggle.get_attribute("aria-expanded") == "true"
+    assert app.page.get_by_test_id("history-filter-bar").is_visible()
+    expanded_geometry = app.page.evaluate(
+        """() => {
+          const toolbar = document.querySelector('.mf-history-shell-toolbar');
+          const filters = document.querySelector('[data-testid="history-filter-bar"]');
+          const workspace = document.querySelector('[data-testid="history-workspace"]');
+          if (!toolbar || !filters || !workspace) return null;
+          const rect = element => element.getBoundingClientRect();
+          return {
+            toolbar: rect(toolbar),
+            filters: rect(filters),
+            workspace: rect(workspace),
+            filterRadius: getComputedStyle(filters).borderRadius,
+          };
+        }"""
+    )
+    assert expanded_geometry is not None
+    assert expanded_geometry["filters"]["y"] >= expanded_geometry["toolbar"]["bottom"] + 7
+    assert expanded_geometry["filters"]["bottom"] < expanded_geometry["workspace"]["y"]
+    assert expanded_geometry["filterRadius"] == "8px"
+    if output:
+        app.page.screenshot(path=str(output / "history-filter-expanded-dark.png"))
+        app.page.evaluate(
+            "window.__musefold_test.stores.app.getState().setThemeSource('light')"
+        )
+        app.page.wait_for_function(
+            "document.documentElement.dataset.theme === 'light'"
+        )
+        app.page.screenshot(path=str(output / "history-filter-expanded-light.png"))
+    app.page.get_by_test_id("history-filter-status").click()
+    status_option = app.page.get_by_test_id("history-filter-status-succeeded")
+    assert status_option.is_visible()
+    status_option.click()
+
+    search = app.page.get_by_test_id("history-filter-search")
+    search.fill(prompt)
+    app.page.wait_for_function(
+        """prompt => {
+          const rows = [...document.querySelectorAll('[data-testid="history-row"]')];
+          return rows.length === 1 && rows[0].textContent.includes(prompt);
+        }""",
+        arg=prompt,
+    )
+    assert app.page.get_by_test_id("history-filter-count").inner_text() == "2"
+
+    filter_toggle.click()
+    assert filter_toggle.get_attribute("aria-expanded") == "false"
+    assert app.page.get_by_test_id("history-filter-bar").count() == 0
+    assert app.page.get_by_test_id("history-row").count() == 1
+    if output:
+        app.page.screenshot(path=str(output / "history-filter-active-collapsed-light.png"))
+
+    row = app.page.get_by_test_id("history-row")
+    row.click()
+    app.page.wait_for_selector('[data-testid="history-detail-content"]')
+    app.page.wait_for_function(
+        """() => {
+          const inspector = document.querySelector('[data-testid="history-inspector"]');
+          return inspector && Math.abs(inspector.getBoundingClientRect().width - 324) <= 1;
+        }"""
+    )
+    assert row.get_attribute("data-selected") == "true"
+
+    geometry = app.page.get_by_test_id("history-workspace").evaluate(
+        """workspace => {
+          const list = workspace.querySelector('.mf-history-workspace-list');
+          const inspector = workspace.querySelector('[data-testid="history-inspector"]');
+          const surface = workspace.querySelector('.mf-history-inspector-surface');
+          if (!list || !inspector || !surface) return null;
+          const listBox = list.getBoundingClientRect();
+          const inspectorBox = inspector.getBoundingClientRect();
+          const surfaceStyle = getComputedStyle(surface);
+          return {
+            listRight: listBox.right,
+            inspectorLeft: inspectorBox.left,
+            inspectorWidth: inspectorBox.width,
+            surfaceWidth: surface.getBoundingClientRect().width,
+            surfaceRadius: parseFloat(surfaceStyle.borderTopLeftRadius),
+          };
+        }"""
+    )
+    assert geometry is not None
+    assert geometry["listRight"] <= geometry["inspectorLeft"] + 1
+    assert abs(geometry["inspectorWidth"] - 324) <= 1
+    assert abs(geometry["surfaceWidth"] - 320) <= 1
+    assert geometry["surfaceRadius"] >= 11
+
+    app.page.get_by_test_id("history-detail-close").click()
+    app.page.wait_for_function(
+        """() => document.querySelector('[data-testid="history-workspace"]')
+          ?.getAttribute('data-detail-open') === 'false'"""
+    )
+    assert app.page.get_by_test_id("history-row").get_attribute("data-selected") == "false"
 
 
 def prompt_rows_by_source(app, source_url: str):
@@ -278,7 +450,7 @@ def test_history_detail_file_actions_copy_and_open_path(app):
         has_text="history prompt hist-success-file"
     )
     success_row.click()
-    app.page.wait_for_selector('[data-testid="history-detail-folder"]')
+    open_detail_actions(app)
 
     assert not app.page.is_disabled('[data-testid="history-detail-folder"]')
     assert not app.page.is_disabled('[data-testid="history-detail-copy-image"]')
@@ -286,6 +458,7 @@ def test_history_detail_file_actions_copy_and_open_path(app):
     app.page.click('[data-testid="history-detail-copy-image"]')
     assert "已复制图片" in app.page.inner_text("body")
 
+    open_detail_actions(app)
     app.page.click('[data-testid="history-detail-folder"]')
     app.page.wait_for_function(
         "() => document.body.innerText.includes('已在文件夹中定位图片')",
@@ -296,8 +469,10 @@ def test_history_detail_file_actions_copy_and_open_path(app):
         has_text="history prompt hist-failed-no-file"
     )
     failed_row.click()
+    open_detail_actions(app)
     assert app.page.is_disabled('[data-testid="history-detail-folder"]')
     assert app.page.is_disabled('[data-testid="history-detail-copy-image"]')
+    app.page.keyboard.press("Escape")
 
     missing = app.api("system.openInFolder", missing_path)
     assert not missing["ok"], missing
@@ -378,6 +553,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete keep source file"
     ).click()
+    open_detail_actions(app)
     app.page.click('[data-testid="history-detail-delete"]')
     app.page.click('[data-testid="history-detail-delete-confirm"]')
     app.page.wait_for_function(
@@ -390,6 +566,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete source file"
     ).click()
+    open_detail_actions(app)
     app.page.click('[data-testid="history-detail-delete-file"]')
     app.page.wait_for_selector('[data-testid="history-delete-file-dialog"]', timeout=5_000)
     app.page.click('[data-testid="history-delete-file-confirm"]')
@@ -407,6 +584,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete missing source file"
     ).click()
+    open_detail_actions(app)
     app.page.click('[data-testid="history-detail-delete-file"]')
     app.page.wait_for_selector('[data-testid="history-delete-file-dialog"]', timeout=5_000)
     app.page.click('[data-testid="history-delete-file-confirm"]')
@@ -419,6 +597,7 @@ def test_history_delete_with_source_file_and_disk_usage(app):
     app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history delete outside source file"
     ).click()
+    open_detail_actions(app)
     app.page.click('[data-testid="history-detail-delete-file"]')
     app.page.wait_for_selector('[data-testid="history-delete-file-dialog"]', timeout=5_000)
     app.page.click('[data-testid="history-delete-file-confirm"]')
@@ -456,6 +635,7 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         status="success",
         prompt_text="history stats january cost",
         created_at=jan_15,
+        params={"usageChannel": "account", "providerNameSnapshot": "Musefold 账号"},
     )
     set_history_cost(app, "hist-stats-jan-cost", 1)
     insert_history(
@@ -465,6 +645,7 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         status="success",
         prompt_text="history stats january null cost",
         created_at=jan_20,
+        params={"usageChannel": "account", "providerNameSnapshot": "Musefold 账号"},
     )
     set_history_cost(app, "hist-stats-jan-null", None)
     insert_history(
@@ -474,6 +655,7 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         status="success",
         prompt_text="history stats february cost",
         created_at=feb_02,
+        params={"usageChannel": "provider", "providerNameSnapshot": "Stats Provider B"},
     )
     set_history_cost(app, "hist-stats-feb-cost", 3)
     insert_history(
@@ -485,6 +667,7 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         message="not billed",
         prompt_text="history stats failed noise",
         created_at=feb_02 + 1,
+        params={"usageChannel": "provider", "providerNameSnapshot": "Stats Provider B"},
     )
     set_history_cost(app, "hist-stats-failed-noise", 999)
     insert_history(
@@ -496,21 +679,51 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
         message="not billed",
         prompt_text="history stats cancelled noise",
         created_at=feb_02 + 2,
+        params={"usageChannel": "account", "providerNameSnapshot": "Musefold 账号"},
     )
     set_history_cost(app, "hist-stats-cancelled-noise", 888)
 
     stats = app.api_ok("history.stats", {"groupBy": "month"})
-    assert stats["totalCost"] == 4
+    assert stats["totalCost"] == 1
+    assert stats["accountPoints"] == 1
     assert stats["totalCount"] == 3
-    assert abs(stats["avgCost"] - (4 / 3)) < 1e-9
+    assert stats["attemptCount"] == 5
+    assert stats["failedCount"] == 1
+    assert stats["cancelledCount"] == 1
+    assert stats["activeDays"] == 3
+    assert stats["avgCost"] == 0.5
     assert stats["buckets"] == [
-        {"key": "2026-01", "cost": 1, "count": 2, "unit": "point"},
-        {"key": "2026-02", "cost": 3, "count": 1, "unit": "point"},
+        {
+            "key": "2026-01", "cost": 1, "count": 2, "attemptCount": 2,
+            "failedCount": 0, "cancelledCount": 0, "unit": "point",
+            "channels": [{"channelId": "account", "kind": "account", "name": "Musefold 账号", "count": 2}],
+        },
+        {
+            "key": "2026-02", "cost": 0, "count": 1, "attemptCount": 3,
+            "failedCount": 1, "cancelledCount": 1, "unit": "point",
+            "channels": [{
+                "channelId": f"provider:{provider_b['id']}", "kind": "provider",
+                "name": "Stats Provider B", "count": 1,
+            }],
+        },
     ]
     assert stats["byProvider"] == [
-        {"providerId": provider_b["id"], "name": "Stats Provider B", "cost": 3, "count": 1, "unit": "point"},
-        {"providerId": provider_a["id"], "name": "Stats Provider A", "cost": 1, "count": 2, "unit": "point"},
+        {"providerId": provider_a["id"], "name": "Musefold 账号", "cost": 1, "count": 2, "unit": "point"},
+        {"providerId": provider_b["id"], "name": "Stats Provider B", "cost": 0, "count": 1, "unit": "point"},
     ]
+    assert stats["byChannel"] == [
+        {
+            "channelId": "account", "kind": "account", "name": "Musefold 账号", "providerId": None,
+            "attemptCount": 3, "successCount": 2, "failedCount": 0, "cancelledCount": 1,
+            "accountPoints": 1,
+        },
+        {
+            "channelId": f"provider:{provider_b['id']}", "kind": "provider", "name": "Stats Provider B",
+            "providerId": provider_b["id"], "attemptCount": 2, "successCount": 1,
+            "failedCount": 1, "cancelledCount": 0, "accountPoints": None,
+        },
+    ]
+    assert stats["byModel"] == [{"model": "gpt-image-2", "count": 3}]
 
     filtered = app.api_ok("history.stats", {
         "groupBy": "day",
@@ -521,20 +734,28 @@ def test_history_stats_aggregates_success_cost_by_time_and_provider(app):
     assert filtered["totalCost"] == 0
     assert filtered["totalCount"] == 1
     assert filtered["avgCost"] == 0
-    assert filtered["buckets"] == [{"key": "2026-01-20", "cost": 0, "count": 1, "unit": "point"}]
+    assert filtered["buckets"] == [{
+        "key": "2026-01-20", "cost": 0, "count": 1, "attemptCount": 1,
+        "failedCount": 0, "cancelledCount": 0, "unit": "point",
+        "channels": [{"channelId": "account", "kind": "account", "name": "Musefold 账号", "count": 1}],
+    }]
     assert filtered["byProvider"] == [
-        {"providerId": provider_a["id"], "name": "Stats Provider A", "cost": 0, "count": 1, "unit": "point"},
+        {"providerId": provider_a["id"], "name": "Musefold 账号", "cost": 0, "count": 1, "unit": "point"},
     ]
 
     empty = app.api_ok("history.stats", {"groupBy": "week", "providerId": "missing-provider"})
     assert empty["totalCost"] == 0
     assert empty["totalCount"] == 0
     assert empty["avgCost"] == 0
+    assert empty["attemptCount"] == 0
+    assert empty["accountPoints"] == 0
     assert empty["buckets"] == []
     assert empty["byProvider"] == []
+    assert empty["byChannel"] == []
+    assert empty["byModel"] == []
 
 
-def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(app):
+def test_usage_statistics_summarizes_channels_and_keeps_points_account_only(app):
     provider_a = app.api_ok("provider.create", {
         "name": "Dashboard Provider A",
         "type": "openai-compatible",
@@ -559,6 +780,7 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
         status="success",
         prompt_text="dashboard provider a cost",
         created_at=day_two,
+        params={"usageChannel": "account", "providerNameSnapshot": "Musefold 账号"},
     )
     set_history_cost(app, "hist-dashboard-a-cost", 1)
     insert_history(
@@ -568,6 +790,7 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
         status="success",
         prompt_text="dashboard provider a null",
         created_at=day_two + 1,
+        params={"usageChannel": "account", "providerNameSnapshot": "Musefold 账号"},
     )
     set_history_cost(app, "hist-dashboard-a-null", None)
     insert_history(
@@ -577,6 +800,7 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
         status="success",
         prompt_text="dashboard provider b cost",
         created_at=day_three,
+        params={"usageChannel": "provider", "providerNameSnapshot": "Dashboard Provider B"},
     )
     set_history_cost(app, "hist-dashboard-b-cost", 3)
     insert_history(
@@ -588,52 +812,45 @@ def test_history_cost_dashboard_summarizes_buckets_providers_and_settings_link(a
         message="not billed",
         prompt_text="dashboard failed noise",
         created_at=day_three + 1,
+        params={"usageChannel": "provider", "providerNameSnapshot": "Dashboard Provider B"},
     )
     set_history_cost(app, "hist-dashboard-failed-noise", 999)
 
     goto_history(app)
-    app.page.click('[data-testid="history-cost-open"]')
-    app.page.wait_for_selector('[data-testid="history-cost-dashboard"]')
+    assert app.page.locator('[data-testid="history-cost-open"]').count() == 0
+
+    app.set_view("settings")
+    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('usage')")
+    app.page.wait_for_selector('[data-testid="settings-usage-summary"]')
     app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"history-cost-total\"]')?.innerText.includes('4 积分')",
+        "() => document.querySelector('[data-testid=\"settings-usage-account-points\"]')?.innerText.includes('1 积分')",
         timeout=5_000,
     )
 
-    assert "3 张" in app.page.inner_text('[data-testid="history-cost-count"]')
-    assert "积分" in app.page.inner_text('[data-testid="history-cost-average"]')
-    assert app.page.locator('[data-testid="history-cost-bucket"]').count() == 2
+    assert "3 次" in app.page.inner_text('[data-testid="settings-usage-summary"]')
+    channels = app.page.locator('[data-testid="settings-usage-channel"]')
+    assert channels.count() == 2
+    assert channels.nth(0).get_attribute("data-channel-id") == "account"
+    assert "Musefold 账号" in channels.nth(0).inner_text()
+    assert "1 积分" in channels.nth(0).inner_text()
+    assert channels.nth(1).get_attribute("data-channel-id") == f"provider:{provider_b['id']}"
+    assert "Dashboard Provider B" in channels.nth(1).inner_text()
+    assert "不计积分" in channels.nth(1).inner_text()
+    assert app.page.locator('[data-testid="settings-usage-activity"]').is_visible()
+    assert app.page.locator('[data-testid="settings-usage-trend"]').is_visible()
+    assert app.page.locator('[data-testid="settings-usage-models"]').is_visible()
 
-    providers = app.page.locator('[data-testid="history-cost-provider"]')
-    assert providers.count() == 2
-    assert providers.nth(0).get_attribute("data-provider-id") == provider_b["id"]
-    assert "Dashboard Provider B" in providers.nth(0).inner_text()
-    assert "3 积分" in providers.nth(0).inner_text()
-    assert "Dashboard Provider A" in providers.nth(1).inner_text()
-    assert "1 积分" in providers.nth(1).inner_text()
-
-    app.page.click('[data-testid="history-cost-group-month"]')
-    app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"history-cost-group-month\"]')?.getAttribute('data-active') === 'true'",
-        timeout=5_000,
-    )
-    month_key = app.page.locator('[data-testid="history-cost-bucket"]').nth(0).get_attribute("data-key")
-    assert month_key and len(month_key) == 7 and month_key[4] == "-", month_key
-    assert "积分" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-    assert "非托管中转站不做本地计费" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-    assert app.page.locator('[data-testid="history-cost-configure"]').count() == 0
+    app.page.click('[data-testid="settings-usage-range-all"]')
+    assert app.page.get_by_test_id("settings-usage-range-all").get_attribute("aria-checked") == "true"
+    assert "只展示用量和成功率" in app.page.inner_text('[data-testid="settings-usage-accounting-note"]')
 
 
-def test_history_cost_dashboard_empty_and_unpriced_states(app):
-    app.set_view("history")
-    app.page.wait_for_selector('[data-testid="history-list"]', timeout=15_000)
-    app.page.click('[data-testid="history-cost-open"]')
-    app.page.wait_for_selector('[data-testid="history-cost-empty"]', timeout=5_000)
-    assert "还没有可统计的成功记录" in app.page.inner_text('[data-testid="history-cost-empty"]')
-    app.page.keyboard.press("Escape")
-    app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"history-cost-dashboard\"]') === null",
-        timeout=5_000,
-    )
+def test_usage_statistics_empty_and_unpriced_provider_states(app):
+    app.set_view("settings")
+    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('usage')")
+    app.page.wait_for_selector('[data-testid="settings-usage-summary"]', timeout=15_000)
+    assert "0 次" in app.page.inner_text('[data-testid="settings-usage-summary"]')
+    assert "暂无模型用量数据" in app.page.inner_text('[data-testid="settings-usage-models"]')
 
     provider = app.api_ok("provider.create", {
         "name": "Dashboard Unpriced Provider",
@@ -649,16 +866,16 @@ def test_history_cost_dashboard_empty_and_unpriced_states(app):
         status="success",
         prompt_text="dashboard unpriced cost",
         created_at=current_month_ms(app, 2),
+        params={"usageChannel": "provider", "providerNameSnapshot": "Dashboard Unpriced Provider"},
     )
     set_history_cost(app, "hist-dashboard-unpriced", None)
-    app.page.click('[data-testid="history-cost-open"]')
-    app.page.wait_for_selector('[data-testid="history-cost-dashboard"]')
+    app.page.click('[data-testid="settings-usage-refresh"]')
     app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"history-cost-count\"]')?.innerText.includes('1 张')",
+        "() => document.querySelector('[data-testid=\"settings-usage-summary\"]')?.innerText.includes('1 次')",
         timeout=5_000,
     )
-    assert "0 积分" in app.page.inner_text('[data-testid="history-cost-total"]')
-    assert "未记录成本" in app.page.inner_text('[data-testid="history-cost-unpriced"]')
+    assert "0 积分" in app.page.inner_text('[data-testid="settings-usage-account-points"]')
+    assert "不计积分" in app.page.inner_text('[data-testid="settings-usage-channel"]')
 
 
 def test_history_cleanup_menu_clears_old_noise_and_all_records(app):

@@ -208,21 +208,19 @@ def test_account_register_provisions_both_stacks_and_point_history(app, fake_new
     )
     assert "e2euser" in app.page.inner_text('[data-testid="sidebar-official-account"]')
 
-    app.page.evaluate("() => window.__musefold_test.setView('history')")
-    app.page.wait_for_selector('[data-testid="history-list"]')
-    app.page.click('[data-testid="history-cost-open"]')
+    app.page.evaluate("() => window.__musefold_test.setView('settings')")
+    app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('usage')")
+    app.page.wait_for_selector('[data-testid="settings-usage-summary"]')
     # 20000 quota = 0.4 积分
     app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"history-cost-total\"]')?.innerText.includes('0.4 积分')",
+        "() => document.querySelector('[data-testid=\"settings-usage-account-points\"]')?.innerText.includes('0.4 积分')",
         timeout=5_000,
     )
-    assert "10 积分" in app.page.inner_text('[data-testid="history-cost-balance"]')
-    assert "服务器计费" in app.page.inner_text('[data-testid="history-cost-disclaimer"]')
-    assert "Musefold 账号" in app.page.inner_text('[data-testid="history-cost-provider"]')
-    app.page.keyboard.press("Escape")
+    assert "10 积分" in app.page.inner_text('[data-testid="settings-usage-summary"]')
+    assert "Musefold 账号" in app.page.inner_text('[data-testid="settings-usage-channel"]')
+    assert "积分消耗仅统计 Musefold 账号渠道" in app.page.inner_text('[data-testid="settings-usage-accounting-note"]')
 
     # UI 登出（设置 → 账号 → 退出登录 → 确认），验证渲染层幽灵条目同步回收。
-    app.page.evaluate("() => window.__musefold_test.setView('settings')")
     app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('account')")
     app.page.get_by_role("button", name="退出登录").click()
     app.page.get_by_role("button", name="确认退出").click()

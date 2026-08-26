@@ -1,0 +1,17 @@
+.mf-ui-popover-content {
+  z-index: 55;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-popover);
+  color: var(--fg-primary);
+  box-shadow: var(--shadow-pop);
+  animation: mf-ui-scale-in var(--dur-base) var(--ease-out) both;
+  -webkit-app-region: no-drag;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mf-ui-popover-content {
+    animation: none;
+  }
+}

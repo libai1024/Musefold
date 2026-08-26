@@ -29,15 +29,21 @@ describe("recent conversation actions", () => {
     expect(sidebar).not.toContain("管理对话：");
   });
 
-  it("renders a viewport-aware glass context menu through a body portal", () => {
+  it("renders a viewport-aware solid context menu through a body portal", () => {
     expect(contextMenu).toContain("createPortal(");
     expect(contextMenu).toContain("document.body");
     expect(contextMenu).toContain("data-workbench-session-context-menu");
     expect(contextMenu).toContain("window.innerWidth - rect.width - 8");
     expect(contextMenu).toContain("window.innerHeight - rect.height - 8");
+    expect(sessionList).toContain("returnFocusTarget: HTMLElement");
+    expect(contextMenu).toContain("returnFocusTarget ??");
+    expect(sidebar).toContain("returnFocusTarget={contextMenu.returnFocusTarget}");
     expect(productStyles).toContain(".mf-workbench-session-context-menu");
-    expect(productStyles).toContain("backdrop-filter: blur(20px)");
-    expect(productStyles).toContain("z-index: 1000");
+    expect(productStyles).toContain("background: var(--bg-popover)");
+    expect(productStyles).toContain("border-radius: var(--radius-md)");
+    expect(productStyles).toContain("box-shadow: var(--shadow-pop)");
+    expect(productStyles).toContain("z-index: 55");
+    expect(productStyles).not.toContain("backdrop-filter: blur(20px)");
   });
 
   it("shares the same menu trigger and delete confirmation with the title bar", () => {

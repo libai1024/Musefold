@@ -8,7 +8,7 @@ export { useSchemeRunStore } from '../features/design-schemes/run-store';
 export { SchemeCreationConversation } from '../features/design-schemes/SchemeCreationConversation';
 export {
   SchemeRunAttachment,
-  SchemeRunPickerPopover,
   SchemeRunVariableFields,
 } from '../features/design-schemes/SchemeRunComposer';
+export { SchemeRunPickerPopover } from '../features/design-schemes/SchemeRunPicker';
 export { SchemeRunConversation } from '../features/design-schemes/SchemeRunConversation';

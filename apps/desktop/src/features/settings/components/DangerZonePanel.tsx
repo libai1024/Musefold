@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -86,47 +87,54 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
             </DialogDescription>
           </DialogHeader>
 
-          {done ? (
-            <div
-              className="flex items-start gap-2.5 rounded-md border border-success/30 bg-success/10 px-3.5 py-3"
-              data-testid="reset-data-done"
-            >
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium text-primary">清空完成</p>
-                <p className="mt-1 truncate font-mono text-meta text-tertiary">{done.backupPath}</p>
-                <p className="mt-1 text-meta text-tertiary">Provider、API 密钥与磁盘图片未改变。</p>
+          <DialogBody>
+            {done ? (
+              <div
+                className="flex items-start gap-2.5 rounded-md border border-success/30 bg-success/10 px-3.5 py-3"
+                data-testid="reset-data-done"
+              >
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-primary">清空完成</p>
+                  <p className="mt-1 truncate font-mono text-meta text-tertiary">
+                    {done.backupPath}
+                  </p>
+                  <p className="mt-1 text-meta text-tertiary">
+                    Provider、API 密钥与磁盘图片未改变。
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
-                提示词、文件夹、标签、片段、模板、组合和生成历史将被永久清空。
-              </div>
-              <label className="flex flex-col gap-1.5 text-[11px] text-secondary">
-                <span>
-                  输入 <span className="font-mono font-semibold text-danger">{CONFIRM_PHRASE}</span>{' '}
-                  以确认
-                </span>
-                <Input
-                  value={phrase}
-                  onChange={(event) => setPhrase(event.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                  data-testid="reset-data-phrase"
-                />
-              </label>
-              {error && (
-                <p
-                  className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger"
-                  data-testid="reset-data-error"
-                >
-                  {error}
-                </p>
-              )}
-            </>
-          )}
+            ) : (
+              <>
+                <div className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
+                  提示词、文件夹、标签、片段、模板、组合和生成历史将被永久清空。
+                </div>
+                <label className="flex flex-col gap-1.5 text-[11px] text-secondary">
+                  <span>
+                    输入{' '}
+                    <span className="font-mono font-semibold text-danger">{CONFIRM_PHRASE}</span>{' '}
+                    以确认
+                  </span>
+                  <Input
+                    value={phrase}
+                    onChange={(event) => setPhrase(event.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={busy}
+                    data-testid="reset-data-phrase"
+                  />
+                </label>
+                {error && (
+                  <p
+                    className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger"
+                    data-testid="reset-data-error"
+                  >
+                    {error}
+                  </p>
+                )}
+              </>
+            )}
+          </DialogBody>
 
           <DialogFooter>
             {done ? (

@@ -70,8 +70,33 @@ def test_delete_scheme_from_center_list(app, tmp_path):
     assert all(item["id"] != scheme_id for item in listed["data"]), listed
 
 
+def test_scheme_row_opens_non_overlaying_inspector(app, tmp_path):
+    package = _share_package(tmp_path)
+    imported = app.api_ok("designScheme.importScheme", str(package))
+    assert imported["ok"], imported
+    scheme_id = imported["data"]["scheme"]["id"]
+
+    app.set_view("design-schemes")
+    row = app.page.locator(f'[data-testid="runtime-scheme-row-{scheme_id}"]')
+    row.wait_for()
+    row.get_by_test_id(f"runtime-scheme-open-{scheme_id}").click()
+
+    inspector = app.page.get_by_test_id("scheme-inspector-shell")
+    inspector.wait_for()
+    list_box = app.page.get_by_test_id("scheme-list-workspace").bounding_box()
+    inspector_box = inspector.bounding_box()
+    assert list_box and inspector_box
+    assert list_box["x"] + list_box["width"] <= inspector_box["x"] + 1
+    assert row.get_attribute("data-selected") == "true"
+    assert app.page.get_by_test_id("scheme-search").is_visible()
+
+    app.page.get_by_test_id("scheme-inspector-close").click()
+    inspector.wait_for(state="detached")
+    assert row.get_attribute("data-selected") == "false"
+
+
 def test_delete_untrialed_scheme_from_detail_page(app, tmp_path):
-    """未试运行的草稿：详情页 ... 菜单 → 删除草稿 → 返回列表且方案消失。"""
+    """未试运行草稿：Inspector → 完整详情 → 删除草稿 → 返回列表。"""
     package = _share_package(tmp_path)
     imported = app.api_ok("designScheme.importScheme", str(package))
     assert imported["ok"], imported
@@ -82,10 +107,56 @@ def test_delete_untrialed_scheme_from_detail_page(app, tmp_path):
     row_open = app.page.locator(f'[data-testid="runtime-scheme-open-{scheme_id}"]')
     row_open.wait_for()
     row_open.click()
+    app.page.get_by_test_id("scheme-inspector-open-detail").click()
+    app.page.get_by_test_id("runtime-scheme-detail").wait_for()
+
+    # 详情页 ... 菜单使用共享 Dropdown：层级、质感和键盘导航都与其他 2.0 菜单一致。
+    app.page.evaluate("() => window.__musefold_test.stores.app.getState().setThemeSource('dark')")
+    app.page.wait_for_function(
+        "() => document.documentElement.dataset.theme === 'dark'"
+    )
+    menu_trigger = app.page.locator('[data-testid="runtime-scheme-menu"]')
+    menu_trigger.click()
+    menu = app.page.locator('[data-testid="runtime-scheme-menu-list"]')
+    menu.wait_for()
+    menu_style = menu.evaluate(
+        """node => {
+          const value = getComputedStyle(node);
+          return {
+            backgroundColor: value.backgroundColor,
+            borderRadius: value.borderRadius,
+            boxShadow: value.boxShadow,
+          };
+        }"""
+    )
+    assert menu_style["backgroundColor"] == "rgb(43, 45, 49)"
+    assert menu_style["borderRadius"] == "8px"
+    assert menu_style["boxShadow"] != "none"
+    first = menu.get_by_role("menuitem").first
+    last = menu.get_by_role("menuitem").last
+    assert first.evaluate("node => node === document.activeElement")
+    app.page.keyboard.press("End")
+    assert last.evaluate("node => node === document.activeElement")
+    app.page.keyboard.press("Home")
+    assert first.evaluate("node => node === document.activeElement")
+    app.page.keyboard.press("Escape")
+    menu.wait_for(state="detached")
+    assert menu_trigger.evaluate("node => node === document.activeElement")
+
+    app.page.evaluate("() => window.__musefold_test.stores.app.getState().setThemeSource('light')")
+    app.page.wait_for_function(
+        "() => document.documentElement.dataset.theme === 'light'"
+    )
+    menu_trigger.click()
+    menu = app.page.locator('[data-testid="runtime-scheme-menu-list"]')
+    menu.wait_for()
+    assert menu.evaluate("node => getComputedStyle(node).backgroundColor") == "rgb(253, 252, 249)"
+    app.page.keyboard.press("Escape")
+    menu.wait_for(state="detached")
 
     # 详情页 ... 菜单里删除草稿。
-    app.page.locator('[data-testid="runtime-scheme-menu"]').click()
-    app.page.locator('[data-testid="runtime-scheme-menu-remove"]').click()
+    menu_trigger.click()
+    app.page.get_by_test_id("runtime-scheme-menu-remove").click()
     app.page.locator('[data-testid="scheme-remove-dialog"]').wait_for()
     app.page.locator('[data-testid="scheme-remove-confirm"]').click()
 

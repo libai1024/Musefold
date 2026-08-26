@@ -52,7 +52,11 @@ export function StepFirstImage() {
     >
       {!imageReady && (
         <div className="shrink-0 pt-2 sm:pt-4">
-          <h2 className="font-theater text-[clamp(28px,4.2vw,44px)] font-extrabold leading-[1.15] text-primary">
+          <h2
+            className="font-theater text-[30px] font-extrabold leading-[1.15] text-primary outline-none"
+            tabIndex={-1}
+            data-onboarding-step-heading
+          >
             让第一个方向<span className="text-accent">显形</span>
           </h2>
           <p className="mt-2 max-w-[36rem] text-[15px] leading-7 text-secondary">
@@ -65,7 +69,7 @@ export function StepFirstImage() {
         <div className="absolute inset-0 flex items-center justify-center">
         <div
           data-theater-stage
-          className="relative h-full max-h-full w-auto max-w-full overflow-hidden bg-inset"
+          className="relative h-full max-h-full w-auto max-w-full overflow-hidden rounded-[var(--radius-media)] border border-border-subtle bg-inset"
           style={{ aspectRatio: aspectCss }}
           data-testid={imageReady ? 'onboarding-result' : undefined}
         >

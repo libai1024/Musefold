@@ -1,28 +1,15 @@
-import {
-  ArrowLeft,
-  Copy,
-  History,
-  ImageOff,
-} from "@musefold/ui/icons";
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@musefold/ui";
-import { useEffect, useState, type ReactNode } from "react";
-import type { GenerationHistoryDetailViewModel } from "../models";
+import { ArrowLeft, Copy, History, ImageOff } from '@musefold/ui/icons';
+import { Button } from '@musefold/ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { GenerationHistoryDetailViewModel } from '../models';
 import {
   GenerationHistoryDetailActions,
   type GenerationHistoryBusyAction,
-} from "./GenerationHistoryDetailActions";
+} from './GenerationHistoryDetailActions';
 
 export interface GenerationHistoryDetailContentProps {
   detail: GenerationHistoryDetailViewModel;
-  density?: "comfortable" | "compact";
+  density?: 'comfortable' | 'compact';
   onOpenImage?: () => void;
   onCopyPrompt?: () => void;
   bodyExtra?: ReactNode;
@@ -31,7 +18,7 @@ export interface GenerationHistoryDetailContentProps {
 
 export function GenerationHistoryDetailContent({
   detail,
-  density = "comfortable",
+  density = 'comfortable',
   onOpenImage,
   onCopyPrompt,
   bodyExtra,
@@ -56,20 +43,16 @@ export function GenerationHistoryDetailContent({
         className="mf-history-detail-image"
         disabled={!showImage || !onOpenImage}
         onClick={onOpenImage}
-        title={showImage && onOpenImage ? "放大预览" : undefined}
-        aria-label={showImage && onOpenImage ? "放大预览" : undefined}
+        title={showImage && onOpenImage ? '放大预览' : undefined}
+        aria-label={showImage && onOpenImage ? '放大预览' : undefined}
         data-testid="history-detail-image"
       >
         {showImage ? (
-          <img
-            src={detail.imageUrl ?? undefined}
-            alt=""
-            onError={() => setImageBroken(true)}
-          />
+          <img src={detail.imageUrl ?? undefined} alt="" onError={() => setImageBroken(true)} />
         ) : (
           <span>
             {detail.imageUrl ? <ImageOff aria-hidden="true" /> : <History aria-hidden="true" />}
-            {detail.imageUnavailableLabel ?? "无生成图片"}
+            {detail.imageUnavailableLabel ?? '无生成图片'}
           </span>
         )}
       </Button>
@@ -103,7 +86,7 @@ export function GenerationHistoryDetailContent({
           ) : undefined
         }
       >
-        <pre data-testid="history-detail-prompt">{detail.prompt || "未记录"}</pre>
+        <pre data-testid="history-detail-prompt">{detail.prompt || '未记录'}</pre>
       </HistoryDetailSection>
 
       {detail.negative ? (
@@ -129,7 +112,7 @@ export function GenerationHistoryDetailContent({
       {detail.error ? (
         <div className="mf-history-detail-error" data-testid="history-detail-error">
           <strong>
-            {detail.error.code ? `${detail.error.code} · ` : ""}
+            {detail.error.code ? `${detail.error.code} · ` : ''}
             {detail.error.title}
           </strong>
           {detail.error.hint ? <p>{detail.error.hint}</p> : null}
@@ -141,8 +124,10 @@ export function GenerationHistoryDetailContent({
   );
 }
 
-export interface GenerationHistoryDetailScreenProps
-  extends Omit<GenerationHistoryDetailContentProps, "density"> {
+export interface GenerationHistoryDetailScreenProps extends Omit<
+  GenerationHistoryDetailContentProps,
+  'density'
+> {
   onBack: () => void;
   backLabel?: string;
   onReuse?: () => void;
@@ -160,7 +145,7 @@ export interface GenerationHistoryDetailScreenProps
 export function GenerationHistoryDetailScreen({
   detail,
   onBack,
-  backLabel = "生成历史",
+  backLabel = '生成历史',
   onOpenImage,
   onCopyPrompt,
   onReuse,
@@ -169,19 +154,14 @@ export function GenerationHistoryDetailScreen({
   onSavePrompt,
   onDelete,
   onRestore,
-  savePromptLabel = "存为提示词",
+  savePromptLabel = '存为提示词',
   busyAction = null,
   notice,
   actionError,
   bodyExtra,
   errorAction,
 }: GenerationHistoryDetailScreenProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const deleted = Boolean(detail.deletedAtLabel);
-
-  useEffect(() => {
-    setConfirmDelete(false);
-  }, [detail.id]);
 
   return (
     <section
@@ -205,6 +185,7 @@ export function GenerationHistoryDetailScreen({
           {detail.deletedAtLabel ? <span>已于 {detail.deletedAtLabel} 移到回收站</span> : null}
         </div>
         <GenerationHistoryDetailActions
+          contextKey={detail.id}
           deleted={deleted}
           busyAction={busyAction}
           onRestore={onRestore}
@@ -214,8 +195,13 @@ export function GenerationHistoryDetailScreen({
           downloadUrl={detail.imageUrl}
           onSavePrompt={onSavePrompt}
           onCopyPrompt={onCopyPrompt}
-          onDelete={onDelete ? () => setConfirmDelete(true) : undefined}
+          onDelete={onDelete}
           savePromptLabel={savePromptLabel}
+          deleteConfirmation={{
+            title: '将这条生成记录移到回收站？',
+            description: '图片资产会保留，可从回收站恢复。',
+            confirmLabel: '移到回收站',
+          }}
         />
       </header>
 
@@ -229,42 +215,6 @@ export function GenerationHistoryDetailScreen({
         bodyExtra={bodyExtra}
         errorAction={errorAction}
       />
-
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent
-          className="mf-confirm-dialog"
-          overlayClassName="mf-dialog-backdrop"
-          aria-labelledby="history-delete-title"
-        >
-          <DialogHeader className="mf-confirm-dialog-header">
-            <DialogTitle id="history-delete-title">
-              将这条生成记录移到回收站？
-            </DialogTitle>
-            <DialogDescription>图片资产会保留，可从回收站恢复。</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              className="mf-secondary-button"
-              onClick={() => setConfirmDelete(false)}
-            >
-              取消
-            </Button>
-            <Button
-              variant="danger"
-              className="mf-danger-button"
-              disabled={Boolean(busyAction)}
-              onClick={() => {
-                setConfirmDelete(false);
-                onDelete?.();
-              }}
-              data-testid="history-detail-delete-confirm"
-            >
-              {busyAction === "delete" ? "处理中..." : "移到回收站"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }

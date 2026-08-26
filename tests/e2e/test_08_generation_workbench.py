@@ -440,17 +440,39 @@ def settle(app, timeout=30_000):
 
 
 def test_prompt_reference_sidebar_layout_toggle_and_overlay(app):
-    # 现行素材库：标题栏开关控制；宽屏为悬浮面板（无可见遮罩），≤760px 退化为带遮罩的模态抽屉
+    # v2.0：宽屏素材库是参与布局的第三列；紧凑窗口退化为带遮罩的模态面板。
     toggle = app.page.locator('[data-testid="titlebar-materials-toggle"]')
     toggle.click()
     app.page.wait_for_selector('[data-testid="workbench-reference-sidebar"]')
     sidebar = app.page.locator('[data-testid="workbench-reference-sidebar"]')
     box = sidebar.bounding_box()
     viewport = app.page.evaluate("() => ({ width: innerWidth, height: innerHeight })")
-    assert 280 <= box["width"] <= viewport["width"] - 24, box
+    assert sidebar.get_attribute("data-layout") == "dock"
+    assert 303 <= box["width"] <= 305, box
     assert box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"] + 1, box
     assert app.page.locator('[data-testid="workbench-reference-backdrop"]').is_hidden(), \
-        "宽屏悬浮面板不应有可见遮罩"
+        "宽屏 Dock 不应有可见遮罩"
+
+    geometry = app.page.evaluate(
+        """() => {
+          const primary = document.querySelector('.mf-workbench-primary').getBoundingClientRect();
+          const dock = document.querySelector('[data-testid="workbench-reference-sidebar"]').getBoundingClientRect();
+          const composer = document.querySelector('[data-testid="workbench-composer"]').getBoundingClientRect();
+          return { primary, dock, composer };
+        }"""
+    )
+    assert geometry["primary"]["right"] <= geometry["dock"]["left"] + 1, geometry
+    assert geometry["composer"]["right"] <= geometry["primary"]["right"] + 1, geometry
+
+    resize = app.page.get_by_test_id("workbench-context-dock-resize")
+    resize.focus()
+    resize.press("ArrowLeft")
+    app.page.wait_for_function(
+        "() => Number(document.querySelector('[data-testid=\"workbench-context-dock-resize\"]')"
+        ".getAttribute('aria-valuenow')) === 320"
+    )
+    resized_box = sidebar.bounding_box()
+    assert 319 <= resized_box["width"] <= 321, resized_box
 
     toggle.click()
     app.page.wait_for_function(
@@ -465,6 +487,7 @@ def test_prompt_reference_sidebar_layout_toggle_and_overlay(app):
     # 遮罩是纯 CSS 媒体查询（随视口同步翻转），role 要等 matchMedia 回调 + React 重渲染，
     # 两者天然差一帧：满负载跑全量时立即读会读到旧值，所以这里轮询而不是瞬时断言。
     app.page.wait_for_selector('[data-testid="workbench-reference-sidebar"][role="dialog"]')
+    assert sidebar.get_attribute("data-layout") == "overlay"
     backdrop.click(position={"x": 5, "y": 20})
     app.page.wait_for_function(
         "() => document.querySelector('[data-testid=\"workbench-reference-sidebar\"]') === null",
@@ -585,12 +608,13 @@ def test_prompt_references_full_excerpt_persist_query_and_reuse(app, fake_workbe
 
 
 def test_workbench_starts_as_brand_lockup_with_inline_composer(app):
-    """v2.0 空态：品牌锁定区(Logo + 名称 + 换行提示语)+ 最多三条建议 + 内联 Composer；无服务商时发送禁用并说明原因。"""
+    """v2.0 空态：品牌锁定区(放大的产品 mark + 换行提示语,英文名称退为水印背景)+ 最多三条建议 + 内联 Composer；无服务商时发送禁用并说明原因。"""
     app.page.wait_for_selector('[data-testid="generation-workbench"]')
     assert app.page.locator('[data-testid^="generate-mode-"]').count() == 0
     empty = app.page.locator('[data-testid="workbench-empty"]')
     empty.wait_for()
-    assert empty.locator('[data-testid="workbench-empty-name"]').inner_text() == "Musefold"
+    watermark = empty.locator('[data-testid="workbench-empty-watermark"]').inner_text()
+    assert "".join(watermark.split()) == "Musefold"
     tagline = empty.locator('[data-testid="workbench-empty-slogan"]').inner_text()
     assert "".join(tagline.split()) == "把想法变成可生成的视觉"
     # 快捷建议最多三条,Composer 内联在空态内容列中(v2.0 11 §3/§6)。
@@ -690,12 +714,23 @@ def test_workbench_session_title_uses_first_prompt_and_resets(app, fake_workbenc
         timeout=10_000,
     )
     assert workbench(app, "s.turns.length") == 1
+    first_result_count = workbench(
+        app,
+        "s.turns.flatMap((turn) => turn.results).filter((result) => result.status === 'success').length",
+    )
+    assert app.page.get_by_test_id("titlebar-result-summary").inner_text() == f"{first_result_count} 张图"
+    assert "自由创作" in app.page.get_by_test_id("titlebar-task-summary").inner_text()
 
     app.page.fill('[data-workbench-testid="workbench-prompt"]', "第二次制作不应覆盖会话标题")
     app.page.click('[data-workbench-testid="workbench-submit"]')
     settle(app)
     assert title.get_attribute("title") == first_prompt
     assert workbench(app, "s.turns.length") == 2
+    total_result_count = workbench(
+        app,
+        "s.turns.flatMap((turn) => turn.results).filter((result) => result.status === 'success').length",
+    )
+    assert app.page.get_by_test_id("titlebar-result-summary").inner_text() == f"{total_result_count} 张图"
 
     app.page.click('[data-testid="sidebar-new-design"]')
     app.page.wait_for_function(
@@ -844,7 +879,7 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
 
 
 def test_workbench_composer_uses_compact_options_popover(app, fake_workbench_server, tmp_path):
-    """底部 Composer 以输入为主，质量/数量/负面词按需进入自绘设置浮层。"""
+    """底部 Composer 以输入为主，质量/数量/负面词按需进入共享设置浮层。"""
     setup_provider(app, fake_workbench_server)
     app.page.wait_for_selector('[data-testid="workbench-composer"]')
     assert app.page.locator('[data-testid="workbench-generation-options"]').count() == 0
@@ -912,7 +947,13 @@ def test_workbench_composer_uses_compact_options_popover(app, fake_workbench_ser
     )
     assert options_trigger.evaluate("node => document.activeElement === node")
 
+
+def test_workbench_composer_options_popover_fits_narrow_viewport(app, fake_workbench_server):
+    """窄视口的 Composer 设置浮层保持在视口内并位于 Composer 上方。"""
+    setup_provider(app, fake_workbench_server)
+    app.page.wait_for_selector('[data-testid="workbench-composer"]')
     app.page.set_viewport_size({"width": 360, "height": 740})
+    options_trigger = app.page.locator('[data-testid="workbench-more-settings"]')
     options_trigger.click()
     app.page.wait_for_selector('[data-testid="workbench-generation-options"]')
     menu = app.page.locator('[data-testid="workbench-generation-options"]').bounding_box()
@@ -1458,7 +1499,7 @@ def test_workbench_turn_saves_prompt_to_library_with_feedback_and_dedupe(app, fa
 
     app.page.keyboard.press("Escape")
     app.page.locator('[data-testid="generation-turn-more"]').first.click()
-    save = app.page.locator('[data-testid="generation-save-prompt"]').first
+    save = app.page.locator('[data-testid="generation-turn-save-prompt"]').first
     set_prompt_create_failure(app, True)
     try:
         save.click()
@@ -1473,16 +1514,16 @@ def test_workbench_turn_saves_prompt_to_library_with_feedback_and_dedupe(app, fa
 
     app.page.keyboard.press("Escape")
     app.page.locator('[data-testid="generation-turn-more"]').first.click()
-    save = app.page.locator('[data-testid="generation-save-prompt"]').first
+    save = app.page.locator('[data-testid="generation-turn-save-prompt"]').first
     save.click()
     app.page.wait_for_function(
         "() => document.body.innerText.includes('已存为提示词')",
         timeout=5_000,
     )
     app.page.locator('[data-testid="generation-turn-more"]').first.click()
-    save = app.page.locator('[data-testid="generation-save-prompt"]').first
+    save = app.page.locator('[data-testid="generation-turn-save-prompt"]').first
     app.page.wait_for_function(
-        "() => document.querySelector('[data-testid=\"generation-save-prompt\"]')?.innerText.includes('已存为提示词')",
+        "() => document.querySelector('[data-testid=\"generation-turn-save-prompt\"]')?.innerText.includes('已存为提示词')",
         timeout=5_000,
     )
     rows = prompt_rows_by_content(app, final_prompt)

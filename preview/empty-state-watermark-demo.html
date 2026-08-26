@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>空态预览 — 英文名称水印背景 + 三行雾气慢滚 — Musefold</title>
+<style>
+  /* 已入库的 ZCOOL XiaoWei 拉丁子集(packages/ui/fonts,OFL),离线可用 */
+  @font-face {
+    font-family: "ZCOOL XiaoWei";
+    src: url("../packages/ui/fonts/zcool-xiaowei-subset.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  :root {
+    color-scheme: light;
+    --bg-work: #fafaf8;
+    --bg-window: #f6f6f4;
+    --bg-elevated: #ffffff;
+    --fg-primary: #202124;
+    --fg-secondary: #55575c;
+    --fg-tertiary: #74777c;
+    --fg-quaternary: #a1a3a9;
+    --border-subtle: rgba(24, 24, 29, 0.07);
+    --border-default: #dfdfdb;
+    --border-strong: #c8c8c3;
+    --accent: #d6653f;
+    --accent-ring: rgba(214, 101, 63, 0.28);
+    --radius-control: 8px;
+    --text-meta: 11px;
+    --dur-fast: 130ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* 水印可调参数(由滑杆驱动);默认宽度 ≈ 滚动字幕(520px)再宽一点 */
+    --wm-size: 128px;
+    --wm-opacity: 0.07;
+    --wm-top: -0.15em;   /* 相对品牌区顶部的抬升量,负值 = 高过 logo */
+    --wm-tracking: 0.04em; /* 方案三同款字距 */
+    --logo-size: 96px;
+  }
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --bg-work: #1c1c1e;
+    --bg-window: #171719;
+    --bg-elevated: #232326;
+    --fg-primary: #f4f4f1;
+    --fg-secondary: #c6c7ca;
+    --fg-tertiary: #a0a2a7;
+    --fg-quaternary: #6e7076;
+    --border-subtle: rgba(255, 255, 255, 0.075);
+    --border-default: #3a3d42;
+    --border-strong: #4a4d53;
+    --accent: #ef7a52;
+    --accent-ring: rgba(239, 122, 82, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-window);
+    color: var(--fg-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .topbar h1 { font-size: 14px; margin: 0; font-weight: 600; }
+  .controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .controls label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--fg-tertiary);
+  }
+  .controls input[type='range'] { width: 110px; accent-color: var(--accent); }
+  .controls output { min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .theme-toggle {
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--fg-secondary);
+    border-radius: var(--radius-control);
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { border-color: var(--border-strong); color: var(--fg-primary); }
+
+  /* ============ 空态舞台:760px 内容列 ============ */
+  .empty {
+    position: relative;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    min-height: calc(100vh - 60px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: clamp(72px, 14vh, 130px) 16px 48px;
+    overflow: hidden;
+    background: var(--bg-work);
+  }
+
+  /* 英文名称水印:整区背景,顶端高过 logo,沉在所有内容之下。
+     ZCOOL XiaoWei 逐字母拆分:透明度呼吸(方案三同款,逐字母错相),
+     鼠标经过的字母变主色高亮,其余保持原样。 */
+  .watermark {
+    position: absolute;
+    top: calc(clamp(72px, 14vh, 130px) + var(--wm-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 0;
+    font-family: "ZCOOL XiaoWei", "Songti SC", serif;
+    font-size: var(--wm-size);
+    font-weight: 400;
+    letter-spacing: var(--wm-tracking);
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--fg-primary);
+    user-select: none;
+    pointer-events: none;
+  }
+  .watermark span {
+    display: inline-block;
+    pointer-events: auto;
+    opacity: var(--wm-opacity);
+    animation: wm-breathe 6s ease-in-out infinite;
+    animation-delay: calc(var(--i) * 0.28s);
+    transition: color 200ms var(--ease-out);
+  }
+  @keyframes wm-breathe {
+    0%, 100% { opacity: calc(var(--wm-opacity) * 0.55); }
+    50%      { opacity: var(--wm-opacity); }
+  }
+  .watermark span:hover {
+    animation: none;
+    opacity: 0.9;
+    color: var(--accent);
+  }
+
+  .brand, .tagline, .fog-rows, .composer { position: relative; z-index: 1; }
+
+  /* 品牌区:只有 logo,右侧不再显示英文名称 */
+  .brand { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  /* 真实产品 mark:单色 currentColor + Ember 圆点,无底色方块,随主题变色 */
+  .brand svg {
+    width: var(--logo-size);
+    height: var(--logo-size);
+    display: block;
+    color: var(--fg-primary);
+    filter: drop-shadow(0 1px 6px rgba(24, 24, 29, 0.08));
+  }
+  [data-theme='dark'] .brand svg { filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.35)); }
+  /* Ember 点与水印同周期(4s)微弱脉动,首屏只有一个呼吸节奏 */
+  .brand svg circle {
+    animation: ember-breathe 6s ease-in-out infinite;
+  }
+  @keyframes ember-breathe {
+    0%, 100% { opacity: 0.62; }
+    50%      { opacity: 1; }
+  }
+  .tagline { margin: 10px 0 0; color: var(--fg-tertiary); font-size: 13px; }
+
+  /* ============ F:三行雾气慢滚 ============ */
+  .fog-rows {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 520px;
+  }
+  .fog-row {
+    position: relative;
+    overflow: hidden;
+    mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  }
+  .fog-row-track {
+    display: flex;
+    align-items: center;
+    gap: 2.5em;
+    width: max-content;
+    padding: 4px 0;
+    animation: f-scroll var(--speed, 44s) linear infinite;
+    animation-delay: var(--offset, 0s);
+  }
+  .fog-row:hover .fog-row-track { animation-play-state: paused; }
+  @keyframes f-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  .fog-chip {
+    border: none;
+    background: transparent;
+    padding: 2px 0;
+    color: var(--fg-tertiary);
+    font-size: var(--text-meta);
+    font-family: inherit;
+    line-height: 1.6;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+  .fog-chip:hover { color: var(--fg-primary); }
+  .fog-chip:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+
+  /* ============ Composer 模型(仅示意) ============ */
+  .composer {
+    margin-top: 24px;
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: 16px;
+    padding: 12px 12px 12px 16px;
+    box-shadow: 0 1px 2px rgba(24,24,29,0.04);
+  }
+  .composer input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--fg-primary);
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .composer input::placeholder { color: var(--fg-quaternary); }
+  .composer-send {
+    flex: none;
+    width: 32px; height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .composer-send svg { width: 14px; height: 14px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .watermark span { animation: none !important; opacity: var(--wm-opacity); }
+    .brand svg circle { animation: none !important; }
+    .fog-row-track { animation: none !important; }
+    .fog-row-track .fog-chip:nth-child(n+2) { display: none; }
+    .fog-row { mask-image: none; -webkit-mask-image: none; text-align: center; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>空态预览:英文水印背景 + 三行雾气慢滚</h1>
+    <div class="controls">
+      <label>Logo <input type="range" id="ctl-logo" min="56" max="144" value="96" step="4"><output id="out-logo">96px</output></label>
+      <label>水印字号 <input type="range" id="ctl-size" min="80" max="220" value="128" step="2"><output id="out-size">128px</output></label>
+      <label>透明度 <input type="range" id="ctl-opacity" min="2" max="14" value="5" step="1"><output id="out-opacity">0.05</output></label>
+      <label>抬升 <input type="range" id="ctl-top" min="-70" max="30" value="-15" step="1"><output id="out-top">-0.15em</output></label>
+      <button class="theme-toggle" id="theme-toggle">暗色</button>
+    </div>
+  </div>
+
+  <div class="empty">
+    <div class="watermark" aria-hidden="true">Musefold</div>
+
+    <div class="brand">
+      <svg viewBox="0 0 100 100" fill="none" role="img" aria-label="Musefold / 未像">
+        <path fill="currentColor" d="M 6 0 H 94 A 6 6 0 0 1 100 6 V 12.4 H 21 Q 17 12.4 17 16.4 V 100 H 6 A 6 6 0 0 1 0 94 V 6 A 6 6 0 0 1 6 0 Z"/>
+        <g fill="currentColor"><rect x="98.6" y="4" width="1.4" height="51.2"/><rect x="15" y="98.6" width="38" height="1.4"/></g>
+        <path fill="currentColor" d="M 100 54 L 53.2 100 L 50.6 100 L 50.6 98.6 L 52.0 98.1 C 52.41 97.49 53.39 96.41 54.46 94.46 C 55.53 92.51 56.93 89.43 58.42 86.42 C 59.91 83.41 61.71 79.71 63.4 76.4 C 65.09 73.09 67.16 69.16 68.56 66.56 C 69.96 63.96 70.74 62.24 71.8 60.8 C 72.86 59.36 73.75 58.75 74.92 57.92 C 76.09 57.09 77.34 56.34 78.82 55.82 C 80.3 55.3 81.47 54.97 83.8 54.8 C 86.13 54.63 90.51 54.95 92.8 54.8 C 95.09 54.65 96.75 54.05 97.54 53.9 L 98.6 53.8 Z"/>
+        <circle cx="84.2" cy="27.2" r="6.8" fill="var(--accent)"/>
+      </svg>
+    </div>
+    <p class="tagline">把想法变成可生成的视觉</p>
+
+    <div class="fog-rows" id="rows-f" aria-label="快捷建议"></div>
+
+    <div class="composer">
+      <input type="text" placeholder="描述你想要的画面…" aria-label="生成提示词" />
+      <button class="composer-send" aria-label="发送">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+      </button>
+    </div>
+  </div>
+
+<script>
+  const POOL = [
+    '漂浮在云层上的小型图书馆，克制电影感，阴天漫射光，细腻阴影',
+    '雨夜东京街角，柔和日系生活方式，低饱和自然光，对角线构图',
+    '透明背景护肤品主视觉，柔和反射，高端广告质感',
+    '现代建筑外立面摄影，蓝调时刻，几何线条，画面干净',
+    '海边旧灯塔与潮湿礁石，雾气轻覆，留出宽阔天空',
+    '当代陶器与自然织物，窗边晨光，安静的静物摄影',
+    '复古旅行海报，颗粒纸张质感，标题留白，颜色克制',
+    '山间民宿的木质客厅，清晨薄雾，层次分明的前中后景',
+    '新鲜水果的商业静物图，明亮背景，色彩自然，细节清晰',
+    '轻户外服装品牌主视觉，山谷环境，人物自然，留出文案空间',
+    '关于慢生活的生活方式海报，手工印刷感，构图平衡',
+    '夜色中的社区咖啡馆，暖色窗光，街道反射，叙事感',
+  ];
+
+  // 水印逐字母拆分:呼吸动画错相(--i),hover 字母变主色高亮
+  const wm = document.querySelector('.watermark');
+  const word = wm.textContent.trim();
+  wm.textContent = '';
+  [...word].forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.textContent = ch;
+    s.style.setProperty('--i', i);
+    wm.appendChild(s);
+  });
+
+  // 三行雾气慢滚:速度各异 + 负延迟错开相位
+  const rowsF = document.getElementById('rows-f');
+  const F_SPEEDS = ['38s', '55s', '47s'];
+  const F_OFFSETS = ['-9s', '-31s', '-20s'];
+  const F_COPIES = 4;
+  const composerInput = document.querySelector('.composer input');
+  rowsF.replaceChildren(...POOL.slice(0, 3).map((text, i) => {
+    const row = document.createElement('div');
+    row.className = 'fog-row';
+    const track = document.createElement('div');
+    track.className = 'fog-row-track';
+    track.style.setProperty('--speed', F_SPEEDS[i]);
+    track.style.setProperty('--offset', F_OFFSETS[i]);
+    const seq = Array.from({ length: F_COPIES }, () => text);
+    seq.concat(seq).forEach((t, idx) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'fog-chip';
+      chip.textContent = t;
+      chip.title = t;
+      if (idx > 0) { chip.tabIndex = -1; chip.setAttribute('aria-hidden', 'true'); }
+      else chip.addEventListener('click', () => { composerInput.value = t; composerInput.focus(); });
+      track.appendChild(chip);
+    });
+    row.appendChild(track);
+    return row;
+  }));
+
+  // 水印参数滑杆
+  const root = document.documentElement;
+  const bind = (id, out, fn) => {
+    const el = document.getElementById(id);
+    const o = document.getElementById(out);
+    const apply = () => { const v = fn(el.value); root.style.setProperty(v[0], v[1]); o.textContent = v[2]; };
+    el.addEventListener('input', apply);
+    apply();
+  };
+  bind('ctl-logo', 'out-logo', (v) => ['--logo-size', `${v}px`, `${v}px`]);
+  bind('ctl-size', 'out-size', (v) => ['--wm-size', `${v}px`, `${v}px`]);
+  bind('ctl-opacity', 'out-opacity', (v) => ['--wm-opacity', `${v / 100}`, (v / 100).toFixed(2)]);
+  bind('ctl-top', 'out-top', (v) => ['--wm-top', `${v / 100}em`, `${(v / 100).toFixed(2)}em`]);
+
+  // 亮暗切换
+  const toggle = document.getElementById('theme-toggle');
+  toggle.addEventListener('click', () => {
+    const dark = root.dataset.theme === 'dark';
+    root.dataset.theme = dark ? '' : 'dark';
+    toggle.textContent = dark ? '暗色' : '亮色';
+  });
+</script>
+</body>
+</html>

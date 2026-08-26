@@ -15,9 +15,6 @@ import type {
 import type {
   HistoryRecord,
   PromptHistoryRelation,
-  HistoryStats,
-  HistoryStatsGroupBy,
-  HistoryStatsQuery,
 } from '@musefold/desktop-contracts/models';
 import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 import { unlink } from 'fs/promises';
@@ -32,13 +29,10 @@ import {
   type HistoryListQuery,
 } from '@musefold/core/services/history';
 import { getPaths } from '../../system/paths';
+import { registerHistoryStatsHandler } from './history-stats';
 
 export { buildHistoryListSql, type HistoryListQuery };
-
-interface StatsWhere {
-  where: string;
-  values: unknown[];
-}
+export { buildHistoryStatsSql, buildHistoryStatsWhere } from './history-stats';
 
 interface HistoryDeletionRow {
   id: string;
@@ -137,83 +131,6 @@ export function buildRelatedHistorySql(q: RelatedHistoryQuery): {
     countSql: `SELECT COUNT(*) AS total FROM history h ${clause}`,
     whereValues,
     listValues: [...whereValues, limit, offset],
-  };
-}
-
-function normalizeStatsGroupBy(groupBy?: string): HistoryStatsGroupBy {
-  return groupBy === 'week' || groupBy === 'month' || groupBy === 'day' ? groupBy : 'day';
-}
-
-function historyStatsBucketExpression(groupBy: HistoryStatsGroupBy): string {
-  const ts = "datetime(h.created_at / 1000, 'unixepoch', 'localtime')";
-  if (groupBy === 'month') return `strftime('%Y-%m', ${ts})`;
-  if (groupBy === 'week') return `strftime('%Y-W%W', ${ts})`;
-  return `strftime('%Y-%m-%d', ${ts})`;
-}
-
-export function buildHistoryStatsWhere(q: Partial<HistoryStatsQuery> = {}): StatsWhere {
-  const where = ["h.status = 'success'"];
-  const values: unknown[] = [];
-
-  if (q.providerId) {
-    where.push('h.provider_id = ?');
-    values.push(q.providerId);
-  }
-  if (q.from != null) {
-    where.push('h.created_at >= ?');
-    values.push(q.from);
-  }
-  if (q.to != null) {
-    where.push('h.created_at <= ?');
-    values.push(q.to);
-  }
-
-  return { where: `WHERE ${where.join(' AND ')}`, values };
-}
-
-export function buildHistoryStatsSql(q: Partial<HistoryStatsQuery> = {}): {
-  totalSql: string;
-  bucketsSql: string;
-  byProviderSql: string;
-  values: unknown[];
-  groupBy: HistoryStatsGroupBy;
-} {
-  const groupBy = normalizeStatsGroupBy(q.groupBy);
-  const bucketExpr = historyStatsBucketExpression(groupBy);
-  const { where, values } = buildHistoryStatsWhere(q);
-  return {
-    totalSql: `
-      SELECT 'point' AS unit,
-             COALESCE(SUM(COALESCE(h.cost, 0)), 0) AS cost,
-             COUNT(*) AS totalCount
-      FROM history h
-      ${where}
-      GROUP BY unit
-    `,
-    bucketsSql: `
-      SELECT ${bucketExpr} AS key,
-             'point' AS unit,
-             COALESCE(SUM(COALESCE(h.cost, 0)), 0) AS cost,
-             COUNT(*) AS count
-      FROM history h
-      ${where}
-      GROUP BY key, unit
-      ORDER BY key ASC, unit ASC
-    `,
-    byProviderSql: `
-      SELECT h.provider_id AS providerId,
-             COALESCE(p.name, h.provider_id) AS name,
-             'point' AS unit,
-             COALESCE(SUM(COALESCE(h.cost, 0)), 0) AS cost,
-             COUNT(*) AS count
-      FROM history h
-      LEFT JOIN providers p ON p.id = h.provider_id
-      ${where}
-      GROUP BY h.provider_id, name, unit
-      ORDER BY cost DESC, count DESC, h.provider_id ASC
-    `,
-    values,
-    groupBy,
   };
 }
 
@@ -457,48 +374,5 @@ export function registerHistoryHandlers(): void {
     };
   });
 
-  ipcMain.handle(IPC.HISTORY_STATS, (_e, q: HistoryStatsQuery): HistoryStats => {
-    const db = getDb();
-    const { totalSql, bucketsSql, byProviderSql, values } = buildHistoryStatsSql(q ?? {});
-    const totals = db.prepare(totalSql).all(...values).map((row) => {
-      const r = row as Record<string, unknown>;
-      const count = Number(r.totalCount ?? 0);
-      const cost = Number(r.cost ?? 0);
-      return {
-        unit: 'point' as const,
-        cost,
-        count,
-        avgCost: count > 0 ? cost / count : 0,
-      };
-    });
-    const totalCount = totals.reduce((sum, total) => sum + total.count, 0);
-    const buckets = db.prepare(bucketsSql).all(...values).map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        key: String(r.key ?? ''),
-        cost: Number(r.cost ?? 0),
-        count: Number(r.count ?? 0),
-        unit: 'point' as const,
-      };
-    });
-    const byProvider = db.prepare(byProviderSql).all(...values).map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        providerId: String(r.providerId ?? ''),
-        name: String(r.name ?? r.providerId ?? ''),
-        cost: Number(r.cost ?? 0),
-        count: Number(r.count ?? 0),
-        unit: 'point' as const,
-      };
-    });
-
-    return {
-      totals,
-      totalCost: totals[0]?.cost ?? 0,
-      avgCost: totals[0]?.avgCost ?? 0,
-      totalCount,
-      buckets,
-      byProvider,
-    };
-  });
+  registerHistoryStatsHandler();
 }

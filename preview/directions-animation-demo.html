@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>快捷建议动画方案 A/B/C/D — Musefold</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg-work: #fafaf8;
+    --bg-window: #f6f6f4;
+    --fg-primary: #202124;
+    --fg-secondary: #55575c;
+    --fg-tertiary: #74777c;
+    --fg-quaternary: #a1a3a9;
+    --border-subtle: rgba(24, 24, 29, 0.07);
+    --border-strong: #c8c8c3;
+    --accent: #d6653f;
+    --accent-ring: rgba(214, 101, 63, 0.28);
+    --radius-control: 8px;
+    --text-meta: 11px;
+    --dur-fast: 130ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --bg-work: #1c1c1e;
+    --bg-window: #171719;
+    --fg-primary: #f4f4f1;
+    --fg-secondary: #c6c7ca;
+    --fg-tertiary: #a0a2a7;
+    --fg-quaternary: #6e7076;
+    --border-subtle: rgba(255, 255, 255, 0.075);
+    --border-strong: #4a4d53;
+    --accent-ring: rgba(239, 122, 82, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-window);
+    color: var(--fg-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .topbar h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .topbar .hint { font-size: 12px; color: var(--fg-tertiary); }
+
+  .theme-toggle, .replay-btn, .toggle-btn {
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--fg-secondary);
+    border-radius: var(--radius-control);
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .theme-toggle:hover, .replay-btn:hover, .toggle-btn:hover {
+    border-color: var(--border-strong);
+    color: var(--fg-primary);
+  }
+
+  .variant {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 40px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .variant-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .variant-head h2 { font-size: 14px; margin: 0; font-weight: 600; }
+  .variant-head .tag { font-size: 11px; color: var(--fg-quaternary); }
+  .variant-desc {
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    line-height: 1.6;
+    margin: 0 0 32px;
+  }
+
+  /* ---- 复刻空态品牌区 + 快捷建议 chip(与 styles.css 一致) ---- */
+  .stage {
+    background: var(--bg-work);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 56px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .brand-name { font-size: 20px; font-weight: 600; letter-spacing: 0.01em; }
+  .brand-tagline { margin: 6px 0 0; color: var(--fg-tertiary); font-size: 13px; }
+
+  .mf-workbench-directions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 20px 0 0;
+  }
+  .chip {
+    max-width: 240px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-control);
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--fg-tertiary);
+    cursor: pointer;
+    font-size: var(--text-meta);
+    font-family: inherit;
+    line-height: 1.45;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  .chip:hover { border-color: var(--border-strong); color: var(--fg-primary); }
+  .chip:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+
+  /* ============ A. 交错入场 ============ */
+  @keyframes a-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #stage-a.play .chip {
+    opacity: 0;
+    animation: a-in 360ms var(--ease-out) forwards;
+  }
+  #stage-a.play .chip:nth-child(1) { animation-delay: 0ms; }
+  #stage-a.play .chip:nth-child(2) { animation-delay: 90ms; }
+  #stage-a.play .chip:nth-child(3) { animation-delay: 180ms; }
+
+  /* ============ B. 换一批 ============ */
+  .b-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+  @keyframes b-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(4px); }
+  }
+  @keyframes b-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #row-b.leaving .chip { animation: b-out 140ms var(--ease-out) forwards; }
+  #row-b.entering .chip { animation: b-in 220ms var(--ease-out) both; }
+  #row-b.entering .chip:nth-child(1) { animation-delay: 0ms; }
+  #row-b.entering .chip:nth-child(2) { animation-delay: 60ms; }
+  #row-b.entering .chip:nth-child(3) { animation-delay: 120ms; }
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    background: transparent;
+    color: var(--fg-quaternary);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: var(--radius-control);
+    transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+  }
+  .refresh-btn:hover { color: var(--fg-primary); background: rgba(24,24,29,0.05); }
+  [data-theme='dark'] .refresh-btn:hover { background: rgba(255,255,255,0.06); }
+  .refresh-btn svg { width: 12px; height: 12px; }
+  .refresh-btn.spinning svg { animation: b-spin 500ms var(--ease-out); }
+  @keyframes b-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+  /* ============ C. 轮播槽位 ============ */
+  .chip .chip-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+    transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
+  }
+  .chip .chip-text.swap-out { opacity: 0; transform: translateY(4px); }
+  .chip .chip-text.swap-in-start { opacity: 0; transform: translateY(-4px); transition: none; }
+
+  /* ============ D. 打字机 ============ */
+  #stage-d .chip { min-width: 0; }
+  #stage-d .chip.typing::after {
+    content: '';
+    display: inline-block;
+    width: 1px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--accent);
+    animation: d-caret 700ms steps(1) infinite;
+  }
+  @keyframes d-caret { 50% { opacity: 0; } }
+
+  /* ============ F. 三行雾气慢滚(速度各异) ============ */
+  .fog-rows {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 520px;
+  }
+  .fog-row {
+    position: relative;
+    overflow: hidden;
+    /* 两侧淡入淡出 */
+    mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  }
+  .fog-row-track {
+    display: flex;
+    align-items: center;
+    gap: 2.5em;
+    width: max-content;
+    padding: 4px 0;
+    animation: f-scroll var(--speed, 44s) linear infinite;
+    animation-delay: var(--offset, 0s);
+  }
+  .fog-row:hover .fog-row-track { animation-play-state: paused; }
+  @keyframes f-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  /* 无边框文本行;每个副本都是可点的按钮 */
+  .fog-chip {
+    border: none;
+    background: transparent;
+    padding: 2px 0;
+    color: var(--fg-tertiary);
+    font-size: var(--text-meta);
+    font-family: inherit;
+    line-height: 1.6;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+  .fog-chip:hover { color: var(--fg-primary); }
+  .fog-chip:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+
+  /* ============ E. 雾气跑马灯 ============ */
+  .marquee {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    margin-top: 20px;
+    /* 左右两侧透明度渐隐 */
+    mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+  }
+  .marquee-track {
+    display: flex;
+    gap: 8px;
+    width: max-content;
+    padding: 2px 0;
+    animation: e-scroll 46s linear infinite;
+  }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+  @keyframes e-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  /* 雾气:边缘高斯模糊层,叠在渐隐之上 */
+  .mist {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 18%;
+    pointer-events: none;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 1;
+  }
+  .mist-left {
+    left: 0;
+    mask-image: linear-gradient(to right, #000, transparent);
+    -webkit-mask-image: linear-gradient(to right, #000, transparent);
+  }
+  .mist-right {
+    right: 0;
+    mask-image: linear-gradient(to left, #000, transparent);
+    -webkit-mask-image: linear-gradient(to left, #000, transparent);
+  }
+  /* 雾上的微光,让边缘更像「散入空气」而不是被裁掉 */
+  .mist-glow {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 22%;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .mist-glow.left  { left: 0;  background: linear-gradient(to right, var(--bg-work), transparent); }
+  .mist-glow.right { right: 0; background: linear-gradient(to left,  var(--bg-work), transparent); }
+
+  /* reduced-motion:全部降级为即时呈现 */
+  @media (prefers-reduced-motion: reduce) {
+    .fog-row-track { animation: none !important; }
+    .fog-row-track .fog-chip:nth-child(n+2) { display: none; }
+    .fog-row { mask-image: none; -webkit-mask-image: none; text-align: center; }
+    .marquee-track { animation: none !important; flex-wrap: wrap; width: auto; justify-content: center; }
+    .mist, .mist-glow { display: none; }
+    .marquee { mask-image: none; -webkit-mask-image: none; }
+    #stage-a.play .chip,
+    #row-b.leaving .chip,
+    #row-b.entering .chip,
+    .refresh-btn.spinning svg { animation: none !important; opacity: 1 !important; }
+    .chip .chip-text { transition: none !important; }
+    #stage-d .chip.typing::after { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>快捷建议动画方案预览</h1>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span class="hint">同一 12 条词池 · 同一 chip 样式</span>
+      <button class="theme-toggle" id="theme-toggle">暗色</button>
+    </div>
+  </div>
+
+  <!-- A -->
+  <section class="variant">
+    <div class="variant-head">
+      <h2>A · 交错入场</h2>
+      <span class="tag">纯 CSS · 一次性 · 零风险</span>
+    </div>
+    <p class="variant-desc">首屏三条 chip 依次淡入上浮(360ms,错开 90ms)。只解决「出现生硬」,不引入随机。</p>
+    <div class="stage" id="stage-a">
+      <div class="brand-name">Musefold</div>
+      <p class="brand-tagline">把想法变成可生成的视觉</p>
+      <div class="mf-workbench-directions" id="row-a"></div>
+      <div style="margin-top:20px;"><button class="replay-btn" id="replay-a">重播入场</button></div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="variant">
+    <div class="variant-head">
+      <h2>B · 换一批(推荐)</h2>
+      <span class="tag">用户触发 · 无定时器 · 可测试</span>
+    </div>
+    <p class="variant-desc">点击「换一换」,旧 chips 淡出下滑(140ms),从词池无重复随机抽 3 条交错淡入。随机性由用户控制。</p>
+    <div class="stage">
+      <div class="brand-name">Musefold</div>
+      <p class="brand-tagline">把想法变成可生成的视觉</p>
+      <div class="b-row">
+        <div class="mf-workbench-directions" id="row-b" style="margin:0;"></div>
+        <button class="refresh-btn" id="refresh-b" title="换一批建议">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          换一换
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="variant">
+    <div class="variant-head">
+      <h2>C · 轮播槽位</h2>
+      <span class="tag">自动轮换 · 需生命周期管理</span>
+    </div>
+    <p class="variant-desc">每 5s 轮换一个槽位,文本交叉淡换成词池新词。hover 暂停。「随机感」最强,复杂度最高。</p>
+    <div class="stage" id="stage-c">
+      <div class="brand-name">Musefold</div>
+      <p class="brand-tagline">把想法变成可生成的视觉</p>
+      <div class="mf-workbench-directions" id="row-c"></div>
+      <div style="margin-top:20px;"><button class="toggle-btn" id="toggle-c">暂停轮换</button></div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="variant">
+    <div class="variant-head">
+      <h2>D · 打字机</h2>
+      <span class="tag">戏剧感最强 · 与克制定位有冲突</span>
+    </div>
+    <p class="variant-desc">三条 chip 接力逐字打出,带 Ember 色光标。有「AI 正在想」的感觉,但噪声和可访问性成本最高。</p>
+    <div class="stage">
+      <div class="brand-name">Musefold</div>
+      <p class="brand-tagline">把想法变成可生成的视觉</p>
+      <div class="mf-workbench-directions" id="row-d"></div>
+      <div style="margin-top:20px;"><button class="replay-btn" id="replay-d">重播打字</button></div>
+    </div>
+  </section>
+
+  <!-- E -->
+  <section class="variant">
+    <div class="variant-head">
+      <h2>E · 雾气跑马灯</h2>
+      <span class="tag">无限横滚 · 左淡出右淡入 · 边缘高斯模糊</span>
+    </div>
+    <p class="variant-desc">全部 12 条词排成一列无限缓慢横滚,左右两侧用渐变遮罩 + backdrop 高斯模糊做出「雾气朦胧」的消散感。hover 暂停;reduced-motion 下降级为静态换行列表。</p>
+    <div class="stage" style="padding-left:0; padding-right:0;">
+      <div class="brand-name">Musefold</div>
+      <p class="brand-tagline">把想法变成可生成的视觉</p>
+      <div class="marquee">
+        <div class="marquee-track" id="row-e"></div>
+        <div class="mist mist-left"></div>
+        <div class="mist mist-right"></div>
+        <div class="mist-glow left"></div>
+        <div class="mist-glow right"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- F -->
+  <section class="variant">
+    <div class="variant-head">
+      <h2>F · 三行雾气慢滚</h2>
+      <span class="tag">三条 · 三行 · 无边框 · 各行速度不同</span>
+    </div>
+    <p class="variant-desc">三条建议各占一行,无边框纯文本;每行独立缓慢横滚,速度各不相同(38s / 55s / 47s),负延迟错开初始相位,两侧遮罩淡入淡出。hover 单行暂停;reduced-motion 降级为静态三行。</p>
+    <div class="stage">
+      <div class="brand-name">Musefold</div>
+      <p class="brand-tagline">把想法变成可生成的视觉</p>
+      <div class="fog-rows" id="rows-f"></div>
+    </div>
+  </section>
+
+<script>
+  const POOL = [
+    '漂浮在云层上的小型图书馆，克制电影感，阴天漫射光，细腻阴影',
+    '雨夜东京街角，柔和日系生活方式，低饱和自然光，对角线构图',
+    '透明背景护肤品主视觉，柔和反射，高端广告质感',
+    '现代建筑外立面摄影，蓝调时刻，几何线条，画面干净',
+    '海边旧灯塔与潮湿礁石，雾气轻覆，留出宽阔天空',
+    '当代陶器与自然织物，窗边晨光，安静的静物摄影',
+    '复古旅行海报，颗粒纸张质感，标题留白，颜色克制',
+    '山间民宿的木质客厅，清晨薄雾，层次分明的前中后景',
+    '新鲜水果的商业静物图，明亮背景，色彩自然，细节清晰',
+    '轻户外服装品牌主视觉，山谷环境，人物自然，留出文案空间',
+    '关于慢生活的生活方式海报，手工印刷感，构图平衡',
+    '夜色中的社区咖啡馆，暖色窗光，街道反射，叙事感',
+  ];
+  const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function makeChip(text) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.title = text;
+    b.textContent = text;
+    return b;
+  }
+  function sampleThree(exclude) {
+    const rest = POOL.filter((s) => !exclude.includes(s));
+    const picked = [];
+    while (picked.length < 3 && rest.length) {
+      picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+    }
+    return picked;
+  }
+
+  // ---------- A ----------
+  const rowA = document.getElementById('row-a');
+  const stageA = document.getElementById('stage-a');
+  function playA() {
+    stageA.classList.remove('play');
+    rowA.replaceChildren(...POOL.slice(0, 3).map(makeChip));
+    void rowA.offsetWidth; // 强制 reflow 以重启动画
+    stageA.classList.add('play');
+  }
+  document.getElementById('replay-a').addEventListener('click', playA);
+  playA();
+
+  // ---------- B ----------
+  const rowB = document.getElementById('row-b');
+  const refreshB = document.getElementById('refresh-b');
+  let bItems = POOL.slice(0, 3);
+  let bBusy = false;
+  rowB.replaceChildren(...bItems.map(makeChip));
+  refreshB.addEventListener('click', () => {
+    if (bBusy) return;
+    bBusy = true;
+    refreshB.classList.add('spinning');
+    const apply = () => {
+      bItems = sampleThree(bItems);
+      rowB.replaceChildren(...bItems.map(makeChip));
+      rowB.classList.remove('leaving');
+      rowB.classList.add('entering');
+      setTimeout(() => { rowB.classList.remove('entering'); refreshB.classList.remove('spinning'); bBusy = false; }, 400);
+    };
+    if (REDUCED) { apply(); return; }
+    rowB.classList.add('leaving');
+    setTimeout(apply, 150);
+  });
+
+  // ---------- C ----------
+  const rowC = document.getElementById('row-c');
+  const stageC = document.getElementById('stage-c');
+  const toggleC = document.getElementById('toggle-c');
+  let cItems = POOL.slice(0, 3);
+  let cSlot = 0;
+  let cPaused = REDUCED; // reduced-motion 下默认不自动轮换
+  let cHover = false;
+  function renderC() {
+    rowC.replaceChildren(...cItems.map((s) => {
+      const chip = makeChip('');
+      const span = document.createElement('span');
+      span.className = 'chip-text';
+      span.textContent = s;
+      chip.title = s;
+      chip.appendChild(span);
+      return chip;
+    }));
+  }
+  function rotateC() {
+    if (cPaused || cHover) return;
+    const chip = rowC.children[cSlot];
+    const span = chip && chip.querySelector('.chip-text');
+    if (!span) return;
+    const next = sampleThree(cItems)[0];
+    cItems[cSlot] = next;
+    cSlot = (cSlot + 1) % 3;
+    span.classList.add('swap-out');
+    setTimeout(() => {
+      span.textContent = next;
+      chip.title = next;
+      span.classList.remove('swap-out');
+      span.classList.add('swap-in-start');
+      void span.offsetWidth;
+      span.classList.remove('swap-in-start');
+    }, 250);
+  }
+  renderC();
+  setInterval(rotateC, 5000);
+  stageC.addEventListener('mouseenter', () => { cHover = true; });
+  stageC.addEventListener('mouseleave', () => { cHover = false; });
+  toggleC.textContent = cPaused ? '开始轮换' : '暂停轮换';
+  toggleC.addEventListener('click', () => {
+    cPaused = !cPaused;
+    toggleC.textContent = cPaused ? '开始轮换' : '暂停轮换';
+  });
+
+  // ---------- D ----------
+  const rowD = document.getElementById('row-d');
+  let dTimer = null;
+  function playD() {
+    if (dTimer) clearTimeout(dTimer);
+    const items = POOL.slice(0, 3);
+    const chips = items.map(() => makeChip(''));
+    rowD.replaceChildren(...chips);
+    if (REDUCED) {
+      chips.forEach((c, i) => { c.textContent = items[i]; c.title = items[i]; });
+      return;
+    }
+    let ci = 0, pos = 0;
+    const step = () => {
+      if (ci >= chips.length) return;
+      const chip = chips[ci];
+      chip.classList.add('typing');
+      const text = items[ci];
+      if (pos < text.length) {
+        pos += 1;
+        chip.textContent = text.slice(0, pos);
+        chip.title = text;
+        dTimer = setTimeout(step, 26);
+      } else {
+        chip.classList.remove('typing');
+        ci += 1; pos = 0;
+        dTimer = setTimeout(step, 160);
+      }
+    };
+    step();
+  }
+  document.getElementById('replay-d').addEventListener('click', playD);
+  playD();
+
+  // ---------- E ----------
+  // 词池复制两份,配合 translateX(-50%) 实现无缝循环
+  const rowE = document.getElementById('row-e');
+  rowE.replaceChildren(...POOL.concat(POOL).map(makeChip));
+
+  // ---------- F ----------
+  // 三行,每行一条词重复填充;速度各异 + 负延迟错开相位。
+  // translateX(-50%) 循环要求轨道内容恰好为两份相同序列。
+  const rowsF = document.getElementById('rows-f');
+  const F_SPEEDS = ['38s', '55s', '47s'];
+  const F_OFFSETS = ['-9s', '-31s', '-20s'];
+  const F_COPIES = 4; // 单份序列内重复次数,保证轨道宽度 ≥ 2× 容器
+  rowsF.replaceChildren(...POOL.slice(0, 3).map((text, i) => {
+    const row = document.createElement('div');
+    row.className = 'fog-row';
+    const track = document.createElement('div');
+    track.className = 'fog-row-track';
+    track.style.setProperty('--speed', F_SPEEDS[i]);
+    track.style.setProperty('--offset', F_OFFSETS[i]);
+    const seq = Array.from({ length: F_COPIES }, () => text);
+    seq.concat(seq).forEach((t, idx) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'fog-chip';
+      chip.textContent = t;
+      chip.title = t;
+      if (idx > 0) { chip.tabIndex = -1; chip.setAttribute('aria-hidden', 'true'); }
+      track.appendChild(chip);
+    });
+    row.appendChild(track);
+    return row;
+  }));
+
+  // ---------- theme ----------
+  const toggle = document.getElementById('theme-toggle');
+  toggle.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    document.documentElement.dataset.theme = dark ? '' : 'dark';
+    toggle.textContent = dark ? '暗色' : '亮色';
+  });
+</script>
+</body>
+</html>

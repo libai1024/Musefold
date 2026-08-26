@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { WorkbenchPageFrame } from "@musefold/product-ui";
 import { useAppStore } from "../../../stores/app";
 import { useGenerationStore } from "../store";
@@ -9,6 +9,7 @@ import { WorkbenchComposer } from "./WorkbenchComposer";
 import { WorkbenchTimeline } from "./WorkbenchTimeline";
 
 export function GenerationWorkbench() {
+  const [contextDockWidth, setContextDockWidth] = useState(304);
   const providers = useGenerationStore((s) => s.providers);
   const loadProviders = useGenerationStore((s) => s.loadProviders);
   const refinementContext = useGenerationWorkbenchStore(
@@ -33,8 +34,9 @@ export function GenerationWorkbench() {
 
   return (
     <WorkbenchPageFrame
-      className="relative flex h-full min-h-0 flex-col"
+      className="relative flex h-full min-h-0"
       stageClassName="relative flex min-h-0 flex-1"
+      auxiliaryWidth={contextDockWidth}
       timeline={
         <WorkbenchTimeline
           emptyComposer={
@@ -48,6 +50,8 @@ export function GenerationWorkbench() {
         referencesOpen ? (
           <PromptReferenceSidebar
             open={referencesOpen}
+            width={contextDockWidth}
+            onWidthChange={setContextDockWidth}
             onClose={() => setReferencesOpen(false)}
           />
         ) : null

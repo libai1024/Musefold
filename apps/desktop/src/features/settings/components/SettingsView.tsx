@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Archive,
   ArrowLeft,
+  BarChart3,
   Blocks,
   Database,
   HardDrive,
@@ -20,6 +21,7 @@ import { PreferencesSection } from './PreferencesSection';
 import { OpenCapabilitiesSection } from './OpenCapabilitiesSection';
 import { DataAndAboutSection } from './DataAndAboutSection';
 import { ArchivedChatsSection } from './ArchivedChatsSection';
+import { UsageStatisticsSection } from './UsageStatisticsSection';
 import {
   SETTINGS_SECTION_CAPABILITY,
   isCapabilityEntryVisible,
@@ -36,7 +38,7 @@ interface DesktopSettingsNavigationGroup extends Omit<SettingsNavigationGroup, '
   items: readonly DesktopSettingsNavigationItem[];
 }
 
-// v2 设置整合：12 分区收敛为 6 分区；旧分区 key 由 settings store 的别名翻译兼容深链。
+// v2 设置整合：12 个旧分区重组为 7 个任务分区；旧 key 继续兼容深链。
 const NAV_GROUPS: readonly DesktopSettingsNavigationGroup[] = [
   {
     id: 'access',
@@ -82,6 +84,12 @@ const NAV_GROUPS: readonly DesktopSettingsNavigationGroup[] = [
     icon: <Database />,
     items: [
       {
+        id: 'usage',
+        label: '使用统计',
+        icon: <BarChart3 />,
+        keywords: ['用量', '统计', '积分', '渠道', '成本', '模型', '趋势', '成功率'],
+      },
+      {
         id: 'data',
         label: '数据与关于',
         icon: <HardDrive />,
@@ -109,6 +117,7 @@ const SECTIONS: Record<SettingsSection, () => JSX.Element> = {
   relay: RelaySection,
   preferences: PreferencesSection,
   open: OpenCapabilitiesSection,
+  usage: UsageStatisticsSection,
   data: DataAndAboutSection,
   archived: ArchivedChatsSection,
 };

@@ -25,6 +25,28 @@ def goto_library(app):
     app.page.wait_for_timeout(300)
 
 
+def test_library_shell_owns_the_only_page_title(app):
+    """2.0 桌面壳层提供页面身份，内容区使用两行控制区。"""
+    goto_library(app)
+    assert app.page.get_by_test_id("titlebar-title").inner_text() == "提示词库"
+    assert app.page.get_by_test_id("library-page").locator("h1").count() == 0
+
+    toolbar = app.page.locator(".mf-library-control-deck")
+    tabs_box = app.page.locator(".mf-workspace-scope-tabs").bounding_box()
+    search_box = app.page.get_by_test_id("library-search").bounding_box()
+    create_box = app.page.get_by_test_id("library-new").bounding_box()
+    summary_box = app.page.locator(".mf-library-section-summary").bounding_box()
+    toolbar_box = toolbar.bounding_box()
+    assert tabs_box and search_box and create_box and summary_box and toolbar_box
+    assert abs(tabs_box["y"] - search_box["y"]) <= 2
+    summary_center = summary_box["y"] + summary_box["height"] / 2
+    create_center = create_box["y"] + create_box["height"] / 2
+    assert abs(summary_center - create_center) <= 2
+    assert create_box["y"] > search_box["y"] + search_box["height"]
+    assert 340 <= search_box["width"] <= 400
+    assert toolbar_box["y"] >= app.page.get_by_test_id("titlebar").bounding_box()["height"]
+
+
 def mk(app, title: str, content: str = "a photo of a cat", **kw):
     """经真实 IPC 建一条，返回 Prompt 对象。"""
     payload = {"title": title, "content": content, **kw}
@@ -50,6 +72,26 @@ def open_detail(app, prompt_id: str):
     app.page.click(f'[data-prompt-id="{prompt_id}"] [data-testid="prompt-row-open"]')
     app.page.wait_for_selector(f'[data-testid="prompt-detail"][data-prompt-id="{prompt_id}"]')
     app.page.wait_for_timeout(200)
+
+
+def test_prompt_detail_opens_as_a_non_overlaying_inspector(app):
+    prompt = mk(app, "Inspector 布局", "保留列表上下文")
+    goto_library(app)
+    open_detail(app, prompt["id"])
+
+    inspector = app.page.get_by_test_id("prompt-inspector").bounding_box()
+    prompt_list = app.page.get_by_test_id("prompt-list").bounding_box()
+    selected_row = app.page.locator(
+        f'[data-testid="prompt-row"][data-prompt-id="{prompt["id"]}"]'
+    )
+    assert inspector and prompt_list
+    assert prompt_list["x"] + prompt_list["width"] <= inspector["x"] + 1
+    assert selected_row.get_attribute("data-highlighted") == "true"
+    assert app.page.get_by_test_id("library-search").is_visible()
+
+    app.page.get_by_test_id("detail-back").click()
+    app.page.get_by_test_id("prompt-inspector").wait_for(state="detached")
+    assert app.page.get_by_test_id("library-search").is_visible()
 
 
 def open_detail_menu(app):

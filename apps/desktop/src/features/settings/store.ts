@@ -1,6 +1,6 @@
 // src/features/settings/store.ts
 // 设置页导航状态 —— 当前分区（可被侧栏/状态栏定向打开）。
-// v2 设置整合：分区收敛为 6 个；旧分区 key 作为深链别名在 setSection 内翻译，
+// v2 设置整合：分区收敛为 7 个；旧分区 key 作为深链别名在 setSection 内翻译，
 // 侧栏/工作台/自动化事件等历史调用点无需逐一改造。
 
 import { create } from 'zustand';
@@ -19,6 +19,7 @@ export type SettingsSection =
   | 'relay'
   | 'preferences'
   | 'open'
+  | 'usage'
   | 'data'
   | 'archived';
 

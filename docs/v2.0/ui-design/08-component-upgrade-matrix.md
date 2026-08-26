@@ -66,22 +66,22 @@ apps/web/src
 
 | 组件 | 当前职责 | 2.0 重点 | 状态 |
 | --- | --- | --- | --- |
-| Button | 文字/图标动作 | surface、pressed、focus、Ember primary | 待升级 |
-| IconButton | 图标动作 | 28/32px hit area、tooltip、focus | 待升级 |
-| Input | 单行输入 | inset/elevated、focus ring、error | 待升级 |
-| Textarea | 多行输入 | Composer 质感、自动高度、error | 待升级 |
-| Select | 选择器 | Popover、selected、键盘导航 | 待升级 |
-| Switch | 开关 | track、thumb、checked、disabled | 待升级 |
-| Tabs | 页面切换 | selected indicator、紧凑圆角 | 待升级 |
-| Segmented | 互斥模式 | inset selected、focus、disabled | 待升级 |
-| Badge | 状态标签 | 生命周期/语义色区分 | 待升级 |
-| Dialog | 阻断/编辑 | 16px radius、统一 footer | 待升级 |
-| Popover | 局部菜单 | 8-12px radius、shadow-pop | 待升级 |
-| Tooltip | 图标解释 | 6px radius、短说明 | 待升级 |
-| Toast | 瞬时反馈 | success/error/info 统一结构 | 待升级 |
-| Empty | 空数据 | 原因 + 下一步动作 | 待升级 |
-| Loading | 加载状态 | 稳定尺寸 skeleton | 待升级 |
-| Error | 错误状态 | 错误原因 + 恢复动作 | 待升级 |
+| Button | 文字/图标动作 | surface、pressed、focus、Ember primary | 共享层已升级 |
+| IconButton | 图标动作 | 28/32px hit area、tooltip、focus | 共享层已升级 |
+| Input | 单行输入 | inset/elevated、focus ring、error | 共享层已升级 |
+| Textarea | 多行输入 | Composer 质感、自动高度、error | 共享层已升级 |
+| Select | 选择器 | Popover、selected、键盘导航 | 共享层已升级 |
+| Switch | 开关 | track、thumb、checked、disabled | 共享层已升级，设置组合保留在 product-ui |
+| Tabs | 页面切换 | selected indicator、紧凑圆角 | 共享层已升级 |
+| Segmented | 互斥模式 | inset selected、focus、disabled | 共享层已升级 |
+| Badge | 状态标签 | 生命周期/语义色区分 | 共享层已升级 |
+| Dialog | 阻断/编辑 | 16px radius、统一 footer | 共享层与常规桌面实例已升级 |
+| Popover | 局部菜单 | 8-12px radius、shadow-pop | 共享层已升级，Workbench Composer 已迁移 |
+| Tooltip | 图标解释 | 6px radius、短说明 | 共享层已升级 |
+| Toast | 瞬时反馈 | success/error/info 统一结构 | 共享层与桌面宿主已升级 |
+| Empty | 空数据 | 原因 + 下一步动作 | 共享层已升级 |
+| Loading | 加载状态 | 稳定尺寸 skeleton | 共享层已升级 |
+| Error | 错误状态 | 错误原因 + 恢复动作 | 共享层已升级 |
 
 ## 5. Token 升级矩阵
 
@@ -530,3 +530,159 @@ Phase H  Desktop/Web visual integration
 - [ ] 先升级 token 和原子组件，再升级页面宿主。
 - [ ] 没有新增第二套图标、颜色或组件框架。
 - [ ] 视觉门禁覆盖桌面、Web、Light、Dark 和窄屏。
+
+## 21. Phase C 实现进度（2026-08-26）
+
+本批完成共享浮层原语、工作台高频入口与 Prompt 页面菜单，采用兼容式 API 升级，不修改业务实体和数据流。
+
+### 21.1 已完成
+
+- Dialog：统一 scrim、raised surface、16px 圆角和 dialog shadow；新增 `DialogBody` 结构槽位。
+- Popover：Dropdown / Select 使用实色 popover surface、8px 外圆角、6px 行圆角、32px 普通行和 `shadow-pop`。
+- Tooltip：6px 圆角、短文案、反色实色表面和 `shadow-sm`。
+- Toast：固定语义图标、正文、可选动作、关闭四个槽位；桌面 `ToastHost` 不再使用页面级 utility class 组装外观。
+- Composer 添加上下文菜单：保持既有全宽位置，补齐菜单键盘模型与分组 separator；Portal 不参与时间线布局。
+- 会话 Context Menu：实色表面、token 阴影、32px 菜单行、危险项语义与首项焦点。
+- Prompt 顶部与详情菜单：共享 Dropdown 定位、实色表面、首项焦点、Home / End、Escape 与触发器焦点归还。
+- Prompt 删除确认：补齐 `DialogBody` 结构槽位。
+- History 详情动作：高频动作常驻，文件与删除动作进入共享 Dropdown；桌面注入项加入同一键盘集合。
+- History 删除与清理确认：使用 16px Dialog、统一 scrim / shadow 和 `DialogBody` 结构槽位。
+- Sidebar 身份切换与应用菜单：侧栏底部两个触发器统一使用共享 Dropdown，向上锚定并保留官方账号、豆包账号、中转站和应用设置的业务动作。
+
+### 21.2 迁移边界
+
+当前登记的手写动作菜单已经清零。`SidebarAccessSwitcher` 虽然包含身份切换、异步模型验证和桌宠状态读取等宿主业务，但浮层本身已经统一到共享 Dropdown 原语；Dialog 业务实例按标准 Body 槽位完成迁移，不与动作菜单机械合并。
+
+因此，Prompt、History、Scheme、Workbench 和 Sidebar 的动作菜单现在共享同一套 Portal、焦点、键盘和 dismissal 语义。
+
+### 21.3 桌面验收口径
+
+- 浮层表面必须是实色，不能依赖 blur 才可读。
+- Popover / Context Menu 不改变 Sidebar、MainView、Dock 或 Composer 的几何。
+- 普通菜单支持方向键、Home / End、Escape；关闭后按入口语义恢复焦点。
+- Toast 只承载瞬时反馈，持续错误仍保留在发生位置。
+- 本阶段只做桌面端验证；移动端响应式门禁按当前开发约定暂不执行。
+
+### 21.4 Prompt 第二批门禁
+
+`tests/e2e/test_42_prompt_overlays_v2_desktop.py` 固定使用 1440x900，覆盖提示词库顶部菜单与详情菜单的 Light / Dark surface、8px 圆角、`shadow-pop`、危险项语义、Home / End 和 Escape 焦点归还。本批不执行手机端测试。
+
+### 21.5 History 第三批门禁
+
+`tests/e2e/test_43_history_overlays_v2_desktop.py` 固定使用 1440x900，覆盖 History Inspector 的动作层级、196px Light / Dark 菜单、危险项分组、16px 删除 Dialog、Home / End、Escape 与触发器焦点归还。既有 `test_06_history.py` 继续验证复制图片、打开文件夹、删除记录、删除源文件、清理和存为提示词的业务结果。本批不执行手机端测试。
+
+### 21.6 Scheme 第四批门禁
+
+`SchemeActionMenu`、`SchemeCreateMenu` 和 `SchemeRunVariableFields` 已迁移到共享 Dropdown 原语：
+
+- 方案详情 `...` 菜单使用 200px 内容宽度、8px 外圆角、`shadow-pop`，危险项由 separator 隔开。
+- 新建来源菜单使用 286px 内容宽度和双行菜单项，不被列表滚动容器裁剪。
+- 运行 Composer 的可选变量菜单从底部向上展开，选择后关闭并将焦点归还按钮。
+- 共享 Content 在 Electron pointer-open 路径主动聚焦首项，统一提供方向键、Home / End、Escape 和触发器焦点归还。
+- 方案附件详情仍是富信息 dialog，不与动作型 Dropdown 混用。
+
+`tests/e2e/test_26_scheme_center_delete.py` 固定使用桌面视口，覆盖方案详情菜单 Dark / Light surface、8px 圆角、`shadow-pop`、Home / End、Escape、焦点归还和删除确认；本批不执行手机端测试。
+
+### 21.7 Workbench 第五批门禁
+
+`WorkbenchTurnActions` 与 `WorkbenchGenerationResultCard` 已完成共享 Dropdown 迁移：
+
+- 回合动作菜单使用 176px `DropdownMenuContent`，`side="top"`，Portal 只负责浮层层级，不改变时间线布局。
+- 结果卡片的目录与历史动作使用 144px `DropdownMenuContent`，媒体表面上的保存、复制、微调仍保持高频图标按钮位置。
+- 回合宿主注入项使用 `DropdownMenuItem asChild`，兼容 `GenerationSavePromptAction` 的业务状态和禁用态。
+- `packages/product-ui/src/workbench/__tests__/workbench-overlays.test.ts` 固定检查共享原语、既有测试钩子和无 document 级菜单监听。
+- `tests/e2e/test_08_generation_workbench.py` 继续覆盖回合菜单存为提示词以及结果菜单打开目录的桌面行为；本批不执行手机端测试。
+
+### 21.8 Sidebar Access Switcher 第六批门禁
+
+侧栏身份入口参考 ZCode 的底部工作区入口：触发器仍然是侧栏内的常驻身份行和设置图标，展开内容改由共享 Portal 承载，不能把菜单节点插回 Sidebar 的 `overflow` 容器。
+
+```text
+Sidebar Footer
+├── [avatar] 当前生图身份 / 余额或模型          [v]
+└──                                           [settings]
+
+身份菜单（向上展开，292px）
+├── 当前身份摘要
+├── 生图账号
+│   ├── Musefold 官方账号 / 积分余额             [✓]
+│   └── 豆包账号 / 今日剩余次数
+├── 中转站
+│   ├── 已配置模型 / 模型友好名                   [✓]
+│   └── 配置中转站
+└── 管理中转站 / 账号设置
+
+应用菜单（向上展开，220px）
+├── Musefold
+├── [power] 显示桌宠 / 隐藏桌宠
+└── [settings] 应用设置
+```
+
+实现口径：
+
+- 身份菜单使用 `DropdownMenuContent side="top" align="start" sideOffset={6}`，宽度 292px；应用菜单使用 `side="top" align="end" sideOffset={6}`，宽度 220px，保证设置图标右边缘对齐。
+- 两个内容面均为实色 `--bg-popover`，外圆角 12px、1px `--border-default` 和 `--shadow-pop`；深色继承 ZCode 风格的高对比 raised surface，明亮色使用 foundation 的浅色 popover，不能依赖 blur 才可读。
+- 菜单内部采用 8px 行圆角、40px 最小行高、8px 内边距；身份行是图标、双行名称/状态和尾部 Check 的三段式布局，标题和余额允许截断但不能改变行高。
+- 账号、中转站和底部管理动作由真实 `DropdownMenuLabel` / `DropdownMenuSeparator` 分组；当前项使用 `data-active` + accent-soft 背景，不使用不适用于 `menuitem` 的 `aria-selected`。
+- 中转站和桌宠是异步动作：选择中转站时阻止 Dropdown 自动关闭，保留 Loader 和禁用态，验证成功后再关闭；点击桌宠开关时保留同一菜单内的忙碌反馈。
+- Radix 负责 outside click、Escape、方向键和焦点归还；共享 Content 负责首项聚焦以及 Home / End。身份切换失败只产生 toast，不把菜单重排成错误页。
+- 两个菜单设置 `z-index: 75`，高于侧栏和 MainView，但不覆盖 Dialog / Command 层级；Portal 开关不会改变 Sidebar 宽度、MainView 圆角、Composer 位置或右侧 Dock 宽度。
+
+桌面门禁固定使用 1440×900，Dark / Light 各覆盖身份菜单和应用菜单的 surface、12px 圆角、阴影、首项焦点、Home / End、Escape 和触发器焦点归还；`tests/e2e/test_32_v05_account.py` 继续覆盖真实账号与中转站切换，本批不执行手机端测试。
+
+### 21.9 Dialog 实例第七批门禁
+
+常规桌面 Dialog 统一使用 `DialogHeader / DialogBody / DialogFooter`：Body 只承担布局和滚动槽位，业务 surface、列表行和媒体预览继续由内容自身表达。已覆盖服务商、设置、全局错误、回收站、备份与分享相关实例；无独立内容的简单确认弹窗保留 Header + Footer。
+
+`PromptEditor` 的全宽表单与账号重认证表单是明确登记的 custom-layout boundary，不强行套用通用 Body，避免破坏编辑器连续 surface 和账号异步状态布局。
+
+新增 `apps/desktop/src/components/ui/__tests__/dialog-structure.test.ts` 作为静态契约：普通实例必须存在成对的 `DialogBody`，两个自定义边界必须继续显式保留。桌面验收使用 1440×900 的 Dark / Light 视口，验证 Body 间距、16px Dialog、raised surface、Footer 对齐、busy 状态和长内容滚动；本批不执行手机端测试。
+
+### 21.10 Switch 原子组件第八批门禁
+
+`Switch` 已从 product-ui 的重复 CSS 上提到 `packages/ui`，成为跨端可复用的二元状态原语：
+
+- `Switch` 统一输出 `role="switch"`、`aria-checked`、`data-state` 和稳定的 30×18px 视觉轨道；checked 状态只切换 surface 与 thumb 位移，不改变布局尺寸。
+- 共享层负责轨道、thumb、44px 命中区、focus ring、disabled opacity 和 reduced-motion 过渡；颜色只引用 `tokens.css` 的 `--accent`、`--bg-active`、`--fg-primary` 与 `--on-accent`。
+- `SettingsSwitch` 继续保留 `label`、`testId` 和现有 `onCheckedChange` API，作为设置页面的产品组合；`mf-settings-switch` 只承担兼容选择器，不再拥有第二套几何或状态 CSS。
+- 原语允许宿主提供原生 `onClick`，只有事件未被阻止时才触发 `onCheckedChange`；disabled 仍由原生 button 语义阻止交互。
+
+对应实现与契约：
+
+```text
+packages/ui/src/primitives.tsx
+packages/ui/src/primitives.css
+packages/ui/src/__tests__/primitives.test.tsx
+packages/product-ui/src/settings/SettingsComponents.tsx
+packages/product-ui/src/settings/__tests__/SettingsWorkspace.test.tsx
+```
+
+桌面验收固定覆盖 Settings 的 Dark / Light 开关、checked / unchecked、disabled、focus 和设置页现有业务 test id；本批不执行手机端测试。
+
+### 21.11 Popover 原子组件第九批门禁
+
+`Popover` 已从工作台实例里的重复 portal 与 document listener 提炼到 `packages/ui`，作为受控的局部浮层原语：
+
+- `Popover` 只负责 open 状态、触发器切换、body portal、点击外部关闭、Escape 关闭与触发器焦点恢复；内容的业务宽度、高度和定位仍由产品层决定。
+- `PopoverTrigger asChild` 保留现有 Button 的尺寸、图标、tooltip、test id 与 focus ring，不新增一层视觉 wrapper；触发器始终输出 `aria-expanded`。
+- `PopoverContent` 使用 `--bg-popover`、`--border-default`、`--radius-md` 与 `--shadow-pop`，默认挂到 body，支持 `portal={false}` 作为静态内容或特殊宿主的逃生口。
+- 工作台生成设置与比例选择器已移除各自的 `createPortal` 和 document-level listener；仍使用 `useWorkbenchPopoverPosition`，确保浮层是相对于整个 Composer surface 向上展开，而不是只贴着工具栏按钮。
+- 选择比例、点击关闭按钮、点击外部和按 Escape 都经过同一条关闭路径，触发器焦点可恢复；内部选项的键盘导航继续由产品层保留。
+
+方案运行 Composer 的附件详情也已接入同一原语：它使用 `portal={false}` 保留相对于方案芯片的向上定位，但关闭、Escape、外部点击与焦点恢复均由共享 Popover 处理；附件摘要、输入要求、查看详情、更换和移除这些业务内容不变。
+
+对应实现与契约：
+
+```text
+packages/ui/src/popover.tsx
+packages/ui/src/popover.css
+packages/ui/src/__tests__/primitives.test.tsx
+packages/product-ui/src/workbench/WorkbenchGenerationSettingsPopover.tsx
+packages/product-ui/src/workbench/WorkbenchRatioPicker.tsx
+packages/product-ui/src/workbench/__tests__/workbench-overlays.test.ts
+apps/desktop/src/features/design-schemes/SchemeRunComposer.tsx
+apps/desktop/src/features/design-schemes/__tests__/scheme-list-primitives.test.tsx
+tests/e2e/test_44_scheme_attachment_popover_desktop.py
+```
+
+桌面验收固定覆盖 1440×900 的 Composer 设置、比例浮层和方案附件详情：打开/收起、浮层位于 Composer 上方、选项修改、Dark / Light surface、点击外部、Escape 焦点恢复；本批不执行手机端测试。

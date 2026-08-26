@@ -124,6 +124,43 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   },
 );
 
+export interface UiSwitchProps
+  extends Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    "children" | "onChange"
+  > {
+  checked: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+}
+
+/** Shared binary switch with stable geometry and native button semantics. */
+export const Switch = forwardRef<HTMLButtonElement, UiSwitchProps>(
+  function Switch(
+    { checked, onCheckedChange, className, disabled, onClick, ...props },
+    ref,
+  ) {
+    return (
+      <button
+        {...props}
+        ref={ref}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        data-state={checked ? "checked" : "unchecked"}
+        data-checked={checked || undefined}
+        disabled={disabled}
+        className={mergeClassNames("mf-ui-switch", className)}
+        onClick={(event) => {
+          onClick?.(event);
+          if (!event.defaultPrevented) onCheckedChange?.(!checked);
+        }}
+      >
+        <span className="mf-ui-switch-thumb" aria-hidden="true" />
+      </button>
+    );
+  },
+);
+
 export interface StatusBadgeProps {
   children: ReactNode;
   tone?: UiStatusTone;

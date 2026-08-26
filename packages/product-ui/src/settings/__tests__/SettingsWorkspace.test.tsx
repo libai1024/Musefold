@@ -38,6 +38,23 @@ describe('SettingsWorkspace', () => {
     expect(filterSettingsNavigationGroups(groups, '不存在')).toEqual([]);
   });
 
+  it('offers an explicit way to clear a non-empty settings search', () => {
+    const html = renderToStaticMarkup(
+      <SettingsWorkspace
+        groups={groups}
+        activeSection="profile"
+        onSectionChange={() => undefined}
+        searchValue="额度"
+        onSearchChange={() => undefined}
+      >
+        <div />
+      </SettingsWorkspace>,
+    );
+
+    expect(html).toContain('aria-label="清空设置搜索"');
+    expect(html).toContain('value="额度"');
+  });
+
   it('renders a controlled, platform-neutral settings workspace', () => {
     const html = renderToStaticMarkup(
       <SettingsWorkspace
@@ -121,7 +138,8 @@ describe('SettingsWorkspace', () => {
     expect(html).toContain('role="radiogroup"');
     expect(html).toContain('role="radio"');
     expect(html).toContain('aria-checked="true"');
-    expect(html).toContain('class="mf-settings-switch"');
+    expect(html).toContain('mf-settings-switch');
+    expect(html).toContain('mf-ui-switch');
     expect(html).toContain('role="switch"');
   });
 

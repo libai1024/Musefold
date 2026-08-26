@@ -67,6 +67,10 @@
   --shadow-composer:
     0 12px 36px rgba(28, 30, 34, 0.1), 0 2px 8px rgba(28, 30, 34, 0.05);
 
+  --scrim-command: rgba(20, 20, 24, 0.32);
+  --scrim-dialog: rgba(20, 20, 24, 0.38);
+  --scrim-onboarding: rgba(20, 20, 24, 0.32);
+
   /*
    * v2.0 语义表面层(Phase A):新组件只引用 surface-*,旧 bg-* token 继续兼容。
    * 层级:window < sidebar < work < raised ≤ popover;media 在深色下比 raised 更亮,
@@ -84,6 +88,8 @@
   --shell-sidebar-width: 248px;
   --shell-sidebar-min-width: 220px;
   --shell-dock-width: 304px;
+  --shell-dock-min-width: 260px;
+  --shell-dock-max-width: 420px;
 
   /* v2.0 空隙阶梯:1px 只用于 Shell 分缝,组件内部保持 8-16px 可读空间。 */
   --gap-shell: 1px;
@@ -178,6 +184,10 @@
   --shadow-dialog: 0 28px 80px rgba(0, 0, 0, 0.62);
   --shadow-composer:
     0 14px 38px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.22);
+
+  --scrim-command: rgba(0, 0, 0, 0.58);
+  --scrim-dialog: rgba(0, 0, 0, 0.64);
+  --scrim-onboarding: rgba(0, 0, 0, 0.68);
 
   /* 深色下媒体承托面比 raised 更亮,图片结果不沉入背景(00 §3)。 */
   --surface-media: #2a2c30;

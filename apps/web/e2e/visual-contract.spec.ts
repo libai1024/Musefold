@@ -54,6 +54,17 @@ async function captureCanonicalSurface(
       (element as HTMLElement).style.animation = "none";
     });
   }
+  // 水印呼吸、字幕慢滚与 Ember 点脉动会让双端截图落在不同相位,拍摄前冻结。
+  const animated = page.locator(
+    ".mf-workbench-empty-watermark-word span, .mf-workbench-direction-track, .mf-workbench-empty-brand svg circle",
+  );
+  if ((await animated.count()) > 0) {
+    await animated.evaluateAll((elements) => {
+      for (const element of elements) {
+        (element as HTMLElement).style.animation = "none";
+      }
+    });
+  }
   const metrics = await surface.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {

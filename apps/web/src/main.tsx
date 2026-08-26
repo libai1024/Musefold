@@ -8,6 +8,7 @@ import { webPlatformServices } from './runtime/platform-services';
 import '@musefold/ui/tokens.css';
 import '@musefold/ui/primitives.css';
 import '@musefold/ui/theater-fonts.css';
+import '@musefold/ui/brand-fonts.css';
 import './styles.css';
 import './settings.css';
 import '@musefold/product-ui/styles.css';

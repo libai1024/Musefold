@@ -56,10 +56,8 @@ export function useTheaterReveal() {
     timeline
       .from('[data-theater-mark]', {
         autoAlpha: 0,
-        x: 28,
-        rotateY: -52,
-        transformPerspective: 1400,
-        transformOrigin: '100% 12%',
+        x: 20,
+        clipPath: 'inset(0 0 0 18%)',
         duration: fold,
       })
       .from('[data-theater-line]', {
@@ -147,4 +145,3 @@ export function useFirstImageReveal({
 
   return { rootRef };
 }
-

@@ -3,30 +3,38 @@ import {
   Copy,
   FileText,
   MoreHorizontal,
+  PanelRightClose,
   Pencil,
   Pin,
   RotateCcw,
   Sparkles,
   Trash2,
-} from "@musefold/ui/icons";
+} from '@musefold/ui/icons';
 import {
   Button,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   IconButton,
-} from "@musefold/ui";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { PromptDetailViewModel } from "../models";
+} from '@musefold/ui';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { PromptDetailViewModel } from '../models';
 
 type PromptAction = () => void | Promise<void>;
 type PromptDetailMenuItems = ReactNode | ((close: () => void) => ReactNode);
 
 export interface PromptDetailScreenProps {
   prompt: PromptDetailViewModel;
+  layout?: 'page' | 'inspector';
   onBack: PromptAction;
   onUse?: PromptAction;
   onEdit?: PromptAction;
@@ -43,6 +51,7 @@ export interface PromptDetailScreenProps {
 
 export function PromptDetailScreen({
   prompt,
+  layout = 'page',
   onBack,
   onUse,
   onEdit,
@@ -58,23 +67,15 @@ export function PromptDetailScreen({
 }: PromptDetailScreenProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuContentRef = useRef<HTMLDivElement>(null);
   const deleted = Boolean(prompt.deletedAtLabel);
 
   useEffect(() => {
     if (!menuOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
+    const frame = window.requestAnimationFrame(() => {
+      menuContentRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [menuOpen]);
 
   const runMenuAction = (action?: PromptAction) => {
@@ -95,17 +96,32 @@ export function PromptDetailScreen({
       className="mf-prompt-detail-screen"
       data-testid="prompt-detail"
       data-prompt-id={prompt.id}
-      data-deleted={deleted ? "true" : "false"}
+      data-deleted={deleted ? 'true' : 'false'}
+      data-layout={layout}
     >
-      <Button
-        variant="ghost"
-        className="mf-detail-back"
-        onClick={() => void onBack()}
-        data-testid="detail-back"
-        icon={<ArrowLeft aria-hidden="true" />}
-      >
-        提示词
-      </Button>
+      {layout === 'inspector' ? (
+        <div className="mf-prompt-inspector-bar">
+          <strong>提示词详情</strong>
+          <IconButton
+            className="mf-icon-button"
+            label="关闭提示词详情"
+            onClick={() => void onBack()}
+            data-testid="detail-back"
+          >
+            <PanelRightClose aria-hidden="true" />
+          </IconButton>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          className="mf-detail-back"
+          onClick={() => void onBack()}
+          data-testid="detail-back"
+          icon={<ArrowLeft aria-hidden="true" />}
+        >
+          提示词
+        </Button>
+      )}
 
       <header className="mf-prompt-detail-heading">
         <span className="mf-prompt-detail-icon" aria-hidden="true">
@@ -119,11 +135,10 @@ export function PromptDetailScreen({
           </div>
           {prompt.description && <p>{prompt.description}</p>}
           <small>
-            {prompt.sourceLabel} · 使用 {prompt.usageCount} 次 · 更新于{" "}
-            {prompt.updatedAtLabel}
+            {prompt.sourceLabel} · 使用 {prompt.usageCount} 次 · 更新于 {prompt.updatedAtLabel}
           </small>
         </div>
-        <div className="mf-prompt-detail-actions" ref={menuRef}>
+        <div className="mf-prompt-detail-actions">
           {deleted ? (
             onRestore && (
               <Button
@@ -139,17 +154,69 @@ export function PromptDetailScreen({
             )
           ) : (
             <>
-              <IconButton
-                className="mf-icon-button"
-                label="更多操作"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                disabled={busy}
-                onClick={() => setMenuOpen((open) => !open)}
-                data-testid="detail-menu"
-              >
-                <MoreHorizontal aria-hidden="true" />
-              </IconButton>
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <IconButton
+                    className="mf-icon-button"
+                    label="提示词操作"
+                    disabled={busy}
+                    data-testid="detail-menu"
+                  >
+                    <MoreHorizontal aria-hidden="true" />
+                  </IconButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  ref={menuContentRef}
+                  className="mf-prompt-detail-menu"
+                  align="end"
+                  sideOffset={6}
+                  aria-label="提示词操作"
+                >
+                  {onEdit && (
+                    <DropdownMenuItem
+                      onSelect={() => runMenuAction(onEdit)}
+                      data-testid="detail-edit"
+                    >
+                      <Pencil aria-hidden="true" />
+                      编辑
+                    </DropdownMenuItem>
+                  )}
+                  {onCopy && (
+                    <DropdownMenuItem
+                      onSelect={() => runMenuAction(onCopy)}
+                      data-testid="detail-copy"
+                    >
+                      <Copy aria-hidden="true" />
+                      复制正文
+                    </DropdownMenuItem>
+                  )}
+                  {onTogglePin && (
+                    <DropdownMenuItem
+                      onSelect={() => runMenuAction(onTogglePin)}
+                      data-testid="detail-pin"
+                    >
+                      <Pin aria-hidden="true" />
+                      {prompt.isPinned ? '取消置顶' : '置顶'}
+                    </DropdownMenuItem>
+                  )}
+                  {typeof additionalMenuItems === 'function'
+                    ? additionalMenuItems(closeMenu)
+                    : additionalMenuItems}
+                  {onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="mf-danger-action"
+                        onSelect={requestDelete}
+                        data-testid="detail-delete"
+                      >
+                        <Trash2 aria-hidden="true" />
+                        移到回收站
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               {onUse && (
                 <Button
                   variant="primary"
@@ -161,65 +228,6 @@ export function PromptDetailScreen({
                 >
                   使用
                 </Button>
-              )}
-              {menuOpen && (
-                <div
-                  className="mf-prompt-detail-menu"
-                  role="menu"
-                  aria-label="提示词操作"
-                >
-                  {onEdit && (
-                    <Button
-                      variant="ghost"
-                      role="menuitem"
-                      onClick={() => runMenuAction(onEdit)}
-                      data-testid="detail-edit"
-                      icon={<Pencil aria-hidden="true" />}
-                    >
-                      编辑
-                    </Button>
-                  )}
-                  {onCopy && (
-                    <Button
-                      variant="ghost"
-                      role="menuitem"
-                      onClick={() => runMenuAction(onCopy)}
-                      data-testid="detail-copy"
-                      icon={<Copy aria-hidden="true" />}
-                    >
-                      复制正文
-                    </Button>
-                  )}
-                  {onTogglePin && (
-                    <Button
-                      variant="ghost"
-                      role="menuitem"
-                      onClick={() => runMenuAction(onTogglePin)}
-                      data-testid="detail-pin"
-                      icon={<Pin aria-hidden="true" />}
-                    >
-                      {prompt.isPinned ? "取消置顶" : "置顶"}
-                    </Button>
-                  )}
-                  {typeof additionalMenuItems === "function"
-                    ? additionalMenuItems(closeMenu)
-                    : additionalMenuItems}
-                  {onDelete && (
-                    <>
-                      <span className="mf-menu-separator" />
-                      <Button
-                        variant="danger"
-                        role="menuitem"
-                        className="mf-danger-action"
-                        onClick={requestDelete}
-                        data-testid="detail-delete"
-                        icon={<Trash2 aria-hidden="true" />}
-                      >
-                        移到回收站
-                      </Button>
-                    </>
-                  )}
-                </div>
               )}
             </>
           )}
@@ -242,28 +250,30 @@ export function PromptDetailScreen({
         >
           <DialogHeader className="mf-confirm-dialog-header">
             <DialogTitle id="mf-delete-prompt-title">移到回收站</DialogTitle>
-            <DialogDescription>提示词可从回收站恢复。</DialogDescription>
           </DialogHeader>
+          <DialogBody>
+            <DialogDescription>提示词可从回收站恢复。</DialogDescription>
+          </DialogBody>
           <DialogFooter>
-              <Button
-                variant="secondary"
-                className="mf-secondary-button"
-                onClick={() => setDeleteOpen(false)}
-              >
-                取消
-              </Button>
-              <Button
-                variant="danger"
-                className="mf-danger-button"
-                disabled={busy}
-                data-testid="detail-delete-confirm"
-                onClick={() => {
-                  setDeleteOpen(false);
-                  if (onDelete) void onDelete();
-                }}
-              >
-                移到回收站
-              </Button>
+            <Button
+              variant="secondary"
+              className="mf-secondary-button"
+              onClick={() => setDeleteOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              className="mf-danger-button"
+              disabled={busy}
+              data-testid="detail-delete-confirm"
+              onClick={() => {
+                setDeleteOpen(false);
+                if (onDelete) void onDelete();
+              }}
+            >
+              移到回收站
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

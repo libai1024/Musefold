@@ -5,12 +5,13 @@
 //   列表模式：分区（置顶 / 全部）+ 紧凑行（缩略图 + 标题/预览/元信息 + 行尾「使用」）
 //     - 置顶区常驻渲染（少量集合）；「全部」区虚拟化（性能门槛：140+ 条时 DOM 有界）
 //     - 整页滚动（对齐方案中心），虚拟化经 scrollMargin 挂在页面滚动容器上
-//   详情模式：880px 轻量详情页（PromptDetailView），替代旧 320px 常驻检视器
+//   详情模式：右侧 400px Inspector，与资产列表并存
 //
 // v0.1 的文件夹/标签/评分/智能集/批量操作从 UI 退役（数据保留，FTS5 搜索兜底）。
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { DropdownMenuItem } from '@musefold/ui';
 import {
   PromptLibraryScreen,
   PromptLibraryHeaderActions,
@@ -19,13 +20,7 @@ import {
   useLibraryPageController,
   type PromptListItemViewModel,
 } from '@musefold/product-ui';
-import {
-  FileText,
-  Plus,
-  Search,
-  Upload,
-  X,
-} from '../components/ui/icons';
+import { FileText, Plus, Search, Upload, X } from '../components/ui/icons';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import { useLibraryStatsQuery } from '../features/library/use-library-queries';
 import {
@@ -45,7 +40,6 @@ import { toImageSrc } from '../lib/media';
 import { formatTime } from '../lib/format';
 import { toast } from '../stores/toast';
 import { promptParamsToRefineParams } from '../lib/prompt-params';
-import { cn } from '../lib/utils';
 import { useAppStore } from '../stores/app';
 
 type PageMode = 'list' | 'detail';
@@ -56,9 +50,7 @@ const COLUMN_GAP = 28;
 function usePromptDraft() {
   const openDraft = useGenerationWorkbenchStore((s) => s.openDraft);
   return (prompt: DesktopLibraryPrompt) => {
-    const params = prompt.params
-      ? promptParamsToRefineParams(prompt.params)
-      : undefined;
+    const params = prompt.params ? promptParamsToRefineParams(prompt.params) : undefined;
     openDraft({
       prompt: prompt.content,
       negative: prompt.contentNegative ?? '',
@@ -234,7 +226,9 @@ export function LibraryPage() {
       key={p.id}
       prompt={toPromptListItem(p)}
       compact={compact}
-      highlighted={highlightPromptId === p.id}
+      highlighted={
+        highlightPromptId === p.id || (pageMode === 'detail' && selectedPromptId === p.id)
+      }
       copied={copiedPromptId === p.id}
       onOpen={() => openDetail(p.id)}
       onCopy={() => {
@@ -242,7 +236,7 @@ export function LibraryPage() {
           if (!copied) return;
           setCopiedPromptId(p.id);
           window.setTimeout(() => {
-            setCopiedPromptId((current) => current === p.id ? null : current);
+            setCopiedPromptId((current) => (current === p.id ? null : current));
           }, 1_200);
         });
       }}
@@ -251,198 +245,206 @@ export function LibraryPage() {
     />
   );
 
-  if (pageMode === 'detail' && selectedPrompt) {
-    return (
-      <div className="h-full bg-elevated" data-testid="library-page">
-        <PromptDetailView
-          prompt={selectedPrompt}
-          onBack={() => setPageMode('list')}
-          onEdit={openEditor}
-        />
-        <PromptEditor
-          open={editorOpen}
-          onOpenChange={(o) => {
-            setEditorOpen(o);
-            if (!o) setEditing(null);
-          }}
-          prompt={editing}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full bg-elevated" data-testid="library-shell">
+    <div className="h-full bg-work" data-testid="library-shell">
       <div
-        ref={scrollRef}
-        className="relative h-full overflow-y-auto px-6 pb-16 pt-5 max-[640px]:px-4"
-        data-testid="prompt-list"
+        className="mf-library-workspace"
+        data-inspector-open={pageMode === 'detail' && selectedPrompt ? 'true' : 'false'}
       >
-        <PromptLibraryScreen
-          prompts={[...pinned, ...normal].map(toPromptListItem)}
-          query={search}
-          onQueryChange={setSearch}
-          headerAction={
-            <PromptLibraryHeaderActions
-              onCreate={() => openEditor(null)}
-              onOpenTrash={() => setTrashOpen(true)}
-              trashCount={stats?.trashed ?? 0}
-              trashTestId="trash-open"
-              extraMenuItems={(closeMenu) => (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
+        <div
+          ref={scrollRef}
+          className="relative h-full min-w-0 flex-1 overflow-y-auto px-6 pb-16 pt-5 max-[640px]:px-4"
+          data-testid="prompt-list"
+        >
+          <PromptLibraryScreen
+            prompts={[...pinned, ...normal].map(toPromptListItem)}
+            query={search}
+            onQueryChange={setSearch}
+            showPageHeader={false}
+            scopeNavigation={
+              <div className="mf-workspace-scope-tabs" role="tablist" aria-label="提示词范围">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!slipsOnly}
+                  onClick={() => setFilters({ source: undefined })}
+                  className="mf-workspace-scope-tab"
+                  data-testid="library-filter-all"
+                >
+                  <span>全部</span>
+                  <span className="mf-workspace-scope-count">{stats?.total ?? prompts.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={slipsOnly}
+                  onClick={() => setFilters({ source: 'slip' })}
+                  className="mf-workspace-scope-tab"
+                  data-testid="library-filter-slips"
+                >
+                  <span>笺匣</span>
+                  <span className="mf-workspace-scope-count">{slipCount}</span>
+                </button>
+              </div>
+            }
+            sectionSummary={
+              <>
+                <span>提示词</span>
+                <span className="mf-workspace-section-count">{prompts.length}</span>
+              </>
+            }
+            headerAction={
+              <PromptLibraryHeaderActions
+                onCreate={() => openEditor(null)}
+                onRefresh={async () => {
+                  await Promise.all([page.refetch(), loadAll()]);
+                }}
+                refreshing={loading}
+                onOpenTrash={() => setTrashOpen(true)}
+                trashCount={stats?.trashed ?? 0}
+                trashTestId="trash-open"
+                extraMenuItems={(closeMenu) => (
+                  <DropdownMenuItem
+                    onSelect={() => {
                       closeMenu();
                       openImport();
                     }}
                     data-testid="library-import"
                   >
                     <Upload aria-hidden="true" /> 导入
-                  </button>
-              )}
-            />
-          }
-          toolbarExtra={
-            (slipCount > 0 || slipsOnly) ? (
-              <button
-                type="button"
-                data-testid="library-filter-slips"
-                data-active={slipsOnly ? 'true' : 'false'}
-                aria-pressed={slipsOnly}
-                onClick={() =>
-                  setFilters({ source: slipsOnly ? undefined : 'slip' })
-                }
-                className={cn(
-                  'no-drag rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors',
-                  slipsOnly
-                    ? 'border-transparent bg-primary text-background'
-                    : 'border-border-subtle bg-transparent text-secondary hover:border-border-default hover:text-primary',
+                  </DropdownMenuItem>
                 )}
-              >
-                笺匣{slipCount > 0 ? ` ${slipCount}` : ''}
-              </button>
-            ) : null
-          }
-          body={
-            <div className="mt-1">
-              {error && (
-                <div
-                  role="alert"
-                  className="mt-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger"
-                  data-testid="library-error"
-                >
-                  <span className="min-w-0 flex-1 truncate">{error}</span>
-                  <button
-                    type="button"
-                    onClick={clearError}
-                    className="shrink-0 hover:opacity-70"
-                    aria-label="关闭错误提示"
+              />
+            }
+            body={
+              <div className="mt-1">
+                {error && (
+                  <div
+                    role="alert"
+                    className="mt-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger"
+                    data-testid="library-error"
                   >
-                    <X aria-hidden="true" />
-                  </button>
-                </div>
-              )}
-
-              <div className="mt-7">
-            {loading && !initialized ? (
-              <div
-                className="py-16 text-center text-[11px] text-tertiary"
-                data-testid="prompt-list-skeleton"
-              >
-                正在读取提示词…
-              </div>
-            ) : empty && searching ? (
-              <div className="py-16 text-center" data-testid="empty-no-match">
-                <Search className="mx-auto h-5 w-5 text-quaternary" />
-                <p className="mt-3 text-[12px] text-secondary">
-                  没有找到匹配的提示词
-                </p>
-                <p className="mt-1 text-meta text-tertiary">
-                  换一个标题或正文关键词试试
-                </p>
-              </div>
-            ) : empty && slipsOnly ? (
-              <div className="py-16 text-center" data-testid="empty-no-slips">
-                <span
-                  aria-hidden="true"
-                  className="ember-seal mx-auto block h-[15px] w-[15px] rounded-full"
-                />
-                <p className="mt-4 text-[12px] font-medium text-primary">
-                  匣中无笺
-                </p>
-                <p className="mx-auto mt-1 max-w-[42ch] text-meta leading-relaxed text-tertiary">
-                  任何页面双击右上角的朱点，随手记一笔。
-                </p>
-              </div>
-            ) : empty ? (
-              <div className="py-16 text-center" data-testid="empty-no-prompts">
-                <FileText className="mx-auto h-5 w-5 text-quaternary" />
-                <p className="mt-3 text-[12px] font-medium text-primary">
-                  还没有提示词
-                </p>
-                <p className="mx-auto mt-1 max-w-[42ch] text-meta leading-relaxed text-tertiary">
-                  生成满意的结果后可以「存为提示词」，也可以现在新建一条。
-                </p>
-                <button
-                  type="button"
-                  onClick={() => openEditor(null)}
-                  className="mt-5 inline-flex min-h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-background hover:opacity-85"
-                  data-testid="empty-new"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  新建
-                </button>
-              </div>
-            ) : (
-              <>
-                {pinned.length > 0 && (
-                  <section className="mb-7" data-testid="pinned-section">
-                    <PromptSectionHeading title="置顶" count={pinned.length} />
-                    <div style={{ ...gridStyle, rowGap: `${ROW_GAP}px` }}>
-                      {pinned.map(renderRow)}
-                    </div>
-                  </section>
-                )}
-                {normal.length > 0 && (
-                  <section>
-                    <PromptSectionHeading title="全部" count={normal.length} />
-                    <div
-                      ref={listRef}
-                      style={{
-                        height: `${virtualizer.getTotalSize()}px`,
-                        position: 'relative',
-                      }}
+                    <span className="min-w-0 flex-1 truncate">{error}</span>
+                    <button
+                      type="button"
+                      onClick={clearError}
+                      className="shrink-0 hover:opacity-70"
+                      aria-label="关闭错误提示"
                     >
-                      {virtualizer.getVirtualItems().map((v) => (
-                        <div
-                          key={v.key}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)`,
-                            ...gridStyle,
-                          }}
-                        >
-                          {normal
-                            .slice(
-                              v.index * columns,
-                              v.index * columns + columns,
-                            )
-                            .map(renderRow)}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+                      <X aria-hidden="true" />
+                    </button>
+                  </div>
                 )}
-              </>
-              )}
+
+                <div className="mt-7">
+                  {loading && !initialized ? (
+                    <div
+                      className="py-16 text-center text-[11px] text-tertiary"
+                      data-testid="prompt-list-skeleton"
+                    >
+                      正在读取提示词…
+                    </div>
+                  ) : empty && searching ? (
+                    <div className="py-16 text-center" data-testid="empty-no-match">
+                      <Search className="mx-auto h-5 w-5 text-quaternary" />
+                      <p className="mt-3 text-[12px] text-secondary">没有找到匹配的提示词</p>
+                      <p className="mt-1 text-meta text-tertiary">换一个标题或正文关键词试试</p>
+                    </div>
+                  ) : empty && slipsOnly ? (
+                    <div className="py-16 text-center" data-testid="empty-no-slips">
+                      <span
+                        aria-hidden="true"
+                        className="ember-seal mx-auto block h-[15px] w-[15px] rounded-full"
+                      />
+                      <p className="mt-4 text-[12px] font-medium text-primary">匣中无笺</p>
+                      <p className="mx-auto mt-1 max-w-[42ch] text-meta leading-relaxed text-tertiary">
+                        任何页面双击右上角的朱点，随手记一笔。
+                      </p>
+                    </div>
+                  ) : empty ? (
+                    <div className="py-16 text-center" data-testid="empty-no-prompts">
+                      <FileText className="mx-auto h-5 w-5 text-quaternary" />
+                      <p className="mt-3 text-[12px] font-medium text-primary">还没有提示词</p>
+                      <p className="mx-auto mt-1 max-w-[42ch] text-meta leading-relaxed text-tertiary">
+                        生成满意的结果后可以「存为提示词」，也可以现在新建一条。
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => openEditor(null)}
+                        className="mt-5 inline-flex min-h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-background hover:opacity-85"
+                        data-testid="empty-new"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        新建
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {pinned.length > 0 && (
+                        <section className="mb-7" data-testid="pinned-section">
+                          <PromptSectionHeading title="置顶" count={pinned.length} />
+                          <div style={{ ...gridStyle, rowGap: `${ROW_GAP}px` }}>
+                            {pinned.map(renderRow)}
+                          </div>
+                        </section>
+                      )}
+                      {normal.length > 0 && (
+                        <section>
+                          <PromptSectionHeading title="全部" count={normal.length} />
+                          <div
+                            ref={listRef}
+                            style={{
+                              height: `${virtualizer.getTotalSize()}px`,
+                              position: 'relative',
+                            }}
+                          >
+                            {virtualizer.getVirtualItems().map((v) => (
+                              <div
+                                key={v.key}
+                                ref={virtualizer.measureElement}
+                                data-index={v.index}
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  width: '100%',
+                                  paddingBottom: `${ROW_GAP}px`,
+                                  transform: `translateY(${v.start - virtualizer.options.scrollMargin}px)`,
+                                  ...gridStyle,
+                                }}
+                              >
+                                {normal
+                                  .slice(v.index * columns, v.index * columns + columns)
+                                  .map(renderRow)}
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
+            }
+          />
+        </div>
+
+        {pageMode === 'detail' && selectedPrompt ? (
+          <aside
+            className="mf-library-inspector-shell"
+            aria-label="提示词详情"
+            data-testid="prompt-inspector"
+          >
+            <div className="mf-library-inspector">
+              <PromptDetailView
+                prompt={selectedPrompt}
+                layout="inspector"
+                onBack={() => setPageMode('list')}
+                onEdit={openEditor}
+              />
             </div>
-          }
-        />
+          </aside>
+        ) : null}
       </div>
 
       <PromptEditor

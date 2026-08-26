@@ -428,6 +428,7 @@ export function GenerateView({
                               render: (close: () => void) => (
                                 <GenerationSavePromptAction
                                   role="menuitem"
+                                  testId="generation-turn-save-prompt"
                                   state={savePromptState(turnJob)}
                                   onSave={() => {
                                     savePrompt(turnJob);

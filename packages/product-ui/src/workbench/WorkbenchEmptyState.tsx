@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Button, MusefoldMark } from "@musefold/ui";
 
 const DEFAULT_SUGGESTIONS = [
@@ -17,6 +17,12 @@ const DEFAULT_SUGGESTIONS = [
   "夜色中的社区咖啡馆，暖色窗光，街道反射，叙事感",
 ];
 
+/** 水印词:逐字母拆分以支持错相呼吸与逐字母 hover 高亮。 */
+const WATERMARK_WORD = "Musefold";
+
+/** 每行轨道内单份序列的重复次数;轨道渲染两份序列,配合 translateX(-50%) 无缝循环。 */
+const DIRECTION_SEQUENCE_COPIES = 4;
+
 export interface WorkbenchEmptyStateProps {
   /** 空态内联 Composer(v2.0 11 §3:品牌锁定区与 Composer 共用 760px 中心轴)。 */
   composer?: ReactNode;
@@ -25,9 +31,10 @@ export interface WorkbenchEmptyStateProps {
 }
 
 /**
- * v2.0 新对话首屏(docs/v2.0/ui-design/11):品牌锁定区(Logo + 名称 + 换行提示语)
- * + 最多三条低权重快捷建议 + 内联 Composer。不再是营销 Hero:无大插画、无渐变文字、
- * 无独立 CTA;建议只回填草稿,不自动生成。
+ * v2.0 新对话首屏(docs/v2.0/ui-design/11):品牌锁定区(放大的产品 mark + 换行提示语,
+ * 英文名称退为整区水印背景)+ 最多三条低权重快捷建议(无边框文本行,每条独占一行缓慢
+ * 横滚,三行速度各异,两侧淡入淡出)+ 内联 Composer。不再是营销 Hero:无大插画、
+ * 无渐变文字、无独立 CTA;建议只回填草稿,不自动生成。
  */
 export function WorkbenchEmptyState({
   composer,
@@ -41,16 +48,21 @@ export function WorkbenchEmptyState({
 
   return (
     <div className="mf-workbench-empty" data-testid="workbench-empty">
-      <div className="mf-workbench-empty-brand" data-testid="workbench-empty-brand">
-        <div className="mf-workbench-empty-brand-line">
-          <MusefoldMark aria-hidden="true" focusable="false" />
-          <span
-            className="mf-workbench-empty-name"
-            data-testid="workbench-empty-name"
-          >
-            Musefold
-          </span>
+      <div
+        className="mf-workbench-empty-watermark"
+        aria-hidden="true"
+        data-testid="workbench-empty-watermark"
+      >
+        <div className="mf-workbench-empty-watermark-word">
+          {[...WATERMARK_WORD].map((letter, index) => (
+            <span key={index} style={{ "--i": index } as CSSProperties}>
+              {letter}
+            </span>
+          ))}
         </div>
+      </div>
+      <div className="mf-workbench-empty-brand" data-testid="workbench-empty-brand">
+        <MusefoldMark aria-hidden="true" focusable="false" />
         <p
           className="mf-workbench-empty-tagline"
           data-testid="workbench-empty-slogan"
@@ -64,19 +76,35 @@ export function WorkbenchEmptyState({
           aria-label="快捷建议"
           data-testid="generation-directions"
         >
-          {items.map((suggestion) => (
-            <Button
-              unstyled
-              type="button"
-              className="mf-workbench-direction-item"
-              key={suggestion}
-              onClick={() => onSelectSuggestion?.(suggestion)}
-              title={suggestion}
-              data-testid="generation-example"
-            >
-              {suggestion}
-            </Button>
-          ))}
+          {items.map((suggestion) => {
+            const sequence = Array.from(
+              { length: DIRECTION_SEQUENCE_COPIES },
+              () => suggestion,
+            );
+            return (
+              <div className="mf-workbench-direction-row" key={suggestion}>
+                <div className="mf-workbench-direction-track">
+                  {sequence.concat(sequence).map((text, copyIndex) => (
+                    <Button
+                      unstyled
+                      type="button"
+                      className="mf-workbench-direction-item"
+                      key={copyIndex}
+                      onClick={() => onSelectSuggestion?.(suggestion)}
+                      title={copyIndex === 0 ? suggestion : undefined}
+                      tabIndex={copyIndex === 0 ? undefined : -1}
+                      aria-hidden={copyIndex === 0 ? undefined : true}
+                      data-testid={
+                        copyIndex === 0 ? "generation-example" : undefined
+                      }
+                    >
+                      {text}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : null}
       {composer ? (

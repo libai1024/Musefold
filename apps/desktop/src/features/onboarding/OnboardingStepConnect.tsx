@@ -90,10 +90,10 @@ export function StepConnect() {
           <button
             type="button"
             onClick={() => selectTrack('doubao')}
-            className="no-drag group flex min-h-[76px] w-full items-center gap-4 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+            className="no-drag group flex min-h-[76px] w-full items-center gap-4 px-3 py-4 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
             data-testid="onboarding-track-doubao"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-inset text-secondary">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-inset text-secondary">
               <QrCode className="h-4.5 w-4.5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
@@ -110,10 +110,10 @@ export function StepConnect() {
           <button
             type="button"
             onClick={() => selectTrack('account')}
-            className="no-drag group flex min-h-[76px] w-full items-center gap-4 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+            className="no-drag group flex min-h-[76px] w-full items-center gap-4 px-3 py-4 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
             data-testid="onboarding-track-account"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-inset text-secondary">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-inset text-secondary">
               <UserRound className="h-4.5 w-4.5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
@@ -132,10 +132,10 @@ export function StepConnect() {
           自备 API 与中转站仍可在“设置 → 高级设置”中配置。
         </p>
         <OnboardingActions>
-          <Button variant="ghost" size="sm" className="rounded-full shadow-none" onClick={goBack}>
+          <Button variant="ghost" size="sm" className="shadow-none" onClick={goBack}>
             <ArrowLeft className="h-3.5 w-3.5" /> 上一步
           </Button>
-          <Button variant="ghost" size="sm" className="rounded-full shadow-none" onClick={skip} data-testid="onboarding-skip">
+          <Button variant="ghost" size="sm" className="shadow-none" onClick={skip} data-testid="onboarding-skip">
             暂时跳过
           </Button>
         </OnboardingActions>
@@ -152,7 +152,7 @@ export function StepConnect() {
 
         <div className="mt-9 border-y border-border-subtle py-5">
           <div className="flex items-start gap-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-inset text-secondary">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-inset text-secondary">
               <QrCode className="h-4.5 w-4.5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
@@ -175,14 +175,28 @@ export function StepConnect() {
           </div>
         )}
 
+        {doubaoStatus?.qrCodeDataUrl && (
+          <div className="mf-onboarding-qr-stage" aria-live="polite">
+            <img
+              src={doubaoStatus.qrCodeDataUrl}
+              alt="豆包登录二维码"
+              className="h-40 w-40 rounded-[var(--radius-control)] border border-border-subtle bg-white p-1"
+            />
+            <Button variant="ghost" size="sm" onClick={() => void refreshDoubaoQr()}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              刷新二维码
+            </Button>
+          </div>
+        )}
+
         <OnboardingActions>
-          <Button variant="ghost" size="sm" className="rounded-full shadow-none" onClick={back}>
+          <Button variant="ghost" size="sm" className="shadow-none" onClick={back}>
             <ArrowLeft className="h-3.5 w-3.5" /> 返回
           </Button>
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               variant="outline"
-              className="rounded-full px-4"
+              className="px-4"
               onClick={() => void openDoubaoLogin()}
               disabled={saving}
               data-testid="onboarding-doubao-open"
@@ -190,10 +204,8 @@ export function StepConnect() {
               {saving && !doubaoWindowOpened ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5" />}
               {doubaoWindowOpened ? '重新获取二维码' : '获取登录二维码'}
             </Button>
-            {doubaoStatus?.qrCodeDataUrl && <img src={doubaoStatus.qrCodeDataUrl} alt="豆包登录二维码" className="h-40 w-40 rounded-md border border-border-subtle bg-white p-1" />}
-            {doubaoStatus?.qrCodeDataUrl && <Button variant="ghost" size="sm" onClick={() => void refreshDoubaoQr()}><RefreshCw className="h-3.5 w-3.5" />刷新二维码</Button>}
             <Button
-              className="rounded-full px-4"
+              className="px-4"
               onClick={() => void confirmDoubaoLogin()}
               disabled={!doubaoWindowOpened || saving}
               data-testid="onboarding-doubao-confirm"
@@ -226,7 +238,7 @@ export function StepConnect() {
               id="onboarding-redeem-code"
               value={redeemCode}
               onChange={(event) => setRedeemCode(event.target.value)}
-              className="mt-2 h-10 rounded-full px-4 font-mono shadow-none"
+              className="mt-2 h-10 px-3 font-mono shadow-none"
               autoFocus
               data-testid="onboarding-redeem-code"
             />
@@ -238,13 +250,13 @@ export function StepConnect() {
             )}
             <p className="mt-3 text-meta text-quaternary">兑换码请向管理员获取，兑换后即时到账。</p>
             <div className="mt-7 flex items-center justify-between">
-              <Button type="button" variant="ghost" size="sm" className="rounded-full shadow-none" onClick={continueWithoutRedeem}>
+              <Button type="button" variant="ghost" size="sm" className="shadow-none" onClick={continueWithoutRedeem}>
                 稍后兑换
               </Button>
               <Button
                 type="submit"
                 variant="primary"
-                className="rounded-full px-5 shadow-none"
+                className="px-5 shadow-none"
                 disabled={accountBusy || !redeemCode.trim()}
               >
                 {accountBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -296,7 +308,7 @@ export function StepConnect() {
               onChange={(event) => setUsername(event.target.value)}
               maxLength={12}
               autoComplete="username"
-              className="h-10 rounded-full px-4 shadow-none"
+              className="h-10 px-3 shadow-none"
               data-testid="onboarding-account-username"
               required
             />
@@ -309,7 +321,7 @@ export function StepConnect() {
               onChange={(event) => setPassword(event.target.value)}
               minLength={8}
               autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-              className="h-10 rounded-full px-4 shadow-none"
+              className="h-10 px-3 shadow-none"
               data-testid="onboarding-account-password"
               required
             />
@@ -322,7 +334,7 @@ export function StepConnect() {
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 minLength={8}
-                className="h-10 rounded-full px-4 shadow-none"
+                className="h-10 px-3 shadow-none"
                 aria-invalid={Boolean(confirmPassword && confirmPassword !== password)}
                 required
               />
@@ -336,13 +348,13 @@ export function StepConnect() {
             <p className="text-meta text-quaternary">忘记密码？联系管理员重置。</p>
           )}
           <OnboardingActions>
-            <Button type="button" variant="ghost" size="sm" className="rounded-full shadow-none" onClick={back}>
+            <Button type="button" variant="ghost" size="sm" className="shadow-none" onClick={back}>
               <ArrowLeft className="h-3.5 w-3.5" /> 返回
             </Button>
             <Button
               type="submit"
               variant="primary"
-              className="rounded-full px-5 shadow-none"
+              className="px-5 shadow-none"
               disabled={accountBusy || (authMode === 'register' && password !== confirmPassword)}
               data-testid="onboarding-account-submit"
             >
@@ -374,7 +386,10 @@ export function StepConnect() {
                 onClick={() => setPresetId(p.id)}
                 aria-pressed={active}
                 data-testid={`onboarding-preset-${p.id}`}
-                className="no-drag group flex w-full items-center gap-4 py-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                className={cn(
+                  'no-drag group flex w-full items-center gap-4 rounded-[var(--radius-sm)] px-3 py-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]',
+                  active ? 'bg-accent-soft' : 'hover:bg-hover',
+                )}
               >
                 <span
                   className={cn(
@@ -439,7 +454,7 @@ export function StepConnect() {
           <button
             type="button"
             onClick={() => setShowKey((s) => !s)}
-            className="no-drag absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-tertiary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+            className="no-drag absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[var(--radius-control)] text-tertiary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
             aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
             title={showKey ? '隐藏 API Key' : '显示 API Key'}
           >
@@ -459,13 +474,13 @@ export function StepConnect() {
       )}
 
       <OnboardingActions>
-        <Button variant="ghost" size="sm" className="rounded-full" onClick={back} data-testid="onboarding-back">
+        <Button variant="ghost" size="sm" onClick={back} data-testid="onboarding-back">
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           上一步
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="rounded-full" onClick={skip} data-testid="onboarding-skip">暂时跳过</Button>
-          <Button className="rounded-full px-4" onClick={connect} disabled={!canContinue} data-testid="onboarding-connect">
+          <Button variant="ghost" size="sm" onClick={skip} data-testid="onboarding-skip">暂时跳过</Button>
+          <Button className="px-4" onClick={connect} disabled={!canContinue} data-testid="onboarding-connect">
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
             {saving ? '正在保存…' : '校验并继续'}
             {!saving && <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />}

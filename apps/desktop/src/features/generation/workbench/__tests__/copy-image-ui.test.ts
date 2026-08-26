@@ -4,8 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 function workbenchUiSource(): string {
   const dir = 'apps/desktop/src/features/generation/workbench';
-  const resultCard =
-    'packages/product-ui/src/workbench/WorkbenchGenerationResultCard.tsx';
+  const resultCard = 'packages/product-ui/src/workbench/WorkbenchGenerationResultCard.tsx';
   return [
     ...readdirSync(dir)
       .filter((name) => /\.(ts|tsx)$/.test(name))
@@ -29,7 +28,7 @@ describe('generated image clipboard contract', () => {
 
   it('uses the same image clipboard behavior in history details', () => {
     expect(historyDetail).toContain('await api.system.copyImage(record.imagePath)');
-    expect(historyDetail).toContain('testId="history-detail-copy-image"');
+    expect(historyDetail).toContain('data-testid="history-detail-copy-image"');
     expect(historyDetail).not.toContain('navigator.clipboard.writeText(record.imagePath)');
   });
 });

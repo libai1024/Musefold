@@ -43,9 +43,28 @@ beforeEach(() => {
   seedList([failedRecord]);
   useHistoryStore.setState({
     filters: { ...DEFAULT_HISTORY_FILTERS },
+    searchQuery: '',
     selectedId: null,
     inspectorCollapsed: false,
     retryingIds: new Set(),
+  });
+});
+
+describe('history renderer filters', () => {
+  it('counts prompt search and clears it with the domain filters', () => {
+    const state = useHistoryStore.getState();
+
+    state.setSearchQuery('夜间建筑');
+    expect(useHistoryStore.getState().hasActiveFilters()).toBe(true);
+    expect(useHistoryStore.getState().activeFilterCount()).toBe(1);
+
+    state.setFilters({ status: 'failed' });
+    expect(useHistoryStore.getState().activeFilterCount()).toBe(2);
+
+    state.clearFilters();
+    expect(useHistoryStore.getState().searchQuery).toBe('');
+    expect(useHistoryStore.getState().filters).toEqual(DEFAULT_HISTORY_FILTERS);
+    expect(useHistoryStore.getState().hasActiveFilters()).toBe(false);
   });
 });
 

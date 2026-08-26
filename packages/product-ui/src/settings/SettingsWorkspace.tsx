@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { Search } from '@musefold/ui/icons';
+import { Search, X } from '@musefold/ui/icons';
 import { Input } from '@musefold/ui';
 
 export interface SettingsNavigationItem {
@@ -63,7 +63,7 @@ function SearchField({
   testId?: string;
 }) {
   return (
-    <label className="mf-settings-search" data-testid={testId}>
+    <div className="mf-settings-search" data-testid={testId}>
       <Search aria-hidden="true" />
       <span className="mf-sr-only">搜索设置</span>
       <Input
@@ -72,7 +72,18 @@ function SearchField({
         aria-label="搜索设置"
         placeholder={placeholder}
       />
-    </label>
+      {value ? (
+        <button
+          type="button"
+          className="mf-settings-search-clear"
+          aria-label="清空设置搜索"
+          title="清空设置搜索"
+          onClick={() => onChange('')}
+        >
+          <X aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
   );
 }
 

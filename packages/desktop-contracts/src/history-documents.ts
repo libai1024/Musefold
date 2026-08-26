@@ -5,7 +5,11 @@
 // 运行时请按子路径导入：@musefold/desktop-contracts/history-documents
 
 import type { GenerationJob } from '@musefold/contracts';
-import type { CostUnit, PromptReference } from './generation-snapshots';
+import type {
+  CostUnit,
+  GenerationUsageChannel,
+  PromptReference,
+} from './generation-snapshots';
 import type { PromptParams } from './generation-snapshots';
 
 /** `history.related` 对某条提示词的命中原因。普通 history.list 不填。 */
@@ -62,10 +66,41 @@ export interface HistoryStatsQuery {
 
 export interface HistoryStatsBucket {
   key: string;
+  /** 仅账号渠道的积分消耗。 */
   cost: number;
+  /** 成功生成次数（全部渠道）。 */
   count: number;
+  attemptCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  channels: HistoryStatsChannelPoint[];
   /** 成本单位，固定为 point。 */
   unit?: CostUnit;
+}
+
+export interface HistoryStatsChannelPoint {
+  channelId: string;
+  kind: GenerationUsageChannel;
+  name: string;
+  count: number;
+}
+
+export interface HistoryStatsChannel {
+  channelId: string;
+  kind: GenerationUsageChannel;
+  name: string;
+  providerId: string | null;
+  attemptCount: number;
+  successCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  /** 非账号渠道为 null，明确表示不参与积分统计。 */
+  accountPoints: number | null;
+}
+
+export interface HistoryStatsModel {
+  model: string;
+  count: number;
 }
 
 export interface HistoryStatsProvider {
@@ -86,16 +121,26 @@ export interface HistoryStatsTotal {
 }
 
 export interface HistoryStats {
-  /** 积分汇总（仅 succeeded）。 */
+  /** 账号渠道积分汇总（仅 succeeded）。 */
   totals?: HistoryStatsTotal[];
-  /** @deprecated 使用 totals；值同样为积分。 */
+  /** @deprecated 使用 accountPoints；值同样仅包含账号渠道积分。 */
   totalCost: number;
-  /** @deprecated 使用 totals；值同样为积分。 */
+  /** @deprecated 使用 totals；值为账号渠道成功生成的平均积分。 */
   avgCost: number;
   /** 全部成功次数（跨单位） */
   totalCount: number;
-  /** (时间桶 × 单位) 粒度 */
+  attemptCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  activeDays: number;
+  /** 仅账号渠道、成功生成所消耗的积分。 */
+  accountPoints: number;
+  /** 时间桶，内含各渠道成功次数。 */
   buckets: HistoryStatsBucket[];
-  /** (Provider × 单位) 粒度 */
+  /** Provider 粒度兼容字段；cost 同样只含账号渠道积分。 */
   byProvider: HistoryStatsProvider[];
+  /** 账号、豆包体验与各用户 Provider 的统计。 */
+  byChannel: HistoryStatsChannel[];
+  /** 全渠道成功生成的模型分布。 */
+  byModel: HistoryStatsModel[];
 }

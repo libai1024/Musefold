@@ -11,6 +11,7 @@ import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -122,7 +123,7 @@ export function ExportDialog({ open, onOpenChange }: Props) {
           <DialogDescription>选择导出内容，随后会让你挑选保存位置。</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2">
+        <DialogBody className="flex flex-col gap-2">
           <ChoiceCards
             value={mode}
             onChange={setMode}
@@ -164,7 +165,7 @@ export function ExportDialog({ open, onOpenChange }: Props) {
           >
             预计包含：{summarize(counts)}
           </p>
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>

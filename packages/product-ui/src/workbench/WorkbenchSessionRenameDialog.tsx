@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Button,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -47,13 +48,15 @@ export function WorkbenchSessionRenameDialog({
           <DialogDescription>为当前对话设置一个便于识别的标题。</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
-          <Input
-            autoFocus
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            maxLength={80}
-            aria-label="对话标题"
-          />
+          <DialogBody>
+            <Input
+              autoFocus
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              maxLength={80}
+              aria-label="对话标题"
+            />
+          </DialogBody>
           <DialogFooter className="mt-4">
             <Button
               type="button"

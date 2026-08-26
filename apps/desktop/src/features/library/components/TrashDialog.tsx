@@ -12,6 +12,7 @@ import { Button } from '../../../components/ui/button';
 import { EmptyState } from '../../../components/ui/empty-state';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -52,146 +53,144 @@ export function TrashDialog() {
               {deleted.length}
             </span>
           </DialogTitle>
-          <DialogDescription>
-            删除的提示词会留在这里。彻底删除不可恢复。
-          </DialogDescription>
+          <DialogDescription>删除的提示词会留在这里。彻底删除不可恢复。</DialogDescription>
         </DialogHeader>
 
-        {deleted.length === 0 ? (
-          <EmptyState
-            icon={Trash2}
-            title="回收站是空的"
-            hint="删除提示词后可以在这里找回。"
-            data-testid="trash-empty"
-          />
-        ) : (
-          <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
-            {deleted.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center gap-2 rounded-md border border-border-subtle bg-elevated px-2.5 py-2"
-                data-testid="trash-item"
-                data-prompt-id={p.id}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12px] font-medium text-primary">{p.title}</p>
-                  <p className="truncate font-mono text-meta text-quaternary">{p.content}</p>
-                  {p.deletedAtMs != null && (
-                    <p className="mt-0.5 text-meta text-quaternary">
-                      删除于 {formatTime(p.deletedAtMs)}
-                    </p>
+        <DialogBody>
+          {deleted.length === 0 ? (
+            <EmptyState
+              icon={Trash2}
+              title="回收站是空的"
+              hint="删除提示词后可以在这里找回。"
+              data-testid="trash-empty"
+            />
+          ) : (
+            <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
+              {deleted.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-2 rounded-md border border-border-subtle bg-elevated px-2.5 py-2"
+                  data-testid="trash-item"
+                  data-prompt-id={p.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12px] font-medium text-primary">{p.title}</p>
+                    <p className="truncate font-mono text-meta text-quaternary">{p.content}</p>
+                    {p.deletedAtMs != null && (
+                      <p className="mt-0.5 text-meta text-quaternary">
+                        删除于 {formatTime(p.deletedAtMs)}
+                      </p>
+                    )}
+                  </div>
+
+                  {confirmPurgeId === p.id ? (
+                    <div className="flex shrink-0 gap-1">
+                      <Button size="xs" variant="ghost" onClick={() => setConfirmPurgeId(null)}>
+                        取消
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="danger"
+                        data-testid="trash-purge-confirm"
+                        onClick={() => {
+                          setConfirmPurgeId(null);
+                          void purgePrompt(p.id);
+                        }}
+                      >
+                        彻底删除
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex shrink-0 gap-0.5">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => void restorePrompt(p.id)}
+                        data-testid="trash-restore"
+                        title="恢复"
+                      >
+                        <RotateCcw className="h-3 w-3" /> 恢复
+                      </Button>
+                      <Button
+                        size="iconXs"
+                        variant="ghost"
+                        className="text-danger hover:text-danger"
+                        onClick={() => setConfirmPurgeId(p.id)}
+                        data-testid="trash-purge"
+                        title="彻底删除"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   )}
                 </div>
+              ))}
+            </div>
+          )}
 
-                {confirmPurgeId === p.id ? (
+          {deleted.length > 0 && (
+            <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
+              {purgeAllStage === 0 && (
+                <>
+                  <span className="text-meta text-quaternary">共 {deleted.length} 条可恢复</span>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="text-danger hover:text-danger"
+                    onClick={() => setPurgeAllStage(1)}
+                    data-testid="trash-purge-all"
+                  >
+                    清空回收站
+                  </Button>
+                </>
+              )}
+              {purgeAllStage === 1 && (
+                <>
+                  <span className="text-[11px] text-warning">
+                    将永久删除 {deleted.length} 条，无法恢复。
+                  </span>
                   <div className="flex shrink-0 gap-1">
-                    <Button size="xs" variant="ghost" onClick={() => setConfirmPurgeId(null)}>
+                    <Button size="xs" variant="ghost" onClick={() => setPurgeAllStage(0)}>
                       取消
                     </Button>
                     <Button
                       size="xs"
                       variant="danger"
-                      data-testid="trash-purge-confirm"
-                      onClick={() => {
-                        setConfirmPurgeId(null);
-                        void purgePrompt(p.id);
-                      }}
+                      onClick={() => setPurgeAllStage(2)}
+                      data-testid="trash-purge-all-step2"
                     >
-                      彻底删除
+                      我确定
                     </Button>
                   </div>
-                ) : (
-                  <div className="flex shrink-0 gap-0.5">
+                </>
+              )}
+              {purgeAllStage === 2 && (
+                <>
+                  <span className="text-[11px] text-danger">最后确认：真的清空？</span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="xs" variant="ghost" onClick={() => setPurgeAllStage(0)}>
+                      算了
+                    </Button>
                     <Button
                       size="xs"
-                      variant="ghost"
-                      onClick={() => void restorePrompt(p.id)}
-                      data-testid="trash-restore"
-                      title="恢复"
+                      variant="danger"
+                      disabled={busy}
+                      data-testid="trash-purge-all-confirm"
+                      onClick={async () => {
+                        setBusy(true);
+                        await purgeAll();
+                        setBusy(false);
+                        setPurgeAllStage(0);
+                      }}
                     >
-                      <RotateCcw className="h-3 w-3" /> 恢复
-                    </Button>
-                    <Button
-                      size="iconXs"
-                      variant="ghost"
-                      className="text-danger hover:text-danger"
-                      onClick={() => setConfirmPurgeId(p.id)}
-                      data-testid="trash-purge"
-                      title="彻底删除"
-                    >
-                      <Trash2 className="h-3 w-3" />
+                      {busy ? '清空中…' : '永久清空'}
                     </Button>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {deleted.length > 0 && (
-          <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
-            {purgeAllStage === 0 && (
-              <>
-                <span className="text-meta text-quaternary">
-                  共 {deleted.length} 条可恢复
-                </span>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="text-danger hover:text-danger"
-                  onClick={() => setPurgeAllStage(1)}
-                  data-testid="trash-purge-all"
-                >
-                  清空回收站
-                </Button>
-              </>
-            )}
-            {purgeAllStage === 1 && (
-              <>
-                <span className="text-[11px] text-warning">
-                  将永久删除 {deleted.length} 条，无法恢复。
-                </span>
-                <div className="flex shrink-0 gap-1">
-                  <Button size="xs" variant="ghost" onClick={() => setPurgeAllStage(0)}>
-                    取消
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="danger"
-                    onClick={() => setPurgeAllStage(2)}
-                    data-testid="trash-purge-all-step2"
-                  >
-                    我确定
-                  </Button>
-                </div>
-              </>
-            )}
-            {purgeAllStage === 2 && (
-              <>
-                <span className="text-[11px] text-danger">最后确认：真的清空？</span>
-                <div className="flex shrink-0 gap-1">
-                  <Button size="xs" variant="ghost" onClick={() => setPurgeAllStage(0)}>
-                    算了
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="danger"
-                    disabled={busy}
-                    data-testid="trash-purge-all-confirm"
-                    onClick={async () => {
-                      setBusy(true);
-                      await purgeAll();
-                      setBusy(false);
-                      setPurgeAllStage(0);
-                    }}
-                  >
-                    {busy ? '清空中…' : '永久清空'}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                </>
+              )}
+            </div>
+          )}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

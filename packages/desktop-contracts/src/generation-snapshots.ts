@@ -12,6 +12,9 @@ import type {
 
 export type PromptReferenceScope = 'full' | 'excerpt';
 
+/** 历史统计使用的生成渠道快照；不依赖 Provider 行在未来仍然存在。 */
+export type GenerationUsageChannel = 'account' | 'doubao' | 'provider';
+
 /** 生成参数包（前向兼容，带 schema_version） */
 export interface PromptParams {
   schemaVersion: number;
@@ -24,6 +27,12 @@ export interface PromptParams {
   n?: number;
   background?: ImageBackground;
   moderation?: ModerationLevel;
+  /** 账号托管、豆包体验或用户自建 Provider。 */
+  usageChannel?: GenerationUsageChannel;
+  /** 生成发生时的渠道名称，Provider 删除后仍可用于统计展示。 */
+  providerNameSnapshot?: string;
+  /** 生成发生时的 Provider 类型，仅作为历史展示快照。 */
+  providerTypeSnapshot?: string;
   [key: string]: unknown;
 }
 

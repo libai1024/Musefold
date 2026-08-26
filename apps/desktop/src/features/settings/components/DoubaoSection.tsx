@@ -11,6 +11,7 @@ import { ValidationResultBanner } from '@renderer/runtime/generation-access';
 import { SettingRow, SettingsCard } from '../components/SectionShell';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -231,7 +232,7 @@ export function DoubaoSection() {
               使用豆包 App 扫描二维码。扫码状态会自动同步，登录完成后此窗口会自动关闭。
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-h-[260px] flex-col items-center justify-center gap-4">
+          <DialogBody className="flex min-h-[260px] flex-col items-center justify-center gap-4">
             {accountStatus?.qrCodeDataUrl ? (
               <img
                 src={accountStatus.qrCodeDataUrl}
@@ -266,7 +267,7 @@ export function DoubaoSection() {
                         ? '登录成功'
                         : '请稍候')}
             </p>
-          </div>
+          </DialogBody>
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
             <Button type="button" variant="ghost" onClick={() => setLoginOpen(false)}>
               <X className="h-3.5 w-3.5" />

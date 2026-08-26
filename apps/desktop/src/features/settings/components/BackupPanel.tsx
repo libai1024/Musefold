@@ -6,6 +6,7 @@ import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -219,39 +220,41 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
             </DialogDescription>
           </DialogHeader>
 
-          {selected && (
-            <div className="rounded-md border border-border-subtle bg-inset/50 px-3.5 py-3">
-              <p className="truncate font-mono text-[11px] text-primary">{selected.file}</p>
-              <p className="mt-1 text-meta text-tertiary">
-                {formatDate(selected.createdAt)} · {formatBytes(selected.size)}
+          <DialogBody>
+            {selected && (
+              <div className="rounded-md border border-border-subtle bg-inset/50 px-3.5 py-3">
+                <p className="truncate font-mono text-[11px] text-primary">{selected.file}</p>
+                <p className="mt-1 text-meta text-tertiary">
+                  {formatDate(selected.createdAt)} · {formatBytes(selected.size)}
+                </p>
+              </div>
+            )}
+
+            {!restored && (
+              <div className="rounded-md border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
+                API 密钥和生成图片不会改变；未备份的数据库修改将被替换。
+              </div>
+            )}
+
+            {restored && (
+              <div
+                className="flex items-start gap-2.5 rounded-md border border-success/30 bg-success/10 px-3.5 py-2.5 text-[11px] text-secondary"
+                data-testid="backup-restored"
+              >
+                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                恢复完成，原数据库也已自动保留。应用重启前请勿继续编辑数据。
+              </div>
+            )}
+
+            {error && selected && (
+              <p
+                className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger"
+                data-testid="backup-restore-error"
+              >
+                {error}
               </p>
-            </div>
-          )}
-
-          {!restored && (
-            <div className="rounded-md border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-secondary">
-              API 密钥和生成图片不会改变；未备份的数据库修改将被替换。
-            </div>
-          )}
-
-          {restored && (
-            <div
-              className="flex items-start gap-2.5 rounded-md border border-success/30 bg-success/10 px-3.5 py-2.5 text-[11px] text-secondary"
-              data-testid="backup-restored"
-            >
-              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-              恢复完成，原数据库也已自动保留。应用重启前请勿继续编辑数据。
-            </div>
-          )}
-
-          {error && selected && (
-            <p
-              className="rounded-md border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-danger"
-              data-testid="backup-restore-error"
-            >
-              {error}
-            </p>
-          )}
+            )}
+          </DialogBody>
 
           <DialogFooter>
             {!restored && (

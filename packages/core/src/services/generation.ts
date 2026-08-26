@@ -356,6 +356,13 @@ export async function generate(
     n: effectiveReq.n,
     background: effectiveReq.background,
     moderation: effectiveReq.moderation,
+    usageChannel: providerRow.managed_by === 'account'
+      ? 'account'
+      : providerRow.type === 'doubao-web'
+        ? 'doubao'
+        : 'provider',
+    providerNameSnapshot: providerRow.name,
+    providerTypeSnapshot: providerRow.type,
   }, effectiveReq);
   let runContext: RunContext | null = null;
   try {

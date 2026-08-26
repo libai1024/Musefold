@@ -6,16 +6,8 @@
 
 import { useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import {
-  GenerationHistoryRow,
-  type GenerationHistoryItemViewModel,
-} from '@musefold/product-ui';
-import {
-  Image,
-  XCircle,
-  RotateCcw,
-  Trash2,
-} from '../../../components/ui/icons';
+import { GenerationHistoryRow, type GenerationHistoryItemViewModel } from '@musefold/product-ui';
+import { Image, XCircle, RotateCcw, Trash2 } from '../../../components/ui/icons';
 import { useHistoryStore } from '../store';
 import { useHistoryListQuery } from '../use-history-queries';
 import { historyStatusMeta } from '@musefold/domain/history-status';
@@ -31,42 +23,50 @@ import { displayModelName } from '../../../lib/model-catalog';
 import { toImageSrc } from '../../../lib/media';
 import { useAppStore } from '../../../stores/app';
 
-export function HistoryList({
-  onOpenLightbox,
-}: {
-  onOpenLightbox?: (id: string) => void;
-}) {
-  const {
-    records,
-    loading,
-    error,
-    filtered,
-    refetch,
-  } = useHistoryListQuery();
+export function HistoryList({ onOpenLightbox }: { onOpenLightbox?: (id: string) => void }) {
+  const { records, loading, error, filtered, refetch } = useHistoryListQuery();
   const remove = useHistoryStore((s) => s.remove);
   const retry = useHistoryStore((s) => s.retry);
   const retryingIds = useHistoryStore((s) => s.retryingIds);
   const clearFilters = useHistoryStore((s) => s.clearFilters);
+  const searchQuery = useHistoryStore((s) => s.searchQuery);
   const selectedId = useHistoryStore((s) => s.selectedId);
   const select = useHistoryStore((s) => s.select);
   const parentRef = useRef<HTMLDivElement>(null);
   const density = useAppStore((s) => s.density);
 
-  const items = useMemo(() => flattenHistoryThreads(records), [records]);
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+  const visibleRecords = useMemo(
+    () =>
+      normalizedSearch
+        ? records.filter((record) =>
+            [
+              record.request.prompt,
+              record.request.negative,
+              record.providerModel,
+              record.providerId,
+              record.errorMessage,
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLocaleLowerCase()
+              .includes(normalizedSearch),
+          )
+        : records,
+    [normalizedSearch, records],
+  );
+  const items = useMemo(() => flattenHistoryThreads(visibleRecords), [visibleRecords]);
+  const hasAnyFilter = filtered || Boolean(normalizedSearch);
 
   const rowVirtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => (density === 'compact' ? 62 : 72),
+    estimateSize: () => (density === 'compact' ? 86 : 88),
     overscan: 5,
   });
 
   return (
-    <div
-      ref={parentRef}
-      className="h-full overflow-auto px-4 py-2"
-      data-testid="history-list"
-    >
+    <div ref={parentRef} className="h-full overflow-auto px-4 py-2" data-testid="history-list">
       {error && records.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
           <XCircle className="h-8 w-8 text-danger" />
@@ -81,8 +81,8 @@ export function HistoryList({
             <RotateCcw className="mr-1 h-3.5 w-3.5" /> 重试
           </Button>
         </div>
-      ) : records.length === 0 ? (
-        filtered ? (
+      ) : visibleRecords.length === 0 ? (
+        hasAnyFilter ? (
           <EmptyState
             icon={Image}
             title={loading ? '正在加载…' : '没有匹配的记录'}
@@ -171,9 +171,7 @@ function HistoryRow({
 }) {
   const r = item.record;
   const meta = historyStatusMeta(r.status);
-  const error = meta.showError
-    ? historyErrorPresentation(r.errorCode, r.errorMessage)
-    : null;
+  const error = meta.showError ? historyErrorPresentation(r.errorCode, r.errorMessage) : null;
   const showRetry = meta.status === 'failed' && Boolean(error?.canRetry);
   const isRefinement = item.depth > 0 || item.orphan;
   const refinementCount = item.depth === 0 ? item.threadSize - 1 : 0;
@@ -188,16 +186,11 @@ function HistoryRow({
   const viewModel: GenerationHistoryItemViewModel = {
     id: r.id,
     prompt: r.request.prompt,
-    imageUrl:
-      r.status === 'succeeded' && r.imagePath ? toImageSrc(r.imagePath) : null,
+    imageUrl: r.status === 'succeeded' && r.imagePath ? toImageSrc(r.imagePath) : null,
     statusKey: meta.status,
     statusLabel: retrying ? '重试中…' : meta.label,
     statusTone:
-      meta.status === 'succeeded'
-        ? 'success'
-        : meta.status === 'failed'
-          ? 'danger'
-          : 'neutral',
+      meta.status === 'succeeded' ? 'success' : meta.status === 'failed' ? 'danger' : 'neutral',
     metadata,
     selected,
     depth: item.depth,
@@ -218,9 +211,7 @@ function HistoryRow({
     <GenerationHistoryRow
       item={viewModel}
       onOpen={onSelect}
-      onOpenImage={
-        r.status === 'succeeded' && r.imagePath ? onOpenLightbox : undefined
-      }
+      onOpenImage={r.status === 'succeeded' && r.imagePath ? onOpenLightbox : undefined}
       actions={
         <>
           {showRetry && (

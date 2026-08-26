@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react';
 import {
   Download,
   FileText,
@@ -7,8 +7,8 @@ import {
   Loader2,
   Wand2,
   X,
-} from "../../../components/ui/icons";
-import { titleFromPromptContent } from "@musefold/domain";
+} from '../../../components/ui/icons';
+import { titleFromPromptContent } from '@musefold/domain';
 import {
   GenerationSavePromptAction,
   WorkbenchAssistantAvatar,
@@ -19,27 +19,24 @@ import {
   WorkbenchTurnActions,
   WorkbenchUserMessage,
   workbenchGenerationStatusLabel,
-} from "@musefold/product-ui";
-import { useAppStore } from "../../../stores/app";
-import { useGenerationStore } from "../store";
-import { useLibraryStore } from "@renderer/runtime/library-access";
-import { linkHistoriesToPrompt } from "@renderer/lib/related-history";
-import {
-  SchemeCreationConversation,
-  SchemeRunConversation,
-} from "@renderer/runtime/scheme-access";
-import { useGenerationWorkbenchStore } from "./store";
-import type { GenerationTurn } from "./types";
-import { cn } from "../../../lib/utils";
-import { toast } from "../../../stores/toast";
-import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
-import { ModelBrandIcon } from "../../../components/ui/brand-icons";
-import musefoldIconUrl from "../../../../../../website/Musefold/assets/musefold-icon.png";
-import { DESIGN_PLAN_COMMAND_LABEL } from "./composerIntent";
-import { SkillRuntimeConversation } from "../../../components/SkillRuntimeConversation";
-import { GenerationResultCard } from "./GenerationResultCard";
-import { GenerationTurnUserAttachments } from "./GenerationTurnUserAttachments";
-import { formatParams } from "./workbench-display";
+} from '@musefold/product-ui';
+import { useAppStore } from '../../../stores/app';
+import { useGenerationStore } from '../store';
+import { useLibraryStore } from '@renderer/runtime/library-access';
+import { linkHistoriesToPrompt } from '@renderer/lib/related-history';
+import { SchemeCreationConversation, SchemeRunConversation } from '@renderer/runtime/scheme-access';
+import { useGenerationWorkbenchStore } from './store';
+import type { GenerationTurn } from './types';
+import { cn } from '../../../lib/utils';
+import { toast } from '../../../stores/toast';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
+import { ModelBrandIcon } from '../../../components/ui/brand-icons';
+import musefoldIconUrl from '../../../../../../website/Musefold/assets/musefold-icon.png';
+import { DESIGN_PLAN_COMMAND_LABEL } from './composerIntent';
+import { SkillRuntimeConversation } from '../../../components/SkillRuntimeConversation';
+import { GenerationResultCard } from './GenerationResultCard';
+import { GenerationTurnUserAttachments } from './GenerationTurnUserAttachments';
+import { formatParams } from './workbench-display';
 
 export function GenerationTurnView({
   turn,
@@ -60,9 +57,7 @@ export function GenerationTurnView({
   const editTurn = useGenerationWorkbenchStore((s) => s.editTurn);
   // 并行生成：轮内动作（重试/微调/编辑）只受本对话运行状态约束。
   const isGenerating = useGenerationWorkbenchStore((s) =>
-    Object.values(s.runningTurns).some(
-      (entry) => entry.sessionId === s.sessionId,
-    ),
+    Object.values(s.runningTurns).some((entry) => entry.sessionId === s.sessionId),
   );
   const setView = useAppStore((s) => s.setView);
   const requestHighlightPrompt = useAppStore((s) => s.requestHighlightPrompt);
@@ -71,26 +66,21 @@ export function GenerationTurnView({
     s.providers.find((item) => item.id === turn.providerId),
   );
   const isDoubaoTurn =
-    provider?.type === "doubao-web" ||
-    turn.providerResponse?.kind === "doubao-web";
+    provider?.type === 'doubao-web' || turn.providerResponse?.kind === 'doubao-web';
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [savedPromptId, setSavedPromptId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
-  const [deselectingResultIds, setDeselectingResultIds] = useState<string[]>(
-    [],
-  );
+  const [deselectingResultIds, setDeselectingResultIds] = useState<string[]>([]);
   const [selectionTransitioning, setSelectionTransitioning] = useState(false);
   const [batchSaving, setBatchSaving] = useState(false);
   const selectionTimersRef = useRef<Set<number>>(new Set());
-  const successful = turn.results.filter(
-    (result) => result.status === "success",
-  );
+  const successful = turn.results.filter((result) => result.status === 'success');
 
   useEffect(() => {
     const available = new Set(
       turn.results
-        .filter((result) => result.status === "success" && result.imagePath)
+        .filter((result) => result.status === 'success' && result.imagePath)
         .map((result) => result.id),
     );
     setSelectedResultIds((ids) => ids.filter((id) => available.has(id)));
@@ -114,13 +104,9 @@ export function GenerationTurnView({
 
   const animateDeselection = (resultIds: string[]) => {
     if (resultIds.length === 0) return;
-    setDeselectingResultIds((ids) =>
-      Array.from(new Set([...ids, ...resultIds])),
-    );
+    setDeselectingResultIds((ids) => Array.from(new Set([...ids, ...resultIds])));
     scheduleSelectionUpdate(() => {
-      setDeselectingResultIds((ids) =>
-        ids.filter((id) => !resultIds.includes(id)),
-      );
+      setDeselectingResultIds((ids) => ids.filter((id) => !resultIds.includes(id)));
     });
   };
 
@@ -129,9 +115,7 @@ export function GenerationTurnView({
     setSelectionTransitioning(false);
     setSelectionMode(true);
     if (resultId)
-      setSelectedResultIds((ids) =>
-        ids.includes(resultId) ? ids : [...ids, resultId],
-      );
+      setSelectedResultIds((ids) => (ids.includes(resultId) ? ids : [...ids, resultId]));
   };
 
   const toggleSelection = (resultId: string) => {
@@ -185,13 +169,13 @@ export function GenerationTurnView({
     setBatchSaving(true);
     try {
       const saved = await api.system.saveImages(paths);
-      if ("cancelled" in saved) return;
+      if ('cancelled' in saved) return;
       toast.success(`已保存 ${saved.paths.length} 张图片`);
       leaveSelection();
     } catch (error) {
       toast.error(
-        "批量保存失败",
-        error instanceof Error ? error.message : "请检查图片与保存目录。",
+        '批量保存失败',
+        error instanceof Error ? error.message : '请检查图片与保存目录。',
       );
     } finally {
       setBatchSaving(false);
@@ -210,18 +194,13 @@ export function GenerationTurnView({
       title: titleFromPromptContent(content),
       content,
       contentNegative: turn.negativePrompt || undefined,
-      source: "manual",
-      sourceUrl: firstResult?.historyId
-        ? `history://${firstResult.historyId}`
-        : undefined,
+      source: 'manual',
+      sourceUrl: firstResult?.historyId ? `history://${firstResult.historyId}` : undefined,
       previewImagePath: firstResult?.imagePath,
     });
     setSavingPrompt(false);
     if (!created) {
-      toast.error(
-        "存为提示词失败",
-        useLibraryStore.getState().error ?? "请稍后重试。",
-      );
+      toast.error('存为提示词失败', useLibraryStore.getState().error ?? '请稍后重试。');
       return;
     }
     let linkResult = null;
@@ -233,14 +212,14 @@ export function GenerationTurnView({
     }
     setSavedPromptId(created.id);
     toast.show({
-      title: "已存为提示词",
+      title: '已存为提示词',
       description:
         linkResult == null
           ? `${created.title} · 重启应用后可建立作品关联`
           : `${created.title} · 已关联 ${linkResult.linked + linkResult.alreadyLinked} 条作品`,
-      variant: linkResult == null ? "warning" : "success",
+      variant: linkResult == null ? 'warning' : 'success',
       action: {
-        label: "查看",
+        label: '查看',
         onClick: () => requestHighlightPrompt(created.id),
       },
     });
@@ -249,10 +228,8 @@ export function GenerationTurnView({
   const scrollToParent = () => {
     if (!turn.parentHistoryId) return;
     document
-      .querySelector<HTMLElement>(
-        `[data-history-id="${CSS.escape(turn.parentHistoryId)}"]`,
-      )
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      .querySelector<HTMLElement>(`[data-history-id="${CSS.escape(turn.parentHistoryId)}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const copyUserMessage = async () => {
@@ -260,9 +237,9 @@ export function GenerationTurnView({
     if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
-      toast.success("已复制消息");
+      toast.success('已复制消息');
     } catch {
-      toast.error("复制失败", "剪贴板不可用");
+      toast.error('复制失败', '剪贴板不可用');
     }
   };
 
@@ -287,23 +264,21 @@ export function GenerationTurnView({
       userProps={{
         tabIndex: 0,
         onClick: (event) => {
-          if ((event.target as Element).closest("button, summary, a")) return;
+          if ((event.target as Element).closest('button, summary, a')) return;
           onMessageActivate();
         },
         onKeyDown: (event) => {
-          if (event.key === "Enter" || event.key === " ") {
+          if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             onMessageActivate();
           }
-          if (event.key === "Escape") onMessageClose();
+          if (event.key === 'Escape') onMessageClose();
         },
       }}
       userMessage={
         <WorkbenchUserMessage
           /* 引用与附件一律在消息气泡上方（Codex 式）：方案 / Skill / 图片 / 提示词引用。 */
-          attachments={
-            <GenerationTurnUserAttachments turn={turn} onZoom={onZoom} />
-          }
+          attachments={<GenerationTurnUserAttachments turn={turn} onZoom={onZoom} />}
           meta={
             <>
               {turn.parentHistoryId && (
@@ -318,14 +293,14 @@ export function GenerationTurnView({
               )}
               {/* 创建方案轮与生图参数无关，不展示比例/张数行 */}
               <span>
-                {turn.source.kind === "scheme-creation"
-                  ? "创建设计方案"
+                {turn.source.kind === 'scheme-creation'
+                  ? '创建设计方案'
                   : formatParams(turn.params)}
               </span>
             </>
           }
           prefix={
-            turn.source.kind === "scheme-creation" ? (
+            turn.source.kind === 'scheme-creation' ? (
               <span
                 className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-md bg-accent-soft px-2 text-meta font-medium text-accent"
                 data-testid="generation-command-tag"
@@ -336,9 +311,7 @@ export function GenerationTurnView({
           }
           prompt={
             turn.userPrompt ||
-            (turn.source.kind === "scheme-creation"
-              ? "基于来源仓库创建设计方案"
-              : turn.userPrompt)
+            (turn.source.kind === 'scheme-creation' ? '基于来源仓库创建设计方案' : turn.userPrompt)
           }
           negative={turn.negativePrompt}
           actions={
@@ -373,60 +346,58 @@ export function GenerationTurnView({
           label={
             isDoubaoTurn
               ? turn.referenceImages.length > 0
-                ? "豆包网页改图"
-                : "豆包网页生图"
-              : "Musefold"
+                ? '豆包网页改图'
+                : '豆包网页生图'
+              : 'Musefold'
           }
           detail={
             isDoubaoTurn
-              ? "Seedream 4.5 · 本机浏览器会话"
+              ? 'Seedream 4.5 · 本机浏览器会话'
               : workbenchGenerationStatusLabel(turn.status)
           }
         />
       }
       preface={
         <>
-          {turn.source.kind === "skill" && (
+          {turn.source.kind === 'skill' && (
             <SkillRuntimeConversation
               trace={turn.source.trace}
               doneLabel={
-                turn.source.executionMode === "direct-forward"
-                  ? "已将 Skill 转发给豆包"
-                  : "已完成 Skill 调用"
+                turn.source.executionMode === 'direct-forward'
+                  ? '已将 Skill 转发给豆包'
+                  : '已完成 Skill 调用'
               }
             />
           )}
-          {turn.source.kind === "scheme-creation" && (
+          {turn.source.kind === 'scheme-creation' && (
             <SchemeCreationConversation source={turn.source} />
           )}
-          {turn.source.kind === "scheme-run" && (
+          {turn.source.kind === 'scheme-run' && (
             <SchemeRunConversation turnId={turn.id} source={turn.source} />
           )}
         </>
       }
       resultCount={turn.results.length}
       resultAspectRatio={turn.params.ratioId}
-      resultProvider={isDoubaoTurn ? "doubao-web" : undefined}
+      resultProvider={isDoubaoTurn ? 'doubao-web' : undefined}
       results={turn.results.map((result) => (
         <GenerationResultCard
           key={result.id}
           result={result}
           aspectRatio={turn.params.ratioId}
-          busy={turn.status === "running"}
+          busy={turn.status === 'running'}
           onZoom={onZoom}
           onRetry={() => void retryResult(turn.id, result.id)}
           showRefineAction={turn.results.length > 1}
           refinementEnabled
           onRefine={() => startRefinement(turn.id, result.id)}
-          onHistory={() => setView("history")}
+          onHistory={() => setView('history')}
           selectionEnabled={successful.length > 1}
           selectionMode={selectionMode}
           selected={selectedResultIds.includes(result.id)}
           deselecting={deselectingResultIds.includes(result.id)}
           refinementTargetDisabled={isGenerating || selectionTransitioning}
-          savePromptState={
-            savedPromptId ? "saved" : savingPrompt ? "saving" : "idle"
-          }
+          savePromptState={savedPromptId ? 'saved' : savingPrompt ? 'saving' : 'idle'}
           onSavePrompt={() => void savePrompt()}
           onEnterSelection={() => enterSelection(result.id)}
           onToggleSelection={() => toggleSelection(result.id)}
@@ -471,9 +442,7 @@ export function GenerationTurnView({
                     {successful.length > 0 && turn.results.length === 1 ? (
                       <button
                         type="button"
-                        onClick={() =>
-                          startRefinement(turn.id, successful[0].id)
-                        }
+                        onClick={() => startRefinement(turn.id, successful[0].id)}
                         className="action-button bg-accent-soft text-accent hover:bg-accent/20"
                         data-testid="generation-refine-turn"
                       >
@@ -496,45 +465,38 @@ export function GenerationTurnView({
               menuItems={[
                 successful[0]
                   ? {
-                      id: "reuse",
-                      label: "再次制作",
+                      id: 'reuse',
+                      label: '再次制作',
                       icon: <WorkbenchTurnActionIcon name="reuse" />,
                       onSelect: () => reuseResult(turn.id, successful[0].id),
                     }
                   : null,
-                turn.prompt.trim() && turn.status !== "running"
+                turn.prompt.trim() && turn.status !== 'running'
                   ? {
-                      id: "save-prompt",
-                      label: "存为提示词",
+                      id: 'save-prompt',
+                      label: '存为提示词',
                       onSelect: () => undefined,
                       render: (close: () => void) => (
                         <GenerationSavePromptAction
                           role="menuitem"
+                          testId="generation-turn-save-prompt"
                           onSave={() => {
                             void savePrompt();
                             close();
                           }}
-                          state={
-                            savedPromptId
-                              ? "saved"
-                              : savingPrompt
-                                ? "saving"
-                                : "idle"
-                          }
+                          state={savedPromptId ? 'saved' : savingPrompt ? 'saving' : 'idle'}
                           className="mf-workbench-turn-menu-item"
                         />
                       ),
                     }
                   : null,
                 {
-                  id: "history",
-                  label: "查看生成历史",
+                  id: 'history',
+                  label: '查看生成历史',
                   icon: <WorkbenchTurnActionIcon name="history" />,
-                  onSelect: () => setView("history"),
+                  onSelect: () => setView('history'),
                 },
-              ].filter(
-                (item): item is NonNullable<typeof item> => item !== null,
-              )}
+              ].filter((item): item is NonNullable<typeof item> => item !== null)}
             />
           </div>
         ) : undefined
@@ -551,16 +513,15 @@ export function GenerationTurnView({
               </span>
               <span
                 className={cn(
-                  "tabular-nums",
+                  'tabular-nums',
                   turn.providerResponse.receivedImageCount <
                     turn.providerResponse.expectedImageCount
-                    ? "text-warning"
-                    : "text-tertiary",
+                    ? 'text-warning'
+                    : 'text-tertiary',
                 )}
                 data-testid="doubao-generation-count"
               >
-                1 次网页请求 · 返回{" "}
-                {turn.providerResponse.receivedImageCount} /{" "}
+                1 次网页请求 · 返回 {turn.providerResponse.receivedImageCount} /{' '}
                 {turn.providerResponse.expectedImageCount} 张
               </span>
             </div>

@@ -771,3 +771,57 @@ Composer 作为 MainView 底部独立 raised tool
 - [ ] Right Dock 默认约 304px，打开时真实压缩 MainView。
 - [ ] Dock 内部滚动，标签搜索使用局部 Popover。
 - [ ] ZCode 的空间结构被继承，但没有编码语义残留。
+
+## 31. 工作台动作菜单升级
+
+工作台的高频动作分成两层：
+
+```text
+回合动作：再次制作 / 存为提示词 / 查看生成历史
+结果动作：保存 / 复制 / 微调 / 打开所在目录 / 查看生成历史
+```
+
+### 31.1 回合动作
+
+`WorkbenchTurnActions` 使用共享 `DropdownMenu`，触发器仍然是回合下方的“更多”按钮。菜单固定向上展开，宽度 176px，使用 `--bg-popover`、8px 圆角和 `--shadow-pop`。由于内容通过 Portal 渲染，菜单不会把后续回合向下推，也不会改变 Composer 的居中靠下位置。
+
+菜单行沿用 32px 紧凑密度，图标统一 12px，普通动作使用次级文字色，hover 使用整行高亮。宿主注入的“存为提示词”作为同一菜单集合中的单行控件参与键盘导航，不能再嵌套第二个 button。
+
+### 31.2 结果卡片动作
+
+结果卡片媒体表面保留保存、复制、微调三个高频图标动作；打开目录和查看历史属于低频动作，收纳在右下角的更多按钮中。共享菜单宽度 144px，向上展开并右边缘对齐卡片，避免被结果卡片或 MainView 的 overflow 裁剪。
+
+```text
+┌────────────── result media ──────────────┐
+│                                          │
+│  [保存] [复制] [微调]              [...] │
+│                                      ┌───┐ │
+│                                      │打开│ │
+│                                      │历史│ │
+│                                      └───┘ │
+└──────────────────────────────────────────┘
+```
+
+两类菜单都由共享原语提供首项聚焦、方向键、Home / End、Escape 和触发器焦点归还。页面业务只负责动作和状态，不再维护 document 级 pointerdown / keydown 监听；因此菜单关闭不会误触发回合、卡片或 Composer 的外层交互。
+
+### 31.3 主工作面与 Composer 叠层契约
+
+已有会话的布局必须先建立中央主工作面，再把 Composer 作为它的贴底层：
+
+```text
+mf-workbench-page
+└── mf-workbench-primary  position: relative / flex: 1 / column
+    ├── mf-workbench-stage  flex: 1 / min-height: 0 / scroll
+    └── Composer            absolute / inset: auto 0 0
+```
+
+主工作面是 Composer 的定位上下文，避免 Composer 相对整个窗口定位；时间线则通过底部 `220px` 安全内距保持末尾回合动作可见、可点击。该契约同时保证 Composer 始终位于中央工作区水平中心，不随右侧上下文面板的开关漂移到页面边缘。
+
+### 31.4 Composer 上下文菜单第六批收口
+
+Composer 左下角“添加上下文”入口继续沿用全宽菜单的工作台语义，但浮层本身由共享 Dropdown 承载：菜单向上展开，内容宽度限制为 `min(728px, calc(100vw - 32px))`，最大高度不超过可用桌面高度，避免把长列表推出窗口。
+
+- 菜单表面使用 `--bg-popover`、12px 外圆角、`--shadow-pop` 和 1px border；菜单项使用 8px 圆角、40px 最小高度，主动作使用 inset surface，分组使用真实 `DropdownMenuLabel` / `DropdownMenuSeparator`。
+- Portal 让菜单脱离 `mf-workbench-primary` 的 overflow 约束，但不改变 `mf-workbench-stage`、回合时间线底部安全内距和 Composer 的居中靠下定位。
+- 首项聚焦、方向键、Home / End、Escape 和触发器焦点归还由共享原语负责；页面不再监听 document 级 pointerdown / keydown。
+- 菜单动作仍保持原有业务 test id 和上下文来源分类，选中后只改变 Composer 的上下文状态，不重排已有回合。

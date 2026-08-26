@@ -2,7 +2,7 @@
 // 品牌与常用设置归侧栏所有；侧栏收起时 mac 标题栏为原生交通灯让位。
 
 import { useEffect, useState } from "react";
-import { LibraryBig, PanelLeft, Search } from "../ui/icons";
+import { PanelLeft, PanelRight, Search } from "../ui/icons";
 import { useAppStore } from "../../stores/app";
 import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
 import { useDesktopWorkbenchSessionList } from "../../features/generation/workbench/workbench-session-query";
@@ -24,6 +24,7 @@ import {
   WorkbenchSessionMenuTrigger,
   WorkbenchSessionRenameDialog,
 } from "@musefold/product-ui";
+import { summarizeWorkbenchTask } from "../../features/generation/workbench/workbench-display";
 
 const VIEW_TITLES = {
   generate: "新设计",
@@ -74,7 +75,14 @@ export function TitleBar() {
   const sessionTitle = (persistedSession?.title ?? firstPrompt) || "新设计";
   const fullTitle =
     currentView === "generate" ? sessionTitle : VIEW_TITLES[currentView];
-  const shortTitle = productTopbarDisplayTitle(fullTitle);
+  const shortTitle = productTopbarDisplayTitle(
+    fullTitle,
+    currentView === "generate" ? 16 : 10,
+  );
+  const taskSummary =
+    currentView === "generate" && activeSessionId
+      ? summarizeWorkbenchTask(turns)
+      : null;
   const isPinned = activeSessionId
     ? pinnedSessionIds.includes(activeSessionId)
     : false;
@@ -127,6 +135,26 @@ export function TitleBar() {
     </div>
   ) : undefined;
 
+  const titleSuffix =
+    currentView === "generate" && activeSessionId ? (
+      <>
+        {taskSummary ? (
+          <div
+            className="mf-product-topbar-task-meta"
+            data-testid="titlebar-task-summary"
+          >
+            <span data-testid="titlebar-result-summary">
+              {taskSummary.activityLabel}
+            </span>
+            <span data-task-source>{taskSummary.sourceLabel}</span>
+          </div>
+        ) : null}
+        {sessionMenu}
+      </>
+    ) : (
+      sessionMenu
+    );
+
   const actions = (
     <>
       <div className="no-drag flex items-center pr-1">
@@ -151,20 +179,20 @@ export function TitleBar() {
               materialsDisabled
                 ? "退出微调后可打开素材库"
                 : materialLibraryOpen
-                  ? "关闭素材库"
-                  : "打开素材库"
+                  ? "收起参考素材面板"
+                  : "打开参考素材面板"
             }
             aria-pressed={materialLibraryOpen}
             title={
               materialsDisabled
                 ? "退出微调后可打开素材库"
                 : materialLibraryOpen
-                  ? "关闭素材库"
-                  : "打开素材库"
+                  ? "收起参考素材面板"
+                  : "打开参考素材面板"
             }
             data-testid="titlebar-materials-toggle"
           >
-            <LibraryBig className="h-3.5 w-3.5" aria-hidden="true" />
+            <PanelRight className="h-3.5 w-3.5" aria-hidden="true" />
           </IconButton>
         )}
       </div>
@@ -187,7 +215,7 @@ export function TitleBar() {
         displayTitle={shortTitle}
         icon={<ProductViewIcon view={currentView} />}
         leading={leading}
-        titleSuffix={sessionMenu}
+        titleSuffix={titleSuffix}
         actions={actions}
         className="relative z-30"
       />

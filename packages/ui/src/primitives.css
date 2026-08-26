@@ -1,3 +1,5 @@
+@import './popover.css';
+
 .mf-ui-button,
 .mf-ui-icon-button {
   font: inherit;
@@ -222,6 +224,69 @@
   height: 15px;
 }
 
+.mf-ui-switch {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: var(--bg-active);
+  cursor: pointer;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.mf-ui-switch::after {
+  position: absolute;
+  /* The visual track remains compact while the hit area stays 44px high. */
+  inset: -13px -7px;
+  content: '';
+}
+
+.mf-ui-switch[data-state='checked'] {
+  background: var(--accent);
+}
+
+.mf-ui-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.mf-ui-switch:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.mf-ui-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg-primary);
+  box-shadow:
+    inset 0 0 1px rgba(20, 20, 24, 0.16),
+    0 1px 2px rgba(20, 20, 24, 0.18);
+  pointer-events: none;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out);
+}
+
+.mf-ui-switch[data-state='checked'] .mf-ui-switch-thumb {
+  background: var(--on-accent);
+  transform: translateX(12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='off']) .mf-ui-switch,
+  html:not([data-motion='off']) .mf-ui-switch-thumb {
+    transition: none;
+  }
+}
+
 .mf-ui-status {
   display: inline-flex;
   align-items: center;
@@ -258,7 +323,7 @@
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim-dialog);
   animation: mf-ui-fade-in var(--dur-fast) var(--ease-out);
 }
 
@@ -276,7 +341,7 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-dialog);
   padding: 1.25rem;
-  background: var(--bg-popover);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-dialog);
   color: var(--fg-primary);
   outline: none;
@@ -296,6 +361,12 @@
 }
 
 .mf-ui-dialog-header,
+.mf-ui-dialog-body,
+.mf-ui-dialog-footer {
+  min-width: 0;
+}
+
+.mf-ui-dialog-header,
 .mf-ui-dialog-footer {
   display: flex;
   gap: 0.5rem;
@@ -308,8 +379,14 @@
 }
 
 .mf-ui-dialog-footer {
+  min-height: var(--control-md);
   justify-content: flex-end;
   align-items: center;
+}
+
+.mf-ui-dialog-body {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .mf-ui-dialog-title {
@@ -441,12 +518,12 @@
   z-index: 60;
   max-width: 18rem;
   overflow: hidden;
-  border: 1px solid var(--border-default);
+  border: 1px solid transparent;
   border-radius: var(--radius-tooltip);
   padding: 0.25rem 0.5rem;
-  background: var(--bg-popover);
-  color: var(--fg-secondary);
-  box-shadow: var(--shadow-pop);
+  background: var(--fg-primary);
+  color: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
   font-size: var(--text-meta);
   font-weight: 600;
   animation: mf-ui-scale-in var(--dur-fast) var(--ease-out);
@@ -468,14 +545,15 @@
 
 .mf-ui-toast {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto 1.5rem;
   min-height: 3rem;
   align-items: flex-start;
-  gap: 0.625rem;
+  column-gap: 0.625rem;
   overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  padding: 0.75rem 2.25rem 0.75rem 0.75rem;
+  padding: 0.75rem;
   background: var(--bg-popover);
   box-shadow: var(--shadow-pop);
   pointer-events: auto;
@@ -494,6 +572,49 @@
   border-color: color-mix(in srgb, var(--warning) 35%, var(--border-default));
 }
 
+.mf-ui-toast[data-variant='accent'] {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-default));
+}
+
+.mf-ui-toast-icon {
+  grid-column: 1;
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  margin-top: 0.125rem;
+  color: var(--fg-tertiary);
+}
+
+.mf-ui-toast-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.mf-ui-toast[data-variant='success'] .mf-ui-toast-icon {
+  color: var(--success);
+}
+
+.mf-ui-toast[data-variant='danger'] .mf-ui-toast-icon {
+  color: var(--danger);
+}
+
+.mf-ui-toast[data-variant='warning'] .mf-ui-toast-icon {
+  color: var(--warning);
+}
+
+.mf-ui-toast[data-variant='accent'] .mf-ui-toast-icon {
+  color: var(--accent);
+}
+
+.mf-ui-toast-body {
+  grid-column: 2;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
 .mf-ui-toast-title {
   color: var(--fg-primary);
   font-size: 0.75rem;
@@ -507,9 +628,37 @@
 }
 
 .mf-ui-toast-close {
-  position: absolute;
-  right: 0.5rem;
-  top: 0.5rem;
+  grid-column: 4;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: -0.25rem;
+  margin-right: -0.25rem;
+}
+
+.mf-ui-toast-action {
+  grid-column: 3;
+  min-height: 1.5rem;
+  border: 0;
+  border-radius: var(--radius-tooltip);
+  padding: 0 0.5rem;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-meta);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.mf-ui-toast-action:hover {
+  background: var(--accent-soft);
+}
+
+.mf-ui-toast-action:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
 }
 
 .mf-ui-input,
@@ -834,7 +983,7 @@
 
 .mf-ui-dropdown-content,
 .mf-ui-select-content {
-  z-index: 50;
+  z-index: 55;
   min-width: 10rem;
   overflow: hidden;
   border: 1px solid var(--border-default);
@@ -842,18 +991,23 @@
   background: var(--bg-popover);
   color: var(--fg-primary);
   box-shadow: var(--shadow-pop);
-  animation: mf-ui-scale-in var(--dur-base) var(--ease-spring) both;
+  animation: mf-ui-scale-in var(--dur-base) var(--ease-out) both;
   -webkit-app-region: no-drag;
 }
 
 .mf-ui-dropdown-content {
   padding: 0.25rem;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
 }
 
 .mf-ui-dropdown-sub-content,
 .mf-ui-select-content {
   position: relative;
   min-width: 8rem;
+}
+
+.mf-ui-select-content {
+  transform-origin: var(--radix-select-content-transform-origin);
 }
 
 .mf-ui-dropdown-item,
@@ -911,11 +1065,14 @@
 }
 
 .mf-ui-dropdown-item:focus,
+.mf-ui-dropdown-item:focus-visible,
 .mf-ui-dropdown-item[data-highlighted],
 .mf-ui-select-item:focus,
+.mf-ui-select-item:focus-visible,
 .mf-ui-select-item[data-highlighted] {
   background: var(--bg-hover);
   color: var(--fg-primary);
+  outline: none;
 }
 
 .mf-ui-dropdown-item[data-state='open'],

@@ -1,11 +1,18 @@
 // History 顶栏清理菜单（TASK-HIS-10）
 
 import { useState } from 'react';
-import { AlertTriangle, CalendarClock, ChevronDown, Trash2, XCircle } from '../../../components/ui/icons';
+import {
+  AlertTriangle,
+  CalendarClock,
+  ChevronDown,
+  Trash2,
+  XCircle,
+} from '../../../components/ui/icons';
 import type { HistoryClearRequest } from '@musefold/desktop-contracts/ipc';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -131,8 +138,10 @@ export function HistoryCleanupMenu() {
               <AlertTriangle className="h-4 w-4 text-warning" />
               {pending?.title}
             </DialogTitle>
-            <DialogDescription>{pending?.description}</DialogDescription>
           </DialogHeader>
+          <DialogBody>
+            <DialogDescription>{pending?.description}</DialogDescription>
+          </DialogBody>
           <DialogFooter>
             <Button variant="ghost" disabled={busy} onClick={() => setPending(null)}>
               取消

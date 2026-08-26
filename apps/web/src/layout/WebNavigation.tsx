@@ -79,6 +79,7 @@ export function WebSidebar({
     item: WorkbenchSessionListItemViewModel;
     x: number;
     y: number;
+    returnFocusTarget: HTMLElement;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkbenchSessionListItemViewModel | null>(null);
 
@@ -156,7 +157,9 @@ export function WebSidebar({
               setUnreadSessionIds(setSessionUnread(item.id, false));
               onArchiveWorkbenchSession(item);
             }}
-            onContextMenu={(item, anchor) => setContextMenu({ item, ...anchor })}
+            onContextMenu={(item, anchor, returnFocusTarget) =>
+              setContextMenu({ item, ...anchor, returnFocusTarget })
+            }
             onRetry={onRetryWorkbenchSessions}
           />
         }
@@ -173,6 +176,7 @@ export function WebSidebar({
       {contextMenu ? (
         <WorkbenchSessionContextMenu
           anchor={{ x: contextMenu.x, y: contextMenu.y }}
+          returnFocusTarget={contextMenu.returnFocusTarget}
           title={contextMenu.item.title}
           pinned={contextMenu.item.pinned ?? false}
           onClose={() => setContextMenu(null)}

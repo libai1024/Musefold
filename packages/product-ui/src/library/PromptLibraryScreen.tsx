@@ -1,15 +1,18 @@
-import { useMemo, useState, type ReactNode } from "react";
-import type { PromptListItemViewModel } from "../models";
-import { PromptListRow } from "./PromptListRow";
-import { PromptSearchField } from "./PromptSearchField";
-import { PromptSectionHeading } from "./PromptSectionHeading";
-import { ProductPageHeader } from "../navigation/ProductPageHeader";
+import { useMemo, useState, type ReactNode } from 'react';
+import type { PromptListItemViewModel } from '../models';
+import { PromptListRow } from './PromptListRow';
+import { PromptSearchField } from './PromptSearchField';
+import { PromptSectionHeading } from './PromptSectionHeading';
+import { ProductPageHeader } from '../navigation/ProductPageHeader';
 
 export interface PromptLibraryScreenProps {
   prompts: PromptListItemViewModel[];
   className?: string;
+  showPageHeader?: boolean;
   headerAction?: ReactNode;
   toolbarExtra?: ReactNode;
+  scopeNavigation?: ReactNode;
+  sectionSummary?: ReactNode;
   createPanel?: ReactNode;
   body?: ReactNode;
   query?: string;
@@ -23,8 +26,11 @@ export interface PromptLibraryScreenProps {
 export function PromptLibraryScreen({
   prompts,
   className,
+  showPageHeader = true,
   headerAction,
   toolbarExtra,
+  scopeNavigation,
+  sectionSummary,
   createPanel,
   body,
   query,
@@ -34,7 +40,7 @@ export function PromptLibraryScreen({
   onCopy,
   onUse,
 }: PromptLibraryScreenProps) {
-  const [internalQuery, setInternalQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState('');
   const currentQuery = query ?? internalQuery;
   const setQuery = onQueryChange ?? setInternalQuery;
   const filtered = useMemo(() => {
@@ -48,66 +54,77 @@ export function PromptLibraryScreen({
   }, [currentQuery, prompts]);
   const sections = [
     {
-      key: "pinned",
-      title: "置顶",
+      key: 'pinned',
+      title: '置顶',
       items: filtered.filter((item) => item.isPinned),
     },
     {
-      key: "all",
-      title: "全部",
+      key: 'all',
+      title: '全部',
       items: filtered.filter((item) => !item.isPinned),
     },
   ];
+  const useControlDeck = Boolean(scopeNavigation || sectionSummary);
 
   return (
     <section
-      className={[
-        "mf-product-page mf-library-screen",
-        className,
-      ].filter(Boolean).join(" ")}
+      className={['mf-product-page mf-library-screen', className].filter(Boolean).join(' ')}
       data-testid="library-page"
     >
-      <ProductPageHeader
-        title="提示词库"
-        count={filtered.length}
-        actions={headerAction}
-      />
-      <div className="mf-library-toolbar">
-        <PromptSearchField
-          value={currentQuery}
-          onChange={setQuery}
-          placeholder="搜索标题、正文或标签"
-        />
-        {toolbarExtra}
-      </div>
+      {showPageHeader ? (
+        <ProductPageHeader title="提示词库" count={filtered.length} actions={headerAction} />
+      ) : null}
+      {useControlDeck ? (
+        <div className="mf-library-control-deck">
+          <div className="mf-library-control-primary">
+            <div className="mf-library-scope-slot">{scopeNavigation}</div>
+            <PromptSearchField
+              value={currentQuery}
+              onChange={setQuery}
+              placeholder="搜索标题、正文或标签"
+            />
+          </div>
+          <div className="mf-library-control-secondary">
+            <div className="mf-library-section-summary">{sectionSummary}</div>
+            {!showPageHeader ? headerAction : null}
+          </div>
+        </div>
+      ) : (
+        <div className="mf-library-toolbar">
+          <PromptSearchField
+            value={currentQuery}
+            onChange={setQuery}
+            placeholder="搜索标题、正文或标签"
+          />
+          {toolbarExtra}
+          {!showPageHeader ? headerAction : null}
+        </div>
+      )}
       {createPanel}
-      {body ?? <div role="list">
-        {sections.map((section) =>
-          section.items.length > 0 ? (
-            <section className="mf-prompt-section" key={section.key}>
-              <PromptSectionHeading
-                title={section.title}
-                count={section.items.length}
-              />
-              <div className="mf-prompt-grid">
-                {section.items.map((prompt) => (
-                  <PromptListRow
-                    key={prompt.id}
-                    prompt={prompt}
-                    copied={copiedId === prompt.id}
-                    onOpen={onOpen ? () => onOpen(prompt) : undefined}
-                    onCopy={onCopy ? () => onCopy(prompt) : undefined}
-                    onUse={() => onUse?.(prompt)}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null,
-        )}
-        {filtered.length === 0 && (
-          <div className="mf-empty-row">没有匹配的提示词</div>
-        )}
-      </div>}
+      {body ?? (
+        <div role="list">
+          {sections.map((section) =>
+            section.items.length > 0 ? (
+              <section className="mf-prompt-section" key={section.key}>
+                <PromptSectionHeading title={section.title} count={section.items.length} />
+                <div className="mf-prompt-grid">
+                  {section.items.map((prompt) => (
+                    <PromptListRow
+                      key={prompt.id}
+                      prompt={prompt}
+                      copied={copiedId === prompt.id}
+                      onOpen={onOpen ? () => onOpen(prompt) : undefined}
+                      onCopy={onCopy ? () => onCopy(prompt) : undefined}
+                      onUse={() => onUse?.(prompt)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null,
+          )}
+          {filtered.length === 0 && <div className="mf-empty-row">没有匹配的提示词</div>}
+        </div>
+      )}
     </section>
   );
 }

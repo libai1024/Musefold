@@ -83,20 +83,20 @@ export function StepValidate() {
       </div>
 
       <OnboardingActions>
-        <Button variant="ghost" size="sm" className="rounded-full" onClick={goBack} data-testid="onboarding-back">
+        <Button variant="ghost" size="sm" onClick={goBack} data-testid="onboarding-back">
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           上一步
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="rounded-full" onClick={skip} data-testid="onboarding-skip">暂时跳过</Button>
+          <Button variant="ghost" size="sm" onClick={skip} data-testid="onboarding-skip">暂时跳过</Button>
           {allOk ? (
-            <Button className="rounded-full px-4" onClick={continueToImage} data-testid="onboarding-continue">
+            <Button className="px-4" onClick={continueToImage} data-testid="onboarding-continue">
               继续
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           ) : (
             !validating && providerId && (
-              <Button variant="outline" className="rounded-full px-4" onClick={() => void retryValidate()} data-testid="onboarding-retry">
+              <Button variant="outline" className="px-4" onClick={() => void retryValidate()} data-testid="onboarding-retry">
                 重新确认
               </Button>
             )

@@ -62,6 +62,7 @@ export interface WorkbenchSessionListProps {
   onContextMenu?: (
     item: WorkbenchSessionListItemViewModel,
     anchor: { x: number; y: number },
+    returnFocusTarget: HTMLElement,
   ) => void;
   onEditingValueChange?: (value: string) => void;
   onSubmitRename?: (item: WorkbenchSessionListItemViewModel) => void;
@@ -122,13 +123,19 @@ export function WorkbenchSessionList({
                 <h3>{group.label}</h3>
                 {group.items.map((item) => {
                   const status = item.status ?? 'idle';
-                  const openContextMenu = (event: MouseEvent) => {
+                  const openContextMenu = (event: MouseEvent<HTMLDivElement>) => {
                     if (!onContextMenu) return;
                     event.preventDefault();
-                    onContextMenu(item, {
-                      x: event.clientX + 2,
-                      y: event.clientY + 2,
-                    });
+                    onContextMenu(
+                      item,
+                      {
+                        x: event.clientX + 2,
+                        y: event.clientY + 2,
+                      },
+                      event.currentTarget.querySelector<HTMLElement>(
+                        '.mf-workbench-session-open',
+                      ) ?? event.currentTarget,
+                    );
                   };
                   const openContextMenuFromKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
                     if (
@@ -139,10 +146,16 @@ export function WorkbenchSessionList({
                     }
                     event.preventDefault();
                     const rect = event.currentTarget.getBoundingClientRect();
-                    onContextMenu(item, {
-                      x: rect.left + 24,
-                      y: rect.top + rect.height,
-                    });
+                    onContextMenu(
+                      item,
+                      {
+                        x: rect.left + 24,
+                        y: rect.top + rect.height,
+                      },
+                      event.currentTarget.querySelector<HTMLElement>(
+                        '.mf-workbench-session-open',
+                      ) ?? event.currentTarget,
+                    );
                   };
                   const submitRename = (event: FormEvent) => {
                     event.preventDefault();
@@ -239,10 +252,14 @@ export function WorkbenchSessionList({
                               <IconButton
                                 onClick={(event) => {
                                   const rect = event.currentTarget.getBoundingClientRect();
-                                  onContextMenu(item, {
-                                    x: rect.left,
-                                    y: rect.bottom + 4,
-                                  });
+                                  onContextMenu(
+                                    item,
+                                    {
+                                      x: rect.left,
+                                      y: rect.bottom + 4,
+                                    },
+                                    event.currentTarget,
+                                  );
                                 }}
                                 title="更多操作"
                                 label={`对话操作：${item.title}`}

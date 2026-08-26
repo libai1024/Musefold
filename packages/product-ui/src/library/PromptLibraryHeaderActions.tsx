@@ -1,11 +1,20 @@
-import { Button, IconButton } from "@musefold/ui";
-import { MoreHorizontal, Plus, Trash2 } from "@musefold/ui/icons";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  IconButton,
+} from '@musefold/ui';
+import { MoreHorizontal, Plus, RefreshCw, Trash2 } from '@musefold/ui/icons';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 type PromptLibraryMenuItems = ReactNode | ((close: () => void) => ReactNode);
 
 export interface PromptLibraryHeaderActionsProps {
   onCreate: () => void;
+  onRefresh?: () => void | Promise<void>;
+  refreshing?: boolean;
   onOpenTrash?: () => void;
   trashCount?: number;
   extraMenuItems?: PromptLibraryMenuItems;
@@ -14,45 +23,70 @@ export interface PromptLibraryHeaderActionsProps {
 
 export function PromptLibraryHeaderActions({
   onCreate,
+  onRefresh,
+  refreshing = false,
   onOpenTrash,
   trashCount = 0,
   extraMenuItems,
-  trashTestId = "library-trash",
+  trashTestId = 'library-trash',
 }: PromptLibraryHeaderActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const menuContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
+    const frame = window.requestAnimationFrame(() => {
+      menuContentRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [menuOpen]);
 
   const closeMenu = () => setMenuOpen(false);
 
   return (
-    <div className="mf-library-header-actions" ref={rootRef}>
-      {(extraMenuItems || onOpenTrash) ? (
+    <div className="mf-library-header-actions">
+      {onRefresh ? (
         <IconButton
-          className="mf-icon-button"
-          label="更多操作"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-          data-testid="library-menu"
+          className="mf-icon-button mf-library-refresh"
+          label="刷新提示词"
+          onClick={() => void onRefresh()}
+          disabled={refreshing}
+          data-loading={refreshing ? 'true' : 'false'}
+          data-testid="library-refresh"
         >
-          <MoreHorizontal aria-hidden="true" />
+          <RefreshCw aria-hidden="true" />
         </IconButton>
+      ) : null}
+      {extraMenuItems || onOpenTrash ? (
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <IconButton className="mf-icon-button" label="提示词库操作" data-testid="library-menu">
+              <MoreHorizontal aria-hidden="true" />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            ref={menuContentRef}
+            className="mf-prompt-detail-menu"
+            align="end"
+            sideOffset={6}
+            aria-label="提示词库操作"
+          >
+            {typeof extraMenuItems === 'function' ? extraMenuItems(closeMenu) : extraMenuItems}
+            {onOpenTrash ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  closeMenu();
+                  onOpenTrash();
+                }}
+                data-testid={trashTestId}
+              >
+                <Trash2 aria-hidden="true" />
+                回收站
+                {trashCount > 0 ? <span>{trashCount}</span> : null}
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
       <Button
         variant="primary"
@@ -63,32 +97,6 @@ export function PromptLibraryHeaderActions({
       >
         新建
       </Button>
-      {menuOpen ? (
-        <div
-          className="mf-prompt-detail-menu"
-          role="menu"
-          aria-label="提示词库操作"
-        >
-          {typeof extraMenuItems === "function"
-            ? extraMenuItems(closeMenu)
-            : extraMenuItems}
-          {onOpenTrash ? (
-            <Button
-              variant="ghost"
-              role="menuitem"
-              onClick={() => {
-                closeMenu();
-                onOpenTrash();
-              }}
-              data-testid={trashTestId}
-              icon={<Trash2 aria-hidden="true" />}
-            >
-              回收站
-              {trashCount > 0 ? <span>{trashCount}</span> : null}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

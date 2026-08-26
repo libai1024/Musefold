@@ -690,3 +690,245 @@ Dock → Bottom Sheet
 - [ ] Toast 只处理瞬时反馈。
 - [ ] Dialog 关闭后焦点返回触发按钮。
 - [ ] 浮层组件使用 2.0 foundation 的圆角和阴影。
+
+## 31. 桌面端实现进度（2026-08-26）
+
+桌面端已完成 Command Palette、Onboarding Theater，以及第一批通用浮层原语和工作台菜单升级。响应式章节仍是后续实现依据，本阶段按开发约定不做手机端测试，也不把桌面通过等同于移动端通过。
+
+### 31.1 Command Palette
+
+已落地：
+
+- 独立 `Command` 层级，scrim 使用 `--scrim-command`，不与普通 Dialog 混用。
+- 面板宽度 `min(560px, calc(100vw - 32px))`，圆角 16px，使用实色 raised surface 与 `--shadow-dialog`。
+- 搜索输入 40px，结果行最小 40px，行内图标、主标签、辅助信息保持稳定槽位。
+- 输入使用 combobox 语义，结果区使用 listbox / option 语义；活动项通过 `aria-activedescendant` 暴露。
+- 上下键切换活动项时自动将目标行滚入视口，Enter 执行动作，Escape 由 Radix Dialog 关闭。
+- 不在面板中长期展示快捷键教学文字，键盘能力保留为标准交互。
+
+对应实现：
+
+```text
+apps/desktop/src/components/command/CommandPalette.tsx
+apps/desktop/src/styles/overlays-v2.css
+```
+
+### 31.2 Onboarding Theater
+
+已落地：
+
+- 保留 Shell 轮廓的 modal Theater，不再替换成全屏业务页面。
+- 1440×900 桌面视口下，surface 固定为 1080×720；更小桌面视口使用 `100vw/100vh - 48px` 约束。
+- Theater 圆角 20px；按钮、输入和局部图标控制统一为 8px；状态标签与进度条才允许使用 pill。
+- Dark surface 为 `#25272a`、scrim 为 `rgba(0,0,0,.68)`；Light surface 为 `#fff`、scrim 为 `rgba(20,20,24,.32)`。
+- 欢迎页使用“品牌标识 + 两行主标题 + 主次动作 + 真实创作图像”的左右结构，图像保持稳定 1:1 比例与 16px 圆角。
+- 连接、账号登录和连接校验回到 Operate 表单布局，不继续套用欢迎页的大型展示语言。
+- 二维码位于内容区，不再进入底部动作行；底部只保留返回、刷新/获取、确认等命令。
+- 首次生成成功后，真实图像占据主舞台，参数与提示词退后，只保留结果状态与“进入创作”。
+- 首次打开焦点进入 Theater；后续步骤切换后焦点进入当前标题；关闭仍由 Radix 恢复触发端焦点语义。
+- reduced motion 下取消 scrim blur 和 Theater 编排等待，交互路径保持可用。
+
+对应实现：
+
+```text
+apps/desktop/src/features/onboarding/OnboardingFlow.tsx
+apps/desktop/src/features/onboarding/OnboardingStepWelcome.tsx
+apps/desktop/src/features/onboarding/OnboardingStepConnect.tsx
+apps/desktop/src/features/onboarding/OnboardingStepValidate.tsx
+apps/desktop/src/features/onboarding/OnboardingStepFirstImage.tsx
+apps/desktop/src/features/onboarding/onboarding-ui.tsx
+apps/desktop/src/styles/overlays-v2.css
+```
+
+### 31.3 桌面门禁
+
+新增 `tests/e2e/test_40_overlays_v2_desktop.py`，仅使用 1440×900 桌面视口，验证：
+
+- Onboarding 1080×720 居中几何、20px Theater 圆角、8px 控件圆角。
+- Light / Dark 实色 surface 与独立 scrim。
+- 欢迎图像稳定 1:1、步骤焦点迁移、账号表单不越界。
+- Command Palette 560px 宽度、16px 圆角、输入自动聚焦与键盘活动项迁移。
+
+### 31.4 Phase C 通用浮层（第一批）
+
+共享原语已落地：
+
+- `Dialog` 使用 `--scrim-dialog`、实色 `--surface-raised`、16px `--radius-dialog` 和 `--shadow-dialog`。
+- 新增 `DialogBody`，与 Header / Footer 形成稳定结构；Footer 保持至少一个中型控件高度，不因 busy 状态跳动。
+- Dropdown / Select 浮层使用实色 `--bg-popover`、8px 圆角、1px border 和 `--shadow-pop`；菜单行 32px、内部圆角 6px。
+- Dropdown / Select 分别使用 Radix transform origin，避免不同定位原语共享错误的动画锚点。
+- Toast 固定为 icon / body / action / close 四槽布局；success、danger、warning、accent 同时通过图标、边框和语义色表达。
+- Toast 文案保持 12px 主标题与 meta 描述，操作按钮不改变通知宽度结构。
+
+工作台实例已落地：
+
+- Composer 的“添加上下文”保留全宽锚定布局，并补齐首项聚焦、上下键循环、Home / End、Tab 收起、Escape 关闭与焦点归还。
+- 分组之间使用真实 `separator` 语义，不再通过下一组标题的上边框模拟。
+- 会话 Context Menu 使用实色 popover surface，圆角 8px、`--shadow-pop`、32px 菜单行；危险项始终使用 danger text。
+- 会话菜单打开后首项获得焦点，方向键循环；Escape 关闭时将焦点归还打开前的控件。
+- 页面内动作菜单按页面逐实例迁移；Prompt、History、Scheme 与 Workbench 的批次记录见下文，保留各自的业务锚定和宿主注入能力。
+
+对应实现：
+
+```text
+packages/ui/src/extended-primitives.tsx
+packages/ui/src/toast-primitives.tsx
+packages/ui/src/primitives.css
+packages/product-ui/src/workbench/WorkbenchContextMenu.tsx
+packages/product-ui/src/workbench/WorkbenchSessionContextMenu.tsx
+apps/desktop/src/components/ui/toast-host.tsx
+```
+
+### 31.5 Phase C Prompt 菜单（第二批）
+
+已落地：
+
+- `PromptLibraryHeaderActions` 与 `PromptDetailScreen` 从手写绝对定位菜单迁移到共享 Dropdown 原语。
+- 顶部菜单锚定“提示词库操作”按钮；详情菜单锚定“提示词操作”按钮，不再借动作组容器定位。
+- 桌面注入的导入、分享和创建方案使用 `DropdownMenuItem`，与回收站、编辑、复制、置顶和删除共享同一键盘集合。
+- 打开后首项获得焦点；方向键、Home / End、Escape 和焦点归还均有桌面行为门禁。
+- Dropdown 的 Home / End 在共享 Content 捕获阶段按 DOM 顺序处理，避免宿主注入项的注册顺序改变键盘结果。
+- 菜单项焦点使用整行 highlight，不继承桌面全局橙色外描边；危险项保留 danger text。
+- Prompt 删除确认补齐 `DialogBody`，继续保持 16px Dialog、raised surface 与 dialog shadow。
+
+对应实现：
+
+```text
+packages/product-ui/src/library/PromptLibraryHeaderActions.tsx
+packages/product-ui/src/library/PromptDetailScreen.tsx
+apps/desktop/src/pages/LibraryPage.tsx
+apps/desktop/src/features/library/components/PromptDetailView.tsx
+packages/ui/src/dropdown-menu-content.tsx
+packages/ui/src/extended-primitives.tsx
+tests/e2e/test_42_prompt_overlays_v2_desktop.py
+```
+
+尚未完成：
+
+- 760px、680px 与 390px 响应式门禁。
+
+### 31.6 Phase C History 菜单（第三批）
+
+已落地：
+
+- `GenerationHistoryDetailActions` 从手写绝对定位菜单迁移到共享 Dropdown 原语，Desktop / Web 共用同一菜单与删除确认结构。
+- 桌面 Inspector 只常驻再次制作、存为提示词和创建设计方案；复制、文件管理与删除进入“更多操作”。
+- 196px 菜单与触发器右边缘对齐，在底部空间不足时自动向上展开；Portal 不改变 Inspector 和动作栏几何。
+- 桌面注入的打开文件夹、复制图片、删除记录与源文件使用 `DropdownMenuItem`，参与同一键盘集合。
+- 删除动作使用真实 separator 和 danger text；删除记录、删除源文件、清理历史 Dialog 补齐 `DialogBody`。
+- 打开后首项聚焦；Home / End、Escape、焦点归还以及切换记录时关闭旧浮层均已覆盖。
+- 桌面删除说明明确本地使用统计会随历史记录变化；Web 继续使用可恢复的回收站语义。
+
+对应实现：
+
+```text
+packages/product-ui/src/history/GenerationHistoryDetailActions.tsx
+packages/product-ui/src/history/GenerationHistoryDetailScreen.tsx
+apps/desktop/src/features/history/components/HistoryDetail.tsx
+apps/desktop/src/features/history/components/HistoryCleanupMenu.tsx
+apps/web/src/views/HistoryView.tsx
+tests/e2e/test_43_history_overlays_v2_desktop.py
+```
+
+### 31.7 Phase C Scheme 菜单（第四批）
+
+已落地：
+
+- `SchemeActionMenu` 的详情 `...` 操作迁移到共享 Dropdown；普通动作、条件动作、separator 和危险动作保持稳定顺序。
+- `SchemeCreateMenu` 的五种来源迁移到共享 Dropdown Portal；286px 宽度、双行说明和不裁剪定位保持方案页设计。
+- `SchemeRunVariableFields` 的“添加可选变量”迁移到共享 Dropdown，并从 Composer 底部向上锚定。
+- 共享 `DropdownMenuContent` 在 Electron pointer-open 路径中主动聚焦第一个可用 menu item，同时保留调用方通过 `onOpenAutoFocus` 取消默认行为的能力。
+- 方案附件详情仍保留 dialog 语义的富信息浮层；它和纯动作菜单的边界不混用。
+
+对应实现：
+
+```text
+packages/ui/src/dropdown-menu-content.tsx
+apps/desktop/src/features/design-schemes/SchemeActionMenu.tsx
+apps/desktop/src/features/design-schemes/SchemeControlDeck.tsx
+apps/desktop/src/features/design-schemes/SchemeListActions.tsx
+apps/desktop/src/features/design-schemes/SchemeRunComposer.tsx
+tests/e2e/test_26_scheme_center_delete.py
+```
+
+桌面门禁固定使用 Dark / Light 和 方案中心真实导入草稿，验证菜单 surface、8px 圆角、阴影、Home / End、Escape、焦点归还及删除确认。本批不执行手机端测试。
+
+### 31.8 Phase C Workbench 菜单（第五批）
+
+已落地：
+
+- `WorkbenchTurnActions` 从手写 absolute 菜单迁移到共享 Dropdown；菜单从回合动作按钮向上展开，使用 176px 内容宽度，不再参与回合流的布局计算。
+- 回合菜单继续保留“再次制作”“存为提示词”“查看生成历史”等宿主注入能力；`GenerationSavePromptAction` 通过 `asChild` 进入同一个键盘菜单集合，不产生嵌套按钮。
+- `WorkbenchGenerationResultCard` 保留图片表面上的高频图标操作；“打开所在目录”和“查看生成历史”收纳进 144px 的共享更多菜单，向上展开并与卡片右边缘对齐。
+- 两类菜单均使用实色 popover、8px 外圆角、`shadow-pop`、首项聚焦、方向键、Home / End、Escape 和触发器焦点归还；Portal 不改变 MainView、回合时间线或结果卡片的几何。
+- 桌面端继续保留既有业务 `data-testid`，仅把浮层容器改为共享原语；移动端门禁按当前开发约定暂不执行。
+
+对应实现与门禁：
+
+```text
+packages/product-ui/src/workbench/WorkbenchTurnActions.tsx
+packages/product-ui/src/workbench/WorkbenchGenerationResultCard.tsx
+packages/product-ui/src/workbench/__tests__/workbench-overlays.test.ts
+tests/e2e/test_08_generation_workbench.py
+```
+
+既有工作台 E2E 继续验证存为提示词、打开所在目录和结果卡片操作；本批新增的共享原语契约测试验证菜单不会重新引入 document 级 pointerdown / keydown 监听。
+
+### 31.9 Phase C Sidebar Access Switcher（第六批）
+
+`SidebarAccessSwitcher` 的两个手写浮层已经迁移到共享 Dropdown，参考 ZCode 插件页和设置页的紧凑分组菜单：侧栏底部保留身份摘要，用户按需向上展开账号、豆包、中转站和应用操作。
+
+- 身份菜单宽 292px，设置菜单宽 220px，均从 Sidebar Footer 向上展开，使用 6px 锚定间距；身份菜单左对齐身份行，设置菜单右对齐设置图标。
+- 两者均通过 Portal 渲染，使用实色 popover、12px 外圆角、1px border、`shadow-pop` 和 8px 内部菜单行圆角。Dark / Light 只替换 token surface 与文字对比，不重写浮层结构。
+- 身份菜单使用 `DropdownMenuLabel` 分成“生图账号”和“中转站”，真实 `DropdownMenuSeparator` 分隔底部的“管理中转站 / 账号设置”；当前身份由整行 accent-soft 背景和 Check 表达。
+- 中转站连接测试与桌宠开关保留菜单内 busy 状态，异步完成后才关闭；账号切换仍进入原有验证和身份过渡动画。失败路径保持原 toast，不新增第二套错误浮层。
+- 共享 Dropdown 提供首项聚焦、方向键、Home / End、Escape、outside click 和触发器焦点归还；组件不再监听 document pointerdown、keydown，也不维护手写 anchor 坐标。
+- `z-index: 75` 只保证菜单高于 Sidebar / MainView 的普通层级，Dialog 和 Command 层级继续优先；浮层打开不改变 MainView、Composer 或 Right Dock 几何。
+
+对应实现：
+
+```text
+apps/desktop/src/components/layout/SidebarAccessSwitcher.tsx
+apps/desktop/src/components/layout/__tests__/model-hub-ui.test.ts
+apps/desktop/src/styles/overlays-v2.css
+tests/e2e/test_32_v05_account.py
+tests/e2e/test_41_phase_c_overlays_v2_desktop.py
+```
+
+本批只执行桌面端验证，不执行手机端测试。
+
+### 31.10 Phase C Dialog 实例（第七批）
+
+本批完成常规桌面业务 Dialog 对共享 `Header / Body / Footer` 结构的迁移。`DialogBody` 是布局槽位，不新增第二层卡片表面；业务内容继续使用原来的 inset、raised、danger 和 media surface，避免出现“Dialog 里套卡片、卡片里再套卡片”的 ZCode 视觉问题。
+
+已迁移的实例：
+
+- 服务商配置、全局错误、设置中的危险区、导入、导出、豆包扫码登录、开源许可和数据库备份。
+- 回收站、分享卡片预览和外部分享导入确认。
+- `DialogFooter` 继续承载取消、确认、重试、保存和重启动作；busy 状态只替换按钮内容，不改变 Footer 的最小高度。
+
+结构约束：
+
+- `DialogHeader` 只放标题和说明；标题不承担内容区的状态提示。
+- `DialogBody` 负责垂直节奏、内容滚动和状态切换；长列表的 `max-height` 与 `overflow-y-auto` 保留在 Body 或 Body 内部的内容面上。
+- `DialogFooter` 只放跨内容区的最终动作；列表行内的恢复、删除和 PNG 操作仍留在内容区，保持动作与对象的邻近性。
+- Body 不改变 Dialog 的 16px 圆角、raised surface、`--shadow-dialog` 和 scrim；Light / Dark 只由 foundation token 替换 surface 与文字对比。
+
+有意保留的自定义边界：
+
+- `PromptEditor` 是全宽编辑器表面，表单自己拥有标题、字段和底部动作，继续使用 `p-0` 的专用布局，避免被通用 Body padding 破坏编辑区连续性。
+- `ConnectedAppsScreen` 的重认证表单是账号协议专用表面，包含服务商选择、授权说明和异步提交状态，继续保留 `mf-connected-app-reauth-form` 的定制几何。
+- 只有“没有独立内容区”的确认弹窗可以仅使用 Header + Footer，例如会话删除、更新通道和归档会话确认；这不是漏迁移，而是 Body 没有可承载内容。
+
+桌面门禁固定使用 1440×900，至少覆盖 Dark / Light 的 Body 间距、Dialog 圆角、raised surface、Footer 对齐、busy 状态和滚动内容；本批不执行手机端测试，760px、680px 与 390px 响应式门禁留在后续桌面布局收口阶段。
+
+对应实现与契约：
+
+```text
+apps/desktop/src/components/ui/__tests__/dialog-structure.test.ts
+apps/desktop/src/components/ui/global-error-dialog.tsx
+apps/desktop/src/features/generation/components/ProviderDialog.tsx
+apps/desktop/src/features/settings/components/{DangerZonePanel,ImportDialog,ExportDialog,DoubaoSection,AboutSection,BackupPanel}.tsx
+apps/desktop/src/features/library/components/TrashDialog.tsx
+apps/desktop/src/features/share/{ImportConfirmDialog,SharePromptDialog}.tsx
+```

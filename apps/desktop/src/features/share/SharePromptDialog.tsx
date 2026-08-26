@@ -8,6 +8,7 @@ import { toast } from '../../stores/toast';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -101,73 +102,96 @@ export function SharePromptDialog({ open, prompt, onOpenChange }: Props) {
       <DialogContent className="max-w-[920px]" data-testid="share-dialog">
         <DialogHeader>
           <DialogTitle>分享提示词</DialogTitle>
-          <DialogDescription>生成本地 PNG 卡片与导入链接，收方可直接导入到提示词库。</DialogDescription>
+          <DialogDescription>
+            生成本地 PNG 卡片与导入链接，收方可直接导入到提示词库。
+          </DialogDescription>
         </DialogHeader>
 
-        {busy && (
-          <div className="flex items-center gap-2 px-1 py-10 text-[12px] text-tertiary">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            生成分享卡片中…
-          </div>
-        )}
-
-        {!busy && error && (
-          <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-3 text-[12px] text-secondary">
-            {error}
-          </div>
-        )}
-
-        {!busy && !error && result && prompt && (
-          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-3">
-              <div className="overflow-hidden rounded-xl border border-border-subtle bg-inset/40">
-                <img
-                  src={previewSrc}
-                  alt=""
-                  className="block w-full object-contain"
-                  data-testid="share-png-preview"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={saveImage} data-testid="share-save-png">
-                  <Save className="h-3 w-3" /> 保存 PNG
-                </Button>
-                <Button variant="outline" size="sm" onClick={copyImage} data-testid="share-copy-png">
-                  <ImageDown className="h-3 w-3" /> 复制 PNG
-                </Button>
-                <Button variant="outline" size="sm" onClick={copyLink} data-testid="share-copy-link">
-                  {copyState === 'done' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  {copyState === 'done' ? '已复制' : '复制链接'}
-                </Button>
-              </div>
+        <DialogBody>
+          {busy && (
+            <div className="flex items-center gap-2 px-1 py-10 text-[12px] text-tertiary">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              生成分享卡片中…
             </div>
+          )}
 
-            <div className="space-y-3">
-              <ShareCard
-                payload={{
-                  title: prompt.title,
-                  content: prompt.content,
-                  contentNegative: prompt.contentNegative ?? undefined,
-                  params: prompt.params ?? undefined,
-                  target: promptTargetFromParams(prompt.params),
-                }}
-                compact
-              />
-              <div className="space-y-1.5">
-                <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
-                  deeplink
+          {!busy && error && (
+            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-3 text-[12px] text-secondary">
+              {error}
+            </div>
+          )}
+
+          {!busy && !error && result && prompt && (
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-xl border border-border-subtle bg-inset/40">
+                  <img
+                    src={previewSrc}
+                    alt=""
+                    className="block w-full object-contain"
+                    data-testid="share-png-preview"
+                  />
                 </div>
-                <Textarea
-                  readOnly
-                  value={result.deeplink}
-                  mono
-                  className="min-h-[9rem] resize-none text-meta"
-                  data-testid="share-deeplink"
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveImage}
+                    data-testid="share-save-png"
+                  >
+                    <Save className="h-3 w-3" /> 保存 PNG
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={copyImage}
+                    data-testid="share-copy-png"
+                  >
+                    <ImageDown className="h-3 w-3" /> 复制 PNG
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={copyLink}
+                    data-testid="share-copy-link"
+                  >
+                    {copyState === 'done' ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                    {copyState === 'done' ? '已复制' : '复制链接'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <ShareCard
+                  payload={{
+                    title: prompt.title,
+                    content: prompt.content,
+                    contentNegative: prompt.contentNegative ?? undefined,
+                    params: prompt.params ?? undefined,
+                    target: promptTargetFromParams(prompt.params),
+                  }}
+                  compact
                 />
+                <div className="space-y-1.5">
+                  <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
+                    deeplink
+                  </div>
+                  <Textarea
+                    readOnly
+                    value={result.deeplink}
+                    mono
+                    className="min-h-[9rem] resize-none text-meta"
+                    data-testid="share-deeplink"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} data-testid="share-close">

@@ -37,8 +37,8 @@ Codex 的任务连续性
 | `11-new-conversation-empty-state.md` | 新对话首屏 | 品牌锁定区、提示语、空态 Composer、工作区入口、响应式 |
 | `03-prompt-library.md` | 提示词库 | 列表、搜索、详情、编辑、置顶、回收站 |
 | `04-design-schemes.md` | 设计方案 | 我的方案、发现、新建、运行详情、结果相册 |
-| `05-generation-history.md` | 生成历史 | 历史列表、筛选、详情 Inspector、成本、Lightbox |
-| `06-settings-and-integrations.md` | 设置、账户、接入 | 六个设置分区、服务商、开放能力、数据和归档 |
+| `05-generation-history.md` | 生成历史 | 历史列表、筛选、详情 Inspector、文件管理、Lightbox |
+| `06-settings-and-integrations.md` | 设置、账户、接入 | 七个设置分区、使用统计、服务商、开放能力、数据和归档 |
 | `07-overlays-onboarding-responsive.md` | 浮层、引导、响应式 | Command Palette、Popover、Dialog、Onboarding、Mobile |
 
 每个文件控制在 1000 行以内。`README.md` 负责索引，不承载具体页面细节。

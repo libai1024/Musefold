@@ -1,0 +1,11 @@
+/* 品牌名字体（workbench 空态 Brand Lockup）。ZCOOL XiaoWei 拉丁子集由
+ * scripts/build-font-subsets.mjs 生成（OFL 许可，OFL-ZCOOLXiaoWei.txt 同目录）。
+ * 与 theater-fonts.css 同理：@font-face 全局注册，是否使用由引用处决定。 */
+
+@font-face {
+  font-family: "ZCOOL XiaoWei";
+  src: url("../fonts/zcool-xiaowei-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

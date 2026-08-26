@@ -22,8 +22,10 @@ import { toast } from '../../../stores/toast';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
@@ -308,7 +310,7 @@ export function AboutSection() {
               Musefold 采用 MIT License。以下为发行包中的直接运行时依赖；各组件版权归原作者所有。
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[min(58vh,440px)] overflow-y-auto rounded-md border border-border-subtle bg-inset/35">
+          <DialogBody className="max-h-[min(58vh,440px)] overflow-y-auto rounded-md border border-border-subtle bg-inset/35">
             {THIRD_PARTY_PACKAGES.map((item) => (
               <div
                 key={item.name}
@@ -320,12 +322,12 @@ export function AboutSection() {
                 <span className="shrink-0 text-meta font-medium text-tertiary">{item.license}</span>
               </div>
             ))}
-          </div>
-          <div className="flex justify-end">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="primary" size="sm" onClick={() => setLicensesOpen(false)}>
               完成
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

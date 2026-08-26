@@ -58,6 +58,7 @@ export function WorkbenchSessionMenuTrigger({
       {anchor ? (
         <WorkbenchSessionContextMenu
           anchor={anchor}
+          returnFocusTarget={buttonRef.current}
           title={title}
           pinned={pinned}
           onClose={() => setAnchor(null)}

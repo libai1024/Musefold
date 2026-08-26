@@ -85,6 +85,7 @@ function ConversationList() {
     title: string;
     x: number;
     y: number;
+    returnFocusTarget: HTMLElement;
   } | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -191,14 +192,20 @@ function ConversationList() {
           setUnreadSessionIds(setSessionUnread(item.id, false));
           void archiveSession(item.id, true);
         }}
-        onContextMenu={(item, anchor) => {
-          setContextMenu({ id: item.id, title: item.title, ...anchor });
+        onContextMenu={(item, anchor, returnFocusTarget) => {
+          setContextMenu({
+            id: item.id,
+            title: item.title,
+            ...anchor,
+            returnFocusTarget,
+          });
         }}
         onRetry={() => void refetch()}
       />
       {contextMenu && (
         <WorkbenchSessionContextMenu
           anchor={{ x: contextMenu.x, y: contextMenu.y }}
+          returnFocusTarget={contextMenu.returnFocusTarget}
           title={contextMenu.title}
           pinned={pinnedSessionIds.includes(contextMenu.id)}
           onClose={() => setContextMenu(null)}

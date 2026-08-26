@@ -10,7 +10,9 @@
 - 继续微调。
 - 保存为提示词。
 - 加入设计方案。
-- 查看成本和磁盘使用。
+- 查看单次生成元数据并管理历史文件。
+
+边界：生成历史不承载聚合成本、渠道用量或趋势看板。上述内容统一进入“设置 / 使用统计”；历史详情仍可展示单条记录在生成当时写入的积分元数据。
 
 ## 2. ZCode 对比截图
 
@@ -32,9 +34,9 @@
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ 生成历史      246 条        [筛选] [成本看板] [清理] [Inspector] │
+│ 生成历史      246 条      [筛选 2] [磁盘占用] [清理] [Inspector] │
 ├────────────────────────────────────┬─────────────────────────┤
-│ Filter Bar                         │                         │
+│ Filter Bar（按需展开）              │                         │
 │                                    │                         │
 │ History List                       │ Detail Inspector        │
 │ ┌────┐ prompt / status / time      │ image                   │
@@ -54,18 +56,15 @@
 | Selected Row | accent soft + accent border | accent soft + accent border |
 | Inspector | `--bg-sidebar` or elevated | `--bg-sidebar` |
 | Image frame | white/media surface | `#2a2c30` |
-| Cost dashboard | `--bg-popover` | `--bg-popover` |
 | Danger cleanup | danger soft | danger soft |
-
-成本数值使用 tabular figures，颜色不是唯一表达方式。
 
 ## 5. Page Header
 
 组件：
 
 - 标题与记录数量。
+- 筛选展开/收起，已有条件时显示数量。
 - 刷新。
-- 成本看板。
 - 磁盘占用。
 - 清理菜单。
 - Inspector 展开/收起。
@@ -74,11 +73,14 @@
 
 - 高度 48-56px。
 - 标题 18px / 600。
+- TitleBar 下方的页面控制轨高 40px，记录数在左，操作组在右；桌面宽度不换行。
+- 操作组内部间距 4px，筛选面板与控制轨之间为 8px。
 - 页面主动作最多一个。
-- 成本看板使用 outline/subtle，避免与生成按钮竞争。
 - Inspector toggle 使用 icon button，必须有 tooltip。
 
 ## 6. Filter Bar
+
+默认状态为收起。Page Header 中保留 28px 高的“筛选”按钮；点击后，Filter Bar 在 Header 下方、History List 上方展开。再次点击收起，现有筛选条件继续生效，不因面板卸载而清空。
 
 筛选维度：
 
@@ -92,6 +94,12 @@
 布局：
 
 ```text
+收起
+┌───────────────────────────────────────────────────────────┐
+│ 生成历史  246 条                      [筛选 3] [其他操作] │
+└───────────────────────────────────────────────────────────┘
+
+展开
 ┌───────────────────────────────────────────────────────────┐
 │ [搜索] [状态 ▾] [时间 ▾] [模型 ▾] [来源 ▾]   已筛选 3 项 [清除] │
 └───────────────────────────────────────────────────────────┘
@@ -101,7 +109,7 @@ Light：Filter Bar 使用 raised surface。
 
 Dark：使用 `--bg-elevated`，选择项用 accent soft。
 
-筛选选择器的圆角 8px，标签 chip 6px，不使用过多 pill。
+筛选按钮和选择器的圆角均为 8px；数量徽标圆角 6px，不使用胶囊形堆叠。按钮未激活时为 outline，展开或已有筛选时使用 Ember soft。
 
 ## 7. History Row
 
@@ -161,7 +169,8 @@ Dark：Inspector 使用 `#1b1c1f`，图片区域使用 `#2a2c30`。
 
 细节：
 
-- Dock 宽度 320px 左右。
+- Dock 外层占列 324px，内部详情 surface 为 320px，形成 2px 级内缩空隙。
+- 详情 surface 圆角 12px，使用 1px subtle border 和 `shadow-sm`；Dock 本身不做厚重卡片阴影。
 - 图片最大宽度为 Inspector 内容宽度减去 24px。
 - Inspector 内 section 之间 16px。
 - 内容分隔采用 section heading，不给每个字段包卡片。
@@ -209,21 +218,15 @@ scrim
 - 关闭、上一张、下一张、下载均有 icon button 名称。
 - 键盘支持 Escape、Left、Right。
 
-## 11. Cost Dashboard
+## 11. 统计边界
 
-成本看板为局部 Dialog 或 sheet，不进入页面永久主列：
+历史页只回答“发生过哪些生成、单条记录是什么、如何继续使用”。它不回答“累计花费多少、哪个渠道用得最多、模型趋势如何”。
 
-- 总成本。
-- 按模型分布。
-- 按时间分布。
-- 任务数。
-- 失败/重试统计。
-
-Light：白色数据 surface + subtle border。
-
-Dark：`#25272a` 数据 surface + 低对比分组。
-
-图表不要使用紫色渐变；使用 Graphite、Ember、success、warning 的语义色。
+- 不显示“成本看板”按钮、Dialog 或 Sheet。
+- 不在历史工具栏放累计积分、成功率或趋势入口。
+- 单条记录的模型、渠道、耗时和积分可以继续出现在 Inspector，属于可追溯元数据。
+- 跨记录聚合统一由“设置 / 使用统计”承载。
+- 删除历史记录会影响本地统计基数，清理确认文案需保持这一事实可见。
 
 ## 12. Disk Usage / Cleanup
 
@@ -267,7 +270,7 @@ Dark：`#25272a` 数据 surface + 低对比分组。
 - 生成历史的主对象是图片，不是文本任务。
 - Inspector 要支持“继续创作”，不是只读查看。
 - Lightbox 是核心工作流，不是附属预览。
-- 成本和存储是 Musefold 专属的资产管理信息。
+- 存储与清理是 Musefold 专属的历史管理信息。
 
 ## 15. 验收
 
@@ -275,7 +278,7 @@ Dark：`#25272a` 数据 surface + 低对比分组。
 - [ ] Inspector 真实占列，不覆盖列表。
 - [ ] 继续微调、保存提示词、加入方案在详情内可发现。
 - [ ] Lightbox 具备完整键盘和按钮操作。
-- [ ] 成本、存储和清理不破坏主历史工作流。
+- [ ] 存储和清理不破坏主历史工作流，聚合统计不出现在历史页。
 - [ ] Light/Dark 的图片承托面有清晰层次。
 - [ ] 空状态、筛选空状态、错误和失败结果完整。
 
@@ -334,7 +337,6 @@ Inspector 打开时真实压缩列表区，关闭后列表扩展。Inspector 不
 | Selected Row | Ember soft + border | Ember soft + border |
 | Inspector | `#efefec` | `#1b1c1f` |
 | 图片承托面 | `#ffffff` | `#2a2c30` |
-| 成本面板 | `#fdfcf9` | `#2b2d31` |
 | 清理危险操作 | danger soft | danger soft |
 
 Ember 只用于当前选中、当前进行中的任务、继续微调、主要确认和焦点，不作为历史页面的大面积背景。
@@ -343,7 +345,7 @@ Ember 只用于当前选中、当前进行中的任务、继续微调、主要�
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ [History] 生成历史  246 条   [成本看板] [磁盘占用] [清理] [Dock] │
+│ [History] 生成历史  246 条          [磁盘占用] [清理] [Dock] │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -352,7 +354,6 @@ Ember 只用于当前选中、当前进行中的任务、继续微调、主要�
 - 页面标题。
 - 历史记录数量。
 - 刷新。
-- 成本看板。
 - 磁盘占用。
 - 清理菜单。
 - Inspector 展开/收起。
@@ -362,7 +363,6 @@ Ember 只用于当前选中、当前进行中的任务、继续微调、主要�
 - Header 高度 48-56px。
 - 标题 18px / 600。
 - 数量使用 tabular figures。
-- 成本看板使用 outline/subtle。
 - 清理进入菜单，不作为大红按钮常驻。
 - Inspector toggle 使用 28px icon button。
 - 页面最多一个高权重主动作。
@@ -370,6 +370,9 @@ Ember 只用于当前选中、当前进行中的任务、继续微调、主要�
 ## 20. Filter Bar 细节
 
 ```text
+Header   [筛选 3 ▾]
+
+点击展开
 ┌───────────────────────────────────────────────────────────┐
 │ [搜索] [状态 ▾] [时间 ▾] [模型 ▾] [来源 ▾]   已筛选 3 项 [清除] │
 └───────────────────────────────────────────────────────────┘
@@ -387,6 +390,10 @@ Ember 只用于当前选中、当前进行中的任务、继续微调、主要�
 
 规格：
 
+- 默认收起；触发按钮位于页面级工具栏，而不是列表内容内部。
+- 触发按钮高 28px、圆角 8px，使用 Filter 图标、文字、条件数量和 Chevron。
+- `aria-expanded` 与面板挂载状态一致，面板收起后内部控件不可聚焦。
+- 收起只改变可见性，不清空搜索或结构化筛选；已有条件时按钮保持 Ember soft。
 - Filter Bar 使用 raised surface。
 - Light 使用白色表面。
 - Dark 使用 `#25272a`。
@@ -396,7 +403,7 @@ Ember 只用于当前选中、当前进行中的任务、继续微调、主要�
 - 清除筛选使用 ghost。
 - 已筛选数量使用 11px tabular figures。
 
-筛选不能让页面顶部高度跳动。
+展开和收起只改变 Filter Bar 自身占位，不改变 Header 高度；History List 在同一滚动容器中顺延，Inspector 不受影响。
 
 ## 21. History Row 细节
 
@@ -473,7 +480,8 @@ Dark：
 建议宽度：
 
 ```text
-default: 320px
+outer dock:    324px
+inner surface: 320px
 min:     280px
 max:     420px
 ```
@@ -543,27 +551,16 @@ Lightbox 只负责看图；继续微调、保存提示词和加入方案放在 I
 
 Ember 只表达“正在进行”或当前动作，不能替代 success 和 danger。
 
-## 25. Cost Dashboard
+## 25. 使用统计跳转关系
 
-成本看板使用局部 Dialog 或 Sheet，不长期占据主页面：
+历史页不增加常驻“使用统计”按钮，避免页面级动作重新膨胀。用户从固定设置导航进入“使用统计”；单条历史 Inspector 只保留本次生成的渠道、模型、耗时和积分信息。
 
 ```text
-┌─────────────────────────────────────┐
-│ 成本看板                            │
-├─────────────────────────────────────┤
-│ 总成本                              │
-│ 任务数                              │
-│ 按模型分布                          │
-│ 按日期趋势                          │
-│ 失败与重试统计                      │
-└─────────────────────────────────────┘
+历史页：查找记录 → 查看详情 → 继续创作 / 管理文件
+设置页：查看累计用量 → 比较渠道 → 查看账号积分
 ```
 
-Light：`#fdfcf9`、1px border、shadow-dialog。
-
-Dark：`#2b2d31`、深色阴影。
-
-图表使用 Graphite、Ember、success、warning 的语义色，不使用紫色渐变或发光图表。
+两页共享同一份本地历史账本，但分别服务记录级任务和聚合级判断。
 
 ## 26. 磁盘占用和清理
 
@@ -675,6 +672,77 @@ Lightbox 只负责看图
 - [ ] Inspector 能查看完整提示词、参数、模型和成本。
 - [ ] 继续微调、保存提示词、加入方案在详情内可发现。
 - [ ] Lightbox 具备完整键盘和按钮操作。
-- [ ] 成本、存储和清理不破坏主历史工作流。
+- [ ] 历史页没有累计成本看板；存储和清理不破坏主工作流。
 - [ ] Light/Dark 的图片承托面有清晰层次。
 - [ ] 空状态、筛选空状态、错误和失败结果完整。
+
+## 31. 桌面端详情动作实现（2026-08-26）
+
+本轮只升级 Inspector 动作层级和相关浮层，不改变已经落地的历史列表、折叠筛选、统计边界与双栏布局。
+
+### 31.1 动作层级
+
+320px Inspector 底部固定动作区采用“高频动作常驻、低频动作收纳”：
+
+```text
+[再次制作]
+[存为提示词]
+[创建设计方案]
+[更多操作]
+```
+
+- “再次制作”是唯一高权重主动作。
+- “存为提示词”和“创建设计方案”保持可发现，但不与主动作竞争。
+- 复制提示词、打开文件夹、复制图片、删除记录与源文件、删除记录进入“更多操作”。
+- 文件动作不再以两个双列按钮组长期占据 Inspector 高度。
+- 菜单通过 Portal 定位，不改变 324px Dock、320px surface 或底部动作栏高度。
+
+### 31.2 菜单规格
+
+| 属性 | Light | Dark |
+| --- | --- | --- |
+| surface | `#fdfcf9` | `#2b2d31` |
+| 宽度 | 196px | 196px |
+| 外圆角 | 8px | 8px |
+| 行圆角 | 6px | 6px |
+| 行高 | 32px | 32px |
+| border | `--border-default` | `--border-default` |
+| shadow | `--shadow-pop` | `--shadow-pop` |
+
+- 菜单与“更多操作”右边缘对齐；位于 Inspector 底部时自动向上展开。
+- 普通项使用图标 + 文字；不可用的文件动作保留位置并进入 disabled 状态。
+- 删除记录与源文件、删除记录使用 danger text，并与普通动作通过真实 separator 分组。
+- 可见按钮文字为“更多操作”，辅助技术名称为“生成记录操作”，Content 与 Trigger 使用同一可访问名称。
+
+### 31.3 键盘和焦点
+
+- 打开后首个可用菜单项获得焦点。
+- Arrow Up / Down 由共享 Radix collection 处理。
+- Home / End 按实际 DOM 顺序跳到首尾可用项。
+- Escape 关闭菜单并把焦点归还“更多操作”。
+- 切换选中历史记录时，旧记录的菜单和确认 Dialog 自动关闭。
+
+### 31.4 危险确认
+
+“删除记录”从 Inspector 内联二次确认升级为标准 Dialog：
+
+- 16px 圆角、raised surface、`--shadow-dialog` 和 `--scrim-dialog`。
+- 使用 Header / `DialogBody` / Footer 三段结构。
+- 桌面文案明确“记录会从历史中移除并影响本地使用统计，磁盘源文件仍会保留”。
+- “删除记录与源文件”继续使用独立确认 Dialog，并明确源文件不可恢复。
+- Web 的既有“移到回收站”语义保持不变，共享同一 Dialog 结构。
+- Dialog 通过 Escape 关闭后，焦点回到“更多操作”。
+
+### 31.5 对应实现与门禁
+
+```text
+packages/product-ui/src/history/GenerationHistoryDetailActions.tsx
+packages/product-ui/src/history/GenerationHistoryDetailScreen.tsx
+apps/desktop/src/features/history/components/HistoryDetail.tsx
+apps/desktop/src/features/history/components/HistoryCleanupMenu.tsx
+apps/web/src/views/HistoryView.tsx
+packages/product-ui/src/history/__tests__/history-overlays.test.ts
+tests/e2e/test_43_history_overlays_v2_desktop.py
+```
+
+`test_43` 固定使用 1440x900 桌面视口，覆盖 Light / Dark 菜单与删除 Dialog、菜单几何、危险项分组、首项焦点、Home / End、Escape 和焦点归还。本阶段按开发约定不执行手机端测试。

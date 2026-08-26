@@ -103,7 +103,7 @@ describe('buildHistoryClearSql', () => {
 });
 
 describe('buildHistoryStatsSql', () => {
-  it('filters success rows and combines provider/time filters', () => {
+  it('combines provider/time filters while preserving all statuses', () => {
     const built = buildHistoryStatsSql({
       groupBy: 'month',
       providerId: 'prov-1',
@@ -113,10 +113,26 @@ describe('buildHistoryStatsSql', () => {
 
     expect(built.values).toEqual(['prov-1', 100, 200]);
     expect(built.totalSql).toContain(
-      "WHERE h.status = 'success' AND h.provider_id = ? AND h.created_at >= ? AND h.created_at <= ?",
+      'WHERE h.provider_id = ? AND h.created_at >= ? AND h.created_at <= ?',
     );
+    expect(built.totalSql).toContain("channelKind = 'account'");
+    expect(built.totalSql).toContain("status = 'failed'");
     expect(built.bucketsSql).toContain("strftime('%Y-%m'");
     expect(built.byProviderSql).toContain('LEFT JOIN providers p ON p.id = h.provider_id');
+    expect(built.channelBucketsSql).toContain('GROUP BY bucketKey, channelId, channelKind');
+    expect(built.byChannelSql).toContain('accountPoints');
+    expect(built.byModelSql).toContain("WHERE status = 'success'");
+  });
+
+  it('classifies account, doubao and provider channels from snapshots with provider fallback', () => {
+    const built = buildHistoryStatsSql({ groupBy: 'day' });
+
+    expect(built.totalSql).toContain("json_extract(h.params, '$.usageChannel')");
+    expect(built.totalSql).toContain("p.managed_by = 'account'");
+    expect(built.totalSql).toContain("p.type = 'doubao-web'");
+    expect(built.totalSql).toContain("ELSE 'provider'");
+    expect(built.byChannelSql).toContain("WHEN 'account' THEN 'Musefold 账号'");
+    expect(built.byChannelSql).toContain("WHEN 'doubao' THEN '豆包体验'");
   });
 
   it('supports day/week/month buckets via allowlisted expressions', () => {

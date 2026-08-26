@@ -47,6 +47,8 @@ describe("v2.0 semantic tokens", () => {
       "--shell-sidebar-width: 248px",
       "--shell-sidebar-min-width: 220px",
       "--shell-dock-width: 304px",
+      "--shell-dock-min-width: 260px",
+      "--shell-dock-max-width: 420px",
       "--gap-shell: 1px",
       "--gap-surface-inset: 4px",
       "--gap-content: 8px",
@@ -69,5 +71,14 @@ describe("v2.0 semantic tokens", () => {
     expect(darkBlock).toContain("--shadow-dialog: 0 28px 80px rgba(0, 0, 0, 0.62)");
     // 深色只提高阴影不透明度,不引入彩色 glow。
     expect(darkBlock).not.toMatch(/box-shadow|shadow[^;]*var\(--accent\)/);
+  });
+
+  it("defines distinct theme-aware scrims for commands, dialogs, and onboarding", () => {
+    expect(tokens).toContain("--scrim-command: rgba(20, 20, 24, 0.32)");
+    expect(tokens).toContain("--scrim-dialog: rgba(20, 20, 24, 0.38)");
+    expect(tokens).toContain("--scrim-onboarding: rgba(20, 20, 24, 0.32)");
+    expect(darkBlock).toContain("--scrim-command: rgba(0, 0, 0, 0.58)");
+    expect(darkBlock).toContain("--scrim-dialog: rgba(0, 0, 0, 0.64)");
+    expect(darkBlock).toContain("--scrim-onboarding: rgba(0, 0, 0, 0.68)");
   });
 });

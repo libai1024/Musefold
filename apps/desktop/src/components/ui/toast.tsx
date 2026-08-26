@@ -1,7 +1,10 @@
 export {
   Toast,
+  ToastAction,
+  ToastBody,
   ToastClose,
   ToastDescription,
+  ToastIcon,
   ToastProvider,
   ToastTitle,
   ToastViewport,

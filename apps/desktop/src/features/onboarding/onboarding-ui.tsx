@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, CheckCircle2 } from '../../components/ui/icons';
+import { AlertCircle, CheckCircle2, X } from '../../components/ui/icons';
 import { MusefoldLogoAnimated } from '../../components/brand/MusefoldLogoAnimated';
 import { cn } from '../../lib/utils';
 import type { OnboardingStep } from './store';
@@ -7,28 +7,36 @@ import type { OnboardingStep } from './store';
 export function OnboardingHeader({
   step,
   receded = false,
+  onClose,
 }: {
   step: OnboardingStep;
   receded?: boolean;
+  onClose: () => void;
 }) {
   return (
     <header
-      className={cn(
-        'flex h-14 shrink-0 items-center justify-between px-5 sm:px-8',
-        step === 1 || receded ? 'border-b border-transparent' : 'border-b border-border-subtle',
-      )}
+      className="mf-onboarding-header"
     >
-      <div className="flex min-w-0 items-center">
+      <div className="mf-onboarding-header-start">
         {step === 1 ? (
-          <span className="sr-only">首次设置</span>
+          <span className="mf-onboarding-first-badge">首次设置</span>
         ) : (
           <div className={cn('flex items-center gap-2.5', receded && 'opacity-70')}>
             <MusefoldLogoAnimated className="h-7 w-7" />
-            <span className="text-[13px] font-semibold tracking-tight text-primary">Musefold</span>
+            <span className="text-[13px] font-semibold tracking-normal text-primary">Musefold</span>
           </div>
         )}
       </div>
-      {step === 1 || receded ? null : <ProgressDots step={step} />}
+      <div>{step === 1 || receded ? null : <ProgressDots step={step} />}</div>
+      <button
+        type="button"
+        className="mf-onboarding-close no-drag flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] text-tertiary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+        aria-label="跳过首次设置"
+        title="跳过首次设置"
+        onClick={onClose}
+      >
+        <X className="h-4 w-4" aria-hidden="true" />
+      </button>
     </header>
   );
 }
@@ -59,7 +67,13 @@ export function ProgressDots({ step }: { step: OnboardingStep }) {
 export function StepIntro({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <h2 className="text-2xl font-semibold tracking-normal text-primary">{title}</h2>
+      <h2
+        className="text-2xl font-semibold tracking-normal text-primary outline-none"
+        tabIndex={-1}
+        data-onboarding-step-heading
+      >
+        {title}
+      </h2>
       <p className="mt-2 max-w-[520px] text-[13px] leading-6 text-secondary">{children}</p>
     </div>
   );
@@ -67,7 +81,7 @@ export function StepIntro({ title, children }: { title: string; children: ReactN
 
 export function OnboardingActions({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-12 flex items-center justify-between gap-3 border-t border-border-subtle pt-4">
+    <div className="mf-onboarding-actions mt-10 flex items-center justify-between gap-3 border-t border-border-subtle pt-4">
       {children}
     </div>
   );

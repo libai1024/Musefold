@@ -58,7 +58,7 @@ def test_accessible_names_and_layout_contract_across_core_surfaces(app):
 
 
 def test_prompt_reference_drawer_keyboard_focus_and_escape(app):
-    # 现行素材库：标题栏开关打开；≤760px 为模态抽屉（dialog 语义 + 焦点陷阱 + Escape 关闭并归还焦点）
+    # v2.0 素材库：紧凑窗口为模态面板（dialog 语义 + 焦点陷阱 + Escape 关闭并归还焦点）
     app.page.set_viewport_size({"width": 640, "height": 760})
     toggle = app.page.locator('[data-testid="titlebar-materials-toggle"]')
     toggle.focus()

@@ -3,30 +3,38 @@
 // 详见 docs/05-image-generation.md §4
 
 import { useEffect, useRef, useState } from 'react';
-import type {
-  ProviderConfig,
-  NewProviderConfig,
-} from '@musefold/desktop-contracts/providers';
+import type { ProviderConfig, NewProviderConfig } from '@musefold/desktop-contracts/providers';
 import type { ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
 import type { ErrorAction } from '@musefold/domain/errors';
-import {
-  PROVIDER_PRESETS,
-  type ProviderPreset,
-} from '@musefold/domain/constants';
+import { PROVIDER_PRESETS, type ProviderPreset } from '@musefold/domain/constants';
 import { pickPreset } from '@musefold/domain/provider-presets';
 import { useGenerationStore } from '../store';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../../components/ui/dialog';
-import { Eye, EyeOff, Check, AlertCircle, Zap, Loader2, Link2, ExternalLink } from '../../../components/ui/icons';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import {
+  Eye,
+  EyeOff,
+  Check,
+  AlertCircle,
+  Zap,
+  Loader2,
+  Link2,
+  ExternalLink,
+} from '../../../components/ui/icons';
 import { cn } from '../../../lib/utils';
 import { displayModelName, filterImageModels } from '../../../lib/model-catalog';
 import { ValidationResultBanner } from './ValidationResultBanner';
 import { ModelOptionList } from '../../../components/ui/model-option-list';
-import {
-  Field,
-  mergeModelOptions,
-} from './provider-dialog-parts';
+import { Field, mergeModelOptions } from './provider-dialog-parts';
 import { toast } from '../../../stores/toast';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
@@ -37,7 +45,8 @@ interface Props {
 }
 
 export function ProviderDialog({ open, onOpenChange, provider }: Props) {
-  const { createProvider, updateProvider, saveKey, validate, listModels, loadProviders } = useGenerationStore();
+  const { createProvider, updateProvider, saveKey, validate, listModels, loadProviders } =
+    useGenerationStore();
   const providerCount = useGenerationStore((s) => s.providers.length);
   const dialogPresetId = useGenerationStore((s) => s.dialogPresetId);
   const dialogDraft = useGenerationStore((s) => s.dialogDraft);
@@ -244,185 +253,219 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{managed ? '选择生图模型' : provider ? '编辑服务商' : isFirst ? '添加第一个服务商' : '新建服务商'}</DialogTitle>
+          <DialogTitle>
+            {managed
+              ? '选择生图模型'
+              : provider
+                ? '编辑服务商'
+                : isFirst
+                  ? '添加第一个服务商'
+                  : '新建服务商'}
+          </DialogTitle>
           <DialogDescription>
             {managed
               ? '服务器地址与令牌由账号托管；这里仅切换账号当前可用的生图模型。'
               : isDoubaoWeb
-              ? '使用本机独立浏览器会话登录豆包；登录信息不会进入 Musefold 数据库。'
-              : isFirst
-              ? '选一个预设自动填好接入信息，只需粘贴 API Key 即可开始生图。'
-              : '选择预设一键填好接入信息，或自定义 base_url 与模型。'}
+                ? '使用本机独立浏览器会话登录豆包；登录信息不会进入 Musefold 数据库。'
+                : isFirst
+                  ? '选一个预设自动填好接入信息，只需粘贴 API Key 即可开始生图。'
+                  : '选择预设一键填好接入信息，或自定义 base_url 与模型。'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3.5">
+        <DialogBody className="flex flex-col gap-3.5">
           {!managed && (
             <>
-          {/* 预设选择器：6px 圆角行，黑色填充表示当前 */}
-          <div>
-            <label className="mb-1.5 block text-[11px] font-medium text-secondary">接入预设</label>
-            <div className="flex flex-wrap gap-1.5">
-              {PROVIDER_PRESETS.filter((p) => p.type !== 'doubao-web').map((p) => {
-                const active = p.id === presetId;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => applyPreset(p)}
-                    data-active={active ? 'true' : 'false'}
-                    className={cn(
-                      'no-drag rounded-sm border px-3 py-1 text-[12px] font-medium transition-colors',
-                      active
-                        ? 'border-transparent bg-primary text-background'
-                        : 'border-border-subtle bg-transparent text-secondary hover:border-border-default hover:text-primary',
-                    )}
-                  >
-                    {p.name}
-                    {p.recommended && <span className={cn('ml-1 text-meta', active ? 'text-background/70' : 'text-quaternary')}>推荐</span>}
-                  </button>
-                );
-              })}
-            </div>
-            {activePreset?.hint && (
-              <p className="mt-1.5 text-[11px] leading-relaxed text-tertiary">{activePreset.hint}</p>
-            )}
-          </div>
-
-          <Field label="名称">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="如：我的中转站"
-              data-testid="provider-name"
-            />
-          </Field>
-          {!isDoubaoWeb && <Field label="Base URL">
-            <Input
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://ai.tvt.wiki/v1"
-              data-testid="provider-base-url"
-            />
-          </Field>}
-
-          {isDoubaoWeb && (
-            <Field label="豆包账号">
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-inset/35 p-3">
-                <div className="min-w-0">
-                  <p className="text-[12px] font-medium text-primary">
-                    {keySaved ? '网页会话已连接' : '需要登录豆包网页版'}
-                  </p>
-                  <p className="mt-0.5 text-meta leading-relaxed text-tertiary">
-                    登录状态保存在本机专用浏览器会话中；验证码和安全验证始终由你手动完成。
-                  </p>
+              {/* 预设选择器：6px 圆角行，黑色填充表示当前 */}
+              <div>
+                <label className="mb-1.5 block text-[11px] font-medium text-secondary">
+                  接入预设
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PROVIDER_PRESETS.filter((p) => p.type !== 'doubao-web').map((p) => {
+                    const active = p.id === presetId;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => applyPreset(p)}
+                        data-active={active ? 'true' : 'false'}
+                        className={cn(
+                          'no-drag rounded-sm border px-3 py-1 text-[12px] font-medium transition-colors',
+                          active
+                            ? 'border-transparent bg-primary text-background'
+                            : 'border-border-subtle bg-transparent text-secondary hover:border-border-default hover:text-primary',
+                        )}
+                      >
+                        {p.name}
+                        {p.recommended && (
+                          <span
+                            className={cn(
+                              'ml-1 text-meta',
+                              active ? 'text-background/70' : 'text-quaternary',
+                            )}
+                          >
+                            推荐
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenWebLogin}
-                  disabled={openingWebLogin || testing || saving}
-                  data-testid="provider-open-web-login"
-                  className="shrink-0"
-                >
-                  {openingWebLogin ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-                  {keySaved ? '重新登录' : '打开登录'}
-                </Button>
+                {activePreset?.hint && (
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-tertiary">
+                    {activePreset.hint}
+                  </p>
+                )}
               </div>
-              <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-tertiary">
-                <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                此接入依赖豆包网页结构，属于实验功能；出现验证或结构变化时会停止自动化并显示豆包窗口。
-              </p>
-            </Field>
-          )}
 
-          {!isDoubaoWeb && (
-          <Field label="API Key">
-            <div className="relative">
-              <Input
-                ref={keyInputRef}
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={keySaved ? '已保存（输入新值可覆盖）' : 'sk-...'}
-                className="pr-9"
-                data-testid="provider-api-key"
-              />
-              <button
-                onClick={() => setShowKey((s) => !s)}
-                className="no-drag absolute right-2 top-1/2 -translate-y-1/2 text-tertiary hover:text-secondary"
-              >
-                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {keySaved && (
-              <p className="mt-1 flex items-center gap-1 text-[11px] text-success">
-                <Check className="h-3 w-3" /> 密钥已加密保存
-                {provider?.keySuffix ? `（····${provider.keySuffix}）` : ''}
-              </p>
-            )}
-            {activePreset?.keyUrl && !keySaved && (
-              <p className="mt-1 flex items-center gap-1 font-mono text-[11px] text-tertiary">
-                <Link2 className="h-3 w-3 shrink-0" /> {activePreset.keyUrl}
-              </p>
-            )}
-            <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-tertiary">
-              <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-              密钥通过系统级加密（Keychain / DPAPI）保存，仅主进程可解密，永不暴露给渲染进程或日志。
-            </p>
-          </Field>
-          )}
+              <Field label="名称">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="如：我的中转站"
+                  data-testid="provider-name"
+                />
+              </Field>
+              {!isDoubaoWeb && (
+                <Field label="Base URL">
+                  <Input
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="https://ai.tvt.wiki/v1"
+                    data-testid="provider-base-url"
+                  />
+                </Field>
+              )}
+
+              {isDoubaoWeb && (
+                <Field label="豆包账号">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-inset/35 p-3">
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-primary">
+                        {keySaved ? '网页会话已连接' : '需要登录豆包网页版'}
+                      </p>
+                      <p className="mt-0.5 text-meta leading-relaxed text-tertiary">
+                        登录状态保存在本机专用浏览器会话中；验证码和安全验证始终由你手动完成。
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenWebLogin}
+                      disabled={openingWebLogin || testing || saving}
+                      data-testid="provider-open-web-login"
+                      className="shrink-0"
+                    >
+                      {openingWebLogin ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      )}
+                      {keySaved ? '重新登录' : '打开登录'}
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-tertiary">
+                    <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                    此接入依赖豆包网页结构，属于实验功能；出现验证或结构变化时会停止自动化并显示豆包窗口。
+                  </p>
+                </Field>
+              )}
+
+              {!isDoubaoWeb && (
+                <Field label="API Key">
+                  <div className="relative">
+                    <Input
+                      ref={keyInputRef}
+                      type={showKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder={keySaved ? '已保存（输入新值可覆盖）' : 'sk-...'}
+                      className="pr-9"
+                      data-testid="provider-api-key"
+                    />
+                    <button
+                      onClick={() => setShowKey((s) => !s)}
+                      className="no-drag absolute right-2 top-1/2 -translate-y-1/2 text-tertiary hover:text-secondary"
+                    >
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {keySaved && (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] text-success">
+                      <Check className="h-3 w-3" /> 密钥已加密保存
+                      {provider?.keySuffix ? `（····${provider.keySuffix}）` : ''}
+                    </p>
+                  )}
+                  {activePreset?.keyUrl && !keySaved && (
+                    <p className="mt-1 flex items-center gap-1 font-mono text-[11px] text-tertiary">
+                      <Link2 className="h-3 w-3 shrink-0" /> {activePreset.keyUrl}
+                    </p>
+                  )}
+                  <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-tertiary">
+                    <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                    密钥通过系统级加密（Keychain /
+                    DPAPI）保存，仅主进程可解密，永不暴露给渲染进程或日志。
+                  </p>
+                </Field>
+              )}
             </>
           )}
 
           {/* 模型分组：输入即添加手工模型，拉取结果呈行式列表 */}
           <div className={managed ? undefined : 'border-t border-border-subtle pt-3.5'}>
-          <Field label={activePreset?.modelLabel ?? '模型'}>
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              readOnly={isDoubaoWeb}
-              placeholder={activePreset?.model ?? 'gpt-image-2'}
-              data-testid="provider-model"
-            />
-            {modelOptions.length > 0 && (
-              <ModelOptionList
-                items={modelOptions.map((item) => ({
-                  id: item.id,
-                  label: displayModelName(item.id),
-                  title: item.description ?? item.id,
-                  mono: displayModelName(item.id) === item.id,
-                }))}
-                selectedId={model}
-                onSelect={setModel}
-                ariaLabel="可用生图模型"
-                testId="provider-model-options"
-                optionTestId={(id) => `provider-model-option-${id}`}
+            <Field label={activePreset?.modelLabel ?? '模型'}>
+              <Input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                readOnly={isDoubaoWeb}
+                placeholder={activePreset?.model ?? 'gpt-image-2'}
+                data-testid="provider-model"
               />
-            )}
-            <div className="mt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleLoadModels}
-                disabled={!valid || loadingModels || testing || saving}
-                data-testid="provider-load-models"
-              >
-                {loadingModels ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                拉取
-              </Button>
-            </div>
-            {modelError && (
-              <p className="mt-1 text-[11px] text-danger" data-testid="provider-model-error">
-                {modelError}
-              </p>
-            )}
-            {activePreset?.modelHint && (
-              <p className="mt-1 text-[11px] leading-relaxed text-tertiary">{activePreset.modelHint}</p>
-            )}
-          </Field>
+              {modelOptions.length > 0 && (
+                <ModelOptionList
+                  items={modelOptions.map((item) => ({
+                    id: item.id,
+                    label: displayModelName(item.id),
+                    title: item.description ?? item.id,
+                    mono: displayModelName(item.id) === item.id,
+                  }))}
+                  selectedId={model}
+                  onSelect={setModel}
+                  ariaLabel="可用生图模型"
+                  testId="provider-model-options"
+                  optionTestId={(id) => `provider-model-option-${id}`}
+                />
+              )}
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadModels}
+                  disabled={!valid || loadingModels || testing || saving}
+                  data-testid="provider-load-models"
+                >
+                  {loadingModels ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="h-3.5 w-3.5" />
+                  )}
+                  拉取
+                </Button>
+              </div>
+              {modelError && (
+                <p className="mt-1 text-[11px] text-danger" data-testid="provider-model-error">
+                  {modelError}
+                </p>
+              )}
+              {activePreset?.modelHint && (
+                <p className="mt-1 text-[11px] leading-relaxed text-tertiary">
+                  {activePreset.modelHint}
+                </p>
+              )}
+            </Field>
           </div>
 
           {result && (
@@ -437,18 +480,40 @@ export function ProviderDialog({ open, onOpenChange, provider }: Props) {
               onAction={handleValidationAction}
             />
           )}
-        </div>
+        </DialogBody>
 
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="ghost" className={managed ? 'shadow-none' : undefined} onClick={() => onOpenChange(false)}>取消</Button>
-          <Button variant="outline" className={managed ? 'shadow-none' : undefined} onClick={handleTest} disabled={!valid || testing || saving || openingWebLogin} data-testid="provider-test">
-            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            className={managed ? 'shadow-none' : undefined}
+            onClick={() => onOpenChange(false)}
+          >
+            取消
+          </Button>
+          <Button
+            variant="outline"
+            className={managed ? 'shadow-none' : undefined}
+            onClick={handleTest}
+            disabled={!valid || testing || saving || openingWebLogin}
+            data-testid="provider-test"
+          >
+            {testing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Zap className="h-3.5 w-3.5" />
+            )}
             {isDoubaoWeb ? '验证登录' : '测试连接'}
           </Button>
-          <Button variant="primary" className={managed ? 'shadow-none' : undefined} onClick={handleSave} disabled={!valid || saving || testing || openingWebLogin} data-testid="provider-save">
+          <Button
+            variant="primary"
+            className={managed ? 'shadow-none' : undefined}
+            onClick={handleSave}
+            disabled={!valid || saving || testing || openingWebLogin}
+            data-testid="provider-save"
+          >
             {saving ? '保存中…' : '保存'}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

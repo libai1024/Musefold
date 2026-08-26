@@ -3,7 +3,7 @@
   "packages/core/src/sync/repository.ts": 1421,
   "apps/web-api/src/modules/prompts/service.ts": 1121,
   "apps/desktop/electron/doubao-web/browser-service.ts": 1107,
-  "packages/ui/src/extended-primitives.tsx": 1055,
+  "packages/ui/src/extended-primitives.tsx": 967,
   "apps/desktop/electron/main/ipc/skill-runtime.ts": 796,
   "apps/web-api/src/modules/generation/service.ts": 788,
   "apps/desktop/electron/main/skill-import/github-reader.ts": 739,

@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 // v1.4 GOV-05：Theater 字体子集再生成（docs/v1.4/V14-DELIVERY-PLAN.md）。
+// 品牌名字体（workbench 空态等）走同一管线：ZCOOL XiaoWei 拉丁子集。
 //
 // 产物（提交入库）：
-//   packages/ui/fonts/{syne-var.woff2, noto-sans-sc-var-subset.woff2, OFL-Syne.txt, OFL-NotoSansSC.txt}
+//   packages/ui/fonts/{syne-var.woff2, noto-sans-sc-var-subset.woff2, zcool-xiaowei-subset.woff2,
+//     OFL-Syne.txt, OFL-NotoSansSC.txt, OFL-ZCOOLXiaoWei.txt}
 //   website/Musefold/assets/fonts/  同一组文件（官网与引导各自自托管，禁止运行时 Google Fonts）
 //
 // 字体源（不入库，脚本自动下载到 --src 目录并缓存）：
 //   https://raw.githubusercontent.com/google/fonts/main/ofl/syne/Syne%5Bwght%5D.ttf
 //   https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf
+//   https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolxiaowei/ZCOOLXiaoWei-Regular.ttf
 //   OFL.txt 同目录。
 //
 // 依赖：python3 + fonttools + brotli（pip install fonttools brotli）。
@@ -50,6 +53,14 @@ const SOURCES = [
   {
     file: "OFL-NotoSansSC.txt",
     url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/OFL.txt",
+  },
+  {
+    file: "ZCOOLXiaoWei-Regular.ttf",
+    url: "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolxiaowei/ZCOOLXiaoWei-Regular.ttf",
+  },
+  {
+    file: "OFL-ZCOOLXiaoWei.txt",
+    url: "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolxiaowei/OFL.txt",
   },
 ];
 
@@ -109,12 +120,21 @@ const notoOut = subset(
   [`--text=${readSubsetChars()}`],
 );
 
+// ZCOOL XiaoWei：品牌名（workbench 空态）拉丁展示体，与 Syne 同一字表。单字重 400，非变量。
+const zcoolOut = subset(
+  path.join(SRC_DIR, "ZCOOLXiaoWei-Regular.ttf"),
+  path.join(stage, "zcool-xiaowei-subset.woff2"),
+  ["--unicodes=U+0020-007E,U+00A9,U+2013-2014,U+2018-201D,U+2026"],
+);
+
 for (const dir of OUT_DIRS) {
   mkdirSync(dir, { recursive: true });
   copyFileSync(syneOut, path.join(dir, "syne-var.woff2"));
   copyFileSync(notoOut, path.join(dir, "noto-sans-sc-var-subset.woff2"));
+  copyFileSync(zcoolOut, path.join(dir, "zcool-xiaowei-subset.woff2"));
   copyFileSync(path.join(SRC_DIR, "OFL-Syne.txt"), path.join(dir, "OFL-Syne.txt"));
   copyFileSync(path.join(SRC_DIR, "OFL-NotoSansSC.txt"), path.join(dir, "OFL-NotoSansSC.txt"));
+  copyFileSync(path.join(SRC_DIR, "OFL-ZCOOLXiaoWei.txt"), path.join(dir, "OFL-ZCOOLXiaoWei.txt"));
   console.log(`[fonts] 已写入 ${path.relative(REPO_ROOT, dir)}`);
 }
 console.log("[fonts] 完成");

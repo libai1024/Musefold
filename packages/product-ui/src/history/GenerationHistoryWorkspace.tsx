@@ -1,6 +1,6 @@
-import { ArrowLeft } from "@musefold/ui/icons";
-import { Button } from "@musefold/ui";
-import type { ReactNode } from "react";
+import { ArrowLeft, PanelRightClose } from '@musefold/ui/icons';
+import { Button, IconButton } from '@musefold/ui';
+import type { ReactNode } from 'react';
 
 export interface GenerationHistoryWorkspaceProps {
   list: ReactNode;
@@ -18,24 +18,38 @@ export function GenerationHistoryWorkspace({
   detail,
   detailOpen,
   onBack,
-  backLabel = "生成历史",
+  backLabel = '生成历史',
   className,
-  testId = "history-workspace",
+  testId = 'history-workspace',
 }: GenerationHistoryWorkspaceProps) {
   return (
     <div
-      className={`mf-history-workspace${className ? ` ${className}` : ""}`}
-      data-detail-open={detailOpen ? "true" : "false"}
+      className={`mf-history-workspace${className ? ` ${className}` : ''}`}
+      data-detail-open={detailOpen ? 'true' : 'false'}
       data-testid={testId}
     >
       <main className="mf-history-workspace-list">{list}</main>
       <aside
         className="mf-history-workspace-inspector"
+        aria-label="生成详情"
         aria-hidden={!detailOpen}
         data-testid="history-inspector"
       >
         {detailOpen ? (
-          <>
+          <div className="mf-history-inspector-surface">
+            <div className="mf-history-inspector-bar">
+              <strong>生成详情</strong>
+              {onBack ? (
+                <IconButton
+                  className="mf-icon-button"
+                  label="关闭生成详情"
+                  onClick={onBack}
+                  data-testid="history-detail-close"
+                >
+                  <PanelRightClose aria-hidden="true" />
+                </IconButton>
+              ) : null}
+            </div>
             {onBack ? (
               <Button
                 variant="ghost"
@@ -48,7 +62,7 @@ export function GenerationHistoryWorkspace({
               </Button>
             ) : null}
             <div className="mf-history-workspace-detail">{detail}</div>
-          </>
+          </div>
         ) : null}
       </aside>
     </div>
@@ -73,13 +87,13 @@ export function GenerationHistoryInspectorPanel({
   notice,
   error,
   className,
-  testId = "history-detail",
+  testId = 'history-detail',
   historyId,
   status,
 }: GenerationHistoryInspectorPanelProps) {
   return (
     <section
-      className={`mf-history-inspector-panel${className ? ` ${className}` : ""}`}
+      className={`mf-history-inspector-panel${className ? ` ${className}` : ''}`}
       data-testid={testId}
       data-history-id={historyId}
       data-status={status}
@@ -87,9 +101,7 @@ export function GenerationHistoryInspectorPanel({
       {notice ? <div className="mf-history-inspector-notice">{notice}</div> : null}
       {error ? <div className="mf-history-inspector-error">{error}</div> : null}
       <div className="mf-history-inspector-scroll">{content}</div>
-      {actions ? (
-        <div className="mf-history-inspector-action-bar">{actions}</div>
-      ) : null}
+      {actions ? <div className="mf-history-inspector-action-bar">{actions}</div> : null}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import { useAppStore } from '../../stores/app';
 import { useLibraryStore } from '../../runtime/library-access';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -80,46 +81,54 @@ export function ImportConfirmDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        {payload && (
-          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-            <ShareCard payload={payload} compact className="h-full" />
+        <DialogBody>
+          {payload && (
+            <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <ShareCard payload={payload} compact className="h-full" />
 
-            <div className="space-y-3">
-              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-3 text-[11px] leading-relaxed text-secondary">
-                <div className="mb-1 flex items-center gap-1.5 font-medium text-primary">
-                  <AlertTriangle className="h-3.5 w-3.5 text-warning" />
-                  导入前请确认来源可信
+              <div className="space-y-3">
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-3 text-[11px] leading-relaxed text-secondary">
+                  <div className="mb-1 flex items-center gap-1.5 font-medium text-primary">
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    导入前请确认来源可信
+                  </div>
+                  这条内容不会自动执行，也不会携带本地路径或密钥。确认后才会落库。
                 </div>
-                这条内容不会自动执行，也不会携带本地路径或密钥。确认后才会落库。
+
+                <div className="rounded-lg border border-border-subtle bg-inset/40 px-3.5 py-3">
+                  <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
+                    白名单内容
+                  </div>
+                  <dl className="mt-2 space-y-1.5 text-[11px]">
+                    <Meta label="标题" value={payload.title} />
+                    <Meta label="正文" value={payload.content} mono />
+                    {payload.contentNegative && (
+                      <Meta label="负面" value={payload.contentNegative} mono />
+                    )}
+                    {payload.target && <Meta label="Target" value={payload.target} mono />}
+                  </dl>
+                </div>
+
+                {error && (
+                  <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-secondary">
+                    {error}
+                  </div>
+                )}
               </div>
-
-              <div className="rounded-lg border border-border-subtle bg-inset/40 px-3.5 py-3">
-                <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
-                  白名单内容
-                </div>
-                <dl className="mt-2 space-y-1.5 text-[11px]">
-                  <Meta label="标题" value={payload.title} />
-                  <Meta label="正文" value={payload.content} mono />
-                  {payload.contentNegative && <Meta label="负面" value={payload.contentNegative} mono />}
-                  {payload.target && <Meta label="Target" value={payload.target} mono />}
-                </dl>
-              </div>
-
-              {error && (
-                <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-[11px] text-secondary">
-                  {error}
-                </div>
-              )}
             </div>
-          </div>
-        )}
+          )}
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="ghost" onClick={cancel} disabled={busy}>
             取消
           </Button>
           <Button onClick={confirm} disabled={!payload || busy} data-testid="share-import-confirm">
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+            {busy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3 w-3" />
+            )}
             确认导入
           </Button>
         </DialogFooter>
@@ -132,7 +141,9 @@ function Meta({ label, value, mono }: { label: string; value: string; mono?: boo
   return (
     <div className="flex items-start justify-between gap-2">
       <dt className="shrink-0 text-quaternary">{label}</dt>
-      <dd className={`max-w-[68%] truncate text-right text-secondary ${mono ? 'font-mono' : ''}`}>{value}</dd>
+      <dd className={`max-w-[68%] truncate text-right text-secondary ${mono ? 'font-mono' : ''}`}>
+        {value}
+      </dd>
     </div>
   );
 }

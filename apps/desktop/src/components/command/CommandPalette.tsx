@@ -7,15 +7,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   Search,
-  CornerDownLeft,
   FileText,
   MessageSquareText,
 } from '../ui/icons';
 import { useAppStore, type ViewKey } from '../../stores/app';
 import { useLibraryStore } from '../../features/library/store';
 import { useSettingsStore, type SettingsSectionInput } from '../../features/settings/store';
-import { Kbd } from '@musefold/ui';
-import { cn } from '../../lib/utils';
 import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
 import { useDesktopWorkbenchSessionList } from '../../features/generation/workbench/workbench-session-query';
 import { capabilities } from '../../runtime/capabilities';
@@ -196,6 +193,13 @@ export function CommandPalette() {
     setActive((a) => Math.min(a, Math.max(0, flat.length - 1)));
   }, [flat.length]);
 
+  useEffect(() => {
+    if (!open || flat.length === 0) return;
+    listRef.current
+      ?.querySelector<HTMLElement>(`#mf-command-option-${active}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [active, flat.length, open]);
+
   const onListKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -216,34 +220,45 @@ export function CommandPalette() {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/45 animate-overlay-in" />
+        <Dialog.Overlay className="mf-command-overlay animate-overlay-in" />
         <Dialog.Content
           onKeyDown={onListKey}
-          className="no-drag fixed left-1/2 top-[18%] z-[101] max-h-[calc(100vh-96px)] w-[calc(100vw-32px)] max-w-[560px] -translate-x-1/2 overflow-hidden rounded-lg border border-border-default bg-popover shadow-pop animate-command-in max-[640px]:top-16"
+          className="mf-command-panel no-drag animate-command-in"
           aria-label="命令面板"
+          data-testid="command-palette"
         >
           <Dialog.Title className="sr-only">命令面板</Dialog.Title>
           <Dialog.Description className="sr-only">搜索导航、操作与提示词</Dialog.Description>
 
           {/* 搜索行 */}
-          <div className="flex items-center gap-2.5 border-b border-border-subtle px-3.5 py-3">
-            <Search className="h-4 w-4 shrink-0 text-tertiary" />
+          <div className="mf-command-search">
+            <Search aria-hidden="true" />
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => { setQuery(e.target.value); setActive(0); }}
               placeholder="搜索命令、对话或提示词…"
-              className="flex-1 bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none"
+              aria-label="搜索 Musefold"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={open}
+              aria-controls="mf-command-results"
+              aria-activedescendant={flat.length > 0 ? `mf-command-option-${active}` : undefined}
             />
-            <Kbd>ESC</Kbd>
           </div>
 
           {/* 结果 */}
-          <div ref={listRef} className="max-h-[52vh] overflow-y-auto p-1.5">
+          <div
+            ref={listRef}
+            id="mf-command-results"
+            className="mf-command-list"
+            role="listbox"
+            aria-label="Musefold 命令与搜索结果"
+          >
             {flat.length === 0 && (
-              <div className="flex flex-col items-center gap-1 py-10 text-tertiary">
+              <div className="mf-command-empty">
                 <Search className="h-5 w-5" />
-                <p className="text-xs">没有匹配结果</p>
+                <p>没有匹配结果</p>
               </div>
             )}
 
@@ -254,6 +269,7 @@ export function CommandPalette() {
                   return (
                     <Row
                       key={a.id}
+                      optionId={`mf-command-option-${idx}`}
                       icon={a.icon}
                       label={a.label}
                       hint={a.hint}
@@ -274,6 +290,7 @@ export function CommandPalette() {
                   return (
                     <Row
                       key={session.id}
+                      optionId={`mf-command-option-${idx}`}
                       icon={MessageSquareText}
                       label={session.title}
                       hint={`${session.turnCount} 个回合`}
@@ -296,6 +313,7 @@ export function CommandPalette() {
                   return (
                     <Row
                       key={p.id}
+                      optionId={`mf-command-option-${idx}`}
                       icon={FileText}
                       label={p.title}
                       hint={p.modelId ?? undefined}
@@ -316,15 +334,6 @@ export function CommandPalette() {
             )}
           </div>
 
-          {/* 底栏提示 */}
-          <div className="flex items-center justify-between border-t border-border-subtle bg-inset/40 px-3.5 py-2 text-meta text-tertiary">
-            <span className="flex items-center gap-1.5">
-              <Kbd>↑</Kbd><Kbd>↓</Kbd> 移动
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Kbd><CornerDownLeft className="h-2.5 w-2.5" /></Kbd> 选择
-            </span>
-          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -333,16 +342,15 @@ export function CommandPalette() {
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mb-1">
-      <div className="px-2.5 pb-1 pt-1.5 text-meta font-medium text-tertiary">
-        {label}
-      </div>
+    <div className="mf-command-group">
+      <div className="mf-command-group-label">{label}</div>
       {children}
     </div>
   );
 }
 
 function Row({
+  optionId,
   icon: Icon,
   label,
   hint,
@@ -351,6 +359,7 @@ function Row({
   onMouseEnter,
   onClick,
 }: {
+  optionId: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   hint?: string;
@@ -361,22 +370,21 @@ function Row({
 }) {
   return (
     <button
+      id={optionId}
+      type="button"
+      role="option"
+      aria-selected={active}
+      tabIndex={-1}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-instant)]',
-        active ? 'bg-accent-soft text-accent' : 'text-secondary'
-      )}
+      className="mf-command-row"
+      data-active={active || undefined}
     >
-      <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-accent' : 'text-tertiary')} />
-      <span className={cn('flex-1 truncate text-[13px]', active ? 'text-primary' : 'text-primary')}>
-        {label}
-      </span>
-      {hint && <span className="truncate text-[11px] text-tertiary">{hint}</span>}
+      <Icon />
+      <span className="mf-command-row-label">{label}</span>
+      {hint && <span className="mf-command-row-hint">{hint}</span>}
       {group && (
-        <span className="rounded-sm border border-border-subtle px-1.5 py-0.5 text-meta uppercase tracking-wide text-quaternary">
-          {group}
-        </span>
+        <span className="mf-command-row-group">{group}</span>
       )}
     </button>
   );

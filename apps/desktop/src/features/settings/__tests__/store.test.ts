@@ -44,12 +44,13 @@ describe('settings workspace navigation', () => {
   it('uses the shared workspace and keeps real desktop section ids', () => {
     const source = readFileSync(new URL('../components/SettingsView.tsx', import.meta.url), 'utf8');
     expect(source).toContain('SettingsWorkspace');
-    // v2 设置整合:6 个分区 key
+    // v2 设置整合:7 个分区 key
     for (const section of [
       'account',
       'relay',
       'preferences',
       'open',
+      'usage',
       'data',
       'archived',
     ]) {

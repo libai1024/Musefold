@@ -1,9 +1,9 @@
-import { Button, IconButton } from "@musefold/ui";
-import { LoaderCircle, Trash2 } from "@musefold/ui/icons";
-import type { ReactNode } from "react";
-import type { GenerationHistoryItemViewModel } from "../models";
-import { GenerationHistoryRow } from "./GenerationHistoryRow";
-import { ProductPageHeader } from "../navigation/ProductPageHeader";
+import { Button, IconButton } from '@musefold/ui';
+import { LoaderCircle, Trash2 } from '@musefold/ui/icons';
+import type { ReactNode } from 'react';
+import type { GenerationHistoryItemViewModel } from '../models';
+import { GenerationHistoryRow } from './GenerationHistoryRow';
+import { ProductPageHeader } from '../navigation/ProductPageHeader';
 
 export interface GenerationHistoryScreenProps {
   items: GenerationHistoryItemViewModel[];
@@ -16,6 +16,7 @@ export interface GenerationHistoryScreenProps {
   toolbar?: ReactNode;
   body?: ReactNode;
   className?: string;
+  showPageHeader?: boolean;
 }
 
 export function GenerationHistoryScreen({
@@ -29,66 +30,58 @@ export function GenerationHistoryScreen({
   toolbar,
   body,
   className,
+  showPageHeader = true,
 }: GenerationHistoryScreenProps) {
+  const actions = (
+    <>
+      {headerAction}
+      {onOpenTrash ? (
+        <IconButton className="mf-icon-button" onClick={onOpenTrash} label="回收站">
+          <Trash2 aria-hidden="true" />
+        </IconButton>
+      ) : null}
+      <IconButton
+        className="mf-icon-button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        label="刷新历史"
+      >
+        <LoaderCircle className={refreshing ? 'mf-spin' : undefined} aria-hidden="true" />
+      </IconButton>
+    </>
+  );
+
   return (
     <section
-      className={[
-        "mf-product-page mf-history-screen",
-        className,
-      ].filter(Boolean).join(" ")}
+      className={['mf-product-page mf-history-screen', className].filter(Boolean).join(' ')}
       data-testid="history-page"
     >
-      <ProductPageHeader
-        title="生成历史"
-        count={count ?? items.length}
-        actions={
-          <>
-          {headerAction}
-          {onOpenTrash ? (
-            <IconButton
-              className="mf-icon-button"
-              onClick={onOpenTrash}
-              label="回收站"
-            >
-              <Trash2 aria-hidden="true" />
-            </IconButton>
-          ) : null}
-          <IconButton
-            className="mf-icon-button"
-            onClick={onRefresh}
-            disabled={refreshing}
-            label="刷新历史"
-          >
-            <LoaderCircle
-              className={refreshing ? "mf-spin" : undefined}
-              aria-hidden="true"
-            />
-          </IconButton>
-          </>
-        }
-      />
+      {showPageHeader ? (
+        <ProductPageHeader title="生成历史" count={count ?? items.length} actions={actions} />
+      ) : (
+        <div className="mf-history-shell-toolbar">
+          <span className="mf-history-shell-count">{count ?? items.length} 条记录</span>
+          <div className="mf-history-shell-actions">{actions}</div>
+        </div>
+      )}
       {toolbar}
-      {body ?? <div className="mf-history-list" role="list">
+      {body ?? (
+        <div className="mf-history-list" role="list">
           {items.map((item) => (
             <GenerationHistoryRow
               key={item.id}
               item={item}
               actions={
-                <Button
-                  variant="ghost"
-                  className="mf-text-action"
-                  onClick={() => onOpen?.(item)}
-                >
+                <Button variant="ghost" className="mf-text-action" onClick={() => onOpen?.(item)}>
                   打开
                 </Button>
               }
               onOpen={onOpen ? () => onOpen(item) : undefined}
             />
           ))}
-          {items.length === 0 && (
-            <div className="mf-empty-row">还没有生成记录</div>
-          )}
-        </div>}
+          {items.length === 0 && <div className="mf-empty-row">还没有生成记录</div>}
+        </div>
+      )}
     </section>
   );
 }

@@ -103,6 +103,16 @@ def capture_shared_workbench(app):
     # v2.0:空态改为无入场动画的品牌锁定区,直接等待可见即可。
     if app.page.locator('[data-testid="workbench-empty"]').count() > 0:
         app.page.wait_for_selector('[data-testid="workbench-empty"]')
+    # 水印呼吸、字幕慢滚与 Ember 点脉动会让双端截图落在不同相位,拍摄前冻结。
+    animated = app.page.locator(
+        '.mf-workbench-empty-watermark-word span, '
+        '.mf-workbench-direction-track, '
+        '.mf-workbench-empty-brand svg circle'
+    )
+    if animated.count() > 0:
+        animated.evaluate_all(
+            "els => els.forEach(el => { el.style.animation = 'none'; })"
+        )
     app.page.locator('[data-testid="generation-workbench"]').screenshot(
         path=str(target / "shared-workbench-1440x900.png"),
     )
@@ -271,13 +281,16 @@ def test_visual_integrated_surfaces_toast_and_lightbox(app):
           const header = document.querySelector('[data-testid="titlebar"]')?.getBoundingClientRect();
           const composer = document.querySelector('[data-testid="workbench-composer"]')?.getBoundingClientRect();
           const sidebar = document.querySelector('[data-testid="workbench-reference-sidebar"]')?.getBoundingClientRect();
-          return { header, composer, sidebar, height: innerHeight, width: innerWidth };
+          const primary = document.querySelector('.mf-workbench-primary')?.getBoundingClientRect();
+          return { header, composer, sidebar, primary, height: innerHeight, width: innerWidth };
         }"""
     )
     assert geometry["header"]["bottom"] <= geometry["composer"]["top"], geometry
     assert geometry["sidebar"]["right"] <= geometry["width"] + 1, geometry
+    assert geometry["primary"]["right"] <= geometry["sidebar"]["left"] + 1, geometry
+    assert geometry["composer"]["right"] <= geometry["primary"]["right"] + 1, geometry
 
-    # 素材库抽屉的模态形态（带遮罩）只在 ≤760px 出现
+    # 素材库在紧凑窗口转换为模态面板，不挤压 MainView。
     set_visual_state(app, width=640, height=760, theme="dark", density="compact")
     app.page.wait_for_selector('[data-testid="workbench-reference-backdrop"]')
     capture(app, "10-workbench-reference-drawer-640-dark-compact", "generation-workbench")
@@ -512,7 +525,7 @@ def test_shared_library_and_history_visual_contracts(app):
     app.page.wait_for_function(
         """() => {
           const inspector = document.querySelector('[data-testid="history-inspector"]');
-          return inspector && Math.abs(inspector.getBoundingClientRect().width - 320) <= 1;
+          return inspector && Math.abs(inspector.getBoundingClientRect().width - 324) <= 1;
         }"""
     )
     history_geometry = app.page.locator('[data-testid="history-workspace"]').evaluate(
@@ -528,7 +541,7 @@ def test_shared_library_and_history_visual_contracts(app):
         }"""
     )
     assert history_geometry is not None
-    assert abs(history_geometry["inspector"] - 320) <= 1
+    assert abs(history_geometry["inspector"] - 324) <= 1
     assert history_geometry["list"] > history_geometry["inspector"]
     assert abs(
         history_geometry["list"]
@@ -537,6 +550,11 @@ def test_shared_library_and_history_visual_contracts(app):
     ) <= 1
     app.page.locator('[data-testid="history-workspace"] img').evaluate_all(
         "images => images.forEach(image => image.remove())"
+    )
+    capture_shared_surface(
+        app,
+        "shared-history-page-1440x900.png",
+        "history-page",
     )
     capture_shared_surface(
         app,
@@ -550,6 +568,18 @@ def test_shared_library_and_history_visual_contracts(app):
         app,
         "shared-history-detail-compact.png",
         "history-detail-content",
+    )
+    set_visual_state(
+        app,
+        width=1440,
+        height=900,
+        theme="dark",
+        density="comfortable",
+    )
+    capture_shared_surface(
+        app,
+        "shared-history-page-dark-1440x900.png",
+        "history-page",
     )
 
 
@@ -624,14 +654,14 @@ def test_settings_workspace_matches_operate_contract(app):
     assert geometry["titlebarCount"] == 0, geometry
     assert geometry["emberMarkCount"] == 0, geometry
     assert abs(geometry["sidebarWidth"] - 240) <= 1, geometry
-    assert geometry["sectionWidth"] <= 897, geometry
+    assert geometry["sectionWidth"] <= 881, geometry
     assert geometry["titleSize"] == "24px", geometry
     assert geometry["cardRadius"] == "12px", geometry
     assert geometry["rowPaddingLeft"] == "16px", geometry
     assert geometry["rowPaddingRight"] == "16px", geometry
     assert len(geometry["rowColumns"].split()) == 2, geometry
     assert 191 <= geometry["rowControlWidth"] <= 289, geometry
-    assert geometry["segmentedRadius"] == "6px", geometry
+    assert geometry["segmentedRadius"] == "8px", geometry
     assert geometry["compactHeaderDisplay"] == "none", geometry
     assert geometry["paneScrollbarGutter"] == "stable", geometry
     capture(app, "settings-operate-dark-1440x900", "settings-workspace")

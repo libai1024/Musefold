@@ -22,6 +22,7 @@ import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -30,12 +31,8 @@ import {
 } from '../../../components/ui/dialog';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Input } from '../../../components/ui/input';
-import { Spinner } from '@musefold/ui';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '../../../components/ui/tooltip';
+import { DropdownMenuItem, Spinner } from '@musefold/ui';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 import { formatDuration, formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
@@ -74,7 +71,6 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   const setActiveProvider = useGenerationStore((s) => s.setActive);
 
   const [sourceLabel, setSourceLabel] = useState('未记录');
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState('');
   const [savingPrompt, setSavingPrompt] = useState(false);
@@ -86,7 +82,6 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   }, [providers.length, loadProviders]);
 
   useEffect(() => {
-    setConfirmDelete(false);
     setSaveDialogOpen(false);
     setSaveTitle('');
     setSavingPrompt(false);
@@ -121,8 +116,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
   }
 
   const meta = historyStatusMeta(record.status);
-  const providerName =
-    providers.find((p) => p.id === record.providerId)?.name ?? record.providerId;
+  const providerName = providers.find((p) => p.id === record.providerId)?.name ?? record.providerId;
   const paramsLine = formatParamsSummary(record.params);
   const provider = providers.find((p) => p.id === record.providerId);
   const error = historyErrorPresentation(record.errorCode, record.errorMessage);
@@ -137,11 +131,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
     statusKey: meta.status,
     statusLabel: meta.label,
     statusTone:
-      meta.status === 'succeeded'
-        ? 'success'
-        : meta.status === 'failed'
-          ? 'danger'
-          : 'neutral',
+      meta.status === 'succeeded' ? 'success' : meta.status === 'failed' ? 'danger' : 'neutral',
     modelLabel: displayModelName(record.providerModel),
     metadata: [
       providerName,
@@ -181,7 +171,10 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
       await api.system.copyImage(record.imagePath);
       toast.success('已复制图片');
     } catch (error) {
-      toast.error('复制图片失败', error instanceof Error ? error.message : '图片可能已被移动或删除。');
+      toast.error(
+        '复制图片失败',
+        error instanceof Error ? error.message : '图片可能已被移动或删除。',
+      );
     }
   };
 
@@ -194,7 +187,10 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
       await api.system.openInFolder(record.imagePath);
       toast.success('已在文件夹中定位图片');
     } catch (err) {
-      toast.error('打开文件夹失败', err instanceof Error ? err.message : '文件可能已被移动或删除。');
+      toast.error(
+        '打开文件夹失败',
+        err instanceof Error ? err.message : '文件可能已被移动或删除。',
+      );
     }
   };
 
@@ -224,7 +220,10 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
     }
 
     const originalProvider = currentProviders.find((p) => p.id === record.providerId) ?? null;
-    if (originalProvider && useGenerationStore.getState().activeProviderId !== originalProvider.id) {
+    if (
+      originalProvider &&
+      useGenerationStore.getState().activeProviderId !== originalProvider.id
+    ) {
       try {
         await setActiveProvider(originalProvider.id);
       } catch {
@@ -272,9 +271,10 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
       setSaveDialogOpen(false);
       toast.show({
         title: '已存为提示词',
-        description: linkResult == null
-          ? `${input.title} · 重启应用后可建立作品关联`
-          : `${input.title} · 已关联作品`,
+        description:
+          linkResult == null
+            ? `${input.title} · 重启应用后可建立作品关联`
+            : `${input.title} · 已关联作品`,
         variant: linkResult == null ? 'warning' : 'success',
         duration: 6000,
         action: {
@@ -339,88 +339,80 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
         status={meta.status}
         content={
           <GenerationHistoryDetailContent
-          detail={detailViewModel}
-          density="compact"
-          onOpenImage={canOpenImage ? () => onOpenLightbox?.(record.id) : undefined}
-          onCopyPrompt={() => void copyPrompt()}
-          bodyExtra={<HistoryLineagePanel record={record} />}
-          errorAction={detailErrorAction}
+            detail={detailViewModel}
+            density="compact"
+            onOpenImage={canOpenImage ? () => onOpenLightbox?.(record.id) : undefined}
+            onCopyPrompt={() => void copyPrompt()}
+            bodyExtra={<HistoryLineagePanel record={record} />}
+            errorAction={detailErrorAction}
           />
         }
         actions={
           <GenerationHistoryDetailActions
-          layout="stacked"
-          reuseTestId="history-detail-regen"
-          onReuse={() => void reeditHistory()}
-          onSavePrompt={openSavePromptDialog}
-          onCopyPrompt={() => void copyPrompt()}
-          onDelete={() => setConfirmDelete(true)}
-          deleteLabel="删除记录"
-          busyAction={savingPrompt ? 'save' : null}
-          extraActions={
-            <>
-              <div className="grid grid-cols-2 gap-1.5">
-                <HistoryFileAction
-                  icon={LayoutTemplate}
-                  label="创建设计方案"
-                  tip="以这条历史提示词创建可复用的设计方案草稿"
-                  testId="history-detail-create-scheme"
-                  disabled={false}
-                  onClick={createDesignScheme}
-                />
-                <HistoryFileAction
-                  icon={FolderOpen}
-                  label="打开文件夹"
-                  tip={record.imagePath ? '在系统文件管理器中定位图片' : '无图片路径'}
-                  testId="history-detail-folder"
+            contextKey={record.id}
+            layout="stacked"
+            reuseTestId="history-detail-regen"
+            onReuse={() => void reeditHistory()}
+            onSavePrompt={openSavePromptDialog}
+            onCopyPrompt={() => void copyPrompt()}
+            onDelete={() => void remove(record.id)}
+            deleteLabel="删除记录"
+            deleteConfirmation={{
+              title: '删除这条生成记录？',
+              description: '记录会从历史中移除并影响本地使用统计，磁盘源文件仍会保留。',
+              confirmLabel: '删除记录',
+            }}
+            busyAction={savingPrompt ? 'save' : null}
+            extraActions={
+              <HistoryFileAction
+                icon={LayoutTemplate}
+                label="创建设计方案"
+                tip="以这条历史提示词创建可复用的设计方案草稿"
+                testId="history-detail-create-scheme"
+                disabled={false}
+                onClick={createDesignScheme}
+              />
+            }
+            additionalMenuItems={(close) => (
+              <>
+                <DropdownMenuItem
                   disabled={!record.imagePath}
-                  onClick={() => void openImageFolder()}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <HistoryFileAction
-                  icon={Copy}
-                  label="复制图片"
-                  tip={record.imagePath ? '复制图片到系统剪贴板' : '无图片'}
-                  testId="history-detail-copy-image"
-                  disabled={!record.imagePath}
-                  onClick={() => void copyImage()}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!record.imagePath}
-                  onClick={() => setDeleteFileDialogOpen(true)}
-                  data-testid="history-detail-delete-file"
-                  title={record.imagePath ? '删除记录并删除磁盘源文件' : '无图片路径'}
+                  onSelect={() => {
+                    close();
+                    void openImageFolder();
+                  }}
+                  data-testid="history-detail-folder"
                 >
-                  <Trash2 className="h-3 w-3" /> 删除记录+源文件
-                </Button>
-              </div>
-              {confirmDelete ? (
-                <span className="flex items-center justify-end gap-1">
-                  <button
-                    type="button"
-                    className="rounded px-1.5 py-0.5 text-meta text-secondary hover:bg-hover"
-                    onClick={() => setConfirmDelete(false)}
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-danger px-1.5 py-0.5 text-meta text-on-danger hover:brightness-105"
-                    data-testid="history-detail-delete-confirm"
-                    onClick={() => {
-                      setConfirmDelete(false);
-                      void remove(record.id);
-                    }}
-                  >
-                    确认删除
-                  </button>
-                </span>
-              ) : null}
-            </>
-          }
+                  <FolderOpen aria-hidden="true" />
+                  打开文件夹
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!record.imagePath}
+                  onSelect={() => {
+                    close();
+                    void copyImage();
+                  }}
+                  data-testid="history-detail-copy-image"
+                >
+                  <Copy aria-hidden="true" />
+                  复制图片
+                </DropdownMenuItem>
+              </>
+            )}
+            additionalDangerMenuItems={(close) => (
+              <DropdownMenuItem
+                className="mf-danger-action"
+                disabled={!record.imagePath}
+                onSelect={() => {
+                  close();
+                  setDeleteFileDialogOpen(true);
+                }}
+                data-testid="history-detail-delete-file"
+              >
+                <Trash2 aria-hidden="true" />
+                删除记录与源文件
+              </DropdownMenuItem>
+            )}
           />
         }
       />
@@ -435,7 +427,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
           <DialogHeader>
             <DialogTitle>存为提示词</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
+          <DialogBody className="space-y-2">
             <Input
               value={saveTitle}
               onChange={(e) => setSaveTitle(e.target.value)}
@@ -454,12 +446,20 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
             >
               {record.request.prompt || '未记录'}
             </pre>
-          </div>
+          </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setSaveDialogOpen(false)} disabled={savingPrompt}>
+            <Button
+              variant="ghost"
+              onClick={() => setSaveDialogOpen(false)}
+              disabled={savingPrompt}
+            >
               取消
             </Button>
-            <Button onClick={saveHistoryAsPrompt} disabled={savingPrompt} data-testid="history-save-confirm">
+            <Button
+              onClick={saveHistoryAsPrompt}
+              disabled={savingPrompt}
+              data-testid="history-save-confirm"
+            >
               {savingPrompt ? '保存中…' : '存为提示词'}
             </Button>
           </DialogFooter>
@@ -475,12 +475,18 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
         <DialogContent className="max-w-md" data-testid="history-delete-file-dialog">
           <DialogHeader>
             <DialogTitle>删除记录和源文件？</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
             <DialogDescription>
               这会删除生成历史，并尝试删除磁盘上的图片文件；源文件删除后不可恢复。
             </DialogDescription>
-          </DialogHeader>
+          </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" disabled={deletingWithFile} onClick={() => setDeleteFileDialogOpen(false)}>
+            <Button
+              variant="ghost"
+              disabled={deletingWithFile}
+              onClick={() => setDeleteFileDialogOpen(false)}
+            >
               取消
             </Button>
             <Button
