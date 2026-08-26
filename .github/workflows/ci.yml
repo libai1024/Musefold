@@ -198,8 +198,8 @@ jobs:
       - name: Run complete Web E2E suite
         run: npm run test:e2e:web
 
-      # Job logs need sign-in on this repo; annotations stay public, so failed
-      # tests are mirrored there to keep failures diagnosable without access.
+      # Job logs need sign-in on this repo; annotations and the job summary
+      # stay public, so failed tests and their errors are mirrored there.
       - name: Surface failing tests as annotations
         if: failure()
         run: |
@@ -212,20 +212,30 @@ jobs:
           const walk = (suite) => {
             for (const spec of suite.specs ?? []) {
               for (const test of spec.tests ?? []) {
-                const worst = test.results?.reduce((acc, r) =>
-                  (r.status === "failed" || r.status === "timedOut") &&
-                  (acc === null || r.status === "timedOut")
-                    ? r
-                    : acc, null);
-                if (worst) failures.push(`${suite.title} > ${spec.title} [${worst.status}]`);
+                const results = test.results ?? [];
+                const failing = results.filter((r) => r.status === "failed" || r.status === "timedOut" || r.status === "interrupted");
+                if (failing.length === 0) continue;
+                const last = failing[failing.length - 1];
+                const errorText = (last.errors ?? [])
+                  .map((e) => [e.message, (e.stack ?? "").split("\n").slice(0, 4).join("\n")].filter(Boolean).join("\n"))
+                  .join("\n")
+                  .slice(0, 900);
+                failures.push({ title: `${suite.file ?? suite.title} > ${spec.title}`, status: last.status, errorText });
               }
             }
             for (const child of suite.suites ?? []) walk(child);
           };
           walk({ suites: report.suites ?? [] });
+          const summary = fs.createWriteStream(process.env.GITHUB_STEP_SUMMARY, { flags: "a" });
+          summary.write("\n## Web E2E failures\n\n");
           for (const failure of failures.slice(0, 20)) {
-            console.log(`::error title=Playwright failure::${failure.replace(/%/g, "%25").replace(/\r?\n/g, "%0A")}`);
+            const safe = (failure.errorText || "no error captured")
+              .replace(/`/g, "'")
+              .slice(0, 900);
+            console.log(`::error title=${failure.title.replace(/[%\r\n]/g, " ").slice(0, 70)}::${safe.replace(/%/g, "%25").replace(/\r?\n/g, "%0A").slice(0, 400)}`);
+            summary.write(`### ${failure.title} [${failure.status}]\n\n\`\`\`\n${safe}\n\`\`\`\n\n`);
           }
+          summary.end("\n");
           NODE
 
       - name: Upload Playwright report
@@ -378,7 +388,7 @@ jobs:
           xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" \
             npm run test:visual:shared 2>&1 | tee /tmp/shared-visual.log
 
-      # Mirrors the failing lane into public annotations; see Web E2E note.
+      # Mirrors the failing lane into public annotations + summary; see Web E2E note.
       - name: Surface visual failures as annotations
         if: failure()
         run: |
@@ -386,24 +396,38 @@ jobs:
             /tmp/shared-visual.log | head -20 | while IFS= read -r line; do
             echo "::error title=Shared visual::${line//::/ }"
           done
-          test -f apps/web/test-results/web/report.json && \
+          if [ -f apps/web/test-results/web/report.json ]; then
             node - <<'NODE'
           const fs = require("node:fs");
           const report = JSON.parse(fs.readFileSync("apps/web/test-results/web/report.json", "utf8"));
+          const failures = [];
           const walk = (suite) => {
             for (const spec of suite.specs ?? []) {
               for (const test of spec.tests ?? []) {
-                for (const result of test.results ?? []) {
-                  if (result.status === "failed" || result.status === "timedOut") {
-                    console.log(`::error title=Visual web lane::${spec.title} [${result.status}]`);
-                  }
-                }
+                const results = test.results ?? [];
+                const failing = results.filter((r) => r.status === "failed" || r.status === "timedOut" || r.status === "interrupted");
+                if (failing.length === 0) continue;
+                const last = failing[failing.length - 1];
+                const errorText = (last.errors ?? [])
+                  .map((e) => [e.message, (e.stack ?? "").split("\n").slice(0, 4).join("\n")].filter(Boolean).join("\n"))
+                  .join("\n")
+                  .slice(0, 900);
+                failures.push({ title: `${suite.file ?? suite.title} > ${spec.title}`, status: last.status, errorText });
               }
             }
             for (const child of suite.suites ?? []) walk(child);
           };
           walk({ suites: report.suites ?? [] });
+          const summary = fs.createWriteStream(process.env.GITHUB_STEP_SUMMARY, { flags: "a" });
+          summary.write("\n## Shared visual web lane failures\n\n");
+          for (const failure of failures.slice(0, 20)) {
+            const safe = (failure.errorText || "no error captured").replace(/`/g, "'").slice(0, 900);
+            console.log(`::error title=${failure.title.replace(/[%\r\n]/g, " ").slice(0, 70)}::${safe.replace(/%/g, "%25").replace(/\r?\n/g, "%0A").slice(0, 400)}`);
+            summary.write(`### ${failure.title} [${failure.status}]\n\n\`\`\`\n${safe}\n\`\`\`\n\n`);
+          }
+          summary.end("\n");
           NODE
+          fi
 
       - name: Upload shared visual artifacts
         if: failure()
