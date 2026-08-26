@@ -5,7 +5,7 @@
 //   列表模式：分区（置顶 / 全部）+ 紧凑行（缩略图 + 标题/预览/元信息 + 行尾「使用」）
 //     - 置顶区常驻渲染（少量集合）；「全部」区虚拟化（性能门槛：140+ 条时 DOM 有界）
 //     - 整页滚动（对齐方案中心），虚拟化经 scrollMargin 挂在页面滚动容器上
-//   详情模式：右侧 400px Inspector，与资产列表并存
+//   详情模式：右侧 404px Inspector，与方案中心保持一致；窄屏切换为单页详情
 //
 // v0.1 的文件夹/标签/评分/智能集/批量操作从 UI 退役（数据保留，FTS5 搜索兜底）。
 
@@ -13,8 +13,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { DropdownMenuItem } from '@musefold/ui';
 import {
-  PromptLibraryScreen,
   PromptLibraryHeaderActions,
+  PromptLibraryScreen,
+  PromptLibraryWorkspace,
   PromptListRow,
   PromptSectionHeading,
   useLibraryPageController,
@@ -119,7 +120,7 @@ export function LibraryPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<DesktopLibraryPrompt | null>(null);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [listOffset, setListOffset] = useState(0);
   const [columns, setColumns] = useState(2);
@@ -130,8 +131,7 @@ export function LibraryPage() {
   const rowHeight = (compact ? 72 : 76) + ROW_GAP;
   const empty = pinned.length === 0 && normal.length === 0;
   const searching = search.trim() !== '';
-  const showList = pageMode === 'list';
-
+  const showPromptGroupHeadings = pinned.length > 0 && normal.length > 0;
   const rowCount = Math.ceil(normal.length / columns);
   const virtualizer = useVirtualizer({
     count: rowCount,
@@ -145,6 +145,7 @@ export function LibraryPage() {
     () => [...pinned, ...normal].find((p) => p.id === selectedPromptId) ?? null,
     [normal, pinned, selectedPromptId],
   );
+  const inspectorOpen = pageMode === 'detail' && Boolean(selectedPrompt);
 
   useEffect(() => {
     // v0.1 的文件夹/标签筛选已从 UI 退役；进入页面时清掉可能残留的会话内筛选态
@@ -160,18 +161,17 @@ export function LibraryPage() {
 
   // 列数跟随内容区宽度（窄窗降为单列）；虚拟化起点跟随上方内容高度
   useLayoutEffect(() => {
-    if (!showList) return;
     const el = scrollRef.current;
     if (!el) return;
     const sync = () => {
-      setColumns(el.clientWidth >= 760 ? 2 : 1);
+      setColumns(inspectorOpen ? 1 : el.clientWidth >= 760 ? 2 : 1);
       setListOffset(listRef.current?.offsetTop ?? 0);
     };
     sync();
     const observer = new ResizeObserver(sync);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [showList, pinned.length, empty, Boolean(error)]);
+  }, [inspectorOpen, pinned.length, empty, Boolean(error)]);
 
   // Composer「存为提示词」跳过来的高亮意图：消费一次即清，并保证列表可见
   useEffect(() => {
@@ -210,6 +210,10 @@ export function LibraryPage() {
     setPageMode('detail');
   };
 
+  const closeDetail = () => {
+    setPageMode('list');
+  };
+
   const openImport = () => {
     useSettingsStore.getState().setSection('data');
     setView('settings');
@@ -226,9 +230,7 @@ export function LibraryPage() {
       key={p.id}
       prompt={toPromptListItem(p)}
       compact={compact}
-      highlighted={
-        highlightPromptId === p.id || (pageMode === 'detail' && selectedPromptId === p.id)
-      }
+      highlighted={highlightPromptId === p.id || selectedPromptId === p.id}
       copied={copiedPromptId === p.id}
       onOpen={() => openDetail(p.id)}
       onCopy={() => {
@@ -247,16 +249,15 @@ export function LibraryPage() {
 
   return (
     <div className="h-full bg-work" data-testid="library-shell">
-      <div
-        className="mf-library-workspace"
-        data-inspector-open={pageMode === 'detail' && selectedPrompt ? 'true' : 'false'}
-      >
-        <div
-          ref={scrollRef}
-          className="relative h-full min-w-0 flex-1 overflow-y-auto px-6 pb-16 pt-5 max-[640px]:px-4"
-          data-testid="prompt-list"
-        >
+      <PromptLibraryWorkspace
+        detailOpen={inspectorOpen}
+        onClose={closeDetail}
+        listRef={(node) => {
+          scrollRef.current = node;
+        }}
+        list={
           <PromptLibraryScreen
+            className={inspectorOpen ? 'mf-workspace-list-content-wide' : undefined}
             prompts={[...pinned, ...normal].map(toPromptListItem)}
             query={search}
             onQueryChange={setSearch}
@@ -286,12 +287,6 @@ export function LibraryPage() {
                   <span className="mf-workspace-scope-count">{slipCount}</span>
                 </button>
               </div>
-            }
-            sectionSummary={
-              <>
-                <span>提示词</span>
-                <span className="mf-workspace-section-count">{prompts.length}</span>
-              </>
             }
             headerAction={
               <PromptLibraryHeaderActions
@@ -381,8 +376,13 @@ export function LibraryPage() {
                   ) : (
                     <>
                       {pinned.length > 0 && (
-                        <section className="mb-7" data-testid="pinned-section">
-                          <PromptSectionHeading title="置顶" count={pinned.length} />
+                        <section
+                          className={normal.length > 0 ? 'mb-7' : undefined}
+                          data-testid="pinned-section"
+                        >
+                          {showPromptGroupHeadings ? (
+                            <PromptSectionHeading title="置顶" count={pinned.length} />
+                          ) : null}
                           <div style={{ ...gridStyle, rowGap: `${ROW_GAP}px` }}>
                             {pinned.map(renderRow)}
                           </div>
@@ -390,7 +390,9 @@ export function LibraryPage() {
                       )}
                       {normal.length > 0 && (
                         <section>
-                          <PromptSectionHeading title="全部" count={normal.length} />
+                          {showPromptGroupHeadings ? (
+                            <PromptSectionHeading title="全部" count={normal.length} />
+                          ) : null}
                           <div
                             ref={listRef}
                             style={{
@@ -427,25 +429,19 @@ export function LibraryPage() {
               </div>
             }
           />
-        </div>
-
-        {pageMode === 'detail' && selectedPrompt ? (
-          <aside
-            className="mf-library-inspector-shell"
-            aria-label="提示词详情"
-            data-testid="prompt-inspector"
-          >
-            <div className="mf-library-inspector">
-              <PromptDetailView
-                prompt={selectedPrompt}
-                layout="inspector"
-                onBack={() => setPageMode('list')}
-                onEdit={openEditor}
-              />
-            </div>
-          </aside>
-        ) : null}
-      </div>
+        }
+        detail={
+          inspectorOpen && selectedPrompt ? (
+            <PromptDetailView
+              prompt={selectedPrompt}
+              layout="inspector"
+              showNavigation={false}
+              onBack={closeDetail}
+              onEdit={openEditor}
+            />
+          ) : undefined
+        }
+      />
 
       <PromptEditor
         open={editorOpen}

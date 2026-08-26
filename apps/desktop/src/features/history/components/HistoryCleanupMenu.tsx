@@ -113,7 +113,7 @@ export function HistoryCleanupMenu() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={openAll}
-            className="text-danger focus:bg-danger/10 focus:text-danger"
+            tone="danger"
             data-testid="history-clear-all"
           >
             <Trash2 className="h-3.5 w-3.5" />

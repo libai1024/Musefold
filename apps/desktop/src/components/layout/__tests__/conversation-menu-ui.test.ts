@@ -22,9 +22,22 @@ const titleBar = readFileSync("apps/desktop/src/components/layout/TitleBar.tsx",
 const productStyles = readFileSync("packages/product-ui/src/styles.css", "utf8");
 
 describe("recent conversation actions", () => {
-  it("uses direct pin and archive hover actions instead of a more button", () => {
+  it("places a compact leading pin before the title and keeps archive trailing", () => {
     expect(sessionList).toContain('data-testid="conversation-hover-pin"');
     expect(sessionList).toContain('data-testid="conversation-hover-archive"');
+    expect(sessionList.indexOf('data-testid="conversation-hover-pin"')).toBeLessThan(
+      sessionList.indexOf('className="mf-workbench-session-open"'),
+    );
+    expect(sessionList.indexOf('data-testid="conversation-hover-archive"')).toBeGreaterThan(
+      sessionList.indexOf('className="mf-workbench-session-open"'),
+    );
+    expect(productStyles).toContain(".mf-workbench-session-pin[aria-pressed='true']");
+    expect(productStyles).toContain("padding-left: 4px");
+    expect(productStyles).toContain("gap: 4px");
+    expect(productStyles).toContain("text-overflow: clip");
+    expect(productStyles).toContain("#000 calc(100% - 20px)");
+    expect(productStyles).toContain("background: var(--surface-popover)");
+    expect(productStyles).toContain("box-shadow: var(--shadow-sm)");
     expect(sidebar).not.toContain("MoreHorizontal");
     expect(sidebar).not.toContain("管理对话：");
   });
@@ -33,16 +46,17 @@ describe("recent conversation actions", () => {
     expect(contextMenu).toContain("createPortal(");
     expect(contextMenu).toContain("document.body");
     expect(contextMenu).toContain("data-workbench-session-context-menu");
-    expect(contextMenu).toContain("window.innerWidth - rect.width - 8");
-    expect(contextMenu).toContain("window.innerHeight - rect.height - 8");
+    expect(contextMenu).toContain("bounds.right - rect.width - 8");
+    expect(contextMenu).toContain("bounds.bottom - rect.height - 8");
+    expect(contextMenu).toContain("right: window.innerWidth");
+    expect(contextMenu).toContain("bottom: window.innerHeight");
     expect(sessionList).toContain("returnFocusTarget: HTMLElement");
     expect(contextMenu).toContain("returnFocusTarget ??");
     expect(sidebar).toContain("returnFocusTarget={contextMenu.returnFocusTarget}");
-    expect(productStyles).toContain(".mf-workbench-session-context-menu");
-    expect(productStyles).toContain("background: var(--bg-popover)");
-    expect(productStyles).toContain("border-radius: var(--radius-md)");
-    expect(productStyles).toContain("box-shadow: var(--shadow-pop)");
-    expect(productStyles).toContain("z-index: 55");
+    expect(contextMenu).toContain("mf-ui-dropdown-content mf-workbench-session-context-menu");
+    expect(contextMenu).toContain("mf-ui-dropdown-item mf-workbench-session-context-action");
+    expect(contextMenu).toContain('data-tone={tone === "danger" ? tone : undefined}');
+    expect(contextMenu).toContain('className="mf-ui-dropdown-separator"');
     expect(productStyles).not.toContain("backdrop-filter: blur(20px)");
   });
 
@@ -64,9 +78,10 @@ describe("recent conversation actions", () => {
     expect(contextMenu).not.toContain("title={title}>{title}</p>");
   });
 
-  it("puts pinned chats in their own group without an inline pin marker", () => {
+  it("puts pinned chats in their own group and exposes an interactive leading pin", () => {
     expect(sessionList).toContain("item.pinned ? '置顶' : sessionDateGroup");
-    expect(sessionList).not.toContain("{pinned && <Pin");
+    expect(sessionList).toContain("aria-pressed={item.pinned}");
+    expect(sessionList).toContain('className="mf-workbench-session-pin"');
   });
 
   it("shows a leading status glow instead of conversation type icons", () => {

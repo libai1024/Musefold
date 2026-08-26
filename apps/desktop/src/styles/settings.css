@@ -571,3 +571,10 @@
     padding-top: 24px;
   }
 }
+
+@media (max-width: 680px) {
+  /* 手机设置分区头贴顶,需避开宿主 32px 窗口拖拽条(与 959px 的 compact 头同一补偿模式)。 */
+  [data-titlebar-hidden='true'] .mf-settings-phone-section-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 40px);
+  }
+}

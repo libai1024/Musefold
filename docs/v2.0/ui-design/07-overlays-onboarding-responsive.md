@@ -242,6 +242,13 @@ Toast 只用于瞬时反馈：
 
 ## 12. 响应式布局
 
+断点语义（交付口径，见 `docs/v2.0/V20-WEB-ALIGNMENT-DELIVERY-PLAN.md`）：
+
+- `760px = compact shell`：侧栏收进 drawer、Dock 关闭、MainView 单列，仍是桌面 shell 的紧凑形态，交互以指针和键盘为主。
+- `680px = phone / 触控 / 键盘`：进入手机交互模型，触控目标、软键盘 inset、safe-area 和底部 Composer 从这一档生效。
+- `390px`：手机基准宽度。
+- 大于 760px 的视口（含 Web 大屏）与桌面共享同一套 shell 几何（Sidebar / MainView / Dock 比例、圆角、间距 token）；平台差异只按 capability 保留（hover、键盘快捷键、触控目标、滚动条、安全区），不按端另起第二套布局。
+
 ### 12.1 760px 以下
 
 - 左侧 Sidebar 变 drawer。
@@ -253,8 +260,8 @@ Toast 只用于瞬时反馈：
 
 - TitleBar 仅保留页面标题、菜单和侧栏按钮。
 - Composer 控制行允许换行。
-- History Inspector 改为 bottom sheet。
-- Prompt Detail 改为页面或 bottom sheet。
+- History 详情使用 bottom sheet。
+- Prompt 查看与编辑使用全页子状态，不使用 bottom sheet。
 - 设计方案详情按“说明 / 运行 / 结果”分页。
 
 ### 12.3 390px
@@ -583,6 +590,8 @@ Prompt / Controls 退后
 
 ## 25. 760px 以下
 
+断点语义：`760px = compact shell`——布局切成 drawer 与单列，但交互模型仍是桌面指针与键盘；触控目标与键盘 inset 不在本档生效。
+
 ```text
 Sidebar → Overlay Drawer
 Dock → 默认关闭或 Bottom Sheet
@@ -600,10 +609,12 @@ MainView → 单列
 
 ## 26. 680px 以下
 
+断点语义：`680px = phone / 触控 / 键盘`——从本档开始进入手机交互模型。
+
 - Sidebar 变为左侧 drawer。
 - Dock 变为 bottom sheet。
-- History Inspector 变为 bottom sheet。
-- Prompt Inspector 变为详情页或 bottom sheet。
+- History 手机详情使用 bottom sheet。
+- Prompt 查看与编辑使用全页子状态，不使用 bottom sheet。
 - 设计方案详情按“详情 / 运行 / 结果”切换。
 - Composer 保持固定底部。
 - 参数控件可以横向滚动，但页面整体不允许横向滚动。
@@ -762,7 +773,7 @@ apps/desktop/src/styles/overlays-v2.css
 
 工作台实例已落地：
 
-- Composer 的“添加上下文”保留全宽锚定布局，并补齐首项聚焦、上下键循环、Home / End、Tab 收起、Escape 关闭与焦点归还。
+- Composer 的“添加上下文”使用 304px 紧凑动作菜单，并补齐首项聚焦、上下键循环、Home / End、Tab 收起、Escape 关闭与焦点归还。
 - 分组之间使用真实 `separator` 语义，不再通过下一组标题的上边框模拟。
 - 会话 Context Menu 使用实色 popover surface，圆角 8px、`--shadow-pop`、32px 菜单行；危险项始终使用 danger text。
 - 会话菜单打开后首项获得焦点，方向键循环；Escape 关闭时将焦点归还打开前的控件。
@@ -857,9 +868,9 @@ tests/e2e/test_26_scheme_center_delete.py
 
 已落地：
 
-- `WorkbenchTurnActions` 从手写 absolute 菜单迁移到共享 Dropdown；菜单从回合动作按钮向上展开，使用 176px 内容宽度，不再参与回合流的布局计算。
+- `WorkbenchTurnActions` 从手写 absolute 菜单迁移到共享 Dropdown；入口为带 tooltip 的省略号 `IconButton`，菜单向上展开，使用 176px 内容宽度，不再参与回合流的布局计算。
 - 回合菜单继续保留“再次制作”“存为提示词”“查看生成历史”等宿主注入能力；`GenerationSavePromptAction` 通过 `asChild` 进入同一个键盘菜单集合，不产生嵌套按钮。
-- `WorkbenchGenerationResultCard` 保留图片表面上的高频图标操作；“打开所在目录”和“查看生成历史”收纳进 144px 的共享更多菜单，向上展开并与卡片右边缘对齐。
+- `WorkbenchGenerationResultCard` 保留图片表面上的高频图标操作；“打开所在目录”和“查看生成历史”收纳进 176px 的共享更多菜单，向上展开并与卡片右边缘对齐。
 - 两类菜单均使用实色 popover、8px 外圆角、`shadow-pop`、首项聚焦、方向键、Home / End、Escape 和触发器焦点归还；Portal 不改变 MainView、回合时间线或结果卡片的几何。
 - 桌面端继续保留既有业务 `data-testid`，仅把浮层容器改为共享原语；移动端门禁按当前开发约定暂不执行。
 
@@ -932,3 +943,17 @@ apps/desktop/src/features/settings/components/{DangerZonePanel,ImportDialog,Expo
 apps/desktop/src/features/library/components/TrashDialog.tsx
 apps/desktop/src/features/share/{ImportConfirmDialog,SharePromptDialog}.tsx
 ```
+
+### 31.11 动作菜单统一语言（第八批）
+
+右键菜单、更多操作和普通动作 Dropdown 使用同一套视觉语法，不再由业务页面重复绘制表面与危险态：
+
+- 普通菜单为实色 `--bg-popover`，1px `--border-subtle`、8px 外圆角、4px 内边距和 `--shadow-pop`；标准菜单最小宽度 176px。
+- 标准行高 32px、内部圆角 6px、水平内边距 8px；正文 12px、图标 14px。默认文字使用次级色，图标使用三级色，hover / focus 时整行升为主色。
+- 标签保留自然大小写与 0 字距，不使用全大写或额外字距制造层级；分组依赖真实 separator 和短标签。
+- 删除、清空、移除等不可逆动作使用 `tone="danger"`。危险项常态为 danger text，hover / focus 使用 10% danger soft tint，不复用页面私有 class。
+- 会话右键菜单保留指针坐标、边缘避让和焦点归还逻辑，但表面、菜单行、separator 与危险态直接复用共享 Dropdown class。
+- Prompt、History、Scheme 和 Workbench 的“更多”入口优先使用省略号 `IconButton`；媒体表面允许保留高对比悬浮底色，但菜单内容不另起视觉体系。
+- Composer 添加上下文和 Sidebar 身份菜单属于富信息变体：前者保留 40px 双信息行，后者保留 12px 外圆角与 40px 身份行；两者仍继承共享 surface、键盘与 dismissal 语义。
+
+本批只执行 1440x900 桌面 Light / Dark 验收，不执行手机端测试。

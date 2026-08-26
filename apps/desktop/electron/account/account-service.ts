@@ -148,6 +148,7 @@ export class AccountService {
     const price = session?.imagePricePoints ?? null;
     return {
       loggedIn: Boolean(session),
+      userId: session?.userId != null ? String(session.userId) : null,
       username: session?.username ?? null,
       serverUrl: this.activeServerUrl,
       isDefaultServer: DEFAULT_ACCOUNT_SERVER_URLS.includes(

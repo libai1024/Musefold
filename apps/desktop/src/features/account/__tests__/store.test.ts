@@ -33,6 +33,7 @@ const storeSource = readFileSync(new URL('../store.ts', import.meta.url), 'utf8'
 
 const EMPTY_STATUS: AccountStatus = {
   loggedIn: false,
+  userId: null,
   username: null,
   serverUrl: DEFAULT_ACCOUNT_SERVER_URL,
   isDefaultServer: true,
@@ -46,6 +47,7 @@ const EMPTY_STATUS: AccountStatus = {
 const loggedIn: AccountStatus = {
   ...EMPTY_STATUS,
   loggedIn: true,
+  userId: '7',
   username: 'alice',
   quota: { value: 1000, at: 1 },
   health: 'ok',

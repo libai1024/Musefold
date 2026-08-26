@@ -28,13 +28,33 @@ function handleHomeEnd(
   target.focus();
 }
 
+function findMenuTrigger(content: HTMLElement) {
+  const ownerDocument = content.ownerDocument;
+  const labelledBy = content.getAttribute('aria-labelledby');
+  const labelledTrigger = labelledBy ? ownerDocument.getElementById(labelledBy) : null;
+  if (labelledTrigger instanceof HTMLElement) return labelledTrigger;
+  return (
+    Array.from(ownerDocument.querySelectorAll<HTMLElement>('[aria-controls]')).find(
+      (element) => element.getAttribute('aria-controls') === content.id,
+    ) ?? null
+  );
+}
+
 export const DropdownMenuContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
   DropdownMenuContentProps
 >(function DropdownMenuContent(
-  { className, sideOffset = 4, onKeyDownCapture, onOpenAutoFocus, ...props },
+  {
+    className,
+    sideOffset = 4,
+    onKeyDownCapture,
+    onOpenAutoFocus,
+    onCloseAutoFocus,
+    ...props
+  },
   ref,
 ) {
+  const returnFocusRef = React.useRef<HTMLElement | null>(null);
   const content = (
     <DropdownMenuContentPrimitive
       ref={ref}
@@ -42,14 +62,24 @@ export const DropdownMenuContent = React.forwardRef<
       className={['mf-ui-dropdown-content', className].filter(Boolean).join(' ')}
       onKeyDownCapture={(event) => handleHomeEnd(event, onKeyDownCapture)}
       onOpenAutoFocus={(event) => {
+        const currentTarget = event.currentTarget as HTMLElement;
+        returnFocusRef.current = findMenuTrigger(currentTarget);
         onOpenAutoFocus?.(event);
         if (event.defaultPrevented) return;
         event.preventDefault();
-        const currentTarget = event.currentTarget as HTMLElement | null;
-        const firstItem = currentTarget?.querySelector<HTMLElement>(
+        const firstItem = currentTarget.querySelector<HTMLElement>(
           '[role="menuitem"]:not([data-disabled])',
         );
         firstItem?.focus();
+      }}
+      onCloseAutoFocus={(event) => {
+        onCloseAutoFocus?.(event);
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        const returnFocus =
+          returnFocusRef.current ?? findMenuTrigger(event.currentTarget as HTMLElement);
+        returnFocusRef.current = null;
+        if (returnFocus?.isConnected) returnFocus.focus();
       }}
       {...props}
     />

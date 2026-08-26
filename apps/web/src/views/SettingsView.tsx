@@ -6,7 +6,7 @@ import {
   SettingsWorkspace,
   type SettingsNavigationGroup,
 } from '@musefold/product-ui';
-import type { AccountSession, McpConnectionPage } from '@musefold/contracts';
+import type { AccountSummary, McpConnectionPage } from '@musefold/contracts';
 import type { WebGateway } from '../runtime';
 import { AccountView } from './AccountView';
 import { ConnectionsView } from './ConnectionsView';
@@ -40,19 +40,29 @@ export function WebSettingsView({
   onSectionChange,
   onBack,
   gateway,
-  session,
+  account,
+  dataSourceLabel,
+  onRedeem,
+  onRefresh,
+  redeemBusy,
+  refreshBusy,
   connections,
   onConnectionsChange,
-  onLoggedOut,
+  onLogout,
 }: {
   section: WebSettingsSection;
   onSectionChange: (section: WebSettingsSection) => void;
   onBack: () => void;
   gateway: WebGateway;
-  session: AccountSession;
+  account: AccountSummary;
+  dataSourceLabel: string;
+  onRedeem: (code: string) => Promise<number>;
+  onRefresh: () => Promise<unknown>;
+  redeemBusy: boolean;
+  refreshBusy: boolean;
   connections: McpConnectionPage;
   onConnectionsChange: (next: McpConnectionPage) => void;
-  onLoggedOut: () => void;
+  onLogout: () => Promise<void>;
 }) {
   const [search, setSearch] = useState('');
 
@@ -74,18 +84,17 @@ export function WebSettingsView({
       <div className="mf-settings-content">
         {section === 'account' ? (
           <SettingsSection title="账户" description="个人账户与生图额度">
-            <SettingsCard
-              title="Musefold 账号"
-              description="查看当前账户、可用额度、生图状态与数据来源"
-            >
-              <AccountView
-                gateway={gateway}
-                session={session}
-                onLoggedOut={onLoggedOut}
-                embedded
-                showHeading={false}
-              />
-            </SettingsCard>
+            <AccountView
+              account={account}
+              dataSourceLabel={dataSourceLabel}
+              onRedeem={onRedeem}
+              onRefresh={onRefresh}
+              onLogout={onLogout}
+              redeemBusy={redeemBusy}
+              refreshBusy={refreshBusy}
+              embedded
+              showHeading={false}
+            />
           </SettingsSection>
         ) : (
           <SettingsSection

@@ -16,6 +16,7 @@ function harness() {
   const handlers = new Map<string, Handler>();
   const status = {
     loggedIn: false,
+    userId: null,
     username: null,
     serverUrl: 'https://relay.test',
     isDefaultServer: false,
@@ -27,8 +28,8 @@ function harness() {
   };
   const service = {
     status: vi.fn(() => status),
-    register: vi.fn(async () => ({ ...status, loggedIn: true, username: 'user' })),
-    login: vi.fn(async () => ({ ...status, loggedIn: true, username: 'user' })),
+    register: vi.fn(async () => ({ ...status, loggedIn: true, userId: '7', username: 'user' })),
+    login: vi.fn(async () => ({ ...status, loggedIn: true, userId: '7', username: 'user' })),
     logout: vi.fn(async () => status),
     redeem: vi.fn(async () => ({ quotaAdded: 500000, status })),
     refreshQuota: vi.fn(async () => status),
@@ -64,6 +65,7 @@ describe('account IPC handlers', () => {
     });
     expect(service.login).toHaveBeenCalledWith({ username: 'user', password: 'password-secret' });
     const serialized = JSON.stringify(result);
+    expect(serialized).toContain('"userId":"7"');
     expect(serialized).not.toContain('password-secret');
     expect(serialized).not.toContain('sk-');
     expect(serialized).not.toContain('refresh');

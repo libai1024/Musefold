@@ -47,6 +47,7 @@ export interface PromptDetailScreenProps {
   confirmDelete?: boolean;
   additionalMenuItems?: PromptDetailMenuItems;
   bodyExtra?: ReactNode;
+  showNavigation?: boolean;
 }
 
 export function PromptDetailScreen({
@@ -64,6 +65,7 @@ export function PromptDetailScreen({
   confirmDelete = false,
   additionalMenuItems,
   bodyExtra,
+  showNavigation = true,
 }: PromptDetailScreenProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -99,29 +101,31 @@ export function PromptDetailScreen({
       data-deleted={deleted ? 'true' : 'false'}
       data-layout={layout}
     >
-      {layout === 'inspector' ? (
-        <div className="mf-prompt-inspector-bar">
-          <strong>提示词详情</strong>
-          <IconButton
-            className="mf-icon-button"
-            label="关闭提示词详情"
+      {showNavigation ? (
+        layout === 'inspector' ? (
+          <div className="mf-prompt-inspector-bar">
+            <strong>提示词详情</strong>
+            <IconButton
+              className="mf-icon-button"
+              label="关闭提示词详情"
+              onClick={() => void onBack()}
+              data-testid="detail-back"
+            >
+              <PanelRightClose aria-hidden="true" />
+            </IconButton>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            className="mf-detail-back"
             onClick={() => void onBack()}
             data-testid="detail-back"
+            icon={<ArrowLeft aria-hidden="true" />}
           >
-            <PanelRightClose aria-hidden="true" />
-          </IconButton>
-        </div>
-      ) : (
-        <Button
-          variant="ghost"
-          className="mf-detail-back"
-          onClick={() => void onBack()}
-          data-testid="detail-back"
-          icon={<ArrowLeft aria-hidden="true" />}
-        >
-          提示词
-        </Button>
-      )}
+            提示词
+          </Button>
+        )
+      ) : null}
 
       <header className="mf-prompt-detail-heading">
         <span className="mf-prompt-detail-icon" aria-hidden="true">
@@ -206,7 +210,7 @@ export function PromptDetailScreen({
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="mf-danger-action"
+                        tone="danger"
                         onSelect={requestDelete}
                         data-testid="detail-delete"
                       >

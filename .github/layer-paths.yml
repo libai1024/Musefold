@@ -8,9 +8,10 @@
 # Do not use brace expansion, negation, nested globs (src/**/*.ts), or
 # basename wildcards (tsconfig*). List exact files instead.
 #
-# Two mappings, two jobs:
-#   content / service / shell / docs  → 发布分层（热更新与部署车道）
-#   desktop                            → 桌面 E2E 门控（与发布分层解耦）
+# Two mapping families:
+#   content / service / shell / docs                 → 发布分层（热更新与部署车道）
+#   desktop / web_e2e / shared_visual / openapi /
+#   postgres_integration                             → 独立 CI 门禁
 # Desktop includes packages/** on purpose: ui / product-ui / contracts / domain
 # (and the rest) can affect the desktop renderer, so the E2E gate is conservative.
 # tests/repo/** is the source-check ratchet (docker context, file-size, boundaries).
@@ -71,6 +72,7 @@ content:
   - packages/product-ui/**
   - packages/contracts/**
   - packages/domain/**
+  - packages/cloud-client/**
   - packages/desktop-contracts/**
   - packages/update-protocol/**
   - tests/repo/**
@@ -81,6 +83,9 @@ service:
   - services/musefold-downloads/**
   - packages/contracts/**
   - packages/domain/**
+  - packages/cloud-client/**
+  - packages/new-api-client/**
+  - packages/server-crypto/**
   - tests/repo/**
 
 shell:
@@ -106,6 +111,45 @@ desktop:
   - tests/fixtures/**
   - requirements-test.txt
   - apps/desktop/electron-builder.yml
+
+web_e2e:
+  - apps/web/**
+  - packages/ui/**
+  - packages/product-ui/**
+  - packages/contracts/**
+  - packages/domain/**
+  - packages/cloud-client/**
+
+shared_visual:
+  - apps/web/**
+  - apps/desktop/src/**
+  - apps/desktop/electron.vite.config.ts
+  - apps/desktop/tsconfig.web.json
+  - packages/ui/**
+  - packages/product-ui/**
+  - packages/contracts/**
+  - packages/domain/**
+  - packages/cloud-client/**
+  - packages/desktop-contracts/**
+  - tests/e2e/**
+  - requirements-test.txt
+
+openapi:
+  - apps/web-api/**
+  - packages/contracts/**
+  - packages/domain/**
+  - packages/cloud-client/**
+  - packages/new-api-client/**
+  - packages/server-crypto/**
+
+postgres_integration:
+  - apps/web-api/**
+  - apps/generation-worker/**
+  - packages/contracts/**
+  - packages/domain/**
+  - packages/cloud-client/**
+  - packages/new-api-client/**
+  - packages/server-crypto/**
 
 docs:
   - docs/**

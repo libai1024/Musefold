@@ -133,6 +133,7 @@ export interface GenerationHistoryDetailScreenProps extends Omit<
   onReuse?: () => void;
   onRetry?: () => void;
   onCancel?: () => void;
+  onDownload?: () => void;
   onSavePrompt?: () => void;
   onDelete?: () => void;
   onRestore?: () => void;
@@ -151,6 +152,7 @@ export function GenerationHistoryDetailScreen({
   onReuse,
   onRetry,
   onCancel,
+  onDownload,
   onSavePrompt,
   onDelete,
   onRestore,
@@ -193,6 +195,7 @@ export function GenerationHistoryDetailScreen({
           onRetry={onRetry}
           onCancel={onCancel}
           downloadUrl={detail.imageUrl}
+          onDownload={onDownload}
           onSavePrompt={onSavePrompt}
           onCopyPrompt={onCopyPrompt}
           onDelete={onDelete}

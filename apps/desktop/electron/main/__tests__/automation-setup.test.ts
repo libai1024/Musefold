@@ -13,6 +13,7 @@ import { createAutomationSetupRoutes } from '../automation-setup';
 
 const account: AccountStatus = {
   loggedIn: true,
+  userId: '4',
   username: 'must-not-leak',
   serverUrl: 'https://private.example',
   isDefaultServer: false,
@@ -74,6 +75,7 @@ describe('automation safe setup routes', () => {
       activeProviderId: 'provider-ready',
     });
     const serialized = JSON.stringify(result);
+    expect(result).not.toHaveProperty('account.userId');
     expect(serialized).not.toContain('must-not-leak');
     expect(serialized).not.toContain('private.example');
     expect(serialized).not.toContain('secret-host.example');

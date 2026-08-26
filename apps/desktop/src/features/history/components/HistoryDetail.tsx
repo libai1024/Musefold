@@ -401,7 +401,7 @@ export function HistoryDetail({ onOpenLightbox }: { onOpenLightbox?: (id: string
             )}
             additionalDangerMenuItems={(close) => (
               <DropdownMenuItem
-                className="mf-danger-action"
+                tone="danger"
                 disabled={!record.imagePath}
                 onSelect={() => {
                   close();

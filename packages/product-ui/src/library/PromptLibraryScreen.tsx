@@ -18,6 +18,7 @@ export interface PromptLibraryScreenProps {
   query?: string;
   onQueryChange?: (value: string) => void;
   copiedId?: string | null;
+  selectedId?: string | null;
   onOpen?: (prompt: PromptListItemViewModel) => void;
   onCopy?: (prompt: PromptListItemViewModel) => void;
   onUse?: (prompt: PromptListItemViewModel) => void;
@@ -36,6 +37,7 @@ export function PromptLibraryScreen({
   query,
   onQueryChange,
   copiedId,
+  selectedId,
   onOpen,
   onCopy,
   onUse,
@@ -85,7 +87,9 @@ export function PromptLibraryScreen({
             />
           </div>
           <div className="mf-library-control-secondary">
-            <div className="mf-library-section-summary">{sectionSummary}</div>
+            {sectionSummary ? (
+              <div className="mf-library-section-summary">{sectionSummary}</div>
+            ) : null}
             {!showPageHeader ? headerAction : null}
           </div>
         </div>
@@ -112,6 +116,7 @@ export function PromptLibraryScreen({
                     <PromptListRow
                       key={prompt.id}
                       prompt={prompt}
+                      highlighted={selectedId === prompt.id}
                       copied={copiedId === prompt.id}
                       onOpen={onOpen ? () => onOpen(prompt) : undefined}
                       onCopy={onCopy ? () => onCopy(prompt) : undefined}

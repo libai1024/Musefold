@@ -3,7 +3,7 @@ tests/e2e/test_02_library.py — 提示词库验收（v0.3.2 重塑版）。
 
 页面契约：
   列表模式   960px 居中紧凑列表：置顶/全部分区、行尾「使用」、搜索 + 新建 + 溢出菜单
-  详情模式   880px 轻量详情页（返回 > 头部 + 菜单/主动作 > 正文 > 相关作品 > 详情）
+  详情模式   >760px 为共享 404px Inspector；<=760px 为单页详情
   编辑器     标题 + 正文必填，负面提示词折叠可选；脏检查二次确认
   已退役 UI  文件夹树 / 标签云 / 评分 / 智能集 / 批量操作（数据表与导入导出保留；
              folder/tag/smartSet IPC 已收缩，夹具改走 SQL 直写）
@@ -35,16 +35,30 @@ def test_library_shell_owns_the_only_page_title(app):
     tabs_box = app.page.locator(".mf-workspace-scope-tabs").bounding_box()
     search_box = app.page.get_by_test_id("library-search").bounding_box()
     create_box = app.page.get_by_test_id("library-new").bounding_box()
-    summary_box = app.page.locator(".mf-library-section-summary").bounding_box()
+    secondary_box = app.page.locator(".mf-library-control-secondary").bounding_box()
     toolbar_box = toolbar.bounding_box()
-    assert tabs_box and search_box and create_box and summary_box and toolbar_box
+    assert tabs_box and search_box and create_box and secondary_box and toolbar_box
+    assert app.page.locator(".mf-library-section-summary").count() == 0
     assert abs(tabs_box["y"] - search_box["y"]) <= 2
-    summary_center = summary_box["y"] + summary_box["height"] / 2
+    secondary_center = secondary_box["y"] + secondary_box["height"] / 2
     create_center = create_box["y"] + create_box["height"] / 2
-    assert abs(summary_center - create_center) <= 2
+    assert abs(secondary_center - create_center) <= 2
     assert create_box["y"] > search_box["y"] + search_box["height"]
     assert 340 <= search_box["width"] <= 400
     assert toolbar_box["y"] >= app.page.get_by_test_id("titlebar").bounding_box()["height"]
+
+
+def test_single_prompt_group_uses_scope_count_without_a_duplicate_heading(app):
+    mk(app, "唯一提示词")
+    goto_library(app)
+
+    total = len(app.api_ok("prompt.list"))
+    assert app.page.get_by_test_id("library-filter-all").inner_text().split() == [
+        "全部",
+        str(total),
+    ]
+    assert app.page.locator(".mf-library-section-summary").count() == 0
+    assert app.page.locator(".mf-section-heading").count() == 0
 
 
 def mk(app, title: str, content: str = "a photo of a cat", **kw):
@@ -87,11 +101,30 @@ def test_prompt_detail_opens_as_a_non_overlaying_inspector(app):
     assert inspector and prompt_list
     assert prompt_list["x"] + prompt_list["width"] <= inspector["x"] + 1
     assert selected_row.get_attribute("data-highlighted") == "true"
+    assert app.page.get_by_test_id("prompt-library-workspace").get_attribute(
+        "data-detail-open"
+    ) == "true"
+    assert app.page.get_by_test_id("prompt-inspector").get_attribute("aria-hidden") == "false"
     assert app.page.get_by_test_id("library-search").is_visible()
 
+    app.page.set_viewport_size({"width": 760, "height": 760})
+    app.page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('[data-testid=\"prompt-list\"]')).display === 'none'"
+    )
+    narrow_workspace = app.page.get_by_test_id("prompt-library-workspace").bounding_box()
+    narrow_inspector = app.page.get_by_test_id("prompt-inspector").bounding_box()
+    assert narrow_workspace and narrow_inspector
+    assert abs(narrow_workspace["width"] - narrow_inspector["width"]) <= 1
+
     app.page.get_by_test_id("detail-back").click()
-    app.page.get_by_test_id("prompt-inspector").wait_for(state="detached")
+    assert app.page.get_by_test_id("prompt-inspector").get_attribute("aria-hidden") == "true"
+    assert app.page.get_by_test_id("prompt-library-workspace").get_attribute(
+        "data-detail-open"
+    ) == "false"
     assert app.page.get_by_test_id("library-search").is_visible()
+    assert selected_row.get_by_test_id("prompt-row-open").evaluate(
+        "element => element === document.activeElement"
+    )
 
 
 def open_detail_menu(app):

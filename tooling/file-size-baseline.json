@@ -7,7 +7,7 @@
   "apps/desktop/electron/main/ipc/skill-runtime.ts": 796,
   "apps/web-api/src/modules/generation/service.ts": 788,
   "apps/desktop/electron/main/skill-import/github-reader.ts": 739,
-  "apps/web/src/fixture-runtime.ts": 712,
+  "apps/web/src/fixture-runtime.ts": 678,
   "apps/desktop/electron/system/import.ts": 706,
   "packages/cloud-client/src/index.ts": 675,
   "packages/core/src/db/design-scheme/repositories.ts": 644,

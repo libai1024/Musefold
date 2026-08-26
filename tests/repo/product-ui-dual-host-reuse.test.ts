@@ -10,9 +10,8 @@ import { REPO_ROOT } from '../../tooling/aliases.mjs';
  * 数量只增不减。统计只看生产源码（排除 __tests__/.test.），避免用测试文件刷数。
  */
 
-// v2.0(docs/v2.0/ui-design/11):空态 Hero 图形(WorkbenchBrand)按设计退役,
-// 品牌锁定区内置进 WorkbenchEmptyState,双端宿主不再各自注入 brand —— 基线 68 → 67。
-const BOTH_HOSTS_BASELINE = 67;
+// v2.0(ACC-04):AccountScreen / AccountActionFeedback 由 Web 与 Desktop 共同消费，基线 68 → 70。
+const BOTH_HOSTS_BASELINE = 70;
 
 const HOSTS = {
   web: 'apps/web/src',
@@ -48,7 +47,11 @@ function collectSymbols(root: string): Set<string> {
       let match = re.exec(source);
       while (match) {
         for (const raw of match[1].split(',')) {
-          const name = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim();
+          const name = raw
+            .trim()
+            .replace(/^type\s+/, '')
+            .split(/\s+as\s+/)[0]
+            .trim();
           if (name) symbols.add(name);
         }
         match = re.exec(source);
@@ -92,6 +95,7 @@ describe('V13-REUSE-02 product-ui 双端复用', () => {
       'useWorkbenchTimelineController',
       'useGeneratePageController',
       'SettingsWorkspace',
+      'PromptLibraryWorkspace',
     ];
     expect(required.filter((symbol) => !shared.includes(symbol))).toEqual([]);
   });
@@ -101,8 +105,6 @@ describe('V13-REUSE-02 product-ui 双端复用', () => {
     expect(source, 'composer 冲突面应使用 WorkbenchDraftConflictNotice').not.toContain(
       'data-testid="workbench-draft-conflict"',
     );
-    expect(source, '比例清单应取自 workbenchRatioOptions 共享目录').not.toMatch(
-      /label:\s*'方图'/,
-    );
+    expect(source, '比例清单应取自 workbenchRatioOptions 共享目录').not.toMatch(/label:\s*'方图'/);
   });
 });

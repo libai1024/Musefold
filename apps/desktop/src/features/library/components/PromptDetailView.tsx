@@ -1,6 +1,6 @@
 // src/features/library/components/PromptDetailView.tsx
-// 提示词详情 —— 880px 轻量详情页（v0.3.2 重塑，替代 320px 常驻检视器）。
-// 结构对齐方案详情：返回 > 头部（标记/标题/元信息 + 菜单 + 主动作）> 正文 > 相关作品 > 元数据。
+// 提示词详情 —— 同时服务 880px 详情页与方案中心同款 Inspector。
+// 结构：导航栏 > 头部（标记/标题/元信息 + 菜单 + 主动作）> 正文 > 相关作品 > 元数据。
 
 import { useState } from 'react';
 import { DropdownMenuItem } from '@musefold/ui';
@@ -30,11 +30,13 @@ export function PromptDetailView({
   onBack,
   onEdit,
   layout = 'page',
+  showNavigation = true,
 }: {
   prompt: DesktopLibraryPrompt;
   onBack: () => void;
   onEdit: (p: DesktopLibraryPrompt) => void;
   layout?: 'page' | 'inspector';
+  showNavigation?: boolean;
 }) {
   const copyContent = useLibraryStore((s) => s.copyContent);
   const togglePin = useLibraryStore((s) => s.togglePin);
@@ -101,6 +103,7 @@ export function PromptDetailView({
       <PromptDetailScreen
         prompt={detailViewModel}
         layout={layout}
+        showNavigation={showNavigation}
         onBack={onBack}
         onUse={use}
         onEdit={() => onEdit(prompt)}

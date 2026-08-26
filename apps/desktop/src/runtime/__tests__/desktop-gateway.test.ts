@@ -102,6 +102,7 @@ const emptyConnections: McpConnectionPage = { items: [] };
 
 const loggedOut: AccountStatus = {
   loggedIn: false,
+  userId: null,
   username: null,
   serverUrl: 'https://example',
   isDefaultServer: true,
@@ -115,6 +116,7 @@ const loggedOut: AccountStatus = {
 const loggedIn: AccountStatus = {
   ...loggedOut,
   loggedIn: true,
+  userId: '7',
   username: 'alice',
   quota: { value: 1000, at: 1 },
   health: 'ok',
@@ -733,17 +735,25 @@ describe('DesktopGateway other ports', () => {
     expect(fake.histories.has('h1')).toBe(false);
   });
 
-  it('maps account session methods that have a straight IPC counterpart', async () => {
+  it('maps account summary methods that have a straight IPC counterpart', async () => {
     const fake = createFakeApi();
     const gateway = createDesktopGateway(fake.api);
 
-    await expect(gateway.getSession()).rejects.toBeInstanceOf(DesktopGatewayError);
-    const session = await gateway.login({ username: 'alice', password: 'secret' });
-    expect(session.account.username).toBe('alice');
-    expect(session.csrfToken.length).toBeGreaterThanOrEqual(32);
-    await expect(gateway.getSession()).resolves.toMatchObject({ account: { username: 'alice' } });
+    await expect(gateway.getAccount()).rejects.toBeInstanceOf(DesktopGatewayError);
+    const account = await gateway.login({ username: 'alice', password: 'secret' });
+    expect(account).toMatchObject({ id: '7', username: 'alice' });
+    expect(account).not.toHaveProperty('csrfToken');
+    await expect(gateway.getAccount()).resolves.toMatchObject({ id: '7', username: 'alice' });
+
+    await expect(
+      gateway.redeem('CODE'),
+    ).resolves.toMatchObject({ account: { id: '7' }, creditedQuota: 100 });
     await gateway.logout();
-    expect(fake.logout).toHaveBeenCalled();
+    const registered = await gateway.register({ username: 'alice', password: 'secret' });
+    expect(registered).toMatchObject({ id: '7', username: 'alice' });
+    expect(fake.accountRegister).toHaveBeenCalledWith({ username: 'alice', password: 'secret' });
+    await gateway.logout();
+    expect(fake.logout).toHaveBeenCalledTimes(2);
 
     await expect(gateway.listConnections()).resolves.toEqual(emptyConnections);
     await expect(gateway.updateConnection('c1', { mode: 'ask_each_time' })).resolves.toEqual(

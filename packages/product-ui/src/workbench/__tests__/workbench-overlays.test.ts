@@ -12,6 +12,10 @@ const generationSettings = readFileSync(
   'utf8',
 );
 const ratioPicker = readFileSync(new URL('../WorkbenchRatioPicker.tsx', import.meta.url), 'utf8');
+const sessionContextMenu = readFileSync(
+  new URL('../WorkbenchSessionContextMenu.tsx', import.meta.url),
+  'utf8',
+);
 const productStyles = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 describe('workbench action overlays', () => {
@@ -21,6 +25,8 @@ describe('workbench action overlays', () => {
     );
     expect(turnActions).toContain('<DropdownMenuContent');
     expect(turnActions).toContain('<DropdownMenuItem');
+    expect(turnActions).toContain('<IconButton');
+    expect(turnActions).toContain('label="更多回合操作"');
     expect(turnActions).toContain('side="top"');
     expect(turnActions).toContain('data-testid={`${testId}-menu`}');
     expect(turnActions).not.toContain('mf-workbench-turn-menu-wrap');
@@ -32,6 +38,7 @@ describe('workbench action overlays', () => {
     expect(resultCard).toContain('<DropdownMenuTrigger asChild>');
     expect(resultCard).toContain('<DropdownMenuContent');
     expect(resultCard).toContain('<DropdownMenuItem');
+    expect(resultCard).toContain('className="w-[176px]"');
     expect(resultCard).toContain('data-testid="result-more-menu"');
     expect(resultCard).toContain('data-testid="result-open-folder"');
     expect(resultCard).toContain('data-testid="result-history"');
@@ -50,7 +57,7 @@ describe('workbench action overlays', () => {
     expect(contextMenu).not.toContain('document.addEventListener');
     expect(contextMenu).not.toContain('mf-workbench-context-separator');
     expect(productStyles).toContain('.mf-workbench-context-menu .mf-workbench-context-item');
-    expect(productStyles).toContain('width: min(728px, calc(100vw - 32px));');
+    expect(productStyles).toContain('width: min(304px, calc(100vw - 16px));');
   });
 
   it('keeps the floating composer in a stable primary workbench column', () => {
@@ -60,6 +67,20 @@ describe('workbench action overlays', () => {
     expect(productStyles).toContain('flex: 1;');
     expect(productStyles).toContain(".mf-workbench-composer[data-layout='floating'] {");
     expect(productStyles).toContain('inset: auto 0 0;');
+    expect(productStyles).toMatch(
+      /@media \(max-width: 680px\)[\s\S]*?\.mf-workbench-page \{[\s\S]*?height: 0;/,
+    );
+    expect(productStyles).toMatch(
+      /@media \(max-width: 680px\) and \(max-height: 560px\)[\s\S]*?data-variant='empty'[\s\S]*?height: 76px !important;/,
+    );
+  });
+
+  it('keeps the session context menu inside a modal drawer when opened from touch navigation', () => {
+    expect(sessionContextMenu).toContain(
+      'returnFocusTarget?.closest<HTMLElement>(".mf-ui-drawer-content")',
+    );
+    expect(sessionContextMenu).toContain('portalTarget.getBoundingClientRect()');
+    expect(sessionContextMenu).toContain('portalTarget,');
   });
 
   it('uses the shared popover for composer settings while retaining composer-safe placement', () => {

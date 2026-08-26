@@ -48,6 +48,7 @@ export interface GenerationHistoryDetailActionsProps {
   onRetry?: HistoryAction;
   onCancel?: HistoryAction;
   downloadUrl?: string | null;
+  onDownload?: HistoryAction;
   onSavePrompt?: HistoryAction;
   onCopyPrompt?: HistoryAction;
   onDelete?: HistoryAction;
@@ -72,6 +73,7 @@ export function GenerationHistoryDetailActions({
   onRetry,
   onCancel,
   downloadUrl,
+  onDownload,
   onSavePrompt,
   onCopyPrompt,
   onDelete,
@@ -235,12 +237,22 @@ export function GenerationHistoryDetailActions({
                   aria-label="生成记录操作"
                 >
                   {downloadUrl ? (
-                    <DropdownMenuItem asChild>
-                      <a href={downloadUrl} download data-testid="history-detail-download">
+                    onDownload ? (
+                      <DropdownMenuItem
+                        onSelect={() => runMenuAction(onDownload)}
+                        data-testid="history-detail-download"
+                      >
                         <ArrowDownToLine aria-hidden="true" />
                         下载
-                      </a>
-                    </DropdownMenuItem>
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem asChild>
+                        <a href={downloadUrl} download data-testid="history-detail-download">
+                          <ArrowDownToLine aria-hidden="true" />
+                          下载
+                        </a>
+                      </DropdownMenuItem>
+                    )
                   ) : null}
                   {downloadUrl && canShareImage() ? (
                     <DropdownMenuItem
@@ -277,7 +289,7 @@ export function GenerationHistoryDetailActions({
                   {renderMenuItems(additionalDangerMenuItems)}
                   {onDelete ? (
                     <DropdownMenuItem
-                      className="mf-danger-action"
+                      tone="danger"
                       disabled={disabled}
                       onSelect={requestDelete}
                       data-testid="history-detail-delete"

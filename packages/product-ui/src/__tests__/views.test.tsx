@@ -704,6 +704,11 @@ describe('shared product views', () => {
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('data-testid="conversation-hover-pin"');
     expect(html).toContain('data-testid="conversation-hover-archive"');
+    expect(html).toContain('data-has-pin-action="true"');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html.indexOf('data-testid="conversation-hover-pin"')).toBeLessThan(
+      html.indexOf('class="mf-ui-button mf-ui-button-unstyled mf-workbench-session-open"'),
+    );
     expect(html).toContain('正在生成的设计，正在生成');
   });
 
@@ -990,6 +995,8 @@ describe('shared product views', () => {
           generationAvailable: true,
           dataSourceLabel: 'Musefold Cloud',
         }}
+        onRedeem={async () => ({ tone: 'success', message: '兑换成功' })}
+        onRefresh={async () => undefined}
         onLogout={async () => undefined}
         testId="account-screen"
       />,

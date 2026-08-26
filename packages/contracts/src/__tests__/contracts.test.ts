@@ -5,6 +5,7 @@ import {
   mcpConnectionSchema,
   promptDocumentSchema,
   promptListQuerySchema,
+  registerRequestSchema,
   updateMcpConnectionSchema,
 } from "../index";
 
@@ -32,6 +33,16 @@ describe("cloud-safe contracts", () => {
     });
     expect(parsed).not.toHaveProperty("providerId");
     expect(parsed).not.toHaveProperty("imagePath");
+  });
+
+  it("keeps registration limited to username and password", () => {
+    expect(
+      registerRequestSchema.parse({
+        username: "musefold",
+        password: "secret-password",
+        displayName: "not persisted",
+      }),
+    ).toEqual({ username: "musefold", password: "secret-password" });
   });
 
   it("requires versioned prompt records with valid timestamps", () => {

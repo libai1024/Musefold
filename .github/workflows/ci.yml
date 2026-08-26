@@ -13,7 +13,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+  # Main push runs must stay ordered: cancelling one would lose its deploy-layer range.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -33,7 +34,13 @@ jobs:
       service: ${{ steps.detect.outputs.service }}
       shell: ${{ steps.detect.outputs.shell }}
       desktop: ${{ steps.detect.outputs.desktop }}
+      web_e2e: ${{ steps.detect.outputs.web_e2e }}
+      shared_visual: ${{ steps.detect.outputs.shared_visual }}
+      openapi: ${{ steps.detect.outputs.openapi }}
+      postgres_integration: ${{ steps.detect.outputs.postgres_integration }}
       docs_only: ${{ steps.detect.outputs.docs_only }}
+      base_sha: ${{ steps.detect.outputs.base_sha }}
+      head_sha: ${{ steps.detect.outputs.head_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,6 +55,28 @@ jobs:
       - name: Detect changed layers
         id: detect
         run: node .github/scripts/detect-layers.mjs
+
+      - name: Write deploy layer evidence
+        env:
+          BASE_SHA: ${{ steps.detect.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.detect.outputs.head_sha }}
+          CONTENT: ${{ steps.detect.outputs.content }}
+          SERVICE: ${{ steps.detect.outputs.service }}
+          DESKTOP: ${{ steps.detect.outputs.desktop }}
+          WEB_E2E: ${{ steps.detect.outputs.web_e2e }}
+          SHARED_VISUAL: ${{ steps.detect.outputs.shared_visual }}
+          OPENAPI: ${{ steps.detect.outputs.openapi }}
+          POSTGRES_INTEGRATION: ${{ steps.detect.outputs.postgres_integration }}
+        run: |
+          node -e 'const fs = require("node:fs"); const env = process.env; fs.mkdirSync("deploy-layer-evidence", { recursive: true }); fs.writeFileSync("deploy-layer-evidence/layers.json", JSON.stringify({ head_sha: env.HEAD_SHA, base_sha: env.BASE_SHA, content: env.CONTENT === "true", service: env.SERVICE === "true", desktop: env.DESKTOP === "true", web_e2e: env.WEB_E2E === "true", shared_visual: env.SHARED_VISUAL === "true", openapi: env.OPENAPI === "true", postgres_integration: env.POSTGRES_INTEGRATION === "true" }, null, 2) + "\n");'
+
+      - name: Upload deploy layer evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-layer-evidence
+          path: deploy-layer-evidence/layers.json
+          if-no-files-found: error
+          retention-days: 7
 
   check:
     name: Source checks
@@ -91,25 +120,24 @@ jobs:
         run: npx turbo run typecheck test build lint check:boundaries check:ui-boundaries ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
       - name: Expand/contract migration gate
+        env:
+          BASE_SHA: ${{ needs.changes.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.changes.outputs.head_sha }}
         run: |
           set -euo pipefail
-          BASE="${TURBO_SCM_BASE:-}"
-          if [ -z "$BASE" ]; then
-            BASE="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          if [ -z "$BASE_SHA" ] || [ -z "$HEAD_SHA" ]; then
+            echo "expand-contract: missing complete change range" >&2
+            exit 1
           fi
           files=()
-          if [ -n "$BASE" ]; then
-            while IFS= read -r file; do
-              [ -n "$file" ] && files+=("$file")
-            done < <(git diff --name-only "$BASE" HEAD -- apps/web-api/migrations || true)
-          fi
+          while IFS= read -r file; do
+            [ -n "$file" ] && files+=("$file")
+          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- apps/web-api/migrations)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "expand-contract: no migration files in this change"
             exit 0
           fi
           node scripts/deploy/expand-contract.mjs apps/web-api/migrations "${files[@]}"
-        env:
-          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
 
       - name: Dependency audit
         run: npm audit --json
@@ -119,3 +147,189 @@ jobs:
 
       - name: Local release preflight
         run: npm run release:preflight
+
+  web-production:
+    name: Web production boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.web_e2e == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build production Web output
+        run: npm run build --workspace @musefold/web
+
+      - name: Inspect production Web output
+        run: node apps/web/scripts/check-production-build.mjs
+
+  web-e2e:
+    name: Web E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.web_e2e == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run complete Web E2E suite
+        run: npm run test:e2e:web
+
+  openapi:
+    name: Local OpenAPI contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.openapi == 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: musefold
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d musefold"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout target SHA
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Create application database roles
+        run: |
+          docker exec "${{ job.services.postgres.id }}" psql -U postgres -d musefold -v ON_ERROR_STOP=1 -c "CREATE ROLE musefold_app LOGIN PASSWORD 'musefold_app';"
+          docker exec "${{ job.services.postgres.id }}" psql -U postgres -d musefold -v ON_ERROR_STOP=1 -c "CREATE ROLE musefold_worker LOGIN PASSWORD 'musefold_worker';"
+
+      - name: Migrate target database
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55432/musefold
+        run: npm run db:migrate:v1.1
+
+      - name: Start target Web API and check local OpenAPI
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55432/musefold
+          OPENAPI_ENABLED: 'true'
+          LOG_LEVEL: silent
+          MUSEFOLD_OPENAPI_URL: http://127.0.0.1:60160/api/musefold/v1/openapi.json
+        run: |
+          set -euo pipefail
+          npm run start --workspace @musefold/web-api > "$RUNNER_TEMP/web-api.log" 2>&1 &
+          API_PID=$!
+          trap 'kill "$API_PID" 2>/dev/null || true; wait "$API_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$MUSEFOLD_OPENAPI_URL" >/dev/null; then
+              npm run openapi:check
+              exit 0
+            fi
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              cat "$RUNNER_TEMP/web-api.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/web-api.log" >&2
+          exit 1
+
+  postgres-integration:
+    name: PostgreSQL integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.postgres_integration == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run testcontainers PostgreSQL integration
+        run: npm run test:integration:v1.1
+
+  shared-visual:
+    name: Shared UI visual contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: changes
+    if: needs.changes.outputs.shared_visual == 'true'
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements-test.txt
+
+      - name: Install Linux GUI deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xclip
+          sudo --preserve-env=PATH "$(which python)" -m playwright install-deps
+          npx playwright install chromium
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild
+
+      - name: Build desktop app
+        run: npm run build
+
+      - name: Run shared visual contract
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" npm run test:visual:shared

@@ -83,23 +83,20 @@ export function WorkbenchEmptyState({
             );
             return (
               <div className="mf-workbench-direction-row" key={suggestion}>
-                <div className="mf-workbench-direction-track">
+                <Button
+                  unstyled
+                  type="button"
+                  className="mf-workbench-direction-hit"
+                  onClick={() => onSelectSuggestion?.(suggestion)}
+                  data-testid="generation-example"
+                >
+                  <span className="mf-sr-only">{suggestion}</span>
+                </Button>
+                <div className="mf-workbench-direction-track" aria-hidden="true">
                   {sequence.concat(sequence).map((text, copyIndex) => (
-                    <Button
-                      unstyled
-                      type="button"
-                      className="mf-workbench-direction-item"
-                      key={copyIndex}
-                      onClick={() => onSelectSuggestion?.(suggestion)}
-                      title={copyIndex === 0 ? suggestion : undefined}
-                      tabIndex={copyIndex === 0 ? undefined : -1}
-                      aria-hidden={copyIndex === 0 ? undefined : true}
-                      data-testid={
-                        copyIndex === 0 ? "generation-example" : undefined
-                      }
-                    >
+                    <span className="mf-workbench-direction-item" key={copyIndex}>
                       {text}
-                    </Button>
+                    </span>
                   ))}
                 </div>
               </div>

@@ -35,7 +35,7 @@ async function openCompactSidebar(page: Page): Promise<void> {
       ),
   );
   const toggle = page.getByRole('button', { name: '展开侧栏' });
-  if ((await rail.getAttribute('data-open')) !== 'true') {
+  if ((await rail.count()) === 0) {
     await toggle.click();
   }
   await expect(rail).toHaveAttribute('data-open', 'true');
@@ -158,7 +158,7 @@ test('touch targets meet the mobile size contract', async ({ page }) => {
     const box = (await button.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
   }
-  const scrim = page.getByTestId('sidebar-scrim');
+  const scrim = page.locator('.mf-ui-dialog-overlay');
   const scrimBox = await scrim.boundingBox();
   expect(scrimBox).not.toBeNull();
   await scrim.click({ position: { x: scrimBox!.width - 8, y: 32 } });
@@ -291,6 +291,7 @@ test('left drawer holds functions, conversations and account; main stays the com
   expect(gutters.modeOptionHeight).toBeGreaterThanOrEqual(44);
   expect(gutters.scrollWidth).toBeLessThanOrEqual(gutters.clientWidth + 1);
 
+  await page.getByRole('button', { name: '返回设置' }).click();
   await page
     .getByRole('navigation', { name: '设置分区' })
     .getByRole('button', { name: 'Musefold 账号' })

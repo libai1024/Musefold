@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import type { AccountSession, GenerationJob, McpConnectionPage } from '@musefold/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { GenerationJob, McpConnectionPage } from '@musefold/contracts';
 import {
   formatAccountPoints,
   getProductCapabilities,
   type PlatformServices,
 } from '@musefold/domain';
-import { ProductSidebarLayout, useGeneratePageController } from '@musefold/product-ui';
+import {
+  ProductSidebarLayout,
+  clearMusefoldUserQueryCache,
+  createGenerationTerminalObserver,
+  musefoldQueryKeys,
+  useAccountQueryController,
+  useGeneratePageController,
+} from '@musefold/product-ui';
 import { WebSidebar, WebTopbar, type WebView } from './layout/WebNavigation';
 import { useKeyboardInset } from './layout/useKeyboardInset';
 import { WebGatewayError, type WebGateway } from './runtime';
@@ -14,12 +21,7 @@ import { GenerateView } from './views/GenerateView';
 import { HistoryView } from './views/HistoryView';
 import { PromptLibraryView } from './views/PromptLibraryView';
 import { WebSettingsView, type WebSettingsSection } from './views/SettingsView';
-import {
-  ApprovalScreen,
-  FailureScreen,
-  LoadingScreen,
-  LoginScreen,
-} from './screens/BootScreens';
+import { ApprovalScreen, FailureScreen, LoadingScreen, LoginScreen } from './screens/BootScreens';
 import { loadWebWorkspace } from './load-workspace';
 import { replaceWorkbenchSessionUrl } from './workbench-session-url';
 import {
@@ -44,12 +46,77 @@ export function App({ gateway, platform }: AppProps) {
   const [view, setView] = useState<View>('generate');
   const [settingsSection, setSettingsSection] = useState<WebSettingsSection>('account');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [session, setSession] = useState<AccountSession | null>(null);
   const [promptQuery, setPromptQuery] = useState('');
-  const [connections, setConnections] = useState<McpConnectionPage>({ items: [] });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
+  const enterAuthState = useCallback(() => {
+    clearMusefoldUserQueryCache(queryClient);
+    setAuthRequired(true);
+  }, [queryClient]);
+  const handleAccountRefreshError = useCallback(
+    (error: unknown) => {
+      if (
+        error instanceof WebGatewayError &&
+        ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
+      ) {
+        enterAuthState();
+      }
+    },
+    [enterAuthState],
+  );
+  const accountQuery = useAccountQueryController({
+    account: gateway,
+    enabled: !authRequired,
+    onRefreshError: handleAccountRefreshError,
+  });
+  const account = accountQuery.account;
+  const [accountAction, setAccountAction] = useState<'redeem' | null>(null);
+  const handleAccountActionError = useCallback(
+    (error: unknown) => {
+      if (
+        error instanceof WebGatewayError &&
+        ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
+      ) {
+        enterAuthState();
+      }
+    },
+    [enterAuthState],
+  );
+  const redeemAccountCode = useCallback(
+    async (code: string) => {
+      setAccountAction('redeem');
+      try {
+        const result = await gateway.redeem(code);
+        await accountQuery.refresh();
+        return result.creditedQuota;
+      } catch (error) {
+        handleAccountActionError(error);
+        throw error;
+      } finally {
+        setAccountAction(null);
+      }
+    },
+    [accountQuery.refresh, gateway, handleAccountActionError],
+  );
+  const connectionsQuery = useQuery<McpConnectionPage>({
+    queryKey: musefoldQueryKeys.connections.all,
+    queryFn: () => gateway.listConnections(),
+    enabled: Boolean(account) && !authRequired,
+  });
+  const connections = connectionsQuery.data ?? { items: [] };
+  const terminalObserver = useRef(
+    createGenerationTerminalObserver(() => {
+      void accountQuery.scheduleRefresh();
+    }),
+  );
+  const handleHistoryJob = useCallback(
+    (job: GenerationJob) => {
+      patchHistoryJob(queryClient, job);
+      terminalObserver.current.observe(job);
+    },
+    [queryClient],
+  );
   const approvalRequest = useMemo(() => {
     const match = window.location.pathname.match(/\/approvals\/([^/]+)$/);
     const token = new URLSearchParams(window.location.search).get('token');
@@ -64,14 +131,14 @@ export function App({ gateway, platform }: AppProps) {
     prompts: gateway,
     history: gateway,
     platform,
-    listEnabled: Boolean(session),
-    canGenerate: Boolean(session?.account.canGenerate && capabilities.generation),
+    listEnabled: Boolean(account),
+    canGenerate: Boolean(account?.canGenerate && capabilities.generation),
     isConflictError: (error) =>
       error instanceof WebGatewayError && error.code === 'WORKBENCH_VERSION_CONFLICT',
     onShowGenerate: () => setView('generate'),
     onSessionUrlChange: replaceWorkbenchSessionUrl,
-    onAuthRequired: () => setAuthRequired(true),
-    onHistoryJob: (job) => patchHistoryJob(queryClient, job),
+    onAuthRequired: enterAuthState,
+    onHistoryJob: handleHistoryJob,
     onLibraryPrompt: (prompt) => patchLibraryPrompt(queryClient, prompt),
   });
 
@@ -92,9 +159,7 @@ export function App({ gateway, platform }: AppProps) {
     setLoadError(null);
     try {
       const snapshot = await loadWebWorkspace(gateway);
-      setSession(snapshot.session);
       hydrateWorkspaceLists(queryClient, snapshot.prompts, snapshot.history);
-      setConnections(snapshot.connections);
       generate.hydrate({
         sessions: snapshot.workbenchPage.items,
         selected: snapshot.selected,
@@ -102,13 +167,12 @@ export function App({ gateway, platform }: AppProps) {
         sessionJobs: snapshot.sessionJobs,
         prompts: snapshot.prompts.items,
       });
-      setAuthRequired(false);
     } catch (error) {
       if (
         error instanceof WebGatewayError &&
         ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
       ) {
-        setAuthRequired(true);
+        enterAuthState();
       } else {
         setLoadError(error instanceof Error ? error.message : '无法载入 Musefold');
       }
@@ -118,11 +182,21 @@ export function App({ gateway, platform }: AppProps) {
   };
 
   useEffect(() => {
+    const queryError = accountQuery.error ?? connectionsQuery.error;
+    if (
+      queryError instanceof WebGatewayError &&
+      ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(queryError.code)
+    ) {
+      enterAuthState();
+    }
+  }, [accountQuery.error, connectionsQuery.error, enterAuthState]);
+
+  useEffect(() => {
     void loadWorkspace();
   }, [gateway]);
 
   useEffect(() => {
-    if (!session || !approvalRequest) return;
+    if (!account || !approvalRequest) return;
     setApprovalLoading(true);
     gateway
       .getGeneration(approvalRequest.id)
@@ -135,11 +209,34 @@ export function App({ gateway, platform }: AppProps) {
         generate.setActionError(error instanceof Error ? error.message : '审批任务无法载入'),
       )
       .finally(() => setApprovalLoading(false));
-  }, [approvalRequest, gateway, session]);
+  }, [account, approvalRequest, gateway]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading || accountQuery.loading) return <LoadingScreen />;
   if (authRequired) {
-    return <LoginScreen gateway={gateway} onAuthenticated={() => void loadWorkspace()} />;
+    return (
+      <LoginScreen
+        gateway={gateway}
+        onAuthenticated={() => {
+          setView('generate');
+          void accountQuery.refresh().then(
+            () => {
+              setAuthRequired(false);
+              void loadWorkspace();
+            },
+            (error) => {
+              if (
+                error instanceof WebGatewayError &&
+                ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
+              ) {
+                enterAuthState();
+              } else {
+                setLoadError(error instanceof Error ? error.message : '无法载入 Musefold');
+              }
+            },
+          );
+        }}
+      />
+    );
   }
   if (approvalRequest) {
     return (
@@ -155,13 +252,15 @@ export function App({ gateway, platform }: AppProps) {
             setApprovalJob(next);
             generate.upsertJob(next);
           } catch (error) {
-            generate.setActionError(error instanceof Error ? error.message : '审批失败，请稍后重试');
+            generate.setActionError(
+              error instanceof Error ? error.message : '审批失败，请稍后重试',
+            );
           }
         }}
       />
     );
   }
-  if (loadError || !session) {
+  if (loadError || !account) {
     return (
       <FailureScreen message={loadError ?? '会话不可用'} onRetry={() => void loadWorkspace()} />
     );
@@ -176,7 +275,7 @@ export function App({ gateway, platform }: AppProps) {
         <WebSidebar
           view={view}
           settingsSection={settingsSection}
-          accountName={session.account.displayName ?? session.account.username}
+          accountName={account.displayName ?? account.username}
           mode={gateway.mode}
           promptCount={generate.libraryItems.length}
           onNavigate={openProductView}
@@ -196,14 +295,11 @@ export function App({ gateway, platform }: AppProps) {
     >
       {/* app-main 类名保留：680px 媒体块的 100dvh / 键盘 inset 规则挂在它上（批次 5 收口）。
           v2.0 Phase B:背景上移到 MainView surface(bg-work),main 自身保持透明。 */}
-      <main
-        className="app-main flex min-h-0 min-w-0 flex-1 flex-col"
-        data-ui-register="operate"
-      >
+      <main className="app-main flex min-h-0 min-w-0 flex-1 flex-col" data-ui-register="operate">
         {view !== 'settings' ? (
           <WebTopbar
             view={view}
-            quota={`${formatAccountPoints(session.account.quota)} 积分`}
+            quota={`${formatAccountPoints(account.quota)} 积分`}
             mode={gateway.mode}
             workbenchTitle={generate.session?.title ?? null}
             workbenchSession={
@@ -248,7 +344,10 @@ export function App({ gateway, platform }: AppProps) {
             platform={platform}
             onReuse={(nextJob) => void generate.reuse(nextJob)}
             onSavePrompt={generate.createPromptFromGeneration}
-            onJobChanged={generate.upsertJob}
+            onJobChanged={(job) => {
+              generate.upsertJob(job);
+              handleHistoryJob(job);
+            }}
             onJobRemoved={(id) => {
               dropHistoryJob(queryClient, id);
               generate.dropJob(id);
@@ -261,12 +360,19 @@ export function App({ gateway, platform }: AppProps) {
             onSectionChange={setSettingsSection}
             onBack={() => openProductView('generate')}
             gateway={gateway}
-            session={session}
+            account={account}
+            dataSourceLabel={gateway.mode === 'fixture' ? '开发预览' : 'Musefold Cloud'}
+            onRedeem={redeemAccountCode}
+            onRefresh={accountQuery.refresh}
+            redeemBusy={accountAction === 'redeem'}
+            refreshBusy={accountQuery.refreshing}
             connections={connections}
-            onConnectionsChange={setConnections}
-            onLoggedOut={() => {
-              setSession(null);
-              setAuthRequired(true);
+            onConnectionsChange={(next) =>
+              queryClient.setQueryData(musefoldQueryKeys.connections.all, next)
+            }
+            onLogout={async () => {
+              await gateway.logout();
+              enterAuthState();
             }}
           />
         )}

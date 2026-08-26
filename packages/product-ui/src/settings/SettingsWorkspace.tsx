@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from 'react';
-import { Search, X } from '@musefold/ui/icons';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ArrowLeft, Search, X } from '@musefold/ui/icons';
 import { Input } from '@musefold/ui';
 
 export interface SettingsNavigationItem {
@@ -145,18 +145,34 @@ export function SettingsWorkspace({
   className,
   testId,
 }: SettingsWorkspaceProps) {
+  const [phoneSectionOpen, setPhoneSectionOpen] = useState(false);
   const filteredGroups = useMemo(
     () => filterSettingsNavigationGroups(groups, searchValue),
     [groups, searchValue],
   );
+  const activeSectionLabel = useMemo(
+    () =>
+      groups.flatMap((group) => group.items).find((item) => item.id === activeSection)?.label ??
+      '设置',
+    [activeSection, groups],
+  );
+  const selectSection = (sectionId: string) => {
+    onSectionChange(sectionId);
+    setPhoneSectionOpen(true);
+  };
 
   return (
     <div
       className={`mf-settings-workspace${className ? ` ${className}` : ''}`}
+      data-phone-section-open={phoneSectionOpen || undefined}
       data-testid={testId}
       data-ui-register="operate"
     >
-      <aside className="mf-settings-sidebar" aria-label="设置导航">
+      <aside
+        className="mf-settings-sidebar"
+        aria-label="设置导航"
+        data-testid="settings-navigation-page"
+      >
         <header className="mf-settings-sidebar-header">
           {headerAction}
           <SearchField
@@ -170,7 +186,7 @@ export function SettingsWorkspace({
           <NavigationGroups
             groups={filteredGroups}
             activeSection={activeSection}
-            onSectionChange={onSectionChange}
+            onSectionChange={selectSection}
           />
         </nav>
         {navFooter ? <footer className="mf-settings-sidebar-footer">{navFooter}</footer> : null}
@@ -204,7 +220,7 @@ export function SettingsWorkspace({
                 aria-current={item.id === activeSection ? 'page' : undefined}
                 data-testid={`settings-mobile-section-${item.id}`}
                 key={item.id}
-                onClick={() => onSectionChange(item.id)}
+                onClick={() => selectSection(item.id)}
               >
                 {item.label}
               </button>
@@ -212,7 +228,20 @@ export function SettingsWorkspace({
         </div>
       </nav>
 
-      <div className="mf-settings-pane">{children}</div>
+      <div className="mf-settings-pane">
+        <header className="mf-settings-phone-section-header" data-testid="settings-phone-header">
+          <button
+            type="button"
+            className="mf-settings-phone-back"
+            onClick={() => setPhoneSectionOpen(false)}
+          >
+            <ArrowLeft aria-hidden="true" />
+            返回设置
+          </button>
+          <strong>{activeSectionLabel}</strong>
+        </header>
+        {children}
+      </div>
     </div>
   );
 }

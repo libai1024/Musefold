@@ -120,7 +120,7 @@ def open_delete_dialog(app, trigger):
     trigger.click()
     menu = wait_for_menu(app)
     delete_item = menu.get_by_test_id("history-detail-delete")
-    assert "mf-danger-action" in (delete_item.get_attribute("class") or "")
+    assert delete_item.get_attribute("data-tone") == "danger"
     delete_item.click()
     dialog = app.page.get_by_test_id("history-detail-delete-dialog")
     dialog.wait_for()

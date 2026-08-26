@@ -15,9 +15,7 @@ export const loginRequestSchema = z.object({
   password: z.string().min(1).max(256),
 });
 
-export const registerRequestSchema = loginRequestSchema.extend({
-  displayName: z.string().trim().min(1).max(80).optional(),
-});
+export const registerRequestSchema = loginRequestSchema;
 
 export const accountSessionSchema = z.object({
   account: accountSummarySchema,

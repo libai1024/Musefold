@@ -9,7 +9,7 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
     inputs:
       sha:
@@ -32,6 +32,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
@@ -43,32 +44,13 @@ jobs:
       (
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push' &&
-        (
-          github.event.workflow_run.head_branch == 'main' ||
-          github.event.workflow_run.head_branch == 'master'
-        )
+        github.event.workflow_run.head_branch == 'main'
       )
     steps:
-      - name: Resolve sha
-        id: ref
-        run: |
-          set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            SHA="${{ inputs.sha }}"
-            SHA="${SHA:-${GITHUB_SHA}}"
-          else
-            SHA="${{ github.event.workflow_run.head_sha }}"
-          fi
-          if ! printf '%s' "$SHA" | grep -Eq '^[0-9a-f]{7,40}$'; then
-            echo "refusing non-hex sha: $SHA" >&2
-            exit 1
-          fi
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout
+      - name: Checkout main history
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.ref.outputs.sha }}
+          ref: main
           fetch-depth: 0
 
       - name: Setup Node (runner-local, not host-wide)
@@ -76,31 +58,122 @@ jobs:
         with:
           node-version: 24
 
-      - name: Detect layers
-        id: detect
+      - name: Resolve and verify deploy SHA
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ inputs.sha }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          SHA="${{ steps.ref.outputs.sha }}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ inputs.layers }}" ] && [ "${{ inputs.layers }}" != "all" ]; then
-            if [ "${{ inputs.layers }}" = "content" ]; then
-              echo "content=true" >> "$GITHUB_OUTPUT"
-              echo "service=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "content=false" >> "$GITHUB_OUTPUT"
-              echo "service=true" >> "$GITHUB_OUTPUT"
+          git fetch --force origin main:refs/remotes/origin/main
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            REQUESTED="${REQUESTED_SHA:-origin/main}"
+            if ! SHA="$(git rev-parse --verify "${REQUESTED}^{commit}" 2>/dev/null)"; then
+              echo "refusing unresolved deploy sha: $REQUESTED" >&2
+              exit 1
             fi
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            if ! git merge-base --is-ancestor "$SHA" origin/main; then
+              echo "refusing sha outside origin/main: $SHA" >&2
+              exit 1
+            fi
+            SHA="$SHA" node - <<'NODE'
+            const expectedSha = process.env.SHA;
+            const url = new URL(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/runs`);
+            url.searchParams.set('event', 'push');
+            url.searchParams.set('branch', 'main');
+            url.searchParams.set('status', 'completed');
+            url.searchParams.set('head_sha', expectedSha);
+            url.searchParams.set('per_page', '100');
+            const response = await fetch(url, {
+              headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: `Bearer ${process.env.GH_TOKEN}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
+            });
+            if (!response.ok) throw new Error(`GitHub Actions API returned ${response.status}`);
+            const body = await response.json();
+            const eligible = body.workflow_runs?.some(
+              (run) =>
+                run.name === 'CI' &&
+                run.event === 'push' &&
+                run.head_branch === 'main' &&
+                run.head_sha === expectedSha &&
+                run.status === 'completed' &&
+                run.conclusion === 'success',
+            );
+            if (!eligible) throw new Error(`no successful completed CI push run on main for ${expectedSha}`);
+            NODE
+          else
+            SHA="$WORKFLOW_RUN_SHA"
+            if ! git rev-parse --verify "${SHA}^{commit}" >/dev/null 2>&1; then
+              echo "refusing unresolved workflow_run sha: $SHA" >&2
+              exit 1
+            fi
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Download triggering CI layer evidence
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-layer-evidence
+          path: deploy-layer-evidence
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Resolve deploy layers
+        id: detect
+        env:
+          EXPECTED_SHA: ${{ steps.ref.outputs.sha }}
+          REQUESTED_LAYERS: ${{ inputs.layers }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+            EVIDENCE=deploy-layer-evidence/layers.json
+            node -e '
+              const fs = require("node:fs");
+              const evidence = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              const expectedSha = process.env.EXPECTED_SHA;
+              if (evidence.head_sha !== expectedSha) {
+                throw new Error(`deploy evidence head_sha ${evidence.head_sha} does not match ${expectedSha}`);
+              }
+              for (const key of ["content", "service"]) {
+                if (typeof evidence[key] !== "boolean") throw new Error(`invalid deploy evidence ${key}`);
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${evidence[key]}\n`);
+              }
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, "docs_only=false\n");
+            ' "$EVIDENCE"
             exit 0
           fi
-          CHANGED="${RUNNER_TEMP}/changed.txt"
-          if git rev-parse --verify "${SHA}^" >/dev/null 2>&1; then
-            git diff --name-only "${SHA}^" "${SHA}" > "$CHANGED"
-            node .github/scripts/detect-layers.mjs --files-from "$CHANGED"
-          else
-            echo "content=true" >> "$GITHUB_OUTPUT"
-            echo "service=true" >> "$GITHUB_OUTPUT"
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-          fi
+          case "${REQUESTED_LAYERS:-all}" in
+            all)
+              echo "content=true" >> "$GITHUB_OUTPUT"
+              echo "service=true" >> "$GITHUB_OUTPUT"
+              ;;
+            content)
+              echo "content=true" >> "$GITHUB_OUTPUT"
+              echo "service=false" >> "$GITHUB_OUTPUT"
+              ;;
+            service)
+              echo "content=false" >> "$GITHUB_OUTPUT"
+              echo "service=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "refusing invalid layers: $REQUESTED_LAYERS" >&2
+              exit 1
+              ;;
+          esac
+          echo "docs_only=false" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout verified deploy SHA
+        run: git checkout --detach "${{ steps.ref.outputs.sha }}"
+
+      - name: Setup Node (runner-local, not host-wide)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
       - name: Deploy
         if: steps.detect.outputs.docs_only != 'true' && (steps.detect.outputs.content == 'true' || steps.detect.outputs.service == 'true')

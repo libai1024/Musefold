@@ -19,10 +19,14 @@ def test_preload_api_bridge_available(app):
     shape = app.page.evaluate(
         "() => Object.keys(window.api ?? {}).sort()"
     )
-    for ns in ("prompt", "skillRuntime", "designScheme",
-               "provider", "settings", "image", "history", "system"):
+    for ns in (
+        "account", "aiConnection", "automation", "cloudConnections", "cloudSync",
+        "designScheme", "diagnostics", "history", "image", "log", "pet", "prompt",
+        "provider", "searchHistory", "share", "skillRuntime", "system", "updater",
+        "window", "workbenchSession",
+    ):
         assert ns in shape, f"window.api.{ns} missing (got {shape})"
-    for retired in ("folder", "tag", "smartSet"):
+    for retired in ("folder", "tag", "smartSet", "settings"):
         assert retired not in shape, f"退役命名空间 window.api.{retired} 仍在暴露"
 
 

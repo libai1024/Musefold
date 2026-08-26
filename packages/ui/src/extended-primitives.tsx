@@ -377,14 +377,14 @@ export const DropdownMenuSubContent = React.forwardRef<
 
 export const DropdownMenuItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
-    inset?: boolean;
-  }
->(function DropdownMenuItem({ className, inset, ...props }, ref) {
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> &
+    { inset?: boolean; tone?: 'danger' }
+>(function DropdownMenuItem({ className, inset, tone, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.Item
       ref={ref}
       data-inset={inset || undefined}
+      data-tone={tone}
       className={mergeClassNames('mf-ui-dropdown-item', className)}
       {...props}
     />

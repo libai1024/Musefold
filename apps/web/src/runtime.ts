@@ -1,5 +1,5 @@
 import {
-  type AccountSession,
+  type AccountSummary,
   type ApiErrorCode,
   type CreateGenerationInput,
   type GenerationHistoryPage,
@@ -11,6 +11,8 @@ import {
   type PromptPage,
   type PromptUseInput,
   type PromptUseResult,
+  type RedeemResult,
+  type RegisterRequest,
   type UpdatePromptDocument,
   type CreateWorkbenchSession,
   type UpdateWorkbenchSession,
@@ -63,12 +65,20 @@ class HttpWebGateway implements WebGateway {
     this.client = createMusefoldCloudClient(baseUrl);
   }
 
-  getSession(): Promise<AccountSession> {
-    return this.call(() => this.client.getSession());
+  async getAccount(): Promise<AccountSummary> {
+    return (await this.call(() => this.client.getSession())).account;
   }
 
-  login(input: LoginRequest): Promise<AccountSession> {
-    return this.call(() => this.client.login(input));
+  async login(input: LoginRequest): Promise<AccountSummary> {
+    return (await this.call(() => this.client.login(input))).account;
+  }
+
+  async register(input: RegisterRequest): Promise<AccountSummary> {
+    return (await this.call(() => this.client.register(input))).account;
+  }
+
+  redeem(code: string): Promise<RedeemResult> {
+    return this.call(() => this.client.redeem(code));
   }
 
   async logout(): Promise<void> {
@@ -196,12 +206,20 @@ class DeferredFixtureWebGateway implements WebGateway {
     ({ FixtureWebGateway }) => new FixtureWebGateway(),
   );
 
-  async getSession(): Promise<AccountSession> {
-    return (await this.delegate).getSession();
+  async getAccount(): Promise<AccountSummary> {
+    return (await this.delegate).getAccount();
   }
 
-  async login(input: LoginRequest): Promise<AccountSession> {
+  async login(input: LoginRequest): Promise<AccountSummary> {
     return (await this.delegate).login(input);
+  }
+
+  async register(input: RegisterRequest): Promise<AccountSummary> {
+    return (await this.delegate).register(input);
+  }
+
+  async redeem(code: string): Promise<RedeemResult> {
+    return (await this.delegate).redeem(code);
   }
 
   async logout(): Promise<void> {

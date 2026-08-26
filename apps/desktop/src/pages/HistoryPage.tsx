@@ -89,7 +89,7 @@ export function HistoryPage() {
         refreshing={loading}
         showPageHeader={false}
         onRefresh={() => void refetch()}
-        className="mf-history-screen-workspace"
+        className={`mf-history-screen-workspace${inspectorOpen ? ' mf-history-screen-workspace-expanded' : ''}`}
         headerAction={
           <>
             <Button

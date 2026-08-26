@@ -253,7 +253,7 @@ export function WorkbenchGenerationResultCard({
               side="top"
               align="end"
               sideOffset={6}
-              className="w-[144px]"
+              className="w-[176px]"
               aria-label="图片操作"
               data-testid="result-more-menu"
             >

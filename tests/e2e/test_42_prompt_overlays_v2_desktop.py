@@ -133,9 +133,7 @@ def test_prompt_header_and_detail_menus_use_shared_dropdown(app):
     light_detail = menu_style(detail_menu)
     assert light_detail["backgroundColor"] == "rgb(253, 252, 249)"
     assert light_detail["borderRadius"] == "8px"
-    assert "mf-danger-action" in (
-        detail_menu.get_by_test_id("detail-delete").get_attribute("class") or ""
-    )
+    assert detail_menu.get_by_test_id("detail-delete").get_attribute("data-tone") == "danger"
     capture(app, "phase-c-prompt-detail-menu-light-1440x900.png")
     assert_menu_keyboard_contract(app, detail_trigger, detail_menu)
 

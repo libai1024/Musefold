@@ -144,10 +144,15 @@ async function captureCanonicalSurface(
     if (name === "account-1440-light-comfortable") {
       const accountSummary = page.getByTestId("account-summary-panel");
       await accountSummary
-        .locator(".mf-account-summary-footer")
+        .locator(".mf-account-summary-header-action")
         .evaluate((element) => {
           (element as HTMLElement).style.display = "none";
         });
+      await accountSummary.locator("small").evaluateAll((elements) => {
+        for (const element of elements) {
+          (element as HTMLElement).style.display = "none";
+        }
+      });
       await accountSummary.screenshot({
         path: join(outputDir, "shared-account-summary-1440x900.png"),
       });
@@ -178,7 +183,7 @@ async function openCompactSidebar(page: Page): Promise<void> {
       ),
   );
   const toggle = page.getByRole("button", { name: "展开侧栏" });
-  if ((await rail.getAttribute("data-open")) !== "true") {
+  if ((await rail.count()) === 0) {
     await toggle.click();
   }
   await expect(rail).toHaveAttribute("data-open", "true");
@@ -299,6 +304,11 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
     testInfo,
     "history-detail-1440-light-comfortable",
     "history-detail",
+  );
+  await page.getByTestId("history-detail-close").click();
+  await expect(page.getByTestId("history-workspace")).toHaveAttribute(
+    "data-detail-open",
+    "false",
   );
 
   await page.setViewportSize({ width: 390, height: 844 });

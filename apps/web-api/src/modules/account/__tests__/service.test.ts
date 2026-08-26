@@ -83,6 +83,15 @@ describe("account application service", () => {
     expect(credentials.put).toHaveBeenCalledWith(7, { apiKey: "sk-test" }, 91);
   });
 
+  it("registers with username and password only before creating the session", async () => {
+    const { service, client } = fixture();
+    await service.register({ username: "musefold", password: "secret" });
+    expect(client.register).toHaveBeenCalledWith({
+      username: "musefold",
+      password: "secret",
+    });
+  });
+
   it("uses the authenticated session for redemption and revokes it on logout", async () => {
     const { service, client } = fixture();
     await service.login({ username: "musefold", password: "secret" });

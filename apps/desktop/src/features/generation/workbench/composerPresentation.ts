@@ -9,6 +9,12 @@ export function composerPresentationMode(input: {
 }): ComposerPresentationMode {
   if (input.refinementContext) return "refinement";
   if (input.schemeSource) return "scheme";
+  if (
+    input.skillRuntimeStatus === "ready" &&
+    input.draftCommand === "design-plan"
+  ) {
+    return "design-plan";
+  }
   if (input.skillRuntimeStatus !== "idle") return "skill";
   if (input.designPlanIntent || input.draftCommand === "design-plan") {
     return "design-plan";

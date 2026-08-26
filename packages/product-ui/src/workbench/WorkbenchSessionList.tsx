@@ -169,9 +169,8 @@ export function WorkbenchSessionList({
                       data-session-id={item.id}
                       data-conversation-row={item.id}
                       data-conversation-kind={item.kind ?? 'chat'}
-                      data-action-count={
-                        Number(Boolean(onTogglePinned)) + Number(Boolean(onArchive))
-                      }
+                      data-has-pin-action={onTogglePinned ? 'true' : 'false'}
+                      data-action-count={Number(Boolean(onArchive))}
                       onContextMenu={openContextMenu}
                       onKeyDown={openContextMenuFromKeyboard}
                       key={item.id}
@@ -199,6 +198,22 @@ export function WorkbenchSessionList({
                         </form>
                       ) : (
                         <>
+                          {onTogglePinned ? (
+                            <IconButton
+                              onClick={() => onTogglePinned(item)}
+                              label={`${item.pinned ? '取消置顶聊天' : '置顶聊天'}：${item.title}`}
+                              aria-pressed={item.pinned}
+                              title={item.pinned ? '取消置顶' : '置顶'}
+                              className="mf-workbench-session-pin"
+                              data-testid="conversation-hover-pin"
+                            >
+                              {item.pinned ? (
+                                <PinOff aria-hidden="true" />
+                              ) : (
+                                <Pin aria-hidden="true" />
+                              )}
+                            </IconButton>
+                          ) : null}
                           <Button
                             unstyled
                             className="mf-workbench-session-open"
@@ -218,22 +233,6 @@ export function WorkbenchSessionList({
                             <span>{item.title}</span>
                           </Button>
                           <div className="mf-workbench-session-actions">
-                            {onTogglePinned ? (
-                              <IconButton
-                                onClick={() => onTogglePinned(item)}
-                                label={`${item.pinned ? '取消置顶聊天' : '置顶聊天'}：${item.title}`}
-                                aria-pressed={item.pinned}
-                                title={item.pinned ? '取消置顶' : '置顶'}
-                                className="mf-workbench-session-quick-action"
-                                data-testid="conversation-hover-pin"
-                              >
-                                {item.pinned ? (
-                                  <PinOff aria-hidden="true" />
-                                ) : (
-                                  <Pin aria-hidden="true" />
-                                )}
-                              </IconButton>
-                            ) : null}
                             {onArchive ? (
                               <IconButton
                                 onClick={() => onArchive(item)}

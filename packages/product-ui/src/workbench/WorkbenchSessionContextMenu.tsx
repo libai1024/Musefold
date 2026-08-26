@@ -46,21 +46,28 @@ export function WorkbenchSessionContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const [position, setPosition] = useState(anchor);
+  const portalTarget =
+    returnFocusTarget?.closest<HTMLElement>(".mf-ui-drawer-content") ??
+    (typeof document !== "undefined" ? document.body : null);
 
   useLayoutEffect(() => {
     const updatePosition = () => {
       const menu = menuRef.current;
       if (!menu) return;
       const rect = menu.getBoundingClientRect();
+      const bounds =
+        portalTarget && portalTarget !== document.body
+          ? portalTarget.getBoundingClientRect()
+          : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
       setPosition({
-        x: Math.max(8, Math.min(anchor.x, window.innerWidth - rect.width - 8)),
-        y: Math.max(8, Math.min(anchor.y, window.innerHeight - rect.height - 8)),
+        x: Math.max(bounds.left + 8, Math.min(anchor.x, bounds.right - rect.width - 8)),
+        y: Math.max(bounds.top + 8, Math.min(anchor.y, bounds.bottom - rect.height - 8)),
       });
     };
     updatePosition();
     window.addEventListener("resize", updatePosition);
     return () => window.removeEventListener("resize", updatePosition);
-  }, [anchor.x, anchor.y]);
+  }, [anchor.x, anchor.y, portalTarget]);
 
   useEffect(() => {
     returnFocusRef.current =
@@ -72,9 +79,7 @@ export function WorkbenchSessionContextMenu({
   const closeAndRestoreFocus = () => {
     const returnFocus = returnFocusRef.current;
     onClose();
-    window.requestAnimationFrame(() => {
-      if (returnFocus?.isConnected) returnFocus.focus();
-    });
+    if (returnFocus?.isConnected) returnFocus.focus();
   };
 
   useEffect(() => {
@@ -135,13 +140,14 @@ export function WorkbenchSessionContextMenu({
     icon: ReactNode,
     onSelect: () => void,
     testId: string,
-    className = "",
+    tone: "default" | "danger" = "default",
   ) => (
     <Button
       unstyled
       type="button"
       role="menuitem"
-      className={`mf-workbench-session-context-action ${className}`.trim()}
+      className="mf-ui-dropdown-item mf-workbench-session-context-action"
+      data-tone={tone === "danger" ? tone : undefined}
       onClick={() => {
         onSelect();
         onClose();
@@ -153,6 +159,8 @@ export function WorkbenchSessionContextMenu({
     </Button>
   );
 
+  if (!portalTarget) return null;
+
   return createPortal(
     <div
       ref={menuRef}
@@ -161,7 +169,7 @@ export function WorkbenchSessionContextMenu({
       data-workbench-session-context-menu
       aria-label={`对话操作：${title}`}
       onKeyDown={handleMenuKeyDown}
-      className="mf-workbench-session-context-menu"
+      className="mf-ui-dropdown-content mf-workbench-session-context-menu"
       style={{ left: position.x, top: position.y }}
     >
       {action(
@@ -188,15 +196,15 @@ export function WorkbenchSessionContextMenu({
         onMarkUnread,
         "conversation-context-unread",
       )}
-      <div className="mf-workbench-session-context-separator" role="separator" />
+      <div className="mf-ui-dropdown-separator" role="separator" />
       {action(
         "删除聊天",
         <Trash2 aria-hidden="true" />,
         onDelete,
         "conversation-context-delete",
-        "mf-workbench-session-context-danger",
+        "danger",
       )}
     </div>,
-    document.body,
+    portalTarget,
   );
 }

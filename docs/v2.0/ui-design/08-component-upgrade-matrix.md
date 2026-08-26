@@ -351,7 +351,8 @@ InspectorError
 - 内容独立滚动。
 - section 间距 16px。
 - 底部 action bar。
-- 窄屏转换为 Bottom Sheet。
+- History 在 `<=680px` 使用 modal Bottom Sheet；Prompt 查看与编辑保持全页子状态，不进入 Sheet。
+- History 在 `681-760px` 继续使用既有单页 Inspector 降级，手机 Sheet 不提前生效。
 
 不能共享业务数据：
 
@@ -541,7 +542,7 @@ Phase H  Desktop/Web visual integration
 - Popover：Dropdown / Select 使用实色 popover surface、8px 外圆角、6px 行圆角、32px 普通行和 `shadow-pop`。
 - Tooltip：6px 圆角、短文案、反色实色表面和 `shadow-sm`。
 - Toast：固定语义图标、正文、可选动作、关闭四个槽位；桌面 `ToastHost` 不再使用页面级 utility class 组装外观。
-- Composer 添加上下文菜单：保持既有全宽位置，补齐菜单键盘模型与分组 separator；Portal 不参与时间线布局。
+- Composer 添加上下文菜单：收敛为 304px 紧凑浮层，补齐菜单键盘模型与分组 separator；Portal 不参与时间线布局。
 - 会话 Context Menu：实色表面、token 阴影、32px 菜单行、危险项语义与首项焦点。
 - Prompt 顶部与详情菜单：共享 Dropdown 定位、实色表面、首项焦点、Home / End、Escape 与触发器焦点归还。
 - Prompt 删除确认：补齐 `DialogBody` 结构槽位。
@@ -588,7 +589,8 @@ Phase H  Desktop/Web visual integration
 `WorkbenchTurnActions` 与 `WorkbenchGenerationResultCard` 已完成共享 Dropdown 迁移：
 
 - 回合动作菜单使用 176px `DropdownMenuContent`，`side="top"`，Portal 只负责浮层层级，不改变时间线布局。
-- 结果卡片的目录与历史动作使用 144px `DropdownMenuContent`，媒体表面上的保存、复制、微调仍保持高频图标按钮位置。
+- 结果卡片的目录与历史动作使用 176px `DropdownMenuContent`，媒体表面上的保存、复制、微调仍保持高频图标按钮位置。
+- 回合与方案页的“更多”入口使用共享省略号 `IconButton`；触发器靠 tooltip 和可访问名称表达语义，不再占用文字按钮宽度。
 - 回合宿主注入项使用 `DropdownMenuItem asChild`，兼容 `GenerationSavePromptAction` 的业务状态和禁用态。
 - `packages/product-ui/src/workbench/__tests__/workbench-overlays.test.ts` 固定检查共享原语、既有测试钩子和无 document 级菜单监听。
 - `tests/e2e/test_08_generation_workbench.py` 继续覆盖回合菜单存为提示词以及结果菜单打开目录的桌面行为；本批不执行手机端测试。

@@ -222,7 +222,7 @@ describe('migrated SHARE-02 primitives', () => {
             <DropdownMenuLabel>清理历史</DropdownMenuLabel>
             <DropdownMenuItem>清除 30 天前</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>清空全部</DropdownMenuItem>
+            <DropdownMenuItem tone="danger">清空全部</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Select defaultValue="a">
@@ -248,6 +248,7 @@ describe('migrated SHARE-02 primitives', () => {
 
     expect(html).toContain('mf-ui-dropdown-content');
     expect(html).toContain('mf-ui-dropdown-item');
+    expect(html).toContain('data-tone="danger"');
     expect(html).toContain('mf-ui-dropdown-label');
     expect(html).toContain('mf-ui-select-trigger');
     expect(html).toContain('mf-ui-slider');

@@ -16,7 +16,7 @@ import type {
 import { DesktopGatewayError, DesktopGatewayNotImplementedError } from './errors';
 import { DesktopExtrasImpl } from './desktop-extras-impl';
 import {
-  accountStatusToSession,
+  accountStatusToSummary,
   combinePromptListRows,
   createWorkbenchSessionToEnsureCommand,
   generationHistoryQueryToListArgs,
@@ -295,20 +295,39 @@ export class DesktopGateway
 
   // ---------- AccountGateway ----------
 
-  async getSession(): ReturnType<AccountGateway['getSession']> {
-    const session = accountStatusToSession(await this.api.account.status());
-    if (!session) {
+  async getAccount(): ReturnType<AccountGateway['getAccount']> {
+    const account = accountStatusToSummary(await this.api.account.status());
+    if (!account) {
       throw new DesktopGatewayError('未登录');
     }
-    return session;
+    return account;
   }
 
   async login(input: Parameters<AccountGateway['login']>[0]): ReturnType<AccountGateway['login']> {
-    const session = accountStatusToSession(await this.api.account.login(input));
-    if (!session) {
+    const account = accountStatusToSummary(await this.api.account.login(input));
+    if (!account) {
       throw new DesktopGatewayError('登录未建立会话');
     }
-    return session;
+    return account;
+  }
+
+  async register(
+    input: Parameters<AccountGateway['register']>[0],
+  ): ReturnType<AccountGateway['register']> {
+    const account = accountStatusToSummary(await this.api.account.register(input));
+    if (!account) {
+      throw new DesktopGatewayError('注册未建立会话');
+    }
+    return account;
+  }
+
+  async redeem(code: string): ReturnType<AccountGateway['redeem']> {
+    const result = await this.api.account.redeem(code);
+    const account = accountStatusToSummary(result.status);
+    if (!account) {
+      throw new DesktopGatewayError('兑换后账号状态不可用');
+    }
+    return { account, creditedQuota: result.quotaAdded };
   }
 
   async logout(): ReturnType<AccountGateway['logout']> {

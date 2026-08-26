@@ -4,8 +4,7 @@ import { WEB_HISTORY_LIST_KEY, WEB_LIBRARY_LIST_KEY } from './workspace-query-ca
 
 export async function loadWebWorkspace(gateway: WebGateway) {
   const requestedSessionId = new URLSearchParams(window.location.search).get('session');
-  const [session, prompts, history, snapshotItems, connections, workbenchPage] = await Promise.all([
-    gateway.getSession(),
+  const [prompts, history, snapshotItems, workbenchPage] = await Promise.all([
     gateway.listPrompts({ ...WEB_LIBRARY_LIST_KEY }),
     gateway.listGenerationHistory({ ...WEB_HISTORY_LIST_KEY }),
     collectGatewayPages((cursor) =>
@@ -14,26 +13,21 @@ export async function loadWebWorkspace(gateway: WebGateway) {
         ...(cursor ? { cursor } : {}),
       }),
     ),
-    gateway.listConnections(),
     gateway.listWorkbenchSessions({ ...DEFAULT_WORKBENCH_SESSION_LIST_KEY }),
   ]);
   const selectedSummary =
     workbenchPage.items.find((item) => item.id === requestedSessionId) ??
     workbenchPage.items[0] ??
     null;
-  const selected = selectedSummary
-    ? await gateway.getWorkbenchSession(selectedSummary.id)
-    : null;
+  const selected = selectedSummary ? await gateway.getWorkbenchSession(selectedSummary.id) : null;
   const sessionJobs = selected
     ? snapshotItems.filter((item) => item.sessionId === selected.id)
     : [];
 
   return {
-    session,
     prompts,
     history,
     snapshotItems,
-    connections,
     workbenchPage,
     selected,
     sessionJobs,
