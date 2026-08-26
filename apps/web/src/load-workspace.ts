@@ -4,8 +4,8 @@ import { WEB_HISTORY_LIST_KEY, WEB_LIBRARY_LIST_KEY } from './workspace-query-ca
 
 export async function loadWebWorkspace(gateway: WebGateway) {
   const requestedSessionId = new URLSearchParams(window.location.search).get('session');
-  const [session, prompts, history, snapshotItems, connections, workbenchPage] = await Promise.all([
-    gateway.getSession(),
+  const [account, prompts, history, snapshotItems, connections, workbenchPage] = await Promise.all([
+    gateway.getAccount(),
     gateway.listPrompts({ ...WEB_LIBRARY_LIST_KEY }),
     gateway.listGenerationHistory({ ...WEB_HISTORY_LIST_KEY }),
     collectGatewayPages((cursor) =>
@@ -29,7 +29,7 @@ export async function loadWebWorkspace(gateway: WebGateway) {
     : [];
 
   return {
-    session,
+    account,
     prompts,
     history,
     snapshotItems,

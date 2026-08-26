@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { AccountSession, GenerationJob, McpConnectionPage } from '@musefold/contracts';
+import type { AccountSummary, GenerationJob, McpConnectionPage } from '@musefold/contracts';
 import {
   formatAccountPoints,
   getProductCapabilities,
@@ -44,7 +44,7 @@ export function App({ gateway, platform }: AppProps) {
   const [view, setView] = useState<View>('generate');
   const [settingsSection, setSettingsSection] = useState<WebSettingsSection>('account');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [session, setSession] = useState<AccountSession | null>(null);
+  const [account, setAccount] = useState<AccountSummary | null>(null);
   const [promptQuery, setPromptQuery] = useState('');
   const [connections, setConnections] = useState<McpConnectionPage>({ items: [] });
   const [loading, setLoading] = useState(true);
@@ -64,8 +64,8 @@ export function App({ gateway, platform }: AppProps) {
     prompts: gateway,
     history: gateway,
     platform,
-    listEnabled: Boolean(session),
-    canGenerate: Boolean(session?.account.canGenerate && capabilities.generation),
+    listEnabled: Boolean(account),
+    canGenerate: Boolean(account?.canGenerate && capabilities.generation),
     isConflictError: (error) =>
       error instanceof WebGatewayError && error.code === 'WORKBENCH_VERSION_CONFLICT',
     onShowGenerate: () => setView('generate'),
@@ -92,7 +92,7 @@ export function App({ gateway, platform }: AppProps) {
     setLoadError(null);
     try {
       const snapshot = await loadWebWorkspace(gateway);
-      setSession(snapshot.session);
+      setAccount(snapshot.account);
       hydrateWorkspaceLists(queryClient, snapshot.prompts, snapshot.history);
       setConnections(snapshot.connections);
       generate.hydrate({
@@ -122,7 +122,7 @@ export function App({ gateway, platform }: AppProps) {
   }, [gateway]);
 
   useEffect(() => {
-    if (!session || !approvalRequest) return;
+    if (!account || !approvalRequest) return;
     setApprovalLoading(true);
     gateway
       .getGeneration(approvalRequest.id)
@@ -135,7 +135,7 @@ export function App({ gateway, platform }: AppProps) {
         generate.setActionError(error instanceof Error ? error.message : '审批任务无法载入'),
       )
       .finally(() => setApprovalLoading(false));
-  }, [approvalRequest, gateway, session]);
+  }, [account, approvalRequest, gateway]);
 
   if (loading) return <LoadingScreen />;
   if (authRequired) {
@@ -161,7 +161,7 @@ export function App({ gateway, platform }: AppProps) {
       />
     );
   }
-  if (loadError || !session) {
+  if (loadError || !account) {
     return (
       <FailureScreen message={loadError ?? '会话不可用'} onRetry={() => void loadWorkspace()} />
     );
@@ -176,7 +176,7 @@ export function App({ gateway, platform }: AppProps) {
         <WebSidebar
           view={view}
           settingsSection={settingsSection}
-          accountName={session.account.displayName ?? session.account.username}
+          accountName={account.displayName ?? account.username}
           mode={gateway.mode}
           promptCount={generate.libraryItems.length}
           onNavigate={openProductView}
@@ -203,7 +203,7 @@ export function App({ gateway, platform }: AppProps) {
         {view !== 'settings' ? (
           <WebTopbar
             view={view}
-            quota={`${formatAccountPoints(session.account.quota)} 积分`}
+            quota={`${formatAccountPoints(account.quota)} 积分`}
             mode={gateway.mode}
             workbenchTitle={generate.session?.title ?? null}
             workbenchSession={
@@ -261,11 +261,11 @@ export function App({ gateway, platform }: AppProps) {
             onSectionChange={setSettingsSection}
             onBack={() => openProductView('generate')}
             gateway={gateway}
-            session={session}
+            account={account}
             connections={connections}
             onConnectionsChange={setConnections}
             onLoggedOut={() => {
-              setSession(null);
+              setAccount(null);
               setAuthRequired(true);
             }}
           />

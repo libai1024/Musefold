@@ -1,6 +1,6 @@
 // src/features/account/store.ts
 // 渲染层账号状态（v0.5）。密码只作为 login/register 的瞬时参数，不进入 Zustand。
-// 账号全量状态走 DesktopExtras（桌面 AccountStatus），不经 AccountGateway / AccountSession mapper。
+// 账号全量状态走 DesktopExtras（桌面 AccountStatus），不经 AccountGateway / AccountSummary mapper。
 
 import { create } from 'zustand';
 import { DEFAULT_ACCOUNT_SERVER_URL } from '@musefold/domain/constants';
@@ -41,6 +41,7 @@ interface AccountState {
 
 const EMPTY_STATUS: AccountStatus = {
   loggedIn: false,
+  userId: null,
   username: null,
   serverUrl: DEFAULT_ACCOUNT_SERVER_URL,
   isDefaultServer: true,

@@ -6,7 +6,7 @@ import {
   SettingsWorkspace,
   type SettingsNavigationGroup,
 } from '@musefold/product-ui';
-import type { AccountSession, McpConnectionPage } from '@musefold/contracts';
+import type { AccountSummary, McpConnectionPage } from '@musefold/contracts';
 import type { WebGateway } from '../runtime';
 import { AccountView } from './AccountView';
 import { ConnectionsView } from './ConnectionsView';
@@ -40,7 +40,7 @@ export function WebSettingsView({
   onSectionChange,
   onBack,
   gateway,
-  session,
+  account,
   connections,
   onConnectionsChange,
   onLoggedOut,
@@ -49,7 +49,7 @@ export function WebSettingsView({
   onSectionChange: (section: WebSettingsSection) => void;
   onBack: () => void;
   gateway: WebGateway;
-  session: AccountSession;
+  account: AccountSummary;
   connections: McpConnectionPage;
   onConnectionsChange: (next: McpConnectionPage) => void;
   onLoggedOut: () => void;
@@ -80,7 +80,7 @@ export function WebSettingsView({
             >
               <AccountView
                 gateway={gateway}
-                session={session}
+                account={account}
                 onLoggedOut={onLoggedOut}
                 embedded
                 showHeading={false}

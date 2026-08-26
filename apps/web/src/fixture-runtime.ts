@@ -1,5 +1,4 @@
 import {
-  accountSessionSchema,
   cloudGenerationRequestSchema,
   createGenerationInputSchema,
   mcpConnectionPageSchema,
@@ -20,9 +19,7 @@ import {
   type UpdateWorkbenchSession,
   type WorkbenchSessionListQuery,
   type GenerationHistoryQuery,
-  type AccountSession,
   type GenerationJob,
-  type LoginRequest,
   type PromptListQuery,
   type PromptPage,
   type UpdatePromptDocument,
@@ -30,6 +27,7 @@ import {
   workbenchSessionListQuerySchema,
   workbenchSessionSchema,
 } from "@musefold/contracts";
+import { FixtureAccountGateway } from "./fixture-account";
 import { WebGatewayError, type WebGateway } from "./runtime";
 import type { GenerationEvent } from "@musefold/cloud-client";
 
@@ -50,18 +48,6 @@ function fixtureTag(id: string, name: string) {
     deletedAt: null,
   };
 }
-
-const fixtureSession = accountSessionSchema.parse({
-  account: {
-    id: "fixture-account",
-    username: "musefold",
-    displayName: "未像用户",
-    quota: 9_300_000,
-    quotaUnit: "点",
-    canGenerate: true,
-  },
-  csrfToken: "fixture-csrf-token-0000000000000000",
-});
 
 const fixturePrompts = promptPageSchema.parse({
   items: [
@@ -168,32 +154,12 @@ const fixtureConnections = mcpConnectionPageSchema.parse({
   ],
 });
 
-export class FixtureWebGateway implements WebGateway {
-  readonly mode = "fixture" as const;
-  private signedIn = true;
+export class FixtureWebGateway extends FixtureAccountGateway implements WebGateway {
   private readonly jobs = new Map<string, GenerationJob>();
   private readonly createdAt = new Map<string, number>();
   private readonly workbenchSessions = new Map<string, WorkbenchSession>();
   private connections: McpConnectionPage =
     mcpConnectionPageSchema.parse(fixtureConnections);
-
-  async getSession(): Promise<AccountSession> {
-    await pause(180);
-    if (!this.signedIn)
-      throw new WebGatewayError("AUTH_REQUIRED", "请登录 Musefold");
-    return fixtureSession;
-  }
-
-  async login(_input: LoginRequest): Promise<AccountSession> {
-    await pause(280);
-    this.signedIn = true;
-    return fixtureSession;
-  }
-
-  async logout(): Promise<void> {
-    await pause(160);
-    this.signedIn = false;
-  }
 
   async listPrompts(query: PromptListQuery): Promise<PromptPage> {
     await pause(180);

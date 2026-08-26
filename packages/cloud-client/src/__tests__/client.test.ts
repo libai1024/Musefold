@@ -117,6 +117,23 @@ describe("Musefold Cloud client", () => {
     expect(fetchImpl.mock.calls[1]?.[1]?.credentials).toBe("include");
   });
 
+  it("sends only username and password when registering", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json(session));
+    const client = createMusefoldCloudClient("/api/musefold/v1", { fetchImpl });
+
+    await client.register({
+      username: "libai",
+      password: "secret-password",
+      displayName: "not persisted",
+    } as Parameters<typeof client.register>[0]);
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("/api/musefold/v1/auth/register");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({
+      username: "libai",
+      password: "secret-password",
+    });
+  });
+
   it("binds desktop pull requests to the registered device when provided", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({ changes: [], nextCursor: "12", hasMore: false }),

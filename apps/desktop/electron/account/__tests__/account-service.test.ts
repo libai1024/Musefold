@@ -184,6 +184,7 @@ describe("login 编排（§5.1）", () => {
     });
     expect(status).toMatchObject({
       loggedIn: true,
+      userId: "4",
       username: "wang",
       deviceTokenSuffix: "1234",
       health: "ok",

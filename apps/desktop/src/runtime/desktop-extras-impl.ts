@@ -207,7 +207,7 @@ export class DesktopExtrasImpl implements DesktopExtras {
     return this.api.system.getVersion();
   }
 
-  // ---------- DesktopExtras account / cloudSync（桌面状态直通 IPC，不经 AccountSession mapper） ----------
+  // ---------- DesktopExtras account / cloudSync（桌面状态直通 IPC，不经 AccountSummary mapper） ----------
 
   accountStatus(): ReturnType<DesktopExtras['accountStatus']> {
     return this.api.account.status();

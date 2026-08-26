@@ -34,8 +34,10 @@ function unusedAccountMethod(name: string) {
 
 function createFakeGateway(): AccountGateway {
   return {
-    getSession: unusedAccountMethod('getSession'),
+    getAccount: unusedAccountMethod('getAccount'),
     login: unusedAccountMethod('login'),
+    register: unusedAccountMethod('register'),
+    redeem: unusedAccountMethod('redeem'),
     logout: unusedAccountMethod('logout'),
     listConnections: vi.fn(),
     updateConnection: vi.fn(),

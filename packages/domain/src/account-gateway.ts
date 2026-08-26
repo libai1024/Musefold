@@ -1,19 +1,24 @@
 import type {
-  AccountSession,
+  AccountSummary,
   LoginRequest,
   McpConnectionPage,
+  RedeemResult,
+  RegisterRequest,
   UpdateMcpConnection,
 } from '@musefold/contracts';
 
 /**
- * 账号会话与 MCP 连接。配额摘要在 AccountSession.account 上，无独立方法。
+ * UI 可见的账号摘要与 MCP 连接。HTTP 会话和 CSRF 由 transport adapter 管理，
+ * 不进入平台无关端口。
  * updateConnection 的入参对应 WebGateway 的
  * Parameters<MusefoldCloudClient['updateConnection']>[1]
  * （即 contracts 的 UpdateMcpConnection）。
  */
 export interface AccountGateway {
-  getSession(): Promise<AccountSession>;
-  login(input: LoginRequest): Promise<AccountSession>;
+  getAccount(): Promise<AccountSummary>;
+  login(input: LoginRequest): Promise<AccountSummary>;
+  register(input: RegisterRequest): Promise<AccountSummary>;
+  redeem(code: string): Promise<RedeemResult>;
   logout(): Promise<void>;
   listConnections(): Promise<McpConnectionPage>;
   updateConnection(

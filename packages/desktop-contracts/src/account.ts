@@ -16,6 +16,8 @@ export interface AccountNotice {
 /** `window.api.account.*` 与 `account:changed` 广播的统一载荷。 */
 export interface AccountStatus {
   loggedIn: boolean;
+  /** Relay 账号的稳定 user id；未登录时为 null。 */
+  userId: string | null;
   username: string | null;
   serverUrl: string;
   isDefaultServer: boolean;

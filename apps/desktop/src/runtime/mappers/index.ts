@@ -45,4 +45,4 @@ export {
   relatedHistoryRowsToDocuments,
   markGenerationJobDeleted,
 } from './history';
-export { DESKTOP_PLACEHOLDER_CSRF_TOKEN, accountStatusToSession } from './account';
+export { accountStatusToSummary } from './account';

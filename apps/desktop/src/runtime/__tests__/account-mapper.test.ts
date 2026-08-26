@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { accountSessionSchema } from '@musefold/contracts';
+import { accountSummarySchema } from '@musefold/contracts';
 import type { AccountStatus } from '@musefold/desktop-contracts/account';
-import {
-  DESKTOP_PLACEHOLDER_CSRF_TOKEN,
-  accountStatusToSession,
-} from '../mappers/account';
+import { accountStatusToSummary } from '../mappers/account';
 
 const loggedIn: AccountStatus = {
   loggedIn: true,
+  userId: '42',
   username: 'alice',
   serverUrl: 'https://api.example',
   isDefaultServer: false,
@@ -18,34 +16,38 @@ const loggedIn: AccountStatus = {
   notices: [],
 };
 
-describe('account status → session mapping', () => {
-  it('maps a logged-in device status into AccountSession with placeholder csrf', () => {
-    const session = accountStatusToSession(loggedIn);
-    expect(session).not.toBeNull();
-    expect(accountSessionSchema.parse(session)).toEqual({
-      account: {
-        id: 'alice',
-        username: 'alice',
-        displayName: null,
-        quota: 500_000,
-        quotaUnit: '点',
-        canGenerate: true,
-      },
-      csrfToken: DESKTOP_PLACEHOLDER_CSRF_TOKEN,
+describe('account status -> summary mapping', () => {
+  it('maps the stable account id without creating transport credentials', () => {
+    const account = accountStatusToSummary(loggedIn);
+    expect(accountSummarySchema.parse(account)).toEqual({
+      id: '42',
+      username: 'alice',
+      displayName: null,
+      quota: 500_000,
+      quotaUnit: '点',
+      canGenerate: true,
     });
-    expect(DESKTOP_PLACEHOLDER_CSRF_TOKEN.length).toBeGreaterThanOrEqual(32);
+    expect(account).not.toHaveProperty('csrfToken');
+    expect(account).not.toHaveProperty('sessionToken');
   });
 
-  it('returns null when logged out or username is missing', () => {
+  it('returns null when logged out or identity fields are missing', () => {
     expect(
-      accountStatusToSession({ ...loggedIn, loggedIn: false, username: null, health: 'unknown' }),
+      accountStatusToSummary({
+        ...loggedIn,
+        loggedIn: false,
+        userId: null,
+        username: null,
+        health: 'unknown',
+      }),
     ).toBeNull();
-    expect(accountStatusToSession({ ...loggedIn, username: null })).toBeNull();
+    expect(accountStatusToSummary({ ...loggedIn, userId: null })).toBeNull();
+    expect(accountStatusToSummary({ ...loggedIn, username: null })).toBeNull();
   });
 
   it('disables canGenerate when health is not ok', () => {
-    const session = accountStatusToSession({ ...loggedIn, health: 'token-invalid' });
-    expect(session?.account.canGenerate).toBe(false);
-    expect(session?.account.quota).toBe(500_000);
+    const account = accountStatusToSummary({ ...loggedIn, health: 'token-invalid' });
+    expect(account?.canGenerate).toBe(false);
+    expect(account?.quota).toBe(500_000);
   });
 });
