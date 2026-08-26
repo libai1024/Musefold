@@ -1,6 +1,6 @@
 # Musefold 2.0 Web 账号对齐、响应式收敛与 CI/CD 部署交付计划
 
-> **状态**：`WF-00`、`WF-01` 已完成（2026-08-26）；其余 13 张卡未开始。状态列只登记事实与交付时登记的验收数字，本文件不追加任何未执行的测试声明。
+> **状态**：`WF-00`、`WF-01`、`ACC-01`…`ACC-03`、`UI-01`…`UI-04`、`CI-01` 已完成（2026-08-26）；`ACC-04` 进行中；`QA-01`、`CI-02`、`REL-01`、`REL-02` 未开始。状态列只登记事实与交付时登记的验收数字，本文件不追加任何未执行的测试声明。
 >
 > **日期**：2026-08-26（WF-01 验收返工修订：卡片清单、排除项与 ACC/CI 卡内容按批准范围修正）
 >
@@ -40,10 +40,10 @@
 | 阶段 | 卡 | 依赖 | 交付结果 | 状态 |
 | --- | --- | --- | --- | --- |
 | WF 基线与契约 | WF-00、WF-01 | — / WF-00 | 工作树收敛 + 任务卡与响应式契约 | 均已完成 |
-| ACC 账号对齐 | ACC-01…04 | WF-01 / 前置 ACC 卡 | 端口与会话边界、登录注册闭环、额度真值、兑换与共享表面 | 未开始 |
-| UI 响应式收敛 | UI-01…04 | WF-01（UI-04 另依赖 UI-01） | 侧栏 Drawer 化、Prompt 大屏对齐、History bottom sheet、手机收口 | 未开始 |
+| ACC 账号对齐 | ACC-01…04 | WF-01 / 前置 ACC 卡 | 端口与会话边界、登录注册闭环、额度真值、兑换与共享表面 | ACC-01…03 已完成；ACC-04 进行中 |
+| UI 响应式收敛 | UI-01…04 | WF-01（UI-04 另依赖 UI-01） | 侧栏 Drawer 化、Prompt 大屏对齐、History bottom sheet、手机收口 | 均已完成 |
 | QA 门禁 | QA-01 | ACC-01…04、UI-01…04 | 高价值验收矩阵 | 未开始 |
-| CI/CD | CI-01、CI-02 | 无 / CI-01 + QA-01 | 恢复远端 CI 绿；生产门禁加固 | 未开始 |
+| CI/CD | CI-01、CI-02 | 无 / CI-01 + QA-01 | 恢复远端 CI 绿；生产门禁加固 | CI-01 已完成；CI-02 未开始 |
 | REL 收口 | REL-01、REL-02 | QA-01 / CI-02、REL-01 | 最终本地门禁与视觉验收；生产部署与冒烟 | 未开始 |
 
 依赖图：
@@ -82,7 +82,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### ACC-01 账号端口与会话边界修正
 
-**状态：未开始。依赖 WF-01。**
+**状态：已完成（2026-08-26，提交 `c921eb3`）。依赖 WF-01。**
 
 - 修正账号端口与会话边界，允许并要求以下层同批演进：`packages/contracts`（账号 / 会话实体与 zod schema）、`packages/domain`（账号域逻辑）、`packages/cloud-client`（账号端口调用）、`apps/desktop/src/runtime/mappers/account.ts`（桌面 account mapper，含 `account-mapper.test.ts`）、`apps/web-api/src/modules/account/`（`routes.ts` / `service.ts` / `session-store.ts` 及 `__tests__`）。
 - OpenAPI 与实现同步：涉及出入参变更必须跑 `npm run openapi:check`；web-api 迁移另跑 `npm run test:integration:v1.1`（testcontainers 真 PostgreSQL）。
@@ -91,7 +91,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### ACC-02 Web 登录与注册闭环
 
-**状态：未开始。依赖 ACC-01。**
+**状态：已完成（2026-08-26，提交 `7cfc925`）。依赖 ACC-01。**
 
 - Web 登录**与注册**双闭环：`apps/web/src/screens/BootScreens.tsx`、`apps/web/src/oauth-return-to.ts`（含 `__tests__`）、`apps/web/src/runtime*.ts`，注册路径对齐 web-api 账号模块；fixture 模式「开发预览」标注语义双端一致。
 - **文件所有权**：`apps/web/src/screens/`、`apps/web/src/oauth-return-to.ts`、`apps/web/src/runtime.ts` / `runtime-mode.ts`；web-api 侧随 ACC-01 契约。
@@ -99,7 +99,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### ACC-03 账号 Query 与额度真值
 
-**状态：未开始。依赖 ACC-01。**
+**状态：已完成（2026-08-26，提交 `a6cc30a`）。依赖 ACC-01。**
 
 - 账号数据接入 TanStack Query（`packages/product-ui/src/page-controllers/` 编排层与 Web 侧 query client），额度以服务端返回为唯一真值，消灭双端各自的本地推算副本。
 - **生图终态额度刷新**：生成到达终态（成功 / 失败 / 取消）时刷新账号额度，桌面与 Web 同一条失效路径（桌面 `scheduleCloudSync()` 既有语义不重复造）。
@@ -108,7 +108,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### ACC-04 兑换码与双端账号表面统一
 
-**状态：未开始。依赖 ACC-01、ACC-03。**
+**状态：进行中。依赖 ACC-01、ACC-03。**
 
 - **Web 兑换 UI**：对齐桌面既有兑换入口（`apps/desktop/src/features/generation/workbench/InlineQuotaRedeem.tsx`、`features/account/store.ts`、设置 Account 面板），Web 提供兑换码输入与结果反馈。
 - **双端账号表面统一**：`packages/product-ui/src/account/`（`AccountScreen.tsx`、`AccountSummaryPanel.tsx`）为唯一共享表面，双端身份摘要（身份名、积分/余额、可用状态、数据源）字段一致；兑换端口走 `packages/cloud-client` 与 web-api 账号模块。
@@ -119,7 +119,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### UI-01 共享侧栏 Drawer 化
 
-**状态：未开始。依赖 WF-01。**
+**状态：已完成（2026-08-26，提交 `a6e763c`）。依赖 WF-01。**
 
 - 760px compact shell 下共享侧栏 drawer 化：scrim、点击导航 / 新设计自动关闭、`min(320px, calc(100vw - 28px))` 宽度（`ui-design/07` §12.1 / §25），桌面与 Web 同一实现。
 - **文件所有权**：`packages/product-ui/src/navigation/ProductSidebarLayout.tsx`、`ProductSidebar.tsx`、`product-nav.tsx`、`packages/product-ui/src/styles.css`（760px 查询）、`apps/web/src/layout/WebNavigation.tsx`。
@@ -127,7 +127,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### UI-02 Prompt 大屏 workspace 对齐
 
-**状态：未开始。依赖 WF-01。**
+**状态：已完成（2026-08-26，提交 `97e4fd4`）。依赖 WF-01。**
 
 - Prompt 库大屏（>760px）对齐 v2 workspace 几何：列表 / 详情列布局、Inspector 参与布局不覆盖列表、12px 工作面圆角与间距 token，与桌面同源（`ui-design/03`；大屏几何共享见 `ui-design/07` §12）。
 - 同步 `ui-design/03` §340 措辞与手机全页子状态决策一致（归本卡，因大屏与手机形态同页落地）。
@@ -136,7 +136,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### UI-03 History 手机详情 bottom sheet
 
-**状态：未开始。依赖 WF-01。**
+**状态：已完成（2026-08-26，提交 `9487cd1`）。依赖 WF-01。**
 
 - 680px phone 档 History 详情使用 bottom sheet：拖拽 / 关闭语义、与桌面 Inspector（`GenerationHistoryDetailScreen`）共享数据与动作结构、文件管理与删除确认在 sheet 内可达。
 - 同步 `ui-design/08` §13 Inspector「窄屏转换」泛称：History 用 bottom sheet、Prompt 用全页子状态。
@@ -145,7 +145,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### UI-04 Settings / Account / Workbench 手机收口
 
-**状态：未开始。依赖 UI-01。**
+**状态：已完成（2026-08-26，提交 `89bb040`）。依赖 UI-01。**
 
 - 680px phone 档三个面的收口：Settings（分区导航）、Account（含 ACC-04 后的共享表面）、Workbench（底部 Composer、软键盘 inset、触控目标 44px、无横向滚动、safe-area），语义见 `ui-design/07` §12.2 / §26 / §27。
 - **文件所有权**：`packages/product-ui/src/settings/`、`account/`、`workbench/` 相关组件与 `styles.css` 680px 查询、`apps/web/src/styles.css`（680px 宿主胶水）。
@@ -166,7 +166,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### CI-01 恢复现有远端 CI 红灯
 
-**状态：未开始。依赖：无，应尽早执行。**
+**状态：已完成（2026-08-26，提交 `8baecbe`）。依赖：无。**
 
 - 定位并修复当前远端 CI（`ci.yml`）失败项，恢复既有门禁绿；本卡不新增门禁、不改判定语义，只修红。
 - **文件所有权**：随失败项定位（预期在本次 v2 UI 工作树相关路径或既有门禁脚本），`.github/workflows/ci.yml` 只在失败源于工作流本身时才动。
