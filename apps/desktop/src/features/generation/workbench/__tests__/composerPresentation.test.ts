@@ -18,6 +18,30 @@ describe("composer presentation mode", () => {
     expect(composerPresentationModeLocked("image")).toBe(false);
   });
 
+  it("lets an explicit design-plan command absorb a ready Skill", () => {
+    expect(
+      composerPresentationMode({
+        ...base,
+        skillRuntimeStatus: "ready",
+        draftCommand: "design-plan",
+      }),
+    ).toBe("design-plan");
+    expect(
+      composerPresentationMode({
+        ...base,
+        skillRuntimeStatus: "detecting",
+        draftCommand: "design-plan",
+      }),
+    ).toBe("skill");
+    expect(
+      composerPresentationMode({
+        ...base,
+        skillRuntimeStatus: "executing",
+        draftCommand: "design-plan",
+      }),
+    ).toBe("skill");
+  });
+
   it("prioritizes locked runtime contexts", () => {
     expect(
       composerPresentationMode({ ...base, designPlanIntent: { prompt: "x" } }),

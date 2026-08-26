@@ -1,6 +1,6 @@
 """场景 A 确定性闭环（V04 P2 出口的 CI 版）：
-MCP stdio 二进制 → 真实 App 控制面 → 确认卡真实点击 → 假 Provider 出图
-→ ResourceLink 指向真实文件 → 审计表 approvedVia=confirmation。
+MCP stdio 二进制 → 真实 App 控制面 → 非托管 Provider 自动放行 → 假 Provider 出图
+→ ResourceLink 指向真实文件 → 审计表 approvedVia=budget。
 
 与 test_31_mcp_scenario_a_live.py 唯一的差别是 Provider 指向本地假服务器，
 使本用例可进 CI（不烧钱、不依赖网关账号状态）。
@@ -99,15 +99,13 @@ def test_scenario_a_deterministic(app, fake_provider):
         warmup = json.loads(client.wait_for(2, 15)["result"]["content"][0]["text"])
         assert "prompts" in warmup
 
-        # 花钱工具：预算 0 → 确认卡 → 真实 UI 批准 → 假站出图
+        # 非托管 Provider 不计费，预算 0 也会自动放行，不出现确认卡。
         client.send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
             "name": "generate_image",
             "arguments": {"prompt": "scenario-a deterministic poster", "n": 1, "wait": True},
         }})
-        app.page.wait_for_selector('[data-testid="automation-confirm-card"]', timeout=30_000)
-        app.page.click('[data-testid="automation-confirm-approve"]')
-
         result = client.wait_for(3, 90)
+        assert app.page.get_by_test_id("automation-confirm-card").count() == 0
         payload = json.loads(result["result"]["content"][0]["text"])
         assert payload["status"] == "success", json.dumps(payload, ensure_ascii=False)
 
@@ -121,23 +119,11 @@ def test_scenario_a_deterministic(app, fake_provider):
         assert len(posts) == 1
         assert "scenario-a deterministic poster" in json.dumps(posts[0]["body"])
 
-        # 审计闭环：完整提示词 + 放行路径 = 确认卡
+        # 审计闭环：完整提示词 + 非托管 Provider 自动放行路径。
         audit = app.page.evaluate("() => window.api.automation.auditList(10)")
         matching = [e for e in audit if e["action"] == "generate_image" and e["status"] == "success"]
         assert matching, audit
-        assert matching[0]["approvedVia"] == "confirmation"
+        assert matching[0]["approvedVia"] == "budget"
         assert matching[0]["promptText"] == "scenario-a deterministic poster"
-
-        # 拒绝路径：再来一次但点「拒绝」→ 工具返回 isError + CONFIRMATION_DENIED
-        client.send({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {
-            "name": "generate_image",
-            "arguments": {"prompt": "will be denied", "n": 1, "wait": True},
-        }})
-        app.page.wait_for_selector('[data-testid="automation-confirm-card"]', timeout=30_000)
-        app.page.click('[data-testid="automation-confirm-deny"]')
-        denied = client.wait_for(4, 60)
-        denied_payload = json.loads(denied["result"]["content"][0]["text"])
-        assert denied_payload["error"]["code"] == "CONFIRMATION_DENIED"
-        assert len([r for r in fake_provider["requests"] if r["method"] == "POST"]) == 1, "拒绝后不得发起生成"
     finally:
         client.close()
