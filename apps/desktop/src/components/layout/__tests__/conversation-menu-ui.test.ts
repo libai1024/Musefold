@@ -46,8 +46,10 @@ describe("recent conversation actions", () => {
     expect(contextMenu).toContain("createPortal(");
     expect(contextMenu).toContain("document.body");
     expect(contextMenu).toContain("data-workbench-session-context-menu");
-    expect(contextMenu).toContain("window.innerWidth - rect.width - 8");
-    expect(contextMenu).toContain("window.innerHeight - rect.height - 8");
+    expect(contextMenu).toContain("bounds.right - rect.width - 8");
+    expect(contextMenu).toContain("bounds.bottom - rect.height - 8");
+    expect(contextMenu).toContain("right: window.innerWidth");
+    expect(contextMenu).toContain("bottom: window.innerHeight");
     expect(sessionList).toContain("returnFocusTarget: HTMLElement");
     expect(contextMenu).toContain("returnFocusTarget ??");
     expect(sidebar).toContain("returnFocusTarget={contextMenu.returnFocusTarget}");

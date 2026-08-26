@@ -10,8 +10,8 @@ import { REPO_ROOT } from '../../tooling/aliases.mjs';
  * 数量只增不减。统计只看生产源码（排除 __tests__/.test.），避免用测试文件刷数。
  */
 
-// v2.0(UI-02):PromptLibraryWorkspace 将提示词库 list/Inspector 几何上提为双宿主同源，基线 67 → 68。
-const BOTH_HOSTS_BASELINE = 68;
+// v2.0(ACC-04):AccountScreen / AccountActionFeedback 由 Web 与 Desktop 共同消费，基线 68 → 70。
+const BOTH_HOSTS_BASELINE = 70;
 
 const HOSTS = {
   web: 'apps/web/src',
