@@ -46,9 +46,9 @@ describe('Web account gateway boundary', () => {
     await expect(gateway.login({ username: 'musefold', password: 'secret' })).resolves.toEqual(
       account,
     );
-    await expect(
-      gateway.register({ username: 'musefold', password: 'secret' }),
-    ).resolves.toEqual(account);
+    await expect(gateway.register({ username: 'musefold', password: 'secret' })).resolves.toEqual(
+      account,
+    );
     await expect(gateway.redeem('CODE')).resolves.toEqual(redeemResult);
 
     const serialized = JSON.stringify(await gateway.getAccount());
@@ -62,9 +62,10 @@ describe('Web account gateway boundary', () => {
     await expect(gateway.getAccount()).resolves.toMatchObject({ id: 'fixture-account' });
     await expect(
       gateway.register({ username: 'preview', password: 'secret' }),
-    ).resolves.toMatchObject({ id: 'fixture-account' });
+    ).resolves.toMatchObject({ id: 'fixture-account', username: 'preview', displayName: null });
+    await expect(gateway.getAccount()).resolves.toMatchObject({ username: 'preview' });
     await expect(gateway.redeem('CODE')).resolves.toMatchObject({
-      account: { id: 'fixture-account' },
+      account: { id: 'fixture-account', username: 'preview' },
       creditedQuota: 0,
     });
   });

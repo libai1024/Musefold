@@ -14,12 +14,7 @@ import { GenerateView } from './views/GenerateView';
 import { HistoryView } from './views/HistoryView';
 import { PromptLibraryView } from './views/PromptLibraryView';
 import { WebSettingsView, type WebSettingsSection } from './views/SettingsView';
-import {
-  ApprovalScreen,
-  FailureScreen,
-  LoadingScreen,
-  LoginScreen,
-} from './screens/BootScreens';
+import { ApprovalScreen, FailureScreen, LoadingScreen, LoginScreen } from './screens/BootScreens';
 import { loadWebWorkspace } from './load-workspace';
 import { replaceWorkbenchSessionUrl } from './workbench-session-url';
 import {
@@ -139,7 +134,15 @@ export function App({ gateway, platform }: AppProps) {
 
   if (loading) return <LoadingScreen />;
   if (authRequired) {
-    return <LoginScreen gateway={gateway} onAuthenticated={() => void loadWorkspace()} />;
+    return (
+      <LoginScreen
+        gateway={gateway}
+        onAuthenticated={() => {
+          setView('generate');
+          void loadWorkspace();
+        }}
+      />
+    );
   }
   if (approvalRequest) {
     return (
@@ -155,7 +158,9 @@ export function App({ gateway, platform }: AppProps) {
             setApprovalJob(next);
             generate.upsertJob(next);
           } catch (error) {
-            generate.setActionError(error instanceof Error ? error.message : '审批失败，请稍后重试');
+            generate.setActionError(
+              error instanceof Error ? error.message : '审批失败，请稍后重试',
+            );
           }
         }}
       />
@@ -196,10 +201,7 @@ export function App({ gateway, platform }: AppProps) {
     >
       {/* app-main 类名保留：680px 媒体块的 100dvh / 键盘 inset 规则挂在它上（批次 5 收口）。
           v2.0 Phase B:背景上移到 MainView surface(bg-work),main 自身保持透明。 */}
-      <main
-        className="app-main flex min-h-0 min-w-0 flex-1 flex-col"
-        data-ui-register="operate"
-      >
+      <main className="app-main flex min-h-0 min-w-0 flex-1 flex-col" data-ui-register="operate">
         {view !== 'settings' ? (
           <WebTopbar
             view={view}
