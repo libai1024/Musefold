@@ -291,6 +291,7 @@ test('left drawer holds functions, conversations and account; main stays the com
   expect(gutters.modeOptionHeight).toBeGreaterThanOrEqual(44);
   expect(gutters.scrollWidth).toBeLessThanOrEqual(gutters.clientWidth + 1);
 
+  await page.getByRole('button', { name: '返回设置' }).click();
   await page
     .getByRole('navigation', { name: '设置分区' })
     .getByRole('button', { name: 'Musefold 账号' })

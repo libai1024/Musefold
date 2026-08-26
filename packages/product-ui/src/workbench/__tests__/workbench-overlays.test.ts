@@ -12,6 +12,10 @@ const generationSettings = readFileSync(
   'utf8',
 );
 const ratioPicker = readFileSync(new URL('../WorkbenchRatioPicker.tsx', import.meta.url), 'utf8');
+const sessionContextMenu = readFileSync(
+  new URL('../WorkbenchSessionContextMenu.tsx', import.meta.url),
+  'utf8',
+);
 const productStyles = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 describe('workbench action overlays', () => {
@@ -63,6 +67,20 @@ describe('workbench action overlays', () => {
     expect(productStyles).toContain('flex: 1;');
     expect(productStyles).toContain(".mf-workbench-composer[data-layout='floating'] {");
     expect(productStyles).toContain('inset: auto 0 0;');
+    expect(productStyles).toMatch(
+      /@media \(max-width: 680px\)[\s\S]*?\.mf-workbench-page \{[\s\S]*?height: 0;/,
+    );
+    expect(productStyles).toMatch(
+      /@media \(max-width: 680px\) and \(max-height: 560px\)[\s\S]*?data-variant='empty'[\s\S]*?height: 76px !important;/,
+    );
+  });
+
+  it('keeps the session context menu inside a modal drawer when opened from touch navigation', () => {
+    expect(sessionContextMenu).toContain(
+      'returnFocusTarget?.closest<HTMLElement>(".mf-ui-drawer-content")',
+    );
+    expect(sessionContextMenu).toContain('portalTarget.getBoundingClientRect()');
+    expect(sessionContextMenu).toContain('portalTarget,');
   });
 
   it('uses the shared popover for composer settings while retaining composer-safe placement', () => {

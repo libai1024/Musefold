@@ -338,12 +338,14 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* Workbench: каркас занимает ровно высоту viewport, таймлайн скроллится
-     внутри, отступ под клавиатуру/safe-area задаётся через переменную
-     composer'а — без магических высот вида calc(100dvh - 140px). */
+  /* Phone workbench: shell tracks the actual layout viewport. Keyboard overlay
+     compensation stays in --mf-workbench-bottom-inset; resizes-content needs no
+     second offset because 100% already follows the shrunken app-main. */
   .app-main:has(.workbench-page) {
-    height: 100dvh;
+    height: auto;
     min-height: 0;
+    flex: 1;
+    overflow: hidden;
     padding-bottom: 0;
   }
 
@@ -351,9 +353,8 @@
     --mf-workbench-bottom-inset: var(--mobile-bottom-inset);
   }
 
-  /* Открыта экранная клавиатура (детекция в useKeyboardInset):
-     composer поднимается на высоту перекрытия (iOS); на Android layout
-     viewport сжимается сам и перекрытие нулевое. */
+  /* iOS overlays the layout viewport; Android resizes it. Only the measured
+     visualViewport overlap is applied here, so a resize never double-counts. */
   :root[data-keyboard-open='true'] .workbench-page {
     --mf-workbench-bottom-inset: var(--keyboard-inset);
   }

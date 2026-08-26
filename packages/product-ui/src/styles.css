@@ -289,6 +289,10 @@
   background: var(--bg-sidebar);
 }
 
+.mf-settings-phone-section-header {
+  display: none;
+}
+
 .mf-settings-compact-header-action {
   min-height: 32px;
 }
@@ -373,6 +377,116 @@
     border: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .mf-settings-workspace {
+    display: block;
+    overflow: hidden;
+    background: var(--bg-work);
+  }
+
+  .mf-settings-sidebar {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .mf-settings-sidebar-header {
+    padding: 12px 16px;
+  }
+
+  .mf-settings-sidebar-header .mf-settings-header-action-button,
+  .mf-settings-workspace .mf-settings-search .mf-ui-input,
+  .mf-settings-nav-item {
+    min-height: 44px;
+  }
+
+  .mf-settings-search-clear {
+    width: 36px;
+    height: 36px;
+  }
+
+  .mf-settings-nav {
+    padding: 16px;
+  }
+
+  .mf-settings-compact-header,
+  .mf-settings-tabs,
+  .mf-settings-pane {
+    display: none;
+  }
+
+  .mf-settings-workspace[data-phone-section-open='true'] .mf-settings-sidebar {
+    display: none;
+  }
+
+  .mf-settings-workspace[data-phone-section-open='true'] .mf-settings-pane {
+    display: block;
+    height: 100%;
+    overflow-y: auto;
+    background: var(--bg-work);
+    scrollbar-gutter: auto;
+  }
+
+  .mf-settings-phone-section-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: grid;
+    min-height: 52px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: env(safe-area-inset-top, 0px) 12px 0;
+    background: var(--bg-work);
+  }
+
+  .mf-settings-phone-section-header strong {
+    overflow: hidden;
+    color: var(--fg-primary);
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mf-settings-phone-back {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 44px;
+    align-items: center;
+    justify-self: start;
+    gap: 6px;
+    border: 0;
+    border-radius: var(--radius-control);
+    padding: 0 6px;
+    background: transparent;
+    color: var(--fg-secondary);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .mf-settings-phone-back:active {
+    background: var(--bg-active, var(--bg-hover));
+    color: var(--fg-primary);
+  }
+
+  .mf-settings-phone-back:focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 1px;
+  }
+
+  .mf-settings-phone-back svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .mf-settings-content {
+    padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1897,9 +2011,11 @@
 .mf-workbench-page {
   position: relative;
   display: flex;
+  min-width: 0;
   min-height: 0;
   height: 100%;
-  flex-direction: column;
+  flex: 1;
+  flex-direction: row;
   /* v2.0(02 §4):工作台直接落在 MainView 工作面上。 */
   background: var(--bg-work);
 }
@@ -1911,6 +2027,14 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
+}
+
+.mf-workbench-auxiliary {
+  position: relative;
+  width: var(--mf-workbench-auxiliary-width, 304px);
+  min-width: 0;
+  min-height: 0;
+  flex: none;
 }
 
 .mf-workbench-stage {
@@ -2063,6 +2187,16 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 960px) {
+  .mf-workbench-auxiliary {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    width: 100%;
+    pointer-events: none;
   }
 }
 
@@ -3006,6 +3140,13 @@
    --mf-workbench-bottom-inset задаёт хост (web: safe-area или клавиатура);
    по умолчанию 0. */
 @media (max-width: 680px) {
+  .mf-workbench-page {
+    height: 0;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
   .mf-workbench-timeline-content {
     padding: 16px 12px calc(172px + var(--mf-workbench-bottom-inset, 0px));
   }
@@ -3019,7 +3160,7 @@
   }
 
   .mf-workbench-composer[data-layout='floating'] {
-    padding: 0 10px calc(10px + var(--mf-workbench-bottom-inset, 0px));
+    padding: 0 12px calc(12px + var(--mf-workbench-bottom-inset, 0px));
   }
 
   .mf-workbench-composer[data-layout='floating'] .mf-workbench-composer-surface {
@@ -3168,6 +3309,25 @@
 
   .mf-workbench-ratio-option {
     font-size: 11px;
+  }
+
+  /* 结果保持单列，空态和 Composer 的最终手机几何集中在此 Workbench 区块。 */
+  .mf-workbench-result-grid[data-count='2'],
+  .mf-workbench-result-grid[data-count='3'],
+  .mf-workbench-result-grid[data-count='4'],
+  .mf-workbench-result-grid[data-count='5'],
+  .mf-workbench-result-grid[data-count='6'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mf-workbench-empty {
+    min-height: 0;
+    padding: 24px 8px;
+  }
+
+  .mf-workbench-empty-brand svg {
+    width: 56px;
+    height: 56px;
   }
 
   .mf-workbench-ratio-option small {
@@ -3326,6 +3486,23 @@ html.reduce-motion .mf-workbench-empty-brand svg circle {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
 }
 
+.mf-workbench-direction-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mf-workbench-direction-hit:focus-visible {
+  border-radius: var(--radius-tooltip);
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
 .mf-workbench-direction-track {
   display: flex;
   align-items: center;
@@ -3366,24 +3543,17 @@ html.reduce-motion .mf-workbench-empty-brand svg circle {
 }
 
 .mf-workbench-direction-item {
-  border: none;
   padding: 2px 0;
-  background: transparent;
   color: var(--fg-tertiary);
-  cursor: pointer;
   font-size: var(--text-meta);
   line-height: 1.6;
   white-space: nowrap;
   transition: color var(--dur-fast) var(--ease-out);
 }
 
-.mf-workbench-direction-item:hover {
+.mf-workbench-direction-row:hover .mf-workbench-direction-item,
+.mf-workbench-direction-row:focus-within .mf-workbench-direction-item {
   color: var(--fg-primary);
-}
-
-.mf-workbench-direction-item:focus-visible {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 1px;
 }
 
 /* reduced-motion:慢滚降级为静态三行居中(只保留首份),遮罩关闭。 */
@@ -3439,6 +3609,11 @@ html.reduce-motion .mf-workbench-direction-row {
 
   .mf-workbench-empty-composer {
     margin-top: 16px;
+  }
+
+  .mf-workbench-composer[data-layout='flow'][data-variant='empty'] .mf-workbench-prompt {
+    height: 76px !important;
+    max-height: 76px;
   }
 }
 
@@ -5991,14 +6166,7 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
     max-height: 62dvh;
   }
 
-  /* Результаты генерации: одна колонка на телефоне. */
-  .mf-workbench-result-grid[data-count='2'],
-  .mf-workbench-result-grid[data-count='3'],
-  .mf-workbench-result-grid[data-count='4'],
-  .mf-workbench-result-grid[data-count='5'],
-  .mf-workbench-result-grid[data-count='6'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  /* 结果布局在上方 Workbench phone 区块统一定义。 */
 
   /* Диалоги: во всю ширину с отступами, кнопки в столбик ≥44px
      (подтверждающее действие сверху). */
@@ -6347,20 +6515,7 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
     justify-content: center;
   }
 
-  /* 窄屏保留创作入口，减少品牌尺寸和方向列表密度。 */
-  .mf-workbench-empty {
-    min-height: 0;
-    padding: 24px 8px;
-  }
-
-  .mf-workbench-empty-brand svg {
-    width: 56px;
-    height: 56px;
-  }
-
-  .mf-workbench-composer[data-layout='floating'] {
-    padding: 0 12px calc(12px + var(--mf-workbench-bottom-inset, 0px));
-  }
+  /* 窄屏保留创作入口，最终几何由上方 Workbench phone 区块统一定义。 */
 
   .mf-product-topbar-icon {
     display: none;
@@ -6387,6 +6542,37 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
 }
 
 @media (hover: none) {
+  .mf-workbench-session-pin {
+    display: none;
+  }
+
+  .mf-workbench-session-row[data-has-pin-action='true'] .mf-workbench-session-open {
+    padding-left: 10px;
+    gap: 8px;
+  }
+
+  .mf-workbench-session-row[data-has-pin-action='true'] .mf-workbench-session-status {
+    position: static;
+    width: 7px;
+    height: 7px;
+  }
+
+  .mf-workbench-session-row[data-has-pin-action='true'] .mf-workbench-session-status::after {
+    display: none;
+  }
+
+  .mf-workbench-session-row[data-has-pin-action='true'][data-status='running']
+    .mf-workbench-session-status {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    animation: mf-session-pulse 1.6s ease-in-out infinite;
+  }
+
+  .mf-workbench-session-row[data-has-pin-action='true'][data-status='unread']
+    .mf-workbench-session-status {
+    background: var(--success);
+  }
+
   .mf-workbench-session-actions {
     opacity: 1;
     pointer-events: auto;

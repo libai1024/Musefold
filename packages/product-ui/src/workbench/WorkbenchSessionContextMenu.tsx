@@ -46,21 +46,28 @@ export function WorkbenchSessionContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const [position, setPosition] = useState(anchor);
+  const portalTarget =
+    returnFocusTarget?.closest<HTMLElement>(".mf-ui-drawer-content") ??
+    (typeof document !== "undefined" ? document.body : null);
 
   useLayoutEffect(() => {
     const updatePosition = () => {
       const menu = menuRef.current;
       if (!menu) return;
       const rect = menu.getBoundingClientRect();
+      const bounds =
+        portalTarget && portalTarget !== document.body
+          ? portalTarget.getBoundingClientRect()
+          : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
       setPosition({
-        x: Math.max(8, Math.min(anchor.x, window.innerWidth - rect.width - 8)),
-        y: Math.max(8, Math.min(anchor.y, window.innerHeight - rect.height - 8)),
+        x: Math.max(bounds.left + 8, Math.min(anchor.x, bounds.right - rect.width - 8)),
+        y: Math.max(bounds.top + 8, Math.min(anchor.y, bounds.bottom - rect.height - 8)),
       });
     };
     updatePosition();
     window.addEventListener("resize", updatePosition);
     return () => window.removeEventListener("resize", updatePosition);
-  }, [anchor.x, anchor.y]);
+  }, [anchor.x, anchor.y, portalTarget]);
 
   useEffect(() => {
     returnFocusRef.current =
@@ -152,6 +159,8 @@ export function WorkbenchSessionContextMenu({
     </Button>
   );
 
+  if (!portalTarget) return null;
+
   return createPortal(
     <div
       ref={menuRef}
@@ -196,6 +205,6 @@ export function WorkbenchSessionContextMenu({
         "danger",
       )}
     </div>,
-    document.body,
+    portalTarget,
   );
 }

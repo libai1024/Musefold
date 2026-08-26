@@ -74,6 +74,9 @@ describe('SettingsWorkspace', () => {
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('data-testid="settings-compact-header"');
     expect(html).toContain('data-testid="settings-compact-search"');
+    expect(html).toContain('data-testid="settings-navigation-page"');
+    expect(html).toContain('data-testid="settings-phone-header"');
+    expect(html).toContain('返回设置');
     expect(html).toContain('class="mf-settings-pane"');
     expect(html).not.toContain('<main');
     expect(html).toContain('真实宿主内容');
