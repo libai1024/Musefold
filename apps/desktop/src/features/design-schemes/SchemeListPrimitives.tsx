@@ -69,6 +69,7 @@ export function SchemeSearchField({
 interface SchemeListSectionProps {
   title: string;
   count: number;
+  showHeading?: boolean;
   singleColumn?: boolean;
   children: ReactNode;
 }
@@ -76,16 +77,19 @@ interface SchemeListSectionProps {
 export function SchemeListSection({
   title,
   count,
+  showHeading = true,
   singleColumn = false,
   children,
 }: SchemeListSectionProps) {
   if (count === 0) return null;
   return (
     <section className="mt-7 first:mt-0">
-      <div className="mb-2 flex items-center gap-2 border-b border-border-subtle pb-2">
-        <h2 className="text-[13px] font-semibold text-primary">{title}</h2>
-        <span className="text-meta tabular-nums text-tertiary">{count}</span>
-      </div>
+      {showHeading ? (
+        <div className="mb-2 flex items-center gap-2 border-b border-border-subtle pb-2">
+          <h2 className="text-[13px] font-semibold text-primary">{title}</h2>
+          <span className="text-meta tabular-nums text-tertiary">{count}</span>
+        </div>
+      ) : null}
       <div
         className={cn(
           'grid gap-x-7 gap-y-1',

@@ -206,7 +206,7 @@ export function PromptDetailScreen({
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="mf-danger-action"
+                        tone="danger"
                         onSelect={requestDelete}
                         data-testid="detail-delete"
                       >

@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  IconButton,
 } from '@musefold/ui';
 
 /** 详情操作菜单（UI 规范 §4.2）：主动作之外的操作收进 ...；危险操作垫底分隔。 */
@@ -46,15 +47,13 @@ export function SchemeActionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="icon-action h-8 w-8"
-          aria-label="更多操作"
+        <IconButton
+          label="更多方案操作"
           title="更多操作"
           data-testid="runtime-scheme-menu"
         >
           <MoreHorizontal className="h-4 w-4" />
-        </button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -109,7 +108,7 @@ export function SchemeActionMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={onRemove}
-          className="mf-danger-action"
+          tone="danger"
           data-testid="runtime-scheme-menu-remove"
         >
           <Trash2 className="h-3.5 w-3.5" />

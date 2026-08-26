@@ -5,6 +5,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  IconButton,
 } from '@musefold/ui';
 
 export interface WorkbenchTurnMenuItem {
@@ -46,10 +47,14 @@ export function WorkbenchTurnActions({
       {hasMenu ? (
         <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
-            <button type="button" className="mf-workbench-turn-more" data-testid={moreTestId}>
+            <IconButton
+              className="mf-workbench-turn-more"
+              label="更多回合操作"
+              title="更多操作"
+              data-testid={moreTestId}
+            >
               <MoreHorizontal aria-hidden="true" />
-              更多
-            </button>
+            </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             side="top"

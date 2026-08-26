@@ -10,7 +10,6 @@ export type SchemeSurface = 'mine' | 'discover';
 interface SchemeControlDeckProps {
   surface: SchemeSurface;
   runtimeCount: number;
-  filteredCount: number;
   marketCount?: number;
   query: string;
   runtimeLoading: boolean;
@@ -25,7 +24,6 @@ interface SchemeControlDeckProps {
 export function SchemeControlDeck({
   surface,
   runtimeCount,
-  filteredCount,
   marketCount,
   query,
   runtimeLoading,
@@ -81,12 +79,6 @@ export function SchemeControlDeck({
         />
       </div>
       <div className="mf-scheme-control-secondary">
-        <div className="mf-workspace-section-summary">
-          <span>{surface === 'mine' ? '我的方案' : '发现'}</span>
-          <span className="mf-workspace-section-count">
-            {surface === 'mine' ? filteredCount : (marketCount ?? 0)}
-          </span>
-        </div>
         <button
           type="button"
           onClick={onRefresh}

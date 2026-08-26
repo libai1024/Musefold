@@ -20,7 +20,7 @@ describe('prompt overlay contracts', () => {
 
   it('keeps destructive actions separated and dialog content structured', () => {
     expect(detailSource).toContain('<DropdownMenuSeparator />');
-    expect(detailSource).toContain('className="mf-danger-action"');
+    expect(detailSource).toContain('tone="danger"');
     expect(detailSource).toContain('<DialogBody>');
   });
 });

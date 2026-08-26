@@ -43,6 +43,8 @@ Codex 的任务连续性
 
 每个文件控制在 1000 行以内。`README.md` 负责索引，不承载具体页面细节。
 
+交付计划（Web 账号对齐、响应式收敛、CI/CD 部署）登记在 [../V20-WEB-ALIGNMENT-DELIVERY-PLAN.md](../V20-WEB-ALIGNMENT-DELIVERY-PLAN.md)。
+
 ## 3. ZCode 参照截图
 
 截图位于 `references/zcode/`：

@@ -65,7 +65,7 @@ def test_composer_context_menu_keeps_geometry_and_keyboard_contract(app):
 
     dark = style(app, '[data-testid="workbench-context-menu"]')
     assert dark["backgroundColor"] == "rgb(43, 45, 49)"
-    assert dark["borderRadius"] == "12px"
+    assert dark["borderRadius"] == "8px"
     assert dark["boxShadow"] != "none"
     assert dark["opacity"] == "1"
     first = menu.get_by_role("menuitem").first
@@ -79,6 +79,10 @@ def test_composer_context_menu_keeps_geometry_and_keyboard_contract(app):
 
     app.page.keyboard.press("Escape")
     menu.wait_for(state="detached")
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-testid="workbench-image-picker"]',
+    )
     assert trigger.evaluate("node => node === document.activeElement")
 
     set_desktop_theme(app, "light")
@@ -114,6 +118,10 @@ def test_sidebar_access_menus_match_phase_c_layers(app):
     assert first_identity.evaluate("node => node === document.activeElement")
     app.page.keyboard.press("Escape")
     identity_menu.wait_for(state="detached")
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-testid="provider-quick-switch"]',
+    )
     assert identity_trigger.evaluate("node => node === document.activeElement")
 
     settings_trigger = app.page.get_by_test_id("sidebar-settings")
@@ -128,6 +136,10 @@ def test_sidebar_access_menus_match_phase_c_layers(app):
     assert first_settings.evaluate("node => node === document.activeElement")
     app.page.keyboard.press("Escape")
     settings_menu.wait_for(state="detached")
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-testid="sidebar-settings"]',
+    )
     assert settings_trigger.evaluate("node => node === document.activeElement")
 
     set_desktop_theme(app, "light")
@@ -166,6 +178,10 @@ def test_session_menu_and_dialog_follow_phase_c_layers(app):
 
     app.page.keyboard.press("Escape")
     menu.wait_for(state="detached")
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-conversation-row="phase-c-session"] .mf-workbench-session-open',
+    )
     assert trigger.evaluate("node => node === document.activeElement")
 
     row.click(button="right")
@@ -186,6 +202,74 @@ def test_session_menu_and_dialog_follow_phase_c_layers(app):
     assert overlay.evaluate("node => getComputedStyle(node).backgroundColor") == "rgba(20, 20, 24, 0.38)"
     capture(app, "phase-c-dialog-light-1440x900.png")
     dialog.get_by_role("button", name="取消").click()
+
+
+def test_session_pin_reuses_the_compact_leading_status_slot(app):
+    app.api_ok(
+        "workbenchSession.ensure",
+        {
+            "id": "compact-pin-session",
+            "title": "当代陶器与自然织物，窗边晨光，安静的静物摄影",
+        },
+    )
+    app.page.reload()
+    app.page.wait_for_selector("#root > *")
+    app.set_view("generate")
+    set_desktop_theme(app, "dark")
+
+    row = app.page.locator('[data-conversation-row="compact-pin-session"]')
+    row.wait_for()
+    pin = row.get_by_test_id("conversation-hover-pin")
+    archive = row.get_by_test_id("conversation-hover-archive")
+    status = row.locator(".mf-workbench-session-status")
+    title = row.locator(".mf-workbench-session-open > span:last-child")
+
+    title_before = title.bounding_box()
+    row.hover()
+    app.page.wait_for_function(
+        """selector => {
+          const node = document.querySelector(selector);
+          return node && getComputedStyle(node).opacity === '1';
+        }""",
+        arg=(
+            '[data-conversation-row="compact-pin-session"] '
+            '[data-testid="conversation-hover-pin"]'
+        ),
+    )
+    pin_box = pin.bounding_box()
+    title_after = title.bounding_box()
+
+    assert title_before is not None
+    assert pin_box is not None
+    assert title_after is not None
+    assert abs(title_before["x"] - title_after["x"]) <= 1
+    assert abs(title_after["x"] - (pin_box["x"] + pin_box["width"] + 4)) <= 1
+    assert status.evaluate("node => getComputedStyle(node).opacity") == "0"
+    title_style = title.evaluate(
+        """node => ({
+          textOverflow: getComputedStyle(node).textOverflow,
+          maskImage: getComputedStyle(node).maskImage,
+        })"""
+    )
+    assert title_style["textOverflow"] == "clip"
+    assert "linear-gradient" in title_style["maskImage"]
+    for action in (pin, archive):
+        action_style = action.evaluate(
+            """node => ({
+              backgroundColor: getComputedStyle(node).backgroundColor,
+              boxShadow: getComputedStyle(node).boxShadow,
+            })"""
+        )
+        assert action_style["backgroundColor"] == "rgb(43, 45, 49)"
+        assert action_style["boxShadow"] != "none"
+    assert pin.evaluate("node => getComputedStyle(node).zIndex") == "2"
+    assert (
+        row.locator(".mf-workbench-session-actions").evaluate(
+            "node => getComputedStyle(node).zIndex"
+        )
+        == "2"
+    )
+    capture(app, "session-pin-compact-leading-slot-dark-1440x900.png")
 
 
 def test_toast_uses_semantic_grid_in_both_themes(app):

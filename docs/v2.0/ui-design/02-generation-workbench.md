@@ -783,13 +783,13 @@ Composer 作为 MainView 底部独立 raised tool
 
 ### 31.1 回合动作
 
-`WorkbenchTurnActions` 使用共享 `DropdownMenu`，触发器仍然是回合下方的“更多”按钮。菜单固定向上展开，宽度 176px，使用 `--bg-popover`、8px 圆角和 `--shadow-pop`。由于内容通过 Portal 渲染，菜单不会把后续回合向下推，也不会改变 Composer 的居中靠下位置。
+`WorkbenchTurnActions` 使用共享 `DropdownMenu`，触发器收敛为回合下方的省略号 `IconButton`，可访问名称为“更多回合操作”，hover tooltip 为“更多操作”。菜单固定向上展开，宽度 176px，使用 `--bg-popover`、8px 圆角和 `--shadow-pop`。由于内容通过 Portal 渲染，菜单不会把后续回合向下推，也不会改变 Composer 的居中靠下位置。
 
-菜单行沿用 32px 紧凑密度，图标统一 12px，普通动作使用次级文字色，hover 使用整行高亮。宿主注入的“存为提示词”作为同一菜单集合中的单行控件参与键盘导航，不能再嵌套第二个 button。
+菜单行沿用 32px 紧凑密度，图标统一 14px，普通动作使用次级文字色，hover 使用整行高亮。宿主注入的“存为提示词”作为同一菜单集合中的单行控件参与键盘导航，不能再嵌套第二个 button。
 
 ### 31.2 结果卡片动作
 
-结果卡片媒体表面保留保存、复制、微调三个高频图标动作；打开目录和查看历史属于低频动作，收纳在右下角的更多按钮中。共享菜单宽度 144px，向上展开并右边缘对齐卡片，避免被结果卡片或 MainView 的 overflow 裁剪。
+结果卡片媒体表面保留保存、复制、微调三个高频图标动作；打开目录和查看历史属于低频动作，收纳在右下角的更多按钮中。共享菜单宽度 176px，向上展开并右边缘对齐卡片，避免被结果卡片或 MainView 的 overflow 裁剪。
 
 ```text
 ┌────────────── result media ──────────────┐
@@ -819,9 +819,9 @@ mf-workbench-page
 
 ### 31.4 Composer 上下文菜单第六批收口
 
-Composer 左下角“添加上下文”入口继续沿用全宽菜单的工作台语义，但浮层本身由共享 Dropdown 承载：菜单向上展开，内容宽度限制为 `min(728px, calc(100vw - 32px))`，最大高度不超过可用桌面高度，避免把长列表推出窗口。
+Composer 左下角“添加上下文”入口使用紧凑动作菜单，不再横跨 Composer：浮层由共享 Dropdown 承载，向上展开，内容宽度限制为 `min(304px, calc(100vw - 16px))`，最大高度不超过可用桌面高度，避免把长列表推出窗口。
 
-- 菜单表面使用 `--bg-popover`、12px 外圆角、`--shadow-pop` 和 1px border；菜单项使用 8px 圆角、40px 最小高度，主动作使用 inset surface，分组使用真实 `DropdownMenuLabel` / `DropdownMenuSeparator`。
+- 菜单表面使用 `--bg-popover`、8px 外圆角、`--shadow-pop` 和 1px 极细 border；富信息菜单项使用 6px 圆角、40px 最小高度。主动作只用 accent 图标建立优先级，不增加独立 inset 卡片；分组使用真实 `DropdownMenuLabel` / `DropdownMenuSeparator`。
 - Portal 让菜单脱离 `mf-workbench-primary` 的 overflow 约束，但不改变 `mf-workbench-stage`、回合时间线底部安全内距和 Composer 的居中靠下定位。
 - 首项聚焦、方向键、Home / End、Escape 和触发器焦点归还由共享原语负责；页面不再监听 document 级 pointerdown / keydown。
 - 菜单动作仍保持原有业务 test id 和上下文来源分类，选中后只改变 Composer 的上下文状态，不重排已有回合。

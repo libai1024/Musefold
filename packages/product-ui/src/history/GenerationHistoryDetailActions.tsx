@@ -277,7 +277,7 @@ export function GenerationHistoryDetailActions({
                   {renderMenuItems(additionalDangerMenuItems)}
                   {onDelete ? (
                     <DropdownMenuItem
-                      className="mf-danger-action"
+                      tone="danger"
                       disabled={disabled}
                       onSelect={requestDelete}
                       data-testid="history-detail-delete"

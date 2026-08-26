@@ -47,8 +47,8 @@ export function SchemeCreateMenu({ onChoose }: { onChoose: (kind: SchemeCreateKi
   return (
     <DropdownMenuContent
       align="end"
-      sideOffset={6}
-      className="w-[286px]"
+      sideOffset={8}
+      className="mf-scheme-create-menu"
       aria-label="新建方案"
       data-testid="scheme-create-menu"
     >
@@ -58,12 +58,15 @@ export function SchemeCreateMenu({ onChoose }: { onChoose: (kind: SchemeCreateKi
           <DropdownMenuItem
             key={item.id}
             onSelect={() => onChoose(item.id)}
-            className="min-h-12 gap-3 px-2.5"
+            className="mf-scheme-create-option"
+            data-testid={`scheme-create-option-${item.id}`}
           >
-            <Icon className="h-4 w-4 shrink-0 text-secondary" />
-            <span className="min-w-0">
-              <span className="block text-[11.5px] font-medium text-primary">{item.label}</span>
-              <span className="block truncate text-meta text-tertiary">{item.hint}</span>
+            <span className="mf-scheme-create-option-icon" aria-hidden="true">
+              <Icon />
+            </span>
+            <span className="mf-scheme-create-option-copy">
+              <span className="mf-scheme-create-option-label">{item.label}</span>
+              <span className="mf-scheme-create-option-hint">{item.hint}</span>
             </span>
           </DropdownMenuItem>
         );

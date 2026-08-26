@@ -234,6 +234,7 @@ export function DesignSchemesPage() {
   );
   const runtimeDrafts = filteredRuntimeSchemes.filter((scheme) => scheme.status === 'draft');
   const runtimeFormal = filteredRuntimeSchemes.filter((scheme) => scheme.status === 'formal');
+  const showRuntimeGroupHeadings = runtimeDrafts.length > 0 && runtimeFormal.length > 0;
   const mineEmpty = filteredRuntimeSchemes.length === 0;
   const runRuntimeScheme = (scheme: DesignSchemeSummary) => {
     void attachSchemeRun(scheme, scheme.status === 'formal' ? 'formal' : 'trial');
@@ -384,20 +385,20 @@ export function DesignSchemesPage() {
 
   return (
     <div
-      className="relative flex h-full min-h-0 overflow-hidden bg-work"
+      className="mf-scheme-workspace"
+      data-inspector-open={selectedScheme ? 'true' : 'false'}
       data-testid="design-schemes-page"
     >
-      <main className="min-w-0 flex-1 overflow-y-auto" data-testid="scheme-list-workspace">
+      <main className="mf-workspace-list-pane" data-testid="scheme-list-workspace">
         <div
           className={cn(
-            'mx-auto w-full px-6 pb-16 pt-5 max-[640px]:px-4',
-            selectedScheme ? 'max-w-none' : 'max-w-[960px]',
+            'mf-workspace-list-content',
+            selectedScheme && 'mf-workspace-list-content-wide',
           )}
         >
           <SchemeControlDeck
             surface={surface}
             runtimeCount={runtimeSchemes.length}
-            filteredCount={filteredRuntimeSchemes.length}
             marketCount={marketResult?.candidates.length}
             query={query}
             runtimeLoading={runtimeLoading}
@@ -429,6 +430,7 @@ export function DesignSchemesPage() {
                   <SchemeListSection
                     title="草稿"
                     count={runtimeDrafts.length}
+                    showHeading={showRuntimeGroupHeadings}
                     singleColumn={Boolean(selectedScheme)}
                   >
                     {runtimeDrafts.map((scheme) => (
@@ -447,6 +449,7 @@ export function DesignSchemesPage() {
                   <SchemeListSection
                     title="正式"
                     count={runtimeFormal.length}
+                    showHeading={showRuntimeGroupHeadings}
                     singleColumn={Boolean(selectedScheme)}
                   >
                     {runtimeFormal.map((scheme) => (

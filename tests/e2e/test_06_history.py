@@ -276,6 +276,31 @@ def test_history_v2_shell_search_and_inspector_geometry(app):
     assert abs(geometry["surfaceWidth"] - 320) <= 1
     assert geometry["surfaceRadius"] >= 11
 
+    app.page.set_viewport_size({"width": 960, "height": 760})
+    app.page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('.mf-history-workspace-list')).display === 'none'"
+    )
+    app.page.wait_for_function(
+        """() => {
+          const workspace = document.querySelector('[data-testid="history-workspace"]');
+          const inspector = document.querySelector('[data-testid="history-inspector"]');
+          return workspace && inspector
+            && Math.abs(workspace.getBoundingClientRect().width - inspector.getBoundingClientRect().width) <= 1;
+        }"""
+    )
+    narrow_geometry = app.page.get_by_test_id("history-workspace").evaluate(
+        """workspace => {
+          const inspector = workspace.querySelector('[data-testid="history-inspector"]');
+          if (!inspector) return null;
+          return {
+            workspaceWidth: workspace.getBoundingClientRect().width,
+            inspectorWidth: inspector.getBoundingClientRect().width,
+          };
+        }"""
+    )
+    assert narrow_geometry is not None
+    assert abs(narrow_geometry["workspaceWidth"] - narrow_geometry["inspectorWidth"]) <= 1
+
     app.page.get_by_test_id("history-detail-close").click()
     app.page.wait_for_function(
         """() => document.querySelector('[data-testid="history-workspace"]')

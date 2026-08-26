@@ -85,7 +85,9 @@ export function PromptLibraryScreen({
             />
           </div>
           <div className="mf-library-control-secondary">
-            <div className="mf-library-section-summary">{sectionSummary}</div>
+            {sectionSummary ? (
+              <div className="mf-library-section-summary">{sectionSummary}</div>
+            ) : null}
             {!showPageHeader ? headerAction : null}
           </div>
         </div>

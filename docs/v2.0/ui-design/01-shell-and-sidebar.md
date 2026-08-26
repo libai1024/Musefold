@@ -45,7 +45,7 @@ Musefold 2.0 继承这个空间模型，但将项目/分支语义替换成创作
 - Sidebar 默认：244px。
 - Sidebar 最小：200px。
 - Sidebar 最大：窗口宽度的 50% 以下。
-- 左侧 resize 视觉线：1px。
+- 左侧 resize 不绘制常驻视觉线，仅保留 8px 隐形交互区。
 - Resize 交互区：至少 8px。
 - Dock 默认：280-320px。
 - MainView 使用 `min-width: 0`，避免结果和 Composer 撑破布局。
@@ -79,7 +79,7 @@ Sidebar
 
 Light：
 
-- 背景继承 `--bg-sidebar`。
+- 背景继承 `--bg-window`，与 MainView 圆角工作面下方的 Window 底面一致。
 - Logo 使用 Graphite，活动小标记使用 Ember。
 - 文字 `--fg-primary`。
 
@@ -169,11 +169,14 @@ Dark：
 行规格：
 
 - 最小高度 44px。
-- 左右内边距 8px。
+- 左侧内边距 4px，右侧内边距 10px；右侧动作出现时使用预留区覆盖该基础值。
 - 圆角 8px。
 - 标题 12px，摘要 11px。
+- 标题过长时在末端使用 20px 单向淡出，不显示省略号；完整标题仍保留在无障碍名称中。
 - 时间和状态使用 `--fg-tertiary`。
-- hover 后出现置顶、归档、更多，不改变行高。
+- 状态点与置顶按钮共用标题前的 24px 前导槽；hover/focus 时置顶按钮替换状态点，已置顶时按钮常显。
+- 前导槽与标题间距 4px；归档、更多保留在右侧，不改变行高或标题位置。
+- 置顶与归档使用 `--surface-popover`、`--shadow-sm` 并相对行中心上移 1px，形成轻量悬浮层；不增加描边。
 
 ### 4.5 Footer
 
@@ -269,7 +272,7 @@ AppShell 不应直接理解生成结果、提示词或历史数据。它只负�
 
 ## 10. 验收
 
-- [ ] 左栏和 MainView 的边界清晰但极细。
+- [ ] 左栏和 MainView 共用 Window 底面，不出现常驻竖向分割线。
 - [ ] New Design 是最容易识别的入口。
 - [ ] 当前会话、当前页面和运行状态可以同时识别。
 - [ ] hover 不改变任何列表行高度。
@@ -280,7 +283,7 @@ AppShell 不应直接理解生成结果、提示词或历史数据。它只负�
 
 ## 11. 本轮讨论确认的 Shell 材质关系
 
-本轮讨论进一步确认：Sidebar、MainView 和 Dock 是独立布局列，但要通过极细分缝和圆角工作面形成“贴近、连续、具有实体感”的桌面结构。
+本轮讨论进一步确认：Sidebar、MainView 和 Dock 是独立布局列，但 Sidebar 与 MainView 外框共用 Window 底面，由圆角工作面形成“贴近、连续、具有实体感”的桌面结构，不额外绘制竖向分缝。
 
 ```text
 Window background
@@ -487,7 +490,7 @@ border: 1px solid color-mix(
 | 状态 | 表达 |
 | --- | --- |
 | 普通 | 主标题 + 时间 |
-| Hover | 显示置顶、归档、更多 |
+| Hover | 前导状态点切换为置顶按钮，右侧显示归档、更多 |
 | Selected | Ember soft + 主文字 |
 | Running | Ember 状态点 + 生成中 |
 | Unread | 小型状态点或文字加粗 |
@@ -496,7 +499,7 @@ border: 1px solid color-mix(
 | Renaming | 原地输入框 |
 | Delete | 独立确认 Dialog |
 
-hover 出现操作时，必须预留右侧动作区域，避免标题突然被挤压。
+hover 出现操作时，前导状态与置顶复用同一槽位，并预留右侧尾随动作区域，避免标题突然被挤压。
 
 ## 18. Sidebar Footer 质感
 
@@ -525,10 +528,10 @@ hover 出现操作时，必须预留右侧动作区域，避免标题突然被�
 当前 Sidebar 已有 resize handle，2.0 只升级视觉和交互：
 
 ```text
-视觉线：1px
+视觉线：不显示
 交互区：8px
-拖拽态：strong border
-键盘态：focus ring
+拖拽态：col-resize cursor
+键盘态：Sidebar 内侧 focus ring
 ```
 
 拖拽中：
@@ -556,7 +559,7 @@ hover 出现操作时，必须预留右侧动作区域，避免标题突然被�
 推荐：
 
 ```text
-Sidebar 与 MainView：1px 分缝
+Sidebar 与 MainView：共用 Window 底面，无常驻分缝
 Window 到 MainView：4px 内缩
 MainView 外框：12px 圆角
 ```
@@ -578,7 +581,7 @@ MainView 外框：12px 圆角
 
 - [ ] Sidebar 默认宽度为 248px，最小宽度保证中文可读。
 - [ ] Sidebar 外层不使用巨大圆角，MainView 才是主要圆角工作面。
-- [ ] Sidebar 与 MainView 之间保持约 1px 分缝。
+- [ ] Sidebar 与 MainView 共用 `--bg-window` 底面，之间不显示常驻分缝。
 - [ ] MainView 相对 Window 保留约 4px 视觉内缩。
 - [ ] New Design 是最容易识别的创建入口。
 - [ ] 导航 selected 使用 Ember soft，而不是粗重色条。

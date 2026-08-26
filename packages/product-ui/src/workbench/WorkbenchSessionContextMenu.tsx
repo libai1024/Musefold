@@ -72,9 +72,7 @@ export function WorkbenchSessionContextMenu({
   const closeAndRestoreFocus = () => {
     const returnFocus = returnFocusRef.current;
     onClose();
-    window.requestAnimationFrame(() => {
-      if (returnFocus?.isConnected) returnFocus.focus();
-    });
+    if (returnFocus?.isConnected) returnFocus.focus();
   };
 
   useEffect(() => {
@@ -135,13 +133,14 @@ export function WorkbenchSessionContextMenu({
     icon: ReactNode,
     onSelect: () => void,
     testId: string,
-    className = "",
+    tone: "default" | "danger" = "default",
   ) => (
     <Button
       unstyled
       type="button"
       role="menuitem"
-      className={`mf-workbench-session-context-action ${className}`.trim()}
+      className="mf-ui-dropdown-item mf-workbench-session-context-action"
+      data-tone={tone === "danger" ? tone : undefined}
       onClick={() => {
         onSelect();
         onClose();
@@ -161,7 +160,7 @@ export function WorkbenchSessionContextMenu({
       data-workbench-session-context-menu
       aria-label={`对话操作：${title}`}
       onKeyDown={handleMenuKeyDown}
-      className="mf-workbench-session-context-menu"
+      className="mf-ui-dropdown-content mf-workbench-session-context-menu"
       style={{ left: position.x, top: position.y }}
     >
       {action(
@@ -188,13 +187,13 @@ export function WorkbenchSessionContextMenu({
         onMarkUnread,
         "conversation-context-unread",
       )}
-      <div className="mf-workbench-session-context-separator" role="separator" />
+      <div className="mf-ui-dropdown-separator" role="separator" />
       {action(
         "删除聊天",
         <Trash2 aria-hidden="true" />,
         onDelete,
         "conversation-context-delete",
-        "mf-workbench-session-context-danger",
+        "danger",
       )}
     </div>,
     document.body,

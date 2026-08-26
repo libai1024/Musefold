@@ -48,12 +48,12 @@ export function SchemeInspector({ scheme, onClose, onOpenDetail, onRun }: Scheme
 
   return (
     <aside
-      className="h-full w-[404px] min-w-[344px] max-w-[42%] shrink-0 bg-[var(--bg-window)] pl-1"
+      className="mf-workspace-inspector-shell"
       aria-label="方案详情"
       data-testid="scheme-inspector-shell"
     >
       <section
-        className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-work)] border border-border-subtle bg-[var(--bg-dock)] shadow-sm"
+        className="mf-workspace-inspector"
         data-testid="scheme-inspector"
         data-scheme-id={scheme.id}
       >

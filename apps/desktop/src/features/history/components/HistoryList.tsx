@@ -66,7 +66,7 @@ export function HistoryList({ onOpenLightbox }: { onOpenLightbox?: (id: string) 
   });
 
   return (
-    <div ref={parentRef} className="h-full overflow-auto px-4 py-2" data-testid="history-list">
+    <div ref={parentRef} className="h-full overflow-auto py-2" data-testid="history-list">
       {error && records.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
           <XCircle className="h-8 w-8 text-danger" />
@@ -132,7 +132,7 @@ export function HistoryList({ onOpenLightbox }: { onOpenLightbox?: (id: string) 
                 }}
                 className="pb-[var(--density-list-gap)]"
               >
-                <div className="mx-auto w-full max-w-[860px]">
+                <div className="mx-auto w-full max-w-[960px]">
                   <HistoryRow
                     item={item}
                     selected={selectedId === r.id}

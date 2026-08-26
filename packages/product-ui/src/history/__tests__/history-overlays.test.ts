@@ -22,7 +22,7 @@ describe('history overlay contracts', () => {
   });
 
   it('keeps destructive actions separated and confirmation dialogs structured', () => {
-    expect(actionsSource).toContain('className="mf-danger-action"');
+    expect(actionsSource).toContain('tone="danger"');
     expect(actionsSource).toContain('<DialogBody>');
     expect(actionsSource).toContain('data-testid="history-detail-delete-dialog"');
     expect(detailSource).toContain('deleteConfirmation={{');

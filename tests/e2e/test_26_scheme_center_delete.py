@@ -55,6 +55,8 @@ def test_delete_scheme_from_center_list(app, tmp_path):
     app.set_view("design-schemes")
     row = app.page.locator(f'[data-testid="runtime-scheme-row-{scheme_id}"]')
     row.wait_for()
+    assert app.page.locator(".mf-workspace-section-summary").count() == 0
+    assert app.page.get_by_test_id("scheme-list-workspace").locator("h2").count() == 0
 
     # 悬停出现删除按钮 → 确认对话框 → 行消失。
     row.hover()
@@ -89,6 +91,15 @@ def test_scheme_row_opens_non_overlaying_inspector(app, tmp_path):
     assert list_box["x"] + list_box["width"] <= inspector_box["x"] + 1
     assert row.get_attribute("data-selected") == "true"
     assert app.page.get_by_test_id("scheme-search").is_visible()
+
+    app.page.set_viewport_size({"width": 960, "height": 760})
+    app.page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('[data-testid=\"scheme-list-workspace\"]')).display === 'none'"
+    )
+    narrow_workspace = app.page.get_by_test_id("design-schemes-page").bounding_box()
+    narrow_inspector = inspector.bounding_box()
+    assert narrow_workspace and narrow_inspector
+    assert abs(narrow_workspace["width"] - narrow_inspector["width"]) <= 1
 
     app.page.get_by_test_id("scheme-inspector-close").click()
     inspector.wait_for(state="detached")
@@ -141,6 +152,10 @@ def test_delete_untrialed_scheme_from_detail_page(app, tmp_path):
     assert first.evaluate("node => node === document.activeElement")
     app.page.keyboard.press("Escape")
     menu.wait_for(state="detached")
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-testid="runtime-scheme-menu"]',
+    )
     assert menu_trigger.evaluate("node => node === document.activeElement")
 
     app.page.evaluate("() => window.__musefold_test.stores.app.getState().setThemeSource('light')")
