@@ -9,8 +9,10 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '../..');
 const configPath = join(scriptDir, '..', 'layer-paths.yml');
 const PRODUCT_LAYERS = ['content', 'service', 'shell'];
-const ALL_GROUPS = ['infra', ...PRODUCT_LAYERS, 'desktop', 'docs'];
+const GATE_GROUPS = ['desktop', 'web_e2e', 'shared_visual', 'openapi', 'postgres_integration'];
+const ALL_GROUPS = ['infra', ...PRODUCT_LAYERS, ...GATE_GROUPS, 'docs'];
 const ZERO_SHA = /^0+$/;
+const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
 function lines(value) {
   return String(value)
@@ -177,6 +179,10 @@ function allProductTrue(extra = {}) {
     service: true,
     shell: true,
     desktop: true,
+    web_e2e: true,
+    shared_visual: true,
+    openapi: true,
+    postgres_integration: true,
     docs_only: false,
     ...extra,
   };
@@ -190,6 +196,10 @@ function classifyFiles(files, groups = loadLayerPaths()) {
       service: false,
       shell: false,
       desktop: false,
+      web_e2e: false,
+      shared_visual: false,
+      openapi: false,
+      postgres_integration: false,
       docs_only: false,
       unmatched: [],
       fail_open: false,
@@ -199,7 +209,7 @@ function classifyFiles(files, groups = loadLayerPaths()) {
   /** @type {string[]} */
   const unmatched = [];
   let infra = false;
-  const hits = { content: false, service: false, shell: false, desktop: false, docs: false };
+  const hits = Object.fromEntries([...PRODUCT_LAYERS, ...GATE_GROUPS, 'docs'].map((name) => [name, false]));
 
   for (const file of normalized) {
     const matched = groupsForFile(file, groups);
@@ -208,7 +218,7 @@ function classifyFiles(files, groups = loadLayerPaths()) {
       continue;
     }
     if (matched.includes('infra')) infra = true;
-    for (const name of ['content', 'service', 'shell', 'desktop', 'docs']) {
+    for (const name of [...PRODUCT_LAYERS, ...GATE_GROUPS, 'docs']) {
       if (matched.includes(name)) hits[name] = true;
     }
   }
@@ -228,6 +238,10 @@ function classifyFiles(files, groups = loadLayerPaths()) {
     service: hits.service,
     shell: hits.shell,
     desktop: hits.desktop,
+    web_e2e: hits.web_e2e,
+    shared_visual: hits.shared_visual,
+    openapi: hits.openapi,
+    postgres_integration: hits.postgres_integration,
     docs_only,
     unmatched: [],
     fail_open: false,
@@ -257,6 +271,19 @@ function gitDiff(args) {
   }
 }
 
+function gitMergeBase(base, head) {
+  try {
+    const output = execFileSync('git', ['merge-base', base, head], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return lines(output)[0] || base;
+  } catch {
+    return base;
+  }
+}
+
 function filesFromCli(argv) {
   if (argv.includes('--files-from')) {
     const index = argv.indexOf('--files-from');
@@ -271,44 +298,70 @@ function filesFromCli(argv) {
 
 function resolveChangedFiles(argv = process.argv.slice(2), env = process.env) {
   const fromCli = filesFromCli(argv);
-  if (fromCli) return { files: fromCli, reason: 'cli' };
+  if (fromCli) {
+    return {
+      files: fromCli,
+      reason: 'cli',
+      baseSha: env.BASE_SHA || EMPTY_TREE_SHA,
+      headSha: env.HEAD_SHA || env.GITHUB_SHA || '',
+    };
+  }
 
   const eventName = env.GITHUB_EVENT_NAME || '';
   if (eventName === 'workflow_dispatch') {
-    return { files: null, reason: 'workflow_dispatch' };
+    return {
+      files: null,
+      reason: 'workflow_dispatch',
+      baseSha: env.BASE_SHA || EMPTY_TREE_SHA,
+      headSha: env.HEAD_SHA || env.GITHUB_SHA || '',
+    };
   }
 
   const event = readEventPayload();
-  if (event === null) return { files: null, reason: 'event-json' };
+  if (event === null) {
+    return {
+      files: null,
+      reason: 'event-json',
+      baseSha: env.BASE_SHA || EMPTY_TREE_SHA,
+      headSha: env.HEAD_SHA || env.GITHUB_SHA || '',
+    };
+  }
 
   if (eventName === 'pull_request' || eventName === 'pull_request_target') {
     const base = env.BASE_SHA || event.pull_request?.base?.sha;
     const head = env.HEAD_SHA || event.pull_request?.head?.sha || env.GITHUB_SHA;
-    if (!base || !head) return { files: null, reason: 'missing-pr-sha' };
+    const diffBase = base && head ? gitMergeBase(base, head) : base;
+    if (!base || !head) return { files: null, reason: 'missing-pr-sha', baseSha: diffBase || EMPTY_TREE_SHA, headSha: head || '' };
     const files = gitDiff([`${base}...${head}`]);
-    if (files == null) return { files: null, reason: 'git-diff' };
-    return { files, reason: 'pull_request' };
+    if (files == null) return { files: null, reason: 'git-diff', baseSha: diffBase, headSha: head };
+    return { files, reason: 'pull_request', baseSha: diffBase, headSha: head };
   }
 
   if (eventName === 'push') {
     const before = event.before || env.BEFORE_SHA;
     const after = event.after || env.AFTER_SHA || env.GITHUB_SHA;
     if (!before || !after || ZERO_SHA.test(before)) {
-      return { files: null, reason: 'push-before' };
+      return { files: null, reason: 'push-before', baseSha: EMPTY_TREE_SHA, headSha: after || '' };
     }
     const files = gitDiff([before, after]);
-    if (files == null) return { files: null, reason: 'git-diff' };
-    return { files, reason: 'push' };
+    if (files == null) return { files: null, reason: 'git-diff', baseSha: before, headSha: after };
+    return { files, reason: 'push', baseSha: before, headSha: after };
   }
 
-  return { files: null, reason: eventName || 'unknown-event' };
+  return {
+    files: null,
+    reason: eventName || 'unknown-event',
+    baseSha: env.BASE_SHA || EMPTY_TREE_SHA,
+    headSha: env.HEAD_SHA || env.GITHUB_SHA || '',
+  };
 }
 
 function outputsFromResolution(resolved, groups = loadLayerPaths()) {
+  const range = { base_sha: resolved.baseSha || '', head_sha: resolved.headSha || '' };
   if (resolved.files == null) {
-    return allProductTrue({ unmatched: [], fail_open: true, reason: resolved.reason });
+    return allProductTrue({ unmatched: [], fail_open: true, reason: resolved.reason, ...range });
   }
-  return classifyFiles(resolved.files, groups);
+  return { ...classifyFiles(resolved.files, groups), ...range };
 }
 
 function writeGithubOutput(result) {
@@ -318,7 +371,13 @@ function writeGithubOutput(result) {
     `service=${result.service}`,
     `shell=${result.shell}`,
     `desktop=${result.desktop}`,
+    `web_e2e=${result.web_e2e}`,
+    `shared_visual=${result.shared_visual}`,
+    `openapi=${result.openapi}`,
+    `postgres_integration=${result.postgres_integration}`,
     `docs_only=${result.docs_only}`,
+    `base_sha=${result.base_sha || ''}`,
+    `head_sha=${result.head_sha || ''}`,
   ];
   const text = `${rows.join('\n')}\n`;
   if (target) appendFileSync(target, text);
@@ -348,6 +407,16 @@ function pick(result) {
   };
 }
 
+function pickGates(result) {
+  return {
+    web_e2e: result.web_e2e,
+    shared_visual: result.shared_visual,
+    openapi: result.openapi,
+    postgres_integration: result.postgres_integration,
+    fail_open: Boolean(result.fail_open),
+  };
+}
+
 function selfTest() {
   const groups = loadLayerPaths();
 
@@ -372,6 +441,28 @@ function selfTest() {
       shell: false,
       desktop: false,
       docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'apps/web triggers Web E2E and shared visual only',
+    pickGates(classifyFiles(['apps/web/src/App.tsx'], groups)),
+    {
+      web_e2e: true,
+      shared_visual: true,
+      openapi: false,
+      postgres_integration: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'desktop renderer triggers shared visual, not Web E2E',
+    pickGates(classifyFiles(['apps/desktop/src/pages/LibraryPage.tsx'], groups)),
+    {
+      web_e2e: false,
+      shared_visual: true,
+      openapi: false,
+      postgres_integration: false,
       fail_open: false,
     },
   );
@@ -508,6 +599,67 @@ function selfTest() {
     },
   );
   assertEqual(
+    'shared Web packages trigger Web E2E and shared visual',
+    pickGates(
+      classifyFiles(
+        [
+          'packages/ui/src/index.ts',
+          'packages/product-ui/src/index.ts',
+          'packages/domain/src/index.ts',
+          'packages/contracts/src/index.ts',
+          'packages/cloud-client/src/index.ts',
+        ],
+        groups,
+      ),
+    ),
+    {
+      web_e2e: true,
+      shared_visual: true,
+      openapi: true,
+      postgres_integration: true,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'API runtime packages trigger API gates and service',
+    {
+      ...pickGates(
+        classifyFiles(
+          [
+            'apps/web-api/src/app.ts',
+            'packages/new-api-client/src/index.ts',
+            'packages/server-crypto/src/index.ts',
+          ],
+          groups,
+        ),
+      ),
+      service: classifyFiles(
+        ['packages/new-api-client/src/index.ts', 'packages/server-crypto/src/index.ts'],
+        groups,
+      ).service,
+    },
+    {
+      web_e2e: false,
+      shared_visual: false,
+      openapi: true,
+      postgres_integration: true,
+      fail_open: false,
+      service: true,
+    },
+  );
+  assertEqual(
+    'cloud-client is content and service',
+    pick(classifyFiles(['packages/cloud-client/src/index.ts'], groups)),
+    {
+      content: true,
+      service: true,
+      shell: false,
+      desktop: true,
+      docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
     'packages/update-protocol hits content and shell',
     pick(classifyFiles(['packages/update-protocol/src/index.ts'], groups)),
     {
@@ -572,6 +724,17 @@ function selfTest() {
     pick(classifyFiles(['scripts/release-preflight.mjs'], groups)),
     { content: true, service: true, shell: true, desktop: true, docs_only: false, fail_open: true },
   );
+  assertEqual(
+    'unmapped path fail-opens all independent gates',
+    pickGates(classifyFiles(['scripts/release-preflight.mjs'], groups)),
+    {
+      web_e2e: true,
+      shared_visual: true,
+      openapi: true,
+      postgres_integration: true,
+      fail_open: true,
+    },
+  );
   assertEqual('empty change list is not docs_only', pick(classifyFiles([], groups)), {
     content: false,
     service: false,
@@ -635,6 +798,17 @@ function selfTest() {
       shell: false,
       desktop: false,
       docs_only: false,
+      fail_open: false,
+    },
+  );
+  assertEqual(
+    'marketing website does not trigger Web app gates',
+    pickGates(classifyFiles(['website/Musefold/index.html'], groups)),
+    {
+      web_e2e: false,
+      shared_visual: false,
+      openapi: false,
+      postgres_integration: false,
       fail_open: false,
     },
   );

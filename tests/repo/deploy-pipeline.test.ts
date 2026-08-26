@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { REPO_ROOT } from '../../tooling/aliases.mjs';
+import { parseRestrictedYaml } from '../../.github/scripts/detect-layers.mjs';
 import { extractUpSource, lintMigrationSource } from '../../scripts/deploy/expand-contract.mjs';
 import { filesMatch, migrationDatabaseUrl, parseDotEnv, workerDatabaseUrl } from '../../scripts/deploy/infra-guard.mjs';
 import { deploy, parseLayers, waitHttp } from '../../scripts/deploy/run.mjs';
@@ -290,6 +291,108 @@ describe('deploy orchestration', () => {
     const up = commands.find((row) => row.args?.includes('--force-recreate'));
     expect(up.args).toContain(join(composeDir, 'docker-compose.yml'));
     expect(up.args).toContain(join(composeDir, 'remote-compose.yaml'));
+  });
+});
+
+describe('CI and deploy workflow contracts', () => {
+  const ci = readFileSync(join(REPO_ROOT, '.github/workflows/ci.yml'), 'utf8');
+  const deployWorkflow = readFileSync(join(REPO_ROOT, '.github/workflows/deploy.yml'), 'utf8');
+  const layerPaths = parseRestrictedYaml(
+    readFileSync(join(REPO_ROOT, '.github/layer-paths.yml'), 'utf8'),
+    '.github/layer-paths.yml',
+  );
+
+  it('uses complete detector base/head ranges without single-parent fallbacks', () => {
+    expect(ci).toContain('BASE_SHA: ${{ needs.changes.outputs.base_sha }}');
+    expect(ci).toContain('HEAD_SHA: ${{ needs.changes.outputs.head_sha }}');
+    expect(ci).toContain('git diff --name-only "$BASE_SHA" "$HEAD_SHA"');
+    expect(ci).not.toContain('HEAD^');
+    expect(deployWorkflow).not.toContain('SHA^');
+  });
+
+  it('maps shared Web and API packages to independent gates', () => {
+    for (const path of [
+      'apps/web/**',
+      'packages/ui/**',
+      'packages/product-ui/**',
+      'packages/contracts/**',
+      'packages/domain/**',
+      'packages/cloud-client/**',
+    ]) {
+      expect(layerPaths.web_e2e).toContain(path);
+    }
+    for (const path of [
+      'apps/web-api/**',
+      'packages/contracts/**',
+      'packages/domain/**',
+      'packages/cloud-client/**',
+      'packages/new-api-client/**',
+      'packages/server-crypto/**',
+    ]) {
+      expect(layerPaths.openapi).toContain(path);
+      expect(layerPaths.postgres_integration).toContain(path);
+    }
+    expect(layerPaths.content).toContain('packages/cloud-client/**');
+    expect(layerPaths.service).toEqual(
+      expect.arrayContaining([
+        'packages/cloud-client/**',
+        'packages/new-api-client/**',
+        'packages/server-crypto/**',
+      ]),
+    );
+    expect(layerPaths.web_e2e).not.toContain('website/Musefold/**');
+    expect(layerPaths.shared_visual).not.toContain('website/Musefold/**');
+  });
+
+  it('runs each hosted gate under its independent detector condition', () => {
+    expect(ci).toContain("if: needs.changes.outputs.web_e2e == 'true'");
+    expect(ci).toContain('npm run build --workspace @musefold/web');
+    expect(ci).toContain('node apps/web/scripts/check-production-build.mjs');
+    expect(ci).toContain('npm run test:e2e:web');
+    expect(ci).toContain("if: needs.changes.outputs.shared_visual == 'true'");
+    expect(ci).toContain('npm run test:visual:shared');
+    expect(ci).toContain("if: needs.changes.outputs.openapi == 'true'");
+    expect(ci).toContain('OPENAPI_ENABLED: \'true\'');
+    expect(ci).toContain('MUSEFOLD_OPENAPI_URL: http://127.0.0.1:60160/api/musefold/v1/openapi.json');
+    expect(ci).toContain('npm run openapi:check');
+    expect(ci).toContain("if: needs.changes.outputs.postgres_integration == 'true'");
+    expect(ci).toContain('npm run test:integration:v1.1');
+    expect(ci).not.toContain('npm run check:v1.1');
+  });
+
+  it('passes exact deploy layer evidence from the triggering CI run', () => {
+    expect(ci).toContain('name: deploy-layer-evidence');
+    expect(ci).toContain('head_sha: env.HEAD_SHA');
+    expect(ci).toContain('base_sha: env.BASE_SHA');
+    expect(ci).toContain('postgres_integration: env.POSTGRES_INTEGRATION');
+    expect(deployWorkflow).toContain('actions: read');
+    expect(deployWorkflow).toContain('run-id: ${{ github.event.workflow_run.id }}');
+    expect(deployWorkflow).toContain('github-token: ${{ github.token }}');
+    expect(deployWorkflow).toContain('evidence.head_sha !== expectedSha');
+  });
+
+  it('fails closed unless a manual SHA is on main with a successful CI push run', () => {
+    expect(deployWorkflow).toContain('git fetch --force origin main:refs/remotes/origin/main');
+    expect(deployWorkflow).toContain('git rev-parse --verify "${REQUESTED}^{commit}"');
+    expect(deployWorkflow).toContain('git merge-base --is-ancestor "$SHA" origin/main');
+    expect(deployWorkflow).toContain('SHA="$SHA" node - <<\'NODE\'');
+    expect(deployWorkflow).toContain("url.searchParams.set('event', 'push')");
+    expect(deployWorkflow).toContain("url.searchParams.set('branch', 'main')");
+    expect(deployWorkflow).toContain("url.searchParams.set('status', 'completed')");
+    expect(deployWorkflow).toContain("url.searchParams.set('head_sha', expectedSha)");
+    expect(deployWorkflow).toContain("run.name === 'CI'");
+    expect(deployWorkflow).toContain("run.head_branch === 'main'");
+    expect(deployWorkflow).toContain('run.head_sha === expectedSha');
+    expect(deployWorkflow).toContain("run.conclusion === 'success'");
+    expect(deployWorkflow.indexOf('successful completed CI push run')).toBeLessThan(
+      deployWorkflow.indexOf('case "${REQUESTED_LAYERS:-all}"'),
+    );
+  });
+
+  it('keeps main push CI runs ordered so no deploy range can be cancelled', () => {
+    expect(ci).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
+    expect(deployWorkflow).toContain('branches: [main]');
+    expect(deployWorkflow).not.toContain("github.event.workflow_run.head_branch == 'master'");
   });
 });
 
