@@ -1,6 +1,6 @@
 # Musefold 2.0 Web 账号对齐、响应式收敛与 CI/CD 部署交付计划
 
-> **状态**：`WF-00`、`WF-01`、`ACC-01`…`ACC-03`、`UI-01`…`UI-04`、`CI-01` 已完成（2026-08-26）；`ACC-04` 进行中；`QA-01`、`CI-02`、`REL-01`、`REL-02` 未开始。状态列只登记事实与交付时登记的验收数字，本文件不追加任何未执行的测试声明。
+> **状态**：`WF-00`、`WF-01`、`ACC-01`…`ACC-04`、`UI-01`…`UI-04`、`CI-01`、`CI-02`、`QA-01`、`REL-01` 已完成（2026-08-26）；`REL-02` 待执行（推送合入后由 CI + Deploy production 收口）。状态列只登记事实与交付时登记的验收数字，本文件不追加任何未执行的测试声明。
 >
 > **日期**：2026-08-26（WF-01 验收返工修订：卡片清单、排除项与 ACC/CI 卡内容按批准范围修正）
 >
@@ -44,7 +44,7 @@
 | UI 响应式收敛 | UI-01…04 | WF-01（UI-04 另依赖 UI-01） | 侧栏 Drawer 化、Prompt 大屏对齐、History bottom sheet、手机收口 | 均已完成 |
 | QA 门禁 | QA-01 | ACC-01…04、UI-01…04 | 高价值验收矩阵 | 未开始 |
 | CI/CD | CI-01、CI-02 | 无 / CI-01 + QA-01 | 恢复远端 CI 绿；生产门禁加固 | CI-01 已完成；CI-02 未开始 |
-| REL 收口 | REL-01、REL-02 | QA-01 / CI-02、REL-01 | 最终本地门禁与视觉验收；生产部署与冒烟 | 未开始 |
+| REL 收口 | REL-01、REL-02 | QA-01 / CI-02、REL-01 | 最终本地门禁与视觉验收；生产部署与冒烟 | REL-01 完成；REL-02 进行中 |
 
 依赖图：
 
@@ -108,7 +108,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### ACC-04 兑换码与双端账号表面统一
 
-**状态：进行中。依赖 ACC-01、ACC-03。**
+**状态：已完成（2026-08-26，提交 `01f625f`）。依赖 ACC-01、ACC-03。**
 
 - **Web 兑换 UI**：对齐桌面既有兑换入口（`apps/desktop/src/features/generation/workbench/InlineQuotaRedeem.tsx`、`features/account/store.ts`、设置 Account 面板），Web 提供兑换码输入与结果反馈。
 - **双端账号表面统一**：`packages/product-ui/src/account/`（`AccountScreen.tsx`、`AccountSummaryPanel.tsx`）为唯一共享表面，双端身份摘要（身份名、积分/余额、可用状态、数据源）字段一致；兑换端口走 `packages/cloud-client` 与 web-api 账号模块。
@@ -155,10 +155,10 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### QA-01 高价值验收矩阵
 
-**状态：未开始。依赖 ACC-01…04、UI-01…04。**
+**状态：已完成（2026-08-26，提交 `7ba49f1`、`2662e16`）。依赖 ACC-01…04、UI-01…04。**
 
 - 高价值路径 × 视口 × 主题的验收矩阵：登录 / 注册 / 兑换 / 生成终态 / 库 / 历史 / 设置，覆盖 760 / 680 / 390 三档与 Light / Dark；接管 Phase C 各批「本批不执行手机端测试」登记的响应式遗留。
-- 现状登记：`apps/web/e2e/mobile.spec.ts` 已有 390×844 触控场景；760 / 680 档与账号流为新增，不声称现有用例通过与否。
+- 落地：`apps/web/e2e/account.spec.ts`（账号 / 兑换 / 注册 1440 与 390 档）、`workspace.spec.ts` 与 `mobile.spec.ts`（760 / 680 / 390 边界流）、`visual-contract.spec.ts`（共享 surface 归一）；`npm run test:e2e:web` 全绿。
 - **文件所有权**：`apps/web/e2e/mobile.spec.ts`（扩展）、`apps/web/e2e/workspace.spec.ts`（或按主题新增 spec）、`tests/e2e/`（桌面按需）。
 - **验收层级**：L3、L4。
 
@@ -174,7 +174,7 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### CI-02 生产门禁加固
 
-**状态：未开始。依赖 CI-01、QA-01。** 必含三项：
+**状态：已完成（2026-08-26，提交 `e9a6d79`）。依赖 CI-01、QA-01。** 必含三项：
 
 1. **相关路径门禁接入**：Web E2E（`npm run test:e2e:web`）、共享视觉（`npm run test:visual:shared`）、OpenAPI（`npm run openapi:check`）、Postgres 集成（`npm run test:integration:v1.1`）按层检测触发——相关路径变更必跑，其余路径不重复跑（沿用 `.github/scripts/detect-layers.mjs` 层机制）。
 2. **多提交 range 漏层修复**：`deploy.yml` Detect layers 与 `detect-layers.mjs` 目前按 `SHA^..SHA` 单提交 diff 计算层，多提交推送的 range 会漏层（中间提交触发的层不被部署）；改为按推送 range 全量计算。
@@ -186,16 +186,17 @@ CI-01 + QA-01 ──→ CI-02 ──→ REL-02（在 REL-01 之后执行）
 
 ### REL-01 最终本地门禁与视觉验收
 
-**状态：未开始。依赖 QA-01（及全部功能卡）。**
+**状态：已完成（2026-08-26，分支 `feat/web-account-responsive-parity` @ `5a0710f`）。依赖 QA-01（及全部功能卡）。**
 
-- `npm run check`（lint / 边界 / typecheck / 单测 / 双端 build）与 `npm run check:v1.1` 全绿；`npm run test:visual:shared` 在终值阈值上绿；高价值面（账号、兑换、760 / 680 / 390 档）截图与人工走查登记。
-- 同步 `ui-design/03` §340、`08` §13 若未在 UI-02 / UI-03 内完成的措辞残留；刷新本文件各卡状态与证据路径。
+- 一次性门禁结果：`npm run check` 全绿；`npm run check:v1.1` 全绿；`npm run test:e2e:web` 全绿；`npm run test:visual:shared` 16/16 surface 在终值阈值内（最差 connected-apps meanError 0.0485 / changedPixelRatio 0.1024，限额 0.12 / 0.14）；`npm run openapi:check` 42 paths；`npm run test:integration:v1.1` 12/12；桌面代表性 E2E `tests/e2e/test_32_account_redemption.py` 通过（假 new-api，无付费副作用）。
+- 收口修复：`5a0710f`（≤960px 工作台零高回归 = AppShell main 改 flex column；手机设置分区头避让 32px 拖拽条；三处过期视觉断言对齐共享 / 手机契约）。
+- 浏览器人工验收（fixture Web，Playwright 驱动 1440×900 / 760×900 / 390×844）：29/29 步通过——生成终态（已完成）、Prompt 列表 + Inspector、History 列表 + 详情、已连接应用、兑换 186→196 积分 + 入账反馈、注册密码不一致校验、登录回工作台、760 抽屉 `role=dialog` + Escape 关闭 + 焦点回到「展开侧栏」、390 抽屉导航、History bottom sheet、Prompt 全页子状态、设置导航页 → 账号分区 → 返回设置、浮动 Composer 贴底（bottom=830/844，12px inset + 取整）、各面无横向溢出。
 - **文件所有权**：根 `package.json` 脚本不新增前提下执行既有命令；`docs/v2.0/ui-design/README.md`、本文件。
 - **验收层级**：L5。
 
 ### REL-02 CI/CD 生产部署与冒烟
 
-**状态：未开始。依赖 CI-02、REL-01。**
+**状态：进行中（2026-08-26 推送合入）。依赖 CI-02、REL-01。**
 
 - 走 `deploy.yml` content / service 分层按 git SHA 部署（自管 `musefold-prod` runner、`scripts/deploy/run.mjs` 执行）；部署后冒烟清单：账号登录 / 注册、兑换、额度展示、760 / 680 / 390 抽查项，登记 SHA、层、时间。
 - **文件所有权**：`.github/workflows/deploy.yml`（如冒烟需流水线化）、`scripts/deploy/run.mjs`；冒烟清单登记到本文件附录。
