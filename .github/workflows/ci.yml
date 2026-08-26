@@ -198,6 +198,47 @@ jobs:
       - name: Run complete Web E2E suite
         run: npm run test:e2e:web
 
+      # Job logs need sign-in on this repo; annotations stay public, so failed
+      # tests are mirrored there to keep failures diagnosable without access.
+      - name: Surface failing tests as annotations
+        if: failure()
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const path = "apps/web/test-results/web/report.json";
+          if (!fs.existsSync(path)) process.exit(0);
+          const report = JSON.parse(fs.readFileSync(path, "utf8"));
+          const failures = [];
+          const walk = (suite) => {
+            for (const spec of suite.specs ?? []) {
+              for (const test of spec.tests ?? []) {
+                const worst = test.results?.reduce((acc, r) =>
+                  (r.status === "failed" || r.status === "timedOut") &&
+                  (acc === null || r.status === "timedOut")
+                    ? r
+                    : acc, null);
+                if (worst) failures.push(`${suite.title} > ${spec.title} [${worst.status}]`);
+              }
+            }
+            for (const child of suite.suites ?? []) walk(child);
+          };
+          walk({ suites: report.suites ?? [] });
+          for (const failure of failures.slice(0, 20)) {
+            console.log(`::error title=Playwright failure::${failure.replace(/%/g, "%25").replace(/\r?\n/g, "%0A")}`);
+          }
+          NODE
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-report
+          path: |
+            apps/web/test-results/web
+            apps/web/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
   openapi:
     name: Local OpenAPI contract
     runs-on: ubuntu-latest
@@ -332,4 +373,45 @@ jobs:
         run: npm run build
 
       - name: Run shared visual contract
-        run: xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" npm run test:visual:shared
+        run: |
+          set -o pipefail
+          xvfb-run -a --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" \
+            npm run test:visual:shared 2>&1 | tee /tmp/shared-visual.log
+
+      # Mirrors the failing lane into public annotations; see Web E2E note.
+      - name: Surface visual failures as annotations
+        if: failure()
+        run: |
+          grep -E "visual contract failed|Missing shared UI screenshot|^FAILED|^ERROR|webServer.*[Tt]imed? out" \
+            /tmp/shared-visual.log | head -20 | while IFS= read -r line; do
+            echo "::error title=Shared visual::${line//::/ }"
+          done
+          test -f apps/web/test-results/web/report.json && \
+            node - <<'NODE'
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("apps/web/test-results/web/report.json", "utf8"));
+          const walk = (suite) => {
+            for (const spec of suite.specs ?? []) {
+              for (const test of spec.tests ?? []) {
+                for (const result of test.results ?? []) {
+                  if (result.status === "failed" || result.status === "timedOut") {
+                    console.log(`::error title=Visual web lane::${spec.title} [${result.status}]`);
+                  }
+                }
+              }
+            }
+            for (const child of suite.suites ?? []) walk(child);
+          };
+          walk({ suites: report.suites ?? [] });
+          NODE
+
+      - name: Upload shared visual artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-visual-artifacts
+          path: |
+            artifacts/v1.1/shared-ui-visuals
+            apps/web/test-results/web
+          retention-days: 7
+          if-no-files-found: ignore
