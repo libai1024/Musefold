@@ -58,7 +58,7 @@ async function openCompactSidebar(page: Page): Promise<void> {
       ),
   );
   const toggle = page.getByRole('button', { name: '展开侧栏' });
-  if ((await rail.getAttribute('data-open')) !== 'true') {
+  if ((await rail.count()) === 0) {
     await toggle.click();
   }
   await expect(rail).toHaveAttribute('data-open', 'true');
@@ -557,11 +557,52 @@ test('shared sidebar resizes, collapses, and becomes a compact drawer', async ({
   await expect(page.getByRole('button', { name: '展开侧栏' })).toBeVisible();
 
   await page.setViewportSize({ width: 640, height: 760 });
+  const toggle = page.getByRole('button', { name: '展开侧栏' });
+  await toggle.focus();
+  await toggle.click();
+
+  const drawer = page.getByTestId('product-sidebar-rail');
+  const scrim = page.locator('.mf-ui-dialog-overlay');
+  await expect(drawer).toHaveCSS('width', '320px');
+  await expect(drawer).toHaveAttribute('role', 'dialog');
+  await expect(drawer).toHaveAttribute('aria-modal', 'true');
+  await expect(scrim).toBeVisible();
+  await expect(page.locator('body')).toHaveAttribute('data-scroll-locked', '1');
+  await expect(page.getByTestId('mainview-frame')).toHaveAttribute('inert', '');
+  await expect(page.getByTestId('sidebar-collapse')).toBeFocused();
+
+  const drawerFocusableCount = await drawer
+    .locator('button:not([disabled]), [href], input:not([disabled]), [tabindex="0"]')
+    .count();
+  expect(drawerFocusableCount).toBeGreaterThan(0);
+  for (let index = 0; index <= drawerFocusableCount; index += 1) {
+    await page.keyboard.press('Tab');
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const drawerElement = document.querySelector('[data-testid="product-sidebar-rail"]');
+          return drawerElement?.contains(document.activeElement) ?? false;
+        }),
+      )
+      .toBe(true);
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(scrim).toHaveCount(0);
+  await expect(page.locator('body')).not.toHaveAttribute('data-scroll-locked', /.+/);
+  await expect(page.getByTestId('mainview-frame')).not.toHaveAttribute('inert', '');
+  await expect(toggle).toBeFocused();
+
+  await toggle.click();
+  await page.getByTestId('nav-prompts').click();
+  await expect(page.getByTestId('library-page')).toBeVisible();
+  await expect(drawer).toHaveCount(0);
+
   await page.getByRole('button', { name: '展开侧栏' }).click();
-  await expect(rail).toHaveCSS('width', '320px');
-  await expect(page.getByTestId('sidebar-scrim')).toBeVisible();
-  await page.getByTestId('sidebar-scrim').click({ position: { x: 500, y: 30 } });
-  await expect(rail).toHaveCSS('width', '0px');
+  await expect(scrim).toBeVisible();
+  await scrim.click({ position: { x: 500, y: 30 } });
+  await expect(drawer).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   expect(browserErrors).toEqual([]);
 });

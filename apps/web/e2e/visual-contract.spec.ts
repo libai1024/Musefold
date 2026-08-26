@@ -178,7 +178,7 @@ async function openCompactSidebar(page: Page): Promise<void> {
       ),
   );
   const toggle = page.getByRole("button", { name: "展开侧栏" });
-  if ((await rail.getAttribute("data-open")) !== "true") {
+  if ((await rail.count()) === 0) {
     await toggle.click();
   }
   await expect(rail).toHaveAttribute("data-open", "true");

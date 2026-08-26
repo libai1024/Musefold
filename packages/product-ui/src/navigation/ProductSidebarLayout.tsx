@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
+import { Drawer, DrawerContent, DrawerTitle } from '@musefold/ui';
 
 // v2.0 Phase B(docs/v2.0/ui-design/10 §4.2):默认 248 / 最小 220 / 最大 360,
 // 超宽窗口另受 32vw 约束,优先保护 MainView 与结果网格。
@@ -14,13 +15,8 @@ export const PRODUCT_SIDEBAR_DEFAULT_WIDTH = 248;
 export const PRODUCT_SIDEBAR_MIN_WIDTH = 220;
 export const PRODUCT_SIDEBAR_MAX_WIDTH = 360;
 /**
- * Канонические адаптивные брейкпоинты, общие для web- и desktop-хостов.
- * CSS-медиазапросы в product-ui/styles.css и стилях хостов должны
- * использовать эти же значения:
- * - COMPACT (≤760px): сайдбар сворачивается в overlay-drawer.
- * - MOBILE (≤680px): телефонная раскладка в духе 豆包 — левый drawer
- *   (функции + список диалогов + аккаунт), главная сцена только
- *   тема разговора и общий composer.
+ * 760px 为 compact shell 断点，侧栏转换为 overlay drawer。
+ * 680px 为 phone / touch / keyboard 断点，由宿主与共享样式共同处理。
  */
 export const PRODUCT_SIDEBAR_COMPACT_BREAKPOINT = 760;
 export const PRODUCT_MOBILE_BREAKPOINT = 680;
@@ -68,6 +64,7 @@ export function ProductSidebarLayout({
   const openRef = useRef(open);
   const compactRef = useRef(false);
   const openBeforeCompactRef = useRef(open);
+  const returnFocusTargetRef = useRef<HTMLElement | null>(null);
   openRef.current = open;
 
   const maxSidebarWidth = useCallback(
@@ -127,6 +124,29 @@ export function ProductSidebarLayout({
   }, [compact, compactDismissKey, onOpenChange]);
 
   const railRef = useRef<HTMLDivElement>(null);
+  const mainViewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!compact) return;
+    const rememberFocus = (target: EventTarget | null) => {
+      if (!openRef.current && target instanceof HTMLElement) {
+        returnFocusTargetRef.current = target;
+      }
+    };
+    rememberFocus(document.activeElement);
+    const handleFocusIn = (event: FocusEvent) => rememberFocus(event.target);
+    document.addEventListener('focusin', handleFocusIn);
+    return () => document.removeEventListener('focusin', handleFocusIn);
+  }, [compact]);
+
+  useEffect(() => {
+    const mainView = mainViewRef.current;
+    if (!mainView) return;
+    mainView.inert = compact && open;
+    return () => {
+      mainView.inert = false;
+    };
+  }, [compact, open]);
 
   useEffect(() => {
     if (!compact || !open) return;
@@ -152,7 +172,6 @@ export function ProductSidebarLayout({
   }, [compact, open, onOpenChange]);
 
   const compactWidth = `min(320px, max(${minSidebarWidth}px, calc(100vw - 28px)))`;
-  const visibleWidth = compact ? compactWidth : sidebarWidth;
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (compact || !open || event.button !== 0) return;
@@ -198,19 +217,46 @@ export function ProductSidebarLayout({
       data-resizing={resizing ? 'true' : 'false'}
       data-testid="product-sidebar-layout"
     >
-      <div
-        ref={railRef}
-        className="mf-product-sidebar-rail"
-        data-open={open ? 'true' : 'false'}
-        aria-hidden={!open}
-        style={{
-          width: open ? visibleWidth : 0,
-          visibility: open ? 'visible' : 'hidden',
-        }}
-        data-testid="product-sidebar-rail"
-      >
-        {sidebar}
-      </div>
+      {compact ? (
+        <Drawer open={open} onOpenChange={onOpenChange}>
+          <DrawerContent
+            ref={railRef}
+            side="left"
+            hideClose
+            className="mf-product-sidebar-drawer"
+            style={{ width: compactWidth }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const returnFocusTarget = returnFocusTargetRef.current;
+              window.requestAnimationFrame(() => {
+                const fallback = document.querySelector<HTMLElement>('[aria-label="展开侧栏"]');
+                const target = returnFocusTarget?.isConnected ? returnFocusTarget : fallback;
+                target?.focus();
+              });
+            }}
+            data-open="true"
+            data-testid="product-sidebar-rail"
+            aria-modal="true"
+          >
+            <DrawerTitle className="mf-sr-only">主导航</DrawerTitle>
+            {sidebar}
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <div
+          ref={railRef}
+          className="mf-product-sidebar-rail"
+          data-open={open ? 'true' : 'false'}
+          aria-hidden={!open}
+          style={{
+            width: open ? sidebarWidth : 0,
+            visibility: open ? 'visible' : 'hidden',
+          }}
+          data-testid="product-sidebar-rail"
+        >
+          {sidebar}
+        </div>
+      )}
 
       {!compact && open ? (
         <div
@@ -232,19 +278,9 @@ export function ProductSidebarLayout({
         </div>
       ) : null}
 
-      {compact && open ? (
-        <button
-          type="button"
-          aria-label="关闭侧栏"
-          onClick={() => onOpenChange(false)}
-          className="mf-product-sidebar-scrim no-drag"
-          data-testid="sidebar-scrim"
-        />
-      ) : null}
-
       {/* v2.0 Phase B:frame 负责 4px 内缩,surface 负责 12px 圆角与 bg-work 工作面。
           settings 全屏由 .settings-product-shell modifier 取消 inset 与圆角。 */}
-      <div className="mf-mainview-frame" data-testid="mainview-frame">
+      <div ref={mainViewRef} className="mf-mainview-frame" data-testid="mainview-frame">
         <div className="mf-mainview-surface" data-testid="mainview-surface">
           {children}
         </div>
