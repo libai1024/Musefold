@@ -71,6 +71,34 @@ export function App({ gateway, platform }: AppProps) {
     onRefreshError: handleAccountRefreshError,
   });
   const account = accountQuery.account;
+  const [accountAction, setAccountAction] = useState<'redeem' | null>(null);
+  const handleAccountActionError = useCallback(
+    (error: unknown) => {
+      if (
+        error instanceof WebGatewayError &&
+        ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(error.code)
+      ) {
+        enterAuthState();
+      }
+    },
+    [enterAuthState],
+  );
+  const redeemAccountCode = useCallback(
+    async (code: string) => {
+      setAccountAction('redeem');
+      try {
+        const result = await gateway.redeem(code);
+        await accountQuery.refresh();
+        return result.creditedQuota;
+      } catch (error) {
+        handleAccountActionError(error);
+        throw error;
+      } finally {
+        setAccountAction(null);
+      }
+    },
+    [accountQuery.refresh, gateway, handleAccountActionError],
+  );
   const connectionsQuery = useQuery<McpConnectionPage>({
     queryKey: musefoldQueryKeys.connections.all,
     queryFn: () => gateway.listConnections(),
@@ -333,11 +361,19 @@ export function App({ gateway, platform }: AppProps) {
             onBack={() => openProductView('generate')}
             gateway={gateway}
             account={account}
+            dataSourceLabel={gateway.mode === 'fixture' ? '开发预览' : 'Musefold Cloud'}
+            onRedeem={redeemAccountCode}
+            onRefresh={accountQuery.refresh}
+            redeemBusy={accountAction === 'redeem'}
+            refreshBusy={accountQuery.refreshing}
             connections={connections}
             onConnectionsChange={(next) =>
               queryClient.setQueryData(musefoldQueryKeys.connections.all, next)
             }
-            onLoggedOut={enterAuthState}
+            onLogout={async () => {
+              await gateway.logout();
+              enterAuthState();
+            }}
           />
         )}
       </main>

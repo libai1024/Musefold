@@ -1055,6 +1055,118 @@
 
 .mf-account-screen {
   max-width: 680px;
+  min-width: 0;
+}
+
+.mf-account-surface {
+  min-width: 0;
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-work);
+  background: var(--bg-elevated);
+}
+
+.mf-account-surface-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mf-account-surface-heading > div:first-child {
+  min-width: 0;
+}
+
+.mf-account-surface-heading h2 {
+  margin: 0;
+  color: var(--fg-primary);
+  font-size: var(--text-body);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.mf-account-surface-heading p {
+  margin: 4px 0 0;
+  color: var(--fg-tertiary);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+}
+
+.mf-account-overview-accessory {
+  min-width: 0;
+  flex: none;
+}
+
+.mf-account-surface > .mf-account-summary-panel {
+  min-width: 0;
+  padding: 0 20px 20px;
+}
+
+.mf-account-redeem-form {
+  min-width: 0;
+  padding: 18px 20px 20px;
+}
+
+.mf-account-redeem-form > label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--fg-secondary);
+  font-size: var(--text-meta);
+  font-weight: 550;
+}
+
+.mf-account-redeem-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mf-account-redeem-controls .mf-ui-input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+}
+
+.mf-account-redeem-submit {
+  min-width: 96px;
+}
+
+.mf-account-redeem-hint,
+.mf-account-feedback {
+  margin: 8px 0 0;
+  font-size: var(--text-meta);
+  line-height: 1.5;
+}
+
+.mf-account-redeem-hint {
+  color: var(--fg-quaternary);
+}
+
+.mf-account-feedback[data-tone='success'] {
+  color: var(--success);
+}
+
+.mf-account-feedback[data-tone='error'] {
+  color: var(--danger);
+}
+
+.mf-account-extensions {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.mf-account-session-actions {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 16px;
 }
 
 .mf-account-screen-heading,
@@ -6410,6 +6522,53 @@ html.reduce-motion .mf-generation-result-media[data-theater-reveal] {
 
   .mf-account-summary-identity p {
     font-size: 12px;
+  }
+
+  .mf-account-surface {
+    margin-top: 12px;
+  }
+
+  .mf-account-surface-heading,
+  .mf-account-redeem-form {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .mf-account-surface-heading {
+    flex-wrap: wrap;
+  }
+
+  .mf-account-surface > .mf-account-summary-panel {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .mf-account-summary-identity {
+    flex-wrap: wrap;
+  }
+
+  .mf-account-summary-header-action {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .mf-account-refresh {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .mf-account-redeem-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mf-account-redeem-controls .mf-ui-input,
+  .mf-account-redeem-submit {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .mf-account-redeem-controls .mf-ui-input {
+    font-size: 16px;
   }
 
   .mf-account-summary-facts {

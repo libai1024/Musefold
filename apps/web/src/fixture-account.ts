@@ -47,7 +47,12 @@ export class FixtureAccountGateway {
   async redeem(_code: string): Promise<RedeemResult> {
     await pause(160);
     if (!this.signedIn) throw new WebGatewayError('AUTH_REQUIRED', '请登录 Musefold');
-    return { account: this.account, creditedQuota: 0 };
+    const creditedQuota = 500_000;
+    this.account = accountSummarySchema.parse({
+      ...this.account,
+      quota: this.account.quota + creditedQuota,
+    });
+    return { account: this.account, creditedQuota };
   }
 
   async logout(): Promise<void> {

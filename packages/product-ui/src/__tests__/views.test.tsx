@@ -995,6 +995,8 @@ describe('shared product views', () => {
           generationAvailable: true,
           dataSourceLabel: 'Musefold Cloud',
         }}
+        onRedeem={async () => ({ tone: 'success', message: '兑换成功' })}
+        onRefresh={async () => undefined}
         onLogout={async () => undefined}
         testId="account-screen"
       />,

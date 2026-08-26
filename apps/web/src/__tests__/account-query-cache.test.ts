@@ -13,6 +13,10 @@ describe('Web authenticated query cache', () => {
     expect(appSource).toContain('useAccountQueryController');
     expect(appSource).toContain('onRefreshError: handleAccountRefreshError');
     expect(appSource).toContain('accountQuery.scheduleRefresh()');
+    expect(appSource).toMatch(
+      /const result = await gateway\.redeem\(code\);\s*await accountQuery\.refresh\(\);/,
+    );
+    expect(appSource).toContain('onRefresh={accountQuery.refresh}');
     expect(appSource).not.toMatch(/useState<AccountSummary/);
     expect(appSource).not.toContain('setAccount(');
   });

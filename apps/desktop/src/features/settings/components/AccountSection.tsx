@@ -22,7 +22,6 @@ import {
   type AuthMode,
   NOTICE_READ_KEY,
   initialReadNotices,
-  points,
 } from "./account-section-helpers";
 import { AccountSignedInPanel } from "./AccountSignedInPanel";
 import { AccountSignedOutForm } from "./AccountSignedOutForm";
@@ -46,8 +45,6 @@ export function AccountSection() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [redeemCode, setRedeemCode] = useState("");
-  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
   const [serverEditing, setServerEditing] = useState(false);
   const [serverUrl, setServerUrlInput] = useState(status.serverUrl);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -203,20 +200,6 @@ export function AccountSection() {
     }
   };
 
-  const submitRedeem = async (event: FormEvent) => {
-    event.preventDefault();
-    setRedeemSuccess(null);
-    try {
-      const result = await redeem(redeemCode);
-      setRedeemSuccess(
-        `+${points(result.quotaAdded)}已到账，调用额度将在一分钟内生效`,
-      );
-      setRedeemCode("");
-    } catch {
-      // store.error 负责行内呈现
-    }
-  };
-
   if (!status.loggedIn) {
     return (
       <AccountSignedOutForm
@@ -247,20 +230,16 @@ export function AccountSection() {
     <AccountSignedInPanel
       status={status}
       action={action}
-      error={error}
       notices={notices}
       quotaCny={quotaCny}
-      redeemCode={redeemCode}
-      setRedeemCode={setRedeemCode}
-      redeemSuccess={redeemSuccess}
       confirmLogout={confirmLogout}
       setConfirmLogout={setConfirmLogout}
       cloudSync={cloudSync}
       cloudConflicts={cloudConflicts}
       cloudError={cloudError}
       refreshQuota={refreshQuota}
+      redeem={redeem}
       logout={logout}
-      submitRedeem={submitRedeem}
       markNoticeRead={markNoticeRead}
       setCloudEnabled={setCloudEnabled}
       syncCloudNow={syncCloudNow}
