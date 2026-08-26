@@ -144,10 +144,15 @@ async function captureCanonicalSurface(
     if (name === "account-1440-light-comfortable") {
       const accountSummary = page.getByTestId("account-summary-panel");
       await accountSummary
-        .locator(".mf-account-summary-footer")
+        .locator(".mf-account-summary-header-action")
         .evaluate((element) => {
           (element as HTMLElement).style.display = "none";
         });
+      await accountSummary.locator("small").evaluateAll((elements) => {
+        for (const element of elements) {
+          (element as HTMLElement).style.display = "none";
+        }
+      });
       await accountSummary.screenshot({
         path: join(outputDir, "shared-account-summary-1440x900.png"),
       });

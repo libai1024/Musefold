@@ -729,23 +729,52 @@ def test_settings_workspace_matches_operate_contract(app):
     assert compact["tabHeights"] and min(compact["tabHeights"]) >= 44, compact
     capture(app, "settings-operate-dark-800x760", "settings-workspace")
 
+    # v2.0(07 §3):<=680px 设置是「导航页 → 全页分区」两个子状态,不再渲染 compact 工具栏。
     for width in (639, 390):
         set_visual_state(app, width=width, height=760, theme="dark", density="comfortable")
+        nav_state = app.page.evaluate(
+            """() => {
+              const workspace = document.querySelector('[data-testid="settings-workspace"]');
+              const sidebar = workspace?.querySelector('.mf-settings-sidebar');
+              const compactHeader = workspace?.querySelector('[data-testid="settings-compact-header"]');
+              const tabs = workspace?.querySelector('.mf-settings-tabs');
+              const pane = workspace?.querySelector('.mf-settings-pane');
+              const navItems = [...(workspace?.querySelectorAll('.mf-settings-nav-item') ?? [])];
+              if (!workspace || !sidebar || !compactHeader || !tabs || !pane
+                  || navItems.length === 0) return null;
+              const style = (element) => getComputedStyle(element);
+              return {
+                viewportWidth: innerWidth,
+                documentWidth: document.documentElement.scrollWidth,
+                sidebarDisplay: style(sidebar).display,
+                compactHeaderDisplay: style(compactHeader).display,
+                tabsDisplay: style(tabs).display,
+                paneDisplay: style(pane).display,
+                navHeights: navItems.map((item) => item.getBoundingClientRect().height),
+              };
+            }"""
+        )
+        assert nav_state is not None
+        assert nav_state["documentWidth"] <= nav_state["viewportWidth"] + 1, nav_state
+        assert nav_state["sidebarDisplay"] == "flex", nav_state
+        assert nav_state["compactHeaderDisplay"] == "none", nav_state
+        assert nav_state["tabsDisplay"] == "none", nav_state
+        assert nav_state["paneDisplay"] == "none", nav_state
+        assert min(nav_state["navHeights"]) >= 44, nav_state
+
+        app.page.get_by_test_id("settings-section-preferences").click()
+        app.page.wait_for_selector('[data-testid="appearance-theme-row"]')
         narrow = app.page.evaluate(
             """() => {
               const workspace = document.querySelector('[data-testid="settings-workspace"]');
+              const phoneBack = workspace?.querySelector('.mf-settings-phone-back');
               const card = workspace?.querySelector('.mf-settings-card');
               const row = workspace?.querySelector('.mf-settings-row');
               const rowControl = workspace?.querySelector('.mf-settings-row-control');
               const segmented = workspace?.querySelector('.mf-settings-segmented');
-              const compactBack = workspace?.querySelector(
-                '.mf-settings-compact-header .mf-settings-header-action-button'
-              );
-              const tabItems = [...(workspace?.querySelectorAll('.mf-settings-tab-item') ?? [])];
-              if (
-                !workspace || !card || !row || !rowControl || !segmented || !compactBack
-                || tabItems.length === 0
-              ) return null;
+              if (!workspace || !phoneBack || !card || !row || !rowControl || !segmented) {
+                return null;
+              }
               const workspaceRect = workspace.getBoundingClientRect();
               const cardRect = card.getBoundingClientRect();
               const controlRect = rowControl.getBoundingClientRect();
@@ -756,12 +785,13 @@ def test_settings_workspace_matches_operate_contract(app):
                 workspaceRight: workspaceRect.right,
                 cardLeft: cardRect.left,
                 cardRight: cardRect.right,
-                rowColumns: getComputedStyle(row).gridTemplateColumns,
+                rowTrackCount: getComputedStyle(row).gridTemplateColumns
+                  .split(/\\s+(?![^()]*\\))/)
+                  .filter(Boolean).length,
                 controlLeft: controlRect.left,
                 controlRight: controlRect.right,
                 segmentedWidth: segmented.getBoundingClientRect().width,
-                compactBackHeight: compactBack.getBoundingClientRect().height,
-                tabHeights: tabItems.map((item) => item.getBoundingClientRect().height),
+                phoneBackHeight: phoneBack.getBoundingClientRect().height,
               };
             }"""
         )
@@ -771,13 +801,14 @@ def test_settings_workspace_matches_operate_contract(app):
         assert narrow["workspaceRight"] <= narrow["viewportWidth"] + 1, narrow
         assert narrow["cardLeft"] >= -1, narrow
         assert narrow["cardRight"] <= narrow["viewportWidth"] + 1, narrow
-        assert len(narrow["rowColumns"].split()) == 1, narrow
+        assert narrow["rowTrackCount"] == 1, narrow
         assert narrow["controlLeft"] >= narrow["cardLeft"], narrow
         assert narrow["controlRight"] <= narrow["cardRight"], narrow
         assert narrow["segmentedWidth"] <= narrow["cardRight"] - narrow["cardLeft"], narrow
-        assert narrow["compactBackHeight"] >= 44, narrow
-        assert min(narrow["tabHeights"]) >= 44, narrow
+        assert narrow["phoneBackHeight"] >= 44, narrow
         capture(app, f"settings-operate-dark-{width}x760", "settings-workspace")
+        app.page.locator('.mf-settings-phone-back').click()
+        app.page.wait_for_selector('[data-testid="settings-section-preferences"]')
     set_visual_state(app, width=1440, height=900, theme="dark", density="comfortable")
     app.page.evaluate(
         "() => window.__musefold_test.stores.settings.getState().setSection('automation')"
@@ -866,6 +897,9 @@ def test_settings_workspace_matches_operate_contract(app):
     capture(app, "settings-relay-master-detail-dark-1440x900", "settings-workspace")
 
     set_visual_state(app, width=390, height=760, theme="dark", density="comfortable")
+    # 手机子状态首屏是导航页,先进入 relay 分区才能触达删除确认。
+    app.page.get_by_test_id("settings-section-relay").click()
+    app.page.wait_for_selector('[data-testid="settings-provider-master-detail"]')
     delete_button = app.page.get_by_test_id("provider-delete")
     delete_button.scroll_into_view_if_needed()
     delete_button.click()
@@ -964,8 +998,8 @@ def test_shared_account_and_connections_visual_contracts(app):
         }""",
         account_status,
     )
-    app.page.wait_for_selector('[data-testid="settings-account-summary-panel"]')
-    account_summary = app.page.get_by_test_id("settings-account-summary-panel")
+    app.page.wait_for_selector('[data-testid="account-summary-panel"]')
+    account_summary = app.page.get_by_test_id("account-summary-panel")
     account_summary.locator(".mf-account-summary-header-action").evaluate(
         "element => { element.style.display = 'none'; }"
     )
@@ -975,7 +1009,7 @@ def test_shared_account_and_connections_visual_contracts(app):
     capture_shared_surface(
         app,
         "shared-account-summary-1440x900.png",
-        "settings-account-summary-panel",
+        "account-summary-panel",
     )
 
     app.page.evaluate(
