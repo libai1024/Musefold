@@ -17,6 +17,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+# Web E2E/共享视觉车道的 fixtures 开关:非密钥,CI 与全新克隆都依赖它激活 fixture 模式。
+!apps/web/.env.fixtures
 backups/
 *.db
 *.db-journal
