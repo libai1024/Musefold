@@ -98,6 +98,17 @@ def test_prompt_detail_opens_as_a_non_overlaying_inspector(app):
     selected_row = app.page.locator(
         f'[data-testid="prompt-row"][data-prompt-id="{prompt["id"]}"]'
     )
+    # xvfb 下详情打开后的高亮/搜索可见性可能比面板挂载晚一帧，先等完整 UI 状态落地。
+    app.page.wait_for_function(
+        """promptId => {
+          const row = document.querySelector(`[data-testid="prompt-row"][data-prompt-id="${promptId}"]`);
+          const search = document.querySelector('[data-testid="library-search"]');
+          return row?.getAttribute('data-highlighted') === 'true'
+            && search instanceof HTMLElement
+            && search.getBoundingClientRect().width > 0;
+        }""",
+        arg=prompt["id"],
+    )
     assert inspector and prompt_list
     assert prompt_list["x"] + prompt_list["width"] <= inspector["x"] + 1
     assert selected_row.get_attribute("data-highlighted") == "true"
@@ -117,6 +128,17 @@ def test_prompt_detail_opens_as_a_non_overlaying_inspector(app):
     assert abs(narrow_workspace["width"] - narrow_inspector["width"]) <= 1
 
     app.page.get_by_test_id("detail-back").click()
+    app.page.wait_for_function(
+        """promptId => {
+          const inspector = document.querySelector('[data-testid="prompt-inspector"]');
+          const open = document.querySelector(
+            `[data-testid="prompt-row"][data-prompt-id="${promptId}"] [data-testid="prompt-row-open"]`
+          );
+          return inspector?.getAttribute('aria-hidden') === 'true'
+            && open === document.activeElement;
+        }""",
+        arg=prompt["id"],
+    )
     assert app.page.get_by_test_id("prompt-inspector").get_attribute("aria-hidden") == "true"
     assert app.page.get_by_test_id("prompt-library-workspace").get_attribute(
         "data-detail-open"
