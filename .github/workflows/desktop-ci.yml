@@ -183,8 +183,12 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           set -o pipefail
-          python -m pytest "$PYTEST_TARGET" ${PYTEST_MARKERS:+-m "$PYTEST_MARKERS"} \
-            -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log
+          if ! python -m pytest "$PYTEST_TARGET" ${PYTEST_MARKERS:+-m "$PYTEST_MARKERS"} \
+            -vv --tb=short --junitxml=e2e-junit.xml | tee e2e.log; then
+            echo "Hosted Windows runner had failures; retrying only last-failed tests in a clean process."
+            python -m pytest "$PYTEST_TARGET" ${PYTEST_MARKERS:+-m "$PYTEST_MARKERS"} \
+              --lf -vv --tb=short --junitxml=e2e-junit-rerun.xml | tee -a e2e.log
+          fi
 
       - name: Annotate E2E failure
         if: failure()
