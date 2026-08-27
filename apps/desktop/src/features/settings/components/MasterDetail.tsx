@@ -15,6 +15,8 @@ const DOT_TONE_CLASS: Record<ConnectionDotTone, string> = {
   warning: 'bg-warning',
   danger: 'bg-danger',
   muted: 'bg-border-default',
+  /** 测试进行中:warning 色 + settings.css 呼吸动画(受 data-motion / prefers-reduced-motion 门控) */
+  testing: 'bg-warning settings-md-dot-testing',
 };
 
 /** 状态点(规格与第一步 ConnectionRow 一致):icon 砖右下角 8px 圆点 + a11y 文本 */
@@ -142,6 +144,7 @@ export function PanelSectionTitle({
 export function PanelActions({
   dirty,
   danger,
+  guard,
   onDiscard,
   discardLabel,
   discardDisabled = false,
@@ -161,6 +164,8 @@ export function PanelActions({
   dirty: boolean;
   /** 左端破坏性操作槽(删除按钮 / InlineConfirm) */
   danger?: ReactNode;
+  /** 拦截槽(dirty 切换守卫的 InlineConfirm);存在时替换整组操作按钮 */
+  guard?: ReactNode;
   onDiscard: () => void;
   discardLabel: string;
   discardDisabled?: boolean;
@@ -180,59 +185,68 @@ export function PanelActions({
   return (
     <div className="settings-md-actions settings-detail-action-bar">
       {danger ? <div className="settings-md-danger-slot">{danger}</div> : null}
-      <div className="settings-md-action-group">
-        {dirty && (
-          <span
-            className="settings-md-dirty-dot"
-            title="有未保存的修改"
-            data-testid="settings-panel-dirty"
+      {guard ? (
+        <div className="settings-md-action-group">{guard}</div>
+      ) : (
+        <div className="settings-md-action-group">
+          {dirty && (
+            <span
+              className="settings-md-dirty-dot"
+              title="有未保存的修改"
+              data-testid="settings-panel-dirty"
+            >
+              <span className="sr-only">有未保存的修改</span>
+            </span>
+          )}
+          <Button variant="ghost" onClick={onDiscard} disabled={discardDisabled}>
+            {discardLabel}
+          </Button>
+          <Button variant="outline" onClick={onTest} disabled={testDisabled} data-testid={testTestId}>
+            {testBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : testIcon}
+            {testLabel}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={onSave}
+            disabled={saveBusy || saveDisabled}
+            data-testid={saveTestId}
           >
-            <span className="sr-only">有未保存的修改</span>
-          </span>
-        )}
-        <Button variant="ghost" onClick={onDiscard} disabled={discardDisabled}>
-          {discardLabel}
-        </Button>
-        <Button variant="outline" onClick={onTest} disabled={testDisabled} data-testid={testTestId}>
-          {testBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : testIcon}
-          {testLabel}
-        </Button>
-        <Button
-          variant="primary"
-          onClick={onSave}
-          disabled={saveBusy || saveDisabled}
-          data-testid={saveTestId}
-        >
-          {saveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          {saveLabel}
-        </Button>
-      </div>
+            {saveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            {saveLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
 
-/** 行内二次确认 —— 删除连接等破坏性操作共用(自 ConnectionRow 迁入,行为不变) */
+/** 行内二次确认 —— 删除连接等破坏性操作共用(自 ConnectionRow 迁入,行为不变);
+ *  cancelLabel 可选,dirty 切换守卫用「继续编辑」替换默认「取消」。 */
 export function InlineConfirm({
   label,
   confirmLabel,
+  cancelLabel = '取消',
   danger,
+  testId,
   onConfirm,
   onCancel,
 }: {
   label: string;
   confirmLabel: string;
+  cancelLabel?: string;
   danger?: boolean;
+  testId?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   return (
-    <div className="settings-inline-confirm flex items-center gap-1">
+    <div className="settings-inline-confirm flex items-center gap-1" data-testid={testId}>
       <span className="whitespace-nowrap text-meta text-tertiary">{label}</span>
       <Button size="sm" variant={danger ? 'danger' : 'outline'} onClick={onConfirm}>
         {confirmLabel}
       </Button>
       <Button size="sm" variant="ghost" onClick={onCancel}>
-        取消
+        {cancelLabel}
       </Button>
     </div>
   );

@@ -1,5 +1,8 @@
 import {
+  createContext,
+  useContext,
   useId,
+  useRef,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type InputHTMLAttributes,
@@ -9,6 +12,17 @@ import { Switch } from '@musefold/ui';
 
 function classes(...values: Array<string | undefined>): string {
   return values.filter(Boolean).join(' ');
+}
+
+/**
+ * SettingsRow 为带 hint 的行提供 hint 元素 id，控件可消费它建立 aria-describedby 关联。
+ * 行外渲染时为 undefined，控件不输出该属性（对既有用法零影响）。
+ */
+const SettingsRowHintContext = createContext<string | undefined>(undefined);
+
+/** 当前 SettingsRow hint 的元素 id；供触发器类控件挂 aria-describedby。 */
+export function useSettingsRowHintId(): string | undefined {
+  return useContext(SettingsRowHintContext);
 }
 
 export interface SettingsSectionProps {
@@ -86,13 +100,22 @@ export interface SettingsRowProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function SettingsRow({ label, hint, children, className, ...props }: SettingsRowProps) {
+  const hintId = useId();
   return (
     <div className={classes('mf-settings-row', className)} {...props}>
       <div className="mf-settings-row-copy">
         <div className="mf-settings-row-label">{label}</div>
-        {hint ? <div className="mf-settings-row-hint">{hint}</div> : null}
+        {hint ? (
+          <div className="mf-settings-row-hint" id={hintId}>
+            {hint}
+          </div>
+        ) : null}
       </div>
-      <div className="mf-settings-row-control">{children}</div>
+      <div className="mf-settings-row-control">
+        <SettingsRowHintContext.Provider value={hint ? hintId : undefined}>
+          {children}
+        </SettingsRowHintContext.Provider>
+      </div>
     </div>
   );
 }
@@ -120,13 +143,42 @@ export function SettingsSegmentedControl<T extends string | number>({
   className?: string;
   disabled?: boolean;
 }) {
+  const hintId = useSettingsRowHintId();
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const hasCheckedOption = options.some((option) => option.value === value);
+
+  // WAI-ARIA radio group：组内仅一个 tab stop，方向键/Home/End 漫游并选中。
+  const selectOption = (index: number) => {
+    const nextIndex = (index + options.length) % options.length;
+    const option = options[nextIndex];
+    optionRefs.current[nextIndex]?.focus();
+    if (option && option.value !== value) onChange(option.value);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectOption(index + 1);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectOption(index - 1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      selectOption(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      selectOption(options.length - 1);
+    }
+  };
+
   return (
     <div
       className={classes('mf-settings-segmented', className)}
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-describedby={hintId}
     >
-      {options.map((option) => {
+      {options.map((option, index) => {
         const active = option.value === value;
         return (
           <button
@@ -134,7 +186,14 @@ export function SettingsSegmentedControl<T extends string | number>({
             role="radio"
             aria-checked={active}
             key={String(option.value)}
-            onClick={() => onChange(option.value)}
+            ref={(element) => {
+              optionRefs.current[index] = element;
+            }}
+            tabIndex={active || (!hasCheckedOption && index === 0) ? 0 : -1}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            onClick={() => {
+              if (!active) onChange(option.value);
+            }}
             disabled={disabled}
             data-testid={testIdPrefix ? `${testIdPrefix}-${String(option.value)}` : undefined}
             className="mf-settings-segmented-option"

@@ -35,7 +35,7 @@ export function GenerationSection() {
 
   return (
     <>
-      <SettingsCard title="生成参数" description="设置新设计默认使用的画幅、质量、背景和生成数量">
+      <SettingsCard title="生成参数" description="设置新设计默认使用的画幅、质量、背景和生成数量；修改会同步应用到当前工作台草稿。">
         <SettingRow label="默认比例" hint="与工作台一致的画幅下拉">
           <RatioPicker
             value={params.ratioId}
@@ -77,7 +77,21 @@ export function GenerationSection() {
         title="方案运行"
         description="控制方案、用户输入与 Agent 调解之间的默认优先关系"
       >
-        <SettingRow label="方案运行优先级" hint={describePriorityMode(schemePriorityMode)}>
+        <SettingRow
+          label="方案运行优先级"
+          hint={
+            schemePriorityMode === 'agent_mediated' ? (
+              <>
+                {describePriorityMode(schemePriorityMode)}
+                <span className="block">
+                  调用文本模型自动取舍，会产生额外的文本模型消耗
+                </span>
+              </>
+            ) : (
+              describePriorityMode(schemePriorityMode)
+            )
+          }
+        >
           <ChoiceChips
             value={schemePriorityMode}
             options={PRIORITY_MODES.map((mode) => ({

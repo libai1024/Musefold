@@ -314,8 +314,9 @@ def test_account_managed_models_are_fixed_and_friendly(app, fake_newapi):
     app.api_ok("account.login", {"username": "e2euser", "password": "Password123"})
     app.page.evaluate("() => window.__musefold_test.setView('settings')")
     app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('account')")
-    app.page.wait_for_selector('[data-testid="account-managed-models"]')
-    models_text = app.page.inner_text('[data-testid="account-managed-models"]')
+    # 设置评审 P1：内置模型并入账户概览 facts，不再独占卡片
+    app.page.wait_for_selector('[data-testid="account-summary-panel"]')
+    models_text = app.page.inner_text('[data-testid="account-summary-panel"]')
     assert "Musefold 生图" in models_text
     assert "Musefold Agent" in models_text
     assert "musefold-image-pro" not in models_text

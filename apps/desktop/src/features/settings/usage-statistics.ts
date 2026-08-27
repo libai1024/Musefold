@@ -1,5 +1,6 @@
 import type {
   HistoryStatsBucket,
+  HistoryStatsChannel,
   HistoryStatsGroupBy,
   HistoryStatsQuery,
 } from '@musefold/desktop-contracts/history-documents';
@@ -120,4 +121,21 @@ function usageHeatLevel(count: number, max: number): 0 | 1 | 2 | 3 | 4 {
 
 export function successRate(successCount: number, attemptCount: number): number {
   return attemptCount > 0 ? (successCount / attemptCount) * 100 : 0;
+}
+
+/** 分类色板容量；超出该数量的渠道一律落入中性「其他」色，避免循环撞色。 */
+export const USAGE_CHART_COLOR_LIMIT = 6;
+
+/**
+ * 渠道 → 分类色的单一事实源：按全量渠道列表的稳定下标取色。
+ * 趋势折线、趋势图例与渠道统计行必须共用本函数（传入同一份全量 channels），
+ * 保证同一渠道在所有面板颜色一致；下标越界或未知渠道返回中性色。
+ */
+export function channelColor(
+  channels: ReadonlyArray<Pick<HistoryStatsChannel, 'channelId'>>,
+  channelId: string,
+): string {
+  const index = channels.findIndex((channel) => channel.channelId === channelId);
+  if (index < 0 || index >= USAGE_CHART_COLOR_LIMIT) return 'var(--mf-usage-chart-other)';
+  return `var(--mf-usage-chart-${index + 1})`;
 }

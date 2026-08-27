@@ -70,6 +70,12 @@ export function AccountSignedInPanel({
       : '刷新失败，请稍后重试';
   };
 
+  // 内置模型是概览级静态事实，并入账户概览 facts（extraFacts），不独占卡片。
+  const managedModelFacts = [
+    { label: '生图模型', value: displayModelName(ACCOUNT_DEFAULT_IMAGE_MODEL) },
+    { label: 'Agent 模型', value: displayModelName(ACCOUNT_DEFAULT_TEXT_MODEL) },
+  ];
+
   return (
     <AccountScreen
       testId="settings-account-signed-in"
@@ -88,6 +94,7 @@ export function AccountSignedInPanel({
         generationStatusLabel: status.health === 'ok' ? '可用' : healthLabel(status.health),
         generationAvailable: status.health === 'ok',
         dataSourceLabel: status.isDefaultServer ? 'Musefold Cloud' : '自定义 new-api',
+        extraFacts: managedModelFacts,
       }}
       redeemBusy={action === 'redeem'}
       refreshBusy={action === 'refresh'}
@@ -145,28 +152,6 @@ export function AccountSignedInPanel({
             <InlineMessage tone="warning">暂时无法连接账号服务器。本地内容不受影响。</InlineMessage>
           )}
 
-      <SettingsCard
-        title="账号内置模型"
-        description="由 Musefold 固定配置，无需选择或维护模型 ID。"
-        bodyClassName="settings-account-card"
-        data-testid="account-managed-models"
-      >
-        <div className="grid gap-1.5 py-4 text-meta sm:grid-cols-2">
-          <p className="flex items-center justify-between gap-4">
-            <span className="text-tertiary">生图</span>
-            <span className="font-medium text-secondary">
-              {displayModelName(ACCOUNT_DEFAULT_IMAGE_MODEL)}
-            </span>
-          </p>
-          <p className="flex items-center justify-between gap-4">
-            <span className="text-tertiary">Agent</span>
-            <span className="font-medium text-secondary">
-              {displayModelName(ACCOUNT_DEFAULT_TEXT_MODEL)}
-            </span>
-          </p>
-        </div>
-      </SettingsCard>
-
       <SettingsCard title="数据与同步" description="在已登录的 Musefold 账号之间同步提示词数据">
         <AccountCloudSyncPanel
           cloudSync={cloudSync}
@@ -209,9 +194,14 @@ export function AccountSignedInPanel({
         description="当前设备的登录凭据与账号服务器"
         bodyClassName="settings-account-card"
       >
-        <SettingRow label={status.username ?? '—'} hint="当前账号">
-          <span className="font-mono text-[11px] text-tertiary">
-            令牌 ····{status.deviceTokenSuffix ?? '—'}
+        <SettingRow label="当前账号" hint="本机托管的登录凭据">
+          <span className="flex min-w-0 flex-col items-end gap-0.5">
+            <span className="max-w-full truncate text-[12px] text-secondary" title={status.username ?? undefined}>
+              {status.username ?? '—'}
+            </span>
+            <span className="font-mono text-[11px] text-tertiary">
+              令牌 ····{status.deviceTokenSuffix ?? '—'}
+            </span>
           </span>
         </SettingRow>
         <SettingRow

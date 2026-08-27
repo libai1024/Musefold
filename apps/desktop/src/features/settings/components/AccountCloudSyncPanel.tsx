@@ -38,7 +38,7 @@ export function AccountCloudSyncPanel({
         <SettingsSwitch
           checked={cloudSync?.account?.enabled ?? false}
           onCheckedChange={(enabled) => void setCloudEnabled(enabled)}
-          label={cloudSync?.account?.enabled ? '关闭提示词云同步' : '启用提示词云同步'}
+          label="提示词云同步"
           disabled={!cloudSync?.available || cloudSync.status === 'syncing'}
         />
       </div>

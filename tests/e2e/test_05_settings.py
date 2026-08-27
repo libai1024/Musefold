@@ -1189,8 +1189,12 @@ def test_backup_ui_empty_create_and_restore_confirmation(app):
     open_data_section(a)
     page = a.page
 
+    # 备份列表渐进披露：默认折叠为单行摘要，展开后才可见空态/列表
+    page.get_by_test_id("backup-toggle").wait_for(state="visible", timeout=5000)
+    page.get_by_test_id("backup-toggle").click()
     page.get_by_test_id("backup-empty").wait_for(state="visible", timeout=5000)
     page.get_by_test_id("backup-now").click()
+    # 手动备份成功后列表自动展开，新备份即时可见
     page.get_by_test_id("backup-row").first.wait_for(state="visible", timeout=5000)
     assert page.get_by_test_id("backup-row").count() == 1
     assert "手动" in page.get_by_test_id("backup-row").first.inner_text()
@@ -1227,7 +1231,8 @@ def test_reset_data_ui_requires_phrase_offers_export_and_clears_stores(app):
     page.get_by_role("button", name="取消", exact=True).click()
 
     page.get_by_test_id("reset-data-open").click()
-    page.get_by_test_id("reset-data-phrase").fill("清空数据")
+    # 确认短语与入口按钮同词「清空全部数据」(设置评审 P1-4)
+    page.get_by_test_id("reset-data-phrase").fill("清空全部数据")
     assert confirm.is_enabled()
     confirm.click()
     page.get_by_test_id("reset-data-done").wait_for(state="visible", timeout=5000)
@@ -1274,8 +1279,9 @@ def test_appearance_motion_density_and_persistence(app):
 
     # system 模式受操作系统偏好约束。
     page.emulate_media(reduced_motion="reduce")
-    page.get_by_role("radio", name="系统", exact=True).click()
-    system_duration_ms = page.get_by_role("radio", name="系统", exact=True).evaluate(
+    motion_row = page.get_by_test_id("appearance-motion-row")
+    motion_row.get_by_role("radio", name="跟随系统", exact=True).click()
+    system_duration_ms = motion_row.get_by_role("radio", name="跟随系统", exact=True).evaluate(
         """(node) => {
           const raw = getComputedStyle(node).transitionDuration;
           const value = parseFloat(raw);
@@ -1284,9 +1290,9 @@ def test_appearance_motion_density_and_persistence(app):
     )
     assert system_duration_ms < 0.1, system_duration_ms
 
-    # 显式“完整”优先于系统 reduce；显式“减少”则加根 class。
-    page.get_by_role("radio", name="完整", exact=True).click()
-    full_duration_ms = page.get_by_role("radio", name="完整", exact=True).evaluate(
+    # 显式“完整动效”优先于系统 reduce；显式“减少动效”则加根 class。
+    motion_row.get_by_role("radio", name="完整动效", exact=True).click()
+    full_duration_ms = motion_row.get_by_role("radio", name="完整动效", exact=True).evaluate(
         """(node) => {
           const raw = getComputedStyle(node).transitionDuration;
           const value = parseFloat(raw);
@@ -1294,7 +1300,7 @@ def test_appearance_motion_density_and_persistence(app):
         }"""
     )
     assert full_duration_ms >= 100, full_duration_ms
-    page.get_by_role("radio", name="减少", exact=True).click()
+    motion_row.get_by_role("radio", name="减少动效", exact=True).click()
     page.wait_for_function("() => document.documentElement.classList.contains('reduce-motion')")
     assert page.evaluate(
         """() => JSON.parse(localStorage.getItem('musefold:app-preferences') || '{}').state?.reducedMotion"""

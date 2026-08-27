@@ -681,7 +681,9 @@ def test_workbench_empty_examples_fill_prompt_without_submitting(app, fake_workb
     setup_provider(app, fake_workbench_server)
     app.page.wait_for_selector('[data-testid="workbench-empty"]')
     first_example = app.page.locator('[data-testid="generation-example"]').first
-    example_text = first_example.get_attribute("title")
+    # v2 建议行为 sr-only 文本（title 只在省略号溢出时才出现，随字体度量漂移）；
+    # 点击回填用的正是这段文本，以 inner_text 为稳定事实源。
+    example_text = first_example.inner_text()
     assert example_text
     first_example.click()
 
@@ -866,13 +868,15 @@ def test_canonical_terminology_fits_narrow_workbench_layout(app, tmp_path):
 
     app.page.evaluate("() => window.__musefold_test.stores.settings.getState().setSection('generation')")
     app.set_view("settings")
+    # ≤680px 手机设置先落在导航页（settings-section-*），分区内容要点开分区才显示；
+    # 681-959px 的横向 tabs（settings-mobile-section-*）在此宽度不渲染。
+    app.page.wait_for_selector('[data-testid="settings-section-preferences"]')
+    app.page.screenshot(path=str(tmp_path / "settings-mobile-menu.png"))
+    app.page.click('[data-testid="settings-section-preferences"]')
     app.page.wait_for_selector('[data-testid="settings-default-ratio-trigger"]')
     app.page.screenshot(path=str(tmp_path / "settings-narrow.png"))
     assert "生成参数" in app.page.locator("body").inner_text()
     assert_no_horizontal_overflow()
-
-    app.page.wait_for_selector('[data-testid="settings-mobile-section-preferences"]')
-    app.page.screenshot(path=str(tmp_path / "settings-mobile-menu.png"))
     # v2：生成默认值与外观合并为「偏好」，同分区内即可见密度设置。
     assert "界面密度" in app.page.locator("body").inner_text()
     assert_no_horizontal_overflow()
@@ -1615,12 +1619,13 @@ def test_workbench_uses_global_provider_switch_without_leaking_keys(app, fake_wo
     app.page.wait_for_timeout(250)
 
     assert app.page.locator('[data-testid="generate-provider-trigger"]').count() == 0
+    # v2:常驻身份显示「自定义中转站」,站点名在身份菜单列表里可见。
+    app.page.click('[data-testid="provider-quick-switch"]')
+    app.page.wait_for_selector('[data-testid="identity-switcher"]')
     assert app.page.locator("body").get_by_text(second["name"], exact=True).count() >= 1
     assert secret_a not in app.page.locator("body").inner_text()
     assert secret_b not in app.page.locator("body").inner_text()
 
-    app.page.click('[data-testid="provider-quick-switch"]')
-    app.page.wait_for_selector('[data-testid="identity-switcher"]')
     app.page.click(f'[data-testid="relay-model-option-{first["id"]}"]')
     app.page.wait_for_function(
         f"() => window.__musefold_test.stores.generation.getState().activeProviderId === '{first['id']}'",

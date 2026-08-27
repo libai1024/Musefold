@@ -35,6 +35,8 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
         )}
         data-testid="validation-result"
         data-ok="true"
+        role="status"
+        aria-live="polite"
       >
         <div className="flex items-start gap-1.5">
           <Check className="mt-0.5 h-3 w-3 shrink-0" />
@@ -66,6 +68,8 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
       data-testid="validation-result"
       data-ok="false"
       data-error-code={result.code ?? 'UNKNOWN'}
+      role="status"
+      aria-live="polite"
     >
       <div className="flex items-start gap-1.5">
         <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />

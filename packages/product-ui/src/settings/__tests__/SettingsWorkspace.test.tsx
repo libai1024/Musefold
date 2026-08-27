@@ -146,6 +146,36 @@ describe('SettingsWorkspace', () => {
     expect(html).toContain('role="switch"');
   });
 
+  it('keeps segmented radios on a single tab stop and describes them via the row hint', () => {
+    const html = renderToStaticMarkup(
+      <SettingsRow label="默认质量" hint="质量越高，耗时和成本越高">
+        <SettingsSegmentedControl
+          value="medium"
+          options={[
+            { value: 'low', label: '标准' },
+            { value: 'medium', label: '高清' },
+            { value: 'high', label: '超清' },
+          ]}
+          onChange={() => undefined}
+          ariaLabel="默认质量"
+        />
+      </SettingsRow>,
+    );
+
+    const hintTag = html.match(/<div[^>]*mf-settings-row-hint[^>]*>/)?.[0] ?? '';
+    const hintId = hintTag.match(/id="([^"]+)"/)?.[1];
+    expect(hintId).toBeTruthy();
+    expect(html).toContain(`aria-describedby="${hintId}"`);
+
+    const radios = html.match(/<button[^>]*role="radio"[^>]*>/g) ?? [];
+    expect(radios).toHaveLength(3);
+    const checked = radios.find((tag) => tag.includes('aria-checked="true"'));
+    const unchecked = radios.filter((tag) => tag.includes('aria-checked="false"'));
+    expect(checked).toContain('tabindex="0"');
+    expect(unchecked).toHaveLength(2);
+    expect(unchecked.every((tag) => tag.includes('tabindex="-1"'))).toBe(true);
+  });
+
   it('keeps checkbox semantics native while sharing the settings surface', () => {
     const html = renderToStaticMarkup(
       <SettingsCheckbox

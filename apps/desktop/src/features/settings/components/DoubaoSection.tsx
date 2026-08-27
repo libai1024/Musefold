@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Power, QrCode, RefreshCw, ShieldCheck, X } from '../../../components/ui/icons';
+import {
+  CheckCircle2,
+  Loader2,
+  Power,
+  QrCode,
+  RefreshCw,
+  ShieldCheck,
+  X,
+} from '../../../components/ui/icons';
 import type { ValidationResult, DoubaoWebUsageStatus } from '@musefold/desktop-contracts/providers';
 import { DOUBAO_WEB_DAILY_IMAGE_LIMIT, PROVIDER_PRESETS } from '@musefold/domain/constants';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
@@ -9,6 +17,7 @@ import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { useAccountStore, useDoubaoAccountStore } from '@renderer/runtime/account-access';
 import { ValidationResultBanner } from '@renderer/runtime/generation-access';
 import { SettingRow, SettingsCard } from '../components/SectionShell';
+import { InlineMessage } from './account-section-ui';
 import {
   Dialog,
   DialogBody,
@@ -38,6 +47,8 @@ export function DoubaoSection() {
   const loginState = accountStatus?.loginState ?? (provider?.hasKey ? 'logged-in' : 'logged-out');
   const foreground = useSettingsStore((state) => state.doubaoForeground);
   const setForeground = useSettingsStore((state) => state.setDoubaoForeground);
+  // 低频解释性尾注走渐进披露：默认单行摘要，按需展开限制说明。
+  const [limitsExpanded, setLimitsExpanded] = useState(false);
 
   useEffect(() => {
     if (provider?.hasKey) void refreshStatus().catch(() => refreshUsage().catch(() => {}));
@@ -172,7 +183,14 @@ export function DoubaoSection() {
           hint="登录信息只保存在专用浏览器分区，不进入 Musefold 数据库、导出文件或日志。"
         >
           <span className="inline-flex items-center gap-1.5 text-[11px] text-secondary">
-            <QrCode className="h-3.5 w-3.5" />
+            {/* 图标随状态而非随功能：已登录/待验证用语义状态图标，二维码仅留给待扫码态。 */}
+            {loginState === 'logged-in' ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+            ) : loginState === 'verification-required' ? (
+              <ShieldCheck className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+            ) : (
+              <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
             {loginState === 'logged-in'
               ? '扫码会话可用'
               : loginState === 'verification-required'
@@ -200,7 +218,7 @@ export function DoubaoSection() {
           <SettingsSwitch
             checked={foreground}
             onCheckedChange={setForeground}
-            label={foreground ? '隐藏豆包前台' : '显示豆包前台'}
+            label="豆包前台"
             testId="settings-doubao-developer-toggle"
           />
         </SettingRow>
@@ -209,15 +227,28 @@ export function DoubaoSection() {
       {result && <ValidationResultBanner className="mt-5" result={result} />}
 
       {accountStatus?.verificationRequired && (
-        <div className="mt-5 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2.5 text-[11px] text-warning">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+        <InlineMessage tone="warning" className="mt-5">
           请打开「豆包前台」显示豆包网页并完成安全验证；普通用户不会被强制展示豆包网页。
-        </div>
+        </InlineMessage>
       )}
 
       <p className="mt-6 text-meta leading-relaxed text-quaternary">
-        登录与验证不会改变当前接入模式。二维码刷新、退出和登录状态同步均在后台专用浏览器会话中完成；二维码只在本窗口短暂显示，不会保存到应用数据或日志。
+        二维码仅在登录窗口短暂显示，不写入应用数据与日志。
+        <Button
+          type="button"
+          unstyled
+          className="no-drag ml-2 text-meta text-tertiary underline-offset-4 hover:text-primary hover:underline"
+          aria-expanded={limitsExpanded}
+          onClick={() => setLimitsExpanded((value) => !value)}
+        >
+          {limitsExpanded ? '收起限制说明' : '查看限制说明'}
+        </Button>
       </p>
+      {limitsExpanded && (
+        <p className="mt-1 text-meta leading-relaxed text-quaternary">
+          登录与验证不会改变当前接入模式。二维码刷新、退出和登录状态同步均在后台专用浏览器会话中完成。
+        </p>
+      )}
 
       <Dialog
         open={loginOpen}
@@ -250,7 +281,7 @@ export function DoubaoSection() {
                 </span>
                 {loginState === 'error' && (
                   <span className="text-meta text-secondary">
-                    请点击下方“刷新二维码”，应用会重新点击豆包登录页的刷新入口。
+                    请点击下方「刷新二维码」，应用会重新点击豆包登录页的刷新入口。
                   </span>
                 )}
               </div>

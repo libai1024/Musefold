@@ -69,6 +69,16 @@ def test_first_run_offers_doubao_or_account_and_adapts_to_narrow_window(app, tmp
             window.__musefold_test.stores.app.getState().setView('settings');
         }"""
     )
+    # v2 ≤680px 手机设置先落在导航页（分组标签渲染），点开「账号」分区后才见豆包卡；
+    # 681-959px 的横向 tabs（settings-mobile-section-*）在此宽度不渲染。
+    menu_text = app.page.locator('[data-testid="settings-workspace"]').inner_text()
+    assert "账号" in menu_text
+    assert "中转站" in menu_text
+    assert "数据存储" in menu_text
+    assert "关于 App" in menu_text
+    assert "已归档聊天" in menu_text
+
+    app.page.click('[data-testid="settings-section-account"]')
     app.page.wait_for_selector('[data-testid="settings-doubao-open"]')
     assert "每日保护限制" in app.page.locator("body").inner_text()
     assert "高级设置" not in app.page.locator("body").inner_text()
@@ -77,14 +87,6 @@ def test_first_run_offers_doubao_or_account_and_adapts_to_narrow_window(app, tmp
     )
     assert metrics["documentWidth"] <= metrics["viewport"] + 1, metrics
     app.page.screenshot(path=str(tmp_path / "doubao-settings-narrow.png"))
-
-    # v2 窄屏为横向分区 tabs（settings-mobile-section-*），分组标签不渲染；
-    # 生图/Agent 中转站合并为一个「中转站」分区。
-    menu_text = app.page.locator('[data-testid="settings-workspace"]').inner_text()
-    assert "账号" in menu_text
-    assert "中转站" in menu_text
-    assert "数据与关于" in menu_text
-    assert "已归档聊天" in menu_text
 
     app.page.set_viewport_size({"width": 1200, "height": 760})
     app.page.keyboard.press("Escape")

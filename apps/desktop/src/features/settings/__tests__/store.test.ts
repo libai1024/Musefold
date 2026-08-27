@@ -44,7 +44,7 @@ describe('settings workspace navigation', () => {
   it('uses the shared workspace and keeps real desktop section ids', () => {
     const source = readFileSync(new URL('../components/SettingsView.tsx', import.meta.url), 'utf8');
     expect(source).toContain('SettingsWorkspace');
-    // v2 设置整合:7 个分区 key
+    // v2 设置整合:8 个分区 key(数据存储与关于 App 拆分)
     for (const section of [
       'account',
       'relay',
@@ -52,6 +52,7 @@ describe('settings workspace navigation', () => {
       'open',
       'usage',
       'data',
+      'about',
       'archived',
     ]) {
       expect(source).toContain(`'${section}'`);
@@ -82,8 +83,9 @@ describe('settings workspace navigation', () => {
     expect(useSettingsStore.getState().section).toBe('open');
     store.setSection('connections');
     expect(useSettingsStore.getState().section).toBe('open');
+    // 'about' 已拆分为独立分区,不再是 legacy 别名
     store.setSection('about');
-    expect(useSettingsStore.getState().section).toBe('data');
+    expect(useSettingsStore.getState().section).toBe('about');
     // setSection('relay') 本身不改 tab
     store.setRelayTab('ai');
     store.setSection('relay');

@@ -1,13 +1,18 @@
 // src/features/settings/components/provider-detail-parts.tsx
 // 生图中转站详情面板的子块(RELAY-SETTINGS-UI 第二步):
-// 面板头部(默认徽标/设为默认)、新建态预设卡片网格、密钥状态行、
-// doubao-web 登录 —— 从 ProviderDetailPanel 析出以满足文件尺寸门禁。
+// 面板头部(默认徽标/设为默认)、新建态预设卡片网格、连接分组(名称/Base URL/API Key)
+// —— 从 ProviderDetailPanel 析出以满足文件尺寸门禁。
+// doubao-web 分支已随面板死代码清理移除:station 列表(ProvidersSection)已过滤该类型,
+// 完整语义仍由 generation 弹窗 ProviderDialog 承载。
 
+import type { RefObject } from 'react';
 import { PROVIDER_PRESETS, type ProviderPreset } from '@musefold/domain/constants';
 import { ProviderField as Field } from '@renderer/runtime/generation-access';
 import { Button } from '../../../components/ui/button';
-import { AlertCircle, Check, ExternalLink, Loader2 } from '../../../components/ui/icons';
+import { Input } from '../../../components/ui/input';
+import { Check, Eye, EyeOff, Link2 } from '../../../components/ui/icons';
 import { cn } from '../../../lib/utils';
+import { PanelSectionTitle } from './MasterDetail';
 
 /** 详情面板头部:标题 + 默认徽标 / 设为默认(删除操作已下沉到底部操作条左端) */
 export function ProviderDetailHeader({
@@ -112,50 +117,103 @@ export function ApiKeyStatusRow({ keySuffix }: { keySuffix?: string }) {
   );
 }
 
-/** doubao-web 分支:无 Base URL/Key 字段,操作改为「打开登录窗口」 */
-export function DoubaoWebLoginField({
+/** 连接分组:名称 / Base URL / API Key(自 ProviderDetailPanel 析出;密钥只写不读) */
+export function ProviderConnectionSection({
+  name,
+  baseUrl,
+  onNameChange,
+  onBaseUrlChange,
+  onNameTouch,
+  onBaseUrlTouch,
+  nameError,
+  baseUrlError,
   keySaved,
-  openingWebLogin,
-  busy,
-  onOpen,
+  keySuffix,
+  apiKey,
+  onApiKeyChange,
+  showKey,
+  onToggleShowKey,
+  keyInputRef,
+  keyUrl,
 }: {
+  name: string;
+  baseUrl: string;
+  onNameChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  /** blur 触达:点亮该字段的校验错误 */
+  onNameTouch: () => void;
+  onBaseUrlTouch: () => void;
+  nameError?: string;
+  baseUrlError?: string;
   keySaved: boolean;
-  openingWebLogin: boolean;
-  busy: boolean;
-  onOpen: () => void;
+  keySuffix?: string;
+  apiKey: string;
+  onApiKeyChange: (value: string) => void;
+  showKey: boolean;
+  onToggleShowKey: () => void;
+  keyInputRef: RefObject<HTMLInputElement>;
+  /** 预设的密钥获取地址:未保存密钥时渲染为可点链接 */
+  keyUrl?: string;
 }) {
   return (
-    <Field label="豆包账号">
-      <div className="settings-detail-inset flex items-center justify-between gap-3 p-3">
-        <div className="min-w-0">
-          <p className="text-[12px] font-medium text-primary">
-            {keySaved ? '网页会话已连接' : '需要登录豆包网页版'}
-          </p>
-          <p className="mt-0.5 text-meta leading-relaxed text-tertiary">
-            登录状态保存在本机专用浏览器会话中;验证码和安全验证始终由你手动完成。
-          </p>
+    <div className="settings-detail-section">
+      <PanelSectionTitle title="连接" testId="provider-section-connection" />
+      <Field label="名称" error={nameError}>
+        <Input
+          aria-label="名称"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          onBlur={onNameTouch}
+          placeholder="如:我的中转站"
+          data-testid="provider-name"
+        />
+      </Field>
+      <Field label="Base URL" error={baseUrlError}>
+        <Input
+          aria-label="Base URL"
+          value={baseUrl}
+          onChange={(e) => onBaseUrlChange(e.target.value)}
+          onBlur={onBaseUrlTouch}
+          placeholder="https://ai.tvt.wiki/v1"
+          data-testid="provider-base-url"
+        />
+      </Field>
+      <Field label="API Key">
+        {keySaved && <ApiKeyStatusRow keySuffix={keySuffix} />}
+        <div className="relative">
+          <Input
+            ref={keyInputRef}
+            aria-label="API Key"
+            type={showKey ? 'text' : 'password'}
+            value={apiKey}
+            onChange={(e) => onApiKeyChange(e.target.value)}
+            placeholder={keySaved ? '已保存(输入新值可覆盖)' : 'sk-...'}
+            autoComplete="off"
+            className="pr-9"
+            data-testid="provider-api-key"
+          />
+          <button
+            type="button"
+            onClick={onToggleShowKey}
+            className="no-drag absolute right-2 top-1/2 -translate-y-1/2 text-tertiary hover:text-secondary"
+            aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
+            title={showKey ? '隐藏 API Key' : '显示 API Key'}
+          >
+            {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onOpen}
-          disabled={openingWebLogin || busy}
-          data-testid="provider-open-web-login"
-          className="shrink-0"
-        >
-          {openingWebLogin ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <ExternalLink className="h-3.5 w-3.5" />
-          )}
-          {keySaved ? '重新登录' : '打开登录'}
-        </Button>
-      </div>
-      <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-tertiary">
-        <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-        此接入依赖豆包网页结构,属于实验功能;出现验证或结构变化时会停止自动化并显示豆包窗口。
-      </p>
-    </Field>
+        {keyUrl && !keySaved && (
+          <a
+            href={keyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 flex items-center gap-1 font-mono text-[11px] text-tertiary underline-offset-2 hover:text-secondary hover:underline"
+            data-testid="provider-key-url"
+          >
+            <Link2 className="h-3 w-3 shrink-0" /> {keyUrl}
+          </a>
+        )}
+      </Field>
+    </div>
   );
 }

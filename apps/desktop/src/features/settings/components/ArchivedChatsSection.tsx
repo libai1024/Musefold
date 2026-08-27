@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
-import type { WorkbenchConversationKind, WorkbenchSessionSummary } from '@musefold/desktop-contracts/workbench';
+import type {
+  WorkbenchConversationKind,
+  WorkbenchSessionSummary,
+} from '@musefold/desktop-contracts/workbench';
 import {
   Archive,
   LibraryBig,
@@ -35,7 +38,9 @@ const TYPE_META: Record<WorkbenchConversationKind, { label: string; icon: Lucide
 };
 
 function formatUpdatedAt(timestamp: number): string {
+  // 含年份:归档项常跨年,MM/dd 无法分辨(设置评审 P2-7)
   return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -50,8 +55,9 @@ export function ArchivedChatsSection() {
     error: queryError,
     refetch,
   } = useDesktopWorkbenchSessionList(true);
-  const mutationError = useGenerationWorkbenchStore((state) => state.sessionsError);
-  const error = mutationError ?? queryError;
+  // 列表错误态只认查询错误:全局 store 的 mutation 错误会串台且在成功 refetch 后
+  // 仍抢占空态分支;恢复/删除失败已就地 toast(设置评审 A-1)
+  const error = queryError;
   const openSession = useGenerationWorkbenchStore((state) => state.openSession);
   const archiveSession = useGenerationWorkbenchStore((state) => state.archiveSession);
   const deleteSession = useGenerationWorkbenchStore((state) => state.deleteSession);
@@ -107,102 +113,123 @@ export function ArchivedChatsSection() {
         </Button>
       }
     >
-      <SettingsCard
-        title="归档记录"
-        description="恢复暂时收起的聊天，或删除不再需要的记录"
-      >
-      {loading && sessions.length === 0 ? (
-        <div className="flex min-h-32 items-center justify-center gap-2 px-6 text-[12px] text-tertiary" data-testid="settings-archived-loading">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          正在读取归档聊天…
-        </div>
-      ) : error && sessions.length === 0 ? (
-        <div className="px-6 py-5" role="alert" data-testid="settings-archived-error">
-          <p className="text-[13px] font-medium text-primary">{restartRequired ? '需要重启应用' : '归档聊天读取失败'}</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-secondary">{error}</p>
-          <div className="mt-3 flex gap-2">
-            {restartRequired && (
-              <Button size="sm" variant="primary" onClick={() => void api.system.relaunch()} data-testid="settings-archived-relaunch">
-                <Power className="h-3.5 w-3.5" />
-                立即重启
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={() => void refetch()}>
-              <RefreshCw className="h-3.5 w-3.5" />
-              重试
-            </Button>
+      <SettingsCard title="归档记录" description="恢复暂时收起的聊天，或删除不再需要的记录">
+        {loading && sessions.length === 0 ? (
+          <div
+            className="flex min-h-32 items-center justify-center gap-2 px-6 text-[12px] text-tertiary"
+            data-testid="settings-archived-loading"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            正在读取归档聊天…
           </div>
-        </div>
-      ) : sessions.length === 0 ? (
-        <div className="flex min-h-40 flex-col items-center justify-center px-4 text-center" data-testid="settings-archived-empty">
-          <Archive className="h-5 w-5 text-quaternary" />
-          <p className="mt-3 text-[13px] font-medium text-primary">还没有已归档聊天</p>
-        </div>
-      ) : (
-        <div data-testid="settings-archived-list">
-          {sessions.map((session) => {
-            const kind = session.conversationKind ?? 'chat';
-            const meta = TYPE_META[kind];
-            const TypeIcon = meta.icon;
-            const restoring = restoringId === session.id;
-            return (
-              <div
-                key={session.id}
-                className="setting-item group"
-                data-testid={`settings-archived-row-${session.id}`}
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-                  onClick={() => void openSession(session.id)}
-                  data-testid={`settings-archived-open-${session.id}`}
+        ) : error && sessions.length === 0 ? (
+          <div className="px-6 py-5" role="alert" data-testid="settings-archived-error">
+            <p className="text-[13px] font-medium text-primary">
+              {restartRequired ? '需要重启应用' : '归档聊天读取失败'}
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-secondary">{error}</p>
+            <div className="mt-3 flex gap-2">
+              {restartRequired && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => void api.system.relaunch()}
+                  data-testid="settings-archived-relaunch"
                 >
-                  <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-inset text-secondary"
-                    title={meta.label}
-                    aria-label={meta.label}
+                  <Power className="h-3.5 w-3.5" />
+                  立即重启
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                <RefreshCw className="h-3.5 w-3.5" />
+                重试
+              </Button>
+            </div>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div
+            className="flex min-h-40 flex-col items-center justify-center px-4 text-center"
+            data-testid="settings-archived-empty"
+          >
+            <Archive className="h-5 w-5 text-quaternary" />
+            <p className="mt-3 text-[13px] font-medium text-primary">还没有已归档聊天</p>
+          </div>
+        ) : (
+          <div data-testid="settings-archived-list">
+            {sessions.map((session) => {
+              const kind = session.conversationKind ?? 'chat';
+              const meta = TYPE_META[kind];
+              const TypeIcon = meta.icon;
+              const restoring = restoringId === session.id;
+              return (
+                <div
+                  key={session.id}
+                  className="setting-item group"
+                  data-testid={`settings-archived-row-${session.id}`}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                    onClick={() => void openSession(session.id)}
+                    data-testid={`settings-archived-open-${session.id}`}
                   >
-                    <TypeIcon className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium text-primary">{session.title}</span>
-                    <span className="mt-0.5 block truncate text-[11px] text-tertiary">
-                      {meta.label} · {session.turnCount} 轮 · {formatUpdatedAt(session.updatedAt)}
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-inset text-secondary"
+                      title={meta.label}
+                      aria-label={meta.label}
+                    >
+                      <TypeIcon className="h-4 w-4" aria-hidden="true" />
                     </span>
-                  </span>
-                </button>
-                <div className="flex shrink-0 items-center justify-end gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={restoring || deleting}
-                    onClick={() => void restore(session)}
-                    data-testid={`settings-archived-restore-${session.id}`}
-                  >
-                    {restoring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                    恢复
-                  </Button>
-                  <Button
-                    size="iconSm"
-                    variant="ghost"
-                    className="text-tertiary hover:text-danger"
-                    disabled={restoring || deleting}
-                    onClick={() => setDeleteTarget(session)}
-                    title="删除聊天"
-                    aria-label={`删除已归档聊天：${session.title}`}
-                    data-testid={`settings-archived-delete-${session.id}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium text-primary">
+                        {session.title}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-tertiary">
+                        {meta.label} · {session.turnCount} 轮 · {formatUpdatedAt(session.updatedAt)}
+                      </span>
+                    </span>
+                  </button>
+                  <div className="flex shrink-0 items-center justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={restoring || deleting}
+                      onClick={() => void restore(session)}
+                      data-testid={`settings-archived-restore-${session.id}`}
+                    >
+                      {restoring ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      )}
+                      恢复
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-tertiary hover:text-danger"
+                      disabled={restoring || deleting}
+                      onClick={() => setDeleteTarget(session)}
+                      title="删除聊天"
+                      aria-label={`删除已归档聊天：${session.title}`}
+                      data-testid={`settings-archived-delete-${session.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
       </SettingsCard>
 
-      <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>删除已归档聊天？</DialogTitle>
@@ -211,7 +238,9 @@ export function ArchivedChatsSection() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" disabled={deleting} onClick={() => setDeleteTarget(null)}>取消</Button>
+            <Button variant="ghost" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              取消
+            </Button>
             <Button variant="danger" disabled={deleting} onClick={() => void confirmDelete()}>
               {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
               删除聊天

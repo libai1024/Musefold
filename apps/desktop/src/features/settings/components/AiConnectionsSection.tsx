@@ -1,6 +1,8 @@
 // src/features/settings/components/AiConnectionsSection.tsx
 // 中转站分区「Agent」tab 内容：master-detail 分栏，就地编辑。
 // v2 设置整合：外壳、通道边界事实卡与页脚脚注移除，本组件只承担 Agent 通道面板。
+// dirty 守卫:左栏切换/新建前若面板有未保存修改,先弹 InlineConfirm(放弃修改/继续编辑),
+// 并经 relay-dirty-store 上抛给 RelaySection 拦截 tab 切换。
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Loader2, MessageSquareText, Plus } from '../../../components/ui/icons';
 import type { AiConnectionPreset } from '@musefold/desktop-contracts/ai';
@@ -10,11 +12,17 @@ import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { AI_CONNECTION_RESTART_REQUIRED } from '../ai-connection-errors';
 import { useAiConnectionStore } from '../ai-connection-store';
 import { AiConnectionDetailPanel } from '../components/AiConnectionDetailPanel';
-import { MasterDetail, MasterDetailItem } from '../components/MasterDetail';
+import { InlineConfirm, MasterDetail, MasterDetailItem } from '../components/MasterDetail';
 import { resolveConnectionDot } from '../components/connection-status';
 import { SettingsCard } from '../components/SectionShell';
+import { useRelayDirtyStore } from '../relay-dirty-store';
 import { useGenerationStore } from '@renderer/runtime/generation-access';
 import { accessModeOfProvider } from '../../../lib/ai-access';
+
+/** 被守卫拦下的切换意图:确认「放弃修改」后再执行 */
+type PendingSwitch =
+  | { kind: 'select'; id: string }
+  | { kind: 'create'; presetId?: AiConnectionPreset['id'] };
 
 export function AiConnectionsRelayPanel() {
   const connections = useAiConnectionStore((state) => state.connections);
@@ -43,6 +51,15 @@ export function AiConnectionsRelayPanel() {
       stationConnections[0] ??
       null;
 
+  // dirty 守卫:面板 dirty 上抛 + 待执行切换;tab 层经 relay-dirty-store 读取
+  const [panelDirty, setPanelDirty] = useState(false);
+  const [pending, setPending] = useState<PendingSwitch | null>(null);
+  const setRelayDirty = useRelayDirtyStore((s) => s.setDirty);
+  useEffect(() => {
+    setRelayDirty(panelDirty);
+  }, [panelDirty, setRelayDirty]);
+  useEffect(() => () => setRelayDirty(false), [setRelayDirty]);
+
   useEffect(() => {
     if (!loaded && !loading) void load().catch(() => {});
   }, [load, loaded, loading]);
@@ -51,6 +68,47 @@ export function AiConnectionsRelayPanel() {
     setSelectedId(null);
     setCreating(presetId ? { presetId } : {});
   };
+
+  const applyPending = () => {
+    if (!pending) return;
+    if (pending.kind === 'select') {
+      setCreating(null);
+      setSelectedId(pending.id);
+    } else {
+      startCreate(pending.presetId);
+    }
+    setPending(null);
+  };
+
+  const requestSelect = (id: string) => {
+    if (!creating && id === (selectedConnection?.id ?? null)) return;
+    if (panelDirty) {
+      setPending({ kind: 'select', id });
+      return;
+    }
+    setCreating(null);
+    setSelectedId(id);
+  };
+
+  const requestCreate = (presetId?: AiConnectionPreset['id']) => {
+    if (panelDirty) {
+      setPending({ kind: 'create', presetId });
+      return;
+    }
+    startCreate(presetId);
+  };
+
+  const dirtyGuard = pending ? (
+    <InlineConfirm
+      label="未保存的修改"
+      confirmLabel="放弃修改"
+      cancelLabel="继续编辑"
+      danger
+      testId="settings-ai-dirty-guard"
+      onConfirm={applyPending}
+      onCancel={() => setPending(null)}
+    />
+  ) : undefined;
 
   const showMasterDetail = stationConnections.length > 0 || creating !== null;
 
@@ -165,10 +223,7 @@ export function AiConnectionsRelayPanel() {
                 })}
                 active={connection.isActive}
                 selected={!creating && selectedConnection?.id === connection.id}
-                onClick={() => {
-                  setCreating(null);
-                  setSelectedId(connection.id);
-                }}
+                onClick={() => requestSelect(connection.id)}
                 testId={`settings-ai-row-${connection.id}`}
               />
             ))}
@@ -176,7 +231,7 @@ export function AiConnectionsRelayPanel() {
               size="sm"
               variant="ghost"
               className="settings-md-new text-tertiary"
-              onClick={() => startCreate()}
+              onClick={() => requestCreate()}
               data-testid="settings-ai-new"
             >
               <Plus className="h-3.5 w-3.5" /> 新建连接
@@ -189,6 +244,8 @@ export function AiConnectionsRelayPanel() {
           connection={selectedConnection}
           presetSeed={creating?.presetId ?? null}
           relayMode={relayMode}
+          onDirtyChange={setPanelDirty}
+          dirtyGuard={dirtyGuard}
           onCreated={(id) => {
             setCreating(null);
             setSelectedId(id);

@@ -318,7 +318,11 @@ def test_key_state_never_exposes_plaintext(app):
     assert secret not in dumped, "generation store 不得持有明文密钥"
 
     assert app.page.locator('[data-testid="generate-provider-trigger"]').count() == 0
+    # v2:常驻身份不点名具体站点(显示「自定义中转站」),站点名在身份菜单列表里可见。
+    app.page.click('[data-testid="provider-quick-switch"]')
+    app.page.wait_for_selector('[data-testid="identity-switcher"]')
     assert app.page.get_by_text(p["name"], exact=True).count() >= 1
+    app.page.keyboard.press("Escape")
 
 
 def test_provider_discard_selects_provider_persisted_by_refresh(app, fake_openai_server):
@@ -331,6 +335,7 @@ def test_provider_discard_selects_provider_persisted_by_refresh(app, fake_openai
     panel.get_by_test_id("provider-name").fill("E2E 预存服务商")
     panel.get_by_test_id("provider-base-url").fill(fake_openai_server["base"])
     panel.get_by_test_id("provider-model").fill("gpt-image-2")
+    panel.get_by_test_id("provider-api-key").fill("sk-provider-discard-e2e")
     panel.get_by_test_id("provider-load-models").click()
     row = app.page.locator('[data-testid^="settings-provider-row-"]').first
     row.wait_for(state="visible", timeout=5000)

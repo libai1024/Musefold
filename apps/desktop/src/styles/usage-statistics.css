@@ -3,12 +3,17 @@
 }
 
 .mf-usage-section {
-  --mf-usage-chart-1: #4b97eb;
-  --mf-usage-chart-2: #45bd78;
-  --mf-usage-chart-3: #7b5ce0;
-  --mf-usage-chart-4: #ef6468;
-  --mf-usage-chart-5: #f08a3e;
-  --mf-usage-chart-6: #45b9bc;
+  /* 分类色从语义 token 派生（tokens.css 已按 data-theme 分明暗两套，故此处天然两套）：
+     ember 打头，蓝（info）压到末位，第 5 档为 warning×info 派生橄榄色。
+     趋势图 / 渠道统计取色走 usage-statistics.ts 的 channelColor，勿在组件里另起下标。 */
+  --mf-usage-chart-1: var(--accent);
+  --mf-usage-chart-2: var(--success);
+  --mf-usage-chart-3: var(--warning);
+  --mf-usage-chart-4: var(--danger);
+  --mf-usage-chart-5: color-mix(in srgb, var(--warning) 52%, var(--info));
+  --mf-usage-chart-6: var(--info);
+  /* 超过 6 个渠道的「其他」中性色。 */
+  --mf-usage-chart-other: color-mix(in srgb, var(--fg-primary) 40%, var(--bg-elevated));
 }
 
 .mf-usage-section .mf-settings-section-body {
@@ -55,9 +60,9 @@
   max-width: 100%;
   overflow: hidden;
   color: var(--fg-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 20px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -66,6 +71,18 @@
 
 .mf-usage-summary__metric[data-emphasized='true'] strong {
   color: var(--accent);
+}
+
+/* 未知值占位（加载中）不参与强调。 */
+.mf-usage-summary__metric[data-pending='true'] strong {
+  color: var(--fg-tertiary);
+}
+
+.mf-usage-summary__unit {
+  margin-left: 3px;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .mf-usage-summary__metric > span {
@@ -78,8 +95,8 @@
 
 .mf-usage-summary__metric small {
   margin-top: 3px;
-  color: var(--fg-quaternary);
-  font-size: 10px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
   letter-spacing: 0;
   line-height: 1.3;
 }
@@ -125,19 +142,6 @@
   line-height: 1.4;
 }
 
-.mf-usage-panel__mode {
-  display: inline-flex;
-  height: 28px;
-  align-items: center;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 0 10px;
-  background: var(--bg-inset);
-  color: var(--fg-secondary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .mf-usage-heatmap-scroll {
   overflow-x: auto;
   padding: 2px 18px 12px;
@@ -149,7 +153,7 @@
   width: 951px;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   margin-bottom: 7px;
-  color: var(--fg-quaternary);
+  color: var(--fg-tertiary);
   font-size: 10px;
   letter-spacing: 0;
 }
@@ -178,28 +182,29 @@
   height: 10px;
 }
 
+/* 强度色从 ember accent 派生（生成活动 = active progress，回归唯一强调色）。 */
 .mf-usage-heatmap__cell[data-level='1'],
 .mf-usage-heatmap-legend i[data-level='1'] {
-  border-color: color-mix(in srgb, var(--mf-usage-chart-1) 28%, var(--border-subtle));
-  background: color-mix(in srgb, var(--mf-usage-chart-1) 28%, var(--bg-inset));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 28%, var(--bg-inset));
 }
 
 .mf-usage-heatmap__cell[data-level='2'],
 .mf-usage-heatmap-legend i[data-level='2'] {
-  border-color: color-mix(in srgb, var(--mf-usage-chart-1) 45%, var(--border-subtle));
-  background: color-mix(in srgb, var(--mf-usage-chart-1) 48%, var(--bg-inset));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 48%, var(--bg-inset));
 }
 
 .mf-usage-heatmap__cell[data-level='3'],
 .mf-usage-heatmap-legend i[data-level='3'] {
-  border-color: color-mix(in srgb, var(--mf-usage-chart-1) 68%, var(--border-subtle));
-  background: color-mix(in srgb, var(--mf-usage-chart-1) 72%, var(--bg-inset));
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 72%, var(--bg-inset));
 }
 
 .mf-usage-heatmap__cell[data-level='4'],
 .mf-usage-heatmap-legend i[data-level='4'] {
-  border-color: var(--mf-usage-chart-1);
-  background: var(--mf-usage-chart-1);
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .mf-usage-heatmap-legend {
@@ -208,7 +213,7 @@
   justify-content: flex-end;
   gap: 4px;
   padding: 0 18px 14px;
-  color: var(--fg-quaternary);
+  color: var(--fg-tertiary);
   font-size: 10px;
 }
 
@@ -272,7 +277,7 @@
   align-items: center;
   gap: 6px;
   color: var(--fg-tertiary);
-  font-size: 10.5px;
+  font-size: 11px;
 }
 
 .mf-usage-chart-legend i,
@@ -305,7 +310,7 @@
 }
 
 .mf-usage-chart-label {
-  fill: var(--fg-quaternary);
+  fill: var(--fg-tertiary);
   font-size: 10px;
   letter-spacing: 0;
 }
@@ -359,9 +364,9 @@
 
 .mf-usage-donut strong {
   color: var(--fg-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 19px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
 
@@ -395,8 +400,15 @@
 
 .mf-usage-distribution-row strong {
   color: var(--fg-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* 图表行内数值的单位：次级层级，不与数值同字号同字重。 */
+.mf-usage-num-unit {
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .mf-usage-channel-list {
@@ -436,16 +448,16 @@
 
 .mf-usage-channel-row__identity span,
 .mf-usage-channel-metric span {
-  color: var(--fg-quaternary);
-  font-size: 10px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
 }
 
 .mf-usage-channel-metric strong {
   overflow: hidden;
   color: var(--fg-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -460,7 +472,7 @@
   align-items: center;
   justify-content: center;
   border-top: 1px solid var(--border-subtle);
-  color: var(--fg-quaternary);
+  color: var(--fg-tertiary);
   font-size: 12px;
 }
 

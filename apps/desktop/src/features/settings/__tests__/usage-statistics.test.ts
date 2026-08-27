@@ -3,6 +3,7 @@ import {
   buildActivityQuery,
   buildUsageHeatmap,
   buildUsageStatsQuery,
+  channelColor,
   successRate,
   usageGroupBy,
 } from '../usage-statistics';
@@ -55,5 +56,21 @@ describe('usage statistics helpers', () => {
   it('keeps success rates finite for empty channels', () => {
     expect(successRate(0, 0)).toBe(0);
     expect(successRate(8, 10)).toBe(80);
+  });
+
+  it('maps channels to stable palette slots keyed by the full channel list', () => {
+    const channels = [{ channelId: 'account' }, { channelId: 'provider' }, { channelId: 'doubao' }];
+
+    expect(channelColor(channels, 'account')).toBe('var(--mf-usage-chart-1)');
+    expect(channelColor(channels, 'provider')).toBe('var(--mf-usage-chart-2)');
+    expect(channelColor(channels, 'doubao')).toBe('var(--mf-usage-chart-3)');
+  });
+
+  it('falls back to the neutral other color past the palette limit or for unknown channels', () => {
+    const many = Array.from({ length: 8 }, (_, index) => ({ channelId: `c${index}` }));
+
+    expect(channelColor(many, 'c5')).toBe('var(--mf-usage-chart-6)');
+    expect(channelColor(many, 'c6')).toBe('var(--mf-usage-chart-other)');
+    expect(channelColor(many, 'missing')).toBe('var(--mf-usage-chart-other)');
   });
 });

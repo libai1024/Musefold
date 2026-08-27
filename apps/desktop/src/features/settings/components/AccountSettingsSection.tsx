@@ -9,6 +9,7 @@ export function AccountSettingsSection() {
     <SectionShell
       title="账号"
       description="优先使用 Musefold 官方账号登录与生图；官方未就绪时可用豆包体验通道（每日限量）应急。"
+      className="settings-account-section"
     >
       <AccountSection />
       <DoubaoSection />

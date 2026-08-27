@@ -45,6 +45,7 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const [selected, setSelected] = useState<BackupInfo | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restored, setRestored] = useState<RestoreBackupResult | null>(null);
@@ -73,6 +74,8 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
     try {
       await api.system.backupNow();
       await load();
+      // 刚创建的备份直接展开可见,省一次「查看备份」点击
+      setListOpen(true);
       toast.success('备份已创建', '当前数据库已保存为一致性快照');
     } catch (err) {
       setError((err as Error)?.message ?? '创建备份失败');
@@ -102,13 +105,25 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
     }
   };
 
+  // 常驻只给一行摘要,列表按需展开(渐进披露,设置评审 P1-3)
+  const latestAt = backups.reduce((max, backup) => Math.max(max, backup.createdAt), 0);
+  const summary =
+    loading && backups.length === 0
+      ? '正在读取备份…'
+      : backups.length === 0
+        ? '暂无备份'
+        : `共 ${backups.length} 份 · 最近备份 ${formatDate(latestAt)}`;
+
   return (
     <div className="border-b border-border-subtle" data-testid="backups-panel">
       <div className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]">
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-medium text-primary">数据库备份</p>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">
-            保留最近的手动、导入前和升级前快照
+          <p
+            className="mt-0.5 text-[11px] leading-relaxed text-tertiary"
+            data-testid="backup-summary"
+          >
+            {summary}
           </p>
         </div>
         <Button
@@ -136,6 +151,16 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
           )}
           {creating ? '备份中…' : '立即备份'}
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setListOpen((value) => !value)}
+          aria-expanded={listOpen}
+          aria-controls="backup-list"
+          data-testid="backup-toggle"
+        >
+          {listOpen ? '收起备份' : '查看备份'}
+        </Button>
       </div>
 
       {error && !selected && (
@@ -147,63 +172,67 @@ export function BackupPanel({ refreshKey = 0 }: BackupPanelProps) {
         </p>
       )}
 
-      <div
-        className="mb-4 overflow-hidden rounded-md border border-border-subtle"
-        data-testid="backup-list"
-      >
-        {loading && backups.length === 0 ? (
-          <div className="flex h-16 items-center justify-center text-[11px] text-tertiary">
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> 加载中…
-          </div>
-        ) : backups.length === 0 ? (
-          <div
-            className="flex h-16 items-center justify-center text-[11px] text-tertiary"
-            data-testid="backup-empty"
-          >
-            暂无数据库备份
-          </div>
-        ) : (
-          <div className="max-h-56 overflow-y-auto">
-            {backups.map((backup) => (
-              <div
-                key={backup.file}
-                className="flex min-h-14 items-center gap-3 border-b border-border-subtle px-3.5 py-2.5 last:border-b-0"
-                data-testid="backup-row"
-                data-backup-file={backup.file}
-              >
-                <span
-                  className={`min-w-10 shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-center text-meta font-medium ${
-                    backup.kind === 'manual' ? 'bg-pressed text-primary' : 'bg-inset text-tertiary'
-                  }`}
+      {listOpen && (
+        <div
+          className="mb-4 overflow-hidden rounded-md border border-border-subtle"
+          data-testid="backup-list"
+        >
+          {loading && backups.length === 0 ? (
+            <div className="flex h-16 items-center justify-center text-[11px] text-tertiary">
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> 加载中…
+            </div>
+          ) : backups.length === 0 ? (
+            <div
+              className="flex h-16 items-center justify-center text-[11px] text-tertiary"
+              data-testid="backup-empty"
+            >
+              暂无数据库备份
+            </div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto">
+              {backups.map((backup) => (
+                <div
+                  key={backup.file}
+                  className="flex min-h-14 items-center gap-3 border-b border-border-subtle px-3.5 py-2.5 last:border-b-0"
+                  data-testid="backup-row"
+                  data-backup-file={backup.file}
                 >
-                  {backup.kind === 'manual' ? '手动' : '自动'}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-meta text-secondary" title={backup.file}>
-                    {backup.file}
-                  </p>
-                  <p className="mt-0.5 flex items-center gap-1 text-meta text-quaternary">
-                    <Clock3 className="h-2.5 w-2.5" /> {formatDate(backup.createdAt)} ·{' '}
-                    {formatBytes(backup.size)}
-                  </p>
+                  <span
+                    className={`min-w-10 shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-center text-meta font-medium ${
+                      backup.kind === 'manual'
+                        ? 'bg-pressed text-primary'
+                        : 'bg-inset text-tertiary'
+                    }`}
+                  >
+                    {backup.kind === 'manual' ? '手动' : '自动'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono text-meta text-secondary" title={backup.file}>
+                      {backup.file}
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-1 text-meta text-quaternary">
+                      <Clock3 className="h-2.5 w-2.5" /> {formatDate(backup.createdAt)} ·{' '}
+                      {formatBytes(backup.size)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSelected(backup);
+                      setRestored(null);
+                      setError(null);
+                    }}
+                    data-testid="backup-restore"
+                  >
+                    <RotateCcw className="h-3 w-3" /> 恢复
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setSelected(backup);
-                    setRestored(null);
-                    setError(null);
-                  }}
-                  data-testid="backup-restore"
-                >
-                  <RotateCcw className="h-3 w-3" /> 恢复
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <Dialog open={selected !== null} onOpenChange={closeDialog}>
         <DialogContent

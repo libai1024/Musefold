@@ -16,7 +16,9 @@ describe('AiConnectionDialogParts', () => {
     );
 
     expect(html).toContain('可手工填写模型 ID');
-    expect(html).toContain('aria-pressed="true"');
+    // 连接方式选择升级为 radiogroup 语义(role=radio + aria-checked)。
+    expect(html).toContain('role="radio"');
+    expect(html).toContain('aria-checked="true"');
     expect(html).toContain('兼容网关');
   });
 });

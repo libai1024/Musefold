@@ -17,9 +17,9 @@ const OPTIONS = [
 ];
 
 const MOTION_OPTIONS = [
-  { value: 'system' as ReducedMotion, label: '系统' },
-  { value: 'on' as ReducedMotion, label: '减少' },
-  { value: 'off' as ReducedMotion, label: '完整' },
+  { value: 'system' as ReducedMotion, label: '跟随系统' },
+  { value: 'on' as ReducedMotion, label: '减少动效' },
+  { value: 'off' as ReducedMotion, label: '完整动效' },
 ];
 
 const DENSITY_OPTIONS = [

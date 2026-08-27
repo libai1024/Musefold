@@ -171,9 +171,15 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
 
   const src = preview?.source;
 
+  // busy 期(Esc/遮罩/X)不可关,与 Backup/Danger 同一关闭协议,防止导入后台裸奔
+  const changeOpen = (next: boolean) => {
+    if (busy) return;
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[500px]" data-testid="import-dialog">
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogContent className="max-w-[500px]" hideClose={busy} data-testid="import-dialog">
         <DialogHeader>
           <DialogTitle>导入数据</DialogTitle>
           <DialogDescription>从 Musefold 导出文件（.json / .zip）恢复数据。</DialogDescription>
@@ -315,7 +321,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: Props) {
         </DialogBody>
 
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
+          <Button variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={busy}>
             {done ? '完成' : '取消'}
           </Button>
           {!done && (

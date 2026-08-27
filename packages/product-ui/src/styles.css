@@ -703,7 +703,7 @@
 }
 
 .mf-settings-segmented-option[aria-checked='true'] {
-  color: var(--fg-primary);
+  color: var(--accent);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-sm);
 }

@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 
+/** 概览级追加事实（如内置模型），渲染在固定三项之后，静态事实不独占卡片。 */
+export interface AccountSummaryFact {
+  label: string;
+  value: string;
+}
+
 export interface AccountSummaryViewModel {
   name: string;
   username: string;
@@ -9,6 +15,7 @@ export interface AccountSummaryViewModel {
   generationStatusLabel: string;
   generationAvailable: boolean;
   dataSourceLabel: string;
+  extraFacts?: readonly AccountSummaryFact[];
 }
 
 export interface AccountSummaryPanelProps {
@@ -65,6 +72,12 @@ export function AccountSummaryPanel({
           <dt>数据源</dt>
           <dd>{account.dataSourceLabel}</dd>
         </div>
+        {account.extraFacts?.map((fact) => (
+          <div key={fact.label}>
+            <dt>{fact.label}</dt>
+            <dd>{fact.value}</dd>
+          </div>
+        ))}
       </dl>
       {footer ? <div className="mf-account-summary-footer">{footer}</div> : null}
     </section>

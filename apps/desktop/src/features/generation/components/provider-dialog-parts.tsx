@@ -15,11 +15,26 @@ export function mergeModelOptions(currentModel: string, models: ModelInfo[]): Mo
   return Array.from(unique.values());
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+/** 字段外壳:label + 控件 + 可选错误行(error 只在字段被 touch 后由调用方传入,避免满屏红字) */
+export function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  /** useDraftForm errorFor 产出的校验错误,渲染在控件下方(text-danger) */
+  error?: string;
+  children: ReactNode;
+}) {
   return (
     <div>
       <label className="mb-1 block text-[11px] font-medium text-secondary">{label}</label>
       {children}
+      {error && (
+        <p className="mt-1 text-[11px] text-danger" data-testid="provider-field-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Blocks,
   Database,
   HardDrive,
+  Info,
   LayoutGrid,
   Palette,
   Server,
@@ -19,7 +20,8 @@ import { RelaySection } from './RelaySection';
 import { AccountSettingsSection } from './AccountSettingsSection';
 import { PreferencesSection } from './PreferencesSection';
 import { OpenCapabilitiesSection } from './OpenCapabilitiesSection';
-import { DataAndAboutSection } from './DataAndAboutSection';
+import { DataStorageSection } from './DataStorageSection';
+import { AboutAppSection } from './AboutAppSection';
 import { ArchivedChatsSection } from './ArchivedChatsSection';
 import { UsageStatisticsSection } from './UsageStatisticsSection';
 import {
@@ -38,7 +40,7 @@ interface DesktopSettingsNavigationGroup extends Omit<SettingsNavigationGroup, '
   items: readonly DesktopSettingsNavigationItem[];
 }
 
-// v2 设置整合：12 个旧分区重组为 7 个任务分区；旧 key 继续兼容深链。
+// v2 设置整合：12 个旧分区重组为 8 个任务分区（数据存储与关于 App 拆分）；旧 key 继续兼容深链。
 const NAV_GROUPS: readonly DesktopSettingsNavigationGroup[] = [
   {
     id: 'access',
@@ -91,9 +93,15 @@ const NAV_GROUPS: readonly DesktopSettingsNavigationGroup[] = [
       },
       {
         id: 'data',
-        label: '数据与关于',
+        label: '数据存储',
         icon: <HardDrive />,
-        keywords: ['导入', '导出', '备份', '路径', '日志', '重置', '版本', '更新', '文档', '许可', '快捷键'],
+        keywords: ['导入', '导出', '备份', '路径', '日志', '重置', '本地数据'],
+      },
+      {
+        id: 'about',
+        label: '关于 App',
+        icon: <Info />,
+        keywords: ['版本', '更新', '文档', '反馈', '许可', '第三方', '快捷键', '支持'],
       },
       {
         id: 'archived',
@@ -118,7 +126,8 @@ const SECTIONS: Record<SettingsSection, () => JSX.Element> = {
   preferences: PreferencesSection,
   open: OpenCapabilitiesSection,
   usage: UsageStatisticsSection,
-  data: DataAndAboutSection,
+  data: DataStorageSection,
+  about: AboutAppSection,
   archived: ArchivedChatsSection,
 };
 

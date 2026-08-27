@@ -6,6 +6,7 @@ import type {
 } from '@musefold/desktop-contracts/history-documents';
 import {
   buildUsageHeatmap,
+  channelColor,
   formatUsageCount,
   formatUsagePercent,
   formatUsagePoints,
@@ -31,6 +32,12 @@ export function UsageActivityHeatmap({
   loading: boolean;
 }) {
   const cells = useMemo(() => buildUsageHeatmap(buckets, now), [buckets, now]);
+  const total = useMemo(() => buckets.reduce((sum, bucket) => sum + bucket.count, 0), [buckets]);
+  const activeDays = useMemo(
+    () => buckets.filter((bucket) => bucket.count > 0).length,
+    [buckets],
+  );
+  const hasData = total > 0;
   const monthLabels = useMemo(() => {
     const labels: string[] = [];
     const date = new Date(now);
@@ -49,34 +56,46 @@ export function UsageActivityHeatmap({
       <header className="mf-usage-panel__header">
         <div>
           <h2>生成活动</h2>
-          <p>过去 53 周的全渠道成功生成次数</p>
+          <p>过去 53 周的全渠道成功生成次数（按日）</p>
         </div>
-        <span className="mf-usage-panel__mode">每日</span>
       </header>
-      <div className="mf-usage-heatmap-scroll" aria-busy={loading}>
-        <div className="mf-usage-heatmap-months" aria-hidden="true">
-          {monthLabels.map((label, index) => (
-            <span key={`${label}-${index}`}>{label}</span>
-          ))}
-        </div>
-        <div className="mf-usage-heatmap" role="img" aria-label="过去 53 周生成活动热力图">
-          {cells.map((cell) => (
-            <span
-              key={cell.key}
-              className="mf-usage-heatmap__cell"
-              data-level={cell.level}
-              title={`${cell.dateLabel}：${cell.count} 次成功生成`}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="mf-usage-heatmap-legend" aria-hidden="true">
-        <span>少</span>
-        {[0, 1, 2, 3, 4].map((level) => (
-          <i key={level} data-level={level} />
-        ))}
-        <span>多</span>
-      </div>
+      {hasData ? (
+        <>
+          <div className="mf-usage-heatmap-scroll">
+            <div className="mf-usage-heatmap-months" aria-hidden="true">
+              {monthLabels.map((label, index) => (
+                <span key={`${label}-${index}`}>{label}</span>
+              ))}
+            </div>
+            <div
+              className="mf-usage-heatmap"
+              role="img"
+              aria-label={`过去 53 周生成活动热力图，共 ${formatUsageCount(total)} 次成功生成，活跃 ${activeDays} 天`}
+            >
+              {cells.map((cell) => (
+                <span
+                  key={cell.key}
+                  className="mf-usage-heatmap__cell"
+                  data-level={cell.level}
+                  title={`${cell.dateLabel}：${cell.count} 次成功生成`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="mf-usage-heatmap-legend" aria-hidden="true">
+            <span>少</span>
+            {[0, 1, 2, 3, 4].map((level) => (
+              <i key={level} data-level={level} />
+            ))}
+            <span>多</span>
+          </div>
+        </>
+      ) : (
+        <UsageEmpty
+          label={loading ? '正在加载生成活动…' : '暂无生成记录，生成一次后会在这里出现活动日历'}
+          loading={loading}
+        />
+      )}
     </section>
   );
 }
@@ -99,6 +118,12 @@ export function UsageTrendChart({
   );
   const labelIndexes = tickIndexes(buckets.length, 6);
   const geometry = { left: 24, right: 16, top: 14, bottom: 34, width: 760, height: 220 };
+  const totalSuccess = channels.reduce((sum, channel) => sum + channel.successCount, 0);
+  const totalAttempts = channels.reduce((sum, channel) => sum + channel.attemptCount, 0);
+  const summary =
+    totalSuccess > 0
+      ? `：${rangeLabel}共 ${formatUsageCount(totalSuccess)} 次成功生成，成功率 ${formatUsagePercent(successRate(totalSuccess, totalAttempts))}`
+      : '';
 
   return (
     <section className="mf-usage-panel" data-testid="settings-usage-trend">
@@ -108,22 +133,22 @@ export function UsageTrendChart({
           <p>{rangeLabel}，按渠道统计成功生成次数</p>
         </div>
         <div className="mf-usage-chart-legend" aria-label="渠道图例">
-          {visibleChannels.map((channel, index) => (
+          {visibleChannels.map((channel) => (
             <span key={channel.channelId}>
-              <i style={{ background: CHART_COLORS[index] }} />
+              <i style={{ background: channelColor(channels, channel.channelId) }} />
               {channel.name}
             </span>
           ))}
         </div>
       </header>
-      {buckets.length === 0 && !loading ? (
-        <UsageEmpty label="该时间范围内暂无成功生成" />
+      {buckets.length === 0 ? (
+        <UsageEmpty label={loading ? '正在加载生成趋势…' : '该时间范围内暂无成功生成'} loading={loading} />
       ) : (
         <div className="mf-usage-trend-chart" aria-busy={loading}>
           <svg
             viewBox={`0 0 ${geometry.width} ${geometry.height}`}
             role="img"
-            aria-label="各生成渠道趋势折线图"
+            aria-label={`各生成渠道趋势折线图${summary}`}
           >
             {[0, 1, 2, 3].map((line) => {
               const y =
@@ -139,7 +164,7 @@ export function UsageTrendChart({
                 />
               );
             })}
-            {visibleChannels.map((channel, index) => {
+            {visibleChannels.map((channel) => {
               const points = buckets.map((bucket, bucketIndex) => {
                 const value =
                   bucket.channels.find((item) => item.channelId === channel.channelId)?.count ?? 0;
@@ -150,7 +175,7 @@ export function UsageTrendChart({
                   key={channel.channelId}
                   points={points.map((point) => `${point.x},${point.y}`).join(' ')}
                   fill="none"
-                  stroke={CHART_COLORS[index]}
+                  stroke={channelColor(channels, channel.channelId)}
                   strokeWidth="2.25"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -197,8 +222,8 @@ export function UsageModelDistribution({
           <p>全渠道成功生成的模型分布</p>
         </div>
       </header>
-      {total === 0 && !loading ? (
-        <UsageEmpty label="暂无模型用量数据" />
+      {total === 0 ? (
+        <UsageEmpty label={loading ? '正在加载模型用量…' : '暂无模型用量数据'} loading={loading} />
       ) : (
         <div className="mf-usage-distribution" aria-busy={loading}>
           <div className="mf-usage-donut" role="img" aria-label={`共 ${total} 次成功生成`}>
@@ -232,7 +257,10 @@ export function UsageModelDistribution({
               <div key={model.model} className="mf-usage-distribution-row">
                 <i style={{ background: CHART_COLORS[index] }} />
                 <span className="mf-usage-distribution-row__name">{model.model}</span>
-                <span>{formatUsageCount(model.count)} 次</span>
+                <span>
+                  {formatUsageCount(model.count)}
+                  <span className="mf-usage-num-unit"> 次</span>
+                </span>
                 <strong>{formatUsagePercent(total > 0 ? (model.count / total) * 100 : 0)}</strong>
               </div>
             ))}
@@ -258,25 +286,26 @@ export function UsageChannelBreakdown({
           <p>账号、豆包体验与各中转 Provider 独立计算</p>
         </div>
       </header>
-      {channels.length === 0 && !loading ? (
-        <UsageEmpty label="暂无渠道用量数据" />
+      {channels.length === 0 ? (
+        <UsageEmpty label={loading ? '正在加载渠道用量…' : '暂无渠道用量数据'} loading={loading} />
       ) : (
         <div className="mf-usage-channel-list" aria-busy={loading}>
-          {channels.map((channel, index) => (
+          {channels.map((channel) => (
             <div
               className="mf-usage-channel-row"
               key={channel.channelId}
               data-testid="settings-usage-channel"
               data-channel-id={channel.channelId}
             >
-              <i style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+              <i style={{ background: channelColor(channels, channel.channelId) }} />
               <div className="mf-usage-channel-row__identity">
                 <strong>{channel.name}</strong>
                 <span>{channelKindLabel(channel.kind)}</span>
               </div>
               <UsageChannelMetric
                 label="成功"
-                value={`${formatUsageCount(channel.successCount)} 次`}
+                value={formatUsageCount(channel.successCount)}
+                unit="次"
               />
               <UsageChannelMetric
                 label="成功率"
@@ -291,8 +320,9 @@ export function UsageChannelBreakdown({
                 value={
                   channel.accountPoints == null
                     ? '不计积分'
-                    : `${formatUsagePoints(channel.accountPoints)} 积分`
+                    : formatUsagePoints(channel.accountPoints)
                 }
+                unit={channel.accountPoints == null ? undefined : '积分'}
                 emphasized={channel.kind === 'account'}
               />
             </div>
@@ -306,22 +336,31 @@ export function UsageChannelBreakdown({
 function UsageChannelMetric({
   label,
   value,
+  unit,
   emphasized = false,
 }: {
   label: string;
   value: string;
+  unit?: string;
   emphasized?: boolean;
 }) {
   return (
     <div className="mf-usage-channel-metric" data-emphasized={emphasized || undefined}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>
+        {value}
+        {unit ? <span className="mf-usage-num-unit"> {unit}</span> : null}
+      </strong>
     </div>
   );
 }
 
-function UsageEmpty({ label }: { label: string }) {
-  return <div className="mf-usage-empty">{label}</div>;
+function UsageEmpty({ label, loading = false }: { label: string; loading?: boolean }) {
+  return (
+    <div className="mf-usage-empty" aria-busy={loading || undefined}>
+      {label}
+    </div>
+  );
 }
 
 function channelKindLabel(kind: HistoryStatsChannel['kind']): string {

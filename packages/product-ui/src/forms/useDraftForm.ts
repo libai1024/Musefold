@@ -35,6 +35,9 @@ export interface DraftForm<TDraft, TField extends string> {
   valid: boolean;
   dirty: boolean;
   reset: () => void;
+  /** 把当前草稿标记为新基线（dirty 归零、touched 清空）。
+   *  用于「草稿已被隐式落库」场景：落库内容即当前表单值，后续修改才算 dirty。 */
+  markPristine: () => void;
 }
 
 export function useDraftForm<TDraft extends object, TField extends string>({
@@ -75,6 +78,13 @@ export function useDraftForm<TDraft extends object, TField extends string>({
     setTouched({});
   }, []);
 
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const markPristine = useCallback(() => {
+    initialRef.current = draftRef.current;
+    setTouched({});
+  }, []);
+
   return {
     draft,
     setDraft,
@@ -87,5 +97,6 @@ export function useDraftForm<TDraft extends object, TField extends string>({
     valid: isDraftValid(errors),
     dirty: isDraftDirty(draft, initialRef.current),
     reset,
+    markPristine,
   };
 }

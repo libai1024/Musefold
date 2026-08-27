@@ -1,7 +1,7 @@
 // src/features/settings/store.ts
 // 设置页导航状态 —— 当前分区（可被侧栏/状态栏定向打开）。
-// v2 设置整合：分区收敛为 7 个；旧分区 key 作为深链别名在 setSection 内翻译，
-// 侧栏/工作台/自动化事件等历史调用点无需逐一改造。
+// v2 设置整合：分区收敛为 8 个（数据存储与关于 App 拆分）；旧分区 key 作为深链别名在
+// setSection 内翻译，侧栏/工作台/自动化事件等历史调用点无需逐一改造。
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -21,6 +21,7 @@ export type SettingsSection =
   | 'open'
   | 'usage'
   | 'data'
+  | 'about'
   | 'archived';
 
 /** 中转站分页内部的通道 tab：providers = 生图，ai = Agent。 */
@@ -35,8 +36,7 @@ export type LegacySettingsSection =
   | 'ai'
   | 'generation'
   | 'appearance'
-  | 'automation'
-  | 'about';
+  | 'automation';
 
 export type SettingsSectionInput = SettingsSection | LegacySettingsSection;
 
@@ -49,7 +49,6 @@ const LEGACY_SECTION_TARGET: Record<LegacySettingsSection, SettingsSection> = {
   generation: 'preferences',
   appearance: 'preferences',
   automation: 'open',
-  about: 'data',
 };
 
 function resolveSection(input: SettingsSectionInput): SettingsSection {

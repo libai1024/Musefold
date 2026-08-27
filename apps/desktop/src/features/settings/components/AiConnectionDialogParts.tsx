@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type {
   AiConnectionPreset,
   AiConnectionValidationResult,
 } from '@musefold/desktop-contracts/ai';
-import { AlertCircle, Check } from '../../../components/ui/icons';
+import { AlertCircle, Check, Eye, EyeOff, Loader2, Unplug } from '../../../components/ui/icons';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
 import { cn } from '../../../lib/utils';
 
 /** 连接预设卡片网格(仅新建态):名称 + 推荐徽标 + 直连/网关说明 */
@@ -75,10 +77,13 @@ export function AiConnectionPresetGrid({
 export function Field({
   label,
   hint,
+  error,
   children,
 }: {
   label: string;
   hint?: string;
+  /** useDraftForm errorFor 产出的校验错误,渲染在控件下方(text-danger) */
+  error?: string;
   children: ReactNode;
 }) {
   return (
@@ -86,10 +91,16 @@ export function Field({
       <span className="mb-1 block text-[11px] font-medium text-secondary">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-meta leading-relaxed text-tertiary">{hint}</span>}
+      {error && (
+        <p className="mt-1 text-meta leading-relaxed text-danger" data-testid="ai-connection-field-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
 
+/** 单选项:radiogroup 子项语义(role=radio + aria-checked),容器由调用方给 role="radiogroup" */
 export function RouteButton({
   active,
   onClick,
@@ -102,7 +113,8 @@ export function RouteButton({
   return (
     <button
       type="button"
-      aria-pressed={active}
+      role="radio"
+      aria-checked={active}
       onClick={onClick}
       className={cn(
         'h-7 rounded text-meta font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]',
@@ -174,6 +186,83 @@ function Capability({ label, value }: { label: string; value: string }) {
       <dt className="text-tertiary">{label}</dt>
       <dd className="mt-0.5 font-medium text-secondary">{value}</dd>
     </div>
+  );
+}
+
+/** API Key 字段块(自 AiConnectionDetailPanel 析出):
+ *  Stripe 式状态行(状态 + 掩码 + 撤销)+ 密码输入框 + 眼睛切换,密钥只写不读。 */
+export function AiConnectionKeyField({
+  keySaved,
+  keySuffix,
+  apiKey,
+  onApiKeyChange,
+  showKey,
+  onToggleShowKey,
+  keyInputRef,
+  revoking,
+  onRevoke,
+}: {
+  keySaved: boolean;
+  keySuffix: string | null;
+  apiKey: string;
+  onApiKeyChange: (value: string) => void;
+  showKey: boolean;
+  onToggleShowKey: () => void;
+  keyInputRef: RefObject<HTMLInputElement>;
+  revoking: boolean;
+  onRevoke: () => void;
+}) {
+  return (
+    <Field
+      label="API Key"
+      hint="费用由服务商或网关计费;刷新模型或测试连接会先保存当前填写内容。"
+    >
+      {/* 状态行:状态 + 掩码 + 撤销同排,渲染在输入框上方 */}
+      {keySaved && (
+        <div
+          className="settings-detail-status-row flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-success"
+          data-testid="ai-connection-key-status"
+        >
+          <Check className="h-3 w-3 shrink-0" />
+          <span className="font-medium">密钥已加密保存</span>
+          {keySuffix && <span className="font-mono text-success/80">····{keySuffix}</span>}
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="ml-auto shrink-0 text-tertiary hover:text-danger"
+            onClick={onRevoke}
+            disabled={revoking}
+            data-testid="ai-connection-revoke-key"
+          >
+            {revoking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unplug className="h-3 w-3" />}
+            撤销
+          </Button>
+        </div>
+      )}
+      <div className="relative min-w-0">
+        <Input
+          ref={keyInputRef}
+          aria-label="API Key"
+          type={showKey ? 'text' : 'password'}
+          value={apiKey}
+          onChange={(event) => onApiKeyChange(event.target.value)}
+          placeholder={keySaved ? '已保存;输入新值可覆盖' : '输入 API Key'}
+          autoComplete="off"
+          className="pr-9"
+          data-testid="ai-connection-api-key"
+        />
+        <button
+          type="button"
+          onClick={onToggleShowKey}
+          className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-tertiary hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
+          title={showKey ? '隐藏 API Key' : '显示 API Key'}
+        >
+          {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+    </Field>
   );
 }
 

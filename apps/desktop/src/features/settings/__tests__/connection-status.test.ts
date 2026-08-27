@@ -33,9 +33,12 @@ describe('resolveConnectionDot（中转站列表行状态点）', () => {
     ).toBe('danger');
   });
 
-  it('未测试 / 测试中 / idle 为灰色 muted', () => {
+  it('未测试 / idle 为灰色 muted;测试中是独立 testing tone(warning 色 + 呼吸动画)', () => {
     expect(resolveConnectionDot({ hasKey: true }).tone).toBe('muted');
     expect(resolveConnectionDot({ hasKey: true, testState: 'idle' }).tone).toBe('muted');
-    expect(resolveConnectionDot({ hasKey: true, testState: 'testing' }).tone).toBe('muted');
+    expect(resolveConnectionDot({ hasKey: true, testState: 'testing' })).toEqual({
+      tone: 'testing',
+      label: '正在测试连接',
+    });
   });
 });

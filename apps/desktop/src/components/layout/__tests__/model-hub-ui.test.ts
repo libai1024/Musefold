@@ -2,10 +2,13 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const sidebar = readFileSync('apps/desktop/src/components/layout/Sidebar.tsx', 'utf8');
-const switcher = readFileSync(
-  'apps/desktop/src/components/layout/SidebarAccessSwitcher.tsx',
-  'utf8',
-);
+// 设置评审拆分:身份菜单容器/下拉内容与应用菜单各自成文件,契约断言覆盖合并源(语义不变)
+const switcher = [
+  readFileSync('apps/desktop/src/components/layout/SidebarAccessSwitcher.tsx', 'utf8'),
+  readFileSync('apps/desktop/src/components/layout/SidebarIdentityMenu.tsx', 'utf8'),
+  readFileSync('apps/desktop/src/components/layout/IdentityMenuBody.tsx', 'utf8'),
+  readFileSync('apps/desktop/src/components/layout/SidebarSettingsMenu.tsx', 'utf8'),
+].join('\n');
 const overlays = readFileSync('apps/desktop/src/styles/overlays-v2.css', 'utf8');
 const settings = readFileSync(
   'apps/desktop/src/features/settings/components/SettingsView.tsx',
@@ -141,10 +144,22 @@ describe('AI access identity menu and sidebar contract', () => {
     expect(switcher).toContain('data-testid="sidebar-settings-open"');
   });
 
+  it('marks the current identity with radio semantics and splits manage entry icons', () => {
+    // 设置评审 P1-1:账号与中转站当前项用 menuitemradio + aria-checked 表达「当前是谁」
+    expect(switcher).toContain('role="menuitemradio"');
+    expect(switcher).toContain('aria-checked={account.active}');
+    expect(switcher).toContain('aria-checked={active}');
+    // 设置评审 P2-5:双管理入口图标区分 —— 生图用图像类,Agent 用 AI 类
+    expect(switcher).toContain('<ImageIcon className="h-3.5 w-3.5 shrink-0" /> 管理生图中转站');
+    expect(switcher).toContain('<Sparkles className="h-3.5 w-3.5 shrink-0" /> 管理 Agent 中转站');
+  });
+
   it('keeps the two official account models read-only', () => {
     expect(account).toContain('ACCOUNT_DEFAULT_IMAGE_MODEL');
     expect(account).toContain('ACCOUNT_DEFAULT_TEXT_MODEL');
-    expect(account).toContain('account-managed-models');
+    // 设置评审 P1：内置模型并入账户概览 facts（extraFacts），只读展示不独占卡片
+    expect(account).toContain('extraFacts');
+    expect(account).not.toContain('data-testid="account-managed-models"');
   });
 
   it('keeps the Doubao browser hidden unless the foreground switch is enabled', () => {

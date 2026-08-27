@@ -53,7 +53,6 @@ export function AccountSignedOutForm({
     <SettingsCard
       title={mode === 'login' ? '登录 Musefold 账号' : '注册 Musefold 账号'}
       description="推荐通道：一次登录，Agent 与生图模型自动配置，无需管理 API Key。"
-      className="max-w-[520px]"
       bodyClassName="settings-account-form"
       data-testid="settings-account-signed-out"
     >
@@ -125,11 +124,14 @@ export function AccountSignedOutForm({
           disabled={isAuthBusy || (mode === 'register' && confirmPassword !== password)}
           data-testid={`account-${mode}-submit`}
         >
-          {isAuthBusy ? '正在配置模型…' : mode === 'login' ? '登录' : '注册并登录'}
+          {isAuthBusy
+            ? mode === 'login'
+              ? '登录中…'
+              : '注册中…'
+            : mode === 'login'
+              ? '登录'
+              : '注册并登录'}
         </Button>
-        {mode === 'login' && (
-          <p className="text-meta text-quaternary">忘记密码？联系管理员重置。</p>
-        )}
       </form>
 
       <p className="pt-1 text-meta leading-relaxed text-quaternary">

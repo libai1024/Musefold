@@ -15,7 +15,8 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 
-const CONFIRM_PHRASE = '清空数据';
+// 与入口按钮同词:用户照按钮全文输入即可通过校验(设置评审 P1-4)
+const CONFIRM_PHRASE = '清空全部数据';
 
 interface DangerZonePanelProps {
   onExport: () => void;
@@ -58,12 +59,14 @@ export function DangerZonePanel({ onExport, onReset }: DangerZonePanelProps) {
   };
 
   return (
-    <div className="border-b border-border-subtle" data-testid="danger-zone">
+    // 危险区独立成卡(设置评审 P0):由 DataSection 包在专属 SettingsCard 中,
+    // 不再与日常数据行同卡;此处只负责行内容与确认对话框。
+    <div data-testid="danger-zone">
       <div className="settings-row flex items-center gap-6 py-[var(--density-setting-row-y)]">
         <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-medium text-primary">危险区</p>
+          <p className="text-[12.5px] font-medium text-primary">清空全部数据</p>
           <p className="mt-0.5 text-[11px] leading-relaxed text-tertiary">
-            清空提示词、组合内容和生成历史
+            提示词、组合内容和生成历史将被永久清空
           </p>
         </div>
         <Button

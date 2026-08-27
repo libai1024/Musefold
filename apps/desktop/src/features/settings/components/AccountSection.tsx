@@ -45,6 +45,8 @@ export function AccountSection() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // 注册两次密码不一致的表单级错误：按钮 disabled 拦不住 Enter 提交等边缘路径，须可见反馈。
+  const [formError, setFormError] = useState<string | null>(null);
   const [serverEditing, setServerEditing] = useState(false);
   const [serverUrl, setServerUrlInput] = useState(status.serverUrl);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -188,7 +190,11 @@ export function AccountSection() {
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
     clearError();
-    if (mode === "register" && password !== confirmPassword) return;
+    if (mode === "register" && password !== confirmPassword) {
+      setFormError("两次输入的密码不一致，请检查后重试");
+      return;
+    }
+    setFormError(null);
     try {
       if (mode === "register") await register({ username, password });
       else await login({ username, password });
@@ -199,6 +205,11 @@ export function AccountSection() {
       setConfirmPassword("");
     }
   };
+
+  // 表单内容或模式变化后，密码不一致的提示不再成立，交回字段内即时校验。
+  useEffect(() => {
+    setFormError(null);
+  }, [mode, password, confirmPassword]);
 
   if (!status.loggedIn) {
     return (
@@ -211,7 +222,7 @@ export function AccountSection() {
         setPassword={setPassword}
         confirmPassword={confirmPassword}
         setConfirmPassword={setConfirmPassword}
-        error={error}
+        error={formError ? { message: formError } : error}
         isAuthBusy={isAuthBusy}
         action={action}
         status={status}

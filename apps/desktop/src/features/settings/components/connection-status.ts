@@ -1,8 +1,9 @@
 // 中转站列表行状态点：把「密钥配置 + 测试状态」映射为颜色语义。
-// 色值只取 tokens.css 状态色：--success / --warning / --danger，未测试用三级边框灰。
+// 色值只取 tokens.css 状态色：--success / --warning / --danger，未测试用三级边框灰；
+// testing 是进行中专属 tone（warning 色 + 呼吸动画，见 MasterDetail/settings.css）。
 // 数据模型没有「启用/禁用」字段，状态表达全部由状态点承载（RELAY-SETTINGS-UI 第一步）。
 
-export type ConnectionDotTone = 'success' | 'warning' | 'danger' | 'muted';
+export type ConnectionDotTone = 'success' | 'warning' | 'danger' | 'muted' | 'testing';
 
 export interface ConnectionDot {
   tone: ConnectionDotTone;
@@ -39,7 +40,7 @@ export function resolveConnectionDot({
     case 'skipped':
       return { tone: 'warning', label: '未配置密钥，已跳过测试' };
     case 'testing':
-      return { tone: 'muted', label: '正在测试连接' };
+      return { tone: 'testing', label: '正在测试连接' };
     default:
       return { tone: 'muted', label: '未测试' };
   }

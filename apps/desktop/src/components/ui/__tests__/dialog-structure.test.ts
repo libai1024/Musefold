@@ -8,7 +8,8 @@ const standardDialogs = [
   'apps/desktop/src/features/settings/components/ImportDialog.tsx',
   'apps/desktop/src/features/settings/components/ExportDialog.tsx',
   'apps/desktop/src/features/settings/components/DoubaoSection.tsx',
-  'apps/desktop/src/features/settings/components/AboutSection.tsx',
+  // 许可 Dialog 随支持卡拆分到 AboutSupportCard(设置评审 P1-3)
+  'apps/desktop/src/features/settings/components/AboutSupportCard.tsx',
   'apps/desktop/src/features/settings/components/BackupPanel.tsx',
   'apps/desktop/src/features/library/components/TrashDialog.tsx',
   'apps/desktop/src/features/share/ImportConfirmDialog.tsx',

@@ -67,7 +67,7 @@ export function RatioPreview({
       data-ratio={option.id}
       data-testid={testId}
       className={cn(
-        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-xs border-[1.5px] border-current/80 bg-white',
+        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-xs border-[1.5px] border-current/80 bg-inset',
         auto && 'border-dashed',
         className,
       )}
@@ -521,7 +521,7 @@ function CustomRatioRow({
           disabled={!candidate}
           data-testid={testIdPrefix ? `${testIdPrefix}-custom-apply` : undefined}
           className={cn(
-            'no-drag rounded-full border px-2.5 py-1 text-meta font-medium transition-colors disabled:pointer-events-none disabled:opacity-45',
+            'no-drag rounded-sm border px-2.5 py-1 text-meta font-medium transition-colors disabled:pointer-events-none disabled:opacity-45',
             valid
               ? 'border-transparent bg-primary text-background hover:opacity-85'
               : 'border-border-subtle bg-transparent text-secondary hover:border-border-default hover:text-primary',
@@ -531,7 +531,11 @@ function CustomRatioRow({
         </button>
       </div>
       {touched && candidate !== '' && !valid && (
-        <p className="mt-1 px-1 text-meta text-danger" data-testid={testIdPrefix ? `${testIdPrefix}-custom-error` : undefined}>
+        <p
+          role="alert"
+          className="mt-1 px-1 text-meta text-danger"
+          data-testid={testIdPrefix ? `${testIdPrefix}-custom-error` : undefined}
+        >
           比例需在 1:4 与 4:1 之间（两端为 1–99 的整数）
         </p>
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatPoints } from '@musefold/domain';
 import { musefoldQueryKeys } from '@musefold/product-ui';
@@ -28,6 +28,7 @@ import {
 export function UsageStatisticsSection() {
   const [range, setRange] = useState<UsageRange>('30d');
   const [now] = useState(() => Date.now());
+  const rangeRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const account = useAccountStore((state) => state.status);
   const refreshQuota = useAccountStore((state) => state.refreshQuota);
   const detailQueryInput = useMemo(() => buildUsageStatsQuery(range, now), [now, range]);
@@ -57,7 +58,31 @@ export function UsageStatisticsSection() {
   };
 
   const accountBalance =
-    account.loggedIn && account.quota ? `${formatPoints(account.quota.value)} 积分` : '—';
+    account.loggedIn && account.quota
+      ? { value: formatPoints(account.quota.value), unit: '积分' as const }
+      : { value: '—', unit: undefined };
+
+  // 汇总卡：数据未到达时显示「—」而不是误导性的 0；成功率在无任何尝试时同样未知。
+  const allTimeLoaded = allTime !== undefined;
+
+  const focusRangeOption = (index: number) => {
+    const next = (index + USAGE_RANGE_OPTIONS.length) % USAGE_RANGE_OPTIONS.length;
+    rangeRefs.current[next]?.focus();
+  };
+
+  // WAI-ARIA radio group：仅选中项可 Tab，方向键/Home/End 漫游并切换。
+  const handleRangeKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const move = (target: number) => {
+      event.preventDefault();
+      const next = (target + USAGE_RANGE_OPTIONS.length) % USAGE_RANGE_OPTIONS.length;
+      focusRangeOption(next);
+      setRange(USAGE_RANGE_OPTIONS[next].id);
+    };
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') move(index + 1);
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') move(index - 1);
+    else if (event.key === 'Home') move(0);
+    else if (event.key === 'End') move(USAGE_RANGE_OPTIONS.length - 1);
+  };
 
   return (
     <SectionShell
@@ -95,31 +120,43 @@ export function UsageStatisticsSection() {
       >
         <UsageSummaryMetric
           label="累计生成"
-          value={`${formatUsageCount(allTime?.totalCount ?? 0)} 次`}
-          detail={`${formatUsageCount(allTime?.attemptCount ?? 0)} 次尝试`}
+          value={allTimeLoaded ? formatUsageCount(allTime.totalCount) : '—'}
+          unit={allTimeLoaded ? '次' : undefined}
+          detail={
+            allTimeLoaded ? `${formatUsageCount(allTime.attemptCount)} 次尝试` : '统计加载中'
+          }
+          pending={!allTimeLoaded}
         />
         <UsageSummaryMetric
           label="生成成功率"
-          value={formatUsagePercent(
-            successRate(allTime?.totalCount ?? 0, allTime?.attemptCount ?? 0),
-          )}
-          detail={`${formatUsageCount(allTime?.failedCount ?? 0)} 次失败`}
+          value={
+            allTimeLoaded && allTime.attemptCount > 0
+              ? formatUsagePercent(successRate(allTime.totalCount, allTime.attemptCount))
+              : '—'
+          }
+          detail={allTimeLoaded ? `${formatUsageCount(allTime.failedCount)} 次失败` : '统计加载中'}
+          pending={!allTimeLoaded}
         />
         <UsageSummaryMetric
           label="活跃天数"
-          value={`${formatUsageCount(allTime?.activeDays ?? 0)} 天`}
+          value={allTimeLoaded ? formatUsageCount(allTime.activeDays) : '—'}
+          unit={allTimeLoaded ? '天' : undefined}
           detail="至少成功生成一次"
+          pending={!allTimeLoaded}
         />
         <UsageSummaryMetric
           label="账号积分消耗"
-          value={`${formatUsagePoints(allTime?.accountPoints ?? 0)} 积分`}
+          value={allTimeLoaded ? formatUsagePoints(allTime.accountPoints) : '—'}
+          unit={allTimeLoaded ? '积分' : undefined}
           detail="不含豆包与自建 Provider"
           emphasized
+          pending={!allTimeLoaded}
           testId="settings-usage-account-points"
         />
         <UsageSummaryMetric
           label="当前积分"
-          value={accountBalance}
+          value={accountBalance.value}
+          unit={accountBalance.unit}
           detail={account.loggedIn ? '账号余额' : '账号未登录'}
         />
       </section>
@@ -133,12 +170,17 @@ export function UsageStatisticsSection() {
       <div className="mf-usage-range-row">
         <h2>时间范围</h2>
         <div className="mf-usage-segmented" role="radiogroup" aria-label="统计时间范围">
-          {USAGE_RANGE_OPTIONS.map((option) => (
+          {USAGE_RANGE_OPTIONS.map((option, index) => (
             <button
               key={option.id}
               type="button"
               role="radio"
               aria-checked={range === option.id}
+              tabIndex={range === option.id ? 0 : -1}
+              ref={(element) => {
+                rangeRefs.current[index] = element;
+              }}
+              onKeyDown={(event) => handleRangeKeyDown(event, index)}
               onClick={() => setRange(option.id)}
               data-testid={`settings-usage-range-${option.id}`}
             >
@@ -179,18 +221,34 @@ function UsageSummaryMetric({
   label,
   value,
   detail,
+  unit,
   emphasized = false,
+  pending = false,
   testId,
 }: {
   label: string;
   value: string;
   detail: string;
+  unit?: string;
   emphasized?: boolean;
+  pending?: boolean;
   testId?: string;
 }) {
   return (
-    <div className="mf-usage-summary__metric" data-emphasized={emphasized || undefined}>
-      <strong data-testid={testId}>{value}</strong>
+    <div
+      className="mf-usage-summary__metric"
+      data-emphasized={emphasized || undefined}
+      data-pending={pending || undefined}
+    >
+      <strong data-testid={testId}>
+        {value}
+        {unit ? (
+          <>
+            {' '}
+            <span className="mf-usage-summary__unit">{unit}</span>
+          </>
+        ) : null}
+      </strong>
       <span>{label}</span>
       <small>{detail}</small>
     </div>

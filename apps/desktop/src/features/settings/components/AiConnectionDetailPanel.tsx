@@ -1,57 +1,28 @@
 // src/features/settings/components/AiConnectionDetailPanel.tsx
 // Agent 中转站详情面板(RELAY-SETTINGS-UI 第二步):master-detail 右栏,选中即编辑。
-// 字段、校验、routeKind 分段、撤销 Key、CapabilityResult 测试面板均沿用 AiConnectionDialog 语义;
 // 草稿态用 product-ui 的 useDraftForm,显式「保存 / 放弃」,不再走弹窗。
-// 预设网格在 AiConnectionDialogParts.tsx,纯函数在 ai-connection-panel-utils.ts;
+// 编排动作(持久化/测试/刷新/撤销/删除)在 ai-connection-panel-hooks;
+// 预设网格与 API Key 字段块在 AiConnectionDialogParts;模型分组在 AiConnectionModelSection;
 // 底部操作条与分组标题复用 MasterDetail 的 PanelActions / PanelSectionTitle(与生图面板同构)。
-
-import { useMemo, useRef, useState } from 'react';
-import {
-  Check,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Loader2,
-  RefreshCw,
-  Trash2,
-  Unplug,
-} from '../../../components/ui/icons';
+import { useEffect, useState, type ReactNode } from 'react';
 import type {
   AiConnectionPreset,
   AiConnectionProfile,
-  AiConnectionRouteKind,
-  AiConnectionValidationResult,
-  AiTextModelInfo,
 } from '@musefold/desktop-contracts/ai';
-import { useDraftForm } from '@musefold/product-ui';
+import { Check, KeyRound, Trash2 } from '../../../components/ui/icons';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { ModelOptionList } from '../../../components/ui/model-option-list';
-import { toast } from '../../../stores/toast';
 import { useAiConnectionStore } from '../ai-connection-store';
 import {
   CapabilityResult,
+  AiConnectionKeyField,
   AiConnectionPresetGrid,
   Field,
   RouteButton,
 } from './AiConnectionDialogParts';
 import { InlineConfirm, PanelActions, PanelSectionTitle } from './MasterDetail';
-import {
-  FALLBACK_CAPABILITIES,
-  mergeModels,
-  reportConnectionError,
-} from './ai-connection-panel-utils';
-
-/** 参与 dirty/校验的实体字段;API Key(只写)留在局部状态 */
-interface AiConnectionDraft {
-  presetId: AiConnectionPreset['id'];
-  name: string;
-  routeKind: AiConnectionRouteKind;
-  baseUrl: string;
-  model: string;
-}
-
-type AiConnectionDraftField = 'name' | 'baseUrl' | 'model';
+import { AiConnectionModelSection } from './AiConnectionModelSection';
+import { useAiConnectionPanelController } from './ai-connection-panel-hooks';
 
 interface Props {
   /** null = 新建草稿(未落库,保存/测试/刷新时才创建) */
@@ -60,250 +31,74 @@ interface Props {
   presetSeed?: AiConnectionPreset['id'] | null;
   /** relay 模式下才允许切换默认 */
   relayMode: boolean;
+  /** dirty 上抛:section 层用于切换左栏条目/relay tab 时的拦截确认 */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** 切换守卫确认条(section 注入;存在时替换底部操作按钮组) */
+  dirtyGuard?: ReactNode;
   onCreated: (id: string) => void;
   onDiscardNew: () => void;
   onDeleted: () => void;
 }
 
+/** 连接方式的渐进披露说明:与主进程结构化输出默认策略对齐(direct=json-schema / gateway=json-object) */
+const ROUTE_HINTS: Record<AiConnectionProfile['routeKind'], string> = {
+  direct: '直连:直接访问服务商 API',
+  gateway: '网关:经中转站转发,支持结构化输出策略',
+};
+
 export function AiConnectionDetailPanel({
   connection,
   presetSeed,
   relayMode,
+  onDirtyChange,
+  dirtyGuard,
   onCreated,
   onDiscardNew,
   onDeleted,
 }: Props) {
-  const presets = useAiConnectionStore((state) => state.presets);
-  const connections = useAiConnectionStore((state) => state.connections);
-  const createConnection = useAiConnectionStore((state) => state.createConnection);
-  const updateConnection = useAiConnectionStore((state) => state.updateConnection);
-  const deleteConnection = useAiConnectionStore((state) => state.deleteConnection);
-  const saveKey = useAiConnectionStore((state) => state.saveKey);
-  const deleteKey = useAiConnectionStore((state) => state.deleteKey);
   const setActive = useAiConnectionStore((state) => state.setActive);
-  const listModels = useAiConnectionStore((state) => state.listModels);
-  const validate = useAiConnectionStore((state) => state.validate);
-
-  const managed = connection?.managedBy === 'account';
-
-  const initial = useMemo<AiConnectionDraft>(() => {
-    if (connection) {
-      return {
-        presetId: connection.presetId,
-        name: connection.name,
-        routeKind: connection.routeKind,
-        baseUrl: connection.baseUrl,
-        model: connection.model,
-      };
-    }
-    const preset = presets.find((item) => item.id === presetSeed) ?? presets[0];
-    if (preset) {
-      return {
-        presetId: preset.id,
-        name: preset.name,
-        routeKind: preset.routeKind,
-        baseUrl: preset.baseUrl,
-        model: preset.model,
-      };
-    }
-    return {
-      presetId: 'custom',
-      name: '我的文本模型',
-      routeKind: 'gateway',
-      baseUrl: 'https://example.com/v1',
-      model: 'model-id',
-    };
-    // 只随选中条目/预设种子重建草稿,避免无关 store 更新打断编辑
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    connection?.id,
-    connection?.presetId,
-    connection?.name,
-    connection?.routeKind,
-    connection?.baseUrl,
-    connection?.model,
+  const panel = useAiConnectionPanelController({
+    connection,
     presetSeed,
-    presets,
-  ]);
-
-  const form = useDraftForm<AiConnectionDraft, AiConnectionDraftField>({
-    initial,
-    validate: (draft) => {
-      if (managed) return draft.model.trim() ? {} : { model: '请选择模型' };
-      const errors: Partial<Record<AiConnectionDraftField, string>> = {};
-      if (!draft.name.trim()) errors.name = '请填写连接名称';
-      if (!draft.baseUrl.trim()) errors.baseUrl = '请填写 Base URL';
-      if (!draft.model.trim()) errors.model = '请填写默认模型';
-      return errors;
-    },
+    onCreated,
+    onDiscardNew,
+    onDeleted,
   });
-  const draft = form.draft;
+  const {
+    draft,
+    form,
+    dirty,
+    loadModelsReady,
+    apiKey,
+    setApiKey,
+    keySaved,
+    createdId,
+    models,
+    modelError,
+    result,
+    saving,
+    loadingModels,
+    testing,
+    revoking,
+    keyRef,
+    applyPreset,
+    handleSave,
+    handleLoadModels,
+    handleTest,
+    handleRevoke,
+    handleDelete,
+  } = panel;
 
-  const [apiKey, setApiKey] = useState('');
-  const [keySaved, setKeySaved] = useState(connection?.hasKey ?? false);
   const [showKey, setShowKey] = useState(false);
-  const [createdId, setCreatedId] = useState<string | null>(null);
-  const [models, setModels] = useState<AiTextModelInfo[]>([]);
-  const [modelError, setModelError] = useState<string | null>(null);
-  const [result, setResult] = useState<AiConnectionValidationResult | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [loadingModels, setLoadingModels] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [revoking, setRevoking] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const keyRef = useRef<HTMLInputElement>(null);
 
-  const valid = form.valid;
-  const dirty = form.dirty || apiKey.trim() !== '';
-
-  const applyPreset = (preset: AiConnectionPreset) => {
-    form.setDraft({
-      presetId: preset.id,
-      name: preset.name,
-      routeKind: preset.routeKind,
-      baseUrl: preset.baseUrl,
-      model: preset.model,
-    });
-    setModels([]);
-    setModelError(null);
-    setResult(null);
-  };
-
-  async function persist(): Promise<string> {
-    const id = connection?.id ?? createdId;
-    const saved = id
-      ? await updateConnection(
-          id,
-          managed
-            ? { model: draft.model }
-            : {
-                name: draft.name,
-                routeKind: draft.routeKind,
-                presetId: draft.presetId,
-                baseUrl: draft.baseUrl,
-                model: draft.model,
-              },
-        )
-      : await createConnection({
-          name: draft.name,
-          routeKind: draft.routeKind,
-          presetId: draft.presetId,
-          baseUrl: draft.baseUrl,
-          model: draft.model,
-          protocol: 'openai-compatible',
-          isActive: connections.length === 0,
-        });
-    if (!id) setCreatedId(saved.id);
-    if (!managed && apiKey.trim()) {
-      await saveKey(saved.id, apiKey);
-      setApiKey('');
-      setKeySaved(true);
-    }
-    return saved.id;
-  }
-
-  const requireKey = (): boolean => {
-    if (keySaved || apiKey.trim()) return true;
-    setModelError('先填写 API Key,再刷新模型或测试连接');
-    keyRef.current?.focus();
-    return false;
-  };
-
-  const handleSave = async () => {
-    if (!valid || saving) return;
-    setSaving(true);
-    try {
-      const wasNew = !connection;
-      const id = await persist();
-      if (wasNew) onCreated(id);
-      toast.success('AI 连接已保存');
-    } catch (error) {
-      reportConnectionError(error, '保存失败', '请检查连接信息');
-    } finally {
-      setSaving(false);
-    }
-  };
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const handleDiscard = () => {
-    if (!connection) {
-      if (createdId) onCreated(createdId);
-      else onDiscardNew();
-      return;
-    }
-    form.reset();
-    setApiKey('');
+    panel.handleDiscard();
     setShowKey(false);
-    setResult(null);
-    setModelError(null);
-  };
-
-  const handleLoadModels = async () => {
-    if (!valid || !requireKey() || loadingModels) return;
-    setLoadingModels(true);
-    setModelError(null);
-    try {
-      // 刷新会先落库创建(沿用弹窗语义),但不切换选中:remount 会丢掉本地
-      // 模型列表与测试结果;选中切换只在「保存」时发生(onCreated)。
-      const id = await persist();
-      const discovered = await listModels(id);
-      setModels(mergeModels(draft.model, discovered));
-      if (discovered.length === 0) setModelError('服务没有返回模型列表,当前手工模型 ID 已保留');
-    } catch (error) {
-      setModelError(reportConnectionError(error, '模型列表不可用', '可以继续使用手工模型 ID'));
-    } finally {
-      setLoadingModels(false);
-    }
-  };
-
-  const handleTest = async () => {
-    if (!valid || !requireKey() || testing) return;
-    setTesting(true);
-    setResult(null);
-    setModelError(null);
-    try {
-      // 同 handleLoadModels:落库创建但不切换选中
-      const id = await persist();
-      const validation = await validate(id);
-      setResult(validation);
-      setModels((current) => mergeModels(draft.model, [...current, ...validation.models]));
-    } catch (error) {
-      const message = reportConnectionError(error, '连接测试失败', '请检查连接信息');
-      setResult({
-        ok: false,
-        message,
-        models: [],
-        capabilities: connection?.capabilities ?? FALLBACK_CAPABILITIES,
-      });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const handleRevoke = async () => {
-    const id = connection?.id ?? createdId;
-    if (!id || revoking) return;
-    setRevoking(true);
-    try {
-      await deleteKey(id);
-      setKeySaved(false);
-      setResult(null);
-      toast.success('API Key 已撤销');
-    } catch (error) {
-      toast.error('撤销失败', error instanceof Error ? error.message : '请稍后重试');
-    } finally {
-      setRevoking(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!connection) return;
-    try {
-      await deleteConnection(connection.id);
-      toast.success('AI 连接已删除');
-      onDeleted();
-    } catch (error) {
-      toast.error('删除失败', error instanceof Error ? error.message : '请稍后重试');
-    }
   };
 
   return (
@@ -323,194 +118,93 @@ export function AiConnectionDetailPanel({
 
       <div className="settings-detail-form">
         {/* 预设卡片网格(仅新建态) */}
-        {!connection && !managed && (
+        {!connection && (
           <AiConnectionPresetGrid
-            presets={presets}
+            presets={panel.presets}
             presetId={draft.presetId}
             onPick={applyPreset}
           />
         )}
 
-        {!managed && (
-          <>
-            {/* 连接分组:名称 / 连接方式 / Base URL / API Key */}
-            <div className="settings-detail-section">
-              <PanelSectionTitle title="连接" testId="ai-connection-section-connection" />
-              <div className="settings-detail-connection-fields">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="连接名称">
-                    <Input
-                      aria-label="连接名称"
-                      value={draft.name}
-                      onChange={(event) => form.setField('name', event.target.value)}
-                      placeholder="例如:我的 DeepSeek"
-                      data-testid="ai-connection-name"
-                    />
-                  </Field>
-                  <Field label="连接方式">
-                    <div
-                      className="settings-detail-route-control grid grid-cols-2 gap-1 rounded-md border border-border-subtle bg-inset p-1"
-                      data-testid="ai-connection-route-kind"
-                    >
-                      <RouteButton
-                        active={draft.routeKind === 'direct'}
-                        onClick={() => form.setField('routeKind', 'direct')}
-                      >
-                        厂商直连
-                      </RouteButton>
-                      <RouteButton
-                        active={draft.routeKind === 'gateway'}
-                        onClick={() => form.setField('routeKind', 'gateway')}
-                      >
-                        兼容网关
-                      </RouteButton>
-                    </div>
-                  </Field>
-                </div>
-
-                <Field label="Base URL">
-                  <Input
-                    aria-label="Base URL"
-                    value={draft.baseUrl}
-                    onChange={(event) => form.setField('baseUrl', event.target.value)}
-                    mono
-                    placeholder="https://example.com/v1"
-                    data-testid="ai-connection-base-url"
-                  />
-                </Field>
-
-                <Field
-                  label="API Key"
-                  hint="费用由服务商或网关计费;刷新模型或测试连接会先保存当前填写内容。"
+        {/* 连接分组:名称 / 连接方式 / Base URL / API Key */}
+        <div className="settings-detail-section">
+          <PanelSectionTitle title="连接" testId="ai-connection-section-connection" />
+          <div className="settings-detail-connection-fields">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="连接名称" error={form.errorFor('name')}>
+                <Input
+                  aria-label="连接名称"
+                  value={draft.name}
+                  onChange={(event) => form.setField('name', event.target.value)}
+                  onBlur={() => form.markTouched('name')}
+                  placeholder="例如:我的 DeepSeek"
+                  data-testid="ai-connection-name"
+                />
+              </Field>
+              <Field label="连接方式">
+                <div
+                  role="radiogroup"
+                  aria-label="连接方式"
+                  className="settings-detail-route-control grid grid-cols-2 gap-1 rounded-md border border-border-subtle bg-inset p-1"
+                  data-testid="ai-connection-route-kind"
                 >
-                  {/* Stripe 式状态行:状态 + 掩码 + 撤销同排,渲染在输入框上方 */}
-                  {keySaved && (
-                    <div
-                      className="settings-detail-status-row flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-success"
-                      data-testid="ai-connection-key-status"
-                    >
-                      <Check className="h-3 w-3 shrink-0" />
-                      <span className="font-medium">密钥已加密保存</span>
-                      {connection?.keySuffix && (
-                        <span className="font-mono text-success/80">
-                          ····{connection.keySuffix}
-                        </span>
-                      )}
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        className="ml-auto shrink-0 text-tertiary hover:text-danger"
-                        onClick={handleRevoke}
-                        disabled={revoking}
-                        data-testid="ai-connection-revoke-key"
-                      >
-                        {revoking ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Unplug className="h-3 w-3" />
-                        )}
-                        撤销
-                      </Button>
-                    </div>
-                  )}
-                  <div className="relative min-w-0">
-                    <Input
-                      ref={keyRef}
-                      aria-label="API Key"
-                      type={showKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                      placeholder={keySaved ? '已保存;输入新值可覆盖' : '输入 API Key'}
-                      autoComplete="off"
-                      className="pr-9"
-                      data-testid="ai-connection-api-key"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey((shown) => !shown)}
-                      className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-tertiary hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-                      aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
-                    >
-                      {showKey ? (
-                        <EyeOff className="h-3.5 w-3.5" />
-                      ) : (
-                        <Eye className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </Field>
-              </div>
+                  <RouteButton
+                    active={draft.routeKind === 'direct'}
+                    onClick={() => form.setField('routeKind', 'direct')}
+                  >
+                    厂商直连
+                  </RouteButton>
+                  <RouteButton
+                    active={draft.routeKind === 'gateway'}
+                    onClick={() => form.setField('routeKind', 'gateway')}
+                  >
+                    兼容网关
+                  </RouteButton>
+                </div>
+                <span className="mt-1 block text-meta leading-relaxed text-tertiary">
+                  {ROUTE_HINTS[draft.routeKind]}
+                </span>
+              </Field>
             </div>
-          </>
-        )}
 
-        {/* 模型分组:行式列表 + 底部刷新 */}
-        <div
-          className={
-            managed
-              ? 'settings-detail-section'
-              : 'settings-detail-section settings-detail-section--divider'
-          }
-        >
-          <PanelSectionTitle
-            title="模型"
-            value={models.length > 0 ? `${models.length} 个可用模型` : undefined}
-            testId="ai-connection-section-model"
-          />
-          <Field label="默认模型" hint="模型列表不可用时,可以保留并直接使用手工模型 ID。">
-            <Input
-              aria-label="默认模型"
-              value={draft.model}
-              onChange={(event) => form.setField('model', event.target.value)}
-              mono
-              placeholder="model-id"
-              className={managed ? 'px-4 shadow-none' : undefined}
-              data-testid="ai-connection-model"
-            />
-            {models.length > 0 && (
-              <ModelOptionList
-                items={models.map((item) => ({
-                  id: item.id,
-                  label: item.name || item.id,
-                  mono: true,
-                }))}
-                selectedId={draft.model}
-                onSelect={(id) => form.setField('model', id)}
-                ariaLabel="可用文本模型"
-                testId="ai-connection-model-options"
-                optionTestId={(id) => `ai-model-option-${id}`}
+            <Field label="Base URL" error={form.errorFor('baseUrl')}>
+              <Input
+                aria-label="Base URL"
+                value={draft.baseUrl}
+                onChange={(event) => form.setField('baseUrl', event.target.value)}
+                onBlur={() => form.markTouched('baseUrl')}
+                mono
+                placeholder="https://example.com/v1"
+                data-testid="ai-connection-base-url"
               />
-            )}
-            <div className="mt-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className={managed ? 'shadow-none' : undefined}
-                onClick={handleLoadModels}
-                disabled={!valid || loadingModels || testing || saving}
-                data-testid="ai-connection-load-models"
-              >
-                {loadingModels ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                刷新
-              </Button>
-            </div>
-            {modelError && (
-              <p
-                className="mt-1 text-meta leading-relaxed text-warning"
-                role="status"
-                data-testid="ai-connection-model-error"
-              >
-                {modelError}
-              </p>
-            )}
-          </Field>
+            </Field>
+
+            <AiConnectionKeyField
+              keySaved={keySaved}
+              keySuffix={connection?.keySuffix ?? null}
+              apiKey={apiKey}
+              onApiKeyChange={setApiKey}
+              showKey={showKey}
+              onToggleShowKey={() => setShowKey((shown) => !shown)}
+              keyInputRef={keyRef}
+              revoking={revoking}
+              onRevoke={() => void handleRevoke()}
+            />
+          </div>
         </div>
+
+        {/* 模型分组:行式列表 + 底部刷新(本体在 AiConnectionModelSection) */}
+        <AiConnectionModelSection
+          model={draft.model}
+          onModelChange={(value) => form.setField('model', value)}
+          onModelTouch={() => form.markTouched('model')}
+          error={form.errorFor('model')}
+          models={models}
+          onLoadModels={handleLoadModels}
+          loadDisabled={!loadModelsReady || testing || saving}
+          loadingModels={loadingModels}
+          modelError={modelError}
+        />
 
         {result && <CapabilityResult result={result} />}
       </div>
@@ -518,11 +212,12 @@ export function AiConnectionDetailPanel({
       {/* 底部操作条(sticky):左端删除(行内二次确认),右端 dirty 圆点 + 放弃 / 测试连接 / 保存 */}
       <PanelActions
         dirty={dirty}
+        guard={dirtyGuard}
         danger={
-          connection && !managed ? (
+          connection ? (
             confirmDelete ? (
               <InlineConfirm
-                label="确认删除连接?"
+                label="确认删除此连接?"
                 confirmLabel="删除"
                 danger
                 onConfirm={() => void handleDelete()}
@@ -544,18 +239,17 @@ export function AiConnectionDetailPanel({
           ) : undefined
         }
         onDiscard={handleDiscard}
-        discardLabel={!connection && !createdId ? '取消' : '放弃'}
+        discardLabel={!connection ? (createdId ? (dirty ? '放弃' : '完成') : '取消') : '放弃'}
         discardDisabled={!dirty && Boolean(connection)}
         onTest={handleTest}
         testLabel="测试连接"
         testIcon={<KeyRound className="h-3.5 w-3.5" />}
         testBusy={testing}
-        testDisabled={!valid || testing || saving}
+        testDisabled={!panel.valid || testing || saving}
         testTestId="ai-connection-test"
         onSave={handleSave}
-        saveLabel={saving ? '保存中' : '保存'}
-        saveBusy={saving}
-        saveDisabled={!valid || saving || testing}
+        saveLabel={saving ? '保存中…' : '保存'}
+        saveDisabled={testing || saving}
         saveTestId="ai-connection-save"
       />
     </div>

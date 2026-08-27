@@ -25,9 +25,11 @@ export function Field({
 export function InlineMessage({
   tone,
   children,
+  className,
 }: {
   tone: "danger" | "warning" | "success";
   children: ReactNode;
+  className?: string;
 }) {
   return (
     <p
@@ -37,6 +39,7 @@ export function InlineMessage({
         tone === "danger" && "border-danger text-danger",
         tone === "warning" && "border-warning text-warning",
         tone === "success" && "border-success text-success",
+        className,
       )}
     >
       {children}

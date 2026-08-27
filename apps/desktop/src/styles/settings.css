@@ -196,6 +196,12 @@
   background: var(--accent);
 }
 
+/* 状态点「正在测试」专属画法:warning 色 + 呼吸动画(复用 motion.css 的 pulse-soft
+   关键帧,不新增 keyframe;动画开关走下方统一 motion 门控) */
+.settings-md-dot-testing {
+  animation: pulse-soft 1.2s var(--ease-in-out) infinite;
+}
+
 .settings-md-default-badge {
   flex: none;
   border: 1px solid var(--border-subtle);
@@ -370,6 +376,11 @@
   html:not([data-motion='off']) .settings-audit-item {
     transition: none;
   }
+
+  /* 「正在测试」状态点退化为静态 warning 点,不闪 */
+  html:not([data-motion='off']) .settings-md-dot-testing {
+    animation: none;
+  }
 }
 
 @media (max-width: 959px) {
@@ -471,6 +482,11 @@
   margin-left: 24px;
 }
 
+/* 危险区独立卡(设置评审 P0):danger 色描边做分区暗示,与日常数据卡物理隔离 */
+.mf-settings-card.settings-danger-card {
+  border-color: color-mix(in oklab, var(--danger) 30%, transparent);
+}
+
 .settings-account-card > .mf-settings-row {
   margin-right: 0;
   margin-left: 0;
@@ -479,6 +495,30 @@
 .settings-account-form {
   padding-top: 20px;
   padding-bottom: 20px;
+}
+
+/* 账号分区（设置评审 P0）：内容栏宽统一 680 上限、居中，
+   消除 520（登录表单）/ 680（已登录）/ 880（豆包卡）三宽并存。 */
+.mf-settings-section.settings-account-section {
+  max-width: 680px;
+}
+
+/* 共享账号卡（mf-account-surface，无阴影）与桌面设置卡（mf-settings-card）统一几何：
+   边框与圆角本就同源，这里补齐 shadow-sm 并对齐卡片的纵向节奏（统一为 margin-bottom）。 */
+.settings-account-section .mf-account-surface {
+  margin-top: 0;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-account-section .mf-account-extensions {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+/* extensions 是 gap 16 的 grid，卡内 mf-settings-card 自带的 margin-bottom 会叠加成 32px。 */
+.settings-account-section .mf-account-extensions > .mf-settings-card {
+  margin-bottom: 0;
 }
 
 .settings-connected-apps {
@@ -494,6 +534,13 @@
 /* 中转站合并页：生图 / Agent 分段控件与后续卡片的间距 */
 .relay-tab-bar {
   margin-bottom: var(--density-list-gap, 12px);
+}
+
+/* relay tab 切换的 dirty 守卫:tab 栏下方右对齐一行内确认(InlineConfirm 复用) */
+.relay-tab-guard {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 @media (max-width: 639px) {

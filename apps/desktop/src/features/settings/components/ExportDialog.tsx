@@ -115,9 +115,15 @@ export function ExportDialog({ open, onOpenChange }: Props) {
     }
   };
 
+  // busy 期(Esc/遮罩/X)不可关,与 Backup/Danger/Import 同一关闭协议
+  const changeOpen = (next: boolean) => {
+    if (busy) return;
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[480px]" data-testid="export-dialog">
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogContent className="max-w-[480px]" hideClose={busy} data-testid="export-dialog">
         <DialogHeader>
           <DialogTitle>导出数据</DialogTitle>
           <DialogDescription>选择导出内容，随后会让你挑选保存位置。</DialogDescription>
@@ -168,7 +174,7 @@ export function ExportDialog({ open, onOpenChange }: Props) {
         </DialogBody>
 
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
+          <Button variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={busy}>
             取消
           </Button>
           <Button size="sm" onClick={run} disabled={busy} data-testid="export-confirm">
