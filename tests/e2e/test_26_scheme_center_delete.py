@@ -81,21 +81,23 @@ def test_scheme_row_opens_non_overlaying_inspector(app, tmp_path):
     app.set_view("design-schemes")
     row = app.page.locator(f'[data-testid="runtime-scheme-row-{scheme_id}"]')
     row.wait_for()
+    row.get_by_test_id(f"runtime-scheme-open-{scheme_id}").scroll_into_view_if_needed()
+    row.get_by_test_id(f"runtime-scheme-open-{scheme_id}").wait_for(state="visible")
     row.get_by_test_id(f"runtime-scheme-open-{scheme_id}").click()
 
     inspector = app.page.get_by_test_id("scheme-inspector-shell")
     app.page.wait_for_function(
-        """schemeId => {
+        """schemeId => document.querySelector(`[data-testid="runtime-scheme-row-${schemeId}"]`)?.getAttribute('data-selected') === 'true'""",
+        arg=scheme_id,
+    )
+    app.page.wait_for_function(
+        """() => {
           const inspector = document.querySelector('[data-testid="scheme-inspector-shell"]');
-          const row = document.querySelector(`[data-testid="runtime-scheme-row-${schemeId}"]`);
           const search = document.querySelector('[data-testid="scheme-search"]');
           if (!(inspector instanceof HTMLElement) || !(search instanceof HTMLElement)) return false;
           const rect = inspector.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0
-            && row?.getAttribute('data-selected') === 'true'
-            && search.getBoundingClientRect().width > 0;
+          return rect.width > 0 && rect.height > 0 && search.getBoundingClientRect().width > 0;
         }""",
-        arg=scheme_id,
     )
     list_box = app.page.get_by_test_id("scheme-list-workspace").bounding_box()
     inspector_box = inspector.bounding_box()

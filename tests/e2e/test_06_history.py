@@ -115,6 +115,8 @@ def goto_history(app):
 
 def open_history_detail(app, row, history_id: str):
     """点击真实的行命令按钮，并等待目标记录的 Inspector 完全切换。"""
+    row.scroll_into_view_if_needed()
+    row.locator(".mf-history-main").wait_for(state="visible")
     row.locator(".mf-history-main").click()
     app.page.wait_for_function(
         """historyId => {
