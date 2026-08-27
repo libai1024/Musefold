@@ -50,6 +50,13 @@ zhaozhaoyue.top, www.zhaozhaoyue.top {
 		reverse_proxy download-stats:8080
 	}
 
+	handle /Musefold/app/* {
+		root * /srv/musefold-site
+		try_files {path} /Musefold/app/index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+
 	handle /Musefold/* {
 		root * /srv/musefold-site
 		header Cache-Control "no-cache"
