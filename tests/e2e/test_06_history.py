@@ -113,6 +113,20 @@ def goto_history(app):
     app.page.wait_for_selector('[data-testid="history-row"]', timeout=15_000)
 
 
+def open_history_detail(app, row, history_id: str):
+    """点击真实的行命令按钮，并等待目标记录的 Inspector 完全切换。"""
+    row.locator(".mf-history-main").click()
+    app.page.wait_for_function(
+        """historyId => {
+          const detail = document.querySelector('[data-testid="history-detail"]');
+          if (!(detail instanceof HTMLElement) || detail.dataset.historyId !== historyId) return false;
+          const rect = detail.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        }""",
+        arg=history_id,
+    )
+
+
 def open_detail_actions(app):
     app.page.get_by_test_id("history-detail-menu").click()
     menu = app.page.get_by_role("menu", name="生成记录操作")
@@ -474,7 +488,7 @@ def test_history_detail_file_actions_copy_and_open_path(app):
     success_row = app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text="history prompt hist-success-file"
     )
-    success_row.click()
+    open_history_detail(app, success_row, "hist-success-file")
     open_detail_actions(app)
 
     assert not app.page.is_disabled('[data-testid="history-detail-folder"]')
@@ -493,7 +507,7 @@ def test_history_detail_file_actions_copy_and_open_path(app):
     failed_row = app.page.locator('[data-testid="history-row"][data-status="failed"]').filter(
         has_text="history prompt hist-failed-no-file"
     )
-    failed_row.click()
+    open_history_detail(app, failed_row, "hist-failed-no-file")
     open_detail_actions(app)
     assert app.page.is_disabled('[data-testid="history-detail-folder"]')
     assert app.page.is_disabled('[data-testid="history-detail-copy-image"]')
@@ -1077,7 +1091,10 @@ def test_history_lightbox_opens_from_detail_and_navigates_image_records(app):
     )
 
     goto_history(app)
-    app.page.locator('[data-testid="history-row"]').filter(has_text="history lightbox first").click()
+    lightbox_row = app.page.locator('[data-testid="history-row"]').filter(
+        has_text="history lightbox first"
+    )
+    open_history_detail(app, lightbox_row, "hist-lightbox-a")
     app.page.click('[data-testid="history-detail-image"]')
     app.page.wait_for_selector('[data-testid="image-lightbox"]', timeout=5_000)
     dims = lightbox_image_dims(app)
@@ -1178,7 +1195,7 @@ def test_history_save_as_prompt_persists_fields_and_jumps_to_library(app):
     row = app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text=prompt_text
     )
-    row.click()
+    open_history_detail(app, row, source_id)
     app.page.click('[data-testid="history-detail-save"]')
     app.page.wait_for_selector('[data-testid="history-save-prompt-dialog"]')
     app.page.fill('[data-testid="history-save-title"]', "Saved From History")
@@ -1206,7 +1223,7 @@ def test_history_save_as_prompt_persists_fields_and_jumps_to_library(app):
     row = app.page.locator('[data-testid="history-row"][data-status="succeeded"]').filter(
         has_text=prompt_text
     )
-    row.click()
+    open_history_detail(app, row, source_id)
     app.page.click('[data-testid="history-detail-save"]')
     app.page.wait_for_selector('[data-testid="history-save-prompt-dialog"]')
     app.page.fill('[data-testid="history-save-title"]', "")
@@ -1475,13 +1492,13 @@ def test_history_failed_rows_show_guidance_and_retry_state(app):
     assert "API Key 无效" in auth_row.inner_text(), auth_row.inner_text()
     assert auth_row.locator('[data-testid="history-retry"]').count() == 0
 
-    auth_row.click()
+    open_history_detail(app, auth_row, "hist-auth")
     app.page.wait_for_selector('[data-testid="history-detail-error-action"]')
     detail_text = app.page.inner_text('[data-testid="history-detail"]')
     assert "更新密钥" in detail_text
     assert app.page.locator('[data-testid="history-detail-retry"]').count() == 0
 
-    rate_row.click()
+    open_history_detail(app, rate_row, "hist-rate-limit")
     app.page.wait_for_selector('[data-testid="history-detail-retry"]')
     app.page.locator('[data-testid="history-detail-retry"]').click()
     app.page.wait_for_selector('[data-testid="history-retrying"]', timeout=5_000)
