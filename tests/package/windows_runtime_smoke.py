@@ -154,7 +154,7 @@ def test_windows_installed_package_runtime(fake_openai_server):
             )
 
             # 有意钉死的绊线：每加一条迁移必须有意识地更新此值（macOS 冒烟同款语义）。
-            assert handle.api_ok("system.getVersion") == {"app": PACKAGE_VERSION, "db": 19}
+            assert handle.api_ok("system.getVersion") == {"app": PACKAGE_VERSION, "db": 20}
             assert handle.page.evaluate(
                 "() => ({ skillRuntime: typeof window.api.skillRuntime, designScheme: typeof window.api.designScheme })"
             ) == {"skillRuntime": "object", "designScheme": "object"}
