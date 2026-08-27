@@ -18,6 +18,12 @@ def _set_theme_and_view(
     app, theme: str, view: str, viewport: dict | None = None
 ) -> None:
     app.page.set_viewport_size(viewport or {"width": 1440, "height": 900})
+    if viewport is not None and viewport["width"] <= 760:
+        # ≤760px 产品侧栏转 overlay drawer；等折叠状态落地再量几何，避免量到收起中的布局。
+        app.page.wait_for_function(
+            "() => window.__musefold_test.stores.app.getState().sidebarCollapsed === true",
+            timeout=5_000,
+        )
     app.page.evaluate(
         """([theme, view]) => {
           const store = window.__musefold_test.stores.app.getState();
@@ -37,7 +43,12 @@ def _geometry(app, prefix: str) -> dict:
     return app.page.evaluate(
         """prefix => {
           const deck = document.querySelector(`.mf-${prefix}-control-deck`);
-          const content = deck?.closest('.mf-workspace-list-content');
+          // v2 提示词库几何上移到 PromptLibraryWorkspace 后，列表态内容列是
+          // .mf-library-screen；方案中心仍是 .mf-workspace-list-content。两者同为
+          // 960px 居中栏，是跨工作区对齐比较的等价容器。
+          const content = deck?.closest(
+            prefix === 'library' ? '.mf-library-screen' : '.mf-workspace-list-content'
+          );
           const primary = document.querySelector(`.mf-${prefix}-control-primary`);
           const secondary = document.querySelector(`.mf-${prefix}-control-secondary`);
           const tabs = primary?.querySelector('.mf-workspace-scope-tabs');
@@ -120,8 +131,12 @@ def _assert_geometry(geometry: dict) -> None:
     assert geometry["selectedCount"] == 1, geometry
 
 
-def _assert_matching_geometry(library: dict, scheme: dict) -> None:
-    for key in ("content", "deck", "search", "searchIcon", "searchInput"):
+def _assert_matching_geometry(
+    library: dict,
+    scheme: dict,
+    keys: tuple = ("content", "deck", "search", "searchIcon", "searchInput"),
+) -> None:
+    for key in keys:
         for dimension in ("x", "width"):
             assert abs(library[key][dimension] - scheme[key][dimension]) <= 1, (
                 key,
@@ -129,6 +144,9 @@ def _assert_matching_geometry(library: dict, scheme: dict) -> None:
                 library,
                 scheme,
             )
+
+    if "search" not in keys:
+        return
 
     library_gap = (
         library["searchInput"]["x"]
@@ -232,10 +250,23 @@ def test_library_and_scheme_control_decks_match_at_narrow_width(app):
         geometry = _geometry(app, prefix)
         assert geometry is not None
         assert geometry["documentWidth"] <= geometry["viewportWidth"] + 1, geometry
-        assert geometry["search"]["y"] >= (
-            geometry["tabs"]["y"] + geometry["tabs"]["height"] + 11
-        ), geometry
-        assert abs(geometry["search"]["width"] - geometry["deck"]["width"]) <= 1, geometry
+        if prefix == "library":
+            # v2 提示词库工作区不建 workspace-detail 容器：600px 下牌组保持双列，
+            # 搜索与 tabs 同行、右缘与 deck 对齐（minmax(240px, 44%) 轨道）。
+            tabs_center = geometry["tabs"]["y"] + geometry["tabs"]["height"] / 2
+            search_center = geometry["search"]["y"] + geometry["search"]["height"] / 2
+            assert abs(search_center - tabs_center) <= 2, geometry
+            assert geometry["search"]["x"] > geometry["tabs"]["x"], geometry
+            assert geometry["search"]["width"] >= 240, geometry
+            assert geometry["search"]["x"] + geometry["search"]["width"] <= (
+                geometry["deck"]["x"] + geometry["deck"]["width"] + 1
+            ), geometry
+        else:
+            # 方案中心容器查询（≤640px）折叠为单列：搜索整行落到 tabs 下方并撑满 deck。
+            assert geometry["search"]["y"] >= (
+                geometry["tabs"]["y"] + geometry["tabs"]["height"] + 11
+            ), geometry
+            assert abs(geometry["search"]["width"] - geometry["deck"]["width"]) <= 1, geometry
         geometries[prefix] = geometry
         if output:
             app.page.screenshot(
@@ -243,7 +274,10 @@ def test_library_and_scheme_control_decks_match_at_narrow_width(app):
                 full_page=False,
             )
 
-    _assert_matching_geometry(geometries["library"], geometries["scheme"])
+    # 窄屏两套牌组保持同一足迹（内容列与 deck 对齐）；内部排布按各自契约在上面对齐断言。
+    _assert_matching_geometry(
+        geometries["library"], geometries["scheme"], keys=("content", "deck")
+    )
 
 
 def test_scheme_create_menu_has_comfortable_spacing_and_responsive_bounds(app):

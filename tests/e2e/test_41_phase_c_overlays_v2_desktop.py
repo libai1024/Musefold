@@ -132,7 +132,28 @@ def test_sidebar_access_menus_match_phase_c_layers(app):
     assert dark_settings["backgroundColor"] == "rgb(43, 45, 49)"
     assert dark_settings["borderRadius"] == "12px"
     assert dark_settings["boxShadow"] != "none"
+    # 桌宠开关状态在菜单打开时经 IPC 异步加载，未落地前是禁用项，Radix 打开会跳过
+    # 禁用项聚焦；等状态落地后重开菜单，首项（此时可用）才承担「打开即聚焦首项」契约。
+    app.page.wait_for_function(
+        "selector => document.querySelector(selector)?.getAttribute('data-disabled') === null",
+        arg='[data-testid="sidebar-settings-pet-toggle"]',
+        timeout=5_000,
+    )
+    app.page.keyboard.press("Escape")
+    settings_menu.wait_for(state="detached")
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-testid="sidebar-settings"]',
+    )
+    settings_trigger.click()
+    settings_menu.wait_for()
     first_settings = settings_menu.locator('[role="menuitem"]:not([data-disabled])').first
+    # xvfb 下窗口焦点送达有延迟：轮询等待首个可用菜单项成为焦点元素，保持「菜单打开即聚焦首项」语义。
+    app.page.wait_for_function(
+        "selector => document.activeElement === document.querySelector(selector)",
+        arg='[data-testid="sidebar-settings-menu"] [role="menuitem"]:not([data-disabled])',
+        timeout=2_000,
+    )
     assert first_settings.evaluate("node => node === document.activeElement")
     app.page.keyboard.press("Escape")
     settings_menu.wait_for(state="detached")

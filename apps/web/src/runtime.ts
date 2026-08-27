@@ -343,6 +343,7 @@ export function createWebGateway(): WebGateway {
   if (
     resolveWebGatewayMode({
       isDevelopment: import.meta.env.DEV,
+      isFixtureBuild: import.meta.env.MODE === 'fixtures',
       useFixtures: import.meta.env.VITE_USE_FIXTURES,
     }) === 'fixture'
   ) {
