@@ -1,0 +1,28 @@
+# v2.5 发布工作流骨架:tag 驱动。完整矩阵(macOS 签名/公证 + Windows + updater feed)
+# 在 M5b 随 Changesets 接入(见 docs/v2.5/V25-DELIVERY-PLAN.md)。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Full checks
+        run: pnpm exec turbo run lint typecheck test build check:boundaries
+      - name: Release matrix placeholder
+        run: echo "M5b 接入 electron-builder 打包矩阵与 updater feed(docs/v2.5/V25-DELIVERY-PLAN.md)"

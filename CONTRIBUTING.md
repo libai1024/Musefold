@@ -1,5 +1,10 @@
 # Musefold 开发提交规范
 
+> **v2.5 过渡期公告**:`commit-msg` hook 与 `Skill-Impact` trailer 的机器强制已随 v2.5 M1 退役
+> (`.githooks`、`scripts/check-skill-update.mjs` 已删除)。提交格式仍为 `type(scope): subject`。
+> 改动影响 CLI / MCP / Automation 对外能力时,同步官方 Skill 的义务不变,由提交者自行判断执行;
+> 下文的 hook 安装与机器检查说明仅作历史参考,本文件在 M5 重写。
+
 ## Skill 影响强制审查
 
 任何包含 App 源码的 Git 提交，都必须判断是否需要同步更新官方 Musefold Agent Skill。源码范围包括 `apps/`、`electron/`、`packages/`、`preview/`、`resources/`、`scripts/`、`shared/`、`src/`、`website/Musefold/` 以及根目录构建、依赖和 TypeScript 配置。

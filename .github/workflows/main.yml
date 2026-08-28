@@ -1,0 +1,33 @@
+# v2.5 主干工作流:全量检查。部署 job 在 M2-07 随新 api/worker 镜像接入
+# (旧 deploy.yml 已随 v2.5 M1 退役;过渡期用本地 pnpm run deploy:prod)。
+name: Main
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: main-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Full checks
+        run: pnpm exec turbo run lint typecheck test build check:boundaries
+      - name: Web production build
+        run: pnpm run build:web

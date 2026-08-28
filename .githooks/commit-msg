@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec node scripts/check-skill-update.mjs --staged --commit-message "$1"

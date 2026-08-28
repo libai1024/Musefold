@@ -1,0 +1,34 @@
+# v2.5 PR 门禁:lint + typecheck + 单测 + 双端构建 + 依赖边界,turbo --affected 只跑受影响面。
+# E2E 与视觉快照 lane 在 M5a 接入(见 docs/v2.5/V25-DELIVERY-PLAN.md)。
+name: PR
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Turbo affected checks
+        run: pnpm exec turbo run lint typecheck test build check:boundaries --affected
+      - name: Web production build
+        run: pnpm run build:web

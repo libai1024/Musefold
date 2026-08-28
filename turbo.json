@@ -1,11 +1,13 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
-  // Remote cache stays at Turborepo defaults: set TURBO_TOKEN and TURBO_TEAM in the environment to enable. Do not put credentials in this file.
-  // Electron packaging (package / package:mac / package:win / electron-builder) is intentionally not a turbo task.
+  // 远程缓存走 Turborepo 默认:环境里设 TURBO_TOKEN / TURBO_TEAM 即启用,凭据不进本文件。
+  // Electron 打包(package / package:mac / package:win)刻意不是 turbo 任务。
   "globalDependencies": [
     "tsconfig*.json",
     "apps/desktop/tsconfig*.json",
-    "tooling/tsconfig.base.json"
+    "tooling/tsconfig.base.json",
+    "pnpm-workspace.yaml",
+    "biome.json"
   ],
   "globalEnv": ["NODE_VERSION"],
   "tasks": {
@@ -98,8 +100,7 @@
     "//#lint": {
       "inputs": [
         "package.json",
-        "eslint.config.mjs",
-        "tooling/eslint.config.base.mjs",
+        "biome.json",
         "tooling/aliases.mjs",
         "apps/desktop/electron.vite.config.ts",
         "vitest.config.ts",
@@ -131,19 +132,6 @@
         "apps/desktop/electron/**",
         "packages/**",
         "apps/**",
-        "!**/.tsout/**",
-        "!**/*.tsbuildinfo"
-      ]
-    },
-    "check:ui-boundaries": {},
-    "//#check:ui-boundaries": {
-      "inputs": [
-        "package.json",
-        "scripts/check-shared-ui-boundaries.mjs",
-        "packages/ui/src/tokens.css",
-        "apps/desktop/src/**",
-        "apps/web/src/**",
-        "packages/product-ui/src/**",
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"
       ]

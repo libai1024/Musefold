@@ -1,5 +1,10 @@
 # Musefold / 未像 — AI 开发代理约束
 
+> **v2.5 过渡期公告(2026-08 起,冲突时本节优先)**:仓库正按 [docs/v2.5](docs/v2.5/README.md) 执行全栈重做。
+> 工具链已切换:npm → **pnpm**(一切命令用 `pnpm run …`),lint 为 **Biome**(`pnpm run lint`),一体化检查为 `pnpm run check`(turbo 驱动)。
+> 已退役:Skill-Impact commit hook、no-emoji 检查、600 行棘轮(现为单文件 ≤3000 行)、`check:ui-boundaries`、`openapi:check`、`test:visual:shared`、release evidence 脚本群、旧四条 GitHub workflow。
+> 下文命令矩阵与全局红线中与此冲突的条目视为作废;本文件在 M5 整体重写。
+
 > 本文件是所有 AI 编码代理进入本仓库的第一入口。与 `README.md`(面向人类)互补。
 > 就近优先:修改子目录代码时,先读该目录树中最近的 `AGENTS.md`(apps/desktop、packages、apps/web、apps/web-api 各有一份)。
 > 本文件组是 Codex / Cursor / Claude Code 等的原生格式(Cursor 支持根目录与嵌套 AGENTS.md,就近覆盖全局)。**不要**再往 `.cursor/rules`、`.cursorrules` 或其他私有格式复制副本——约束只有一个事实源,就是这组文件。
