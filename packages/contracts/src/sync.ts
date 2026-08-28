@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { entityIdSchema, paginationCursorSchema, queryIntegerSchema } from './common';
+import {
+  entityIdSchema,
+  isoDateTimeSchema,
+  paginationCursorSchema,
+  queryIntegerSchema,
+} from './common';
 import { promptDocumentSchema, promptFolderSchema, promptTagSchema } from './prompt';
 
 export const syncEntityTypeSchema = z.enum(['prompt', 'folder', 'tag']);
@@ -114,6 +119,29 @@ export const syncStatusSchema = z.object({
   pendingConflicts: z.number().int().nonnegative(),
 });
 
+// ---------- 桌面本地同步状态(v2.5 sync 域桥,UI 消费) ----------
+
+export const desktopSyncStateSchema = z.enum(['disabled', 'idle', 'syncing', 'conflict', 'error']);
+
+/** 桌面云同步开关状态。登录 ≠ 同步:enabled 只由用户在设置里显式打开。 */
+export const desktopSyncStatusSchema = z.object({
+  enabled: z.boolean(),
+  state: desktopSyncStateSchema,
+  /** 已在本机激活过同步的账号(未登录/未激活为 null)。 */
+  account: z
+    .object({
+      username: z.string().min(1),
+      deviceName: z.string().min(1),
+    })
+    .nullable(),
+  lastSyncedAt: isoDateTimeSchema.nullable(),
+  pendingMutations: z.number().int().nonnegative(),
+  conflicts: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+});
+
+export const setSyncEnabledSchema = z.object({ enabled: z.boolean() });
+
 export type SyncEntityType = z.infer<typeof syncEntityTypeSchema>;
 export type SyncMutationOperation = z.infer<typeof syncMutationOperationSchema>;
 export type SyncSnapshot = z.infer<typeof syncSnapshotSchema>;
@@ -134,3 +162,6 @@ export type SyncPushResult = z.infer<typeof syncPushResultSchema>;
 export type SyncUsagePushRequest = z.infer<typeof syncUsagePushRequestSchema>;
 export type SyncUsagePushResult = z.infer<typeof syncUsagePushResultSchema>;
 export type SyncStatus = z.infer<typeof syncStatusSchema>;
+export type DesktopSyncState = z.infer<typeof desktopSyncStateSchema>;
+export type DesktopSyncStatus = z.infer<typeof desktopSyncStatusSchema>;
+export type SetSyncEnabled = z.infer<typeof setSyncEnabledSchema>;

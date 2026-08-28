@@ -14,6 +14,12 @@ export const queryKeys = {
   account: {
     status: () => ['account', 'status'] as const,
   },
+  aiProviders: {
+    list: () => ['ai-providers', 'list'] as const,
+  },
+  sync: {
+    status: () => ['sync', 'status'] as const,
+  },
   prompts: {
     all: () => ['prompts'] as const,
     list: (query: PromptListQuery) => ['prompts', 'list', query] as const,
@@ -29,6 +35,9 @@ export const queryKeys = {
   generation: {
     all: () => ['generation'] as const,
     list: (query: GenerationHistoryQuery) => ['generation', 'list', query] as const,
+    /** 历史屏无限分页与时间线 list 同源不同 key,互不覆盖页结构。 */
+    history: (query: GenerationHistoryQuery) => ['generation', 'history', query] as const,
     detail: (id: string) => ['generation', 'detail', id] as const,
+    providers: () => ['generation', 'providers'] as const,
   },
 } as const;

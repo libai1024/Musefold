@@ -1,6 +1,6 @@
 {
   "name": "musefold-app",
-  "version": "0.5.0-dev.75",
+  "version": "2.5.0",
   "description": "Forge your image prompts — 跨平台生图提示词管理桌面 App",
   "main": "./out/main/index.js",
   "author": "Musefold",
@@ -21,6 +21,7 @@
     "@musefold/cloud-client": "workspace:*",
     "@musefold/contracts": "workspace:*",
     "@musefold/core": "workspace:*",
+    "@musefold/desktop-db": "workspace:*",
     "@musefold/desktop-contracts": "workspace:*",
     "@musefold/domain": "workspace:*",
     "@musefold/features": "workspace:*",

@@ -63,6 +63,8 @@ export const generationHistoryQuerySchema = z.object({
   providerModel: z.string().trim().min(1).max(128).optional(),
   search: z.string().trim().max(200).optional(),
   includeDeleted: queryBooleanSchema.default(false),
+  /** 回收站视图:只返回已软删的记录(true 时忽略 includeDeleted)。 */
+  deletedOnly: queryBooleanSchema.default(false),
 });
 
 export const generationHistoryPageSchema = z.object({

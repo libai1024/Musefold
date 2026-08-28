@@ -38,14 +38,8 @@ export function useUpdatePreferences() {
   });
 }
 
-export function useAccountStatus() {
-  const gateway = useGateway();
-  return useQuery({
-    queryKey: queryKeys.account.status(),
-    queryFn: () => gateway.account.getStatus(),
-    retry: false,
-  });
-}
+// 账号状态 hook 已随 M4d 移入 account 域;设置屏经 AccountPanel 使用。
+export { useAccountStatus } from '../account/hooks';
 
 /** 把主题偏好解析为要挂载的 class:'dark' 或 null(浅色)。宿主挂到 <html>。 */
 export function resolveThemeClass(theme: AppTheme, systemPrefersDark: boolean): 'dark' | null {

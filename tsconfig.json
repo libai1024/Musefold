@@ -48,15 +48,6 @@
     },
     {
       "path": "./packages/update-protocol"
-    },
-    {
-      "path": "./apps/web"
-    },
-    {
-      "path": "./apps/web-api"
-    },
-    {
-      "path": "./apps/generation-worker"
     }
   ]
 }

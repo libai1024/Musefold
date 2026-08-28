@@ -390,6 +390,18 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(history.status).toBe(200);
     const historyBody = (await history.json()) as { items: Array<{ id: string }> };
     expect(historyBody.items.some((item) => item.id === job.id)).toBe(true);
+
+    // 回收站闭环:软删 → deletedOnly 只见已删 → 默认列表不见 → 恢复。
+    const removed = await request(`/api/v1/generations/${job.id}`, { method: 'DELETE' });
+    expect(removed.status).toBe(200);
+    const trash = await request('/api/v1/generations?limit=10&deletedOnly=true');
+    const trashBody = (await trash.json()) as { items: Array<{ id: string }> };
+    expect(trashBody.items.some((item) => item.id === job.id)).toBe(true);
+    const liveAfterRemove = await request('/api/v1/generations?limit=10');
+    const liveBody = (await liveAfterRemove.json()) as { items: Array<{ id: string }> };
+    expect(liveBody.items.some((item) => item.id === job.id)).toBe(false);
+    const restored = await request(`/api/v1/generations/${job.id}/restore`, { method: 'POST' });
+    expect(restored.status).toBe(200);
   });
 
   it('MCP well-known 资源元数据可发现,未带 token 的调用返回 401', async () => {

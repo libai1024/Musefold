@@ -1,16 +1,23 @@
 // v2.5 桌面 gateway:MusefoldGateway 的 typed IPC 实现。
-// settings/account/prompts 走主进程单通道桥;其余数据域随 M4 各域垂直切换接入,
-// 在此前调用会得到显式 NOT_IMPLEMENTED,而不是静默失败。
+// 全部数据域走主进程单通道桥(musefold:invoke),每方法出参 zod 复核。
 
 import {
   type AppPreferences,
   accountSummarySchema,
+  aiProviderSchema,
   appPreferencesSchema,
+  desktopSyncStatusSchema,
+  generationHistoryPageSchema,
+  redeemResultSchema,
+  generationJobSchema,
   promptDocumentSchema,
   promptFolderSchema,
   promptPageSchema,
   promptTagSchema,
   promptUseResultSchema,
+  providerOptionSchema,
+  workbenchSessionPageSchema,
+  workbenchSessionSchema,
 } from '@musefold/contracts';
 import type { MusefoldGateway } from '@musefold/platform';
 import { z } from 'zod';
@@ -42,6 +49,9 @@ export class DesktopGatewayError extends Error {
 
 const promptFolderListSchema = z.array(promptFolderSchema);
 const promptTagListSchema = z.array(promptTagSchema);
+const providerOptionListSchema = z.array(providerOptionSchema);
+const aiProviderListSchema = z.array(aiProviderSchema);
+const voidSchema = z.unknown().transform(() => undefined);
 
 async function invoke<S extends z.ZodType>(
   method: string,
@@ -62,10 +72,6 @@ async function invoke<S extends z.ZodType>(
   return response.parse(envelope.data);
 }
 
-function notImplemented(domain: string): never {
-  throw new DesktopGatewayError('NOT_IMPLEMENTED', `${domain} 域尚未迁入 v2.5 桌面桥(M4)`);
-}
-
 export function createDesktopGateway(): MusefoldGateway {
   return {
     settings: {
@@ -80,7 +86,22 @@ export function createDesktopGateway(): MusefoldGateway {
     },
     account: {
       getStatus: () => invoke('account.getStatus', undefined, accountSummarySchema),
-      redeem: () => notImplemented('account.redeem'),
+      login: (input) => invoke('account.login', input, accountSummarySchema),
+      register: (input) => invoke('account.register', input, accountSummarySchema),
+      logout: () => invoke('account.logout', undefined, voidSchema),
+      redeem: (code) => invoke('account.redeem', { code }, redeemResultSchema),
+    },
+    sync: {
+      getStatus: () => invoke('sync.getStatus', undefined, desktopSyncStatusSchema),
+      setEnabled: (enabled) => invoke('sync.setEnabled', { enabled }, desktopSyncStatusSchema),
+      syncNow: () => invoke('sync.syncNow', undefined, desktopSyncStatusSchema),
+    },
+    aiProviders: {
+      list: () => invoke('aiProviders.list', undefined, aiProviderListSchema),
+      create: (input) => invoke('aiProviders.create', input, aiProviderSchema),
+      update: (id, patch) => invoke('aiProviders.update', { id, patch }, aiProviderSchema),
+      remove: (id) => invoke('aiProviders.remove', { id }, voidSchema),
+      setActive: (id) => invoke('aiProviders.setActive', { id }, aiProviderSchema),
     },
     prompts: {
       list: (query) => invoke('prompts.list', query, promptPageSchema),
@@ -101,21 +122,23 @@ export function createDesktopGateway(): MusefoldGateway {
       removeTag: (id) => invoke('prompts.removeTag', { id }, promptTagSchema),
     },
     workbench: {
-      listSessions: () => notImplemented('workbench'),
-      createSession: () => notImplemented('workbench'),
-      getSession: () => notImplemented('workbench'),
-      updateSession: () => notImplemented('workbench'),
-      removeSession: () => notImplemented('workbench'),
-      restoreSession: () => notImplemented('workbench'),
+      listSessions: (query) => invoke('workbench.listSessions', query, workbenchSessionPageSchema),
+      createSession: (input) => invoke('workbench.createSession', input, workbenchSessionSchema),
+      getSession: (id) => invoke('workbench.getSession', id, workbenchSessionSchema),
+      updateSession: (id, patch) =>
+        invoke('workbench.updateSession', { id, patch }, workbenchSessionSchema),
+      removeSession: (id) => invoke('workbench.removeSession', id, workbenchSessionSchema),
+      restoreSession: (id) => invoke('workbench.restoreSession', id, workbenchSessionSchema),
     },
     generation: {
-      create: () => notImplemented('generation'),
-      list: () => notImplemented('generation'),
-      get: () => notImplemented('generation'),
-      cancel: () => notImplemented('generation'),
-      retry: () => notImplemented('generation'),
-      remove: () => notImplemented('generation'),
-      restore: () => notImplemented('generation'),
+      create: (input) => invoke('generation.create', input, generationJobSchema),
+      list: (query) => invoke('generation.list', query, generationHistoryPageSchema),
+      get: (id) => invoke('generation.get', id, generationJobSchema),
+      cancel: (id) => invoke('generation.cancel', id, generationJobSchema),
+      retry: (id) => invoke('generation.retry', id, generationJobSchema),
+      remove: (id) => invoke('generation.remove', id, generationJobSchema),
+      restore: (id) => invoke('generation.restore', id, generationJobSchema),
+      listProviders: () => invoke('generation.listProviders', undefined, providerOptionListSchema),
     },
   };
 }

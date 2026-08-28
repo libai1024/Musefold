@@ -10,14 +10,15 @@
 
 开发者本机的提示词库、历史与设置必须在升级到 v2.5 构建后完整可用。
 
-流程(在 M4-e 落地):
+流程(M4-e 已落地,实施细化:**原位接管而非搬运**——legacy 链终态即 Drizzle baseline,零数据拷贝零语义变换,风险面最小):
 
-1. **备份**:沿用现有惯例,迁移前 `VACUUM INTO` 生成带版本号的备份文件;
-2. **受管迁移**:v2.5 首启检测旧 schema 版本,执行一次性迁移到 Drizzle 管理的新 schema(drizzle-kit 生成、手工审阅的 SQL);Prompt 正文、文件夹/标签关系、生成历史与本地图片路径逐表搬运,不做语义变换;
-3. **校验**:迁移事务内逐表断言行数与关键字段抽样一致,失败即回滚并保留旧库;
-4. **后续增量**:新 schema 之上的变更全部走 drizzle-kit generate → 审阅 → migrate,保留事务包裹与幂等要求。
+1. **对齐**:首启仍先跑 core legacy 迁移链(0001→0020)把旧库带到终态(user_version=20);非终态旧库拒绝接管并报错;
+2. **备份**:接管一瞬 `VACUUM INTO` 生成带时间戳备份(userData/backups);
+3. **接管**:`@musefold/desktop-db` 的 baseline(终态 `sqlite_master` 忠实导出,含 CHECK/partial 索引/FTS5)对既有库 fake-apply 标记为已应用,全新空库则真跑 baseline(不再走 legacy 链);随后应用 Drizzle 增量迁移(首个:0001 workbench_drafts);
+4. **校验**:22 表 + FTS + `__drizzle_migrations` 完整性断言,缺一拒绝启动;
+5. **后续增量**:schema 变更全部走 `drizzle-kit generate` → 手工审阅 → `db:bundle` 内联(Electron 生产包无 fs 依赖)→ 启动时 migrate;core `run-migrations` 冻结在 0020,M5c 删除。
 
-测试要求:迁移测试用内存库手搭旧表结构 + 代表性旧数据行,断言迁移后结构与数据(延续现有 `migrations/__tests__` 体例)。
+测试(`packages/desktop-db/__tests__`):「baseline 空库 ≡ legacy 链库」逐表列/索引一致性、既有库接管零搬运保数据、备份可开、重入 noop、增量迁移在被接管库上生效、非终态拒绝。
 
 ## 2. 服务端 PostgreSQL
 

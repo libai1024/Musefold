@@ -32,6 +32,7 @@
 | [V25-ARCHITECTURE.md](./V25-ARCHITECTURE.md) | 目标技术栈(含版本核查依据)、仓库形状、分层与数据流、决策记录 |
 | [V25-DELIVERY-PLAN.md](./V25-DELIVERY-PLAN.md) | M0–M5 交付批次、卡片、验收标准与回退 |
 | [V25-DATA-MIGRATION.md](./V25-DATA-MIGRATION.md) | 桌面 SQLite、PostgreSQL、账号体系、热更通道四条数据线 |
+| [V25-UI-SPEC.md](./V25-UI-SPEC.md) | 渲染层唯一基准:壳与各屏布局、状态矩阵、交互约定、组件复用矩阵、与旧版差异登记 |
 
 ## 实施期间的权威顺序
 

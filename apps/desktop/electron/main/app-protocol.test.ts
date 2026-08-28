@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
 import { registerMediaScheme } from './media-protocol';
 import {
   APP_HOST,
-  APP_MAIN_ENTRY,
+  APP_V25_ENTRY,
   APP_ORIGIN,
   APP_PET_ENTRY,
   APP_SCHEME,
@@ -58,6 +58,7 @@ function completeBundle(files: Record<string, string | Buffer> = {}): string {
   const root = tempDir('musefold-app-protocol-');
   writeTree(root, {
     'index.html': '<html>index-root</html>',
+    'v25/shell.html': '<html>shell-root</html>',
     'pet.html': '<html>pet-root</html>',
     ...files,
   });
@@ -79,9 +80,9 @@ afterEach(() => {
 
 describe('app:// entry URL construction', () => {
   it('builds both renderer entries on the same frozen origin', () => {
-    const main = buildAppEntryUrl(APP_MAIN_ENTRY);
+    const main = buildAppEntryUrl(APP_V25_ENTRY);
     const pet = buildAppEntryUrl(APP_PET_ENTRY);
-    expect(main).toBe(`${APP_ORIGIN}/index.html`);
+    expect(main).toBe(`${APP_ORIGIN}/v25/shell.html`);
     expect(pet).toBe(`${APP_ORIGIN}/pet.html`);
     const mainUrl = new URL(main);
     const petUrl = new URL(pet);
@@ -95,14 +96,14 @@ describe('app:// entry URL construction', () => {
   });
 
   it('appends the E2E search string only on the main entry when requested', () => {
-    expect(buildAppEntryUrl(APP_MAIN_ENTRY, { e2e: true })).toBe(
-      `${APP_ORIGIN}/index.html?${E2E_SEARCH}`,
+    expect(buildAppEntryUrl(APP_V25_ENTRY, { e2e: true })).toBe(
+      `${APP_ORIGIN}/v25/shell.html?${E2E_SEARCH}`,
     );
-    expect(buildAppEntryUrl(APP_MAIN_ENTRY, { e2e: false })).toBe(`${APP_ORIGIN}/index.html`);
+    expect(buildAppEntryUrl(APP_V25_ENTRY, { e2e: false })).toBe(`${APP_ORIGIN}/v25/shell.html`);
     expect(buildAppEntryUrl(APP_PET_ENTRY, { e2e: true })).toBe(
       `${APP_ORIGIN}/pet.html?${E2E_SEARCH}`,
     );
-    expect(new URL(buildAppEntryUrl(APP_MAIN_ENTRY, { e2e: true })).search).toBe(`?${E2E_SEARCH}`);
+    expect(new URL(buildAppEntryUrl(APP_V25_ENTRY, { e2e: true })).search).toBe(`?${E2E_SEARCH}`);
   });
 
   it('treats only the frozen origin as in-app navigation', () => {
@@ -116,13 +117,12 @@ describe('app:// entry URL construction', () => {
 });
 
 describe('window load URL branch selection', () => {
-  it('keeps the Electron renderer URL branch character-identical in development', () => {
-    expect(resolveMainWindowLoadUrl('http://localhost:5173', false)).toBe('http://localhost:5173');
-    expect(resolveMainWindowLoadUrl('http://localhost:5173', true)).toBe(
-      'http://localhost:5173?musefold_e2e=1',
+  it('always loads the v2.5 shell entry from the dev server (M4e 定稿)', () => {
+    expect(resolveMainWindowLoadUrl('http://localhost:5173', false)).toBe(
+      'http://localhost:5173/v25/shell.html',
     );
-    expect(resolveMainWindowLoadUrl('http://localhost:5173/?foo=1', true)).toBe(
-      'http://localhost:5173/?foo=1&musefold_e2e=1',
+    expect(resolveMainWindowLoadUrl('http://localhost:5173/', true)).toBe(
+      `http://localhost:5173/v25/shell.html?${E2E_SEARCH}`,
     );
     expect(resolvePetWindowLoadUrl('http://localhost:5173/')).toBe(
       'http://localhost:5173/pet.html',
@@ -131,12 +131,12 @@ describe('window load URL branch selection', () => {
   });
 
   it('loads production windows from app:// without a second bundle-root lookup', () => {
-    expect(resolveMainWindowLoadUrl(undefined, false)).toBe(`${APP_ORIGIN}/index.html`);
+    expect(resolveMainWindowLoadUrl(undefined, false)).toBe(`${APP_ORIGIN}/v25/shell.html`);
     expect(resolveMainWindowLoadUrl(undefined, true)).toBe(
-      `${APP_ORIGIN}/index.html?${E2E_SEARCH}`,
+      `${APP_ORIGIN}/v25/shell.html?${E2E_SEARCH}`,
     );
     expect(resolvePetWindowLoadUrl(undefined)).toBe(`${APP_ORIGIN}/pet.html`);
-    expect(resolveMainWindowLoadUrl('', false)).toBe(`${APP_ORIGIN}/index.html`);
+    expect(resolveMainWindowLoadUrl('', false)).toBe(`${APP_ORIGIN}/v25/shell.html`);
     const mainProd = new URL(resolveMainWindowLoadUrl(undefined, true));
     const petProd = new URL(resolvePetWindowLoadUrl(undefined));
     expect(`${mainProd.protocol}//${mainProd.host}`).toBe(APP_ORIGIN);

@@ -8,6 +8,9 @@
   "exports": {
     "./settings": "./src/settings/index.ts",
     "./prompts": "./src/prompts/index.ts",
+    "./workbench": "./src/workbench/index.ts",
+    "./history": "./src/history/index.ts",
+    "./account": "./src/account/index.ts",
     "./shell": "./src/shell/index.ts"
   },
   "scripts": {
@@ -17,7 +20,8 @@
   "dependencies": {
     "@musefold/contracts": "workspace:*",
     "@musefold/platform": "workspace:*",
-    "@musefold/ui": "workspace:*"
+    "@musefold/ui": "workspace:*",
+    "zustand": "^5.0.15"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.101.4",

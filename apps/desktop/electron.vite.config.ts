@@ -18,11 +18,18 @@ export default defineConfig({
           '@musefold/cloud-client',
           '@musefold/contracts',
           '@musefold/desktop-contracts',
+          '@musefold/desktop-db',
           '@musefold/domain',
           '@musefold/update-protocol',
           '@musefold/core',
           '@musefold/automation-server',
           '@musefold/new-api-client',
+          // 纯 JS 运行时依赖打进 main chunk(M5-b):electron-builder 26 的
+          // pnpm 收集器会剥掉嵌套传递依赖(lazystream → readable-stream@2),
+          // bundle 后 asar 不再依赖这些包的 node_modules 树。
+          'archiver',
+          'archiver-utils',
+          'yauzl',
         ],
       },
       rollupOptions: {
@@ -42,6 +49,7 @@ export default defineConfig({
           '@musefold/cloud-client',
           '@musefold/contracts',
           '@musefold/desktop-contracts',
+          '@musefold/desktop-db',
           '@musefold/domain',
           '@musefold/update-protocol',
           '@musefold/new-api-client',
@@ -87,12 +95,11 @@ export default defineConfig({
       outDir: resolve(desktopRoot, 'out/renderer'),
       rollupOptions: {
         input: {
-          index: resolve(desktopRoot, 'src/index.html'),
           // 桌宠是独立窗口，单独出一个入口，不让它的代码进主窗口的包
           pet: resolve(desktopRoot, 'src/pet.html'),
           // 一次性 file:// origin 偏好导出页：不含应用代码，主进程以 file:// 加载
           storageExport: resolve(desktopRoot, 'src/storage-export.html'),
-          // v2.5 新渲染壳(M3 打样:features + shadcn ui,经 MUSEFOLD_V25_SHELL=1 加载)
+          // v2.5 渲染壳 —— 主窗口唯一入口(M4e 定稿;旧 index 入口已删,M5c)
           shellV25: resolve(desktopRoot, 'src/v25/shell.html'),
         },
       },

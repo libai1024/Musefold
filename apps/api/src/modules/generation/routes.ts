@@ -3,12 +3,13 @@ import {
   generationHistoryPageSchema,
   generationHistoryQuerySchema,
   generationJobSchema,
+  providerOptionSchema,
 } from '@musefold/contracts';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors.js';
 import { createAuthedRouter, route } from '../../lib/openapi.js';
-import type { GenerationService } from './service.js';
+import { type GenerationService, PROVIDER_MODEL } from './service.js';
 
 const idParams = z.object({ id: z.string().trim().min(1).max(64) });
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
@@ -50,6 +51,27 @@ export function generationRoutes(service: GenerationService) {
       response: generationHistoryPageSchema,
     },
     async (c, input) => c.json(await service.history(c.get('userId'), input.query)),
+  );
+
+  // Provider 目录:云端当前只有服务端固定模型;桌面宿主由本地 AI 连接实现同名接口。
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/generations/providers',
+      tags,
+      response: z.array(providerOptionSchema),
+    },
+    async (c) =>
+      c.json([
+        {
+          id: 'cloud-default',
+          label: 'Musefold 云生图',
+          model: PROVIDER_MODEL,
+          kind: 'cloud' as const,
+          available: true,
+        },
+      ]),
   );
 
   route(

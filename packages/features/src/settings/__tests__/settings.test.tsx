@@ -31,10 +31,13 @@ function createTestGateway(overrides?: { accountRejects?: boolean }): {
             id: 'u1',
             username: 'tester',
             displayName: '测试者',
-            quota: 500,
-            quotaUnit: 'points',
+            quota: 150_000,
+            quotaUnit: '点',
             canGenerate: true,
           }),
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
       redeem: vi.fn(),
     },
   } as unknown as MusefoldGateway;
@@ -64,11 +67,11 @@ describe('SettingsScreen', () => {
     renderSettings(gateway);
 
     await waitFor(() => {
-      expect(screen.getByTestId('settings-account-summary')).toBeTruthy();
+      expect(screen.getByTestId('account-signed-in')).toBeTruthy();
     });
     expect(screen.getByTestId('settings-theme-trigger').textContent).toContain('跟随系统');
     expect(screen.getByText('测试者')).toBeTruthy();
-    expect(screen.getByText(/余额 500 points/)).toBeTruthy();
+    expect(screen.getByTestId('account-points').textContent).toBe('3 积分');
     expect(screen.getByTestId('settings-host-badge').textContent).toBe('Web 版');
   });
 

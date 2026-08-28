@@ -4,3 +4,11 @@
 @source '../../../../packages/ui/src';
 @source '../../../../packages/features/src';
 @source './';
+
+/* 桌面窗口拖拽:侧栏面为拖拽区,交互元素保持可点(V25-UI-SPEC §2.3)。 */
+[data-testid='app-sidebar'] {
+  -webkit-app-region: drag;
+}
+[data-testid='app-sidebar'] :is(button, a, input, [role='button']) {
+  -webkit-app-region: no-drag;
+}

@@ -32,6 +32,33 @@ jobs:
       - name: Web production build
         run: pnpm run build:web
 
+  # 双端 E2E(M5-a):Playwright web(桌面/移动视口)+ Electron。
+  # 跑在 macOS:视觉基线在 darwin 生成可直接复用,Electron 真窗口无需 xvfb。
+  e2e:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - name: Playwright E2E(web + electron)
+        run: pnpm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: |
+            tests/v25/.results/
+            tests/v25/__screenshots__/
+          retention-days: 7
+
   # 服务端镜像构建验证(v2.5 api + worker);推送/部署在自托管环境执行:
   # docker compose -f infra/v2.5/compose.yaml up -d --build
   server-images:

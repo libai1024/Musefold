@@ -26,7 +26,7 @@ type Tx = DbLike;
 type RunRow = typeof generationRuns.$inferSelect;
 type AssetRow = typeof generationAssets.$inferSelect;
 
-const PROVIDER_MODEL = 'musefold-image-pro';
+export const PROVIDER_MODEL = 'musefold-image-pro';
 /** 生图任务的终态集合(取消/失败/成功等不可再变的状态)。 */
 const TERMINAL_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
 
@@ -65,7 +65,8 @@ export class GenerationService {
   ): Promise<GenerationHistoryPage> {
     const query = generationHistoryQuerySchema.parse(rawQuery);
     const conditions = [sql`r.user_id = ${userId}`];
-    if (!query.includeDeleted) conditions.push(sql`r.deleted_at IS NULL`);
+    if (query.deletedOnly) conditions.push(sql`r.deleted_at IS NOT NULL`);
+    else if (!query.includeDeleted) conditions.push(sql`r.deleted_at IS NULL`);
     if (query.sessionId) conditions.push(sql`r.session_id = ${query.sessionId}`);
     if (query.status) conditions.push(sql`r.status = ${query.status}`);
     if (query.from) conditions.push(sql`r.created_at >= ${new Date(query.from)}`);

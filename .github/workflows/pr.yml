@@ -1,5 +1,5 @@
-# v2.5 PR 门禁:lint + typecheck + 单测 + 双端构建 + 依赖边界,turbo --affected 只跑受影响面。
-# E2E 与视觉快照 lane 在 M5a 接入(见 docs/v2.5/V25-DELIVERY-PLAN.md)。
+# v2.5 PR 门禁:lint + typecheck + 单测 + 双端构建 + 依赖边界,turbo --affected 只跑受影响面;
+# 外加 Playwright 双端 E2E + 视觉快照(M5-a 接入,macOS runner 复用 darwin 基线)。
 name: PR
 
 on:
@@ -32,3 +32,30 @@ jobs:
         run: pnpm exec turbo run lint typecheck test build check:boundaries --affected
       - name: Web production build
         run: pnpm run build:web
+
+  # 双端 E2E + 视觉快照(与 main.yml e2e job 同构;macOS 复用 darwin 基线,
+  # Electron 真窗口无需 xvfb)。
+  e2e:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - name: Playwright E2E(web + electron)
+        run: pnpm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: |
+            tests/v25/.results/
+            tests/v25/__screenshots__/
+          retention-days: 7

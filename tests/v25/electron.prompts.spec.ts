@@ -8,8 +8,10 @@ let app: ElectronApplication;
 let page: Page;
 
 test.beforeAll(async () => {
-  app = await launchV25App('musefold-v25-prompts-');
+  ({ app } = await launchV25App('musefold-v25-prompts-'));
   page = await v25ShellPage(app);
+  // 壳默认视图是工作台,先切到提示词库
+  await page.getByTestId('nav-prompts').click();
   await expect(page.getByTestId('prompt-library')).toBeVisible();
 });
 
@@ -85,4 +87,22 @@ test('文件夹与标签目录管理', async () => {
 test('桌面提示词库视觉基线(浅色)', async () => {
   await expect(page.getByTestId('prompt-grid')).toBeVisible();
   await expect(page).toHaveScreenshot('desktop-prompts-light.png');
+});
+
+test('桌面提示词库视觉基线(深色)', async () => {
+  // 数据屏的暗色基线:与设置屏一起守护 token 在明暗两套下的映射。
+  // 走真实主题切换路径(设置屏),不直接改 class(会被 ThemeProvider 覆写)。
+  await page.getByTestId('nav-settings').click();
+  await page.getByTestId('settings-theme-trigger').click();
+  await page.getByTestId('settings-theme-dark').click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+
+  await page.getByTestId('nav-prompts').click();
+  await expect(page.getByTestId('prompt-grid')).toBeVisible();
+  await expect(page).toHaveScreenshot('desktop-prompts-dark.png');
+
+  await page.getByTestId('nav-settings').click();
+  await page.getByTestId('settings-theme-trigger').click();
+  await page.getByTestId('settings-theme-light').click();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
 });

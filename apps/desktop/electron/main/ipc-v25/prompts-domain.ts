@@ -37,7 +37,7 @@ import type { NewPrompt, Prompt, Tag } from '@musefold/desktop-contracts/models'
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import { ulid } from 'ulid';
 import { z } from 'zod';
-import { scheduleCloudSync } from '../../cloud-sync';
+import { scheduleV25CloudSync as scheduleCloudSync } from './sync-domain';
 import { BridgeError, type MethodDef } from './envelope';
 
 /** 桌面表无 version 列;行→文档的合成乐观锁,写回丢弃。 */

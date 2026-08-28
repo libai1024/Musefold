@@ -9,6 +9,7 @@ import {
   type MusefoldCore,
 } from '@musefold/core';
 import { configureCoreRuntime } from '@musefold/core/runtime';
+import { takeoverDesktopDatabase } from '@musefold/desktop-db';
 import { createLogger } from '../system/logger';
 import { getPaths } from '../system/paths';
 import { getDb, initDb } from '@musefold/core/db/index';
@@ -32,6 +33,14 @@ export function initMusefoldCore(): MusefoldCore {
     doubaoWeb: doubaoWebRuntime,
   });
   initDb();
+  // v2.5(M4e):legacy 链跑到终态后,库交给 drizzle 受管;此后 schema 变更
+  // 全部走 packages/desktop-db 迁移,core run-migrations 冻结在 0020。
+  const takeover = takeoverDesktopDatabase(getDb(), { backupDir: getPaths().backups });
+  if (takeover.mode !== 'noop') {
+    createLogger('core').info(
+      `desktop-db 接管:${takeover.mode}${takeover.backupPath ? `(备份 ${takeover.backupPath})` : ''}`,
+    );
+  }
   hub = createEventHub();
   core = createMusefoldCore({
     paths: electronPathsPort(),

@@ -37,6 +37,8 @@
       "@musefold/db/*": ["packages/db/src/*"],
       "@musefold/desktop-contracts": ["packages/desktop-contracts/src/index.ts"],
       "@musefold/desktop-contracts/*": ["packages/desktop-contracts/src/*"],
+      "@musefold/desktop-db": ["packages/desktop-db/src/index.ts"],
+      "@musefold/desktop-db/*": ["packages/desktop-db/src/*"],
       "@musefold/domain": ["packages/domain/src/index.ts"],
       "@musefold/domain/*": ["packages/domain/src/*"],
       "@musefold/legacy-ui": ["packages/legacy-ui/src/index.ts"],

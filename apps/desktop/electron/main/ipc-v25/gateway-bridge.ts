@@ -13,8 +13,13 @@ import { app, ipcMain } from 'electron';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { z } from 'zod';
-import { BridgeError, type BridgeEnvelope, type MethodDef } from './envelope';
+import { buildAccountDomainMethods } from './account-domain';
+import type { BridgeEnvelope, MethodDef } from './envelope';
+import { BridgeError } from './envelope';
 import { buildPromptsDomainMethods } from './prompts-domain';
+import { buildAiProvidersDomainMethods } from './providers-domain';
+import { buildSyncDomainMethods } from './sync-domain';
+import { buildWorkbenchDomainMethods } from './workbench-domain';
 
 export type { BridgeEnvelope } from './envelope';
 
@@ -55,14 +60,11 @@ function buildMethods(): Record<string, MethodDef> {
         return next;
       },
     },
-    // 桌面账号会话随 M4d 账号域接入;打样阶段固定未登录,features 按此渲染。
-    'account.getStatus': {
-      input: z.undefined().or(z.object({}).strict()),
-      handle: async () => {
-        throw new BridgeError('AUTH_REQUIRED', '桌面端尚未登录');
-      },
-    },
+    ...buildAccountDomainMethods(),
+    ...buildAiProvidersDomainMethods(),
     ...buildPromptsDomainMethods(),
+    ...buildSyncDomainMethods(),
+    ...buildWorkbenchDomainMethods(),
   };
 }
 

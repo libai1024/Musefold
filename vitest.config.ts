@@ -25,7 +25,7 @@ export default defineConfig({
     ]),
   },
   test: {
-    // 渲染层、包内与全仓守卫单测；E2E 交给 tests/e2e 的 pytest + Playwright
+    // 渲染层、包内与全仓守卫单测；E2E 交给 tests/v25 的 Playwright（web + electron）
     include: [
       // 根任务扫迁入后的桌面源码；各 workspace 包复用本配置时仍按包内 src/ 匹配。
       'apps/desktop/src/**/*.test.ts',

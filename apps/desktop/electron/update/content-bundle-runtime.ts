@@ -77,7 +77,7 @@ export function prepareContentBundleStartup(deps: PrepareContentBundleStartupDep
 
 /**
  * 按优先级返回**存在**的 bundle 目录：pending（prepare 后仍在）→ knownGood → previousGood。
- * 完整性（index.html + pet.html）由解析器负责，这里只保证顺序与存在性。
+ * 完整性（v25/shell.html + pet.html）由解析器负责，这里只保证顺序与存在性。
  */
 export const contentBundleCandidateReader = {
   readCandidates(): readonly string[] {

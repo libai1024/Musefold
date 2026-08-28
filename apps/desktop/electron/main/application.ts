@@ -7,6 +7,7 @@ import { preparePrefsOriginMigration, isWindowAllClosedSuppressed } from './pref
 import { initDb, closeDb } from '@musefold/core/db';
 import { registerAllHandlers } from './ipc';
 import { registerV25GatewayBridge } from './ipc-v25/gateway-bridge';
+import { stopV25CloudSync } from './ipc-v25/sync-domain';
 import { registerAppProtocolHandler } from './app-protocol';
 import { registerMediaProtocolHandler } from './media-protocol';
 import { initializeUpdater } from '../update';
@@ -38,7 +39,7 @@ import { attachPetWindowLifecycle } from './pet/lifecycle';
 import { acquireDesktopOwnerLockWithHeadlessTakeover } from './headless-takeover';
 import { createAppTray, destroyAppTray } from './tray';
 import { disposeDoubaoWebBrowser } from '../doubao-web/browser-service';
-import { startCloudSyncService, stopCloudSyncService } from '../cloud-sync';
+import { stopCloudSyncService } from '../cloud-sync';
 import { checkSkillUpdatesAtStartup, ensureCliInstalledAtStartup } from './integration';
 
 registerShareProtocolListeners();
@@ -104,7 +105,8 @@ app.whenReady().then(async () => {
   registerAppProtocolHandler(rendererRoot.root);
   registerAllHandlers();
   registerV25GatewayBridge();
-  startCloudSyncService();
+  // M4e:云同步由 ipc-v25/sync-domain 接管(旧 CloudSyncService 绑旧登录体系与
+  // 已下线的旧 web-api,不再启动,避免与新桥抢 cloud_sync_accounts;M5c 物理删除)。
   registerWindowHandlers();
   await ensureCliInstalledAtStartup();
   void checkSkillUpdatesAtStartup();
@@ -257,6 +259,7 @@ async function prepareForUpdateInstall(): Promise<void> {
 }
 
 async function shutdownApplication(): Promise<void> {
+  stopV25CloudSync();
   stopCloudSyncService();
   await stopAutomationServer();
   disposeDoubaoWebBrowser();

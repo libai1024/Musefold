@@ -34,3 +34,43 @@ export const updateMcpConnectionSchema = z.object({
 export type McpConnection = z.infer<typeof mcpConnectionSchema>;
 export type McpConnectionPage = z.infer<typeof mcpConnectionPageSchema>;
 export type UpdateMcpConnection = z.infer<typeof updateMcpConnectionSchema>;
+
+// ── 桌面 AI 连接(生图 Provider 管理)──────────────────────────────
+// 桌面本地关切:元数据存 SQLite providers 表,密钥只进主进程系统安全存储。
+// 契约刻意没有「读取密钥」的形状——渲染层只能看到 hasKey / keySuffix 状态。
+
+export const aiProviderSchema = z.object({
+  id: entityIdSchema,
+  name: z.string().trim().min(1).max(80),
+  /** 现存数据可能含历史类型(如 doubao-web);v2.5 新建一律 openai-compatible。 */
+  type: z.string().min(1).max(40),
+  baseUrl: z.string().trim().url().max(400),
+  model: z.string().trim().min(1).max(200),
+  hasKey: z.boolean(),
+  /** 密钥尾号(展示用,如「…a1b2」),无密钥为 null。 */
+  keySuffix: z.string().max(12).nullable(),
+  isActive: z.boolean(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+
+export const createAiProviderSchema = z.object({
+  name: aiProviderSchema.shape.name,
+  baseUrl: aiProviderSchema.shape.baseUrl,
+  model: aiProviderSchema.shape.model,
+  /** write-only:只在入参出现,落地即转系统安全存储。 */
+  apiKey: z.string().trim().min(1).max(512).optional(),
+  activate: z.boolean().default(false),
+});
+
+export const updateAiProviderSchema = z.object({
+  name: aiProviderSchema.shape.name.optional(),
+  baseUrl: aiProviderSchema.shape.baseUrl.optional(),
+  model: aiProviderSchema.shape.model.optional(),
+  /** string=替换密钥;null=删除密钥;undefined=不动。 */
+  apiKey: z.string().trim().min(1).max(512).nullable().optional(),
+});
+
+export type AiProvider = z.infer<typeof aiProviderSchema>;
+export type CreateAiProvider = z.infer<typeof createAiProviderSchema>;
+export type UpdateAiProvider = z.infer<typeof updateAiProviderSchema>;

@@ -1,0 +1,29 @@
+{
+  "name": "@musefold/desktop-db",
+  "version": "0.0.0-internal",
+  "description": "Musefold v2.5 桌面 SQLite 的 Drizzle 受管层:接管既有库(legacy 链终态)后,schema 变更全部走 drizzle-kit 迁移",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false",
+    "db:generate": "drizzle-kit generate",
+    "db:bundle": "tsx scripts/bundle-migrations.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.2",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@musefold/core": "workspace:*",
+    "@types/better-sqlite3": "^7.6.12",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

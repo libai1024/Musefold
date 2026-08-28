@@ -46,7 +46,7 @@ function writeBundle(files: Record<string, string>): string {
 
 function completeBundle(): string {
   return writeBundle({
-    'index.html': '<html>index</html>',
+    'v25/shell.html': '<html>shell</html>',
     'pet.html': '<html>pet</html>',
   });
 }
@@ -81,7 +81,7 @@ describe('resolveRendererRoot', () => {
   });
 
   it('skips a candidate that is missing pet.html', () => {
-    const incomplete = writeBundle({ 'index.html': '<html>index</html>' });
+    const incomplete = writeBundle({ 'v25/shell.html': '<html>shell</html>' });
     const resolved = resolveRendererRoot({ readCandidates: () => [incomplete] });
     expect(resolved.source).toBe('builtin');
     expect(resolved.root).not.toBe(resolve(incomplete));
@@ -94,14 +94,14 @@ describe('resolveRendererRoot', () => {
   });
 
   it('walks candidates in order and uses the first complete bundle', () => {
-    const missingPet = writeBundle({ 'index.html': '<html>index</html>' });
-    const missingIndex = writeBundle({ 'pet.html': '<html>pet</html>' });
+    const missingPet = writeBundle({ 'v25/shell.html': '<html>shell</html>' });
+    const missingShell = writeBundle({ 'pet.html': '<html>pet</html>' });
     const missingDir = join(tempDir('musefold-renderer-missing-'), 'gone');
     const firstComplete = completeBundle();
     const secondComplete = completeBundle();
 
     const resolved = resolveRendererRoot({
-      readCandidates: () => [missingPet, missingIndex, missingDir, firstComplete, secondComplete],
+      readCandidates: () => [missingPet, missingShell, missingDir, firstComplete, secondComplete],
     });
     expect(resolved).toEqual({ root: resolve(firstComplete), source: 'bundle' });
   });

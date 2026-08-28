@@ -142,8 +142,8 @@ function tempDir(prefix: string): string {
 }
 
 function writeCompleteBundle(root: string): void {
-  mkdirSync(root, { recursive: true });
-  writeFileSync(join(root, 'index.html'), '<html>index</html>');
+  mkdirSync(join(root, 'v25'), { recursive: true });
+  writeFileSync(join(root, 'v25/shell.html'), '<html>shell</html>');
   writeFileSync(join(root, 'pet.html'), '<html>pet</html>');
 }
 
@@ -284,9 +284,9 @@ describe('confirmContentBundleStartup', () => {
   it('does not promote pending when the pending directory exists but is incomplete', () => {
     setPendingVersion(PENDING);
     setKnownGoodVersion(KNOWN_GOOD);
-    mkdirSync(getBundleDir(PENDING, appState.userData), { recursive: true });
+    mkdirSync(join(getBundleDir(PENDING, appState.userData), 'v25'), { recursive: true });
     writeFileSync(
-      join(getBundleDir(PENDING, appState.userData), 'index.html'),
+      join(getBundleDir(PENDING, appState.userData), 'v25/shell.html'),
       '<html>index</html>',
     );
     writeCompleteBundle(getBundleDir(KNOWN_GOOD, appState.userData));

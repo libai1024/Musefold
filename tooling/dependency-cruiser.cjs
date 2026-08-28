@@ -1,17 +1,4 @@
-const { readdirSync } = require('node:fs');
 const { resolve } = require('node:path');
-
-/**
- * V13-GOV-02：renderer features 同层不互导。
- * depcruise 的静态正则无法表达「from 与 to 分属不同 feature」的互斥，
- * 按 feature 目录动态生成 N 条规则；新增 feature 自动纳入约束。
- * 存量违规登记在 dependency-cruiser-known-violations.json，只减不增。
- */
-const RENDERER_FEATURES = readdirSync(resolve(__dirname, '../apps/desktop/src/features'), {
-  withFileTypes: true,
-})
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name);
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -452,21 +439,97 @@ module.exports = {
       },
     },
 
-    ...RENDERER_FEATURES.map((feature) => ({
-      name: `renderer-features-isolated-${feature}`,
+    // ═══ v2.5 新架构边界(V25-ARCHITECTURE「依赖边界」;M5-a2 上线)═══
+    // 旧规则针对 legacy 包,随 M5-c 删包一并退役;以下规则是 v2.5 长期形态。
+
+    {
+      // features 平台无关:数据只经 MusefoldGateway(platform 接口),UI 只用 ui 原语。
+      name: 'v25-features-platform-agnostic',
       comment:
-        `V13-GOV-02：features/${feature} 禁止 import 其他 feature（同层不互导）。` +
-        '跨域共享物下沉 product-ui/domain/lib，跨域读写经 runtime/*-access 与 runtime/*-side-effects；' +
-        'REUSE-03 起 known-violations 为空文件，任何新互导边直接红。',
+        'V25 §3:packages/features 四端同一份,禁止触达宿主 —— 不得 import electron、next、' +
+        '宿主 gateway 实现(api-client / apps/*)与 legacy 包;数据接缝只有 @musefold/platform。',
       severity: 'error',
-      from: {
-        path: `^apps/desktop/src/features/${feature}/`,
-        pathNot: ['/__tests__/', '/__mocks__/', '\\.(test|spec)\\.(ts|tsx)$'],
-      },
+      from: { path: '^packages/features/' },
       to: {
-        path: `^apps/desktop/src/features/(?!${feature}/)`,
+        path: [
+          '^electron(/|$)',
+          '^next(/|$)',
+          '^packages/api-client/',
+          '^packages/(core|desktop-db|db|product-ui|legacy-ui|cloud-client|desktop-contracts|domain)/',
+          '^apps/',
+        ],
       },
-    })),
+    },
+    {
+      // features 是纯渲染层,连 Node 内置都不许(防 fs/path 溜进共享 UI)。
+      name: 'v25-features-no-node-builtins',
+      comment: 'V25 §3:features 运行在浏览器/渲染进程,禁止 Node 内置模块。',
+      severity: 'error',
+      from: { path: '^packages/features/' },
+      to: { dependencyTypes: ['core'] },
+    },
+    {
+      // platform 是接口叶子:contracts 之外不依赖任何 workspace 包。
+      name: 'v25-platform-leaf',
+      comment:
+        'V25 §3:packages/platform 只定义 MusefoldGateway/能力/query keys,仅可 import contracts;' +
+        '禁止 ui/features/宿主实现,否则接口层反向耦合实现。',
+      severity: 'error',
+      from: { path: '^packages/platform/' },
+      to: { path: ['^packages/(?!platform|contracts)[^/]+/', '^apps/', '^electron(/|$)'] },
+    },
+    {
+      // PG schema 只进服务端。
+      name: 'v25-db-server-only',
+      comment:
+        'V25 §4:packages/db(Drizzle PG schema)只允许 apps/api 与 apps/worker 消费;' +
+        '前端/桌面/共享包不得 import,数据一律走 API 契约。',
+      severity: 'error',
+      from: { path: '^(packages/(?!db/)|apps/(?!api/|worker/))' },
+      to: { path: '^packages/db/' },
+    },
+    {
+      // v25 preload 纯转发。
+      name: 'v25-preload-pure-relay',
+      comment:
+        'V25 §5:v2.5 preload 只做单通道转发,除 electron 外不得 import 任何模块' +
+        '(workspace TS 会被打进沙箱 preload,Node 内置在 sandbox 下不可用)。',
+      severity: 'error',
+      from: { path: '^apps/desktop/electron/preload/v25\\.ts$' },
+      to: { pathNot: ['^electron$'] },
+    },
+    {
+      // shadcn 原语层保持叶子。
+      name: 'v25-ui-primitives-leaf',
+      comment:
+        'V25 §3:packages/ui 是 shadcn 原语层,禁止依赖任何 workspace 包与宿主;' +
+        '产品语义(数据/状态)属于 features。',
+      severity: 'error',
+      from: { path: '^packages/ui/' },
+      to: { path: ['^packages/(?!ui)[^/]+/', '^apps/'] },
+    },
+    {
+      // web 数据实现只依赖契约与接口。
+      name: 'v25-api-client-thin',
+      comment:
+        'V25 §3:packages/api-client 是 Web 宿主的 gateway 实现,只可 import contracts 与 platform;' +
+        '禁止 ui/features(实现层不得反向依赖消费层)。',
+      severity: 'error',
+      from: { path: '^packages/api-client/' },
+      to: {
+        path: ['^packages/(?!api-client|contracts|platform)[^/]+/', '^apps/', '^electron(/|$)'],
+      },
+    },
+    {
+      // 桌面 SQLite 受管层生产代码保持独立(core 仅测试/脚本可用)。
+      name: 'v25-desktop-db-standalone',
+      comment:
+        'V25 数据迁移:packages/desktop-db 生产代码只依赖 drizzle/better-sqlite3,' +
+        '不得 import 其他 workspace 包(__tests__ 与 scripts 可用 core 建 legacy 库比对)。',
+      severity: 'error',
+      from: { path: '^packages/desktop-db/src/', pathNot: ['/__tests__/'] },
+      to: { path: ['^packages/(?!desktop-db)[^/]+/', '^apps/'] },
+    },
   ],
   options: {
     doNotFollow: {

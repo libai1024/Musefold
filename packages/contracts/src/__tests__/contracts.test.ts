@@ -24,13 +24,14 @@ describe('cloud-safe contracts', () => {
     });
   });
 
-  it('rejects desktop-only generation fields', () => {
+  it('keeps providerId but strips undeclared desktop-only fields', () => {
+    // providerId 是跨端合法字段(桌面选本地连接,云端忽略);路径类字段不进契约。
     const parsed = cloudGenerationRequestSchema.parse({
       prompt: 'paper collage',
       providerId: 'local-provider',
       imagePath: '/tmp/result.png',
     });
-    expect(parsed).not.toHaveProperty('providerId');
+    expect(parsed.providerId).toBe('local-provider');
     expect(parsed).not.toHaveProperty('imagePath');
   });
 

@@ -1,6 +1,7 @@
 // 活跃 renderer bundle 解析器（V121-HOT-02）。
 //
-// 协议第 1 节：index.html 与 pet.html 必须原子地共用同一份 bundle。
+// 协议第 1 节：v25/shell.html 与 pet.html 必须原子地共用同一份 bundle
+// （M5c 起主窗口入口为 v2.5 壳,旧 index.html 已删）。
 // 协议第 6 节：桌面端生效时机是下次启动。因此解析一次并冻结整个进程生命周期，
 // 避免主窗口与宠物窗口落到不同根目录。
 //
@@ -40,7 +41,9 @@ export function getBuiltinRendererRoot(): string {
 
 function isCompleteRendererBundle(root: string): boolean {
   try {
-    return statSync(join(root, 'index.html')).isFile() && statSync(join(root, 'pet.html')).isFile();
+    return (
+      statSync(join(root, 'v25/shell.html')).isFile() && statSync(join(root, 'pet.html')).isFile()
+    );
   } catch {
     return false;
   }

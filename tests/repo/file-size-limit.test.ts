@@ -13,9 +13,9 @@ const LIMIT = 3000;
 const SCAN_ROOTS = [
   'apps/desktop/src',
   'apps/desktop/electron',
-  'apps/web/src',
-  'apps/web-api/src',
-  'apps/generation-worker/src',
+  'apps/web-next/src',
+  'apps/api/src',
+  'apps/worker/src',
 ] as const;
 
 function isProductionSource(relPath: string): boolean {

@@ -1,3 +1,4 @@
+import { Toaster } from '@musefold/ui/components/sonner';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { AppShell } from '../components/app-shell';
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="antialiased">
         <Providers>
           <AppShell>{children}</AppShell>
+          <Toaster position="bottom-right" />
         </Providers>
       </body>
     </html>

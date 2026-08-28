@@ -12,6 +12,8 @@ export interface PlatformCapabilities {
   hasLocalAutomation: boolean;
   /** 是否支持系统级窗口控制(标题栏、置顶等)。 */
   hasWindowChrome: boolean;
+  /** 是否有本地生图 Provider 管理面(桌面 true;Web 生图凭据由云端账号托管)。 */
+  hasLocalAiProviders: boolean;
 }
 
 export const DESKTOP_CAPABILITIES: PlatformCapabilities = {
@@ -20,6 +22,7 @@ export const DESKTOP_CAPABILITIES: PlatformCapabilities = {
   hasCloudSyncControls: true,
   hasLocalAutomation: true,
   hasWindowChrome: true,
+  hasLocalAiProviders: true,
 };
 
 export const WEB_CAPABILITIES: PlatformCapabilities = {
@@ -28,4 +31,5 @@ export const WEB_CAPABILITIES: PlatformCapabilities = {
   hasCloudSyncControls: false,
   hasLocalAutomation: false,
   hasWindowChrome: false,
+  hasLocalAiProviders: false,
 };

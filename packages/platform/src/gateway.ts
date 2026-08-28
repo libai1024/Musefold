@@ -1,12 +1,16 @@
 import type {
   AccountSummary,
+  AiProvider,
   AppPreferences,
   AppPreferencesPatch,
-  CloudGenerationRequest,
+  CreateAiProvider,
+  CreateGenerationInput,
   CreateWorkbenchSession,
+  DesktopSyncStatus,
   GenerationHistoryPage,
   GenerationHistoryQuery,
   GenerationJob,
+  LoginRequest,
   NewPromptDocument,
   NewPromptFolder,
   NewPromptTag,
@@ -17,7 +21,10 @@ import type {
   PromptTag,
   PromptUseInput,
   PromptUseResult,
+  ProviderOption,
   RedeemResult,
+  RegisterRequest,
+  UpdateAiProvider,
   UpdatePromptDocument,
   UpdatePromptFolder,
   UpdatePromptTag,
@@ -39,6 +46,16 @@ export interface MusefoldGateway {
   prompts: PromptsGateway;
   workbench: WorkbenchGateway;
   generation: GenerationGateway;
+  /**
+   * 桌面专属:本地生图 Provider 管理(SQLite 元数据 + 主进程安全存储密钥)。
+   * Web 宿主不提供(生图凭据由云端账号托管),UI 以 capabilities.hasLocalAiProviders 判断。
+   */
+  aiProviders?: AiProvidersGateway;
+  /**
+   * 桌面专属:提示词库云同步(登录 ≠ 同步,开关由用户显式打开)。
+   * Web 宿主不提供(数据天然在云端),UI 以 capabilities.hasCloudSync 判断。
+   */
+  sync?: SyncGateway;
 }
 
 export interface SettingsGateway {
@@ -48,7 +65,26 @@ export interface SettingsGateway {
 
 export interface AccountGateway {
   getStatus(): Promise<AccountSummary>;
+  /** 账密委托 New API 校验;成功返回最新账号状态(Web 种 cookie,桌面存 bearer)。 */
+  login(input: LoginRequest): Promise<AccountSummary>;
+  register(input: RegisterRequest): Promise<AccountSummary>;
+  logout(): Promise<void>;
   redeem(code: string): Promise<RedeemResult>;
+}
+
+export interface SyncGateway {
+  getStatus(): Promise<DesktopSyncStatus>;
+  /** 打开时立即跑一轮全量同步;关闭只停调度,本地数据不动。 */
+  setEnabled(enabled: boolean): Promise<DesktopSyncStatus>;
+  syncNow(): Promise<DesktopSyncStatus>;
+}
+
+export interface AiProvidersGateway {
+  list(): Promise<AiProvider[]>;
+  create(input: CreateAiProvider): Promise<AiProvider>;
+  update(id: string, patch: UpdateAiProvider): Promise<AiProvider>;
+  remove(id: string): Promise<void>;
+  setActive(id: string): Promise<AiProvider>;
 }
 
 export interface PromptsGateway {
@@ -79,11 +115,13 @@ export interface WorkbenchGateway {
 }
 
 export interface GenerationGateway {
-  create(input: CloudGenerationRequest): Promise<GenerationJob>;
+  create(input: CreateGenerationInput): Promise<GenerationJob>;
   list(query: GenerationHistoryQuery): Promise<GenerationHistoryPage>;
   get(id: string): Promise<GenerationJob>;
   cancel(id: string): Promise<GenerationJob>;
   retry(id: string): Promise<GenerationJob>;
   remove(id: string): Promise<GenerationJob>;
   restore(id: string): Promise<GenerationJob>;
+  /** 可选 Provider 目录:云端为服务端固定项,桌面为本地 AI 连接。 */
+  listProviders(): Promise<ProviderOption[]>;
 }

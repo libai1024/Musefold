@@ -16,7 +16,7 @@ export const generationStatusSchema = z.enum([
   'expired',
 ]);
 
-export const generationActorTypeSchema = z.enum(['web', 'cloud_mcp']);
+export const generationActorTypeSchema = z.enum(['web', 'cloud_mcp', 'desktop_local']);
 export const generationApprovalStatusSchema = z.enum([
   'not_required',
   'pending_approval',
@@ -35,12 +35,16 @@ export const generationAssetUrlSchema = z
       const url = new URL(value);
       return (
         url.protocol === 'https:' ||
+        // 桌面本地资产走主进程 media:// 读盘协议(media-protocol.ts);
+        // data: 允许内嵌小图(缩略占位、离线导出、测试替身)。
+        url.protocol === 'media:' ||
+        url.protocol === 'data:' ||
         (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname))
       );
     } catch {
       return false;
     }
-  }, 'Asset URL must be HTTPS or an origin-relative path');
+  }, 'Asset URL must be HTTPS, media://, data: or an origin-relative path');
 
 export const cloudGenerationRequestSchema = z.object({
   prompt: z.string().trim().min(1).max(12_000),
@@ -53,6 +57,17 @@ export const cloudGenerationRequestSchema = z.object({
     .optional(),
   quality: generationQualitySchema.default('auto'),
   count: z.literal(1).default(1),
+  /** 目标 provider(ProviderOption.id)。云端当前忽略(服务端定模型);桌面用于本地 Provider 选择。 */
+  providerId: z.string().trim().min(1).max(128).optional(),
+});
+
+/** 生图 Provider 选项:云端由服务端给固定项,桌面来自本地 AI 连接。 */
+export const providerOptionSchema = z.object({
+  id: z.string().trim().min(1).max(128),
+  label: z.string().trim().min(1).max(120),
+  model: z.string().trim().max(128).nullable(),
+  kind: z.enum(['cloud', 'local']),
+  available: z.boolean(),
 });
 
 export const createGenerationInputSchema = cloudGenerationRequestSchema.extend({
@@ -107,3 +122,4 @@ export type CreateGenerationInput = z.input<typeof createGenerationInputSchema>;
 export type ParsedCreateGenerationInput = z.output<typeof createGenerationInputSchema>;
 export type GenerationAsset = z.infer<typeof generationAssetSchema>;
 export type GenerationJob = z.infer<typeof generationJobSchema>;
+export type ProviderOption = z.infer<typeof providerOptionSchema>;

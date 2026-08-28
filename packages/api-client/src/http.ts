@@ -1,8 +1,11 @@
-import { type ApiErrorCode, apiErrorResponseSchema } from '@musefold/contracts';
-import type { z } from 'zod';
+import { type ApiErrorCode, apiErrorCodeSchema, apiErrorResponseSchema } from '@musefold/contracts';
+import { z } from 'zod';
 
 export interface ApiClientConfig {
-  /** apps/api 根地址,如 https://api.musefold.app(不含 /api/v1)。 */
+  /**
+   * apps/api 根地址(不含 /api/v1)。空串表示同源相对路径
+   * (浏览器环境,由宿主反代路由到 API,cookie 天然同站)。
+   */
   baseUrl: string;
   /** 注入 fetch 便于测试与 SSR;默认 globalThis.fetch。 */
   fetch?: typeof globalThis.fetch;
@@ -24,6 +27,8 @@ export class ApiRequestError extends Error {
 
 type QueryValue = string | number | boolean | string[] | null | undefined;
 
+const betterAuthErrorSchema = z.object({ code: z.string(), message: z.string() });
+
 export class ApiHttp {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof globalThis.fetch;
@@ -39,22 +44,31 @@ export class ApiHttp {
     response: S;
     query?: Record<string, QueryValue>;
     body?: unknown;
+    headers?: Record<string, string>;
+    /** 路径前缀,默认业务面 /api/v1;Better Auth 端点传 /api/auth。 */
+    prefix?: '/api/v1' | '/api/auth';
   }): Promise<z.output<S>> {
-    const url = new URL(`${this.baseUrl}/api/v1${options.path}`);
+    const target = `${this.baseUrl}${options.prefix ?? '/api/v1'}${options.path}`;
+    const search = new URLSearchParams();
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value === undefined) continue;
       if (Array.isArray(value)) {
-        for (const item of value) url.searchParams.append(key, item);
+        for (const item of value) search.append(key, item);
       } else {
         // null 走契约 wire 约定(字面量 'null'),见 contracts 各 query schema。
-        url.searchParams.set(key, String(value));
+        search.set(key, String(value));
       }
     }
+    // 字符串拼接而非 new URL():baseUrl 为空时保持相对路径形态。
+    const url = search.size > 0 ? `${target}?${search.toString()}` : target;
 
     const response = await this.fetchImpl(url, {
       method: options.method,
       credentials: 'include',
-      headers: options.body === undefined ? {} : { 'content-type': 'application/json' },
+      headers: {
+        ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...options.headers,
+      },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
 
@@ -65,10 +79,22 @@ export class ApiHttp {
   }
 
   private async toError(response: Response): Promise<ApiRequestError> {
-    const parsed = apiErrorResponseSchema.safeParse(await response.json().catch(() => undefined));
+    const body = await response.json().catch(() => undefined);
+    const parsed = apiErrorResponseSchema.safeParse(body);
     if (parsed.success) {
       const { code, message, retryable, requestId } = parsed.data.error;
       return new ApiRequestError(code, message, response.status, retryable, requestId);
+    }
+    // Better Auth 端点(/api/auth)的错误是顶层 { code, message },不走契约信封。
+    const authError = betterAuthErrorSchema.safeParse(body);
+    if (authError.success) {
+      const code = apiErrorCodeSchema.safeParse(authError.data.code);
+      return new ApiRequestError(
+        code.success ? code.data : 'INTERNAL_ERROR',
+        authError.data.message,
+        response.status,
+        response.status >= 500,
+      );
     }
     return new ApiRequestError(
       'INTERNAL_ERROR',

@@ -1,19 +1,36 @@
-# v2.5 发布工作流骨架:tag 驱动。完整矩阵(macOS 签名/公证 + Windows + updater feed)
-# 在 M5b 随 Changesets 接入(见 docs/v2.5/V25-DELIVERY-PLAN.md)。
+# v2.5 发布矩阵(M5-b):tag(v*)→ 全量检查 → macOS + Windows 打包与产物冒烟
+# → 站点发布(安装包 + electron-updater feed)+ GitHub Release。
+#
+# App semver 单一事实源:apps/desktop/package.json(Changesets 管版本记录)。
+# macOS 签名:hosted runner 无 Developer ID 时走 ad-hoc(产物进 updates/dev 通道);
+# 配好 CSC_LINK / CSC_KEY_PASSWORD / APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+# APPLE_TEAM_ID secrets 后自动切正式签名 + 公证。
 name: Release
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 冒烟通过后发布安装包到 zhaozhaoyue.top
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
 
 env:
-  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -24,5 +41,147 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Full checks
         run: pnpm exec turbo run lint typecheck test build check:boundaries
-      - name: Release matrix placeholder
-        run: echo "M5b 接入 electron-builder 打包矩阵与 updater feed(docs/v2.5/V25-DELIVERY-PLAN.md)"
+
+  mac-package:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      # 无 Developer ID 的 hosted runner 明确关掉钥匙串自动发现,走 ad-hoc。
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Cache Electron artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml', 'apps/desktop/electron-builder.yml') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - name: Package(signed)
+        if: env.CSC_LINK != ''
+        run: pnpm run package:mac
+      - name: Package(ad-hoc,无签名证书)
+        if: env.CSC_LINK == ''
+        run: pnpm run package:mac:adhoc
+      - name: Verify DMG
+        run: |
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          hdiutil verify "release/Musefold-${VERSION}-arm64.dmg"
+      - name: 打包产物冒烟(Playwright)
+        run: pnpm exec playwright test -c tests/v25 --project package-smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installers
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest-mac.yml
+          if-no-files-found: error
+
+  win-package:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Cache Electron artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml', 'apps/desktop/electron-builder.yml') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - name: Package Windows(nsis,x64)
+        run: pnpm run package:win -- --x64
+      - name: 打包产物冒烟(Playwright,win-unpacked)
+        run: pnpm exec playwright test -c tests/v25 --project package-smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-installers
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          if-no-files-found: error
+
+  # 安装包 + electron-updater feed 发布到自有站点(与旧发布链同一脚本)。
+  publish-site:
+    name: Publish installers and update feed
+    needs: [verify, mac-package, win-package]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: [self-hosted, musefold-prod]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-installers
+          path: artifacts/mac-installers
+      - uses: actions/download-artifact@v4
+        with:
+          name: win-installers
+          path: artifacts/win-installers
+      - name: Publish to zhaozhaoyue.top(downloads + updates feed)
+        env:
+          MUSEFOLD_SITE_ROOT: /opt/musefold/site/Musefold
+        run: |
+          set -euo pipefail
+          TAG_ARGS=()
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_ARGS=(--tag "${GITHUB_REF_NAME}")
+          fi
+          node scripts/deploy/publish-desktop.mjs \
+            "${TAG_ARGS[@]}" \
+            --mac-dir artifacts/mac-installers \
+            --win-dir artifacts/win-installers \
+            --site-root "${MUSEFOLD_SITE_ROOT}" \
+            --repo-root "$GITHUB_WORKSPACE"
+
+  github-release:
+    needs: [verify, mac-package, win-package]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-installers
+          path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: win-installers
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/*.dmg
+            artifacts/*.zip
+            artifacts/*.exe

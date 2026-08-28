@@ -1,6 +1,7 @@
 import {
   accountSummarySchema,
-  type CloudGenerationRequest,
+  type CreateGenerationInput,
+  type LoginRequest,
   type CreateWorkbenchSession,
   type GenerationHistoryQuery,
   generationHistoryPageSchema,
@@ -15,7 +16,9 @@ import {
   promptTagSchema,
   type PromptUseInput,
   promptUseResultSchema,
+  providerOptionSchema,
   redeemResultSchema,
+  type RegisterRequest,
   type UpdatePromptDocument,
   type UpdatePromptFolder,
   type UpdatePromptTag,
@@ -34,13 +37,47 @@ import { type ApiClientConfig, ApiHttp } from './http';
  */
 export type CloudDataGateway = Omit<MusefoldGateway, 'settings'>;
 
+// Better Auth 登录/注册响应:只关心会话建立成功,token 由 cookie 承载(Web)。
+const authSessionResponseSchema = z.looseObject({ token: z.string().min(1) });
+
 export function createCloudDataGateway(config: ApiClientConfig): CloudDataGateway {
   const http = new ApiHttp(config);
 
+  const getStatus = () =>
+    http.request({ method: 'GET', path: '/account/status', response: accountSummarySchema });
+
   return {
     account: {
-      getStatus: () =>
-        http.request({ method: 'GET', path: '/account/status', response: accountSummarySchema }),
+      getStatus,
+      login: async (input: LoginRequest) => {
+        await http.request({
+          method: 'POST',
+          prefix: '/api/auth',
+          path: '/sign-in/new-api',
+          body: { email: input.username, password: input.password },
+          response: authSessionResponseSchema,
+        });
+        return getStatus();
+      },
+      register: async (input: RegisterRequest) => {
+        await http.request({
+          method: 'POST',
+          prefix: '/api/auth',
+          path: '/sign-up/new-api',
+          body: { email: input.username, password: input.password },
+          response: authSessionResponseSchema,
+        });
+        return getStatus();
+      },
+      logout: async () => {
+        await http.request({
+          method: 'POST',
+          prefix: '/api/auth',
+          path: '/sign-out',
+          body: {},
+          response: z.unknown(),
+        });
+      },
       redeem: (code: string) =>
         http.request({
           method: 'POST',
@@ -162,11 +199,12 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
         }),
     },
     generation: {
-      create: (input: CloudGenerationRequest) =>
+      create: (input: CreateGenerationInput) =>
         http.request({
           method: 'POST',
           path: '/generations',
           body: input,
+          headers: { 'idempotency-key': crypto.randomUUID() },
           response: generationJobSchema,
         }),
       list: (query: GenerationHistoryQuery) =>
@@ -188,6 +226,7 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
         http.request({
           method: 'POST',
           path: `/generations/${id}/retry`,
+          headers: { 'idempotency-key': crypto.randomUUID() },
           response: generationJobSchema,
         }),
       remove: (id) =>
@@ -201,6 +240,12 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           method: 'POST',
           path: `/generations/${id}/restore`,
           response: generationJobSchema,
+        }),
+      listProviders: () =>
+        http.request({
+          method: 'GET',
+          path: '/generations/providers',
+          response: z.array(providerOptionSchema),
         }),
     },
   };

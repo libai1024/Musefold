@@ -36,10 +36,7 @@
         "@musefold/cli#typecheck",
         "@musefold/mcp#typecheck",
         "@musefold/cloud-client#typecheck",
-        "@musefold/product-ui#typecheck",
-        "@musefold/web#typecheck",
-        "@musefold/web-api#typecheck",
-        "@musefold/generation-worker#typecheck"
+        "@musefold/product-ui#typecheck"
       ],
       "outputs": [".tsout/**", "packages/*/.tsout/**", "apps/*/.tsout/**"],
       "inputs": [

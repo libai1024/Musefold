@@ -19,7 +19,10 @@ import {
 import { Separator } from '@musefold/ui/components/separator';
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { Switch } from '@musefold/ui/components/switch';
-import { useAccountStatus, usePreferences, useUpdatePreferences } from './hooks';
+import { AccountPanel } from '../account/AccountPanel';
+import { AiConnectionsPanel } from '../account/AiConnectionsPanel';
+import { CloudSyncPanel } from '../account/CloudSyncPanel';
+import { usePreferences, useUpdatePreferences } from './hooks';
 
 const THEME_LABELS: Record<AppTheme, string> = {
   light: '浅色',
@@ -40,7 +43,6 @@ export function SettingsScreen() {
   const capabilities = useCapabilities();
   const preferences = usePreferences();
   const updatePreferences = useUpdatePreferences();
-  const account = useAccountStatus();
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6" data-testid="settings-screen">
@@ -133,38 +135,11 @@ export function SettingsScreen() {
         </CardContent>
       </Card>
 
-      <Card data-testid="settings-account-card">
-        <CardHeader>
-          <CardTitle>账号</CardTitle>
-          <CardDescription>Musefold 云服务状态</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {account.isPending ? (
-            <Skeleton className="h-12 w-full" />
-          ) : account.isError ? (
-            <p className="text-muted-foreground text-sm" data-testid="settings-account-signed-out">
-              未登录。登录后可使用云同步与在线生图。
-            </p>
-          ) : (
-            <div
-              className="flex items-center justify-between"
-              data-testid="settings-account-summary"
-            >
-              <div>
-                <p className="font-medium text-foreground text-sm">
-                  {account.data.displayName ?? account.data.username}
-                </p>
-                <p className="mt-0.5 text-muted-foreground text-xs">
-                  余额 {account.data.quota} {account.data.quotaUnit}
-                </p>
-              </div>
-              <Badge variant={account.data.canGenerate ? 'default' : 'destructive'}>
-                {account.data.canGenerate ? '可生图' : '余额不足'}
-              </Badge>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <AccountPanel />
+
+      {capabilities.hasCloudSyncControls && <CloudSyncPanel />}
+
+      {capabilities.hasLocalAiProviders && <AiConnectionsPanel />}
     </div>
   );
 }

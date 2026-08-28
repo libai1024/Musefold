@@ -7,19 +7,32 @@ import { _electron as electron, type ElectronApplication, type Page } from '@pla
 const repoRoot = resolve(import.meta.dirname, '../..');
 const require = createRequire(import.meta.url);
 
-export async function launchV25App(prefix: string): Promise<ElectronApplication> {
+export interface V25App {
+  app: ElectronApplication;
+  /** 本次启动的独立 userData 目录(SQLite 库、偏好文件都在这)。 */
+  userDataDir: string;
+}
+
+/** 启动 v2.5 壳。传 reuseUserDataDir 可复用上次目录(重启持久化类用例)。 */
+export async function launchV25App(prefix: string, reuseUserDataDir?: string): Promise<V25App> {
   // electron 包的默认导出是可执行文件路径
   const electronPath = require('electron') as unknown as string;
-  return electron.launch({
+  const userDataDir = reuseUserDataDir ?? mkdtempSync(join(tmpdir(), prefix));
+  const app = await electron.launch({
     executablePath: electronPath,
     args: [join(repoRoot, 'apps/desktop/out/main/index.js')],
     env: {
       ...process.env,
-      MUSEFOLD_V25_SHELL: '1',
       MUSEFOLD_E2E: '1',
-      MUSEFOLD_E2E_USER_DATA_DIR: mkdtempSync(join(tmpdir(), prefix)),
+      MUSEFOLD_E2E_USER_DATA_DIR: userDataDir,
     },
   });
+  return { app, userDataDir };
+}
+
+/** 桌面本地库文件(system/paths.ts:userData + core DB_NAME)。 */
+export function desktopDbPath(userDataDir: string): string {
+  return join(userDataDir, 'musefold-data-v0.3.0.db');
 }
 
 /**

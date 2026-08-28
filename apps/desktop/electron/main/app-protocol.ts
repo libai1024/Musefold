@@ -12,16 +12,14 @@ export const APP_SCHEME = APP_SCHEME_PRIVILEGES.scheme;
 export const APP_HOST = 'musefold';
 export const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
 
-/** 主窗口入口。两个窗口必须通过本模块拼 URL，禁止在调用处各写一遍 origin。 */
-export const APP_MAIN_ENTRY = 'index.html';
 /** 宠物窗口入口。与主窗口共用同一 origin / 同一 bundle。 */
 export const APP_PET_ENTRY = 'pet.html';
-/** v2.5 新渲染壳入口(M3 打样;M4 各域迁入后成为唯一主窗口入口)。 */
+/** v2.5 渲染壳 —— 主窗口唯一入口(M4e 定稿;旧 index.html 入口 M5c 删除)。 */
 export const APP_V25_ENTRY = 'v25/shell.html';
-/** E2E 查询串。渲染层 `apps/desktop/src/lib/test-hook.ts` 用 `location.search.includes` 判定。 */
+/** E2E 查询串。渲染层以 `location.search.includes` 判定。 */
 export const E2E_SEARCH = 'musefold_e2e=1';
 
-export type AppRendererEntry = typeof APP_MAIN_ENTRY | typeof APP_PET_ENTRY | typeof APP_V25_ENTRY;
+export type AppRendererEntry = typeof APP_PET_ENTRY | typeof APP_V25_ENTRY;
 
 /**
  * 拼出固定 origin 下的入口 URL。query / hash 只作为页面地址的一部分，
@@ -38,27 +36,15 @@ export function isAppOriginUrl(url: string): boolean {
 }
 
 /**
- * 主窗口加载地址。开发分支的字符串拼接必须与历史实现逐字符一致：
- * `ELECTRON_RENDERER_URL` 存在时走 Vite；否则走 `app://musefold/index.html`。
- * v25 为真时加载 v2.5 新渲染壳(MUSEFOLD_V25_SHELL=1,M3 打样开关)。
+ * 主窗口加载地址(M4e 起恒为 v2.5 壳):
+ * `ELECTRON_RENDERER_URL` 存在时走 Vite dev server,否则走 `app://musefold/v25/shell.html`。
  */
-export function resolveMainWindowLoadUrl(
-  rendererUrl: string | undefined,
-  e2e: boolean,
-  v25 = false,
-): string {
-  if (v25) {
-    if (rendererUrl) {
-      const base = `${rendererUrl.replace(/\/$/, '')}/${APP_V25_ENTRY}`;
-      return e2e ? `${base}?${E2E_SEARCH}` : base;
-    }
-    return buildAppEntryUrl(APP_V25_ENTRY, { e2e });
-  }
+export function resolveMainWindowLoadUrl(rendererUrl: string | undefined, e2e: boolean): string {
   if (rendererUrl) {
-    const base = rendererUrl;
-    return e2e ? `${base}${base.includes('?') ? '&' : '?'}musefold_e2e=1` : base;
+    const base = `${rendererUrl.replace(/\/$/, '')}/${APP_V25_ENTRY}`;
+    return e2e ? `${base}?${E2E_SEARCH}` : base;
   }
-  return buildAppEntryUrl(APP_MAIN_ENTRY, { e2e });
+  return buildAppEntryUrl(APP_V25_ENTRY, { e2e });
 }
 
 /**
