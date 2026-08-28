@@ -30,3 +30,29 @@ export function openJson<T>(sealed: SealedValue, keyConfig: string): T {
     Buffer.concat([decipher.update(sealed.ciphertext), decipher.final()]).toString('utf8'),
   ) as T;
 }
+
+/** 单列文本存储编码:`v1.<nonce>.<authTag>.<ciphertext>`(base64url)。 */
+export function sealJsonToString(value: unknown, keyConfig: string): string {
+  const sealed = sealJson(value, keyConfig);
+  return [
+    'v1',
+    sealed.nonce.toString('base64url'),
+    sealed.authTag.toString('base64url'),
+    sealed.ciphertext.toString('base64url'),
+  ].join('.');
+}
+
+export function openJsonFromString<T>(encoded: string, keyConfig: string): T {
+  const [version, nonce, authTag, ciphertext] = encoded.split('.');
+  if (version !== 'v1' || !nonce || !authTag || !ciphertext) {
+    throw new Error('密文格式无效');
+  }
+  return openJson<T>(
+    {
+      ciphertext: Buffer.from(ciphertext, 'base64url'),
+      nonce: Buffer.from(nonce, 'base64url'),
+      authTag: Buffer.from(authTag, 'base64url'),
+    },
+    keyConfig,
+  );
+}

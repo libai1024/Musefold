@@ -1,0 +1,32 @@
+{
+  "name": "@musefold/worker",
+  "version": "0.0.0-internal",
+  "description": "Musefold v2.5 生图队列消费者(graphile-worker + Drizzle)",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx watch src/bin.ts",
+    "start": "tsx src/bin.ts",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.980.0",
+    "@musefold/contracts": "workspace:*",
+    "@musefold/db": "workspace:*",
+    "@musefold/server-crypto": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "graphile-worker": "0.17.3",
+    "pg": "8.23.0",
+    "tsx": "4.20.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

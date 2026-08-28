@@ -1,0 +1,46 @@
+{
+  "name": "@musefold/api",
+  "version": "0.0.0-internal",
+  "description": "Musefold v2.5 API(Hono + zod-openapi + Better Auth + Cloud MCP)",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx watch src/bin.ts",
+    "start": "tsx src/bin.ts",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run src",
+    "test:integration": "RUN_DATABASE_TESTS=true vitest run src/__tests__/integration"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.980.0",
+    "@aws-sdk/s3-request-presigner": "^3.980.0",
+    "@better-auth/cimd": "^1.7.2",
+    "@better-auth/core": "^1.7.2",
+    "@better-auth/mcp": "^1.7.2",
+    "@hono/node-server": "^2.1.1",
+    "@hono/zod-openapi": "^1.6.1",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@musefold/contracts": "workspace:*",
+    "@musefold/db": "workspace:*",
+    "@musefold/new-api-client": "workspace:*",
+    "@musefold/server-crypto": "workspace:*",
+    "better-auth": "^1.7.2",
+    "drizzle-orm": "^0.45.2",
+    "graphile-worker": "0.17.3",
+    "hono": "^4.13.5",
+    "pg": "8.23.0",
+    "tsx": "4.20.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.1.0",
+    "@types/pg": "8.15.5",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

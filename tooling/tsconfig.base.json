@@ -33,6 +33,8 @@
       "@musefold/mcp/*": ["packages/mcp/src/*"],
       "@musefold/contracts": ["packages/contracts/src/index.ts"],
       "@musefold/contracts/*": ["packages/contracts/src/*"],
+      "@musefold/db": ["packages/db/src/index.ts"],
+      "@musefold/db/*": ["packages/db/src/*"],
       "@musefold/desktop-contracts": ["packages/desktop-contracts/src/index.ts"],
       "@musefold/desktop-contracts/*": ["packages/desktop-contracts/src/*"],
       "@musefold/domain": ["packages/domain/src/index.ts"],

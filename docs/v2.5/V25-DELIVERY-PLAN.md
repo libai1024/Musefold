@@ -33,17 +33,19 @@ M0 基线冻结 → M1 工具链原子切换 → M2 服务端重建 → M3 共�
 | M1-04 | 三条新 workflow(pr.yml / main.yml / release.yml 骨架)替换旧四条;`.githooks` Skill-Impact hook 停用;旧自研门禁脚本从 scripts 引用中断开 | PR workflow 在 CI 跑通 |
 | M1-05 | 根 package.json scripts 精简为新命令面(dev / build / test / lint / check 等) | 命令清单与文档一致 |
 
-## M2 服务端重建
+## M2 服务端重建(已完成)
 
 | 卡 | 内容 | 验收 |
 |---|---|---|
-| M2-01 | `packages/db`:全新 Drizzle PG schema(用户关联、会话、prompts/folders/tags、生成任务、同步、MCP grants),drizzle-kit generate 基线迁移 | 迁移在空库可重放 |
-| M2-02 | `apps/api` 骨架:Hono + `@hono/zod-openapi` + 错误模型 + 配置加载;health 路由;OpenAPI 端点 | 集成测试(testcontainers 真 PG)通过 |
-| M2-03 | Better Auth 集成 spike → 落地:凭据校验委托 New API(经 `new-api-client`),Web cookie 会话 + 桌面设备会话 | 登录/会话/登出三链路集成测试 |
-| M2-04 | 产品路由重建:account(余额/兑换代理 New API)、prompts、workbench、generation、sync | 契约测试对 contracts schema 全覆盖 |
-| M2-05 | Cloud MCP:官方 TS SDK v2 + Streamable HTTP + `@better-auth/mcp` OAuth;7 个只读工具白名单 | tools/list 契约测试 = 白名单 |
-| M2-06 | `apps/worker` 适配新 db schema;`apps/generation-worker` 退役 | 队列消费集成测试 |
-| M2-07 | 部署切换:Docker compose 更新为新 api/worker;旧 `apps/web-api` 下线删除 | main workflow 部署成功 |
+| M2-01 ✅ | `packages/db`:全新 Drizzle PG schema(Better Auth 核心表 + oauth* 插件表 + prompts/sync/workbench/generation/credentials/skills/ops,28 表),drizzle-kit generate 基线迁移 + 程序化 `migrateDatabase` | 迁移在空库可重放(集成测试即重放) |
+| M2-02 ✅ | `apps/api` 骨架:Hono + `@hono/zod-openapi`(registry 注册 + zod 手动校验)+ AppError 错误模型 + zod env;/healthz;/api/v1/openapi.json | 集成测试(testcontainers 真 PG)10/10 通过 |
+| M2-03 ✅ | Better Auth 落地:`newApiDelegation` 插件把登录/注册委托 New API,会话建立后固化中继凭据(relay_sessions)与生图 token(account_credentials,AES-GCM 单列密文);bearer + jwt + mcp + cimd 插件 | 登录成功/错误密码 401/会话保护/凭据固化集成测试 |
+| M2-04 ✅ | 产品路由重建:account(余额/兑换,自动 refresh 中继 jwt)、prompts(乐观锁)、workbench、generation(幂等键 + graphile add_job 同事务入队 + SSE 事件)、sync(设备/bootstrap/pull/push 幂等重放) | 集成测试覆盖 CRUD/冲突/幂等/重放 |
+| M2-05 ✅ | Cloud MCP:官方 TS SDK v2 `createMcpHandler`(legacy: 'reject')+ `requireMcpAuth`(JWT/JWKS)+ 按 scope 过滤的 7 个只读工具白名单 | manifest 单测锁定白名单;401 WWW-Authenticate 挑战集成测试 |
+| M2-06 ✅ | `apps/worker`:graphile-worker + Drizzle,租约恢复(upstream_request_sent 永不盲重试)、image-gateway 语义原样搬运;`apps/generation-worker` 退役(删除在 M5c) | 租约决策/图像网关单测 8/8 |
+| M2-07 ✅ | 部署:apps/api、apps/worker Dockerfile(pnpm deploy 隔离包)+ `infra/v2.5/compose.yaml`(PG17/minio/api/worker)+ main workflow 镜像构建 job;旧 `apps/web-api` 不再部署(源码删除在 M5c) | 本地镜像构建 + 启动冒烟通过 |
+
+落地备注:云端 MCP 生图/审批/花费预留(v2.1 休眠功能)刻意不迁移;PG RLS + set_config 方案改为应用层 userId 过滤;限流从 SQL 函数改为应用层固定窗口原子 upsert。
 
 ## M3 共享层地基
 

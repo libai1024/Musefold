@@ -1,0 +1,28 @@
+{
+  "name": "@musefold/db",
+  "version": "0.0.0-internal",
+  "description": "Musefold v2.5 PostgreSQL Drizzle schema 与迁移(api 与 worker 共享)",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.4",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}

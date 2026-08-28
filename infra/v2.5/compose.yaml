@@ -1,0 +1,77 @@
+# Musefold v2.5 服务端编排(自托管 Docker)。
+# 生产:docker compose -f infra/v2.5/compose.yaml up -d(.env 提供密钥)。
+# 迁移由 api 容器外置执行:pnpm --filter @musefold/db run db:migrate。
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: musefold_v25
+      POSTGRES_USER: musefold
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-musefold_local}
+    ports:
+      - "55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U musefold -d musefold_v25"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - musefold-v25-postgres:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-musefold_local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-musefold_local_secret}
+    ports:
+      - "59000:9000"
+      - "59001:9001"
+    volumes:
+      - musefold-v25-minio:/data
+
+  api:
+    image: musefold/api:v2.5
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "8787"
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:8787}
+      DATABASE_URL: postgres://musefold:${POSTGRES_PASSWORD:-musefold_local}@postgres:5432/musefold_v25
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      NEW_API_BASE_URL: ${NEW_API_BASE_URL:?}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-musefold}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-musefold_local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-musefold_local_secret}
+    ports:
+      - "8787:8787"
+
+  worker:
+    image: musefold/worker:v2.5
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://musefold:${POSTGRES_PASSWORD:-musefold_local}@postgres:5432/musefold_v25
+      NEW_API_BASE_URL: ${NEW_API_BASE_URL:?}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-musefold}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-musefold_local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-musefold_local_secret}
+
+volumes:
+  musefold-v25-postgres:
+  musefold-v25-minio:
