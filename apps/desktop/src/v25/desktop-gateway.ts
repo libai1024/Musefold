@@ -1,14 +1,19 @@
 // v2.5 桌面 gateway:MusefoldGateway 的 typed IPC 实现。
-// 打样域(settings/account)走主进程单通道桥;数据域方法随 M4 各域垂直切换接入,
+// settings/account/prompts 走主进程单通道桥;其余数据域随 M4 各域垂直切换接入,
 // 在此前调用会得到显式 NOT_IMPLEMENTED,而不是静默失败。
 
 import {
   type AppPreferences,
-  appPreferencesSchema,
   accountSummarySchema,
+  appPreferencesSchema,
+  promptDocumentSchema,
+  promptFolderSchema,
+  promptPageSchema,
+  promptTagSchema,
+  promptUseResultSchema,
 } from '@musefold/contracts';
 import type { MusefoldGateway } from '@musefold/platform';
-import type { z } from 'zod';
+import { z } from 'zod';
 
 interface BridgeEnvelope {
   ok: boolean;
@@ -34,6 +39,9 @@ export class DesktopGatewayError extends Error {
     this.name = 'DesktopGatewayError';
   }
 }
+
+const promptFolderListSchema = z.array(promptFolderSchema);
+const promptTagListSchema = z.array(promptTagSchema);
 
 async function invoke<S extends z.ZodType>(
   method: string,
@@ -75,21 +83,22 @@ export function createDesktopGateway(): MusefoldGateway {
       redeem: () => notImplemented('account.redeem'),
     },
     prompts: {
-      list: () => notImplemented('prompts'),
-      get: () => notImplemented('prompts'),
-      create: () => notImplemented('prompts'),
-      update: () => notImplemented('prompts'),
-      remove: () => notImplemented('prompts'),
-      restore: () => notImplemented('prompts'),
-      use: () => notImplemented('prompts'),
-      listFolders: () => notImplemented('prompts'),
-      createFolder: () => notImplemented('prompts'),
-      updateFolder: () => notImplemented('prompts'),
-      removeFolder: () => notImplemented('prompts'),
-      listTags: () => notImplemented('prompts'),
-      createTag: () => notImplemented('prompts'),
-      updateTag: () => notImplemented('prompts'),
-      removeTag: () => notImplemented('prompts'),
+      list: (query) => invoke('prompts.list', query, promptPageSchema),
+      get: (id) => invoke('prompts.get', { id }, promptDocumentSchema),
+      create: (input) => invoke('prompts.create', input, promptDocumentSchema),
+      update: (id, patch) => invoke('prompts.update', { id, patch }, promptDocumentSchema),
+      remove: (id) => invoke('prompts.remove', { id }, promptDocumentSchema),
+      restore: (id) => invoke('prompts.restore', { id }, promptDocumentSchema),
+      use: (id, input) => invoke('prompts.use', { id, input }, promptUseResultSchema),
+      listFolders: () => invoke('prompts.listFolders', undefined, promptFolderListSchema),
+      createFolder: (input) => invoke('prompts.createFolder', input, promptFolderSchema),
+      updateFolder: (id, patch) =>
+        invoke('prompts.updateFolder', { id, patch }, promptFolderSchema),
+      removeFolder: (id) => invoke('prompts.removeFolder', { id }, promptFolderSchema),
+      listTags: () => invoke('prompts.listTags', undefined, promptTagListSchema),
+      createTag: (input) => invoke('prompts.createTag', input, promptTagSchema),
+      updateTag: (id, patch) => invoke('prompts.updateTag', { id, patch }, promptTagSchema),
+      removeTag: (id) => invoke('prompts.removeTag', { id }, promptTagSchema),
     },
     workbench: {
       listSessions: () => notImplemented('workbench'),

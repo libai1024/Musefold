@@ -1,7 +1,7 @@
 // v2.5 单通道 typed IPC 桥(V25-ARCHITECTURE §5):
 // 渲染层 window.musefoldV25.invoke(method, payload) → 'musefold:invoke'。
 // 每方法入参 zod 校验;返回结构化信封,业务错误不走异常序列化。
-// M3 打样域只挂 settings + account;数据域随 M4 各域垂直切换接入。
+// 域方法表:settings/account 在本文件,数据域各自成文件(prompts-domain 等)。
 
 import {
   type AppPreferences,
@@ -13,15 +13,10 @@ import { app, ipcMain } from 'electron';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { z } from 'zod';
+import { BridgeError, type BridgeEnvelope, type MethodDef } from './envelope';
+import { buildPromptsDomainMethods } from './prompts-domain';
 
-export type BridgeEnvelope<T> =
-  | { ok: true; data: T }
-  | { ok: false; code: string; message: string };
-
-interface MethodDef {
-  input: z.ZodType;
-  handle(input: unknown): Promise<unknown>;
-}
+export type { BridgeEnvelope } from './envelope';
 
 const V25_CHANNEL = 'musefold:invoke';
 const PREFERENCES_FILE = 'v25-preferences.json';
@@ -67,17 +62,8 @@ function buildMethods(): Record<string, MethodDef> {
         throw new BridgeError('AUTH_REQUIRED', '桌面端尚未登录');
       },
     },
+    ...buildPromptsDomainMethods(),
   };
-}
-
-class BridgeError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'BridgeError';
-  }
 }
 
 export function registerV25GatewayBridge(): void {

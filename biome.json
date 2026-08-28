@@ -10,12 +10,14 @@
       "**",
       "!**/pnpm-lock.yaml",
       "!**/*.md",
+      "!.claude",
       "!docs",
       "!resources",
-      "!website/Musefold/assets",
+      "!website",
       "!apps/desktop/resources",
       "!apps/web/src/styles.css",
-      "!apps/desktop/src/styles/globals.css"
+      "!apps/desktop/src/styles/globals.css",
+      "!**/next-env.d.ts"
     ]
   },
   "formatter": {

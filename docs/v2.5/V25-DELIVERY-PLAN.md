@@ -66,11 +66,17 @@ M0 基线冻结 → M1 工具链原子切换 → M2 服务端重建 → M3 共�
 
 | 卡 | 域 | 特有事项 |
 |---|---|---|
-| M4-a | 提示词库 | CRUD、搜索、置顶、回收站、文件夹/标签;桌面本地事务 + 云同步语义 |
+| M4-a ✅ | 提示词库 | CRUD、搜索、置顶、回收站、文件夹/标签;桌面本地事务 + 云同步语义 |
 | M4-b | 工作台/生成 | 会话、草稿、提交/取消/重试、Provider 选择(桌面本地 Provider 能力 flag) |
 | M4-c | 历史 | 列表、筛选、详情、重试、软删/恢复、来源标签 |
 | M4-d | 账号/连接 | New API 余额/兑换面、Cloud Agent 连接管理、同步开关(登录 ≠ 同步) |
 | M4-e | 桌面数据与 IPC 收口 | SQLite → Drizzle 受管迁移(备份 → 迁移 → 校验);主进程结构搬迁完成;旧渲染层入口删除 |
+
+M4-a 落地备注:
+- features/prompts:行式列表(信息架构承自 v2.0 PromptListRow:缩略图/摘要/元信息/常驻操作组,操作不藏浮层)、「置顶/全部」分节、回收站 tab、文件夹与标签管理 Popover、编辑器对话框;全部走语义 token,零硬编码色。
+- 双宿主:Web 走 api-client(M2 路由已就绪);桌面主进程 `ipc-v25/prompts-domain.ts` 挂 15 个 `prompts.*` 方法(contracts↔core 映射内嵌,folders/tags 目录直写 SQL,写路径保留 `scheduleCloudSync()`);共享壳 `features/shell/AppShell` 双宿主统一(Web 接 Next 路由、桌面本地视图切换)。
+- E2E 教训:Electron 不能 `firstWindow()`(prefs 迁移窗口先开即关,须按 URL 等 v25 壳窗口);Playwright `workers:1` 串行(headed Electron 并行互抢 macOS 焦点,Radix 浮层失焦即关);行内常驻操作钮让用例免于浮层时序,32 用例三轮连跑全绿。
+- 旧实现/旧测试物理删除集中到 M5-c(旧 CI 已不跑 Python E2E,旧壳保活到 M4-e 整体切换,安全网已转移到 tests/v25)。
 
 ## M5 收尾
 

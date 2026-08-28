@@ -9,6 +9,9 @@ export default defineConfig({
   testDir: '.',
   outputDir: './.results',
   fullyParallel: false,
+  // 单 worker 串行:Electron 是真窗口(headed),多实例并行会互抢 macOS
+  // 焦点,Radix 浮层(菜单/弹窗)一失焦即 dismiss,菜单类用例必然抖动。
+  workers: 1,
   retries: 0,
   reporter: [['list']],
   timeout: 60_000,

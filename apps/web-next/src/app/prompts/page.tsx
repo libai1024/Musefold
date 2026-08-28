@@ -1,5 +1,7 @@
-import { DomainPlaceholder } from '../../components/domain-placeholder';
+'use client';
+
+import { PromptLibraryScreen } from '@musefold/features/prompts';
 
 export default function PromptsPage() {
-  return <DomainPlaceholder domain="提示词库" />;
+  return <PromptLibraryScreen />;
 }

@@ -1,36 +1,12 @@
-import { mkdtempSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import {
-  _electron as electron,
-  type ElectronApplication,
-  expect,
-  type Page,
-  test,
-} from '@playwright/test';
-
-const repoRoot = resolve(import.meta.dirname, '../..');
-const require = createRequire(import.meta.url);
+import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
+import { launchV25App, v25ShellPage } from './electron-helpers';
 
 let app: ElectronApplication;
 let page: Page;
 
 test.beforeAll(async () => {
-  // electron 包的默认导出是可执行文件路径
-  const electronPath = require('electron') as unknown as string;
-  app = await electron.launch({
-    executablePath: electronPath,
-    args: [join(repoRoot, 'apps/desktop/out/main/index.js')],
-    env: {
-      ...process.env,
-      MUSEFOLD_V25_SHELL: '1',
-      MUSEFOLD_E2E: '1',
-      MUSEFOLD_E2E_USER_DATA_DIR: mkdtempSync(join(tmpdir(), 'musefold-v25-e2e-')),
-    },
-  });
-  page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
+  app = await launchV25App('musefold-v25-e2e-');
+  page = await v25ShellPage(app);
 });
 
 test.afterAll(async () => {
@@ -39,6 +15,8 @@ test.afterAll(async () => {
 
 test('v2.5 新渲染壳加载 features 设置屏', async () => {
   await expect(page.getByTestId('v25-shell')).toBeVisible();
+  // 默认视图是提示词库;经共享壳侧栏切到设置。
+  await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   await expect(page.getByTestId('settings-host-badge')).toHaveText('桌面版');
 });

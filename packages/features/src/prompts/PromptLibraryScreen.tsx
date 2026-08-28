@@ -1,0 +1,333 @@
+'use client';
+
+import type { PromptDocument, PromptListQuery } from '@musefold/contracts';
+import { Badge } from '@musefold/ui/components/badge';
+import { Button } from '@musefold/ui/components/button';
+import { Input } from '@musefold/ui/components/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@musefold/ui/components/select';
+import { Skeleton } from '@musefold/ui/components/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@musefold/ui/components/tabs';
+import { TooltipProvider } from '@musefold/ui/components/tooltip';
+import { Library, Plus, Search } from '@musefold/ui/icons';
+import { cn } from '@musefold/ui/lib/utils';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { PromptEditorDialog, editorValueToNewDocument } from './PromptEditorDialog';
+import { PromptListRow } from './PromptListRow';
+import { TaxonomyManager } from './TaxonomyManager';
+import {
+  copyPromptContent,
+  useCreatePrompt,
+  usePromptFolders,
+  usePromptList,
+  usePromptTags,
+  useRemovePrompt,
+  useRestorePrompt,
+  useUpdatePrompt,
+  useUsePrompt,
+} from './hooks';
+
+type LibraryTab = 'library' | 'trash';
+type LibrarySort = NonNullable<PromptListQuery['sort']>;
+
+const ALL_FOLDERS = '__all__';
+const UNFILED = '__unfiled__';
+
+const SORT_LABELS: Record<LibrarySort, string> = {
+  'updated-desc': '最近更新',
+  'created-desc': '最近创建',
+  'usage-desc': '最常使用',
+  'title-asc': '标题 A→Z',
+};
+
+interface RowSection {
+  key: string;
+  title: string | null;
+  items: PromptDocument[];
+}
+
+/**
+ * 提示词库屏幕 —— v2.5 第一个数据域,双宿主同一份。
+ * 信息架构承自 v2.0:页头计数、搜索工具条、「置顶/全部」分节列表、
+ * 回收站独立视图;数据经 MusefoldGateway,组件全部走语义 token。
+ */
+export function PromptLibraryScreen() {
+  const [tab, setTab] = useState<LibraryTab>('library');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<LibrarySort>('updated-desc');
+  const [folderFilter, setFolderFilter] = useState<string>(ALL_FOLDERS);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editing, setEditing] = useState<PromptDocument | null>(null);
+
+  const deferredSearch = useDeferredValue(search);
+
+  const query = useMemo<Omit<PromptListQuery, 'cursor'>>(
+    () => ({
+      q: deferredSearch.trim() || undefined,
+      sort,
+      limit: 30,
+      folderId:
+        folderFilter === ALL_FOLDERS ? undefined : folderFilter === UNFILED ? null : folderFilter,
+      tagIds: tagFilter.length > 0 ? tagFilter : undefined,
+      includeDeleted: tab === 'trash' ? true : undefined,
+    }),
+    [deferredSearch, sort, folderFilter, tagFilter, tab],
+  );
+
+  const list = usePromptList(query);
+  const folders = usePromptFolders();
+  const tags = usePromptTags();
+  const createPrompt = useCreatePrompt();
+  const updatePrompt = useUpdatePrompt();
+  const removePrompt = useRemovePrompt();
+  const restorePrompt = useRestorePrompt();
+  const usePromptAction = useUsePrompt();
+
+  const sections = useMemo<RowSection[]>(() => {
+    const rows = list.data?.pages.flatMap((page) => page.items) ?? [];
+    if (tab === 'trash') {
+      // includeDeleted 语义是「包含」;回收站视图只看已删。
+      return [{ key: 'trash', title: null, items: rows.filter((row) => row.deletedAt != null) }];
+    }
+    const pinned = rows.filter((row) => row.isPinned);
+    const rest = rows.filter((row) => !row.isPinned);
+    if (pinned.length === 0) return [{ key: 'all', title: null, items: rest }];
+    return [
+      { key: 'pinned', title: '置顶', items: pinned },
+      { key: 'all', title: '全部', items: rest },
+    ];
+  }, [list.data, tab]);
+
+  const totalCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+
+  function openCreate() {
+    setEditing(null);
+    setEditorOpen(true);
+  }
+
+  function openEdit(prompt: PromptDocument) {
+    setEditing(prompt);
+    setEditorOpen(true);
+  }
+
+  async function handleCopy(prompt: PromptDocument) {
+    await copyPromptContent(prompt);
+    usePromptAction.mutate({ id: prompt.id, input: { action: 'copy' } });
+  }
+
+  function handleTogglePin(prompt: PromptDocument) {
+    updatePrompt.mutate({
+      id: prompt.id,
+      patch: { isPinned: !prompt.isPinned, expectedVersion: prompt.version },
+    });
+  }
+
+  return (
+    <TooltipProvider delayDuration={400}>
+      <div
+        className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 md:p-6"
+        data-testid="prompt-library"
+      >
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2">
+            <h1 className="font-semibold text-foreground text-xl">提示词库</h1>
+            {list.isSuccess && (
+              <span className="text-muted-foreground text-sm" data-testid="prompt-count">
+                {totalCount} 条
+              </span>
+            )}
+          </div>
+          <Button onClick={openCreate} data-testid="prompt-create">
+            <Plus className="size-4" /> 新建提示词
+          </Button>
+        </header>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs value={tab} onValueChange={(next) => setTab(next as LibraryTab)}>
+            <TabsList>
+              <TabsTrigger value="library" data-testid="prompt-tab-all">
+                库
+              </TabsTrigger>
+              <TabsTrigger value="trash" data-testid="prompt-tab-trash">
+                回收站
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="relative min-w-40 flex-1">
+            <Search
+              className="absolute top-2.5 left-2.5 size-4 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={search}
+              data-testid="prompt-search"
+              placeholder="搜索标题、正文或标签"
+              className="pl-8"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+
+          <Select value={sort} onValueChange={(next) => setSort(next as LibrarySort)}>
+            <SelectTrigger className="w-32" data-testid="prompt-sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SORT_LABELS) as LibrarySort[]).map((key) => (
+                <SelectItem key={key} value={key}>
+                  {SORT_LABELS[key]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={folderFilter} onValueChange={setFolderFilter}>
+            <SelectTrigger className="w-36" data-testid="prompt-folder-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FOLDERS}>全部文件夹</SelectItem>
+              <SelectItem value={UNFILED}>未整理</SelectItem>
+              {(folders.data ?? []).map((folder) => (
+                <SelectItem key={folder.id} value={folder.id}>
+                  {folder.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <TaxonomyManager folders={folders.data ?? []} tags={tags.data ?? []} />
+        </div>
+
+        {(tags.data?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-1.5" data-testid="prompt-tag-filter">
+            {(tags.data ?? []).map((tag) => {
+              const selected = tagFilter.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() =>
+                    setTagFilter((prev) =>
+                      selected ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
+                    )
+                  }
+                >
+                  <Badge
+                    variant={selected ? 'default' : 'outline'}
+                    className={cn('cursor-pointer', !selected && 'text-muted-foreground')}
+                  >
+                    {tag.name}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {list.isPending ? (
+          <div className="flex flex-col gap-2" data-testid="prompt-loading">
+            {[0, 1, 2, 3, 4].map((index) => (
+              <Skeleton key={index} className="h-16 rounded-lg" />
+            ))}
+          </div>
+        ) : list.isError ? (
+          <p className="py-12 text-center text-destructive text-sm" data-testid="prompt-error">
+            提示词加载失败,请重试
+          </p>
+        ) : totalCount === 0 ? (
+          <div
+            className="flex flex-col items-center gap-2 py-16 text-muted-foreground"
+            data-testid="prompt-empty"
+          >
+            <Library className="size-8" aria-hidden />
+            <p className="text-sm">
+              {tab === 'trash'
+                ? '回收站是空的'
+                : search
+                  ? '没有匹配的提示词'
+                  : '还没有提示词,点击「新建提示词」开始'}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4" data-testid="prompt-grid" role="list">
+            {sections.map((section) =>
+              section.items.length > 0 ? (
+                <section key={section.key} className="flex flex-col gap-1">
+                  {section.title && (
+                    <h2 className="px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                      {section.title}
+                      <span className="ml-1.5 opacity-70">{section.items.length}</span>
+                    </h2>
+                  )}
+                  {section.items.map((prompt) => (
+                    <PromptListRow
+                      key={prompt.id}
+                      prompt={prompt}
+                      onEdit={openEdit}
+                      onCopy={handleCopy}
+                      onTogglePin={handleTogglePin}
+                      onRemove={(target) => removePrompt.mutate(target.id)}
+                      onRestore={(target) => restorePrompt.mutate(target.id)}
+                    />
+                  ))}
+                </section>
+              ) : null,
+            )}
+            {list.hasNextPage && (
+              <Button
+                variant="outline"
+                className="mx-auto"
+                disabled={list.isFetchingNextPage}
+                onClick={() => list.fetchNextPage()}
+                data-testid="prompt-load-more"
+              >
+                {list.isFetchingNextPage ? '加载中…' : '加载更多'}
+              </Button>
+            )}
+          </div>
+        )}
+
+        <PromptEditorDialog
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          prompt={editing}
+          folders={folders.data ?? []}
+          tags={tags.data ?? []}
+          submitting={createPrompt.isPending || updatePrompt.isPending}
+          onSubmit={(value) => {
+            if (editing) {
+              updatePrompt.mutate(
+                {
+                  id: editing.id,
+                  patch: {
+                    title: value.title.trim(),
+                    description: value.description.trim() ? value.description.trim() : null,
+                    content: value.content.trim(),
+                    negative: value.negative.trim() ? value.negative.trim() : null,
+                    folderId: value.folderId,
+                    tagIds: value.tagIds,
+                    rating: value.rating,
+                    isPinned: value.isPinned,
+                    expectedVersion: editing.version,
+                  },
+                },
+                { onSuccess: () => setEditorOpen(false) },
+              );
+            } else {
+              createPrompt.mutate(editorValueToNewDocument(value), {
+                onSuccess: () => setEditorOpen(false),
+              });
+            }
+          }}
+        />
+      </div>
+    </TooltipProvider>
+  );
+}

@@ -1,0 +1,442 @@
+// v2.5 桌面 prompts 域桥:contracts 形状 ↔ core SQLite 仓库。
+// 映射语义移植自渲染层 runtime/mappers/prompt.ts(有损字段逐条声明);
+// M4e 主进程收口后渲染层旧 mapper 随旧壳删除,本文件成为唯一映射点。
+// folders/tags 目录 CRUD 旧 IPC 已退役、无仓库,这里直写两张小表;
+// 其变更暂不入云同步队列(旧行为亦无该入口),M4e 同步收口统一处理。
+
+import type {
+  NewPromptDocument,
+  NewPromptFolder,
+  NewPromptTag,
+  ParsedPromptListQuery,
+  PromptDocument,
+  PromptFolder,
+  PromptPage,
+  PromptTag,
+  PromptUseInput,
+  PromptUseResult,
+  UpdatePromptDocument,
+  UpdatePromptFolder,
+  UpdatePromptTag,
+} from '@musefold/contracts';
+import {
+  entityIdSchema,
+  newPromptDocumentSchema,
+  newPromptFolderSchema,
+  newPromptTagSchema,
+  promptListQuerySchema,
+  promptUseInputSchema,
+  updatePromptDocumentSchema,
+  updatePromptFolderSchema,
+  updatePromptTagSchema,
+} from '@musefold/contracts';
+import { getDb } from '@musefold/core/db';
+import { promptsRepo } from '@musefold/core/db/repositories/prompts';
+import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
+import type { NewPrompt, Prompt, Tag } from '@musefold/desktop-contracts/models';
+import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
+import { ulid } from 'ulid';
+import { z } from 'zod';
+import { scheduleCloudSync } from '../../cloud-sync';
+import { BridgeError, type MethodDef } from './envelope';
+
+/** 桌面表无 version 列;行→文档的合成乐观锁,写回丢弃。 */
+const SYNTHETIC_VERSION = 1;
+
+// ---------- 时间与游标 ----------
+
+function epochMsToIso(ms: number): string {
+  return new Date(ms).toISOString().replace(/Z$/, '+00:00');
+}
+
+function epochMsToIsoOrNull(ms: number | null | undefined): string | null {
+  return ms == null ? null : epochMsToIso(ms);
+}
+
+function parseOffsetCursor(cursor: string | undefined): number {
+  if (!cursor) return 0;
+  const offset = Number.parseInt(cursor, 10);
+  return Number.isFinite(offset) && offset >= 0 ? offset : 0;
+}
+
+// ---------- 行 → 文档 ----------
+
+function toCloudTagColor(color: string | null): string | null {
+  // 有损:桌面 color 是自由字符串;契约只接受 #RRGGBB,不合规丢弃为 null。
+  return color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : null;
+}
+
+function tagRowToDocument(tag: Tag): PromptTag {
+  const createdAt = epochMsToIso(tag.createdAt);
+  return {
+    id: tag.id,
+    name: tag.name,
+    group: tag.tagGroup,
+    color: toCloudTagColor(tag.color),
+    version: SYNTHETIC_VERSION,
+    createdAt,
+    updatedAt: createdAt,
+    deletedAt: null,
+  };
+}
+
+function promptRowToDocument(row: Prompt): PromptDocument {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    content: row.content,
+    negative: row.contentNegative,
+    folderId: row.folderId,
+    tags: row.tags.map(tagRowToDocument),
+    modelId: row.modelId,
+    params: row.params,
+    rating: row.rating,
+    isPinned: row.isPinned,
+    pinOrder: row.pinOrder,
+    usageCount: row.usageCount,
+    lastUsedAt: epochMsToIsoOrNull(row.lastUsedAt),
+    source: row.source === 'shared' ? 'share' : row.source,
+    sourceUrl: row.sourceUrl,
+    version: SYNTHETIC_VERSION,
+    createdAt: epochMsToIso(row.createdAt),
+    updatedAt: epochMsToIso(row.updatedAt),
+    deletedAt: epochMsToIsoOrNull(row.deletedAt),
+    // 有损(桌面独有,文档侧无槽位):previewImagePath / coverImagePath。
+  };
+}
+
+// ---------- 契约入参 → core 入参 ----------
+
+function cloudSourceToDesktop(source: NonNullable<NewPromptDocument['source']>): Prompt['source'] {
+  // 有损:云独有 source=generation 桌面枚举不存在,落为 import。
+  if (source === 'generation') return 'import';
+  if (source === 'share') return 'shared';
+  return source;
+}
+
+function toDesktopParams(params: Record<string, unknown> | null | undefined) {
+  if (params == null) return undefined;
+  const schemaVersion = typeof params.schemaVersion === 'number' ? params.schemaVersion : 1;
+  return { ...params, schemaVersion };
+}
+
+function newDocumentToRow(input: NewPromptDocument): NewPrompt {
+  return {
+    title: input.title,
+    content: input.content,
+    contentNegative: input.negative ?? undefined,
+    description: input.description ?? undefined,
+    isPinned: input.isPinned,
+    folderId: input.folderId ?? undefined,
+    modelId: input.modelId ?? undefined,
+    params: toDesktopParams(input.params),
+    rating: input.rating,
+    source: cloudSourceToDesktop(input.source ?? 'manual'),
+    sourceUrl: input.sourceUrl ?? undefined,
+    tagIds: input.tagIds,
+  };
+}
+
+function updateDocumentToPatch(input: UpdatePromptDocument): UpdatePromptPatch {
+  const patch: UpdatePromptPatch = {};
+  if (input.title !== undefined) patch.title = input.title;
+  if (input.description !== undefined) patch.description = input.description;
+  if (input.content !== undefined) patch.content = input.content;
+  if (input.negative !== undefined) patch.contentNegative = input.negative;
+  if (input.folderId !== undefined) patch.folderId = input.folderId;
+  if (input.modelId !== undefined) patch.modelId = input.modelId;
+  if (input.params !== undefined) patch.params = toDesktopParams(input.params) ?? null;
+  if (input.rating !== undefined) patch.rating = input.rating;
+  if (input.tagIds !== undefined) patch.tagIds = input.tagIds;
+  if (input.source !== undefined) patch.source = cloudSourceToDesktop(input.source);
+  // 有损:expectedVersion(桌面无乐观锁)、pinOrder(置顶序走 togglePin 维护)。
+  return patch;
+}
+
+function listQueryToRowQuery(query: ParsedPromptListQuery): ListPromptsQuery {
+  const mapped: ListPromptsQuery = {
+    search: query.q,
+    tagIds: query.tagIds,
+    sort:
+      query.sort === 'created-desc'
+        ? 'created'
+        : query.sort === 'usage-desc'
+          ? 'usage'
+          : query.sort === 'title-asc'
+            ? 'title'
+            : 'updated',
+    sortDir: 'desc',
+  };
+  if (query.folderId === null) {
+    mapped.folderId = UNFILED_FOLDER_ID;
+  } else if (query.folderId) {
+    mapped.folderId = query.folderId;
+  }
+  if (query.pinnedOnly) mapped.filters = { isPinned: true };
+  return mapped;
+}
+
+// ---------- prompts ----------
+
+function getDocument(id: string): PromptDocument {
+  const row = promptsRepo.get(id);
+  if (!row) throw new BridgeError('NOT_FOUND', `提示词不存在:${id}`);
+  return promptRowToDocument(row);
+}
+
+function listPrompts(query: ParsedPromptListQuery): PromptPage {
+  const live = promptsRepo.list(listQueryToRowQuery(query));
+  const rows = query.includeDeleted ? [...live, ...promptsRepo.listDeleted()] : live;
+  const offset = parseOffsetCursor(query.cursor);
+  const slice = rows.slice(offset, offset + query.limit);
+  const next = offset + slice.length;
+  return {
+    items: slice.map(promptRowToDocument),
+    nextCursor: next < rows.length ? String(next) : null,
+  };
+}
+
+function updatePrompt(id: string, input: UpdatePromptDocument): PromptDocument {
+  const current = promptsRepo.get(id);
+  if (!current) throw new BridgeError('NOT_FOUND', `提示词不存在:${id}`);
+  // 置顶状态单走 togglePin 以维护 pin_order(与旧 IPC PROMPTS_TOGGLE_PIN 同语义)。
+  if (input.isPinned !== undefined && input.isPinned !== current.isPinned) {
+    promptsRepo.togglePin(id, input.isPinned);
+  }
+  const patch = updateDocumentToPatch({ ...input, isPinned: undefined });
+  if (Object.keys(patch).length > 0) promptsRepo.update(id, patch);
+  scheduleCloudSync();
+  return getDocument(id);
+}
+
+function usePrompt(id: string, input: PromptUseInput): PromptUseResult {
+  // 桌面本地无幂等表,idempotencyKey 忽略(云侧有);单机重复计数可接受。
+  promptsRepo.incrementUsage(id, input.action);
+  scheduleCloudSync();
+  return { prompt: getDocument(id), recorded: true };
+}
+
+// ---------- folders(直写 folders 表;合成 version/updatedAt) ----------
+
+interface FolderRow {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  sort_order: number;
+  created_at: number;
+}
+
+function folderRowToDocument(row: FolderRow): PromptFolder {
+  const createdAt = epochMsToIso(row.created_at);
+  return {
+    id: row.id,
+    name: row.name,
+    parentId: row.parent_id,
+    sortOrder: row.sort_order,
+    version: SYNTHETIC_VERSION,
+    createdAt,
+    updatedAt: createdAt,
+    deletedAt: null,
+  };
+}
+
+function getFolderRow(id: string): FolderRow {
+  const row = getDb().prepare('SELECT * FROM folders WHERE id = ?').get(id) as
+    | FolderRow
+    | undefined;
+  if (!row) throw new BridgeError('NOT_FOUND', `文件夹不存在:${id}`);
+  return row;
+}
+
+function listFolders(): PromptFolder[] {
+  const rows = getDb()
+    .prepare('SELECT * FROM folders ORDER BY sort_order ASC, created_at ASC')
+    .all() as FolderRow[];
+  return rows.map(folderRowToDocument);
+}
+
+function createFolder(input: NewPromptFolder): PromptFolder {
+  const id = ulid();
+  getDb()
+    .prepare(
+      'INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(id, input.name, input.parentId, input.sortOrder, Date.now());
+  return folderRowToDocument(getFolderRow(id));
+}
+
+function updateFolder(id: string, patch: UpdatePromptFolder): PromptFolder {
+  const current = getFolderRow(id);
+  getDb()
+    .prepare('UPDATE folders SET name = ?, parent_id = ?, sort_order = ? WHERE id = ?')
+    .run(
+      patch.name ?? current.name,
+      patch.parentId !== undefined ? patch.parentId : current.parent_id,
+      patch.sortOrder ?? current.sort_order,
+      id,
+    );
+  return folderRowToDocument(getFolderRow(id));
+}
+
+function removeFolder(id: string): PromptFolder {
+  const doc = folderRowToDocument(getFolderRow(id));
+  // 子文件夹随 FK CASCADE 删除;prompts.folder_id 置 NULL(归入未整理)。
+  getDb().prepare('DELETE FROM folders WHERE id = ?').run(id);
+  return { ...doc, deletedAt: epochMsToIso(Date.now()) };
+}
+
+// ---------- tags(直写 tags 表) ----------
+
+interface TagRow {
+  id: string;
+  name: string;
+  tag_group: string | null;
+  color: string | null;
+  created_at: number;
+}
+
+function tagTableRowToDocument(row: TagRow): PromptTag {
+  return tagRowToDocument({
+    id: row.id,
+    name: row.name,
+    tagGroup: row.tag_group as Tag['tagGroup'],
+    color: row.color,
+    createdAt: row.created_at,
+  });
+}
+
+function getTagRow(id: string): TagRow {
+  const row = getDb().prepare('SELECT * FROM tags WHERE id = ?').get(id) as TagRow | undefined;
+  if (!row) throw new BridgeError('NOT_FOUND', `标签不存在:${id}`);
+  return row;
+}
+
+function listTags(): PromptTag[] {
+  const rows = getDb().prepare('SELECT * FROM tags ORDER BY name ASC').all() as TagRow[];
+  return rows.map(tagTableRowToDocument);
+}
+
+function createTag(input: NewPromptTag): PromptTag {
+  const id = ulid();
+  getDb()
+    .prepare('INSERT INTO tags (id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(id, input.name, input.group, input.color, Date.now());
+  return tagTableRowToDocument(getTagRow(id));
+}
+
+function updateTag(id: string, patch: UpdatePromptTag): PromptTag {
+  const current = getTagRow(id);
+  getDb()
+    .prepare('UPDATE tags SET name = ?, tag_group = ?, color = ? WHERE id = ?')
+    .run(
+      patch.name ?? current.name,
+      patch.group !== undefined ? patch.group : current.tag_group,
+      patch.color !== undefined ? patch.color : current.color,
+      id,
+    );
+  return tagTableRowToDocument(getTagRow(id));
+}
+
+function removeTag(id: string): PromptTag {
+  const doc = tagTableRowToDocument(getTagRow(id));
+  // prompt_tags 随 FK CASCADE 清理。
+  getDb().prepare('DELETE FROM tags WHERE id = ?').run(id);
+  return { ...doc, deletedAt: epochMsToIso(Date.now()) };
+}
+
+// ---------- 方法表 ----------
+
+const idPayloadSchema = z.object({ id: entityIdSchema });
+
+export function buildPromptsDomainMethods(): Record<string, MethodDef> {
+  return {
+    'prompts.list': {
+      // undefined 归一为 {}:schema 自带 limit/includeDeleted/sort 默认值。
+      input: z.preprocess((value) => value ?? {}, promptListQuerySchema),
+      handle: async (input) => listPrompts(input as ParsedPromptListQuery),
+    },
+    'prompts.get': {
+      input: idPayloadSchema,
+      handle: async (input) => getDocument((input as { id: string }).id),
+    },
+    'prompts.create': {
+      input: newPromptDocumentSchema,
+      handle: async (input) => {
+        const row = promptsRepo.create(newDocumentToRow(input as NewPromptDocument));
+        scheduleCloudSync();
+        return promptRowToDocument(row);
+      },
+    },
+    'prompts.update': {
+      input: idPayloadSchema.extend({ patch: updatePromptDocumentSchema }),
+      handle: async (input) => {
+        const { id, patch } = input as { id: string; patch: UpdatePromptDocument };
+        return updatePrompt(id, patch);
+      },
+    },
+    'prompts.remove': {
+      input: idPayloadSchema,
+      handle: async (input) => {
+        const { id } = input as { id: string };
+        promptsRepo.softDelete(id);
+        scheduleCloudSync();
+        return getDocument(id);
+      },
+    },
+    'prompts.restore': {
+      input: idPayloadSchema,
+      handle: async (input) => {
+        const { id } = input as { id: string };
+        promptsRepo.restore(id);
+        scheduleCloudSync();
+        return getDocument(id);
+      },
+    },
+    'prompts.use': {
+      input: idPayloadSchema.extend({ input: promptUseInputSchema }),
+      handle: async (payload) => {
+        const { id, input } = payload as { id: string; input: PromptUseInput };
+        return usePrompt(id, input);
+      },
+    },
+    'prompts.listFolders': {
+      input: z.undefined().or(z.object({}).strict()),
+      handle: async () => listFolders(),
+    },
+    'prompts.createFolder': {
+      input: newPromptFolderSchema,
+      handle: async (input) => createFolder(input as NewPromptFolder),
+    },
+    'prompts.updateFolder': {
+      input: idPayloadSchema.extend({ patch: updatePromptFolderSchema }),
+      handle: async (input) => {
+        const { id, patch } = input as { id: string; patch: UpdatePromptFolder };
+        return updateFolder(id, patch);
+      },
+    },
+    'prompts.removeFolder': {
+      input: idPayloadSchema,
+      handle: async (input) => removeFolder((input as { id: string }).id),
+    },
+    'prompts.listTags': {
+      input: z.undefined().or(z.object({}).strict()),
+      handle: async () => listTags(),
+    },
+    'prompts.createTag': {
+      input: newPromptTagSchema,
+      handle: async (input) => createTag(input as NewPromptTag),
+    },
+    'prompts.updateTag': {
+      input: idPayloadSchema.extend({ patch: updatePromptTagSchema }),
+      handle: async (input) => {
+        const { id, patch } = input as { id: string; patch: UpdatePromptTag };
+        return updateTag(id, patch);
+      },
+    },
+    'prompts.removeTag': {
+      input: idPayloadSchema,
+      handle: async (input) => removeTag((input as { id: string }).id),
+    },
+  };
+}
