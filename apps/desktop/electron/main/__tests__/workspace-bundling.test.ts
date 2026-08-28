@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const BUNDLED_WORKSPACE_PACKAGES = [
-  '@musefold/cloud-client',
   '@musefold/contracts',
   '@musefold/desktop-contracts',
   '@musefold/desktop-db',
@@ -27,7 +26,7 @@ describe('Electron main workspace bundling', () => {
     expect(config).toMatch(/from ['"]\.\.\/\.\.\/tooling\/aliases\.mjs['"]/);
     expect(config).toMatch(/pickAliases\s*\(/);
     expect(config).toMatch(
-      /externalizeDeps:\s*\{\s*exclude:\s*\[\s*'@musefold\/cloud-client',\s*'@musefold\/contracts',\s*'@musefold\/desktop-contracts',\s*'@musefold\/desktop-db',\s*'@musefold\/domain',\s*'@musefold\/update-protocol',\s*'@musefold\/core',\s*'@musefold\/automation-server',\s*'@musefold\/new-api-client',/s,
+      /externalizeDeps:\s*\{\s*exclude:\s*\[\s*'@musefold\/contracts',\s*'@musefold\/desktop-contracts',\s*'@musefold\/desktop-db',\s*'@musefold\/domain',\s*'@musefold\/update-protocol',\s*'@musefold\/core',\s*'@musefold\/automation-server',\s*'@musefold\/new-api-client',/s,
     );
 
     for (const name of [...BUNDLED_WORKSPACE_PACKAGES, ...BUNDLED_RUNTIME_DEPS]) {

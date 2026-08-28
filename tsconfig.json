@@ -17,15 +17,6 @@
       "path": "./packages/domain"
     },
     {
-      "path": "./packages/legacy-ui"
-    },
-    {
-      "path": "./packages/product-ui"
-    },
-    {
-      "path": "./packages/cloud-client"
-    },
-    {
       "path": "./packages/new-api-client"
     },
     {

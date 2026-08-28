@@ -7,7 +7,7 @@ module.exports = {
       // 动态 import 是刻意打破初始化顺序环的手段；把它算违规会逼人改写法绕过规则。
       name: 'no-circular',
       comment:
-        '§3.2 禁止全局：静态循环依赖一律拦。动态 import 是刻意用来打破初始化顺序环的手段，环上只要有一条 dynamic-import 边即不算违规。',
+        '禁止全局：静态循环依赖一律拦。动态 import 是刻意用来打破初始化顺序环的手段，环上只要有一条 dynamic-import 边即不算违规。',
       severity: 'error',
       from: {},
       to: {
@@ -18,97 +18,57 @@ module.exports = {
       },
     },
 
+    // ═══ 存活 legacy 包边界(桌面本地生态:core/desktop-contracts/domain/控制面三件套)═══
+
     {
-      // §3.2 contracts ← 不依赖任何 workspace 包（仅 zod）
+      // contracts ← 不依赖任何 workspace 包（仅 zod）
       name: 'contracts-no-workspace',
-      comment:
-        '§3.2 contracts：不依赖任何 workspace 包（仅 zod）。当前布局禁止 import 其他 packages/、apps/desktop/src/、apps/desktop/electron/、shared/、apps/。',
+      comment: 'contracts 是唯一实体契约叶子：不依赖任何 workspace 包（仅 zod）。',
       severity: 'error',
       from: { path: '^packages/contracts/' },
       to: {
-        path: [
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-          '^packages/(?!contracts)[^/]+/',
-        ],
+        path: ['^apps/', '^packages/(?!contracts)[^/]+/'],
       },
     },
 
     {
-      // V121-CHAN-04/05: update-protocol is a pure protocol package compiled into the
-      // Electron main process. It may depend on zod + semver only — no workspace
-      // packages, and no electron/src/apps (those would invert the shell boundary).
+      // update-protocol 是编入主进程的纯协议包：zod + semver only。
       name: 'update-protocol-pure',
       comment:
-        '内容层热更新协议包保持纯协议：只允许 zod / semver / Node 内置模块。禁止 import 任何 workspace 包与 apps/desktop/electron/、apps/desktop/src/、apps/、shared/。公钥槽位在 apps/desktop/electron/update/，不在本包。',
+        '内容层热更新协议包保持纯协议：只允许 zod / semver / Node 内置模块。公钥槽位在 apps/desktop/electron/update/，不在本包。',
       severity: 'error',
       from: { path: '^packages/update-protocol/' },
       to: {
-        path: [
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-          '^packages/(?!update-protocol)[^/]+/',
-        ],
+        path: ['^apps/', '^packages/(?!update-protocol)[^/]+/'],
       },
     },
 
     {
-      // §3.2 desktop-contracts ← contracts（少量交叉类型），禁止反向
+      // desktop-contracts 是桌面契约叶子(pet/skill-runtime/design-scheme/automation 冻结面)。
       name: 'desktop-contracts-no-upward',
       comment:
-        '§3.2 desktop-contracts 是契约叶子：可 import contracts、update-protocol（type-only Channel）与 domain（prompt-compiler / AppResult）。禁止 import core、apps/desktop/src/、apps/desktop/electron/ 以及其他 packages/。反向（contracts → desktop-contracts）由 contracts-no-workspace 覆盖。',
+        'desktop-contracts 可 import contracts、update-protocol（type-only Channel）与 domain（prompt-compiler / AppResult）。禁止 core、apps/。',
       severity: 'error',
       from: { path: '^packages/desktop-contracts/' },
       to: {
-        path: [
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/(?!contracts|update-protocol|domain|desktop-contracts)[^/]+/',
-          '^apps/',
-        ],
+        path: ['^apps/', '^packages/(?!contracts|update-protocol|domain|desktop-contracts)[^/]+/'],
       },
     },
 
     {
-      // §3.2 domain ← contracts；禁止 desktop-contracts、electron、window.api
+      // domain 保持 cloud-pure：只依赖 contracts。
       name: 'domain-cloud-pure',
-      comment:
-        '§3.2 domain 保持 cloud-pure：只依赖 contracts。禁止 desktop-contracts、apps/desktop/electron/、apps/desktop/src/、apps/ 以及其他 packages/。window.api 不是模块 import，由 packages-no-desktop-app 拦截通往 IPC 桥的路径。',
+      comment: 'domain 保持 cloud-pure：只依赖 contracts,禁止 desktop-contracts、electron、apps/。',
       severity: 'error',
       from: { path: '^packages/domain/' },
       to: {
-        path: [
-          '^packages/(?!domain|contracts)[^/]+/',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^apps/',
-        ],
+        path: ['^apps/', '^packages/(?!domain|contracts)[^/]+/'],
       },
     },
 
     {
-      // §3.2 domain 禁止 fs
       name: 'domain-no-node-fs',
-      comment: '§3.2 domain 保持 cloud-pure：禁止 fs（含 node:fs）。',
+      comment: 'domain 保持 cloud-pure：禁止 fs（含 node:fs）。',
       severity: 'error',
       from: { path: '^packages/domain/' },
       to: {
@@ -118,336 +78,82 @@ module.exports = {
     },
 
     {
-      // §3.2 ui ← 不依赖任何 workspace 包
-      name: 'ui-no-workspace',
-      comment:
-        '§3.2 ui：不依赖任何 workspace 包。当前布局禁止 import product-ui、apps/desktop/src/、apps/desktop/electron/、apps/、packages/core 及其他 packages/。',
-      severity: 'error',
-      from: { path: '^packages/legacy-ui/' },
-      to: {
-        path: [
-          '^packages/(?!legacy-ui)[^/]+/',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-        ],
-      },
-    },
-
-    {
-      // §3.2 product-ui ← ui；禁止 domain 实现细节、window.api、cloud-client、electron
-      // 任务卡允许 ui / contracts / domain（及外部包）。
-      name: 'product-ui-allowed-deps',
-      comment:
-        '§3.2 / V13-STATE-01 product-ui ← ui + contracts + domain + @tanstack/react-query；禁止 cloud-client、electron、window.api、desktop-contracts。不得 import apps/desktop/src/、apps/desktop/electron/、apps/、packages/core。',
-      severity: 'error',
-      from: { path: '^packages/product-ui/' },
-      to: {
-        path: [
-          '^packages/(?!product-ui|legacy-ui|contracts|domain)[^/]+/',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-        ],
-      },
-    },
-
-    {
-      // V13-STATE-01：product-ui 只放行 TanStack Query，禁止再引入第二套服务端状态库。
-      name: 'product-ui-query-allowed',
-      comment:
-        'V13-STATE-01：product-ui 允许 @tanstack/react-query 作为唯一查询库。禁止 SWR / Redux / Zustand / Jotai 等第二套服务端状态方案；window.api / cloud-client / electron / desktop-contracts 仍由 product-ui-allowed-deps 禁止。',
-      severity: 'error',
-      from: { path: '^packages/product-ui/' },
-      to: {
-        path: [
-          '(^|/)(swr|zustand|jotai|recoil|react-redux)(/|$)',
-          '(^|/)@reduxjs/',
-          '(^|/)@tanstack/react-query-persist',
-        ],
-      },
-    },
-
-    {
-      // §3.2 cloud-client ← contracts
-      name: 'cloud-client-only-contracts',
-      comment:
-        '§3.2 cloud-client ← contracts。禁止 desktop-contracts（shared/）、core、electron、apps/desktop/src/、apps/ 及其他 workspace 包。',
-      severity: 'error',
-      from: { path: '^packages/cloud-client/' },
-      to: {
-        path: [
-          '^packages/(?!cloud-client|contracts)[^/]+/',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-        ],
-      },
-    },
-
-    {
-      // §3.2 core ← contracts + desktop-contracts + better-sqlite3；禁止 electron
+      // core ← contracts + desktop-contracts + better-sqlite3；禁止 electron
       name: 'core-no-electron-or-renderer',
       comment:
-        '§3.2 core 禁止 electron（桌面主进程无关性）。任务卡：packages/core 不得 import apps/desktop/electron/、apps/desktop/src/。允许 desktop-contracts、domain 与 contracts。',
+        'core 禁止 electron（桌面主进程无关性）与 apps/。允许 desktop-contracts、domain 与 contracts。',
       severity: 'error',
       from: { path: '^packages/core/' },
       to: {
-        path: [
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^electron$',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/',
-        ],
+        path: ['^electron$', 'node_modules/electron(?:/|$)', '^apps/'],
       },
     },
 
     {
-      // §3.2 apps/web ← contracts/domain/ui/product-ui/cloud-client；禁止 desktop-contracts、core
-      name: 'web-no-desktop',
-      comment:
-        '§3.2 apps/web 禁止 desktop-contracts、core。任务卡：不得 import apps/desktop/src/、apps/desktop/electron/、shared/。允许 contracts/domain/ui/product-ui/cloud-client。',
-      severity: 'error',
-      from: { path: '^apps/web/' },
-      to: {
-        path: [
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/(?!web/)',
-          '^packages/(?!contracts|domain|legacy-ui|product-ui|cloud-client)[^/]+/',
-        ],
-      },
-    },
-
-    {
-      // §3.2 apps/web-api ← contracts/domain/new-api-client/server-crypto；禁止 desktop-contracts、core
-      name: 'web-api-no-frontend-or-desktop',
-      comment:
-        '§3.2 apps/web-api 禁止 desktop-contracts、core。任务卡：不得 import 前端包（ui/product-ui）与 apps/desktop/src/、apps/desktop/electron/。',
-      severity: 'error',
-      from: { path: '^apps/web-api/' },
-      to: {
-        path: [
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/(?!web-api/)',
-          '^packages/(?!contracts|domain|new-api-client|server-crypto)[^/]+/',
-        ],
-      },
-    },
-
-    {
-      // §3.2 未单独列出 generation-worker，按与 web-api 同级的服务层补齐
-      name: 'generation-worker-no-frontend-or-desktop',
-      comment:
-        '§3.2 服务层与 web-api 同约束（禁止 desktop-contracts、core、前端包）。任务卡：apps/generation-worker 不得 import ui/product-ui 与 apps/desktop/src/、apps/desktop/electron/。',
-      severity: 'error',
-      from: { path: '^apps/generation-worker/' },
-      to: {
-        path: [
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/(?!generation-worker/)',
-          '^packages/(?!contracts|domain|server-crypto|new-api-client)[^/]+/',
-        ],
-      },
-    },
-
-    {
-      // §3.2 禁止全局 ← better-sqlite3 出现在 web/web-api
-      name: 'no-better-sqlite3-in-web-services',
-      comment:
-        '§3.2 禁止全局：better-sqlite3 出现在 web/web-api。generation-worker 同属云服务侧，一并禁止。',
-      severity: 'error',
-      from: { path: '^apps/(web|web-api|generation-worker)/' },
-      to: { path: 'better-sqlite3' },
-    },
-
-    {
-      // §3.2 apps/desktop 渲染进程禁止 import 'electron'（当前布局 apps/desktop/src）
+      // 渲染进程（v25 壳与 pet 窗口）禁止 import electron。
       name: 'renderer-no-electron',
-      comment:
-        '§3.2 apps/desktop 渲染进程禁止 import electron。当前布局渲染进程在 apps/desktop/src/。',
+      comment: 'apps/desktop/src（v25 壳 + pet 窗口）禁止 import electron 与主进程代码。',
       severity: 'error',
       from: { path: '^apps/desktop/src/' },
       to: {
-        path: [
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^electron$',
-          'node_modules/electron(?:/|$)',
-        ],
+        path: ['^apps/desktop/electron/', '^electron$', 'node_modules/electron(?:/|$)'],
       },
     },
 
     {
-      // §3.2 禁止全局 ← window.api 出现在 packages/*（拦截通往桌面 App 的 import）
+      // 拦截 packages/* 通往桌面 App 的 import。
       name: 'packages-no-desktop-app',
-      comment:
-        '§3.2 禁止 window.api 出现在 packages/*。depcruise 看不到全局标识符，改为禁止 packages/ import apps/desktop/src/ 与 apps/desktop/electron/（含 IPC 桥）。core 的 electron/src 禁令由 core-no-electron-or-renderer 重复覆盖。',
+      comment: '禁止 packages/ import apps/desktop/src/ 与 apps/desktop/electron/（含 IPC 桥）。',
       severity: 'error',
       from: { path: '^packages/' },
       to: {
-        path: ['^apps/desktop/src/', '^@renderer', '^apps/desktop/electron/', '^@electron'],
+        path: ['^apps/desktop/src/', '^apps/desktop/electron/'],
       },
     },
 
     {
       name: 'new-api-client-no-desktop-or-ui',
-      comment:
-        '§3.2 传输层 new-api-client 与 cloud-client 同级：供 web-api 使用，禁止依赖桌面 App、shared/、前端包。',
+      comment: '传输层 new-api-client 供 apps/api 使用：仅可依赖 contracts,禁止桌面与前端包。',
       severity: 'error',
       from: { path: '^packages/new-api-client/' },
       to: {
-        path: [
-          '^packages/(?!new-api-client|contracts)[^/]+/',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-        ],
+        path: ['^apps/', '^packages/(?!new-api-client|contracts)[^/]+/'],
       },
     },
 
     {
       name: 'server-crypto-no-desktop-or-ui',
-      comment:
-        '§3.2 apps/web-api ← server-crypto。server-crypto 自身禁止依赖桌面 App、shared/、前端包。',
+      comment: 'server-crypto 供 apps/api 与 apps/worker 使用：不依赖任何 workspace 包。',
       severity: 'error',
       from: { path: '^packages/server-crypto/' },
       to: {
-        path: [
-          '^packages/(?!server-crypto)[^/]+/',
-          '^apps/desktop/src/',
-          '^@renderer',
-          '^apps/desktop/electron/',
-          '^@electron',
-          '^packages/desktop-contracts/',
-          '^@shared',
-          '^@musefold/desktop-contracts',
-          '^apps/',
-        ],
-      },
-    },
-
-    {
-      // V122-GW-02：行模型 ↔ 端口形状只允许 mappers 同时看见 desktop-contracts 与 contracts。
-      // depcruise 无法直接表达「同时 import 双方」的交集，改为禁止 runtime 组装层
-      // 直接 import contracts（字段转换必须进 mappers/）。gateway 仍可 import
-      // desktop-contracts（WindowApi）与 domain 端口。测试目录除外。
-      name: 'desktop-runtime-contracts-only-in-mappers',
-      comment:
-        'V122-GW-02：apps/desktop/src/runtime/ 里只有 mappers/ 可以 import contracts。组装层（desktop-gateway.ts）禁止直接依赖云形状，避免字段级转换漏出 mapper。',
-      severity: 'error',
-      from: {
-        path: '^apps/desktop/src/runtime/',
-        pathNot: ['^apps/desktop/src/runtime/mappers/', '^apps/desktop/src/runtime/__tests__/'],
-      },
-      to: {
-        path: ['^packages/contracts/', '^@musefold/contracts'],
+        path: ['^apps/', '^packages/(?!server-crypto)[^/]+/'],
       },
     },
 
     {
       name: 'desktop-tooling-no-frontend',
       comment:
-        '§3.3 本地控制面三件套（automation-server / client / cli）与 mcp 属桌面生态，不参与 Web 重构；禁止反向依赖前端包、apps/desktop 渲染层与 apps/web*。主进程 apps/desktop/electron/ 仍允许（迁移前 ^electron/ 未列入本规则）。',
+        '本地控制面三件套（automation-server / client / cli）与 mcp 属桌面生态：禁止依赖前端包（ui/features/platform）、渲染层与其他 apps。主进程 apps/desktop/electron/ 仍允许。',
       severity: 'error',
       from: { path: '^packages/(cli|client|mcp|automation-server)/' },
       to: {
         path: [
-          '^packages/(ui|legacy-ui|product-ui)/',
+          '^packages/(ui|features|platform|api-client)/',
           '^apps/desktop/src/',
-          '^@renderer',
           '^apps/(?!desktop/)',
         ],
       },
     },
 
-    {
-      // V122-GW-09 收口：业务 IO 走 DesktopGateway / DesktopExtras，桌面独有壳能力
-      // 走 DesktopHostServices。lib/ipc 只允许由 runtime 宿主适配器导入。
-      name: 'renderer-no-direct-ipc',
-      comment:
-        'V122-GW-09：renderer 禁止直接 import lib/ipc。跨端业务 IO 走 Gateway/Extras，桌面独有 system/pet/automation/designScheme 等能力走 runtime/desktop-host-services。',
-      severity: 'error',
-      from: {
-        path: '^apps/desktop/src/',
-        pathNot: [
-          '/__tests__/',
-          '/__mocks__/',
-          '\\.(test|spec)\\.(ts|tsx)$',
-          '^apps/desktop/src/lib/ipc\\.ts$',
-          '^apps/desktop/src/runtime/desktop-host-services\\.ts$',
-        ],
-      },
-      to: {
-        path: ['^apps/desktop/src/lib/ipc(\\.ts)?$'],
-      },
-    },
-
-    {
-      // V13-ENT-01：行模型是存储细节。renderer 业务代码（features/components/pages/stores/lib）
-      // 禁止直接 import desktop-contracts 行模型（models）；实体形状一律走 @musefold/contracts。
-      // 例外：runtime/mappers/（唯一转换点）、runtime gateway 实现、全部测试。
-      name: 'renderer-row-models-banned',
-      comment:
-        'V13-ENT-01/04：渲染层业务代码禁止 import desktop-contracts/models 行模型。存储行类型只属于 core/主进程/IPC 传输签名/mappers；UI 与 store 的实体形状一律用 @musefold/contracts 文档形状（+ desktop-extras 组合扩展）。ENT-04 起 known-violations 中本规则条目为 0，新增即红。',
-      severity: 'error',
-      from: {
-        path: '^apps/desktop/src/(features|components|pages|stores|lib|pet|preview)/',
-        pathNot: ['/__tests__/', '/__mocks__/', '\\.(test|spec)\\.(ts|tsx)$'],
-      },
-      to: {
-        path: ['^packages/desktop-contracts/src/models', '^@musefold/desktop-contracts/models'],
-      },
-    },
-
     // ═══ v2.5 新架构边界(V25-ARCHITECTURE「依赖边界」;M5-a2 上线)═══
-    // 旧规则针对 legacy 包,随 M5-c 删包一并退役;以下规则是 v2.5 长期形态。
 
     {
       // features 平台无关:数据只经 MusefoldGateway(platform 接口),UI 只用 ui 原语。
       name: 'v25-features-platform-agnostic',
       comment:
         'V25 §3:packages/features 四端同一份,禁止触达宿主 —— 不得 import electron、next、' +
-        '宿主 gateway 实现(api-client / apps/*)与 legacy 包;数据接缝只有 @musefold/platform。',
+        '宿主 gateway 实现(api-client / apps/*)与桌面本地包;数据接缝只有 @musefold/platform。',
       severity: 'error',
       from: { path: '^packages/features/' },
       to: {
@@ -455,7 +161,7 @@ module.exports = {
           '^electron(/|$)',
           '^next(/|$)',
           '^packages/api-client/',
-          '^packages/(core|desktop-db|db|product-ui|legacy-ui|cloud-client|desktop-contracts|domain)/',
+          '^packages/(core|desktop-db|db|desktop-contracts|domain)/',
           '^apps/',
         ],
       },
@@ -541,10 +247,6 @@ module.exports = {
     moduleSystems: ['es6', 'cjs'],
     tsPreCompilationDeps: true,
     tsConfig: {
-      // Path aliases for the current layout. apps/desktop/tsconfig.node.json
-      // covers @electron；`^@shared` 锁定已删除的兼容别名，防止旧路径回流。
-      // @renderer is matched as an unresolved specifier
-      // in rules that forbid apps/desktop/src/ (see ^@renderer).
       // 必须用绝对路径：depcruise 的 parseJsonConfigFileContent 在相对 fileName 下
       // 无法解析出 apps/desktop 里 `extends: ../../tooling/tsconfig.base.json`（TS5083）。
       fileName: resolve(__dirname, '../apps/desktop/tsconfig.node.json'),

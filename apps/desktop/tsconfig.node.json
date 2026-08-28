@@ -15,7 +15,6 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/desktop-db" },
     { "path": "../../packages/automation-server" },
-    { "path": "../../packages/cloud-client" },
     { "path": "../../packages/new-api-client" },
     { "path": "../../packages/update-protocol" }
   ]

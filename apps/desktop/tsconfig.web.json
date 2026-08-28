@@ -21,12 +21,6 @@
       "path": "../../packages/domain"
     },
     {
-      "path": "../../packages/legacy-ui"
-    },
-    {
-      "path": "../../packages/product-ui"
-    },
-    {
       "path": "../../packages/update-protocol"
     }
   ]

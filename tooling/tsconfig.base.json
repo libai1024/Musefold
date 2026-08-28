@@ -41,11 +41,6 @@
       "@musefold/desktop-db/*": ["packages/desktop-db/src/*"],
       "@musefold/domain": ["packages/domain/src/index.ts"],
       "@musefold/domain/*": ["packages/domain/src/*"],
-      "@musefold/legacy-ui": ["packages/legacy-ui/src/index.ts"],
-      "@musefold/legacy-ui/*": ["packages/legacy-ui/src/*"],
-      "@musefold/product-ui": ["packages/product-ui/src/index.ts"],
-      "@musefold/product-ui/*": ["packages/product-ui/src/*"],
-      "@musefold/cloud-client": ["packages/cloud-client/src/index.ts"],
       "@musefold/new-api-client": ["packages/new-api-client/src/index.ts"],
       "@musefold/server-crypto": ["packages/server-crypto/src/index.ts"],
       "@musefold/update-protocol": ["packages/update-protocol/src/index.ts"]

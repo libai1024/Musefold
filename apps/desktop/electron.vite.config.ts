@@ -15,7 +15,6 @@ export default defineConfig({
       outDir: resolve(desktopRoot, 'out/main'),
       externalizeDeps: {
         exclude: [
-          '@musefold/cloud-client',
           '@musefold/contracts',
           '@musefold/desktop-contracts',
           '@musefold/desktop-db',
@@ -46,7 +45,6 @@ export default defineConfig({
           // electron-builder 的 node_modules 打包面因此零变化（V04-CORE-01）。
           '@musefold/core',
           '@musefold/automation-server',
-          '@musefold/cloud-client',
           '@musefold/contracts',
           '@musefold/desktop-contracts',
           '@musefold/desktop-db',

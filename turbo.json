@@ -34,9 +34,7 @@
         "@musefold/desktop-contracts#typecheck",
         "@musefold/automation-server#typecheck",
         "@musefold/cli#typecheck",
-        "@musefold/mcp#typecheck",
-        "@musefold/cloud-client#typecheck",
-        "@musefold/product-ui#typecheck"
+        "@musefold/mcp#typecheck"
       ],
       "outputs": [".tsout/**", "packages/*/.tsout/**", "apps/*/.tsout/**"],
       "inputs": [
@@ -91,12 +89,9 @@
         "packages/desktop-contracts/**",
         "packages/domain/**",
         "packages/automation-server/**",
-        "packages/cloud-client/**",
         "packages/contracts/**",
         "packages/new-api-client/**",
         "packages/update-protocol/**",
-        "packages/legacy-ui/**",
-        "packages/product-ui/**",
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"
       ]
