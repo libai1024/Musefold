@@ -6,6 +6,7 @@ import { ipcMain, type IpcMain } from 'electron';
 import { IPC } from '@musefold/desktop-contracts/ipc';
 import type { AccountCredentialsInput } from '@musefold/desktop-contracts/account';
 import { getAccountService } from '../../account';
+import { getCloudSyncService, type CloudSyncService } from '../../cloud-sync';
 import { AccountError, toAccountError } from '../../account/errors';
 import type { AccountService } from '../../account/account-service';
 
@@ -16,6 +17,7 @@ interface AccountIpcTarget {
 export interface AccountHandlerDependencies {
   target?: AccountIpcTarget;
   service?: AccountService;
+  cloudSync?: CloudSyncService;
 }
 
 function throwIpc(error: unknown): never {
@@ -39,25 +41,76 @@ function credentials(input: unknown): AccountCredentialsInput {
 export function registerAccountHandlers(dependencies: AccountHandlerDependencies = {}): void {
   const target = dependencies.target ?? ipcMain;
   const service = dependencies.service ?? getAccountService();
+  const cloudSync = dependencies.cloudSync ?? getCloudSyncService();
+  let accountTransitionTail = Promise.resolve();
+
+  const serializeAccountTransition = <T>(
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const result = accountTransitionTail.then(operation);
+    accountTransitionTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
+
+  const authenticate = async (
+    operation: () => Promise<ReturnType<AccountService['status']>>,
+  ) => {
+    try {
+      await cloudSync.prepareForAccountLogin();
+      const status = await operation();
+      try {
+        await cloudSync.completeAccountLogin();
+      } catch {
+        await cloudSync.cancelAccountTransition().catch(() => undefined);
+      }
+      return status;
+    } catch (error) {
+      await cloudSync.cancelAccountTransition().catch(() => undefined);
+      throw error;
+    }
+  };
 
   target.handle(IPC.ACCOUNT_STATUS, () => service.status());
   target.handle(IPC.ACCOUNT_REGISTER, async (_event, input) => {
     try {
-      return await service.register(credentials(input));
+      const parsed = credentials(input);
+      return await serializeAccountTransition(() =>
+        authenticate(() => service.register(parsed)),
+      );
     } catch (error) {
       throwIpc(error);
     }
   });
   target.handle(IPC.ACCOUNT_LOGIN, async (_event, input) => {
     try {
-      return await service.login(credentials(input));
+      const parsed = credentials(input);
+      return await serializeAccountTransition(() =>
+        authenticate(() => service.login(parsed)),
+      );
     } catch (error) {
       throwIpc(error);
     }
   });
   target.handle(IPC.ACCOUNT_LOGOUT, async () => {
     try {
-      return await service.logout();
+      return await serializeAccountTransition(async () => {
+        try {
+          await cloudSync.prepareForAccountLogout();
+          const status = await service.logout();
+          try {
+            cloudSync.completeAccountLogout();
+          } catch {
+            await cloudSync.cancelAccountTransition().catch(() => undefined);
+          }
+          return status;
+        } catch (error) {
+          await cloudSync.cancelAccountTransition().catch(() => undefined);
+          throw error;
+        }
+      });
     } catch (error) {
       throwIpc(error);
     }
@@ -78,7 +131,9 @@ export function registerAccountHandlers(dependencies: AccountHandlerDependencies
   });
   target.handle(IPC.ACCOUNT_SET_SERVER_URL, async (_event, url: unknown) => {
     try {
-      return await service.setServerUrl(typeof url === 'string' ? url : '');
+      return await serializeAccountTransition(() =>
+        service.setServerUrl(typeof url === 'string' ? url : ''),
+      );
     } catch (error) {
       throwIpc(error);
     }

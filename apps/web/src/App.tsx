@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GenerationJob, McpConnectionPage } from '@musefold/contracts';
 import {
   formatAccountPoints,
-  getProductCapabilities,
   type PlatformServices,
 } from '@musefold/domain';
 import {
@@ -14,9 +13,15 @@ import {
   useAccountQueryController,
   useGeneratePageController,
 } from '@musefold/product-ui';
+import { WebCommandPalette } from './layout/WebCommandPalette';
 import { WebSidebar, WebTopbar, type WebView } from './layout/WebNavigation';
+import { useLargeProductViewport } from './layout/useLargeProductViewport';
 import { useKeyboardInset } from './layout/useKeyboardInset';
 import { WebGatewayError, type WebGateway } from './runtime';
+import {
+  createWebCapabilityManifest,
+  webCapabilitiesFromManifest,
+} from './runtime/capabilities';
 import { GenerateView } from './views/GenerateView';
 import { HistoryView } from './views/HistoryView';
 import { PromptLibraryView } from './views/PromptLibraryView';
@@ -29,11 +34,10 @@ import {
   hydrateWorkspaceLists,
   patchHistoryJob,
   patchLibraryPrompt,
+  WEB_LIBRARY_LIST_KEY,
 } from './workspace-query-cache';
 
 type View = WebView;
-
-const capabilities = getProductCapabilities('web');
 
 interface AppProps {
   gateway: WebGateway;
@@ -47,9 +51,12 @@ export function App({ gateway, platform }: AppProps) {
   const [settingsSection, setSettingsSection] = useState<WebSettingsSection>('account');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [promptQuery, setPromptQuery] = useState('');
+  const [commandOpen, setCommandOpen] = useState(false);
+  const largeViewport = useLargeProductViewport();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
   const enterAuthState = useCallback(() => {
     clearMusefoldUserQueryCache(queryClient);
     setAuthRequired(true);
@@ -71,6 +78,14 @@ export function App({ gateway, platform }: AppProps) {
     onRefreshError: handleAccountRefreshError,
   });
   const account = accountQuery.account;
+  const capabilityManifest = useMemo(
+    () => createWebCapabilityManifest({ signedIn: Boolean(account) && !authRequired, online }),
+    [account, authRequired, online],
+  );
+  const capabilities = useMemo(
+    () => webCapabilitiesFromManifest(capabilityManifest),
+    [capabilityManifest],
+  );
   const [accountAction, setAccountAction] = useState<'redeem' | null>(null);
   const handleAccountActionError = useCallback(
     (error: unknown) => {
@@ -102,9 +117,15 @@ export function App({ gateway, platform }: AppProps) {
   const connectionsQuery = useQuery<McpConnectionPage>({
     queryKey: musefoldQueryKeys.connections.all,
     queryFn: () => gateway.listConnections(),
-    enabled: Boolean(account) && !authRequired,
+    enabled: Boolean(account) && !authRequired && capabilities.cloudMcpConnections,
   });
   const connections = connectionsQuery.data ?? { items: [] };
+  // 命令面板的提示词命中：读取 library 列表缓存（workspace 水合已写入），面板打开时刷新。
+  const commandPromptQuery = useQuery({
+    queryKey: musefoldQueryKeys.library.list(WEB_LIBRARY_LIST_KEY),
+    queryFn: () => gateway.listPrompts({ ...WEB_LIBRARY_LIST_KEY }),
+    enabled: commandOpen,
+  });
   const terminalObserver = useRef(
     createGenerationTerminalObserver(() => {
       void accountQuery.scheduleRefresh();
@@ -144,7 +165,7 @@ export function App({ gateway, platform }: AppProps) {
 
   const openProductView = (nextView: View) => {
     setView(nextView);
-    if (nextView !== 'settings') setSidebarOpen(true);
+    setSidebarOpen(nextView !== 'settings');
   };
 
   const openSettingsSection = (section: WebSettingsSection) => {
@@ -180,6 +201,17 @@ export function App({ gateway, platform }: AppProps) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const queryError = accountQuery.error ?? connectionsQuery.error;
@@ -271,13 +303,14 @@ export function App({ gateway, platform }: AppProps) {
       open={sidebarOpen}
       onOpenChange={setSidebarOpen}
       compactDismissKey={view}
+      className={view === 'settings' ? 'settings-product-shell' : undefined}
       sidebar={
         <WebSidebar
+          capabilities={capabilities}
           view={view}
-          settingsSection={settingsSection}
           accountName={account.displayName ?? account.username}
-          mode={gateway.mode}
-          promptCount={generate.libraryItems.length}
+          quotaLabel={`${formatAccountPoints(account.quota)} 积分`}
+          accountReady={Boolean(account.canGenerate && capabilities.generation && online)}
           onNavigate={openProductView}
           onSettingsSectionChange={openSettingsSection}
           workbenchSessions={generate.sessionItems}
@@ -290,6 +323,10 @@ export function App({ gateway, platform }: AppProps) {
           onRenameWorkbenchSession={(item, title) => generate.renameSession(item, title)}
           onDeleteWorkbenchSession={(item) => generate.deleteSession(item)}
           onRetryWorkbenchSessions={() => void generate.refreshSessions()}
+          onLogout={async () => {
+            await gateway.logout();
+            enterAuthState();
+          }}
         />
       }
     >
@@ -307,7 +344,13 @@ export function App({ gateway, platform }: AppProps) {
             }
             sidebarOpen={sidebarOpen}
             onOpenSidebar={() => setSidebarOpen(true)}
+            commandPaletteEnabled={largeViewport}
             onSearch={() => {
+              // 大屏：与 Desktop 等价的命令面板入口；小屏维持既有提示词库跳转（shell 约束）。
+              if (largeViewport) {
+                setCommandOpen(true);
+                return;
+              }
               setView('prompts');
               window.requestAnimationFrame(() => {
                 document.querySelector<HTMLInputElement>('[data-testid="library-search"]')?.focus();
@@ -361,12 +404,17 @@ export function App({ gateway, platform }: AppProps) {
             onBack={() => openProductView('generate')}
             gateway={gateway}
             account={account}
+            capabilities={capabilities}
             dataSourceLabel={gateway.mode === 'fixture' ? '开发预览' : 'Musefold Cloud'}
             onRedeem={redeemAccountCode}
             onRefresh={accountQuery.refresh}
             redeemBusy={accountAction === 'redeem'}
             refreshBusy={accountQuery.refreshing}
             connections={connections}
+            connectionsLoading={connectionsQuery.isPending || connectionsQuery.isFetching}
+            connectionsError={
+              connectionsQuery.error instanceof Error ? connectionsQuery.error.message : null
+            }
             onConnectionsChange={(next) =>
               queryClient.setQueryData(musefoldQueryKeys.connections.all, next)
             }
@@ -377,6 +425,20 @@ export function App({ gateway, platform }: AppProps) {
           />
         )}
       </main>
+      <WebCommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        capabilities={capabilities}
+        sessions={generate.sessionItems}
+        prompts={commandPromptQuery.data?.items ?? []}
+        onNewDesign={() => void generate.beginNewDesign()}
+        onNavigate={openProductView}
+        onOpenSession={(sessionId) => void generate.openSession(sessionId)}
+        onUsePrompt={async (prompt) => {
+          setPromptQuery('');
+          await generate.applyPrompt(prompt);
+        }}
+      />
     </ProductSidebarLayout>
   );
 }

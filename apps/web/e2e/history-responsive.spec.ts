@@ -25,12 +25,23 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
+test('history filters clear back to the default view without horizontal overflow', async ({ page }) => {
+  await openFixtureHistory(page, 1280, 720);
+  const filter = page.getByTestId('history-filter-bar');
+  await expect(filter).toBeVisible();
+  await page.getByTestId('history-filter-search').fill('does-not-match');
+  await expect(page.getByTestId('history-empty-filtered')).toBeVisible();
+  await page.getByTestId('history-filter-clear').click();
+  await expect(page.getByTestId('history-row')).toHaveCount(1);
+  await expectNoHorizontalOverflow(page);
+});
+
 test('1280 keeps the list and occupying inspector layout', async ({ page }) => {
   await openFixtureHistory(page, 1280, 720);
   await page.getByTestId('history-row').getByRole('button', { name: '打开' }).click();
 
   await expect(page.getByTestId('history-inspector')).toBeVisible();
-  await expect(page.getByTestId('history-inspector')).toHaveCSS('width', '320px');
+  await expect(page.getByTestId('history-inspector')).toHaveCSS('width', '324px');
   await expect(page.getByTestId('history-sheet')).toHaveCount(0);
   await expect(page.getByTestId('history-row')).toBeVisible();
   await expect(page.getByTestId('history-detail')).toBeVisible();
@@ -48,6 +59,7 @@ test('1280 keeps the list and occupying inspector layout', async ({ page }) => {
   expect(geometry.listWidth + geometry.inspectorWidth).toBeCloseTo(geometry.workspaceWidth, 0);
   await expectNoHorizontalOverflow(page);
 });
+
 
 test('390 opens a modal bottom sheet and restores the opening row focus', async ({ page }) => {
   await openFixtureHistory(page, 390, 844);

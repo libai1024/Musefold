@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  DEFAULT_HISTORY_FILTERS,
+  resolveDateRange,
+  type HistoryFilters,
+} from '@musefold/domain/history-filters';
+import type { GenerationHistoryQuery } from '@musefold/contracts';
 import { type GenerationJob, type PromptDocument } from '@musefold/contracts';
 import {
   canCancelGeneration,
@@ -15,6 +21,7 @@ import {
   GenerationHistoryScreen,
   GenerationHistoryTrashScreen,
   GenerationHistoryWorkspace,
+  HistoryFilterBar,
   canShareImage,
   shareImageAsset,
   useHistoryPageController,
@@ -23,6 +30,7 @@ import {
 } from '@musefold/product-ui';
 import { Button, ImageLightbox } from '@musefold/ui';
 import { downloadImage } from '../download-image';
+import { isHistoryFilterActive } from '../lib/generation-history-filters';
 
 export interface HistoryViewProps {
   history: HistoryGateway;
@@ -43,7 +51,33 @@ export function HistoryView({
   onJobChanged,
   onJobRemoved,
 }: HistoryViewProps) {
-  const page = useHistoryPageController({ history, generation, platform });
+  const [filters, setFilters] = useState<HistoryFilters>(() => ({ ...DEFAULT_HISTORY_FILTERS }));
+  const [searchQuery, setSearchQuery] = useState('');
+  const listKey = useMemo(
+    () => ({
+      status: filters.status,
+      datePreset: filters.datePreset,
+      customFrom: filters.customFrom,
+      customTo: filters.customTo,
+      providerModel: filters.providerModel,
+      search: searchQuery.trim(),
+      limit: 100,
+    }),
+    [filters, searchQuery],
+  );
+  const page = useHistoryPageController({
+    history,
+    generation,
+    platform,
+    listKey,
+    listFn: () => listHistoryWithFilters(history, filters, searchQuery),
+  });
+  const modelOptions = useMemo(
+    () =>
+      [...new Set(page.items.map((item) => item.providerModel).filter((model): model is string => Boolean(model)))]
+        .sort((a, b) => a.localeCompare(b)),
+    [page.items],
+  );
   const inspector = page.inspector;
   const { mode, origin: detailOrigin } = inspector;
   const [selected, setSelected] = useState<GenerationJob | null>(null);
@@ -357,14 +391,45 @@ export function HistoryView({
     ) : null;
 
   return (
-    <div className="page page-history min-h-0 min-w-0 flex-1 overflow-hidden px-[24px] pt-[20px] pb-[16px]">
+    <div className="h-full min-h-0 bg-work">
       <GenerationHistoryScreen
         items={[]}
         count={items.length}
         refreshing={page.loading}
+        showPageHeader={false}
         onRefresh={() => void refresh()}
         onOpenTrash={() => void openTrash()}
-        className="mf-history-screen-workspace"
+        toolbar={
+          <HistoryFilterBar
+            filters={filters}
+            searchQuery={searchQuery}
+            modelOptions={modelOptions}
+            resultCount={items.length}
+            onFiltersChange={(patch) =>
+              setFilters((current) => {
+                const next = { ...current, ...patch };
+                if (patch.datePreset && patch.datePreset !== 'custom') {
+                  next.customFrom = undefined;
+                  next.customTo = undefined;
+                }
+                if (
+                  next.customFrom != null &&
+                  next.customTo != null &&
+                  next.customFrom > next.customTo
+                ) {
+                  [next.customFrom, next.customTo] = [next.customTo, next.customFrom];
+                }
+                return next;
+              })
+            }
+            onSearchChange={setSearchQuery}
+            onClear={() => {
+              setFilters({ ...DEFAULT_HISTORY_FILTERS });
+              setSearchQuery('');
+            }}
+          />
+        }
+        className={`mf-history-screen-workspace${detail && selected ? ' mf-history-screen-workspace-expanded' : ''}`}
         body={
           <GenerationHistoryWorkspace
             detailOpen={Boolean(detail && selected)}
@@ -393,7 +458,15 @@ export function HistoryView({
                       }
                     />
                   ))}
-                  {items.length === 0 ? <div className="mf-empty-row">还没有生成记录</div> : null}
+                  {items.length === 0 ? (
+                    isHistoryFilterActive(filters, searchQuery) ? (
+                      <div className="mf-empty-row" data-testid="history-empty-filtered">
+                        没有匹配的生成记录
+                      </div>
+                    ) : (
+                      <div className="mf-empty-row">还没有生成记录</div>
+                    )
+                  ) : null}
                 </div>
               </>
             }
@@ -495,6 +568,24 @@ function generationStatusPresentation(status: GenerationJob['status']): {
 
 function generationActorLabel(job: GenerationJob): string {
   return job.actorType === 'cloud_mcp' ? 'Cloud MCP' : 'Web 工作台';
+}
+
+function listHistoryWithFilters(
+  history: HistoryGateway,
+  filters: HistoryFilters,
+  searchQuery: string,
+): Promise<Awaited<ReturnType<HistoryGateway['listGenerationHistory']>>> {
+  const range = resolveDateRange(filters);
+  const query: GenerationHistoryQuery = {
+    limit: 100,
+    includeDeleted: false,
+    status: filters.status,
+    from: range.from == null ? undefined : new Date(range.from).toISOString(),
+    to: range.to == null ? undefined : new Date(range.to).toISOString(),
+    providerModel: filters.providerModel,
+    search: searchQuery.trim() || undefined,
+  };
+  return history.listGenerationHistory(query);
 }
 
 function generationDurationLabel(job: GenerationJob): string | null {

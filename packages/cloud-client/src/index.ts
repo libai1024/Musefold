@@ -4,7 +4,6 @@ import {
   apiErrorResponseSchema,
   createGenerationInputSchema,
   generationHistoryPageSchema,
-  generationHistoryQuerySchema,
   generationJobSchema,
   mcpConnectionPageSchema,
   updateMcpConnectionSchema,
@@ -71,6 +70,7 @@ import {
   type WorkbenchSessionListQuery,
   type WorkbenchSessionPage,
 } from "@musefold/contracts";
+import { serializeGenerationHistoryQuery } from "./generation-history-query.js";
 
 export interface GenerationEvent {
   seq: number;
@@ -583,15 +583,8 @@ export function createMusefoldCloudClient(
         true,
       ),
     listGenerationHistory(query) {
-      const parsed = generationHistoryQuerySchema.parse(query);
-      const search = new URLSearchParams({
-        limit: String(parsed.limit),
-        includeDeleted: String(parsed.includeDeleted),
-      });
-      if (parsed.cursor) search.set("cursor", parsed.cursor);
-      if (parsed.sessionId) search.set("sessionId", parsed.sessionId);
       return request(
-        `/generations?${search.toString()}`,
+        `/generations?${serializeGenerationHistoryQuery(query)}`,
         {},
         generationHistoryPageSchema,
       );

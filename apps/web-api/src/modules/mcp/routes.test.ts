@@ -19,9 +19,7 @@ async function createApp() {
   await app.register(mcpRoutes, {
     oauth: oauth as never,
     prompts: {} as never,
-    generations: {} as never,
     skills: {} as never,
-    credentials: {} as never,
     config: {
       PUBLIC_ORIGIN: "https://musefold.example",
       MCP_RESOURCE_URL: "https://musefold.example/api/musefold/mcp",
@@ -69,17 +67,35 @@ describe("Cloud MCP HTTP boundary", () => {
     expect(rateLimiter.assertAllowed).not.toHaveBeenCalled();
   });
 
-  it("advertises protected resource metadata to non-browser MCP clients", async () => {
-    const { app } = await createApp();
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/musefold/mcp",
-      payload: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+  it("filters tools/list to the scopes present on the grant", async () => {
+    const { app, oauth } = await createApp();
+    oauth.verifyAccessToken.mockResolvedValue({
+      token: "account-only-token",
+      ownerId: 42,
+      clientId: "account-only-client",
+      grantId: "account-only-grant",
+      scopes: ["account:read"],
+      resource: "https://musefold.example/api/musefold/mcp",
+      expiresAt: Math.floor(Date.now() / 1_000) + 600,
     });
-    expect(response.statusCode).toBe(401);
-    expect(response.headers["www-authenticate"]).toContain(
-      'resource_metadata="https://musefold.example/.well-known/oauth-protected-resource/api/musefold/mcp"',
-    );
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address();
+    if (!address || typeof address === "string")
+      throw new Error("Fastify did not expose a TCP test address");
+    const client = new Client({ name: "musefold-scope-test", version: "1.0.0" });
+    try {
+      await client.connect(new StreamableHTTPClientTransport(
+        new URL(`http://127.0.0.1:${address.port}/api/musefold/mcp`),
+        { requestInit: { headers: { Authorization: "Bearer account-only-token" } } },
+      ));
+      expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
+        "musefold_status",
+        "get_account_status",
+        "list_models",
+      ]);
+    } finally {
+      await client.close();
+    }
   });
 
   it("completes initialize, tools/list and tools/call with the official Streamable HTTP client", async () => {
@@ -91,14 +107,7 @@ describe("Cloud MCP HTTP boundary", () => {
         ownerId: 42,
         clientId: "sdk-client",
         grantId: "grant-1",
-        scopes: [
-          "account:read",
-          "prompts:read",
-          "prompts:write",
-          "skills:read",
-          "generations:read",
-          "generations:write",
-        ],
+        scopes: ["account:read", "prompts:read", "skills:read"],
         resource: "http://127.0.0.1/api/musefold/mcp",
         expiresAt: Math.floor(Date.now() / 1_000) + 600,
       }),
@@ -115,55 +124,38 @@ describe("Cloud MCP HTTP boundary", () => {
         suspended: false,
       }),
     };
-    const generationJob = {
-      id: "01JTESTGENERATION0000000000",
-      sessionId: null,
-      parentRunId: null,
-      promptId: null,
-      actorType: "cloud_mcp",
-      approvalStatus: "not_required",
-      status: "succeeded",
-      progress: 100,
-      request: {
-        prompt: "A quiet editorial still life",
-        size: "1024x1024",
-        quality: "high",
-        count: 1,
-      },
-      providerModel: "musefold-image-pro",
-      costPoints: 1_000,
-      assets: [
-        {
-          id: "01JTESTASSET0000000000000",
-          url: "/api/musefold/v1/assets/placeholder/url",
-          mimeType: "image/png",
-          width: 1024,
-          height: 1024,
-          byteSize: 2048,
-          expiresAt: "2026-08-18T12:00:00.000Z",
-        },
-      ],
-      error: null,
-      createdAt: "2026-08-18T12:00:00.000Z",
-      startedAt: "2026-08-18T12:00:01.000Z",
-      finishedAt: "2026-08-18T12:00:02.000Z",
-    };
-    const generations = {
-      createCloudMcp: vi.fn().mockResolvedValue({
-        job: generationJob,
-        approvalToken: null,
+    const prompts = {
+      listPrompts: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+      getPrompt: vi.fn().mockResolvedValue({
+        id: "prompt-1",
+        title: "Editorial still life",
+        content: "A quiet editorial still life",
       }),
-      assetSignedUrl: vi.fn().mockResolvedValue({
-        url: "https://assets.example/result.png?signature=test",
-        expiresAt: "2026-08-18T12:15:00.000Z",
+    };
+    const skills = {
+      list: vi.fn().mockResolvedValue([
+        {
+          id: "postcard",
+          version: "1.0.0",
+          title: "明信片视觉",
+          summary: "测试",
+          contentHash: "sha256:" + "a".repeat(64),
+        },
+      ]),
+      get: vi.fn().mockResolvedValue({
+        id: "postcard",
+        version: "1.0.0",
+        title: "明信片视觉",
+        summary: "测试",
+        content: "# Skill",
+        inputSchema: { type: "object", additionalProperties: false },
+        contentHash: "sha256:" + "a".repeat(64),
       }),
     };
     await app.register(mcpRoutes, {
       oauth: oauth as never,
-      prompts: {} as never,
-      generations: generations as never,
-      skills: {} as never,
-      credentials: {} as never,
+      prompts: prompts as never,
+      skills: skills as never,
       config: {
         PUBLIC_ORIGIN: "https://musefold.example",
         MCP_RESOURCE_URL: "https://musefold.example/api/musefold/mcp",
@@ -186,11 +178,24 @@ describe("Cloud MCP HTTP boundary", () => {
     try {
       await client.connect(transport);
       const tools = await client.listTools();
-      expect(tools.tools.map((tool) => tool.name)).toEqual(
+      const names = tools.tools.map((tool) => tool.name).sort();
+      expect(names).toEqual([
+        "get_account_status",
+        "get_prompt",
+        "get_skill",
+        "list_models",
+        "list_skills",
+        "musefold_status",
+        "search_prompts",
+      ]);
+      expect(names).not.toEqual(
         expect.arrayContaining([
-          "musefold_status",
+          "save_prompt",
           "generate_image",
-          "list_skills",
+          "estimate_generation",
+          "get_generation",
+          "wait_for_generation",
+          "cancel_generation",
           "list_history",
         ]),
       );
@@ -202,34 +207,62 @@ describe("Cloud MCP HTTP boundary", () => {
         connected: true,
         surface: "cloud",
         clientId: "sdk-client",
+        capabilities: ["account", "prompts", "official_skills"],
       });
-      const generated = await client.callTool({
-        name: "generate_image",
-        arguments: {
-          idempotencyKey: "sdk-test-generation-1",
-          prompt: "A quiet editorial still life",
-          size: "1024x1024",
-          quality: "high",
-          maxPoints: 1_000,
-        },
+      const account = await client.callTool({
+        name: "get_account_status",
+        arguments: {},
       });
-      expect(generated.structuredContent).toMatchObject({
-        id: generationJob.id,
-        assets: [
-          {
-            id: generationJob.assets[0]?.id,
-            url: "https://assets.example/result.png?signature=test",
-            expiresAt: "2026-08-18T12:15:00.000Z",
-            resourceUri: `musefold://assets/${generationJob.assets[0]?.id}`,
-          },
-        ],
+      expect(account.structuredContent).toMatchObject({
+        ownerId: "42",
+        officialModelsAvailable: true,
       });
-      expect(generated.content).toContainEqual(
-        expect.objectContaining({
-          type: "resource_link",
-          uri: "https://assets.example/result.png?signature=test",
-          mimeType: "image/png",
-        }),
+      const models = await client.callTool({
+        name: "list_models",
+        arguments: {},
+      });
+      expect(models.structuredContent).toMatchObject({
+        models: [{ id: "musefold-image-pro", kind: "image" }],
+      });
+      const promptPage = await client.callTool({
+        name: "search_prompts",
+        arguments: { q: "editorial" },
+      });
+      expect(promptPage.structuredContent).toMatchObject({ items: [] });
+      const prompt = await client.callTool({
+        name: "get_prompt",
+        arguments: { id: "prompt-1" },
+      });
+      expect(prompt.structuredContent).toMatchObject({
+        id: "prompt-1",
+        content: "A quiet editorial still life",
+      });
+      const skillsPage = await client.callTool({
+        name: "list_skills",
+        arguments: {},
+      });
+      expect(skillsPage.structuredContent).toMatchObject({
+        skills: [{ id: "postcard", version: "1.0.0" }],
+      });
+      const skill = await client.callTool({
+        name: "get_skill",
+        arguments: { id: "postcard", version: "1.0.0" },
+      });
+      expect(skill.structuredContent).toMatchObject({
+        id: "postcard",
+        contentHash: "sha256:" + "a".repeat(64),
+      });
+      const serialized = JSON.stringify({
+        status: status.structuredContent,
+        account: account.structuredContent,
+        models: models.structuredContent,
+        prompt: prompt.structuredContent,
+        skills: skill.structuredContent,
+      });
+      expect(serialized).not.toMatch(/password|token|cookie|apiKey|secret|file:\/\//i);
+      expect(oauth.assertScope).toHaveBeenCalledWith(
+        expect.objectContaining({ ownerId: 42 }),
+        expect.any(String),
       );
       expect(oauth.verifyAccessToken).toHaveBeenCalled();
     } finally {

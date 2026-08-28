@@ -4,10 +4,7 @@ import { entityIdSchema, isoDateTimeSchema } from "./common.js";
 export const mcpScopeSchema = z.enum([
   "account:read",
   "prompts:read",
-  "prompts:write",
   "skills:read",
-  "generations:read",
-  "generations:write",
 ]);
 
 export const mcpConnectionSchema = z.object({

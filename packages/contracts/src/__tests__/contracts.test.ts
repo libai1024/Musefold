@@ -7,6 +7,7 @@ import {
   promptListQuerySchema,
   registerRequestSchema,
   updateMcpConnectionSchema,
+  generationHistoryQuerySchema,
 } from "../index";
 
 describe("cloud-safe contracts", () => {
@@ -35,7 +36,25 @@ describe("cloud-safe contracts", () => {
     expect(parsed).not.toHaveProperty("imagePath");
   });
 
-  it("keeps registration limited to username and password", () => {
+  it("accepts history filter bounds and keeps list defaults", () => {
+    expect(
+      generationHistoryQuerySchema.parse({
+        status: "failed",
+        from: "2026-08-01T00:00:00.000Z",
+        to: "2026-08-31T23:59:59.999Z",
+        providerModel: "musefold-image-pro",
+        search: "建筑",
+      }),
+    ).toMatchObject({
+      limit: 20,
+      includeDeleted: false,
+      status: "failed",
+      providerModel: "musefold-image-pro",
+    });
+    expect(generationHistoryQuerySchema.safeParse({ status: "success" }).success).toBe(false);
+  });
+
+  it("strips non-contract registration fields", () => {
     expect(
       registerRequestSchema.parse({
         username: "musefold",
@@ -86,7 +105,7 @@ describe("cloud-safe contracts", () => {
     const connection = mcpConnectionSchema.parse({
       id: "connection-1",
       clientName: "Codex",
-      scopes: ["generations:read"],
+      scopes: ["account:read"],
       mode: "ask_each_time",
       maxPointsPerGeneration: 1_000,
       maxPointsPerDay: 5_000,
@@ -102,13 +121,13 @@ describe("cloud-safe contracts", () => {
     });
     const update = updateMcpConnectionSchema.parse({
       maxPointsPerDay: 8_000,
-      scopes: ["account:read", "prompts:write"],
+      scopes: ["account:read", "prompts:read"],
       reauthPassword: "current-password",
       spentPointsToday: 0,
     });
     expect(update).toEqual({
       maxPointsPerDay: 8_000,
-      scopes: ["account:read", "prompts:write"],
+      scopes: ["account:read", "prompts:read"],
       reauthPassword: "current-password",
     });
     expect(

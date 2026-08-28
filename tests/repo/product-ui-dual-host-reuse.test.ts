@@ -10,8 +10,8 @@ import { REPO_ROOT } from '../../tooling/aliases.mjs';
  * 数量只增不减。统计只看生产源码（排除 __tests__/.test.），避免用测试文件刷数。
  */
 
-// v2.0(ACC-04):AccountScreen / AccountActionFeedback 由 Web 与 Desktop 共同消费，基线 68 → 70。
-const BOTH_HOSTS_BASELINE = 70;
+// v2.1(HIS-02/CMD-01/SIDEBAR-01): shared history filtering, Web command palette, and sidebar menus; baseline 70 → 74.
+const BOTH_HOSTS_BASELINE = 74;
 
 const HOSTS = {
   web: 'apps/web/src',

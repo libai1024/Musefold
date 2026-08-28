@@ -966,8 +966,6 @@ def test_shared_account_and_connections_visual_contracts(app):
                 "account:read",
                 "prompts:read",
                 "skills:read",
-                "generations:read",
-                "generations:write",
             ],
             "mode": "ask_each_time",
             "maxPointsPerGeneration": 1000,

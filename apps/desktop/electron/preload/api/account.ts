@@ -4,8 +4,10 @@
 import { ipcRenderer } from "electron";
 import { IPC } from "@musefold/desktop-contracts/ipc";
 import type { AccountErrorPayload } from "@musefold/desktop-contracts/account";
+import type { CloudSyncErrorPayload } from "@musefold/desktop-contracts/cloud-sync";
 
 const ACCOUNT_ERROR_PREFIX = "ACCOUNT_ERR::";
+const CLOUD_SYNC_ERROR_PREFIX = "CLOUD_SYNC_ERR::";
 
 /** Electron invoke 只保留 Error.message；把主进程结构化前缀还原成渲染层可判定的 code/stage。 */
 async function invokeAccount<T>(
@@ -25,6 +27,31 @@ async function invokeAccount<T>(
         const restored = new Error(payload.message) as Error & AccountErrorPayload;
         restored.code = payload.code;
         restored.stage = payload.stage;
+        throw restored;
+      } catch (parsed) {
+        if (parsed instanceof Error && "code" in parsed) throw parsed;
+      }
+    }
+    throw error;
+  }
+}
+
+async function invokeCloudSync<T>(
+  channel: string,
+  ...args: unknown[]
+): Promise<T> {
+  try {
+    return (await ipcRenderer.invoke(channel, ...args)) as T;
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+    const index = raw.indexOf(CLOUD_SYNC_ERROR_PREFIX);
+    if (index !== -1) {
+      try {
+        const payload = JSON.parse(
+          raw.slice(index + CLOUD_SYNC_ERROR_PREFIX.length),
+        ) as CloudSyncErrorPayload;
+        const restored = new Error(payload.message) as Error & CloudSyncErrorPayload;
+        restored.code = payload.code;
         throw restored;
       } catch (parsed) {
         if (parsed instanceof Error && "code" in parsed) throw parsed;
@@ -82,15 +109,32 @@ export const accountApi = {
 };
 
 export const cloudSyncApi = {
-  status: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_STATUS),
+  status: () =>
+    invokeCloudSync<import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary>(
+      IPC.CLOUD_SYNC_STATUS,
+    ),
   setEnabled: (enabled: boolean) =>
-    ipcRenderer.invoke(IPC.CLOUD_SYNC_SET_ENABLED, enabled),
-  syncNow: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_NOW),
-  conflicts: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_CONFLICTS),
+    invokeCloudSync<import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary>(
+      IPC.CLOUD_SYNC_SET_ENABLED,
+      enabled,
+    ),
+  syncNow: () =>
+    invokeCloudSync<import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary>(
+      IPC.CLOUD_SYNC_NOW,
+    ),
+  conflicts: () =>
+    invokeCloudSync<
+      import("@musefold/desktop-contracts/cloud-sync").CloudSyncConflictSummary[]
+    >(IPC.CLOUD_SYNC_CONFLICTS),
   resolve: (
     conflictId: string,
     resolution: import("@musefold/desktop-contracts/cloud-sync").CloudSyncConflictResolution,
-  ) => ipcRenderer.invoke(IPC.CLOUD_SYNC_RESOLVE, conflictId, resolution),
+  ) =>
+    invokeCloudSync<import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary>(
+      IPC.CLOUD_SYNC_RESOLVE,
+      conflictId,
+      resolution,
+    ),
   onChanged: (
     cb: (status: import("@musefold/desktop-contracts/cloud-sync").CloudSyncSummary) => void,
   ) => {
@@ -104,10 +148,19 @@ export const cloudSyncApi = {
 };
 
 export const cloudConnectionsApi = {
-  list: () => ipcRenderer.invoke(IPC.CLOUD_CONNECTIONS_LIST),
+  list: () =>
+    invokeCloudSync<import("@musefold/contracts").McpConnectionPage>(
+      IPC.CLOUD_CONNECTIONS_LIST,
+    ),
   update: (
     id: string,
     input: import("@musefold/contracts").UpdateMcpConnection,
-  ) => ipcRenderer.invoke(IPC.CLOUD_CONNECTIONS_UPDATE, id, input),
-  revoke: (id: string) => ipcRenderer.invoke(IPC.CLOUD_CONNECTIONS_REVOKE, id),
+  ) =>
+    invokeCloudSync<import("@musefold/contracts").McpConnectionPage>(
+      IPC.CLOUD_CONNECTIONS_UPDATE,
+      id,
+      input,
+    ),
+  revoke: (id: string) =>
+    invokeCloudSync<void>(IPC.CLOUD_CONNECTIONS_REVOKE, id),
 };

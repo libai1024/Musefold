@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { IPC } from "@musefold/desktop-contracts/ipc";
+import { CloudSyncError, CLOUD_SYNC_ERROR_IPC_PREFIX } from "../../../cloud-sync/errors";
 
 vi.mock("../../../cloud-sync", () => ({
   getCloudSyncService: () => {
@@ -81,6 +82,33 @@ describe("cloud sync IPC handlers", () => {
     ).toThrow("同步冲突处理方式无效");
   });
 
+  it("serializes cloud sync availability errors across sync and connection handlers", async () => {
+    const { handlers, service } = harness();
+    service.setEnabled.mockRejectedValueOnce(
+      new CloudSyncError("AUTH_REQUIRED", "请先登录 Musefold 账号"),
+    );
+    const syncError = await Promise.resolve(
+      handlers.get(IPC.CLOUD_SYNC_SET_ENABLED)?.({}, true),
+    ).then(
+      () => null,
+      (value) => value as Error,
+    );
+    expect(syncError?.message).toContain(CLOUD_SYNC_ERROR_IPC_PREFIX);
+    expect(syncError?.message).toContain('"code":"AUTH_REQUIRED"');
+
+    service.listConnections.mockRejectedValueOnce(
+      new CloudSyncError("UNAVAILABLE", "Cloud MCP 当前不可用"),
+    );
+    const connectionError = await Promise.resolve(
+      handlers.get(IPC.CLOUD_CONNECTIONS_LIST)?.({}),
+    ).then(
+      () => null,
+      (value) => value as Error,
+    );
+    expect(connectionError?.message).toContain(CLOUD_SYNC_ERROR_IPC_PREFIX);
+    expect(connectionError?.message).toContain('"code":"UNAVAILABLE"');
+  });
+
   it("validates and forwards Cloud MCP connection policy requests", async () => {
     const { handlers, service } = harness();
     await handlers.get(IPC.CLOUD_CONNECTIONS_LIST)?.({});
@@ -98,13 +126,13 @@ describe("cloud sync IPC handlers", () => {
     await handlers.get(IPC.CLOUD_CONNECTIONS_REVOKE)?.({}, "grant-1");
     expect(service.revokeConnection).toHaveBeenCalledWith("grant-1");
 
-    expect(() =>
+    await expect(
       handlers.get(IPC.CLOUD_CONNECTIONS_UPDATE)?.({}, "", patch),
-    ).toThrow("Cloud MCP 连接标识无效");
-    expect(() =>
+    ).rejects.toThrow("Cloud MCP 连接标识无效");
+    await expect(
       handlers
         .get(IPC.CLOUD_CONNECTIONS_UPDATE)
         ?.({}, "grant-1", { maxPointsPerDay: -1 }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 });

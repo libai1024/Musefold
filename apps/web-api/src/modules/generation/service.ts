@@ -21,6 +21,7 @@ import type {
   AssetUrlSigner,
   SignedAssetUrl,
 } from "../../storage/s3-signer.js";
+import { buildGenerationHistoryConditions } from "./history-filters.js";
 
 const MCP_ESTIMATED_POINTS = 1_000;
 
@@ -154,17 +155,8 @@ export class GenerationService implements GenerationServicePort {
   ): Promise<GenerationHistoryPage> {
     const query = generationHistoryQuerySchema.parse(rawQuery);
     const result = await withOwnerTransaction(this.db, ownerId, async (trx) => {
-      const conditions = [
-        query.includeDeleted ? sql`TRUE` : sql`r.deleted_at IS NULL`,
-      ];
-      if (query.sessionId)
-        conditions.push(sql`r.session_id = ${query.sessionId}`);
-      if (query.cursor) {
-        const cursor = decodeCursor(query.cursor);
-        conditions.push(
-          sql`(r.created_at, r.id) < (${new Date(cursor.createdAt)}, ${cursor.id})`,
-        );
-      }
+      const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+      const conditions = buildGenerationHistoryConditions(query, cursor);
       const rows = await sql<RunRow>`
         SELECT r.id, r.session_id, r.parent_run_id, r.prompt_id, r.run_kind,
           r.actor_type, r.approval_status, r.prompt_snapshot, r.request,

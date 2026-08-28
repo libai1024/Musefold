@@ -116,7 +116,7 @@ test('desktop prompt to generation to history flow', async ({ page }, testInfo) 
 
   await page.getByTestId('product-sidebar').getByRole('button', { name: '提示词库' }).click();
   await expect(
-    page.getByTestId('library-page').locator('.mf-page-heading > div > span'),
+    page.getByTestId('library-filter-all').locator('.mf-workspace-scope-count'),
   ).toHaveText('4');
 
   const lifecycleRow = page.locator('[data-prompt-id="prompt-night-architecture"]');
@@ -133,7 +133,7 @@ test('desktop prompt to generation to history flow', async ({ page }, testInfo) 
   await page.getByTestId('detail-delete-confirm').click();
   await expect(page.getByTestId('library-page')).toBeVisible();
   await expect(
-    page.getByTestId('library-page').locator('.mf-page-heading > div > span'),
+    page.getByTestId('library-filter-all').locator('.mf-workspace-scope-count'),
   ).toHaveText('3');
 
   await page.getByTestId('library-menu').click();
@@ -146,7 +146,7 @@ test('desktop prompt to generation to history flow', async ({ page }, testInfo) 
   await expect(trashRow).toHaveCount(0);
   await page.getByTestId('prompt-trash').getByRole('button', { name: '提示词库' }).click();
   await expect(
-    page.getByTestId('library-page').locator('.mf-page-heading > div > span'),
+    page.getByTestId('library-filter-all').locator('.mf-workspace-scope-count'),
   ).toHaveText('4');
 
   await page.getByTestId('product-sidebar').getByRole('button', { name: '生成历史' }).click();
@@ -156,7 +156,7 @@ test('desktop prompt to generation to history flow', async ({ page }, testInfo) 
   await page.getByTestId('history-row').getByRole('button', { name: '打开' }).click();
   await expect(page.getByTestId('history-detail')).toBeVisible();
   await expect(page.getByTestId('history-workspace')).toHaveAttribute('data-detail-open', 'true');
-  await expect(page.getByTestId('history-inspector')).toHaveCSS('width', '320px');
+  await expect(page.getByTestId('history-inspector')).toHaveCSS('width', '324px');
   const historyGeometry = await page.evaluate(() => {
     const workspace = document.querySelector<HTMLElement>('[data-testid="history-workspace"]');
     const list = workspace?.querySelector<HTMLElement>('.mf-history-workspace-list');
@@ -169,7 +169,7 @@ test('desktop prompt to generation to history flow', async ({ page }, testInfo) 
     };
   });
   expect(historyGeometry).not.toBeNull();
-  expect(historyGeometry?.inspector).toBeCloseTo(320, 0);
+  expect(historyGeometry?.inspector).toBeCloseTo(324, 0);
   expect(historyGeometry?.list ?? 0).toBeGreaterThan(historyGeometry?.inspector ?? 0);
   expect((historyGeometry?.list ?? 0) + (historyGeometry?.inspector ?? 0)).toBeCloseTo(
     historyGeometry?.workspace ?? 0,
@@ -206,9 +206,20 @@ test('shared empty state and composer popovers match desktop interactions', asyn
   const browserErrors = collectBrowserErrors(page);
   await waitForFixtureWorkspace(page);
 
+  // v2.1 parity C：Desktop generate 顶栏专属入口不进入 Web 宿主
+  // （素材库开关 → HX-DESKTOP-FILESYSTEM；任务摘要 → HX-DESKTOP-WINDOW）。
+  await expect(page.getByTestId('titlebar-materials-toggle')).toHaveCount(0);
+  await expect(page.getByTestId('titlebar-task-summary')).toHaveCount(0);
+  // Web 显式替代状态：大屏搜索/命令入口（额度在大屏住侧栏身份区，不在顶栏）。
+  await expect(page.getByTestId('web-topbar-search')).toHaveAttribute('title', '搜索与命令（⌘ K）');
+
   await page.getByTestId('web-topbar-search').click();
+  await expect(page.getByTestId('web-command-palette')).toBeVisible();
+  // 空查询只出快速动作；输入后命中导航命令。
+  await page.getByTestId('web-command-input').fill('提示词');
+  await page.getByRole('option', { name: /提示词库/ }).click();
   await expect(page.getByTestId('library-page')).toBeVisible();
-  await expect(page.getByTestId('library-search')).toBeFocused();
+  await expect(page.getByTestId('web-command-palette')).toHaveCount(0);
   await page.getByTestId('sidebar-new-design').click();
   await expect(page.getByTestId('generation-workbench')).toBeVisible();
 
@@ -251,6 +262,45 @@ test('shared empty state and composer popovers match desktop interactions', asyn
   await expect(page.getByTestId('workbench-context-menu')).toBeVisible();
   await page.getByTestId('workbench-context-ref-prompt').click();
   await expect(page.getByTestId('library-page')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  expect(browserErrors).toEqual([]);
+});
+
+test('wide topbar opens the shared command palette with shortcut, sessions and prompt hits', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const browserErrors = collectBrowserErrors(page);
+  await waitForFixtureWorkspace(page);
+
+  // ⌘K / Ctrl+K 开合。
+  await page.keyboard.press('Control+k');
+  await expect(page.getByTestId('web-command-palette')).toBeVisible();
+  await expect(page.getByTestId('web-command-input')).toBeFocused();
+  // 空查询只展示快速动作；导航命令需输入后命中。
+  await expect(page.getByRole('option', { name: '新设计' })).toBeVisible();
+  await expect(page.getByRole('option', { name: '提示词库' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('web-command-palette')).toHaveCount(0);
+
+  // 提示词命中 → 使用后进入生成草稿。
+  await page.keyboard.press('Control+k');
+  await page.getByTestId('web-command-input').fill('夜色');
+  const promptOption = page.getByRole('option', { name: /夜色建筑摄影/ });
+  await expect(promptOption).toBeVisible();
+  await promptOption.click();
+  await expect(page.getByTestId('web-command-palette')).toHaveCount(0);
+  await expect(page.getByTestId('generation-composer-prompt')).toHaveValue(
+    '雨后的夜间建筑摄影，低机位，湿润街面反射窗内暖光，克制的深青天空，真实建筑材质，画面安静且具有清晰空间层次。',
+  );
+
+  // 键盘流：查询后 ↑↓ 选中 + Enter 执行导航命令。
+  await page.keyboard.press('Control+k');
+  await page.getByTestId('web-command-input').fill('历史');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('web-command-palette')).toHaveCount(0);
+  await expect(page.getByTestId('history-page')).toBeVisible();
   await expectNoHorizontalOverflow(page);
   expect(browserErrors).toEqual([]);
 });
@@ -460,7 +510,8 @@ test('shared account and Cloud MCP connection policies keep their actions determ
   const browserErrors = collectBrowserErrors(page);
   await waitForFixtureWorkspace(page);
 
-  await page.getByTestId('sidebar-account').click();
+  await page.getByTestId('provider-quick-switch').click();
+  await page.getByTestId('identity-account-settings').click();
   await expect(page.getByTestId('account-screen')).toBeVisible();
   await expect(page.getByTestId('account-summary-panel')).toContainText('186 积分');
   await page.getByRole('button', { name: '退出登录' }).click();
@@ -473,10 +524,11 @@ test('shared account and Cloud MCP connection policies keep their actions determ
   await page.getByRole('button', { name: '展开侧栏' }).click();
   await expect(page.getByTestId('product-sidebar')).toBeVisible();
 
-  await page.getByTestId('nav-settings').click();
+  await page.getByTestId('sidebar-settings').click();
+  await page.getByTestId('sidebar-settings-open').click();
   await page
     .getByRole('navigation', { name: '设置分区' })
-    .getByRole('button', { name: '已连接应用' })
+    .getByRole('button', { name: '开放能力' })
     .click();
   await expect(page.getByTestId('connected-apps-screen')).toBeVisible();
   const connection = page.getByTestId('connection-row');
@@ -610,10 +662,11 @@ test('shared sidebar resizes, collapses, and becomes a compact drawer', async ({
 
   await page.setViewportSize({ width: 680, height: 844 });
   await page.getByRole('button', { name: '展开侧栏' }).click();
-  await page.getByTestId('product-sidebar').getByTestId('nav-settings').click();
+  await page.getByTestId('sidebar-settings').click();
+  await page.getByTestId('sidebar-settings-open').click();
   const settingsNavigation = page.getByRole('navigation', { name: '设置分区' });
   await expect(settingsNavigation).toBeVisible();
-  await settingsNavigation.getByRole('button', { name: 'Musefold 账号' }).click();
+  await settingsNavigation.getByRole('button', { name: '账号' }).click();
   await expect(page.getByTestId('account-screen')).toBeVisible();
   await expect(page.getByRole('button', { name: '返回设置' })).toBeVisible();
   await expectNoHorizontalOverflow(page);

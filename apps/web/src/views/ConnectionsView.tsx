@@ -8,19 +8,25 @@ export function ConnectionsView({
   onConnectionsChange,
   embedded = false,
   showHeading = true,
+  loading = false,
+  loadError = null,
 }: {
   gateway: WebGateway;
   connections: McpConnectionPage;
   onConnectionsChange: (next: McpConnectionPage) => void;
   embedded?: boolean;
   showHeading?: boolean;
+  loading?: boolean;
+  loadError?: string | null;
 }) {
   const screen = (
     <ConnectedAppsScreen
       testId="connected-apps-screen"
       items={connections.items}
       showHeading={showHeading}
-      mcpServerUrl={`${window.location.origin}/api/musefold/mcp`}
+      loading={loading}
+      loadError={loadError}
+      mcpServerUrl={`${typeof window === 'undefined' ? '' : window.location.origin}/api/musefold/mcp`}
       onUpdate={async (id, input) => onConnectionsChange(await gateway.updateConnection(id, input))}
       onRevoke={async (id) => {
         await gateway.revokeConnection(id);

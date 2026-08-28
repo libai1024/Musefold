@@ -169,6 +169,31 @@ describe("DesktopSyncRepository", () => {
     expect(repository.listReadyMutations(ownerId)).toEqual([]);
   });
 
+  it("atomically disables an activated owner without resetting sync metadata", () => {
+    repository.markBootstrapCompleted(ownerId, "42");
+    const before = repository.getActiveAccount();
+
+    const activated = repository.activateAccount(
+      {
+        ownerId,
+        username: "renamed-user",
+        deviceName: "Renamed device",
+        platform: "macos",
+        clientVersion: "2.1.0",
+      },
+      true,
+    );
+
+    expect(activated).toMatchObject({
+      ownerId,
+      username: "renamed-user",
+      deviceId: before?.deviceId,
+      cursor: "42",
+      bootstrapCompletedAt: expect.any(Number),
+      enabled: false,
+    });
+  });
+
   it("buffers usage events while sync is disabled so enabling later does not lose history", () => {
     repository.setEnabled(ownerId, false);
     const eventId = repository.enqueueUsageEvent(ownerId, "prompt-local", "apply");

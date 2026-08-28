@@ -28,19 +28,13 @@ export type ConnectedAppScope = (typeof CONNECTED_APP_SCOPES)[number];
 export const CONNECTED_APP_SCOPES = [
   "account:read",
   "prompts:read",
-  "prompts:write",
   "skills:read",
-  "generations:read",
-  "generations:write",
 ] as const;
 
 export const CONNECTED_APP_SCOPE_LABELS: Record<ConnectedAppScope, string> = {
   "account:read": "账户信息",
   "prompts:read": "提示词·读",
-  "prompts:write": "提示词·写",
   "skills:read": "技能·读",
-  "generations:read": "生图·读",
-  "generations:write": "生图·写",
 };
 
 export interface ConnectedAppViewModel {
@@ -115,7 +109,7 @@ export function ConnectedAppsScreen({
   emptyLabel = "还没有连接 AI 客户端",
   mcpServerUrl,
   title = "已连接应用",
-  description = "管理 AI 客户端访问 Musefold Cloud MCP 的授权、范围和预算。",
+      description = "管理 AI 客户端访问 Musefold Cloud MCP 的只读授权范围。",
   showHeading = true,
   className,
   testId,
@@ -270,7 +264,7 @@ export function ConnectedAppsScreen({
               </div>
               <div className="mf-connected-app-controls">
                 <div>
-                  <span>生图模式</span>
+                  <span>连接策略</span>
                   <SettingsSegmentedControl
                     value={connection.mode}
                     options={[
@@ -342,7 +336,7 @@ export function ConnectedAppsScreen({
           <div className="mf-connected-app-empty">
             <p>{emptyLabel}</p>
             <div className="mf-connected-app-empty-guide">
-              <span>在 AI 客户端中添加 Musefold MCP 服务器即可连接，新连接默认开放全部能力。</span>
+                  <span>在 AI 客户端中添加 Musefold MCP 服务器即可连接，新连接默认开放最小只读能力。</span>
               {mcpServerUrl ? (
                 <Button
                   variant="outline"

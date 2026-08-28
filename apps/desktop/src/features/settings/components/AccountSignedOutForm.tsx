@@ -5,6 +5,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { SettingsSegmentedControl } from '@musefold/product-ui';
 import { SettingsCard } from '../components/SectionShell';
+import { AccountCloudSyncPanel } from './AccountCloudSyncPanel';
 import type { AuthMode } from './account-section-helpers';
 import { Field, InlineMessage } from './account-section-ui';
 
@@ -186,6 +187,18 @@ export function AccountSignedOutForm({
           </form>
         )}
         <p className="mt-2 break-all font-mono text-meta text-quaternary">{status.serverUrl}</p>
+      </div>
+
+      <div className="mt-6 border-t border-border-subtle pt-1">
+        <AccountCloudSyncPanel
+          signedIn={false}
+          cloudSync={null}
+          cloudConflicts={[]}
+          cloudError={null}
+          setCloudEnabled={async () => undefined}
+          syncCloudNow={async () => undefined}
+          resolveCloudConflict={async () => undefined}
+        />
       </div>
     </SettingsCard>
   );

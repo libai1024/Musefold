@@ -34,6 +34,8 @@ from urllib.request import urlopen
 import pytest
 from playwright.sync_api import sync_playwright, Page
 
+from test_08_generation_workbench import fake_workbench_server
+
 REPO = Path(__file__).resolve().parents[2]
 MAIN = REPO / "apps" / "desktop" / "out" / "main" / "index.js"
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getProductCapabilities } from "../capabilities";
+import { createCapabilityManifest, getProductCapabilities } from "../capabilities";
 import {
   PRODUCT_COMMAND_CATALOG,
   PRODUCT_NAV_CATALOG,
@@ -20,16 +20,14 @@ describe("product navigation catalog", () => {
       "design-schemes",
       "history",
     ]);
-    expect(visibleProductNav("web", getProductCapabilities("web")).map((item) => item.sidebarId)).toEqual([
-      "prompts",
-      "history",
-      "settings",
-    ]);
+    const web = visibleProductNav("web", getProductCapabilities("web"));
+    expect(web.map((item) => item.sidebarId)).toEqual(["prompts", "history"]);
+    expect(web.map((item) => item.semanticId)).toEqual(["library", "history"]);
+    expect(web.find((item) => item.sidebarId === "settings")).toBeUndefined();
     expect(PRODUCT_NAV_CATALOG.map((item) => item.id)).toEqual([
       "library",
       "design-schemes",
       "history",
-      "connections",
     ]);
   });
 
@@ -40,6 +38,49 @@ describe("product navigation catalog", () => {
       localPrompts: false,
     };
     expect(visibleProductNav("desktop", closed).map((item) => item.sidebarId)).toEqual(["history"]);
+  });
+
+  it("filters a v2 manifest by current rollout and signed-out availability", () => {
+    expect(
+      visibleProductNav("web", createCapabilityManifest({ surface: "web" })).map(
+        (item) => item.sidebarId,
+      ),
+    ).toEqual(["prompts", "history"]);
+    expect(
+      visibleProductNav(
+        "web",
+        createCapabilityManifest({
+          surface: "web",
+          signedIn: false,
+          online: false,
+        }),
+      ).map((item) => item.sidebarId),
+    ).toEqual([]);
+    expect(
+      visibleProductNav(
+        "web",
+        createCapabilityManifest({
+          surface: "web",
+          disabledFeatures: ["mcpConnections"],
+        }),
+      ).map((item) => item.sidebarId),
+    ).toEqual(["prompts", "history"]);
+    expect(
+      visibleProductCommands(
+        "desktop",
+        createCapabilityManifest({
+          surface: "desktop",
+          disabledFeatures: ["designSchemes", "byokProviders", "agent"],
+        }),
+      ).map((item) => item.id),
+    ).toEqual([
+      "act-new-conversation",
+      "nav-library",
+      "nav-history",
+      "nav-settings",
+      "act-theme",
+      "act-sidebar",
+    ]);
   });
 
   it("derives the desktop capability maps used by host entry gates", () => {
@@ -73,7 +114,6 @@ describe("product command catalog", () => {
       "act-theme",
       "act-sidebar",
     ]);
-    expect(visibleProductCommands("web", getProductCapabilities("web"))).toEqual([]);
     expect(PRODUCT_COMMAND_CATALOG.find((item) => item.id === "nav-design-schemes")?.navigate).toBe(
       "design-schemes",
     );
@@ -83,6 +123,38 @@ describe("product command catalog", () => {
     expect(PRODUCT_COMMAND_CATALOG.find((item) => item.id === "act-ai-connections")?.settingsSection).toBe(
       "ai",
     );
+  });
+
+  it("exposes the Web palette set without desktop-only commands or shortcuts claims", () => {
+    expect(visibleProductCommands("web", getProductCapabilities("web")).map((item) => item.id)).toEqual([
+      "act-new-design",
+      "nav-library",
+      "nav-history",
+      "nav-settings",
+    ]);
+    const webNewDesign = PRODUCT_COMMAND_CATALOG.find((item) => item.id === "act-new-design");
+    expect(webNewDesign?.hosts).toEqual(["web"]);
+    // Web 不占用 ⌘N（浏览器保留新窗口），hint 不得声明快捷键。
+    expect(webNewDesign?.hint).not.toContain("⌘");
+    // 未登录只压掉带能力闸门的命令；新设计/设置与桌面同例不挂闸门。
+    expect(
+      visibleProductCommands(
+        "web",
+        createCapabilityManifest({ surface: "web", signedIn: false }),
+      ).map((item) => item.id),
+    ).toEqual(["act-new-design", "nav-settings"]);
+  });
+
+  it("hides the Web library command behind cloudPrompts but keeps ungated commands visible", () => {
+    const gated = {
+      ...getProductCapabilities("web"),
+      cloudPrompts: false,
+    };
+    expect(visibleProductCommands("web", gated).map((item) => item.id)).toEqual([
+      "act-new-design",
+      "nav-history",
+      "nav-settings",
+    ]);
   });
 
   it("omits gated commands when flags are off and leaves ungated actions visible", () => {
@@ -100,6 +172,13 @@ describe("product command catalog", () => {
       "act-theme",
       "act-sidebar",
     ]);
+  });
+
+  it("derives per-host command capability maps without cross-host leakage", () => {
+    expect(productCommandCapabilityMap("web")).toEqual({
+      "nav-library": "cloudPrompts",
+      "nav-history": "generationHistory",
+    });
   });
 });
 

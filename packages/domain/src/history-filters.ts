@@ -14,8 +14,10 @@ export interface HistoryFilters {
   /** custom 时的起止（ms）；倒置时由 resolveDateRange 自动交换 */
   customFrom?: number;
   customTo?: number;
-  /** undefined = 全部 Provider */
+  /** undefined = all Provider (Desktop's local provider id) */
   providerId?: string;
+  /** undefined = all provider models (Cloud's canonical model snapshot) */
+  providerModel?: string;
 }
 
 export const DEFAULT_HISTORY_FILTERS: HistoryFilters = {
@@ -24,6 +26,7 @@ export const DEFAULT_HISTORY_FILTERS: HistoryFilters = {
   customFrom: undefined,
   customTo: undefined,
   providerId: undefined,
+  providerModel: undefined,
 };
 
 export interface ResolvedDateRange {
@@ -79,6 +82,7 @@ export function countActiveHistoryFilters(filters: HistoryFilters): number {
   let n = 0;
   if (filters.status) n += 1;
   if (filters.providerId) n += 1;
+  if (filters.providerModel) n += 1;
   // 默认近 30 天；其它预设或自定义都算活跃
   if (filters.datePreset !== DEFAULT_HISTORY_FILTERS.datePreset) n += 1;
   if (filters.datePreset === 'custom' && (filters.customFrom != null || filters.customTo != null)) {

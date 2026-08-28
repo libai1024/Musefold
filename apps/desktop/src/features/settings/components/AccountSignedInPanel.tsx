@@ -154,6 +154,7 @@ export function AccountSignedInPanel({
 
       <SettingsCard title="数据与同步" description="在已登录的 Musefold 账号之间同步提示词数据">
         <AccountCloudSyncPanel
+          signedIn
           cloudSync={cloudSync}
           cloudConflicts={cloudConflicts}
           cloudError={cloudError}

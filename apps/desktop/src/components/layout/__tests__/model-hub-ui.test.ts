@@ -9,6 +9,11 @@ const switcher = [
   readFileSync('apps/desktop/src/components/layout/IdentityMenuBody.tsx', 'utf8'),
   readFileSync('apps/desktop/src/components/layout/SidebarSettingsMenu.tsx', 'utf8'),
 ].join('\n');
+const sharedMenus = readFileSync(
+  'packages/product-ui/src/navigation/ProductSidebarMenus.tsx',
+  'utf8',
+);
+const productStyles = readFileSync('packages/product-ui/src/styles.css', 'utf8');
 const overlays = readFileSync('apps/desktop/src/styles/overlays-v2.css', 'utf8');
 const settings = readFileSync(
   'apps/desktop/src/features/settings/components/SettingsView.tsx',
@@ -54,17 +59,20 @@ describe('AI access identity menu and sidebar contract', () => {
     expect(settings).toContain("id: 'relay'");
     expect(sidebar).toContain('<SidebarAccessSwitcher />');
     // 账号与中转站在同一个身份菜单里跨模式互切
-    expect(switcher).toContain('data-testid="identity-switcher"');
-    expect(switcher).toContain('account-source-option-${account.source}');
-    expect(switcher).toContain('relay-model-option-${provider.id}');
+    expect(sharedMenus).toContain(
+      'data-testid={account.testId ?? `account-source-option-${account.id}`}',
+    );
+    expect(sharedMenus).toContain(
+      'data-testid={provider.testId ?? `relay-model-option-${provider.id}`}',
+    );
   });
 
   it('uses shared dropdown semantics for both sidebar access menus', () => {
     expect(switcher).toContain('<DropdownMenu modal={false}');
     expect(switcher).toContain('<DropdownMenuTrigger asChild>');
     expect(switcher).toContain('<DropdownMenuContent');
-    expect(switcher).toContain('<DropdownMenuLabel>生图账号</DropdownMenuLabel>');
-    expect(switcher).toContain('<DropdownMenuSeparator />');
+    expect(sharedMenus).toContain('<DropdownMenuLabel>生图账号</DropdownMenuLabel>');
+    expect(sharedMenus).toContain('<DropdownMenuSeparator />');
     expect(switcher).toContain('side="top"');
     expect(switcher).toContain('w-[292px]');
     expect(switcher).toContain('w-[220px]');
@@ -72,8 +80,15 @@ describe('AI access identity menu and sidebar contract', () => {
     expect(switcher).toContain('onCloseAutoFocus={(event) => {');
     expect(switcher).toContain('identityTriggerRef.current?.focus()');
     expect(switcher).toContain('settingsTriggerRef.current?.focus()');
-    expect(overlays).toContain('border-radius: var(--radius-lg);');
-    expect(overlays).toContain('z-index: 75;');
+    expect(sharedMenus).toContain('role="menuitemradio"');
+    expect(sharedMenus).toContain('aria-checked={account.active}');
+    expect(sharedMenus).toContain('aria-checked={provider.active}');
+    expect(sharedMenus).toContain('mf-sidebar-menu-header');
+    expect(sharedMenus).toContain('mf-sidebar-menu-actions');
+    expect(productStyles).toContain('.mf-sidebar-identity-menu');
+    expect(productStyles).toContain('z-index: 75;');
+    expect(productStyles).toContain('border-radius: var(--radius-lg);');
+    expect(overlays).toContain('shared product-ui menu geometry');
     expect(switcher).not.toContain('createPortal');
     expect(switcher).not.toContain('document.addEventListener');
     expect(switcher).not.toContain('menuAnchor');
@@ -113,13 +128,8 @@ describe('AI access identity menu and sidebar contract', () => {
   });
 
   it('shows relay station and model in the sidebar and switches image models there', () => {
-    expect(switcher).toContain("'sidebar-relay-name'");
-    expect(switcher).toContain("'sidebar-relay-model'");
-    expect(switcher).toContain('data-testid="sidebar-doubao-avatar"');
-    expect(switcher).toContain("'sidebar-doubao-remaining'");
-    expect(switcher).toContain("'sidebar-official-account'");
-    expect(switcher).toContain('chooseRelayProvider(provider.id)');
-    expect(switcher).toContain('data-testid="relay-model-manage"');
+    expect(sharedMenus).toContain('`relay-model-option-${provider.id}`');
+    expect(sharedMenus).toContain('data-testid={relayEmptyAction.testId}');
   });
 
   it('keeps the merged relay section tabbed and deep-link compatible', () => {
@@ -139,19 +149,20 @@ describe('AI access identity menu and sidebar contract', () => {
   });
 
   it('keeps the compact app menu beside the access identity', () => {
-    expect(switcher).toContain('data-testid="sidebar-settings-menu"');
     expect(switcher).toContain("petEnabled ? '隐藏桌宠' : '显示桌宠'");
-    expect(switcher).toContain('data-testid="sidebar-settings-open"');
+    expect(switcher).toContain('data-testid="sidebar-settings-menu"');
+    expect(sharedMenus).toContain('data-testid={item.testId}');
   });
 
   it('marks the current identity with radio semantics and splits manage entry icons', () => {
     // 设置评审 P1-1:账号与中转站当前项用 menuitemradio + aria-checked 表达「当前是谁」
-    expect(switcher).toContain('role="menuitemradio"');
-    expect(switcher).toContain('aria-checked={account.active}');
-    expect(switcher).toContain('aria-checked={active}');
-    // 设置评审 P2-5:双管理入口图标区分 —— 生图用图像类,Agent 用 AI 类
-    expect(switcher).toContain('<ImageIcon className="h-3.5 w-3.5 shrink-0" /> 管理生图中转站');
-    expect(switcher).toContain('<Sparkles className="h-3.5 w-3.5 shrink-0" /> 管理 Agent 中转站');
+    expect(sharedMenus).toContain('role="menuitemradio"');
+    expect(sharedMenus).toContain('aria-checked={account.active}');
+    expect(sharedMenus).toContain('aria-checked={provider.active}');
+    expect(switcher).toContain('<ImageIcon className="h-3.5 w-3.5 shrink-0" />');
+    expect(switcher).toContain('管理生图中转站');
+    expect(switcher).toContain('<Sparkles className="h-3.5 w-3.5 shrink-0" />');
+    expect(switcher).toContain('管理 Agent 中转站');
   });
 
   it('keeps the two official account models read-only', () => {

@@ -13,8 +13,8 @@ async function openSignedOutAccountScreen(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('./');
   await expect(page.getByTestId('generation-workbench')).toBeVisible();
-  await page.getByTestId('sidebar-account').click();
-  await page.getByRole('button', { name: '退出登录' }).click();
+  await page.getByTestId('provider-quick-switch').click();
+  await page.getByTestId('identity-account-logout').click();
   await expect(page.getByRole('heading', { name: '登录个人账户' })).toBeVisible();
 }
 
@@ -27,10 +27,11 @@ test('account actions refresh the query-backed quota without horizontal overflow
   await expect(page.getByTestId('generation-workbench')).toBeVisible();
   await page.getByRole('button', { name: '展开侧栏' }).click();
   await expect(page.getByTestId('product-sidebar')).toBeVisible();
-  await page.getByTestId('sidebar-account').click();
+  await page.getByTestId('provider-quick-switch').click();
+  await page.getByTestId('identity-account-settings').click();
   await page
     .getByRole('navigation', { name: '设置分区' })
-    .getByRole('button', { name: 'Musefold 账号' })
+    .getByRole('button', { name: '账号' })
     .click();
 
   const screen = page.getByTestId('account-screen');

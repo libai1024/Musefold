@@ -318,6 +318,24 @@ describe("Musefold Cloud client", () => {
     ).toBe("10");
   });
 
+  it("serializes history filters into the canonical query string", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ items: [], nextCursor: null }));
+    const client = createMusefoldCloudClient("/api/musefold/v1", { fetchImpl });
+    await client.listGenerationHistory({
+      limit: 50,
+      status: "failed",
+      from: "2026-08-01T00:00:00.000Z",
+      to: "2026-08-31T23:59:59.999Z",
+      providerModel: "musefold-image-pro",
+      search: "雨后 建筑",
+    });
+    const url = String(fetchImpl.mock.calls[0]?.[0]);
+    expect(url).toContain("status=failed");
+    expect(url).toContain("from=2026-08-01T00%3A00%3A00.000Z");
+    expect(url).toContain("providerModel=musefold-image-pro");
+    expect(url).toContain("search=%E9%9B%A8%E5%90%8E+%E5%BB%BA%E7%AD%91");
+  });
+
   it("loads an individual workbench session for refresh recovery", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

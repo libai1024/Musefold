@@ -2,8 +2,6 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { FastifyPluginAsync } from "fastify";
 import type { WebApiConfig } from "../../config.js";
 import { AppError } from "../../errors.js";
-import type { AccountCredentialStorePort } from "../account/credential-store.js";
-import type { GenerationServicePort } from "../generation/service.js";
 import type { PromptServicePort } from "../prompts/service.js";
 import { OAuthService } from "../oauth/service.js";
 import { createCloudMcpServer } from "./server.js";
@@ -16,9 +14,7 @@ import {
 interface McpRoutesOptions {
   oauth: OAuthService;
   prompts: PromptServicePort;
-  generations: GenerationServicePort;
   skills: SkillService;
-  credentials: AccountCredentialStorePort;
   config: Pick<WebApiConfig, "PUBLIC_ORIGIN" | "MCP_RESOURCE_URL">;
   rateLimiter?: RateLimiterPort;
 }
@@ -58,10 +54,7 @@ export const mcpRoutes: FastifyPluginAsync<McpRoutesOptions> = async (
       const server = createCloudMcpServer(auth, {
         oauth: options.oauth,
         prompts: options.prompts,
-        generations: options.generations,
         skills: options.skills,
-        credentials: options.credentials,
-        publicOrigin: options.config.PUBLIC_ORIGIN,
         resourceUrl: options.config.MCP_RESOURCE_URL,
       });
       const transport = new StreamableHTTPServerTransport({

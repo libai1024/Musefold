@@ -5,11 +5,11 @@
   "apps/desktop/electron/doubao-web/browser-service.ts": 1107,
   "packages/ui/src/extended-primitives.tsx": 967,
   "apps/desktop/electron/main/ipc/skill-runtime.ts": 796,
-  "apps/web-api/src/modules/generation/service.ts": 788,
+  "apps/web-api/src/modules/generation/service.ts": 780,
   "apps/desktop/electron/main/skill-import/github-reader.ts": 739,
-  "apps/web/src/fixture-runtime.ts": 678,
+  "apps/web/src/fixture-runtime.ts": 668,
   "apps/desktop/electron/system/import.ts": 706,
-  "packages/cloud-client/src/index.ts": 675,
+  "packages/cloud-client/src/index.ts": 668,
   "packages/core/src/db/design-scheme/repositories.ts": 644,
   "apps/desktop/electron/main/integration.ts": 641
 }

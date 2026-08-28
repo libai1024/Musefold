@@ -287,7 +287,7 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
     .click();
   await expect(page.getByTestId("history-inspector")).toHaveCSS(
     "width",
-    "320px",
+    "324px",
   );
   await page
     .getByTestId("history-workspace")
@@ -330,7 +330,8 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
   );
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByTestId("sidebar-account").click();
+  await page.getByTestId("provider-quick-switch").click();
+  await page.getByTestId("identity-account-settings").click();
   await captureCanonicalSurface(
     page,
     testInfo,
@@ -339,7 +340,7 @@ test("canonical Desktop/Web surfaces stay within the shared visual contract", as
   );
   await page
     .getByRole("navigation", { name: "设置分区" })
-    .getByRole("button", { name: "已连接应用" })
+    .getByRole("button", { name: "开放能力" })
     .click();
   await captureCanonicalSurface(
     page,

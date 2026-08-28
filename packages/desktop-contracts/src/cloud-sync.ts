@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type CloudSyncAvailabilityReason = "signed-out" | "custom-server" | null;
 
 export type CloudSyncRuntimeStatus =
@@ -32,3 +34,19 @@ export interface CloudSyncConflictSummary {
 }
 
 export type CloudSyncConflictResolution = "remote" | "local" | "duplicate";
+
+export const cloudSyncErrorCodeSchema = z.enum([
+  "AUTH_REQUIRED",
+  "UNAVAILABLE",
+]);
+
+export type CloudSyncErrorCode = z.infer<typeof cloudSyncErrorCodeSchema>;
+
+export const cloudSyncErrorPayloadSchema = z.object({
+  code: cloudSyncErrorCodeSchema,
+  message: z.string().min(1),
+});
+
+export type CloudSyncErrorPayload = z.infer<
+  typeof cloudSyncErrorPayloadSchema
+>;

@@ -1,14 +1,10 @@
 // 侧栏应用菜单(自 SidebarAccessSwitcher 拆出):桌宠开关与应用设置入口。
 // testid 契约见 model-hub-ui.test.ts 与 tests/e2e。
 import { useRef, useState } from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@musefold/ui';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/ui';
+import { ProductSidebarSettingsMenuContent } from '@musefold/product-ui';
 import { APP_NAME } from '@musefold/domain/constants';
-import { Loader2, Power, Settings, Settings2 } from '../ui/icons';
+import { Loader2, Power, Settings } from '../ui/icons';
 import { cn } from '../../lib/utils';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../stores/toast';
@@ -90,35 +86,29 @@ export function SidebarSettingsMenu({
         data-testid="sidebar-settings-menu"
         className="no-drag mf-sidebar-settings-menu w-[220px] p-0 text-[11px]"
       >
-        <div className="border-b border-border-subtle px-3 py-2.5">
-          <p className="text-[12px] font-semibold text-primary">{APP_NAME}</p>
-        </div>
-        <div className="p-1.5">
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              void togglePet();
-            }}
-            disabled={petPending || petEnabled === null}
-            className="mf-sidebar-access-item"
-            data-testid="sidebar-settings-pet-toggle"
-          >
-            {petPending ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            ) : (
-              <Power className="h-4 w-4 shrink-0" />
-            )}
-            <span>{petEnabled ? '隐藏桌宠' : '显示桌宠'}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={onOpenSettings}
-            className="mf-sidebar-access-item"
-            data-testid="sidebar-settings-open"
-          >
-            <Settings2 className="h-4 w-4 shrink-0" />
-            <span>应用设置</span>
-          </DropdownMenuItem>
-        </div>
+        <ProductSidebarSettingsMenuContent
+          appName={APP_NAME}
+          items={[
+            {
+              label: petEnabled ? '隐藏桌宠' : '显示桌宠',
+              icon: petPending ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <Power className="h-4 w-4 shrink-0" />
+              ),
+              onSelect: () => void togglePet(),
+              testId: 'sidebar-settings-pet-toggle',
+              disabled: petPending || petEnabled === null,
+              preventClose: true,
+            },
+            {
+              label: '应用设置',
+              icon: <Settings className="h-4 w-4 shrink-0" />,
+              onSelect: onOpenSettings,
+              testId: 'sidebar-settings-open',
+            },
+          ]}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

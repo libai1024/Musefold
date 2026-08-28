@@ -50,6 +50,12 @@ export const generationHistoryQuerySchema = z.object({
   cursor: paginationCursorSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   sessionId: entityIdSchema.optional(),
+  status: generationJobSchema.shape.status.optional(),
+  /** ISO bounds are transport-safe equivalents of Desktop's epoch-ms bounds. */
+  from: isoDateTimeSchema.optional(),
+  to: isoDateTimeSchema.optional(),
+  providerModel: z.string().trim().min(1).max(128).optional(),
+  search: z.string().trim().max(200).optional(),
   includeDeleted: z.coerce.boolean().default(false),
 });
 

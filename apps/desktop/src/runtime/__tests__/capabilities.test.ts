@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { getProductCapabilities } from '@musefold/domain';
+import { getCapabilityManifest, getProductCapabilities } from '@musefold/domain';
 import {
   COMMAND_ACTION_CAPABILITY,
   SETTINGS_SECTION_CAPABILITY,
   SIDEBAR_NAV_CAPABILITY,
   capabilities,
+  capabilityManifest,
+  createDesktopCapabilityManifest,
   isCapabilityEntryVisible,
 } from '../capabilities';
 
@@ -33,6 +35,20 @@ describe('desktop capability entry mapping', () => {
       'act-providers': 'byokProviders',
       'act-ai-connections': 'agent',
     });
+  });
+
+  it('adapts desktop runtime state without disabling local product features', () => {
+    expect(capabilityManifest).toEqual(getCapabilityManifest('desktop'));
+    const signedOut = createDesktopCapabilityManifest({ signedIn: false });
+    expect(signedOut.hostFeatures.host).toBe('desktop');
+    expect(signedOut.availability.cloudSyncControl.status).toBe('signed_out');
+    expect(signedOut.availability.mcpConnections.status).toBe('signed_out');
+    expect(signedOut.availability.promptLibrary.status).toBe('available');
+    expect(signedOut.availability.designSchemes.status).toBe('available');
+
+    const offline = createDesktopCapabilityManifest({ online: false });
+    expect(offline.availability.generation.status).toBe('available');
+    expect(offline.availability.promptLibrary.status).toBe('available');
   });
 
   it('reads the desktop host once and keeps mapped entries visible under current flags', () => {

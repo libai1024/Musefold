@@ -1,4 +1,13 @@
-import type { MusefoldSurface, ProductCapabilities } from "./capabilities";
+import {
+  isCapabilityManifest,
+  isHostFeatureAvailable,
+  isProductFeatureAvailable,
+  type CapabilitySource,
+  type HostFeature,
+  type MusefoldSurface,
+  type ProductCapabilities,
+  type ProductFeature,
+} from "./capabilities";
 
 export type ProductCommandGroup = "快速动作" | "导航" | "操作";
 
@@ -52,12 +61,6 @@ export const PRODUCT_NAV_CATALOG: readonly ProductNavSpec[] = [
     sidebarId: { desktop: "history", web: "history" },
     capability: { desktop: "generationHistory", web: "generationHistory" },
   },
-  {
-    id: "connections",
-    label: "已连接应用",
-    sidebarId: { web: "settings" },
-    capability: { web: "cloudMcpConnections" },
-  },
 ];
 
 export const PRODUCT_VIEW_TITLES: Readonly<Record<string, string>> = {
@@ -87,7 +90,8 @@ export interface ProductCommandSpec {
   group: ProductCommandGroup;
   keywords?: string;
   hosts: readonly MusefoldSurface[];
-  capability?: keyof ProductCapabilities;
+  /** 与导航目录同构的按宿主能力闸门；未列出的宿主不受限。 */
+  capability?: Partial<Record<MusefoldSurface, keyof ProductCapabilities>>;
   action: ProductCommandAction;
   navigate?: string;
   settingsSection?: string;
@@ -108,13 +112,23 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     action: "new-design",
   },
   {
+    // Web 不占用 ⌘N（浏览器保留新窗口），hint 不声明快捷键。
+    id: "act-new-design",
+    label: "新设计",
+    hint: "开始一条新的设计对话",
+    group: "快速动作",
+    keywords: "new conversation chat design xin sheji duihua",
+    hosts: ["web"],
+    action: "new-design",
+  },
+  {
     id: "act-import-skill",
     label: "用 Skill 创建设计方案",
     hint: "粘贴 GitHub Skill 地址",
     group: "快速动作",
     keywords: "skill import daoru github design scheme",
     hosts: ["desktop"],
-    capability: "designSchemes",
+    capability: { desktop: "designSchemes" },
     action: "import-skill",
   },
   {
@@ -123,8 +137,8 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     hint: "浏览与管理",
     group: "导航",
     keywords: "library prompt tkck",
-    hosts: ["desktop"],
-    capability: "localPrompts",
+    hosts: ["desktop", "web"],
+    capability: { desktop: "localPrompts", web: "cloudPrompts" },
     action: "navigate",
     navigate: "library",
   },
@@ -135,7 +149,7 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     group: "导航",
     keywords: "design scheme agent skill sheji fang an",
     hosts: ["desktop"],
-    capability: "designSchemes",
+    capability: { desktop: "designSchemes" },
     action: "navigate",
     navigate: "design-schemes",
   },
@@ -145,8 +159,8 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     hint: "生图记录",
     group: "导航",
     keywords: "history lishi",
-    hosts: ["desktop"],
-    capability: "generationHistory",
+    hosts: ["desktop", "web"],
+    capability: { desktop: "generationHistory", web: "generationHistory" },
     action: "navigate",
     navigate: "history",
   },
@@ -156,7 +170,7 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     hint: "服务商 · 生成 · 外观",
     group: "导航",
     keywords: "settings preferences shezhi peizhi",
-    hosts: ["desktop"],
+    hosts: ["desktop", "web"],
     action: "navigate",
     navigate: "settings",
   },
@@ -167,7 +181,7 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     group: "操作",
     keywords: "provider api key fuwushang moxing",
     hosts: ["desktop"],
-    capability: "byokProviders",
+    capability: { desktop: "byokProviders" },
     action: "settings",
     settingsSection: "providers",
     navigate: "settings",
@@ -179,7 +193,7 @@ export const PRODUCT_COMMAND_CATALOG: readonly ProductCommandSpec[] = [
     group: "操作",
     keywords: "ai agent assistant api key text model design",
     hosts: ["desktop"],
-    capability: "agent",
+    capability: { desktop: "agent" },
     action: "settings",
     settingsSection: "ai",
     navigate: "settings",
@@ -223,16 +237,52 @@ export function matchProductModifierShortcut(event: {
   return null;
 }
 
+const LEGACY_PRODUCT_CAPABILITY_FEATURES: Partial<
+  Record<keyof ProductCapabilities, ProductFeature>
+> = {
+  generation: "generation",
+  workbench: "workbench",
+  generationHistory: "generationHistory",
+  cloudPrompts: "promptLibrary",
+  cloudMcpConnections: "mcpConnections",
+  localPrompts: "promptLibrary",
+  agent: "agent",
+  designSchemes: "designSchemes",
+  referenceImages: "referenceImages",
+};
+
+const LEGACY_HOST_CAPABILITY_FEATURES: Partial<
+  Record<keyof ProductCapabilities, HostFeature>
+> = {
+  promptSync: "cloudSyncControl",
+  automation: "localAutomation",
+  byokProviders: "byokProviders",
+};
+
+export function isCapabilityFlagAvailable(
+  source: CapabilitySource,
+  flag: keyof ProductCapabilities,
+): boolean {
+  if (!isCapabilityManifest(source)) return source[flag];
+  const hostFeature = LEGACY_HOST_CAPABILITY_FEATURES[flag];
+  if (hostFeature) return isHostFeatureAvailable(source, hostFeature);
+  const productFeature = LEGACY_PRODUCT_CAPABILITY_FEATURES[flag];
+  if (!productFeature || !isProductFeatureAvailable(source, productFeature)) return false;
+  if (flag === "cloudPrompts") return source.hostFeatures.host === "web";
+  if (flag === "localPrompts") return source.hostFeatures.host === "desktop";
+  return true;
+}
+
 export function visibleProductNav(
   surface: MusefoldSurface,
-  capabilities: ProductCapabilities,
+  capabilities: CapabilitySource,
 ): Array<{ semanticId: string; sidebarId: string; label: string }> {
   const items: Array<{ semanticId: string; sidebarId: string; label: string }> = [];
   for (const item of PRODUCT_NAV_CATALOG) {
     const sidebarId = item.sidebarId[surface];
     if (!sidebarId) continue;
     const flag = item.capability?.[surface];
-    if (flag && !capabilities[flag]) continue;
+    if (flag && !isCapabilityFlagAvailable(capabilities, flag)) continue;
     items.push({ semanticId: item.id, sidebarId, label: item.label });
   }
   return items;
@@ -240,11 +290,12 @@ export function visibleProductNav(
 
 export function visibleProductCommands(
   surface: MusefoldSurface,
-  capabilities: ProductCapabilities,
+  capabilities: CapabilitySource,
 ): ProductCommandSpec[] {
   return PRODUCT_COMMAND_CATALOG.filter((item) => {
     if (!item.hosts.includes(surface)) return false;
-    return !item.capability || capabilities[item.capability];
+    const flag = item.capability?.[surface];
+    return !flag || isCapabilityFlagAvailable(capabilities, flag);
   });
 }
 
@@ -265,8 +316,9 @@ export function productCommandCapabilityMap(
 ): Record<string, keyof ProductCapabilities> {
   const mapping: Record<string, keyof ProductCapabilities> = {};
   for (const item of PRODUCT_COMMAND_CATALOG) {
-    if (item.hosts.includes(surface) && item.capability) {
-      mapping[item.id] = item.capability;
+    const flag = item.capability?.[surface];
+    if (item.hosts.includes(surface) && flag) {
+      mapping[item.id] = flag;
     }
   }
   return mapping;

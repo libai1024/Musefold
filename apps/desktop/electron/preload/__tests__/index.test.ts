@@ -183,6 +183,24 @@ describe("electron preload api bridge", () => {
     );
   });
 
+  it("restores structured cloud sync errors for sync and connection callers", async () => {
+    electronMock.ipcRenderer.invoke.mockRejectedValue(
+      new Error(
+        'Error invoking remote method: CLOUD_SYNC_ERR::{"code":"AUTH_REQUIRED","message":"请先登录 Musefold 账号"}',
+      ),
+    );
+    const api = await loadPreloadApi();
+
+    await expect(api.cloudSync.setEnabled(true)).rejects.toMatchObject({
+      code: "AUTH_REQUIRED",
+      message: "请先登录 Musefold 账号",
+    });
+    await expect(api.cloudConnections.list()).rejects.toMatchObject({
+      code: "AUTH_REQUIRED",
+      message: "请先登录 Musefold 账号",
+    });
+  });
+
   it("propagates IPC rejections to callers without opening a global diagnostic", async () => {
     // 已处理的 IPC 失败由调用方呈现（toast/行内），不得再触发全局错误弹窗；
     // 真正未处理的拒绝由 window unhandledrejection 兜底。

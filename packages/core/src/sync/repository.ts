@@ -17,8 +17,7 @@ import type {
 } from "@musefold/contracts";
 import { tokenizeForFts } from "../db/fts";
 
-export type DesktopSyncStatus =
-  "disabled" | "idle" | "syncing" | "conflict" | "error";
+export type DesktopSyncStatus = "disabled" | "idle" | "syncing" | "conflict" | "error";
 
 export interface DesktopSyncAccountInput {
   ownerId: string;
@@ -111,13 +110,11 @@ interface ConflictRow {
 
 const SENSITIVE_KEY =
   /(api.?key|token|secret|credential|password|file.?path|image.?path|local.?path)/i;
-const ABSOLUTE_PATH =
-  /^(?:[a-zA-Z]:[\\/]|\\\\|\/Users\/|\/home\/|\/tmp\/|file:)/;
-
+const ABSOLUTE_PATH = /^(?:[a-zA-Z]:[\\/]|\\\\|\/Users\/|\/home\/|\/tmp\/|file:)/;
 export class DesktopSyncRepository {
   constructor(private readonly db: Database.Database) {}
 
-  activateAccount(input: DesktopSyncAccountInput): DesktopSyncAccount {
+  activateAccount(input: DesktopSyncAccountInput, disableOnActivate = false): DesktopSyncAccount {
     const now = Date.now();
     const existing = this.db
       .prepare("SELECT device_id FROM cloud_sync_accounts WHERE owner_id = ?")
@@ -138,6 +135,8 @@ export class DesktopSyncRepository {
              platform = excluded.platform,
              client_version = excluded.client_version,
              active = 1,
+             enabled = CASE WHEN @disable_on_activate = 1 THEN 0 ELSE enabled END,
+             last_error = CASE WHEN @disable_on_activate = 1 THEN NULL ELSE last_error END,
              updated_at = excluded.updated_at`,
         )
         .run({
@@ -147,6 +146,7 @@ export class DesktopSyncRepository {
           device_name: input.deviceName,
           platform: input.platform,
           client_version: input.clientVersion,
+          disable_on_activate: disableOnActivate ? 1 : 0,
           now,
         });
     })();

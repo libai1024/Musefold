@@ -49,7 +49,7 @@ describe('surface capabilities', () => {
     const web = getProductCapabilities('web');
     expect(web.generation).toBe(true);
     expect(web.workbench).toBe(true);
-    expect(web.promptSync).toBe(true);
+    expect(web.promptSync).toBe(false);
     expect(web.cloudMcpConnections).toBe(true);
     expect(web.cloudPrompts).toBe(true);
     expect(web.agent).toBe(false);

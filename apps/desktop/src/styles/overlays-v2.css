@@ -153,31 +153,7 @@
   font-size: var(--text-meta);
 }
 
-/* v2.0 sidebar access menus: rich identity rows still use the shared
-   DropdownMenu focus and dismissal model, with a compact desktop density. */
-.mf-sidebar-identity-menu,
-.mf-sidebar-settings-menu {
-  max-width: calc(100vw - 16px);
-  border-radius: var(--radius-lg);
-  z-index: 75;
-}
-
-.mf-sidebar-identity-menu .mf-sidebar-access-item,
-.mf-sidebar-settings-menu .mf-sidebar-access-item {
-  width: 100%;
-  min-height: 40px;
-  padding: 8px;
-  text-align: left;
-}
-
-.mf-sidebar-identity-menu .mf-sidebar-access-item[data-active='true'] {
-  background: var(--accent-soft);
-}
-
-.mf-sidebar-identity-menu .mf-ui-dropdown-separator,
-.mf-sidebar-settings-menu .mf-ui-dropdown-separator {
-  margin: 4px 0;
-}
+/* v2.0 sidebar access menus use the shared product-ui menu geometry. */
 
 .mf-onboarding-overlay {
   position: fixed;

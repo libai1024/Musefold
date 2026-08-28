@@ -12,6 +12,36 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
+describe("generation history query boundary", () => {
+  it("parses and forwards supported history filters", async () => {
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
+    const service = {
+      history: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    };
+    const sessions = { get: vi.fn().mockResolvedValue({ ownerId: 42 }) };
+    await app.register(generationRoutes, {
+      service: service as never,
+      sessions: sessions as never,
+      cookieName: "musefold_session",
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/musefold/v1/generations?status=failed&providerModel=pro&search=建筑&from=2026-08-01T00%3A00%3A00.000Z",
+      headers: { authorization: "Bearer opaque-session" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(service.history).toHaveBeenCalledWith(42, expect.objectContaining({
+      status: "failed",
+      providerModel: "pro",
+      search: "建筑",
+      from: "2026-08-01T00:00:00.000Z",
+    }));
+  });
+});
+
 describe("generation SSE boundary", () => {
   it("resumes from the newest cursor and emits durable events", async () => {
     const app = Fastify({ logger: false });

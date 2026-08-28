@@ -9,6 +9,30 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 @config '../tailwind.config.ts';
 
+/* Web footer-specific layout; menu geometry lives in product-ui styles. */
+.web-sidebar-access-footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 大屏对齐 Desktop：额度只住在侧栏身份区，顶栏不再重复显示；
+ * 680px 以下（侧栏变抽屉）仍保留顶栏额度，规则见底部媒体块。 */
+@media (min-width: 681px) {
+  .quota-readout {
+    display: none;
+  }
+}
+
+.web-sidebar-access-footer > [data-radix-dropdown-menu-trigger] {
+  min-width: 0;
+}
+
+.web-sidebar-access-footer [data-testid='provider-quick-switch'] {
+  flex: 1 1 auto;
+}
+
 /* 宿主基础层：元素级重置与焦点环。只允许元素/伪类选择器，不放业务类。 */
 @layer base {
   :root {
@@ -310,6 +334,23 @@
     font-size: 12px;
   }
 
+  .web-sidebar-access-footer {
+    min-width: 0;
+  }
+
+  .web-sidebar-access-footer > button:first-child {
+    min-width: 0;
+  }
+
+  .web-sidebar-access-footer [data-testid='provider-quick-switch'] {
+    min-height: 44px;
+  }
+
+  .web-sidebar-access-footer [data-testid='sidebar-settings'] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .approval-prompt {
     font-size: 14px;
   }
@@ -435,4 +476,188 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ============================================================
+ * v2.1 parity A/B：大屏命令面板 + 提示词编辑/回收站弹窗几何。
+ * 断点分工：>680px 才渲染这些形态；≤680px 维持既有整页形态（宿主媒体块约束）。
+ * token 单源 @musefold/ui/tokens.css，不引入新色值/字号。
+ * ============================================================ */
+
+/* —— 命令面板（几何与桌面 mf-command-panel 同基线） —— */
+.web-command-panel {
+  top: 16%;
+  display: flex;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 96px);
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  transform: translate(-50%, 0);
+}
+
+.web-command-search {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 14px;
+}
+
+.web-command-search > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--fg-tertiary);
+}
+
+.web-command-search input {
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.web-command-search input::placeholder {
+  color: var(--fg-tertiary);
+}
+
+.web-command-list {
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.web-command-empty {
+  display: flex;
+  min-height: 112px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+}
+
+.web-command-empty-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.web-command-group {
+  margin-bottom: 4px;
+}
+
+.web-command-group-label {
+  padding: 7px 10px 5px;
+  color: var(--fg-tertiary);
+  font-size: var(--text-meta);
+  font-weight: 600;
+}
+
+.web-command-row {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--fg-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-instant) var(--ease-out),
+    color var(--dur-instant) var(--ease-out);
+}
+
+.web-command-row:hover,
+.web-command-row[data-active='true'] {
+  background: var(--accent-soft);
+  color: var(--fg-primary);
+}
+
+.web-command-row:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: -2px;
+}
+
+.web-command-row-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--fg-tertiary);
+}
+
+.web-command-row[data-active='true'] .web-command-row-icon {
+  color: var(--accent);
+}
+
+.web-command-row-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--fg-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-command-row-hint {
+  max-width: 42%;
+  overflow: hidden;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-command-row-group {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--fg-tertiary);
+  font-size: 11px;
+}
+
+/* —— 大屏提示词编辑/回收站弹窗（与 Desktop PromptEditor/TrashDialog 几何同基线） —— */
+.web-prompt-editor-dialog {
+  top: 50%;
+  display: block;
+  width: min(576px, calc(100vw - 32px));
+  max-height: min(640px, calc(100dvh - 48px));
+  padding: 0;
+  transform: translate(-50%, -50%);
+}
+
+.web-prompt-editor-dialog .mf-prompt-editor {
+  max-height: min(640px, calc(100dvh - 48px));
+  overflow-y: auto;
+}
+
+.web-prompt-trash-dialog {
+  top: 50%;
+  display: block;
+  width: min(512px, calc(100vw - 32px));
+  max-height: min(560px, calc(100dvh - 48px));
+  padding: 20px 24px 24px;
+  transform: translate(-50%, -50%);
+}
+
+.web-prompt-trash-dialog .mf-prompt-trash {
+  margin: 0;
+  max-height: calc(min(560px, calc(100dvh - 48px)) - 44px);
+  overflow-y: auto;
 }

@@ -8,18 +8,10 @@ import { AppError } from "../../errors.js";
 export const MCP_SCOPES = [
   "account:read",
   "prompts:read",
-  "prompts:write",
   "skills:read",
-  "generations:read",
-  "generations:write",
 ] as const;
 export type McpScope = (typeof MCP_SCOPES)[number];
 
-/**
- * v2 开放能力默认值：新连接默认授予全部 MCP scope，并附带 100 积分的
- * 单次/每日预算初始额度（生图仍默认每次审批，预算只影响「预算内自动」）。
- */
-export const MCP_ALL_SCOPES: readonly McpScope[] = [...MCP_SCOPES];
 export const MCP_DEFAULT_BUDGET_POINTS = 100;
 
 export interface McpAuthInfo {
@@ -58,9 +50,7 @@ export class OAuthService {
     clientId: string,
     requestedScopes: string[],
   ): Promise<McpGrant> {
-    // 只校验请求合法；实际授予固定为全集（默认开放全部能力）。
-    normalizeScopes(requestedScopes);
-    const scopes = [...MCP_ALL_SCOPES];
+    const scopes = parseRequestedScopes(requestedScopes);
     const proposedId = randomUUID();
     await sql`
       INSERT INTO auth.oauth_grants(
@@ -118,7 +108,13 @@ export class OAuthService {
     if (grant.ownerId !== ownerId || grant.clientId !== accessToken.clientId) {
       throw new AppError("OAUTH_INVALID_GRANT", "MCP access token 无效", 401);
     }
-    const scopes = normalizeScopes(accessToken.scopes);
+    const tokenScopes = [...accessToken.scopes]
+      .filter((scope) => scope !== "openid" && scope !== "offline_access")
+      .filter((scope) => grant.scopes.includes(scope as McpScope));
+    if (!tokenScopes.length) {
+      throw new AppError("OAUTH_INVALID_GRANT", "MCP access token scope 已失效", 401);
+    }
+    const scopes = normalizeScopes(tokenScopes);
     await sql`
       UPDATE auth.oauth_grants
       SET last_used_at = now()
@@ -362,12 +358,21 @@ export class OAuthService {
   }
 }
 
-function normalizeScopes(input: Iterable<string>): McpScope[] {
-  const scopes = [...new Set(input)].filter((value): value is McpScope =>
-    (MCP_SCOPES as readonly string[]).includes(value),
-  );
-  if (!scopes.length) {
+function parseRequestedScopes(input: Iterable<string>): McpScope[] {
+  const values = [...new Set(input)];
+  if (
+    values.some(
+      (value) => !(MCP_SCOPES as readonly string[]).includes(value),
+    )
+  ) {
+    throw new AppError("OAUTH_SCOPE_INSUFFICIENT", "请求了未开放的 MCP scope", 400);
+  }
+  if (!values.length) {
     throw new AppError("OAUTH_SCOPE_INSUFFICIENT", "没有可用的 MCP scope", 400);
   }
-  return scopes;
+  return values as McpScope[];
+}
+
+function normalizeScopes(input: Iterable<string>): McpScope[] {
+  return parseRequestedScopes(input);
 }

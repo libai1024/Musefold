@@ -139,6 +139,20 @@ test('soft keyboard keeps composer visible in the shrunken viewport', async ({ p
   expect(browserErrors).toEqual([]);
 });
 
+test('small-screen topbar search keeps the library shortcut contract', async ({ page }) => {
+  const browserErrors = collectBrowserErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await waitForFixtureWorkspace(page);
+
+  // 小屏（≤680px）搜索按钮维持既有行为：跳转提示词库并聚焦搜索框，不开命令面板。
+  await expect(page.getByTestId('web-topbar-search')).toHaveAttribute('title', '搜索');
+  await page.getByTestId('web-topbar-search').click();
+  await expect(page.getByTestId('library-page')).toBeVisible();
+  await expect(page.getByTestId('library-search')).toBeFocused();
+  await expect(page.getByTestId('web-command-palette')).toHaveCount(0);
+  expect(browserErrors).toEqual([]);
+});
+
 test('touch targets meet the mobile size contract', async ({ page }) => {
   await waitForFixtureWorkspace(page);
   await expectTouchMediaEmulated(page);
@@ -234,40 +248,51 @@ test('left drawer holds functions, conversations and account; main stays the com
   await expect(sidebar.getByText('功能', { exact: true })).toBeVisible();
   await expect(sidebar.getByTestId('nav-prompts')).toBeVisible();
   await expect(sidebar.getByTestId('nav-history')).toBeVisible();
-  await expect(sidebar.getByTestId('nav-settings')).toBeVisible();
-  await expect(sidebar.getByTestId('workbench-session-list')).toBeVisible();
-  await expect(sidebar.getByTestId('sidebar-account')).toBeVisible();
+  await expect(sidebar.getByTestId('nav-settings')).toHaveCount(0);
+  await expect(sidebar.getByTestId('provider-quick-switch')).toBeVisible();
+  await expect(sidebar.getByTestId('sidebar-settings')).toBeVisible();
 
   const drawerMetrics = await sidebar.evaluate((root) => {
     const nav = root.querySelector('[aria-label="主导航"]');
     const sessions = root.querySelector('[data-testid="workbench-session-list"]');
-    const account = root.querySelector('[data-testid="sidebar-account"]');
-    if (!nav || !sessions || !account) return null;
+    const footer = root.querySelector('.web-sidebar-access-footer');
+    const identity = root.querySelector('[data-testid="provider-quick-switch"]');
+    if (!nav || !sessions || !footer || !identity) return null;
     const rootBox = root.getBoundingClientRect();
     const navBox = nav.getBoundingClientRect();
     const sessionBox = sessions.getBoundingClientRect();
-    const accountBox = account.getBoundingClientRect();
+    const footerBox = footer.getBoundingClientRect();
+    const identityBox = identity.getBoundingClientRect();
     return {
       navBelowHeader: navBox.top > rootBox.top,
       sessionsBelowNav: sessionBox.top >= navBox.bottom - 1,
-      accountBelowSessions: accountBox.top >= sessionBox.bottom - 1,
-      accountBottomInset: Math.round(rootBox.bottom - accountBox.bottom),
-      accountHeight: Math.round(accountBox.height),
+      footerBelowSessions: footerBox.top >= sessionBox.bottom - 1,
+      footerBottomInset: Math.round(rootBox.bottom - footerBox.bottom),
+      identityHeight: Math.round(identityBox.height),
     };
   });
   expect(drawerMetrics).not.toBeNull();
   expect(drawerMetrics!.navBelowHeader).toBe(true);
   expect(drawerMetrics!.sessionsBelowNav).toBe(true);
-  expect(drawerMetrics!.accountBelowSessions).toBe(true);
-  expect(drawerMetrics!.accountBottomInset).toBeGreaterThanOrEqual(6);
-  expect(drawerMetrics!.accountBottomInset).toBeLessThanOrEqual(10);
-  expect(drawerMetrics!.accountHeight).toBeGreaterThanOrEqual(44);
+  expect(drawerMetrics!.footerBelowSessions).toBe(true);
+  expect(drawerMetrics!.footerBottomInset).toBeGreaterThanOrEqual(6);
+  expect(drawerMetrics!.footerBottomInset).toBeLessThanOrEqual(12);
+  expect(drawerMetrics!.identityHeight).toBeGreaterThanOrEqual(44);
 
-  await openCompactSidebar(page);
-  await page.getByTestId('product-sidebar').getByTestId('nav-settings').click();
+  await page.getByTestId('provider-quick-switch').click();
+  await expect(page.getByTestId('identity-switcher')).toBeVisible();
+  await expect(page.getByTestId('identity-switcher')).not.toContainText('豆包');
+  await expect(page.getByTestId('identity-switcher')).not.toContainText('桌宠');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('identity-switcher')).toHaveCount(0);
+
+  await page.getByTestId('sidebar-settings').click();
+  await expect(page.getByTestId('sidebar-settings-menu')).toBeVisible();
+  await page.getByTestId('sidebar-settings-open').click();
+  await expect(page.getByRole('navigation', { name: '设置分区' })).toBeVisible();
   await page
     .getByRole('navigation', { name: '设置分区' })
-    .getByRole('button', { name: '已连接应用' })
+    .getByRole('button', { name: '开放能力' })
     .click();
   await expect(page.getByTestId('connected-apps-screen')).toBeVisible();
   const gutters = await page.getByTestId('connected-apps-screen').evaluate((el) => {
@@ -294,7 +319,7 @@ test('left drawer holds functions, conversations and account; main stays the com
   await page.getByRole('button', { name: '返回设置' }).click();
   await page
     .getByRole('navigation', { name: '设置分区' })
-    .getByRole('button', { name: 'Musefold 账号' })
+    .getByRole('button', { name: '账号' })
     .click();
   await expect(page.getByTestId('account-screen')).toBeVisible();
   const accountLeft = await page

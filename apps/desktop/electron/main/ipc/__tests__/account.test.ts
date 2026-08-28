@@ -14,6 +14,7 @@ type Handler = (event: unknown, ...args: unknown[]) => unknown;
 
 function harness() {
   const handlers = new Map<string, Handler>();
+  const events: string[] = [];
   const status = {
     loggedIn: false,
     userId: null,
@@ -28,12 +29,38 @@ function harness() {
   };
   const service = {
     status: vi.fn(() => status),
-    register: vi.fn(async () => ({ ...status, loggedIn: true, userId: '7', username: 'user' })),
-    login: vi.fn(async () => ({ ...status, loggedIn: true, userId: '7', username: 'user' })),
-    logout: vi.fn(async () => status),
+    register: vi.fn(async () => {
+      events.push('account:register');
+      return { ...status, loggedIn: true, userId: '7', username: 'user' };
+    }),
+    login: vi.fn(async () => {
+      events.push('account:login');
+      return { ...status, loggedIn: true, userId: '7', username: 'user' };
+    }),
+    logout: vi.fn(async () => {
+      events.push('account:logout');
+      return status;
+    }),
     redeem: vi.fn(async () => ({ quotaAdded: 500000, status })),
     refreshQuota: vi.fn(async () => status),
     setServerUrl: vi.fn(async () => status),
+  };
+  const cloudSync = {
+    prepareForAccountLogin: vi.fn(async () => {
+      events.push('sync:prepare-login');
+    }),
+    completeAccountLogin: vi.fn(async () => {
+      events.push('sync:complete-login');
+    }),
+    cancelAccountTransition: vi.fn(async () => {
+      events.push('sync:cancel-transition');
+    }),
+    prepareForAccountLogout: vi.fn(async () => {
+      events.push('sync:prepare-logout');
+    }),
+    completeAccountLogout: vi.fn(() => {
+      events.push('sync:complete-logout');
+    }),
   };
   registerAccountHandlers({
     target: {
@@ -42,8 +69,9 @@ function harness() {
       }) as never,
     },
     service: service as never,
+    cloudSync: cloudSync as never,
   });
-  return { handlers, service, status };
+  return { handlers, service, cloudSync, events, status };
 }
 
 describe('account IPC handlers', () => {
@@ -71,12 +99,69 @@ describe('account IPC handlers', () => {
     expect(serialized).not.toContain('refresh');
   });
 
-  it('validates credentials before calling service', async () => {
-    const { handlers, service } = harness();
+  it('validates credentials before touching account or sync state', async () => {
+    const { handlers, service, cloudSync } = harness();
     await expect(
       handlers.get(IPC.ACCOUNT_LOGIN)?.({}, { username: 'x', password: 'short' }),
     ).rejects.toThrow(ACCOUNT_ERROR_IPC_PREFIX);
     expect(service.login).not.toHaveBeenCalled();
+    expect(cloudSync.prepareForAccountLogin).not.toHaveBeenCalled();
+  });
+
+  it('coordinates login and logout around cloud sync lifecycle boundaries', async () => {
+    const { handlers, events } = harness();
+    await handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
+      username: 'user',
+      password: 'password',
+    });
+    expect(events).toEqual([
+      'sync:prepare-login',
+      'account:login',
+      'sync:complete-login',
+    ]);
+
+    events.length = 0;
+    await handlers.get(IPC.ACCOUNT_LOGOUT)?.({});
+    expect(events).toEqual([
+      'sync:prepare-logout',
+      'account:logout',
+      'sync:complete-logout',
+    ]);
+  });
+
+  it('cancels the sync transition when authentication fails', async () => {
+    const { handlers, service, events } = harness();
+    service.login.mockImplementationOnce(async () => {
+      events.push('account:login');
+      throw new AccountError('ACCOUNT/CREDENTIALS', '用户名或密码错误', 'auth');
+    });
+
+    await expect(
+      handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
+        username: 'user',
+        password: 'password',
+      }),
+    ).rejects.toThrow(ACCOUNT_ERROR_IPC_PREFIX);
+    expect(events).toEqual([
+      'sync:prepare-login',
+      'account:login',
+      'sync:cancel-transition',
+    ]);
+  });
+
+  it('returns the authenticated account when sync finalization fails closed', async () => {
+    const { handlers, cloudSync } = harness();
+    cloudSync.completeAccountLogin.mockRejectedValueOnce(
+      new Error('sync database unavailable'),
+    );
+
+    await expect(
+      handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
+        username: 'user',
+        password: 'password',
+      }),
+    ).resolves.toMatchObject({ loggedIn: true, userId: '7' });
+    expect(cloudSync.cancelAccountTransition).toHaveBeenCalledOnce();
   });
 
   it('serializes AccountError code/stage for preload restoration', async () => {

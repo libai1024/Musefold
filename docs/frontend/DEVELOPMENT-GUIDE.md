@@ -6,7 +6,7 @@
 >
 > **适用范围**：`apps/desktop`（渲染层）、`apps/web`、`packages/ui`、`packages/product-ui` 及其余前端相关 workspace 包
 >
-> **权威**：与源码冲突时以源码为准；分层与依赖规则以 [v1.2.2 架构文档](../v1.2.2/V122-ARCHITECTURE.md) §3 为准，v1.3 增量见 [v1.3 架构文档](../v1.3/V13-ARCHITECTURE.md) §3
+> **权威**：与源码冲突时以源码为准；分层与依赖规则以 [v1.2.2 架构文档](../v1.2.2/V122-ARCHITECTURE.md) §3 为准，v1.3 增量见 [v1.3 架构文档](../v1.3/V13-ARCHITECTURE.md) §3。已批准的 [v2.1 产品一致目标](../v2.1/README.md) 正在分批实施，只有当前源码和自动化测试已覆盖的部分属于现状。
 
 ## 0. 技术栈（业界标准 × 本项目实践）
 

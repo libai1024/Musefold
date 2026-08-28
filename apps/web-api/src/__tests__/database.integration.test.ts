@@ -19,7 +19,7 @@ import { SyncService } from "../modules/sync/service.js";
 import { WorkbenchService } from "../modules/workbench/service.js";
 import { GenerationService } from "../modules/generation/service.js";
 import { PostgresRateLimiter } from "../modules/rate-limit/service.js";
-import { MCP_SCOPES, OAuthService } from "../modules/oauth/service.js";
+import { OAuthService } from "../modules/oauth/service.js";
 
 const databaseTests =
   process.env.RUN_DATABASE_TESTS === "true" ? describe : describe.skip;
@@ -836,9 +836,9 @@ databaseTests("PostgreSQL foundation", () => {
            id, owner_id, client_id, scopes, mode,
            max_points_per_generation, max_points_per_day
          ) VALUES
-           ($1, 101, 'budget-client-auto', ARRAY['generations:write'],
+           ($1, 101, 'budget-client-auto', ARRAY['account:read'],
             'auto_with_limits', 1000, 3000),
-           ($2, 101, 'budget-client-ask', ARRAY['generations:write'],
+           ($2, 101, 'budget-client-ask', ARRAY['account:read'],
             'ask_each_time', 0, 0)
          ON CONFLICT (id) DO NOTHING`,
         [autoGrantId, askGrantId],
@@ -1010,7 +1010,7 @@ databaseTests("PostgreSQL foundation", () => {
     }
   });
 
-  it("grants full MCP scopes with the default budget and supports scope edits", async () => {
+  it("grants the read-only MCP scopes with the default budget and supports scope edits", async () => {
     const runtime = new DatabaseRuntime({
       DATABASE_URL: appUrl,
       DATABASE_MAX_CONNECTIONS: 12,
@@ -1022,25 +1022,46 @@ databaseTests("PostgreSQL foundation", () => {
          ON CONFLICT (client_id) DO NOTHING`,
       );
       const oauth = new OAuthService(runtime.db);
-      // 客户端只请求部分 scope：新连接默认授予全集 + 100 积分默认额度。
+      await expect(
+        oauth.ensureGrant(101, "default-open-client", ["prompts:write"]),
+      ).rejects.toMatchObject({
+        code: "OAUTH_SCOPE_INSUFFICIENT",
+        statusCode: 400,
+      });
+
       const grant = await oauth.ensureGrant(101, "default-open-client", [
         "account:read",
       ]);
-      expect([...grant.scopes].sort()).toEqual([...MCP_SCOPES].sort());
+      expect(grant.scopes).toEqual(["account:read"]);
       expect(grant.maxPointsPerGeneration).toBe(100);
       expect(grant.maxPointsPerDay).toBe(100);
       expect(grant.mode).toBe("ask_each_time");
 
-      // 收窄能力无需重认证。
+      // 扩大能力必须重新认证。
       await expect(
         oauth.updateConnection(101, grant.id, {
           scopes: ["account:read", "prompts:read"],
         }),
+      ).rejects.toMatchObject({
+        code: "AUTH_CREDENTIALS_INVALID",
+        statusCode: 401,
+      });
+      await expect(
+        oauth.updateConnection(
+          101,
+          grant.id,
+          { scopes: ["account:read", "prompts:read"] },
+          true,
+        ),
       ).resolves.toBeUndefined();
-      // 扩大能力与提额同级，需要重认证。
+      // 收窄能力无需重认证。
+      await expect(
+        oauth.updateConnection(101, grant.id, { scopes: ["account:read"] }),
+      ).resolves.toBeUndefined();
+      // 再次扩大能力仍需要重新认证。
       await expect(
         oauth.updateConnection(101, grant.id, {
-          scopes: ["account:read", "prompts:read", "generations:write"],
+          scopes: ["account:read", "prompts:read", "skills:read"],
         }),
       ).rejects.toMatchObject({
         code: "AUTH_CREDENTIALS_INVALID",
@@ -1051,7 +1072,7 @@ databaseTests("PostgreSQL foundation", () => {
           101,
           grant.id,
           {
-            scopes: ["account:read", "prompts:read", "generations:write"],
+            scopes: ["account:read", "prompts:read", "skills:read"],
           },
           true,
         ),
@@ -1059,16 +1080,14 @@ databaseTests("PostgreSQL foundation", () => {
       const connections = await oauth.listConnections(101);
       expect(
         connections.find((connection) => connection.id === grant.id)?.scopes,
-      ).toEqual(["account:read", "prompts:read", "generations:write"]);
+      ).toEqual(["account:read", "prompts:read", "skills:read"]);
 
-      // 重新授权回到全集（re-consent 等价手动全开）。
+      // 重新授权只恢复本次请求的 prompts:read scope。
       await oauth.ensureGrant(101, "default-open-client", ["prompts:read"]);
       const afterReconsent = (
         await oauth.listConnections(101)
       ).find((connection) => connection.id === grant.id);
-      expect([...(afterReconsent?.scopes ?? [])].sort()).toEqual(
-        [...MCP_SCOPES].sort(),
-      );
+      expect(afterReconsent?.scopes).toEqual(["prompts:read"]);
     } finally {
       await runtime.close();
     }

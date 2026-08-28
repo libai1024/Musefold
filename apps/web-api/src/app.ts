@@ -221,9 +221,7 @@ export async function buildWebApi(
     await app.register(mcpRoutes, {
       oauth: oauthService,
       prompts: promptService,
-      generations: generationService,
       skills: new SkillService(database.db),
-      credentials,
       config: options.config,
       rateLimiter,
     });

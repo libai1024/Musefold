@@ -9,6 +9,7 @@ import { cloudSyncLabel } from './account-section-helpers';
 import { InlineMessage } from './account-section-ui';
 
 export function AccountCloudSyncPanel({
+  signedIn,
   cloudSync,
   cloudConflicts,
   cloudError,
@@ -16,6 +17,7 @@ export function AccountCloudSyncPanel({
   syncCloudNow,
   resolveCloudConflict,
 }: {
+  signedIn: boolean;
   cloudSync: CloudSyncSummary | null;
   cloudConflicts: CloudSyncConflictSummary[];
   cloudError: string | null;
@@ -39,24 +41,27 @@ export function AccountCloudSyncPanel({
           checked={cloudSync?.account?.enabled ?? false}
           onCheckedChange={(enabled) => void setCloudEnabled(enabled)}
           label="提示词云同步"
-          disabled={!cloudSync?.available || cloudSync.status === 'syncing'}
+          disabled={!signedIn || !cloudSync?.available || cloudSync.status === 'syncing'}
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-meta text-tertiary">
         <span>
-          {cloudSyncLabel(cloudSync)}
+          {signedIn ? cloudSyncLabel(cloudSync) : '未登录'}
           {cloudSync?.account?.deviceName ? ` · 此设备 ${cloudSync.account.deviceName}` : ''}
         </span>
         <Button
           variant="ghost"
           size="xs"
           className="px-3 shadow-none"
-          disabled={!cloudSync?.account?.enabled || cloudSync.status === 'syncing'}
+          disabled={!signedIn || !cloudSync?.account?.enabled || cloudSync.status === 'syncing'}
           onClick={() => void syncCloudNow()}
         >
           {cloudSync?.status === 'syncing' ? '同步中…' : '立即同步'}
         </Button>
       </div>
+      {!signedIn && (
+        <InlineMessage tone="warning">登录 Musefold 账号后才能启用云同步，本地内容可继续离线使用。</InlineMessage>
+      )}
       {cloudError && <InlineMessage tone="warning">{cloudError}</InlineMessage>}
       {cloudConflicts.length > 0 && (
         <div className="mt-4 border-t border-border-subtle pt-4">

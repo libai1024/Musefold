@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { FixtureWebGateway } from "../fixture-runtime";
 
-describe("fixture generation history lifecycle", () => {
+describe("generation history lifecycle", () => {
+  it("filters fixture history by status, date, model, and search", async () => {
+    const gateway = new FixtureWebGateway();
+    const failed = await gateway.createGeneration({ prompt: "建筑失败", size: "1024x1024", quality: "medium", count: 1 }, "filter-1");
+    await gateway.createGeneration({ prompt: "花园成功", size: "1024x1024", quality: "medium", count: 1 }, "filter-2");
+    await gateway.cancelGeneration(failed.id);
+    const result = await gateway.listGenerationHistory({
+      limit: 20,
+      status: "cancelled",
+      search: "建筑",
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-12-31T23:59:59.999Z",
+    });
+    expect(result.items).toEqual([expect.objectContaining({ id: failed.id })]);
+    const empty = await gateway.listGenerationHistory({
+      limit: 20,
+      providerModel: "missing-model",
+      search: "建筑",
+    });
+    expect(empty.items).toEqual([]);
+  });
+
   it("retries, soft-deletes, filters, and restores generation jobs", async () => {
     const gateway = new FixtureWebGateway();
     const created = await gateway.createGeneration(

@@ -31,6 +31,9 @@ describe("account cloud sync UI contract", () => {
     expect(source).toContain("<SettingsSwitch");
     expect(source).toContain("cloudSyncSetEnabled");
     expect(source).toContain("cloudSyncNow");
+    expect(source).toContain("signedIn ? cloudSyncLabel(cloudSync) : '未登录'");
+    expect(source).toContain("登录 Musefold 账号后才能启用云同步");
+    expect(source).toContain("disabled={!signedIn || !cloudSync?.available");
     expect(source).not.toContain("window.api.cloudSync");
   });
 

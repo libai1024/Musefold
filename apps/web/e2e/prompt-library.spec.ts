@@ -105,6 +105,60 @@ test('Prompt Library compact width uses a single detail page', async ({ page }, 
   await expectNoHorizontalOverflow(page);
 });
 
+test('wide screens open the editor and trash as stable modals', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await openPromptLibrary(page);
+
+  // 编辑器：大屏为稳定几何弹窗（与 Desktop PromptEditor 同基线），非整页形态。
+  await page.getByTestId('library-new').click();
+  const editorDialog = page.getByTestId('web-prompt-editor-dialog');
+  await expect(editorDialog).toBeVisible();
+  await expect(page.getByTestId('prompt-library-workspace')).toBeVisible();
+  // 入场动画结束后的稳定几何：宽 576、水平居中。
+  await expect
+    .poll(() => editorDialog.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeCloseTo(576, 1);
+  const editorCenter = await editorDialog.evaluate(
+    (element) => element.getBoundingClientRect().x + element.getBoundingClientRect().width / 2,
+  );
+  expect(editorCenter).toBeCloseTo(640, 1);
+  await testInfo.attach('prompt-library-wide-editor-modal', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+
+  // Esc 不直接关弹窗，走共享表单的放弃确认流。
+  await page.getByTestId('prompt-editor-title').fill('大屏弹窗草稿');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('alert')).toContainText('未保存的改动');
+  await page.getByTestId('prompt-editor-discard').click();
+  await expect(page.getByTestId('web-prompt-editor-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('library-page')).toBeVisible();
+
+  // 回收站：同一档位用 Desktop 风格 modal（共享 PromptTrashScreen 保留 testid）。
+  await page.getByTestId('library-menu').click();
+  await page.getByTestId('library-trash').click();
+  const trashDialog = page.getByTestId('web-prompt-trash-dialog');
+  await expect(trashDialog).toBeVisible();
+  await expect(page.getByTestId('prompt-trash')).toBeVisible();
+  await expect
+    .poll(() => trashDialog.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeCloseTo(512, 1);
+  const trashCenter = await trashDialog.evaluate(
+    (element) => element.getBoundingClientRect().x + element.getBoundingClientRect().width / 2,
+  );
+  expect(trashCenter).toBeCloseTo(640, 1);
+  await testInfo.attach('prompt-library-wide-trash-modal', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+
+  await page.getByTestId('prompt-trash').getByRole('button', { name: '提示词库' }).click();
+  await expect(page.getByTestId('web-prompt-trash-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('library-page')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
 test('Prompt Library phone view and editor remain full-page substates', async ({
   page,
 }, testInfo) => {

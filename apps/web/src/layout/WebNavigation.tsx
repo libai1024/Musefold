@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getProductCapabilities, productViewTitle } from '@musefold/domain';
+import { productViewTitle, type ProductCapabilities } from '@musefold/domain';
 import { PanelLeft, Search, Sparkles } from '@musefold/ui/icons';
 import { IconButton } from '@musefold/ui';
 import {
@@ -23,18 +23,18 @@ import {
   type WorkbenchSessionListItemViewModel,
 } from '@musefold/product-ui';
 import type { WebGateway } from '../runtime';
+import { WebSidebarAccessSwitcher } from './WebSidebarAccessSwitcher';
 
-const webCapabilities = getProductCapabilities('web');
+import type { WebSettingsSection } from '../views/settings-types';
 
 export type WebView = 'generate' | 'prompts' | 'history' | 'settings';
-export type WebSettingsSection = 'account' | 'connections';
 
 interface WebSidebarProps {
+  capabilities: Readonly<ProductCapabilities>;
   view: WebView;
-  settingsSection: WebSettingsSection;
   accountName: string;
-  mode: WebGateway['mode'];
-  promptCount: number;
+  quotaLabel: string;
+  accountReady: boolean;
   workbenchSessions: WorkbenchSessionListItemViewModel[];
   sessionListLoading: boolean;
   sessionListError: string | null;
@@ -50,14 +50,15 @@ interface WebSidebarProps {
   ) => void | Promise<void>;
   onDeleteWorkbenchSession: (item: WorkbenchSessionListItemViewModel) => void | Promise<void>;
   onRetryWorkbenchSessions: () => void;
+  onLogout: () => void | Promise<void>;
 }
 
 export function WebSidebar({
+  capabilities,
   view,
-  settingsSection,
   accountName,
-  mode,
-  promptCount,
+  quotaLabel,
+  accountReady,
   workbenchSessions,
   sessionListLoading,
   sessionListError,
@@ -70,6 +71,7 @@ export function WebSidebar({
   onRenameWorkbenchSession,
   onDeleteWorkbenchSession,
   onRetryWorkbenchSessions,
+  onLogout,
 }: WebSidebarProps) {
   const [pinnedSessionIds, setPinnedSessionIds] = useState(readPinnedSessionIds);
   const [unreadSessionIds, setUnreadSessionIds] = useState(readUnreadSessionIds);
@@ -115,10 +117,9 @@ export function WebSidebar({
   const closeDeleteDialog = () => setDeleteTarget(null);
   const navItems = buildSidebarNavItems({
     surface: 'web',
-    capabilities: webCapabilities,
+    capabilities,
     currentView: view,
     onSelect: (id) => onNavigate(id as WebView),
-    counts: { prompts: promptCount },
   });
 
   return (
@@ -163,15 +164,20 @@ export function WebSidebar({
             onRetry={onRetryWorkbenchSessions}
           />
         }
-        account={{
-          name: accountName,
-          detail: mode === 'fixture' ? '开发数据' : '个人账户',
-          active: view === 'settings' && settingsSection === 'account',
-          onSelect: () => {
-            onSettingsSectionChange('account');
-            onNavigate('settings');
-          },
-        }}
+        footer={
+          <WebSidebarAccessSwitcher
+            accountName={accountName}
+            quotaLabel={quotaLabel}
+            accountReady={accountReady}
+            settingsActive={view === 'settings'}
+            onOpenSettings={() => onNavigate('settings')}
+            onOpenAccountSettings={() => {
+              onSettingsSectionChange('account');
+              onNavigate('settings');
+            }}
+            onLogout={onLogout}
+          />
+        }
       />
       {contextMenu ? (
         <WorkbenchSessionContextMenu
@@ -224,6 +230,8 @@ interface WebTopbarProps {
   workbenchSession: WorkbenchSessionListItemViewModel | null;
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
+  /** 大屏为 true：搜索按钮开命令面板；小屏保持跳转提示词库的既有行为。 */
+  commandPaletteEnabled: boolean;
   onSearch: () => void;
   onRenameSession: (item: WorkbenchSessionListItemViewModel, title: string) => void | Promise<void>;
   onArchiveSession: (item: WorkbenchSessionListItemViewModel) => void | Promise<void>;
@@ -238,6 +246,7 @@ export function WebTopbar({
   workbenchSession,
   sidebarOpen,
   onOpenSidebar,
+  commandPaletteEnabled,
   onSearch,
   onRenameSession,
   onArchiveSession,
@@ -301,8 +310,8 @@ export function WebTopbar({
           <>
             <IconButton
               className="mf-product-topbar-icon-button"
-              title="搜索"
-              label="搜索"
+              title={commandPaletteEnabled ? '搜索与命令（⌘ K）' : '搜索'}
+              label={commandPaletteEnabled ? '搜索与命令' : '搜索'}
               onClick={onSearch}
               data-testid="web-topbar-search"
             >

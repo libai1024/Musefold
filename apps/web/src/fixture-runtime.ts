@@ -29,6 +29,7 @@ import {
 } from "@musefold/contracts";
 import { FixtureAccountGateway } from "./fixture-account";
 import { WebGatewayError, type WebGateway } from "./runtime";
+import { matchesGenerationHistoryQuery } from './lib/generation-history-filters';
 import type { GenerationEvent } from "@musefold/cloud-client";
 
 const generatedFixtureUrl = "/__musefold-fixture/skill-ref-pause-map.jpeg";
@@ -135,13 +136,7 @@ const fixtureConnections = mcpConnectionPageSchema.parse({
     {
       id: "fixture-connection-1",
       clientName: "Musefold Preview Client",
-      scopes: [
-        "account:read",
-        "prompts:read",
-        "skills:read",
-        "generations:read",
-        "generations:write",
-      ],
+      scopes: ["account:read", "prompts:read", "skills:read"],
       mode: "ask_each_time",
       maxPointsPerGeneration: 1000,
       maxPointsPerDay: 5000,
@@ -439,14 +434,9 @@ export class FixtureWebGateway extends FixtureAccountGateway implements WebGatew
     query: GenerationHistoryQuery,
   ): Promise<GenerationHistoryPage> {
     await pause(100);
-    const includeDeleted = query.includeDeleted ?? false;
     return {
       items: [...this.jobs.values()]
-        .filter(
-          (job) =>
-            (includeDeleted || !job.deletedAt) &&
-            (!query.sessionId || job.sessionId === query.sessionId),
-        )
+        .filter((job) => matchesGenerationHistoryQuery(job, query))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       nextCursor: null,
     };

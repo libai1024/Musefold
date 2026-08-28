@@ -17,8 +17,9 @@ import {
   type PromptEditorDraft,
   type PromptListItemViewModel,
 } from '@musefold/product-ui';
-import { Button } from '@musefold/ui';
+import { Button, Dialog, DialogContent, DialogTitle } from '@musefold/ui';
 import { WebGatewayError } from '../runtime';
+import { useLargeProductViewport } from '../layout/useLargeProductViewport';
 
 export interface PromptLibraryViewProps {
   prompts: PromptGateway;
@@ -41,6 +42,8 @@ export function PromptLibraryView({
     query,
     onQueryChange,
   });
+  // 大屏（>680px）编辑器/回收站用与 Desktop 同基线的弹窗几何；小屏保持既有整页形态。
+  const largeViewport = useLargeProductViewport();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [mode, setMode] = useState<'list' | 'detail' | 'editor' | 'trash'>('list');
   const [editing, setEditing] = useState<PromptDocument | null>(null);
@@ -56,9 +59,20 @@ export function PromptLibraryView({
   } | null>(null);
   const selectedId = page.selectedId;
   const selected = page.items.find((prompt) => prompt.id === selectedId) ?? null;
-  const items = useMemo<PromptListItemViewModel[]>(
-    () => page.items.map((prompt) => toPromptListItemViewModel(prompt)),
+  // 范围标签与 Desktop 一致：全部 / 笺匣（source==='slip'），客户端过滤已载入列表。
+  const [scope, setScope] = useState<'all' | 'slips'>('all');
+  const slipsOnly = scope === 'slips';
+  const slipCount = useMemo(
+    () => page.items.filter((prompt) => prompt.source === 'slip').length,
     [page.items],
+  );
+  const scopedItems = useMemo(
+    () => (slipsOnly ? page.items.filter((prompt) => prompt.source === 'slip') : page.items),
+    [page.items, slipsOnly],
+  );
+  const items = useMemo<PromptListItemViewModel[]>(
+    () => scopedItems.map((prompt) => toPromptListItemViewModel(prompt)),
+    [scopedItems],
   );
   const editorInitial = useMemo<PromptEditorDraft>(
     () => promptEditorDraft(editing),
@@ -214,80 +228,126 @@ export function PromptLibraryView({
     }
   };
 
-  if (mode === 'editor') {
+  const closeEditor = () => {
+    setConflict(null);
+    setError(null);
+    setMode(editing ? 'detail' : 'list');
+  };
+  const closeTrash = () => {
+    setError(null);
+    setMode('list');
+  };
+
+  const editor = (
+    <PromptEditorForm
+      key={`${editing?.id ?? 'new'}:${editing?.version ?? 0}:${editorRevision}`}
+      heading={editing ? '编辑提示词' : '新建提示词'}
+      layout={largeViewport ? 'dialog' : 'page'}
+      initial={editorInitial}
+      busy={busy}
+      error={error}
+      submitLabel={editing ? '保存修改' : '创建提示词'}
+      notice={
+        conflict ? (
+          <div
+            className="mt-[18px] rounded-[7px] border border-solid border-[color-mix(in_srgb,var(--accent)_30%,var(--border-default))] bg-accent-soft p-[11px] text-secondary"
+            role="alert"
+          >
+            <strong className="text-[11px] text-primary">检测到其他设备的更新</strong>
+            <p className="mx-0 mt-[4px] mb-[10px] text-meta leading-[1.5]">
+              你的修改仍在。请选择载入云端版本，或基于最新版保留本次修改。
+            </p>
+            <div className="flex justify-end gap-[7px]">
+              <Button
+                variant="secondary"
+                className="button button-secondary"
+                onClick={loadCloudConflictVersion}
+              >
+                载入云端
+              </Button>
+              <Button
+                variant="primary"
+                className="button button-primary"
+                disabled={busy}
+                onClick={() => void keepLocalConflictDraft()}
+                data-testid="prompt-conflict-keep-local"
+              >
+                保留我的修改
+              </Button>
+            </div>
+          </div>
+        ) : undefined
+      }
+      onCancel={closeEditor}
+      onSubmit={submitEditor}
+    />
+  );
+
+  const trashScreen = (
+    <PromptTrashScreen
+      prompts={trash.map(toPromptDetailViewModel)}
+      loading={trashLoading}
+      error={error}
+      busyId={busyTrashId}
+      onBack={closeTrash}
+      onRestore={(prompt) => void restoreTrashPrompt(prompt)}
+    />
+  );
+
+  // 小屏（≤680px）：编辑器/回收站保持既有整页子状态，列表卸载。
+  if (mode === 'editor' && !largeViewport) {
     return (
       <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
-        <PromptEditorForm
-          key={`${editing?.id ?? 'new'}:${editing?.version ?? 0}:${editorRevision}`}
-          heading={editing ? '编辑提示词' : '新建提示词'}
-          initial={editorInitial}
-          busy={busy}
-          error={error}
-          submitLabel={editing ? '保存修改' : '创建提示词'}
-          notice={
-            conflict ? (
-              <div
-                className="mt-[18px] rounded-[7px] border border-solid border-[color-mix(in_srgb,var(--accent)_30%,var(--border-default))] bg-accent-soft p-[11px] text-secondary"
-                role="alert"
-              >
-                <strong className="text-[11px] text-primary">检测到其他设备的更新</strong>
-                <p className="mx-0 mt-[4px] mb-[10px] text-meta leading-[1.5]">
-                  你的修改仍在。请选择载入云端版本，或基于最新版保留本次修改。
-                </p>
-                <div className="flex justify-end gap-[7px]">
-                  <Button
-                    variant="secondary"
-                    className="button button-secondary"
-                    onClick={loadCloudConflictVersion}
-                  >
-                    载入云端
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="button button-primary"
-                    disabled={busy}
-                    onClick={() => void keepLocalConflictDraft()}
-                    data-testid="prompt-conflict-keep-local"
-                  >
-                    保留我的修改
-                  </Button>
-                </div>
-              </div>
-            ) : undefined
-          }
-          onCancel={() => {
-            setConflict(null);
-            setError(null);
-            setMode(editing ? 'detail' : 'list');
-          }}
-          onSubmit={submitEditor}
-        />
+        {editor}
+      </div>
+    );
+  }
+  if (mode === 'trash' && !largeViewport) {
+    return (
+      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
+        {trashScreen}
       </div>
     );
   }
 
-  if (mode === 'trash') {
-    return (
-      <div className="page min-h-0 min-w-0 flex-1 overflow-y-auto px-[24px] pt-[20px] pb-[48px]">
-        <PromptTrashScreen
-          prompts={trash.map(toPromptDetailViewModel)}
-          loading={trashLoading}
-          error={error}
-          busyId={busyTrashId}
-          onBack={() => {
-            setError(null);
-            setMode('list');
-          }}
-          onRestore={(prompt) => void restoreTrashPrompt(prompt)}
-        />
-      </div>
-    );
-  }
+  // 大屏：与 Desktop 同基线的弹窗（LibraryPage 的 PromptEditor / TrashDialog 挂法），
+  // 列表保持挂载，弹窗经 Portal 覆盖。
+  const editorDialog =
+    mode === 'editor' ? (
+      <Dialog open onOpenChange={(next) => { if (!next) closeEditor(); }}>
+        <DialogContent
+          className="web-prompt-editor-dialog"
+          hideClose
+          aria-label={editing ? '编辑提示词' : '新建提示词'}
+          data-testid="web-prompt-editor-dialog"
+          // 与 Desktop PromptEditor 一致：Esc/外点不直接关弹窗，退出必须走表单取消/放弃确认。
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+        >
+          <DialogTitle className="sr-only">{editing ? '编辑提示词' : '新建提示词'}</DialogTitle>
+          {editor}
+        </DialogContent>
+      </Dialog>
+    ) : null;
+
+  const trashDialog =
+    mode === 'trash' ? (
+      <Dialog open onOpenChange={(next) => { if (!next) closeTrash(); }}>
+        <DialogContent
+          className="web-prompt-trash-dialog"
+          aria-label="回收站"
+          data-testid="web-prompt-trash-dialog"
+        >
+          <DialogTitle className="sr-only">回收站</DialogTitle>
+          {trashScreen}
+        </DialogContent>
+      </Dialog>
+    ) : null;
 
   const detailOpen = mode === 'detail' && Boolean(selected);
 
   return (
-    <div className="page-prompt-library min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div className="h-full min-h-0 bg-work">
       <PromptLibraryWorkspace
         detailOpen={detailOpen}
         onClose={closeDetail}
@@ -299,9 +359,40 @@ export function PromptLibraryView({
               onQueryChange={onQueryChange}
               copiedId={copiedId}
               selectedId={selectedId}
+              showPageHeader={false}
+              scopeNavigation={
+                <div className="mf-workspace-scope-tabs" role="tablist" aria-label="提示词范围">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={!slipsOnly}
+                    onClick={() => setScope('all')}
+                    className="mf-workspace-scope-tab"
+                    data-testid="library-filter-all"
+                  >
+                    <span>全部</span>
+                    <span className="mf-workspace-scope-count">{page.items.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={slipsOnly}
+                    onClick={() => setScope('slips')}
+                    className="mf-workspace-scope-tab"
+                    data-testid="library-filter-slips"
+                  >
+                    <span>笺匣</span>
+                    <span className="mf-workspace-scope-count">{slipCount}</span>
+                  </button>
+                </div>
+              }
               headerAction={
                 <PromptLibraryHeaderActions
                   onCreate={() => openEditor(null)}
+                  onRefresh={async () => {
+                    await page.refetch();
+                  }}
+                  refreshing={page.loading}
                   onOpenTrash={openTrash}
                 />
               }
@@ -355,6 +446,8 @@ export function PromptLibraryView({
           ) : undefined
         }
       />
+      {editorDialog}
+      {trashDialog}
     </div>
   );
 }
