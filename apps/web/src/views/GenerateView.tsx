@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDownToLine, ArrowUp, FileText, Square, Wand2 } from '@musefold/ui/icons';
+import { ArrowDownToLine, ArrowUp, FileText, Square, Wand2 } from '@musefold/legacy-ui/icons';
 import {
   GenerationResultSurface,
   GenerationRetryAction,
@@ -36,7 +36,7 @@ import {
   shareImageAsset,
   type GeneratePageController,
 } from '@musefold/product-ui';
-import { ImageLightbox } from '@musefold/ui';
+import { ImageLightbox } from '@musefold/legacy-ui';
 import { downloadImage } from '../download-image';
 import musefoldIconUrl from '../../../../website/Musefold/assets/musefold-icon.png';
 

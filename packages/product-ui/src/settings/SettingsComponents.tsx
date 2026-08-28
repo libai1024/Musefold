@@ -8,7 +8,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react';
-import { Switch } from '@musefold/ui';
+import { Switch } from '@musefold/legacy-ui';
 
 function classes(...values: Array<string | undefined>): string {
   return values.filter(Boolean).join(' ');

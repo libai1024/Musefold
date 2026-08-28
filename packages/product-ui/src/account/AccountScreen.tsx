@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Button, Input } from '@musefold/ui';
-import { BadgeCheck, LogOut, RefreshCw } from '@musefold/ui/icons';
+import { Button, Input } from '@musefold/legacy-ui';
+import { BadgeCheck, LogOut, RefreshCw } from '@musefold/legacy-ui/icons';
 import { AccountSummaryPanel, type AccountSummaryViewModel } from './AccountSummaryPanel';
 
 export interface AccountActionFeedback {

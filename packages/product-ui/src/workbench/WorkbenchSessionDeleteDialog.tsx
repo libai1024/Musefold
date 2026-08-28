@@ -6,7 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 
 export interface WorkbenchSessionDeleteDialogProps {
   open: boolean;

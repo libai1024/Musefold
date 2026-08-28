@@ -6,7 +6,7 @@ import {
   Link2,
   MessageSquareText,
   Settings,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import type { ReactNode } from 'react';
 
 export type ProductViewKey =

@@ -343,7 +343,8 @@ export function promptListQueryToRowQuery(query: PromptListQuery): ListPromptsQu
   const sort = query.sort ?? 'updated-desc';
   const mapped: ListPromptsQuery = {
     search: query.q,
-    tagIds: query.tagIds,
+    // v2.5 契约允许 wire 侧单值 tagIds;桌面侧输入恒为数组,这里归一化。
+    tagIds: typeof query.tagIds === 'string' ? [query.tagIds] : query.tagIds,
     sort:
       sort === 'created-desc'
         ? 'created'

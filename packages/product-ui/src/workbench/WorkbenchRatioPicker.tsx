@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Check, ChevronDown } from '@musefold/ui/icons';
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@musefold/ui';
+import { Check, ChevronDown } from '@musefold/legacy-ui/icons';
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@musefold/legacy-ui';
 import { useWorkbenchPopoverPosition } from './useWorkbenchPopoverPosition';
 
 export interface WorkbenchRatioOption {

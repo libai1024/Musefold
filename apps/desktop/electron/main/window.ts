@@ -30,6 +30,8 @@ export function createWindow(): BrowserWindow {
   const windowIcon = resolveResourcePath(['icon.png']);
   const importArgv = originMigrationImportArgv();
   const automated = isAutomatedElectron();
+  // v2.5 新渲染壳打样开关(M3):独立 preload(单通道桥)+ 独立入口。
+  const v25Shell = process.env['MUSEFOLD_V25_SHELL'] === '1';
 
   const win = new BrowserWindow({
     width: 1320,
@@ -53,7 +55,10 @@ export function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      preload: join(appRoot, 'apps/desktop/out/preload/index.cjs'),
+      preload: join(
+        appRoot,
+        v25Shell ? 'apps/desktop/out/preload/v25.cjs' : 'apps/desktop/out/preload/index.cjs',
+      ),
       // 只传布尔标记，不把偏好 value 放进进程参数列表。
       ...(importArgv.length > 0 ? { additionalArguments: importArgv } : {}),
     },
@@ -124,7 +129,7 @@ export function createWindow(): BrowserWindow {
   // MUSEFOLD_E2E=1 时附加 ?musefold_e2e=1 —— 渲染层据此安装 window.__musefold_test 测试钩子
   // （见 apps/desktop/src/lib/test-hook.ts）。仅 E2E 启动链路会带此环境变量。
   const e2e = process.env['MUSEFOLD_E2E'] === '1';
-  win.loadURL(resolveMainWindowLoadUrl(process.env['ELECTRON_RENDERER_URL'], e2e));
+  win.loadURL(resolveMainWindowLoadUrl(process.env['ELECTRON_RENDERER_URL'], e2e, v25Shell));
 
   return win;
 }

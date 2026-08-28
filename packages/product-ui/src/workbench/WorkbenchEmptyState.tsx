@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Button, MusefoldMark } from '@musefold/ui';
+import { Button, MusefoldMark } from '@musefold/legacy-ui';
 
 const DEFAULT_SUGGESTIONS = [
   '漂浮在云层上的小型图书馆，克制电影感，阴天漫射光，细腻阴影',

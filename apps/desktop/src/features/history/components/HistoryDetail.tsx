@@ -31,7 +31,7 @@ import {
 } from '../../../components/ui/dialog';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Input } from '../../../components/ui/input';
-import { DropdownMenuItem, Spinner } from '@musefold/ui';
+import { DropdownMenuItem, Spinner } from '@musefold/legacy-ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 import { formatDuration, formatTime } from '../../../lib/format';
 import { toImageSrc } from '../../../lib/media';

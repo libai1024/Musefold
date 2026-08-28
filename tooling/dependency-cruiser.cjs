@@ -136,10 +136,10 @@ module.exports = {
       comment:
         '§3.2 ui：不依赖任何 workspace 包。当前布局禁止 import product-ui、apps/desktop/src/、apps/desktop/electron/、apps/、packages/core 及其他 packages/。',
       severity: 'error',
-      from: { path: '^packages/ui/' },
+      from: { path: '^packages/legacy-ui/' },
       to: {
         path: [
-          '^packages/(?!ui)[^/]+/',
+          '^packages/(?!legacy-ui)[^/]+/',
           '^apps/desktop/src/',
           '^@renderer',
           '^apps/desktop/electron/',
@@ -162,7 +162,7 @@ module.exports = {
       from: { path: '^packages/product-ui/' },
       to: {
         path: [
-          '^packages/(?!product-ui|ui|contracts|domain)[^/]+/',
+          '^packages/(?!product-ui|legacy-ui|contracts|domain)[^/]+/',
           '^apps/desktop/src/',
           '^@renderer',
           '^apps/desktop/electron/',
@@ -249,7 +249,7 @@ module.exports = {
           '^@shared',
           '^@musefold/desktop-contracts',
           '^apps/(?!web/)',
-          '^packages/(?!contracts|domain|ui|product-ui|cloud-client)[^/]+/',
+          '^packages/(?!contracts|domain|legacy-ui|product-ui|cloud-client)[^/]+/',
         ],
       },
     },
@@ -405,7 +405,7 @@ module.exports = {
       from: { path: '^packages/(cli|client|mcp|automation-server)/' },
       to: {
         path: [
-          '^packages/(ui|product-ui)/',
+          '^packages/(ui|legacy-ui|product-ui)/',
           '^apps/desktop/src/',
           '^@renderer',
           '^apps/(?!desktop/)',

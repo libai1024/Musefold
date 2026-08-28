@@ -1,4 +1,4 @@
-/* v1.4 WEB-01：接入与桌面同源的 Tailwind v4 主题与工具类（@musefold/ui token 映射见根 tailwind.config.ts）。
+/* v1.4 WEB-01：接入与桌面同源的 Tailwind v4 主题与工具类（@musefold/legacy-ui token 映射见根 tailwind.config.ts）。
  * 刻意不引 preflight（tailwindcss/preflight.css）：本文件既有的重置即现行像素基线，
  * preflight 对齐属像素变更，推迟到 OPERATE-01（届时像素本来就要动并过门禁）。
  * 层序显式声明：base 在 utilities 之前，宿主元素重置永远压不过工具类。
@@ -107,7 +107,7 @@
  * result-save-prompt / button* / composer-conflict —— product-ui 仍发射这些非 mf-* 类名，
  *   未分层才能压过分层工具类；迁入 product-ui 并改 mf-* 属双端改动，本卡不动。
  * form-error / spin —— web 宿主状态样式。
- * login-form 后裔 —— 穿过 @musefold/ui Input 打到 native <input>。
+ * login-form 后裔 —— 穿过 @musefold/legacy-ui Input 打到 native <input>。
  * login-submit / approval-submit —— 未分层才能压过 .button 的 32px 高。 */
 .result-save-prompt:disabled {
   cursor: default;
@@ -203,7 +203,7 @@
   }
 }
 
-/* login-form 后裔选择器保留：命中 @musefold/ui Input 内部 native input，
+/* login-form 后裔选择器保留：命中 @musefold/legacy-ui Input 内部 native input，
  * 工具类加在 <Input> 上到不了真正的 <input>。login-screen / login-form / login-submit
  * 的盒模型已转工具类；类名留给 680px / pointer:coarse 媒体块覆盖。 */
 .login-tabs {
@@ -481,7 +481,7 @@
 /* ============================================================
  * v2.1 parity A/B：大屏命令面板 + 提示词编辑/回收站弹窗几何。
  * 断点分工：>680px 才渲染这些形态；≤680px 维持既有整页形态（宿主媒体块约束）。
- * token 单源 @musefold/ui/tokens.css，不引入新色值/字号。
+ * token 单源 @musefold/legacy-ui/tokens.css，不引入新色值/字号。
  * ============================================================ */
 
 /* —— 命令面板（几何与桌面 mf-command-panel 同基线） —— */

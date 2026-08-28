@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, Search, X } from '@musefold/ui/icons';
-import { Input } from '@musefold/ui';
+import { ArrowLeft, Search, X } from '@musefold/legacy-ui/icons';
+import { Input } from '@musefold/legacy-ui';
 
 export interface SettingsNavigationItem {
   id: string;

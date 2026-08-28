@@ -1,5 +1,5 @@
-import { Button, IconButton } from '@musefold/ui';
-import { Check, Copy, FileText } from '@musefold/ui/icons';
+import { Button, IconButton } from '@musefold/legacy-ui';
+import { Check, Copy, FileText } from '@musefold/legacy-ui/icons';
 import type { PromptListItemViewModel } from '../models';
 
 export interface PromptListRowProps {

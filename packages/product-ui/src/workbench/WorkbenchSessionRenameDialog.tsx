@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 
 export interface WorkbenchSessionRenameDialogProps {
   open: boolean;

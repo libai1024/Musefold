@@ -12,7 +12,7 @@ import type {
 } from '@musefold/desktop-contracts/updater';
 import { usePlatform } from '../../../lib/usePlatform';
 import { toast } from '../../../stores/toast';
-import { Kbd } from '@musefold/ui';
+import { Kbd } from '@musefold/legacy-ui';
 import { PRODUCT_SHORTCUTS, shortcutDisplayKeys } from '@musefold/domain';
 import { MusefoldLogoAnimated } from '../../../components/brand/MusefoldLogoAnimated';
 import { SettingsCard } from '../components/SectionShell';

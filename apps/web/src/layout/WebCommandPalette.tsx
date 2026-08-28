@@ -17,8 +17,8 @@ import {
   productCommandLabel,
   type WorkbenchSessionListItemViewModel,
 } from '@musefold/product-ui';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@musefold/ui';
-import { FileText, MessageSquareText, Search } from '@musefold/ui/icons';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@musefold/legacy-ui';
+import { FileText, MessageSquareText, Search } from '@musefold/legacy-ui/icons';
 import type { WebView } from './WebNavigation';
 
 /** 命令目录的 navigate 值 → Web 视图键（Web 侧栏 id 保持 prompts）。 */

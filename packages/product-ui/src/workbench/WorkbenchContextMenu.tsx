@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import type { ReactNode } from 'react';
-import { FilePlus2, LoaderCircle, Plus } from '@musefold/ui/icons';
+import { FilePlus2, LoaderCircle, Plus } from '@musefold/legacy-ui/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   IconButton,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 
 export interface WorkbenchContextAction {
   id: string;

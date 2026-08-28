@@ -51,12 +51,14 @@ M0 基线冻结 → M1 工具链原子切换 → M2 服务端重建 → M3 共�
 
 | 卡 | 内容 | 验收 |
 |---|---|---|
-| M3-01 | shadcn/ui monorepo 初始化:`packages/ui` 重建(components.json、Tailwind v4 主题、现有设计 tokens 映射) | 组件在两宿主渲染一致 |
-| M3-02 | contracts 精炼:实体/命令 schema 按新 API 面收敛,类型全部 `z.infer` | schema 测试全绿 |
-| M3-03 | `packages/platform`:MusefoldGateway 接口 + query keys + 能力 flags;`packages/api-client`(hc 封装) | 类型编译贯通 |
-| M3-04 | `apps/web` 换 Next.js 16.3 壳:App Router、自适应布局壳(大屏侧栏/移动底部导航)、Tailwind `@source` | dev/build 通过 |
-| M3-05 | `apps/desktop` 新渲染壳:electron-vite 入口消费 features;新 IPC 单通道桥(zod 校验)与 preload | dev 启动,冒烟 E2E |
-| M3-06 | 「设置」域打样:features/settings 贯通双宿主,建立第一批视觉快照基线 | 双端设置页 E2E + 快照 |
+| M3-01 ✅ | shadcn/ui monorepo 初始化:`packages/ui` 重建(components.json、Tailwind v4 主题、现有设计 tokens 映射);旧包重命名 `packages/legacy-ui` 原位保活 | 组件单测 + 双宿主渲染一致(E2E 快照) |
+| M3-02 ✅ | contracts 精炼:新增 preferences 契约;查询参数改 `queryIntegerSchema`/`queryBooleanSchema`(替代 z.coerce)修正类型推导 | schema 测试全绿 |
+| M3-03 ✅ | `packages/platform`(MusefoldGateway + query keys + 能力 flags + PlatformProvider)、`packages/api-client`(fetch 封装 + zod 响应校验 + ApiRequestError)、`packages/features`(设置域 hooks/屏幕/ThemeSync) | 类型编译贯通 + 三包单测 |
+| M3-04 ✅ | `apps/web-next` Next.js 16.3 壳:App Router + React Compiler、自适应壳(md+ 侧栏/移动底部导航)、Tailwind `@source` 跨包扫描、localStorage 偏好 gateway、防闪主题脚本 | dev/build 通过 |
+| M3-05 ✅ | `apps/desktop` 新渲染壳:electron-vite `shellV25` 入口消费 features;`musefold:invoke` 单通道 IPC 桥(每方法 zod 校验 + 结构化错误信封)+ v25 preload;`MUSEFOLD_V25_SHELL=1` 切换 | build 通过,Electron E2E 冒烟 |
+| M3-06 ✅ | 「设置」域打样:features/settings 贯通双宿主;`tests/v25` Playwright(web-desktop/web-mobile/electron 三 project)+ 首批视觉快照基线 4 张 | 双端 E2E 10/10,复跑稳定 |
+
+落地备注:web-mobile 项目用 iPhone 13 视口但统一 Chromium 内核;Next dev 需 `allowedDevOrigins` 放行 127.0.0.1;Biome 开 `css.parser.tailwindDirectives`;React 类型统一 @types/react@19。旧 `apps/web` 壳保活至 M4 各域迁完。
 
 ## M4 按域垂直切换
 

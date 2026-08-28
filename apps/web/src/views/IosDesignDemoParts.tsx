@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { IconButton } from '@musefold/ui';
+import { IconButton } from '@musefold/legacy-ui';
 import {
   ChevronRight,
   Command,
@@ -9,7 +9,7 @@ import {
   Sparkles,
   WandSparkles,
   X,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import pauseMapUrl from '../../../../generated/v31-skill-research/skill-ref-pause-map.jpeg';
 import roadUrl from '../../../../generated/v31-skill-research/source-landscape.jpg';
 

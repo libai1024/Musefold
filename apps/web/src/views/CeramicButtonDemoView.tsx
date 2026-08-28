@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@musefold/ui';
+import { Button } from '@musefold/legacy-ui';
 
 type CeramicTheme = 'light' | 'dark';
 

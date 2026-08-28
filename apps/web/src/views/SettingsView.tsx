@@ -12,7 +12,7 @@ import {
   Server,
   SlidersHorizontal,
   UserRound,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import {
   SettingsSection,
   SettingsWorkspace,

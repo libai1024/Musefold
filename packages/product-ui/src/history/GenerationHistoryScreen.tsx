@@ -1,5 +1,5 @@
-import { Button, IconButton } from '@musefold/ui';
-import { LoaderCircle, Trash2 } from '@musefold/ui/icons';
+import { Button, IconButton } from '@musefold/legacy-ui';
+import { LoaderCircle, Trash2 } from '@musefold/legacy-ui/icons';
 import type { ReactNode } from 'react';
 import type { GenerationHistoryItemViewModel } from '../models';
 import { GenerationHistoryRow } from './GenerationHistoryRow';

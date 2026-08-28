@@ -3,6 +3,9 @@ node_modules/
 out/
 release/
 dist/
+.next/
+tests/v25/.results/
+tests/v25/__screenshots__/**/*-actual.png
 test-results/
 test-output/
 .lighthouseci/

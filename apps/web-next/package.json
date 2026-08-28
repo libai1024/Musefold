@@ -1,0 +1,37 @@
+{
+  "name": "@musefold/web-next",
+  "version": "0.0.0-internal",
+  "description": "Musefold web host — Next.js App Router shell (PC + mobile adaptive)",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@musefold/api-client": "workspace:*",
+    "@musefold/contracts": "workspace:*",
+    "@musefold/features": "workspace:*",
+    "@musefold/platform": "workspace:*",
+    "@musefold/ui": "workspace:*",
+    "@tanstack/react-query": "^5.101.4",
+    "next": "^16.3.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.10.9",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.5",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

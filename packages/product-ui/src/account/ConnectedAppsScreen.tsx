@@ -8,7 +8,7 @@ import {
   Sparkles,
   Trash2,
   X,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import {
   Button,
   Dialog,
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   IconButton,
   Input,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 import { useState, type FormEvent } from 'react';
 import { SettingsSegmentedControl } from '../settings/SettingsComponents';
 

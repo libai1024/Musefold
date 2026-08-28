@@ -1,7 +1,7 @@
 // 侧栏应用菜单(自 SidebarAccessSwitcher 拆出):桌宠开关与应用设置入口。
 // testid 契约见 model-hub-ui.test.ts 与 tests/e2e。
 import { useRef, useState } from 'react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/ui';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/legacy-ui';
 import { ProductSidebarSettingsMenuContent } from '@musefold/product-ui';
 import { APP_NAME } from '@musefold/domain/constants';
 import { Loader2, Power, Settings } from '../ui/icons';

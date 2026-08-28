@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { IconButton, MusefoldMark } from '@musefold/ui';
+import { IconButton, MusefoldMark } from '@musefold/legacy-ui';
 import {
   WORKBENCH_QUALITY_OPTIONS,
   WorkbenchGenerationSettingsPopover,
@@ -27,7 +27,7 @@ import {
   Star,
   Sun,
   WandSparkles,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import pauseMapUrl from '../../../../generated/v31-skill-research/skill-ref-pause-map.jpeg';
 import roadUrl from '../../../../generated/v31-skill-research/source-landscape.jpg';
 import {

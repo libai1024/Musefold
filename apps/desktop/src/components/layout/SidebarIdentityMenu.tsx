@@ -1,7 +1,7 @@
 // 侧栏身份菜单容器(自 SidebarAccessSwitcher 拆出):下拉根、触发器、身份模型与跨模式切换验证。
 // 下拉内容(账号/中转站分组)在 IdentityMenuBody;testid 契约见 model-hub-ui.test.ts 与 tests/e2e。
 import { useEffect, useRef, useState } from 'react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/ui';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/legacy-ui';
 import { ChevronDown, Server, UserRound } from '../ui/icons';
 import { ModelBrandIcon, matchModelBrand } from '../ui/brand-icons';
 import { useAccountStore } from '../../features/account/store';

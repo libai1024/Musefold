@@ -3,7 +3,7 @@ import { ChevronDown, Plus, RefreshCw } from '../../components/ui/icons';
 import { cn } from '../../lib/utils';
 import { SchemeCreateMenu, type SchemeCreateKind } from './SchemeListActions';
 import { SchemeSearchField } from './SchemeListPrimitives';
-import { DropdownMenu, DropdownMenuTrigger } from '@musefold/ui';
+import { DropdownMenu, DropdownMenuTrigger } from '@musefold/legacy-ui';
 
 export type SchemeSurface = 'mine' | 'discover';
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { productViewTitle, type ProductCapabilities } from '@musefold/domain';
-import { PanelLeft, Search, Sparkles } from '@musefold/ui/icons';
-import { IconButton } from '@musefold/ui';
+import { PanelLeft, Search, Sparkles } from '@musefold/legacy-ui/icons';
+import { IconButton } from '@musefold/legacy-ui';
 import {
   ProductSidebar,
   ProductTopbar,

@@ -3,4 +3,4 @@ export {
   type UiButtonProps as ButtonProps,
   type UiButtonSize,
   type UiButtonVariant,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';

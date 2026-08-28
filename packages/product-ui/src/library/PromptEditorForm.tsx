@@ -1,5 +1,5 @@
-import { ChevronDown, Pin, X } from '@musefold/ui/icons';
-import { Button, IconButton, Input, Textarea } from '@musefold/ui';
+import { ChevronDown, Pin, X } from '@musefold/legacy-ui/icons';
+import { Button, IconButton, Input, Textarea } from '@musefold/legacy-ui';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useDraftForm } from '../forms/useDraftForm';
 import type { PromptEditorDraft } from '../models';

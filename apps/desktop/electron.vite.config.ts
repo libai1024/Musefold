@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'electron-vite';
 import { resolve } from 'path';
 import { pickAliases } from '../../tooling/aliases.mjs';
@@ -62,6 +63,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(desktopRoot, 'electron/preload/index.ts'),
+          // v2.5 单通道桥 preload(纯转发,不 import workspace TS)
+          v25: resolve(desktopRoot, 'electron/preload/v25.ts'),
         },
         // sandbox:true 的预加载脚本必须是 CommonJS。显式固定输出 .cjs，
         // 与 window.ts 的 preload 路径一致，不受 manifest 模块类型影响。
@@ -77,6 +80,8 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(desktopRoot, 'src'),
+    // Tailwind v4 只服务 v25 新渲染壳;旧入口 CSS 不含 tailwind 指令,不受影响。
+    plugins: [tailwindcss()],
     build: {
       sourcemap: true,
       outDir: resolve(desktopRoot, 'out/renderer'),
@@ -87,6 +92,8 @@ export default defineConfig({
           pet: resolve(desktopRoot, 'src/pet.html'),
           // 一次性 file:// origin 偏好导出页：不含应用代码，主进程以 file:// 加载
           storageExport: resolve(desktopRoot, 'src/storage-export.html'),
+          // v2.5 新渲染壳(M3 打样:features + shadcn ui,经 MUSEFOLD_V25_SHELL=1 加载)
+          shellV25: resolve(desktopRoot, 'src/v25/shell.html'),
         },
       },
     },

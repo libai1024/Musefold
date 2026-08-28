@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { DropdownMenu, DropdownMenuContent } from '@musefold/ui';
+import { DropdownMenu, DropdownMenuContent } from '@musefold/legacy-ui';
 import {
   ProductSidebarIdentityMenuContent,
   ProductSidebarSettingsMenuContent,

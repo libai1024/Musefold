@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { SlidersHorizontal, X } from '@musefold/ui/icons';
+import { SlidersHorizontal, X } from '@musefold/legacy-ui/icons';
 import {
   Button,
   IconButton,
@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   Textarea,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 import { useWorkbenchPopoverPosition } from './useWorkbenchPopoverPosition';
 
 export interface WorkbenchGenerationQualityOption {

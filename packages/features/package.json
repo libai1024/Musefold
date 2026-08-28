@@ -1,0 +1,36 @@
+{
+  "name": "@musefold/features",
+  "version": "0.0.0-internal",
+  "description": "Page-level product modules shared by desktop and web hosts (screens + query hooks)",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./settings": "./src/settings/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@musefold/contracts": "workspace:*",
+    "@musefold/platform": "workspace:*",
+    "@musefold/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.101.4",
+    "react": "^18.3.1 || ^19.0.0",
+    "react-dom": "^18.3.1 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.101.4",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.5",
+    "jsdom": "^26.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

@@ -7,7 +7,7 @@
 @config "../../../../tailwind.config.ts";
 
 /* Shared colors, density, shape, shadows and motion durations come from
- * @musefold/ui/tokens.css. This file only owns Desktop host styling. */
+ * @musefold/legacy-ui/tokens.css. This file only owns Desktop host styling. */
 
 html,
 body,

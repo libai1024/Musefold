@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { MoreHorizontal } from '@musefold/ui/icons';
-import { IconButton } from '@musefold/ui';
+import { MoreHorizontal } from '@musefold/legacy-ui/icons';
+import { IconButton } from '@musefold/legacy-ui';
 import { WorkbenchSessionContextMenu } from './WorkbenchSessionContextMenu';
 
 export interface WorkbenchSessionMenuTriggerProps {

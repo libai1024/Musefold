@@ -1,11 +1,5 @@
-import {
-  forwardRef,
-  useLayoutEffect,
-  useRef,
-  type FormEvent,
-  type TextareaHTMLAttributes,
-} from 'react';
-import { Textarea } from '@musefold/ui';
+import { forwardRef, useLayoutEffect, useRef, type TextareaHTMLAttributes } from 'react';
+import { Textarea } from '@musefold/legacy-ui';
 
 export interface WorkbenchComposerPromptProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   autoResize?: boolean;
@@ -35,7 +29,10 @@ export const WorkbenchComposerPrompt = forwardRef<
     else if (forwardedRef) forwardedRef.current = element;
   };
 
-  const handleInput = (event: FormEvent<HTMLTextAreaElement>) => {
+  // React 19 起 onInput 事件形参是 InputEvent;直接沿用 props 声明的处理器签名。
+  const handleInput: NonNullable<TextareaHTMLAttributes<HTMLTextAreaElement>['onInput']> = (
+    event,
+  ) => {
     resize();
     onInput?.(event);
   };

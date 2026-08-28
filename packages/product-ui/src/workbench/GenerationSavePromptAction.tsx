@@ -1,5 +1,5 @@
-import { BookmarkPlus, Check, LoaderCircle } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { BookmarkPlus, Check, LoaderCircle } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 
 export type GenerationSavePromptState = 'idle' | 'saving' | 'saved';
 

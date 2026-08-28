@@ -1,4 +1,4 @@
-import { Button } from '@musefold/ui';
+import { Button } from '@musefold/legacy-ui';
 
 export interface WorkbenchDraftConflictNoticeProps {
   onUseRemote: () => void;

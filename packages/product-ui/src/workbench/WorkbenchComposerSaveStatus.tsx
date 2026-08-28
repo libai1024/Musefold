@@ -1,4 +1,4 @@
-import { Check, LoaderCircle } from '@musefold/ui/icons';
+import { Check, LoaderCircle } from '@musefold/legacy-ui/icons';
 import type { WorkbenchDraftSaveStatus } from './useWorkbenchDraftSyncController';
 
 export interface WorkbenchComposerSaveStatusProps {

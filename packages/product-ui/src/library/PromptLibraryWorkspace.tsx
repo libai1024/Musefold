@@ -1,5 +1,5 @@
-import { ArrowLeft, PanelRightClose } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { ArrowLeft, PanelRightClose } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import { useEffect, useRef, type ReactNode } from 'react';
 
 export interface PromptLibraryWorkspaceProps {

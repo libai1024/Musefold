@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { History, MoreHorizontal, RefreshCw } from '@musefold/ui/icons';
+import { History, MoreHorizontal, RefreshCw } from '@musefold/legacy-ui/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   IconButton,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 
 export interface WorkbenchTurnMenuItem {
   id: string;

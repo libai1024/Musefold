@@ -7,8 +7,8 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Archive, MessageSquareText, Pin, PinOff, Pencil, Trash2 } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { Archive, MessageSquareText, Pin, PinOff, Pencil, Trash2 } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 
 export interface WorkbenchSessionContextMenuProps {
   anchor: { x: number; y: number };

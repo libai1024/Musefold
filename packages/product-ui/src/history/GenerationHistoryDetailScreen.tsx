@@ -1,5 +1,5 @@
-import { ArrowLeft, Copy, History, ImageOff } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { ArrowLeft, Copy, History, ImageOff } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { GenerationHistoryDetailViewModel } from '../models';
 import {

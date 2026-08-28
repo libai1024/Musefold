@@ -16,6 +16,10 @@
       "outputs": [".tsout/**"],
       "with": ["//#typecheck"]
     },
+    "@musefold/web-next#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
     "@musefold/mcp#typecheck": {
       "dependsOn": [
         "@musefold/client#typecheck",
@@ -72,6 +76,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    "@musefold/web-next#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+    },
     "//#build": {
       "outputs": ["apps/desktop/out/**"],
       "inputs": [
@@ -90,7 +98,7 @@
         "packages/contracts/**",
         "packages/new-api-client/**",
         "packages/update-protocol/**",
-        "packages/ui/**",
+        "packages/legacy-ui/**",
         "packages/product-ui/**",
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"

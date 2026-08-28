@@ -1,5 +1,5 @@
-import { ArrowLeft, RotateCcw, Trash2 } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { ArrowLeft, RotateCcw, Trash2 } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import type { PromptDetailViewModel } from '../models';
 
 export interface PromptTrashScreenProps {

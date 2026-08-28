@@ -1,5 +1,5 @@
-import { Button, StatusBadge } from '@musefold/ui';
-import { CornerDownRight, History, ImageOff, LoaderCircle } from '@musefold/ui/icons';
+import { Button, StatusBadge } from '@musefold/legacy-ui';
+import { CornerDownRight, History, ImageOff, LoaderCircle } from '@musefold/legacy-ui/icons';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { GenerationHistoryItemViewModel } from '../models';
 

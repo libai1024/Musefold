@@ -10,7 +10,7 @@
   border: 0;
 }
 
-/* Settings v1.4.1: token 全部取自 @musefold/ui/tokens.css（单一事实源），此处只放结构与布局。 */
+/* Settings v1.4.1: token 全部取自 @musefold/legacy-ui/tokens.css（单一事实源），此处只放结构与布局。 */
 .mf-settings-workspace {
   display: flex;
   min-width: 0;
@@ -3501,7 +3501,7 @@
 
 /* 英文名称水印:整区背景,顶端高过品牌 mark,沉在所有内容之下(z-index 0)。
    逐字母拆分:6s 透明度呼吸错相流动,鼠标经过的字母变主色高亮,其余保持原样。
-   字体为 ZCOOL XiaoWei 拉丁子集(@musefold/ui/brand-fonts.css 全局注册,双端打包自托管)。 */
+   字体为 ZCOOL XiaoWei 拉丁子集(@musefold/legacy-ui/brand-fonts.css 全局注册,双端打包自托管)。 */
 .mf-workbench-empty-watermark {
   position: absolute;
   inset: 0;

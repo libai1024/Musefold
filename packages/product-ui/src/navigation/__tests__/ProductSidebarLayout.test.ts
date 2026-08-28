@@ -7,7 +7,7 @@ const productStyles = readFileSync(new URL('../../styles.css', import.meta.url),
 describe('ProductSidebarLayout compact drawer contract', () => {
   it('uses the shared modal Drawer only for the compact sidebar', () => {
     expect(layoutSource).toContain(
-      "import { Drawer, DrawerContent, DrawerTitle } from '@musefold/ui'",
+      "import { Drawer, DrawerContent, DrawerTitle } from '@musefold/legacy-ui'",
     );
     expect(layoutSource).toContain('{compact ? (');
     expect(layoutSource).toContain('<Drawer open={open} onOpenChange={onOpenChange}>');

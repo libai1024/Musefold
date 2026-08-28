@@ -3,7 +3,7 @@
 // 结构：导航栏 > 头部（标记/标题/元信息 + 菜单 + 主动作）> 正文 > 相关作品 > 元数据。
 
 import { useState } from 'react';
-import { DropdownMenuItem } from '@musefold/ui';
+import { DropdownMenuItem } from '@musefold/legacy-ui';
 import { Blocks, Share2 } from '../../../components/ui/icons';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import { useLibraryStore } from '../store';

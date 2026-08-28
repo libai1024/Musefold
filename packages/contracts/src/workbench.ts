@@ -1,6 +1,12 @@
 import { z } from 'zod';
-import { cloudGenerationRequestSchema, generationJobSchema } from './generation.js';
-import { entityIdSchema, isoDateTimeSchema, paginationCursorSchema } from './common.js';
+import { cloudGenerationRequestSchema, generationJobSchema } from './generation';
+import {
+  entityIdSchema,
+  isoDateTimeSchema,
+  paginationCursorSchema,
+  queryBooleanSchema,
+  queryIntegerSchema,
+} from './common';
 
 export const workbenchDraftSchema = z.object({
   prompt: z.string().max(12_000),
@@ -41,14 +47,14 @@ export const workbenchSessionPageSchema = z.object({
 
 export const workbenchSessionListQuerySchema = z.object({
   cursor: paginationCursorSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  includeArchived: z.coerce.boolean().default(false),
-  includeDeleted: z.coerce.boolean().default(false),
+  limit: queryIntegerSchema.pipe(z.number().int().min(1).max(100)).default(20),
+  includeArchived: queryBooleanSchema.default(false),
+  includeDeleted: queryBooleanSchema.default(false),
 });
 
 export const generationHistoryQuerySchema = z.object({
   cursor: paginationCursorSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: queryIntegerSchema.pipe(z.number().int().min(1).max(100)).default(20),
   sessionId: entityIdSchema.optional(),
   status: generationJobSchema.shape.status.optional(),
   /** ISO bounds are transport-safe equivalents of Desktop's epoch-ms bounds. */
@@ -56,7 +62,7 @@ export const generationHistoryQuerySchema = z.object({
   to: isoDateTimeSchema.optional(),
   providerModel: z.string().trim().min(1).max(128).optional(),
   search: z.string().trim().max(200).optional(),
-  includeDeleted: z.coerce.boolean().default(false),
+  includeDeleted: queryBooleanSchema.default(false),
 });
 
 export const generationHistoryPageSchema = z.object({

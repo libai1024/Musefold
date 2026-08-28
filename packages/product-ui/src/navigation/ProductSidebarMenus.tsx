@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@musefold/ui';
-import { Check, Loader2 } from '@musefold/ui/icons';
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@musefold/legacy-ui';
+import { Check, Loader2 } from '@musefold/legacy-ui/icons';
 
 export interface ProductSidebarIdentityAccountOption {
   id: string;

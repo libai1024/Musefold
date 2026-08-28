@@ -1,5 +1,5 @@
-import { Search, X } from '@musefold/ui/icons';
-import { IconButton, Input } from '@musefold/ui';
+import { Search, X } from '@musefold/legacy-ui/icons';
+import { IconButton, Input } from '@musefold/legacy-ui';
 
 export interface PromptSearchFieldProps {
   value: string;

@@ -151,7 +151,7 @@ export function ProviderConnectionSection({
   onApiKeyChange: (value: string) => void;
   showKey: boolean;
   onToggleShowKey: () => void;
-  keyInputRef: RefObject<HTMLInputElement>;
+  keyInputRef: RefObject<HTMLInputElement | null>;
   /** 预设的密钥获取地址:未保存密钥时渲染为可点链接 */
   keyUrl?: string;
 }) {

@@ -28,7 +28,7 @@ import {
   type GenerationHistoryDetailViewModel,
   type GenerationHistoryItemViewModel,
 } from '@musefold/product-ui';
-import { Button, ImageLightbox } from '@musefold/ui';
+import { Button, ImageLightbox } from '@musefold/legacy-ui';
 import { downloadImage } from '../download-image';
 import { isHistoryFilterActive } from '../lib/generation-history-filters';
 

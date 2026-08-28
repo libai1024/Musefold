@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiErrorCodeSchema, entityIdSchema, isoDateTimeSchema } from './common.js';
+import { apiErrorCodeSchema, entityIdSchema, isoDateTimeSchema } from './common';
 
 export const generationSizeSchema = z.enum(['auto', '1024x1024', '1536x1024', '1024x1536']);
 

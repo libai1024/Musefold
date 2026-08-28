@@ -13,7 +13,7 @@ import {
   type PromptEditorDraft,
   type PromptListItemViewModel,
 } from '@musefold/product-ui';
-import { Button, Dialog, DialogContent, DialogTitle } from '@musefold/ui';
+import { Button, Dialog, DialogContent, DialogTitle } from '@musefold/legacy-ui';
 import { WebGatewayError } from '../runtime';
 import { useLargeProductViewport } from '../layout/useLargeProductViewport';
 

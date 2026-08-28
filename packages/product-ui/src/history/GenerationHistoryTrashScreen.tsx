@@ -1,5 +1,5 @@
-import { ArrowLeft, History, RotateCcw } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { ArrowLeft, History, RotateCcw } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import type { GenerationHistoryDetailViewModel } from '../models';
 
 export interface GenerationHistoryTrashScreenProps {

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { entityIdSchema, isoDateTimeSchema, paginationCursorSchema } from './common.js';
+import {
+  entityIdSchema,
+  isoDateTimeSchema,
+  paginationCursorSchema,
+  queryBooleanSchema,
+  queryIntegerSchema,
+} from './common';
 
 export const promptTagNameSchema = z.string().trim().min(1).max(40);
 export const promptParamsSchema = z.record(z.string(), z.unknown());
@@ -109,11 +115,16 @@ export const updatePromptTagSchema = newPromptTagSchema.partial().extend({
 export const promptListQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   cursor: paginationCursorSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  folderId: entityIdSchema.nullable().optional(),
-  tagIds: z.array(entityIdSchema).max(20).optional(),
-  pinnedOnly: z.coerce.boolean().optional(),
-  includeDeleted: z.coerce.boolean().default(false),
+  limit: queryIntegerSchema.pipe(z.number().int().min(1).max(100)).default(20),
+  /** GET 查询串无法承载 null,wire 约定字面量 'null' 表示「根目录(无文件夹)过滤」。 */
+  folderId: z
+    .union([z.literal('null').transform(() => null), entityIdSchema.nullable()])
+    .optional(),
+  tagIds: z
+    .union([z.array(entityIdSchema).max(20), entityIdSchema.transform((value) => [value])])
+    .optional(),
+  pinnedOnly: queryBooleanSchema.optional(),
+  includeDeleted: queryBooleanSchema.default(false),
   sort: z.enum(['updated-desc', 'created-desc', 'usage-desc', 'title-asc']).default('updated-desc'),
 });
 

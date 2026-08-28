@@ -1,0 +1,6 @@
+@import '@musefold/ui/globals.css';
+
+/* Tailwind v4 跨包扫描:v25 渲染壳 + 共享 UI + features。 */
+@source '../../../../packages/ui/src';
+@source '../../../../packages/features/src';
+@source './';

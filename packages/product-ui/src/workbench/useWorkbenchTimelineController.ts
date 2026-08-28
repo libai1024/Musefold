@@ -8,7 +8,7 @@ export interface UseWorkbenchTimelineControllerOptions {
 }
 
 export interface WorkbenchTimelineController {
-  viewportRef: RefObject<HTMLDivElement>;
+  viewportRef: RefObject<HTMLDivElement | null>;
   nearLatest: boolean;
   onScroll: (event: UIEvent<HTMLDivElement>) => void;
   scrollToLatest: (behavior?: ScrollBehavior) => void;

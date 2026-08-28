@@ -4,6 +4,23 @@ export const entityIdSchema = z.string().trim().min(1).max(64);
 export const isoDateTimeSchema = z.string().datetime({ offset: true });
 export const paginationCursorSchema = z.string().min(1).max(1024);
 
+/**
+ * GET 查询串字段的宽容输入(替代 z.coerce:coerce 的 z.input 是 unknown,
+ * 会污染 gateway/api-client 的方法签名)。程序侧传原生类型,wire 侧传字符串。
+ */
+export const queryIntegerSchema = z.union([
+  z.number().int(),
+  z
+    .string()
+    .regex(/^\d+$/)
+    .transform((value) => Number(value)),
+]);
+
+export const queryBooleanSchema = z.union([
+  z.boolean(),
+  z.enum(['true', 'false']).transform((value) => value === 'true'),
+]);
+
 export const apiErrorCodeSchema = z.enum([
   'AUTH_REQUIRED',
   'AUTH_SESSION_EXPIRED',

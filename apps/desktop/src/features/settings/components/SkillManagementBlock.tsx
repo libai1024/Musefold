@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { IntegrationAction, IntegrationInfo } from '@musefold/desktop-contracts/ipc';
 import { SettingsSwitch } from '@musefold/product-ui';
-import { IconButton } from '@musefold/ui';
+import { IconButton } from '@musefold/legacy-ui';
 import { Copy, Download, ExternalLink, RefreshCw } from '../../../components/ui/icons';
 import { Button } from '../../../components/ui/button';
 import type { CopyWithFeedback } from './automation-clipboard';

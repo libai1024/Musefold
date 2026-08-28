@@ -15,7 +15,7 @@ import {
 import { usePlatform, useWindowFullscreen } from '../../lib/usePlatform';
 import { MinimizeWindowButton, WindowControls } from './WindowControls';
 import { cn } from '../../lib/utils';
-import { IconButton } from '@musefold/ui';
+import { IconButton } from '@musefold/legacy-ui';
 import {
   ProductTopbar,
   ProductViewIcon,

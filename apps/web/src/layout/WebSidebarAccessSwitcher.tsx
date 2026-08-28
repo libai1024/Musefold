@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/ui';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@musefold/legacy-ui';
 import {
   ProductSidebarIdentityMenuContent,
   ProductSidebarSettingsMenuContent,
 } from '@musefold/product-ui';
-import { ChevronDown, LogOut, Settings, Settings2, UserRound } from '@musefold/ui/icons';
+import { ChevronDown, LogOut, Settings, Settings2, UserRound } from '@musefold/legacy-ui/icons';
 import { cn } from '../lib/utils';
 
 interface WebSidebarAccessSwitcherProps {

@@ -6,6 +6,7 @@ import { createWindow, getMainWindow, registerWindowHandlers } from './window';
 import { preparePrefsOriginMigration, isWindowAllClosedSuppressed } from './prefs-origin-migration';
 import { initDb, closeDb } from '@musefold/core/db';
 import { registerAllHandlers } from './ipc';
+import { registerV25GatewayBridge } from './ipc-v25/gateway-bridge';
 import { registerAppProtocolHandler } from './app-protocol';
 import { registerMediaProtocolHandler } from './media-protocol';
 import { initializeUpdater } from '../update';
@@ -102,6 +103,7 @@ app.whenReady().then(async () => {
     : resolveRendererRoot();
   registerAppProtocolHandler(rendererRoot.root);
   registerAllHandlers();
+  registerV25GatewayBridge();
   startCloudSyncService();
   registerWindowHandlers();
   await ensureCliInstalledAtStartup();

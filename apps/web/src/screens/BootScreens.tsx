@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { Check, CircleUserRound, LoaderCircle } from '@musefold/ui/icons';
+import { Check, CircleUserRound, LoaderCircle } from '@musefold/legacy-ui/icons';
 import type { GenerationJob } from '@musefold/contracts';
 import {
   GenerationResultSurface,
   workbenchGenerationResultStatus,
   workbenchGenerationStatusLabel,
 } from '@musefold/product-ui';
-import { Button, Input } from '@musefold/ui';
+import { Button, Input } from '@musefold/legacy-ui';
 import musefoldIconUrl from '../../../../website/Musefold/assets/musefold-icon.png';
 import { getSafeOAuthReturnTo } from '../oauth-return-to';
 import { WebGatewayError, type WebGateway } from '../runtime';

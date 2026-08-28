@@ -11,7 +11,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { DropdownMenuItem } from '@musefold/ui';
+import { DropdownMenuItem } from '@musefold/legacy-ui';
 import {
   PromptLibraryHeaderActions,
   PromptLibraryScreen,

@@ -1,5 +1,12 @@
-import { Archive, LoaderCircle, MoreHorizontal, Pin, PinOff, RefreshCw } from '@musefold/ui/icons';
-import { Button, IconButton, Input } from '@musefold/ui';
+import {
+  Archive,
+  LoaderCircle,
+  MoreHorizontal,
+  Pin,
+  PinOff,
+  RefreshCw,
+} from '@musefold/legacy-ui/icons';
+import { Button, IconButton, Input } from '@musefold/legacy-ui';
 import {
   useMemo,
   type FormEvent,

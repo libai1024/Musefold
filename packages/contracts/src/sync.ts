@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { entityIdSchema, paginationCursorSchema } from './common.js';
-import { promptDocumentSchema, promptFolderSchema, promptTagSchema } from './prompt.js';
+import { entityIdSchema, paginationCursorSchema, queryIntegerSchema } from './common';
+import { promptDocumentSchema, promptFolderSchema, promptTagSchema } from './prompt';
 
 export const syncEntityTypeSchema = z.enum(['prompt', 'folder', 'tag']);
 export const syncChangeOperationSchema = z.enum(['upsert', 'delete']);
@@ -27,7 +27,7 @@ export const syncDeviceSchema = syncDeviceRegistrationSchema.extend({
 export const syncBootstrapQuerySchema = z.object({
   entity: syncEntityTypeSchema,
   after: entityIdSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(200),
+  limit: queryIntegerSchema.pipe(z.number().int().min(1).max(500)).default(200),
 });
 
 export const syncBootstrapPageSchema = z.object({
@@ -47,7 +47,7 @@ export const syncChangeSchema = z.object({
 
 export const syncPullQuerySchema = z.object({
   cursor: syncCursorSchema,
-  limit: z.coerce.number().int().min(1).max(500).default(200),
+  limit: queryIntegerSchema.pipe(z.number().int().min(1).max(500)).default(200),
   // Optional for backwards compatibility with older cloud clients. Desktop
   // clients send it so the server can maintain device lifecycle state.
   deviceId: z.string().uuid().optional(),

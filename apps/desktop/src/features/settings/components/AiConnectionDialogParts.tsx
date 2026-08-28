@@ -211,7 +211,7 @@ export function AiConnectionKeyField({
   onApiKeyChange: (value: string) => void;
   showKey: boolean;
   onToggleShowKey: () => void;
-  keyInputRef: RefObject<HTMLInputElement>;
+  keyInputRef: RefObject<HTMLInputElement | null>;
   revoking: boolean;
   onRevoke: () => void;
 }) {

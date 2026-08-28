@@ -1,0 +1,24 @@
+{
+  "name": "@musefold/api-client",
+  "version": "0.0.0-internal",
+  "description": "Typed HTTP client for apps/api — the web host implementation of MusefoldGateway",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@musefold/contracts": "workspace:*",
+    "@musefold/platform": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

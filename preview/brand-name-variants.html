@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Musefold 品牌名 · 中文感字体选型</title>
-<!-- 预览期从 CDN 加载;选定后再按 scripts/build-font-subsets.mjs 的流程子集化进 packages/ui/fonts -->
+<!-- 预览期从 CDN 加载;选定后再按 scripts/build-font-subsets.mjs 的流程子集化进 packages/legacy-ui/fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=ZCOOL+XiaoWei&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
   /* 已入库的 ZCOOL XiaoWei 拉丁子集,离线可用 */
   @font-face {
     font-family: "ZCOOL XiaoWei";
-    src: url("../packages/ui/fonts/zcool-xiaowei-subset.woff2") format("woff2");
+    src: url("../packages/legacy-ui/fonts/zcool-xiaowei-subset.woff2") format("woff2");
     font-weight: 400;
     font-style: normal;
     font-display: swap;
@@ -126,7 +126,7 @@
 <body>
 <header>
   <h1>方案三 · 中文感字体选型(动画统一为:字距 0.04em + 透明度呼吸)</h1>
-  <p>Songti / Kaiti 走 macOS 系统字体,零加载成本,但 Windows / Android 端会落到 serif 兜底;Noto Serif SC、霞鹜文楷、站酷小薇、马善政均为开源字体(OFL),选定后按 <code>scripts/build-font-subsets.mjs</code> 的既有流程子集化进 <code>packages/ui/fonts</code>,双端一致。</p>
+  <p>Songti / Kaiti 走 macOS 系统字体,零加载成本,但 Windows / Android 端会落到 serif 兜底;Noto Serif SC、霞鹜文楷、站酷小薇、马善政均为开源字体(OFL),选定后按 <code>scripts/build-font-subsets.mjs</code> 的既有流程子集化进 <code>packages/legacy-ui/fonts</code>,双端一致。</p>
   <p>预览页的 CDN 字体需要联网;注意这里的「中文感」体现在拉丁字母的笔画风格上(衬线/楷意/书法),品牌名本身是英文。</p>
 </header>
 

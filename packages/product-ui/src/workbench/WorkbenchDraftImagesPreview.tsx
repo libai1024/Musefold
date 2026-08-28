@@ -1,4 +1,4 @@
-import { X } from '@musefold/ui/icons';
+import { X } from '@musefold/legacy-ui/icons';
 
 export interface WorkbenchDraftImageItem {
   id: string;

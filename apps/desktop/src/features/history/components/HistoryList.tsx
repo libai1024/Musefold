@@ -17,7 +17,7 @@ import { flattenHistoryThreads, type HistoryThreadItem } from '@musefold/domain/
 import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 import { Button } from '../../../components/ui/button';
 import { EmptyState } from '../../../components/ui/empty-state';
-import { Spinner } from '@musefold/ui';
+import { Spinner } from '@musefold/legacy-ui';
 import { formatTime, formatDuration } from '../../../lib/format';
 import { displayModelName } from '../../../lib/model-catalog';
 import { toImageSrc } from '../../../lib/media';

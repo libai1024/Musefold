@@ -1,5 +1,5 @@
-import type { MusefoldMarkProps } from '@musefold/ui';
-import { MusefoldMark } from '@musefold/ui';
+import type { MusefoldMarkProps } from '@musefold/legacy-ui';
+import { MusefoldMark } from '@musefold/legacy-ui';
 
 export type WorkbenchBrandProps = MusefoldMarkProps;
 

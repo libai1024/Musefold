@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { Button } from '@musefold/ui';
+import { Button } from '@musefold/legacy-ui';
 
 export interface WorkbenchComposerSubmitButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {

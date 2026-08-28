@@ -5,8 +5,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   IconButton,
-} from '@musefold/ui';
-import { MoreHorizontal, Plus, RefreshCw, Trash2 } from '@musefold/ui/icons';
+} from '@musefold/legacy-ui';
+import { MoreHorizontal, Plus, RefreshCw, Trash2 } from '@musefold/legacy-ui/icons';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 type PromptLibraryMenuItems = ReactNode | ((close: () => void) => ReactNode);

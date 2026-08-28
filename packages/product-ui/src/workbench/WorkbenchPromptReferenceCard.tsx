@@ -1,5 +1,5 @@
-import { FileText, X } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { FileText, X } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import { createPortal } from 'react-dom';
 import { useState, type CSSProperties } from 'react';
 

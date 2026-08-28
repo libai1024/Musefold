@@ -1,5 +1,5 @@
-import { Button, IconButton, MusefoldMark } from '@musefold/ui';
-import { PanelLeft, SquarePen } from '@musefold/ui/icons';
+import { Button, IconButton, MusefoldMark } from '@musefold/legacy-ui';
+import { PanelLeft, SquarePen } from '@musefold/legacy-ui/icons';
 import type { CSSProperties, ReactNode } from 'react';
 
 export interface ProductSidebarNavItem {

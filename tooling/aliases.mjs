@@ -34,7 +34,7 @@ export const SHARED_ALIAS_RELATIVE = Object.freeze({
   '@musefold/db': 'packages/db/src',
   '@musefold/desktop-contracts': 'packages/desktop-contracts/src',
   '@musefold/domain': 'packages/domain/src',
-  '@musefold/ui': 'packages/ui/src',
+  '@musefold/legacy-ui': 'packages/legacy-ui/src',
   '@musefold/product-ui': 'packages/product-ui/src',
   '@musefold/cloud-client': 'packages/cloud-client/src',
   '@musefold/new-api-client': 'packages/new-api-client/src',

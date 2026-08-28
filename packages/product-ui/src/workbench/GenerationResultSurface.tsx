@@ -1,5 +1,5 @@
-import { ImageOff, LoaderCircle, Square, X } from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+import { ImageOff, LoaderCircle, Square, X } from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import {
   useEffect,
   useState,

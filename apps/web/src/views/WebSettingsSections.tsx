@@ -16,8 +16,8 @@ import {
   RefreshCw,
   RotateCcw,
   Trash2,
-} from '@musefold/ui/icons';
-import { Button } from '@musefold/ui';
+} from '@musefold/legacy-ui/icons';
+import { Button } from '@musefold/legacy-ui';
 import { musefoldQueryKeys, SettingsCard, SettingsSection } from '@musefold/product-ui';
 import type { WebGateway } from '../runtime';
 import { ConnectionsView } from './ConnectionsView';

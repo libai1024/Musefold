@@ -16,7 +16,7 @@ import {
   Settings2,
   SquarePen,
   Sun,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import type { ComponentType } from 'react';
 import type { ProductSidebarNavItem } from './ProductSidebar';
 import { ProductViewIcon, type ProductViewKey } from './ProductTopbar';

@@ -1,5 +1,5 @@
-import { IconButton } from '@musefold/ui';
-import { RefreshCw } from '@musefold/ui/icons';
+import { IconButton } from '@musefold/legacy-ui';
+import { RefreshCw } from '@musefold/legacy-ui/icons';
 
 export interface GenerationRetryActionProps {
   onRetry: () => void;

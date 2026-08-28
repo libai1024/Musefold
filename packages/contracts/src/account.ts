@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { entityIdSchema } from './common.js';
+import { entityIdSchema } from './common';
 
 export const accountSummarySchema = z.object({
   id: entityIdSchema,

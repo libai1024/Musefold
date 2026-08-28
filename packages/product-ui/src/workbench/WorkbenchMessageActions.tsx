@@ -1,5 +1,5 @@
-import { Button } from '@musefold/ui';
-import { Copy, Pencil } from '@musefold/ui/icons';
+import { Button } from '@musefold/legacy-ui';
+import { Copy, Pencil } from '@musefold/legacy-ui/icons';
 
 export interface WorkbenchMessageActionsProps {
   onCopy: () => void | Promise<void>;

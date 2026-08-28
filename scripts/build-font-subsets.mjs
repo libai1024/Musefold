@@ -3,7 +3,7 @@
 // 品牌名字体（workbench 空态等）走同一管线：ZCOOL XiaoWei 拉丁子集。
 //
 // 产物（提交入库）：
-//   packages/ui/fonts/{syne-var.woff2, noto-sans-sc-var-subset.woff2, zcool-xiaowei-subset.woff2,
+//   packages/legacy-ui/fonts/{syne-var.woff2, noto-sans-sc-var-subset.woff2, zcool-xiaowei-subset.woff2,
 //     OFL-Syne.txt, OFL-NotoSansSC.txt, OFL-ZCOOLXiaoWei.txt}
 //   website/Musefold/assets/fonts/  同一组文件（官网与引导各自自托管，禁止运行时 Google Fonts）
 //
@@ -36,7 +36,7 @@ const PYFTSUBSET = process.env.PYFTSUBSET ?? 'pyftsubset';
 const BUDGET_BYTES = 200 * 1024;
 
 const OUT_DIRS = [
-  path.join(REPO_ROOT, 'packages/ui/fonts'),
+  path.join(REPO_ROOT, 'packages/legacy-ui/fonts'),
   path.join(REPO_ROOT, 'website/Musefold/assets/fonts'),
 ];
 

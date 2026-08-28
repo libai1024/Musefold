@@ -21,7 +21,7 @@
       "path": "../../packages/domain"
     },
     {
-      "path": "../../packages/ui"
+      "path": "../../packages/legacy-ui"
     },
     {
       "path": "../../packages/product-ui"

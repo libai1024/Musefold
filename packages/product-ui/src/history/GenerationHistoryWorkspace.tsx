@@ -1,5 +1,5 @@
-import { ArrowLeft, PanelRightClose } from '@musefold/ui/icons';
-import { Button, Drawer, DrawerContent, DrawerTitle, IconButton } from '@musefold/ui';
+import { ArrowLeft, PanelRightClose } from '@musefold/legacy-ui/icons';
+import { Button, Drawer, DrawerContent, DrawerTitle, IconButton } from '@musefold/legacy-ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PRODUCT_MOBILE_BREAKPOINT } from '../navigation/ProductSidebarLayout';
 

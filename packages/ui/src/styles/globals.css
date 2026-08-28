@@ -1,0 +1,145 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * v2.5 主题:旧 packages/legacy-ui tokens.css 的品牌语义映射到 shadcn/ui 变量集。
+ * 陶土橙品牌色、暖灰中性面、8px 控件圆角均继承自 v2.0 设计语言(DESIGN.md)。
+ */
+:root {
+  color-scheme: light;
+
+  --background: #f6f6f4;
+  --foreground: #202124;
+  --card: #ffffff;
+  --card-foreground: #202124;
+  --popover: #fdfcf9;
+  --popover-foreground: #202124;
+  --primary: #d6653f;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f0ed;
+  --secondary-foreground: #202124;
+  --muted: #efefec;
+  --muted-foreground: #74777c;
+  --accent: #ecece9;
+  --accent-foreground: #202124;
+  --destructive: #b54935;
+  --destructive-foreground: #ffffff;
+  --success: #2a7b4a;
+  --warning: #a96d1d;
+  --info: #3f739e;
+  --border: #dfdfdb;
+  --input: #dfdfdb;
+  --ring: rgba(214, 101, 63, 0.55);
+  --chart-1: #d6653f;
+  --chart-2: #2a7b4a;
+  --chart-3: #3f739e;
+  --chart-4: #a96d1d;
+  --chart-5: #b54935;
+  --sidebar: #efefec;
+  --sidebar-foreground: #202124;
+  --sidebar-primary: #d6653f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e6e6e2;
+  --sidebar-accent-foreground: #202124;
+  --sidebar-border: #dfdfdb;
+  --sidebar-ring: rgba(214, 101, 63, 0.55);
+  --radius: 0.5rem;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #151619;
+  --foreground: #f4f4f1;
+  --card: #25272a;
+  --card-foreground: #f4f4f1;
+  --popover: #2b2d31;
+  --popover-foreground: #f4f4f1;
+  --primary: #ef7a52;
+  --primary-foreground: #28110a;
+  --secondary: #232529;
+  --secondary-foreground: #f4f4f1;
+  --muted: #1b1c1f;
+  --muted-foreground: #a0a2a7;
+  --accent: #2a2c30;
+  --accent-foreground: #f4f4f1;
+  --destructive: #ff8b70;
+  --destructive-foreground: #24100f;
+  --success: #75d493;
+  --warning: #e7ad54;
+  --info: #78b7d5;
+  --border: #33353a;
+  --input: #33353a;
+  --ring: rgba(239, 122, 82, 0.55);
+  --chart-1: #ef7a52;
+  --chart-2: #75d493;
+  --chart-3: #78b7d5;
+  --chart-4: #e7ad54;
+  --chart-5: #ff8b70;
+  --sidebar: #1b1c1f;
+  --sidebar-foreground: #f4f4f1;
+  --sidebar-primary: #ef7a52;
+  --sidebar-primary-foreground: #28110a;
+  --sidebar-accent: #26282c;
+  --sidebar-accent-foreground: #f4f4f1;
+  --sidebar-border: #33353a;
+  --sidebar-ring: rgba(239, 122, 82, 0.55);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans SC', 'Hiragino Sans GB',
+    'Segoe UI', system-ui, sans-serif;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

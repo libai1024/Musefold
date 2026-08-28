@@ -17,7 +17,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 
 type SchemeDraftSource = Extract<GenerationSource, { kind: 'scheme' }>;
 

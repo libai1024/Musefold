@@ -10,5 +10,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
-} from '@musefold/ui';
-export type { UiDialogContentProps as DialogContentProps } from '@musefold/ui';
+} from '@musefold/legacy-ui';
+export type { UiDialogContentProps as DialogContentProps } from '@musefold/legacy-ui';

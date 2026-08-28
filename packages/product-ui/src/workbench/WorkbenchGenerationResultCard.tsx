@@ -13,13 +13,13 @@ import {
   GitBranch,
   History,
   MoreHorizontal,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 import { GenerationRetryAction } from './GenerationRetryAction';
 import {
   GenerationSavePromptAction,

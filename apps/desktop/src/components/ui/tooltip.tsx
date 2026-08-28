@@ -3,4 +3,4 @@ export {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { UserRound } from '@musefold/ui/icons';
+import { UserRound } from '@musefold/legacy-ui/icons';
 import {
   SettingsWorkspace,
   filterSettingsNavigationGroups,

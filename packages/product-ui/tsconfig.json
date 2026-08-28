@@ -8,5 +8,5 @@
     "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "references": [{ "path": "../ui" }, { "path": "../domain" }]
+  "references": [{ "path": "../legacy-ui" }, { "path": "../domain" }]
 }

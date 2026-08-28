@@ -1,4 +1,4 @@
-import { Search, X } from '@musefold/ui/icons';
+import { Search, X } from '@musefold/legacy-ui/icons';
 import type { HistoryDatePreset, HistoryFilters } from '@musefold/domain/history-filters';
 import { DATE_PRESET_OPTIONS, STATUS_OPTIONS } from '@musefold/domain/history-filters';
 import type { HistoryStatus } from '@musefold/domain/history-status';

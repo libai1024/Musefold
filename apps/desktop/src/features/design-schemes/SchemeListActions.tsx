@@ -16,7 +16,7 @@ import {
   Wand2,
   X,
 } from '../../components/ui/icons';
-import { DropdownMenuContent, DropdownMenuItem } from '@musefold/ui';
+import { DropdownMenuContent, DropdownMenuItem } from '@musefold/legacy-ui';
 
 export type SchemeCreateKind = 'idea' | 'github' | 'history' | 'prompt' | 'import';
 

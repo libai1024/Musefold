@@ -24,7 +24,7 @@
       "path": "../../packages/product-ui"
     },
     {
-      "path": "../../packages/ui"
+      "path": "../../packages/legacy-ui"
     }
   ]
 }

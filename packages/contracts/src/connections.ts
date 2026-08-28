@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { entityIdSchema, isoDateTimeSchema } from './common.js';
+import { entityIdSchema, isoDateTimeSchema } from './common';
 
 export const mcpScopeSchema = z.enum(['account:read', 'prompts:read', 'skills:read']);
 

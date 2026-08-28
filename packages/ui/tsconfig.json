@@ -1,11 +1,15 @@
 {
   "extends": "../../tooling/tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
-    "jsx": "react-jsx",
-    "rootDir": "src",
+    "composite": true,
     "outDir": ".tsout",
-    "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
+    "rootDir": "src",
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": {
+      "@musefold/ui/*": ["./src/*"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src"]
 }

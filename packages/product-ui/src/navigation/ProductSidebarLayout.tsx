@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
-import { Drawer, DrawerContent, DrawerTitle } from '@musefold/ui';
+import { Drawer, DrawerContent, DrawerTitle } from '@musefold/legacy-ui';
 
 // v2.0 Phase B(docs/v2.0/ui-design/10 §4.2):默认 248 / 最小 220 / 最大 360,
 // 超宽窗口另受 32vw 约束,优先保护 MainView 与结果网格。

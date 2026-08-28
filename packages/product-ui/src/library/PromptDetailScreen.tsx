@@ -9,7 +9,7 @@ import {
   RotateCcw,
   Sparkles,
   Trash2,
-} from '@musefold/ui/icons';
+} from '@musefold/legacy-ui/icons';
 import {
   Button,
   Dialog,
@@ -25,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   IconButton,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PromptDetailViewModel } from '../models';
 

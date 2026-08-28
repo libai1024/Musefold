@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   IconButton,
-} from '@musefold/ui';
+} from '@musefold/legacy-ui';
 
 /** 详情操作菜单（UI 规范 §4.2）：主动作之外的操作收进 ...；危险操作垫底分隔。 */
 export function SchemeActionMenu({

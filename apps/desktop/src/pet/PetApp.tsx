@@ -5,7 +5,7 @@
 // 状态可以是单个动画资源（例如 APNG），也可以是多张关键帧序列。
 // 关键帧序列会全部解码完成后再开始轮播，避免未加载帧短暂露出透明桌面。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import type { PetFrame } from '@musefold/desktop-contracts/pet';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
