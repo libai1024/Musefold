@@ -2,17 +2,7 @@
   "name": "@musefold/workspace",
   "type": "module",
   "private": true,
-  "devEngines": {
-    "packageManager": {
-      "name": "npm",
-      "version": "^11.0.0",
-      "onFail": "warn"
-    }
-  },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "packageManager": "pnpm@11.24.0",
   "scripts": {
     "prepare": "node scripts/install-git-hooks.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs",
@@ -37,7 +27,7 @@
     "typecheck:v1.1": "tsc -b packages/contracts packages/domain packages/new-api-client packages/cloud-client packages/server-crypto packages/ui packages/product-ui apps/web apps/web-api apps/generation-worker",
     "typecheck:node": "tsc -b apps/desktop/tsconfig.node.json",
     "typecheck:web": "tsc -b apps/desktop/tsconfig.web.json",
-    "rebuild": "npm run postinstall --workspace musefold-app",
+    "rebuild": "pnpm --filter musefold-app run postinstall",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:v1.1": "vitest run packages/contracts packages/domain && npm run test --workspace @musefold/new-api-client && npm run test --workspace @musefold/cloud-client && npm run test --workspace @musefold/ui && npm run test --workspace @musefold/product-ui && npm run test --workspace @musefold/web && npm run test --workspace @musefold/web-api && npm run test --workspace @musefold/generation-worker",
@@ -111,16 +101,5 @@
     "vite": "^6.0.0",
     "vitest": "^4.1.10",
     "zod": "^4.4.3"
-  },
-  "overrides": {
-    "fast-xml-parser": "5.7.2",
-    "inquirer": "8.2.7",
-    "lighthouse": "13.4.1",
-    "nanoid": "3.3.18",
-    "tmp": "0.2.7",
-    "uuid": "11.1.1",
-    "openai": {
-      "zod": "$zod"
-    }
   }
 }

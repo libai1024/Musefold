@@ -13,7 +13,7 @@
     "test": "vitest run src"
   },
   "dependencies": {
-    "@musefold/contracts": "*"
+    "@musefold/contracts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

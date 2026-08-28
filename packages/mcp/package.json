@@ -5,8 +5,12 @@
   "license": "MIT",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=20" },
-  "bin": { "musefold-mcp": "./dist/musefold-mcp.mjs" },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "musefold-mcp": "./dist/musefold-mcp.mjs"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*"
@@ -16,12 +20,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@musefold/client": "*",
+    "@musefold/client": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@musefold/automation-server": "*",
-    "@musefold/core": "*",
-    "@musefold/desktop-contracts": "*"
+    "@musefold/automation-server": "workspace:*",
+    "@musefold/core": "workspace:*",
+    "@musefold/desktop-contracts": "workspace:*"
   }
 }

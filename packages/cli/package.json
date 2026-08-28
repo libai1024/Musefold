@@ -19,10 +19,10 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@musefold/automation-server": "*",
-    "@musefold/client": "*",
-    "@musefold/contracts": "*",
-    "@musefold/core": "*",
-    "@musefold/desktop-contracts": "*"
+    "@musefold/automation-server": "workspace:*",
+    "@musefold/client": "workspace:*",
+    "@musefold/contracts": "workspace:*",
+    "@musefold/core": "workspace:*",
+    "@musefold/desktop-contracts": "workspace:*"
   }
 }

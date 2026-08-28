@@ -13,9 +13,9 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-    "@musefold/contracts": "*",
-    "@musefold/desktop-contracts": "*",
-    "@musefold/domain": "*",
+    "@musefold/contracts": "workspace:*",
+    "@musefold/desktop-contracts": "workspace:*",
+    "@musefold/domain": "workspace:*",
     "better-sqlite3": "13.0.2",
     "openai": "^4.77.0",
     "ulid": "^3.0.1"

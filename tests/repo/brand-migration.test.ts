@@ -128,7 +128,7 @@ describe('Musefold brand boundary', () => {
       readFileSync('README.md', 'utf8'),
       readFileSync('package.json', 'utf8'),
       readFileSync('apps/desktop/package.json', 'utf8'),
-      readFileSync('package-lock.json', 'utf8'),
+      readFileSync('pnpm-lock.yaml', 'utf8'),
       builder,
     ].join('\n');
 
