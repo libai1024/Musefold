@@ -3,7 +3,6 @@
 
 import { app, type BrowserWindow, dialog, session } from 'electron';
 import { createWindow, getMainWindow, registerWindowHandlers } from './window';
-import { preparePrefsOriginMigration, isWindowAllClosedSuppressed } from './prefs-origin-migration';
 import { initDb, closeDb } from '@musefold/core/db';
 import { registerAllHandlers } from './ipc';
 import { registerV25GatewayBridge } from './ipc-v25/gateway-bridge';
@@ -39,7 +38,6 @@ import { attachPetWindowLifecycle } from './pet/lifecycle';
 import { acquireDesktopOwnerLockWithHeadlessTakeover } from './headless-takeover';
 import { createAppTray, destroyAppTray } from './tray';
 import { disposeDoubaoWebBrowser } from '../doubao-web/browser-service';
-import { stopCloudSyncService } from '../cloud-sync';
 import { checkSkillUpdatesAtStartup, ensureCliInstalledAtStartup } from './integration';
 
 registerShareProtocolListeners();
@@ -105,12 +103,9 @@ app.whenReady().then(async () => {
   registerAppProtocolHandler(rendererRoot.root);
   registerAllHandlers();
   registerV25GatewayBridge();
-  // M4e:云同步由 ipc-v25/sync-domain 接管(旧 CloudSyncService 绑旧登录体系与
-  // 已下线的旧 web-api,不再启动,避免与新桥抢 cloud_sync_accounts;M5c 物理删除)。
   registerWindowHandlers();
   await ensureCliInstalledAtStartup();
   void checkSkillUpdatesAtStartup();
-  await preparePrefsOriginMigration();
   createMainWindow();
   initializeUpdater({ beforeInstall: prepareForUpdateInstall });
   // 桌宠默认关闭，只能由用户通过显式开关开启。应用生命周期不能替用户改开关。
@@ -216,7 +211,6 @@ function showOwnerLockError(ownership: AcquireResult): void {
 app.on('window-all-closed', () => {
   // 偏好导出隐藏窗在主窗口创建前就会 destroy。若这里立刻 quit，
   // 已安装用户升级后主界面永远不会出现。
-  if (isWindowAllClosedSuppressed()) return;
   app.quit();
 });
 
@@ -260,7 +254,6 @@ async function prepareForUpdateInstall(): Promise<void> {
 
 async function shutdownApplication(): Promise<void> {
   stopV25CloudSync();
-  stopCloudSyncService();
   await stopAutomationServer();
   disposeDoubaoWebBrowser();
   destroyAppTray();

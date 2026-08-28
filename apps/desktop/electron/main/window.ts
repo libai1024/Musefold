@@ -9,7 +9,6 @@ import { BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { resolveAppRoot, resolveResourcePath } from './app-paths';
 import { isAppOriginUrl, resolveMainWindowLoadUrl } from './app-protocol';
-import { originMigrationImportArgv } from './prefs-origin-migration';
 import { buildContentSecurityPolicy } from './csp';
 import { isAllowedExternalUrl } from './external-links';
 import { APP_VERSION } from '../system/app-version';
@@ -28,7 +27,6 @@ export function createWindow(): BrowserWindow {
   const isWin = process.platform === 'win32';
   const appRoot = resolveAppRoot();
   const windowIcon = resolveResourcePath(['icon.png']);
-  const importArgv = originMigrationImportArgv();
   const automated = isAutomatedElectron();
 
   const win = new BrowserWindow({
@@ -55,8 +53,6 @@ export function createWindow(): BrowserWindow {
       sandbox: true,
       // v2.5 单通道桥是主窗口唯一 preload(M4e 定稿;旧 index.cjs 桥 M5c 删)。
       preload: join(appRoot, 'apps/desktop/out/preload/v25.cjs'),
-      // 只传布尔标记，不把偏好 value 放进进程参数列表。
-      ...(importArgv.length > 0 ? { additionalArguments: importArgv } : {}),
     },
   });
 

@@ -1,57 +1,31 @@
 // electron/preload/index.ts
-// contextBridge 暴露 window.api —— 类型来自 @musefold/desktop-contracts/ipc。
-// V13-GOV-04 起按域组装在 ./api/ 目录，本文件只做 origin 迁移、组合与单次暴露。
-// 只做转发，无业务逻辑。详见 docs/01-architecture.md §2、docs/07-ipc-contracts.md §4
+// 桌宠窗口专用 preload(v2.5 冻结面)。主窗口走 preload/v25.ts 单通道桥;
+// 本文件只暴露桌宠所需两域:pet.* 与 updater.notifyContentReady(内容层信标)。
+// 旧多域 window.api 桥与 origin 迁移已随 M5c 退役。
 
 import { contextBridge, ipcRenderer } from 'electron';
-import {
-  runPreloadOriginMigration,
-  type LocalStorageLike,
-} from '../main/prefs-origin-migration-logic';
-import { promptApi, searchHistoryApi } from './api/prompt';
-import { skillRuntimeApi } from './api/skill-runtime';
-import { designSchemeApi } from './api/design-scheme';
-import { aiConnectionApi, providerApi, imageApi } from './api/generation';
-import { workbenchSessionApi } from './api/workbench';
-import { historyApi } from './api/history';
-import { shareApi } from './api/share';
-import { systemApi, updaterApi, logApi, windowApi } from './api/system';
-import { automationApi } from './api/automation';
-import { accountApi, cloudSyncApi, cloudConnectionsApi } from './api/account';
-import { diagnosticsApi, petApi } from './api/misc';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import type { PetComposerAnchor, PetFrame, PetInteraction } from '@musefold/desktop-contracts/pet';
 
-try {
-  const storage = (globalThis as unknown as { localStorage?: LocalStorageLike }).localStorage;
-  runPreloadOriginMigration({
-    argv: process.argv,
-    sendSync: (channel, ...args) => ipcRenderer.sendSync(channel, ...args),
-    storage,
-  });
-} catch {
-  // Preload must never throw: an exception here makes the whole app unusable.
-}
-
-const api = {
-  diagnostics: diagnosticsApi,
-  prompt: promptApi,
-  searchHistory: searchHistoryApi,
-  skillRuntime: skillRuntimeApi,
-  designScheme: designSchemeApi,
-  aiConnection: aiConnectionApi,
-  provider: providerApi,
-  image: imageApi,
-  workbenchSession: workbenchSessionApi,
-  history: historyApi,
-  share: shareApi,
-  system: systemApi,
-  updater: updaterApi,
-  log: logApi,
-  automation: automationApi,
-  account: accountApi,
-  cloudSync: cloudSyncApi,
-  cloudConnections: cloudConnectionsApi,
-  pet: petApi,
-  window: windowApi,
+const petApi = {
+  setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC.PET_SET_ENABLED, enabled),
+  isEnabled: () => ipcRenderer.invoke(IPC.PET_IS_ENABLED),
+  getFrame: () => ipcRenderer.invoke(IPC.PET_GET_FRAME),
+  ready: () => ipcRenderer.send(IPC.PET_READY),
+  onFrame: (cb: (frame: PetFrame) => void) => {
+    const listener = (_e: unknown, frame: PetFrame) => cb(frame);
+    ipcRenderer.on(IPC.PET_FRAME, listener);
+    return () => ipcRenderer.removeListener(IPC.PET_FRAME, listener);
+  },
+  interact: (interaction: PetInteraction) => ipcRenderer.send(IPC.PET_INTERACT, interaction),
+  moveBy: (dx: number, dy: number) => ipcRenderer.send(IPC.PET_MOVE_BY, dx, dy),
+  runToComposer: (anchor: PetComposerAnchor) => ipcRenderer.invoke(IPC.PET_RUN_TO_COMPOSER, anchor),
+  returnHome: () => ipcRenderer.invoke(IPC.PET_RETURN_HOME),
+  openMenu: () => ipcRenderer.send(IPC.PET_MENU),
 };
 
-contextBridge.exposeInMainWorld('api', api);
+const updaterApi = {
+  notifyContentReady: () => ipcRenderer.send(IPC.UPDATER_CONTENT_READY),
+};
+
+contextBridge.exposeInMainWorld('api', { pet: petApi, updater: updaterApi });

@@ -9,7 +9,20 @@ import type {
   UpdateAiConnectionInput,
 } from '@musefold/desktop-contracts/ai';
 import { ElectronAiSecretKeychain, type AiSecretKeychain } from '../security/ai-keychain';
-import { AccountError } from '../account/errors';
+
+/**
+ * 账号托管连接只读防御。旧账号服务(managed-provisioner)已随 v2.5 退役,
+ * 存量 managedBy === 'account' 记录仍需拒绝手动改写,错误形状与旧 AccountError 对齐。
+ */
+class ManagedConnectionError extends Error {
+  constructor(
+    readonly code: 'ACCOUNT/MANAGED_READONLY',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AccountError';
+  }
+}
 
 function defaultCapabilities(
   routeKind: AiConnectionProfile['routeKind'],
@@ -226,7 +239,10 @@ export class AiConnectionStore {
     const current = records[id];
     if (!current) throw new Error('AI 连接不存在');
     if (current.managedBy === 'account') {
-      throw new AccountError('ACCOUNT/MANAGED_READONLY', '账号 Agent 模型由 Musefold 固定管理');
+      throw new ManagedConnectionError(
+        'ACCOUNT/MANAGED_READONLY',
+        '账号 Agent 模型由 Musefold 固定管理',
+      );
     }
     const nextRouteKind = patch.routeKind ?? current.routeKind;
     const next: PersistedAiConnection = {
@@ -250,7 +266,10 @@ export class AiConnectionStore {
     const records = this.records();
     if (!records[id]) throw new Error('AI 连接不存在');
     if (records[id].managedBy === 'account') {
-      throw new AccountError('ACCOUNT/MANAGED_READONLY', '此配置由账号管理，退出登录后会自动移除');
+      throw new ManagedConnectionError(
+        'ACCOUNT/MANAGED_READONLY',
+        '此配置由账号管理，退出登录后会自动移除',
+      );
     }
     const next = { ...records };
     delete next[id];
@@ -273,7 +292,7 @@ export class AiConnectionStore {
   saveKey(id: string, apiKey: string): AiConnectionProfile {
     const profile = this.require(id);
     if (profile.managedBy === 'account') {
-      throw new AccountError('ACCOUNT/MANAGED_READONLY', '账号托管令牌不能手动修改');
+      throw new ManagedConnectionError('ACCOUNT/MANAGED_READONLY', '账号托管令牌不能手动修改');
     }
     this.secrets.save(id, apiKey);
     return this.require(id);
@@ -282,7 +301,7 @@ export class AiConnectionStore {
   deleteKey(id: string): AiConnectionProfile {
     const profile = this.require(id);
     if (profile.managedBy === 'account') {
-      throw new AccountError('ACCOUNT/MANAGED_READONLY', '账号托管令牌不能手动删除');
+      throw new ManagedConnectionError('ACCOUNT/MANAGED_READONLY', '账号托管令牌不能手动删除');
     }
     this.secrets.delete(id);
     return this.require(id);

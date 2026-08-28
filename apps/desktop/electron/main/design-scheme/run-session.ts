@@ -28,7 +28,7 @@ import type {
 } from '@musefold/desktop-contracts/providers';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { buildRepairHint, evaluateSchemeRun } from './evaluation';
-import { generate as runProviderGeneration } from '../ipc/images';
+import { generate as runProviderGeneration } from '../generation-facade';
 
 export interface RunSessionDeps {
   db: Database.Database;

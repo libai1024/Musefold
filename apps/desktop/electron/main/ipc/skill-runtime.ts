@@ -4,7 +4,6 @@
 // 每个真实事件（流式文本、工具调用、逐张生图结果）经 SKILL_RUNTIME_EVENT 推给渲染进程，
 // 作为对话内容展示。Agent 不可用时回退为文件附件直传（md/txt 全文 + 图片直接生图）。
 
-import { ipcMain } from 'electron';
 import { stepCountIs, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { ulid } from 'ulid';
@@ -20,7 +19,6 @@ import type {
   AiSkillSourceFile,
 } from '@musefold/desktop-contracts/ai';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
-import { IPC } from '@musefold/desktop-contracts/ipc';
 import {
   MAX_REFERENCE_IMAGES,
   type GenerateImageRequest,
@@ -43,7 +41,7 @@ import { stageLocalImageBytes } from '@musefold/core/providers/local-image';
 import { getDb } from '@musefold/core/db/index';
 import { createLogger } from '../../system/logger';
 import { skillRuntimePolicyForProvider } from '../skill-runtime-policy';
-import { generate as runProviderGeneration } from './images';
+import { generate as runProviderGeneration } from '../generation-facade';
 import {
   readPublicGithubAgentSkillRuntimeSource,
   type PublicGithubSkillReadResult,
@@ -857,30 +855,5 @@ export function cancelSkillRuntimeExecution(executionId: string): void {
   executions.get(executionId)?.abort();
 }
 
-export function registerSkillRuntimeHandlers(): void {
-  ipcMain.handle(
-    IPC.SKILL_RUNTIME_PREPARE_GITHUB,
-    (_event, request: PrepareGithubSkillRuntimeRequest) => prepareGithubSkillRuntime(request),
-  );
-
-  ipcMain.handle(IPC.SKILL_RUNTIME_EXECUTE, (event, request: ExecuteSkillRuntimeRequest) =>
-    executeSkillRuntime(request, {
-      emit: (payload) => {
-        if (!event.sender.isDestroyed()) event.sender.send(IPC.SKILL_RUNTIME_EVENT, payload);
-      },
-      sendProgress: (progress) => {
-        if (!event.sender.isDestroyed()) event.sender.send(IPC.IMAGE_PROGRESS, progress);
-      },
-    }),
-  );
-
-  ipcMain.handle(IPC.SKILL_RUNTIME_CANCEL, (_event, executionId: string) => {
-    cancelSkillRuntimeExecution(executionId);
-    return { ok: true as const };
-  });
-
-  ipcMain.handle(IPC.SKILL_RUNTIME_RELEASE, (_event, runtimeId: string) => {
-    runtimes.delete(runtimeId);
-    return { ok: true as const };
-  });
-}
+// 旧渲染层 IPC 注册已随 M5c 退役;本文件保留 Skill 运行时服务函数,
+// 供 automation-runs(Automation API / CLI / MCP)直连。v25 对话面后续排卡时经单通道桥接入。

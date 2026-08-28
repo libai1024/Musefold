@@ -1,5 +1,5 @@
 /**
- * 方案运行管线（run-session）单测：mock 掉真实生图（ipc/images.generate），
+ * 方案运行管线（run-session）单测：mock 掉真实生图（generation-facade.generate），
  * 用内存 SQLite 验证输入校验、编译、逐张生图、试运行资产与运行记录落库。
  */
 import { mkdtempSync, writeFileSync } from 'fs';
@@ -26,7 +26,9 @@ import { fakePngBuffer } from './evaluation.test';
 const generateMock = vi.hoisted(() =>
   vi.fn<(req: GenerateImageRequest) => Promise<GenerateImageResult>>(),
 );
-vi.mock('../../ipc/images', () => ({ generate: (req: GenerateImageRequest) => generateMock(req) }));
+vi.mock('../../generation-facade', () => ({
+  generate: (req: GenerateImageRequest) => generateMock(req),
+}));
 
 import { runDesignScheme } from '../run-session';
 

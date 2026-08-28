@@ -1,27 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AutomationRouteContext } from '@musefold/automation-server';
-import type { AccountStatus } from '@musefold/desktop-contracts/account';
 import type { ProviderConfig } from '@musefold/desktop-contracts/models';
 
 vi.mock('electron', () => ({ app: { focus: vi.fn() } }));
-vi.mock('../../account', () => ({ getAccountService: vi.fn() }));
+vi.mock('../ipc-v25/account-domain', () => ({
+  apiBase: vi.fn(() => 'https://private.example'),
+  readSessionToken: vi.fn(async () => 'token'),
+}));
 vi.mock('../core-instance', () => ({ getMusefoldCore: vi.fn() }));
 vi.mock('../automation-local', () => ({ createElectronLocalAdminOps: vi.fn() }));
 vi.mock('../window', () => ({ getMainWindow: vi.fn() }));
 
-import { createAutomationSetupRoutes } from '../automation-setup';
+import { createAutomationSetupRoutes, type AutomationAccountSnapshot } from '../automation-setup';
 
-const account: AccountStatus = {
+const account: AutomationAccountSnapshot = {
   loggedIn: true,
-  userId: '4',
-  username: 'must-not-leak',
-  serverUrl: 'https://private.example',
-  isDefaultServer: false,
-  quota: { value: 123, at: 1 },
-  estImagesRemaining: 4,
-  deviceTokenSuffix: 'abcd',
   health: 'ok',
-  notices: [],
+  isDefaultServer: false,
 };
 
 function provider(patch: Partial<ProviderConfig> = {}): ProviderConfig {
@@ -57,7 +52,7 @@ function fixture(providers: ProviderConfig[] = [provider()]) {
   const setActiveProvider = vi.fn();
   const providerChanged = vi.fn();
   const routes = createAutomationSetupRoutes({
-    accountStatus: () => account,
+    accountStatus: async () => account,
     listProviders: () => providers,
     setActiveProvider,
     openSetup,

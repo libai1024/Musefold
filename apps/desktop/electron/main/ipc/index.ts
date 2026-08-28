@@ -1,40 +1,15 @@
 // electron/main/ipc/index.ts
-// 统一注册所有 IPC handler
+// v2.5 起数据域全部走单通道桥(ipc-v25/gateway-bridge),这里只装配两块遗留多通道面:
+// - updater:热更控制通道 + pet 窗口的 content-ready 信标(v25 设置「关于」卡后续接入)
+// - pet:桌宠窗口专用域(冻结,不迁移;见 docs/v2.5/V25-UI-SPEC.md §0.2)
+// doubao 登录态同步不是 IPC,但与生图链路同属主进程装配,一并在此拉起。
 
-import { registerPromptHandlers } from './prompts';
-import { registerSmartSetHandlers } from './smartSets';
-import { registerProviderHandlers } from './providers';
-import { registerImageHandlers } from './images';
-import { registerHistoryHandlers } from './history';
-import { registerSystemHandlers } from './system';
-import { registerShareHandlers } from './share';
-import { registerWorkbenchSessionHandlers } from './workbench-sessions';
-import { registerSkillRuntimeHandlers } from './skill-runtime';
-import { registerDesignSchemeHandlers } from './design-scheme';
-import { registerAutomationHandlers } from './automation';
 import { registerPetHandlers } from '../pet';
-import { registerAccountHandlers } from './account';
-import { registerCloudSyncHandlers } from './cloud-sync';
+import { startDoubaoLoginSync } from '../doubao-login-sync';
 import { registerUpdaterHandlers } from './updater';
-import { registerAiConnectionHandlers } from './ai-connections';
-import { registerPrefsOriginMigrationHandlers } from '../prefs-origin-migration';
 
 export function registerAllHandlers(): void {
-  registerPromptHandlers();
-  registerSmartSetHandlers();
-  registerProviderHandlers();
-  registerImageHandlers();
-  registerHistoryHandlers();
-  registerSystemHandlers();
-  registerShareHandlers();
-  registerWorkbenchSessionHandlers();
-  registerSkillRuntimeHandlers();
-  registerDesignSchemeHandlers();
-  registerAutomationHandlers();
-  registerAccountHandlers();
-  registerCloudSyncHandlers();
-  registerAiConnectionHandlers();
   registerUpdaterHandlers();
   registerPetHandlers();
-  registerPrefsOriginMigrationHandlers();
+  startDoubaoLoginSync();
 }

@@ -9,13 +9,12 @@ import {
   type AutomationRouteHandler,
 } from '@musefold/automation-server';
 import type { ProviderConfig } from '@musefold/desktop-contracts/models';
-import type { AccountStatus } from '@musefold/desktop-contracts/account';
 import type {
   AutomationProviderDraft,
   AutomationSetupRequest,
 } from '@musefold/desktop-contracts/ipc';
 import { IPC } from '@musefold/desktop-contracts/ipc';
-import { getAccountService } from '../account';
+import { apiBase, readSessionToken } from './ipc-v25/account-domain';
 import { getMainWindow } from './window';
 import { getMusefoldCore } from './core-instance';
 import { createElectronLocalAdminOps } from './automation-local';
@@ -23,8 +22,15 @@ import { createElectronLocalAdminOps } from './automation-local';
 const PROVIDER_TYPES = new Set<ProviderConfig['type']>(['openai', 'openai-compatible']);
 const SENSITIVE_FIELD = /(api[-_]?key|password|token|secret|credential)/i;
 
+/** setup/status 只暴露登录与服务器形态,不透传余额等账号细节(脱敏面)。 */
+export interface AutomationAccountSnapshot {
+  loggedIn: boolean;
+  health: 'ok' | 'unknown';
+  isDefaultServer: boolean;
+}
+
 export interface AutomationSetupDependencies {
-  accountStatus(): AccountStatus;
+  accountStatus(): Promise<AutomationAccountSnapshot>;
   listProviders(): ProviderConfig[];
   setActiveProvider(providerId: string): unknown;
   openSetup(request: AutomationSetupRequest): void;
@@ -135,8 +141,8 @@ export function createAutomationSetupRoutes(
   deps: AutomationSetupDependencies,
 ): Record<string, AutomationRouteHandler> {
   return {
-    'GET /v1/setup/status': () => {
-      const account = deps.accountStatus();
+    'GET /v1/setup/status': async () => {
+      const account = await deps.accountStatus();
       const providers = deps.listProviders();
       return {
         account: {
@@ -205,7 +211,15 @@ export function createAutomationSetupRoutes(
 
 export function createElectronAutomationSetupRoutes(): Record<string, AutomationRouteHandler> {
   return createAutomationSetupRoutes({
-    accountStatus: () => getAccountService().status(),
+    // v2.5 账号域:登录态 = 本机存有 bearer token;云端健康探测属账号域自身职责。
+    accountStatus: async () => {
+      const loggedIn = (await readSessionToken()) !== null;
+      return {
+        loggedIn,
+        health: loggedIn ? 'ok' : 'unknown',
+        isDefaultServer: apiBase() === 'https://api.musefold.app',
+      };
+    },
     listProviders: () => getMusefoldCore().providers.list(),
     setActiveProvider: (providerId) => createElectronLocalAdminOps().setActiveProvider(providerId),
     openSetup(request) {
