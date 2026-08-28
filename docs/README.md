@@ -4,37 +4,35 @@
 
 | 文档 | 作用 |
 |---|---|
-| [AI 代理开发约束](../AGENTS.md) | 根入口：项目地图、按改动类型的命令矩阵、全局红线；`apps/desktop`、`packages`、`apps/web`、`apps/web-api` 各有就近约束（AI 编码代理与人类通用） |
-| [v2.5 全栈推倒重做](v2.5/README.md) | **当前已批准目标（实施中）**：技术栈迁移 Next.js 16.3 / shadcn/ui / Hono / Drizzle / pnpm / Biome，一套 features 包复用四个交付面，CI/CD 与门禁整体重置；基线 tag `v2.5-baseline` |
-| [v2.1 Web/Desktop 产品一致迁移](v2.1/README.md) | 已终止（被 v2.5 接替）：进行中实现随 `v2.5-baseline` 入库；其六条产品/安全语义由 v2.5 继承，治理机器退役 |
-| [v1.4 视觉切割索引](v1.4/README.md) | 双寄存器（Theater / Operate）视觉方向、选型与 UI 落实计划；SITE-01…06 与 SHOT-01 已完成，REL-01 待真实 0.6.0 构建 |
-| [v1.3 双端收敛索引](v1.3/README.md) | 实体类型统一、TanStack Query 状态分层、页面编排下沉 product-ui、巨型文件拆分与边界治理（已实施，渲染层分层以此为准） |
-| [前端开发规范](frontend/DEVELOPMENT-GUIDE.md) | 技术栈对照、目录与分层、实体/状态/表单/组件/样式/测试规范、端到端开发清单与红线 |
-| [v1.2.2 系统架构重构索引](v1.2.2/README.md) | 双端 monorepo 目标结构、桌面 Gateway 抽象、技术栈重估和分阶段迁移计划 |
-| [v1.2.1 CI/CD 文档索引](v1.2.1/README.md) | 持续交付分层、发布通道、三端热更新协议和交付计划 |
-| [v1.1 Web 文档索引](v1.1/README.md) | Web/手机端、后端、同步、Cloud MCP、共享 UI 和交付计划 |
-| [v1.1 技术选型 ADR](v1.1/V11-TECHNOLOGY-DECISIONS.md) | Node/Fastify/PostgreSQL/Graphile/MCP/OAuth/UI 的选型依据、评分和扩容阈值 |
-| [桌面端代码手册](../doc/v1.0/README.md) | 当前桌面实现、模块地图、契约和已知风险 |
-| [v0.5 账号与云通道](v0.5/README.md) | 账号、兑换、额度、托管 Provider 和服务器契约 |
-| [v0.4 CLI/MCP/Automation](v0.4/README.md) | 本地控制面、CLI、MCP 和安全边界 |
-| [桌面产品规格](product/README.md) | 提示词库、创作台、历史、设置和交互规格 |
+| [AI 代理开发约束](../AGENTS.md) | 根入口:项目地图、命令矩阵、全局红线;`apps/desktop`、`packages` 各有就近约束 |
+| [v2.5 全栈重做](v2.5/README.md) | **当前基线(已实施)**:Next.js 16 / shadcn/ui / Hono / Drizzle / pnpm / Biome,一套 features 包复用四个交付面;含架构、交付计划、数据迁移与 **UI 规范(V25-UI-SPEC,渲染层唯一基准)** |
 
-## 长期有效的桌面规格
+## 历史版本文档(仅作追溯,与 v2.5 冲突时一律以 v2.5 为准)
 
-- `00-overview.md` 至 `09-developer-acceptance-and-glossary.md`、`11-ai-tvt-wiki-api.md`：桌面端基础架构、数据、IPC、UI 和当前 Provider 参考。
-- `10-wkapi-studio-image-api.md`：已退役 Provider 的历史调研资料，不是当前接入规格。
-- `v0.2/DEVELOPMENT-RULES.md`：Local-first、单一状态源和安全开发规则。
-- `v0.2/V02.2-UI-DEVELOPMENT-CONSTRAINTS.md`：桌面 UI 控件与图标约束。
-- `v0.3/`、`v0.3.2/`、`v0.3.3/`：品牌、多图/精修、Agent/方案和朱点规格。
-- `v3.1/`：Skills 加载与调用研究。
+| 文档 | 内容 |
+|---|---|
+| [v2.1 双端一致迁移](v2.1/README.md) | 已终止(被 v2.5 接替);其六条产品/安全语义由 v2.5 继承 |
+| [v1.4 视觉切割](v1.4/README.md) / [v1.3 双端收敛](v1.3/README.md) / [v1.2.2 架构重构](v1.2.2/README.md) / [v1.2.1 CI/CD](v1.2.1/README.md) / [v1.1 Web](v1.1/README.md) | 旧渲染层与旧基建的设计记录 |
+| [前端开发规范](frontend/DEVELOPMENT-GUIDE.md) | 旧渲染层分层规范,已被 V25-UI-SPEC 接替 |
+| [桌面端代码手册](../doc/v1.0/README.md) | v1.0 桌面实现、模块地图与契约 |
+| [v0.5 账号与云通道](v0.5/README.md) | 旧账号体系(托管 Provider 等);v2.5 账号见 V25-ARCHITECTURE |
+| [v0.4 CLI/MCP/Automation](v0.4/README.md) | 本地控制面、CLI、MCP 和安全边界(该能力面仍活跃,专题规格仍有效) |
+| [桌面产品规格](product/README.md) | 提示词库、创作台、历史、设置的产品语义(交互规格已被 V25-UI-SPEC 接替) |
+
+## 长期有效的专题资料
+
+- `00-overview.md` 至 `11-ai-tvt-wiki-api.md`:v1.0 桌面基础调研与 Provider 参考(IPC/UI 章节已过期)。
+- `v0.2/DEVELOPMENT-RULES.md`:Local-first、单一状态源和安全开发原则(理念仍有效)。
+- `v0.3/`、`v0.3.2/`、`v0.3.3/`:品牌、多图/精修、Agent/方案规格。
+- `v3.1/`:Skills 加载与调用研究。
 
 ## 权威顺序
 
-发生冲突时按以下顺序判断：
+发生冲突时按以下顺序判断:
 
 1. 当前源码、数据库迁移和自动化测试。
-2. `docs/v2.5` 是当前已批准、实施中的全栈重做目标；已迁移域以新架构为准，未迁移域按旧基线维护，冲突时以 `docs/v2.5` 为准。`docs/v2.1` 已终止，仅作历史参考。旧基线中当前已实施分层规范仍是 `docs/v1.3`（实体统一、状态分层、编排收敛与边界治理）、`docs/v1.2.2`（仓库结构与共享层分层）、`docs/v1.2.1`（发布、CI/CD 与热更新）、`docs/v1.1`（Web）或 `doc/v1.0`（桌面）当前手册。目录结构以 `docs/v1.2.2` 为准，其中迁移未执行的部分以「当前路径」列为现状；渲染层的实体形状、状态归属、编排位置与跨 feature 依赖规则以 `docs/v1.3` 为准（v1.2.2 相关章节已被 v1.3 接棒，见各处注记）。
-3. `docs/v0.5`、`docs/v0.4` 对应专题规格。
-4. `docs/product` 和基础规格。
+2. `docs/v2.5` 四份文档(架构 / 交付计划 / 数据迁移 / UI 规范)——当前唯一基线。
+3. `docs/v0.4`(CLI/MCP/Automation 专题)与 `docs/product`(产品语义,交互细节除外)。
+4. 其余版本目录仅作历史追溯,不用于裁决现状。
 
 版本控制历史承担旧设计和旧发布记录的追溯职责。仓库不再保存一次性交接稿、进度快照、安装包、外部网页镜像和 API 调研输出图。

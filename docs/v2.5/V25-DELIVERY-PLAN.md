@@ -121,8 +121,8 @@ M4-a 落地备注:
 | M5-a2 ✅ | 视觉快照全量基线(三平台 + 明暗);depcruise 新规则 8 条;单文件 ≤3000 行门禁扫描面补全 | 门禁在 PR workflow 生效 |
 | M5-b1 ✅* | Changesets 接管版本;release.yml:tag → macOS(签名/公证)+ Windows 矩阵 → updater feed + GitHub Release;打包产物冒烟(接替已删 tests/package Python 冒烟) | 一次端到端发布演练 |
 | M5-b2 ✅* | 热更 feed 验证(update-protocol 通道) | 安装包可收到内容热更 |
-| M5-c1 | 删除全部 legacy:旧包(domain/desktop-contracts/cloud-client/product-ui/core)、旧脚本、旧门禁、旧文档标注归档 | depcruise 0 违例 |
-| M5-c2 | 重写 `AGENTS.md` / `CLAUDE.md` / 各目录 AGENTS.md / `docs/README.md` 权威顺序 | 新约束与实现一致 |
+| M5-c1 ✅ | 删除全部 legacy:旧 apps(web/web-api/generation-worker)、旧渲染层(apps/desktop/src 旧壳)、旧多域 IPC/账号服务/云同步/origin 迁移、旧包(product-ui/legacy-ui/cloud-client)、旧脚本与旧门禁 | depcruise 0 违例 |
+| M5-c2 ✅ | 重写 `AGENTS.md` / `CLAUDE.md` / 各目录 AGENTS.md / `docs/README.md` 权威顺序 / `CONTRIBUTING.md` | 新约束与实现一致 |
 
 M5-a 落地备注:
 - Python 栈删除:`tests/e2e`(pytest 桌面 E2E 34 个文件)、`tests/package`(打包冒烟)、`requirements-test.txt` 全删;根脚本 `test:e2e` 改指 Playwright 三平台全量(`test:e2e:v25` 保留为别名)。打包产物冒烟职责移交 M5-b1(在发布矩阵产物上跑,Playwright `_electron` 可直接加载打包 app)。
@@ -139,6 +139,12 @@ M5-b 落地备注(✅* = 代码/脚本/工作流就绪并本机演练通过;标 
 - **打包冒烟当场抓到发版级 bug**:electron-builder 26 的 pnpm 收集器剥掉嵌套传递依赖(`lazystream → readable-stream@2`),打包 App 主进程启动即崩(M1 切 pnpm 后从未打过包)。修法:纯 JS 运行时依赖(archiver/archiver-utils/yauzl)进 main bundle(externalizeDeps.exclude),asar 不再依赖其 node_modules 树。教训:**打包链路必须随工具链迁移立即演练,不能等发布卡**。
 - 热更生产端演练(update-protocol CLI,`pnpm run bundle:manifest`):keygen → pack(真 out/renderer,2.5MB)→ sign(私钥经 env)→ verify=valid 全链通过;客户端链(check→verify→install→runtime swap→回滚)单测已全量覆盖。
 - **人工残项(发布前必做,代码无法代劳)**:① 密钥仪式——`bundle:manifest keygen` 产出的公钥填入 `electron/update/bundle-trust.ts` 常量槽、私钥进 GH secret `MUSEFOLD_BUNDLE_SIGNING_KEY`(当前槽空 = 内容热更 fail-closed,安全);② 推首个 `v2.5.0` tag 走通矩阵(需 self-hosted `musefold-prod` runner 在线);③ macOS Developer ID 证书 secrets(可选,无证书产物走 ad-hoc + dev 通道)。
+
+M5-c 落地备注:
+- 删除面(全部 `pnpm run check` 全绿分批提交):批1 旧三 apps + 旧 infra;批2 旧渲染层(`apps/desktop/src` 只留 `v25/`、`pet/`、pet.html、storage-export.html 与两个薄桥文件);批3 主进程收口(旧多域 IPC 14 文件、`electron/account`、`electron/cloud-sync`、prefs-origin 迁移、preload/api 目录);批4 三旧包(product-ui/legacy-ui/cloud-client)+ v1.1 脚本/fixtures + depcruise 旧规则大扫除。
+- 保留决策:`ipc/skill-runtime.ts` 与 `main/design-scheme/` 服务函数被 automation(CLI/MCP)直连,摘 IPC 注册后整体保留;生图门面(桌宠追踪)提为 `main/generation-facade.ts`;豆包登录态→providers 表同步独立为 `main/doubao-login-sync.ts`(渲染层暂缓域的主进程语义保留);`ipc/updater.ts` 保留(pet content-ready 信标 + 未来设置「关于」卡);automation-setup 的账号快照改读 v25 account-domain(异步窄接口,不再依赖旧 AccountService)。
+- 桌宠窗口 preload 收为专用薄桥(`preload/index.ts`:pet.* + updater.notifyContentReady),`window.api` 多域面随旧渲染层退役。
+- 文档:根/desktop/packages 三份 AGENTS.md 与 docs/README 权威顺序、CONTRIBUTING 全部按 v2.5 现状重写;`dev-guide-freshness` 守卫随旧规范退役。
 
 ## 风险与回退
 
