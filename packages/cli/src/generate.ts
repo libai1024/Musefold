@@ -42,7 +42,10 @@ function mimeTypeFor(path: string): string {
   return 'image/jpeg';
 }
 
-function formatCliCost(detail: { costPoints?: number | null; cost?: number | null }): string | null {
+function formatCliCost(detail: {
+  costPoints?: number | null;
+  cost?: number | null;
+}): string | null {
   const points = detail.costPoints ?? detail.cost;
   if (points != null) return `${points.toLocaleString('zh-CN', { maximumFractionDigits: 6 })} 积分`;
   return null;
@@ -55,11 +58,12 @@ export async function commandGenerate(
 ): Promise<number> {
   const flags = context.args.flags;
   const stdinPrompt = flags['stdin-prompt'] === true;
-  const prompt = typeof flags.prompt === 'string'
-    ? flags.prompt
-    : stdinPrompt
-      ? readFileSync(0, 'utf8').trim()
-      : undefined;
+  const prompt =
+    typeof flags.prompt === 'string'
+      ? flags.prompt
+      : stdinPrompt
+        ? readFileSync(0, 'utf8').trim()
+        : undefined;
   if (!prompt?.trim()) {
     context.io.stderr('musefold: 需要 -p <提示词> 或 --stdin-prompt');
     return EXIT.ARGS;
@@ -68,8 +72,15 @@ export async function commandGenerate(
   // T9：CI 无人值守不允许静默花钱——任何网络调用之前先裁决
   const interactive = generateIo.isTty();
   if (!interactive && !context.yes) {
-    context.io.stderr('musefold: 非交互终端下的花钱命令必须显式 --yes（并建议 --max-cost 设定上限）');
-    if (context.json) printJson(context.io, { type: 'error', code: 'CONFIRMATION_REQUIRED', message: '需要 --yes' });
+    context.io.stderr(
+      'musefold: 非交互终端下的花钱命令必须显式 --yes（并建议 --max-cost 设定上限）',
+    );
+    if (context.json)
+      printJson(context.io, {
+        type: 'error',
+        code: 'CONFIRMATION_REQUIRED',
+        message: '需要 --yes',
+      });
     return EXIT.REFUSED;
   }
 
@@ -94,7 +105,9 @@ export async function commandGenerate(
     ...(typeof flags.background === 'string' ? { background: flags.background } : {}),
     ...(typeof flags.negative === 'string' ? { negative: flags.negative } : {}),
     ...(referenceImagePaths.length ? { referenceImagePaths } : {}),
-    ...(typeof flags['ref-history'] === 'string' ? { referenceHistoryIds: flags['ref-history'].split(',') } : {}),
+    ...(typeof flags['ref-history'] === 'string'
+      ? { referenceHistoryIds: flags['ref-history'].split(',') }
+      : {}),
   };
 
   // 估算 + 确认（TTY 且未 --yes 时询问；--yes/确认通过 = 交互同意放行）
@@ -104,9 +117,14 @@ export async function commandGenerate(
       ? `${estimate.points} 积分`
       : '未知'
     : '不计费';
-  if (context.maxCostPoints != null && estimate.points != null && estimate.points > context.maxCostPoints) {
+  if (
+    context.maxCostPoints != null &&
+    estimate.points != null &&
+    estimate.points > context.maxCostPoints
+  ) {
     context.io.stderr(`musefold: 预估成本 ${costLabel} 超过 --max-cost 上限，已取消`);
-    if (context.json) printJson(context.io, { type: 'error', code: 'BUDGET_EXCEEDED', message: '超出 --max-cost' });
+    if (context.json)
+      printJson(context.io, { type: 'error', code: 'BUDGET_EXCEEDED', message: '超出 --max-cost' });
     return EXIT.BUDGET;
   }
   if (!context.yes) {
@@ -115,7 +133,8 @@ export async function commandGenerate(
     );
     if (!approved) {
       context.io.stderr('musefold: 已取消');
-      if (context.json) printJson(context.io, { type: 'error', code: 'CONFIRMATION_DENIED', message: '用户取消' });
+      if (context.json)
+        printJson(context.io, { type: 'error', code: 'CONFIRMATION_DENIED', message: '用户取消' });
       return EXIT.REFUSED;
     }
   }
@@ -127,7 +146,8 @@ export async function commandGenerate(
   const submitted = await client.startGeneration(body);
 
   if (noWait) {
-    if (context.json) printJson(context.io, { type: 'result', jobId: submitted.jobId, status: submitted.status });
+    if (context.json)
+      printJson(context.io, { type: 'result', jobId: submitted.jobId, status: submitted.status });
     else context.io.stdout(submitted.jobId);
     return EXIT.OK;
   }
@@ -169,7 +189,9 @@ export async function commandGenerate(
         jobId: detail.jobId,
         historyId: detail.historyId,
         status: detail.status,
-        assets: (copied.length ? copied : assets.map((asset) => asset.path)).map((path) => ({ path })),
+        assets: (copied.length ? copied : assets.map((asset) => asset.path)).map((path) => ({
+          path,
+        })),
         costPoints: detail.costPoints ?? detail.cost ?? null,
         cost: detail.cost ?? null,
         costUnit: 'point',
@@ -179,18 +201,25 @@ export async function commandGenerate(
         ...(detail.error ? { error: detail.error } : {}),
       });
     } else if (detail.status === 'success') {
-      for (const path of copied.length ? copied : assets.map((asset) => asset.path)) context.io.stdout(path);
+      for (const path of copied.length ? copied : assets.map((asset) => asset.path))
+        context.io.stdout(path);
       const costLabel = formatCliCost(detail);
       if (costLabel) context.io.stderr(`musefold: 成本 ${costLabel}`);
       if (detail.sizeMismatch) {
-        context.io.stderr(`musefold: 返回尺寸 ${detail.sizeMismatch.actual} 与请求 ${detail.sizeMismatch.expected} 不一致`);
+        context.io.stderr(
+          `musefold: 返回尺寸 ${detail.sizeMismatch.actual} 与请求 ${detail.sizeMismatch.expected} 不一致`,
+        );
       }
     } else {
-      context.io.stderr(`musefold: 生成${detail.status === 'cancelled' ? '已取消' : '失败'}${detail.error ? `：${detail.error.message}` : ''}`);
+      context.io.stderr(
+        `musefold: 生成${detail.status === 'cancelled' ? '已取消' : '失败'}${detail.error ? `：${detail.error.message}` : ''}`,
+      );
     }
     if (detail.status === 'success') return EXIT.OK;
     if (detail.status === 'cancelled') return EXIT.INTERRUPTED;
-    return detail.error?.code?.startsWith('PROVIDER') || detail.error?.code === 'AUTH' ? EXIT.PROVIDER : EXIT.GENERAL;
+    return detail.error?.code?.startsWith('PROVIDER') || detail.error?.code === 'AUTH'
+      ? EXIT.PROVIDER
+      : EXIT.GENERAL;
   } finally {
     offInterrupt();
   }

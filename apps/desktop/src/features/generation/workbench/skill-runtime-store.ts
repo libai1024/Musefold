@@ -6,13 +6,22 @@ import type {
   SkillRuntimeTraceItem,
 } from '@musefold/desktop-contracts/skill-runtime';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
-import { MAX_REFERENCE_IMAGES, type LocalImageReference } from '@musefold/desktop-contracts/providers';
+import {
+  MAX_REFERENCE_IMAGES,
+  type LocalImageReference,
+} from '@musefold/desktop-contracts/providers';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { parseGithubSkillUrl } from './githubSkillUrl';
 import { buildImageRequest, type RefineParams } from '../../../lib/generation-params';
 import { useGenerationWorkbenchStore } from './store';
 
-export type SkillRuntimeStatus = 'idle' | 'detecting' | 'ready' | 'executing' | 'complete' | 'error';
+export type SkillRuntimeStatus =
+  | 'idle'
+  | 'detecting'
+  | 'ready'
+  | 'executing'
+  | 'complete'
+  | 'error';
 
 export interface ExecuteSkillInput {
   userPrompt: string;
@@ -57,7 +66,7 @@ function updateTrace(
 ): SkillRuntimeTraceItem[] {
   const index = trace.findIndex((candidate) => candidate.id === item.id);
   if (index < 0) return [...trace, item];
-  return trace.map((candidate) => candidate.id === item.id ? item : candidate);
+  return trace.map((candidate) => (candidate.id === item.id ? item : candidate));
 }
 
 function messageOf(error: unknown, fallback: string): string {
@@ -83,7 +92,9 @@ export const useSkillRuntimeStore = create<SkillRuntimeState>((set, get) => ({
       ...initialState,
       status: 'detecting',
       sourceUrl: url,
-      trace: [{ id: 'github', kind: 'tool', title: '读取 GitHub 仓库', detail: url, status: 'running' }],
+      trace: [
+        { id: 'github', kind: 'tool', title: '读取 GitHub 仓库', detail: url, status: 'running' },
+      ],
     });
     try {
       const result = await api.skillRuntime.prepareGithub(parsed.value);
@@ -93,7 +104,14 @@ export const useSkillRuntimeStore = create<SkillRuntimeState>((set, get) => ({
           sourceUrl: url,
           attachment: null,
           error: result.error.message,
-          trace: updateTrace(state.trace, { id: 'github', kind: 'tool', title: '读取 GitHub 仓库', detail: result.error.message, status: 'error', durationMs: Date.now() - startedAt }),
+          trace: updateTrace(state.trace, {
+            id: 'github',
+            kind: 'tool',
+            title: '读取 GitHub 仓库',
+            detail: result.error.message,
+            status: 'error',
+            durationMs: Date.now() - startedAt,
+          }),
         }));
         return;
       }
@@ -103,16 +121,45 @@ export const useSkillRuntimeStore = create<SkillRuntimeState>((set, get) => ({
         attachment: result.data,
         error: null,
         trace: [
-          ...updateTrace(state.trace, { id: 'github', kind: 'tool', title: '读取 GitHub 仓库', detail: `${result.data.resolvedRef}${result.data.commitHash ? ` · ${result.data.commitHash.slice(0, 7)}` : ''}`, status: 'success', durationMs: Date.now() - startedAt }),
-          { id: 'scan', kind: 'tool', title: '识别图像 Skill', detail: `${result.data.name} · ${result.data.description}`, status: 'success' },
-          { id: 'files', kind: 'tool', title: '准备 Skill 文件', detail: `${result.data.textFileCount} 个 Markdown/TXT：${result.data.textNames.join('、') || '无'}；${result.data.usableImageCount} 张可用参考图`, status: 'success' },
+          ...updateTrace(state.trace, {
+            id: 'github',
+            kind: 'tool',
+            title: '读取 GitHub 仓库',
+            detail: `${result.data.resolvedRef}${result.data.commitHash ? ` · ${result.data.commitHash.slice(0, 7)}` : ''}`,
+            status: 'success',
+            durationMs: Date.now() - startedAt,
+          }),
+          {
+            id: 'scan',
+            kind: 'tool',
+            title: '识别图像 Skill',
+            detail: `${result.data.name} · ${result.data.description}`,
+            status: 'success',
+          },
+          {
+            id: 'files',
+            kind: 'tool',
+            title: '准备 Skill 文件',
+            detail: `${result.data.textFileCount} 个 Markdown/TXT：${result.data.textNames.join('、') || '无'}；${result.data.usableImageCount} 张可用参考图`,
+            status: 'success',
+          },
         ],
       }));
     } catch (error) {
       const message = messageOf(error, 'Skill 识别失败');
       set((state) => ({
-        status: 'error', sourceUrl: url, attachment: null, error: message,
-        trace: updateTrace(state.trace, { id: 'github', kind: 'tool', title: '读取 GitHub 仓库', detail: message, status: 'error', durationMs: Date.now() - startedAt }),
+        status: 'error',
+        sourceUrl: url,
+        attachment: null,
+        error: message,
+        trace: updateTrace(state.trace, {
+          id: 'github',
+          kind: 'tool',
+          title: '读取 GitHub 仓库',
+          detail: message,
+          status: 'error',
+          durationMs: Date.now() - startedAt,
+        }),
       }));
     }
   },
@@ -179,8 +226,15 @@ export const useSkillRuntimeStore = create<SkillRuntimeState>((set, get) => ({
         },
       });
       if (!result.ok) {
-        useGenerationWorkbenchStore.getState().failSkillTurn(begin.turnId, result.error.message, result.error.code);
-        set({ status: 'error', error: result.error.message, executionId: null, plannedJobIds: null });
+        useGenerationWorkbenchStore
+          .getState()
+          .failSkillTurn(begin.turnId, result.error.message, result.error.code);
+        set({
+          status: 'error',
+          error: result.error.message,
+          executionId: null,
+          plannedJobIds: null,
+        });
         return null;
       }
       const finalTrace = result.data.trace.map((item) => ({ ...item }));
@@ -198,7 +252,9 @@ export const useSkillRuntimeStore = create<SkillRuntimeState>((set, get) => ({
         referenceImages: [...userImages, ...result.data.imageReferences],
         generations: result.data.generations,
       });
-      const wasCancelled = result.data.generations.some((generation) => generation.result.status === 'cancelled');
+      const wasCancelled = result.data.generations.some(
+        (generation) => generation.result.status === 'cancelled',
+      );
       if (wasCancelled) {
         set({
           status: 'ready',
@@ -258,16 +314,21 @@ if (typeof api.skillRuntime?.onEvent === 'function') {
       case 'assistant-delta': {
         const existing = state.trace.find((item) => item.id === event.itemId);
         const trace = existing
-          ? state.trace.map((item) => item.id === event.itemId
-            ? { ...item, output: `${item.output ?? ''}${event.text}` }
-            : item)
-          : [...state.trace, {
-              id: event.itemId,
-              kind: 'assistant' as const,
-              title: 'Agent',
-              output: event.text,
-              status: 'running' as const,
-            }];
+          ? state.trace.map((item) =>
+              item.id === event.itemId
+                ? { ...item, output: `${item.output ?? ''}${event.text}` }
+                : item,
+            )
+          : [
+              ...state.trace,
+              {
+                id: event.itemId,
+                kind: 'assistant' as const,
+                title: 'Agent',
+                output: event.text,
+                status: 'running' as const,
+              },
+            ];
         useSkillRuntimeStore.setState({ trace });
         syncTurnTrace(trace);
         break;
@@ -275,12 +336,16 @@ if (typeof api.skillRuntime?.onEvent === 'function') {
       case 'generation-start': {
         // Agent 真正调用生图模型了：此刻才补建全部结果占位卡片。
         if (state.conversationTurnId) {
-          useGenerationWorkbenchStore.getState().materializeSkillTurnResults(
-            state.conversationTurnId,
-            state.plannedJobIds ?? [event.jobId],
-          );
+          useGenerationWorkbenchStore
+            .getState()
+            .materializeSkillTurnResults(
+              state.conversationTurnId,
+              state.plannedJobIds ?? [event.jobId],
+            );
           // 登记当前 jobId：该对话的停止按钮据此逐张取消（并行运行互不影响）。
-          useGenerationWorkbenchStore.getState().setRunningTurnJob(state.conversationTurnId, event.jobId);
+          useGenerationWorkbenchStore
+            .getState()
+            .setRunningTurnJob(state.conversationTurnId, event.jobId);
         } else {
           useGenerationWorkbenchStore.setState({ activeJobId: event.jobId });
         }
@@ -288,11 +353,15 @@ if (typeof api.skillRuntime?.onEvent === 'function') {
       }
       case 'generation-result': {
         if (state.conversationTurnId) {
-          useGenerationWorkbenchStore.getState().materializeSkillTurnResults(
-            state.conversationTurnId,
-            state.plannedJobIds ?? [event.outcome.jobId],
-          );
-          useGenerationWorkbenchStore.getState().applySkillGenerationResult(state.conversationTurnId, event.outcome);
+          useGenerationWorkbenchStore
+            .getState()
+            .materializeSkillTurnResults(
+              state.conversationTurnId,
+              state.plannedJobIds ?? [event.outcome.jobId],
+            );
+          useGenerationWorkbenchStore
+            .getState()
+            .applySkillGenerationResult(state.conversationTurnId, event.outcome);
         }
         break;
       }

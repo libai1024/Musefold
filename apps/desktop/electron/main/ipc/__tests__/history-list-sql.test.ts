@@ -32,9 +32,7 @@ describe('buildHistoryListSql', () => {
 
   it('single status still works (compat)', () => {
     const { sql, values } = buildHistoryListSql({ status: 'cancelled', limit: 20 });
-    expect(sql).toBe(
-      'SELECT * FROM history WHERE status = ? ORDER BY created_at DESC LIMIT ?',
-    );
+    expect(sql).toBe('SELECT * FROM history WHERE status = ? ORDER BY created_at DESC LIMIT ?');
     expect(values).toEqual(['cancelled', 20]);
   });
 });

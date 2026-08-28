@@ -76,18 +76,27 @@ export function SchemeRuntimeDetail({
       else setLoadError(revision.error.message);
       if (assetList.ok) setAssets(assetList.data);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [scheme.id, scheme.currentRevisionId]);
 
   // 封面固定排在最前，其余按时间倒序（UI 规范 §5.2）。
-  const orderedAssets = useMemo(() => assets.slice().sort((a, b) => {
-    if (a.id === scheme.coverAssetId) return -1;
-    if (b.id === scheme.coverAssetId) return 1;
-    return b.createdAt - a.createdAt;
-  }), [assets, scheme.coverAssetId]);
+  const orderedAssets = useMemo(
+    () =>
+      assets.slice().sort((a, b) => {
+        if (a.id === scheme.coverAssetId) return -1;
+        if (b.id === scheme.coverAssetId) return 1;
+        return b.createdAt - a.createdAt;
+      }),
+    [assets, scheme.coverAssetId],
+  );
 
-  const repoSource = document?.sources.find((source) => source.kind.startsWith('github') && source.uri);
-  const canFormalize = scheme.status === 'draft' && scheme.hasSuccessfulTrial && Boolean(scheme.coverAssetId);
+  const repoSource = document?.sources.find(
+    (source) => source.kind.startsWith('github') && source.uri,
+  );
+  const canFormalize =
+    scheme.status === 'draft' && scheme.hasSuccessfulTrial && Boolean(scheme.coverAssetId);
 
   // 被 promptProgram 模板引用的文本槽位不可删除（会留下无法填充的 {{变量}}）。
   const templateBoundIds = useMemo(() => {
@@ -95,7 +104,11 @@ export function SchemeRuntimeDetail({
     const variables = new Set(document.promptProgram.flatMap((module) => module.variables));
     return new Set(
       document.inputs
-        .filter((slot) => (slot.kind === 'text' || slot.kind === 'article' || slot.kind === 'choice') && variables.has(slot.id))
+        .filter(
+          (slot) =>
+            (slot.kind === 'text' || slot.kind === 'article' || slot.kind === 'choice') &&
+            variables.has(slot.id),
+        )
         .map((slot) => slot.id),
     );
   }, [document]);
@@ -110,13 +123,17 @@ export function SchemeRuntimeDetail({
 
   const beginInputEdit = () => {
     if (!document) return;
-    setInputEdits(document.inputs.map((slot) => ({ id: slot.id, required: slot.required, removed: false })));
+    setInputEdits(
+      document.inputs.map((slot) => ({ id: slot.id, required: slot.required, removed: false })),
+    );
   };
 
   const saveInputEdits = async () => {
     if (!document || !inputEdits || inputSaveBusy) return;
     setInputSaveBusy(true);
-    const kept = inputEdits.filter((edit) => !edit.removed).map((edit) => ({ id: edit.id, required: edit.required }));
+    const kept = inputEdits
+      .filter((edit) => !edit.removed)
+      .map((edit) => ({ id: edit.id, required: edit.required }));
     const result = await api.designScheme.updateInputs(scheme.id, document.revisionId, kept);
     setInputSaveBusy(false);
     if (!result.ok) {
@@ -191,7 +208,10 @@ export function SchemeRuntimeDetail({
       onChanged(result.data.scheme);
       toast.success('发现上游更新', result.data.detail);
     } else {
-      toast.show({ title: result.data.status === 'up-to-date' ? '已是最新' : '无法检查更新', description: result.data.detail });
+      toast.show({
+        title: result.data.status === 'up-to-date' ? '已是最新' : '无法检查更新',
+        description: result.data.detail,
+      });
     }
   };
 
@@ -210,7 +230,12 @@ export function SchemeRuntimeDetail({
   };
 
   return (
-    <div className="h-full overflow-y-auto" data-testid="runtime-scheme-detail" data-scheme-id={scheme.id} data-status={scheme.status}>
+    <div
+      className="h-full overflow-y-auto"
+      data-testid="runtime-scheme-detail"
+      data-scheme-id={scheme.id}
+      data-status={scheme.status}
+    >
       <div className="mx-auto w-full max-w-[880px] px-6 pb-16 pt-5 max-[640px]:px-4">
         <button
           type="button"
@@ -218,31 +243,48 @@ export function SchemeRuntimeDetail({
           className="inline-flex min-h-8 items-center gap-1.5 rounded-md pr-2 text-[11px] text-tertiary hover:bg-hover hover:text-primary"
           data-testid="runtime-scheme-detail-back"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />方案
+          <ArrowLeft className="h-3.5 w-3.5" />
+          方案
         </button>
 
         <div className="mt-5 flex items-start gap-4">
           {scheme.coverImagePath ? (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border-subtle bg-inset/55">
-              <img src={toImageSrc(scheme.coverImagePath)} alt="" className="h-full w-full object-cover" />
+              <img
+                src={toImageSrc(scheme.coverImagePath)}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             </span>
           ) : (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-background" aria-hidden>
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-background"
+              aria-hidden
+            >
               <Blocks className="h-5 w-5" />
             </span>
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-[20px] font-semibold text-primary">{scheme.name}</h1>
-              <span className="text-meta text-tertiary">{scheme.status === 'formal' ? '正式' : '草稿'}</span>
+              <span className="text-meta text-tertiary">
+                {scheme.status === 'formal' ? '正式' : '草稿'}
+              </span>
               <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-meta text-secondary">
                 {FIDELITY_LABEL[scheme.fidelity] ?? scheme.fidelity}
               </span>
             </div>
-            <p className="mt-1.5 max-w-[62ch] text-[12px] leading-5 text-secondary">{scheme.summary}</p>
+            <p className="mt-1.5 max-w-[62ch] text-[12px] leading-5 text-secondary">
+              {scheme.summary}
+            </p>
             <p className="mt-2 flex items-center gap-1.5 truncate text-meta text-tertiary">
-              {scheme.sourcePresentation === 'skill' ? <GitBranch className="h-3 w-3 shrink-0" /> : <Sparkles className="h-3 w-3 shrink-0" />}
-              {scheme.sourcePresentation === 'skill' ? 'Skill' : 'Musefold 创建'} · {scheme.sourceLabel}
+              {scheme.sourcePresentation === 'skill' ? (
+                <GitBranch className="h-3 w-3 shrink-0" />
+              ) : (
+                <Sparkles className="h-3 w-3 shrink-0" />
+              )}
+              {scheme.sourcePresentation === 'skill' ? 'Skill' : 'Musefold 创建'} ·{' '}
+              {scheme.sourceLabel}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -264,7 +306,8 @@ export function SchemeRuntimeDetail({
                 className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border-default px-3 text-[11px] font-medium text-primary hover:bg-hover"
                 data-testid="runtime-scheme-modify"
               >
-                <Pencil className="h-3.5 w-3.5" />继续修改
+                <Pencil className="h-3.5 w-3.5" />
+                继续修改
               </button>
             )}
             {canFormalize && (
@@ -284,7 +327,11 @@ export function SchemeRuntimeDetail({
               className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-background hover:opacity-85"
               data-testid="runtime-scheme-primary-action"
             >
-              {scheme.status === 'formal' ? <Play className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {scheme.status === 'formal' ? (
+                <Play className="h-3.5 w-3.5" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
               {scheme.status === 'formal' ? '使用' : '试运行'}
             </button>
           </div>
@@ -298,7 +345,9 @@ export function SchemeRuntimeDetail({
             <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="text-[11.5px] font-medium text-primary">这个方案有一个待验证的新版本</p>
-              <p className="mt-0.5 text-meta text-tertiary">当前正式版本继续可用；新版本完成一次成功试运行后可以替换它。</p>
+              <p className="mt-0.5 text-meta text-tertiary">
+                当前正式版本继续可用；新版本完成一次成功试运行后可以替换它。
+              </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <button
@@ -307,7 +356,8 @@ export function SchemeRuntimeDetail({
                 className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border-default px-3 text-[11px] font-medium text-primary hover:bg-hover"
                 data-testid="runtime-scheme-trial-working-draft"
               >
-                <RefreshCw className="h-3.5 w-3.5" />试运行新版本
+                <RefreshCw className="h-3.5 w-3.5" />
+                试运行新版本
               </button>
               <button
                 type="button"
@@ -332,7 +382,9 @@ export function SchemeRuntimeDetail({
         </div>
 
         {loadError && (
-          <div className="mt-8 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">{loadError}</div>
+          <div className="mt-8 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">
+            {loadError}
+          </div>
         )}
         {!document && !loadError && (
           <div className="mt-10 py-8 text-center text-[11px] text-tertiary">正在读取方案内容…</div>

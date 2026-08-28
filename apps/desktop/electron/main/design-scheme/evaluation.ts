@@ -43,7 +43,8 @@ function parsePng(buffer: Buffer): ImageProbe | null {
 
 function parseWebp(buffer: Buffer): ImageProbe | null {
   if (buffer.length < 30) return null;
-  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') return null;
+  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP')
+    return null;
   const chunk = buffer.toString('ascii', 12, 16);
   if (chunk === 'VP8X') {
     return {
@@ -177,11 +178,21 @@ export function evaluateSchemeRun(input: RunEvaluationInput): RunEvaluationOutco
   // 3. 输出比例（'auto' 不约束；尺寸解析失败降级为 warn）
   const targets = ratioTargets(input.ratioId);
   if (targets.length === 0) {
-    checks.push({ id: 'aspect-ratio', label: '输出比例', status: 'pass', detail: '未约束比例（自动）' });
+    checks.push({
+      id: 'aspect-ratio',
+      label: '输出比例',
+      status: 'pass',
+      detail: '未约束比例（自动）',
+    });
   } else {
     const measured = evidence.filter((item) => item.width && item.height);
     if (measured.length === 0) {
-      checks.push({ id: 'aspect-ratio', label: '输出比例', status: 'warn', detail: '无法解析输出图片尺寸' });
+      checks.push({
+        id: 'aspect-ratio',
+        label: '输出比例',
+        status: 'warn',
+        detail: '无法解析输出图片尺寸',
+      });
     } else {
       const offTarget = measured.filter((item) => {
         const actual = item.width! / item.height!;
@@ -191,9 +202,10 @@ export function evaluateSchemeRun(input: RunEvaluationInput): RunEvaluationOutco
         id: 'aspect-ratio',
         label: '输出比例',
         status: offTarget.length === 0 ? 'pass' : 'warn',
-        detail: offTarget.length === 0
-          ? `${measured.length} 张符合 ${input.ratioId}`
-          : `${offTarget.length} 张与请求比例 ${input.ratioId} 不一致`,
+        detail:
+          offTarget.length === 0
+            ? `${measured.length} 张符合 ${input.ratioId}`
+            : `${offTarget.length} 张与请求比例 ${input.ratioId} 不一致`,
       });
     }
   }
@@ -206,7 +218,10 @@ export function evaluateSchemeRun(input: RunEvaluationInput): RunEvaluationOutco
  * 修复不改方案、不删原始输出——只允许发起一次新运行（新 runId），
  * 建议文本作为纠偏要求附加进重跑的用户简述。全部通过时返回 null。
  */
-export function buildRepairHint(checks: SchemeRunEvaluationCheck[], ratioId: string): string | null {
+export function buildRepairHint(
+  checks: SchemeRunEvaluationCheck[],
+  ratioId: string,
+): string | null {
   const hints: string[] = [];
   const byId = (id: string) => checks.find((check) => check.id === id);
 

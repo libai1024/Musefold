@@ -17,15 +17,13 @@ interface ClientRow {
 
 export function createPostgresOidcAdapter(
   db: Kysely<MusefoldDatabase>,
-): new (model: string) => Adapter {
+): new (
+  model: string,
+) => Adapter {
   class PostgresOidcAdapter implements Adapter {
     constructor(private readonly model: string) {}
 
-    async upsert(
-      id: string,
-      payload: AdapterPayload,
-      expiresIn?: number,
-    ): Promise<void> {
+    async upsert(id: string, payload: AdapterPayload, expiresIn?: number): Promise<void> {
       if (this.model === 'Client') {
         await this.upsertClient(id, payload);
         return;
@@ -34,9 +32,7 @@ export function createPostgresOidcAdapter(
       const storageId = hashArtifactId(id);
       const storedPayload = { ...payload, jti: storageId };
       const expiresAt =
-        typeof expiresIn === 'number'
-          ? new Date(Date.now() + expiresIn * 1_000)
-          : null;
+        typeof expiresIn === 'number' ? new Date(Date.now() + expiresIn * 1_000) : null;
       await sql`
         INSERT INTO auth.oidc_provider_artifacts(model, id, payload, expires_at)
         VALUES (${this.model}, ${storageId}, ${JSON.stringify(storedPayload)}::jsonb, ${expiresAt})
@@ -60,9 +56,7 @@ export function createPostgresOidcAdapter(
       return payload ? { ...payload, jti: id } : undefined;
     }
 
-    async findByUserCode(
-      userCode: string,
-    ): Promise<AdapterPayload | undefined> {
+    async findByUserCode(userCode: string): Promise<AdapterPayload | undefined> {
       return this.findByPayloadField('userCode', userCode);
     }
 
@@ -109,14 +103,9 @@ export function createPostgresOidcAdapter(
       `.execute(db);
     }
 
-    private async upsertClient(
-      id: string,
-      payload: AdapterPayload,
-    ): Promise<void> {
+    private async upsertClient(id: string, payload: AdapterPayload): Promise<void> {
       const redirectUris = Array.isArray(payload.redirect_uris)
-        ? payload.redirect_uris.filter(
-            (value): value is string => typeof value === 'string',
-          )
+        ? payload.redirect_uris.filter((value): value is string => typeof value === 'string')
         : [];
       const clientName =
         typeof payload.client_name === 'string' && payload.client_name.trim()

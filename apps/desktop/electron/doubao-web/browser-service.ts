@@ -178,7 +178,8 @@ async function ensureImagePage(show = false): Promise<BrowserWindow> {
 
 async function inspectPage(win: BrowserWindow): Promise<PageState> {
   if (win.isDestroyed()) throw codedError('WEB_WINDOW_CLOSED', '豆包窗口已关闭');
-  const state = await win.webContents.executeJavaScript(`(() => {
+  const state = (await win.webContents.executeJavaScript(
+    `(() => {
     const visible = (element) => {
       if (!(element instanceof HTMLElement)) return false;
       const rect = element.getBoundingClientRect();
@@ -234,7 +235,9 @@ async function inspectPage(win: BrowserWindow): Promise<PageState> {
       verificationRequired: /验证码|安全验证|完成验证|异常访问|访问过于频繁/.test(text),
       accountCandidates,
     };
-  })()`, true) as {
+  })()`,
+    true,
+  )) as {
     editorReady: boolean;
     loginRequired: boolean;
     verificationRequired: boolean;
@@ -294,7 +297,8 @@ function withLoginFlow(status: DoubaoWebAccountStatus): DoubaoWebAccountStatus {
 }
 
 async function clickLoginIfNeeded(win: BrowserWindow): Promise<void> {
-  await win.webContents.executeJavaScript(`(() => {
+  await win.webContents.executeJavaScript(
+    `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -306,11 +310,14 @@ async function clickLoginIfNeeded(win: BrowserWindow): Promise<void> {
       .find((element) => visible(element) && /^(登录|扫码登录)$/.test((element.textContent || '').trim()));
     if (button instanceof HTMLElement) { button.click(); return true; }
     return false;
-  })()`, true);
+  })()`,
+    true,
+  );
 }
 
 async function clickLoginQrRefreshIfNeeded(win: BrowserWindow): Promise<boolean> {
-  return win.webContents.executeJavaScript(`(() => {
+  return win.webContents.executeJavaScript(
+    `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -335,7 +342,9 @@ async function clickLoginQrRefreshIfNeeded(win: BrowserWindow): Promise<boolean>
       scope = scope.parentElement;
     }
     return false;
-  })()`, true) as Promise<boolean>;
+  })()`,
+    true,
+  ) as Promise<boolean>;
 }
 
 async function waitForLoginQrCode(win: BrowserWindow): Promise<string | null> {
@@ -357,7 +366,8 @@ async function waitForLoginQrCode(win: BrowserWindow): Promise<string | null> {
 }
 
 async function readLoginQrSnapshot(win: BrowserWindow): Promise<LoginQrSnapshot> {
-  const raw = await win.webContents.executeJavaScript(`(() => {
+  const raw = (await win.webContents.executeJavaScript(
+    `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -411,7 +421,9 @@ async function readLoginQrSnapshot(win: BrowserWindow): Promise<LoginQrSnapshot>
       expired: false,
       present: true,
     };
-  })()`, true) as { markup: string | null; expired: boolean; present: boolean } | null;
+  })()`,
+    true,
+  )) as { markup: string | null; expired: boolean; present: boolean } | null;
   const snapshot = raw;
   if (!snapshot?.markup) {
     return {
@@ -485,9 +497,10 @@ function startLoginPoller(): void {
         await publishLoginSnapshot();
         return;
       }
-      const qrSnapshot = loginState === 'qr-ready'
-        ? await readLoginQrSnapshot(browserWindow)
-        : { dataUrl: loginQrCodeDataUrl, expired: false, present: Boolean(loginQrCodeDataUrl) };
+      const qrSnapshot =
+        loginState === 'qr-ready'
+          ? await readLoginQrSnapshot(browserWindow)
+          : { dataUrl: loginQrCodeDataUrl, expired: false, present: Boolean(loginQrCodeDataUrl) };
       if (loginState === 'qr-ready' && qrSnapshot.expired) {
         loginState = 'loading';
         loginQrCodeDataUrl = null;
@@ -555,7 +568,10 @@ async function requireAuthenticatedPage(signal?: AbortSignal): Promise<BrowserWi
     }
     if (state.verificationRequired) {
       revealWindow(win);
-      throw codedError('WEB_VERIFICATION_REQUIRED', '豆包要求人工验证，请在已打开的窗口中完成后重试');
+      throw codedError(
+        'WEB_VERIFICATION_REQUIRED',
+        '豆包要求人工验证，请在已打开的窗口中完成后重试',
+      );
     }
     if (state.loginRequired) {
       revealWindow(win);
@@ -571,7 +587,10 @@ async function requireAuthenticatedPage(signal?: AbortSignal): Promise<BrowserWi
 
 function serialized<T>(task: () => Promise<T>): Promise<T> {
   const run = operationQueue.catch(() => undefined).then(task);
-  operationQueue = run.then(() => undefined, () => undefined);
+  operationQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
   return run;
 }
 
@@ -583,7 +602,8 @@ export async function openDoubaoWebLogin(): Promise<{ opened: true }> {
 export async function setDoubaoDeveloperWindowVisible(visible: boolean): Promise<void> {
   developerWindowVisible = visible;
   if (!visible) {
-    if (browserWindow && !browserWindow.isDestroyed() && browserWindow.isVisible()) browserWindow.hide();
+    if (browserWindow && !browserWindow.isDestroyed() && browserWindow.isVisible())
+      browserWindow.hide();
     return;
   }
   const win = await ensureImagePage(true);
@@ -626,7 +646,8 @@ export async function logoutDoubaoWeb(): Promise<DoubaoWebAccountStatus> {
     stopLoginPoller();
     const ses = session.fromPartition(DOUBAO_SESSION_PARTITION);
     await ses.clearStorageData();
-    if (browserWindow && !browserWindow.isDestroyed()) browserWindow.webContents.session.clearStorageData().catch(() => {});
+    if (browserWindow && !browserWindow.isDestroyed())
+      browserWindow.webContents.session.clearStorageData().catch(() => {});
     cachedAvatar = null;
     loginState = 'logged-out';
     loginQrCodeDataUrl = null;
@@ -688,7 +709,8 @@ export function getDoubaoWebAccountStatus(): Promise<DoubaoWebAccountStatus> {
 }
 
 async function listPageImages(win: BrowserWindow): Promise<PageImage[]> {
-  return win.webContents.executeJavaScript(`(() => {
+  return win.webContents.executeJavaScript(
+    `(() => {
     return Array.from(document.images).flatMap((image) => {
       const rect = image.getBoundingClientRect();
       const style = getComputedStyle(image);
@@ -706,7 +728,9 @@ async function listPageImages(win: BrowserWindow): Promise<PageImage[]> {
       ) return [];
       return [{ src, width: image.naturalWidth, height: image.naturalHeight }];
     });
-  })()`, true) as Promise<PageImage[]>;
+  })()`,
+    true,
+  ) as Promise<PageImage[]>;
 }
 
 async function inspectGeneratedReply(
@@ -714,7 +738,8 @@ async function inspectGeneratedReply(
   baseline: Set<string>,
   submittedPrompt: string,
 ): Promise<PageReplyCandidate> {
-  return win.webContents.executeJavaScript(`(() => {
+  return win.webContents.executeJavaScript(
+    `(() => {
     const baseline = new Set(${JSON.stringify([...baseline])});
     const submittedPrompt = ${JSON.stringify(submittedPrompt)}.trim();
     const visible = (element) => {
@@ -813,11 +838,14 @@ async function inspectGeneratedReply(
       message,
       completed,
     };
-  })()`, true) as Promise<PageReplyCandidate>;
+  })()`,
+    true,
+  ) as Promise<PageReplyCandidate>;
 }
 
 async function fillPromptAndSubmit(win: BrowserWindow, prompt: string): Promise<void> {
-  const inserted = await win.webContents.executeJavaScript(`(() => {
+  const inserted = (await win.webContents.executeJavaScript(
+    `(() => {
     const visible = (element) => {
       if (!(element instanceof HTMLElement)) return false;
       const rect = element.getBoundingClientRect();
@@ -847,11 +875,14 @@ async function fillPromptAndSubmit(win: BrowserWindow, prompt: string): Promise<
     document.execCommand('insertText', false, ${JSON.stringify(prompt)});
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(prompt)} }));
     return (editor.innerText || editor.textContent || '').trim().length > 0;
-  })()`, true) as boolean;
+  })()`,
+    true,
+  )) as boolean;
   if (!inserted) throw codedError('WEB_PAGE_CHANGED', '无法填写豆包生图输入框，网页可能已改版');
 
   await delay(250);
-  const submitted = await win.webContents.executeJavaScript(`(() => {
+  const submitted = (await win.webContents.executeJavaScript(
+    `(() => {
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
@@ -862,7 +893,9 @@ async function fillPromptAndSubmit(win: BrowserWindow, prompt: string): Promise<
     if (!button) return false;
     button.click();
     return true;
-  })()`, true) as boolean;
+  })()`,
+    true,
+  )) as boolean;
   if (!submitted) throw codedError('WEB_PAGE_CHANGED', '无法找到豆包发送按钮，网页可能已改版');
 }
 
@@ -881,19 +914,22 @@ async function uploadReferenceImages(
   if (references.length === 0) return;
   throwIfAborted(signal);
 
-  const payloads = await Promise.all(references.map(async (reference) => {
-    const loaded = await readLocalImage(reference);
-    return {
-      name: reference.name || loaded.image.name || 'reference.png',
-      mimeType: loaded.image.mimeType,
-      base64: loaded.bytes.toString('base64'),
-    };
-  }));
+  const payloads = await Promise.all(
+    references.map(async (reference) => {
+      const loaded = await readLocalImage(reference);
+      return {
+        name: reference.name || loaded.image.name || 'reference.png',
+        mimeType: loaded.image.mimeType,
+        base64: loaded.bytes.toString('base64'),
+      };
+    }),
+  );
   throwIfAborted(signal);
 
   // 豆包当前页面会预挂载两个图片 input：第一个支持多选，第二个是旧版单图入口。
   // 优先使用带 multiple 的 input，避免把多张参考图折叠成最后一张。
-  const result = await win.webContents.executeJavaScript(`(() => {
+  const result = (await win.webContents.executeJavaScript(
+    `(() => {
     const payloads = ${JSON.stringify(payloads)};
     const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
     const imageInputs = inputs.filter((input) => {
@@ -915,7 +951,9 @@ async function uploadReferenceImages(
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
     return { ok: true, count: input.files?.length || 0, multiple: input.multiple };
-  })()`, true) as DoubaoUploadResult;
+  })()`,
+    true,
+  )) as DoubaoUploadResult;
 
   if (!result?.ok || result.count !== references.length) {
     throw codedError('WEB_UNSUPPORTED', result?.reason || '豆包网页没有接受参考图，请稍后重试');
@@ -955,16 +993,20 @@ async function waitForGeneratedReply(
     }
     if (latest.images.length >= EXPECTED_IMAGE_COUNT) return latest;
     if (
-      latest.images.length > 0
-      && latest.completed
-      && Date.now() - stableSince >= PARTIAL_RESULT_STABLE_MS
-    ) return latest;
+      latest.images.length > 0 &&
+      latest.completed &&
+      Date.now() - stableSince >= PARTIAL_RESULT_STABLE_MS
+    )
+      return latest;
 
-    const failure = await win.webContents.executeJavaScript(`(() => {
+    const failure = (await win.webContents.executeJavaScript(
+      `(() => {
       const text = (document.body?.innerText || '').slice(-4000);
       const match = text.match(/生成失败|今日[^\\n]{0,20}次数|次数[^\\n]{0,20}(?:用完|不足)|额度不足|操作过于频繁/);
       return match?.[0] || '';
-    })()`, true) as string;
+    })()`,
+      true,
+    )) as string;
     if (failure) throw codedError('WEB_UPSTREAM', `豆包网页提示：${failure}`);
     await delay(POLL_INTERVAL_MS, signal);
   }
@@ -973,11 +1015,16 @@ async function waitForGeneratedReply(
   throw codedError('TIMEOUT', '等待豆包生成结果超时，已打开豆包窗口供你检查');
 }
 
-async function imageBytes(win: BrowserWindow, image: PageImage, signal?: AbortSignal): Promise<{ bytes: Buffer; extension: string }> {
+async function imageBytes(
+  win: BrowserWindow,
+  image: PageImage,
+  signal?: AbortSignal,
+): Promise<{ bytes: Buffer; extension: string }> {
   throwIfAborted(signal);
   let dataUrl: string | null = null;
   if (image.src.startsWith('blob:')) {
-    dataUrl = await win.webContents.executeJavaScript(`new Promise(async (resolve, reject) => {
+    dataUrl = (await win.webContents.executeJavaScript(
+      `new Promise(async (resolve, reject) => {
       try {
         const response = await fetch(${JSON.stringify(image.src)});
         const blob = await response.blob();
@@ -986,7 +1033,9 @@ async function imageBytes(win: BrowserWindow, image: PageImage, signal?: AbortSi
         reader.onerror = () => reject(reader.error || new Error('读取图片失败'));
         reader.readAsDataURL(blob);
       } catch (error) { reject(error); }
-    })`, true) as string;
+    })`,
+      true,
+    )) as string;
   } else if (image.src.startsWith('data:')) {
     dataUrl = image.src;
   }
@@ -994,11 +1043,15 @@ async function imageBytes(win: BrowserWindow, image: PageImage, signal?: AbortSi
   if (dataUrl) {
     try {
       const decoded = decodeImageDataUrl(dataUrl);
-      if (decoded.bytes.length > MAX_IMAGE_BYTES) throw codedError('IMAGE_TOO_LARGE', '豆包返回的图片超过 50 MB');
+      if (decoded.bytes.length > MAX_IMAGE_BYTES)
+        throw codedError('IMAGE_TOO_LARGE', '豆包返回的图片超过 50 MB');
       return { bytes: decoded.bytes, extension: decoded.extension };
     } catch (error) {
       if ((error as { code?: string }).code === 'IMAGE_TOO_LARGE') throw error;
-      throw codedError('IMAGE_DOWNLOAD_FAILED', `豆包返回了无法识别的图片数据：${error instanceof Error ? error.message : '格式无效'}`);
+      throw codedError(
+        'IMAGE_DOWNLOAD_FAILED',
+        `豆包返回了无法识别的图片数据：${error instanceof Error ? error.message : '格式无效'}`,
+      );
     }
   }
 
@@ -1013,16 +1066,26 @@ async function imageBytes(win: BrowserWindow, image: PageImage, signal?: AbortSi
       `下载豆包图片失败：${error instanceof Error ? error.message : '网络请求失败'}`,
     );
   }
-  if (!response.ok) throw codedError('IMAGE_DOWNLOAD_FAILED', `下载豆包图片失败（HTTP ${response.status}）`);
+  if (!response.ok)
+    throw codedError('IMAGE_DOWNLOAD_FAILED', `下载豆包图片失败（HTTP ${response.status}）`);
   const contentLength = Number(response.headers.get('content-length') ?? 0);
-  if (contentLength > MAX_IMAGE_BYTES) throw codedError('IMAGE_TOO_LARGE', '豆包返回的图片超过 50 MB');
+  if (contentLength > MAX_IMAGE_BYTES)
+    throw codedError('IMAGE_TOO_LARGE', '豆包返回的图片超过 50 MB');
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > MAX_IMAGE_BYTES) throw codedError('IMAGE_TOO_LARGE', '豆包返回的图片超过 50 MB');
+  if (bytes.length > MAX_IMAGE_BYTES)
+    throw codedError('IMAGE_TOO_LARGE', '豆包返回的图片超过 50 MB');
   try {
-    const decoded = decodeDownloadedImage(bytes, response.headers.get('content-type') ?? '', image.src);
+    const decoded = decodeDownloadedImage(
+      bytes,
+      response.headers.get('content-type') ?? '',
+      image.src,
+    );
     return { bytes: decoded.bytes, extension: decoded.extension };
   } catch (error) {
-    throw codedError('IMAGE_DOWNLOAD_FAILED', `豆包下载内容无法识别为图片：${error instanceof Error ? error.message : '格式无效'}`);
+    throw codedError(
+      'IMAGE_DOWNLOAD_FAILED',
+      `豆包下载内容无法识别为图片：${error instanceof Error ? error.message : '格式无效'}`,
+    );
   }
 }
 
@@ -1057,7 +1120,9 @@ export function generateImageWithDoubaoWeb(
           return { imagePath, actualSize: { width: image.width, height: image.height } };
         }),
       );
-      const images = downloads.flatMap((download) => download.status === 'fulfilled' ? [download.value] : []);
+      const images = downloads.flatMap((download) =>
+        download.status === 'fulfilled' ? [download.value] : [],
+      );
       if (images.length === 0) {
         const firstFailure = downloads.find((download) => download.status === 'rejected');
         throw codedError(
@@ -1080,7 +1145,9 @@ export function generateImageWithDoubaoWeb(
         providerResponse: {
           kind: 'doubao-web',
           message: reply.message || undefined,
-          expectedImageCount: req.referenceImages?.length ? reply.images.length : EXPECTED_IMAGE_COUNT,
+          expectedImageCount: req.referenceImages?.length
+            ? reply.images.length
+            : EXPECTED_IMAGE_COUNT,
           receivedImageCount: images.length,
         },
         cost: 0,

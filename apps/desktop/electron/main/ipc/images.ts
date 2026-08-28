@@ -10,7 +10,12 @@ import type {
   LocalImageReference,
   StageLocalImageInput,
 } from '@musefold/desktop-contracts/providers';
-import type { ImageSize, ImageQuality, ImageBackground, ModerationLevel } from '@musefold/desktop-contracts/enums';
+import type {
+  ImageSize,
+  ImageQuality,
+  ImageBackground,
+  ModerationLevel,
+} from '@musefold/desktop-contracts/enums';
 import { getDb } from '@musefold/core/db/index';
 import {
   cancelGeneration,
@@ -80,7 +85,6 @@ interface HistoryRow {
   params: string | null;
 }
 
-
 interface HistoryPromptReferenceRow {
   prompt_id: string | null;
   prompt_title: string;
@@ -133,7 +137,9 @@ export function registerImageHandlers(): void {
 
   ipcMain.handle(IPC.IMAGE_RETRY, async (event, historyId: string, jobId?: string) => {
     const db = getDb();
-    const row = db.prepare('SELECT * FROM history WHERE id = ?').get(historyId) as HistoryRow | undefined;
+    const row = db.prepare('SELECT * FROM history WHERE id = ?').get(historyId) as
+      | HistoryRow
+      | undefined;
     if (!row) {
       // **返回而不 throw**，和 generate() 同理：ipcRenderer.invoke 只把 message 带过桥，
       // 自定义的 code 字段全丢，渲染层拿到的是
@@ -160,12 +166,14 @@ export function registerImageHandlers(): void {
       }
     }
     const promptReferences = (
-      db.prepare(
-        `SELECT prompt_id, prompt_title, excerpt, scope
+      db
+        .prepare(
+          `SELECT prompt_id, prompt_title, excerpt, scope
          FROM history_prompt_references
          WHERE history_id = ?
          ORDER BY sort_order`,
-      ).all(historyId) as HistoryPromptReferenceRow[]
+        )
+        .all(historyId) as HistoryPromptReferenceRow[]
     ).map((reference) => ({
       promptId: reference.prompt_id ?? '',
       title: reference.prompt_title,
@@ -200,15 +208,20 @@ export function registerImageHandlers(): void {
           ? params.refinementInstruction
           : undefined,
       referenceImages: Array.isArray(params.referenceImages)
-        ? params.referenceImages as LocalImageReference[]
+        ? (params.referenceImages as LocalImageReference[])
         : undefined,
       promptReferences,
-      skillRuntime: params.skillRuntime && typeof params.skillRuntime === 'object'
-        ? params.skillRuntime as GenerateImageRequest['skillRuntime']
-        : undefined,
+      skillRuntime:
+        params.skillRuntime && typeof params.skillRuntime === 'object'
+          ? (params.skillRuntime as GenerateImageRequest['skillRuntime'])
+          : undefined,
     };
-    return generate(req, (progress) => {
-      if (!event.sender.isDestroyed()) event.sender.send(IPC.IMAGE_PROGRESS, progress);
-    }, { retryOfRunId: historyId });
+    return generate(
+      req,
+      (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send(IPC.IMAGE_PROGRESS, progress);
+      },
+      { retryOfRunId: historyId },
+    );
   });
 }

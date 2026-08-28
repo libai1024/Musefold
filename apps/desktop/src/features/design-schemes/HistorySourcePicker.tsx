@@ -64,11 +64,15 @@ export function HistorySourcePicker({
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onCancel(); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCancel();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
@@ -90,7 +94,8 @@ export function HistorySourcePicker({
   const appendSuggestion = (suggestion: string) => {
     setNote((current) => {
       const line = `补充：${suggestion}。`;
-      if (current.includes(line)) return current.replace(`\n${line}`, '').replace(line, '').trimEnd();
+      if (current.includes(line))
+        return current.replace(`\n${line}`, '').replace(line, '').trimEnd();
       return `${current.trimEnd()}\n${line}`;
     });
   };
@@ -99,30 +104,61 @@ export function HistorySourcePicker({
     const items: DesignSchemeHistorySourceItem[] = selectedRecords.map((record) => ({
       historyId: record.id,
       imagePath: record.imagePath as string,
-      ...(includePrompts && record.request.prompt.trim() ? { promptText: record.request.prompt.trim() } : {}),
+      ...(includePrompts && record.request.prompt.trim()
+        ? { promptText: record.request.prompt.trim() }
+        : {}),
     }));
     onConfirm({ items, note });
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/35 p-4 animate-overlay-in" data-testid="history-source-picker">
-      <div className="flex max-h-[min(640px,90dvh)] w-full max-w-[560px] flex-col rounded-lg border border-border-default bg-popover shadow-pop animate-dialog-in" role="dialog" aria-modal="true" aria-labelledby="history-source-title">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/35 p-4 animate-overlay-in"
+      data-testid="history-source-picker"
+    >
+      <div
+        className="flex max-h-[min(640px,90dvh)] w-full max-w-[560px] flex-col rounded-lg border border-border-default bg-popover shadow-pop animate-dialog-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-source-title"
+      >
         <div className="flex items-start gap-3 border-b border-border-subtle px-5 py-4">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-inset text-secondary"><History className="h-4 w-4" /></span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-inset text-secondary">
+            <History className="h-4 w-4" />
+          </span>
           <div className="min-w-0 flex-1">
-            <h2 id="history-source-title" className="text-[14px] font-semibold text-primary">选择历史来源</h2>
-            <p className="mt-1 text-meta text-tertiary">只提取你选中的作品；范围之后仍可重新调整。</p>
+            <h2 id="history-source-title" className="text-[14px] font-semibold text-primary">
+              选择历史来源
+            </h2>
+            <p className="mt-1 text-meta text-tertiary">
+              只提取你选中的作品；范围之后仍可重新调整。
+            </p>
           </div>
-          <button type="button" onClick={onCancel} className="icon-action" aria-label="关闭" title="关闭"><X className="h-4 w-4" /></button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="icon-action"
+            aria-label="关闭"
+            title="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-14 text-[11px] text-tertiary"><Loader2 className="h-4 w-4 animate-spin" />正在读取历史作品…</div>
+            <div className="flex items-center justify-center gap-2 py-14 text-[11px] text-tertiary">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              正在读取历史作品…
+            </div>
           ) : error ? (
-            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">{error}</div>
+            <div className="rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-meta text-danger">
+              {error}
+            </div>
           ) : records.length === 0 ? (
-            <p className="py-14 text-center text-[11px] text-tertiary">还没有生成成功的历史作品；先在工作台生成图片，再从这里创建方案。</p>
+            <p className="py-14 text-center text-[11px] text-tertiary">
+              还没有生成成功的历史作品；先在工作台生成图片，再从这里创建方案。
+            </p>
           ) : (
             <>
               <div className="grid grid-cols-4 gap-2 max-[560px]:grid-cols-3">
@@ -136,17 +172,28 @@ export function HistorySourcePicker({
                       onClick={() => toggle(record.id)}
                       className={cn(
                         'group relative aspect-square overflow-hidden rounded-md border bg-inset transition-colors',
-                        active ? 'border-accent ring-1 ring-accent/45' : 'border-border-subtle hover:border-border-default',
+                        active
+                          ? 'border-accent ring-1 ring-accent/45'
+                          : 'border-border-subtle hover:border-border-default',
                       )}
                       aria-pressed={active}
                       title={record.request.prompt.slice(0, 120)}
                       data-testid={`history-pick-${record.id}`}
                     >
-                      <img src={toImageSrc(record.imagePath as string)} alt="" className="h-full w-full object-cover" loading="lazy" />
-                      <span className={cn(
-                        'absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border text-meta font-semibold',
-                        active ? 'border-accent bg-accent text-[color:var(--on-accent)]' : 'border-white/60 bg-black/30 text-transparent group-hover:text-white/70',
-                      )}>
+                      <img
+                        src={toImageSrc(record.imagePath as string)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                      <span
+                        className={cn(
+                          'absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border text-meta font-semibold',
+                          active
+                            ? 'border-accent bg-accent text-[color:var(--on-accent)]'
+                            : 'border-white/60 bg-black/30 text-transparent group-hover:text-white/70',
+                        )}
+                      >
                         {active ? order : <Check className="h-3 w-3" />}
                       </span>
                     </button>
@@ -167,7 +214,9 @@ export function HistorySourcePicker({
               </label>
 
               <div className="mt-4 border-t border-border-subtle pt-4">
-                <p className="text-meta font-medium text-secondary">提取说明（进入 Composer 后仍可修改）</p>
+                <p className="text-meta font-medium text-secondary">
+                  提取说明（进入 Composer 后仍可修改）
+                </p>
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
@@ -185,7 +234,9 @@ export function HistorySourcePicker({
                         onClick={() => appendSuggestion(suggestion)}
                         className={cn(
                           'min-h-7 rounded-md border px-2 text-meta transition-colors',
-                          active ? 'border-accent/35 bg-accent-soft text-accent' : 'border-border-subtle text-tertiary hover:bg-hover',
+                          active
+                            ? 'border-accent/35 bg-accent-soft text-accent'
+                            : 'border-border-subtle text-tertiary hover:bg-hover',
                         )}
                         data-testid={`history-suggestion-${suggestion}`}
                       >
@@ -200,9 +251,13 @@ export function HistorySourcePicker({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border-subtle px-5 py-3">
-          <span className="text-meta text-tertiary" data-testid="history-selected-count">已选择 {selected.size} 张作品</span>
+          <span className="text-meta text-tertiary" data-testid="history-selected-count">
+            已选择 {selected.size} 张作品
+          </span>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onCancel} className="action-button">取消</button>
+            <button type="button" onClick={onCancel} className="action-button">
+              取消
+            </button>
             <button
               type="button"
               disabled={selected.size === 0}

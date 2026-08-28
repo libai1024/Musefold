@@ -21,7 +21,7 @@ export function PageHeader({ count, actions, afterTitle, className }: PageHeader
       className={cn(
         // pr-16：为右上角朱点让出保留区（v0.3.3 朱点规范 §1.2）
         'flex min-h-[44px] shrink-0 items-center gap-2.5 border-b border-border-subtle bg-elevated py-0 pl-4 pr-16 max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:py-2.5 max-[900px]:pl-3',
-        className
+        className,
       )}
     >
       {typeof count === 'number' && (

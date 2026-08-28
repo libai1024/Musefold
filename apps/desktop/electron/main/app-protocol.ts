@@ -25,10 +25,7 @@ export type AppRendererEntry = typeof APP_MAIN_ENTRY | typeof APP_PET_ENTRY;
  * 拼出固定 origin 下的入口 URL。query / hash 只作为页面地址的一部分，
  * 协议 handler 定位文件时会忽略它们。
  */
-export function buildAppEntryUrl(
-  entry: AppRendererEntry,
-  options?: { e2e?: boolean },
-): string {
+export function buildAppEntryUrl(entry: AppRendererEntry, options?: { e2e?: boolean }): string {
   const url = `${APP_ORIGIN}/${entry}`;
   return options?.e2e ? `${url}?${E2E_SEARCH}` : url;
 }
@@ -42,10 +39,7 @@ export function isAppOriginUrl(url: string): boolean {
  * 主窗口加载地址。开发分支的字符串拼接必须与历史实现逐字符一致：
  * `ELECTRON_RENDERER_URL` 存在时走 Vite；否则走 `app://musefold/index.html`。
  */
-export function resolveMainWindowLoadUrl(
-  rendererUrl: string | undefined,
-  e2e: boolean,
-): string {
+export function resolveMainWindowLoadUrl(rendererUrl: string | undefined, e2e: boolean): string {
   if (rendererUrl) {
     const base = rendererUrl;
     return e2e ? `${base}${base.includes('?') ? '&' : '?'}musefold_e2e=1` : base;
@@ -160,7 +154,9 @@ function locateTargetFile(
   requestUrl: string,
   parsedPathname: string,
   root: string,
-): { kind: 'ok'; root: string; target: string } | { kind: 'error'; status: number; message: string } {
+):
+  | { kind: 'ok'; root: string; target: string }
+  | { kind: 'error'; status: number; message: string } {
   const rawPath = extractRawPath(requestUrl);
   const parsed = decodeAndValidatePath(parsedPathname);
   if (parsed.kind === 'error') return parsed;
@@ -196,7 +192,8 @@ function decodeAndValidatePath(
     return { kind: 'error', status: 403, message: 'Forbidden' };
   }
 
-  const isDirectoryUrl = decoded === '' || decoded === '/' || decoded.endsWith('/') || decoded.endsWith('\\');
+  const isDirectoryUrl =
+    decoded === '' || decoded === '/' || decoded.endsWith('/') || decoded.endsWith('\\');
   const stripped = decoded.replace(/^[\\/]+/, '');
   if (isAbsolute(stripped) || looksLikeWindowsAbsolute(stripped)) {
     return { kind: 'error', status: 403, message: 'Forbidden' };

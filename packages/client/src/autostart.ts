@@ -80,7 +80,8 @@ export async function discoverOrStartEndpoint(
   const timeoutMs = Math.max(0, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const pollIntervalMs = Math.max(25, options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS);
   const attempts = Math.max(1, Math.ceil(timeoutMs / pollIntervalMs));
-  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep =
+    options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await sleep(pollIntervalMs);
     const discovered = await discover(env);

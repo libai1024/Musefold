@@ -70,8 +70,8 @@ export function seedLibrary(db: Database.Database): void {
 
   const folderIdByName = new Map(
     (db.prepare('SELECT id, name FROM folders').all() as { id: string; name: string }[]).map(
-      (f) => [f.name, f.id] as const
-    )
+      (f) => [f.name, f.id] as const,
+    ),
   );
 
   const insertPrompt = db.prepare(
@@ -79,10 +79,10 @@ export function seedLibrary(db: Database.Database): void {
        id, title, description, content, content_negative, folder_id, model_id, params,
        preview_image_path, rating, is_pinned, pin_order, usage_count, last_used_at,
        source, source_url, created_at, updated_at, deleted_at
-     ) VALUES (?, ?, ?, ?, ?, ?, 'gpt-image-2', ?, NULL, 0, 0, NULL, 0, NULL, 'manual', NULL, ?, ?, NULL)`
+     ) VALUES (?, ?, ?, ?, ?, ?, 'gpt-image-2', ?, NULL, 0, 0, NULL, 0, NULL, 'manual', NULL, ?, ?, NULL)`,
   );
   const insertFts = db.prepare(
-    'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)',
   );
 
   for (const p of SEED_PROMPTS) {
@@ -96,7 +96,7 @@ export function seedLibrary(db: Database.Database): void {
       folderIdByName.get(p.folderName) ?? null,
       JSON.stringify(p.params),
       now,
-      now
+      now,
     );
     const tagsIndex = tokenizeForFts(p.title, p.description, p.content, []);
     insertFts.run(info.lastInsertRowid, p.title, p.description, p.content, tagsIndex);

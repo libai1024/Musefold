@@ -1,20 +1,18 @@
-import { useEffect, useState } from "react";
-import { WorkbenchPageFrame } from "@musefold/product-ui";
-import { useAppStore } from "../../../stores/app";
-import { useGenerationStore } from "../store";
-import { useGenerationWorkbenchStore } from "./store";
-import { useSkillRuntimeStore } from "./skill-runtime-store";
-import { PromptReferenceSidebar } from "./PromptReferenceSidebar";
-import { WorkbenchComposer } from "./WorkbenchComposer";
-import { WorkbenchTimeline } from "./WorkbenchTimeline";
+import { useEffect, useState } from 'react';
+import { WorkbenchPageFrame } from '@musefold/product-ui';
+import { useAppStore } from '../../../stores/app';
+import { useGenerationStore } from '../store';
+import { useGenerationWorkbenchStore } from './store';
+import { useSkillRuntimeStore } from './skill-runtime-store';
+import { PromptReferenceSidebar } from './PromptReferenceSidebar';
+import { WorkbenchComposer } from './WorkbenchComposer';
+import { WorkbenchTimeline } from './WorkbenchTimeline';
 
 export function GenerationWorkbench() {
   const [contextDockWidth, setContextDockWidth] = useState(304);
   const providers = useGenerationStore((s) => s.providers);
   const loadProviders = useGenerationStore((s) => s.loadProviders);
-  const refinementContext = useGenerationWorkbenchStore(
-    (s) => s.refinementContext,
-  );
+  const refinementContext = useGenerationWorkbenchStore((s) => s.refinementContext);
   const referencesOpen = useAppStore((s) => s.materialLibraryOpen);
   const setReferencesOpen = useAppStore((s) => s.setMaterialLibraryOpen);
   const turnCount = useGenerationWorkbenchStore((s) => s.turns.length);

@@ -31,11 +31,8 @@ describe('pet window movement', () => {
   });
 
   it('tracks the native cursor from a stable drag origin', () => {
-    expect(petPositionFromCursor(
-      { x: 100, y: 200 },
-      { x: 140, y: 240 },
-      { x: 315, y: 390 },
-    )).toEqual({ x: 275, y: 350 });
+    expect(
+      petPositionFromCursor({ x: 100, y: 200 }, { x: 140, y: 240 }, { x: 315, y: 390 }),
+    ).toEqual({ x: 275, y: 350 });
   });
-
 });

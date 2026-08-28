@@ -10,10 +10,7 @@ import {
   type WorkbenchSession,
   type WorkbenchSessionPage,
 } from '@musefold/contracts';
-import {
-  withOwnerTransaction,
-  type OwnerTransaction,
-} from '../../database/owner-context.js';
+import { withOwnerTransaction, type OwnerTransaction } from '../../database/owner-context.js';
 import type { MusefoldDatabase } from '../../database/types.js';
 import { AppError } from '../../errors.js';
 
@@ -32,30 +29,12 @@ type WorkbenchRow = {
 };
 
 export interface WorkbenchServicePort {
-  list(
-    ownerId: number,
-    query: ParsedWorkbenchSessionListQuery,
-  ): Promise<WorkbenchSessionPage>;
+  list(ownerId: number, query: ParsedWorkbenchSessionListQuery): Promise<WorkbenchSessionPage>;
   get(ownerId: number, id: string): Promise<WorkbenchSession>;
-  create(
-    ownerId: number,
-    input: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  update(
-    ownerId: number,
-    id: string,
-    input: UpdateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  remove(
-    ownerId: number,
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession>;
-  restore(
-    ownerId: number,
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession>;
+  create(ownerId: number, input: CreateWorkbenchSession): Promise<WorkbenchSession>;
+  update(ownerId: number, id: string, input: UpdateWorkbenchSession): Promise<WorkbenchSession>;
+  remove(ownerId: number, id: string, expectedVersion: number): Promise<WorkbenchSession>;
+  restore(ownerId: number, id: string, expectedVersion: number): Promise<WorkbenchSession>;
 }
 
 export class WorkbenchService implements WorkbenchServicePort {
@@ -67,15 +46,11 @@ export class WorkbenchService implements WorkbenchServicePort {
   ): Promise<WorkbenchSessionPage> {
     const query = workbenchSessionListQuerySchema.parse(rawQuery);
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
-      const conditions = [
-        query.includeDeleted ? sql`TRUE` : sql`deleted_at IS NULL`,
-      ];
+      const conditions = [query.includeDeleted ? sql`TRUE` : sql`deleted_at IS NULL`];
       if (!query.includeArchived) conditions.push(sql`archived_at IS NULL`);
       if (query.cursor) {
         const cursor = decodeCursor(query.cursor);
-        conditions.push(
-          sql`(updated_at, id) < (${new Date(cursor.updatedAt)}, ${cursor.id})`,
-        );
+        conditions.push(sql`(updated_at, id) < (${new Date(cursor.updatedAt)}, ${cursor.id})`);
       }
       const result = await sql<WorkbenchRow>`
         SELECT id, title, draft_prompt, draft_negative, draft_params,
@@ -91,23 +66,16 @@ export class WorkbenchService implements WorkbenchServicePort {
       return {
         items: rows.map(toWorkbenchSession),
         nextCursor:
-          hasMore && last
-            ? encodeCursor({ id: last.id, updatedAt: toIso(last.updated_at) })
-            : null,
+          hasMore && last ? encodeCursor({ id: last.id, updatedAt: toIso(last.updated_at) }) : null,
       };
     });
   }
 
   async get(ownerId: number, id: string): Promise<WorkbenchSession> {
-    return withOwnerTransaction(this.db, ownerId, async (trx) =>
-      this.getTx(trx, id),
-    );
+    return withOwnerTransaction(this.db, ownerId, async (trx) => this.getTx(trx, id));
   }
 
-  async create(
-    ownerId: number,
-    rawInput: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession> {
+  async create(ownerId: number, rawInput: CreateWorkbenchSession): Promise<WorkbenchSession> {
     const input = createWorkbenchSessionSchema.parse(rawInput);
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
       const draft = {
@@ -139,27 +107,18 @@ export class WorkbenchService implements WorkbenchServicePort {
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
       const current = await this.getTx(trx, id);
       if (current.version !== input.expectedVersion) throw conflict(current);
-      if (input.draft)
-        await this.validatePromptReferences(
-          trx,
-          input.draft.promptReferenceIds,
-        );
+      if (input.draft) await this.validatePromptReferences(trx, input.draft.promptReferenceIds);
       const sets = [sql`version = version + 1`, sql`updated_at = now()`];
       if (input.title !== undefined) sets.push(sql`title = ${input.title}`);
       if (input.draft !== undefined) {
         sets.push(sql`draft_prompt = ${input.draft.prompt}`);
         sets.push(sql`draft_negative = ${input.draft.negative}`);
         sets.push(sql`draft_params = ${JSON.stringify(input.draft.params)}`);
-        sets.push(
-          sql`prompt_reference_ids = ${JSON.stringify(input.draft.promptReferenceIds)}`,
-        );
+        sets.push(sql`prompt_reference_ids = ${JSON.stringify(input.draft.promptReferenceIds)}`);
       }
       if (input.archived !== undefined)
-        sets.push(
-          sql`archived_at = ${input.archived ? sql`now()` : sql`NULL`}`,
-        );
-      if (sets.length === 2)
-        throw new AppError('VALIDATION_FAILED', '没有可更新的工作台字段', 400);
+        sets.push(sql`archived_at = ${input.archived ? sql`now()` : sql`NULL`}`);
+      if (sets.length === 2) throw new AppError('VALIDATION_FAILED', '没有可更新的工作台字段', 400);
       await sql`
         UPDATE app.workbench_sessions SET ${sql.join(sets, sql`, `)}
         WHERE owner_id = ${ownerId} AND id = ${id} AND version = ${input.expectedVersion}
@@ -168,19 +127,11 @@ export class WorkbenchService implements WorkbenchServicePort {
     });
   }
 
-  async remove(
-    ownerId: number,
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession> {
+  async remove(ownerId: number, id: string, expectedVersion: number): Promise<WorkbenchSession> {
     return this.changeDeletedState(ownerId, id, expectedVersion, true);
   }
 
-  async restore(
-    ownerId: number,
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession> {
+  async restore(ownerId: number, id: string, expectedVersion: number): Promise<WorkbenchSession> {
     return this.changeDeletedState(ownerId, id, expectedVersion, false);
   }
 
@@ -202,29 +153,18 @@ export class WorkbenchService implements WorkbenchServicePort {
     });
   }
 
-  private async getTx(
-    trx: OwnerTransaction,
-    id: string,
-  ): Promise<WorkbenchSession> {
+  private async getTx(trx: OwnerTransaction, id: string): Promise<WorkbenchSession> {
     const result = await sql<WorkbenchRow>`
       SELECT id, title, draft_prompt, draft_negative, draft_params,
         prompt_reference_ids, version, created_at, updated_at, archived_at, deleted_at
       FROM app.workbench_sessions WHERE id = ${id}
     `.execute(trx);
     const row = result.rows[0];
-    if (!row)
-      throw new AppError(
-        'WORKBENCH_SESSION_NOT_FOUND',
-        '工作台会话不存在',
-        404,
-      );
+    if (!row) throw new AppError('WORKBENCH_SESSION_NOT_FOUND', '工作台会话不存在', 404);
     return toWorkbenchSession(row);
   }
 
-  private async validatePromptReferences(
-    trx: OwnerTransaction,
-    ids: string[],
-  ): Promise<void> {
+  private async validatePromptReferences(trx: OwnerTransaction, ids: string[]): Promise<void> {
     if (!ids.length) return;
     const unique = [...new Set(ids)];
     const result = await sql<{ count: string }>`
@@ -235,11 +175,7 @@ export class WorkbenchService implements WorkbenchServicePort {
       )}) AND deleted_at IS NULL
     `.execute(trx);
     if (Number(result.rows[0]?.count ?? 0) !== unique.length)
-      throw new AppError(
-        'VALIDATION_FAILED',
-        '工作台引用了不存在或已删除的提示词',
-        400,
-      );
+      throw new AppError('VALIDATION_FAILED', '工作台引用了不存在或已删除的提示词', 400);
   }
 }
 
@@ -262,19 +198,13 @@ function toWorkbenchSession(row: WorkbenchRow): WorkbenchSession {
 }
 
 function conflict(current: WorkbenchSession): AppError {
-  return new AppError(
-    'WORKBENCH_VERSION_CONFLICT',
-    '工作台草稿已在其他设备更新',
-    409,
-    false,
-    { current },
-  );
+  return new AppError('WORKBENCH_VERSION_CONFLICT', '工作台草稿已在其他设备更新', 409, false, {
+    current,
+  });
 }
 
 function toIso(value: Date | string): string {
-  return value instanceof Date
-    ? value.toISOString()
-    : new Date(value).toISOString();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function toIsoOrNull(value: Date | string | null): string | null {
@@ -287,9 +217,10 @@ function encodeCursor(value: { id: string; updatedAt: string }): string {
 
 function decodeCursor(cursor: string): { id: string; updatedAt: string } {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, 'base64url').toString('utf8'),
-    ) as { id?: unknown; updatedAt?: unknown };
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      id?: unknown;
+      updatedAt?: unknown;
+    };
     if (typeof parsed.id !== 'string' || typeof parsed.updatedAt !== 'string')
       throw new Error('invalid');
     return { id: parsed.id, updatedAt: parsed.updatedAt };

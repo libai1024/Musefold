@@ -4,7 +4,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import authGolden from '../../../../../tests/fixtures/newapi/auth-golden.json';
 import redemptionGolden from '../../../../../tests/fixtures/newapi/redemption-golden.json';
-import { createNewApiClient, noticeId, normalizeAccountServerUrl, RelayApiError } from '../api-client';
+import {
+  createNewApiClient,
+  noticeId,
+  normalizeAccountServerUrl,
+  RelayApiError,
+} from '../api-client';
 
 const BASE = 'https://relay.test';
 
@@ -18,7 +23,12 @@ function responseOf(golden: GoldenCase): Response {
 
 /** 按 `${method} ${path}` 路由 golden 响应的 mock fetch；记录请求供断言。 */
 function goldenFetch(routes: Record<string, GoldenCase>) {
-  const calls: Array<{ method: string; path: string; headers: Record<string, string>; body: unknown }> = [];
+  const calls: Array<{
+    method: string;
+    path: string;
+    headers: Record<string, string>;
+    body: unknown;
+  }> = [];
   const impl = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     expect(url.startsWith(BASE)).toBe(true);
@@ -74,21 +84,31 @@ describe('login', () => {
     expect(session.refreshToken).toBe(
       'dfb28cd2-7de6-4db7-995e-439666d24244.5G5PTJQeyDfrAl2IfponEKuVUvP4XusTxaRWeshRxY7l5z5VqJj7UuqERpTOPUsw',
     );
-    expect(session.user).toMatchObject({ id: 4, username: 'smoke01', quota: 2468895, group: 'default' });
+    expect(session.user).toMatchObject({
+      id: 4,
+      username: 'smoke01',
+      quota: 2468895,
+      group: 'default',
+    });
     expect(calls[0].body).toEqual({ username: 'smoke01', password: 'pw' });
   });
 
   it('凭据错误 → ACCOUNT/CREDENTIALS（message 用服务器原文）', async () => {
     const { impl } = goldenFetch({ 'POST /api/user/login': AUTH.login_bad_credentials });
     const client = createNewApiClient(BASE, { fetchImpl: impl });
-    const error = await expectRelayError(client.login({ username: 'x', password: 'y' }), 'ACCOUNT/CREDENTIALS');
+    const error = await expectRelayError(
+      client.login({ username: 'x', password: 'y' }),
+      'ACCOUNT/CREDENTIALS',
+    );
     expect(error.message).toBe('用户名或密码错误');
   });
 });
 
 describe('refresh（静默续期）', () => {
   it('成功：携带 Cookie 请求，返回新 JWT 与轮换后的 refresh 值', async () => {
-    const { impl, calls } = goldenFetch({ 'POST /api/user/auth/refresh': AUTH.refresh_success_rotated });
+    const { impl, calls } = goldenFetch({
+      'POST /api/user/auth/refresh': AUTH.refresh_success_rotated,
+    });
     const client = createNewApiClient(BASE, { fetchImpl: impl });
     const session = await client.refresh('old-refresh-value');
 
@@ -114,7 +134,9 @@ describe('设备令牌（OQ-01 冻结路径）', () => {
     const client = createNewApiClient(BASE, { fetchImpl: impl });
 
     const tokens = await client.listTokens('jwt');
-    expect(tokens).toEqual([{ id: 2, name: 'smoke-device', status: 1, keyMasked: 'tP1**********LmzM' }]);
+    expect(tokens).toEqual([
+      { id: 2, name: 'smoke-device', status: 1, keyMasked: 'tP1**********LmzM' },
+    ]);
 
     const key = await client.fetchTokenKey('jwt', 2);
     expect(key.startsWith('sk-')).toBe(true);
@@ -251,7 +273,10 @@ describe('传输层错误分类', () => {
 describe('register', () => {
   it('用户名占用 → ACCOUNT/CONFLICT', async () => {
     const { impl } = goldenFetch({
-      'POST /api/user/register': { status: 200, body: { success: false, message: '用户名已存在！' } },
+      'POST /api/user/register': {
+        status: 200,
+        body: { success: false, message: '用户名已存在！' },
+      },
     });
     const client = createNewApiClient(BASE, { fetchImpl: impl });
     await expectRelayError(client.register({ username: 'a', password: 'b' }), 'ACCOUNT/CONFLICT');
@@ -259,9 +284,15 @@ describe('register', () => {
 
   it('其他校验失败 → ACCOUNT/CREDENTIALS', async () => {
     const { impl } = goldenFetch({
-      'POST /api/user/register': { status: 200, body: { success: false, message: '密码长度至少为8个字符' } },
+      'POST /api/user/register': {
+        status: 200,
+        body: { success: false, message: '密码长度至少为8个字符' },
+      },
     });
     const client = createNewApiClient(BASE, { fetchImpl: impl });
-    await expectRelayError(client.register({ username: 'a', password: 'b' }), 'ACCOUNT/CREDENTIALS');
+    await expectRelayError(
+      client.register({ username: 'a', password: 'b' }),
+      'ACCOUNT/CREDENTIALS',
+    );
   });
 });

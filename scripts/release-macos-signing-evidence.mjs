@@ -58,7 +58,13 @@ function run(command, commandArgs) {
 }
 
 function firstLine(value) {
-  return `${value || ''}`.trim().split('\n').map((line) => line.trim()).find(Boolean) || '';
+  return (
+    `${value || ''}`
+      .trim()
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || ''
+  );
 }
 
 async function exists(path) {
@@ -132,13 +138,18 @@ async function readEvidence() {
 async function validateExistingEvidence(evidence) {
   const gate = evidence?.macosDeveloperIdNotarization;
   if (gate === undefined) {
-    record('macOS signing/notarization evidence', 'manual', `missing ${evidencePath}:macosDeveloperIdNotarization`);
+    record(
+      'macOS signing/notarization evidence',
+      'manual',
+      `missing ${evidencePath}:macosDeveloperIdNotarization`,
+    );
     return null;
   }
 
   const issues = [];
   if (Number.isNaN(Date.parse(gate.checkedAt))) issues.push('checkedAt invalid');
-  if (typeof gate.teamId !== 'string' || !/^[A-Z0-9]{10}$/.test(gate.teamId)) issues.push('teamId must be a 10-character Apple Team ID');
+  if (typeof gate.teamId !== 'string' || !/^[A-Z0-9]{10}$/.test(gate.teamId))
+    issues.push('teamId must be a 10-character Apple Team ID');
   const expectedBundleId = await bundleIdFromConfig();
   if (gate.bundleId !== expectedBundleId) issues.push(`bundleId must be ${expectedBundleId}`);
   if (!isSha(gate.artifacts?.dmgSha256)) issues.push('artifacts.dmgSha256 invalid');
@@ -147,11 +158,13 @@ async function validateExistingEvidence(evidence) {
   const paths = await artifactPaths();
   if (await exists(paths.dmg)) {
     const current = await sha256(paths.dmg);
-    if (gate.artifacts?.dmgSha256 !== current) issues.push('artifacts.dmgSha256 does not match current DMG');
+    if (gate.artifacts?.dmgSha256 !== current)
+      issues.push('artifacts.dmgSha256 does not match current DMG');
   }
   if (await exists(paths.zip)) {
     const current = await sha256(paths.zip);
-    if (gate.artifacts?.zipSha256 !== current) issues.push('artifacts.zipSha256 does not match current ZIP');
+    if (gate.artifacts?.zipSha256 !== current)
+      issues.push('artifacts.zipSha256 does not match current ZIP');
   }
 
   const gateChecks = gate.checks ?? {};
@@ -160,7 +173,11 @@ async function validateExistingEvidence(evidence) {
   }
 
   if (issues.length === 0) {
-    record('macOS signing/notarization evidence', 'pass', `${evidencePath}:macosDeveloperIdNotarization is complete`);
+    record(
+      'macOS signing/notarization evidence',
+      'pass',
+      `${evidencePath}:macosDeveloperIdNotarization is complete`,
+    );
   } else {
     record('macOS signing/notarization evidence', 'fail', issues.join('; '));
   }
@@ -169,7 +186,11 @@ async function validateExistingEvidence(evidence) {
 
 async function collectCurrentEvidence() {
   if (process.platform !== 'darwin') {
-    record('macOS signing evidence host', 'fail', `must run on macOS signing host; current platform=${process.platform}`);
+    record(
+      'macOS signing evidence host',
+      'fail',
+      `must run on macOS signing host; current platform=${process.platform}`,
+    );
     return null;
   }
   record('macOS signing evidence host', 'pass', 'darwin');
@@ -186,47 +207,96 @@ async function collectCurrentEvidence() {
 
   const dmg = await fileSummary(paths.dmg);
   const zip = await fileSummary(paths.zip);
-  record('macOS signed release artifact hashes', 'pass', `${dmg.path} sha256 ${dmg.sha256}; ${zip.path} sha256 ${zip.sha256}`);
+  record(
+    'macOS signed release artifact hashes',
+    'pass',
+    `${dmg.path} sha256 ${dmg.sha256}; ${zip.path} sha256 ${zip.sha256}`,
+  );
 
-  const codesignVerify = run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', safePath(paths.app)]);
+  const codesignVerify = run('codesign', [
+    '--verify',
+    '--deep',
+    '--strict',
+    '--verbose=2',
+    safePath(paths.app),
+  ]);
   const codesignPassed = codesignVerify.status === 0;
   if (codesignPassed) {
     record('codesign verification', 'pass', 'codesign --verify --deep --strict --verbose=2 passed');
   } else {
-    record('codesign verification', 'fail', firstLine(codesignVerify.stderr || codesignVerify.stdout) || 'codesign verification failed');
+    record(
+      'codesign verification',
+      'fail',
+      firstLine(codesignVerify.stderr || codesignVerify.stdout) || 'codesign verification failed',
+    );
   }
 
   const details = run('codesign', ['-dv', '--verbose=4', safePath(paths.app)]);
   const parsed = parseCodesignDetails(details.stderr || details.stdout);
   const expectedBundleId = await bundleIdFromConfig();
-  if (details.status === 0 && parsed.teamId && parsed.identifier === expectedBundleId && parsed.authority.some((authority) => authority.startsWith('Developer ID Application:'))) {
-    record('Developer ID signature identity', 'pass', `bundleId=${parsed.identifier}, teamId=${parsed.teamId}`);
+  if (
+    details.status === 0 &&
+    parsed.teamId &&
+    parsed.identifier === expectedBundleId &&
+    parsed.authority.some((authority) => authority.startsWith('Developer ID Application:'))
+  ) {
+    record(
+      'Developer ID signature identity',
+      'pass',
+      `bundleId=${parsed.identifier}, teamId=${parsed.teamId}`,
+    );
   } else {
     const reasons = [];
-    if (details.status !== 0) reasons.push(firstLine(details.stderr || details.stdout) || 'codesign details unavailable');
+    if (details.status !== 0)
+      reasons.push(firstLine(details.stderr || details.stdout) || 'codesign details unavailable');
     if (!parsed.teamId) reasons.push('TeamIdentifier missing');
-    if (parsed.identifier !== expectedBundleId) reasons.push(`Identifier=${parsed.identifier || '<missing>'}, expected ${expectedBundleId}`);
-    if (!parsed.authority.some((authority) => authority.startsWith('Developer ID Application:'))) reasons.push('Developer ID Application authority missing');
+    if (parsed.identifier !== expectedBundleId)
+      reasons.push(`Identifier=${parsed.identifier || '<missing>'}, expected ${expectedBundleId}`);
+    if (!parsed.authority.some((authority) => authority.startsWith('Developer ID Application:')))
+      reasons.push('Developer ID Application authority missing');
     record('Developer ID signature identity', 'fail', reasons.join('; '));
   }
 
   const spctl = run('spctl', ['--assess', '--type', 'execute', '--verbose=4', safePath(paths.app)]);
   const spctlPassed = spctl.status === 0;
   if (spctlPassed) {
-    record('Gatekeeper assessment', 'pass', firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment passed');
+    record(
+      'Gatekeeper assessment',
+      'pass',
+      firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment passed',
+    );
   } else {
-    record('Gatekeeper assessment', 'fail', firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment failed');
+    record(
+      'Gatekeeper assessment',
+      'fail',
+      firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment failed',
+    );
   }
 
   const staple = run('xcrun', ['stapler', 'validate', safePath(paths.dmg)]);
   const staplePassed = staple.status === 0;
   if (staplePassed) {
-    record('notarization staple validation', 'pass', firstLine(staple.stdout || staple.stderr) || 'xcrun stapler validate passed');
+    record(
+      'notarization staple validation',
+      'pass',
+      firstLine(staple.stdout || staple.stderr) || 'xcrun stapler validate passed',
+    );
   } else {
-    record('notarization staple validation', 'fail', firstLine(staple.stderr || staple.stdout) || 'xcrun stapler validate failed');
+    record(
+      'notarization staple validation',
+      'fail',
+      firstLine(staple.stderr || staple.stdout) || 'xcrun stapler validate failed',
+    );
   }
 
-  if (!codesignPassed || !parsed.teamId || parsed.identifier !== expectedBundleId || !spctlPassed || !staplePassed) return null;
+  if (
+    !codesignPassed ||
+    !parsed.teamId ||
+    parsed.identifier !== expectedBundleId ||
+    !spctlPassed ||
+    !staplePassed
+  )
+    return null;
 
   return {
     macosDeveloperIdNotarization: {
@@ -271,11 +341,14 @@ async function main() {
   const ok = failed.length === 0 && (!strict || pending.length === 0);
 
   if (json) {
-    console.log(JSON.stringify({ evidencePath, checks, existingGate, evidenceSnippet, strict, ok }, null, 2));
+    console.log(
+      JSON.stringify({ evidencePath, checks, existingGate, evidenceSnippet, strict, ok }, null, 2),
+    );
   } else {
     console.log('macOS Developer ID signing/notarization evidence:');
     for (const check of checks) {
-      const mark = check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
+      const mark =
+        check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
       console.log(`${mark} ${check.name}${check.details ? ` - ${check.details}` : ''}`);
     }
     if (evidenceSnippet) {
@@ -283,7 +356,9 @@ async function main() {
       console.log(JSON.stringify(evidenceSnippet, null, 2));
     } else if (pending.length > 0) {
       console.log('\nGenerate this evidence on the signing host after signing/notarization:');
-      console.log('npm run release:macos:signing -- --emit-evidence --out release/macos-signing-evidence.json');
+      console.log(
+        'npm run release:macos:signing -- --emit-evidence --out release/macos-signing-evidence.json',
+      );
     }
     if (!strict && pending.length > 0) {
       console.log('\nUse --strict before public release to require this evidence block.');

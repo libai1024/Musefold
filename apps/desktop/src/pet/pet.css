@@ -60,30 +60,59 @@ body,
 /* error / wake 刻意不加动画：躺平的"死机感"和定格的伸懒腰本身就是表达 */
 
 @keyframes pet-breathe {
-  0%, 100% { transform: scaleY(1) scaleX(1); }
-  50% { transform: scaleY(1.02) scaleX(1.008); }
+  0%,
+  100% {
+    transform: scaleY(1) scaleX(1);
+  }
+  50% {
+    transform: scaleY(1.02) scaleX(1.008);
+  }
 }
 
 @keyframes pet-work-bob {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-3px) rotate(0.6deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(0.6deg);
+  }
 }
 
 @keyframes pet-cheer {
-  0%, 100% { transform: translateY(0) scale(1); }
-  30% { transform: translateY(-7px) scale(1.03); }
-  60% { transform: translateY(0) scale(0.99); }
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    transform: translateY(-7px) scale(1.03);
+  }
+  60% {
+    transform: translateY(0) scale(0.99);
+  }
 }
 
 @keyframes pet-poke-shake {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-3.5deg); }
-  75% { transform: rotate(3.5deg); }
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-3.5deg);
+  }
+  75% {
+    transform: rotate(3.5deg);
+  }
 }
 
 @keyframes pet-float {
-  0%, 100% { transform: translateY(0) rotate(-1deg); }
-  50% { transform: translateY(-6px) rotate(1deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1deg);
+  }
 }
 
 /* 帧容器：始终只挂载当前已解码帧，避免透明窗口交叉淡入时短暂露白。 */
@@ -121,8 +150,7 @@ body,
   border-radius: 12px;
   background: rgba(28, 28, 32, 0.86);
   color: rgba(255, 255, 255, 0.94);
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 12px;
   line-height: 1.45;
   text-align: center;

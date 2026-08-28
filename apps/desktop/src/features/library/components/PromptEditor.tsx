@@ -3,10 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
-import {
-  PromptEditorForm,
-  type PromptEditorDraft,
-} from '@musefold/product-ui';
+import { PromptEditorForm, type PromptEditorDraft } from '@musefold/product-ui';
 import { useLibraryStore } from '../store';
 import { Dialog, DialogContent } from '../../../components/ui/dialog';
 
@@ -27,12 +24,7 @@ function toDraft(prompt?: DesktopLibraryPrompt | null): PromptEditorDraft {
   };
 }
 
-export function PromptEditor({
-  open,
-  onOpenChange,
-  prompt,
-  onSaved,
-}: Props) {
+export function PromptEditor({ open, onOpenChange, prompt, onSaved }: Props) {
   const createPrompt = useLibraryStore((state) => state.createPrompt);
   const updatePrompt = useLibraryStore((state) => state.updatePrompt);
   const [saving, setSaving] = useState(false);

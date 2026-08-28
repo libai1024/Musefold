@@ -8,9 +8,7 @@ interface PetWindowLifecycleActions {
 
 /** 只有真正可见且未最小化的主窗口才允许桌宠进入页面；失焦不代表页面关闭。 */
 export function canEnterPetPage(win: BrowserWindow): boolean {
-  return !win.isDestroyed()
-    && win.isVisible()
-    && !win.isMinimized();
+  return !win.isDestroyed() && win.isVisible() && !win.isMinimized();
 }
 
 /** 把主窗口的可见性和几何变化统一映射为桌宠页面会话事件。 */

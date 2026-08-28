@@ -30,12 +30,7 @@ export type PromptSource = 'manual' | 'import' | 'shared' | 'slip';
 export type HistoryStatus = 'success' | 'failed' | 'cancelled';
 
 /** 图片尺寸（gpt-image-2 取值） */
-export type ImageSize =
-  | '1024x1024'
-  | '1536x1024'
-  | '1024x1536'
-  | '2048x2048'
-  | 'auto';
+export type ImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '2048x2048' | 'auto';
 
 /** 图片质量 */
 export type ImageQuality = 'low' | 'medium' | 'high' | 'auto';

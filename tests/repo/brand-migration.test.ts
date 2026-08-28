@@ -1,11 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  APP_DATA_NAMESPACE,
-  APP_NAME,
-  LOCAL_STORAGE_PREFIX,
-} from '@musefold/domain/constants';
+import { APP_DATA_NAMESPACE, APP_NAME, LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
 import {
   BACKUPS_DIR_NAME,
   DB_NAME,
@@ -38,11 +34,24 @@ const visibleUi = [
   'apps/desktop/src/features/onboarding/OnboardingStepWelcome.tsx',
   'apps/desktop/src/features/generation/workbench/GenerationWorkbench.tsx',
   'apps/desktop/src/features/design-schemes/DesignSchemesPage.tsx',
-].map((path) => readFileSync(path, 'utf8')).join('\n');
+]
+  .map((path) => readFileSync(path, 'utf8'))
+  .join('\n');
 
 const textExtensions = new Set([
-  '.cjs', '.css', '.html', '.js', '.json', '.jsx', '.md', '.mjs',
-  '.py', '.ts', '.tsx', '.yaml', '.yml',
+  '.cjs',
+  '.css',
+  '.html',
+  '.js',
+  '.json',
+  '.jsx',
+  '.md',
+  '.mjs',
+  '.py',
+  '.ts',
+  '.tsx',
+  '.yaml',
+  '.yml',
 ]);
 
 // 守卫要守的是源码而非产物；并发构建写产物会让扫描出现 ENOENT 竞态。
@@ -63,14 +72,16 @@ const EXCLUDED_SCAN_DIRECTORIES = new Set([
 ]);
 
 function readProductText(path: string): string {
-  return readdirSync(path, { withFileTypes: true }).map((entry) => {
-    const child = join(path, entry.name);
-    // workspace 的 symlink 会把扫描带进 node_modules 里的其他包。
-    if (entry.isSymbolicLink() || EXCLUDED_SCAN_DIRECTORIES.has(entry.name)) return '';
-    if (entry.isDirectory()) return readProductText(child);
-    if (!textExtensions.has(extname(entry.name))) return '';
-    return readFileSync(child, 'utf8');
-  }).join('\n');
+  return readdirSync(path, { withFileTypes: true })
+    .map((entry) => {
+      const child = join(path, entry.name);
+      // workspace 的 symlink 会把扫描带进 node_modules 里的其他包。
+      if (entry.isSymbolicLink() || EXCLUDED_SCAN_DIRECTORIES.has(entry.name)) return '';
+      if (entry.isDirectory()) return readProductText(child);
+      if (!textExtensions.has(extname(entry.name))) return '';
+      return readFileSync(child, 'utf8');
+    })
+    .join('\n');
 }
 
 describe('Musefold brand boundary', () => {
@@ -101,7 +112,9 @@ describe('Musefold brand boundary', () => {
     // 启动文件对 appData 的引用只允许一处：开发态把 userData 钉在 musefold 域
     // （根包更名 musefold-app 后防漂移，v0.4）。不得出现任何目录回退逻辑。
     expect(bootstrap.match(/app\.getPath\('appData'\)/g) ?? []).toHaveLength(1);
-    expect(bootstrap).toContain("app.setPath('userData', join(app.getPath('appData'), 'musefold'))");
+    expect(bootstrap).toContain(
+      "app.setPath('userData', join(app.getPath('appData'), 'musefold'))",
+    );
   });
 
   it('accepts only Musefold protocol and exchange formats', () => {
@@ -111,12 +124,13 @@ describe('Musefold brand boundary', () => {
     expect(EXPORT_FORMAT).toBe('musefold-export');
     expect(EXPORT_JSON_NAME).toBe('musefold-export.json');
     expect(() => parseShareDeeplink(`${formerSlug}://import?data=abc`)).toThrow(/INVALID_DEEPLINK/);
-    expect(validateEnvelope({
-      format: `${formerSlug}-export`,
-      schemaVersion: 1,
-      data: {},
-    }).ok).toBe(false);
-
+    expect(
+      validateEnvelope({
+        format: `${formerSlug}-export`,
+        schemaVersion: 1,
+        data: {},
+      }).ok,
+    ).toBe(false);
   });
 
   it('contains no former brand or abbreviated runtime identifiers', () => {
@@ -124,7 +138,15 @@ describe('Musefold brand boundary', () => {
     const formerEnvPrefix = ['P', 'F_'].join('');
     const formerGlobalPrefix = ['__p', 'f'].join('');
     const productText = [
-      ...['apps/desktop/src', 'apps/desktop/electron', 'packages', 'scripts', 'preview', 'tests', '.github'].map(readProductText),
+      ...[
+        'apps/desktop/src',
+        'apps/desktop/electron',
+        'packages',
+        'scripts',
+        'preview',
+        'tests',
+        '.github',
+      ].map(readProductText),
       readFileSync('README.md', 'utf8'),
       readFileSync('package.json', 'utf8'),
       readFileSync('apps/desktop/package.json', 'utf8'),

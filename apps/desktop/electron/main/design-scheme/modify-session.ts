@@ -62,7 +62,9 @@ export class DesignSchemeModifySession {
     this.abortController.abort();
   }
 
-  private emitState(state: 'created' | 'compiling_scheme' | 'draft_ready' | 'blocked' | 'failed' | 'cancelled'): void {
+  private emitState(
+    state: 'created' | 'compiling_scheme' | 'draft_ready' | 'blocked' | 'failed' | 'cancelled',
+  ): void {
     this.deps.emit({ kind: 'state', executionId: this.executionId, state });
   }
 
@@ -78,7 +80,12 @@ export class DesignSchemeModifySession {
       return await this.execute();
     } catch (error) {
       if (this.abortController.signal.aborted) {
-        this.upsertTrace({ id: 'modify-final', kind: 'system', title: '修改已取消', status: 'warning' });
+        this.upsertTrace({
+          id: 'modify-final',
+          kind: 'system',
+          title: '修改已取消',
+          status: 'warning',
+        });
         this.emitState('cancelled');
         this.deps.emit({ kind: 'cancelled', executionId: this.executionId });
         return fail(appError('CANCELLED', '修改方案已取消', { retryable: false }));
@@ -107,9 +114,20 @@ export class DesignSchemeModifySession {
     const adapter = this.deps.resolveAdapter();
     if (!adapter) {
       const message = '修改设计方案需要 Agent 参与。请先在「设置 → AI 连接」配置可用的文本模型。';
-      this.upsertTrace({ id: 'modify-final', kind: 'system', title: '无法修改', detail: message, status: 'error' });
+      this.upsertTrace({
+        id: 'modify-final',
+        kind: 'system',
+        title: '无法修改',
+        detail: message,
+        status: 'error',
+      });
       this.emitState('blocked');
-      this.deps.emit({ kind: 'failed', executionId: this.executionId, code: 'AI_UNAVAILABLE', message });
+      this.deps.emit({
+        kind: 'failed',
+        executionId: this.executionId,
+        code: 'AI_UNAVAILABLE',
+        message,
+      });
       return fail(appError('AUTH_REQUIRED', message, { recoveryAction: 'configure-ai' }));
     }
 
@@ -130,10 +148,14 @@ export class DesignSchemeModifySession {
       status: 'running',
     });
     // 展示名（可能被重命名过）作为修订基线的名称，Agent 未被要求改名时保持它。
-    const { output, retried } = await runSchemeReviser(adapter, {
-      instruction: this.request.instruction,
-      document: { ...base, name: summary.name },
-    }, this.abortController.signal);
+    const { output, retried } = await runSchemeReviser(
+      adapter,
+      {
+        instruction: this.request.instruction,
+        document: { ...base, name: summary.name },
+      },
+      this.abortController.signal,
+    );
     if (this.abortController.signal.aborted) {
       throw Object.assign(new Error('修改已取消'), { name: 'AbortError' });
     }
@@ -147,15 +169,20 @@ export class DesignSchemeModifySession {
     });
 
     const document = this.buildDocument(adapter, base, output);
-    const saved = repository.applyAgentRevision(this.request.schemeId, this.request.baseRevisionId, document);
+    const saved = repository.applyAgentRevision(
+      this.request.schemeId,
+      this.request.baseRevisionId,
+      document,
+    );
 
     this.upsertTrace({
       id: 'save-revision',
       kind: 'tool',
       title: '保存新版本',
-      detail: summary.status === 'formal'
-        ? '正式版本保持可用；新版本作为待验证草稿保存'
-        : '草稿已更新为新版本',
+      detail:
+        summary.status === 'formal'
+          ? '正式版本保持可用；新版本作为待验证草稿保存'
+          : '草稿已更新为新版本',
       status: 'success',
     });
     this.upsertTrace({

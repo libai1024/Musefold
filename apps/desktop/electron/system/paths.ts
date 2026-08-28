@@ -15,9 +15,10 @@ export function getPaths() {
   const userData = app.getPath('userData');
   // E2E launches use an isolated --user-data-dir. Keep generated images inside
   // it as well, otherwise deterministic tests would write into the real Pictures folder.
-  const pictures = process.env['MUSEFOLD_E2E'] === '1'
-    ? join(userData, 'Pictures')
-    : join(app.getPath('pictures'), PICTURES_DIR_NAME);
+  const pictures =
+    process.env['MUSEFOLD_E2E'] === '1'
+      ? join(userData, 'Pictures')
+      : join(app.getPath('pictures'), PICTURES_DIR_NAME);
   return {
     userData,
     db: join(userData, DB_NAME),

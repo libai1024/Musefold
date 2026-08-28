@@ -62,7 +62,7 @@ describe('onboarding 2.0 surface', () => {
     expect(flow).toContain('<Dialog.Title');
     expect(ui).toContain('data-onboarding-step-heading');
     expect(flow).not.toContain('bg-background text-primary');
-    expect(welcome).toContain("./floating-library-onboarding.webp");
+    expect(welcome).toContain('./floating-library-onboarding.webp');
     expect(welcome).toContain('mf-onboarding-welcome-image');
     expect(overlays).toContain('width: min(1080px, calc(100vw - 48px))');
     expect(overlays).toContain('height: min(720px, calc(100vh - 48px))');

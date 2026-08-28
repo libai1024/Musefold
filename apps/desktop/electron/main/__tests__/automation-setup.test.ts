@@ -84,15 +84,29 @@ describe('automation safe setup routes', () => {
 
   it('opens native provider setup with non-secret validated draft', async () => {
     const { routes, openSetup } = fixture();
-    const result = await routes['POST /v1/setup/open'](context({
-      kind: 'provider',
-      draft: { name: '我的站', type: 'openai-compatible', baseUrl: 'https://relay.example/v1', model: 'image-v2' },
-    }));
+    const result = await routes['POST /v1/setup/open'](
+      context({
+        kind: 'provider',
+        draft: {
+          name: '我的站',
+          type: 'openai-compatible',
+          baseUrl: 'https://relay.example/v1',
+          model: 'image-v2',
+        },
+      }),
+    );
     expect(result).toMatchObject({ opened: true, kind: 'provider' });
-    expect(openSetup).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'provider',
-      draft: { name: '我的站', type: 'openai-compatible', baseUrl: 'https://relay.example/v1', model: 'image-v2' },
-    }));
+    expect(openSetup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'provider',
+        draft: {
+          name: '我的站',
+          type: 'openai-compatible',
+          baseUrl: 'https://relay.example/v1',
+          model: 'image-v2',
+        },
+      }),
+    );
   });
 
   it('rejects credentials and unsafe URLs before opening UI', async () => {
@@ -100,17 +114,25 @@ describe('automation safe setup routes', () => {
     let credentialError: unknown;
     let urlError: unknown;
     try {
-      await routes['POST /v1/setup/open'](context({
-        kind: 'account',
-        password: 'should-never-enter-control-plane',
-      }));
-    } catch (error) { credentialError = error; }
+      await routes['POST /v1/setup/open'](
+        context({
+          kind: 'account',
+          password: 'should-never-enter-control-plane',
+        }),
+      );
+    } catch (error) {
+      credentialError = error;
+    }
     try {
-      await routes['POST /v1/setup/open'](context({
-        kind: 'provider',
-        draft: { baseUrl: 'https://user:pass@relay.example/v1' },
-      }));
-    } catch (error) { urlError = error; }
+      await routes['POST /v1/setup/open'](
+        context({
+          kind: 'provider',
+          draft: { baseUrl: 'https://user:pass@relay.example/v1' },
+        }),
+      );
+    } catch (error) {
+      urlError = error;
+    }
     expect(credentialError).toMatchObject({ code: 'CREDENTIALS_NOT_ACCEPTED' });
     expect(urlError).toMatchObject({ code: 'INVALID_PARAMS' });
     expect(openSetup).not.toHaveBeenCalled();
@@ -118,7 +140,9 @@ describe('automation safe setup routes', () => {
 
   it('only activates an existing provider with stored credentials', async () => {
     const ready = fixture();
-    const selected = await ready.routes['POST /v1/setup/providers/:id/activate'](context({}, { id: 'provider-ready' }));
+    const selected = await ready.routes['POST /v1/setup/providers/:id/activate'](
+      context({}, { id: 'provider-ready' }),
+    );
     expect(selected).toMatchObject({ selected: { id: 'provider-ready', isActive: true } });
     expect(ready.setActiveProvider).toHaveBeenCalledWith('provider-ready');
     expect(ready.providerChanged).toHaveBeenCalledWith('provider-ready');
@@ -129,7 +153,9 @@ describe('automation safe setup routes', () => {
       await missingKey.routes['POST /v1/setup/providers/:id/activate'](
         context({}, { id: 'provider-empty' }),
       );
-    } catch (error) { missingKeyError = error; }
+    } catch (error) {
+      missingKeyError = error;
+    }
     expect(missingKeyError).toMatchObject({ code: 'PROVIDER_NOT_READY' });
   });
 });

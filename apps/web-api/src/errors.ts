@@ -13,10 +13,7 @@ export class AppError extends Error {
   }
 }
 
-export function toErrorResponse(
-  error: AppError,
-  requestId: string,
-): ApiErrorResponse {
+export function toErrorResponse(error: AppError, requestId: string): ApiErrorResponse {
   return {
     error: {
       code: error.code,

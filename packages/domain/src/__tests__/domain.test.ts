@@ -18,16 +18,18 @@ function promptFixture(): PromptDocument {
     content: 'A folded paper landscape',
     negative: 'watermark',
     folderId: null,
-    tags: [{
-      id: 'tag-paper',
-      name: 'paper',
-      group: null,
-      color: null,
-      version: 1,
-      createdAt: '2026-08-17T08:00:00.000Z',
-      updatedAt: '2026-08-17T08:00:00.000Z',
-      deletedAt: null,
-    }],
+    tags: [
+      {
+        id: 'tag-paper',
+        name: 'paper',
+        group: null,
+        color: null,
+        version: 1,
+        createdAt: '2026-08-17T08:00:00.000Z',
+        updatedAt: '2026-08-17T08:00:00.000Z',
+        deletedAt: null,
+      },
+    ],
     modelId: null,
     params: null,
     rating: 3,
@@ -73,11 +75,13 @@ describe('surface capabilities', () => {
 
 describe('prompt application rules', () => {
   it('normalizes optional values and de-duplicates tag ids', () => {
-    expect(normalizePromptDraft({
-      title: '  Poster   study ',
-      content: '  a quiet image  ',
-      tagIds: ['tag-paper', 'tag-paper', ' tag-blue '],
-    })).toMatchObject({
+    expect(
+      normalizePromptDraft({
+        title: '  Poster   study ',
+        content: '  a quiet image  ',
+        tagIds: ['tag-paper', 'tag-paper', ' tag-blue '],
+      }),
+    ).toMatchObject({
       title: 'Poster study',
       content: 'a quiet image',
       description: null,
@@ -87,10 +91,12 @@ describe('prompt application rules', () => {
   });
 
   it('maps a cloud prompt without desktop provider or file fields', () => {
-    expect(applyPromptToGeneration(promptFixture(), {
-      aspectRatio: '16:9',
-      quality: 'medium',
-    })).toEqual({
+    expect(
+      applyPromptToGeneration(promptFixture(), {
+        aspectRatio: '16:9',
+        quality: 'medium',
+      }),
+    ).toEqual({
       prompt: 'A folded paper landscape',
       negative: 'watermark',
       promptId: '01K1PROMPT',
@@ -102,13 +108,15 @@ describe('prompt application rules', () => {
   });
 
   it('maps composer fields to a cloud generation request', () => {
-    expect(composerToGenerationRequest({
-      prompt: '  quiet glass  ',
-      promptId: '01K1PROMPT',
-      size: '1024x1024',
-      aspectRatio: '1:1',
-      quality: 'medium',
-    })).toEqual({
+    expect(
+      composerToGenerationRequest({
+        prompt: '  quiet glass  ',
+        promptId: '01K1PROMPT',
+        size: '1024x1024',
+        aspectRatio: '1:1',
+        quality: 'medium',
+      }),
+    ).toEqual({
       prompt: 'quiet glass',
       promptId: '01K1PROMPT',
       size: '1024x1024',

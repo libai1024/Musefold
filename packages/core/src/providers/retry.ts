@@ -38,14 +38,20 @@ const DEFAULT_OPTIONS: RetryOptions = {
 export class RateLimitError extends Error {
   readonly status = 429;
 
-  constructor(public retryAfterMs?: number, message = 'Rate limited') {
+  constructor(
+    public retryAfterMs?: number,
+    message = 'Rate limited',
+  ) {
     super(message);
     this.name = 'RateLimitError';
   }
 }
 
 /** 解析 Retry-After 的秒数或 HTTP 日期格式。 */
-export function parseRetryAfter(value: string | null | undefined, now = Date.now()): number | undefined {
+export function parseRetryAfter(
+  value: string | null | undefined,
+  now = Date.now(),
+): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value.trim());
   if (Number.isFinite(seconds)) return Math.max(0, Math.round(seconds * 1000));
@@ -64,12 +70,16 @@ function isNetworkError(err: unknown): boolean {
   const e = err as { status?: number; name?: string; message?: string; code?: string };
   if (e?.status !== undefined) return false;
   const message = `${e?.name ?? ''} ${e?.message ?? ''} ${e?.code ?? ''}`;
-  return /fetch failed|network|APIConnectionError|connection error|ECONN|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|timeout|timed out|socket|connection reset|connection refused/i.test(message);
+  return /fetch failed|network|APIConnectionError|connection error|ECONN|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|timeout|timed out|socket|connection reset|connection refused/i.test(
+    message,
+  );
 }
 
 function retryAfterFrom(err: unknown): number | undefined {
   const retryAfter = (err as { retryAfterMs?: unknown })?.retryAfterMs;
-  return typeof retryAfter === 'number' && Number.isFinite(retryAfter) ? Math.max(0, retryAfter) : undefined;
+  return typeof retryAfter === 'number' && Number.isFinite(retryAfter)
+    ? Math.max(0, retryAfter)
+    : undefined;
 }
 
 function cancelledError(): Error {
@@ -78,7 +88,11 @@ function cancelledError(): Error {
   return cancelled;
 }
 
-async function waitForDelay(ms: number, sleep: (delayMs: number) => Promise<void>, signal?: AbortSignal): Promise<void> {
+async function waitForDelay(
+  ms: number,
+  sleep: (delayMs: number) => Promise<void>,
+  signal?: AbortSignal,
+): Promise<void> {
   if (!signal) {
     await sleep(ms);
     return;
@@ -108,7 +122,7 @@ async function waitForDelay(ms: number, sleep: (delayMs: number) => Promise<void
 export async function withRetry<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   options: Partial<RetryOptions> = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let lastError: unknown;
@@ -128,7 +142,8 @@ export async function withRetry<T>(
 
       const status = (err as { status?: number }).status;
       const shouldRetry =
-        (status !== undefined && (opts.retryOnStatus.includes(status) || (status >= 500 && status < 600))) ||
+        (status !== undefined &&
+          (opts.retryOnStatus.includes(status) || (status >= 500 && status < 600))) ||
         (status === undefined && opts.retryNetworkErrors && isNetworkError(err));
 
       if (!shouldRetry || attempt === opts.maxRetries) throw err;
@@ -139,7 +154,13 @@ export async function withRetry<T>(
       // Retry-After 是服务端给出的明确窗口，不再额外加抖动；退避则增加 0-1s 抖动。
       if (retryAfterMs === undefined) delay += opts.random() * 1000;
 
-      opts.onRetry?.({ phase: 'retrying', attempt: attempt + 1, maxRetries: opts.maxRetries, delayMs: delay, status });
+      opts.onRetry?.({
+        phase: 'retrying',
+        attempt: attempt + 1,
+        maxRetries: opts.maxRetries,
+        delayMs: delay,
+        status,
+      });
       await waitForDelay(delay, opts.sleep, signal);
     }
   }

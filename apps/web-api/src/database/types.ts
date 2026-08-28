@@ -1,4 +1,4 @@
-import type { ColumnType, Generated } from "kysely";
+import type { ColumnType, Generated } from 'kysely';
 
 type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
@@ -332,30 +332,30 @@ export interface McpSpendReservationsTable {
 }
 
 export interface MusefoldDatabase {
-  "app.cloud_accounts": CloudAccountsTable;
-  "auth.web_sessions": WebSessionsTable;
-  "auth.account_credentials": AccountCredentialsTable;
-  "ops.worker_heartbeats": WorkerHeartbeatsTable;
-  "ops.rate_limit_buckets": RateLimitBucketsTable;
-  "app.prompt_folders": PromptFoldersTable;
-  "app.prompt_tags": PromptTagsTable;
-  "app.prompts": PromptsTable;
-  "app.prompt_tag_links": PromptTagLinksTable;
-  "app.prompt_usage_events": PromptUsageEventsTable;
-  "app.sync_changes": SyncChangesTable;
-  "app.sync_devices": SyncDevicesTable;
-  "app.sync_mutations": SyncMutationsTable;
-  "app.sync_retention_state": SyncRetentionStateTable;
-  "app.workbench_sessions": WorkbenchSessionsTable;
-  "app.generation_runs": GenerationRunsTable;
-  "app.generation_assets": GenerationAssetsTable;
-  "app.generation_events": GenerationEventsTable;
-  "auth.oauth_clients": OAuthClientsTable;
-  "auth.oauth_grants": OAuthGrantsTable;
-  "auth.oauth_authorization_codes": OAuthAuthorizationCodesTable;
-  "auth.oauth_access_tokens": OAuthAccessTokensTable;
-  "auth.oauth_refresh_tokens": OAuthRefreshTokensTable;
-  "auth.oidc_provider_artifacts": OidcProviderArtifactsTable;
-  "app.published_skills": PublishedSkillsTable;
-  "app.mcp_spend_reservations": McpSpendReservationsTable;
+  'app.cloud_accounts': CloudAccountsTable;
+  'auth.web_sessions': WebSessionsTable;
+  'auth.account_credentials': AccountCredentialsTable;
+  'ops.worker_heartbeats': WorkerHeartbeatsTable;
+  'ops.rate_limit_buckets': RateLimitBucketsTable;
+  'app.prompt_folders': PromptFoldersTable;
+  'app.prompt_tags': PromptTagsTable;
+  'app.prompts': PromptsTable;
+  'app.prompt_tag_links': PromptTagLinksTable;
+  'app.prompt_usage_events': PromptUsageEventsTable;
+  'app.sync_changes': SyncChangesTable;
+  'app.sync_devices': SyncDevicesTable;
+  'app.sync_mutations': SyncMutationsTable;
+  'app.sync_retention_state': SyncRetentionStateTable;
+  'app.workbench_sessions': WorkbenchSessionsTable;
+  'app.generation_runs': GenerationRunsTable;
+  'app.generation_assets': GenerationAssetsTable;
+  'app.generation_events': GenerationEventsTable;
+  'auth.oauth_clients': OAuthClientsTable;
+  'auth.oauth_grants': OAuthGrantsTable;
+  'auth.oauth_authorization_codes': OAuthAuthorizationCodesTable;
+  'auth.oauth_access_tokens': OAuthAccessTokensTable;
+  'auth.oauth_refresh_tokens': OAuthRefreshTokensTable;
+  'auth.oidc_provider_artifacts': OidcProviderArtifactsTable;
+  'app.published_skills': PublishedSkillsTable;
+  'app.mcp_spend_reservations': McpSpendReservationsTable;
 }

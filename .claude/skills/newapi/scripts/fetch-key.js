@@ -11,10 +11,10 @@
  */
 async function fetchTokenKey(tokenId, { baseUrl, accessToken, userId }) {
   const res = await fetch(`${baseUrl}/api/token/${tokenId}/key`, {
-    method: "POST",
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "New-Api-User": userId,
+      'New-Api-User': userId,
     },
   });
 
@@ -33,15 +33,15 @@ async function fetchTokenKey(tokenId, { baseUrl, accessToken, userId }) {
   const body = await res.json();
 
   if (!body.success && !body.data) {
-    throw new Error(body.message || "Unknown API error");
+    throw new Error(body.message || 'Unknown API error');
   }
 
   const rawKey = body.data?.key;
   if (!rawKey) {
-    throw new Error("API response did not contain a key");
+    throw new Error('API response did not contain a key');
   }
 
-  return "sk-" + rawKey;
+  return 'sk-' + rawKey;
 }
 
 module.exports = { fetchTokenKey };

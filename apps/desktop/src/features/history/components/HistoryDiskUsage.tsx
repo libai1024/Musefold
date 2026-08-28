@@ -49,8 +49,14 @@ export function HistoryDiskUsage() {
       data-images-count={usage?.imagesCount ?? 0}
       data-images-bytes={usage?.imagesBytes ?? 0}
     >
-      {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <HardDrive className="h-3.5 w-3.5" />}
-      <span className="tabular-nums">{usage ? `${usage.imagesCount} 张 · ${formatBytes(usage.imagesBytes)}` : '图片占用'}</span>
+      {loading ? (
+        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <HardDrive className="h-3.5 w-3.5" />
+      )}
+      <span className="tabular-nums">
+        {usage ? `${usage.imagesCount} 张 · ${formatBytes(usage.imagesBytes)}` : '图片占用'}
+      </span>
     </button>
   );
 }

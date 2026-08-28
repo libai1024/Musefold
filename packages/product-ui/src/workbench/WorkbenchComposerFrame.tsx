@@ -1,14 +1,12 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 import {
   WorkbenchComposerSurface,
   type WorkbenchComposerSurfaceProps,
-} from "./WorkbenchComposerSurface";
-import { WorkbenchComposerToolbar } from "./WorkbenchComposerToolbar";
+} from './WorkbenchComposerSurface';
+import { WorkbenchComposerToolbar } from './WorkbenchComposerToolbar';
 
-export interface WorkbenchComposerFrameProps extends Omit<
-  WorkbenchComposerSurfaceProps,
-  "children" | "surfaceClassName"
-> {
+export interface WorkbenchComposerFrameProps
+  extends Omit<WorkbenchComposerSurfaceProps, 'children' | 'surfaceClassName'> {
   children: ReactNode;
   leadingControls: ReactNode;
   trailingControls: ReactNode;
@@ -30,16 +28,14 @@ export function WorkbenchComposerFrame({
   return (
     <WorkbenchComposerSurface
       {...surfaceProps}
-      className={["composer-dock", className].filter(Boolean).join(" ")}
+      className={['composer-dock', className].filter(Boolean).join(' ')}
     >
       <div className="mf-workbench-composer-content">{children}</div>
       <WorkbenchComposerToolbar className="mf-workbench-composer-toolbar">
         <div className="mf-workbench-composer-leading">{leadingControls}</div>
         <div className="mf-workbench-composer-trailing">{trailingControls}</div>
       </WorkbenchComposerToolbar>
-      {footer ? (
-        <div className="mf-workbench-composer-footer">{footer}</div>
-      ) : null}
+      {footer ? <div className="mf-workbench-composer-footer">{footer}</div> : null}
     </WorkbenchComposerSurface>
   );
 }

@@ -65,7 +65,12 @@ export function PromptPickerPopover({
           className="min-w-0 flex-1 bg-transparent text-[11px] text-primary outline-none placeholder:text-quaternary"
           data-testid="prompt-picker-search"
         />
-        <button type="button" onClick={onClose} className="icon-action h-7 w-7" aria-label="关闭提示词选择">
+        <button
+          type="button"
+          onClick={onClose}
+          className="icon-action h-7 w-7"
+          aria-label="关闭提示词选择"
+        >
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -81,20 +86,32 @@ export function PromptPickerPopover({
           >
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-border-subtle bg-inset">
               {prompt.coverImagePath ? (
-                <img src={toImageSrc(prompt.coverImagePath)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img
+                  src={toImageSrc(prompt.coverImagePath)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
               ) : (
                 <FileText className="h-4 w-4 text-secondary" />
               )}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-[11px] font-medium text-primary">{prompt.title}</span>
-              <span className="mt-0.5 block truncate text-meta text-tertiary">{prompt.content}</span>
+              <span className="block truncate text-[11px] font-medium text-primary">
+                {prompt.title}
+              </span>
+              <span className="mt-0.5 block truncate text-meta text-tertiary">
+                {prompt.content}
+              </span>
             </span>
             <span className="text-meta text-secondary">引用</span>
           </button>
         ))}
         {!loading && matched.length === 0 && (
-          <p className="px-3 py-8 text-center text-meta text-tertiary" data-testid="prompt-picker-empty">
+          <p
+            className="px-3 py-8 text-center text-meta text-tertiary"
+            data-testid="prompt-picker-empty"
+          >
             {prompts.length === 0 ? '提示词库还是空的' : '没有匹配的提示词'}
           </p>
         )}

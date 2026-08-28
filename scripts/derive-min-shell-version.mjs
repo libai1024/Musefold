@@ -56,7 +56,10 @@ const MEMBER_RE = /\s*\??\.\s*([A-Za-z_$][\w$]*)/g;
 export function stripComments(source) {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
-    .replace(/(^|[^:'"])\/\/[^\n]*/gm, (full, prefix) => prefix + ' '.repeat(full.length - prefix.length));
+    .replace(
+      /(^|[^:'"])\/\/[^\n]*/gm,
+      (full, prefix) => prefix + ' '.repeat(full.length - prefix.length),
+    );
 }
 
 const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -296,19 +299,18 @@ const FIXTURE_REGISTRY = {
 
 async function selfTest() {
   const ordinary = deriveFromSource('const x = api.prompt.list();', FIXTURE_REGISTRY);
-  assertEqual('普通调用 api.prompt.list()', [ordinary.minShellVersion, ordinary.usedMethods], [
-    '0.5.0',
-    1,
-  ]);
-
-  const optional = deriveFromSource(
-    'api?.updater?.checkContentNow?.();',
-    FIXTURE_REGISTRY,
+  assertEqual(
+    '普通调用 api.prompt.list()',
+    [ordinary.minShellVersion, ordinary.usedMethods],
+    ['0.5.0', 1],
   );
-  assertEqual('可选链 api?.updater?.checkContentNow?.()', [
-    optional.minShellVersion,
-    [...optional.used.keys()],
-  ], ['0.5.0', ['updater.checkContentNow']]);
+
+  const optional = deriveFromSource('api?.updater?.checkContentNow?.();', FIXTURE_REGISTRY);
+  assertEqual(
+    '可选链 api?.updater?.checkContentNow?.()',
+    [optional.minShellVersion, [...optional.used.keys()]],
+    ['0.5.0', ['updater.checkContentNow']],
+  );
 
   const prefixed = deriveFromSource('window.api.pet.ready();', FIXTURE_REGISTRY);
   assertEqual('window.api 前缀', [...prefixed.used.keys()], ['pet.ready']);
@@ -346,7 +348,10 @@ async function selfTest() {
     'prompt.notARealMethod',
   );
 
-  const floorOnly = deriveFromSource('const api = { fetch: { json: () => 1 } }; api.fetch.json();', FIXTURE_REGISTRY);
+  const floorOnly = deriveFromSource(
+    'const api = { fetch: { json: () => 1 } }; api.fetch.json();',
+    FIXTURE_REGISTRY,
+  );
   assertEqual('零引用时 floor 兜底', floorOnly.minShellVersion, '0.5.0');
 
   const belowFloor = deriveFromSource('api.legacy.ping();', FIXTURE_REGISTRY);
@@ -360,7 +365,11 @@ async function selfTest() {
 
   assertEqual('预发布 0.5.0-dev.3 < 0.5.0', compareSemver('0.5.0-dev.3', '0.5.0'), -1);
   assertEqual('预发布 0.5.0 > 0.5.0-dev.3', compareSemver('0.5.0', '0.5.0-dev.3'), 1);
-  assertEqual('预发布标识符按数值比较 0.5.0-dev.3 < 0.5.0-dev.10', compareSemver('0.5.0-dev.3', '0.5.0-dev.10'), -1);
+  assertEqual(
+    '预发布标识符按数值比较 0.5.0-dev.3 < 0.5.0-dev.10',
+    compareSemver('0.5.0-dev.3', '0.5.0-dev.10'),
+    -1,
+  );
 
   const registry = await loadRegistry();
   if (typeof registry.prompt?.list !== 'string') {

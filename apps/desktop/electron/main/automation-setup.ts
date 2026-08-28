@@ -3,10 +3,17 @@
 
 import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
-import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from '@musefold/automation-server';
+import {
+  AutomationError,
+  type AutomationRouteContext,
+  type AutomationRouteHandler,
+} from '@musefold/automation-server';
 import type { ProviderConfig } from '@musefold/desktop-contracts/models';
 import type { AccountStatus } from '@musefold/desktop-contracts/account';
-import type { AutomationProviderDraft, AutomationSetupRequest } from '@musefold/desktop-contracts/ipc';
+import type {
+  AutomationProviderDraft,
+  AutomationSetupRequest,
+} from '@musefold/desktop-contracts/ipc';
 import { IPC } from '@musefold/desktop-contracts/ipc';
 import { getAccountService } from '../account';
 import { getMainWindow } from './window';
@@ -25,7 +32,12 @@ export interface AutomationSetupDependencies {
 }
 
 function objectBody(context: AutomationRouteContext): Record<string, unknown> {
-  if (!context.body || typeof context.body !== 'object' || Array.isArray(context.body) || Buffer.isBuffer(context.body)) {
+  if (
+    !context.body ||
+    typeof context.body !== 'object' ||
+    Array.isArray(context.body) ||
+    Buffer.isBuffer(context.body)
+  ) {
     throw new AutomationError('INVALID_PARAMS', '请求体必须是 JSON 对象', 400);
   }
   return context.body as Record<string, unknown>;
@@ -35,7 +47,12 @@ function rejectSensitiveFields(value: unknown): void {
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     if (SENSITIVE_FIELD.test(key)) {
-      throw new AutomationError('CREDENTIALS_NOT_ACCEPTED', '请只在 Musefold 原生界面输入账号凭据或 API Key', 400, { field: key });
+      throw new AutomationError(
+        'CREDENTIALS_NOT_ACCEPTED',
+        '请只在 Musefold 原生界面输入账号凭据或 API Key',
+        400,
+        { field: key },
+      );
     }
     rejectSensitiveFields(child);
   }
@@ -43,7 +60,8 @@ function rejectSensitiveFields(value: unknown): void {
 
 function optionalText(value: unknown, field: string, maxLength: number): string | undefined {
   if (value == null || value === '') return undefined;
-  if (typeof value !== 'string') throw new AutomationError('INVALID_PARAMS', `${field} 必须是字符串`, 400);
+  if (typeof value !== 'string')
+    throw new AutomationError('INVALID_PARAMS', `${field} 必须是字符串`, 400);
   const normalized = value.trim();
   if (!normalized || normalized.length > maxLength) {
     throw new AutomationError('INVALID_PARAMS', `${field} 长度必须为 1-${maxLength}`, 400);
@@ -73,13 +91,31 @@ function providerDraft(value: unknown): AutomationProviderDraft | undefined {
   }
   if (baseUrl) {
     let parsed: URL;
-    try { parsed = new URL(baseUrl); }
-    catch { throw new AutomationError('INVALID_PARAMS', 'baseUrl 必须是有效 URL', 400); }
-    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
-      throw new AutomationError('INVALID_PARAMS', 'baseUrl 仅支持无凭据、查询参数和片段的 HTTP(S) URL', 400);
+    try {
+      parsed = new URL(baseUrl);
+    } catch {
+      throw new AutomationError('INVALID_PARAMS', 'baseUrl 必须是有效 URL', 400);
+    }
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new AutomationError(
+        'INVALID_PARAMS',
+        'baseUrl 仅支持无凭据、查询参数和片段的 HTTP(S) URL',
+        400,
+      );
     }
   }
-  const draft = { ...(name ? { name } : {}), ...(type ? { type } : {}), ...(baseUrl ? { baseUrl } : {}), ...(model ? { model } : {}) };
+  const draft = {
+    ...(name ? { name } : {}),
+    ...(type ? { type } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(model ? { model } : {}),
+  };
   return Object.keys(draft).length ? draft : undefined;
 }
 
@@ -95,7 +131,9 @@ function safeProvider(provider: ProviderConfig) {
   };
 }
 
-export function createAutomationSetupRoutes(deps: AutomationSetupDependencies): Record<string, AutomationRouteHandler> {
+export function createAutomationSetupRoutes(
+  deps: AutomationSetupDependencies,
+): Record<string, AutomationRouteHandler> {
   return {
     'GET /v1/setup/status': () => {
       const account = deps.accountStatus();
@@ -128,7 +166,9 @@ export function createAutomationSetupRoutes(deps: AutomationSetupDependencies): 
       const request: AutomationSetupRequest = {
         requestId: randomUUID(),
         kind: raw.kind,
-        ...(raw.kind === 'account' ? { mode: (raw.mode as 'login' | 'register' | undefined) ?? 'login' } : {}),
+        ...(raw.kind === 'account'
+          ? { mode: (raw.mode as 'login' | 'register' | undefined) ?? 'login' }
+          : {}),
         ...(raw.kind === 'provider' ? { draft: providerDraft(raw.draft) } : {}),
       };
       deps.openSetup(request);
@@ -136,16 +176,25 @@ export function createAutomationSetupRoutes(deps: AutomationSetupDependencies): 
         opened: true,
         requestId: request.requestId,
         kind: request.kind,
-        message: request.kind === 'account'
-          ? '已打开 Musefold 账号页。请让用户只在应用内输入账号和密码。'
-          : '已打开 Musefold 中转站配置。请让用户只在应用内输入 API Key 并测试连接。',
+        message:
+          request.kind === 'account'
+            ? '已打开 Musefold 账号页。请让用户只在应用内输入账号和密码。'
+            : '已打开 Musefold 中转站配置。请让用户只在应用内输入 API Key 并测试连接。',
       };
     },
     'POST /v1/setup/providers/:id/activate': (context) => {
       const provider = deps.listProviders().find((item) => item.id === context.params.id);
-      if (!provider) throw new AutomationError('NOT_FOUND', 'Provider 不存在', 404, { providerId: context.params.id });
+      if (!provider)
+        throw new AutomationError('NOT_FOUND', 'Provider 不存在', 404, {
+          providerId: context.params.id,
+        });
       if (!provider.hasKey) {
-        throw new AutomationError('PROVIDER_NOT_READY', 'Provider 尚未配置凭据，请先打开 Musefold 原生配置页', 409, { providerId: provider.id });
+        throw new AutomationError(
+          'PROVIDER_NOT_READY',
+          'Provider 尚未配置凭据，请先打开 Musefold 原生配置页',
+          409,
+          { providerId: provider.id },
+        );
       }
       deps.setActiveProvider(provider.id);
       deps.providerChanged(provider.id);
@@ -161,7 +210,8 @@ export function createElectronAutomationSetupRoutes(): Record<string, Automation
     setActiveProvider: (providerId) => createElectronLocalAdminOps().setActiveProvider(providerId),
     openSetup(request) {
       const window = getMainWindow();
-      if (!window || window.isDestroyed()) throw new AutomationError('APP_UI_UNAVAILABLE', 'Musefold 主窗口尚未就绪', 409);
+      if (!window || window.isDestroyed())
+        throw new AutomationError('APP_UI_UNAVAILABLE', 'Musefold 主窗口尚未就绪', 409);
       if (window.isMinimized()) window.restore();
       window.show();
       window.focus();
@@ -170,7 +220,8 @@ export function createElectronAutomationSetupRoutes(): Record<string, Automation
     },
     providerChanged(providerId) {
       const window = getMainWindow();
-      if (window && !window.isDestroyed()) window.webContents.send(IPC.AUTOMATION_PROVIDER_CHANGED, { providerId });
+      if (window && !window.isDestroyed())
+        window.webContents.send(IPC.AUTOMATION_PROVIDER_CHANGED, { providerId });
     },
   });
 }

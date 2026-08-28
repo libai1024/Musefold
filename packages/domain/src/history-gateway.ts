@@ -9,9 +9,7 @@ import type {
  * 方法名照抄 WebGateway（listGenerationHistory / deleteGeneration / restoreGeneration）。
  */
 export interface HistoryGateway {
-  listGenerationHistory(
-    query: GenerationHistoryQuery,
-  ): Promise<GenerationHistoryPage>;
+  listGenerationHistory(query: GenerationHistoryQuery): Promise<GenerationHistoryPage>;
   deleteGeneration(id: string): Promise<GenerationJob>;
   restoreGeneration(id: string): Promise<GenerationJob>;
 }

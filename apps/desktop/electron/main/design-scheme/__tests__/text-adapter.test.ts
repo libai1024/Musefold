@@ -3,13 +3,16 @@ import { z } from 'zod';
 import {
   completeStructured,
   extractJsonCandidate,
-  OpenAiCompatibleTextAdapter,
+  type OpenAiCompatibleTextAdapter,
   type TextCompletionRequest,
 } from '../text-adapter';
 
 const schema = z.object({ name: z.string(), count: z.number().int() });
 
-function fakeAdapter(responses: string[]): { adapter: OpenAiCompatibleTextAdapter; requests: TextCompletionRequest[] } {
+function fakeAdapter(responses: string[]): {
+  adapter: OpenAiCompatibleTextAdapter;
+  requests: TextCompletionRequest[];
+} {
   const requests: TextCompletionRequest[] = [];
   const adapter = {
     modelId: 'test-model',
@@ -37,18 +40,27 @@ describe('extractJsonCandidate', () => {
 describe('completeStructured', () => {
   it('一次通过时不重试', async () => {
     const { adapter, requests } = fakeAdapter(['{"name":"极简海报","count":2}']);
-    const result = await completeStructured({ adapter, schema, system: 's', user: 'u', label: '测试' });
+    const result = await completeStructured({
+      adapter,
+      schema,
+      system: 's',
+      user: 'u',
+      label: '测试',
+    });
     expect(result.value).toEqual({ name: '极简海报', count: 2 });
     expect(result.retried).toBe(false);
     expect(requests).toHaveLength(1);
   });
 
   it('校验失败时带 issues 重试一次并成功', async () => {
-    const { adapter, requests } = fakeAdapter([
-      '{"name":"x"}',
-      '{"name":"x","count":1}',
-    ]);
-    const result = await completeStructured({ adapter, schema, system: 's', user: 'u', label: '测试' });
+    const { adapter, requests } = fakeAdapter(['{"name":"x"}', '{"name":"x","count":1}']);
+    const result = await completeStructured({
+      adapter,
+      schema,
+      system: 's',
+      user: 'u',
+      label: '测试',
+    });
     expect(result.retried).toBe(true);
     expect(result.value.count).toBe(1);
     expect(requests).toHaveLength(2);

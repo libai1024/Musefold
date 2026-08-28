@@ -10,7 +10,10 @@
 import { randomUUID } from 'crypto';
 import type Database from 'better-sqlite3';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
-import type { AnalystReport, CompilerOutput } from '@musefold/desktop-contracts/design-scheme/agents';
+import type {
+  AnalystReport,
+  CompilerOutput,
+} from '@musefold/desktop-contracts/design-scheme/agents';
 import type {
   CompilationTraceItem,
   DesignSchemeRevisionDocument,
@@ -184,9 +187,20 @@ export class DesignSchemeCreationSession {
     const adapter = this.deps.resolveAdapter();
     if (!adapter) {
       const message = '创建设计方案需要 Agent 参与。请先在「设置 → AI 连接」配置可用的文本模型。';
-      this.upsertTrace({ id: 'creation-final', kind: 'system', title: '无法创建', detail: message, status: 'error' });
+      this.upsertTrace({
+        id: 'creation-final',
+        kind: 'system',
+        title: '无法创建',
+        detail: message,
+        status: 'error',
+      });
       this.emitState('blocked');
-      this.deps.emit({ kind: 'failed', executionId: this.executionId, code: 'AI_UNAVAILABLE', message });
+      this.deps.emit({
+        kind: 'failed',
+        executionId: this.executionId,
+        code: 'AI_UNAVAILABLE',
+        message,
+      });
       return fail(appError('AUTH_REQUIRED', message, { recoveryAction: 'configure-ai' }));
     }
 
@@ -196,7 +210,11 @@ export class DesignSchemeCreationSession {
       : this.request.githubUrl
         ? [this.request.githubUrl]
         : [];
-    const repositories: Array<{ source: ResolvedGithubSource; snapshotId: string; report: AnalystReport }> = [];
+    const repositories: Array<{
+      source: ResolvedGithubSource;
+      snapshotId: string;
+      report: AnalystReport;
+    }> = [];
     let history: PersistedHistorySnapshot | null = null;
 
     for (const [index, url] of urls.entries()) {
@@ -302,7 +320,9 @@ export class DesignSchemeCreationSession {
   }
 
   /** 历史内容是本地可信来源：直接固化快照，不经过安装确认（确认只针对远程来源）。 */
-  private snapshotHistory(items: NonNullable<StartDesignSchemeCreationRequest['history']>['items']): PersistedHistorySnapshot {
+  private snapshotHistory(
+    items: NonNullable<StartDesignSchemeCreationRequest['history']>['items'],
+  ): PersistedHistorySnapshot {
     this.emitState('source_snapshotting');
     this.beginStep('history-snapshot', '固化历史来源', `${items.length} 项历史内容`);
     const persisted = persistHistorySnapshot(this.deps.db, items, this.deps.userDataDir);
@@ -327,13 +347,17 @@ export class DesignSchemeCreationSession {
     const title = this.stepTitle('Repository Analyst 分析仓库', ordinal);
     this.emitState('analyzing');
     this.beginStep(id, title, `模型 ${adapter.modelId}`);
-    const { report, retried } = await runRepositoryAnalyst(adapter, {
-      brief: this.request.brief,
-      repositoryLabel: source.repositoryLabel,
-      textFiles: source.textFiles.map((file) => ({ path: file.path, text: file.text })),
-      imagePaths: source.imageFiles.map((file) => file.relativePath),
-      license: source.license,
-    }, this.signal);
+    const { report, retried } = await runRepositoryAnalyst(
+      adapter,
+      {
+        brief: this.request.brief,
+        repositoryLabel: source.repositoryLabel,
+        textFiles: source.textFiles.map((file) => ({ path: file.path, text: file.text })),
+        imagePaths: source.imageFiles.map((file) => file.relativePath),
+        license: source.license,
+      },
+      this.signal,
+    );
     this.throwIfCancelled();
     this.endStep(
       id,
@@ -362,27 +386,40 @@ export class DesignSchemeCreationSession {
     this.beginStep(
       'compiler',
       'Scheme Compiler 编译方案',
-      repositories.length > 1 ? `模型 ${adapter.modelId} · 合并 ${repositories.length} 个来源` : `模型 ${adapter.modelId}`,
+      repositories.length > 1
+        ? `模型 ${adapter.modelId} · 合并 ${repositories.length} 个来源`
+        : `模型 ${adapter.modelId}`,
     );
     const historyPrompts = (history?.items ?? [])
       .map((item) => item.promptText?.trim())
       .filter((text): text is string => Boolean(text));
     const [primary] = repositories;
-    const { output, retried } = await runSchemeCompiler(adapter, {
-      brief: this.request.brief,
-      ...(primary ? { repositoryLabel: primary.source.repositoryLabel, analystReport: primary.report } : {}),
-      ...(repositories.length > 1
-        ? {
-          additionalRepositories: repositories.slice(1).map((repo) => ({
-            repositoryLabel: repo.source.repositoryLabel,
-            analystReport: repo.report,
-          })),
-        }
-        : {}),
-      ...(history && history.items.length > 0
-        ? { historyContext: { imageCount: history.items.length, prompts: [...new Set(historyPrompts)] } }
-        : {}),
-    }, this.signal);
+    const { output, retried } = await runSchemeCompiler(
+      adapter,
+      {
+        brief: this.request.brief,
+        ...(primary
+          ? { repositoryLabel: primary.source.repositoryLabel, analystReport: primary.report }
+          : {}),
+        ...(repositories.length > 1
+          ? {
+              additionalRepositories: repositories.slice(1).map((repo) => ({
+                repositoryLabel: repo.source.repositoryLabel,
+                analystReport: repo.report,
+              })),
+            }
+          : {}),
+        ...(history && history.items.length > 0
+          ? {
+              historyContext: {
+                imageCount: history.items.length,
+                prompts: [...new Set(historyPrompts)],
+              },
+            }
+          : {}),
+      },
+      this.signal,
+    );
     this.throwIfCancelled();
     this.endStep(
       'compiler',
@@ -395,25 +432,32 @@ export class DesignSchemeCreationSession {
 
   private saveDraft(
     adapter: OpenAiCompatibleTextAdapter,
-    repositories: Array<{ source: ResolvedGithubSource; snapshotId: string; report: AnalystReport }>,
+    repositories: Array<{
+      source: ResolvedGithubSource;
+      snapshotId: string;
+      report: AnalystReport;
+    }>,
     compiled: CompilerOutput,
     history: PersistedHistorySnapshot | null,
   ): DesignSchemeCreationResult {
     this.beginStep('save-draft', '保存方案草稿');
     const repository = new DesignSchemeRepository(this.deps.db);
     const document = this.buildDocument(adapter, repositories, compiled, history);
-    const bindings: Array<{ snapshotId: string; role: 'normative' | 'example' }> = repositories
-      .map((repo) => ({ snapshotId: repo.snapshotId, role: 'normative' as const }));
-    if (history && history.items.length > 0) bindings.push({ snapshotId: history.snapshotId, role: 'example' });
+    const bindings: Array<{ snapshotId: string; role: 'normative' | 'example' }> = repositories.map(
+      (repo) => ({ snapshotId: repo.snapshotId, role: 'normative' as const }),
+    );
+    if (history && history.items.length > 0)
+      bindings.push({ snapshotId: history.snapshotId, role: 'example' });
     const summary = repository.insertSchemeDraft({
       document,
-      sourceLabel: repositories.length > 1
-        ? `${repositories[0].source.repositoryLabel} 等 ${repositories.length} 个来源`
-        : repositories.length === 1
-          ? repositories[0].source.repositoryLabel
-          : history && history.items.length > 0
-            ? `历史 · ${history.items.length} 张图片`
-            : 'Musefold 创建',
+      sourceLabel:
+        repositories.length > 1
+          ? `${repositories[0].source.repositoryLabel} 等 ${repositories.length} 个来源`
+          : repositories.length === 1
+            ? repositories[0].source.repositoryLabel
+            : history && history.items.length > 0
+              ? `历史 · ${history.items.length} 张图片`
+              : 'Musefold 创建',
       sourcePresentation: repositories.length > 0 ? 'skill' : 'musefold-created',
       createdBy: 'agent',
       bindings,
@@ -438,7 +482,11 @@ export class DesignSchemeCreationSession {
 
   private buildDocument(
     adapter: OpenAiCompatibleTextAdapter,
-    repositories: Array<{ source: ResolvedGithubSource; snapshotId: string; report: AnalystReport }>,
+    repositories: Array<{
+      source: ResolvedGithubSource;
+      snapshotId: string;
+      report: AnalystReport;
+    }>,
     compiled: CompilerOutput,
     history: PersistedHistorySnapshot | null,
   ): DesignSchemeRevisionDocument {
@@ -482,11 +530,16 @@ export class DesignSchemeCreationSession {
         });
       }
     }
-    const defaultSourceIds = repoBindingIds.length > 0
-      ? repoBindingIds
-      : history && history.items.length > 0
-        ? sources.filter((binding) => binding.kind === 'history-image').map((binding) => binding.id)
-        : (this.request.brief.trim() ? [briefBindingId] : []);
+    const defaultSourceIds =
+      repoBindingIds.length > 0
+        ? repoBindingIds
+        : history && history.items.length > 0
+          ? sources
+              .filter((binding) => binding.kind === 'history-image')
+              .map((binding) => binding.id)
+          : this.request.brief.trim()
+            ? [briefBindingId]
+            : [];
 
     const compilationTrace: CompilationTraceItem[] = this.trace
       .filter((item) => item.kind === 'tool' && item.status !== 'running')
@@ -514,7 +567,10 @@ export class DesignSchemeCreationSession {
         statement: constraint.statement,
         mode: constraint.mode,
         userOverridable: constraint.userOverridable,
-        sourceIds: constraint.evidencePaths.length > 0 && repoBindingIds.length > 0 ? repoBindingIds : defaultSourceIds,
+        sourceIds:
+          constraint.evidencePaths.length > 0 && repoBindingIds.length > 0
+            ? repoBindingIds
+            : defaultSourceIds,
       })),
       promptProgram: compiled.promptProgram.map((module, index) => ({
         id: `pm_${index + 1}`,
@@ -530,7 +586,9 @@ export class DesignSchemeCreationSession {
         adopted: compiled.adopted,
         omitted: compiled.omitted,
         warnings: compiled.warnings,
-        ...(this.request.brief.trim() ? { briefExcerpt: this.request.brief.trim().slice(0, 600) } : {}),
+        ...(this.request.brief.trim()
+          ? { briefExcerpt: this.request.brief.trim().slice(0, 600) }
+          : {}),
         trace: compilationTrace,
       },
     };

@@ -18,8 +18,9 @@ const builderBin = resolve(
 );
 
 const cliArgs = process.argv.slice(2);
-const hasConfigArg = cliArgs.some((arg) =>
-  arg === '--config' || arg === '-c' || arg.startsWith('--config=') || arg.startsWith('-c='),
+const hasConfigArg = cliArgs.some(
+  (arg) =>
+    arg === '--config' || arg === '-c' || arg.startsWith('--config=') || arg.startsWith('-c='),
 );
 const args = hasConfigArg ? cliArgs : ['--config', builderConfigPath, ...cliArgs];
 const before = await readFile(packageJsonPath, 'utf8');

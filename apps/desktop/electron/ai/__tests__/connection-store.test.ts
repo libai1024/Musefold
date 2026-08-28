@@ -14,31 +14,54 @@ import { ElectronAiSecretKeychain } from '../../security/ai-keychain';
 
 class MemoryBackend {
   data = { connections: {}, activeId: null as string | null };
-  get(key: 'connections' | 'activeId') { return this.data[key]; }
-  set(key: 'connections' | 'activeId', value: any) { this.data[key] = value; }
+  get(key: 'connections' | 'activeId') {
+    return this.data[key];
+  }
+  set(key: 'connections' | 'activeId', value: any) {
+    this.data[key] = value;
+  }
 }
 
 class MemorySecrets implements AiSecretKeychain {
   readonly values = new Map<string, string>();
-  save(id: string, key: string) { this.values.set(id, key.trim()); }
-  load(id: string) { return this.values.get(id) ?? null; }
-  delete(id: string) { this.values.delete(id); }
-  has(id: string) { return this.values.has(id); }
-  suffix(id: string) { return this.load(id)?.slice(-4) ?? null; }
+  save(id: string, key: string) {
+    this.values.set(id, key.trim());
+  }
+  load(id: string) {
+    return this.values.get(id) ?? null;
+  }
+  delete(id: string) {
+    this.values.delete(id);
+  }
+  has(id: string) {
+    return this.values.has(id);
+  }
+  suffix(id: string) {
+    return this.load(id)?.slice(-4) ?? null;
+  }
 }
 
 describe('AI connection store', () => {
   it('stores only safeStorage ciphertext and exposes a suffix instead of the key', () => {
     const values = new Map<string, unknown>();
-    const keychain = new ElectronAiSecretKeychain({
-      get: (key: string) => values.get(key),
-      set: (key: string, value: unknown) => values.set(key, value),
-      delete: (key: string) => { values.delete(key); },
-    }, {
-      isEncryptionAvailable: () => true,
-      encryptString: (value: string) => Buffer.from(`encrypted:${value}`).reverse(),
-      decryptString: (value: Buffer) => value.reverse().toString().replace(/^encrypted:/, ''),
-    });
+    const keychain = new ElectronAiSecretKeychain(
+      {
+        get: (key: string) => values.get(key),
+        set: (key: string, value: unknown) => values.set(key, value),
+        delete: (key: string) => {
+          values.delete(key);
+        },
+      },
+      {
+        isEncryptionAvailable: () => true,
+        encryptString: (value: string) => Buffer.from(`encrypted:${value}`).reverse(),
+        decryptString: (value: Buffer) =>
+          value
+            .reverse()
+            .toString()
+            .replace(/^encrypted:/, ''),
+      },
+    );
     keychain.save('ai-1', 'sk-safe-storage-test');
     expect(JSON.stringify([...values.values()])).not.toContain('sk-safe-storage-test');
     expect(keychain.load('ai-1')).toBe('sk-safe-storage-test');
@@ -117,13 +140,10 @@ describe('AI connection store', () => {
     expect(updated.keySuffix).toBe('5678');
     expect(store.list()).toHaveLength(1);
 
-    expect(() => store.update('ai-1', { baseUrl: 'https://evil.test/v1' }))
-      .toThrow('固定管理');
-    expect(() => store.saveKey('ai-1', 'sk-user-overwrite'))
-      .toThrow('不能手动修改');
+    expect(() => store.update('ai-1', { baseUrl: 'https://evil.test/v1' })).toThrow('固定管理');
+    expect(() => store.saveKey('ai-1', 'sk-user-overwrite')).toThrow('不能手动修改');
     expect(() => store.delete('ai-1')).toThrow('退出登录后');
-    expect(() => store.update('ai-1', { model: 'musefold-agent-v3' }))
-      .toThrow('固定管理');
+    expect(() => store.update('ai-1', { model: 'musefold-agent-v3' })).toThrow('固定管理');
 
     store.removeManagedAccount('ai-1');
     expect(store.list()).toEqual([]);
@@ -135,7 +155,10 @@ describe('AI connection store', () => {
     const store = new AiConnectionStore({
       store: backend as any,
       secrets: new MemorySecrets(),
-      idFactory: (() => { let id = 0; return () => `ai-${++id}`; })(),
+      idFactory: (() => {
+        let id = 0;
+        return () => `ai-${++id}`;
+      })(),
       now: () => 100,
     });
     const relay = store.create({
@@ -159,7 +182,10 @@ describe('AI connection store', () => {
     const store = new AiConnectionStore({
       store: new MemoryBackend() as any,
       secrets: new MemorySecrets(),
-      idFactory: (() => { let id = 0; return () => `ai-${++id}`; })(),
+      idFactory: (() => {
+        let id = 0;
+        return () => `ai-${++id}`;
+      })(),
       now: () => 100,
     });
     const direct = store.create({
@@ -177,8 +203,9 @@ describe('AI connection store', () => {
 
     expect(direct.capabilities.preferredStructuredOutputMode).toBe('json-schema');
     expect(gateway.capabilities.preferredStructuredOutputMode).toBe('json-object');
-    expect(store.update(direct.id, { routeKind: 'gateway' }).capabilities.preferredStructuredOutputMode)
-      .toBe('json-object');
+    expect(
+      store.update(direct.id, { routeKind: 'gateway' }).capabilities.preferredStructuredOutputMode,
+    ).toBe('json-object');
   });
 
   it('moves active state and removes the encrypted key with the connection', () => {

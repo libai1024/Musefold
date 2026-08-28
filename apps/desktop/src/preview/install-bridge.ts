@@ -60,21 +60,38 @@ const windowApi: Api['window'] = {
 };
 
 const imageApi: Api['image'] = {
-  pickLocal: () => invoke('image:pickLocal', []) as Promise<Awaited<ReturnType<Api['image']['pickLocal']>>>,
-  stageLocal: (input) => invoke('image:stageLocal', [input]) as Promise<Awaited<ReturnType<Api['image']['stageLocal']>>>,
-  generate: (req) => invoke('image:generate', [req]) as Promise<Awaited<ReturnType<Api['image']['generate']>>>,
-  cancel: (jobId) => invoke('image:cancel', [jobId]) as Promise<Awaited<ReturnType<Api['image']['cancel']>>>,
-  retry: (historyId, jobId) => invoke('image:retry', [historyId, jobId]) as Promise<Awaited<ReturnType<Api['image']['retry']>>>,
+  pickLocal: () =>
+    invoke('image:pickLocal', []) as Promise<Awaited<ReturnType<Api['image']['pickLocal']>>>,
+  stageLocal: (input) =>
+    invoke('image:stageLocal', [input]) as Promise<Awaited<ReturnType<Api['image']['stageLocal']>>>,
+  generate: (req) =>
+    invoke('image:generate', [req]) as Promise<Awaited<ReturnType<Api['image']['generate']>>>,
+  cancel: (jobId) =>
+    invoke('image:cancel', [jobId]) as Promise<Awaited<ReturnType<Api['image']['cancel']>>>,
+  retry: (historyId, jobId) =>
+    invoke('image:retry', [historyId, jobId]) as Promise<
+      Awaited<ReturnType<Api['image']['retry']>>
+    >,
   onProgress: () => () => {},
 };
 
 const shareApi: Api['share'] = {
-  renderCard: (req) => invoke('share:renderCard', [req]) as Promise<Awaited<ReturnType<Api['share']['renderCard']>>>,
-  buildDeeplink: (req) => invoke('share:buildDeeplink', [req]) as Promise<Awaited<ReturnType<Api['share']['buildDeeplink']>>>,
-  parseDeeplink: (req) => invoke('share:parseDeeplink', [req]) as Promise<Awaited<ReturnType<Api['share']['parseDeeplink']>>>,
-  import: (req) => invoke('share:import', [req]) as Promise<Awaited<ReturnType<Api['share']['import']>>>,
+  renderCard: (req) =>
+    invoke('share:renderCard', [req]) as Promise<Awaited<ReturnType<Api['share']['renderCard']>>>,
+  buildDeeplink: (req) =>
+    invoke('share:buildDeeplink', [req]) as Promise<
+      Awaited<ReturnType<Api['share']['buildDeeplink']>>
+    >,
+  parseDeeplink: (req) =>
+    invoke('share:parseDeeplink', [req]) as Promise<
+      Awaited<ReturnType<Api['share']['parseDeeplink']>>
+    >,
+  import: (req) =>
+    invoke('share:import', [req]) as Promise<Awaited<ReturnType<Api['share']['import']>>>,
   consumePending: () =>
-    Promise.resolve({ payloads: [] }) as Promise<Awaited<ReturnType<Api['share']['consumePending']>>>,
+    Promise.resolve({ payloads: [] }) as Promise<
+      Awaited<ReturnType<Api['share']['consumePending']>>
+    >,
   onIncoming: () => () => {},
 };
 
@@ -116,5 +133,3 @@ const api = new Proxy({} as Api, {
 (window as unknown as { __PREVIEW_BRIDGE__?: boolean }).__PREVIEW_BRIDGE__ = true;
 // eslint-disable-next-line no-console
 console.info('[preview-bridge] window.api installed (dev preview only)');
-
-export {};

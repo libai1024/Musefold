@@ -14,10 +14,7 @@ import {
   ShieldCheck,
   UserRound,
 } from '../../components/ui/icons';
-import {
-  DOUBAO_WEB_DAILY_IMAGE_LIMIT,
-  PROVIDER_PRESETS,
-} from '@musefold/domain/constants';
+import { DOUBAO_WEB_DAILY_IMAGE_LIMIT, PROVIDER_PRESETS } from '@musefold/domain/constants';
 import { useOnboardingStore } from './store';
 import { useDoubaoAccountStore } from '@renderer/runtime/account-access';
 import { ValidationResultBanner } from '@renderer/runtime/generation-access';
@@ -82,7 +79,10 @@ export function StepConnect() {
 
   if (!track) {
     return (
-      <section className="mx-auto flex w-full max-w-[620px] flex-col" data-testid="onboarding-step-2">
+      <section
+        className="mx-auto flex w-full max-w-[620px] flex-col"
+        data-testid="onboarding-step-2"
+      >
         <StepIntro title="选择连接方式">
           扫码使用已有豆包会员额度，或登录 Musefold 账号使用托管模型。
         </StepIntro>
@@ -99,7 +99,9 @@ export function StepConnect() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[15px] font-medium text-primary">
                 豆包扫码登录
-                <span className="rounded-full border border-border-default px-2 py-px text-meta font-medium text-tertiary">每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次</span>
+                <span className="rounded-full border border-border-default px-2 py-px text-meta font-medium text-tertiary">
+                  每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次
+                </span>
               </span>
               <span className="mt-1 block text-[11px] leading-relaxed text-tertiary">
                 使用豆包网页版会员生图，无需 API Key；出现安全验证时由你手动完成。
@@ -119,7 +121,9 @@ export function StepConnect() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[15px] font-medium text-primary">
                 登录 Musefold 账号
-                <span className="rounded-full border border-border-default px-2 py-px text-meta font-medium text-tertiary">稳定推荐</span>
+                <span className="rounded-full border border-border-default px-2 py-px text-meta font-medium text-tertiary">
+                  稳定推荐
+                </span>
               </span>
               <span className="mt-1 block text-[11px] leading-relaxed text-tertiary">
                 一次登录，Agent 与生图模型自动配置，按账号积分使用。
@@ -135,7 +139,13 @@ export function StepConnect() {
           <Button variant="ghost" size="sm" className="shadow-none" onClick={goBack}>
             <ArrowLeft className="h-3.5 w-3.5" /> 上一步
           </Button>
-          <Button variant="ghost" size="sm" className="shadow-none" onClick={skip} data-testid="onboarding-skip">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shadow-none"
+            onClick={skip}
+            data-testid="onboarding-skip"
+          >
             暂时跳过
           </Button>
         </OnboardingActions>
@@ -145,7 +155,10 @@ export function StepConnect() {
 
   if (track === 'doubao') {
     return (
-      <section className="mx-auto flex w-full max-w-[500px] flex-col" data-testid="onboarding-doubao-login">
+      <section
+        className="mx-auto flex w-full max-w-[500px] flex-col"
+        data-testid="onboarding-doubao-login"
+      >
         <StepIntro title="用豆包扫码连接">
           Musefold 会在这里显示豆包官方二维码。请使用豆包 App 扫码，登录状态会自动同步。
         </StepIntro>
@@ -157,13 +170,18 @@ export function StepConnect() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium text-primary">
-                {doubaoStatus?.loggedIn ? '豆包已登录' : doubaoStatus?.loginState === 'qr-ready' ? '等待扫码' : '正在准备二维码'}
+                {doubaoStatus?.loggedIn
+                  ? '豆包已登录'
+                  : doubaoStatus?.loginState === 'qr-ready'
+                    ? '等待扫码'
+                    : '正在准备二维码'}
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-tertiary">
                 网页会话保存在本机专用浏览器分区。Musefold 不读取、导出或上传 Cookie。
               </p>
               <p className="mt-2 text-meta leading-relaxed text-quaternary">
-                为减少高频自动化风险，每个本地自然日最多提交 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次豆包网页生图；失败请求也计入次数。
+                为减少高频自动化风险，每个本地自然日最多提交 {DOUBAO_WEB_DAILY_IMAGE_LIMIT}{' '}
+                次豆包网页生图；失败请求也计入次数。
               </p>
             </div>
           </div>
@@ -201,7 +219,11 @@ export function StepConnect() {
               disabled={saving}
               data-testid="onboarding-doubao-open"
             >
-              {saving && !doubaoWindowOpened ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5" />}
+              {saving && !doubaoWindowOpened ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <QrCode className="h-3.5 w-3.5" />
+              )}
               {doubaoWindowOpened ? '重新获取二维码' : '获取登录二维码'}
             </Button>
             <Button
@@ -210,7 +232,11 @@ export function StepConnect() {
               disabled={!doubaoWindowOpened || saving}
               data-testid="onboarding-doubao-confirm"
             >
-              {saving && doubaoWindowOpened ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              {saving && doubaoWindowOpened ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
               {saving && doubaoWindowOpened ? '正在验证…' : '我已完成登录'}
             </Button>
           </div>
@@ -222,10 +248,11 @@ export function StepConnect() {
   if (track === 'account') {
     if (accountStage === 'redeem') {
       return (
-        <section className="mx-auto flex w-full max-w-[460px] flex-col" data-testid="onboarding-account-redeem">
-          <StepIntro title="输入兑换码">
-            账号已登录。新账号余额为 0，兑换后即可开始生成。
-          </StepIntro>
+        <section
+          className="mx-auto flex w-full max-w-[460px] flex-col"
+          data-testid="onboarding-account-redeem"
+        >
+          <StepIntro title="输入兑换码">账号已登录。新账号余额为 0，兑换后即可开始生成。</StepIntro>
           <form
             className="mt-9"
             onSubmit={(event) => {
@@ -233,7 +260,12 @@ export function StepConnect() {
               void redeemAccount(redeemCode);
             }}
           >
-            <label className="text-[11px] font-medium text-secondary" htmlFor="onboarding-redeem-code">兑换码</label>
+            <label
+              className="text-[11px] font-medium text-secondary"
+              htmlFor="onboarding-redeem-code"
+            >
+              兑换码
+            </label>
             <Input
               id="onboarding-redeem-code"
               value={redeemCode}
@@ -242,7 +274,11 @@ export function StepConnect() {
               autoFocus
               data-testid="onboarding-redeem-code"
             />
-            {accountError && <p className="mt-3 border-l border-danger pl-3 text-[11px] text-danger">{accountError}</p>}
+            {accountError && (
+              <p className="mt-3 border-l border-danger pl-3 text-[11px] text-danger">
+                {accountError}
+              </p>
+            )}
             {accountQuota != null && accountQuota > 0 && (
               <p className="mt-3 border-l border-success pl-3 text-[11px] text-success">
                 {formatPoints(accountQuota)} 积分已到账
@@ -250,7 +286,13 @@ export function StepConnect() {
             )}
             <p className="mt-3 text-meta text-quaternary">兑换码请向管理员获取，兑换后即时到账。</p>
             <div className="mt-7 flex items-center justify-between">
-              <Button type="button" variant="ghost" size="sm" className="shadow-none" onClick={continueWithoutRedeem}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shadow-none"
+                onClick={continueWithoutRedeem}
+              >
                 稍后兑换
               </Button>
               <Button
@@ -269,7 +311,10 @@ export function StepConnect() {
     }
 
     return (
-      <section className="mx-auto flex w-full max-w-[460px] flex-col" data-testid="onboarding-account-auth">
+      <section
+        className="mx-auto flex w-full max-w-[460px] flex-col"
+        data-testid="onboarding-account-auth"
+      >
         <StepIntro title="登录 Musefold">
           登录后自动获取设备令牌，并同时配置 Agent 与生图模型。
         </StepIntro>
@@ -283,7 +328,9 @@ export function StepConnect() {
               onClick={() => setAuthMode(mode)}
               className={cn(
                 'no-drag relative pb-2 pr-6 text-[12px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]',
-                authMode === mode ? 'text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-primary' : 'text-tertiary hover:text-primary',
+                authMode === mode
+                  ? 'text-primary after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-primary'
+                  : 'text-tertiary hover:text-primary',
               )}
             >
               {mode === 'login' ? '登录' : '注册'}
@@ -343,7 +390,11 @@ export function StepConnect() {
               )}
             </label>
           )}
-          {accountError && <p className="border-l border-danger pl-3 text-[11px] leading-relaxed text-danger">{accountError}</p>}
+          {accountError && (
+            <p className="border-l border-danger pl-3 text-[11px] leading-relaxed text-danger">
+              {accountError}
+            </p>
+          )}
           {authMode === 'login' && (
             <p className="text-meta text-quaternary">忘记密码？联系管理员重置。</p>
           )}
@@ -369,9 +420,7 @@ export function StepConnect() {
 
   return (
     <section className="mx-auto flex w-full max-w-[620px] flex-col" data-testid="onboarding-step-2">
-      <StepIntro title="使用自己的 API">
-        直接连接你选择的服务，密钥只保存在这台设备上。
-      </StepIntro>
+      <StepIntro title="使用自己的 API">直接连接你选择的服务，密钥只保存在这台设备上。</StepIntro>
 
       <fieldset className="mt-9">
         <legend className="mb-1 text-[11px] font-medium text-tertiary">选择服务商</legend>
@@ -394,18 +443,26 @@ export function StepConnect() {
                 <span
                   className={cn(
                     'h-2 w-2 shrink-0 rounded-full border transition-colors',
-                    active ? 'border-primary bg-primary' : 'border-border-strong bg-transparent group-hover:border-primary',
+                    active
+                      ? 'border-primary bg-primary'
+                      : 'border-border-strong bg-transparent group-hover:border-primary',
                   )}
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-[12.5px] font-medium text-primary">
                     <span className="truncate">{p.name}</span>
-                    {p.recommended && <span className="shrink-0 text-meta font-normal text-tertiary">推荐</span>}
+                    {p.recommended && (
+                      <span className="shrink-0 text-meta font-normal text-tertiary">推荐</span>
+                    )}
                   </span>
-                  <span className="mt-0.5 block line-clamp-2 text-meta leading-relaxed text-tertiary">{p.hint}</span>
+                  <span className="mt-0.5 block line-clamp-2 text-meta leading-relaxed text-tertiary">
+                    {p.hint}
+                  </span>
                 </span>
-                {active && <Check className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />}
+                {active && (
+                  <Check className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                )}
               </button>
             );
           })}
@@ -427,7 +484,9 @@ export function StepConnect() {
 
       <div className="mt-8">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <label htmlFor="onboarding-api-key" className="text-[11px] font-medium text-secondary">API Key</label>
+          <label htmlFor="onboarding-api-key" className="text-[11px] font-medium text-secondary">
+            API Key
+          </label>
           {preset.keyUrl && (
             <a
               href={preset.keyUrl}
@@ -469,7 +528,9 @@ export function StepConnect() {
 
       {validation && !validation.ok && (
         <div className="mt-5">
-          <ValidationResultBanner result={{ ok: false, code: validation.code, message: validation.message }} />
+          <ValidationResultBanner
+            result={{ ok: false, code: validation.code, message: validation.message }}
+          />
         </div>
       )}
 
@@ -479,9 +540,20 @@ export function StepConnect() {
           上一步
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={skip} data-testid="onboarding-skip">暂时跳过</Button>
-          <Button className="px-4" onClick={connect} disabled={!canContinue} data-testid="onboarding-connect">
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+          <Button variant="ghost" size="sm" onClick={skip} data-testid="onboarding-skip">
+            暂时跳过
+          </Button>
+          <Button
+            className="px-4"
+            onClick={connect}
+            disabled={!canContinue}
+            data-testid="onboarding-connect"
+          >
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <KeyRound className="h-3.5 w-3.5" />
+            )}
             {saving ? '正在保存…' : '校验并继续'}
             {!saving && <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />}
           </Button>

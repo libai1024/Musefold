@@ -9,12 +9,7 @@ const guardedStreams = new WeakSet<object>();
 const unavailableStreams = new WeakSet<object>();
 
 export function isBrokenPipeError(error: unknown): boolean {
-  return Boolean(
-    error
-      && typeof error === 'object'
-      && 'code' in error
-      && error.code === 'EPIPE',
-  );
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'EPIPE');
 }
 
 export function installConsoleOutputGuards(
@@ -34,7 +29,9 @@ export function installConsoleOutputGuards(
 export function writeConsoleLine<Method extends ConsoleMethod>(
   method: Method,
   line: string,
-  stream: ConsoleOutputStream | null | undefined = method === 'log' ? process.stdout : process.stderr,
+  stream: ConsoleOutputStream | null | undefined = method === 'log'
+    ? process.stdout
+    : process.stderr,
   target: Pick<Console, Method> = console,
 ): void {
   if (!stream || unavailableStreams.has(stream) || stream.destroyed || stream.writableEnded) return;

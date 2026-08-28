@@ -5,7 +5,10 @@
  */
 import type Database from 'better-sqlite3';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
-import type { MarketCandidate, MarketSearchResult } from '@musefold/desktop-contracts/design-scheme';
+import type {
+  MarketCandidate,
+  MarketSearchResult,
+} from '@musefold/desktop-contracts/design-scheme';
 
 const SEARCH_TIMEOUT_MS = 15_000;
 const CANDIDATE_LIMIT = 8;
@@ -39,7 +42,8 @@ function githubApiOrigin(): string {
   if (process.env.MUSEFOLD_E2E === '1' && configured) {
     try {
       const url = new URL(configured);
-      const isLoopback = url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]';
+      const isLoopback =
+        url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]';
       if (url.protocol === 'http:' && isLoopback) return configured.replace(/\/+$/, '');
     } catch {
       // 配置无效则忽略，回落到真实 API。
@@ -87,9 +91,11 @@ function toCandidate(query: string, item: GithubSearchItem): MarketCandidate {
 }
 
 function readCache(db: Database.Database, query: string): MarketCandidate[] {
-  const rows = db.prepare(
-    'SELECT metadata_json FROM market_candidates WHERE query = ? ORDER BY created_at DESC, rowid ASC LIMIT ?',
-  ).all(query, CANDIDATE_LIMIT) as Array<{ metadata_json: string }>;
+  const rows = db
+    .prepare(
+      'SELECT metadata_json FROM market_candidates WHERE query = ? ORDER BY created_at DESC, rowid ASC LIMIT ?',
+    )
+    .all(query, CANDIDATE_LIMIT) as Array<{ metadata_json: string }>;
   const candidates: MarketCandidate[] = [];
   for (const row of rows) {
     try {
@@ -101,7 +107,12 @@ function readCache(db: Database.Database, query: string): MarketCandidate[] {
   return candidates;
 }
 
-function writeCache(db: Database.Database, query: string, candidates: MarketCandidate[], now: number): void {
+function writeCache(
+  db: Database.Database,
+  query: string,
+  candidates: MarketCandidate[],
+  now: number,
+): void {
   const replace = db.transaction(() => {
     db.prepare('DELETE FROM market_candidates WHERE query = ? OR expires_at < ?').run(query, now);
     const insert = db.prepare(
@@ -109,7 +120,14 @@ function writeCache(db: Database.Database, query: string, candidates: MarketCand
        VALUES (?, ?, ?, ?, ?, ?)`,
     );
     for (const candidate of candidates) {
-      insert.run(candidate.candidateId, query, candidate.repositoryUrl, JSON.stringify(candidate), now, now + CACHE_TTL_MS);
+      insert.run(
+        candidate.candidateId,
+        query,
+        candidate.repositoryUrl,
+        JSON.stringify(candidate),
+        now,
+        now + CACHE_TTL_MS,
+      );
     }
   });
   replace();
@@ -121,7 +139,11 @@ export async function searchMarketCandidates(
 ): Promise<AppResult<MarketSearchResult>> {
   const query = rawQuery.trim().replace(/\s+/g, ' ');
   if (!query) {
-    return fail(appError('REQUIRED', '输入想找的方案方向，例如「插画 海报」', { recoveryAction: 'edit-input' }));
+    return fail(
+      appError('REQUIRED', '输入想找的方案方向，例如「插画 海报」', {
+        recoveryAction: 'edit-input',
+      }),
+    );
   }
   const now = deps.now ? deps.now() : Date.now();
   const fetchImpl = deps.fetchImpl ?? fetch;
@@ -132,18 +154,21 @@ export async function searchMarketCandidates(
       q: `${query} fork:false`,
       per_page: String(CANDIDATE_LIMIT),
     });
-    const response = await fetchImpl(`${githubApiOrigin()}/search/repositories?${params.toString()}`, {
-      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'Musefold-Market-Explorer',
-        'X-GitHub-Api-Version': '2022-11-28',
+    const response = await fetchImpl(
+      `${githubApiOrigin()}/search/repositories?${params.toString()}`,
+      {
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'Musefold-Market-Explorer',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
       },
-    });
+    );
     if (!response.ok) {
       throw new Error(`GitHub 搜索返回 ${response.status}`);
     }
-    const payload = await response.json() as { items?: GithubSearchItem[] };
+    const payload = (await response.json()) as { items?: GithubSearchItem[] };
     const candidates = (payload.items ?? [])
       .filter((item) => !item.fork)
       .slice(0, CANDIDATE_LIMIT)

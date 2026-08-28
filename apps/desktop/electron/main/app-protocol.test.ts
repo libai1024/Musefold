@@ -127,9 +127,7 @@ describe('window load URL branch selection', () => {
     expect(resolvePetWindowLoadUrl('http://localhost:5173/')).toBe(
       'http://localhost:5173/pet.html',
     );
-    expect(resolvePetWindowLoadUrl('http://localhost:5173')).toBe(
-      'http://localhost:5173/pet.html',
-    );
+    expect(resolvePetWindowLoadUrl('http://localhost:5173')).toBe('http://localhost:5173/pet.html');
   });
 
   it('loads production windows from app:// without a second bundle-root lookup', () => {

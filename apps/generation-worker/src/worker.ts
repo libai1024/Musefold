@@ -7,10 +7,7 @@ import { createStorageClient, ensureStorageBucket } from './storage.js';
 const config = loadWorkerConfig();
 const storage = createStorageClient(config);
 await ensureStorageBucket(storage, config);
-const heartbeat = await startHeartbeat(
-  config.DATABASE_URL,
-  config.WORKER_HEARTBEAT_INTERVAL_MS,
-);
+const heartbeat = await startHeartbeat(config.DATABASE_URL, config.WORKER_HEARTBEAT_INTERVAL_MS);
 const runner = await run({
   connectionString: config.DATABASE_URL,
   concurrency: config.WORKER_CONCURRENCY,

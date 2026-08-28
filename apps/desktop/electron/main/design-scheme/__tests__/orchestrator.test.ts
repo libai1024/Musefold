@@ -25,7 +25,14 @@ vi.mock('../source-ingestion', async (importOriginal) => {
         resolvedRef: 'main',
         commitHash: 'abcdef1234567890',
         license: 'MIT License',
-        textFiles: [{ path: 'SKILL.md', contentHash: 'sha256:1', sizeBytes: 20, text: '# 海报规则\n双色印刷' }],
+        textFiles: [
+          {
+            path: 'SKILL.md',
+            contentHash: 'sha256:1',
+            sizeBytes: 20,
+            text: '# 海报规则\n双色印刷',
+          },
+        ],
         imageFiles: [],
         otherCount: 0,
       },
@@ -36,9 +43,27 @@ vi.mock('../source-ingestion', async (importOriginal) => {
       return {
         packageId: `pkg_test_${snapshotSeq}`,
         snapshotId: repository.saveSourceSnapshot({
-          package: { id: `pkg_test_${snapshotSeq}`, kind: 'github', repositoryUrl: source.repositoryUrl },
-          snapshot: { id: `snap_test_${snapshotSeq}`, ref: 'main', commitHash: 'abcdef1234567890', totalBytes: 20, scan: {} },
-          files: [{ path: 'SKILL.md', kind: 'text', contentHash: 'sha256:1', sizeBytes: 20, textContent: '# 海报规则' }],
+          package: {
+            id: `pkg_test_${snapshotSeq}`,
+            kind: 'github',
+            repositoryUrl: source.repositoryUrl,
+          },
+          snapshot: {
+            id: `snap_test_${snapshotSeq}`,
+            ref: 'main',
+            commitHash: 'abcdef1234567890',
+            totalBytes: 20,
+            scan: {},
+          },
+          files: [
+            {
+              path: 'SKILL.md',
+              kind: 'text',
+              contentHash: 'sha256:1',
+              sizeBytes: 20,
+              textContent: '# 海报规则',
+            },
+          ],
         }).snapshotId,
         imagePaths: [],
       };
@@ -51,7 +76,9 @@ import { DesignSchemeCreationSession } from '../orchestrator';
 const ANALYST_JSON = JSON.stringify({
   repoKind: 'agent-skill',
   capabilitySummary: '极简双色杂志海报',
-  rules: [{ domain: 'color', statement: '只用两种油墨色', mode: 'required', evidencePaths: ['SKILL.md'] }],
+  rules: [
+    { domain: 'color', statement: '只用两种油墨色', mode: 'required', evidencePaths: ['SKILL.md'] },
+  ],
   variables: [{ label: '海报主题', kind: 'text', required: true }],
   referenceImages: [],
   unsupported: ['自动导出 PDF'],
@@ -63,7 +90,15 @@ const COMPILER_JSON = JSON.stringify({
   summary: '双色印刷版式方案',
   fidelity: 'faithful',
   inputs: [{ label: '海报主题', kind: 'text', required: true, description: '一句话主题' }],
-  constraints: [{ domain: 'color', statement: '只用两种油墨色', mode: 'required', userOverridable: false, evidencePaths: ['SKILL.md'] }],
+  constraints: [
+    {
+      domain: 'color',
+      statement: '只用两种油墨色',
+      mode: 'required',
+      userOverridable: false,
+      evidencePaths: ['SKILL.md'],
+    },
+  ],
   promptProgram: [
     { kind: 'input-template', template: '为「{{topic}}」设计极简杂志海报', variables: ['topic'] },
     { kind: 'style-rule', template: '双色印刷质感，网格排版', variables: [] },
@@ -79,8 +114,10 @@ function makeAdapter(byRole: { analyst?: string; compiler?: string }): OpenAiCom
     modelId: 'test-model',
     connectionName: 'test-conn',
     complete: async (request: TextCompletionRequest) => {
-      if (request.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
-      if (request.system.includes('仓库分析师')) return { text: byRole.analyst ?? ANALYST_JSON, model: 'test-model' };
+      if (request.signal?.aborted)
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      if (request.system.includes('仓库分析师'))
+        return { text: byRole.analyst ?? ANALYST_JSON, model: 'test-model' };
       return { text: byRole.compiler ?? COMPILER_JSON, model: 'test-model' };
     },
   } as unknown as OpenAiCompatibleTextAdapter;
@@ -101,7 +138,10 @@ describe('DesignSchemeCreationSession', () => {
   });
 
   const collect = (event: DesignSchemeCreationEvent) => events.push(event);
-  const states = () => events.filter((event) => event.kind === 'state').map((event) => (event as { state: string }).state);
+  const states = () =>
+    events
+      .filter((event) => event.kind === 'state')
+      .map((event) => (event as { state: string }).state);
 
   it('纯想法路径：跳过来源步骤，直接编译并落库草稿', async () => {
     const db = makeDb();
@@ -131,7 +171,11 @@ describe('DesignSchemeCreationSession', () => {
   it('想法 + GitHub 来源路径：等待安装确认后走 Analyst→Compiler', async () => {
     const db = makeDb();
     const session = new DesignSchemeCreationSession(
-      { executionId: 'exec-src', brief: '做成可复用海报方案', githubUrl: 'https://github.com/acme/zine-poster' },
+      {
+        executionId: 'exec-src',
+        brief: '做成可复用海报方案',
+        githubUrl: 'https://github.com/acme/zine-poster',
+      },
       { db, resolveAdapter: () => makeAdapter({}), emit: collect },
     );
     const runPromise = session.run();
@@ -162,16 +206,25 @@ describe('DesignSchemeCreationSession', () => {
       'draft_ready',
     ]);
     // 轨迹里能看到未支持能力的诚实披露
-    const unsupported = events.find((event) => event.kind === 'trace'
-      && (event as { item: { id: string } }).item.id === 'analyst-unsupported');
+    const unsupported = events.find(
+      (event) =>
+        event.kind === 'trace' &&
+        (event as { item: { id: string } }).item.id === 'analyst-unsupported',
+    );
     expect(unsupported).toBeTruthy();
 
     const document = new DesignSchemeRepository(db).getRevisionDocument(result.data.revisionId);
-    expect(document?.sources.some((binding) => binding.kind === 'github-skill' && binding.commit === 'abcdef1234567890')).toBe(true);
+    expect(
+      document?.sources.some(
+        (binding) => binding.kind === 'github-skill' && binding.commit === 'abcdef1234567890',
+      ),
+    ).toBe(true);
     // 有证据的约束绑定到仓库来源
     expect(document?.constraints[0]?.sourceIds).toEqual(['src_repo']);
     // 快照与绑定已写库
-    const bindings = db.prepare('SELECT COUNT(*) AS n FROM design_scheme_source_bindings').get() as { n: number };
+    const bindings = db
+      .prepare('SELECT COUNT(*) AS n FROM design_scheme_source_bindings')
+      .get() as { n: number };
     expect(bindings.n).toBe(1);
   });
 
@@ -182,8 +235,10 @@ describe('DesignSchemeCreationSession', () => {
       modelId: 'test-model',
       connectionName: 'test-conn',
       complete: async (request: TextCompletionRequest) => {
-        if (request.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
-        if (request.system.includes('仓库分析师')) return { text: ANALYST_JSON, model: 'test-model' };
+        if (request.signal?.aborted)
+          throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        if (request.system.includes('仓库分析师'))
+          return { text: ANALYST_JSON, model: 'test-model' };
         compilerRequests.push(request.user);
         return { text: COMPILER_JSON, model: 'test-model' };
       },
@@ -202,7 +257,9 @@ describe('DesignSchemeCreationSession', () => {
     // 每个来源都要单独确认；按事件顺序批准两次。
     for (const expected of [1, 2]) {
       await vi.waitFor(() => {
-        expect(events.filter((event) => event.kind === 'confirmation-required')).toHaveLength(expected);
+        expect(events.filter((event) => event.kind === 'confirmation-required')).toHaveLength(
+          expected,
+        );
       });
       session.confirmInstall(true);
     }
@@ -215,7 +272,14 @@ describe('DesignSchemeCreationSession', () => {
 
     // 轨迹步骤带序号，两个来源都完整走过 解析→确认→快照→分析。
     const traceIds = result.data.trace.map((item) => item.id);
-    for (const id of ['source-resolve-1', 'source-resolve-2', 'source-confirm-1', 'source-confirm-2', 'analyst-1', 'analyst-2']) {
+    for (const id of [
+      'source-resolve-1',
+      'source-resolve-2',
+      'source-confirm-1',
+      'source-confirm-2',
+      'analyst-1',
+      'analyst-2',
+    ]) {
       expect(traceIds).toContain(id);
     }
 
@@ -227,12 +291,15 @@ describe('DesignSchemeCreationSession', () => {
 
     // 文档来源：两个 normative 仓库绑定；约束证据指向全部来源。
     const document = new DesignSchemeRepository(db).getRevisionDocument(result.data.revisionId);
-    const repoBindings = document?.sources.filter((binding) => binding.kind === 'github-skill') ?? [];
+    const repoBindings =
+      document?.sources.filter((binding) => binding.kind === 'github-skill') ?? [];
     expect(repoBindings.map((binding) => binding.id)).toEqual(['src_repo_1', 'src_repo_2']);
     expect(repoBindings.every((binding) => binding.role === 'normative')).toBe(true);
     expect(document?.constraints[0]?.sourceIds).toEqual(['src_repo_1', 'src_repo_2']);
     // 两个快照绑定都写库。
-    const bindings = db.prepare('SELECT COUNT(*) AS n FROM design_scheme_source_bindings').get() as { n: number };
+    const bindings = db
+      .prepare('SELECT COUNT(*) AS n FROM design_scheme_source_bindings')
+      .get() as { n: number };
     expect(bindings.n).toBe(2);
   });
 
@@ -245,7 +312,9 @@ describe('DesignSchemeCreationSession', () => {
       {
         executionId: 'exec-history',
         brief: '把这些作品的风格整理成可复用方案',
-        history: { items: [{ historyId: 'hist_1', imagePath, promptText: '深蓝配暖橙的极简海报' }] },
+        history: {
+          items: [{ historyId: 'hist_1', imagePath, promptText: '深蓝配暖橙的极简海报' }],
+        },
       },
       { db, resolveAdapter: () => makeAdapter({}), emit: collect, userDataDir: tmp },
     );
@@ -259,18 +328,32 @@ describe('DesignSchemeCreationSession', () => {
 
     const repository = new DesignSchemeRepository(db);
     const document = repository.getRevisionDocument(result.data.revisionId);
-    expect(document?.sources.some((binding) => binding.kind === 'history-image' && binding.role === 'example')).toBe(true);
-    expect(document?.sources.some((binding) => binding.kind === 'conversation-turn' && binding.role === 'context')).toBe(true);
+    expect(
+      document?.sources.some(
+        (binding) => binding.kind === 'history-image' && binding.role === 'example',
+      ),
+    ).toBe(true);
+    expect(
+      document?.sources.some(
+        (binding) => binding.kind === 'conversation-turn' && binding.role === 'context',
+      ),
+    ).toBe(true);
 
     // 快照文件已复制固化（图片 + 提示词文本）
-    const snapshotRow = db.prepare("SELECT id FROM source_snapshots WHERE package_id LIKE 'pkg_hist_%'").get() as { id: string } | undefined;
+    const snapshotRow = db
+      .prepare("SELECT id FROM source_snapshots WHERE package_id LIKE 'pkg_hist_%'")
+      .get() as { id: string } | undefined;
     expect(snapshotRow).toBeTruthy();
-    const files = db.prepare('SELECT path, kind, store_key FROM source_files WHERE snapshot_id = ?').all(snapshotRow!.id) as Array<{ path: string; kind: string; store_key: string | null }>;
+    const files = db
+      .prepare('SELECT path, kind, store_key FROM source_files WHERE snapshot_id = ?')
+      .all(snapshotRow!.id) as Array<{ path: string; kind: string; store_key: string | null }>;
     expect(files.map((file) => file.kind).sort()).toEqual(['image', 'text']);
     const imageFile = files.find((file) => file.kind === 'image');
     expect(existsSync(join(tmp, imageFile!.store_key!))).toBe(true);
     // 方案与历史快照建立 example 绑定
-    const bindings = db.prepare('SELECT role FROM design_scheme_source_bindings').all() as Array<{ role: string }>;
+    const bindings = db.prepare('SELECT role FROM design_scheme_source_bindings').all() as Array<{
+      role: string;
+    }>;
     expect(bindings).toEqual([{ role: 'example' }]);
   });
 
@@ -290,9 +373,12 @@ describe('DesignSchemeCreationSession', () => {
     if (!result.ok) return;
     // 全部条目缺失时来源为空，回落为纯想法展示
     expect(result.data.scheme.sourceLabel).toBe('Musefold 创建');
-    const warning = events.find((event) => event.kind === 'trace'
-      && (event as { item: { id: string; status: string } }).item.id === 'history-snapshot'
-      && (event as { item: { status: string } }).item.status === 'warning');
+    const warning = events.find(
+      (event) =>
+        event.kind === 'trace' &&
+        (event as { item: { id: string; status: string } }).item.id === 'history-snapshot' &&
+        (event as { item: { status: string } }).item.status === 'warning',
+    );
     expect(warning).toBeTruthy();
   });
 
@@ -348,10 +434,12 @@ describe('DesignSchemeCreationSession', () => {
     const hangingAdapter = {
       modelId: 'test-model',
       connectionName: 'test-conn',
-      complete: (request: TextCompletionRequest) => new Promise((_resolve, reject) => {
-        releaseCompiler = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-        request.signal?.addEventListener('abort', () => releaseCompiler?.());
-      }),
+      complete: (request: TextCompletionRequest) =>
+        new Promise((_resolve, reject) => {
+          releaseCompiler = () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          request.signal?.addEventListener('abort', () => releaseCompiler?.());
+        }),
     } as unknown as OpenAiCompatibleTextAdapter;
     const session = new DesignSchemeCreationSession(
       { executionId: 'exec-cancel', brief: '想法' },

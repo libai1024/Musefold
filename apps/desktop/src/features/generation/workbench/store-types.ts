@@ -15,7 +15,9 @@ import type { GenerationSource, RefinementContext, SchemeCreationDraftCard } fro
 import type { WorkbenchDraftControllerState } from './draftController';
 import type { WorkbenchGenerationSyncState } from './generationSyncController';
 
-export interface WorkbenchState extends WorkbenchDraftControllerState, WorkbenchGenerationSyncState {
+export interface WorkbenchState
+  extends WorkbenchDraftControllerState,
+    WorkbenchGenerationSyncState {
   /** Composer 指令芯片（Codex 式）：输入完整 / 指令后收敛为图标+指令名。 */
   draftCommand: 'design-plan' | null;
   /** 「从历史内容创建」挑选的来源（UI 规范 §10）；随 design-plan 指令一起提交。 */
@@ -205,4 +207,3 @@ export type WorkbenchSessionActions = Pick<
   | 'archiveSession'
   | 'deleteSession'
 >;
-

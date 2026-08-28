@@ -1,6 +1,4 @@
-const ALLOWED_EXTERNAL_HOSTS = new Set([
-  'ai.tvt.wiki',
-]);
+const ALLOWED_EXTERNAL_HOSTS = new Set(['ai.tvt.wiki']);
 
 /**
  * Renderer-triggered links may only leave the app when they target a documented
@@ -9,12 +7,13 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
 export function isAllowedExternalUrl(rawUrl: string): boolean {
   try {
     const url = new URL(rawUrl);
-    return url.protocol === 'https:'
-      && !url.username
-      && !url.password
-      && ALLOWED_EXTERNAL_HOSTS.has(url.hostname.toLowerCase());
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      ALLOWED_EXTERNAL_HOSTS.has(url.hostname.toLowerCase())
+    );
   } catch {
     return false;
   }
 }
-

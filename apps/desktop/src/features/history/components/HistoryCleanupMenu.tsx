@@ -111,11 +111,7 @@ export function HistoryCleanupMenu() {
             清失败与取消
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={openAll}
-            tone="danger"
-            data-testid="history-clear-all"
-          >
+          <DropdownMenuItem onSelect={openAll} tone="danger" data-testid="history-clear-all">
             <Trash2 className="h-3.5 w-3.5" />
             清空全部
           </DropdownMenuItem>

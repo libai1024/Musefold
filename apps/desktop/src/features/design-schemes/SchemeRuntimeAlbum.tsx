@@ -30,7 +30,10 @@ export function RuntimeAlbum({
     );
   }
 
-  const activeIndex = Math.max(0, assets.findIndex((asset) => asset.id === activeId));
+  const activeIndex = Math.max(
+    0,
+    assets.findIndex((asset) => asset.id === activeId),
+  );
   const active = assets[activeIndex] ?? assets[0];
   const behind = Array.from(
     { length: Math.min(3, assets.length - 1) },
@@ -51,10 +54,17 @@ export function RuntimeAlbum({
                 type="button"
                 onClick={() => setActiveId(asset.id)}
                 className="absolute inset-0 overflow-hidden rounded-md border border-border-default bg-elevated transition-transform duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
-                style={{ transform: `translate(${depth * 7}px, ${depth * 7}px)`, zIndex: 5 - depth }}
+                style={{
+                  transform: `translate(${depth * 7}px, ${depth * 7}px)`,
+                  zIndex: 5 - depth,
+                }}
                 aria-label="查看这张示例"
               >
-                <img src={toImageSrc(asset.path)} alt="" className="h-full w-full object-contain opacity-70" />
+                <img
+                  src={toImageSrc(asset.path)}
+                  alt=""
+                  className="h-full w-full object-contain opacity-70"
+                />
               </button>
             );
           })}
@@ -64,14 +74,24 @@ export function RuntimeAlbum({
             className="relative z-10 flex h-[min(48dvh,440px)] min-h-[300px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-md border border-border-default bg-inset/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
             aria-label="全屏查看当前示例"
           >
-            <img src={toImageSrc(active.path)} alt="方案示例" className="h-full w-full object-contain" />
+            <img
+              src={toImageSrc(active.path)}
+              alt="方案示例"
+              className="h-full w-full object-contain"
+            />
           </button>
         </div>
         <div className="flex min-h-8 items-center gap-2 text-meta text-tertiary">
           <span>{ASSET_ORIGIN_LABEL[active.origin]}</span>
           <span>·</span>
-          <span className="tabular-nums">{activeIndex + 1} / {assets.length}</span>
-          {active.id === coverAssetId && <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-meta">封面</span>}
+          <span className="tabular-nums">
+            {activeIndex + 1} / {assets.length}
+          </span>
+          {active.id === coverAssetId && (
+            <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-meta">
+              封面
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-1">
             {active.id !== coverAssetId && (
               <button
@@ -84,8 +104,24 @@ export function RuntimeAlbum({
                 设为封面
               </button>
             )}
-            <button type="button" onClick={previous} className="icon-action" title="上一张" aria-label="上一张"><ChevronLeft className="h-4 w-4" /></button>
-            <button type="button" onClick={next} className="icon-action" title="下一张" aria-label="下一张"><ChevronRight className="h-4 w-4" /></button>
+            <button
+              type="button"
+              onClick={previous}
+              className="icon-action"
+              title="上一张"
+              aria-label="上一张"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={next}
+              className="icon-action"
+              title="下一张"
+              aria-label="下一张"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -97,7 +133,11 @@ export function RuntimeAlbum({
           aria-label="方案示例全屏预览"
           onClick={() => setLightbox(null)}
         >
-          <img src={toImageSrc(lightbox.path)} alt="方案示例" className="max-h-full max-w-full object-contain" />
+          <img
+            src={toImageSrc(lightbox.path)}
+            alt="方案示例"
+            className="max-h-full max-w-full object-contain"
+          />
           <button
             type="button"
             onClick={() => setLightbox(null)}

@@ -18,9 +18,9 @@
  *   2 — config missing (from env.js)
  */
 
-const fs = require("fs");
-const path = require("path");
-const { sanitize } = require("./sanitize");
+const fs = require('fs');
+const path = require('path');
+const { sanitize } = require('./sanitize');
 
 // --- Atomic file write helper ---
 
@@ -35,7 +35,7 @@ function writeFileAtomically(targetPath, content) {
   const stats = fs.statSync(targetPath);
 
   try {
-    fs.writeFileSync(tempPath, content, { encoding: "utf-8", mode: stats.mode });
+    fs.writeFileSync(tempPath, content, { encoding: 'utf-8', mode: stats.mode });
     fs.renameSync(tempPath, targetPath);
   } catch {
     try {
@@ -47,17 +47,17 @@ function writeFileAtomically(targetPath, content) {
     }
 
     throw new Error(
-      `Failed to safely replace ${targetPath}. The original file was left untouched.`
+      `Failed to safely replace ${targetPath}. The original file was left untouched.`,
     );
   }
 }
 
 // --- Scan mode (no API config needed) ---
 
-if (process.argv[2] === "--scan") {
+if (process.argv[2] === '--scan') {
   const filePath = process.argv[3];
   if (!filePath) {
-    console.error("Usage: inject-key.js --scan <file_path>");
+    console.error('Usage: inject-key.js --scan <file_path>');
     process.exit(1);
   }
 
@@ -67,22 +67,22 @@ if (process.argv[2] === "--scan") {
     process.exit(1);
   }
 
-  const content = fs.readFileSync(resolved, "utf-8");
+  const content = fs.readFileSync(resolved, 'utf-8');
   console.log(sanitize(content));
   process.exit(0);
 }
 
 // --- Apply mode ---
 
-const { BASE_URL, ACCESS_TOKEN, USER_ID } = require("./env");
-const { fetchTokenKey } = require("./fetch-key");
+const { BASE_URL, ACCESS_TOKEN, USER_ID } = require('./env');
+const { fetchTokenKey } = require('./fetch-key');
 
 const tokenId = process.argv[2];
 const filePath = process.argv[3];
 
 if (!tokenId || !/^\d+$/.test(tokenId) || !filePath) {
-  console.error("Usage: inject-key.js <token_id> <file_path>");
-  console.error("       inject-key.js --scan <file_path>");
+  console.error('Usage: inject-key.js <token_id> <file_path>');
+  console.error('       inject-key.js --scan <file_path>');
   process.exit(1);
 }
 
@@ -95,7 +95,7 @@ async function main() {
     process.exit(1);
   }
 
-  const content = fs.readFileSync(resolved, "utf-8");
+  const content = fs.readFileSync(resolved, 'utf-8');
 
   if (!content.includes(placeholder)) {
     console.error(`ERROR: Placeholder ${placeholder} not found in ${filePath}`);
@@ -127,6 +127,6 @@ async function main() {
 }
 
 main().catch(() => {
-  console.error("ERROR: Unexpected failure");
+  console.error('ERROR: Unexpected failure');
   process.exit(1);
 });

@@ -10,9 +10,11 @@ afterEach(() => {
 });
 
 function tableNames(database: Database.Database): string[] {
-  return (database.prepare(
-    "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
-  ).all() as Array<{ name: string }>).map((row) => row.name);
+  return (
+    database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+      .all() as Array<{ name: string }>
+  ).map((row) => row.name);
 }
 
 describe('0011_remove_legacy_composer', () => {
@@ -82,43 +84,56 @@ describe('0011_remove_legacy_composer', () => {
       VALUES ('history-1', 'prompt-1', '系统架构图', '绘制系统架构图', 'full', 0);
     `);
 
-    const originalRowId = (db.prepare(
-      "SELECT rowid FROM prompts WHERE id = 'prompt-1'",
-    ).get() as { rowid: number }).rowid;
+    const originalRowId = (
+      db.prepare("SELECT rowid FROM prompts WHERE id = 'prompt-1'").get() as { rowid: number }
+    ).rowid;
 
     db.transaction(() => up(db!))();
 
-    expect(tableNames(db)).not.toEqual(expect.arrayContaining([
-      'recipes',
-      'materials',
-      'recipe_drafts',
-      'fragments',
-      'templates',
-      'compositions',
-      'composition_events',
-      'composition_snapshots',
-    ]));
-    expect(db.prepare(
-      "SELECT rowid, recipe_id FROM prompts WHERE id = 'prompt-1'",
-    ).get()).toEqual({ rowid: originalRowId, recipe_id: 'legacy-recipe-1' });
-    expect(db.prepare(
-      "SELECT prompt_id, recipe_id FROM history WHERE id = 'history-1'",
-    ).get()).toEqual({ prompt_id: 'prompt-1', recipe_id: 'legacy-recipe-1' });
-    expect(db.prepare(
-      "SELECT prompt_id, excerpt FROM history_prompt_references WHERE history_id = 'history-1'",
-    ).get()).toEqual({ prompt_id: 'prompt-1', excerpt: '绘制系统架构图' });
+    expect(tableNames(db)).not.toEqual(
+      expect.arrayContaining([
+        'recipes',
+        'materials',
+        'recipe_drafts',
+        'fragments',
+        'templates',
+        'compositions',
+        'composition_events',
+        'composition_snapshots',
+      ]),
+    );
+    expect(db.prepare("SELECT rowid, recipe_id FROM prompts WHERE id = 'prompt-1'").get()).toEqual({
+      rowid: originalRowId,
+      recipe_id: 'legacy-recipe-1',
+    });
+    expect(
+      db.prepare("SELECT prompt_id, recipe_id FROM history WHERE id = 'history-1'").get(),
+    ).toEqual({ prompt_id: 'prompt-1', recipe_id: 'legacy-recipe-1' });
+    expect(
+      db
+        .prepare(
+          "SELECT prompt_id, excerpt FROM history_prompt_references WHERE history_id = 'history-1'",
+        )
+        .get(),
+    ).toEqual({ prompt_id: 'prompt-1', excerpt: '绘制系统架构图' });
 
-    const promptForeignTables = (db.prepare('PRAGMA foreign_key_list(prompts)').all() as Array<{ table: string }>)
-      .map((row) => row.table);
-    const historyForeignTables = (db.prepare('PRAGMA foreign_key_list(history)').all() as Array<{ table: string }>)
-      .map((row) => row.table);
+    const promptForeignTables = (
+      db.prepare('PRAGMA foreign_key_list(prompts)').all() as Array<{ table: string }>
+    ).map((row) => row.table);
+    const historyForeignTables = (
+      db.prepare('PRAGMA foreign_key_list(history)').all() as Array<{ table: string }>
+    ).map((row) => row.table);
     expect(promptForeignTables).not.toContain('recipes');
     expect(historyForeignTables).not.toContain('recipes');
     expect(db.pragma('foreign_key_check')).toEqual([]);
 
-    expect(() => db!.prepare(
-      `INSERT INTO prompts (id, title, content, recipe_id, created_at, updated_at)
+    expect(() =>
+      db!
+        .prepare(
+          `INSERT INTO prompts (id, title, content, recipe_id, created_at, updated_at)
        VALUES ('prompt-v021', '新配方来源', '正文', 'recipe-v021', 4, 4)`,
-    ).run()).not.toThrow();
+        )
+        .run(),
+    ).not.toThrow();
   });
 });

@@ -1,14 +1,9 @@
-import type { Dispatch, FormEvent, MutableRefObject, SetStateAction } from "react";
-import type { DesktopLibraryPrompt } from "@musefold/desktop-contracts/library-documents";
-import type { GenerationSource } from "./types";
-import type { useWorkbenchComposerStore } from "./useWorkbenchComposerStore";
+import type { Dispatch, FormEvent, MutableRefObject, SetStateAction } from 'react';
+import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
+import type { GenerationSource } from './types';
+import type { useWorkbenchComposerStore } from './useWorkbenchComposerStore';
 
-export type ComposerPresentationMode =
-  | "image"
-  | "design-plan"
-  | "refinement"
-  | "scheme"
-  | "skill";
+export type ComposerPresentationMode = 'image' | 'design-plan' | 'refinement' | 'scheme' | 'skill';
 
 type Store = ReturnType<typeof useWorkbenchComposerStore>;
 
@@ -50,8 +45,8 @@ export type WorkbenchComposerViewProps = Store & {
   removeReferenceAt: (index: number) => void;
   composerMode: ComposerPresentationMode;
   composerModeLocked: boolean;
-  setComposerMode: (mode: "image" | "design-plan") => void;
+  setComposerMode: (mode: 'image' | 'design-plan') => void;
   /** v2.0 空态内联变体(11 §5):empty + flow 时 Composer 渲染在品牌锁定区下方。 */
-  composerVariant?: "empty" | "active";
-  composerLayout?: "floating" | "flow";
+  composerVariant?: 'empty' | 'active';
+  composerLayout?: 'floating' | 'flow';
 };

@@ -1,22 +1,18 @@
-import { z } from "zod";
-import { entityIdSchema, isoDateTimeSchema } from "./common.js";
+import { z } from 'zod';
+import { entityIdSchema, isoDateTimeSchema } from './common.js';
 
-export const mcpScopeSchema = z.enum([
-  "account:read",
-  "prompts:read",
-  "skills:read",
-]);
+export const mcpScopeSchema = z.enum(['account:read', 'prompts:read', 'skills:read']);
 
 export const mcpConnectionSchema = z.object({
   id: entityIdSchema,
   clientName: z.string().trim().min(1).max(160),
   scopes: z.array(mcpScopeSchema),
-  mode: z.enum(["ask_each_time", "auto_with_limits"]),
+  mode: z.enum(['ask_each_time', 'auto_with_limits']),
   maxPointsPerGeneration: z.number().int().nonnegative(),
   maxPointsPerDay: z.number().int().nonnegative(),
   spentPointsToday: z.number().int().nonnegative(),
   reservedPointsToday: z.number().int().nonnegative(),
-  status: z.enum(["active", "suspended", "revoked"]),
+  status: z.enum(['active', 'suspended', 'revoked']),
   createdAt: isoDateTimeSchema,
   lastUsedAt: isoDateTimeSchema.nullable(),
 });

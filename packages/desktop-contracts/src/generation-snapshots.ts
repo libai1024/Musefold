@@ -3,12 +3,7 @@
 // models / providers / skill-runtime 只单向依赖这里，而不是互相引用。
 // V13-ENT-02：PromptParams 从 models 迁入（渲染层可安全引用的生成参数包）。
 
-import type {
-  ImageSize,
-  ImageQuality,
-  ImageBackground,
-  ModerationLevel,
-} from './enums';
+import type { ImageSize, ImageQuality, ImageBackground, ModerationLevel } from './enums';
 
 export type PromptReferenceScope = 'full' | 'excerpt';
 

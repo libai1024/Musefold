@@ -31,22 +31,22 @@ export const searchHistoryRepo = {
     if (!clean) return;
     const db = getDb();
     db.transaction(() => {
-      const latest = db
-        .prepare('SELECT MAX(used_at) AS max_used_at FROM search_history')
-        .get() as { max_used_at?: number | null };
+      const latest = db.prepare('SELECT MAX(used_at) AS max_used_at FROM search_history').get() as {
+        max_used_at?: number | null;
+      };
       // Millisecond timestamps can collide when a batch of searches is recorded
       // in one event loop turn; keep ordering strictly monotonic for eviction.
       const now = Math.max(Date.now(), (latest.max_used_at ?? 0) + 1);
       db.prepare(
         `INSERT INTO search_history (id, term, used_at)
          VALUES (@id, @term, @used_at)
-         ON CONFLICT(term) DO UPDATE SET used_at = excluded.used_at`
+         ON CONFLICT(term) DO UPDATE SET used_at = excluded.used_at`,
       ).run({ id: ulid(), term: clean, used_at: now });
       db.prepare(
         `DELETE FROM search_history
          WHERE id NOT IN (
            SELECT id FROM search_history ORDER BY used_at DESC LIMIT ?
-         )`
+         )`,
       ).run(MAX_HISTORY);
     })();
   },

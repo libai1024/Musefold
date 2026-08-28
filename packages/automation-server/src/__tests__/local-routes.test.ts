@@ -36,7 +36,12 @@ async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'musefold-local-'));
   const ops = fakeOps();
   const server = createAutomationServer({
-    core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }) } },
+    core: {
+      version: '0.1.0',
+      status: {
+        snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }),
+      },
+    },
     events: createEventHub(),
     dataDir: dir,
     owner: 'desktop-app',
@@ -56,8 +61,11 @@ async function call(info: AutomationServerInfo, path: string, init: RequestInit 
 }
 
 async function proofHeader(dir: string, info: AutomationServerInfo): Promise<string> {
-  const challenge = (await (await call(info, '/v1/local/challenge', { method: 'POST' })).json()) as {
-    challengeId: string; fileName: string;
+  const challenge = (await (
+    await call(info, '/v1/local/challenge', { method: 'POST' })
+  ).json()) as {
+    challengeId: string;
+    fileName: string;
   };
   const content = readFileSync(join(dir, ...challenge.fileName.split('/')), 'utf8');
   return `${challenge.challengeId}:${content}`;
@@ -66,7 +74,10 @@ async function proofHeader(dir: string, info: AutomationServerInfo): Promise<str
 describe('本地专属通道', () => {
   it('无质询证明 → 403 LOCAL_PROOF_REQUIRED（token 有效也不行）', async () => {
     const { info, ops } = await fixture();
-    const response = await call(info, '/v1/local/providers/p1/key', { method: 'POST', body: JSON.stringify({ key: 'sk-x' }) });
+    const response = await call(info, '/v1/local/providers/p1/key', {
+      method: 'POST',
+      body: JSON.stringify({ key: 'sk-x' }),
+    });
     expect(response.status).toBe(403);
     expect(((await response.json()) as any).error.code).toBe('LOCAL_PROOF_REQUIRED');
     expect(ops.setProviderKey).not.toHaveBeenCalled();
@@ -95,7 +106,9 @@ describe('本地专属通道', () => {
 
   it('伪造内容 → 403，且该质询作废', async () => {
     const { info } = await fixture();
-    const challenge = (await (await call(info, '/v1/local/challenge', { method: 'POST' })).json()) as { challengeId: string; fileName: string };
+    const challenge = (await (
+      await call(info, '/v1/local/challenge', { method: 'POST' })
+    ).json()) as { challengeId: string; fileName: string };
     const forged = await call(info, '/v1/local/backups', {
       method: 'POST',
       headers: { 'x-musefold-local-proof': `${challenge.challengeId}:wrong-content` },
@@ -111,7 +124,10 @@ describe('本地专属通道', () => {
 
   it('备份 / 导出 / 删除提示词经通道可用', async () => {
     const { dir, info, ops } = await fixture();
-    const backup = await call(info, '/v1/local/backups', { method: 'POST', headers: { 'x-musefold-local-proof': await proofHeader(dir, info) } });
+    const backup = await call(info, '/v1/local/backups', {
+      method: 'POST',
+      headers: { 'x-musefold-local-proof': await proofHeader(dir, info) },
+    });
     expect(((await backup.json()) as any).path).toBe('/tmp/backup.db');
 
     const exported = await call(info, '/v1/local/export', {

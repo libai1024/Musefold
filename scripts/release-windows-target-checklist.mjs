@@ -85,7 +85,10 @@ async function peMachine(path) {
     throw new Error(`${path} missing DOS MZ header`);
   }
   const peOffset = data.readUInt32LE(0x3c);
-  if (peOffset + 6 >= data.length || data.toString('ascii', peOffset, peOffset + 4) !== 'PE\u0000\u0000') {
+  if (
+    peOffset + 6 >= data.length ||
+    data.toString('ascii', peOffset, peOffset + 4) !== 'PE\u0000\u0000'
+  ) {
     throw new Error(`${path} missing PE header`);
   }
   return data.readUInt16LE(peOffset + 4);
@@ -139,7 +142,11 @@ async function checkPackagedDocsSync() {
   }
 
   if (issues.length === 0) {
-    record('Windows ARM64 product docs are bundled', 'pass', `${sourceFiles.length} markdown files match docs/product`);
+    record(
+      'Windows ARM64 product docs are bundled',
+      'pass',
+      `${sourceFiles.length} markdown files match docs/product`,
+    );
   } else {
     record('Windows ARM64 product docs are bundled', 'fail', issues.join('; '));
   }
@@ -162,7 +169,11 @@ function isSha(value) {
 function validateTargetEvidence(evidence, artifacts) {
   const gate = evidence?.windowsArm64TargetRuntime;
   if (gate === undefined) {
-    record('Windows ARM64 target-device evidence', 'manual', `missing ${evidencePath}:windowsArm64TargetRuntime`);
+    record(
+      'Windows ARM64 target-device evidence',
+      'manual',
+      `missing ${evidencePath}:windowsArm64TargetRuntime`,
+    );
     return;
   }
   const issues = [];
@@ -170,21 +181,45 @@ function validateTargetEvidence(evidence, artifacts) {
     issues.push('gate must be an object');
   } else {
     if (Number.isNaN(Date.parse(gate.checkedAt))) issues.push('checkedAt invalid');
-    if (typeof gate.device !== 'string' || gate.device.trim().length < 3 || gate.device.includes('device model')) issues.push('device missing/placeholder');
-    if (typeof gate.windowsVersion !== 'string' || gate.windowsVersion.trim().length < 3 || gate.windowsVersion.includes('build')) issues.push('windowsVersion missing/placeholder');
+    if (
+      typeof gate.device !== 'string' ||
+      gate.device.trim().length < 3 ||
+      gate.device.includes('device model')
+    )
+      issues.push('device missing/placeholder');
+    if (
+      typeof gate.windowsVersion !== 'string' ||
+      gate.windowsVersion.trim().length < 3 ||
+      gate.windowsVersion.includes('build')
+    )
+      issues.push('windowsVersion missing/placeholder');
     if (!isSha(gate.installerSha256)) issues.push('installerSha256 invalid');
     if (!isSha(gate.appExeSha256)) issues.push('appExeSha256 invalid');
-    if (gate.installerSha256 !== artifacts.installer.sha256) issues.push('installerSha256 does not match current artifact');
-    if (gate.appExeSha256 !== artifacts.appExe.sha256) issues.push('appExeSha256 does not match current artifact');
+    if (gate.installerSha256 !== artifacts.installer.sha256)
+      issues.push('installerSha256 does not match current artifact');
+    if (gate.appExeSha256 !== artifacts.appExe.sha256)
+      issues.push('appExeSha256 does not match current artifact');
 
     const checklist = gate.checklist ?? {};
-    for (const key of ['install', 'launch', 'fakeGeneration', 'mediaPreview', 'historyRecord', 'exportImport', 'deeplinkImport']) {
+    for (const key of [
+      'install',
+      'launch',
+      'fakeGeneration',
+      'mediaPreview',
+      'historyRecord',
+      'exportImport',
+      'deeplinkImport',
+    ]) {
       if (checklist[key] !== true) issues.push(`checklist.${key} must be true`);
     }
   }
 
   if (issues.length === 0) {
-    record('Windows ARM64 target-device evidence', 'pass', `${evidencePath}:windowsArm64TargetRuntime matches current artifact hashes`);
+    record(
+      'Windows ARM64 target-device evidence',
+      'pass',
+      `${evidencePath}:windowsArm64TargetRuntime matches current artifact hashes`,
+    );
   } else {
     record('Windows ARM64 target-device evidence', 'fail', issues.join('; '));
   }
@@ -215,15 +250,24 @@ async function collectArtifacts() {
   const installerMachine = await peMachine(installerPath);
   const appMachine = await peMachine(appExePath);
   if (installerMachine === PE_MACHINE_I386 && appMachine === PE_MACHINE_ARM64) {
-    record('Windows PE architecture markers', 'pass', 'NSIS installer i386 stub and Musefold.exe ARM64');
+    record(
+      'Windows PE architecture markers',
+      'pass',
+      'NSIS installer i386 stub and Musefold.exe ARM64',
+    );
   } else {
-    record('Windows PE architecture markers', 'fail', `installer=0x${installerMachine.toString(16)}, app=0x${appMachine.toString(16)}`);
+    record(
+      'Windows PE architecture markers',
+      'fail',
+      `installer=0x${installerMachine.toString(16)}, app=0x${appMachine.toString(16)}`,
+    );
   }
   return artifacts;
 }
 
 function buildChecklist(artifacts) {
-  const installerName = artifacts.installer?.path.split('/').pop() ?? `Musefold Setup ${artifacts.version}.exe`;
+  const installerName =
+    artifacts.installer?.path.split('/').pop() ?? `Musefold Setup ${artifacts.version}.exe`;
   return [
     `Copy ${installerName} to a real Windows on ARM64 device.`,
     `Verify installer hash in PowerShell: Get-FileHash '.\\${installerName}' -Algorithm SHA256`,
@@ -280,16 +324,29 @@ async function main() {
   const ok = failed.length === 0 && (!strict || pending.length === 0);
 
   if (json) {
-    console.log(JSON.stringify({ artifacts, checks, checklist, evidenceSnippet, evidencePath, strict, ok }, null, 2));
+    console.log(
+      JSON.stringify(
+        { artifacts, checks, checklist, evidenceSnippet, evidencePath, strict, ok },
+        null,
+        2,
+      ),
+    );
   } else {
     console.log('Windows ARM64 target-device release checklist:');
     for (const check of checks) {
-      const mark = check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
+      const mark =
+        check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
       console.log(`${mark} ${check.name}${check.details ? ` - ${check.details}` : ''}`);
     }
     console.log('\nArtifact hashes:');
-    if (artifacts.installer) console.log(`- ${artifacts.installer.path}: ${artifacts.installer.sha256} (${artifacts.installer.bytes.toLocaleString('en-US')} bytes)`);
-    if (artifacts.appExe) console.log(`- ${artifacts.appExe.path}: ${artifacts.appExe.sha256} (${artifacts.appExe.bytes.toLocaleString('en-US')} bytes)`);
+    if (artifacts.installer)
+      console.log(
+        `- ${artifacts.installer.path}: ${artifacts.installer.sha256} (${artifacts.installer.bytes.toLocaleString('en-US')} bytes)`,
+      );
+    if (artifacts.appExe)
+      console.log(
+        `- ${artifacts.appExe.path}: ${artifacts.appExe.sha256} (${artifacts.appExe.bytes.toLocaleString('en-US')} bytes)`,
+      );
     console.log('\nTarget-device checklist:');
     checklist.forEach((item, index) => console.log(`${index + 1}. ${item}`));
     console.log('\nEvidence JSON seed:');

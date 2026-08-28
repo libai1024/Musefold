@@ -229,9 +229,7 @@ export function WebCommandPalette({
             aria-autocomplete="list"
             aria-expanded={open}
             aria-controls="web-command-results"
-            aria-activedescendant={
-              rows.length > 0 ? `web-command-option-${active}` : undefined
-            }
+            aria-activedescendant={rows.length > 0 ? `web-command-option-${active}` : undefined}
             data-testid="web-command-input"
           />
         </div>

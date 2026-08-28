@@ -47,11 +47,7 @@ export function SchemeActionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <IconButton
-          label="更多方案操作"
-          title="更多操作"
-          data-testid="runtime-scheme-menu"
-        >
+        <IconButton label="更多方案操作" title="更多操作" data-testid="runtime-scheme-menu">
           <MoreHorizontal className="h-4 w-4" />
         </IconButton>
       </DropdownMenuTrigger>

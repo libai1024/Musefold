@@ -4,13 +4,15 @@ import { createMigratingJSONStorage, persistStateOf } from '../zustand-persist';
 
 describe('app preference sanitizers', () => {
   it('drops unknown enum values instead of hydrating them', () => {
-    expect(sanitizeAppPreferences({
-      themeSource: 'sepia',
-      reducedMotion: 'maybe',
-      density: 'tiny',
-      defaultProviderId: 12,
-      schemePriorityMode: 'random',
-    })).toEqual({
+    expect(
+      sanitizeAppPreferences({
+        themeSource: 'sepia',
+        reducedMotion: 'maybe',
+        density: 'tiny',
+        defaultProviderId: 12,
+        schemePriorityMode: 'random',
+      }),
+    ).toEqual({
       themeSource: 'system',
       reducedMotion: 'system',
       density: 'comfortable',
@@ -20,13 +22,16 @@ describe('app preference sanitizers', () => {
   });
 
   it('keeps versioned persist payloads after migrate', () => {
-    const next = migrateAppPreferences({
-      themeSource: 'light',
-      reducedMotion: 'off',
-      density: 'compact',
-      defaultProviderId: 'p1',
-      schemePriorityMode: 'user_first',
-    }, 0);
+    const next = migrateAppPreferences(
+      {
+        themeSource: 'light',
+        reducedMotion: 'off',
+        density: 'compact',
+        defaultProviderId: 'p1',
+        schemePriorityMode: 'user_first',
+      },
+      0,
+    );
     expect(next.themeSource).toBe('light');
     expect(next.defaultProviderId).toBe('p1');
   });
@@ -34,7 +39,11 @@ describe('app preference sanitizers', () => {
 
 describe('persistStateOf', () => {
   it('reads zustand persist JSON wrappers', () => {
-    expect(persistStateOf<{ onboarded: boolean }>(JSON.stringify({ state: { onboarded: true }, version: 1 }))).toEqual({
+    expect(
+      persistStateOf<{ onboarded: boolean }>(
+        JSON.stringify({ state: { onboarded: true }, version: 1 }),
+      ),
+    ).toEqual({
       onboarded: true,
     });
     expect(persistStateOf('not-json')).toBeNull();

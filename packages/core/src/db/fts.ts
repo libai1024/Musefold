@@ -70,7 +70,7 @@ export function tokenizeForFts(
   title: string,
   description: string | null,
   content: string,
-  tags: string[]
+  tags: string[],
 ): string {
   const parts: string[] = [];
   if (title) parts.push(...tokenizeText(title));

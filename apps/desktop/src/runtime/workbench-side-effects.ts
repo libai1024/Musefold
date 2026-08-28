@@ -14,15 +14,11 @@ export function notifyWorkbenchHistoryChanged(): void {
 
 export function notifyWorkbenchDoubaoUsageChanged(): void {
   void import('../features/account/doubao-store')
-    .then(({ useDoubaoAccountStore }) =>
-      useDoubaoAccountStore.getState().refreshUsage(),
-    )
+    .then(({ useDoubaoAccountStore }) => useDoubaoAccountStore.getState().refreshUsage())
     .catch(() => undefined);
 }
 
-export function notifyWorkbenchGenerationSettled(options?: {
-  refreshDoubaoUsage?: boolean;
-}): void {
+export function notifyWorkbenchGenerationSettled(options?: { refreshDoubaoUsage?: boolean }): void {
   notifyWorkbenchHistoryChanged();
   if (options?.refreshDoubaoUsage) notifyWorkbenchDoubaoUsageChanged();
 }

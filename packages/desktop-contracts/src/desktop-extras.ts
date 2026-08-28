@@ -40,7 +40,13 @@ import type {
 } from './history-documents';
 import type { DesktopLibraryPrompt, SearchHistoryItem } from './library-documents';
 import type { NewPrompt } from './models';
-import type { ImageGenerationProgress, ModelInfo, NewProviderConfig, ProviderConfig, ValidationResult } from './providers';
+import type {
+  ImageGenerationProgress,
+  ModelInfo,
+  NewProviderConfig,
+  ProviderConfig,
+  ValidationResult,
+} from './providers';
 import type {
   WorkbenchSessionDocument,
   WorkbenchSessionListQuery,

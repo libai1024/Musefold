@@ -28,4 +28,3 @@ exports.default = async function afterPack(context) {
     }
   }
 };
-

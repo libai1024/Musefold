@@ -1,7 +1,4 @@
-import {
-  parseCustomRatioId,
-  RATIO_OPTIONS,
-} from '@musefold/domain/constants';
+import { parseCustomRatioId, RATIO_OPTIONS } from '@musefold/domain/constants';
 import type {
   ImageBackground,
   ImageQuality,
@@ -47,10 +44,10 @@ export function promptTargetFromParams(
   const explicit = stringValue(params, 'promptTarget');
   if (explicit && PROMPT_TARGETS.has(explicit as PromptTarget)) return explicit as PromptTarget;
   if (
-    params.size !== undefined
-    || params.quality !== undefined
-    || params.background !== undefined
-    || params.moderation !== undefined
+    params.size !== undefined ||
+    params.quality !== undefined ||
+    params.background !== undefined ||
+    params.moderation !== undefined
   ) {
     return 'openai';
   }
@@ -58,9 +55,10 @@ export function promptTargetFromParams(
 }
 
 export function promptParamsToRefineParams(params: PromptParams): RefineParams {
-  const quality = params.quality && QUALITIES.has(params.quality)
-    ? params.quality
-    : DEFAULT_REFINE_PARAMS.quality;
+  const quality =
+    params.quality && QUALITIES.has(params.quality)
+      ? params.quality
+      : DEFAULT_REFINE_PARAMS.quality;
   const count = REFINE_COUNTS.includes(params.n as (typeof REFINE_COUNTS)[number])
     ? (params.n as number)
     : DEFAULT_REFINE_PARAMS.n;
@@ -73,8 +71,6 @@ export function promptParamsToRefineParams(params: PromptParams): RefineParams {
         ? params.background
         : DEFAULT_REFINE_PARAMS.background,
     moderation:
-      params.moderation && MODERATIONS.has(params.moderation)
-        ? params.moderation
-        : undefined,
+      params.moderation && MODERATIONS.has(params.moderation) ? params.moderation : undefined,
   };
 }

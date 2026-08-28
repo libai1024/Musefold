@@ -42,14 +42,7 @@ import type {
 
 const logger = createLogger('import');
 /** 参与导入的表名（byType 的 key 集合） */
-const TYPES = [
-  'prompts',
-  'folders',
-  'tags',
-  'smartSets',
-  'providers',
-  'history',
-] as const;
+const TYPES = ['prompts', 'folders', 'tags', 'smartSets', 'providers', 'history'] as const;
 type TypeName = (typeof TYPES)[number];
 
 function zeroStats(): Record<TypeName, ImportTypeStat> {
@@ -194,7 +187,7 @@ async function readZip(path: string): Promise<ZipContents> {
               pending.push(
                 writeFile(dest, buf).then(() => {
                   images.set(basename(name), dest);
-                })
+                }),
               );
             }
             zip.readEntry();
@@ -298,7 +291,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
   const existingFolders = idSet(db, 'folders');
   const pendingParents: { id: string; parentId: string }[] = [];
   const insFolder = db.prepare(
-    'INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, NULL, ?, ?)'
+    'INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, NULL, ?, ?)',
   );
   // folders 表没有 updated_at，无从比较新旧 → merge 与 skip 同义（都保留本地）
   for (const r of arr(d.folders)) {
@@ -335,7 +328,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
   /** 导入文件里的 tagId → 本机实际 tagId */
   const tagIdMap = new Map<string, string>();
   const insTag = db.prepare(
-    'INSERT INTO tags (id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO tags (id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?)',
   );
   for (const r of arr(d.tags)) {
     const id = asStr(r.id);
@@ -371,17 +364,17 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
     `INSERT INTO prompts (id, title, description, content, content_negative, folder_id, model_id,
        params, preview_image_path, rating, is_pinned, pin_order, usage_count, last_used_at,
        source, source_url, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const updPrompt = db.prepare(
     `UPDATE prompts SET title = ?, description = ?, content = ?, content_negative = ?,
        folder_id = ?, model_id = ?, params = ?, preview_image_path = ?, rating = ?,
        is_pinned = ?, pin_order = ?, usage_count = ?, last_used_at = ?, source = ?,
        source_url = ?, updated_at = ?,
-       deleted_at = CASE WHEN ? THEN ? ELSE deleted_at END WHERE id = ?`
+       deleted_at = CASE WHEN ? THEN ? ELSE deleted_at END WHERE id = ?`,
   );
   const insPromptTag = db.prepare(
-    'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)'
+    'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
   );
   const delPromptTags = db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?');
   for (const r of arr(d.prompts)) {
@@ -427,7 +420,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
         asStr(r.sourceUrl),
         incomingUpdated,
         ...softDeleteArgs(r),
-        id
+        id,
       );
       // 覆盖时标签关系整体替换，否则会残留本地旧标签
       delPromptTags.run(id);
@@ -452,7 +445,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
         asStr(r.sourceUrl),
         asNum(r.createdAt, now),
         incomingUpdated,
-        asNullNum(r.deletedAt)
+        asNullNum(r.deletedAt),
       );
       promptUpdated.set(id, incomingUpdated);
       stats.prompts.imported += 1;
@@ -472,10 +465,10 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
   const smartSetUpdated = updatedAtMap(db, 'smart_sets');
   const insSmartSet = db.prepare(
     `INSERT INTO smart_sets (id, name, query, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?)`,
   );
   const updSmartSet = db.prepare(
-    `UPDATE smart_sets SET name = ?, query = ?, sort_order = ?, updated_at = ? WHERE id = ?`
+    `UPDATE smart_sets SET name = ?, query = ?, sort_order = ?, updated_at = ? WHERE id = ?`,
   );
   for (const r of arr(d.smartSets)) {
     const id = asStr(r.id);
@@ -508,10 +501,10 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
   const providerUpdated = updatedAtMap(db, 'providers');
   const insProvider = db.prepare(
     `INSERT INTO providers (id, name, type, base_url, model, has_key, key_suffix, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`,
   );
   const updProvider = db.prepare(
-    `UPDATE providers SET name = ?, type = ?, base_url = ?, model = ?, updated_at = ? WHERE id = ?`
+    `UPDATE providers SET name = ?, type = ?, base_url = ?, model = ?, updated_at = ? WHERE id = ?`,
   );
   for (const r of arr(d.providers)) {
     const id = asStr(r.id);
@@ -521,7 +514,12 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
     const model = asStr(r.model);
     if (!id || !name || !baseUrl || !model || !isProviderType(type)) {
       stats.providers.failed += 1;
-      warn(ctx, type && !isProviderType(type) ? `服务商「${name}」使用已退役或不支持的类型，已跳过` : '服务商缺少必填字段，已跳过');
+      warn(
+        ctx,
+        type && !isProviderType(type)
+          ? `服务商「${name}」使用已退役或不支持的类型，已跳过`
+          : '服务商缺少必填字段，已跳过',
+      );
       continue;
     }
     const incomingUpdated = asNum(r.updatedAt, now);
@@ -547,7 +545,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
       model,
       asBoolInt(r.isActive),
       asNum(r.createdAt, now),
-      incomingUpdated
+      incomingUpdated,
     );
     providerUpdated.set(id, incomingUpdated);
     stats.providers.imported += 1;
@@ -561,7 +559,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
        (id, prompt_id, provider_id, model, prompt_text,
         negative_text, params, status, error_code, error_message, image_path, cost,
         cost_unit, duration_ms, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insHistoryReference = db.prepare(
     `INSERT INTO history_prompt_references
@@ -598,7 +596,7 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
       asNullNum(r.cost),
       'point',
       asNullNum(r.durationMs),
-      asNum(r.createdAt, now)
+      asNum(r.createdAt, now),
     );
     for (const [index, reference] of arr(r.promptReferences).entries()) {
       const title = asStr(reference.title);
@@ -699,7 +697,7 @@ export async function runImport(req: ImportRequest, sourcePath: string): Promise
     `imported=${result.imported}`,
     `updated=${result.updated}`,
     `skipped=${result.skipped}`,
-    `failed=${result.failed}`
+    `failed=${result.failed}`,
   );
 
   return result;

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 export interface ProductPageHeaderProps {
   title: string;
@@ -19,13 +19,10 @@ export function ProductPageHeader({
   testId,
 }: ProductPageHeaderProps) {
   return (
-    <header
-      className={`mf-page-heading${className ? ` ${className}` : ""}`}
-      data-testid={testId}
-    >
+    <header className={`mf-page-heading${className ? ` ${className}` : ''}`} data-testid={testId}>
       <div className="mf-page-heading-title">
         <h1>{title}</h1>
-        {typeof count === "number" ? <span>{count}</span> : null}
+        {typeof count === 'number' ? <span>{count}</span> : null}
       </div>
       {afterTitle}
       {actions ? <div className="mf-page-actions">{actions}</div> : null}

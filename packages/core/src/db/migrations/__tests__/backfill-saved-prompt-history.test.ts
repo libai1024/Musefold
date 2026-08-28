@@ -62,7 +62,9 @@ describe('migration 0010 saved prompt history backfill', () => {
       { id: 'too-old', prompt_id: null },
       { id: 'wrong-negative', prompt_id: null },
     ]);
-    expect(db.prepare('SELECT source_url, preview_image_path FROM prompts WHERE id = ?').get('p1')).toEqual({
+    expect(
+      db.prepare('SELECT source_url, preview_image_path FROM prompts WHERE id = ?').get('p1'),
+    ).toEqual({
       source_url: 'history://near-1',
       preview_image_path: '/near-1.png',
     });
@@ -84,7 +86,9 @@ describe('migration 0010 saved prompt history backfill', () => {
 
     up(db);
 
-    expect(db.prepare('SELECT prompt_id FROM history WHERE id = ?').get('failed')).toEqual({ prompt_id: null });
+    expect(db.prepare('SELECT prompt_id FROM history WHERE id = ?').get('failed')).toEqual({
+      prompt_id: null,
+    });
     expect(db.prepare('SELECT id, source_url FROM prompts ORDER BY id').all()).toEqual([
       { id: 'deleted', source_url: null },
       { id: 'imported', source_url: null },

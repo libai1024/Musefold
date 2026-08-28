@@ -27,7 +27,9 @@ export function registerAutomationHandlers(): void {
     setAutomationBudgetLimit(Number(monthlyLimitPoints)),
   );
   ipcMain.handle(IPC.AUTOMATION_INTEGRATION_INFO, () => getIntegrationInfo());
-  ipcMain.handle(IPC.AUTOMATION_INTEGRATION_ACTION, (_e, action: import('@musefold/desktop-contracts/ipc').IntegrationAction) =>
-    runIntegrationAction(action),
+  ipcMain.handle(
+    IPC.AUTOMATION_INTEGRATION_ACTION,
+    (_e, action: import('@musefold/desktop-contracts/ipc').IntegrationAction) =>
+      runIntegrationAction(action),
   );
 }

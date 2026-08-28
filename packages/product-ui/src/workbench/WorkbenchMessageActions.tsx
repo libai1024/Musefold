@@ -1,5 +1,5 @@
-import { Button } from "@musefold/ui";
-import { Copy, Pencil } from "@musefold/ui/icons";
+import { Button } from '@musefold/ui';
+import { Copy, Pencil } from '@musefold/ui/icons';
 
 export interface WorkbenchMessageActionsProps {
   onCopy: () => void | Promise<void>;
@@ -14,8 +14,8 @@ export function WorkbenchMessageActions({
   onCopy,
   onEdit,
   editDisabled = false,
-  copyTestId = "generation-user-message-copy",
-  editTestId = "generation-user-message-edit",
+  copyTestId = 'generation-user-message-copy',
+  editTestId = 'generation-user-message-edit',
 }: WorkbenchMessageActionsProps) {
   return (
     <>

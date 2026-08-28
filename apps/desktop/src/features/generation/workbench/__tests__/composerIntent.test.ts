@@ -24,9 +24,11 @@ describe('Composer intent routing', () => {
   });
 
   it('extracts a Skill URL as the source of an explicit design plan', () => {
-    expect(parseDesignPlanIntent(
-      '/create design plan https://github.com/LiamGvchi/gc-minimal-zine-poster 保留大面积留白',
-    )).toEqual({
+    expect(
+      parseDesignPlanIntent(
+        '/create design plan https://github.com/LiamGvchi/gc-minimal-zine-poster 保留大面积留白',
+      ),
+    ).toEqual({
       prompt: '保留大面积留白',
       githubUrl: 'https://github.com/LiamGvchi/gc-minimal-zine-poster',
       githubUrls: ['https://github.com/LiamGvchi/gc-minimal-zine-poster'],
@@ -59,14 +61,18 @@ describe('Composer intent routing', () => {
       '/创建设计方案',
     ]);
     expect(filterCommandHints('/cre').map((hint) => hint.command)).toEqual(['/create design plan']);
-    expect(filterCommandHints('/CREATE DES').map((hint) => hint.command)).toEqual(['/create design plan']);
+    expect(filterCommandHints('/CREATE DES').map((hint) => hint.command)).toEqual([
+      '/create design plan',
+    ]);
     expect(filterCommandHints('/创建').map((hint) => hint.command)).toEqual(['/创建设计方案']);
     expect(filterCommandHints('/xyz')).toEqual([]);
     expect(filterCommandHints('/创建设计方案')).toEqual([]);
   });
 
   it('converts a complete command into chip + body text (Codex-style)', () => {
-    expect(matchDesignPlanCommand('/create design plan 做一套方案')).toEqual({ rest: '做一套方案' });
+    expect(matchDesignPlanCommand('/create design plan 做一套方案')).toEqual({
+      rest: '做一套方案',
+    });
     expect(matchDesignPlanCommand('/创建设计方案')).toEqual({ rest: '' });
     expect(matchDesignPlanCommand('/create design pla')).toBeNull();
     expect(matchDesignPlanCommand('普通提示词 /创建设计方案')).toBeNull();
@@ -89,8 +95,8 @@ describe('Composer intent routing', () => {
     expect(parsed.githubUrl).toBe('https://github.com/a/b');
     expect(parsed.prompt).toBe('合并这两个 和 成一个海报方案');
     // 重复地址去重
-    expect(parseDesignPlanBody('https://github.com/a/b https://github.com/a/b').githubUrls).toEqual([
-      'https://github.com/a/b',
-    ]);
+    expect(parseDesignPlanBody('https://github.com/a/b https://github.com/a/b').githubUrls).toEqual(
+      ['https://github.com/a/b'],
+    );
   });
 });

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 /** 概览级追加事实（如内置模型），渲染在固定三项之后，静态事实不独占卡片。 */
 export interface AccountSummaryFact {
@@ -36,7 +36,7 @@ export function AccountSummaryPanel({
 }: AccountSummaryPanelProps) {
   return (
     <section
-      className={`mf-account-summary-panel${className ? ` ${className}` : ""}`}
+      className={`mf-account-summary-panel${className ? ` ${className}` : ''}`}
       data-testid={testId}
     >
       <div className="mf-account-summary-identity">

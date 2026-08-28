@@ -33,10 +33,7 @@ export function UsageActivityHeatmap({
 }) {
   const cells = useMemo(() => buildUsageHeatmap(buckets, now), [buckets, now]);
   const total = useMemo(() => buckets.reduce((sum, bucket) => sum + bucket.count, 0), [buckets]);
-  const activeDays = useMemo(
-    () => buckets.filter((bucket) => bucket.count > 0).length,
-    [buckets],
-  );
+  const activeDays = useMemo(() => buckets.filter((bucket) => bucket.count > 0).length, [buckets]);
   const hasData = total > 0;
   const monthLabels = useMemo(() => {
     const labels: string[] = [];
@@ -142,7 +139,10 @@ export function UsageTrendChart({
         </div>
       </header>
       {buckets.length === 0 ? (
-        <UsageEmpty label={loading ? '正在加载生成趋势…' : '该时间范围内暂无成功生成'} loading={loading} />
+        <UsageEmpty
+          label={loading ? '正在加载生成趋势…' : '该时间范围内暂无成功生成'}
+          loading={loading}
+        />
       ) : (
         <div className="mf-usage-trend-chart" aria-busy={loading}>
           <svg

@@ -9,10 +9,29 @@ const MAX_SKILL_NAME_LENGTH = 240;
 const MAX_SKILL_DESCRIPTION_LENGTH = 1_024;
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SCRIPT_EXTENSIONS = new Set([
-  '.bash', '.bat', '.cmd', '.cjs', '.js', '.mjs', '.ps1', '.py', '.rb', '.sh', '.ts',
+  '.bash',
+  '.bat',
+  '.cmd',
+  '.cjs',
+  '.js',
+  '.mjs',
+  '.ps1',
+  '.py',
+  '.rb',
+  '.sh',
+  '.ts',
 ]);
 const ASSET_EXTENSIONS = new Set([
-  '.avif', '.bmp', '.gif', '.ico', '.jpeg', '.jpg', '.pdf', '.png', '.svg', '.webp',
+  '.avif',
+  '.bmp',
+  '.gif',
+  '.ico',
+  '.jpeg',
+  '.jpg',
+  '.pdf',
+  '.png',
+  '.svg',
+  '.webp',
 ]);
 const KNOWN_FRONTMATTER_FIELDS = new Set(['name', 'description', 'license']);
 
@@ -51,21 +70,25 @@ function scannerError(
   message: string,
   options: Parameters<typeof appError>[2] = {},
 ): AppResult<never> {
-  return fail(appError(code, message, {
-    retryable: false,
-    recoveryAction: 'select-source',
-    ...options,
-  }));
+  return fail(
+    appError(code, message, {
+      retryable: false,
+      recoveryAction: 'select-source',
+      ...options,
+    }),
+  );
 }
 
 function normalizeRelativePath(relativePath: string): AppResult<string> {
   const normalized = relativePath.replaceAll('\\', '/').replace(/^\.\//, '');
   const segments = normalized.split('/');
   if (
-    !normalized
-    || normalized.startsWith('/')
-    || /^[a-zA-Z]:\//.test(normalized)
-    || segments.some((segment) => !segment || segment === '.' || segment === '..' || segment.includes('\0'))
+    !normalized ||
+    normalized.startsWith('/') ||
+    /^[a-zA-Z]:\//.test(normalized) ||
+    segments.some(
+      (segment) => !segment || segment === '.' || segment === '..' || segment.includes('\0'),
+    )
   ) {
     return scannerError('INVALID_TYPE', `Skill 文件路径不安全：${relativePath}`, {
       fieldPath: 'files.relativePath',
@@ -134,7 +157,9 @@ function validateJsonValue(value: unknown, path: string): AppResult<null> {
   if (typeof value === 'number') {
     return Number.isFinite(value)
       ? ok(null)
-      : scannerError('INVALID_TYPE', `SKILL.md frontmatter 包含无效数字：${path}`, { fieldPath: path });
+      : scannerError('INVALID_TYPE', `SKILL.md frontmatter 包含无效数字：${path}`, {
+          fieldPath: path,
+        });
   }
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
@@ -144,7 +169,9 @@ function validateJsonValue(value: unknown, path: string): AppResult<null> {
     return ok(null);
   }
   if (!value || typeof value !== 'object') {
-    return scannerError('INVALID_TYPE', `SKILL.md frontmatter 字段不是安全数据：${path}`, { fieldPath: path });
+    return scannerError('INVALID_TYPE', `SKILL.md frontmatter 字段不是安全数据：${path}`, {
+      fieldPath: path,
+    });
   }
   for (const [key, childValue] of Object.entries(value as Record<string, unknown>)) {
     if (UNSAFE_OBJECT_KEYS.has(key)) {
@@ -162,7 +189,9 @@ function frontmatterRange(markdown: string): AppResult<{ yamlText: string; body:
   const source = markdown.startsWith('\uFEFF') ? markdown.slice(1) : markdown;
   const lines = source.split(/\r?\n/);
   if (lines[0]?.trim() !== '---') {
-    return scannerError('REQUIRED', 'SKILL.md 缺少 YAML frontmatter', { fieldPath: 'SKILL.md.frontmatter' });
+    return scannerError('REQUIRED', 'SKILL.md 缺少 YAML frontmatter', {
+      fieldPath: 'SKILL.md.frontmatter',
+    });
   }
   const closingIndex = lines.findIndex((line, index) => index > 0 && line.trim() === '---');
   if (closingIndex < 0) {
@@ -177,7 +206,8 @@ function frontmatterRange(markdown: string): AppResult<{ yamlText: string; body:
 }
 
 export function parseAgentSkillMarkdown(markdown: string): AppResult<ParsedAgentSkillDocument> {
-  if (!markdown.trim()) return scannerError('REQUIRED', 'SKILL.md 内容不能为空', { fieldPath: 'SKILL.md' });
+  if (!markdown.trim())
+    return scannerError('REQUIRED', 'SKILL.md 内容不能为空', { fieldPath: 'SKILL.md' });
   const range = frontmatterRange(markdown);
   if (!range.ok) return range;
   if (range.data.yamlText.length > MAX_FRONTMATTER_LENGTH) {
@@ -196,13 +226,20 @@ export function parseAgentSkillMarkdown(markdown: string): AppResult<ParsedAgent
       uniqueKeys: true,
     });
   } catch (error) {
-    return scannerError('INVALID_TYPE', `SKILL.md frontmatter 解析失败：${error instanceof Error ? error.message : '未知错误'}`);
+    return scannerError(
+      'INVALID_TYPE',
+      `SKILL.md frontmatter 解析失败：${error instanceof Error ? error.message : '未知错误'}`,
+    );
   }
   if (document.errors.length > 0 || document.warnings.length > 0) {
     const issue = document.errors[0] ?? document.warnings[0];
-    return scannerError('INVALID_TYPE', `SKILL.md frontmatter 解析失败：${issue?.message ?? '未知错误'}`, {
-      fieldPath: 'SKILL.md.frontmatter',
-    });
+    return scannerError(
+      'INVALID_TYPE',
+      `SKILL.md frontmatter 解析失败：${issue?.message ?? '未知错误'}`,
+      {
+        fieldPath: 'SKILL.md.frontmatter',
+      },
+    );
   }
   const ast = inspectFrontmatterAst(document);
   if (!ast.ok) return ast;
@@ -216,7 +253,10 @@ export function parseAgentSkillMarkdown(markdown: string): AppResult<ParsedAgent
   try {
     frontmatter = document.toJSON();
   } catch (error) {
-    return scannerError('INVALID_TYPE', `SKILL.md frontmatter 无法转换为安全数据：${error instanceof Error ? error.message : '未知错误'}`);
+    return scannerError(
+      'INVALID_TYPE',
+      `SKILL.md frontmatter 无法转换为安全数据：${error instanceof Error ? error.message : '未知错误'}`,
+    );
   }
   const safeValue = validateJsonValue(frontmatter, 'SKILL.md.frontmatter');
   if (!safeValue.ok) return safeValue;
@@ -233,7 +273,7 @@ export function parseAgentSkillMarkdown(markdown: string): AppResult<ParsedAgent
       fieldPath: 'SKILL.md.frontmatter.description',
     });
   }
-  // eslint-disable-next-line no-control-regex -- 故意匹配 C0/DEL，拒绝 skill name 含不可见控制字符
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: 故意匹配 C0/DEL,拒绝 skill name 含不可见控制字符
   if (name.length > MAX_SKILL_NAME_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) {
     return scannerError('INVALID_TYPE', 'SKILL.md name 格式不正确或过长', {
       fieldPath: 'SKILL.md.frontmatter.name',
@@ -258,12 +298,17 @@ export function parseAgentSkillMarkdown(markdown: string): AppResult<ParsedAgent
     description,
     body: range.data.body,
     frontmatter: fields,
-    unknownFrontmatterFields: Object.keys(fields).filter((key) => !KNOWN_FRONTMATTER_FIELDS.has(key)).sort(),
-    declaredLicense: typeof fields.license === 'string' && fields.license.trim() ? fields.license.trim() : null,
+    unknownFrontmatterFields: Object.keys(fields)
+      .filter((key) => !KNOWN_FRONTMATTER_FIELDS.has(key))
+      .sort(),
+    declaredLicense:
+      typeof fields.license === 'string' && fields.license.trim() ? fields.license.trim() : null,
   });
 }
 
-export function scanAgentSkillFiles(inputFiles: ReadonlyArray<AgentSkillFileInput>): AppResult<AgentSkillScanResult> {
+export function scanAgentSkillFiles(
+  inputFiles: ReadonlyArray<AgentSkillFileInput>,
+): AppResult<AgentSkillScanResult> {
   const seenPaths = new Set<string>();
   const files: ScannedAgentSkillFile[] = [];
   for (const input of inputFiles) {
@@ -274,7 +319,11 @@ export function scanAgentSkillFiles(inputFiles: ReadonlyArray<AgentSkillFileInpu
         fieldPath: 'files.relativePath',
       });
     }
-    if (!input.contentHash.trim() || !Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 0) {
+    if (
+      !input.contentHash.trim() ||
+      !Number.isSafeInteger(input.sizeBytes) ||
+      input.sizeBytes < 0
+    ) {
       return scannerError('INVALID_TYPE', `Skill 文件元数据无效：${normalized.data}`, {
         fieldPath: 'files',
       });
@@ -308,7 +357,11 @@ export function scanAgentSkillFiles(inputFiles: ReadonlyArray<AgentSkillFileInpu
 
   const licenseFiles = files
     .filter((file) => file.fileKind === 'license' && file.textContent?.trim())
-    .sort((left, right) => left.relativePath.length - right.relativePath.length || left.relativePath.localeCompare(right.relativePath));
+    .sort(
+      (left, right) =>
+        left.relativePath.length - right.relativePath.length ||
+        left.relativePath.localeCompare(right.relativePath),
+    );
   const licenseText = licenseFiles[0]?.textContent?.trim() || parsed.data.declaredLicense;
   const scriptFiles = files.filter((file) => file.fileKind === 'script');
 

@@ -1,9 +1,6 @@
 import { Search, X } from '@musefold/ui/icons';
 import type { HistoryDatePreset, HistoryFilters } from '@musefold/domain/history-filters';
-import {
-  DATE_PRESET_OPTIONS,
-  STATUS_OPTIONS,
-} from '@musefold/domain/history-filters';
+import { DATE_PRESET_OPTIONS, STATUS_OPTIONS } from '@musefold/domain/history-filters';
 import type { HistoryStatus } from '@musefold/domain/history-status';
 
 export interface HistoryFilterBarProps {
@@ -116,9 +113,7 @@ export function HistoryFilterBar({
         <span className="mf-sr-only">历史模型</span>
         <select
           value={modelValue}
-          onChange={(event) =>
-            onFiltersChange({ providerModel: event.target.value || undefined })
-          }
+          onChange={(event) => onFiltersChange({ providerModel: event.target.value || undefined })}
           data-testid="history-filter-model"
         >
           <option value="">全部模型</option>

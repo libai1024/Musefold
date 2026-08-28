@@ -77,20 +77,25 @@ function harness() {
 describe('account IPC handlers', () => {
   it('registers the full account surface and never returns credentials', async () => {
     const { handlers, service } = harness();
-    expect([...handlers.keys()].sort()).toEqual([
-      IPC.ACCOUNT_LOGIN,
-      IPC.ACCOUNT_LOGOUT,
-      IPC.ACCOUNT_REDEEM,
-      IPC.ACCOUNT_REFRESH_QUOTA,
-      IPC.ACCOUNT_REGISTER,
-      IPC.ACCOUNT_SET_SERVER_URL,
-      IPC.ACCOUNT_STATUS,
-    ].sort());
+    expect([...handlers.keys()].sort()).toEqual(
+      [
+        IPC.ACCOUNT_LOGIN,
+        IPC.ACCOUNT_LOGOUT,
+        IPC.ACCOUNT_REDEEM,
+        IPC.ACCOUNT_REFRESH_QUOTA,
+        IPC.ACCOUNT_REGISTER,
+        IPC.ACCOUNT_SET_SERVER_URL,
+        IPC.ACCOUNT_STATUS,
+      ].sort(),
+    );
 
-    const result = await handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
-      username: 'user',
-      password: 'password-secret',
-    });
+    const result = await handlers.get(IPC.ACCOUNT_LOGIN)?.(
+      {},
+      {
+        username: 'user',
+        password: 'password-secret',
+      },
+    );
     expect(service.login).toHaveBeenCalledWith({ username: 'user', password: 'password-secret' });
     const serialized = JSON.stringify(result);
     expect(serialized).toContain('"userId":"7"');
@@ -110,23 +115,18 @@ describe('account IPC handlers', () => {
 
   it('coordinates login and logout around cloud sync lifecycle boundaries', async () => {
     const { handlers, events } = harness();
-    await handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
-      username: 'user',
-      password: 'password',
-    });
-    expect(events).toEqual([
-      'sync:prepare-login',
-      'account:login',
-      'sync:complete-login',
-    ]);
+    await handlers.get(IPC.ACCOUNT_LOGIN)?.(
+      {},
+      {
+        username: 'user',
+        password: 'password',
+      },
+    );
+    expect(events).toEqual(['sync:prepare-login', 'account:login', 'sync:complete-login']);
 
     events.length = 0;
     await handlers.get(IPC.ACCOUNT_LOGOUT)?.({});
-    expect(events).toEqual([
-      'sync:prepare-logout',
-      'account:logout',
-      'sync:complete-logout',
-    ]);
+    expect(events).toEqual(['sync:prepare-logout', 'account:logout', 'sync:complete-logout']);
   });
 
   it('cancels the sync transition when authentication fails', async () => {
@@ -137,29 +137,29 @@ describe('account IPC handlers', () => {
     });
 
     await expect(
-      handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
-        username: 'user',
-        password: 'password',
-      }),
+      handlers.get(IPC.ACCOUNT_LOGIN)?.(
+        {},
+        {
+          username: 'user',
+          password: 'password',
+        },
+      ),
     ).rejects.toThrow(ACCOUNT_ERROR_IPC_PREFIX);
-    expect(events).toEqual([
-      'sync:prepare-login',
-      'account:login',
-      'sync:cancel-transition',
-    ]);
+    expect(events).toEqual(['sync:prepare-login', 'account:login', 'sync:cancel-transition']);
   });
 
   it('returns the authenticated account when sync finalization fails closed', async () => {
     const { handlers, cloudSync } = harness();
-    cloudSync.completeAccountLogin.mockRejectedValueOnce(
-      new Error('sync database unavailable'),
-    );
+    cloudSync.completeAccountLogin.mockRejectedValueOnce(new Error('sync database unavailable'));
 
     await expect(
-      handlers.get(IPC.ACCOUNT_LOGIN)?.({}, {
-        username: 'user',
-        password: 'password',
-      }),
+      handlers.get(IPC.ACCOUNT_LOGIN)?.(
+        {},
+        {
+          username: 'user',
+          password: 'password',
+        },
+      ),
     ).resolves.toMatchObject({ loggedIn: true, userId: '7' });
     expect(cloudSync.cancelAccountTransition).toHaveBeenCalledOnce();
   });

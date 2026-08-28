@@ -3,12 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { musefoldQueryKeys } from '@musefold/product-ui';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
 import { desktopQueryClient } from '../../runtime/query-client';
-import {
-  getLibraryDesktopExtras,
-  selectNormal,
-  selectPinned,
-  useLibraryStore,
-} from './store';
+import { getLibraryDesktopExtras, selectNormal, selectPinned, useLibraryStore } from './store';
 
 export function useLibraryListQuery() {
   const listQuery = useLibraryStore((s) => s.listQuery);

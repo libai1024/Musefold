@@ -44,9 +44,7 @@ export function registerAccountHandlers(dependencies: AccountHandlerDependencies
   const cloudSync = dependencies.cloudSync ?? getCloudSyncService();
   let accountTransitionTail = Promise.resolve();
 
-  const serializeAccountTransition = <T>(
-    operation: () => Promise<T>,
-  ): Promise<T> => {
+  const serializeAccountTransition = <T>(operation: () => Promise<T>): Promise<T> => {
     const result = accountTransitionTail.then(operation);
     accountTransitionTail = result.then(
       () => undefined,
@@ -55,9 +53,7 @@ export function registerAccountHandlers(dependencies: AccountHandlerDependencies
     return result;
   };
 
-  const authenticate = async (
-    operation: () => Promise<ReturnType<AccountService['status']>>,
-  ) => {
+  const authenticate = async (operation: () => Promise<ReturnType<AccountService['status']>>) => {
     try {
       await cloudSync.prepareForAccountLogin();
       const status = await operation();
@@ -77,9 +73,7 @@ export function registerAccountHandlers(dependencies: AccountHandlerDependencies
   target.handle(IPC.ACCOUNT_REGISTER, async (_event, input) => {
     try {
       const parsed = credentials(input);
-      return await serializeAccountTransition(() =>
-        authenticate(() => service.register(parsed)),
-      );
+      return await serializeAccountTransition(() => authenticate(() => service.register(parsed)));
     } catch (error) {
       throwIpc(error);
     }
@@ -87,9 +81,7 @@ export function registerAccountHandlers(dependencies: AccountHandlerDependencies
   target.handle(IPC.ACCOUNT_LOGIN, async (_event, input) => {
     try {
       const parsed = credentials(input);
-      return await serializeAccountTransition(() =>
-        authenticate(() => service.login(parsed)),
-      );
+      return await serializeAccountTransition(() => authenticate(() => service.login(parsed)));
     } catch (error) {
       throwIpc(error);
     }

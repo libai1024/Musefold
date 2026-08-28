@@ -35,15 +35,19 @@ export function up(db: Database.Database): void {
   }
 
   // 3. 全量重建索引（JS 分词写入 tags_index）
-  const rows = db
-    .prepare('SELECT rowid, id, title, description, content FROM prompts')
-    .all() as { rowid: number; id: string; title: string; description: string | null; content: string }[];
+  const rows = db.prepare('SELECT rowid, id, title, description, content FROM prompts').all() as {
+    rowid: number;
+    id: string;
+    title: string;
+    description: string | null;
+    content: string;
+  }[];
 
   const tagsOf = db.prepare(
-    'SELECT t.name AS name FROM prompt_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.prompt_id = ?'
+    'SELECT t.name AS name FROM prompt_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.prompt_id = ?',
   );
   const insert = db.prepare(
-    'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)',
   );
 
   db.exec('DELETE FROM prompts_fts;');

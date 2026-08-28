@@ -3,32 +3,40 @@ import type Database from 'better-sqlite3';
 type Row = Record<string, any>;
 
 function tableExists(db: Database.Database, name: string): boolean {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?",
-  ).get(name));
+  return Boolean(
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?")
+      .get(name),
+  );
 }
 
 function tableSql(db: Database.Database, name: string): string {
-  const row = db.prepare(
-    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
-  ).get(name) as { sql?: string | null } | undefined;
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(name) as { sql?: string | null } | undefined;
   return row?.sql ?? '';
 }
 
 function rebuildCrossDatabaseRecipeLinks(db: Database.Database): void {
-  const promptsNeedRebuild = /recipe_id\s+TEXT\s+REFERENCES\s+recipes/i.test(tableSql(db, 'prompts'));
-  const historyNeedsRebuild = /recipe_id\s+TEXT\s+REFERENCES\s+recipes/i.test(tableSql(db, 'history'));
+  const promptsNeedRebuild = /recipe_id\s+TEXT\s+REFERENCES\s+recipes/i.test(
+    tableSql(db, 'prompts'),
+  );
+  const historyNeedsRebuild = /recipe_id\s+TEXT\s+REFERENCES\s+recipes/i.test(
+    tableSql(db, 'history'),
+  );
   if (!promptsNeedRebuild && !historyNeedsRebuild) return;
 
   const prompts = db.prepare('SELECT rowid AS _rowid, * FROM prompts').all() as Row[];
   const promptTags = tableExists(db, 'prompt_tags')
-    ? db.prepare('SELECT prompt_id, tag_id FROM prompt_tags').all() as Row[]
+    ? (db.prepare('SELECT prompt_id, tag_id FROM prompt_tags').all() as Row[])
     : [];
   const history = tableExists(db, 'history')
-    ? db.prepare('SELECT rowid AS _rowid, * FROM history').all() as Row[]
+    ? (db.prepare('SELECT rowid AS _rowid, * FROM history').all() as Row[])
     : [];
   const historyReferences = tableExists(db, 'history_prompt_references')
-    ? db.prepare('SELECT * FROM history_prompt_references ORDER BY history_id, sort_order').all() as Row[]
+    ? (db
+        .prepare('SELECT * FROM history_prompt_references ORDER BY history_id, sort_order')
+        .all() as Row[])
     : [];
 
   db.exec(`

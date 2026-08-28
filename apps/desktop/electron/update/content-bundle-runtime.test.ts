@@ -97,10 +97,7 @@ vi.mock('../system/logger', () => ({
 }));
 
 import { resetAppRootCacheForTests } from '../main/app-paths';
-import {
-  resetRendererRootCacheForTests,
-  resolveRendererRoot,
-} from '../main/renderer-bundle';
+import { resetRendererRootCacheForTests, resolveRendererRoot } from '../main/renderer-bundle';
 import {
   getAttemptCount,
   getBundleDir,
@@ -288,7 +285,10 @@ describe('confirmContentBundleStartup', () => {
     setPendingVersion(PENDING);
     setKnownGoodVersion(KNOWN_GOOD);
     mkdirSync(getBundleDir(PENDING, appState.userData), { recursive: true });
-    writeFileSync(join(getBundleDir(PENDING, appState.userData), 'index.html'), '<html>index</html>');
+    writeFileSync(
+      join(getBundleDir(PENDING, appState.userData), 'index.html'),
+      '<html>index</html>',
+    );
     writeCompleteBundle(getBundleDir(KNOWN_GOOD, appState.userData));
 
     prepareContentBundleStartup({ userDataRoot: appState.userData, willLoadFromBundles: true });

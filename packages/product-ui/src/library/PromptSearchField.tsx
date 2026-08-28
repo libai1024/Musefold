@@ -1,5 +1,5 @@
-import { Search, X } from "@musefold/ui/icons";
-import { IconButton, Input } from "@musefold/ui";
+import { Search, X } from '@musefold/ui/icons';
+import { IconButton, Input } from '@musefold/ui';
 
 export interface PromptSearchFieldProps {
   value: string;
@@ -10,7 +10,7 @@ export interface PromptSearchFieldProps {
 export function PromptSearchField({
   value,
   onChange,
-  placeholder = "搜索标题或正文",
+  placeholder = '搜索标题或正文',
 }: PromptSearchFieldProps) {
   return (
     <label className="mf-prompt-search">
@@ -26,7 +26,7 @@ export function PromptSearchField({
       {value && (
         <IconButton
           className="mf-prompt-search-clear"
-          onClick={() => onChange("")}
+          onClick={() => onChange('')}
           label="清空搜索"
           data-testid="library-search-clear"
         >

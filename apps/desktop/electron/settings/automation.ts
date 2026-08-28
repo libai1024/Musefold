@@ -55,13 +55,15 @@ export function setSkillAutoUpdateEnabled(enabled: boolean): void {
 }
 
 export function getAutomationBudget(): AutomationBudgetShape {
-  const budget = store.get('automation.budget') as (AutomationBudgetShape & {
-    monthlyLimitCents?: number;
-    usedCents?: number;
-  }) | undefined;
+  const budget = store.get('automation.budget') as
+    | (AutomationBudgetShape & {
+        monthlyLimitCents?: number;
+        usedCents?: number;
+      })
+    | undefined;
   const normalized: AutomationBudgetShape = {
-    monthlyLimitPoints: budget?.monthlyLimitPoints ?? ((budget?.monthlyLimitCents ?? 0) / 10),
-    usedPoints: budget?.usedPoints ?? ((budget?.usedCents ?? 0) / 10),
+    monthlyLimitPoints: budget?.monthlyLimitPoints ?? (budget?.monthlyLimitCents ?? 0) / 10,
+    usedPoints: budget?.usedPoints ?? (budget?.usedCents ?? 0) / 10,
     month: budget?.month ?? currentMonth(),
   };
   const legacy = budget && (budget.monthlyLimitPoints == null || budget.usedPoints == null);

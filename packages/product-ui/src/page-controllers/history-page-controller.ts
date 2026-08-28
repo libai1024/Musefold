@@ -1,22 +1,20 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
-import type { HistoryGateway } from "@musefold/domain";
-import { useHistoryInspectorController } from "../history/useHistoryInspectorController";
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import type { HistoryGateway } from '@musefold/domain';
+import { useHistoryInspectorController } from '../history/useHistoryInspectorController';
 import {
   DEFAULT_HISTORY_PAGE_LIST_KEY,
   asPagedItems,
   dropListCache,
   itemsFromQueryData,
   upsertListCache,
-} from "./paged-items";
-import { musefoldQueryKeys } from "./query-client";
-import { requirePageControllerDeps, type HistoryPageControllerDeps } from "./types";
+} from './paged-items';
+import { musefoldQueryKeys } from './query-client';
+import { requirePageControllerDeps, type HistoryPageControllerDeps } from './types';
 
 export type { HistoryPageControllerDeps };
 
-type HistoryJob = Awaited<
-  ReturnType<HistoryGateway["listGenerationHistory"]>
->["items"][number];
+type HistoryJob = Awaited<ReturnType<HistoryGateway['listGenerationHistory']>>['items'][number];
 
 export interface HistoryPageController<TItem extends { id: string } = HistoryJob> {
   items: TItem[];
@@ -46,7 +44,7 @@ export function useHistoryPageController<TItem extends { id: string } = HistoryJ
     listFn?: () => Promise<HistoryListResult<TItem>>;
   },
 ): HistoryPageController<TItem> {
-  const wired = requirePageControllerDeps(deps, "useHistoryPageController");
+  const wired = requirePageControllerDeps(deps, 'useHistoryPageController');
   const queryClient = useQueryClient();
   const inspector = useHistoryInspectorController();
   const listKey = wired.listKey ?? DEFAULT_HISTORY_PAGE_LIST_KEY;
@@ -64,8 +62,7 @@ export function useHistoryPageController<TItem extends { id: string } = HistoryJ
 
   const page = asPagedItems<TItem>(result.data);
   const items = itemsFromQueryData<TItem>(result.data);
-  const selected =
-    items.find((item) => item.id === inspector.selectedId) ?? null;
+  const selected = items.find((item) => item.id === inspector.selectedId) ?? null;
 
   const upsertItem = useCallback(
     (item: { id: string }) => {
@@ -118,7 +115,7 @@ export function useHistoryPageController<TItem extends { id: string } = HistoryJ
   const get = useCallback(
     async (id: string) => {
       if (!wired.generation) {
-        throw new Error("useHistoryPageController.get requires generation deps");
+        throw new Error('useHistoryPageController.get requires generation deps');
       }
       return wired.generation.getGeneration(id);
     },
@@ -128,7 +125,7 @@ export function useHistoryPageController<TItem extends { id: string } = HistoryJ
   const retry = useCallback(
     async (id: string, idempotencyKey: string) => {
       if (!wired.generation) {
-        throw new Error("useHistoryPageController.retry requires generation deps");
+        throw new Error('useHistoryPageController.retry requires generation deps');
       }
       const next = await wired.generation.retryGeneration(id, idempotencyKey);
       upsertItem(next);
@@ -141,7 +138,7 @@ export function useHistoryPageController<TItem extends { id: string } = HistoryJ
   const cancel = useCallback(
     async (id: string) => {
       if (!wired.generation) {
-        throw new Error("useHistoryPageController.cancel requires generation deps");
+        throw new Error('useHistoryPageController.cancel requires generation deps');
       }
       const next = await wired.generation.cancelGeneration(id);
       upsertItem(next);
@@ -160,7 +157,8 @@ export function useHistoryPageController<TItem extends { id: string } = HistoryJ
     items,
     nextCursor: page.nextCursor,
     loading: result.isFetching,
-    error: result.error instanceof Error ? result.error.message : result.error ? "加载历史失败" : null,
+    error:
+      result.error instanceof Error ? result.error.message : result.error ? '加载历史失败' : null,
     refetch: result.refetch,
     inspector,
     selectedId: inspector.selectedId,

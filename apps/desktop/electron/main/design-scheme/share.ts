@@ -7,7 +7,14 @@
  * MIME，生成全新的方案 ID / 版本（草稿态），不覆盖现有方案，也不执行包内脚本。
  */
 import { createHash, randomUUID } from 'crypto';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs';
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
 import { basename, dirname, extname, isAbsolute, join } from 'path';
 import type Database from 'better-sqlite3';
 import archiver from 'archiver';
@@ -71,9 +78,14 @@ function sha256(buffer: Buffer): string {
 /** 轻量图片魔数校验：导入的 assets/previews 必须是真实图片文件。 */
 function looksLikeImage(buffer: Buffer): boolean {
   if (buffer.length < 12) return false;
-  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return true;
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
+    return true;
   if (buffer[0] === 0xff && buffer[1] === 0xd8) return true;
-  if (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') return true;
+  if (
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  )
+    return true;
   if (buffer.subarray(0, 3).toString('ascii') === 'GIF') return true;
   if (buffer[0] === 0x42 && buffer[1] === 0x4d) return true; // BMP
   if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') return true; // AVIF/HEIF
@@ -129,7 +141,11 @@ export async function exportDesignScheme(
     return fail(appError('MISSING_REFERENCE', '方案不存在或已被移除', { recoveryAction: 'retry' }));
   }
   if (summary.status !== 'formal') {
-    return fail(appError('INVALID_STATE', '只有正式方案可以导出；请先完成试运行并转为正式。', { recoveryAction: 'edit-input' }));
+    return fail(
+      appError('INVALID_STATE', '只有正式方案可以导出；请先完成试运行并转为正式。', {
+        recoveryAction: 'edit-input',
+      }),
+    );
   }
   const document = repository.getRevisionDocument(summary.currentRevisionId);
   if (!document) {
@@ -147,14 +163,16 @@ export async function exportDesignScheme(
   addEntry('scheme.json', Buffer.from(JSON.stringify(document, null, 2), 'utf8'));
 
   // 绑定的来源快照：文本进 sources/，图片进 assets/。
-  const snapshotRows = deps.db.prepare(
-    `SELECT snap.id, pkg.kind, pkg.repository_url, snap.ref, snap.commit_hash, pkg.license, snap.scan_json, binding.role
+  const snapshotRows = deps.db
+    .prepare(
+      `SELECT snap.id, pkg.kind, pkg.repository_url, snap.ref, snap.commit_hash, pkg.license, snap.scan_json, binding.role
        FROM design_scheme_source_bindings binding
        JOIN source_snapshots snap ON snap.id = binding.source_snapshot_id
        JOIN source_packages pkg ON pkg.id = snap.package_id
       WHERE binding.revision_id = ?
       ORDER BY snap.created_at ASC`,
-  ).all(summary.currentRevisionId) as SnapshotRow[];
+    )
+    .all(summary.currentRevisionId) as SnapshotRow[];
 
   const manifestSnapshots: ManifestSnapshot[] = [];
   const fileQuery = deps.db.prepare(
@@ -186,7 +204,9 @@ export async function exportDesignScheme(
         continue;
       }
       if (file.kind === 'image' && file.store_key) {
-        const absolute = isAbsolute(file.store_key) ? file.store_key : join(userData, file.store_key);
+        const absolute = isAbsolute(file.store_key)
+          ? file.store_key
+          : join(userData, file.store_key);
         if (!existsSync(absolute)) continue;
         addEntry(`assets/${dir}/${file.path}`, readFileSync(absolute));
       }
@@ -207,24 +227,40 @@ export async function exportDesignScheme(
   }
 
   // 最近一次质量门证据（可选）。
-  const evaluationRow = deps.db.prepare(
-    `SELECT ev.passed, ev.metrics_json, ev.evidence_json, ev.created_at
+  const evaluationRow = deps.db
+    .prepare(
+      `SELECT ev.passed, ev.metrics_json, ev.evidence_json, ev.created_at
        FROM design_scheme_evaluations ev
        JOIN design_scheme_runs run ON run.run_id = ev.run_id
       WHERE run.revision_id = ?
       ORDER BY ev.created_at DESC LIMIT 1`,
-  ).get(summary.currentRevisionId) as { passed: number; metrics_json: string; evidence_json: string; created_at: number } | undefined;
+    )
+    .get(summary.currentRevisionId) as
+    | { passed: number; metrics_json: string; evidence_json: string; created_at: number }
+    | undefined;
   if (evaluationRow) {
-    addEntry('evaluations/latest.json', Buffer.from(JSON.stringify({
-      passed: evaluationRow.passed === 1,
-      metrics: JSON.parse(evaluationRow.metrics_json),
-      // 证据里的 path 是本机绝对路径：脱敏为文件名。
-      evidence: (JSON.parse(evaluationRow.evidence_json) as Array<Record<string, unknown>>).map((item) => ({
-        ...item,
-        ...(typeof item.path === 'string' ? { path: basename(item.path) } : {}),
-      })),
-      createdAt: evaluationRow.created_at,
-    }, null, 2), 'utf8'));
+    addEntry(
+      'evaluations/latest.json',
+      Buffer.from(
+        JSON.stringify(
+          {
+            passed: evaluationRow.passed === 1,
+            metrics: JSON.parse(evaluationRow.metrics_json),
+            // 证据里的 path 是本机绝对路径：脱敏为文件名。
+            evidence: (
+              JSON.parse(evaluationRow.evidence_json) as Array<Record<string, unknown>>
+            ).map((item) => ({
+              ...item,
+              ...(typeof item.path === 'string' ? { path: basename(item.path) } : {}),
+            })),
+            createdAt: evaluationRow.created_at,
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      ),
+    );
   }
 
   const manifest: ShareManifest = {
@@ -252,9 +288,11 @@ export async function exportDesignScheme(
   }
 
   const packageId = `share_${randomUUID()}`;
-  deps.db.prepare(
-    'INSERT INTO share_packages (package_id, scheme_id, manifest_json, path, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(packageId, schemeId, JSON.stringify(manifest), targetPath, Date.now());
+  deps.db
+    .prepare(
+      'INSERT INTO share_packages (package_id, scheme_id, manifest_json, path, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(packageId, schemeId, JSON.stringify(manifest), targetPath, Date.now());
 
   return ok({
     path: targetPath,
@@ -264,7 +302,11 @@ export async function exportDesignScheme(
   });
 }
 
-function writeZip(targetPath: string, entries: Map<string, Buffer>, manifest: ShareManifest): Promise<void> {
+function writeZip(
+  targetPath: string,
+  entries: Map<string, Buffer>,
+  manifest: ShareManifest,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const output = createWriteStream(targetPath);
     const archive = archiver('zip', { zlib: { level: 6 } });
@@ -272,7 +314,9 @@ function writeZip(targetPath: string, entries: Map<string, Buffer>, manifest: Sh
     output.on('error', reject);
     archive.on('error', reject);
     archive.pipe(output);
-    archive.append(Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'), { name: 'manifest.json' });
+    archive.append(Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'), {
+      name: 'manifest.json',
+    });
     for (const [name, buffer] of entries) {
       archive.append(buffer, { name });
     }
@@ -286,10 +330,14 @@ function writeZip(targetPath: string, entries: Map<string, Buffer>, manifest: Sh
 
 function openZip(path: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
-    yauzl.open(path, { autoClose: false, lazyEntries: true, decodeStrings: true, validateEntrySizes: true }, (error, zipFile) => {
-      if (error || !zipFile) reject(error ?? new Error('无法打开分享包'));
-      else resolve(zipFile);
-    });
+    yauzl.open(
+      path,
+      { autoClose: false, lazyEntries: true, decodeStrings: true, validateEntrySizes: true },
+      (error, zipFile) => {
+        if (error || !zipFile) reject(error ?? new Error('无法打开分享包'));
+        else resolve(zipFile);
+      },
+    );
   });
 }
 
@@ -343,26 +391,55 @@ function readAllZipEntries(zipFile: yauzl.ZipFile): Promise<Map<string, Buffer>>
 }
 
 const PACKAGE_KINDS: ReadonlySet<string> = new Set(['github', 'history', 'user-brief']);
-const BINDING_ROLES: ReadonlySet<string> = new Set(['normative', 'reference', 'example', 'context']);
+const BINDING_ROLES: ReadonlySet<string> = new Set([
+  'normative',
+  'reference',
+  'example',
+  'context',
+]);
 
 function validateManifest(candidate: unknown): AppResult<ShareManifest> {
   if (!candidate || typeof candidate !== 'object') {
-    return fail(appError('INVALID_TYPE', 'manifest.json 不是有效对象', { recoveryAction: 'retry' }));
+    return fail(
+      appError('INVALID_TYPE', 'manifest.json 不是有效对象', { recoveryAction: 'retry' }),
+    );
   }
   const manifest = candidate as ShareManifest;
   if (manifest.format !== SHARE_FORMAT) {
-    return fail(appError('INVALID_TYPE', '不是 .musefold.design 分享包', { recoveryAction: 'retry' }));
+    return fail(
+      appError('INVALID_TYPE', '不是 .musefold.design 分享包', { recoveryAction: 'retry' }),
+    );
   }
   if (manifest.formatVersion !== SHARE_FORMAT_VERSION) {
-    return fail(appError('UNSUPPORTED_SCHEMA_VERSION', `分享包格式版本 ${String(manifest.formatVersion)} 不受支持`, { recoveryAction: 'upgrade-app' }));
+    return fail(
+      appError(
+        'UNSUPPORTED_SCHEMA_VERSION',
+        `分享包格式版本 ${String(manifest.formatVersion)} 不受支持`,
+        { recoveryAction: 'upgrade-app' },
+      ),
+    );
   }
-  if (!manifest.scheme || typeof manifest.scheme.name !== 'string' || !manifest.files || typeof manifest.files !== 'object') {
-    return fail(appError('INVALID_TYPE', 'manifest.json 缺少必要字段', { recoveryAction: 'retry' }));
+  if (
+    !manifest.scheme ||
+    typeof manifest.scheme.name !== 'string' ||
+    !manifest.files ||
+    typeof manifest.files !== 'object'
+  ) {
+    return fail(
+      appError('INVALID_TYPE', 'manifest.json 缺少必要字段', { recoveryAction: 'retry' }),
+    );
   }
   const snapshots = Array.isArray(manifest.snapshots) ? manifest.snapshots : [];
   for (const snapshot of snapshots) {
-    if (!PACKAGE_KINDS.has(snapshot.kind) || !BINDING_ROLES.has(snapshot.role) || typeof snapshot.dir !== 'string' || !/^[a-z0-9_-]+$/i.test(snapshot.dir)) {
-      return fail(appError('INVALID_TYPE', 'manifest.json 中来源快照描述无效', { recoveryAction: 'retry' }));
+    if (
+      !PACKAGE_KINDS.has(snapshot.kind) ||
+      !BINDING_ROLES.has(snapshot.role) ||
+      typeof snapshot.dir !== 'string' ||
+      !/^[a-z0-9_-]+$/i.test(snapshot.dir)
+    ) {
+      return fail(
+        appError('INVALID_TYPE', 'manifest.json 中来源快照描述无效', { recoveryAction: 'retry' }),
+      );
     }
   }
   return ok(manifest);
@@ -386,7 +463,9 @@ export async function importDesignScheme(
     return fail(appError('MISSING_REFERENCE', '分享包文件不存在', { recoveryAction: 'retry' }));
   }
   if (!stat.isFile() || stat.size > MAX_PACKAGE_BYTES) {
-    return fail(appError('INVALID_TYPE', '分享包不是普通文件或超过大小上限', { recoveryAction: 'retry' }));
+    return fail(
+      appError('INVALID_TYPE', '分享包不是普通文件或超过大小上限', { recoveryAction: 'retry' }),
+    );
   }
 
   let zipFile: yauzl.ZipFile | null = null;
@@ -396,7 +475,9 @@ export async function importDesignScheme(
     entries = await readAllZipEntries(zipFile);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(appError('INVALID_TYPE', `分享包读取失败：${message}`, { recoveryAction: 'retry' }));
+    return fail(
+      appError('INVALID_TYPE', `分享包读取失败：${message}`, { recoveryAction: 'retry' }),
+    );
   } finally {
     zipFile?.close();
   }
@@ -409,7 +490,9 @@ export async function importDesignScheme(
   try {
     manifestJson = JSON.parse(manifestBuffer.toString('utf8'));
   } catch {
-    return fail(appError('INVALID_TYPE', 'manifest.json 不是有效 JSON', { recoveryAction: 'retry' }));
+    return fail(
+      appError('INVALID_TYPE', 'manifest.json 不是有效 JSON', { recoveryAction: 'retry' }),
+    );
   }
   const manifestResult = validateManifest(manifestJson);
   if (!manifestResult.ok) return manifestResult;
@@ -420,7 +503,9 @@ export async function importDesignScheme(
     if (name === 'manifest.json') continue;
     const declared = manifest.files[name];
     if (!declared) {
-      return fail(appError('INVALID_TYPE', `分享包包含未声明的文件：${name}`, { recoveryAction: 'retry' }));
+      return fail(
+        appError('INVALID_TYPE', `分享包包含未声明的文件：${name}`, { recoveryAction: 'retry' }),
+      );
     }
     if (sha256(buffer) !== declared) {
       return fail(appError('INVALID_TYPE', `文件哈希不匹配：${name}`, { recoveryAction: 'retry' }));
@@ -428,7 +513,9 @@ export async function importDesignScheme(
     // 资产与预览必须是真实图片（扩展名 + 魔数双重校验）。
     if (name.startsWith('assets/') || name.startsWith('previews/')) {
       if (!IMAGE_EXTENSIONS.has(extname(name).toLowerCase()) || !looksLikeImage(buffer)) {
-        return fail(appError('INVALID_TYPE', `资产不是有效图片：${name}`, { recoveryAction: 'retry' }));
+        return fail(
+          appError('INVALID_TYPE', `资产不是有效图片：${name}`, { recoveryAction: 'retry' }),
+        );
       }
     }
   }
@@ -445,8 +532,13 @@ export async function importDesignScheme(
   }
   const parsed = parseDesignSchemeRevisionDocument(schemeJson);
   if (!parsed.ok) {
-    const issues = parsed.issues.slice(0, 3).map((issue) => `${issue.path}: ${issue.message}`).join('；');
-    return fail(appError('INVALID_TYPE', `方案文档校验失败：${issues}`, { recoveryAction: 'retry' }));
+    const issues = parsed.issues
+      .slice(0, 3)
+      .map((issue) => `${issue.path}: ${issue.message}`)
+      .join('；');
+    return fail(
+      appError('INVALID_TYPE', `方案文档校验失败：${issues}`, { recoveryAction: 'retry' }),
+    );
   }
 
   // 生成全新 ID；导入永远是草稿，需要本机试运行验证（设计规范 §7）。
@@ -460,11 +552,21 @@ export async function importDesignScheme(
   };
 
   // 重建来源快照（新 id + 图片落盘），保持原 kind/role 语义。
-  const bindings: Array<{ snapshotId: string; role: 'normative' | 'reference' | 'example' | 'context' }> = [];
+  const bindings: Array<{
+    snapshotId: string;
+    role: 'normative' | 'reference' | 'example' | 'context';
+  }> = [];
   for (const snapshot of manifest.snapshots) {
     const snapshotId = `snap_${randomUUID()}`;
     const packageId = `pkg_import_${randomUUID().slice(0, 20)}`;
-    const files: Array<{ path: string; kind: 'text' | 'image'; contentHash: string; sizeBytes: number; storeKey?: string; textContent?: string }> = [];
+    const files: Array<{
+      path: string;
+      kind: 'text' | 'image';
+      contentHash: string;
+      sizeBytes: number;
+      storeKey?: string;
+      textContent?: string;
+    }> = [];
 
     const textPrefix = `sources/${snapshot.dir}/`;
     const assetPrefix = `assets/${snapshot.dir}/`;
@@ -518,7 +620,8 @@ export async function importDesignScheme(
     const summary = repository.insertSchemeDraft({
       document,
       sourceLabel: manifest.scheme.sourceLabel || manifest.scheme.name,
-      sourcePresentation: manifest.scheme.sourcePresentation === 'skill' ? 'skill' : 'musefold-created',
+      sourcePresentation:
+        manifest.scheme.sourcePresentation === 'skill' ? 'skill' : 'musefold-created',
       createdBy: 'import',
       bindings,
     });

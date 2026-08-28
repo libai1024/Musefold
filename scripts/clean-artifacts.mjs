@@ -129,10 +129,14 @@ const candidates = [
   ...(await collectNamedDirs('.tsout')),
 ];
 
-const targets = [...new Map(candidates.map((item) => {
-  const target = safeTarget(item);
-  return [target.relPath, target];
-})).values()].sort((a, b) => a.relPath.localeCompare(b.relPath));
+const targets = [
+  ...new Map(
+    candidates.map((item) => {
+      const target = safeTarget(item);
+      return [target.relPath, target];
+    }),
+  ).values(),
+].sort((a, b) => a.relPath.localeCompare(b.relPath));
 
 let removed = 0;
 for (const target of targets) {

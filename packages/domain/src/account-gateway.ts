@@ -21,9 +21,6 @@ export interface AccountGateway {
   redeem(code: string): Promise<RedeemResult>;
   logout(): Promise<void>;
   listConnections(): Promise<McpConnectionPage>;
-  updateConnection(
-    id: string,
-    input: UpdateMcpConnection,
-  ): Promise<McpConnectionPage>;
+  updateConnection(id: string, input: UpdateMcpConnection): Promise<McpConnectionPage>;
   revokeConnection(id: string): Promise<void>;
 }

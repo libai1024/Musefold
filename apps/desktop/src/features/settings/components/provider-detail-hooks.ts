@@ -22,10 +22,7 @@ export interface ProviderDraft {
 
 export type ProviderDraftField = (typeof PROVIDER_DRAFT_FIELDS)[number];
 
-export function useProviderDraftForm(
-  provider: ProviderConfig | null,
-  presetSeed?: string | null,
-) {
+export function useProviderDraftForm(provider: ProviderConfig | null, presetSeed?: string | null) {
   const initial = useMemo<ProviderDraft>(() => {
     if (provider) {
       // 匹配预设以高亮(仅作提示;匹配 type,其次 baseUrl)

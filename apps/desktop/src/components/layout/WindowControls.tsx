@@ -3,7 +3,12 @@
 // 关闭键 hover 变红（Windows 语义），最小化/最大化 hover 中性高亮
 // 交互贴近系统：命中区 46×36（win 标准），图标发丝级 stroke
 
-import { Copy as RestoreIcon, Minus as MinimizeIcon, Square as MaximizeIcon, X as CloseIcon } from '../ui/icons';
+import {
+  Copy as RestoreIcon,
+  Minus as MinimizeIcon,
+  Square as MaximizeIcon,
+  X as CloseIcon,
+} from '../ui/icons';
 import { useWindowMaximized } from '../../lib/usePlatform';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 

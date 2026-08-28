@@ -1,4 +1,4 @@
-export type { LucideIcon } from "lucide-react";
+export type { LucideIcon } from 'lucide-react';
 
 export {
   AlertCircle,
@@ -156,7 +156,7 @@ export {
   Zap,
   ZoomIn,
   ZoomOut,
-} from "lucide-react";
+} from 'lucide-react';
 
 export {
   Pencil as PencilLine,
@@ -168,4 +168,4 @@ export {
   RefreshCw as RefreshCcw,
   Trash2 as Trash,
   MoreHorizontal as MoreVertical,
-} from "lucide-react";
+} from 'lucide-react';

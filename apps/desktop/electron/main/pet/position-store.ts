@@ -12,9 +12,7 @@ function isPetPoint(value: unknown): value is PetPoint {
 
 export function loadPetDesktopPosition(userDataDir: string): PetPoint | null {
   try {
-    const parsed: unknown = JSON.parse(
-      readFileSync(join(userDataDir, POSITION_FILE), 'utf8'),
-    );
+    const parsed: unknown = JSON.parse(readFileSync(join(userDataDir, POSITION_FILE), 'utf8'));
     if (!isPetPoint(parsed)) return null;
     return { x: Math.round(parsed.x), y: Math.round(parsed.y) };
   } catch {

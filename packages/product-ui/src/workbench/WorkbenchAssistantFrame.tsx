@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 export interface WorkbenchAssistantFrameProps {
   avatar: ReactNode;
@@ -22,23 +22,13 @@ export function WorkbenchAssistantFrame({
 }: WorkbenchAssistantFrameProps) {
   return (
     <div
-      className={["mf-workbench-assistant-frame", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={['mf-workbench-assistant-frame', className].filter(Boolean).join(' ')}
       data-testid={testId}
     >
-      <div
-        className={["mf-workbench-assistant-avatar", avatarClassName]
-          .filter(Boolean)
-          .join(" ")}
-      >
+      <div className={['mf-workbench-assistant-avatar', avatarClassName].filter(Boolean).join(' ')}>
         {avatar}
       </div>
-      <div
-        className={["mf-workbench-assistant-body", bodyClassName]
-          .filter(Boolean)
-          .join(" ")}
-      >
+      <div className={['mf-workbench-assistant-body', bodyClassName].filter(Boolean).join(' ')}>
         {header}
         {children}
       </div>

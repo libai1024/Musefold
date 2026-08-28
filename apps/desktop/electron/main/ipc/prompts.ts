@@ -1,10 +1,10 @@
 // electron/main/ipc/prompts.ts
 // 提示词 IPC handler —— 详见 docs/07-ipc-contracts.md §3.1
 
-import { ipcMain } from "electron";
-import { IPC } from "@musefold/desktop-contracts/ipc";
-import { promptsRepo } from "@musefold/core/db/repositories/prompts";
-import { scheduleCloudSync } from "../../cloud-sync";
+import { ipcMain } from 'electron';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import { promptsRepo } from '@musefold/core/db/repositories/prompts';
+import { scheduleCloudSync } from '../../cloud-sync';
 
 export function registerPromptHandlers(): void {
   ipcMain.handle(IPC.PROMPTS_LIST, (_e, q) => promptsRepo.list(q));
@@ -36,8 +36,8 @@ export function registerPromptHandlers(): void {
   });
   ipcMain.handle(
     IPC.PROMPTS_INCREMENT_USAGE,
-    (_e, id: string, action?: "copy" | "apply" | "generate") => {
-      promptsRepo.incrementUsage(id, action ?? "apply");
+    (_e, id: string, action?: 'copy' | 'apply' | 'generate') => {
+      promptsRepo.incrementUsage(id, action ?? 'apply');
       scheduleCloudSync();
       return { ok: true as const };
     },

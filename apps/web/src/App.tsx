@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GenerationJob, McpConnectionPage } from '@musefold/contracts';
-import {
-  formatAccountPoints,
-  type PlatformServices,
-} from '@musefold/domain';
+import { formatAccountPoints, type PlatformServices } from '@musefold/domain';
 import {
   ProductSidebarLayout,
   clearMusefoldUserQueryCache,
@@ -18,10 +15,7 @@ import { WebSidebar, WebTopbar, type WebView } from './layout/WebNavigation';
 import { useLargeProductViewport } from './layout/useLargeProductViewport';
 import { useKeyboardInset } from './layout/useKeyboardInset';
 import { WebGatewayError, type WebGateway } from './runtime';
-import {
-  createWebCapabilityManifest,
-  webCapabilitiesFromManifest,
-} from './runtime/capabilities';
+import { createWebCapabilityManifest, webCapabilitiesFromManifest } from './runtime/capabilities';
 import { GenerateView } from './views/GenerateView';
 import { HistoryView } from './views/HistoryView';
 import { PromptLibraryView } from './views/PromptLibraryView';

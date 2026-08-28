@@ -49,10 +49,7 @@ export function StepWelcome() {
             保存一个方向，制作一张图。
           </span>
         </p>
-        <div
-          data-theater-cta
-          className="mt-9 flex flex-wrap items-center gap-3"
-        >
+        <div data-theater-cta className="mt-9 flex flex-wrap items-center gap-3">
           <Button
             size="lg"
             className="rounded-md px-5"

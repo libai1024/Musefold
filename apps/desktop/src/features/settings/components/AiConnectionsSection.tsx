@@ -38,7 +38,8 @@ export function AiConnectionsRelayPanel() {
     () => connections.filter((connection) => connection.managedBy !== 'account'),
     [connections],
   );
-  const activeProvider = providers.find((provider) => provider.id === activeProviderId) ?? providers[0] ?? null;
+  const activeProvider =
+    providers.find((provider) => provider.id === activeProviderId) ?? providers[0] ?? null;
   const relayMode = accessModeOfProvider(activeProvider) === 'relay';
 
   // 选中态:null = 跟随默认/首条;creating 非空 = 新建草稿(未落库)
@@ -46,10 +47,10 @@ export function AiConnectionsRelayPanel() {
   const [creating, setCreating] = useState<{ presetId?: AiConnectionPreset['id'] } | null>(null);
   const selectedConnection = creating
     ? null
-    : stationConnections.find((c) => c.id === selectedId) ??
+    : (stationConnections.find((c) => c.id === selectedId) ??
       stationConnections.find((c) => c.isActive) ??
       stationConnections[0] ??
-      null;
+      null);
 
   // dirty 守卫:面板 dirty 上抛 + 待执行切换;tab 层经 relay-dirty-store 读取
   const [panelDirty, setPanelDirty] = useState(false);
@@ -114,7 +115,10 @@ export function AiConnectionsRelayPanel() {
 
   if (loading && !loaded) {
     return (
-      <div className="flex min-h-36 items-center justify-center gap-2 text-[11px] text-tertiary" data-testid="settings-ai-loading">
+      <div
+        className="flex min-h-36 items-center justify-center gap-2 text-[11px] text-tertiary"
+        data-testid="settings-ai-loading"
+      >
         <Loader2 className="h-4 w-4 animate-spin" /> 正在读取 AI 连接…
       </div>
     );
@@ -122,16 +126,27 @@ export function AiConnectionsRelayPanel() {
 
   if (error && stationConnections.length === 0) {
     return (
-      <div className="rounded-md border border-danger/35 bg-danger/5 px-4 py-4" role="alert" data-testid="settings-ai-error">
+      <div
+        className="rounded-md border border-danger/35 bg-danger/5 px-4 py-4"
+        role="alert"
+        data-testid="settings-ai-error"
+      >
         <p className="text-[12px] font-medium text-danger">AI 连接读取失败</p>
         <p className="mt-1 text-meta text-secondary">{error}</p>
         <div className="mt-3 flex gap-2">
           {error === AI_CONNECTION_RESTART_REQUIRED && (
-            <Button size="sm" variant="primary" onClick={() => void api.system.relaunch()} data-testid="settings-ai-relaunch">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void api.system.relaunch()}
+              data-testid="settings-ai-relaunch"
+            >
               立即重启
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => void load()}>重试</Button>
+          <Button size="sm" variant="outline" onClick={() => void load()}>
+            重试
+          </Button>
         </div>
       </div>
     );
@@ -152,7 +167,8 @@ export function AiConnectionsRelayPanel() {
         </span>
         <p className="mt-3 text-[13px] font-medium text-primary">连接一个可用的文本模型</p>
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-tertiary">
-          API Key 由你提供并在本机加密保存。没有连接也不影响空白搭建、Prompt 标注、YAML 或 Skill 手动导入。
+          API Key 由你提供并在本机加密保存。没有连接也不影响空白搭建、Prompt 标注、YAML 或 Skill
+          手动导入。
         </p>
 
         <div className="mt-5 divide-y divide-border-subtle border-y border-border-subtle">

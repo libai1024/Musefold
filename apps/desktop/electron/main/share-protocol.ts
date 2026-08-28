@@ -1,6 +1,10 @@
-import { app, BrowserWindow } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 import { IPC } from '@musefold/desktop-contracts/ipc';
-import { SHARE_PROTOCOL, parseShareDeeplink, type SharePayload } from '@musefold/desktop-contracts/share';
+import {
+  SHARE_PROTOCOL,
+  parseShareDeeplink,
+  type SharePayload,
+} from '@musefold/desktop-contracts/share';
 import { getMainWindow } from './window';
 
 interface PendingShareImport {
@@ -95,9 +99,6 @@ function dispatchOrQueue(payload: SharePayload): void {
 
 function isWindowReady(win: BrowserWindow | null): win is BrowserWindow {
   return Boolean(
-    win &&
-      !win.isDestroyed() &&
-      !win.webContents.isDestroyed() &&
-      !win.webContents.isLoading(),
+    win && !win.isDestroyed() && !win.webContents.isDestroyed() && !win.webContents.isLoading(),
   );
 }

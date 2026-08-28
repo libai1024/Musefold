@@ -11,14 +11,23 @@ describe('Doubao image data decoding', () => {
   });
 
   it('accepts URL-safe base64 without padding', () => {
-    const encoded = Buffer.from(PNG).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const encoded = Buffer.from(PNG)
+      .toString('base64')
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
     expect(decodeImageDataUrl(`data:image/png;base64,${encoded}`).bytes).toEqual(Buffer.from(PNG));
   });
 
   it('uses image signatures instead of trusting an incorrect response content type', () => {
-    expect(decodeDownloadedImage(PNG, 'application/octet-stream', 'https://example.invalid/result').extension).toBe('png');
+    expect(
+      decodeDownloadedImage(PNG, 'application/octet-stream', 'https://example.invalid/result')
+        .extension,
+    ).toBe('png');
     const encoded = Buffer.from(PNG).toString('base64');
-    expect(decodeImageDataUrl(`data:application/octet-stream;base64,${encoded}`).extension).toBe('png');
+    expect(decodeImageDataUrl(`data:application/octet-stream;base64,${encoded}`).extension).toBe(
+      'png',
+    );
   });
 
   it('rejects non-image data URLs', () => {

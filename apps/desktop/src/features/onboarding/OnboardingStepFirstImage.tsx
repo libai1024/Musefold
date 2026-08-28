@@ -67,52 +67,55 @@ export function StepFirstImage() {
 
       <div className="relative mt-5 min-h-0 flex-1">
         <div className="absolute inset-0 flex items-center justify-center">
-        <div
-          data-theater-stage
-          className="relative h-full max-h-full w-auto max-w-full overflow-hidden rounded-[var(--radius-media)] border border-border-subtle bg-inset"
-          style={{ aspectRatio: aspectCss }}
-          data-testid={imageReady ? 'onboarding-result' : undefined}
-        >
-          {imageReady ? (
-            <>
-              <img
-                data-theater-image
-                src={generatedImagePath ? toImageSrc(generatedImagePath) : ''}
-                alt="你的第一张图"
-                onError={() => setBroken(true)}
-                className="h-full w-full object-contain"
-                data-testid="onboarding-result-image"
-              />
-              <span
-                data-theater-stamp
-                className="pointer-events-none absolute right-[7%] top-[9%] h-3.5 w-3.5 rounded-full bg-accent"
-                aria-hidden="true"
-              />
-            </>
-          ) : generating ? (
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-tertiary"
-              role="status"
-              aria-live="polite"
-            >
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-              <span className="text-meta">
-                {track === 'doubao' ? '豆包正在生成（最长约 3 分钟）' : '正在显形'}
-              </span>
-            </div>
-          ) : generateError ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-danger">
-              <AlertCircle className="h-5 w-5" aria-hidden="true" />
-              <p className="max-w-[36ch] text-meta leading-relaxed" data-testid="onboarding-generate-error">
-                {generateError.message}
-              </p>
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-meta text-quaternary">
-              画布等待显形
-            </div>
-          )}
-        </div>
+          <div
+            data-theater-stage
+            className="relative h-full max-h-full w-auto max-w-full overflow-hidden rounded-[var(--radius-media)] border border-border-subtle bg-inset"
+            style={{ aspectRatio: aspectCss }}
+            data-testid={imageReady ? 'onboarding-result' : undefined}
+          >
+            {imageReady ? (
+              <>
+                <img
+                  data-theater-image
+                  src={generatedImagePath ? toImageSrc(generatedImagePath) : ''}
+                  alt="你的第一张图"
+                  onError={() => setBroken(true)}
+                  className="h-full w-full object-contain"
+                  data-testid="onboarding-result-image"
+                />
+                <span
+                  data-theater-stamp
+                  className="pointer-events-none absolute right-[7%] top-[9%] h-3.5 w-3.5 rounded-full bg-accent"
+                  aria-hidden="true"
+                />
+              </>
+            ) : generating ? (
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-tertiary"
+                role="status"
+                aria-live="polite"
+              >
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                <span className="text-meta">
+                  {track === 'doubao' ? '豆包正在生成（最长约 3 分钟）' : '正在显形'}
+                </span>
+              </div>
+            ) : generateError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-danger">
+                <AlertCircle className="h-5 w-5" aria-hidden="true" />
+                <p
+                  className="max-w-[36ch] text-meta leading-relaxed"
+                  data-testid="onboarding-generate-error"
+                >
+                  {generateError.message}
+                </p>
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-meta text-quaternary">
+                画布等待显形
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -121,23 +124,25 @@ export function StepFirstImage() {
           <p className="max-w-[40rem] text-[13px] leading-6 text-secondary">{EXAMPLE_PROMPT}</p>
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
             <OptionGroup label="画幅">
-              {RATIO_OPTIONS.filter((item) => item.id !== 'auto').slice(0, 5).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setRatioId(item.id)}
-                  aria-pressed={ratioId === item.id}
-                  data-testid={`onboarding-ratio-${item.id}`}
-                  className={cn(
-                    'no-drag rounded-md border px-2.5 py-1 text-meta transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]',
-                    ratioId === item.id
-                      ? 'border-primary bg-primary text-background'
-                      : 'border-border-default bg-elevated text-secondary hover:border-border-strong hover:text-primary',
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
+              {RATIO_OPTIONS.filter((item) => item.id !== 'auto')
+                .slice(0, 5)
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setRatioId(item.id)}
+                    aria-pressed={ratioId === item.id}
+                    data-testid={`onboarding-ratio-${item.id}`}
+                    className={cn(
+                      'no-drag rounded-md border px-2.5 py-1 text-meta transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]',
+                      ratioId === item.id
+                        ? 'border-primary bg-primary text-background'
+                        : 'border-border-default bg-elevated text-secondary hover:border-border-strong hover:text-primary',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
             </OptionGroup>
             {track !== 'doubao' && (
               <OptionGroup label="质量">

@@ -6,7 +6,13 @@ import OpenAI from 'openai';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { ulid } from 'ulid';
-import type { GenerateImageRequest, GenerateImageResult, ImageProgressHandler, ModelInfo, ValidationResult } from '@musefold/desktop-contracts/providers';
+import type {
+  GenerateImageRequest,
+  GenerateImageResult,
+  ImageProgressHandler,
+  ModelInfo,
+  ValidationResult,
+} from '@musefold/desktop-contracts/providers';
 import { MAX_REFERENCE_IMAGES } from '@musefold/desktop-contracts/providers';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
 import { getPaths } from '../runtime';
@@ -20,17 +26,23 @@ const logger = createLogger('provider:openai-compatible');
 
 /** 把错误归一化成带 code + status 的对象，便于上层 IPC 分类 */
 function normalizeError(err: unknown): { code: string; message: string; status?: number } {
-  const e = err as { status?: number; message?: string; code?: string; error?: { message?: string; code?: string } };
+  const e = err as {
+    status?: number;
+    message?: string;
+    code?: string;
+    error?: { message?: string; code?: string };
+  };
   const status = e.status;
   const message = e.error?.message ?? e.message ?? 'Unknown error';
   const rawCode = (e.error?.code ?? e.code ?? '').toString();
   let code = 'UNKNOWN';
   if (rawCode.startsWith('IMAGE_')) code = rawCode;
   else if (
-    rawCode === 'insufficient_user_quota'
-    || rawCode === 'insufficient_quota'
-    || rawCode === 'billing_hard_limit_reached'
-  ) code = 'NO_BALANCE';
+    rawCode === 'insufficient_user_quota' ||
+    rawCode === 'insufficient_quota' ||
+    rawCode === 'billing_hard_limit_reached'
+  )
+    code = 'NO_BALANCE';
   else if (rawCode === 'model_not_found') code = 'MODEL_NOT_FOUND';
   else if (rawCode === 'INVALID_API_KEY' || rawCode === 'API_KEY_REQUIRED') code = 'AUTH';
   else if (status === 400) code = 'BAD_REQUEST';
@@ -42,7 +54,10 @@ function normalizeError(err: unknown): { code: string; message: string; status?:
     code = 'AUTH';
   } else if (/balance|余额|quota|配额|billing/i.test(message)) {
     code = 'NO_BALANCE';
-  } else if (/fetch failed|network|connection error|ECONN|ENOTFOUND|ETIMEDOUT/i.test(message) || rawCode === 'ENOTFOUND') {
+  } else if (
+    /fetch failed|network|connection error|ECONN|ENOTFOUND|ETIMEDOUT/i.test(message) ||
+    rawCode === 'ENOTFOUND'
+  ) {
     code = 'NETWORK';
   }
   return { code, message, status };
@@ -139,7 +154,11 @@ export class OpenAICompatibleProvider extends BaseProvider {
     };
   }
 
-  async generateImage(req: GenerateImageRequest, signal?: AbortSignal, onProgress?: ImageProgressHandler): Promise<GenerateImageResult> {
+  async generateImage(
+    req: GenerateImageRequest,
+    signal?: AbortSignal,
+    onProgress?: ImageProgressHandler,
+  ): Promise<GenerateImageResult> {
     // IPC 层把任务、历史和文件统一为同一个 id；保留 fallback 兼容直接调用 Provider 的测试/工具。
     const historyId = req.jobId ?? ulid();
     const startTs = Date.now();
@@ -152,24 +171,31 @@ export class OpenAICompatibleProvider extends BaseProvider {
       else signal.addEventListener('abort', onAbort, { once: true });
     }
     try {
-      const result = await withRetry(async (sig) => {
-        try {
-          if (req.referenceImages?.length) return await this.editImage(req, sig);
-          const client = this.getClient();
-          return await client.images.generate({
-            model: req.model ?? this.model,
-            prompt: req.prompt,
-            n: req.n,
-            size: req.size as unknown as OpenAI.Images.ImageGenerateParams['size'],
-            quality: req.quality as 'low' | 'medium' | 'high' | 'auto',
-            ...(req.background ? { background: req.background } : {}),
-            ...(req.moderation ? { moderation: req.moderation } : {}),
-          }, { signal: sig });
-        } catch (err) {
-          // 必须在 withRetry 内部把 SDK 异常归一化，否则 Retry-After 只能在所有重试结束后才被读取。
-          throw enrichRetryError(err);
-        }
-      }, { onRetry: (progress) => onProgress?.(progress) }, controller.signal);
+      const result = await withRetry(
+        async (sig) => {
+          try {
+            if (req.referenceImages?.length) return await this.editImage(req, sig);
+            const client = this.getClient();
+            return await client.images.generate(
+              {
+                model: req.model ?? this.model,
+                prompt: req.prompt,
+                n: req.n,
+                size: req.size as unknown as OpenAI.Images.ImageGenerateParams['size'],
+                quality: req.quality as 'low' | 'medium' | 'high' | 'auto',
+                ...(req.background ? { background: req.background } : {}),
+                ...(req.moderation ? { moderation: req.moderation } : {}),
+              },
+              { signal: sig },
+            );
+          } catch (err) {
+            // 必须在 withRetry 内部把 SDK 异常归一化，否则 Retry-After 只能在所有重试结束后才被读取。
+            throw enrichRetryError(err);
+          }
+        },
+        { onRetry: (progress) => onProgress?.(progress) },
+        controller.signal,
+      );
 
       // gpt-image 返回 b64_json
       const b64 = result.data?.[0]?.b64_json;
@@ -182,11 +208,12 @@ export class OpenAICompatibleProvider extends BaseProvider {
       const imageBuffer = Buffer.from(b64, 'base64');
       const actualSize = readImagePixelSize(imageBuffer) ?? undefined;
       const expectedSize = parseExpectedSize(req.size);
-      const sizeMismatch = actualSize && expectedSize && (
-        actualSize.width !== expectedSize.width || actualSize.height !== expectedSize.height
-      )
-        ? { expected: req.size, actual: `${actualSize.width}x${actualSize.height}` }
-        : undefined;
+      const sizeMismatch =
+        actualSize &&
+        expectedSize &&
+        (actualSize.width !== expectedSize.width || actualSize.height !== expectedSize.height)
+          ? { expected: req.size, actual: `${actualSize.width}x${actualSize.height}` }
+          : undefined;
       if (sizeMismatch) {
         logger.warn(
           '生成尺寸与请求不一致',
@@ -210,7 +237,11 @@ export class OpenAICompatibleProvider extends BaseProvider {
       };
     } catch (err) {
       // 用户取消：归一为 CANCELLED，不当作服务端错误
-      if (signal?.aborted || (err as Error)?.name === 'AbortError' || (err as Error)?.message === 'Cancelled') {
+      if (
+        signal?.aborted ||
+        (err as Error)?.name === 'AbortError' ||
+        (err as Error)?.message === 'Cancelled'
+      ) {
         const cancelled = new Error('已取消');
         (cancelled as { code?: string }).code = 'CANCELLED';
         throw cancelled;
@@ -226,13 +257,20 @@ export class OpenAICompatibleProvider extends BaseProvider {
     }
   }
 
-  private async editImage(req: GenerateImageRequest, signal: AbortSignal): Promise<{
+  private async editImage(
+    req: GenerateImageRequest,
+    signal: AbortSignal,
+  ): Promise<{
     data?: Array<{ b64_json?: string; url?: string }>;
   }> {
     const references = req.referenceImages ?? [];
-    if (references.length === 0) throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
+    if (references.length === 0)
+      throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
     if (references.length > MAX_REFERENCE_IMAGES) {
-      throw new LocalImageError('IMAGE_LIMIT_EXCEEDED', `参考图不能超过 ${MAX_REFERENCE_IMAGES} 张`);
+      throw new LocalImageError(
+        'IMAGE_LIMIT_EXCEEDED',
+        `参考图不能超过 ${MAX_REFERENCE_IMAGES} 张`,
+      );
     }
     const images = await Promise.all(references.map((reference) => readLocalImage(reference)));
     const form = new FormData();
@@ -254,13 +292,15 @@ export class OpenAICompatibleProvider extends BaseProvider {
       body: form,
       signal,
     });
-    const payload = await response.json().catch(() => ({})) as {
+    const payload = (await response.json().catch(() => ({}))) as {
       data?: Array<{ b64_json?: string; url?: string }>;
       error?: { message?: string; code?: string };
       message?: string;
     };
     if (!response.ok) {
-      const error = new Error(payload.error?.message ?? payload.message ?? `图片编辑请求失败（HTTP ${response.status}）`);
+      const error = new Error(
+        payload.error?.message ?? payload.message ?? `图片编辑请求失败（HTTP ${response.status}）`,
+      );
       (error as { status?: number }).status = response.status;
       (error as { code?: string }).code = payload.error?.code;
       (error as { headers?: Headers }).headers = response.headers;
@@ -279,7 +319,9 @@ function enrichRetryError(err: unknown): Error {
   (wrapped as { code?: string }).code = ne.code;
   (wrapped as { status?: number }).status = ne.status;
   if (ne.status === 429) {
-    (wrapped as { retryAfterMs?: number }).retryAfterMs = parseRetryAfter(source.headers?.get?.('retry-after'));
+    (wrapped as { retryAfterMs?: number }).retryAfterMs = parseRetryAfter(
+      source.headers?.get?.('retry-after'),
+    );
   }
   return wrapped;
 }
@@ -302,8 +344,11 @@ function modelDescription(model: unknown): string | undefined {
     type?: string;
     display_name?: string;
   };
-  const parts = [m.display_name && m.display_name !== (m as { id?: string }).id ? m.display_name : undefined, m.type, m.owned_by]
-    .filter((item): item is string => Boolean(item));
+  const parts = [
+    m.display_name && m.display_name !== (m as { id?: string }).id ? m.display_name : undefined,
+    m.type,
+    m.owned_by,
+  ].filter((item): item is string => Boolean(item));
   if (parts.length > 0) return parts.join(' · ');
   const created = m.created_at ?? m.created;
   return created ? `created ${String(created)}` : undefined;

@@ -106,8 +106,7 @@ export function historyRecordToGenerationJob(row: HistoryRecord): GenerationJob 
       negative: row.negativeText ?? undefined,
       promptId: row.promptId ?? undefined,
       size: toCloudSize(row.params?.size),
-      aspectRatio:
-        typeof row.params?.aspectRatio === 'string' ? row.params.aspectRatio : undefined,
+      aspectRatio: typeof row.params?.aspectRatio === 'string' ? row.params.aspectRatio : undefined,
       quality: toCloudQuality(row.params?.quality),
       count: 1,
     },
@@ -144,9 +143,7 @@ export function markGenerationJobDeleted(
  * 行 → 桌面历史文档条目（V13-ENT-02）：基类走 GenerationJob 云形状，
  * 本地语义字段（providerId/imagePath/cost/params/原始错误码/引用快照等）在扩展面无损保留。
  */
-export function historyRecordToDesktopGenerationEntry(
-  row: HistoryRecord,
-): DesktopGenerationEntry {
+export function historyRecordToDesktopGenerationEntry(row: HistoryRecord): DesktopGenerationEntry {
   const job = historyRecordToGenerationJob(row);
   const entry: DesktopGenerationEntry = {
     ...job,
@@ -166,9 +163,10 @@ export function historyRecordToDesktopGenerationEntry(
 }
 
 /** relatedHistory IPC 行结果 → 文档结果。 */
-export function relatedHistoryRowsToDocuments(
-  result: { items: HistoryRecord[]; total: number },
-): DesktopRelatedHistoryResult {
+export function relatedHistoryRowsToDocuments(result: {
+  items: HistoryRecord[];
+  total: number;
+}): DesktopRelatedHistoryResult {
   return {
     items: result.items.map(historyRecordToDesktopGenerationEntry),
     total: result.total,

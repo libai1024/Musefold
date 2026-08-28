@@ -155,7 +155,8 @@ function findSecretIssues(value, path = '$', issues = []) {
   if (!value || typeof value !== 'object') return issues;
   for (const [key, child] of Object.entries(value)) {
     if (/api[_-]?key|authorization|password|secret|token/i.test(key)) {
-      const emptyPlaceholder = typeof child === 'string' && /^\s*(|redacted|placeholder|<.*>)\s*$/i.test(child);
+      const emptyPlaceholder =
+        typeof child === 'string' && /^\s*(|redacted|placeholder|<.*>)\s*$/i.test(child);
       if (child !== undefined && child !== null && child !== '' && !emptyPlaceholder) {
         issues.push(`${path}.${key}: secret-like field name`);
       }
@@ -194,10 +195,20 @@ function findPlaceholderIssues(value, path = '$', issues = []) {
 function validateGate(definition, evidence) {
   const gate = evidence?.[definition.key];
   if (gate === undefined) {
-    return { key: definition.key, name: definition.name, status: 'manual', details: 'missing evidence' };
+    return {
+      key: definition.key,
+      name: definition.name,
+      status: 'manual',
+      details: 'missing evidence',
+    };
   }
   if (!gate || typeof gate !== 'object' || Array.isArray(gate)) {
-    return { key: definition.key, name: definition.name, status: 'fail', details: 'gate evidence must be an object' };
+    return {
+      key: definition.key,
+      name: definition.name,
+      status: 'fail',
+      details: 'gate evidence must be an object',
+    };
   }
 
   const missing = [];
@@ -206,9 +217,19 @@ function validateGate(definition, evidence) {
     if (!checkType(value, type)) missing.push(`${field}:${type}`);
   }
   if (missing.length > 0) {
-    return { key: definition.key, name: definition.name, status: 'fail', details: `missing/invalid ${missing.join(', ')}` };
+    return {
+      key: definition.key,
+      name: definition.name,
+      status: 'fail',
+      details: `missing/invalid ${missing.join(', ')}`,
+    };
   }
-  return { key: definition.key, name: definition.name, status: 'pass', details: 'complete evidence supplied' };
+  return {
+    key: definition.key,
+    name: definition.name,
+    status: 'pass',
+    details: 'complete evidence supplied',
+  };
 }
 
 async function readEvidence() {
@@ -225,14 +246,29 @@ async function main() {
   const evidence = await readEvidence();
   const checks = evidence
     ? gates.map((gate) => validateGate(gate, evidence))
-    : gates.map((gate) => ({ key: gate.key, name: gate.name, status: 'manual', details: 'evidence file missing' }));
+    : gates.map((gate) => ({
+        key: gate.key,
+        name: gate.name,
+        status: 'manual',
+        details: 'evidence file missing',
+      }));
   const secretIssues = evidence ? findSecretIssues(evidence) : [];
   for (const issue of secretIssues) {
-    checks.push({ key: 'secrets', name: 'Evidence contains no API keys or secret fields', status: 'fail', details: issue });
+    checks.push({
+      key: 'secrets',
+      name: 'Evidence contains no API keys or secret fields',
+      status: 'fail',
+      details: issue,
+    });
   }
   const placeholderIssues = evidence ? findPlaceholderIssues(evidence) : [];
   for (const issue of placeholderIssues) {
-    checks.push({ key: 'placeholders', name: 'Evidence placeholders have been replaced', status: 'fail', details: issue });
+    checks.push({
+      key: 'placeholders',
+      name: 'Evidence placeholders have been replaced',
+      status: 'fail',
+      details: issue,
+    });
   }
 
   const failed = checks.filter((check) => check.status === 'fail');

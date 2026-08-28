@@ -40,9 +40,9 @@ describe('AccountView', () => {
         'redeem',
       ),
     ).toBe('兑换码无效或已使用，请检查后重试');
-    expect(
-      accountActionErrorMessage(new Error('sensitive upstream detail'), 'refresh'),
-    ).toBe('刷新失败，请稍后重试');
+    expect(accountActionErrorMessage(new Error('sensitive upstream detail'), 'refresh')).toBe(
+      '刷新失败，请稍后重试',
+    );
     expect(accountActionErrorMessage(new WebGatewayError('RATE_LIMITED', '10s'), 'redeem')).toBe(
       '操作过于频繁，请稍后再试',
     );

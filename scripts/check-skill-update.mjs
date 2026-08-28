@@ -34,10 +34,7 @@ const SOURCE_FILES = new Set([
 const BUNDLED_SKILL_PREFIX = 'website/Musefold/skills/musefold/';
 const BUNDLED_SKILL_FILE = `${BUNDLED_SKILL_PREFIX}SKILL.md`;
 /** 新路径优先；父 revision 取不到时回退旧路径，避免解散 shared 的提交被误判。 */
-export const SKILL_VERSION_FILES = [
-  'packages/domain/src/constants.ts',
-  'shared/constants.ts',
-];
+export const SKILL_VERSION_FILES = ['packages/domain/src/constants.ts', 'shared/constants.ts'];
 const VERSION_FILE = SKILL_VERSION_FILES[0];
 const VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
@@ -50,12 +47,17 @@ function git(args, options = {}) {
 }
 
 function lines(value) {
-  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 export function isAppSourcePath(path) {
   const normalized = path.replaceAll('\\', '/');
-  return SOURCE_FILES.has(normalized) || SOURCE_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+  return (
+    SOURCE_FILES.has(normalized) || SOURCE_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  );
 }
 
 export function parseSkillImpact(message) {
@@ -64,9 +66,15 @@ export function parseSkillImpact(message) {
     .map((line) => line.match(/^Skill-Impact:\s*(.+?)\s*$/)?.[1] ?? null)
     .filter(Boolean);
   if (trailerMatches.length !== 1) {
-    throw new Error(`源码提交必须且只能包含一个 Skill-Impact trailer，当前为 ${trailerMatches.length} 个`);
+    throw new Error(
+      `源码提交必须且只能包含一个 Skill-Impact trailer，当前为 ${trailerMatches.length} 个`,
+    );
   }
-  const footer = message.trimEnd().split(/\r?\n\s*\r?\n/).at(-1) ?? '';
+  const footer =
+    message
+      .trimEnd()
+      .split(/\r?\n\s*\r?\n/)
+      .at(-1) ?? '';
   if (!footer.split(/\r?\n/).some((line) => /^Skill-Impact:/.test(line))) {
     throw new Error('Skill-Impact 必须位于提交消息最后一个 trailer 段落');
   }
@@ -106,11 +114,19 @@ function compareVersions(left, right) {
 }
 
 function extractSkillVersion(skill) {
-  return skill.match(/<!--\s*musefold-skill-version:\s*(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\s*-->/)?.[1] ?? null;
+  return (
+    skill.match(
+      /<!--\s*musefold-skill-version:\s*(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\s*-->/,
+    )?.[1] ?? null
+  );
 }
 
 function extractAppSkillVersion(constants) {
-  return constants.match(/MUSEFOLD_SKILL_VERSION\s*=\s*['"](v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)['"]/)?.[1] ?? null;
+  return (
+    constants.match(
+      /MUSEFOLD_SKILL_VERSION\s*=\s*['"](v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)['"]/,
+    )?.[1] ?? null
+  );
 }
 
 function findStatementEnd(source, start) {
@@ -223,7 +239,9 @@ function isMergeCommit(commit) {
 function changedPathsForCommit(commit) {
   const parent = parentOf(commit);
   if (!parent) return lines(git(['show', '--pretty=', '--name-only', commit], { silent: true }));
-  return lines(git(['diff', '--name-only', '--diff-filter=ACMRD', parent, commit], { silent: true }));
+  return lines(
+    git(['diff', '--name-only', '--diff-filter=ACMRD', parent, commit], { silent: true }),
+  );
 }
 
 function readPathAt(ref, path) {
@@ -249,20 +267,26 @@ function validateUpdatedDecision({ label, paths, ref, parentRef, version }) {
   } catch {
     errors.push(`无法读取 ${VERSION_FILE}`);
   }
-  if (skillVersion !== version) errors.push(`SKILL.md 版本标记为 ${skillVersion ?? '缺失'}，trailer 为 ${version}`);
-  if (appVersion !== version) errors.push(`MUSEFOLD_SKILL_VERSION 为 ${appVersion ?? '缺失'}，trailer 为 ${version}`);
+  if (skillVersion !== version)
+    errors.push(`SKILL.md 版本标记为 ${skillVersion ?? '缺失'}，trailer 为 ${version}`);
+  if (appVersion !== version)
+    errors.push(`MUSEFOLD_SKILL_VERSION 为 ${appVersion ?? '缺失'}，trailer 为 ${version}`);
 
   if (parentRef) {
     try {
-      const previous = extractAppSkillVersion(readSkillConstantsSource(readPathAt, parentRef).source);
+      const previous = extractAppSkillVersion(
+        readSkillConstantsSource(readPathAt, parentRef).source,
+      );
       if (!previous) errors.push('无法解析父提交中的 MUSEFOLD_SKILL_VERSION');
-      else if (compareVersions(version, previous) <= 0) errors.push(`Skill 版本必须提升：父提交 ${previous}，当前 ${version}`);
+      else if (compareVersions(version, previous) <= 0)
+        errors.push(`Skill 版本必须提升：父提交 ${previous}，当前 ${version}`);
     } catch {
       errors.push('无法读取父提交中的 Skill 版本');
     }
   }
 
-  if (errors.length > 0) throw new Error(`${label} 声明 Skill 已更新，但校验失败：\n- ${errors.join('\n- ')}`);
+  if (errors.length > 0)
+    throw new Error(`${label} 声明 Skill 已更新，但校验失败：\n- ${errors.join('\n- ')}`);
 }
 
 function validateDecision({ label, paths, message, ref, parentRef }) {
@@ -300,7 +324,9 @@ function argumentValue(args, name) {
 }
 
 function validateStaged(args) {
-  const paths = lines(git(['diff', '--cached', '--name-only', '--diff-filter=ACMRD'], { silent: true }));
+  const paths = lines(
+    git(['diff', '--cached', '--name-only', '--diff-filter=ACMRD'], { silent: true }),
+  );
   const message = messageFromFile(argumentValue(args, '--commit-message'));
   validateDecision({ label: 'staged commit', paths, message, ref: '', parentRef: 'HEAD' });
 }
@@ -464,7 +490,9 @@ if (invokedAsScript) {
     main();
   } catch (error) {
     console.error(`[skill-impact] FAIL: ${error instanceof Error ? error.message : String(error)}`);
-    console.error('提交前必须审查 Skill 影响。详见 CONTRIBUTING.md 和 Musefold-Skills/SKILL-UPDATE-SPEC.md。');
+    console.error(
+      '提交前必须审查 Skill 影响。详见 CONTRIBUTING.md 和 Musefold-Skills/SKILL-UPDATE-SPEC.md。',
+    );
     process.exitCode = 1;
   }
 }

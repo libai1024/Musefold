@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MULTI_IMAGE_INDEX_HINT, RATIO_CONSTRAINT_PREFIX } from '@musefold/domain/generation-prompt';
 import {
-  DESIGN_SCHEME_DOCUMENT_VERSION,
-  type DesignSchemeRevisionDocument,
-} from '../schema';
+  MULTI_IMAGE_INDEX_HINT,
+  RATIO_CONSTRAINT_PREFIX,
+} from '@musefold/domain/generation-prompt';
+import { DESIGN_SCHEME_DOCUMENT_VERSION, type DesignSchemeRevisionDocument } from '../schema';
 import { compileSchemePrompt, missingRequiredSlots } from '../prompt-compiler';
 
 function documentFixture(
@@ -19,15 +19,35 @@ function documentFixture(
     sources: [{ id: 'src_brief', kind: 'user-brief', role: 'context' }],
     inputs: [
       { id: 'topic', label: '主题', kind: 'text', required: true },
-      { id: 'subject', label: '主体图片', kind: 'image', required: true, imageRole: 'subject-reference' },
+      {
+        id: 'subject',
+        label: '主体图片',
+        kind: 'image',
+        required: true,
+        imageRole: 'subject-reference',
+      },
       { id: 'mood', label: '情绪', kind: 'text', required: false },
     ],
     parameters: [],
     constraints: [],
     promptProgram: [
       // 故意乱序写入，验证按 order 而非数组顺序拼接。
-      { id: 'pm_2', order: 1, kind: 'style-rule', template: '极简版式，双色印刷', variables: [], sourceIds: ['src_brief'] },
-      { id: 'pm_1', order: 0, kind: 'input-template', template: '为「{{topic}}」设计海报，情绪基调 {{mood}}', variables: ['topic', 'mood'], sourceIds: ['src_brief'] },
+      {
+        id: 'pm_2',
+        order: 1,
+        kind: 'style-rule',
+        template: '极简版式，双色印刷',
+        variables: [],
+        sourceIds: ['src_brief'],
+      },
+      {
+        id: 'pm_1',
+        order: 0,
+        kind: 'input-template',
+        template: '为「{{topic}}」设计海报，情绪基调 {{mood}}',
+        variables: ['topic', 'mood'],
+        sourceIds: ['src_brief'],
+      },
     ],
     compilation: {
       compiledAt: 1,
@@ -112,7 +132,9 @@ describe('compileSchemePrompt', () => {
       ratioId: 'auto',
       priorityMode: 'user_first',
     });
-    const briefIndex = prompt.indexOf('用户本次要求（优先；与后文方案规则冲突时，以本段为准）：\n改成横版构图');
+    const briefIndex = prompt.indexOf(
+      '用户本次要求（优先；与后文方案规则冲突时，以本段为准）：\n改成横版构图',
+    );
     expect(briefIndex).toBeGreaterThanOrEqual(0);
     expect(briefIndex).toBeLessThan(prompt.indexOf('极简版式'));
     expect(policySummary).toContain('用户主导');
@@ -127,7 +149,9 @@ describe('compileSchemePrompt', () => {
       ratioId: 'auto',
       priorityMode: 'agent_mediated',
     });
-    expect(prompt).toContain('补充要求：\n更亮一些\n（若与方案规则冲突，请以整体视觉质量为先自动协调取舍）');
+    expect(prompt).toContain(
+      '补充要求：\n更亮一些\n（若与方案规则冲突，请以整体视觉质量为先自动协调取舍）',
+    );
     expect(prompt.indexOf('更亮一些')).toBeGreaterThan(prompt.indexOf('极简版式'));
     expect(policySummary).toContain('智能协调');
   });
@@ -157,19 +181,30 @@ describe('missingRequiredSlots', () => {
   it('必填文本槽位缺值 / 空白值视为缺失', () => {
     const document = documentFixture();
     expect(missingRequiredSlots(document, {}, 1).map((slot) => slot.id)).toEqual(['topic']);
-    expect(missingRequiredSlots(document, { topic: '   ' }, 1).map((slot) => slot.id)).toEqual(['topic']);
+    expect(missingRequiredSlots(document, { topic: '   ' }, 1).map((slot) => slot.id)).toEqual([
+      'topic',
+    ]);
   });
 
   it('必填图片槽位按参考图数量校验，可选槽位不参与', () => {
     const document = documentFixture();
-    expect(missingRequiredSlots(document, { topic: 'x' }, 0).map((slot) => slot.id)).toEqual(['subject']);
+    expect(missingRequiredSlots(document, { topic: 'x' }, 0).map((slot) => slot.id)).toEqual([
+      'subject',
+    ]);
     expect(missingRequiredSlots(document, { topic: 'x' }, 1)).toEqual([]);
   });
 
   it('image-set 按 minItems 计数', () => {
     const document = documentFixture({
       inputs: [
-        { id: 'refs', label: '参考图组', kind: 'image-set', required: true, minItems: 2, imageRole: 'style-reference' },
+        {
+          id: 'refs',
+          label: '参考图组',
+          kind: 'image-set',
+          required: true,
+          minItems: 2,
+          imageRole: 'style-reference',
+        },
       ],
     });
     expect(missingRequiredSlots(document, {}, 1).map((slot) => slot.id)).toEqual(['refs']);

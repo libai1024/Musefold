@@ -16,7 +16,11 @@ function fakeSecrets(): SecretsPort {
 
 function fakeOptions(): CoreOptions {
   return {
-    paths: { dataDir: '/tmp/musefold-test', picturesDir: '/tmp/musefold-test/Pictures', logsDir: '/tmp/musefold-test/logs' },
+    paths: {
+      dataDir: '/tmp/musefold-test',
+      picturesDir: '/tmp/musefold-test/Pictures',
+      logsDir: '/tmp/musefold-test/logs',
+    },
     secrets: fakeSecrets(),
     events: { emit: () => undefined },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },

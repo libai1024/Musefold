@@ -119,7 +119,11 @@ export function EmberSlipCard({
   const pasteImage = async (file: File) => {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await api.image.stageLocal({ bytes, name: file.name || 'slip-image.png', mimeType: file.type });
+      const result = await api.image.stageLocal({
+        bytes,
+        name: file.name || 'slip-image.png',
+        mimeType: file.type,
+      });
       if (result.ok && result.images[0]) {
         setImage({ path: result.images[0].path, name: result.images[0].name ?? 'clipboard-image' });
       }
@@ -129,7 +133,9 @@ export function EmberSlipCard({
   };
 
   const handlePaste = (event: React.ClipboardEvent) => {
-    const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith('image/'));
+    const file = Array.from(event.clipboardData.files).find((item) =>
+      item.type.startsWith('image/'),
+    );
     if (file) {
       event.preventDefault();
       void pasteImage(file);
@@ -230,8 +236,13 @@ export function EmberSlipCard({
           data-testid="ember-slip-clip"
           className="mt-2 flex shrink-0 items-start gap-1.5 rounded-md border border-border-subtle bg-inset/60 px-2 py-1.5"
         >
-          <span className="shrink-0 pt-px text-meta font-medium tracking-wide text-quaternary">拾得</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] leading-[18px] text-secondary" title={clipText}>
+          <span className="shrink-0 pt-px text-meta font-medium tracking-wide text-quaternary">
+            拾得
+          </span>
+          <span
+            className="min-w-0 flex-1 truncate text-[11px] leading-[18px] text-secondary"
+            title={clipText}
+          >
             {clipText}
           </span>
           <button
@@ -247,7 +258,11 @@ export function EmberSlipCard({
 
       {image && (
         <div className="mt-2 flex shrink-0 items-center gap-2" data-testid="ember-slip-image">
-          <img src={toImageSrc(image.path)} alt="" className="h-9 w-9 rounded-md border border-border-subtle object-cover" />
+          <img
+            src={toImageSrc(image.path)}
+            alt=""
+            className="h-9 w-9 rounded-md border border-border-subtle object-cover"
+          />
           <span className="min-w-0 flex-1 truncate text-meta text-tertiary">{image.name}</span>
           <button
             type="button"

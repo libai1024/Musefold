@@ -44,7 +44,9 @@ export function repositoryLabelOf(repositoryUrl: string): string {
 }
 
 /** 下载并整理仓库内容；不写库，先供安装确认层展示。 */
-export async function resolveGithubSource(repositoryUrl: string): Promise<AppResult<ResolvedGithubSource>> {
+export async function resolveGithubSource(
+  repositoryUrl: string,
+): Promise<AppResult<ResolvedGithubSource>> {
   const read = await readPublicGithubAgentSkillRuntimeSource({ repositoryUrl });
   if (!read.ok) return read;
   const { scan, resolvedRef, commitHash, runtimeFiles } = read.data;
@@ -65,7 +67,11 @@ export async function resolveGithubSource(repositoryUrl: string): Promise<AppRes
       });
       continue;
     }
-    if (runtimeFile && IMAGE_EXTENSIONS.has(extensionOf(file.relativePath)) && imageFiles.length < MAX_SNAPSHOT_IMAGES) {
+    if (
+      runtimeFile &&
+      IMAGE_EXTENSIONS.has(extensionOf(file.relativePath)) &&
+      imageFiles.length < MAX_SNAPSHOT_IMAGES
+    ) {
       imageFiles.push(runtimeFile);
       continue;
     }
@@ -79,7 +85,7 @@ export async function resolveGithubSource(repositoryUrl: string): Promise<AppRes
     description: scan.description,
     resolvedRef,
     commitHash,
-    license: scan.licenseText ? scan.licenseText.split('\n')[0]?.slice(0, 200) ?? null : null,
+    license: scan.licenseText ? (scan.licenseText.split('\n')[0]?.slice(0, 200) ?? null) : null,
     textFiles,
     imageFiles,
     otherCount,
@@ -141,8 +147,9 @@ export function persistGithubSnapshot(
     textContent: file.text,
   }));
 
-  const totalBytes = textRows.reduce((sum, row) => sum + row.sizeBytes, 0)
-    + imageRows.reduce((sum, row) => sum + row.sizeBytes, 0);
+  const totalBytes =
+    textRows.reduce((sum, row) => sum + row.sizeBytes, 0) +
+    imageRows.reduce((sum, row) => sum + row.sizeBytes, 0);
 
   repository.saveSourceSnapshot({
     package: {

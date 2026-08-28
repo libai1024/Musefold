@@ -5,7 +5,11 @@ import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-d
 
 /** 笺标题：内容首行前 12 字；纯图笺叫「图像一笺」 */
 export function slipTitle(content: string): string {
-  const firstLine = content.split('\n').find((line) => line.trim() !== '')?.trim() ?? '';
+  const firstLine =
+    content
+      .split('\n')
+      .find((line) => line.trim() !== '')
+      ?.trim() ?? '';
   if (!firstLine) return '图像一笺';
   return firstLine.length > 12 ? `${firstLine.slice(0, 12)}…` : firstLine;
 }
@@ -76,7 +80,10 @@ export function capturePageSelection(): CapturedSelection | null {
 }
 
 /** 落一枚笺（source='slip'）；失败时 store 已弹 toast，返回 null。 */
-export async function createSlip(input: { text?: string; imagePath?: string | null }): Promise<DesktopLibraryPrompt | null> {
+export async function createSlip(input: {
+  text?: string;
+  imagePath?: string | null;
+}): Promise<DesktopLibraryPrompt | null> {
   const content = clampSlipText(input.text ?? '');
   if (!content && !input.imagePath) return null;
   return useLibraryStore.getState().createPrompt({

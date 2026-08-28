@@ -12,10 +12,7 @@ export const SHARE_IMPORT_HOST = 'import';
 export const SHARE_DEEPLINK_MAX_BYTES = 64 * 1024;
 export const SHARE_PREVIEW_MAX_CHARS = 8 * 1024 * 1024;
 
-export type ShareErrorCode =
-  | 'INVALID_SHARE_PAYLOAD'
-  | 'INVALID_DEEPLINK'
-  | 'PAYLOAD_TOO_LARGE';
+export type ShareErrorCode = 'INVALID_SHARE_PAYLOAD' | 'INVALID_DEEPLINK' | 'PAYLOAD_TOO_LARGE';
 
 export interface SharePayload {
   title: string;
@@ -59,11 +56,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function requiredString(
-  source: Record<string, unknown>,
-  key: string,
-  maxLength: number,
-): string {
+function requiredString(source: Record<string, unknown>, key: string, maxLength: number): string {
   const value = source[key];
   if (typeof value !== 'string') fail('INVALID_SHARE_PAYLOAD', `${key} 必须是字符串`);
   const trimmed = value.trim();

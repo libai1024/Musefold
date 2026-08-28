@@ -42,7 +42,10 @@ export function ImageLightbox({
       await api.system.openInFolder(path);
       toast.success('已在文件夹中定位图片');
     } catch (error) {
-      toast.error('打开文件夹失败', error instanceof Error ? error.message : '图片可能已被移动或删除。');
+      toast.error(
+        '打开文件夹失败',
+        error instanceof Error ? error.message : '图片可能已被移动或删除。',
+      );
     }
   };
 
@@ -52,7 +55,10 @@ export function ImageLightbox({
       await api.system.copyImage(path);
       toast.success('已复制图片');
     } catch (error) {
-      toast.error('复制图片失败', error instanceof Error ? error.message : '图片可能已被移动或删除。');
+      toast.error(
+        '复制图片失败',
+        error instanceof Error ? error.message : '图片可能已被移动或删除。',
+      );
     }
   };
 

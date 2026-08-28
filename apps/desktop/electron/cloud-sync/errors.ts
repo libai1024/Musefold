@@ -2,9 +2,9 @@ import {
   cloudSyncErrorPayloadSchema,
   type CloudSyncErrorCode,
   type CloudSyncErrorPayload,
-} from "@musefold/desktop-contracts/cloud-sync";
+} from '@musefold/desktop-contracts/cloud-sync';
 
-export const CLOUD_SYNC_ERROR_IPC_PREFIX = "CLOUD_SYNC_ERR::";
+export const CLOUD_SYNC_ERROR_IPC_PREFIX = 'CLOUD_SYNC_ERR::';
 
 export class CloudSyncError extends Error {
   constructor(
@@ -12,7 +12,7 @@ export class CloudSyncError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = "CloudSyncError";
+    this.name = 'CloudSyncError';
   }
 
   toPayload(): CloudSyncErrorPayload {
@@ -23,8 +23,6 @@ export class CloudSyncError extends Error {
   }
 
   toIpcError(): Error {
-    return new Error(
-      `${CLOUD_SYNC_ERROR_IPC_PREFIX}${JSON.stringify(this.toPayload())}`,
-    );
+    return new Error(`${CLOUD_SYNC_ERROR_IPC_PREFIX}${JSON.stringify(this.toPayload())}`);
   }
 }

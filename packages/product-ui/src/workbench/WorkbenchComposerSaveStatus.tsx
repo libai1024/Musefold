@@ -1,5 +1,5 @@
-import { Check, LoaderCircle } from "@musefold/ui/icons";
-import type { WorkbenchDraftSaveStatus } from "./useWorkbenchDraftSyncController";
+import { Check, LoaderCircle } from '@musefold/ui/icons';
+import type { WorkbenchDraftSaveStatus } from './useWorkbenchDraftSyncController';
 
 export interface WorkbenchComposerSaveStatusProps {
   status: WorkbenchDraftSaveStatus;
@@ -11,12 +11,12 @@ export interface WorkbenchComposerSaveStatusProps {
 /** Shared, compact status indicator for optimistic workbench draft saves. */
 export function WorkbenchComposerSaveStatus({
   status,
-  savingLabel = "保存中",
-  savedLabel = "已同步",
-  testId = "draft-save-status",
+  savingLabel = '保存中',
+  savedLabel = '已同步',
+  testId = 'draft-save-status',
 }: WorkbenchComposerSaveStatusProps) {
-  if (status !== "saving" && status !== "saved") return null;
-  const saving = status === "saving";
+  if (status !== 'saving' && status !== 'saved') return null;
+  const saving = status === 'saving';
   return (
     <span
       className="mf-workbench-save-status"
@@ -33,4 +33,3 @@ export function WorkbenchComposerSaveStatus({
     </span>
   );
 }
-

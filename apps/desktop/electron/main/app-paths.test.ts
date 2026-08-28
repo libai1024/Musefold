@@ -29,7 +29,9 @@ afterEach(() => {
   appState.appPath = '/packaged/Musefold.app/Contents/Resources/app.asar';
 });
 
-function env(partial: Partial<AppPathEnvironment> & Pick<AppPathEnvironment, 'packaged' | 'appPath' | 'cwd'>): AppPathEnvironment {
+function env(
+  partial: Partial<AppPathEnvironment> & Pick<AppPathEnvironment, 'packaged' | 'appPath' | 'cwd'>,
+): AppPathEnvironment {
   return partial;
 }
 
@@ -113,9 +115,11 @@ describe('resolveResourcePath', () => {
       resourcesPath,
     });
 
-    expect(resolveResourcePath(['pet', 'cat'], packaged, () => {
-      throw new Error('packaged resource paths must not probe the filesystem');
-    })).toBe(join(resourcesPath, 'pet', 'cat'));
+    expect(
+      resolveResourcePath(['pet', 'cat'], packaged, () => {
+        throw new Error('packaged resource paths must not probe the filesystem');
+      }),
+    ).toBe(join(resourcesPath, 'pet', 'cat'));
     expect(resolveResourcePath(['icon.png'], packaged)).toBe(join(resourcesPath, 'icon.png'));
   });
 

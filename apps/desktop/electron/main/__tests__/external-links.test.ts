@@ -20,4 +20,3 @@ describe('external link whitelist', () => {
     }
   });
 });
-

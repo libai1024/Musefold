@@ -95,7 +95,8 @@ export const useAppStore = create<AppState>()(
           const source: ThemeSource = s.theme === 'dark' ? 'light' : 'dark';
           return { themeSource: source, theme: source };
         }),
-      syncSystemTheme: () => set((s) => (s.themeSource === 'system' ? { theme: systemTheme() } : {})),
+      syncSystemTheme: () =>
+        set((s) => (s.themeSource === 'system' ? { theme: systemTheme() } : {})),
       setReducedMotion: (reducedMotion) => set({ reducedMotion }),
       setDensity: (density) => set({ density }),
       setCommandOpen: (commandOpen) => set({ commandOpen }),
@@ -106,9 +107,11 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       newConversation: () => {
         set({ currentView: 'generate' });
-        void import('../features/generation/workbench/store').then(({ useGenerationWorkbenchStore }) => {
-          useGenerationWorkbenchStore.getState().newSession();
-        });
+        void import('../features/generation/workbench/store').then(
+          ({ useGenerationWorkbenchStore }) => {
+            useGenerationWorkbenchStore.getState().newSession();
+          },
+        );
       },
     }),
     {

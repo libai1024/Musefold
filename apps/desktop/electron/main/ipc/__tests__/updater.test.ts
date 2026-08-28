@@ -150,10 +150,13 @@ describe('updater IPC channel handlers', () => {
   });
 
   it('rejects object payloads that try to smuggle a feed URL', () => {
-    const result = handlers.get(IPC.UPDATER_SET_CHANNEL)?.({}, {
-      channel: 'beta',
-      feedUrl: 'https://evil.example/updates/beta/',
-    });
+    const result = handlers.get(IPC.UPDATER_SET_CHANNEL)?.(
+      {},
+      {
+        channel: 'beta',
+        feedUrl: 'https://evil.example/updates/beta/',
+      },
+    );
     expect(result).toMatchObject({ ok: false, message: '不支持的更新通道' });
     expect(settings.setUpdateChannel).not.toHaveBeenCalled();
     expect(JSON.stringify(result)).not.toContain('evil.example');

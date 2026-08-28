@@ -1,13 +1,13 @@
-import { useState } from "react";
-import { FileText, X } from "../../../components/ui/icons";
-import { WorkbenchPromptFullTextCard } from "@musefold/product-ui";
-import type { GenerationTurn } from "./types";
+import { useState } from 'react';
+import { FileText, X } from '../../../components/ui/icons';
+import { WorkbenchPromptFullTextCard } from '@musefold/product-ui';
+import type { GenerationTurn } from './types';
 
 export function InlineReferenceCapsule({
   reference,
   onRemove,
 }: {
-  reference: GenerationTurn["references"][number];
+  reference: GenerationTurn['references'][number];
   onRemove: () => void;
 }) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
@@ -16,13 +16,9 @@ export function InlineReferenceCapsule({
       className="inline-flex h-[21px] max-w-[176px] items-center gap-1 rounded-md border border-border-subtle bg-inset pl-1.5 pr-0.5 text-[11px] font-medium leading-none text-primary"
       data-testid="workbench-reference-chip"
       data-reference-scope={reference.scope}
-      onMouseEnter={(event) =>
-        setAnchor(event.currentTarget.getBoundingClientRect())
-      }
+      onMouseEnter={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
       onMouseLeave={() => setAnchor(null)}
-      onFocusCapture={(event) =>
-        setAnchor(event.currentTarget.getBoundingClientRect())
-      }
+      onFocusCapture={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
       onBlurCapture={() => setAnchor(null)}
     >
       <FileText className="h-3 w-3 shrink-0 text-secondary" />

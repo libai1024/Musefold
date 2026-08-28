@@ -8,7 +8,11 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEventHub } from '@musefold/core';
-import { createAutomationServer, type AutomationServer, type AutomationServerInfo } from '@musefold/automation-server';
+import {
+  createAutomationServer,
+  type AutomationServer,
+  type AutomationServerInfo,
+} from '@musefold/automation-server';
 
 const repoRoot = resolve(__dirname, '../../../..');
 const binaryPath = resolve(repoRoot, 'packages/mcp/dist/musefold-mcp.mjs');
@@ -110,7 +114,9 @@ beforeAll(async () => {
   server = createAutomationServer({
     core: {
       version: '0.1.0',
-      status: { snapshot: () => ({ prompts: 7, formalSchemes: 0, providers: 1, activeProviderId: 'tvt' }) },
+      status: {
+        snapshot: () => ({ prompts: 7, formalSchemes: 0, providers: 1, activeProviderId: 'tvt' }),
+      },
     },
     events: createEventHub(),
     dataDir: dir,
@@ -138,9 +144,15 @@ describe('musefold-mcp stdio 产物', () => {
       const names = await listToolNames(session);
       expect(names).toHaveLength(16);
 
-      session.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'musefold_status', arguments: {} } });
+      session.send({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'musefold_status', arguments: {} },
+      });
       const status = await session.next();
-      const text = (status.result as { content: Array<{ type: string; text?: string }> }).content[0].text!;
+      const text = (status.result as { content: Array<{ type: string; text?: string }> }).content[0]
+        .text!;
       expect(JSON.parse(text)).toMatchObject({ connected: true, owner: 'desktop-app' });
 
       // 污染专项：所有 stdout 帧都已被 JSON.parse 校验；日志只出现在 stderr
@@ -156,7 +168,13 @@ describe('musefold-mcp stdio 产物', () => {
     try {
       await handshake(session);
       const names = await listToolNames(session);
-      for (const forbidden of ['generate_image', 'save_prompt', 'run_scheme', 'run_github_skill', 'cancel_generation']) {
+      for (const forbidden of [
+        'generate_image',
+        'save_prompt',
+        'run_scheme',
+        'run_github_skill',
+        'cancel_generation',
+      ]) {
         expect(names).not.toContain(forbidden);
       }
       expect(names).toContain('search_prompts');
@@ -166,7 +184,10 @@ describe('musefold-mcp stdio 产物', () => {
   }, 30_000);
 
   it('降级目录：控制面不可达时只注册 musefold_status', async () => {
-    const session = openSession({ MUSEFOLD_ENDPOINT: 'http://127.0.0.1:9', MUSEFOLD_TOKEN: 'mf_at_nope' });
+    const session = openSession({
+      MUSEFOLD_ENDPOINT: 'http://127.0.0.1:9',
+      MUSEFOLD_TOKEN: 'mf_at_nope',
+    });
     try {
       await handshake(session);
       expect(await listToolNames(session)).toEqual(['musefold_status']);

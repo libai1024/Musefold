@@ -1,17 +1,13 @@
 // packages/desktop-contracts/src/ipc/account.ts
 // account / cloudSync / cloudConnections 域：Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
 
-import type {
-  AccountCredentialsInput,
-  AccountRedeemResult,
-  AccountStatus,
-} from "../account";
+import type { AccountCredentialsInput, AccountRedeemResult, AccountStatus } from '../account';
 import type {
   CloudSyncConflictResolution,
   CloudSyncConflictSummary,
   CloudSyncSummary,
-} from "../cloud-sync";
-import type { McpConnectionPage, UpdateMcpConnection } from "@musefold/contracts";
+} from '../cloud-sync';
+import type { McpConnectionPage, UpdateMcpConnection } from '@musefold/contracts';
 
 export interface AccountApi {
   status: () => Promise<AccountStatus>;

@@ -9,7 +9,10 @@ import {
   type CompiledSchemePrompt,
 } from '@musefold/desktop-contracts/design-scheme/prompt-compiler';
 import type { DesignSchemeRevisionDocument } from '@musefold/desktop-contracts/design-scheme/schema';
-import type { DesignSchemeSummary, SchemePriorityMode } from '@musefold/desktop-contracts/design-scheme';
+import type {
+  DesignSchemeSummary,
+  SchemePriorityMode,
+} from '@musefold/desktop-contracts/design-scheme';
 import { getDesignSchemeDb } from '../db/design-scheme';
 import { DesignSchemeRepository } from '../db/design-scheme/repositories';
 import { CoreError, notFound } from './errors';
@@ -43,17 +46,23 @@ export interface SchemeService {
   compile(request: CompileSchemeRequest): CompileSchemeResult;
 }
 
-export function createSchemeService(db: () => Database.Database = getDesignSchemeDb): SchemeService {
+export function createSchemeService(
+  db: () => Database.Database = getDesignSchemeDb,
+): SchemeService {
   const repo = () => new DesignSchemeRepository(db());
 
   const formalSummary = (schemeId: string): DesignSchemeSummary | null => {
-    const summary = repo().listSummaries().find((item) => item.id === schemeId);
+    const summary = repo()
+      .listSummaries()
+      .find((item) => item.id === schemeId);
     return summary && summary.status === 'formal' ? summary : null;
   };
 
   return {
     list() {
-      return repo().listSummaries().filter((summary) => summary.status === 'formal');
+      return repo()
+        .listSummaries()
+        .filter((summary) => summary.status === 'formal');
     },
     get(schemeId) {
       const summary = formalSummary(schemeId);
@@ -86,7 +95,9 @@ export function createSchemeService(db: () => Database.Database = getDesignSchem
         ...compiled,
         warnings: [
           ...missing.map((slot) => `提醒：必填输入「${slot.label}」(${slot.id}) 未提供`),
-          ...compiled.unresolvedVariables.map((name) => `提醒：模板变量「${name}」没有输入值，已按空值代入`),
+          ...compiled.unresolvedVariables.map(
+            (name) => `提醒：模板变量「${name}」没有输入值，已按空值代入`,
+          ),
         ],
         schemeId: summary.id,
         revisionId: summary.currentRevisionId,

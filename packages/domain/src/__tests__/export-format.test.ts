@@ -115,14 +115,7 @@ describe('data 分段形状', () => {
   });
 
   it('每个已知分段都受检，不只是 prompts', () => {
-    for (const k of [
-      'prompts',
-      'folders',
-      'tags',
-      'smartSets',
-      'providers',
-      'history',
-    ]) {
+    for (const k of ['prompts', 'folders', 'tags', 'smartSets', 'providers', 'history']) {
       const r = validateEnvelope(minimal({ data: { [k]: { bad: 1 } } }));
       expect(r.ok, `data.${k} 是对象时应被拒绝`).toBe(false);
       if (!r.ok) expect(r.error).toContain(`data.${k}`);

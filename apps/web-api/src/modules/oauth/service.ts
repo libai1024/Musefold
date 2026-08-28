@@ -1,15 +1,11 @@
-import { randomUUID } from "node:crypto";
-import { sql, type Kysely } from "kysely";
-import type Provider from "oidc-provider";
-import type { MusefoldDatabase } from "../../database/types.js";
-import { withOwnerTransaction } from "../../database/owner-context.js";
-import { AppError } from "../../errors.js";
+import { randomUUID } from 'node:crypto';
+import { sql, type Kysely } from 'kysely';
+import type Provider from 'oidc-provider';
+import type { MusefoldDatabase } from '../../database/types.js';
+import { withOwnerTransaction } from '../../database/owner-context.js';
+import { AppError } from '../../errors.js';
 
-export const MCP_SCOPES = [
-  "account:read",
-  "prompts:read",
-  "skills:read",
-] as const;
+export const MCP_SCOPES = ['account:read', 'prompts:read', 'skills:read'] as const;
 export type McpScope = (typeof MCP_SCOPES)[number];
 
 export const MCP_DEFAULT_BUDGET_POINTS = 100;
@@ -29,7 +25,7 @@ export interface McpGrant {
   ownerId: number;
   clientId: string;
   scopes: McpScope[];
-  mode: "ask_each_time" | "auto_with_limits";
+  mode: 'ask_each_time' | 'auto_with_limits';
   maxPointsPerGeneration: number;
   maxPointsPerDay: number;
   allowedModelAliases: string[];
@@ -73,15 +69,12 @@ export class OAuthService {
     `.execute(this.db);
     const grantId = result.rows[0]?.id;
     if (!grantId) {
-      throw new AppError("INTERNAL_ERROR", "无法建立 MCP 授权", 500, true);
+      throw new AppError('INTERNAL_ERROR', '无法建立 MCP 授权', 500, true);
     }
     return this.getGrant(grantId);
   }
 
-  async verifyAccessToken(
-    token: string,
-    expectedResource: string,
-  ): Promise<McpAuthInfo> {
+  async verifyAccessToken(token: string, expectedResource: string): Promise<McpAuthInfo> {
     const provider = this.requireProvider();
     const accessToken = await provider.AccessToken.find(token);
     const audiences = accessToken
@@ -97,22 +90,22 @@ export class OAuthService {
       !accessToken.clientId ||
       !accessToken.grantId
     ) {
-      throw new AppError("OAUTH_INVALID_GRANT", "MCP access token 无效", 401);
+      throw new AppError('OAUTH_INVALID_GRANT', 'MCP access token 无效', 401);
     }
 
     const ownerId = Number(accessToken.accountId);
     if (!Number.isSafeInteger(ownerId) || ownerId <= 0) {
-      throw new AppError("OAUTH_INVALID_GRANT", "MCP access token 无效", 401);
+      throw new AppError('OAUTH_INVALID_GRANT', 'MCP access token 无效', 401);
     }
     const grant = await this.getGrant(accessToken.grantId);
     if (grant.ownerId !== ownerId || grant.clientId !== accessToken.clientId) {
-      throw new AppError("OAUTH_INVALID_GRANT", "MCP access token 无效", 401);
+      throw new AppError('OAUTH_INVALID_GRANT', 'MCP access token 无效', 401);
     }
     const tokenScopes = [...accessToken.scopes]
-      .filter((scope) => scope !== "openid" && scope !== "offline_access")
+      .filter((scope) => scope !== 'openid' && scope !== 'offline_access')
       .filter((scope) => grant.scopes.includes(scope as McpScope));
     if (!tokenScopes.length) {
-      throw new AppError("OAUTH_INVALID_GRANT", "MCP access token scope 已失效", 401);
+      throw new AppError('OAUTH_INVALID_GRANT', 'MCP access token scope 已失效', 401);
     }
     const scopes = normalizeScopes(tokenScopes);
     await sql`
@@ -137,7 +130,7 @@ export class OAuthService {
       owner_id: string;
       client_id: string;
       scopes: string[];
-      mode: McpGrant["mode"];
+      mode: McpGrant['mode'];
       max_points_per_generation: number;
       max_points_per_day: number;
       allowed_model_aliases: string[];
@@ -151,7 +144,7 @@ export class OAuthService {
     `.execute(this.db);
     const row = result.rows[0];
     if (!row || row.revoked_at || row.suspended_at) {
-      throw new AppError("OAUTH_INVALID_GRANT", "MCP 授权已暂停或撤销", 401);
+      throw new AppError('OAUTH_INVALID_GRANT', 'MCP 授权已暂停或撤销', 401);
     }
     return {
       id: row.id,
@@ -168,11 +161,7 @@ export class OAuthService {
 
   async assertScope(auth: McpAuthInfo, scope: McpScope): Promise<void> {
     if (!auth.scopes.includes(scope)) {
-      throw new AppError(
-        "OAUTH_SCOPE_INSUFFICIENT",
-        "当前 MCP 授权不包含所需 scope",
-        403,
-      );
+      throw new AppError('OAUTH_SCOPE_INSUFFICIENT', '当前 MCP 授权不包含所需 scope', 403);
     }
     await this.getGrant(auth.grantId);
   }
@@ -187,7 +176,7 @@ export class OAuthService {
       maxPointsPerDay: number;
       spentPointsToday: number;
       reservedPointsToday: number;
-      status: "active" | "suspended" | "revoked";
+      status: 'active' | 'suspended' | 'revoked';
       createdAt: string;
       lastUsedAt: string | null;
     }>
@@ -238,15 +227,9 @@ export class OAuthService {
       maxPointsPerDay: row.max_points_per_day,
       spentPointsToday: Number(row.spent_points_today),
       reservedPointsToday: Number(row.reserved_points_today),
-      status: row.revoked_at
-        ? "revoked"
-        : row.suspended_at
-          ? "suspended"
-          : "active",
+      status: row.revoked_at ? 'revoked' : row.suspended_at ? 'suspended' : 'active',
       createdAt: new Date(row.created_at).toISOString(),
-      lastUsedAt: row.last_used_at
-        ? new Date(row.last_used_at).toISOString()
-        : null,
+      lastUsedAt: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
     }));
   }
 
@@ -254,7 +237,7 @@ export class OAuthService {
     ownerId: number,
     grantId: string,
     input: {
-      mode?: "ask_each_time" | "auto_with_limits";
+      mode?: 'ask_each_time' | 'auto_with_limits';
       maxPointsPerGeneration?: number;
       maxPointsPerDay?: number;
       suspended?: boolean;
@@ -265,7 +248,7 @@ export class OAuthService {
     const scopes = input.scopes ? normalizeScopes(input.scopes) : undefined;
     await this.db.transaction().execute(async (trx) => {
       const current = await sql<{
-        mode: "ask_each_time" | "auto_with_limits";
+        mode: 'ask_each_time' | 'auto_with_limits';
         max_points_per_generation: number;
         max_points_per_day: number;
         scopes: string[];
@@ -278,26 +261,20 @@ export class OAuthService {
       `.execute(trx);
       const row = current.rows[0];
       if (!row) {
-        throw new AppError("OAUTH_INVALID_GRANT", "MCP 连接不存在", 404);
+        throw new AppError('OAUTH_INVALID_GRANT', 'MCP 连接不存在', 404);
       }
       const wideningScopes =
         scopes !== undefined &&
         scopes.some((scope) => !normalizeScopes(row.scopes).includes(scope));
       const requiresReauthentication =
-        (input.mode === "auto_with_limits" &&
-          row.mode !== "auto_with_limits") ||
+        (input.mode === 'auto_with_limits' && row.mode !== 'auto_with_limits') ||
         (input.maxPointsPerGeneration !== undefined &&
           input.maxPointsPerGeneration > row.max_points_per_generation) ||
-        (input.maxPointsPerDay !== undefined &&
-          input.maxPointsPerDay > row.max_points_per_day) ||
+        (input.maxPointsPerDay !== undefined && input.maxPointsPerDay > row.max_points_per_day) ||
         wideningScopes ||
         (input.suspended === false && row.suspended_at !== null);
       if (requiresReauthentication && !reauthenticated) {
-        throw new AppError(
-          "AUTH_CREDENTIALS_INVALID",
-          "提高自动化权限前需要重新输入账号密码",
-          401,
-        );
+        throw new AppError('AUTH_CREDENTIALS_INVALID', '提高自动化权限前需要重新输入账号密码', 401);
       }
 
       const sets = [
@@ -314,7 +291,7 @@ export class OAuthService {
         scopes === undefined ? null : sql`scopes = ${scopes}`,
       ].filter((value): value is ReturnType<typeof sql> => value !== null);
       if (!sets.length) {
-        throw new AppError("VALIDATION_FAILED", "没有可更新的连接策略", 400);
+        throw new AppError('VALIDATION_FAILED', '没有可更新的连接策略', 400);
       }
       await sql`
         UPDATE auth.oauth_grants
@@ -347,12 +324,7 @@ export class OAuthService {
 
   private requireProvider(): Provider {
     if (!this.provider) {
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "OAuth provider 尚未初始化",
-        500,
-        true,
-      );
+      throw new AppError('INTERNAL_ERROR', 'OAuth provider 尚未初始化', 500, true);
     }
     return this.provider;
   }
@@ -360,15 +332,11 @@ export class OAuthService {
 
 function parseRequestedScopes(input: Iterable<string>): McpScope[] {
   const values = [...new Set(input)];
-  if (
-    values.some(
-      (value) => !(MCP_SCOPES as readonly string[]).includes(value),
-    )
-  ) {
-    throw new AppError("OAUTH_SCOPE_INSUFFICIENT", "请求了未开放的 MCP scope", 400);
+  if (values.some((value) => !(MCP_SCOPES as readonly string[]).includes(value))) {
+    throw new AppError('OAUTH_SCOPE_INSUFFICIENT', '请求了未开放的 MCP scope', 400);
   }
   if (!values.length) {
-    throw new AppError("OAUTH_SCOPE_INSUFFICIENT", "没有可用的 MCP scope", 400);
+    throw new AppError('OAUTH_SCOPE_INSUFFICIENT', '没有可用的 MCP scope', 400);
   }
   return values as McpScope[];
 }

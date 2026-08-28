@@ -1,5 +1,5 @@
-import type { PointerEventHandler, ReactNode } from "react";
-import type { WorkbenchTimelineController } from "./useWorkbenchTimelineController";
+import type { PointerEventHandler, ReactNode } from 'react';
+import type { WorkbenchTimelineController } from './useWorkbenchTimelineController';
 
 export interface WorkbenchTimelineViewportProps {
   controller: WorkbenchTimelineController;
@@ -14,7 +14,7 @@ export function WorkbenchTimelineViewport({
   controller,
   children,
   className,
-  testId = "generation-timeline",
+  testId = 'generation-timeline',
   onPointerDown,
 }: WorkbenchTimelineViewportProps) {
   return (
@@ -22,9 +22,7 @@ export function WorkbenchTimelineViewport({
       ref={controller.viewportRef}
       onPointerDown={onPointerDown}
       onScroll={controller.onScroll}
-      className={["mf-workbench-scroll", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={['mf-workbench-scroll', className].filter(Boolean).join(' ')}
       data-testid={testId}
     >
       {children}

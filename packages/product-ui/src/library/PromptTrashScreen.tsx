@@ -1,6 +1,6 @@
-import { ArrowLeft, RotateCcw, Trash2 } from "@musefold/ui/icons";
-import { Button } from "@musefold/ui";
-import type { PromptDetailViewModel } from "../models";
+import { ArrowLeft, RotateCcw, Trash2 } from '@musefold/ui/icons';
+import { Button } from '@musefold/ui';
+import type { PromptDetailViewModel } from '../models';
 
 export interface PromptTrashScreenProps {
   prompts: PromptDetailViewModel[];
@@ -22,7 +22,12 @@ export function PromptTrashScreen({
   return (
     <section className="mf-prompt-trash" data-testid="prompt-trash">
       <header>
-        <Button variant="ghost" className="mf-detail-back" onClick={onBack} icon={<ArrowLeft aria-hidden="true" />}>
+        <Button
+          variant="ghost"
+          className="mf-detail-back"
+          onClick={onBack}
+          icon={<ArrowLeft aria-hidden="true" />}
+        >
           提示词库
         </Button>
         <div>
@@ -58,7 +63,7 @@ export function PromptTrashScreen({
                 data-testid="trash-restore"
                 icon={<RotateCcw aria-hidden="true" />}
               >
-                {busyId === prompt.id ? "恢复中" : "恢复"}
+                {busyId === prompt.id ? '恢复中' : '恢复'}
               </Button>
             </article>
           ))}

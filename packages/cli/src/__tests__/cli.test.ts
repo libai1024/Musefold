@@ -31,11 +31,19 @@ interface CapturedIo {
 function capture(): CapturedIo {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  return { stdout, stderr, io: { stdout: (line) => stdout.push(line), stderr: (line) => stderr.push(line) } };
+  return {
+    stdout,
+    stderr,
+    io: { stdout: (line) => stdout.push(line), stderr: (line) => stderr.push(line) },
+  };
 }
 
 function run(argv: string[], io: CapturedIo): Promise<number> {
-  return runCli([...argv, '--endpoint', `http://127.0.0.1:${info.port}`, '--token', info.token], io.io, {});
+  return runCli(
+    [...argv, '--endpoint', `http://127.0.0.1:${info.port}`, '--token', info.token],
+    io.io,
+    {},
+  );
 }
 
 beforeAll(async () => {
@@ -59,10 +67,12 @@ beforeAll(async () => {
   });
 
   core.library.create({ title: '玄鹤衔烛速记桩', content: 'cli test prompt body' });
-  getDb().prepare(
-    `INSERT INTO history (id, provider_id, model, prompt_text, status, cost, created_at)
+  getDb()
+    .prepare(
+      `INSERT INTO history (id, provider_id, model, prompt_text, status, cost, created_at)
      VALUES ('his-cli', 'prov-cli', 'gpt-image-2', 'cli history prompt', 'success', 12, 1000)`,
-  ).run();
+    )
+    .run();
   server = createAutomationServer({
     core,
     events: createEventHub(),
@@ -86,7 +96,12 @@ describe('musefold CLI（P1 骨架）', () => {
     const captured = capture();
     expect(await run(['status', '--json'], captured)).toBe(EXIT.OK);
     const payload = JSON.parse(captured.stdout[0]);
-    expect(payload).toMatchObject({ type: 'result', connected: true, owner: 'desktop-app', apiVersion: 'v1' });
+    expect(payload).toMatchObject({
+      type: 'result',
+      connected: true,
+      owner: 'desktop-app',
+      apiVersion: 'v1',
+    });
     // 初始迁移自带示例提示词，只断言包含本测试新建的那条
     expect(payload.data.prompts).toBeGreaterThanOrEqual(1);
   });
@@ -104,7 +119,9 @@ describe('musefold CLI（P1 骨架）', () => {
 
   it('prompt add --title --body：写入并回显 id；缺参数 exit 2', async () => {
     const ok = capture();
-    expect(await run(['prompt', 'add', '--title', '终端速记', '--body', 'from cli'], ok)).toBe(EXIT.OK);
+    expect(await run(['prompt', 'add', '--title', '终端速记', '--body', 'from cli'], ok)).toBe(
+      EXIT.OK,
+    );
     expect(ok.stdout[0]).toBeTruthy();
 
     const bad = capture();
@@ -139,7 +156,9 @@ describe('musefold CLI（P1 骨架）', () => {
 
   it('无发现文件且无显式 endpoint：exit 3 + 引导语', async () => {
     const captured = capture();
-    const code = await runCli(['status'], captured.io, { MUSEFOLD_DATA_DIR: join(root, 'no-such-dir') });
+    const code = await runCli(['status'], captured.io, {
+      MUSEFOLD_DATA_DIR: join(root, 'no-such-dir'),
+    });
     expect(code).toBe(EXIT.NOT_CONNECTED);
     expect(captured.stderr.join('\n')).toContain('设置 > 自动化');
   });

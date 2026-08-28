@@ -47,7 +47,9 @@ export function createProviderService(
   providerFactory: ProviderFactory = createProvider,
 ): ProviderService {
   const load = (id: string) =>
-    db().prepare('SELECT * FROM providers WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    db().prepare('SELECT * FROM providers WHERE id = ?').get(id) as
+      | Record<string, unknown>
+      | undefined;
 
   return {
     list() {
@@ -61,7 +63,13 @@ export function createProviderService(
       const row = load(id);
       if (!row) throw notFound('Provider', { providerId: id });
       const config = rowToProvider(row);
-      const provider = providerFactory(config.type, config.id, config.baseUrl, config.model, config.name);
+      const provider = providerFactory(
+        config.type,
+        config.id,
+        config.baseUrl,
+        config.model,
+        config.name,
+      );
       return provider.listModels();
     },
   };

@@ -1,5 +1,4 @@
-export const WORKBENCH_SESSION_RESTART_REQUIRED =
-  '对话服务尚未加载。请完全重启 Musefold 后再试。';
+export const WORKBENCH_SESSION_RESTART_REQUIRED = '对话服务尚未加载。请完全重启 Musefold 后再试。';
 
 export function isWorkbenchSessionRuntimeMismatch(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');

@@ -27,7 +27,10 @@ describe('公开 Musefold Agent Skill', () => {
   });
 
   it('accepts CRLF Skill files from Windows checkouts', () => {
-    const crlf = readFileSync('website/Musefold/skills/musefold/SKILL.md', 'utf8').replace(/\n/g, '\r\n');
+    const crlf = readFileSync('website/Musefold/skills/musefold/SKILL.md', 'utf8').replace(
+      /\n/g,
+      '\r\n',
+    );
     expect(validateMusefoldSkill(crlf).startsWith('---\nname: musefold\n')).toBe(true);
   });
 

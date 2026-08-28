@@ -57,7 +57,13 @@ export async function runDesignScheme(
 
   const prepared = prepareRun(repository, request);
   if (!prepared.ok) {
-    upsertTrace({ id: 'run-final', kind: 'system', title: '无法运行方案', detail: prepared.error.message, status: 'error' });
+    upsertTrace({
+      id: 'run-final',
+      kind: 'system',
+      title: '无法运行方案',
+      detail: prepared.error.message,
+      status: 'error',
+    });
     return prepared;
   }
   const { document, schemeName } = prepared.data;
@@ -104,12 +110,20 @@ export async function runDesignScheme(
       detail: `缺少必填输入：${labels}`,
       status: 'error',
     });
-    return fail(appError('REQUIRED', `方案需要先提供：${labels}`, { recoveryAction: 'edit-input' }));
+    return fail(
+      appError('REQUIRED', `方案需要先提供：${labels}`, { recoveryAction: 'edit-input' }),
+    );
   }
 
   // 2. 确定性编译提示词
   const compileStartedAt = Date.now();
-  upsertTrace({ id: 'compile-prompt', kind: 'tool', title: '编译方案提示词', detail: `「${schemeName}」`, status: 'running' });
+  upsertTrace({
+    id: 'compile-prompt',
+    kind: 'tool',
+    title: '编译方案提示词',
+    detail: `「${schemeName}」`,
+    status: 'running',
+  });
   // 修复运行：把质量门建议作为纠偏要求并入用户简述（方案文档不变）。
   const brief = request.repair
     ? [request.brief.trim(), `修复要求：${request.repair.hint}`].filter(Boolean).join('\n')
@@ -149,8 +163,18 @@ export async function runDesignScheme(
   }
   if (!compiled.prompt.trim()) {
     repository.updateRunStatus(runId, 'failed');
-    upsertTrace({ id: 'run-final', kind: 'system', title: `${modeLabel}失败`, detail: '方案编译出的提示词为空', status: 'error' });
-    return fail(appError('INVALID_STATE', '方案编译出的提示词为空，请先修改方案', { recoveryAction: 'edit-input' }));
+    upsertTrace({
+      id: 'run-final',
+      kind: 'system',
+      title: `${modeLabel}失败`,
+      detail: '方案编译出的提示词为空',
+      status: 'error',
+    });
+    return fail(
+      appError('INVALID_STATE', '方案编译出的提示词为空，请先修改方案', {
+        recoveryAction: 'edit-input',
+      }),
+    );
   }
 
   // 3. 逐张生图（张数、比例、Provider 由渲染进程模板固化）
@@ -169,13 +193,22 @@ export async function runDesignScheme(
       const outcome: DesignSchemeRunGeneration = {
         jobId,
         resultIndex,
-        result: { historyId: jobId, status: 'cancelled', error: { code: 'CANCELLED', message: '已取消生成' } },
+        result: {
+          historyId: jobId,
+          status: 'cancelled',
+          error: { code: 'CANCELLED', message: '已取消生成' },
+        },
       };
       generations.push(outcome);
       deps.emit({ kind: 'run-generation-result', executionId: request.executionId, outcome });
       continue;
     }
-    deps.emit({ kind: 'run-generation-start', executionId: request.executionId, jobId, resultIndex });
+    deps.emit({
+      kind: 'run-generation-start',
+      executionId: request.executionId,
+      jobId,
+      resultIndex,
+    });
     const template = request.generation.requestTemplate;
     const generateRequest: GenerateImageRequest = {
       ...template,
@@ -191,7 +224,12 @@ export async function runDesignScheme(
       outcome.assetId = repository.insertLocalRunAsset(request.revisionId, result.imagePath);
     }
     repository.upsertRunStep(runId, `generate-${resultIndex}`, {
-      status: result.status === 'success' ? 'completed' : result.status === 'cancelled' ? 'cancelled' : 'failed',
+      status:
+        result.status === 'success'
+          ? 'completed'
+          : result.status === 'cancelled'
+            ? 'cancelled'
+            : 'failed',
       input: { jobId },
       output: {
         historyId: result.historyId,
@@ -228,7 +266,9 @@ export async function runDesignScheme(
       ratioId: request.generation.ratioId,
     });
     // 有限修复链（§12）：只有非修复运行才给修复建议，链长固定为 1。
-    const repairHint = request.repair ? null : buildRepairHint(outcome.checks, request.generation.ratioId);
+    const repairHint = request.repair
+      ? null
+      : buildRepairHint(outcome.checks, request.generation.ratioId);
     const evaluationId = repository.insertEvaluation(runId, {
       passed: outcome.passed,
       metrics: { checks: outcome.checks, repairHint },
@@ -247,18 +287,28 @@ export async function runDesignScheme(
       id: 'quality-gate',
       kind: 'tool',
       title: '质量门检查',
-      detail: outcome.checks.map((check) => `${check.label} ${check.detail ?? check.status}`).join(' · '),
+      detail: outcome.checks
+        .map((check) => `${check.label} ${check.detail ?? check.status}`)
+        .join(' · '),
       status: !outcome.passed ? 'error' : warnings.length > 0 ? 'warning' : 'success',
     });
   }
 
-  repository.updateRunStatus(runId, succeeded > 0 ? 'completed' : cancelled ? 'cancelled' : 'failed');
+  repository.updateRunStatus(
+    runId,
+    succeeded > 0 ? 'completed' : cancelled ? 'cancelled' : 'failed',
+  );
   upsertTrace({
     id: 'run-final',
     kind: 'system',
-    title: succeeded > 0
-      ? (request.mode === 'trial' ? '试运行成功，结果已加入草稿相册' : '方案运行完成')
-      : cancelled ? `${modeLabel}已取消` : `${modeLabel}失败`,
+    title:
+      succeeded > 0
+        ? request.mode === 'trial'
+          ? '试运行成功，结果已加入草稿相册'
+          : '方案运行完成'
+        : cancelled
+          ? `${modeLabel}已取消`
+          : `${modeLabel}失败`,
     status: succeeded > 0 ? 'success' : cancelled ? 'warning' : 'error',
   });
 
@@ -279,10 +329,16 @@ function prepareRun(
   try {
     document = repository.getRevisionDocument(request.revisionId);
   } catch (error) {
-    return fail(appError('UNKNOWN', error instanceof Error ? error.message : '读取方案版本失败', { retryable: true }));
+    return fail(
+      appError('UNKNOWN', error instanceof Error ? error.message : '读取方案版本失败', {
+        retryable: true,
+      }),
+    );
   }
   if (!document || document.schemeId !== request.schemeId) {
-    return fail(appError('MISSING_REFERENCE', '方案版本不存在或已被删除', { recoveryAction: 'retry' }));
+    return fail(
+      appError('MISSING_REFERENCE', '方案版本不存在或已被删除', { recoveryAction: 'retry' }),
+    );
   }
   let summary;
   try {
@@ -293,14 +349,24 @@ function prepareRun(
   if (request.mode === 'formal') {
     // 草稿不能在普通 Composer 引用（规范 §2.2）；正式运行只允许当前正式版本。
     if (summary.status !== 'formal') {
-      return fail(appError('INVALID_STATE', '草稿方案不能直接使用，请先完成试运行并设为正式', { recoveryAction: 'retry' }));
+      return fail(
+        appError('INVALID_STATE', '草稿方案不能直接使用，请先完成试运行并设为正式', {
+          recoveryAction: 'retry',
+        }),
+      );
     }
     if (summary.currentRevisionId !== request.revisionId) {
-      return fail(appError('INVALID_STATE', '该版本不是方案的当前正式版本', { recoveryAction: 'retry' }));
+      return fail(
+        appError('INVALID_STATE', '该版本不是方案的当前正式版本', { recoveryAction: 'retry' }),
+      );
     }
   } else if (document.fidelity === 'unsupported') {
     // unsupported 方案可以保存和分享，但运行按钮必须禁用（规范 §2.3）。
-    return fail(appError('INVALID_STATE', '该方案标记为暂不支持执行，只能查看来源与说明', { recoveryAction: 'retry' }));
+    return fail(
+      appError('INVALID_STATE', '该方案标记为暂不支持执行，只能查看来源与说明', {
+        recoveryAction: 'retry',
+      }),
+    );
   }
   return ok({ document, schemeName: summary.name });
 }

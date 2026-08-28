@@ -57,7 +57,7 @@ describe('workbench image and message interaction contract', () => {
     expect(tray).toBeLessThan(prompt);
     expect(composerView).toContain('data-testid="composer-mode"');
     expect(composerView).toContain('role="tablist"');
-    expect(composerView).toContain('aria-selected={composerMode === "image"}');
+    expect(composerView).toContain("aria-selected={composerMode === 'image'}");
     expect(composerView).toContain('composerModeLocked');
     expect(composerView).not.toContain('inlineChipsRef');
     expect(composerView).not.toContain('inlineChipsIndent');
@@ -98,7 +98,7 @@ describe('workbench image and message interaction contract', () => {
   it('opens a full-width grouped add panel above the composer', () => {
     expect(sharedContextMenu).toContain('data-testid="workbench-context-menu"');
     expect(sharedContextMenu).toContain('aria-label="添加上下文菜单"');
-    expect(workbench).toContain('testId: "workbench-context-add-image"');
+    expect(workbench).toContain("testId: 'workbench-context-add-image'");
     expect(workbench).toContain('上传、粘贴或拖入');
     expect(sharedContextMenu).toContain('<DropdownMenu modal={false}');
     expect(sharedContextMenu).toContain('<DropdownMenuContent');
@@ -151,10 +151,10 @@ describe('workbench image and message interaction contract', () => {
   });
 
   it('makes Doubao pasted-Skill forwarding explicit and hides Agent-only actions', () => {
-    expect(workbench).toContain('testId: "workbench-context-paste-skill"');
-    expect(workbench).toContain('doubaoImageMode ? "粘贴后直传豆包" : "读取设计能力"');
+    expect(workbench).toContain("testId: 'workbench-context-paste-skill'");
+    expect(workbench).toContain("doubaoImageMode ? '粘贴后直传豆包' : '读取设计能力'");
     expect(workbench).toContain('...(!doubaoImageMode');
-    expect(workbench).toContain('execution.mode === "direct-forward"');
+    expect(workbench).toContain("execution.mode === 'direct-forward'");
     expect(workbench).toContain('已将 Skill 转发给豆包');
     expect(workbench).toContain('GitHub Skill · 直传豆包');
     expect(skillRuntimeAttachment).toContain('豆包直传');

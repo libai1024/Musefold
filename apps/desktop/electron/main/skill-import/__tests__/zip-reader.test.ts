@@ -47,7 +47,8 @@ async function createArchive(
 function replaceArchivePath(targetPath: string, from: string, to: string): void {
   const source = Buffer.from(from);
   const replacement = Buffer.from(to);
-  if (source.byteLength !== replacement.byteLength) throw new Error('fixture paths must have equal length');
+  if (source.byteLength !== replacement.byteLength)
+    throw new Error('fixture paths must have equal length');
   const archive = readFileSync(targetPath);
   let replacements = 0;
   let offset = 0;
@@ -56,7 +57,8 @@ function replaceArchivePath(targetPath: string, from: string, to: string): void 
     offset += replacement.byteLength;
     replacements += 1;
   }
-  if (replacements < 2) throw new Error(`fixture path was not present in local and central headers: ${from}`);
+  if (replacements < 2)
+    throw new Error(`fixture path was not present in local and central headers: ${from}`);
   writeFileSync(targetPath, archive);
 }
 
@@ -83,7 +85,10 @@ describe('ZIP Agent Skill reader', () => {
       'scripts/run.sh',
     ]);
     expect(new TextDecoder().decode(result.data.files[1].bytes)).toBe('Use generous whitespace.');
-    expect(result.data.scan.files.find((file) => file.relativePath === 'scripts/run.sh')?.executionPolicy).toBe('never');
+    expect(
+      result.data.scan.files.find((file) => file.relativePath === 'scripts/run.sh')
+        ?.executionPolicy,
+    ).toBe('never');
   });
 
   it('reads a standard ZIP through memory only and strips one packaging root', async () => {
@@ -118,7 +123,10 @@ describe('ZIP Agent Skill reader', () => {
       { name: 'repo-main/README.md', content: 'Repository readme' },
       { name: 'repo-main/skills/poster/SKILL.md', content: skillMarkdown },
       { name: 'repo-main/skills/poster/references/layout.md', content: 'Use a sparse layout.' },
-      { name: 'repo-main/skills/other/SKILL.md', content: skillMarkdown.replace('zipped-skill', 'other-skill') },
+      {
+        name: 'repo-main/skills/other/SKILL.md',
+        content: skillMarkdown.replace('zipped-skill', 'other-skill'),
+      },
     ]);
 
     const result = await readZipAgentSkillSource(targetPath, { skillPath: 'skills/poster' });
@@ -129,7 +137,9 @@ describe('ZIP Agent Skill reader', () => {
       'references/layout.md',
       'SKILL.md',
     ]);
-    expect(result.data.files.some((file) => file.textContent?.includes('Repository readme'))).toBe(false);
+    expect(result.data.files.some((file) => file.textContent?.includes('Repository readme'))).toBe(
+      false,
+    );
   });
 
   it('auto-selects a unique nested Skill when repository metadata sits beside it', async () => {
@@ -137,7 +147,10 @@ describe('ZIP Agent Skill reader', () => {
       { name: 'repo-main/README.md', content: 'Repository readme' },
       { name: 'repo-main/NOTICE.md', content: 'Repository notice' },
       { name: 'repo-main/ian-xiaohei-illustrations/SKILL.md', content: skillMarkdown },
-      { name: 'repo-main/ian-xiaohei-illustrations/references/style.md', content: 'Keep the illustration sparse.' },
+      {
+        name: 'repo-main/ian-xiaohei-illustrations/references/style.md',
+        content: 'Keep the illustration sparse.',
+      },
     ]);
 
     const result = await readZipAgentSkillSource(targetPath);
@@ -148,7 +161,9 @@ describe('ZIP Agent Skill reader', () => {
       'references/style.md',
       'SKILL.md',
     ]);
-    expect(result.data.files.some((file) => file.textContent?.includes('Repository readme'))).toBe(false);
+    expect(result.data.files.some((file) => file.textContent?.includes('Repository readme'))).toBe(
+      false,
+    );
   });
 
   it.each([
@@ -163,7 +178,10 @@ describe('ZIP Agent Skill reader', () => {
     replaceArchivePath(targetPath, 'aa/outside.md', maliciousPath);
 
     const result = await readZipAgentSkillSource(targetPath);
-    expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_TYPE', recoveryAction: 'select-source' } });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_TYPE', recoveryAction: 'select-source' },
+    });
   });
 
   it('rejects symlink and Unix device entries', async () => {
@@ -219,7 +237,10 @@ describe('ZIP Agent Skill reader', () => {
       { name: 'SKILL.md', content: skillMarkdown },
     ];
     for (let index = 0; index < 500; index += 1) {
-      entries.push({ name: `assets/item-${String(index).padStart(3, '0')}.bin`, content: Buffer.from([index % 255]) });
+      entries.push({
+        name: `assets/item-${String(index).padStart(3, '0')}.bin`,
+        content: Buffer.from([index % 255]),
+      });
     }
     const overpopulated = await createArchive(entries);
     const overpopulatedResult = await readZipAgentSkillSource(overpopulated);

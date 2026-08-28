@@ -54,7 +54,9 @@ function main(argv) {
   const args = argv.filter((arg) => arg !== '--all');
   const dir = args[0];
   if (!dir) {
-    process.stderr.write('usage: node scripts/deploy/expand-contract.mjs <migrations-dir> [--all | files...]\n');
+    process.stderr.write(
+      'usage: node scripts/deploy/expand-contract.mjs <migrations-dir> [--all | files...]\n',
+    );
     process.exit(2);
   }
   const files = args.length > 1 ? args.slice(1) : all ? listMigrationFiles(dir) : [];

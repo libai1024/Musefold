@@ -209,7 +209,9 @@ function classifyFiles(files, groups = loadLayerPaths()) {
   /** @type {string[]} */
   const unmatched = [];
   let infra = false;
-  const hits = Object.fromEntries([...PRODUCT_LAYERS, ...GATE_GROUPS, 'docs'].map((name) => [name, false]));
+  const hits = Object.fromEntries(
+    [...PRODUCT_LAYERS, ...GATE_GROUPS, 'docs'].map((name) => [name, false]),
+  );
 
   for (const file of normalized) {
     const matched = groupsForFile(file, groups);
@@ -331,7 +333,13 @@ function resolveChangedFiles(argv = process.argv.slice(2), env = process.env) {
     const base = env.BASE_SHA || event.pull_request?.base?.sha;
     const head = env.HEAD_SHA || event.pull_request?.head?.sha || env.GITHUB_SHA;
     const diffBase = base && head ? gitMergeBase(base, head) : base;
-    if (!base || !head) return { files: null, reason: 'missing-pr-sha', baseSha: diffBase || EMPTY_TREE_SHA, headSha: head || '' };
+    if (!base || !head)
+      return {
+        files: null,
+        reason: 'missing-pr-sha',
+        baseSha: diffBase || EMPTY_TREE_SHA,
+        headSha: head || '',
+      };
     const files = gitDiff([`${base}...${head}`]);
     if (files == null) return { files: null, reason: 'git-diff', baseSha: diffBase, headSha: head };
     return { files, reason: 'pull_request', baseSha: diffBase, headSha: head };
@@ -576,7 +584,12 @@ function selfTest() {
   );
   assertEqual(
     'mixed docs + renderer',
-    pick(classifyFiles(['docs/v1.2.1/V121-DELIVERY-PLAN.md', 'apps/desktop/src/pages/LibraryPage.tsx'], groups)),
+    pick(
+      classifyFiles(
+        ['docs/v1.2.1/V121-DELIVERY-PLAN.md', 'apps/desktop/src/pages/LibraryPage.tsx'],
+        groups,
+      ),
+    ),
     {
       content: true,
       service: false,

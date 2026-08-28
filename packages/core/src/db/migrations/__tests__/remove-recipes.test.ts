@@ -18,8 +18,9 @@ afterEach(() => {
 });
 
 function columns(database: Database.Database, table: string): string[] {
-  return (database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>)
-    .map((row) => row.name);
+  return (database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(
+    (row) => row.name,
+  );
 }
 
 describe('0015_remove_recipes', () => {
@@ -62,13 +63,15 @@ describe('0015_remove_recipes', () => {
     up(db);
 
     expect(columns(db, 'prompts')).not.toContain('recipe_id');
-    expect(columns(db, 'history')).not.toEqual(expect.arrayContaining([
-      'recipe_id',
-      'recipe_name_snapshot',
-      'recipe_fields_snapshot',
-      'recipe_values_snapshot',
-      'recipe_variant_index',
-    ]));
+    expect(columns(db, 'history')).not.toEqual(
+      expect.arrayContaining([
+        'recipe_id',
+        'recipe_name_snapshot',
+        'recipe_fields_snapshot',
+        'recipe_values_snapshot',
+        'recipe_variant_index',
+      ]),
+    );
     expect(db.prepare('SELECT id, title, content FROM prompts').get()).toEqual({
       id: 'prompt-1',
       title: '保留标题',
@@ -95,15 +98,20 @@ describe('0015_remove_recipes', () => {
       `INSERT INTO generated_assets (id, run_id, position, status, media_path, created_at)
        VALUES ('asset-1', 'run-1', 0, 'available', '/tmp/result.png', 12)`,
     ).run();
-    expect(db.prepare('SELECT media_path FROM generated_assets WHERE id = ?').get('asset-1'))
-      .toEqual({ media_path: '/tmp/result.png' });
-    expect(() => db!.prepare(
-      `INSERT INTO generation_runs
+    expect(
+      db.prepare('SELECT media_path FROM generated_assets WHERE id = ?').get('asset-1'),
+    ).toEqual({ media_path: '/tmp/result.png' });
+    expect(() =>
+      db!
+        .prepare(
+          `INSERT INTO generation_runs
         (id, run_kind, provider_id, model, base_prompt, final_prompt,
          params_json, prompt_snapshot_json, status, created_at)
        VALUES ('legacy-run', 'recipe_generation', 'provider-1', 'model-1', 'base', 'final',
          '{}', '{}', 'success', 13)`,
-    ).run()).toThrow();
+        )
+        .run(),
+    ).toThrow();
   });
 
   it('keeps generic workbench facts before deleting the dedicated legacy database', () => {

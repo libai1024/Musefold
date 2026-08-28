@@ -1,14 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
-import { IPC } from "@musefold/desktop-contracts/ipc";
-import { CloudSyncError, CLOUD_SYNC_ERROR_IPC_PREFIX } from "../../../cloud-sync/errors";
+import { describe, expect, it, vi } from 'vitest';
+import { IPC } from '@musefold/desktop-contracts/ipc';
+import { CloudSyncError, CLOUD_SYNC_ERROR_IPC_PREFIX } from '../../../cloud-sync/errors';
 
-vi.mock("../../../cloud-sync", () => ({
+vi.mock('../../../cloud-sync', () => ({
   getCloudSyncService: () => {
-    throw new Error("测试必须注入 service");
+    throw new Error('测试必须注入 service');
   },
 }));
 
-import { registerCloudSyncHandlers } from "../cloud-sync";
+import { registerCloudSyncHandlers } from '../cloud-sync';
 
 type Handler = (event: unknown, ...args: unknown[]) => unknown;
 
@@ -17,11 +17,11 @@ function harness() {
   const summary = {
     available: true,
     unavailableReason: null,
-    status: "idle" as const,
+    status: 'idle' as const,
     account: {
-      ownerId: "7",
-      username: "libai",
-      deviceName: "test",
+      ownerId: '7',
+      username: 'libai',
+      deviceName: 'test',
       enabled: true,
       lastSyncAt: null,
       lastError: null,
@@ -50,8 +50,8 @@ function harness() {
   return { handlers, service };
 }
 
-describe("cloud sync IPC handlers", () => {
-  it("registers the complete sync surface", () => {
+describe('cloud sync IPC handlers', () => {
+  it('registers the complete sync surface', () => {
     const { handlers } = harness();
     expect([...handlers.keys()].sort()).toEqual(
       [
@@ -67,25 +67,23 @@ describe("cloud sync IPC handlers", () => {
     );
   });
 
-  it("validates switches and conflict resolutions", async () => {
+  it('validates switches and conflict resolutions', async () => {
     const { handlers, service } = harness();
     await handlers.get(IPC.CLOUD_SYNC_SET_ENABLED)?.({}, true);
     expect(service.setEnabled).toHaveBeenCalledWith(true);
-    await handlers.get(IPC.CLOUD_SYNC_RESOLVE)?.({}, "conflict-1", "local");
-    expect(service.resolveConflict).toHaveBeenCalledWith("conflict-1", "local");
+    await handlers.get(IPC.CLOUD_SYNC_RESOLVE)?.({}, 'conflict-1', 'local');
+    expect(service.resolveConflict).toHaveBeenCalledWith('conflict-1', 'local');
 
-    expect(() => handlers.get(IPC.CLOUD_SYNC_SET_ENABLED)?.({}, "yes")).toThrow(
-      "同步开关参数无效",
+    expect(() => handlers.get(IPC.CLOUD_SYNC_SET_ENABLED)?.({}, 'yes')).toThrow('同步开关参数无效');
+    expect(() => handlers.get(IPC.CLOUD_SYNC_RESOLVE)?.({}, 'conflict-1', 'merge')).toThrow(
+      '同步冲突处理方式无效',
     );
-    expect(() =>
-      handlers.get(IPC.CLOUD_SYNC_RESOLVE)?.({}, "conflict-1", "merge"),
-    ).toThrow("同步冲突处理方式无效");
   });
 
-  it("serializes cloud sync availability errors across sync and connection handlers", async () => {
+  it('serializes cloud sync availability errors across sync and connection handlers', async () => {
     const { handlers, service } = harness();
     service.setEnabled.mockRejectedValueOnce(
-      new CloudSyncError("AUTH_REQUIRED", "请先登录 Musefold 账号"),
+      new CloudSyncError('AUTH_REQUIRED', '请先登录 Musefold 账号'),
     );
     const syncError = await Promise.resolve(
       handlers.get(IPC.CLOUD_SYNC_SET_ENABLED)?.({}, true),
@@ -97,7 +95,7 @@ describe("cloud sync IPC handlers", () => {
     expect(syncError?.message).toContain('"code":"AUTH_REQUIRED"');
 
     service.listConnections.mockRejectedValueOnce(
-      new CloudSyncError("UNAVAILABLE", "Cloud MCP 当前不可用"),
+      new CloudSyncError('UNAVAILABLE', 'Cloud MCP 当前不可用'),
     );
     const connectionError = await Promise.resolve(
       handlers.get(IPC.CLOUD_CONNECTIONS_LIST)?.({}),
@@ -109,30 +107,28 @@ describe("cloud sync IPC handlers", () => {
     expect(connectionError?.message).toContain('"code":"UNAVAILABLE"');
   });
 
-  it("validates and forwards Cloud MCP connection policy requests", async () => {
+  it('validates and forwards Cloud MCP connection policy requests', async () => {
     const { handlers, service } = harness();
     await handlers.get(IPC.CLOUD_CONNECTIONS_LIST)?.({});
     expect(service.listConnections).toHaveBeenCalledOnce();
 
     const patch = {
-      mode: "auto_with_limits",
+      mode: 'auto_with_limits',
       maxPointsPerGeneration: 80,
       maxPointsPerDay: 500,
-      reauthPassword: "current-password",
+      reauthPassword: 'current-password',
     };
-    await handlers.get(IPC.CLOUD_CONNECTIONS_UPDATE)?.({}, " grant-1 ", patch);
-    expect(service.updateConnection).toHaveBeenCalledWith("grant-1", patch);
+    await handlers.get(IPC.CLOUD_CONNECTIONS_UPDATE)?.({}, ' grant-1 ', patch);
+    expect(service.updateConnection).toHaveBeenCalledWith('grant-1', patch);
 
-    await handlers.get(IPC.CLOUD_CONNECTIONS_REVOKE)?.({}, "grant-1");
-    expect(service.revokeConnection).toHaveBeenCalledWith("grant-1");
+    await handlers.get(IPC.CLOUD_CONNECTIONS_REVOKE)?.({}, 'grant-1');
+    expect(service.revokeConnection).toHaveBeenCalledWith('grant-1');
 
+    await expect(handlers.get(IPC.CLOUD_CONNECTIONS_UPDATE)?.({}, '', patch)).rejects.toThrow(
+      'Cloud MCP 连接标识无效',
+    );
     await expect(
-      handlers.get(IPC.CLOUD_CONNECTIONS_UPDATE)?.({}, "", patch),
-    ).rejects.toThrow("Cloud MCP 连接标识无效");
-    await expect(
-      handlers
-        .get(IPC.CLOUD_CONNECTIONS_UPDATE)
-        ?.({}, "grant-1", { maxPointsPerDay: -1 }),
+      handlers.get(IPC.CLOUD_CONNECTIONS_UPDATE)?.({}, 'grant-1', { maxPointsPerDay: -1 }),
     ).rejects.toThrow();
   });
 });

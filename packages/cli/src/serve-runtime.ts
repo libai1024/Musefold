@@ -49,9 +49,10 @@ function headlessPaths(dataDir: string): CorePaths {
     db: join(dataDir, DB_NAME),
     backups: join(dataDir, BACKUPS_DIR_NAME),
     previews: join(dataDir, PREVIEWS_DIR_NAME),
-    pictures: process.env.MUSEFOLD_E2E === '1'
-      ? join(dataDir, 'Pictures')
-      : join(homedir(), 'Pictures', PICTURES_DIR_NAME),
+    pictures:
+      process.env.MUSEFOLD_E2E === '1'
+        ? join(dataDir, 'Pictures')
+        : join(homedir(), 'Pictures', PICTURES_DIR_NAME),
     logs: join(dataDir, LOGS_DIR_NAME),
   };
 }
@@ -62,13 +63,15 @@ function envKeyName(providerId: string): string {
 }
 
 interface ProvidersStoreShape {
-  automation?: { budget?: {
-    monthlyLimitPoints?: number;
-    usedPoints?: number;
-    monthlyLimitCents?: number;
-    usedCents?: number;
-    month?: string;
-  } };
+  automation?: {
+    budget?: {
+      monthlyLimitPoints?: number;
+      usedPoints?: number;
+      monthlyLimitCents?: number;
+      usedCents?: number;
+      month?: string;
+    };
+  };
 }
 
 /** 直接读写 electron-store 的 JSON 文件（守护持有 owner.lock，App 必然未运行）。 */
@@ -91,7 +94,9 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
   stop: () => Promise<void>;
 }> {
   const log = options.log ?? ((line: string) => process.stderr.write(`${line}\n`));
-  log('[serve] 注意：headless 模式不读取 Musefold 桌面账号会话；仅支持通过 MUSEFOLD_PROVIDER_KEY_* 注入凭据的本地 Provider。');
+  log(
+    '[serve] 注意：headless 模式不读取 Musefold 桌面账号会话；仅支持通过 MUSEFOLD_PROVIDER_KEY_* 注入凭据的本地 Provider。',
+  );
   log('[serve] 使用 Musefold 账号时请退出 serve，CLI/MCP 会自动拉起桌面 App。');
   const dataDir = resolveDataDir(options.dataDir);
 
@@ -149,8 +154,8 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
   const budget = () => {
     const stored = readProvidersStore(dataDir).automation?.budget;
     const month = new Date().toISOString().slice(0, 7);
-    const monthlyLimitPoints = stored?.monthlyLimitPoints ?? ((stored?.monthlyLimitCents ?? 0) / 10);
-    const usedPoints = stored?.usedPoints ?? ((stored?.usedCents ?? 0) / 10);
+    const monthlyLimitPoints = stored?.monthlyLimitPoints ?? (stored?.monthlyLimitCents ?? 0) / 10;
+    const usedPoints = stored?.usedPoints ?? (stored?.usedCents ?? 0) / 10;
     if (!stored || stored.month !== month) return { monthlyLimitPoints, usedPoints: 0, month };
     return { monthlyLimitPoints, usedPoints, month };
   };
@@ -159,7 +164,10 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
     const store = readProvidersStore(dataDir);
     const current = budget();
     const next = { ...current, usedPoints: current.usedPoints + actualPoints };
-    writeFileSync(providersStorePath(dataDir), JSON.stringify({ ...store, automation: { ...store.automation, budget: next } }, null, 2));
+    writeFileSync(
+      providersStorePath(dataDir),
+      JSON.stringify({ ...store, automation: { ...store.automation, budget: next } }, null, 2),
+    );
   };
 
   const host: GenerationHost = {
@@ -167,11 +175,16 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
     cancel: (jobId) => core.generation.cancel(jobId),
     estimate(body) {
       const db = getDb();
-      const row = (body.providerId
-        ? db.prepare('SELECT * FROM providers WHERE id = ?').get(body.providerId)
-        : db.prepare('SELECT * FROM providers WHERE is_active = 1 LIMIT 1').get()) as Record<string, unknown> | undefined;
+      const row = (
+        body.providerId
+          ? db.prepare('SELECT * FROM providers WHERE id = ?').get(body.providerId)
+          : db.prepare('SELECT * FROM providers WHERE is_active = 1 LIMIT 1').get()
+      ) as Record<string, unknown> | undefined;
       if (!row) {
-        throw Object.assign(new Error('没有激活的图像 Provider'), { code: 'INVALID_STATE', details: {} });
+        throw Object.assign(new Error('没有激活的图像 Provider'), {
+          code: 'INVALID_STATE',
+          details: {},
+        });
       }
       const n = body.n ?? 1;
       return {
@@ -191,7 +204,11 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
     requestConfirmation: async () => 'denied',
     authorizeReferencePath: (path) => isManagedUploadPath(path),
     stageUpload: (bytes, name, mimeType) =>
-      stageLocalImageBytes({ bytes, name, mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp' }),
+      stageLocalImageBytes({
+        bytes,
+        name,
+        mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
+      }),
     resolveHistoryImage(historyId) {
       const row = getDb().prepare('SELECT image_path FROM history WHERE id = ?').get(historyId) as
         | { image_path: string | null }

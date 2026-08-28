@@ -1,10 +1,5 @@
-import {
-  ImageOff,
-  LoaderCircle,
-  Square,
-  X,
-} from "@musefold/ui/icons";
-import { Button } from "@musefold/ui";
+import { ImageOff, LoaderCircle, Square, X } from '@musefold/ui/icons';
+import { Button } from '@musefold/ui';
 import {
   useEffect,
   useState,
@@ -12,9 +7,9 @@ import {
   type PointerEventHandler,
   type ReactNode,
   type Ref,
-} from "react";
-import type { GenerationResultSurfaceStatus } from "../models";
-import { useResultTheaterReveal } from "./useResultTheaterReveal";
+} from 'react';
+import type { GenerationResultSurfaceStatus } from '../models';
+import { useResultTheaterReveal } from './useResultTheaterReveal';
 
 export interface GenerationResultSurfaceProps {
   id?: string;
@@ -56,21 +51,21 @@ export interface GenerationResultSurfaceProps {
 
 export function GenerationResultSurface({
   id,
-  testId = "generation-result-surface",
-  imageTestId = "generation-result-image",
+  testId = 'generation-result-surface',
+  imageTestId = 'generation-result-image',
   dataHistoryId,
   rootRef,
   status,
   imageUrl,
-  imageAlt = "生成结果",
-  imageLabel = "查看大图",
-  imageTitle = "查看大图",
-  aspectRatio = "1:1",
+  imageAlt = '生成结果',
+  imageLabel = '查看大图',
+  imageTitle = '查看大图',
+  aspectRatio = '1:1',
   progressLabel,
-  pendingLabel = "正在生成",
+  pendingLabel = '正在生成',
   pendingTestId,
-  cancelledLabel = "已取消",
-  unavailableLabel = "图片无法加载",
+  cancelledLabel = '已取消',
+  unavailableLabel = '图片无法加载',
   errorMessage,
   footerLabel,
   selected = false,
@@ -92,7 +87,7 @@ export function GenerationResultSurface({
   children,
 }: GenerationResultSurfaceProps) {
   const [broken, setBroken] = useState(false);
-  const hasImage = status === "success" && Boolean(imageUrl);
+  const hasImage = status === 'success' && Boolean(imageUrl);
   const imageAvailable = hasImage && !broken;
   const { revealing, idle, mediaRef } = useResultTheaterReveal(imageAvailable);
 
@@ -116,7 +111,7 @@ export function GenerationResultSurface({
   return (
     <div
       ref={rootRef}
-      className={`mf-generation-result-surface${className ? ` ${className}` : ""}`}
+      className={`mf-generation-result-surface${className ? ` ${className}` : ''}`}
       data-testid={testId}
       data-result-id={id}
       data-history-id={dataHistoryId ?? undefined}
@@ -130,9 +125,9 @@ export function GenerationResultSurface({
     >
       <div
         ref={mediaRef}
-        className={`mf-generation-result-media${(!imageAvailable || status !== "success") ? " mf-generation-result-media-muted" : ""}`}
+        className={`mf-generation-result-media${!imageAvailable || status !== 'success' ? ' mf-generation-result-media-muted' : ''}`}
         style={mediaStyle}
-        data-ui-register={revealing ? "theater" : undefined}
+        data-ui-register={revealing ? 'theater' : undefined}
         data-theater-reveal={revealing || undefined}
       >
         {imageAvailable ? (
@@ -159,7 +154,7 @@ export function GenerationResultSurface({
               onError={markBroken}
             />
           </Button>
-        ) : status === "pending" ? (
+        ) : status === 'pending' ? (
           <div
             className="mf-generation-result-placeholder"
             role="status"
@@ -169,7 +164,7 @@ export function GenerationResultSurface({
             <LoaderCircle className="mf-spin" aria-hidden="true" />
             <span>{progressLabel ?? pendingLabel}</span>
           </div>
-        ) : status === "cancelled" ? (
+        ) : status === 'cancelled' ? (
           <div className="mf-generation-result-placeholder">
             <Square aria-hidden="true" />
             <span>{cancelledLabel}</span>
@@ -196,7 +191,7 @@ export function GenerationResultSurface({
 }
 
 function ratioToCssValue(value: string): string {
-  const [width, height] = value.split(":");
-  if (!width || !height) return "1 / 1";
+  const [width, height] = value.split(':');
+  if (!width || !height) return '1 / 1';
   return `${width} / ${height}`;
 }

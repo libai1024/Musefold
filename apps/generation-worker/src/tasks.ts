@@ -1,15 +1,15 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { randomUUID } from "node:crypto";
-import { openJson } from "@musefold/server-crypto";
-import type { ParsedCloudGenerationRequest } from "@musefold/contracts";
-import type { JobHelpers, TaskList } from "graphile-worker";
-import type { WorkerConfig } from "./config.js";
+import { PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import { randomUUID } from 'node:crypto';
+import { openJson } from '@musefold/server-crypto';
+import type { ParsedCloudGenerationRequest } from '@musefold/contracts';
+import type { JobHelpers, TaskList } from 'graphile-worker';
+import type { WorkerConfig } from './config.js';
 import {
   generateImage,
   imageChecksum,
   type GeneratedImage,
   UpstreamImageError,
-} from "./image-gateway.js";
+} from './image-gateway.js';
 
 interface GenerationPayload {
   ownerId: number;
@@ -27,24 +27,24 @@ interface CredentialRow {
   auth_tag: Buffer;
 }
 
-type WorkerPgClient = Parameters<Parameters<JobHelpers["withPgClient"]>[0]>[0];
+type WorkerPgClient = Parameters<Parameters<JobHelpers['withPgClient']>[0]>[0];
 
-export type McpSpendOutcome = "settled" | "released" | "preserved";
+export type McpSpendOutcome = 'settled' | 'released' | 'preserved';
 
-export type LeaseRecoveryAction = "continue" | "mark_unknown" | "skip";
+export type LeaseRecoveryAction = 'continue' | 'mark_unknown' | 'skip';
 
 /**
  * A sent upstream request must never be retried blindly: the provider may
  * already have accepted and charged it while the worker was unavailable.
  */
 export function decideLeaseRecovery(
-  run: Pick<RunData, "status" | "upstream_request_sent" | "lease_expires_at">,
+  run: Pick<RunData, 'status' | 'upstream_request_sent' | 'lease_expires_at'>,
   now = Date.now(),
 ): LeaseRecoveryAction {
   if (!run.lease_expires_at || !isLeaseExpired(run.lease_expires_at, now)) {
-    return "skip";
+    return 'skip';
   }
-  return run.upstream_request_sent ? "mark_unknown" : "continue";
+  return run.upstream_request_sent ? 'mark_unknown' : 'continue';
 }
 
 export async function transitionMcpSpendReservation(
@@ -53,9 +53,9 @@ export async function transitionMcpSpendReservation(
   runId: string,
   outcome: McpSpendOutcome,
 ): Promise<void> {
-  if (outcome === "preserved") return;
+  if (outcome === 'preserved') return;
 
-  if (outcome === "settled") {
+  if (outcome === 'settled') {
     await client.query(
       `UPDATE app.mcp_spend_reservations
        SET status = 'settled', actual_points = estimated_points,
@@ -78,7 +78,7 @@ export async function transitionMcpSpendReservation(
 
 export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
   return {
-    "maintenance.cleanup_expired_sessions": async (_payload, helpers) => {
+    'maintenance.cleanup_expired_sessions': async (_payload, helpers) => {
       await helpers.withPgClient(async (client) => {
         await client.query(`
           DELETE FROM auth.web_sessions
@@ -92,10 +92,10 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
         `);
       });
     },
-    "generation.generate": async (rawPayload, helpers) => {
+    'generation.generate': async (rawPayload, helpers) => {
       const payload = rawPayload as GenerationPayload;
       const acquired = await helpers.withPgClient(async (client) => {
-        await client.query("BEGIN");
+        await client.query('BEGIN');
         try {
           await client.query("SELECT set_config('app.owner_id', $1, true)", [
             String(payload.ownerId),
@@ -117,12 +117,12 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
             [payload.runId],
           );
           if (!result.rows[0]) {
-            await client.query("COMMIT");
+            await client.query('COMMIT');
             return null;
           }
-          if (result.rows[0].status !== "queued") {
+          if (result.rows[0].status !== 'queued') {
             const recoveryAction = decideLeaseRecovery(result.rows[0]);
-            if (recoveryAction === "mark_unknown") {
+            if (recoveryAction === 'mark_unknown') {
               await client.query(
                 `UPDATE app.generation_runs
                  SET status = 'failed', progress = 100,
@@ -138,20 +138,20 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
                 [
                   payload.ownerId,
                   payload.runId,
-                  JSON.stringify({ code: "GENERATION_UPSTREAM_UNKNOWN" }),
+                  JSON.stringify({ code: 'GENERATION_UPSTREAM_UNKNOWN' }),
                 ],
               );
               await transitionMcpSpendReservation(
                 client,
                 payload.ownerId,
                 payload.runId,
-                "preserved",
+                'preserved',
               );
-              await client.query("COMMIT");
+              await client.query('COMMIT');
               return null;
             }
-            if (recoveryAction !== "continue") {
-              await client.query("COMMIT");
+            if (recoveryAction !== 'continue') {
+              await client.query('COMMIT');
               return null;
             }
             await client.query(
@@ -175,10 +175,10 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
             `INSERT INTO app.generation_events(owner_id, run_id, event_type, payload) VALUES ($1, $2, 'generation.running', '{}'::jsonb)`,
             [payload.ownerId, payload.runId],
           );
-          await client.query("COMMIT");
+          await client.query('COMMIT');
           return result.rows[0];
         } catch (error) {
-          await client.query("ROLLBACK");
+          await client.query('ROLLBACK');
           throw error;
         }
       });
@@ -187,15 +187,11 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
       try {
         const credential = await helpers.withPgClient(async (client) => {
           const result = await client.query<CredentialRow>(
-            "SELECT * FROM auth.find_account_credential($1)",
+            'SELECT * FROM auth.find_account_credential($1)',
             [payload.ownerId],
           );
           const row = result.rows[0];
-          if (!row)
-            throw new UpstreamImageError(
-              "rejected",
-              "账号生图凭据不存在，请重新登录",
-            );
+          if (!row) throw new UpstreamImageError('rejected', '账号生图凭据不存在，请重新登录');
           return openJson<{ apiKey: string }>(
             {
               ciphertext: row.credential_ciphertext,
@@ -212,7 +208,7 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
         );
         const assets = await uploadImages(s3, config, payload, images);
         await helpers.withPgClient(async (client) => {
-          await client.query("BEGIN");
+          await client.query('BEGIN');
           try {
             await client.query("SELECT set_config('app.owner_id', $1, true)", [
               String(payload.ownerId),
@@ -248,23 +244,14 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
                WHERE id = $1`,
               [payload.runId, payload.ownerId],
             );
-            await transitionMcpSpendReservation(
-              client,
-              payload.ownerId,
-              payload.runId,
-              "settled",
-            );
+            await transitionMcpSpendReservation(client, payload.ownerId, payload.runId, 'settled');
             await client.query(
               `INSERT INTO app.generation_events(owner_id, run_id, event_type, payload) VALUES ($1, $2, 'generation.succeeded', $3::jsonb)`,
-              [
-                payload.ownerId,
-                payload.runId,
-                JSON.stringify({ assetCount: assets.length }),
-              ],
+              [payload.ownerId, payload.runId, JSON.stringify({ assetCount: assets.length })],
             );
-            await client.query("COMMIT");
+            await client.query('COMMIT');
           } catch (error) {
-            await client.query("ROLLBACK");
+            await client.query('ROLLBACK');
             throw error;
           }
         });
@@ -272,13 +259,13 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
         const mapped =
           error instanceof UpstreamImageError
             ? error
-            : new UpstreamImageError("unknown", "生成执行失败");
+            : new UpstreamImageError('unknown', '生成执行失败');
         const code =
-          mapped.code === "quota"
-            ? "ACCOUNT_QUOTA_INSUFFICIENT"
-            : mapped.code === "rejected"
-              ? "GENERATION_UPSTREAM_REJECTED"
-              : "GENERATION_UPSTREAM_UNKNOWN";
+          mapped.code === 'quota'
+            ? 'ACCOUNT_QUOTA_INSUFFICIENT'
+            : mapped.code === 'rejected'
+              ? 'GENERATION_UPSTREAM_REJECTED'
+              : 'GENERATION_UPSTREAM_UNKNOWN';
         await withOwnerTransaction(helpers, payload.ownerId, async (client) => {
           await client.query(
             `
@@ -299,7 +286,7 @@ export function createTaskList(config: WorkerConfig, s3: S3Client): TaskList {
             client,
             payload.ownerId,
             payload.runId,
-            code === "GENERATION_UPSTREAM_UNKNOWN" ? "preserved" : "released",
+            code === 'GENERATION_UPSTREAM_UNKNOWN' ? 'preserved' : 'released',
           );
         });
       }
@@ -313,9 +300,7 @@ async function uploadImages(
   payload: GenerationPayload,
   images: GeneratedImage[],
 ) {
-  const uploaded: Array<
-    GeneratedImage & { id: string; objectKey: string; checksum: string }
-  > = [];
+  const uploaded: Array<GeneratedImage & { id: string; objectKey: string; checksum: string }> = [];
   for (const image of images) {
     const id = randomUUID();
     const objectKey = `owners/${payload.ownerId}/generations/${payload.runId}/${id}`;
@@ -349,16 +334,14 @@ async function withOwnerTransaction<T>(
   callback: (client: WorkerPgClient) => Promise<T>,
 ): Promise<T> {
   return helpers.withPgClient(async (client) => {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     try {
-      await client.query("SELECT set_config('app.owner_id', $1, true)", [
-        String(ownerId),
-      ]);
+      await client.query("SELECT set_config('app.owner_id', $1, true)", [String(ownerId)]);
       const value = await callback(client);
-      await client.query("COMMIT");
+      await client.query('COMMIT');
       return value;
     } catch (error) {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
       throw error;
     }
   });

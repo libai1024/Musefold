@@ -35,8 +35,16 @@ values are never printed.`);
 
 const requiredJobs = [
   { key: 'sourceChecks', label: 'Source checks', matchers: [/^source checks$/, /source.*checks?/] },
-  { key: 'electronE2E', label: 'Electron E2E', matchers: [/^linux electron e2e$/, /^electron e2e$/, /electron.*e2e/] },
-  { key: 'macosPackageSmoke', label: 'macOS package smoke', matchers: [/^macos package smoke$/, /macos.*package.*smoke/] },
+  {
+    key: 'electronE2E',
+    label: 'Electron E2E',
+    matchers: [/^linux electron e2e$/, /^electron e2e$/, /electron.*e2e/],
+  },
+  {
+    key: 'macosPackageSmoke',
+    label: 'macOS package smoke',
+    matchers: [/^macos package smoke$/, /macos.*package.*smoke/],
+  },
   {
     key: 'windowsPackageAndRuntimeSmoke',
     label: 'Windows package and runtime smoke',
@@ -60,7 +68,8 @@ function record(name, status, details = '') {
 }
 
 function parseRunUrl(value) {
-  if (typeof value !== 'string' || value.trim().length === 0) throw new Error('Missing GitHub Actions run URL');
+  if (typeof value !== 'string' || value.trim().length === 0)
+    throw new Error('Missing GitHub Actions run URL');
   let url;
   try {
     url = new URL(value);
@@ -71,8 +80,15 @@ function parseRunUrl(value) {
     throw new Error(`Run URL must be an https://github.com/.../actions/runs/... URL: ${value}`);
   }
   const parts = url.pathname.split('/').filter(Boolean);
-  if (parts.length < 5 || parts[2] !== 'actions' || parts[3] !== 'runs' || !/^\d+$/.test(parts[4])) {
-    throw new Error(`Run URL must look like https://github.com/OWNER/REPO/actions/runs/RUN_ID: ${value}`);
+  if (
+    parts.length < 5 ||
+    parts[2] !== 'actions' ||
+    parts[3] !== 'runs' ||
+    !/^\d+$/.test(parts[4])
+  ) {
+    throw new Error(
+      `Run URL must look like https://github.com/OWNER/REPO/actions/runs/RUN_ID: ${value}`,
+    );
   }
   return {
     owner: parts[0],
@@ -109,7 +125,11 @@ async function readEvidence() {
 function validateEvidenceGate(evidence) {
   const gate = evidence?.githubActionsRemoteGreen;
   if (gate === undefined) {
-    record('GitHub Actions remote CI evidence', 'manual', `missing ${evidencePath}:githubActionsRemoteGreen`);
+    record(
+      'GitHub Actions remote CI evidence',
+      'manual',
+      `missing ${evidencePath}:githubActionsRemoteGreen`,
+    );
     return null;
   }
 
@@ -128,7 +148,11 @@ function validateEvidenceGate(evidence) {
   }
 
   if (issues.length === 0) {
-    record('GitHub Actions remote CI evidence', 'pass', `${evidencePath}:githubActionsRemoteGreen is complete`);
+    record(
+      'GitHub Actions remote CI evidence',
+      'pass',
+      `${evidencePath}:githubActionsRemoteGreen is complete`,
+    );
     return gate;
   }
   record('GitHub Actions remote CI evidence', 'fail', issues.join('; '));
@@ -156,7 +180,9 @@ async function githubRequest(path) {
   }
   if (!response.ok) {
     const message = body?.message ? `: ${body.message}` : '';
-    throw new Error(`GitHub API request failed (${response.status} ${response.statusText})${message}`);
+    throw new Error(
+      `GitHub API request failed (${response.status} ${response.statusText})${message}`,
+    );
   }
   return body;
 }
@@ -165,7 +191,9 @@ async function readWorkflowJobs(owner, repo, runId) {
   const jobs = [];
   let page = 1;
   for (;;) {
-    const payload = await githubRequest(`/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100&page=${page}`);
+    const payload = await githubRequest(
+      `/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100&page=${page}`,
+    );
     jobs.push(...(payload?.jobs ?? []));
     const total = typeof payload?.total_count === 'number' ? payload.total_count : jobs.length;
     if (jobs.length >= total || (payload?.jobs ?? []).length === 0) break;
@@ -187,7 +215,9 @@ function buildEvidenceSnippet(run, jobChecks, fallbackUrl) {
 
 async function validateRemoteRun(value) {
   const parsed = parseRunUrl(value);
-  const run = await githubRequest(`/repos/${parsed.owner}/${parsed.repo}/actions/runs/${parsed.runId}`);
+  const run = await githubRequest(
+    `/repos/${parsed.owner}/${parsed.repo}/actions/runs/${parsed.runId}`,
+  );
   const jobs = await readWorkflowJobs(parsed.owner, parsed.repo, parsed.runId);
 
   const runOk = run?.status === 'completed' && run?.conclusion === 'success';
@@ -235,34 +265,45 @@ async function main() {
   const ok = failed.length === 0 && (!strict || pending.length === 0);
 
   if (json) {
-    console.log(JSON.stringify({
-      evidencePath,
-      checks,
-      existingGate,
-      remote: remote
-        ? {
-            runUrl: remote.run.html_url ?? remote.parsed.canonicalUrl,
-            runStatus: remote.run.status,
-            runConclusion: remote.run.conclusion,
-            jobCount: remote.jobs.length,
-            evidenceSnippet: remote.evidenceSnippet,
-          }
-        : null,
-      strict,
-      ok,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          evidencePath,
+          checks,
+          existingGate,
+          remote: remote
+            ? {
+                runUrl: remote.run.html_url ?? remote.parsed.canonicalUrl,
+                runStatus: remote.run.status,
+                runConclusion: remote.run.conclusion,
+                jobCount: remote.jobs.length,
+                evidenceSnippet: remote.evidenceSnippet,
+              }
+            : null,
+          strict,
+          ok,
+        },
+        null,
+        2,
+      ),
+    );
   } else {
     console.log('GitHub Actions remote CI evidence:');
     for (const check of checks) {
-      const mark = check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
+      const mark =
+        check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
       console.log(`${mark} ${check.name}${check.details ? ` - ${check.details}` : ''}`);
     }
     if (remote) {
       console.log('\nEvidence JSON seed:');
       console.log(JSON.stringify(remote.evidenceSnippet, null, 2));
     } else if (pending.length > 0) {
-      console.log('\nFetch and validate a remote run with: npm run release:ci:evidence -- --run-url https://github.com/OWNER/REPO/actions/runs/RUN_ID');
-      console.log('Then copy githubActionsRemoteGreen into release/release-gate-evidence.json and run npm run release:evidence -- --strict.');
+      console.log(
+        '\nFetch and validate a remote run with: npm run release:ci:evidence -- --run-url https://github.com/OWNER/REPO/actions/runs/RUN_ID',
+      );
+      console.log(
+        'Then copy githubActionsRemoteGreen into release/release-gate-evidence.json and run npm run release:evidence -- --strict.',
+      );
     }
     if (!strict && pending.length > 0) {
       console.log('\nUse --strict before public release to require this evidence block.');

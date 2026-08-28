@@ -18,19 +18,30 @@ class FakeUpdater implements UpdaterAdapter {
     return { isUpdateAvailable: true, updateInfo: { version: '0.6.0' } };
   });
   readonly downloadUpdate = vi.fn(async () => {
-    this.emit('download-progress', { percent: 42.5, transferred: 425, total: 1000, bytesPerSecond: 100 });
+    this.emit('download-progress', {
+      percent: 42.5,
+      transferred: 425,
+      total: 1000,
+      bytesPerSecond: 100,
+    });
     this.emit('update-downloaded', { version: '0.6.0' });
     return ['/tmp/Musefold-0.6.0.dmg'];
   });
   readonly quitAndInstall = vi.fn();
   private readonly listeners = new Map<keyof UpdaterEventMap, (...args: never[]) => void>();
 
-  on<EventName extends keyof UpdaterEventMap>(event: EventName, listener: UpdaterEventMap[EventName]): void {
+  on<EventName extends keyof UpdaterEventMap>(
+    event: EventName,
+    listener: UpdaterEventMap[EventName],
+  ): void {
     this.listeners.set(event, listener as (...args: never[]) => void);
   }
 
-  emit<EventName extends keyof UpdaterEventMap>(event: EventName, ...args: Parameters<UpdaterEventMap[EventName]>): void {
-    this.listeners.get(event)?.(...args as never[]);
+  emit<EventName extends keyof UpdaterEventMap>(
+    event: EventName,
+    ...args: Parameters<UpdaterEventMap[EventName]>
+  ): void {
+    this.listeners.get(event)?.(...(args as never[]));
   }
 }
 
@@ -63,7 +74,9 @@ describe('UpdaterService', () => {
       currentVersion: '0.5.0',
       enabled: true,
       feedUrl: 'https://updates.example.test/stable/',
-      beforeInstall: async () => { prepared = true; },
+      beforeInstall: async () => {
+        prepared = true;
+      },
       onStateChanged: (state) => states.push(state.state),
     });
 
@@ -83,7 +96,14 @@ describe('UpdaterService', () => {
     expect(prepared).toBe(true);
     expect(service.getState()).toMatchObject({ state: 'installing', version: '0.6.0' });
     expect(adapter.quitAndInstall).toHaveBeenCalledWith(false, true);
-    expect(states).toEqual(['checking', 'available', 'downloading', 'downloading', 'downloaded', 'installing']);
+    expect(states).toEqual([
+      'checking',
+      'available',
+      'downloading',
+      'downloading',
+      'downloaded',
+      'installing',
+    ]);
   });
 
   it('turns updater errors into a renderer-safe status', async () => {
@@ -113,7 +133,9 @@ describe('UpdaterService', () => {
     const stableAdapter = new FakeUpdater();
     new UpdaterService({ adapter: stableAdapter, currentVersion: '0.5.0', enabled: true });
     expect(stableAdapter.allowPrerelease).toBe(false);
-    expect(stableAdapter.setFeedURL).toHaveBeenCalledWith('https://zhaozhaoyue.top/Musefold/updates/stable/');
+    expect(stableAdapter.setFeedURL).toHaveBeenCalledWith(
+      'https://zhaozhaoyue.top/Musefold/updates/stable/',
+    );
 
     const betaAdapter = new FakeUpdater();
     new UpdaterService({
@@ -123,7 +145,9 @@ describe('UpdaterService', () => {
       channel: 'beta',
     });
     expect(betaAdapter.allowPrerelease).toBe(true);
-    expect(betaAdapter.setFeedURL).toHaveBeenCalledWith('https://zhaozhaoyue.top/Musefold/updates/beta/');
+    expect(betaAdapter.setFeedURL).toHaveBeenCalledWith(
+      'https://zhaozhaoyue.top/Musefold/updates/beta/',
+    );
   });
 
   it('switches the feed URL at runtime and resets to a re-checkable idle state', async () => {
@@ -140,7 +164,9 @@ describe('UpdaterService', () => {
 
     service.setChannel('dev');
     expect(adapter.allowPrerelease).toBe(true);
-    expect(adapter.setFeedURL).toHaveBeenCalledWith('https://zhaozhaoyue.top/Musefold/updates/dev/');
+    expect(adapter.setFeedURL).toHaveBeenCalledWith(
+      'https://zhaozhaoyue.top/Musefold/updates/dev/',
+    );
     expect(service.getState()).toEqual({ state: 'idle', currentVersion: '0.5.0' });
 
     await service.check();

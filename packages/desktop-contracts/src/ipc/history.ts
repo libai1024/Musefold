@@ -1,8 +1,8 @@
 // packages/desktop-contracts/src/ipc/history.ts
 // history 域：请求响应类型 + Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
 
-import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from "../models";
-import type { HistoryStatus } from "../enums";
+import type { HistoryRecord, HistoryStats, HistoryStatsQuery } from '../models';
+import type { HistoryStatus } from '../enums';
 
 export interface HistoryClearRequest {
   /** 创建时间上界（不含），ms epoch */

@@ -14,10 +14,14 @@ export async function switchAccountSource(target: AccountImageSource): Promise<v
   const generation = useGenerationStore.getState();
   const connections = useAiConnectionStore.getState();
   const previousProviderId = generation.activeProviderId;
-  const previousConnection = connections.connections.find((connection) => connection.isActive) ?? null;
-  const doubaoProvider = generation.providers.find((provider) => provider.type === 'doubao-web') ?? null;
-  const officialProvider = generation.providers.find((provider) => provider.managedBy === 'account') ?? null;
-  const officialConnection = connections.connections.find((connection) => connection.managedBy === 'account') ?? null;
+  const previousConnection =
+    connections.connections.find((connection) => connection.isActive) ?? null;
+  const doubaoProvider =
+    generation.providers.find((provider) => provider.type === 'doubao-web') ?? null;
+  const officialProvider =
+    generation.providers.find((provider) => provider.managedBy === 'account') ?? null;
+  const officialConnection =
+    connections.connections.find((connection) => connection.managedBy === 'account') ?? null;
   let connectivityPassed = false;
 
   try {
@@ -62,7 +66,8 @@ export async function switchAccountSource(target: AccountImageSource): Promise<v
     ]);
     connectivityPassed = true;
     if (previousProviderId !== officialProvider.id) await generation.setActive(officialProvider.id);
-    if (previousConnection?.id !== officialConnection.id) await connections.setActive(officialConnection.id);
+    if (previousConnection?.id !== officialConnection.id)
+      await connections.setActive(officialConnection.id);
     useSettingsStore.getState().setAccountImageSource('official');
     toast.success('已切换到 Musefold 官方账号');
   } catch (error) {
@@ -70,7 +75,9 @@ export async function switchAccountSource(target: AccountImageSource): Promise<v
       previousProviderId && useGenerationStore.getState().activeProviderId !== previousProviderId
         ? useGenerationStore.getState().setActive(previousProviderId)
         : Promise.resolve(),
-      previousConnection && useAiConnectionStore.getState().connections.find((connection) => connection.isActive)?.id !== previousConnection.id
+      previousConnection &&
+      useAiConnectionStore.getState().connections.find((connection) => connection.isActive)?.id !==
+        previousConnection.id
         ? useAiConnectionStore.getState().setActive(previousConnection.id)
         : Promise.resolve(),
     ]);

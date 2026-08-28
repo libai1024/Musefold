@@ -4,10 +4,12 @@
 // 账号别名模型（musefold-*）统一映射为友好显示名。
 
 /** 生图模型过滤：混排列表只留图像相关。 */
-export const IMAGE_MODEL_PATTERN = /image|dall|flux|seedream|seededit|midjourney|stable|sd3|sdxl|cogview|wanx|imagen|banana/i;
+export const IMAGE_MODEL_PATTERN =
+  /image|dall|flux|seedream|seededit|midjourney|stable|sd3|sdxl|cogview|wanx|imagen|banana/i;
 
 /** Agent 模型列表过滤：/models 返回里剔除明显的非文本模型。 */
-export const NON_TEXT_MODEL_PATTERN = /embed|whisper|tts|audio|rerank|moderation|sora|video|image|dall/i;
+export const NON_TEXT_MODEL_PATTERN =
+  /embed|whisper|tts|audio|rerank|moderation|sora|video|image|dall/i;
 
 /**
  * 过滤出生图模型。

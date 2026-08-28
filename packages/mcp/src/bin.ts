@@ -15,7 +15,10 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const { server } = await createMusefoldMcpServer({
     readonly: argv.includes('--readonly'),
-    toolsets: flagValue(argv, '--toolsets')?.split(',').map((item) => item.trim()).filter(Boolean),
+    toolsets: flagValue(argv, '--toolsets')
+      ?.split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
     noWait: argv.includes('--no-wait'),
     endpoint: flagValue(argv, '--endpoint') ?? process.env.MUSEFOLD_ENDPOINT,
     token: flagValue(argv, '--token') ?? process.env.MUSEFOLD_TOKEN,
@@ -25,6 +28,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  process.stderr.write(`[musefold-mcp] fatal: ${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(
+    `[musefold-mcp] fatal: ${error instanceof Error ? error.message : String(error)}\n`,
+  );
   process.exit(1);
 });

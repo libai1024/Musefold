@@ -1,55 +1,54 @@
-import { describe, expect, it } from "vitest";
-import { FixtureWebGateway } from "../fixture-runtime";
+import { describe, expect, it } from 'vitest';
+import { FixtureWebGateway } from '../fixture-runtime';
 
-describe("generation history lifecycle", () => {
-  it("filters fixture history by status, date, model, and search", async () => {
+describe('generation history lifecycle', () => {
+  it('filters fixture history by status, date, model, and search', async () => {
     const gateway = new FixtureWebGateway();
-    const failed = await gateway.createGeneration({ prompt: "建筑失败", size: "1024x1024", quality: "medium", count: 1 }, "filter-1");
-    await gateway.createGeneration({ prompt: "花园成功", size: "1024x1024", quality: "medium", count: 1 }, "filter-2");
+    const failed = await gateway.createGeneration(
+      { prompt: '建筑失败', size: '1024x1024', quality: 'medium', count: 1 },
+      'filter-1',
+    );
+    await gateway.createGeneration(
+      { prompt: '花园成功', size: '1024x1024', quality: 'medium', count: 1 },
+      'filter-2',
+    );
     await gateway.cancelGeneration(failed.id);
     const result = await gateway.listGenerationHistory({
       limit: 20,
-      status: "cancelled",
-      search: "建筑",
-      from: "2026-01-01T00:00:00.000Z",
-      to: "2026-12-31T23:59:59.999Z",
+      status: 'cancelled',
+      search: '建筑',
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-12-31T23:59:59.999Z',
     });
     expect(result.items).toEqual([expect.objectContaining({ id: failed.id })]);
     const empty = await gateway.listGenerationHistory({
       limit: 20,
-      providerModel: "missing-model",
-      search: "建筑",
+      providerModel: 'missing-model',
+      search: '建筑',
     });
     expect(empty.items).toEqual([]);
   });
 
-  it("retries, soft-deletes, filters, and restores generation jobs", async () => {
+  it('retries, soft-deletes, filters, and restores generation jobs', async () => {
     const gateway = new FixtureWebGateway();
     const created = await gateway.createGeneration(
       {
-        prompt: "雨后的安静建筑",
-        size: "1024x1024",
-        quality: "medium",
+        prompt: '雨后的安静建筑',
+        size: '1024x1024',
+        quality: 'medium',
         count: 1,
       },
-      "create-generation-0001",
+      'create-generation-0001',
     );
 
-    const retry = await gateway.retryGeneration(
-      created.id,
-      "retry-generation-0001",
-    );
+    const retry = await gateway.retryGeneration(created.id, 'retry-generation-0001');
     expect(retry.parentRunId).toBe(created.id);
-    expect(retry.status).toBe("queued");
+    expect(retry.status).toBe('queued');
 
     const deleted = await gateway.deleteGeneration(created.id);
     expect(deleted.deletedAt).not.toBeNull();
-    await expect(
-      gateway.listGenerationHistory({ limit: 20 }),
-    ).resolves.not.toMatchObject({
-      items: expect.arrayContaining([
-        expect.objectContaining({ id: created.id }),
-      ]),
+    await expect(gateway.listGenerationHistory({ limit: 20 })).resolves.not.toMatchObject({
+      items: expect.arrayContaining([expect.objectContaining({ id: created.id })]),
     });
 
     const includingDeleted = await gateway.listGenerationHistory({
@@ -67,51 +66,45 @@ describe("generation history lifecycle", () => {
 
     const restored = await gateway.restoreGeneration(created.id);
     expect(restored.deletedAt).toBeNull();
-    await expect(
-      gateway.listGenerationHistory({ limit: 20 }),
-    ).resolves.toMatchObject({
-      items: expect.arrayContaining([
-        expect.objectContaining({ id: created.id }),
-      ]),
+    await expect(gateway.listGenerationHistory({ limit: 20 })).resolves.toMatchObject({
+      items: expect.arrayContaining([expect.objectContaining({ id: created.id })]),
     });
   });
 
-  it("keeps runs scoped to their workbench session for restoration", async () => {
+  it('keeps runs scoped to their workbench session for restoration', async () => {
     const gateway = new FixtureWebGateway();
     const firstSession = await gateway.createWorkbenchSession({
-      title: "第一份设计",
-      draft: { prompt: "第一份设计" },
+      title: '第一份设计',
+      draft: { prompt: '第一份设计' },
     });
     const secondSession = await gateway.createWorkbenchSession({
-      title: "第二份设计",
-      draft: { prompt: "第二份设计" },
+      title: '第二份设计',
+      draft: { prompt: '第二份设计' },
     });
     const firstJob = await gateway.createGeneration(
       {
-        prompt: "第一份设计",
+        prompt: '第一份设计',
         sessionId: firstSession.id,
-        size: "1024x1024",
-        quality: "medium",
+        size: '1024x1024',
+        quality: 'medium',
         count: 1,
       },
-      "create-session-generation-0001",
+      'create-session-generation-0001',
     );
     await gateway.createGeneration(
       {
-        prompt: "第二份设计",
+        prompt: '第二份设计',
         sessionId: secondSession.id,
-        size: "1024x1024",
-        quality: "medium",
+        size: '1024x1024',
+        quality: 'medium',
         count: 1,
       },
-      "create-session-generation-0002",
+      'create-session-generation-0002',
     );
 
-    await expect(
-      gateway.getWorkbenchSession(firstSession.id),
-    ).resolves.toMatchObject({
+    await expect(gateway.getWorkbenchSession(firstSession.id)).resolves.toMatchObject({
       id: firstSession.id,
-      draft: { prompt: "第一份设计" },
+      draft: { prompt: '第一份设计' },
     });
     await expect(
       gateway.listGenerationHistory({
@@ -123,42 +116,42 @@ describe("generation history lifecycle", () => {
     });
   });
 
-  it("returns the latest workbench snapshot on a version conflict", async () => {
+  it('returns the latest workbench snapshot on a version conflict', async () => {
     const gateway = new FixtureWebGateway();
     const created = await gateway.createWorkbenchSession({
-      title: "跨设备草稿",
-      draft: { prompt: "初始内容" },
+      title: '跨设备草稿',
+      draft: { prompt: '初始内容' },
     });
     const latest = await gateway.updateWorkbenchSession(created.id, {
       expectedVersion: created.version,
-      draft: { ...created.draft, prompt: "另一设备的内容" },
+      draft: { ...created.draft, prompt: '另一设备的内容' },
     });
 
     await expect(
       gateway.updateWorkbenchSession(created.id, {
         expectedVersion: created.version,
-        draft: { ...created.draft, prompt: "本机内容" },
+        draft: { ...created.draft, prompt: '本机内容' },
       }),
     ).rejects.toMatchObject({
-      code: "WORKBENCH_VERSION_CONFLICT",
+      code: 'WORKBENCH_VERSION_CONFLICT',
       details: { current: latest },
     });
   });
 
-  it("excludes archived sessions from the active conversation list", async () => {
+  it('excludes archived sessions from the active conversation list', async () => {
     const gateway = new FixtureWebGateway();
     const created = await gateway.createWorkbenchSession({
-      title: "待归档设计",
-      draft: { prompt: "待归档设计" },
+      title: '待归档设计',
+      draft: { prompt: '待归档设计' },
     });
     const archived = await gateway.updateWorkbenchSession(created.id, {
       expectedVersion: created.version,
       archived: true,
     });
 
-    await expect(
-      gateway.listWorkbenchSessions({ limit: 20 }),
-    ).resolves.toMatchObject({ items: [] });
+    await expect(gateway.listWorkbenchSessions({ limit: 20 })).resolves.toMatchObject({
+      items: [],
+    });
     await expect(
       gateway.listWorkbenchSessions({ limit: 20, includeArchived: true }),
     ).resolves.toMatchObject({

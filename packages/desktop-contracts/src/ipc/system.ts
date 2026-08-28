@@ -8,7 +8,7 @@ import type {
   UpdateChannelInfo,
   UpdateChannelResult,
   UpdateStatus,
-} from "../updater";
+} from '../updater';
 
 export interface DiskUsageResult {
   imagesBytes: number;
@@ -21,7 +21,7 @@ export interface BackupInfo {
   path: string;
   size: number;
   createdAt: number;
-  kind: "auto" | "manual";
+  kind: 'auto' | 'manual';
 }
 
 export interface RestoreBackupRequest {
@@ -35,11 +35,11 @@ export interface RestoreBackupResult {
 }
 
 export interface ResetDataRequest {
-  confirm: "RESET";
+  confirm: 'RESET';
 }
 
 /** Fixed packaged resources exposed by the About page; never accepts renderer paths. */
-export type AboutResourceId = "product-docs";
+export type AboutResourceId = 'product-docs';
 
 export interface ResetDataResult {
   ok: true;
@@ -52,7 +52,7 @@ export interface ResetDataResult {
  * `db-only` → 单个 JSON；`db-with-images` → zip（JSON + 被引用的预览图）。
  * 两种模式都**不含** data.db、API Key（明文或密文）、logs/。
  */
-export type ExportMode = "db-only" | "db-with-images";
+export type ExportMode = 'db-only' | 'db-with-images';
 
 export interface ExportRequest {
   /** 缺省 db-only */
@@ -87,7 +87,7 @@ export interface ExportCounts {
  * 后者会暗示"这个站配过密钥、末四位是 xxxx"，是白送的信息面。
  */
 export interface ExportEnvelope {
-  format: "musefold-export";
+  format: 'musefold-export';
   schemaVersion: number;
   /** 导出时的 PRAGMA user_version，供导入端做迁移判断 */
   dbUserVersion: number;
@@ -122,7 +122,7 @@ export interface ExportResult {
  * - `replace`：清空同类表后全量插入 —— 破坏性，**强制**先备份
  * - `skip`：只插本地不存在的 id，已存在一律跳过
  */
-export type ImportStrategy = "merge" | "replace" | "skip";
+export type ImportStrategy = 'merge' | 'replace' | 'skip';
 
 export interface ImportRequest {
   /** 直接指定源文件（测试用，或预览后确认时回传）；不传则弹打开对话框 */

@@ -7,11 +7,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ImageQuality } from '@musefold/desktop-contracts/enums';
-import {
-  PROVIDER_PRESETS,
-  DEFAULT_PRESET_ID,
-  RATIO_OPTIONS,
-} from '@musefold/domain/constants';
+import { PROVIDER_PRESETS, DEFAULT_PRESET_ID, RATIO_OPTIONS } from '@musefold/domain/constants';
 import { ACCOUNT_FALLBACK_TEXT_MODEL } from '@musefold/domain/constants';
 import type { ValidationResult, GenerateImageResult } from '@musefold/desktop-contracts/providers';
 import type { AiConnectionValidationResult } from '@musefold/desktop-contracts/ai';
@@ -96,7 +92,10 @@ interface OnboardingState {
   selectTrack: (track: OnboardingTrack) => void;
   openDoubaoLogin: () => Promise<void>;
   confirmDoubaoLogin: () => Promise<void>;
-  authenticateAccount: (mode: 'login' | 'register', input: { username: string; password: string }) => Promise<void>;
+  authenticateAccount: (
+    mode: 'login' | 'register',
+    input: { username: string; password: string },
+  ) => Promise<void>;
   redeemAccount: (code: string) => Promise<void>;
   continueWithoutRedeem: () => void;
   setAlsoConfigureText: (enabled: boolean) => void;
@@ -124,364 +123,17 @@ interface OnboardingState {
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set, get) => ({
-  onboarded: readStoredOnboardingPreferences().onboarded,
-  forced: false,
-  step: 1,
-  track: null,
-  accountStage: 'choose',
-  accountBusy: false,
-  accountError: null,
-  accountQuota: null,
-  textConnectionId: null,
-  textValidation: null,
-  alsoConfigureText: true,
-  doubaoWindowOpened: false,
-  presetId: DEFAULT_PRESET_ID,
-  apiKey: '',
-  providerId: null,
-  saving: false,
-  validating: false,
-  validation: null,
-  ratioId: '1:1',
-  quality: 'medium',
-  generating: false,
-  generateError: null,
-  generatedImagePath: null,
-
-  isVisible: () => {
-    const s = get();
-    if (s.forced) return true;
-    if (isE2EHarness()) return false;
-    if (s.onboarded) return false;
-    // 一旦用户开始首启流程，即使中途创建了 Provider，也保持引导层直到完成或跳过。
-    if (s.step > 1) return true;
-    const gen = useGenerationStore.getState();
-    return gen.providersLoaded && gen.providers.length === 0;
-  },
-
-  setPresetId: (presetId) => set({ presetId }),
-  setApiKey: (apiKey) => set({ apiKey }),
-  selectTrack: (track) => set({
-    track,
-    accountStage: track === 'account' ? 'auth' : 'choose',
-    accountError: null,
-    doubaoWindowOpened: false,
-    validation: null,
-    textValidation: null,
-  }),
-  setAlsoConfigureText: (alsoConfigureText) => set({ alsoConfigureText }),
-  setRatioId: (ratioId) => set({ ratioId }),
-  setQuality: (quality) => set({ quality }),
-
-  goStart: () => set({
-    step: 2,
-    // 旧 E2E 用例直接填写 BYOK 表单；普通用户仍先看双轨选择。
-    track: isE2EHarness() ? 'byok' : null,
-    accountStage: 'choose',
-  }),
-  goBack: () => set((s) => ({ step: (Math.max(1, s.step - 1) as OnboardingStep) })),
-
-  openDoubaoLogin: async () => {
-    if (get().saving) return;
-    set({ saving: true, validation: null });
-    try {
-      const snapshot = api.provider.webLoginStart
-        ? await api.provider.webLoginStart()
-        : null;
-      if (!snapshot) await api.provider.openWebLogin();
-      set({ saving: false, doubaoWindowOpened: true, validation: snapshot?.loggedIn ? { ok: true, message: '豆包已登录' } : null });
-    } catch (error) {
-      set({
-        saving: false,
-        validation: {
-          ok: false,
-          code: 'UNKNOWN',
-          message: error instanceof Error ? error.message : '无法打开豆包登录窗口',
-        },
-      });
-    }
-  },
-
-  confirmDoubaoLogin: async () => {
-    if (get().saving) return;
-    set({ saving: true, validation: null });
-    try {
-      const gen = useGenerationStore.getState();
-      const existing = gen.providers.find((provider) => provider.type === 'doubao-web');
-      let id = get().providerId ?? existing?.id ?? null;
-      if (!id) {
-        const preset = PROVIDER_PRESETS.find((item) => item.type === 'doubao-web');
-        if (!preset) throw new Error('豆包网页预设不存在');
-        const created = await gen.createProvider({
-          name: preset.name,
-          type: preset.type,
-          baseUrl: preset.baseUrl,
-          model: preset.model,
-          isActive: gen.providers.length === 0,
-        });
-        id = created.id;
-      }
-      const status = api.provider.webLoginState
-        ? await api.provider.webLoginState()
-        : null;
-      const result = status?.loggedIn
-        ? { ok: true, message: `豆包网页已登录，今日剩余 ${status.usage.remaining}/${status.usage.limit} 次`, models: [{ id: 'seedream-4.5', name: 'Seedream 4.5' }] }
-        : null;
-      const validation = result ?? await gen.validate(id);
-      await gen.loadProviders();
-      if (validation.ok) await gen.setActive(id);
-      set({
-        saving: false,
-        providerId: id,
-        validation,
-        ...(validation.ok ? { step: 3 as const } : {}),
-      });
-    } catch (error) {
-      set({
-        saving: false,
-        validation: {
-          ok: false,
-          code: 'UNKNOWN',
-          message: error instanceof Error ? error.message : '豆包登录验证失败',
-        },
-      });
-    }
-  },
-
-  authenticateAccount: async (mode, input) => {
-    if (get().accountBusy) return;
-    set({ accountBusy: true, accountError: null });
-    try {
-      const account = useAccountStore.getState();
-      const status = mode === 'register'
-        ? await account.register(input)
-        : await account.login(input);
-      await Promise.all([
-        useGenerationStore.getState().loadProviders(),
-        useAiConnectionStore.getState().load(),
-      ]);
-      const provider = useGenerationStore.getState().providers.find((item) => item.managedBy === 'account');
-      const connection = useAiConnectionStore.getState().connections.find((item) => item.managedBy === 'account');
-      if (!provider || !connection) throw new Error('账号登录成功，但托管模型配置未就绪');
-      const quota = status.quota?.value ?? 0;
-      set({
-        accountBusy: false,
-        accountQuota: quota,
-        providerId: provider.id,
-        textConnectionId: connection.id,
-        accountStage: quota > 0 ? 'auth' : 'redeem',
-        ...(quota > 0 ? { step: 3 as const } : {}),
-      });
-      if (quota > 0) void get().validate();
-    } catch (error) {
-      set({
-        accountBusy: false,
-        accountError: error instanceof Error ? error.message : '登录失败，请重试',
-      });
-    }
-  },
-
-  redeemAccount: async (code) => {
-    if (get().accountBusy) return;
-    set({ accountBusy: true, accountError: null });
-    try {
-      const result = await useAccountStore.getState().redeem(code);
-      set({
-        accountBusy: false,
-        accountQuota: result.status.quota?.value ?? result.quotaAdded,
-        step: 3,
-      });
-      void get().validate();
-    } catch (error) {
-      set({
-        accountBusy: false,
-        accountError: error instanceof Error ? error.message : '兑换失败，请重试',
-      });
-    }
-  },
-
-  continueWithoutRedeem: () => {
-    set({ step: 3, accountError: null });
-    void get().validate();
-  },
-
-  connect: async () => {
-    const { presetId, apiKey, providerId, alsoConfigureText, textConnectionId } = get();
-    const preset = PROVIDER_PRESETS.find((p) => p.id === presetId) ?? PROVIDER_PRESETS[0];
-    if (!apiKey.trim()) return;
-    set({ saving: true });
-    try {
-      const gen = useGenerationStore.getState();
-      let id = providerId;
-      if (!id) {
-        const created = await gen.createProvider({
-          name: preset.name,
-          type: preset.type,
-          baseUrl: preset.baseUrl,
-          model: preset.model,
-          isActive: true,
-        });
-        id = created.id;
-      }
-      await gen.saveKey(id, apiKey.trim());
-      let nextTextConnectionId = textConnectionId;
-      let textSetupFailure: AiConnectionValidationResult | null = null;
-      if (alsoConfigureText && preset.type === 'openai-compatible') {
-        try {
-          const ai = useAiConnectionStore.getState();
-          const input = {
-            name: `${preset.name} · Agent`,
-            routeKind: 'gateway' as const,
-            presetId: 'custom' as const,
-            baseUrl: preset.baseUrl,
-            model: ACCOUNT_FALLBACK_TEXT_MODEL,
-            isActive: true,
-          };
-          const connection = nextTextConnectionId
-            ? await ai.updateConnection(nextTextConnectionId, input)
-            : await ai.createConnection(input);
-          await ai.saveKey(connection.id, apiKey.trim());
-          nextTextConnectionId = connection.id;
-        } catch (error) {
-          // 「同时用于 Agent」是增强项：失败不能把已经成功保存的生图连接一起回滚。
-          nextTextConnectionId = null;
-          textSetupFailure = {
-            ok: false,
-            message: error instanceof Error ? error.message : 'Agent 模型配置失败，可稍后在设置中重试',
-            models: [],
-            capabilities: {
-              modelDiscovery: 'unknown',
-              supportedStructuredOutputModes: ['json-schema', 'json-object', 'json-text'],
-              preferredStructuredOutputMode: 'json-object',
-              cancellation: true,
-              streaming: false,
-              lastValidatedAt: null,
-            },
-          };
-        }
-      }
-      set({
-        providerId: id,
-        textConnectionId: nextTextConnectionId,
-        apiKey: '',
-        saving: false,
-        step: 3,
-        validation: null,
-        textValidation: textSetupFailure,
-      });
-      void get().validate();
-    } catch (err) {
-      set({ saving: false });
-      set({
-        validation: { ok: false, code: 'UNKNOWN', message: (err as Error)?.message || '保存失败，请重试' },
-      });
-    }
-  },
-
-  validate: async () => {
-    const { providerId, textConnectionId, textValidation: priorTextValidation } = get();
-    if (!providerId) return;
-    set({
-      validating: true,
-      validation: null,
-      textValidation: textConnectionId ? null : priorTextValidation,
-    });
-    try {
-      const [result, textResult] = await Promise.all([
-        useGenerationStore.getState().validate(providerId),
-        textConnectionId
-          ? useAiConnectionStore.getState().validate(textConnectionId)
-          : Promise.resolve(priorTextValidation),
-      ]);
-      set({ validating: false, validation: result, textValidation: textResult });
-      if (result.ok) {
-        await useGenerationStore.getState().setActive(providerId);
-      }
-    } catch (err) {
-      set({
-        validating: false,
-        validation: { ok: false, code: 'UNKNOWN', message: (err as Error)?.message || '连接失败' },
-      });
-    }
-  },
-
-  retryValidate: async () => {
-    await get().validate();
-  },
-
-  generateFirstImage: async () => {
-    const { providerId, ratioId, quality } = get();
-    if (!providerId || get().generating) return;
-    const ratio = RATIO_OPTIONS.find((r) => r.id === ratioId) ?? RATIO_OPTIONS[0];
-    set({ generating: true, generateError: null, generatedImagePath: null });
-    try {
-      const result: GenerateImageResult = await desktopGateway.generateImage({
-        providerId,
-        prompt: EXAMPLE_PROMPT,
-        size: ratio.size,
-        aspectRatio: ratio.ratio,
-        quality,
-        n: 1,
-      });
-      if (result.status === 'success' && result.imagePath) {
-        set({ generating: false, generatedImagePath: result.imagePath });
-      } else {
-        const code = result.error?.code ?? 'UNKNOWN';
-        const message = result.error?.message ?? '生成失败';
-        set({ generating: false, generateError: { code, message } });
-      }
-    } catch (err) {
-      const code = (err as { code?: string })?.code ?? 'UNKNOWN';
-      const message = (err as Error)?.message || '生成失败';
-      set({ generating: false, generateError: { code, message } });
-    }
-  },
-
-  skip: () => {
-    set({ onboarded: true, forced: false });
-    useAppStore.getState().setView('library');
-  },
-
-  finish: () => {
-    // 引首落印（v0.3.3 §7）：卸载引导层前记下 logo 圆点坐标；减少动效时朱点直接就位。
-    try {
-      if (hatchMotionAllowed()) {
-        const dot = document.querySelector('[data-testid="onboarding-flow"] [data-logo-dot]');
-        const rect = dot?.getBoundingClientRect();
-        if (rect) {
-          // 入场未完成时 rect 可能塌缩为原点（scale 0），此时中心点仍有效，取名义尺寸起飞。
-          const size = Math.max(rect.width, 8);
-          useEmberHatchStore.getState().requestHatch({
-            x: rect.x + rect.width / 2 - size / 2,
-            y: rect.y + rect.height / 2 - size / 2,
-            width: size,
-            height: size,
-          });
-        }
-      }
-    } catch {
-      /* 落印是仪式不是功能：任何异常都不阻塞完成引导 */
-    }
-    set({ onboarded: true, forced: false });
-    // 完成引导进入工作台开卷（skip 仍去提示词库，行为不变）
-    useAppStore.getState().setView('generate');
-  },
-
-  forceShow: () =>
-    set({
-      forced: true,
-      onboarded: false,
+      onboarded: readStoredOnboardingPreferences().onboarded,
+      forced: false,
       step: 1,
-      // forceShow 仅 E2E 使用：保持 v0.3 既有测试直接进入 BYOK 表单，不让新增轨道选择破坏旧用例。
-      track: 'byok',
+      track: null,
       accountStage: 'choose',
       accountBusy: false,
       accountError: null,
       accountQuota: null,
       textConnectionId: null,
       textValidation: null,
-      // 旧 E2E 覆盖的是单 Provider 路径；普通用户初始值仍为 true。
-      alsoConfigureText: false,
+      alsoConfigureText: true,
       doubaoWindowOpened: false,
       presetId: DEFAULT_PRESET_ID,
       apiKey: '',
@@ -494,13 +146,378 @@ export const useOnboardingStore = create<OnboardingState>()(
       generating: false,
       generateError: null,
       generatedImagePath: null,
-    }),
 
-  resetForTest: () => {
-    clearOnboardingPreferences();
-    get().forceShow();
-    set({ onboarded: false });
-  },
+      isVisible: () => {
+        const s = get();
+        if (s.forced) return true;
+        if (isE2EHarness()) return false;
+        if (s.onboarded) return false;
+        // 一旦用户开始首启流程，即使中途创建了 Provider，也保持引导层直到完成或跳过。
+        if (s.step > 1) return true;
+        const gen = useGenerationStore.getState();
+        return gen.providersLoaded && gen.providers.length === 0;
+      },
+
+      setPresetId: (presetId) => set({ presetId }),
+      setApiKey: (apiKey) => set({ apiKey }),
+      selectTrack: (track) =>
+        set({
+          track,
+          accountStage: track === 'account' ? 'auth' : 'choose',
+          accountError: null,
+          doubaoWindowOpened: false,
+          validation: null,
+          textValidation: null,
+        }),
+      setAlsoConfigureText: (alsoConfigureText) => set({ alsoConfigureText }),
+      setRatioId: (ratioId) => set({ ratioId }),
+      setQuality: (quality) => set({ quality }),
+
+      goStart: () =>
+        set({
+          step: 2,
+          // 旧 E2E 用例直接填写 BYOK 表单；普通用户仍先看双轨选择。
+          track: isE2EHarness() ? 'byok' : null,
+          accountStage: 'choose',
+        }),
+      goBack: () => set((s) => ({ step: Math.max(1, s.step - 1) as OnboardingStep })),
+
+      openDoubaoLogin: async () => {
+        if (get().saving) return;
+        set({ saving: true, validation: null });
+        try {
+          const snapshot = api.provider.webLoginStart ? await api.provider.webLoginStart() : null;
+          if (!snapshot) await api.provider.openWebLogin();
+          set({
+            saving: false,
+            doubaoWindowOpened: true,
+            validation: snapshot?.loggedIn ? { ok: true, message: '豆包已登录' } : null,
+          });
+        } catch (error) {
+          set({
+            saving: false,
+            validation: {
+              ok: false,
+              code: 'UNKNOWN',
+              message: error instanceof Error ? error.message : '无法打开豆包登录窗口',
+            },
+          });
+        }
+      },
+
+      confirmDoubaoLogin: async () => {
+        if (get().saving) return;
+        set({ saving: true, validation: null });
+        try {
+          const gen = useGenerationStore.getState();
+          const existing = gen.providers.find((provider) => provider.type === 'doubao-web');
+          let id = get().providerId ?? existing?.id ?? null;
+          if (!id) {
+            const preset = PROVIDER_PRESETS.find((item) => item.type === 'doubao-web');
+            if (!preset) throw new Error('豆包网页预设不存在');
+            const created = await gen.createProvider({
+              name: preset.name,
+              type: preset.type,
+              baseUrl: preset.baseUrl,
+              model: preset.model,
+              isActive: gen.providers.length === 0,
+            });
+            id = created.id;
+          }
+          const status = api.provider.webLoginState ? await api.provider.webLoginState() : null;
+          const result = status?.loggedIn
+            ? {
+                ok: true,
+                message: `豆包网页已登录，今日剩余 ${status.usage.remaining}/${status.usage.limit} 次`,
+                models: [{ id: 'seedream-4.5', name: 'Seedream 4.5' }],
+              }
+            : null;
+          const validation = result ?? (await gen.validate(id));
+          await gen.loadProviders();
+          if (validation.ok) await gen.setActive(id);
+          set({
+            saving: false,
+            providerId: id,
+            validation,
+            ...(validation.ok ? { step: 3 as const } : {}),
+          });
+        } catch (error) {
+          set({
+            saving: false,
+            validation: {
+              ok: false,
+              code: 'UNKNOWN',
+              message: error instanceof Error ? error.message : '豆包登录验证失败',
+            },
+          });
+        }
+      },
+
+      authenticateAccount: async (mode, input) => {
+        if (get().accountBusy) return;
+        set({ accountBusy: true, accountError: null });
+        try {
+          const account = useAccountStore.getState();
+          const status =
+            mode === 'register' ? await account.register(input) : await account.login(input);
+          await Promise.all([
+            useGenerationStore.getState().loadProviders(),
+            useAiConnectionStore.getState().load(),
+          ]);
+          const provider = useGenerationStore
+            .getState()
+            .providers.find((item) => item.managedBy === 'account');
+          const connection = useAiConnectionStore
+            .getState()
+            .connections.find((item) => item.managedBy === 'account');
+          if (!provider || !connection) throw new Error('账号登录成功，但托管模型配置未就绪');
+          const quota = status.quota?.value ?? 0;
+          set({
+            accountBusy: false,
+            accountQuota: quota,
+            providerId: provider.id,
+            textConnectionId: connection.id,
+            accountStage: quota > 0 ? 'auth' : 'redeem',
+            ...(quota > 0 ? { step: 3 as const } : {}),
+          });
+          if (quota > 0) void get().validate();
+        } catch (error) {
+          set({
+            accountBusy: false,
+            accountError: error instanceof Error ? error.message : '登录失败，请重试',
+          });
+        }
+      },
+
+      redeemAccount: async (code) => {
+        if (get().accountBusy) return;
+        set({ accountBusy: true, accountError: null });
+        try {
+          const result = await useAccountStore.getState().redeem(code);
+          set({
+            accountBusy: false,
+            accountQuota: result.status.quota?.value ?? result.quotaAdded,
+            step: 3,
+          });
+          void get().validate();
+        } catch (error) {
+          set({
+            accountBusy: false,
+            accountError: error instanceof Error ? error.message : '兑换失败，请重试',
+          });
+        }
+      },
+
+      continueWithoutRedeem: () => {
+        set({ step: 3, accountError: null });
+        void get().validate();
+      },
+
+      connect: async () => {
+        const { presetId, apiKey, providerId, alsoConfigureText, textConnectionId } = get();
+        const preset = PROVIDER_PRESETS.find((p) => p.id === presetId) ?? PROVIDER_PRESETS[0];
+        if (!apiKey.trim()) return;
+        set({ saving: true });
+        try {
+          const gen = useGenerationStore.getState();
+          let id = providerId;
+          if (!id) {
+            const created = await gen.createProvider({
+              name: preset.name,
+              type: preset.type,
+              baseUrl: preset.baseUrl,
+              model: preset.model,
+              isActive: true,
+            });
+            id = created.id;
+          }
+          await gen.saveKey(id, apiKey.trim());
+          let nextTextConnectionId = textConnectionId;
+          let textSetupFailure: AiConnectionValidationResult | null = null;
+          if (alsoConfigureText && preset.type === 'openai-compatible') {
+            try {
+              const ai = useAiConnectionStore.getState();
+              const input = {
+                name: `${preset.name} · Agent`,
+                routeKind: 'gateway' as const,
+                presetId: 'custom' as const,
+                baseUrl: preset.baseUrl,
+                model: ACCOUNT_FALLBACK_TEXT_MODEL,
+                isActive: true,
+              };
+              const connection = nextTextConnectionId
+                ? await ai.updateConnection(nextTextConnectionId, input)
+                : await ai.createConnection(input);
+              await ai.saveKey(connection.id, apiKey.trim());
+              nextTextConnectionId = connection.id;
+            } catch (error) {
+              // 「同时用于 Agent」是增强项：失败不能把已经成功保存的生图连接一起回滚。
+              nextTextConnectionId = null;
+              textSetupFailure = {
+                ok: false,
+                message:
+                  error instanceof Error ? error.message : 'Agent 模型配置失败，可稍后在设置中重试',
+                models: [],
+                capabilities: {
+                  modelDiscovery: 'unknown',
+                  supportedStructuredOutputModes: ['json-schema', 'json-object', 'json-text'],
+                  preferredStructuredOutputMode: 'json-object',
+                  cancellation: true,
+                  streaming: false,
+                  lastValidatedAt: null,
+                },
+              };
+            }
+          }
+          set({
+            providerId: id,
+            textConnectionId: nextTextConnectionId,
+            apiKey: '',
+            saving: false,
+            step: 3,
+            validation: null,
+            textValidation: textSetupFailure,
+          });
+          void get().validate();
+        } catch (err) {
+          set({ saving: false });
+          set({
+            validation: {
+              ok: false,
+              code: 'UNKNOWN',
+              message: (err as Error)?.message || '保存失败，请重试',
+            },
+          });
+        }
+      },
+
+      validate: async () => {
+        const { providerId, textConnectionId, textValidation: priorTextValidation } = get();
+        if (!providerId) return;
+        set({
+          validating: true,
+          validation: null,
+          textValidation: textConnectionId ? null : priorTextValidation,
+        });
+        try {
+          const [result, textResult] = await Promise.all([
+            useGenerationStore.getState().validate(providerId),
+            textConnectionId
+              ? useAiConnectionStore.getState().validate(textConnectionId)
+              : Promise.resolve(priorTextValidation),
+          ]);
+          set({ validating: false, validation: result, textValidation: textResult });
+          if (result.ok) {
+            await useGenerationStore.getState().setActive(providerId);
+          }
+        } catch (err) {
+          set({
+            validating: false,
+            validation: {
+              ok: false,
+              code: 'UNKNOWN',
+              message: (err as Error)?.message || '连接失败',
+            },
+          });
+        }
+      },
+
+      retryValidate: async () => {
+        await get().validate();
+      },
+
+      generateFirstImage: async () => {
+        const { providerId, ratioId, quality } = get();
+        if (!providerId || get().generating) return;
+        const ratio = RATIO_OPTIONS.find((r) => r.id === ratioId) ?? RATIO_OPTIONS[0];
+        set({ generating: true, generateError: null, generatedImagePath: null });
+        try {
+          const result: GenerateImageResult = await desktopGateway.generateImage({
+            providerId,
+            prompt: EXAMPLE_PROMPT,
+            size: ratio.size,
+            aspectRatio: ratio.ratio,
+            quality,
+            n: 1,
+          });
+          if (result.status === 'success' && result.imagePath) {
+            set({ generating: false, generatedImagePath: result.imagePath });
+          } else {
+            const code = result.error?.code ?? 'UNKNOWN';
+            const message = result.error?.message ?? '生成失败';
+            set({ generating: false, generateError: { code, message } });
+          }
+        } catch (err) {
+          const code = (err as { code?: string })?.code ?? 'UNKNOWN';
+          const message = (err as Error)?.message || '生成失败';
+          set({ generating: false, generateError: { code, message } });
+        }
+      },
+
+      skip: () => {
+        set({ onboarded: true, forced: false });
+        useAppStore.getState().setView('library');
+      },
+
+      finish: () => {
+        // 引首落印（v0.3.3 §7）：卸载引导层前记下 logo 圆点坐标；减少动效时朱点直接就位。
+        try {
+          if (hatchMotionAllowed()) {
+            const dot = document.querySelector('[data-testid="onboarding-flow"] [data-logo-dot]');
+            const rect = dot?.getBoundingClientRect();
+            if (rect) {
+              // 入场未完成时 rect 可能塌缩为原点（scale 0），此时中心点仍有效，取名义尺寸起飞。
+              const size = Math.max(rect.width, 8);
+              useEmberHatchStore.getState().requestHatch({
+                x: rect.x + rect.width / 2 - size / 2,
+                y: rect.y + rect.height / 2 - size / 2,
+                width: size,
+                height: size,
+              });
+            }
+          }
+        } catch {
+          /* 落印是仪式不是功能：任何异常都不阻塞完成引导 */
+        }
+        set({ onboarded: true, forced: false });
+        // 完成引导进入工作台开卷（skip 仍去提示词库，行为不变）
+        useAppStore.getState().setView('generate');
+      },
+
+      forceShow: () =>
+        set({
+          forced: true,
+          onboarded: false,
+          step: 1,
+          // forceShow 仅 E2E 使用：保持 v0.3 既有测试直接进入 BYOK 表单，不让新增轨道选择破坏旧用例。
+          track: 'byok',
+          accountStage: 'choose',
+          accountBusy: false,
+          accountError: null,
+          accountQuota: null,
+          textConnectionId: null,
+          textValidation: null,
+          // 旧 E2E 覆盖的是单 Provider 路径；普通用户初始值仍为 true。
+          alsoConfigureText: false,
+          doubaoWindowOpened: false,
+          presetId: DEFAULT_PRESET_ID,
+          apiKey: '',
+          providerId: null,
+          saving: false,
+          validating: false,
+          validation: null,
+          ratioId: '1:1',
+          quality: 'medium',
+          generating: false,
+          generateError: null,
+          generatedImagePath: null,
+        }),
+
+      resetForTest: () => {
+        clearOnboardingPreferences();
+        get().forceShow();
+        set({ onboarded: false });
+      },
     }),
     {
       name: ONBOARDING_PREFERENCES_KEY,

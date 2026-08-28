@@ -49,7 +49,10 @@ import { ONBOARDING_PREFERENCES_KEY } from '../../../lib/onboarding-preferences'
 import { persistStateOf } from '../../../lib/zustand-persist';
 
 function onboardedPersist(): boolean {
-  return persistStateOf<{ onboarded?: boolean }>(localStorage.getItem(ONBOARDING_PREFERENCES_KEY))?.onboarded === true;
+  return (
+    persistStateOf<{ onboarded?: boolean }>(localStorage.getItem(ONBOARDING_PREFERENCES_KEY))
+      ?.onboarded === true
+  );
 }
 
 function installLocalStorage(): void {
@@ -60,7 +63,9 @@ function installLocalStorage(): void {
     removeItem: (key: string) => values.delete(key),
     clear: () => values.clear(),
     key: (index: number) => [...values.keys()][index] ?? null,
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
   });
 }
 
@@ -162,10 +167,12 @@ describe('doubao login', () => {
 
     await useOnboardingStore.getState().confirmDoubaoLogin();
 
-    expect(mocks.createProvider).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'doubao-web',
-      model: 'seedream-4.5',
-    }));
+    expect(mocks.createProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'doubao-web',
+        model: 'seedream-4.5',
+      }),
+    );
     expect(mocks.validate).toHaveBeenCalledWith('doubao-1');
     expect(mocks.loadProviders).toHaveBeenCalledOnce();
     expect(mocks.setActive).toHaveBeenCalledWith('doubao-1');
@@ -252,7 +259,11 @@ describe('validate / retryValidate', () => {
     await useOnboardingStore.getState().validate();
 
     expect(mocks.setActive).not.toHaveBeenCalled();
-    expect(useOnboardingStore.getState().validation).toEqual({ ok: false, code: 'AUTH', message: '401' });
+    expect(useOnboardingStore.getState().validation).toEqual({
+      ok: false,
+      code: 'AUTH',
+      message: '401',
+    });
     expect(useOnboardingStore.getState().validating).toBe(false);
   });
 
@@ -270,7 +281,11 @@ describe('validate / retryValidate', () => {
 describe('generateFirstImage', () => {
   it('stores the image path on success', async () => {
     useOnboardingStore.setState({ providerId: 'p1' });
-    mocks.generate.mockResolvedValue({ historyId: 'h1', status: 'success', imagePath: '/tmp/h1.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'h1',
+      status: 'success',
+      imagePath: '/tmp/h1.png',
+    });
 
     await useOnboardingStore.getState().generateFirstImage();
 

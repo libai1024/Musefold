@@ -5,7 +5,7 @@ import {
   type HistoryFilters,
 } from '@musefold/domain/history-filters';
 import type { GenerationHistoryQuery } from '@musefold/contracts';
-import { type GenerationJob, type PromptDocument } from '@musefold/contracts';
+import type { GenerationJob, PromptDocument } from '@musefold/contracts';
 import {
   canCancelGeneration,
   type GenerationGateway,
@@ -74,8 +74,13 @@ export function HistoryView({
   });
   const modelOptions = useMemo(
     () =>
-      [...new Set(page.items.map((item) => item.providerModel).filter((model): model is string => Boolean(model)))]
-        .sort((a, b) => a.localeCompare(b)),
+      [
+        ...new Set(
+          page.items
+            .map((item) => item.providerModel)
+            .filter((model): model is string => Boolean(model)),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
     [page.items],
   );
   const inspector = page.inspector;

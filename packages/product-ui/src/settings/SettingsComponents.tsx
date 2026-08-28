@@ -211,10 +211,8 @@ export function SettingsSegmentedControl<T extends string | number>({
   );
 }
 
-export interface SettingsSwitchProps extends Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  'onChange' | 'onClick'
-> {
+export interface SettingsSwitchProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onChange' | 'onClick'> {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   label: string;
@@ -244,10 +242,8 @@ export function SettingsSwitch({
   );
 }
 
-export interface SettingsCheckboxProps extends Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  'checked' | 'onChange' | 'type'
-> {
+export interface SettingsCheckboxProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'checked' | 'onChange' | 'type'> {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   label: ReactNode;

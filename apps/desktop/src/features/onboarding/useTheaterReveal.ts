@@ -10,8 +10,9 @@ export function theaterReducedMotion(
 ): boolean {
   if (preference === 'on') return true;
   if (preference === 'off') return false;
-  return typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 export function markTheaterIdle(node: HTMLElement | null) {
@@ -36,46 +37,57 @@ export function useTheaterReveal() {
   const rootRef = useRef<HTMLElement>(null);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
 
-  useGSAP(() => {
-    const root = rootRef.current;
-    if (!root) return;
+  useGSAP(
+    () => {
+      const root = rootRef.current;
+      if (!root) return;
 
-    if (theaterReducedMotion(reducedMotion)) {
-      markTheaterIdle(root);
-      return;
-    }
+      if (theaterReducedMotion(reducedMotion)) {
+        markTheaterIdle(root);
+        return;
+      }
 
-    root.dataset.theaterReady = 'true';
-    const enter = durationSeconds(root, '--dur-theater-enter', 640);
-    const fold = durationSeconds(root, '--dur-theater-fold', 900);
-    const timeline = gsap.timeline({
-      defaults: { ease: 'power3.out' },
-      onComplete: () => markTheaterIdle(root),
-    });
+      root.dataset.theaterReady = 'true';
+      const enter = durationSeconds(root, '--dur-theater-enter', 640);
+      const fold = durationSeconds(root, '--dur-theater-fold', 900);
+      const timeline = gsap.timeline({
+        defaults: { ease: 'power3.out' },
+        onComplete: () => markTheaterIdle(root),
+      });
 
-    timeline
-      .from('[data-theater-mark]', {
-        autoAlpha: 0,
-        x: 20,
-        clipPath: 'inset(0 0 0 18%)',
-        duration: fold,
-      })
-      .from('[data-theater-line]', {
-        yPercent: 108,
-        duration: enter,
-        stagger: 0.08,
-      }, `-=${fold * 0.55}`)
-      .from('[data-theater-cta]', {
-        autoAlpha: 0,
-        y: 12,
-        duration: 0.42,
-        ease: 'back.out(1.35)',
-      }, `-=${enter * 0.45}`);
+      timeline
+        .from('[data-theater-mark]', {
+          autoAlpha: 0,
+          x: 20,
+          clipPath: 'inset(0 0 0 18%)',
+          duration: fold,
+        })
+        .from(
+          '[data-theater-line]',
+          {
+            yPercent: 108,
+            duration: enter,
+            stagger: 0.08,
+          },
+          `-=${fold * 0.55}`,
+        )
+        .from(
+          '[data-theater-cta]',
+          {
+            autoAlpha: 0,
+            y: 12,
+            duration: 0.42,
+            ease: 'back.out(1.35)',
+          },
+          `-=${enter * 0.45}`,
+        );
 
-    return () => {
-      timeline.revert();
-    };
-  }, { scope: rootRef, dependencies: [reducedMotion] });
+      return () => {
+        timeline.revert();
+      };
+    },
+    { scope: rootRef, dependencies: [reducedMotion] },
+  );
 
   return { rootRef };
 }
@@ -91,57 +103,64 @@ export function useFirstImageReveal({
   const rootRef = useRef<HTMLElement>(null);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
 
-  useGSAP(() => {
-    const root = rootRef.current;
-    if (!root) return;
+  useGSAP(
+    () => {
+      const root = rootRef.current;
+      if (!root) return;
 
-    if (generating) {
+      if (generating) {
+        clearTheaterIdle(root);
+        return;
+      }
+
+      if (!imageReady || theaterReducedMotion(reducedMotion)) {
+        markTheaterIdle(root);
+        return;
+      }
+
       clearTheaterIdle(root);
-      return;
-    }
+      const hold = durationSeconds(root, '--dur-theater-hold', 1200);
+      const image = root.querySelector('[data-theater-image]');
+      const stamp = root.querySelector('[data-theater-stamp]');
+      if (!image) {
+        markTheaterIdle(root);
+        return;
+      }
 
-    if (!imageReady || theaterReducedMotion(reducedMotion)) {
-      markTheaterIdle(root);
-      return;
-    }
+      gsap.set(image, { autoAlpha: 0, scale: 1.04, y: 16 });
+      if (stamp) gsap.set(stamp, { autoAlpha: 0, scale: 0 });
 
-    clearTheaterIdle(root);
-    const hold = durationSeconds(root, '--dur-theater-hold', 1200);
-    const image = root.querySelector('[data-theater-image]');
-    const stamp = root.querySelector('[data-theater-stamp]');
-    if (!image) {
-      markTheaterIdle(root);
-      return;
-    }
-
-    gsap.set(image, { autoAlpha: 0, scale: 1.04, y: 16 });
-    if (stamp) gsap.set(stamp, { autoAlpha: 0, scale: 0 });
-
-    const timeline = gsap.timeline({
-      defaults: { ease: 'power3.out' },
-      onComplete: () => markTheaterIdle(root),
-    });
-    timeline.to(image, {
-      autoAlpha: 1,
-      scale: 1,
-      y: 0,
-      duration: hold * 0.72,
-      transformOrigin: '50% 50%',
-    });
-    if (stamp) {
-      timeline.to(stamp, {
+      const timeline = gsap.timeline({
+        defaults: { ease: 'power3.out' },
+        onComplete: () => markTheaterIdle(root),
+      });
+      timeline.to(image, {
         autoAlpha: 1,
         scale: 1,
-        duration: hold * 0.28,
-        ease: 'back.out(2)',
+        y: 0,
+        duration: hold * 0.72,
         transformOrigin: '50% 50%',
-      }, `-=${hold * 0.12}`);
-    }
+      });
+      if (stamp) {
+        timeline.to(
+          stamp,
+          {
+            autoAlpha: 1,
+            scale: 1,
+            duration: hold * 0.28,
+            ease: 'back.out(2)',
+            transformOrigin: '50% 50%',
+          },
+          `-=${hold * 0.12}`,
+        );
+      }
 
-    return () => {
-      timeline.revert();
-    };
-  }, { scope: rootRef, dependencies: [imageReady, generating, reducedMotion] });
+      return () => {
+        timeline.revert();
+      };
+    },
+    { scope: rootRef, dependencies: [imageReady, generating, reducedMotion] },
+  );
 
   return { rootRef };
 }

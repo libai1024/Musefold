@@ -129,7 +129,11 @@ function tempDir(prefix: string): string {
   return dir;
 }
 
-function packFiles(files: Record<string, string>): { archive: Buffer; bytes: number; sha256: string } {
+function packFiles(files: Record<string, string>): {
+  archive: Buffer;
+  bytes: number;
+  sha256: string;
+} {
   const source = tempDir('musefold-content-src-');
   for (const [relative, content] of Object.entries(files)) {
     const abs = join(source, relative);

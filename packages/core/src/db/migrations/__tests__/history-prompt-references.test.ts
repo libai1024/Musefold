@@ -32,17 +32,20 @@ describe('migration 0009 history prompt references', () => {
     up(db);
     db.pragma('user_version = 9');
 
-    const table = db.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'history_prompt_references'",
-    ).get();
-    const indexes = db.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'history_prompt_references'",
-    ).all() as Array<{ name: string }>;
+    const table = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'history_prompt_references'",
+      )
+      .get();
+    const indexes = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'history_prompt_references'",
+      )
+      .all() as Array<{ name: string }>;
     expect(table).toBeTruthy();
-    expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
-      'idx_history_prompt_refs_prompt',
-      'idx_history_prompt_refs_history',
-    ]));
+    expect(indexes.map((row) => row.name)).toEqual(
+      expect.arrayContaining(['idx_history_prompt_refs_prompt', 'idx_history_prompt_refs_history']),
+    );
     expect(db.pragma('user_version', { simple: true })).toBe(9);
   });
 
@@ -64,13 +67,17 @@ describe('migration 0009 history prompt references', () => {
     });
 
     db.prepare('DELETE FROM prompts WHERE id = ?').run('prompt-1');
-    expect(db.prepare('SELECT prompt_id, prompt_title, excerpt FROM history_prompt_references').get()).toEqual({
+    expect(
+      db.prepare('SELECT prompt_id, prompt_title, excerpt FROM history_prompt_references').get(),
+    ).toEqual({
       prompt_id: null,
       prompt_title: '旧标题',
       excerpt: '引用快照',
     });
 
     db.prepare('DELETE FROM history WHERE id = ?').run('history-1');
-    expect(db.prepare('SELECT COUNT(*) AS total FROM history_prompt_references').get()).toEqual({ total: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS total FROM history_prompt_references').get()).toEqual({
+      total: 0,
+    });
   });
 });

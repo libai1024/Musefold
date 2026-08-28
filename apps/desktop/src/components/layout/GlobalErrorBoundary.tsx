@@ -63,9 +63,11 @@ export class GlobalErrorBoundary extends Component<Props, State> {
               aria-busy={this.state.restarting}
               data-testid="fatal-error-restart"
             >
-              {this.state.restarting
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                : <Power className="h-3.5 w-3.5" aria-hidden="true" />}
+              {this.state.restarting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Power className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
               {this.state.restarting ? '正在重启' : '重启应用'}
             </Button>
             {this.state.restartError && (

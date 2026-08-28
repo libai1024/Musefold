@@ -12,13 +12,7 @@ export interface ConnectionDot {
 }
 
 /** 两个中转站 section 测试状态机的合集（生图 ok/failed/skipped，Agent success/failed） */
-export type ConnectionTestState =
-  | 'idle'
-  | 'testing'
-  | 'ok'
-  | 'success'
-  | 'failed'
-  | 'skipped';
+export type ConnectionTestState = 'idle' | 'testing' | 'ok' | 'success' | 'failed' | 'skipped';
 
 export function resolveConnectionDot({
   hasKey,

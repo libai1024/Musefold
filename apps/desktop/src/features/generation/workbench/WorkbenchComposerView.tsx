@@ -1,30 +1,26 @@
-import {
-  History,
-  Wand2,
-  X,
-} from "../../../components/ui/icons";
+import { History, Wand2, X } from '../../../components/ui/icons';
 import {
   WorkbenchComposerContextTray,
   WorkbenchComposerFrame,
   WorkbenchComposerPrompt,
   WorkbenchPromptReferenceCard,
   workbenchComposerPlaceholder,
-} from "@musefold/product-ui";
-import { WORKBENCH_PROMPT_LIMIT } from "./store";
-import { ImageLightbox } from "../../../components/image-lightbox";
-import { cn } from "../../../lib/utils";
-import { exactGithubSkillUrl } from "./composerIntent";
+} from '@musefold/product-ui';
+import { WORKBENCH_PROMPT_LIMIT } from './store';
+import { ImageLightbox } from '../../../components/image-lightbox';
+import { cn } from '../../../lib/utils';
+import { exactGithubSkillUrl } from './composerIntent';
 import {
   HistorySourcePicker,
   SchemeRunAttachment,
   SchemeRunVariableFields,
-} from "@renderer/runtime/scheme-access";
-import { SkillRuntimeAttachment } from "./SkillRuntimeAttachment";
-import { DraftImagesPreview } from "./DraftImagesPreview";
-import { RefinementTargetReference } from "./RefinementTargetReference";
-import { SourceChip } from "./SourceChip";
-import { workbenchComposerControls } from "./WorkbenchComposerChrome";
-import type { WorkbenchComposerViewProps } from "./workbenchComposerViewProps";
+} from '@renderer/runtime/scheme-access';
+import { SkillRuntimeAttachment } from './SkillRuntimeAttachment';
+import { DraftImagesPreview } from './DraftImagesPreview';
+import { RefinementTargetReference } from './RefinementTargetReference';
+import { SourceChip } from './SourceChip';
+import { workbenchComposerControls } from './WorkbenchComposerChrome';
+import type { WorkbenchComposerViewProps } from './workbenchComposerViewProps';
 
 export type { WorkbenchComposerViewProps };
 
@@ -87,7 +83,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
   } = props;
 
   const { leadingControls, trailingControls } = workbenchComposerControls(props);
-  const promptSourceId = plainSource?.kind === "prompt" ? plainSource.id : null;
+  const promptSourceId = plainSource?.kind === 'prompt' ? plainSource.id : null;
   const promptReferences = references.filter(
     (reference) => !promptSourceId || reference.promptId !== promptSourceId,
   );
@@ -109,7 +105,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                 onSwap={() => setSchemePickerOpen(true)}
               />
             )}
-            { (attachmentStripVisible || promptReferences.length > 0) && (
+            {(attachmentStripVisible || promptReferences.length > 0) && (
               <div
                 className="flex min-w-max items-center gap-2 overflow-x-auto pb-0.5"
                 data-testid="workbench-attachments"
@@ -133,11 +129,9 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                       >
                         <span className="block truncate text-meta font-medium text-primary">
                           历史 · {draftHistorySource.items.length} 张图片
-                          {draftHistorySource.items.some(
-                            (item) => item.promptText,
-                          )
+                          {draftHistorySource.items.some((item) => item.promptText)
                             ? ` + ${draftHistorySource.items.filter((item) => item.promptText).length} 条提示词`
-                            : ""}
+                            : ''}
                         </span>
                         <span className="mt-0.5 block text-meta text-tertiary">
                           作为方案来源 · 点击调整范围
@@ -164,13 +158,11 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
                 )}
                 {promptReferences.map((reference) => (
                   <WorkbenchPromptReferenceCard
-                    key={`${reference.promptId ?? "reference"}-${reference.scope}-${reference.text}`}
+                    key={`${reference.promptId ?? 'reference'}-${reference.scope}-${reference.text}`}
                     title={reference.title}
                     text={reference.text}
                     subtitle={
-                      reference.scope === "full"
-                        ? "引用提示词 · 整条"
-                        : "引用提示词 · 选中片段"
+                      reference.scope === 'full' ? '引用提示词 · 整条' : '引用提示词 · 选中片段'
                     }
                     onClear={() => {
                       const index = references.indexOf(reference);
@@ -203,22 +195,20 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
       surfaceRef={composerSurfaceRef}
       leadingControls={leadingControls}
       trailingControls={trailingControls}
-      data-drag-active={dragActive ? "true" : "false"}
+      data-drag-active={dragActive ? 'true' : 'false'}
       onPaste={(event) => {
         const files = Array.from(event.clipboardData.items)
-          .filter(
-            (item) => item.kind === "file" && item.type.startsWith("image/"),
-          )
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
           .map((item) => item.getAsFile())
           .filter((file): file is File => file !== null);
         const images =
           files.length > 0
             ? files
             : Array.from(event.clipboardData.files).filter((item) =>
-                item.type.startsWith("image/"),
+                item.type.startsWith('image/'),
               );
         if (images.length === 0) {
-          const pastedText = event.clipboardData.getData("text/plain").trim();
+          const pastedText = event.clipboardData.getData('text/plain').trim();
           const githubUrl = exactGithubSkillUrl(pastedText);
           if (githubUrl) {
             event.preventDefault();
@@ -230,20 +220,18 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
         void stageImageFiles(images);
       }}
       onDragEnter={(event) => {
-        if (!event.dataTransfer.types.includes("Files") || generatingHere)
-          return;
+        if (!event.dataTransfer.types.includes('Files') || generatingHere) return;
         event.preventDefault();
         dragDepthRef.current += 1;
         setDragActive(true);
       }}
       onDragOver={(event) => {
-        if (!event.dataTransfer.types.includes("Files") || generatingHere)
-          return;
+        if (!event.dataTransfer.types.includes('Files') || generatingHere) return;
         event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
+        event.dataTransfer.dropEffect = 'copy';
       }}
       onDragLeave={(event) => {
-        if (!event.dataTransfer.types.includes("Files")) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
         event.preventDefault();
         dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
         if (dragDepthRef.current === 0) setDragActive(false);
@@ -253,9 +241,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
         dragDepthRef.current = 0;
         setDragActive(false);
         const files = Array.from(event.dataTransfer.files).filter(
-          (item) =>
-            item.type.startsWith("image/") ||
-            /\.(png|jpe?g|webp)$/i.test(item.name),
+          (item) => item.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(item.name),
         );
         if (files.length > 0) void stageImageFiles(files);
       }}
@@ -272,7 +258,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
         onChange={(event) => {
           const input = event.currentTarget;
           const files = Array.from(input.files ?? []);
-          input.value = "";
+          input.value = '';
           if (files.length > 0) void stageImageFiles(files);
         }}
       />
@@ -293,33 +279,33 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
         <button
           type="button"
           role="tab"
-          aria-selected={composerMode === "image"}
+          aria-selected={composerMode === 'image'}
           className="mf-workbench-composer-mode-option"
-          data-active={composerMode === "image"}
+          data-active={composerMode === 'image'}
           disabled={composerModeLocked}
-          onClick={() => setComposerMode("image")}
+          onClick={() => setComposerMode('image')}
         >
           图像
         </button>
         <button
           type="button"
           role="tab"
-          aria-selected={composerMode === "design-plan"}
+          aria-selected={composerMode === 'design-plan'}
           className="mf-workbench-composer-mode-option"
-          data-active={composerMode === "design-plan"}
+          data-active={composerMode === 'design-plan'}
           disabled={composerModeLocked}
-          onClick={() => setComposerMode("design-plan")}
+          onClick={() => setComposerMode('design-plan')}
         >
           <Wand2 aria-hidden="true" />
           设计方案
         </button>
         {composerModeLocked && (
           <span className="mf-workbench-composer-mode-status">
-            {composerMode === "refinement"
-              ? "微调"
-              : composerMode === "scheme"
-                ? "方案运行"
-                : "Skill"}
+            {composerMode === 'refinement'
+              ? '微调'
+              : composerMode === 'scheme'
+                ? '方案运行'
+                : 'Skill'}
           </span>
         )}
       </div>
@@ -353,9 +339,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
           aria-label="指令建议"
           data-testid="composer-command-hints"
         >
-          <p className="px-2.5 py-1 text-meta font-medium text-secondary">
-            指令
-          </p>
+          <p className="px-2.5 py-1 text-meta font-medium text-secondary">指令</p>
           {commandHints.map((hint, index) => (
             <button
               key={hint.command}
@@ -363,19 +347,15 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
               role="option"
               aria-selected={index === activeCommandHintIndex}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                index === activeCommandHintIndex
-                  ? "bg-hover"
-                  : "hover:bg-hover",
+                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+                index === activeCommandHintIndex ? 'bg-hover' : 'hover:bg-hover',
               )}
               onMouseEnter={() => setCommandHintIndex(index)}
               onClick={selectCommandHint}
               data-testid="composer-command-hint"
             >
               <Wand2 className="h-3.5 w-3.5 shrink-0 text-accent" />
-              <span className="font-mono text-[11px] font-medium text-primary">
-                {hint.command}
-              </span>
+              <span className="font-mono text-[11px] font-medium text-primary">{hint.command}</span>
               <span className="min-w-0 flex-1 truncate text-right text-meta text-tertiary">
                 {hint.description}
               </span>
@@ -389,38 +369,29 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
           value={prompt}
           onChange={(event) => {
             const value = event.target.value;
-            if (skillRuntimeStatus === "complete" && value)
-              void removeGithubSkill();
+            if (skillRuntimeStatus === 'complete' && value) void removeGithubSkill();
             setPrompt(value);
             setCommandHintsDismissed(false);
             setCommandHintIndex(0);
           }}
           onKeyDown={(event) => {
-            if (
-              event.nativeEvent.isComposing ||
-              event.nativeEvent.keyCode === 229
-            )
-              return;
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             // 指令建议浮层可见时优先接管方向键 / Enter / Esc（Codex 式选择）。
             if (commandHintsVisible) {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault();
-                const delta = event.key === "ArrowDown" ? 1 : -1;
+                const delta = event.key === 'ArrowDown' ? 1 : -1;
                 setCommandHintIndex(
-                  (activeCommandHintIndex + delta + commandHints.length) %
-                    commandHints.length,
+                  (activeCommandHintIndex + delta + commandHints.length) % commandHints.length,
                 );
                 return;
               }
-              if (
-                (event.key === "Enter" && !event.shiftKey) ||
-                event.key === "Tab"
-              ) {
+              if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
                 event.preventDefault();
                 selectCommandHint();
                 return;
               }
-              if (event.key === "Escape") {
+              if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
                 setCommandHintsDismissed(true);
@@ -429,7 +400,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
             }
             // 光标在正文最前时按 Backspace 依次删除行内胶囊（Codex 式）：先删最近的引用胶囊，再删指令芯片。
             if (
-              event.key === "Backspace" &&
+              event.key === 'Backspace' &&
               event.currentTarget.selectionStart === 0 &&
               event.currentTarget.selectionEnd === 0
             ) {
@@ -445,8 +416,7 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
               }
             }
             const shouldSubmit =
-              event.key === "Enter" &&
-              (!event.shiftKey || event.metaKey || event.ctrlKey);
+              event.key === 'Enter' && (!event.shiftKey || event.metaKey || event.ctrlKey);
             if (shouldSubmit) {
               event.preventDefault();
               if (canSubmit) handleSubmit();
@@ -457,17 +427,17 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
           aria-label="提示词输入"
           placeholder={
             draftCommand
-              ? "描述你的方案想法，可附 GitHub Skill 地址…"
+              ? '描述你的方案想法，可附 GitHub Skill 地址…'
               : refinementContext
-                ? "描述如何微调；如有其他图片，也可说明参考、风格或融合方式…"
+                ? '描述如何微调；如有其他图片，也可说明参考、风格或融合方式…'
                 : schemeSource
-                  ? schemeSource.mode === "modify"
-                    ? "描述要修改的内容，例如：把默认比例改成 3:4…"
-                    : schemeSource.mode === "trial"
-                      ? "补充这次试运行的具体内容（可选）…"
-                      : "补充本次要求（可选），方案会保持视觉方向…"
+                  ? schemeSource.mode === 'modify'
+                    ? '描述要修改的内容，例如：把默认比例改成 3:4…'
+                    : schemeSource.mode === 'trial'
+                      ? '补充这次试运行的具体内容（可选）…'
+                      : '补充本次要求（可选），方案会保持视觉方向…'
                   : references.length > 0
-                    ? "已引用提示词，可补充本次要求（可选）…"
+                    ? '已引用提示词，可补充本次要求（可选）…'
                     : workbenchComposerPlaceholder({
                         hasTurns,
                         hasPromptReference: references.length > 0,
@@ -481,13 +451,11 @@ export function WorkbenchComposerView(props: WorkbenchComposerViewProps) {
       <ImageLightbox path={previewPath} onClose={() => setPreviewPath(null)} />
       {historySourceOpen && (
         <HistorySourcePicker
-          initialSelectedIds={draftHistorySource?.items.map(
-            (item) => item.historyId,
-          )}
+          initialSelectedIds={draftHistorySource?.items.map((item) => item.historyId)}
           onCancel={() => setHistorySourceOpen(false)}
           onConfirm={({ items, note }) => {
             setHistorySourceOpen(false);
-            setDraftCommand("design-plan");
+            setDraftCommand('design-plan');
             setDraftHistorySource({ items });
             // 提取说明必须始终可见可编辑（UI 规范 §10.2）；仅在正文为空时代填，避免覆盖用户输入。
             if (!prompt.trim()) setPrompt(note);

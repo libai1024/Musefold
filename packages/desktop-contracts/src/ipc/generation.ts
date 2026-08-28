@@ -13,7 +13,7 @@ import type {
   ProviderConfig,
   StageLocalImageInput,
   ValidationResult,
-} from "../providers";
+} from '../providers';
 import type {
   AiConnectionPreset,
   AiConnectionProfile,
@@ -21,7 +21,7 @@ import type {
   AiTextModelInfo,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
-} from "../ai";
+} from '../ai';
 
 export interface AiConnectionApi {
   listPresets: () => Promise<AiConnectionPreset[]>;

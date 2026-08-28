@@ -38,7 +38,16 @@ export function createElectronLocalAdminOps(): LocalAdminOps {
       if (input.isActive) db.prepare('UPDATE providers SET is_active = 0').run();
       db.prepare(
         'INSERT INTO providers (id, name, type, base_url, model, has_key, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)',
-      ).run(id, input.name, input.type, input.baseUrl, input.model, input.isActive ? 1 : 0, now, now);
+      ).run(
+        id,
+        input.name,
+        input.type,
+        input.baseUrl,
+        input.model,
+        input.isActive ? 1 : 0,
+        now,
+        now,
+      );
       return rowToProvider(requireProviderRow(id));
     },
     setProviderKey(providerId, apiKey) {
@@ -61,7 +70,10 @@ export function createElectronLocalAdminOps(): LocalAdminOps {
       const db = getDb();
       db.transaction(() => {
         db.prepare('UPDATE providers SET is_active = 0').run();
-        db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?').run(Date.now(), providerId);
+        db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?').run(
+          Date.now(),
+          providerId,
+        );
       })();
       return { ok: true as const };
     },
@@ -79,7 +91,10 @@ export function createElectronLocalAdminOps(): LocalAdminOps {
       try {
         const result = await provider.validateConnection();
         if (isDoubaoWeb && (result.ok || result.code === 'AUTH')) {
-          getDb().prepare('UPDATE providers SET has_key = ?, key_suffix = ?, updated_at = ? WHERE id = ?')
+          getDb()
+            .prepare(
+              'UPDATE providers SET has_key = ?, key_suffix = ?, updated_at = ? WHERE id = ?',
+            )
             .run(result.ok ? 1 : 0, result.ok ? '网页会话' : null, Date.now(), providerId);
         }
         return result;

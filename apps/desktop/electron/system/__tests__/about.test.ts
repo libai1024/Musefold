@@ -10,14 +10,17 @@ const environment = {
 
 describe('about resources', () => {
   it('resolves development and packaged documentation paths', () => {
-    expect(resolveAboutResourcePath('product-docs', environment))
-      .toBe(join(process.cwd(), 'docs', 'product', 'README.md'));
-    expect(resolveAboutResourcePath('product-docs', { ...environment, packaged: true }))
-      .toBe(join(environment.resourcesPath, 'product-docs', 'README.md'));
+    expect(resolveAboutResourcePath('product-docs', environment)).toBe(
+      join(process.cwd(), 'docs', 'product', 'README.md'),
+    );
+    expect(resolveAboutResourcePath('product-docs', { ...environment, packaged: true })).toBe(
+      join(environment.resourcesPath, 'product-docs', 'README.md'),
+    );
   });
 
   it('rejects unknown resource ids instead of treating them as paths', () => {
-    expect(() => resolveAboutResourcePath('../package.json' as 'product-docs', environment))
-      .toThrow('ABOUT_RESOURCE_FORBIDDEN');
+    expect(() =>
+      resolveAboutResourcePath('../package.json' as 'product-docs', environment),
+    ).toThrow('ABOUT_RESOURCE_FORBIDDEN');
   });
 });

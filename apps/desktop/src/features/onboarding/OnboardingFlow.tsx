@@ -28,9 +28,8 @@ export function OnboardingFlow() {
 
   useEffect(() => {
     if (!visible) return;
-    const selector = step === 1
-      ? '[data-testid="onboarding-start"]'
-      : '[data-onboarding-step-heading]';
+    const selector =
+      step === 1 ? '[data-testid="onboarding-start"]' : '[data-onboarding-step-heading]';
     const focusTarget = () => {
       document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
     };
@@ -69,13 +68,8 @@ export function OnboardingFlow() {
           data-step={step}
         >
           <Dialog.Title className="sr-only">Musefold 首次设置</Dialog.Title>
-          <Dialog.Description className="sr-only">
-            连接图像服务并完成第一张作品
-          </Dialog.Description>
-          <section
-            className="mf-onboarding-surface"
-            data-testid="onboarding-surface"
-          >
+          <Dialog.Description className="sr-only">连接图像服务并完成第一张作品</Dialog.Description>
+          <section className="mf-onboarding-surface" data-testid="onboarding-surface">
             <OnboardingHeader step={step} receded={imageRevealed} onClose={skip} />
 
             <main

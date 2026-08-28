@@ -17,9 +17,7 @@ describe('automation settings UI contract', () => {
   it('renders an unambiguous, theme-aware local control-plane switch', () => {
     // v1.4.1：开关统一走共享 SettingsSwitch 原语（role=switch + 主题 token 由原语保证）
     expect(localControl).toContain('<SettingsSwitch');
-    expect(localControl).toContain(
-      "label={status?.enabled ? '关闭本地控制面' : '启用本地控制面'}",
-    );
+    expect(localControl).toContain("label={status?.enabled ? '关闭本地控制面' : '启用本地控制面'}");
     expect(allSections).not.toContain('--accent-solid');
   });
 

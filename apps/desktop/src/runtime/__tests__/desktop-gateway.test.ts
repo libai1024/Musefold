@@ -745,9 +745,10 @@ describe('DesktopGateway other ports', () => {
     expect(account).not.toHaveProperty('csrfToken');
     await expect(gateway.getAccount()).resolves.toMatchObject({ id: '7', username: 'alice' });
 
-    await expect(
-      gateway.redeem('CODE'),
-    ).resolves.toMatchObject({ account: { id: '7' }, creditedQuota: 100 });
+    await expect(gateway.redeem('CODE')).resolves.toMatchObject({
+      account: { id: '7' },
+      creditedQuota: 100,
+    });
     await gateway.logout();
     const registered = await gateway.register({ username: 'alice', password: 'secret' });
     expect(registered).toMatchObject({ id: '7', username: 'alice' });

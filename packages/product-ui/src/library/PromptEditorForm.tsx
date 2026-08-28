@@ -1,21 +1,14 @@
-import { ChevronDown, Pin, X } from "@musefold/ui/icons";
-import { Button, IconButton, Input, Textarea } from "@musefold/ui";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
-import { useDraftForm } from "../forms/useDraftForm";
-import type { PromptEditorDraft } from "../models";
+import { ChevronDown, Pin, X } from '@musefold/ui/icons';
+import { Button, IconButton, Input, Textarea } from '@musefold/ui';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useDraftForm } from '../forms/useDraftForm';
+import type { PromptEditorDraft } from '../models';
 
 const emptyDraft: PromptEditorDraft = {
-  title: "",
-  description: "",
-  content: "",
-  negative: "",
+  title: '',
+  description: '',
+  content: '',
+  negative: '',
   isPinned: false,
 };
 
@@ -38,7 +31,7 @@ export interface PromptEditorFormProps {
   error?: string | null;
   notice?: ReactNode;
   submitLabel?: string;
-  layout?: "page" | "dialog";
+  layout?: 'page' | 'dialog';
   negativeCollapsible?: boolean;
   showPin?: boolean;
   titleMaxLength?: number;
@@ -55,22 +48,22 @@ export interface PromptEditorFormProps {
 
 export function PromptEditorForm({
   heading,
-  subtitle = "标题与正文必填，修改会同步到个人提示词库。",
+  subtitle = '标题与正文必填，修改会同步到个人提示词库。',
   initial = emptyDraft,
   busy = false,
   error,
   notice,
-  submitLabel = "保存提示词",
-  layout = "page",
+  submitLabel = '保存提示词',
+  layout = 'page',
   negativeCollapsible = true,
   showPin = true,
   titleMaxLength = 120,
   contentMaxLength = 12_000,
   negativeMaxLength = 4_000,
-  titlePlaceholder = "给这段提示词起一个能认出来的名字",
-  descriptionPlaceholder = "补充这段提示词的用途",
-  contentPlaceholder = "生成图像时实际发送的提示词内容",
-  negativePlaceholder = "不希望出现的元素",
+  titlePlaceholder = '给这段提示词起一个能认出来的名字',
+  descriptionPlaceholder = '补充这段提示词的用途',
+  contentPlaceholder = '生成图像时实际发送的提示词内容',
+  negativePlaceholder = '不希望出现的元素',
   testIds,
   onCancel,
   onSubmit,
@@ -78,16 +71,16 @@ export function PromptEditorForm({
   const validate = useCallback(
     (current: PromptEditorDraft) => {
       const next: { title?: string; content?: string } = {};
-      if (!current.title.trim()) next.title = "标题必填";
+      if (!current.title.trim()) next.title = '标题必填';
       else if (current.title.length > titleMaxLength) {
         next.title = `标题不超过 ${titleMaxLength} 字`;
       }
-      if (!current.content.trim()) next.content = "正文必填";
+      if (!current.content.trim()) next.content = '正文必填';
       return next;
     },
     [titleMaxLength],
   );
-  const form = useDraftForm<PromptEditorDraft, "title" | "content">({
+  const form = useDraftForm<PromptEditorDraft, 'title' | 'content'>({
     initial,
     validate,
   });
@@ -105,7 +98,7 @@ export function PromptEditorForm({
   }, [initial, negativeCollapsible]);
 
   const submit = () => {
-    form.touchAll(["title", "content"]);
+    form.touchAll(['title', 'content']);
     if (!valid || busy) return;
     void onSubmit({
       ...draft,
@@ -127,29 +120,29 @@ export function PromptEditorForm({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!formRef.current?.contains(event.target as Node)) return;
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         event.preventDefault();
         cancel();
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         submit();
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   });
 
   const ids = {
-    title: testIds?.title ?? "prompt-editor-title",
-    description: testIds?.description ?? "prompt-editor-description",
-    content: testIds?.content ?? "prompt-editor-content",
-    negative: testIds?.negative ?? "prompt-editor-negative",
-    negativeToggle: testIds?.negativeToggle ?? "prompt-editor-negative-toggle",
-    cancel: testIds?.cancel ?? "prompt-editor-cancel",
-    submit: testIds?.submit ?? "prompt-editor-submit",
-    discard: testIds?.discard ?? "prompt-editor-discard",
+    title: testIds?.title ?? 'prompt-editor-title',
+    description: testIds?.description ?? 'prompt-editor-description',
+    content: testIds?.content ?? 'prompt-editor-content',
+    negative: testIds?.negative ?? 'prompt-editor-negative',
+    negativeToggle: testIds?.negativeToggle ?? 'prompt-editor-negative-toggle',
+    cancel: testIds?.cancel ?? 'prompt-editor-cancel',
+    submit: testIds?.submit ?? 'prompt-editor-submit',
+    discard: testIds?.discard ?? 'prompt-editor-discard',
   };
 
   return (
@@ -164,12 +157,7 @@ export function PromptEditorForm({
           <h1>{heading}</h1>
           <p>{subtitle}</p>
         </div>
-        <IconButton
-          className="mf-icon-button"
-          label="关闭"
-          onClick={cancel}
-          disabled={busy}
-        >
+        <IconButton className="mf-icon-button" label="关闭" onClick={cancel} disabled={busy}>
           <X aria-hidden="true" />
         </IconButton>
       </header>
@@ -180,16 +168,16 @@ export function PromptEditorForm({
           submit();
         }}
       >
-        <EditorField label="标题" required error={form.errorFor("title")}>
+        <EditorField label="标题" required error={form.errorFor('title')}>
           <Input
             value={draft.title}
             maxLength={titleMaxLength}
             autoFocus
             placeholder={titlePlaceholder}
-            aria-invalid={Boolean(form.errorFor("title"))}
+            aria-invalid={Boolean(form.errorFor('title'))}
             data-testid={ids.title}
-            onChange={(event) => setField("title", event.target.value)}
-            onBlur={() => form.markTouched("title")}
+            onChange={(event) => setField('title', event.target.value)}
+            onBlur={() => form.markTouched('title')}
           />
         </EditorField>
 
@@ -199,20 +187,20 @@ export function PromptEditorForm({
             maxLength={500}
             placeholder={descriptionPlaceholder}
             data-testid={ids.description}
-            onChange={(event) => setField("description", event.target.value)}
+            onChange={(event) => setField('description', event.target.value)}
           />
         </EditorField>
 
-        <EditorField label="正文" required error={form.errorFor("content")}>
+        <EditorField label="正文" required error={form.errorFor('content')}>
           <Textarea
             value={draft.content}
             maxLength={contentMaxLength}
             rows={10}
             placeholder={contentPlaceholder}
-            aria-invalid={Boolean(form.errorFor("content"))}
+            aria-invalid={Boolean(form.errorFor('content'))}
             data-testid={ids.content}
-            onChange={(event) => setField("content", event.target.value)}
-            onBlur={() => form.markTouched("content")}
+            onChange={(event) => setField('content', event.target.value)}
+            onBlur={() => form.markTouched('content')}
           />
         </EditorField>
 
@@ -237,7 +225,7 @@ export function PromptEditorForm({
                 rows={4}
                 placeholder={negativePlaceholder}
                 data-testid={ids.negative}
-                onChange={(event) => setField("negative", event.target.value)}
+                onChange={(event) => setField('negative', event.target.value)}
               />
             )}
           </div>
@@ -249,7 +237,7 @@ export function PromptEditorForm({
               rows={4}
               placeholder={negativePlaceholder}
               data-testid={ids.negative}
-              onChange={(event) => setField("negative", event.target.value)}
+              onChange={(event) => setField('negative', event.target.value)}
             />
           </EditorField>
         )}
@@ -259,7 +247,7 @@ export function PromptEditorForm({
             <input
               type="checkbox"
               checked={draft.isPinned}
-              onChange={(event) => setField("isPinned", event.target.checked)}
+              onChange={(event) => setField('isPinned', event.target.checked)}
             />
             <Pin aria-hidden="true" />
             <span>置顶</span>

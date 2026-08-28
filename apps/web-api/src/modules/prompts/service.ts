@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { sql, type Kysely } from "kysely";
+import { randomUUID } from 'node:crypto';
+import { sql, type Kysely } from 'kysely';
 import {
   newPromptDocumentSchema,
   newPromptFolderSchema,
@@ -20,13 +20,10 @@ import {
   type UpdatePromptDocument,
   type UpdatePromptFolder,
   type UpdatePromptTag,
-} from "@musefold/contracts";
-import type { MusefoldDatabase } from "../../database/types.js";
-import {
-  withOwnerTransaction,
-  type OwnerTransaction,
-} from "../../database/owner-context.js";
-import { AppError } from "../../errors.js";
+} from '@musefold/contracts';
+import type { MusefoldDatabase } from '../../database/types.js';
+import { withOwnerTransaction, type OwnerTransaction } from '../../database/owner-context.js';
+import { AppError } from '../../errors.js';
 
 type PromptRow = {
   id: string;
@@ -42,7 +39,7 @@ type PromptRow = {
   pin_order: number | null;
   usage_count: number;
   last_used_at: Date | string | null;
-  source: PromptDocument["source"];
+  source: PromptDocument['source'];
   source_url: string | null;
   version: number;
   created_at: Date | string;
@@ -87,31 +84,16 @@ export interface PromptOperationContext {
 }
 
 export interface PromptServicePort {
-  listPrompts(
-    ownerId: number,
-    input: ParsedPromptListQuery,
-  ): Promise<PromptPage>;
-  getPrompt(
-    ownerId: number,
-    id: string,
-    context?: PromptOperationContext,
-  ): Promise<PromptDocument>;
+  listPrompts(ownerId: number, input: ParsedPromptListQuery): Promise<PromptPage>;
+  getPrompt(ownerId: number, id: string, context?: PromptOperationContext): Promise<PromptDocument>;
   createPrompt(
     ownerId: number,
     input: NewPromptDocument,
     requestedId?: string,
     context?: PromptOperationContext,
   ): Promise<PromptDocument>;
-  getFolder(
-    ownerId: number,
-    id: string,
-    context?: PromptOperationContext,
-  ): Promise<PromptFolder>;
-  getTag(
-    ownerId: number,
-    id: string,
-    context?: PromptOperationContext,
-  ): Promise<PromptTag>;
+  getFolder(ownerId: number, id: string, context?: PromptOperationContext): Promise<PromptFolder>;
+  getTag(ownerId: number, id: string, context?: PromptOperationContext): Promise<PromptTag>;
   updatePrompt(
     ownerId: number,
     id: string,
@@ -135,10 +117,7 @@ export interface PromptServicePort {
     id: string,
     input: PromptUseInput,
   ): Promise<{ prompt: PromptDocument; recorded: boolean }>;
-  listFolders(
-    ownerId: number,
-    includeDeleted?: boolean,
-  ): Promise<PromptFolder[]>;
+  listFolders(ownerId: number, includeDeleted?: boolean): Promise<PromptFolder[]>;
   createFolder(
     ownerId: number,
     input: NewPromptFolder,
@@ -193,10 +172,7 @@ export interface PromptServicePort {
 export class PromptService implements PromptServicePort {
   constructor(private readonly db: Kysely<MusefoldDatabase>) {}
 
-  async listPrompts(
-    ownerId: number,
-    input: ParsedPromptListQuery,
-  ): Promise<PromptPage> {
+  async listPrompts(ownerId: number, input: ParsedPromptListQuery): Promise<PromptPage> {
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
       const conditions = [sql`p.deleted_at IS NULL`];
       if (input.includeDeleted) conditions[0] = sql`TRUE`;
@@ -208,9 +184,7 @@ export class PromptService implements PromptServicePort {
       }
       if (input.folderId !== undefined) {
         conditions.push(
-          input.folderId === null
-            ? sql`p.folder_id IS NULL`
-            : sql`p.folder_id = ${input.folderId}`,
+          input.folderId === null ? sql`p.folder_id IS NULL` : sql`p.folder_id = ${input.folderId}`,
         );
       }
       if (input.pinnedOnly) conditions.push(sql`p.is_pinned = true`);
@@ -229,31 +203,25 @@ export class PromptService implements PromptServicePort {
 
       const cursor = input.cursor ? decodeCursor(input.cursor) : null;
       if (cursor) {
-        if (input.sort === "created-desc") {
-          conditions.push(
-            sql`(p.created_at, p.id) < (${new Date(cursor.value)}, ${cursor.id})`,
-          );
-        } else if (input.sort === "usage-desc") {
+        if (input.sort === 'created-desc') {
+          conditions.push(sql`(p.created_at, p.id) < (${new Date(cursor.value)}, ${cursor.id})`);
+        } else if (input.sort === 'usage-desc') {
           conditions.push(
             sql`(p.usage_count, p.updated_at, p.id) < (${Number(cursor.value)}, ${new Date(cursor.updatedAt)}, ${cursor.id})`,
           );
-        } else if (input.sort === "title-asc") {
-          conditions.push(
-            sql`(lower(p.title), p.id) > (${cursor.value}, ${cursor.id})`,
-          );
+        } else if (input.sort === 'title-asc') {
+          conditions.push(sql`(lower(p.title), p.id) > (${cursor.value}, ${cursor.id})`);
         } else {
-          conditions.push(
-            sql`(p.updated_at, p.id) < (${new Date(cursor.value)}, ${cursor.id})`,
-          );
+          conditions.push(sql`(p.updated_at, p.id) < (${new Date(cursor.value)}, ${cursor.id})`);
         }
       }
 
       const order =
-        input.sort === "created-desc"
+        input.sort === 'created-desc'
           ? sql`p.created_at DESC, p.id DESC`
-          : input.sort === "usage-desc"
+          : input.sort === 'usage-desc'
             ? sql`p.usage_count DESC, p.updated_at DESC, p.id DESC`
-            : input.sort === "title-asc"
+            : input.sort === 'title-asc'
               ? sql`lower(p.title) ASC, p.id ASC`
               : sql`p.is_pinned DESC, p.updated_at DESC, p.id DESC`;
       const result = await sql<PromptRow>`
@@ -285,8 +253,7 @@ export class PromptService implements PromptServicePort {
       const last = pageRows.at(-1);
       return {
         items,
-        nextCursor:
-          hasMore && last ? encodeCursorForRow(last, input.sort) : null,
+        nextCursor: hasMore && last ? encodeCursorForRow(last, input.sort) : null,
       };
     });
   }
@@ -296,9 +263,7 @@ export class PromptService implements PromptServicePort {
     id: string,
     context?: PromptOperationContext,
   ): Promise<PromptDocument> {
-    return this.withOwnerContext(ownerId, context, async (trx) =>
-      this.getPromptTx(trx, id),
-    );
+    return this.withOwnerContext(ownerId, context, async (trx) => this.getPromptTx(trx, id));
   }
 
   async createPrompt(
@@ -323,15 +288,7 @@ export class PromptService implements PromptServicePort {
       `.execute(trx);
       await this.replacePromptTags(trx, ownerId, id, input.tagIds);
       const prompt = await this.getPromptTx(trx, id);
-      await this.appendChange(
-        trx,
-        ownerId,
-        "prompt",
-        id,
-        "upsert",
-        prompt.version,
-        prompt,
-      );
+      await this.appendChange(trx, ownerId, 'prompt', id, 'upsert', prompt.version, prompt);
       return prompt;
     });
   }
@@ -341,19 +298,11 @@ export class PromptService implements PromptServicePort {
     id: string,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
-    return this.withOwnerContext(ownerId, context, async (trx) =>
-      this.getFolderTx(trx, id),
-    );
+    return this.withOwnerContext(ownerId, context, async (trx) => this.getFolderTx(trx, id));
   }
 
-  async getTag(
-    ownerId: number,
-    id: string,
-    context?: PromptOperationContext,
-  ): Promise<PromptTag> {
-    return this.withOwnerContext(ownerId, context, async (trx) =>
-      this.getTagTx(trx, id),
-    );
+  async getTag(ownerId: number, id: string, context?: PromptOperationContext): Promise<PromptTag> {
+    return this.withOwnerContext(ownerId, context, async (trx) => this.getTagTx(trx, id));
   }
 
   async updatePrompt(
@@ -365,8 +314,7 @@ export class PromptService implements PromptServicePort {
     const input = updatePromptDocumentSchema.parse(rawInput);
     return this.withOwnerContext(ownerId, context, async (trx) => {
       const current = await this.getPromptTx(trx, id);
-      if (current.version !== input.expectedVersion)
-        throw versionConflict(current);
+      if (current.version !== input.expectedVersion) throw versionConflict(current);
       if (input.folderId !== undefined || input.tagIds !== undefined)
         await this.validateFolderAndTags(
           trx,
@@ -377,43 +325,25 @@ export class PromptService implements PromptServicePort {
       if (input.title !== undefined) sets.push(sql`title = ${input.title}`);
       if (input.description !== undefined)
         sets.push(sql`description = ${nullable(input.description)}`);
-      if (input.content !== undefined)
-        sets.push(sql`content = ${input.content}`);
-      if (input.negative !== undefined)
-        sets.push(sql`negative = ${nullable(input.negative)}`);
-      if (input.folderId !== undefined)
-        sets.push(sql`folder_id = ${input.folderId}`);
-      if (input.modelId !== undefined)
-        sets.push(sql`model_id = ${input.modelId}`);
+      if (input.content !== undefined) sets.push(sql`content = ${input.content}`);
+      if (input.negative !== undefined) sets.push(sql`negative = ${nullable(input.negative)}`);
+      if (input.folderId !== undefined) sets.push(sql`folder_id = ${input.folderId}`);
+      if (input.modelId !== undefined) sets.push(sql`model_id = ${input.modelId}`);
       if (input.params !== undefined)
-        sets.push(
-          sql`params = ${input.params ? JSON.stringify(input.params) : null}`,
-        );
+        sets.push(sql`params = ${input.params ? JSON.stringify(input.params) : null}`);
       if (input.rating !== undefined) sets.push(sql`rating = ${input.rating}`);
-      if (input.isPinned !== undefined)
-        sets.push(sql`is_pinned = ${input.isPinned}`);
-      if (input.pinOrder !== undefined)
-        sets.push(sql`pin_order = ${input.pinOrder}`);
+      if (input.isPinned !== undefined) sets.push(sql`is_pinned = ${input.isPinned}`);
+      if (input.pinOrder !== undefined) sets.push(sql`pin_order = ${input.pinOrder}`);
       if (input.source !== undefined) sets.push(sql`source = ${input.source}`);
-      if (input.sourceUrl !== undefined)
-        sets.push(sql`source_url = ${nullable(input.sourceUrl)}`);
+      if (input.sourceUrl !== undefined) sets.push(sql`source_url = ${nullable(input.sourceUrl)}`);
       if (sets.length === 2 && input.tagIds === undefined)
-        throw new AppError("VALIDATION_FAILED", "没有可更新的字段", 400);
+        throw new AppError('VALIDATION_FAILED', '没有可更新的字段', 400);
       await sql`UPDATE app.prompts SET ${sql.join(sets, sql`, `)} WHERE owner_id = ${ownerId} AND id = ${id} AND version = ${input.expectedVersion}`.execute(
         trx,
       );
-      if (input.tagIds !== undefined)
-        await this.replacePromptTags(trx, ownerId, id, input.tagIds);
+      if (input.tagIds !== undefined) await this.replacePromptTags(trx, ownerId, id, input.tagIds);
       const prompt = await this.getPromptTx(trx, id);
-      await this.appendChange(
-        trx,
-        ownerId,
-        "prompt",
-        id,
-        "upsert",
-        prompt.version,
-        prompt,
-      );
+      await this.appendChange(trx, ownerId, 'prompt', id, 'upsert', prompt.version, prompt);
       return prompt;
     });
   }
@@ -424,13 +354,7 @@ export class PromptService implements PromptServicePort {
     expectedVersion: number,
     context?: PromptOperationContext,
   ): Promise<PromptDocument> {
-    return this.changePromptDeletedState(
-      ownerId,
-      id,
-      expectedVersion,
-      true,
-      context,
-    );
+    return this.changePromptDeletedState(ownerId, id, expectedVersion, true, context);
   }
 
   async restorePrompt(
@@ -439,13 +363,7 @@ export class PromptService implements PromptServicePort {
     expectedVersion: number,
     context?: PromptOperationContext,
   ): Promise<PromptDocument> {
-    return this.changePromptDeletedState(
-      ownerId,
-      id,
-      expectedVersion,
-      false,
-      context,
-    );
+    return this.changePromptDeletedState(ownerId, id, expectedVersion, false, context);
   }
 
   async usePrompt(
@@ -478,10 +396,7 @@ export class PromptService implements PromptServicePort {
     });
   }
 
-  async listFolders(
-    ownerId: number,
-    includeDeleted = false,
-  ): Promise<PromptFolder[]> {
+  async listFolders(ownerId: number, includeDeleted = false): Promise<PromptFolder[]> {
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
       const result = await sql<FolderRow>`
         SELECT id, name, parent_id, sort_order, version, created_at, updated_at, deleted_at
@@ -507,15 +422,7 @@ export class PromptService implements PromptServicePort {
         VALUES (${ownerId}, ${id}, ${input.name}, ${input.parentId}, ${input.sortOrder})
       `.execute(trx);
       const folder = await this.getFolderTx(trx, id);
-      await this.appendChange(
-        trx,
-        ownerId,
-        "folder",
-        id,
-        "upsert",
-        folder.version,
-        folder,
-      );
+      await this.appendChange(trx, ownerId, 'folder', id, 'upsert', folder.version, folder);
       return folder;
     });
   }
@@ -529,34 +436,22 @@ export class PromptService implements PromptServicePort {
     const input = updatePromptFolderSchema.parse(rawInput);
     return this.withOwnerContext(ownerId, context, async (trx) => {
       const current = await this.getFolderTx(trx, id);
-      if (current.version !== input.expectedVersion)
-        throw versionConflict(current);
+      if (current.version !== input.expectedVersion) throw versionConflict(current);
       if (input.parentId !== undefined && input.parentId) {
         if (input.parentId === id)
-          throw new AppError("VALIDATION_FAILED", "文件夹不能嵌套到自身", 400);
+          throw new AppError('VALIDATION_FAILED', '文件夹不能嵌套到自身', 400);
         await this.requireFolder(trx, input.parentId);
       }
       const sets = [sql`version = version + 1`, sql`updated_at = now()`];
       if (input.name !== undefined) sets.push(sql`name = ${input.name}`);
-      if (input.parentId !== undefined)
-        sets.push(sql`parent_id = ${input.parentId}`);
-      if (input.sortOrder !== undefined)
-        sets.push(sql`sort_order = ${input.sortOrder}`);
-      if (sets.length === 2)
-        throw new AppError("VALIDATION_FAILED", "没有可更新的字段", 400);
+      if (input.parentId !== undefined) sets.push(sql`parent_id = ${input.parentId}`);
+      if (input.sortOrder !== undefined) sets.push(sql`sort_order = ${input.sortOrder}`);
+      if (sets.length === 2) throw new AppError('VALIDATION_FAILED', '没有可更新的字段', 400);
       await sql`UPDATE app.prompt_folders SET ${sql.join(sets, sql`, `)} WHERE owner_id = ${ownerId} AND id = ${id} AND version = ${input.expectedVersion}`.execute(
         trx,
       );
       const folder = await this.getFolderTx(trx, id);
-      await this.appendChange(
-        trx,
-        ownerId,
-        "folder",
-        id,
-        "upsert",
-        folder.version,
-        folder,
-      );
+      await this.appendChange(trx, ownerId, 'folder', id, 'upsert', folder.version, folder);
       return folder;
     });
   }
@@ -567,13 +462,7 @@ export class PromptService implements PromptServicePort {
     expectedVersion: number,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
-    return this.changeFolderDeletedState(
-      ownerId,
-      id,
-      expectedVersion,
-      true,
-      context,
-    );
+    return this.changeFolderDeletedState(ownerId, id, expectedVersion, true, context);
   }
 
   async restoreFolder(
@@ -582,19 +471,10 @@ export class PromptService implements PromptServicePort {
     expectedVersion: number,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
-    return this.changeFolderDeletedState(
-      ownerId,
-      id,
-      expectedVersion,
-      false,
-      context,
-    );
+    return this.changeFolderDeletedState(ownerId, id, expectedVersion, false, context);
   }
 
-  async listTags(
-    ownerId: number,
-    includeDeleted = false,
-  ): Promise<PromptTag[]> {
+  async listTags(ownerId: number, includeDeleted = false): Promise<PromptTag[]> {
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
       const result = await sql<TagRow>`
         SELECT id, name, tag_group, color, version, created_at, updated_at, deleted_at
@@ -619,15 +499,7 @@ export class PromptService implements PromptServicePort {
         VALUES (${ownerId}, ${id}, ${input.name}, ${nullable(input.group)}, ${input.color})
       `.execute(trx);
       const tag = await this.getTagTx(trx, id);
-      await this.appendChange(
-        trx,
-        ownerId,
-        "tag",
-        id,
-        "upsert",
-        tag.version,
-        tag,
-      );
+      await this.appendChange(trx, ownerId, 'tag', id, 'upsert', tag.version, tag);
       return tag;
     });
   }
@@ -641,28 +513,17 @@ export class PromptService implements PromptServicePort {
     const input = updatePromptTagSchema.parse(rawInput);
     return this.withOwnerContext(ownerId, context, async (trx) => {
       const current = await this.getTagTx(trx, id);
-      if (current.version !== input.expectedVersion)
-        throw versionConflict(current);
+      if (current.version !== input.expectedVersion) throw versionConflict(current);
       const sets = [sql`version = version + 1`, sql`updated_at = now()`];
       if (input.name !== undefined) sets.push(sql`name = ${input.name}`);
-      if (input.group !== undefined)
-        sets.push(sql`tag_group = ${nullable(input.group)}`);
+      if (input.group !== undefined) sets.push(sql`tag_group = ${nullable(input.group)}`);
       if (input.color !== undefined) sets.push(sql`color = ${input.color}`);
-      if (sets.length === 2)
-        throw new AppError("VALIDATION_FAILED", "没有可更新的字段", 400);
+      if (sets.length === 2) throw new AppError('VALIDATION_FAILED', '没有可更新的字段', 400);
       await sql`UPDATE app.prompt_tags SET ${sql.join(sets, sql`, `)} WHERE owner_id = ${ownerId} AND id = ${id} AND version = ${input.expectedVersion}`.execute(
         trx,
       );
       const tag = await this.getTagTx(trx, id);
-      await this.appendChange(
-        trx,
-        ownerId,
-        "tag",
-        id,
-        "upsert",
-        tag.version,
-        tag,
-      );
+      await this.appendChange(trx, ownerId, 'tag', id, 'upsert', tag.version, tag);
       return tag;
     });
   }
@@ -673,13 +534,7 @@ export class PromptService implements PromptServicePort {
     expectedVersion: number,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
-    return this.changeTagDeletedState(
-      ownerId,
-      id,
-      expectedVersion,
-      true,
-      context,
-    );
+    return this.changeTagDeletedState(ownerId, id, expectedVersion, true, context);
   }
 
   async restoreTag(
@@ -688,13 +543,7 @@ export class PromptService implements PromptServicePort {
     expectedVersion: number,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
-    return this.changeTagDeletedState(
-      ownerId,
-      id,
-      expectedVersion,
-      false,
-      context,
-    );
+    return this.changeTagDeletedState(ownerId, id, expectedVersion, false, context);
   }
 
   private async changePromptDeletedState(
@@ -714,9 +563,9 @@ export class PromptService implements PromptServicePort {
       await this.appendChange(
         trx,
         ownerId,
-        "prompt",
+        'prompt',
         id,
-        deleted ? "delete" : "upsert",
+        deleted ? 'delete' : 'upsert',
         prompt.version,
         prompt,
       );
@@ -734,10 +583,8 @@ export class PromptService implements PromptServicePort {
     return this.withOwnerContext(ownerId, context, async (trx) => {
       const current = await this.getFolderTx(trx, id);
       if (current.version !== expectedVersion) throw versionConflict(current);
-      if (!deleted && current.parentId)
-        await this.requireFolder(trx, current.parentId);
-      if (deleted && !current.deletedAt)
-        await this.detachFolderRelations(trx, ownerId, id);
+      if (!deleted && current.parentId) await this.requireFolder(trx, current.parentId);
+      if (deleted && !current.deletedAt) await this.detachFolderRelations(trx, ownerId, id);
       await sql`UPDATE app.prompt_folders SET deleted_at = ${deleted ? sql`now()` : sql`NULL`}, version = version + 1, updated_at = now() WHERE owner_id = ${ownerId} AND id = ${id} AND version = ${expectedVersion}`.execute(
         trx,
       );
@@ -745,9 +592,9 @@ export class PromptService implements PromptServicePort {
       await this.appendChange(
         trx,
         ownerId,
-        "folder",
+        'folder',
         id,
-        deleted ? "delete" : "upsert",
+        deleted ? 'delete' : 'upsert',
         folder.version,
         folder,
       );
@@ -765,8 +612,7 @@ export class PromptService implements PromptServicePort {
     return this.withOwnerContext(ownerId, context, async (trx) => {
       const current = await this.getTagTx(trx, id);
       if (current.version !== expectedVersion) throw versionConflict(current);
-      if (deleted && !current.deletedAt)
-        await this.detachTagRelations(trx, ownerId, id);
+      if (deleted && !current.deletedAt) await this.detachTagRelations(trx, ownerId, id);
       await sql`UPDATE app.prompt_tags SET deleted_at = ${deleted ? sql`now()` : sql`NULL`}, version = version + 1, updated_at = now() WHERE owner_id = ${ownerId} AND id = ${id} AND version = ${expectedVersion}`.execute(
         trx,
       );
@@ -774,9 +620,9 @@ export class PromptService implements PromptServicePort {
       await this.appendChange(
         trx,
         ownerId,
-        "tag",
+        'tag',
         id,
-        deleted ? "delete" : "upsert",
+        deleted ? 'delete' : 'upsert',
         tag.version,
         tag,
       );
@@ -812,9 +658,9 @@ export class PromptService implements PromptServicePort {
       await this.appendChange(
         trx,
         ownerId,
-        "folder",
+        'folder',
         child.id,
-        snapshot.deletedAt ? "delete" : "upsert",
+        snapshot.deletedAt ? 'delete' : 'upsert',
         snapshot.version,
         snapshot,
       );
@@ -824,9 +670,9 @@ export class PromptService implements PromptServicePort {
       await this.appendChange(
         trx,
         ownerId,
-        "prompt",
+        'prompt',
         prompt.id,
-        snapshot.deletedAt ? "delete" : "upsert",
+        snapshot.deletedAt ? 'delete' : 'upsert',
         snapshot.version,
         snapshot,
       );
@@ -862,9 +708,9 @@ export class PromptService implements PromptServicePort {
       await this.appendChange(
         trx,
         ownerId,
-        "prompt",
+        'prompt',
         prompt.id,
-        snapshot.deletedAt ? "delete" : "upsert",
+        snapshot.deletedAt ? 'delete' : 'upsert',
         snapshot.version,
         snapshot,
       );
@@ -881,10 +727,7 @@ export class PromptService implements PromptServicePort {
       : withOwnerTransaction(this.db, ownerId, callback);
   }
 
-  private async getPromptTx(
-    trx: OwnerTransaction,
-    id: string,
-  ): Promise<PromptDocument> {
+  private async getPromptTx(trx: OwnerTransaction, id: string): Promise<PromptDocument> {
     const result = await sql<PromptRow>`
       SELECT
         p.id, p.title, p.description, p.content, p.negative, p.folder_id,
@@ -906,46 +749,36 @@ export class PromptService implements PromptServicePort {
         p.created_at, p.updated_at, p.deleted_at
     `.execute(trx);
     const row = result.rows[0];
-    if (!row) throw new AppError("PROMPT_NOT_FOUND", "提示词不存在", 404);
+    if (!row) throw new AppError('PROMPT_NOT_FOUND', '提示词不存在', 404);
     return toPromptDocument(row);
   }
 
-  private async getFolderTx(
-    trx: OwnerTransaction,
-    id: string,
-  ): Promise<PromptFolder> {
+  private async getFolderTx(trx: OwnerTransaction, id: string): Promise<PromptFolder> {
     const result =
       await sql<FolderRow>`SELECT id, name, parent_id, sort_order, version, created_at, updated_at, deleted_at FROM app.prompt_folders WHERE id = ${id}`.execute(
         trx,
       );
     const row = result.rows[0];
-    if (!row) throw new AppError("VALIDATION_FAILED", "文件夹不存在", 404);
+    if (!row) throw new AppError('VALIDATION_FAILED', '文件夹不存在', 404);
     return toFolder(row);
   }
 
-  private async getTagTx(
-    trx: OwnerTransaction,
-    id: string,
-  ): Promise<PromptTag> {
+  private async getTagTx(trx: OwnerTransaction, id: string): Promise<PromptTag> {
     const result =
       await sql<TagRow>`SELECT id, name, tag_group, color, version, created_at, updated_at, deleted_at FROM app.prompt_tags WHERE id = ${id}`.execute(
         trx,
       );
     const row = result.rows[0];
-    if (!row) throw new AppError("VALIDATION_FAILED", "标签不存在", 404);
+    if (!row) throw new AppError('VALIDATION_FAILED', '标签不存在', 404);
     return toTag(row);
   }
 
-  private async requireFolder(
-    trx: OwnerTransaction,
-    id: string,
-  ): Promise<void> {
+  private async requireFolder(trx: OwnerTransaction, id: string): Promise<void> {
     const result =
       await sql`SELECT 1 FROM app.prompt_folders WHERE id = ${id} AND deleted_at IS NULL`.execute(
         trx,
       );
-    if (!result.rows[0])
-      throw new AppError("VALIDATION_FAILED", "文件夹不存在或已删除", 400);
+    if (!result.rows[0]) throw new AppError('VALIDATION_FAILED', '文件夹不存在或已删除', 400);
   }
 
   private async validateFolderAndTags(
@@ -962,7 +795,7 @@ export class PromptService implements PromptServicePort {
       sql`, `,
     )}) AND deleted_at IS NULL`.execute(trx);
     if (Number(result.rows[0]?.count ?? 0) !== new Set(tagIds).size)
-      throw new AppError("VALIDATION_FAILED", "存在无效或已删除的标签", 400);
+      throw new AppError('VALIDATION_FAILED', '存在无效或已删除的标签', 400);
   }
 
   private async replacePromptTags(
@@ -1055,9 +888,7 @@ function toTag(row: TagRow): PromptTag {
 }
 
 function toIso(value: Date | string): string {
-  return value instanceof Date
-    ? value.toISOString()
-    : new Date(value).toISOString();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function toIsoOrNull(value: Date | string | null): string | null {
@@ -1070,33 +901,26 @@ function nullable(value: string | null | undefined): string | null {
 
 function versionConflict(current: unknown): AppError {
   return new AppError(
-    "PROMPT_VERSION_CONFLICT",
-    "提示词已被其他设备更新，请先合并变更",
+    'PROMPT_VERSION_CONFLICT',
+    '提示词已被其他设备更新，请先合并变更',
     409,
     false,
     { current },
   );
 }
 
-function encodeCursorForRow(
-  row: PromptRow,
-  sort: ParsedPromptListQuery["sort"],
-): string {
+function encodeCursorForRow(row: PromptRow, sort: ParsedPromptListQuery['sort']): string {
   const value =
-    sort === "title-asc"
+    sort === 'title-asc'
       ? row.title.toLowerCase()
-      : sort === "usage-desc"
+      : sort === 'usage-desc'
         ? String(row.usage_count)
-        : toIso(sort === "created-desc" ? row.created_at : row.updated_at);
+        : toIso(sort === 'created-desc' ? row.created_at : row.updated_at);
   return encodeCursor({ value, id: row.id, updatedAt: toIso(row.updated_at) });
 }
 
-function encodeCursor(value: {
-  value: string;
-  id: string;
-  updatedAt: string;
-}): string {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+function encodeCursor(value: { value: string; id: string; updatedAt: string }): string {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 }
 
 function decodeCursor(cursor: string): {
@@ -1105,17 +929,19 @@ function decodeCursor(cursor: string): {
   updatedAt: string;
 } {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
-    ) as { value?: unknown; id?: unknown; updatedAt?: unknown };
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      value?: unknown;
+      id?: unknown;
+      updatedAt?: unknown;
+    };
     if (
-      typeof parsed.value !== "string" ||
-      typeof parsed.id !== "string" ||
-      typeof parsed.updatedAt !== "string"
+      typeof parsed.value !== 'string' ||
+      typeof parsed.id !== 'string' ||
+      typeof parsed.updatedAt !== 'string'
     )
-      throw new Error("invalid cursor");
+      throw new Error('invalid cursor');
     return { value: parsed.value, id: parsed.id, updatedAt: parsed.updatedAt };
   } catch {
-    throw new AppError("VALIDATION_FAILED", "分页游标无效", 400);
+    throw new AppError('VALIDATION_FAILED', '分页游标无效', 400);
   }
 }

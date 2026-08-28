@@ -65,9 +65,7 @@ export function AccountSignedInPanel({
     if (code === 'ACCOUNT/REDEEM_INVALID') return '兑换码无效或已使用，请检查后重试';
     if (code === 'ACCOUNT/AUTH') return '登录状态已失效，请重新登录';
     if (code === 'ACCOUNT/NETWORK') return '暂时无法连接账号服务器，请稍后重试';
-    return accountAction === 'redeem'
-      ? '兑换服务暂时不可用，请稍后重试'
-      : '刷新失败，请稍后重试';
+    return accountAction === 'redeem' ? '兑换服务暂时不可用，请稍后重试' : '刷新失败，请稍后重试';
   };
 
   // 内置模型是概览级静态事实，并入账户概览 facts（extraFacts），不独占卡片。
@@ -117,7 +115,7 @@ export function AccountSignedInPanel({
           return { tone: 'error', message: actionError(cause, 'refresh') };
         }
       }}
-      overviewAccessory={(
+      overviewAccessory={
         <span
           className={cn(
             'inline-flex h-7 items-center rounded-md border px-3 text-[11px] font-medium',
@@ -130,8 +128,8 @@ export function AccountSignedInPanel({
         >
           {healthLabel(status.health)}
         </span>
-      )}
-      extensions={(
+      }
+      extensions={
         <>
           {status.health === 'token-invalid' && (
             <div>
@@ -152,106 +150,112 @@ export function AccountSignedInPanel({
             <InlineMessage tone="warning">暂时无法连接账号服务器。本地内容不受影响。</InlineMessage>
           )}
 
-      <SettingsCard title="数据与同步" description="在已登录的 Musefold 账号之间同步提示词数据">
-        <AccountCloudSyncPanel
-          signedIn
-          cloudSync={cloudSync}
-          cloudConflicts={cloudConflicts}
-          cloudError={cloudError}
-          setCloudEnabled={setCloudEnabled}
-          syncCloudNow={syncCloudNow}
-          resolveCloudConflict={resolveCloudConflict}
-        />
-      </SettingsCard>
+          <SettingsCard title="数据与同步" description="在已登录的 Musefold 账号之间同步提示词数据">
+            <AccountCloudSyncPanel
+              signedIn
+              cloudSync={cloudSync}
+              cloudConflicts={cloudConflicts}
+              cloudError={cloudError}
+              setCloudEnabled={setCloudEnabled}
+              syncCloudNow={syncCloudNow}
+              resolveCloudConflict={resolveCloudConflict}
+            />
+          </SettingsCard>
 
-      {notices.length > 0 && (
-        <SettingsCard
-          title="服务公告"
-          description="来自账号服务器的最新通知"
-          action={
-            <Button
-              type="button"
-              unstyled
-              className="no-drag text-meta text-tertiary underline-offset-4 hover:text-primary hover:underline"
-              onClick={() => notices.forEach((notice) => markNoticeRead(notice.id))}
+          {notices.length > 0 && (
+            <SettingsCard
+              title="服务公告"
+              description="来自账号服务器的最新通知"
+              action={
+                <Button
+                  type="button"
+                  unstyled
+                  className="no-drag text-meta text-tertiary underline-offset-4 hover:text-primary hover:underline"
+                  onClick={() => notices.forEach((notice) => markNoticeRead(notice.id))}
+                >
+                  全部已读
+                </Button>
+              }
+              bodyClassName="settings-account-card"
             >
-              全部已读
-            </Button>
-          }
-          bodyClassName="settings-account-card"
-        >
-          <div className="divide-y divide-border-subtle border-y border-border-subtle">
-            {notices.map((notice) => (
-              <div key={notice.id} className="py-3 text-[11.5px] leading-relaxed text-secondary">
-                {notice.content}
+              <div className="divide-y divide-border-subtle border-y border-border-subtle">
+                {notices.map((notice) => (
+                  <div
+                    key={notice.id}
+                    className="py-3 text-[11.5px] leading-relaxed text-secondary"
+                  >
+                    {notice.content}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </SettingsCard>
-      )}
-
-      <SettingsCard
-        title="登录与设备"
-        description="当前设备的登录凭据与账号服务器"
-        bodyClassName="settings-account-card"
-      >
-        <SettingRow label="当前账号" hint="本机托管的登录凭据">
-          <span className="flex min-w-0 flex-col items-end gap-0.5">
-            <span className="max-w-full truncate text-[12px] text-secondary" title={status.username ?? undefined}>
-              {status.username ?? '—'}
-            </span>
-            <span className="font-mono text-[11px] text-tertiary">
-              令牌 ····{status.deviceTokenSuffix ?? '—'}
-            </span>
-          </span>
-        </SettingRow>
-        <SettingRow
-          label="账号服务器"
-          hint={status.isDefaultServer ? 'Musefold Cloud' : '自定义 new-api'}
-        >
-          <span
-            className="block max-w-[300px] truncate font-mono text-meta text-tertiary"
-            title={status.serverUrl}
-          >
-            {status.serverUrl}
-          </span>
-        </SettingRow>
-        <div className="pb-2 pt-4">
-          {!confirmLogout ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="px-3 text-tertiary shadow-none"
-              onClick={() => setConfirmLogout(true)}
-            >
-              退出登录
-            </Button>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-tertiary">
-              <span>将移除本机托管配置；手动服务商不受影响。</span>
-              <Button
-                variant="danger"
-                size="xs"
-                className="px-3 shadow-none"
-                disabled={action === 'logout'}
-                onClick={() => void logout()}
-              >
-                确认退出
-              </Button>
-              <Button
-                variant="ghost"
-                size="xs"
-                className="px-3 shadow-none"
-                onClick={() => setConfirmLogout(false)}
-              >
-                取消
-              </Button>
-            </div>
+            </SettingsCard>
           )}
-        </div>
-      </SettingsCard>
+
+          <SettingsCard
+            title="登录与设备"
+            description="当前设备的登录凭据与账号服务器"
+            bodyClassName="settings-account-card"
+          >
+            <SettingRow label="当前账号" hint="本机托管的登录凭据">
+              <span className="flex min-w-0 flex-col items-end gap-0.5">
+                <span
+                  className="max-w-full truncate text-[12px] text-secondary"
+                  title={status.username ?? undefined}
+                >
+                  {status.username ?? '—'}
+                </span>
+                <span className="font-mono text-[11px] text-tertiary">
+                  令牌 ····{status.deviceTokenSuffix ?? '—'}
+                </span>
+              </span>
+            </SettingRow>
+            <SettingRow
+              label="账号服务器"
+              hint={status.isDefaultServer ? 'Musefold Cloud' : '自定义 new-api'}
+            >
+              <span
+                className="block max-w-[300px] truncate font-mono text-meta text-tertiary"
+                title={status.serverUrl}
+              >
+                {status.serverUrl}
+              </span>
+            </SettingRow>
+            <div className="pb-2 pt-4">
+              {!confirmLogout ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="px-3 text-tertiary shadow-none"
+                  onClick={() => setConfirmLogout(true)}
+                >
+                  退出登录
+                </Button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-tertiary">
+                  <span>将移除本机托管配置；手动服务商不受影响。</span>
+                  <Button
+                    variant="danger"
+                    size="xs"
+                    className="px-3 shadow-none"
+                    disabled={action === 'logout'}
+                    onClick={() => void logout()}
+                  >
+                    确认退出
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="px-3 shadow-none"
+                    onClick={() => setConfirmLogout(false)}
+                  >
+                    取消
+                  </Button>
+                </div>
+              )}
+            </div>
+          </SettingsCard>
         </>
-      )}
+      }
     />
   );
 }

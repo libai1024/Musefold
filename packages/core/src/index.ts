@@ -13,7 +13,12 @@ export type {
   SecretsPort,
 } from './ports';
 export { createEventHub, type CoreEventListener, type EventHub } from './events';
-export { CORE_VERSION, createMusefoldCore, type MusefoldCore, type GenerationService } from './core';
+export {
+  CORE_VERSION,
+  createMusefoldCore,
+  type MusefoldCore,
+  type GenerationService,
+} from './core';
 export { CoreError } from './services/errors';
 export type { LibraryService } from './services/library';
 export type { HistoryService, HistoryListQuery, HistoryDetail } from './services/history';

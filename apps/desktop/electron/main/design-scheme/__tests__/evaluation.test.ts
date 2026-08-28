@@ -19,8 +19,10 @@ export function fakePngBuffer(width: number, height: number): Buffer {
 function fakeJpegBuffer(width: number, height: number): Buffer {
   // SOI + SOF0（height 在 offset+5，width 在 offset+7）
   const buffer = Buffer.alloc(11);
-  buffer[0] = 0xff; buffer[1] = 0xd8;
-  buffer[2] = 0xff; buffer[3] = 0xc0;
+  buffer[0] = 0xff;
+  buffer[1] = 0xd8;
+  buffer[2] = 0xff;
+  buffer[3] = 0xc0;
   buffer.writeUInt16BE(7, 4);
   buffer[6] = 8;
   buffer.writeUInt16BE(height, 7);
@@ -89,7 +91,10 @@ describe('evaluateSchemeRun', () => {
       outputs: [{ jobId: 'j1', imagePath: image('any.png', 640, 480) }],
       ratioId: 'auto',
     });
-    expect(auto.checks.find((check) => check.id === 'aspect-ratio')).toMatchObject({ status: 'pass', detail: '未约束比例（自动）' });
+    expect(auto.checks.find((check) => check.id === 'aspect-ratio')).toMatchObject({
+      status: 'pass',
+      detail: '未约束比例（自动）',
+    });
   });
 
   it('文件缺失：file-valid fail，整体不通过', () => {

@@ -62,17 +62,24 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
     const begin = workbench.beginSchemeCreationTurn({
       brief,
       executionId,
-      label: urls.length > 0
-        ? urls.length > 1
-          ? `${repositoryLabel(urls[0])} 等 ${urls.length} 个来源`
-          : repositoryLabel(urls[0])
-        : historyCount > 0
-          ? `历史 · ${historyCount} 张图片`
-          : '创建设计方案',
+      label:
+        urls.length > 0
+          ? urls.length > 1
+            ? `${repositoryLabel(urls[0])} 等 ${urls.length} 个来源`
+            : repositoryLabel(urls[0])
+          : historyCount > 0
+            ? `历史 · ${historyCount} 张图片`
+            : '创建设计方案',
       ...(urls[0] ? { githubUrl: urls[0] } : {}),
     });
     if (!begin) return false;
-    set({ creating: true, executionId, turnId: begin.turnId, activeKind: 'create', awaitingConfirmation: false });
+    set({
+      creating: true,
+      executionId,
+      turnId: begin.turnId,
+      activeKind: 'create',
+      awaitingConfirmation: false,
+    });
 
     try {
       const result = await api.designScheme.startCreation({
@@ -80,7 +87,9 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
         brief,
         ...(urls[0] ? { githubUrl: urls[0] } : {}),
         ...(urls.length > 1 ? { githubUrls: urls } : {}),
-        ...(historyCount > 0 && history ? { history: { items: history.items.map((item) => ({ ...item })) } } : {}),
+        ...(historyCount > 0 && history
+          ? { history: { items: history.items.map((item) => ({ ...item })) } }
+          : {}),
       });
       const state = useGenerationWorkbenchStore.getState();
       if (result.ok) {
@@ -102,7 +111,13 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
       useGenerationWorkbenchStore.getState().failSchemeCreationTurn(begin.turnId, message);
       return false;
     } finally {
-      set({ creating: false, executionId: null, turnId: null, activeKind: null, awaitingConfirmation: false });
+      set({
+        creating: false,
+        executionId: null,
+        turnId: null,
+        activeKind: null,
+        awaitingConfirmation: false,
+      });
     }
   },
 
@@ -116,9 +131,10 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
       toast.error('无法打开方案', summaries.ok ? '方案不存在或已被移除' : summaries.error.message);
       return false;
     }
-    const baseRevisionId = latest.status === 'formal' && latest.workingDraftRevisionId
-      ? latest.workingDraftRevisionId
-      : latest.currentRevisionId;
+    const baseRevisionId =
+      latest.status === 'formal' && latest.workingDraftRevisionId
+        ? latest.workingDraftRevisionId
+        : latest.currentRevisionId;
     const revision = await api.designScheme.getRevision(baseRevisionId);
     if (!revision.ok) {
       toast.error('无法打开方案', revision.error.message);
@@ -153,7 +169,13 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
       label: `修改方案 · ${source.label}`,
     });
     if (!begin) return false;
-    set({ creating: true, executionId, turnId: begin.turnId, activeKind: 'modify', awaitingConfirmation: false });
+    set({
+      creating: true,
+      executionId,
+      turnId: begin.turnId,
+      activeKind: 'modify',
+      awaitingConfirmation: false,
+    });
 
     try {
       const result = await api.designScheme.startModify({
@@ -172,7 +194,11 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
         // 附件跟进到新版本：下一轮修改在最新草稿之上（§8.3 每轮更新同一份草稿）。
         const revision = await api.designScheme.getRevision(result.data.revisionId);
         const current = useGenerationWorkbenchStore.getState().draftSource;
-        if (current.kind === 'scheme' && current.mode === 'modify' && current.schemeId === source.schemeId) {
+        if (
+          current.kind === 'scheme' &&
+          current.mode === 'modify' &&
+          current.schemeId === source.schemeId
+        ) {
           useGenerationWorkbenchStore.getState().setDraftSource({
             ...current,
             revisionId: result.data.revisionId,
@@ -192,7 +218,13 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
       useGenerationWorkbenchStore.getState().failSchemeCreationTurn(begin.turnId, message);
       return false;
     } finally {
-      set({ creating: false, executionId: null, turnId: null, activeKind: null, awaitingConfirmation: false });
+      set({
+        creating: false,
+        executionId: null,
+        turnId: null,
+        activeKind: null,
+        awaitingConfirmation: false,
+      });
     }
   },
 
@@ -201,7 +233,9 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
     if (!executionId) return;
     set({ awaitingConfirmation: false });
     if (turnId) {
-      useGenerationWorkbenchStore.getState().patchSchemeCreationSource(turnId, { confirmation: undefined });
+      useGenerationWorkbenchStore
+        .getState()
+        .patchSchemeCreationSource(turnId, { confirmation: undefined });
     }
     await api.designScheme.confirmInstall(executionId, accept).catch(() => undefined);
   },
@@ -209,7 +243,8 @@ export const useSchemeCreationStore = create<SchemeCreationState>((set, get) => 
   cancel: async () => {
     const { executionId, activeKind } = get();
     if (!executionId) return;
-    if (activeKind === 'modify') await api.designScheme.cancelModify(executionId).catch(() => undefined);
+    if (activeKind === 'modify')
+      await api.designScheme.cancelModify(executionId).catch(() => undefined);
     else await api.designScheme.cancelCreation(executionId).catch(() => undefined);
   },
 }));

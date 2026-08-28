@@ -37,7 +37,9 @@ function createRunContext(
   createdAt: number,
   retryOfRunId?: string,
 ): RunContext | null {
-  const shouldCreateRun = Boolean(req.workbench || retryOfRunId || req.sourceAssetId || req.refinementInstruction);
+  const shouldCreateRun = Boolean(
+    req.workbench || retryOfRunId || req.sourceAssetId || req.refinementInstruction,
+  );
   if (!shouldCreateRun) return null;
 
   const db = getDb();
@@ -47,12 +49,12 @@ function createRunContext(
     const workbench = req.workbench;
     if (workbench) {
       if (
-        !workbench.sessionId.trim()
-        || !workbench.turnId.trim()
-        || !Number.isInteger(workbench.turnIndex)
-        || workbench.turnIndex < 0
-        || !Number.isInteger(workbench.resultIndex)
-        || workbench.resultIndex < 0
+        !workbench.sessionId.trim() ||
+        !workbench.turnId.trim() ||
+        !Number.isInteger(workbench.turnIndex) ||
+        workbench.turnIndex < 0 ||
+        !Number.isInteger(workbench.resultIndex) ||
+        workbench.resultIndex < 0
       ) {
         throw new Error('工作台会话快照无效');
       }
@@ -70,12 +72,12 @@ function createRunContext(
     const retryOf = retrySource?.id ?? null;
     const sourceAssetId = sourceAsset?.id ?? null;
     const refinementInstruction = req.refinementInstruction?.trim() || null;
-    const refinementParent = !retryOf && req.parentHistoryId
-      ? repositories.runs.get(req.parentHistoryId)
-      : null;
-    const basePrompt = retrySource?.basePrompt
-      ?? (refinementInstruction ? refinementParent?.finalPrompt : null)
-      ?? req.prompt;
+    const refinementParent =
+      !retryOf && req.parentHistoryId ? repositories.runs.get(req.parentHistoryId) : null;
+    const basePrompt =
+      retrySource?.basePrompt ??
+      (refinementInstruction ? refinementParent?.finalPrompt : null) ??
+      req.prompt;
     const params = {
       schemaVersion: 1 as const,
       size: req.size,
@@ -104,7 +106,11 @@ function createRunContext(
       if (!req.parentHistoryId || !req.sourceAssetId || !refinementInstruction) {
         throw new Error('微调请求缺少父运行、来源图片或微调说明');
       }
-      if (!sourceAsset || sourceAsset.status !== 'available' || sourceAsset.runId !== req.parentHistoryId) {
+      if (
+        !sourceAsset ||
+        sourceAsset.status !== 'available' ||
+        sourceAsset.runId !== req.parentHistoryId
+      ) {
         throw new Error('微调来源图片不存在或不可用');
       }
       const run = repositories.runs.create({
@@ -131,30 +137,28 @@ function createRunContext(
       return { runId: run.id, repositories };
     }
 
-    const parentRunId = retrySource
-      ? (retrySource.parentRunId ?? retrySource.id)
-      : null;
+    const parentRunId = retrySource ? (retrySource.parentRunId ?? retrySource.id) : null;
     const run = repositories.runs.create({
-    id: req.jobId,
-    runKind: retryOf ? 'retry' : 'free_generation',
-    workbenchSessionId,
-    workbenchTurnId,
-    turnIndex,
-    resultIndex,
-    parentRunId,
-    retryOfRunId: retryOf,
-    sourceAssetId,
-    providerId: req.providerId,
-    model: req.model ?? 'unknown',
-    userPrompt: workbench?.userPrompt ?? req.prompt,
-    basePrompt,
-    refinementInstruction,
-    finalPrompt: req.prompt,
-    negativePrompt: req.negative ?? null,
-    params,
-    promptSnapshot,
-    createdAt,
-  });
+      id: req.jobId,
+      runKind: retryOf ? 'retry' : 'free_generation',
+      workbenchSessionId,
+      workbenchTurnId,
+      turnIndex,
+      resultIndex,
+      parentRunId,
+      retryOfRunId: retryOf,
+      sourceAssetId,
+      providerId: req.providerId,
+      model: req.model ?? 'unknown',
+      userPrompt: workbench?.userPrompt ?? req.prompt,
+      basePrompt,
+      refinementInstruction,
+      finalPrompt: req.prompt,
+      negativePrompt: req.negative ?? null,
+      params,
+      promptSnapshot,
+      createdAt,
+    });
     if (workbenchSessionId) repositories.sessions.touch(workbenchSessionId, createdAt);
     return { runId: run.id, repositories };
   })();
@@ -177,9 +181,8 @@ function writeHistoryWithReferences(
        VALUES (?, ?, ?, ?, ?, ?)`,
     );
     references.forEach((reference, index) => {
-      const promptId = reference.promptId && promptExists.get(reference.promptId)
-        ? reference.promptId
-        : null;
+      const promptId =
+        reference.promptId && promptExists.get(reference.promptId) ? reference.promptId : null;
       insertReference.run(
         historyId,
         promptId,
@@ -192,10 +195,7 @@ function writeHistoryWithReferences(
   })();
 }
 
-function withGenerationMetadata(
-  base: Record<string, unknown>,
-  req: GenerateImageRequest,
-): string {
+function withGenerationMetadata(base: Record<string, unknown>, req: GenerateImageRequest): string {
   return JSON.stringify({
     ...base,
     ...(req.parentHistoryId ? { parentHistoryId: req.parentHistoryId } : {}),
@@ -233,9 +233,9 @@ function authorizeReferenceImages(
     if (reference.assetId) {
       const asset = createWorkbenchRepositories(db).runs.getAsset(reference.assetId);
       if (
-        asset?.status === 'available'
-        && asset.mediaPath
-        && resolve(asset.mediaPath) === resolve(reference.path)
+        asset?.status === 'available' &&
+        asset.mediaPath &&
+        resolve(asset.mediaPath) === resolve(reference.path)
       ) {
         return { ...reference, path: asset.mediaPath };
       }
@@ -243,9 +243,9 @@ function authorizeReferenceImages(
       (error as { code?: string }).code = 'IMAGE_HISTORY_MISSING';
       throw error;
     }
-    const row = db.prepare('SELECT image_path FROM history WHERE id = ?').get(reference.historyId) as
-      | { image_path: string | null }
-      | undefined;
+    const row = db
+      .prepare('SELECT image_path FROM history WHERE id = ?')
+      .get(reference.historyId) as { image_path: string | null } | undefined;
     if (!row?.image_path || resolve(row.image_path) !== resolve(reference.path)) {
       const error = new Error('上一张图片已不可用，请重新选择');
       (error as { code?: string }).code = 'IMAGE_HISTORY_MISSING';
@@ -278,7 +278,12 @@ export async function generate(
   } catch (error) {
     const code = (error as { code?: string }).code ?? 'IMAGE_READ_FAILED';
     const message = error instanceof Error ? error.message : '图片读取失败，请重新选择';
-    return { historyId, status: 'failed', error: { code, message }, durationMs: Date.now() - startTs };
+    return {
+      historyId,
+      status: 'failed',
+      error: { code, message },
+      durationMs: Date.now() - startTs,
+    };
   }
   /** 记账单位快照（FR-COST-03）：托管 Provider 以「点」入账；providerRow 加载后回填 */
   const costUnit = 'point' as const;
@@ -289,7 +294,7 @@ export async function generate(
     code: string,
     message: string,
     model: string,
-    paramsJson: string | null
+    paramsJson: string | null,
   ): GenerateImageResult => {
     writeHistoryWithReferences(db, historyId, req.promptReferences, () => {
       db.prepare(
@@ -312,7 +317,13 @@ export async function generate(
         Date.now(),
       );
     });
-    return { historyId, status, error: { code, message }, durationMs: Date.now() - startTs, costUnit };
+    return {
+      historyId,
+      status,
+      error: { code, message },
+      durationMs: Date.now() - startTs,
+      costUnit,
+    };
   };
 
   // 读 Provider 配置
@@ -331,7 +342,7 @@ export async function generate(
     providerRow.id as string,
     providerRow.base_url as string,
     providerRow.model as string,
-    providerRow.name as string
+    providerRow.name as string,
   );
 
   const controller = new AbortController();
@@ -344,26 +355,32 @@ export async function generate(
     `size=${req.size}`,
     req.aspectRatio ? `ratio=${req.aspectRatio}` : '',
     `quality=${req.quality}`,
-    effectiveReq.referenceImages?.length ? `mode=image-edit(${effectiveReq.referenceImages.length})` : 'mode=image-generation',
+    effectiveReq.referenceImages?.length
+      ? `mode=image-edit(${effectiveReq.referenceImages.length})`
+      : 'mode=image-generation',
   );
 
   // 参数快照：重试要靠它重建请求，所以请求的形状字段都得留下 ——
   // aspectRatio 少存一个，重试就会丢掉比例、出一张形状不同的图。
-  const paramsJson = withGenerationMetadata({
-    size: effectiveReq.size,
-    aspectRatio: effectiveReq.aspectRatio,
-    quality: effectiveReq.quality,
-    n: effectiveReq.n,
-    background: effectiveReq.background,
-    moderation: effectiveReq.moderation,
-    usageChannel: providerRow.managed_by === 'account'
-      ? 'account'
-      : providerRow.type === 'doubao-web'
-        ? 'doubao'
-        : 'provider',
-    providerNameSnapshot: providerRow.name,
-    providerTypeSnapshot: providerRow.type,
-  }, effectiveReq);
+  const paramsJson = withGenerationMetadata(
+    {
+      size: effectiveReq.size,
+      aspectRatio: effectiveReq.aspectRatio,
+      quality: effectiveReq.quality,
+      n: effectiveReq.n,
+      background: effectiveReq.background,
+      moderation: effectiveReq.moderation,
+      usageChannel:
+        providerRow.managed_by === 'account'
+          ? 'account'
+          : providerRow.type === 'doubao-web'
+            ? 'doubao'
+            : 'provider',
+      providerNameSnapshot: providerRow.name,
+      providerTypeSnapshot: providerRow.type,
+    },
+    effectiveReq,
+  );
   let runContext: RunContext | null = null;
   try {
     runContext = createRunContext(effectiveReq, startTs, options.retryOfRunId);
@@ -383,21 +400,24 @@ export async function generate(
     if (runContext) {
       runContext.repositories.runs.start(runContext.runId, jobId, startTs);
     }
-    const result: GenerateImageResult = await provider.generateImage(effectiveReq, controller.signal, (progress) => {
-      sendProgress?.({ ...progress, jobId });
-    });
+    const result: GenerateImageResult = await provider.generateImage(
+      effectiveReq,
+      controller.signal,
+      (progress) => {
+        sendProgress?.({ ...progress, jobId });
+      },
+    );
     const rawImages = result.images?.filter((image) => Boolean(image.imagePath)) ?? [];
-    const providerImages = rawImages.length > 0
-      ? rawImages
-      : result.imagePath
-        ? [{ imagePath: result.imagePath, actualSize: result.actualSize }]
-        : [];
+    const providerImages =
+      rawImages.length > 0
+        ? rawImages
+        : result.imagePath
+          ? [{ imagePath: result.imagePath, actualSize: result.actualSize }]
+          : [];
     const assetIdBase = runContext?.runId ?? historyId;
     const images = providerImages.map((image, index) => ({
       ...image,
-      ...(runContext
-        ? { assetId: index === 0 ? assetIdBase : `${assetIdBase}-${index + 1}` }
-        : {}),
+      ...(runContext ? { assetId: index === 0 ? assetIdBase : `${assetIdBase}-${index + 1}` } : {}),
     }));
     const normalizedResult: GenerateImageResult = {
       ...result,
@@ -449,14 +469,14 @@ export async function generate(
           durationMs: normalizedResult.durationMs ?? null,
           finishedAt,
           assets: images.map((image, position) => ({
-                id: image.assetId,
-                position,
-                status: 'available',
-                mediaPath: image.imagePath,
-                width: image.actualSize?.width ?? null,
-                height: image.actualSize?.height ?? null,
-                createdAt: finishedAt,
-              })),
+            id: image.assetId,
+            position,
+            status: 'available',
+            mediaPath: image.imagePath,
+            width: image.actualSize?.width ?? null,
+            height: image.actualSize?.height ?? null,
+            createdAt: finishedAt,
+          })),
         });
       }
     }
@@ -475,15 +495,16 @@ export async function generate(
     };
   } catch (err) {
     const upstreamCode = (err as { code?: string })?.code ?? 'UNKNOWN';
-    const code = providerRow.managed_by === 'account'
-      ? upstreamCode === 'NO_BALANCE'
-        ? 'ACCOUNT/QUOTA'
-        : upstreamCode === 'AUTH'
-          ? 'ACCOUNT/AUTH'
-          : upstreamCode === 'MODEL_NOT_FOUND'
-            ? 'ACCOUNT/MODEL_NOT_FOUND'
-            : upstreamCode
-      : upstreamCode;
+    const code =
+      providerRow.managed_by === 'account'
+        ? upstreamCode === 'NO_BALANCE'
+          ? 'ACCOUNT/QUOTA'
+          : upstreamCode === 'AUTH'
+            ? 'ACCOUNT/AUTH'
+            : upstreamCode === 'MODEL_NOT_FOUND'
+              ? 'ACCOUNT/MODEL_NOT_FOUND'
+              : upstreamCode
+        : upstreamCode;
     const message = (err as Error).message || 'Unknown error';
     // 取消不算失败：历史状态记 cancelled，日志降级为 info
     const cancelled = code === 'CANCELLED';
@@ -508,18 +529,11 @@ export async function generate(
     //
     // GenerateImageResult 本来就有 status: 'failed' | 'cancelled' + error{code,message}
     // 这套形状，渲染层的 applyResult 也早已按它分流 —— 走返回值才是这份契约的原意。
-    return fail(
-      histStatus,
-      code,
-      message,
-      req.model ?? (providerRow.model as string),
-      paramsJson
-    );
+    return fail(histStatus, code, message, req.model ?? (providerRow.model as string), paramsJson);
   } finally {
     abortControllers.delete(jobId);
   }
 }
-
 
 /** 取消生图（幂等）：中止对应任务的 AbortController。 */
 export function cancelGeneration(jobId: string): boolean {

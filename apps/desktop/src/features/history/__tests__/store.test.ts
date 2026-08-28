@@ -24,7 +24,9 @@ import { toHistoryListQueryKey, useHistoryStore } from '../store';
 import type { DesktopGenerationEntry } from '@musefold/desktop-contracts/history-documents';
 
 const failedRecord = historyEntryFixture();
-const defaultListKey = musefoldQueryKeys.history.list(toHistoryListQueryKey(DEFAULT_HISTORY_FILTERS));
+const defaultListKey = musefoldQueryKeys.history.list(
+  toHistoryListQueryKey(DEFAULT_HISTORY_FILTERS),
+);
 
 function seedList(records: DesktopGenerationEntry[]): void {
   desktopQueryClient.setQueryData(defaultListKey, records);

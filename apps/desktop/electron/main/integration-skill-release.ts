@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:f
 import { dirname, join } from 'node:path';
 
 export const SKILL_INSTALL_METADATA_FILE = '.musefold-install.json';
-export const SKILL_VERSION_MARKER = /<!--\s*musefold-skill-version:\s*(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\s*-->/;
+export const SKILL_VERSION_MARKER =
+  /<!--\s*musefold-skill-version:\s*(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\s*-->/;
 
 export interface MusefoldSkillReleaseFile {
   path: string;
@@ -60,20 +61,24 @@ export function compareReleaseVersions(left: string, right: string): number {
 }
 
 function isSafeReleasePath(value: string): boolean {
-  return value.length > 0
-    && value.length <= 240
-    && !value.startsWith('/')
-    && !value.startsWith('\\')
-    && !value.split(/[\\/]/).includes('..')
-    && !value.includes('\\');
+  return (
+    value.length > 0 &&
+    value.length <= 240 &&
+    !value.startsWith('/') &&
+    !value.startsWith('\\') &&
+    !value.split(/[\\/]/).includes('..') &&
+    !value.includes('\\')
+  );
 }
 
 function isReleaseFileUrl(value: string, version: string): boolean {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === 'https:'
-      && parsed.hostname === 'raw.githubusercontent.com'
-      && parsed.pathname.startsWith(`/libai1024/Musefold-Skills/${version}/skills/musefold/`);
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === 'raw.githubusercontent.com' &&
+      parsed.pathname.startsWith(`/libai1024/Musefold-Skills/${version}/skills/musefold/`)
+    );
   } catch {
     return false;
   }
@@ -87,17 +92,30 @@ export function validateSkillReleaseManifest(value: unknown): MusefoldSkillRelea
   }
   if (typeof candidate.version !== 'string') throw new Error('Skill 发布清单缺少版本号');
   compareReleaseVersions(candidate.version, candidate.version);
-  if (typeof candidate.minimumAppVersion !== 'string') throw new Error('Skill 发布清单缺少最低 App 版本');
+  if (typeof candidate.minimumAppVersion !== 'string')
+    throw new Error('Skill 发布清单缺少最低 App 版本');
   compareReleaseVersions(candidate.minimumAppVersion, candidate.minimumAppVersion);
-  if (typeof candidate.releasedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(candidate.releasedAt)) {
+  if (
+    typeof candidate.releasedAt !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T/.test(candidate.releasedAt)
+  ) {
     throw new Error('Skill 发布时间无效');
   }
-  if (!Array.isArray(candidate.files) || candidate.files.length === 0 || candidate.files.length > 32) {
+  if (
+    !Array.isArray(candidate.files) ||
+    candidate.files.length === 0 ||
+    candidate.files.length > 32
+  ) {
     throw new Error('Skill 发布文件列表无效');
   }
   const seen = new Set<string>();
   for (const file of candidate.files) {
-    if (!file || typeof file !== 'object' || typeof file.path !== 'string' || !isSafeReleasePath(file.path)) {
+    if (
+      !file ||
+      typeof file !== 'object' ||
+      typeof file.path !== 'string' ||
+      !isSafeReleasePath(file.path)
+    ) {
       throw new Error('Skill 发布文件路径无效');
     }
     if (seen.has(file.path)) throw new Error(`Skill 发布文件重复：${file.path}`);
@@ -143,7 +161,10 @@ export function replaceMusefoldSkillDirectory(
   const nonce = `${Date.now()}-${process.pid}`;
   const stage = join(skillRoot, `.musefold-stage-${nonce}`);
   const backupRoot = join(clientRoot, 'musefold-skill-backups');
-  const backup = join(backupRoot, `musefold-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`);
+  const backup = join(
+    backupRoot,
+    `musefold-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`,
+  );
   let movedExisting = false;
   try {
     mkdirSync(stage, { recursive: false });

@@ -1,7 +1,11 @@
 // History -> Generate 精修的参数映射（TASK-HIS-08）
 
 import { RATIO_OPTIONS } from '@musefold/domain/constants';
-import type { ImageBackground, ImageQuality, ModerationLevel } from '@musefold/desktop-contracts/enums';
+import type {
+  ImageBackground,
+  ImageQuality,
+  ModerationLevel,
+} from '@musefold/desktop-contracts/enums';
 import type { PromptParams } from '@musefold/desktop-contracts/generation-snapshots';
 import {
   DEFAULT_REFINE_PARAMS,

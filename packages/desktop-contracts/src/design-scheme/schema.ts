@@ -216,7 +216,9 @@ function toParseResult<T>(schema: z.ZodType<T>, candidate: unknown): DomainParse
   };
 }
 
-export function parseDesignSchemeRevisionDocument(candidate: unknown): DomainParseResult<DesignSchemeRevisionDocument> {
+export function parseDesignSchemeRevisionDocument(
+  candidate: unknown,
+): DomainParseResult<DesignSchemeRevisionDocument> {
   return toParseResult(designSchemeRevisionDocumentSchema, candidate);
 }
 

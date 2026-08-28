@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ACCOUNT_SERVER_URL } from '@musefold/domain/constants';
-import {
-  AccountStore,
-  type AccountStoreBackend,
-  type AccountStoreShape,
-} from '../account-store';
+import { AccountStore, type AccountStoreBackend, type AccountStoreShape } from '../account-store';
 
 describe('AccountStore cost migration', () => {
   it('converts legacy managed quota price to user-visible points once', () => {
@@ -28,7 +24,9 @@ describe('AccountStore cost migration', () => {
     };
     const backend: AccountStoreBackend = {
       get: (key) => state[key],
-      set: (key, value) => { state[key] = value as never; },
+      set: (key, value) => {
+        state[key] = value as never;
+      },
     };
 
     const store = new AccountStore(backend);

@@ -1,6 +1,6 @@
-import { X } from "../../../components/ui/icons";
-import { toImageSrc } from "../../../lib/media";
-import type { RefinementContext } from "./types";
+import { X } from '../../../components/ui/icons';
+import { toImageSrc } from '../../../lib/media';
+import type { RefinementContext } from './types';
 
 export function RefinementTargetReference({
   context,
@@ -12,10 +12,10 @@ export function RefinementTargetReference({
   onPreview: (path: string) => void;
 }) {
   const target = context.images[0] ?? {
-    source: "history" as const,
+    source: 'history' as const,
     path: context.imagePath,
     historyId: context.historyId,
-    name: "图 1",
+    name: '图 1',
   };
   return (
     <div
@@ -40,10 +40,7 @@ export function RefinementTargetReference({
           图 1
         </span>
       </button>
-      <span
-        className="text-[11px] font-medium text-primary"
-        data-testid="refinement-target-label"
-      >
+      <span className="text-[11px] font-medium text-primary" data-testid="refinement-target-label">
         微调目标
       </span>
       <button

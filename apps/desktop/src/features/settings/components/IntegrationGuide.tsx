@@ -64,10 +64,7 @@ function ClientItemDisclosure({
           onClick={onToggleDetails}
         >
           详情
-          <ChevronDown
-            aria-hidden="true"
-            className={`h-3 w-3 ${expanded ? 'rotate-180' : ''}`}
-          />
+          <ChevronDown aria-hidden="true" className={`h-3 w-3 ${expanded ? 'rotate-180' : ''}`} />
         </Button>
       </div>
       {expanded && (
@@ -148,9 +145,7 @@ export function IntegrationGuide({
                 size="sm"
                 variant="outline"
                 disabled={!integration}
-                onClick={() =>
-                  integration && void copy('cursor', integration.snippets.cursorJson)
-                }
+                onClick={() => integration && void copy('cursor', integration.snippets.cursorJson)}
               >
                 {copiedKey === 'cursor' ? '已复制' : '复制 JSON'}
               </Button>

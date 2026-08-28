@@ -171,7 +171,11 @@ function isTrustedUpdaterSender(event: {
   const win = BrowserWindow.fromWebContents(sender);
   if (!win || win.isDestroyed()) return false;
   // 只接受我们自己窗口的主 frame，避免子 frame 冒充信标或触发检查。
-  if (event.senderFrame != null && sender.mainFrame != null && event.senderFrame !== sender.mainFrame) {
+  if (
+    event.senderFrame != null &&
+    sender.mainFrame != null &&
+    event.senderFrame !== sender.mainFrame
+  ) {
     return false;
   }
   return true;
@@ -179,9 +183,11 @@ function isTrustedUpdaterSender(event: {
 
 function sanitizeChannelError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw
-    .replace(/https?:\/\/[^\s)]+/gi, '[更新服务器]')
-    .replace(/(?:[A-Za-z]:[\\/]|\/(?:Users|home|tmp|var)\/)[^\s)]+/g, '[本地路径]')
-    .trim()
-    .slice(0, 300) || '无法切换更新通道';
+  return (
+    raw
+      .replace(/https?:\/\/[^\s)]+/gi, '[更新服务器]')
+      .replace(/(?:[A-Za-z]:[\\/]|\/(?:Users|home|tmp|var)\/)[^\s)]+/g, '[本地路径]')
+      .trim()
+      .slice(0, 300) || '无法切换更新通道'
+  );
 }

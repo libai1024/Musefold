@@ -56,10 +56,15 @@ export const analystReportSchema = z.object({
   rules: z.array(analystRuleSchema).max(60),
   variables: z.array(analystVariableSchema).max(24),
   /** 参考图相对路径与建议角色。 */
-  referenceImages: z.array(z.object({
-    path: z.string().max(1024),
-    role: imageRoleSchema,
-  })).max(24).default([]),
+  referenceImages: z
+    .array(
+      z.object({
+        path: z.string().max(1024),
+        role: imageRoleSchema,
+      }),
+    )
+    .max(24)
+    .default([]),
   /** 无法在 Musefold 内还原的能力，必须诚实列出（规范 §1.2-5）。 */
   unsupported: z.array(z.string().max(300)).max(24).default([]),
   license: z.string().max(256).optional(),

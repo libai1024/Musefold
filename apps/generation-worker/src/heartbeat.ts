@@ -29,19 +29,14 @@ export async function startHeartbeat(
   };
 
   await beat();
-  const timer = setInterval(
-    () => void beat().catch(() => undefined),
-    intervalMs,
-  );
+  const timer = setInterval(() => void beat().catch(() => undefined), intervalMs);
   timer.unref();
 
   return {
     async stop() {
       clearInterval(timer);
       await pool
-        .query('DELETE FROM ops.worker_heartbeats WHERE worker_id = $1', [
-          workerId,
-        ])
+        .query('DELETE FROM ops.worker_heartbeats WHERE worker_id = $1', [workerId])
         .catch(() => undefined);
       await pool.end();
     },

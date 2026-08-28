@@ -8,11 +8,7 @@ import type {
   ImageBackground,
   ModerationLevel,
 } from './enums';
-import type {
-  CostUnit,
-  PromptReference,
-  SkillRuntimeSnapshot,
-} from './generation-snapshots';
+import type { CostUnit, PromptReference, SkillRuntimeSnapshot } from './generation-snapshots';
 
 export type { PromptReference, PromptReferenceScope } from './generation-snapshots';
 
@@ -166,7 +162,14 @@ export interface DoubaoWebAccountStatus {
   avatarDataUrl: string | null;
   verificationRequired: boolean;
   usage: DoubaoWebUsageStatus;
-  loginState?: 'logged-out' | 'loading' | 'qr-ready' | 'scanned' | 'logged-in' | 'verification-required' | 'error';
+  loginState?:
+    | 'logged-out'
+    | 'loading'
+    | 'qr-ready'
+    | 'scanned'
+    | 'logged-in'
+    | 'verification-required'
+    | 'error';
   qrCodeDataUrl?: string | null;
   qrExpiresAt?: number | null;
   errorMessage?: string | null;
@@ -179,7 +182,11 @@ export interface ImageProvider {
   readonly name: string;
   listModels(): Promise<ModelInfo[]>;
   /** signal：来自主进程的取消信号；Provider 应把它并入自身的超时控制。 */
-  generateImage(req: GenerateImageRequest, signal?: AbortSignal, onProgress?: ImageProgressHandler): Promise<GenerateImageResult>;
+  generateImage(
+    req: GenerateImageRequest,
+    signal?: AbortSignal,
+    onProgress?: ImageProgressHandler,
+  ): Promise<GenerateImageResult>;
   validateConnection(): Promise<ValidationResult>;
 }
 

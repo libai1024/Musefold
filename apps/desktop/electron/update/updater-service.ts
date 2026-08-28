@@ -43,7 +43,10 @@ export interface UpdaterAdapter {
   autoInstallOnAppQuit: boolean;
   allowPrerelease: boolean;
   setFeedURL(url: string): void;
-  on<EventName extends keyof UpdaterEventMap>(event: EventName, listener: UpdaterEventMap[EventName]): void;
+  on<EventName extends keyof UpdaterEventMap>(
+    event: EventName,
+    listener: UpdaterEventMap[EventName],
+  ): void;
   checkForUpdates(): Promise<unknown>;
   downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
@@ -121,13 +124,18 @@ export class UpdaterService {
   async check(): Promise<UpdateStatus> {
     if (this.state.state === 'disabled') return this.state;
     if (this.checkPromise) return this.checkPromise;
-    if (this.state.state === 'downloading' || this.state.state === 'downloaded' || this.state.state === 'installing') {
+    if (
+      this.state.state === 'downloading' ||
+      this.state.state === 'downloaded' ||
+      this.state.state === 'installing'
+    ) {
       return this.state;
     }
 
     this.transition({ state: 'checking', currentVersion: this.currentVersion });
     const epoch = this.epoch;
-    this.checkPromise = this.adapter.checkForUpdates()
+    this.checkPromise = this.adapter
+      .checkForUpdates()
       .then((result) => {
         if (epoch !== this.epoch) return this.state;
         // electron-updater normally emits update-not-available/update-available.
@@ -168,7 +176,8 @@ export class UpdaterService {
       progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 },
     });
     const epoch = this.epoch;
-    this.downloadPromise = this.adapter.downloadUpdate()
+    this.downloadPromise = this.adapter
+      .downloadUpdate()
       .then(() => this.state)
       .catch((error: unknown) => {
         if (epoch !== this.epoch) return this.state;
@@ -184,7 +193,11 @@ export class UpdaterService {
   async install(): Promise<UpdateStatus> {
     if (this.state.state !== 'downloaded' || this.installRequested) return this.state;
     this.installRequested = true;
-    this.transition({ state: 'installing', currentVersion: this.currentVersion, ...this.metadataOrFallback() });
+    this.transition({
+      state: 'installing',
+      currentVersion: this.currentVersion,
+      ...this.metadataOrFallback(),
+    });
     try {
       await this.beforeInstall?.();
       this.adapter.quitAndInstall(false, true);
@@ -227,7 +240,10 @@ export class UpdaterService {
     });
     this.adapter.on('update-downloaded', (info) => {
       if (this.state.state === 'idle' && !this.downloadPromise) return;
-      this.updateMetadata = normalizeMetadata(info, this.updateMetadata?.version ?? this.currentVersion);
+      this.updateMetadata = normalizeMetadata(
+        info,
+        this.updateMetadata?.version ?? this.currentVersion,
+      );
       this.transition({
         state: 'downloaded',
         currentVersion: this.currentVersion,
@@ -275,8 +291,11 @@ function sanitizeErrorMessage(value: string): string {
 
 function normalizeMetadata(info: UpdateInfoLike, fallbackVersion: string): UpdateMetadata {
   return {
-    version: typeof info.version === 'string' && info.version.trim() ? info.version : fallbackVersion,
-    ...(typeof info.releaseDate === 'string' && info.releaseDate ? { releaseDate: info.releaseDate } : {}),
+    version:
+      typeof info.version === 'string' && info.version.trim() ? info.version : fallbackVersion,
+    ...(typeof info.releaseDate === 'string' && info.releaseDate
+      ? { releaseDate: info.releaseDate }
+      : {}),
   };
 }
 
@@ -293,12 +312,17 @@ function clampNumber(value: number): number {
   return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-function asUpdateInfo(value: unknown): { isUpdateAvailable: boolean; updateInfo?: UpdateInfoLike } | null {
+function asUpdateInfo(
+  value: unknown,
+): { isUpdateAvailable: boolean; updateInfo?: UpdateInfoLike } | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as { isUpdateAvailable?: unknown; updateInfo?: unknown };
   if (typeof candidate.isUpdateAvailable !== 'boolean') return null;
   if (!candidate.updateInfo || typeof candidate.updateInfo !== 'object') {
     return { isUpdateAvailable: candidate.isUpdateAvailable };
   }
-  return { isUpdateAvailable: candidate.isUpdateAvailable, updateInfo: candidate.updateInfo as UpdateInfoLike };
+  return {
+    isUpdateAvailable: candidate.isUpdateAvailable,
+    updateInfo: candidate.updateInfo as UpdateInfoLike,
+  };
 }

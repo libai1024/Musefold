@@ -66,11 +66,10 @@ export function createPetWindow(savedDesktopPosition?: PetPoint | null): Browser
   };
   const requestedPosition = savedDesktopPosition ?? defaultDesktopPosition;
   const initialWorkArea = screen.getDisplayNearestPoint(requestedPosition).workArea;
-  const initialPosition = clampPetPosition(
-    requestedPosition,
-    initialWorkArea,
-    { width: PET_WIDTH, height: PET_HEIGHT },
-  );
+  const initialPosition = clampPetPosition(requestedPosition, initialWorkArea, {
+    width: PET_WIDTH,
+    height: PET_HEIGHT,
+  });
 
   const win = new BrowserWindow({
     width: PET_WIDTH,
@@ -163,13 +162,11 @@ export function setPetWindowPosition(x: number, y: number): void {
   const nextX = Math.round(x);
   const nextY = Math.round(y);
   // 主界面打开后锁在内容区；否则使用目标点所在显示器，支持跨屏拖拽。
-  const bounds = movementBounds
-    ?? screen.getDisplayNearestPoint({ x: nextX, y: nextY }).workArea;
-  const position = clampPetPosition(
-    { x: nextX, y: nextY },
-    bounds,
-    { width: PET_WIDTH, height: PET_HEIGHT },
-  );
+  const bounds = movementBounds ?? screen.getDisplayNearestPoint({ x: nextX, y: nextY }).workArea;
+  const position = clampPetPosition({ x: nextX, y: nextY }, bounds, {
+    width: PET_WIDTH,
+    height: PET_HEIGHT,
+  });
   win.setPosition(position.x, position.y);
 }
 

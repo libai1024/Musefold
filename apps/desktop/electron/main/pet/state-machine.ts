@@ -178,9 +178,7 @@ export class PetStateMachine {
   wakeFromSleep(): void {
     if (this.current === 'wake') return;
     const sleeping =
-      this.current === 'sleeping' ||
-      this.current === 'collapse-sleep' ||
-      this.base === 'sleeping';
+      this.current === 'sleeping' || this.current === 'collapse-sleep' || this.base === 'sleeping';
     if (!sleeping) return;
     // collapse-sleep 播放中带着 C 锁，但用户唤醒是睡眠链内部推进，不该被锁挡住
     this.locked = false;

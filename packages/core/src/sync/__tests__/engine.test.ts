@@ -54,10 +54,7 @@ function snapshotFor(mutation: SyncMutation, version = 1): SyncSnapshot {
     return {
       ...common,
       name: String(mutation.payload.name),
-      parentId:
-        typeof mutation.payload.parentId === 'string'
-          ? mutation.payload.parentId
-          : null,
+      parentId: typeof mutation.payload.parentId === 'string' ? mutation.payload.parentId : null,
       sortOrder: Number(mutation.payload.sortOrder),
     } satisfies PromptFolder;
   }
@@ -65,14 +62,8 @@ function snapshotFor(mutation: SyncMutation, version = 1): SyncSnapshot {
     return {
       ...common,
       name: String(mutation.payload.name),
-      group:
-        typeof mutation.payload.group === 'string'
-          ? mutation.payload.group
-          : null,
-      color:
-        typeof mutation.payload.color === 'string'
-          ? mutation.payload.color
-          : null,
+      group: typeof mutation.payload.group === 'string' ? mutation.payload.group : null,
+      color: typeof mutation.payload.color === 'string' ? mutation.payload.color : null,
     } satisfies PromptTag;
   }
   return {
@@ -156,17 +147,13 @@ describe('DesktopSyncEngine', () => {
       conflicts: 0,
     });
 
-    expect(
-      vi.mocked(cloud.bootstrap).mock.calls.map(([input]) => input.entity),
-    ).toEqual(['folder', 'tag', 'prompt']);
-    const pushed = vi
-      .mocked(cloud.push)
-      .mock.calls.flatMap(([input]) => input.mutations);
-    expect(pushed.map((mutation) => mutation.entityType)).toEqual([
+    expect(vi.mocked(cloud.bootstrap).mock.calls.map(([input]) => input.entity)).toEqual([
       'folder',
       'tag',
       'prompt',
     ]);
+    const pushed = vi.mocked(cloud.push).mock.calls.flatMap(([input]) => input.mutations);
+    expect(pushed.map((mutation) => mutation.entityType)).toEqual(['folder', 'tag', 'prompt']);
     expect(repository.getActiveAccount()).toMatchObject({
       bootstrapCompletedAt: expect.any(Number),
       lastSyncAt: expect.any(Number),
@@ -203,8 +190,7 @@ describe('DesktopSyncEngine', () => {
     ]);
     await new DesktopSyncEngine(repository, retryTransport).run();
 
-    const retried = vi.mocked(retryTransport.push).mock.calls[0]![0]
-      .mutations[0]!;
+    const retried = vi.mocked(retryTransport.push).mock.calls[0]![0].mutations[0]!;
     expect(retried.mutationId).toBe(acceptedMutation!.mutationId);
     expect(repository.listReadyMutations(ownerId)).toEqual([]);
   });

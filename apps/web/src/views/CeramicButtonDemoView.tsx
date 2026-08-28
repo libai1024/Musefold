@@ -35,11 +35,7 @@ export function CeramicButtonDemoView() {
   }, []);
 
   return (
-    <main
-      className="mf-ceramic-button-demo"
-      data-ui-register="operate"
-      data-theme={theme}
-    >
+    <main className="mf-ceramic-button-demo" data-ui-register="operate" data-theme={theme}>
       <Button className="mf-ceramic-button" data-testid="ceramic-button" unstyled>
         开始创作
       </Button>

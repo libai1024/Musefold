@@ -119,14 +119,16 @@ function utf8Text(bytes: Uint8Array): string | null {
 function safeRelativePath(value: string, label: string): AppResult<string> {
   const segments = value.split('/');
   if (
-    !value
-    || value.startsWith('/')
-    || value.includes('\\')
-    || value.includes('\0')
-    || /^[a-zA-Z]:\//.test(value)
-    || segments.some((segment) => !segment || segment === '.' || segment === '..')
+    !value ||
+    value.startsWith('/') ||
+    value.includes('\\') ||
+    value.includes('\0') ||
+    /^[a-zA-Z]:\//.test(value) ||
+    segments.some((segment) => !segment || segment === '.' || segment === '..')
   ) {
-    return fail(githubError('INVALID_TYPE', `${label}包含不安全路径`, { details: { relativePath: value } }));
+    return fail(
+      githubError('INVALID_TYPE', `${label}包含不安全路径`, { details: { relativePath: value } }),
+    );
   }
   return ok(value);
 }
@@ -140,13 +142,13 @@ function parseRepository(repositoryUrl: string): AppResult<{ owner: string; repo
   }
   const segments = url.pathname.split('/').filter(Boolean);
   if (
-    url.protocol !== 'https:'
-    || url.hostname.toLowerCase() !== 'github.com'
-    || url.username
-    || url.password
-    || url.search
-    || url.hash
-    || segments.length !== 2
+    url.protocol !== 'https:' ||
+    url.hostname.toLowerCase() !== 'github.com' ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    segments.length !== 2
   ) {
     return fail(githubError('INVALID_TYPE', '仅支持不含凭据和参数的 github.com HTTPS 仓库地址'));
   }
@@ -161,13 +163,13 @@ function parseRepository(repositoryUrl: string): AppResult<{ owner: string; repo
 function validateRef(requestedRef: string | undefined): AppResult<string | null> {
   if (!requestedRef) return ok(null);
   if (
-    requestedRef.length > 200
-    || !GITHUB_REF.test(requestedRef)
-    || requestedRef.includes('..')
-    || requestedRef.includes('//')
-    || requestedRef.includes('@{')
-    || requestedRef.startsWith('/')
-    || requestedRef.endsWith('/')
+    requestedRef.length > 200 ||
+    !GITHUB_REF.test(requestedRef) ||
+    requestedRef.includes('..') ||
+    requestedRef.includes('//') ||
+    requestedRef.includes('@{') ||
+    requestedRef.startsWith('/') ||
+    requestedRef.endsWith('/')
   ) {
     return fail(githubError('INVALID_TYPE', 'GitHub 分支或标签格式不正确'));
   }
@@ -193,13 +195,16 @@ async function readResponseBytes(
 ): Promise<Uint8Array> {
   const declared = Number(response.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) {
-    rejectGithub(githubError('INVALID_RANGE', 'GitHub 响应超过安全大小限制', {
-      details: { maxBytes },
-    }));
+    rejectGithub(
+      githubError('INVALID_RANGE', 'GitHub 响应超过安全大小限制', {
+        details: { maxBytes },
+      }),
+    );
   }
   if (!response.body) {
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maxBytes) rejectGithub(githubError('INVALID_RANGE', 'GitHub 响应超过安全大小限制'));
+    if (bytes.byteLength > maxBytes)
+      rejectGithub(githubError('INVALID_RANGE', 'GitHub 响应超过安全大小限制'));
     return bytes;
   }
   const reader = response.body.getReader();
@@ -214,7 +219,11 @@ async function readResponseBytes(
         new Promise<never>((_, reject) => {
           idleTimer = setTimeout(() => {
             void reader.cancel().catch(() => undefined);
-            reject(new GithubSkillError(githubError('TIMEOUT', 'GitHub 仓库下载超时，请重试', { retryable: true })));
+            reject(
+              new GithubSkillError(
+                githubError('TIMEOUT', 'GitHub 仓库下载超时，请重试', { retryable: true }),
+              ),
+            );
           }, options.idleTimeoutMs);
         }),
       ]);
@@ -228,9 +237,11 @@ async function readResponseBytes(
     total += next.value.byteLength;
     if (total > maxBytes) {
       await reader.cancel();
-      rejectGithub(githubError('INVALID_RANGE', 'GitHub 响应超过安全大小限制', {
-        details: { maxBytes },
-      }));
+      rejectGithub(
+        githubError('INVALID_RANGE', 'GitHub 响应超过安全大小限制', {
+          details: { maxBytes },
+        }),
+      );
     }
     chunks.push(next.value);
   }
@@ -243,11 +254,7 @@ async function readResponseBytes(
   return result;
 }
 
-async function fetchJson<T>(
-  fetchImpl: typeof fetch,
-  url: URL,
-  maxBytes: number,
-): Promise<T> {
+async function fetchJson<T>(fetchImpl: typeof fetch, url: URL, maxBytes: number): Promise<T> {
   let response: Response;
   try {
     response = await fetchImpl(url, {
@@ -262,34 +269,44 @@ async function fetchJson<T>(
     });
   } catch (error) {
     if (error instanceof GithubSkillError) throw error;
-    const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-    rejectGithub(githubError(
-      isTimeout ? 'TIMEOUT' : 'NETWORK_ERROR',
-      isTimeout ? 'GitHub 读取超时，请重试' : '无法连接 GitHub，请检查网络后重试',
-      { retryable: true },
-    ));
+    const isTimeout =
+      error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    rejectGithub(
+      githubError(
+        isTimeout ? 'TIMEOUT' : 'NETWORK_ERROR',
+        isTimeout ? 'GitHub 读取超时，请重试' : '无法连接 GitHub，请检查网络后重试',
+        { retryable: true },
+      ),
+    );
   }
   if (!response.ok) {
     if (response.status === 404) {
-      rejectGithub(githubError(
-        'MISSING_REFERENCE',
-        `GitHub 仓库、版本或 Skill 路径不存在。${GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE}`,
-      ));
+      rejectGithub(
+        githubError(
+          'MISSING_REFERENCE',
+          `GitHub 仓库、版本或 Skill 路径不存在。${GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE}`,
+        ),
+      );
     }
     if (response.status === 401 || response.status === 403) {
-      const rateLimited = response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0';
+      const rateLimited =
+        response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0';
       if (rateLimited) {
-        rejectGithub(githubError('NETWORK_ERROR', 'GitHub 匿名读取额度已用尽，请稍后重试', {
-          retryable: true,
-          details: { status: response.status },
-        }));
+        rejectGithub(
+          githubError('NETWORK_ERROR', 'GitHub 匿名读取额度已用尽，请稍后重试', {
+            retryable: true,
+            details: { status: response.status },
+          }),
+        );
       }
       rejectGithub(githubError('AUTH_REQUIRED', GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE));
     }
-    rejectGithub(githubError('NETWORK_ERROR', `GitHub 暂时不可用（HTTP ${response.status}）`, {
-      retryable: response.status >= 500 || response.status === 429,
-      details: { status: response.status },
-    }));
+    rejectGithub(
+      githubError('NETWORK_ERROR', `GitHub 暂时不可用（HTTP ${response.status}）`, {
+        retryable: response.status >= 500 || response.status === 429,
+        details: { status: response.status },
+      }),
+    );
   }
   const bytes = await readResponseBytes(response, maxBytes);
   try {
@@ -305,11 +322,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isIgnored(relativePath: string): boolean {
   const segments = relativePath.split('/');
-  return segments.some((segment) => IGNORED_SEGMENTS.has(segment))
-    || IGNORED_FILES.has(segments.at(-1) ?? '');
+  return (
+    segments.some((segment) => IGNORED_SEGMENTS.has(segment)) ||
+    IGNORED_FILES.has(segments.at(-1) ?? '')
+  );
 }
 
-function planTreeFiles(treeValue: unknown, skillPath: string | null): AppResult<PlannedGithubFile[]> {
+function planTreeFiles(
+  treeValue: unknown,
+  skillPath: string | null,
+): AppResult<PlannedGithubFile[]> {
   if (!isRecord(treeValue) || !Array.isArray(treeValue.tree)) {
     return fail(githubError('INVALID_TYPE', 'GitHub 仓库树结构无效'));
   }
@@ -324,7 +346,9 @@ function planTreeFiles(treeValue: unknown, skillPath: string | null): AppResult<
     if (!skillPath && !value.path) continue;
     if (!['blob', 'tree', 'commit'].includes(String(value.type))) continue;
     const relativePath = skillPath
-      ? value.path === skillPath ? '' : value.path.slice(prefix.length)
+      ? value.path === skillPath
+        ? ''
+        : value.path.slice(prefix.length)
       : value.path;
     if (!relativePath) continue;
     const safePath = safeRelativePath(relativePath, 'GitHub 仓库树');
@@ -338,7 +362,9 @@ function planTreeFiles(treeValue: unknown, skillPath: string | null): AppResult<
       ...(typeof value.size === 'number' ? { size: value.size } : {}),
     });
     if (underRoot.length > SKILL_MAX_ENTRIES) {
-      return fail(githubError('TOO_MANY_ITEMS', `GitHub Skill 目录项不能超过 ${SKILL_MAX_ENTRIES} 个`));
+      return fail(
+        githubError('TOO_MANY_ITEMS', `GitHub Skill 目录项不能超过 ${SKILL_MAX_ENTRIES} 个`),
+      );
     }
   }
 
@@ -373,7 +399,9 @@ function planTreeFiles(treeValue: unknown, skillPath: string | null): AppResult<
     files.push({ relativePath: entry.path, sha: entry.sha, size });
   }
   if (textFiles > SKILL_MAX_TEXT_FILES) {
-    return fail(githubError('TOO_MANY_ITEMS', `GitHub Skill 文本文件不能超过 ${SKILL_MAX_TEXT_FILES} 个`));
+    return fail(
+      githubError('TOO_MANY_ITEMS', `GitHub Skill 文本文件不能超过 ${SKILL_MAX_TEXT_FILES} 个`),
+    );
   }
   if (textBytes > SKILL_MAX_TEXT_BYTES || totalBytes > SKILL_MAX_TOTAL_BYTES) {
     return fail(githubError('INVALID_RANGE', 'GitHub Skill 内容总大小超过安全限制'));
@@ -407,7 +435,10 @@ function decodeGithubBlob(value: unknown, expected: PlannedGithubFile): AppResul
     return fail(githubError('INVALID_TYPE', `GitHub 文件 Base64 无效：${expected.relativePath}`));
   }
   const bytes = Buffer.from(compact, 'base64');
-  if (bytes.byteLength !== expected.size || (typeof value.size === 'number' && value.size !== expected.size)) {
+  if (
+    bytes.byteLength !== expected.size ||
+    (typeof value.size === 'number' && value.size !== expected.size)
+  ) {
     return fail(githubError('INVALID_TYPE', `GitHub 文件大小校验失败：${expected.relativePath}`));
   }
   return ok(bytes);
@@ -430,12 +461,17 @@ async function readPublicGithubAgentSkillSourceViaApi(
 
     let resolvedRef = requestedRef.data;
     if (!resolvedRef) {
-      const repo = await fetchJson<unknown>(fetchImpl, apiUrl(apiBaseUrl, repoPath), GITHUB_TREE_RESPONSE_BYTES);
+      const repo = await fetchJson<unknown>(
+        fetchImpl,
+        apiUrl(apiBaseUrl, repoPath),
+        GITHUB_TREE_RESPONSE_BYTES,
+      );
       if (!isRecord(repo) || typeof repo.default_branch !== 'string') {
         return fail(githubError('INVALID_TYPE', 'GitHub 仓库缺少默认分支信息'));
       }
       const validatedDefault = validateRef(repo.default_branch);
-      if (!validatedDefault.ok || !validatedDefault.data) return fail(githubError('INVALID_TYPE', 'GitHub 默认分支格式不正确'));
+      if (!validatedDefault.ok || !validatedDefault.data)
+        return fail(githubError('INVALID_TYPE', 'GitHub 默认分支格式不正确'));
       resolvedRef = validatedDefault.data;
     }
 
@@ -494,16 +530,23 @@ async function readPublicGithubAgentSkillSourceViaApi(
     return ok({ scan: scan.data, resolvedRef, commitHash, runtimeFiles });
   } catch (error) {
     if (error instanceof GithubSkillError) return fail(error.appError);
-    return fail(githubError('NETWORK_ERROR', '读取 GitHub Skill 时发生未知错误', { retryable: true }));
+    return fail(
+      githubError('NETWORK_ERROR', '读取 GitHub Skill 时发生未知错误', { retryable: true }),
+    );
   }
 }
 
 function archiveCacheKey(request: PublicGithubSkillRequest): string {
-  return createHash('sha256').update(JSON.stringify({
-    repositoryUrl: request.repositoryUrl,
-    requestedRef: request.requestedRef ?? 'HEAD',
-    skillPath: request.skillPath ?? null,
-  })).digest('hex').slice(0, 24);
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        repositoryUrl: request.repositoryUrl,
+        requestedRef: request.requestedRef ?? 'HEAD',
+        skillPath: request.skillPath ?? null,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 24);
 }
 
 function archiveContentKey(bytes: Uint8Array): string {
@@ -514,10 +557,17 @@ async function cachedArchives(cacheDir: string, key: string): Promise<string[]> 
   try {
     const entries = await readdir(cacheDir, { withFileTypes: true });
     const candidates = entries
-      .filter((entry) => entry.isFile() && entry.name.startsWith(`${key}-`) && entry.name.endsWith('.zip'))
+      .filter(
+        (entry) =>
+          entry.isFile() && entry.name.startsWith(`${key}-`) && entry.name.endsWith('.zip'),
+      )
       .map((entry) => join(cacheDir, entry.name));
-    const dated = await Promise.all(candidates.map(async (path) => ({ path, info: await stat(path) })));
-    return dated.sort((left, right) => right.info.mtimeMs - left.info.mtimeMs).map((item) => item.path);
+    const dated = await Promise.all(
+      candidates.map(async (path) => ({ path, info: await stat(path) })),
+    );
+    return dated
+      .sort((left, right) => right.info.mtimeMs - left.info.mtimeMs)
+      .map((item) => item.path);
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return [];
     throw error;
@@ -526,12 +576,14 @@ async function cachedArchives(cacheDir: string, key: string): Promise<string[]> 
 
 async function cleanupArchiveCache(cacheDir: string, protectedPath: string): Promise<void> {
   const entries = await readdir(cacheDir, { withFileTypes: true });
-  const dated = await Promise.all(entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.zip'))
-    .map(async (entry) => {
-      const path = join(cacheDir, entry.name);
-      return { path, info: await stat(path) };
-    }));
+  const dated = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.zip'))
+      .map(async (entry) => {
+        const path = join(cacheDir, entry.name);
+        return { path, info: await stat(path) };
+      }),
+  );
   let total = dated.reduce((sum, item) => sum + item.info.size, 0);
   for (const item of dated.sort((left, right) => left.info.mtimeMs - right.info.mtimeMs)) {
     if (total <= GITHUB_ARCHIVE_CACHE_MAX_BYTES) break;
@@ -601,13 +653,18 @@ async function downloadGithubArchive(
 
   if (!request.refresh) {
     if (includeRuntimeFiles) {
-      const cached = await readCachedRuntimeArchive(cacheDir, cacheKey, skillPath.data ?? undefined);
-      if (cached?.ok) return ok({
-        scan: cached.data.scan,
-        resolvedRef,
-        commitHash: null,
-        runtimeFiles: cached.data.files,
-      });
+      const cached = await readCachedRuntimeArchive(
+        cacheDir,
+        cacheKey,
+        skillPath.data ?? undefined,
+      );
+      if (cached?.ok)
+        return ok({
+          scan: cached.data.scan,
+          resolvedRef,
+          commitHash: null,
+          runtimeFiles: cached.data.files,
+        });
     } else {
       const cached = await readCachedArchive(cacheDir, cacheKey, skillPath.data ?? undefined);
       if (cached?.ok) return ok({ scan: cached.data, resolvedRef, commitHash: null });
@@ -616,43 +673,53 @@ async function downloadGithubArchive(
 
   let response: Response;
   try {
-    response = await fetchImpl(archiveUrl(
-      deps.archiveBaseUrl ?? GITHUB_ARCHIVE_ORIGIN,
-      repository.owner,
-      repository.repository,
-      resolvedRef,
-    ), {
-      method: 'GET',
-      redirect: 'error',
-      // 归档下载给更长的总上限；下载停滞由 readResponseBytes 的 idle 超时兜底。
-      signal: AbortSignal.timeout(GITHUB_ARCHIVE_TOTAL_TIMEOUT_MS),
-      headers: {
-        Accept: 'application/zip, application/octet-stream',
-        'User-Agent': 'Musefold-Skill-Archive',
+    response = await fetchImpl(
+      archiveUrl(
+        deps.archiveBaseUrl ?? GITHUB_ARCHIVE_ORIGIN,
+        repository.owner,
+        repository.repository,
+        resolvedRef,
+      ),
+      {
+        method: 'GET',
+        redirect: 'error',
+        // 归档下载给更长的总上限；下载停滞由 readResponseBytes 的 idle 超时兜底。
+        signal: AbortSignal.timeout(GITHUB_ARCHIVE_TOTAL_TIMEOUT_MS),
+        headers: {
+          Accept: 'application/zip, application/octet-stream',
+          'User-Agent': 'Musefold-Skill-Archive',
+        },
       },
-    });
+    );
   } catch (error) {
-    const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-    return fail(githubError(
-      isTimeout ? 'TIMEOUT' : 'NETWORK_ERROR',
-      isTimeout ? 'GitHub 仓库下载超时，请重试' : '无法下载 GitHub 仓库，请检查网络后重试',
-      { retryable: true },
-    ));
+    const isTimeout =
+      error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    return fail(
+      githubError(
+        isTimeout ? 'TIMEOUT' : 'NETWORK_ERROR',
+        isTimeout ? 'GitHub 仓库下载超时，请重试' : '无法下载 GitHub 仓库，请检查网络后重试',
+        { retryable: true },
+      ),
+    );
   }
   if (!response.ok) {
     if (response.status === 404) {
-      return fail(githubError(
-        'MISSING_REFERENCE',
-        `GitHub 仓库、版本或 Skill 路径不存在。${GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE}`,
-      ));
+      return fail(
+        githubError(
+          'MISSING_REFERENCE',
+          `GitHub 仓库、版本或 Skill 路径不存在。${GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE}`,
+        ),
+      );
     }
     if (response.status === 401 || response.status === 403) {
       return fail(githubError('AUTH_REQUIRED', GITHUB_PRIVATE_SKILL_UNSUPPORTED_MESSAGE));
     }
-    return fail(githubError('NETWORK_ERROR', `GitHub 仓库下载失败（HTTP ${response.status}）`, {
-      retryable: response.status === 429 || response.status >= 500,
-      details: { status: response.status },
-    }));
+    return fail(
+      githubError('NETWORK_ERROR', `GitHub 仓库下载失败（HTTP ${response.status}）`, {
+        retryable: response.status === 429 || response.status >= 500,
+        details: { status: response.status },
+      }),
+    );
   }
 
   let bytes: Uint8Array;
@@ -669,20 +736,30 @@ async function downloadGithubArchive(
   }
   const targetPath = join(cacheDir, `${cacheKey}-${archiveContentKey(bytes)}.zip`);
   await writeFile(targetPath, bytes, { flag: 'wx' }).catch(async (error) => {
-    if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'EEXIST') throw error;
+    if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'EEXIST')
+      throw error;
   });
   const runtimeBundle = includeRuntimeFiles
     ? await readZipAgentSkillRuntimeBundle(targetPath, { skillPath: skillPath.data ?? undefined })
     : null;
-  const scan = runtimeBundle ?? await readZipAgentSkillSource(targetPath, { skillPath: skillPath.data ?? undefined });
+  const scan =
+    runtimeBundle ??
+    (await readZipAgentSkillSource(targetPath, { skillPath: skillPath.data ?? undefined }));
   if (!scan.ok) {
     await unlink(targetPath).catch(() => undefined);
     return scan;
   }
   await cleanupArchiveCache(cacheDir, targetPath);
-  return ok(runtimeBundle?.ok
-    ? { scan: runtimeBundle.data.scan, resolvedRef, commitHash: null, runtimeFiles: runtimeBundle.data.files }
-    : { scan: scan.data as AgentSkillScanResult, resolvedRef, commitHash: null });
+  return ok(
+    runtimeBundle?.ok
+      ? {
+          scan: runtimeBundle.data.scan,
+          resolvedRef,
+          commitHash: null,
+          runtimeFiles: runtimeBundle.data.files,
+        }
+      : { scan: scan.data as AgentSkillScanResult, resolvedRef, commitHash: null },
+  );
 }
 
 /**
@@ -706,10 +783,12 @@ export async function readPublicGithubAgentSkillSource(
     return await downloadGithubArchive(request, repository.data, deps);
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : null;
-    return fail(githubError('NETWORK_ERROR', '保存 GitHub Skill 本地快照失败', {
-      retryable: true,
-      details: code ? { systemCode: code } : undefined,
-    }));
+    return fail(
+      githubError('NETWORK_ERROR', '保存 GitHub Skill 本地快照失败', {
+        retryable: true,
+        details: code ? { systemCode: code } : undefined,
+      }),
+    );
   }
 }
 
@@ -731,9 +810,11 @@ export async function readPublicGithubAgentSkillRuntimeSource(
     return await downloadGithubArchive(request, repository.data, deps, true);
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : null;
-    return fail(githubError('NETWORK_ERROR', '准备 GitHub Skill 运行附件失败', {
-      retryable: true,
-      details: code ? { systemCode: code } : undefined,
-    }));
+    return fail(
+      githubError('NETWORK_ERROR', '准备 GitHub Skill 运行附件失败', {
+        retryable: true,
+        details: code ? { systemCode: code } : undefined,
+      }),
+    );
   }
 }

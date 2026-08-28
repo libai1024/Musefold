@@ -201,7 +201,12 @@ export function PanelActions({
           <Button variant="ghost" onClick={onDiscard} disabled={discardDisabled}>
             {discardLabel}
           </Button>
-          <Button variant="outline" onClick={onTest} disabled={testDisabled} data-testid={testTestId}>
+          <Button
+            variant="outline"
+            onClick={onTest}
+            disabled={testDisabled}
+            data-testid={testTestId}
+          >
             {testBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : testIcon}
             {testLabel}
           </Button>

@@ -50,7 +50,7 @@ type Counter = { n: number };
 function scrubFields<T extends Record<string, unknown>>(
   obj: T,
   fields: readonly (keyof T)[],
-  counter: Counter
+  counter: Counter,
 ): T {
   for (const f of fields) {
     const cur = obj[f];
@@ -139,7 +139,7 @@ export function buildExportPayload(opts: {
         `SELECT id, title, description, content, content_negative, folder_id, model_id, params,
                 preview_image_path, rating, is_pinned, pin_order, usage_count, last_used_at,
                 source, source_url, created_at, updated_at, deleted_at
-         FROM prompts${notDeleted}`
+         FROM prompts${notDeleted}`,
       )
       .all() as Record<string, unknown>[]
   ).map((r) => {
@@ -178,19 +178,19 @@ export function buildExportPayload(opts: {
       .prepare(
         `SELECT id, name, type, base_url, model, is_active, created_at, updated_at
          FROM providers
-         WHERE managed_by IS NULL`
+         WHERE managed_by IS NULL`,
       )
       .all() as Record<string, unknown>[]
-	  ).map((r) => ({
-	    id: r.id as string,
-	    name: r.name as string,
-	    type: r.type as string,
-	    baseUrl: r.base_url as string,
+  ).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    type: r.type as string,
+    baseUrl: r.base_url as string,
     model: r.model as string,
     isActive: bool(r.is_active),
     createdAt: Number(r.created_at),
-	    updatedAt: Number(r.updated_at),
-	  }));
+    updatedAt: Number(r.updated_at),
+  }));
 
   const smartSets = (
     db
@@ -230,21 +230,27 @@ export function buildExportPayload(opts: {
 
   // history 默认缺席；开了开关才带，且同样过 redact
   if (opts.includeHistory) {
-    const referenceRows = db.prepare(
-      `SELECT history_id, prompt_id, prompt_title, excerpt, scope, sort_order
+    const referenceRows = db
+      .prepare(
+        `SELECT history_id, prompt_id, prompt_title, excerpt, scope, sort_order
        FROM history_prompt_references
        ORDER BY history_id, sort_order`,
-    ).all() as Record<string, unknown>[];
+      )
+      .all() as Record<string, unknown>[];
     const referencesByHistory = new Map<string, Record<string, unknown>[]>();
     for (const reference of referenceRows) {
       const historyId = String(reference.history_id);
-      const item = scrubFields({
-        promptId: str(reference.prompt_id),
-        title: String(reference.prompt_title),
-        text: String(reference.excerpt),
-        scope: String(reference.scope),
-        sortOrder: Number(reference.sort_order),
-      }, ['title', 'text'], counter);
+      const item = scrubFields(
+        {
+          promptId: str(reference.prompt_id),
+          title: String(reference.prompt_title),
+          text: String(reference.excerpt),
+          scope: String(reference.scope),
+          sortOrder: Number(reference.sort_order),
+        },
+        ['title', 'text'],
+        counter,
+      );
       const existing = referencesByHistory.get(historyId) ?? [];
       existing.push(item);
       referencesByHistory.set(historyId, existing);
@@ -255,7 +261,7 @@ export function buildExportPayload(opts: {
           `SELECT id, prompt_id, provider_id, model, prompt_text,
                   negative_text, params, status, error_code, error_message, image_path, cost,
                   cost_unit, duration_ms, created_at
-           FROM history`
+           FROM history`,
         )
         .all() as Record<string, unknown>[]
     ).map((r) => {
@@ -307,16 +313,11 @@ export function buildExportPayload(opts: {
  *
  * 解析失败（文件不存在、断链）一律当越界处理 —— 反正也打不进包。
  */
-async function resolveSafeImagePath(
-  raw: string,
-  allowedRoots: string[]
-): Promise<string | null> {
+async function resolveSafeImagePath(raw: string, allowedRoots: string[]): Promise<string | null> {
   const abs = isAbsolute(raw) ? normalize(raw) : normalize(join(getPaths().userData, raw));
   const real = await realpath(abs).catch(() => null);
   if (!real) return null;
-  const ok = allowedRoots.some(
-    (r) => real === r || real.startsWith(r.endsWith(sep) ? r : r + sep)
-  );
+  const ok = allowedRoots.some((r) => real === r || real.startsWith(r.endsWith(sep) ? r : r + sep));
   return ok ? real : null;
 }
 
@@ -345,9 +346,7 @@ async function writeJsonExport(envelope: ExportEnvelope, targetPath: string): Pr
  * dryRun 与真导出**共用它**：预览说"含 12 张图"、实际包里只有 9 张（3 张被用户
  * 删了或越界），是最容易让人以为备份不全的那种不一致。同一份计算就不会有这问题。
  */
-async function collectImageEntries(
-  imagePaths: string[]
-): Promise<{ abs: string; name: string }[]> {
+async function collectImageEntries(imagePaths: string[]): Promise<{ abs: string; name: string }[]> {
   const paths = getPaths();
   const allowedRoots = await realRoots([paths.previews, paths.pictures]);
 
@@ -382,7 +381,7 @@ async function collectImageEntries(
 async function writeZipExport(
   envelope: ExportEnvelope,
   entries: { abs: string; name: string }[],
-  targetPath: string
+  targetPath: string,
 ): Promise<{ images: number }> {
   await new Promise<void>((resolve, reject) => {
     const out = createWriteStream(targetPath);
@@ -450,7 +449,7 @@ export async function runExport(req: ExportRequest, targetPath: string): Promise
     `mode=${mode}`,
     `counts=${JSON.stringify(envelope.counts)}`,
     images != null ? `images=${images}` : '',
-    redactedFields > 0 ? `redacted=${redactedFields}` : ''
+    redactedFields > 0 ? `redacted=${redactedFields}` : '',
   );
 
   return { path: targetPath, counts: envelope.counts, redactedFields, images, dryRun: false };

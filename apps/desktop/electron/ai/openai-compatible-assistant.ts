@@ -17,7 +17,8 @@ export interface OpenAiCompatibleAssistantOptions {
 
 function statusCode(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
-  const status = (error as Record<string, unknown>).statusCode ?? (error as Record<string, unknown>).status;
+  const status =
+    (error as Record<string, unknown>).statusCode ?? (error as Record<string, unknown>).status;
   return typeof status === 'number' ? status : undefined;
 }
 
@@ -27,7 +28,9 @@ function messageOf(error: unknown): string {
 }
 
 function errorName(error: unknown): string {
-  return error && typeof error === 'object' && typeof (error as { name?: unknown }).name === 'string'
+  return error &&
+    typeof error === 'object' &&
+    typeof (error as { name?: unknown }).name === 'string'
     ? (error as { name: string }).name
     : '';
 }
@@ -37,7 +40,9 @@ function transportErrorCode(error: unknown): string | undefined {
   const record = error as Record<string, unknown>;
   if (typeof record.code === 'string') return record.code;
   const cause = record.cause;
-  return cause && typeof cause === 'object' && typeof (cause as { code?: unknown }).code === 'string'
+  return cause &&
+    typeof cause === 'object' &&
+    typeof (cause as { code?: unknown }).code === 'string'
     ? (cause as { code: string }).code
     : undefined;
 }
@@ -54,14 +59,20 @@ export function classifyAiError(
   if (signal?.aborted || name === 'AbortError' || /aborted|cancelled|canceled/i.test(message)) {
     return appError('CANCELLED', 'AI 操作已取消');
   }
-  if (context.managedByAccount && (code === 'insufficient_user_quota' || /用户额度不足|余额不足|配额不足/i.test(message))) {
+  if (
+    context.managedByAccount &&
+    (code === 'insufficient_user_quota' || /用户额度不足|余额不足|配额不足/i.test(message))
+  ) {
     return appError('ACCOUNT_QUOTA', '账号余额不足，请输入兑换码后重试', {
       retryable: true,
       recoveryAction: 'redeem',
       details: { status },
     });
   }
-  if (context.managedByAccount && (code === 'model_not_found' || /No available channel for model|model_not_found/i.test(message))) {
+  if (
+    context.managedByAccount &&
+    (code === 'model_not_found' || /No available channel for model|model_not_found/i.test(message))
+  ) {
     return appError('ACCOUNT_MODEL_NOT_FOUND', '模型暂不可用，请刷新模型列表后重试', {
       retryable: true,
       recoveryAction: 'refresh-models',
@@ -87,7 +98,10 @@ export function classifyAiError(
     });
   }
   if (status === 408 || /timeout|timed out|超时/i.test(message)) {
-    return appError('TIMEOUT', 'AI 请求超时，请稍后重试', { retryable: true, recoveryAction: 'retry' });
+    return appError('TIMEOUT', 'AI 请求超时，请稍后重试', {
+      retryable: true,
+      recoveryAction: 'retry',
+    });
   }
   if (status === 429) {
     return appError('NETWORK_ERROR', '请求过于频繁或额度不足，请稍后重试', {
@@ -96,14 +110,21 @@ export function classifyAiError(
       details: { status },
     });
   }
-  if ((status && status >= 500) || name === 'TypeError' || /fetch failed|network|ECONN|ENOTFOUND/i.test(message)) {
+  if (
+    (status && status >= 500) ||
+    name === 'TypeError' ||
+    /fetch failed|network|ECONN|ENOTFOUND/i.test(message)
+  ) {
     return appError('NETWORK_ERROR', '无法连接 AI 服务，请检查地址和网络', {
       retryable: true,
       recoveryAction: 'retry',
       details: { status, errorName: name || undefined, transportCode: code },
     });
   }
-  if (/NoObjectGenerated|NoOutputGenerated|TypeValidation|JSONParse/i.test(name) || /schema validation|invalid json|could not parse/i.test(message)) {
+  if (
+    /NoObjectGenerated|NoOutputGenerated|TypeValidation|JSONParse/i.test(name) ||
+    /schema validation|invalid json|could not parse/i.test(message)
+  ) {
     return appError('OUTPUT_SCHEMA_INVALID', 'AI 返回的结构无法读取，请重试', {
       retryable: true,
       recoveryAction: 'retry',
@@ -147,22 +168,31 @@ export class OpenAiCompatibleAssistant {
       headers: { Authorization: `Bearer ${this.options.apiKey}`, Accept: 'application/json' },
       signal: requestSignal,
     });
-    if (!response.ok) throw Object.assign(new Error(`模型列表请求失败（HTTP ${response.status}）`), { statusCode: response.status });
-    const payload = await response.json() as { data?: unknown };
+    if (!response.ok)
+      throw Object.assign(new Error(`模型列表请求失败（HTTP ${response.status}）`), {
+        statusCode: response.status,
+      });
+    const payload = (await response.json()) as { data?: unknown };
     if (!Array.isArray(payload.data)) throw new Error('模型列表响应格式不受支持');
-    return payload.data.flatMap((item) => {
-      if (!item || typeof item !== 'object') return [];
-      const model = item as Record<string, unknown>;
-      if (typeof model.id !== 'string' || !model.id.trim()) return [];
-      return [{
-        id: model.id,
-        name: typeof model.name === 'string' && model.name.trim() ? model.name : model.id,
-        ...(typeof model.owned_by === 'string' ? { ownedBy: model.owned_by } : {}),
-      }];
-    }).sort((left, right) => left.id.localeCompare(right.id));
+    return payload.data
+      .flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const model = item as Record<string, unknown>;
+        if (typeof model.id !== 'string' || !model.id.trim()) return [];
+        return [
+          {
+            id: model.id,
+            name: typeof model.name === 'string' && model.name.trim() ? model.name : model.id,
+            ...(typeof model.owned_by === 'string' ? { ownedBy: model.owned_by } : {}),
+          },
+        ];
+      })
+      .sort((left, right) => left.id.localeCompare(right.id));
   }
 
-  async validateConnection(signal?: AbortSignal): Promise<{ models: AiTextModelInfo[]; modelDiscovery: 'available' | 'manual' }> {
+  async validateConnection(
+    signal?: AbortSignal,
+  ): Promise<{ models: AiTextModelInfo[]; modelDiscovery: 'available' | 'manual' }> {
     let models: AiTextModelInfo[] = [];
     let modelDiscovery: 'available' | 'manual' = 'manual';
     try {

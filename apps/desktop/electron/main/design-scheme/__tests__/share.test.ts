@@ -11,7 +11,12 @@ import {
 } from '@musefold/desktop-contracts/design-scheme/schema';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
-import { exportDesignScheme, importDesignScheme, SHARE_FORMAT, SHARE_FORMAT_VERSION } from '../share';
+import {
+  exportDesignScheme,
+  importDesignScheme,
+  SHARE_FORMAT,
+  SHARE_FORMAT_VERSION,
+} from '../share';
 import { fakePngBuffer } from './evaluation.test';
 
 vi.mock('electron', () => ({
@@ -38,14 +43,36 @@ function documentFixture(): DesignSchemeRevisionDocument {
     name: '小黑插画',
     summary: '手绘线条插画方案',
     fidelity: 'faithful',
-    sources: [{ id: 'src_repo', kind: 'github-skill', role: 'normative', uri: 'https://github.com/acme/illust', commit: 'abcd1234' }],
+    sources: [
+      {
+        id: 'src_repo',
+        kind: 'github-skill',
+        role: 'normative',
+        uri: 'https://github.com/acme/illust',
+        commit: 'abcd1234',
+      },
+    ],
     inputs: [{ id: 'topic', label: '插画主题', kind: 'text', required: true }],
     parameters: [],
     constraints: [
-      { id: 'con_1', domain: 'texture', statement: '保持手绘线条', mode: 'required', userOverridable: false, sourceIds: ['src_repo'] },
+      {
+        id: 'con_1',
+        domain: 'texture',
+        statement: '保持手绘线条',
+        mode: 'required',
+        userOverridable: false,
+        sourceIds: ['src_repo'],
+      },
     ],
     promptProgram: [
-      { id: 'pm_1', order: 0, kind: 'input-template', template: '为「{{topic}}」创作插画', variables: ['topic'], sourceIds: ['src_repo'] },
+      {
+        id: 'pm_1',
+        order: 0,
+        kind: 'input-template',
+        template: '为「{{topic}}」创作插画',
+        variables: ['topic'],
+        sourceIds: ['src_repo'],
+      },
     ],
     compilation: {
       compiledAt: 1,
@@ -75,11 +102,34 @@ function seedFormalScheme(db: Database.Database, userData: string): void {
   writeFileSync(join(sourceImageDir, 'reference.png'), fakePngBuffer(64, 64));
 
   repository.saveSourceSnapshot({
-    package: { id: 'pkg_share', kind: 'github', repositoryUrl: 'https://github.com/acme/illust', license: 'MIT' },
-    snapshot: { id: 'snap_share', ref: 'main', commitHash: 'abcd1234', totalBytes: 128, scan: { fileCount: 2 } },
+    package: {
+      id: 'pkg_share',
+      kind: 'github',
+      repositoryUrl: 'https://github.com/acme/illust',
+      license: 'MIT',
+    },
+    snapshot: {
+      id: 'snap_share',
+      ref: 'main',
+      commitHash: 'abcd1234',
+      totalBytes: 128,
+      scan: { fileCount: 2 },
+    },
     files: [
-      { path: 'SKILL.md', kind: 'text', contentHash: 'h1', sizeBytes: 20, textContent: '# 小黑插画 skill' },
-      { path: 'reference.png', kind: 'image', contentHash: 'h2', sizeBytes: 33, storeKey: join('design-scheme-sources', 'snap_share', 'reference.png') },
+      {
+        path: 'SKILL.md',
+        kind: 'text',
+        contentHash: 'h1',
+        sizeBytes: 20,
+        textContent: '# 小黑插画 skill',
+      },
+      {
+        path: 'reference.png',
+        kind: 'image',
+        contentHash: 'h2',
+        sizeBytes: 33,
+        storeKey: join('design-scheme-sources', 'snap_share', 'reference.png'),
+      },
     ],
   });
   repository.insertSchemeDraft({
@@ -116,18 +166,26 @@ describe('exportDesignScheme / importDesignScheme', () => {
 
   it('导出→导入闭环：新库得到全新 ID 的草稿，来源与图片资产完整还原', async () => {
     const packagePath = join(tempRoot(), 'illust.musefold.design');
-    const exported = await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
+    const exported = await exportDesignScheme('dsch_share', packagePath, {
+      db,
+      userDataDir: userData,
+    });
     expect(exported.ok).toBe(true);
     if (!exported.ok) return;
     expect(exported.data.sizeBytes).toBeGreaterThan(0);
     // 导出记录入库（share_packages 索引）。
-    const record = db.prepare('SELECT scheme_id, path FROM share_packages WHERE package_id = ?').get(exported.data.packageId) as { scheme_id: string; path: string };
+    const record = db
+      .prepare('SELECT scheme_id, path FROM share_packages WHERE package_id = ?')
+      .get(exported.data.packageId) as { scheme_id: string; path: string };
     expect(record).toEqual({ scheme_id: 'dsch_share', path: packagePath });
 
     // 导入到另一台"机器"（新库 + 新 userData）。
     const otherDb = makeDb();
     const otherUserData = tempRoot();
-    const imported = await importDesignScheme(packagePath, { db: otherDb, userDataDir: otherUserData });
+    const imported = await importDesignScheme(packagePath, {
+      db: otherDb,
+      userDataDir: otherUserData,
+    });
     expect(imported.ok).toBe(true);
     if (!imported.ok) return;
 
@@ -154,18 +212,26 @@ describe('exportDesignScheme / importDesignScheme', () => {
     expect(text?.textExcerpt).toBe('# 小黑插画 skill');
     const image = sources[0]?.files.find((file) => file.path === 'reference.png');
     expect(image?.storeKey).toBeTruthy();
-    expect(readFileSync(join(otherUserData, image!.storeKey!)).equals(fakePngBuffer(64, 64))).toBe(true);
+    expect(readFileSync(join(otherUserData, image!.storeKey!)).equals(fakePngBuffer(64, 64))).toBe(
+      true,
+    );
   });
 
   it('导出包内容：manifest 声明全部文件哈希，封面与质量门证据随包携带且证据路径脱敏', async () => {
     const packagePath = join(tempRoot(), 'inspect.musefold.design');
-    const exported = await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
+    const exported = await exportDesignScheme('dsch_share', packagePath, {
+      db,
+      userDataDir: userData,
+    });
     expect(exported.ok).toBe(true);
 
     // 借导入通道解包验证（不落库）：直接读 manifest。
-    const manifestRecord = db.prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1').get() as { manifest_json: string };
+    const manifestRecord = db
+      .prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1')
+      .get() as { manifest_json: string };
     const manifest = JSON.parse(manifestRecord.manifest_json) as {
-      format: string; formatVersion: number;
+      format: string;
+      formatVersion: number;
       files: Record<string, string>;
       snapshots: Array<{ kind: string; role: string; license: string | null }>;
     };
@@ -179,7 +245,16 @@ describe('exportDesignScheme / importDesignScheme', () => {
       'sources/snap_1/SKILL.md',
     ]);
     expect(manifest.snapshots).toEqual([
-      { dir: 'snap_1', kind: 'github', role: 'normative', repositoryUrl: 'https://github.com/acme/illust', ref: 'main', commitHash: 'abcd1234', license: 'MIT', scan: { fileCount: 2 } },
+      {
+        dir: 'snap_1',
+        kind: 'github',
+        role: 'normative',
+        repositoryUrl: 'https://github.com/acme/illust',
+        ref: 'main',
+        commitHash: 'abcd1234',
+        license: 'MIT',
+        scan: { fileCount: 2 },
+      },
     ]);
   });
 
@@ -192,7 +267,10 @@ describe('exportDesignScheme / importDesignScheme', () => {
       createdBy: 'agent',
       bindings: [],
     });
-    const result = await exportDesignScheme('dsch_draft', join(tempRoot(), 'x.musefold.design'), { db, userDataDir: userData });
+    const result = await exportDesignScheme('dsch_draft', join(tempRoot(), 'x.musefold.design'), {
+      db,
+      userDataDir: userData,
+    });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe('INVALID_STATE');
@@ -201,17 +279,25 @@ describe('exportDesignScheme / importDesignScheme', () => {
 
   it('导入校验：被篡改的文件（hash 不匹配）与未声明文件都被拒绝', async () => {
     const packagePath = join(tempRoot(), 'tampered.musefold.design');
-    const exported = await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
+    const exported = await exportDesignScheme('dsch_share', packagePath, {
+      db,
+      userDataDir: userData,
+    });
     expect(exported.ok).toBe(true);
 
     // 重打包：篡改 scheme.json 内容但保留旧 manifest。
-    const manifestRecord = db.prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1').get() as { manifest_json: string };
+    const manifestRecord = db
+      .prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1')
+      .get() as { manifest_json: string };
     const tamperedPath = join(tempRoot(), 'tampered2.musefold.design');
     await writeZipFixture(tamperedPath, [
       { name: 'manifest.json', content: manifestRecord.manifest_json },
       { name: 'scheme.json', content: JSON.stringify({ hacked: true }) },
     ]);
-    const tampered = await importDesignScheme(tamperedPath, { db: makeDb(), userDataDir: tempRoot() });
+    const tampered = await importDesignScheme(tamperedPath, {
+      db: makeDb(),
+      userDataDir: tempRoot(),
+    });
     expect(tampered.ok).toBe(false);
     if (tampered.ok) return;
     expect(tampered.error.message).toContain('哈希不匹配');
@@ -233,23 +319,41 @@ describe('exportDesignScheme / importDesignScheme', () => {
     await writeZipFixture(wrongFormat, [
       { name: 'manifest.json', content: JSON.stringify({ format: 'other', formatVersion: 1 }) },
     ]);
-    const formatResult = await importDesignScheme(wrongFormat, { db: makeDb(), userDataDir: tempRoot() });
+    const formatResult = await importDesignScheme(wrongFormat, {
+      db: makeDb(),
+      userDataDir: tempRoot(),
+    });
     expect(formatResult.ok).toBe(false);
     if (formatResult.ok) return;
     expect(formatResult.error.message).toContain('不是 .musefold.design');
 
     const futureVersion = join(tempRoot(), 'future.musefold.design');
     await writeZipFixture(futureVersion, [
-      { name: 'manifest.json', content: JSON.stringify({ format: SHARE_FORMAT, formatVersion: 99, scheme: { name: 'x' }, files: {}, snapshots: [] }) },
+      {
+        name: 'manifest.json',
+        content: JSON.stringify({
+          format: SHARE_FORMAT,
+          formatVersion: 99,
+          scheme: { name: 'x' },
+          files: {},
+          snapshots: [],
+        }),
+      },
     ]);
-    const versionResult = await importDesignScheme(futureVersion, { db: makeDb(), userDataDir: tempRoot() });
+    const versionResult = await importDesignScheme(futureVersion, {
+      db: makeDb(),
+      userDataDir: tempRoot(),
+    });
     expect(versionResult.ok).toBe(false);
     if (versionResult.ok) return;
     expect(versionResult.error.code).toBe('UNSUPPORTED_SCHEMA_VERSION');
 
     const noManifest = join(tempRoot(), 'empty.musefold.design');
     await writeZipFixture(noManifest, [{ name: 'readme.txt', content: 'hi' }]);
-    const manifestResult = await importDesignScheme(noManifest, { db: makeDb(), userDataDir: tempRoot() });
+    const manifestResult = await importDesignScheme(noManifest, {
+      db: makeDb(),
+      userDataDir: tempRoot(),
+    });
     expect(manifestResult.ok).toBe(false);
     if (manifestResult.ok) return;
     expect(manifestResult.error.message).toContain('manifest');
@@ -258,7 +362,9 @@ describe('exportDesignScheme / importDesignScheme', () => {
   it('导入校验：伪装成图片的资产（魔数不符）被拒绝', async () => {
     const packagePath = join(tempRoot(), 'base.musefold.design');
     await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
-    const manifestRecord = db.prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1').get() as { manifest_json: string };
+    const manifestRecord = db
+      .prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1')
+      .get() as { manifest_json: string };
     const manifest = JSON.parse(manifestRecord.manifest_json) as { files: Record<string, string> };
 
     // 构造一个声明了正确 hash 但内容不是图片的资产。
@@ -277,7 +383,10 @@ describe('exportDesignScheme / importDesignScheme', () => {
   });
 });
 
-function writeZipFixture(path: string, files: Array<{ name: string; content: string | Buffer }>): Promise<void> {
+function writeZipFixture(
+  path: string,
+  files: Array<{ name: string; content: string | Buffer }>,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const output = createWriteStream(path);
     const archive = archiver('zip');
@@ -286,7 +395,10 @@ function writeZipFixture(path: string, files: Array<{ name: string; content: str
     archive.on('error', reject);
     archive.pipe(output);
     for (const file of files) {
-      archive.append(typeof file.content === 'string' ? Buffer.from(file.content, 'utf8') : file.content, { name: file.name });
+      archive.append(
+        typeof file.content === 'string' ? Buffer.from(file.content, 'utf8') : file.content,
+        { name: file.name },
+      );
     }
     void archive.finalize();
   });

@@ -136,8 +136,8 @@ export function AccountSignedOutForm({
       </form>
 
       <p className="pt-1 text-meta leading-relaxed text-quaternary">
-        暂不注册？使用下方「豆包 · 体验通道」扫码即可体验，每日最多{' '}
-        {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 张。
+        暂不注册？使用下方「豆包 · 体验通道」扫码即可体验，每日最多 {DOUBAO_WEB_DAILY_IMAGE_LIMIT}{' '}
+        张。
       </p>
 
       <div className="mt-6 border-t border-border-subtle pt-5">

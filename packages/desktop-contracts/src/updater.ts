@@ -17,7 +17,10 @@ export type UpdateState =
   | 'installing'
   | 'error';
 
-export type UpdateDisabledReason = 'development' | 'unsupported-platform' | 'disabled-by-environment';
+export type UpdateDisabledReason =
+  | 'development'
+  | 'unsupported-platform'
+  | 'disabled-by-environment';
 
 export interface UpdateProgress {
   percent: number;
@@ -42,8 +45,8 @@ export type UpdateStatus =
       currentVersion: string;
     }
   | ({ state: 'available' | 'downloaded' | 'installing' } & UpdateMetadata & {
-      currentVersion: string;
-    })
+        currentVersion: string;
+      })
   | ({ state: 'downloading'; currentVersion: string; progress: UpdateProgress } & UpdateMetadata)
   | {
       state: 'error';

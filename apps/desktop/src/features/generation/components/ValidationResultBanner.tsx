@@ -2,7 +2,13 @@
 // 测试连接结果条：成功/失败统一同构面板(标题 + 明细 + 副行,左侧 3px 状态色条),
 // 按错误码展示友好文案 + 可执行下一步（TASK-GEN-03）。
 
-import { Check, AlertCircle, KeyRound, ExternalLink, RotateCcw } from '../../../components/ui/icons';
+import {
+  Check,
+  AlertCircle,
+  KeyRound,
+  ExternalLink,
+  RotateCcw,
+} from '../../../components/ui/icons';
 import { errorGuidance, type ErrorAction } from '@musefold/domain/errors';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
@@ -31,7 +37,7 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
       <div
         className={cn(
           'rounded-md border-l-[3px] border-success bg-success/5 px-2.5 py-2 text-[11px] leading-relaxed text-success',
-          className
+          className,
         )}
         data-testid="validation-result"
         data-ok="true"
@@ -63,7 +69,7 @@ export function ValidationResultBanner({ result, className, docsUrl, onAction }:
     <div
       className={cn(
         'flex flex-col gap-2 rounded-md border-l-[3px] border-danger bg-danger/5 px-2.5 py-2 text-[11px] leading-relaxed text-danger',
-        className
+        className,
       )}
       data-testid="validation-result"
       data-ok="false"

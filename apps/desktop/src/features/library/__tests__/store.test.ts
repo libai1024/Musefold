@@ -387,7 +387,9 @@ describe('library store PromptGateway wiring', () => {
     const trashed = makePrompt({ deletedAt: 1_900_000_000_000 });
     const restored = makePrompt({ deletedAt: null });
     resetStore({ deleted: [trashed], prompts: [] });
-    vi.mocked(gateway.restorePrompt).mockResolvedValue(promptRowToDocument(makeRow({ deletedAt: null })));
+    vi.mocked(gateway.restorePrompt).mockResolvedValue(
+      promptRowToDocument(makeRow({ deletedAt: null })),
+    );
     vi.mocked(extras.listLibraryPrompts).mockResolvedValue([restored]);
 
     await useLibraryStore.getState().restorePrompt('prompt-1');

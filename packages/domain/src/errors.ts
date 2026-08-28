@@ -155,9 +155,11 @@ export function errorGuidance(code?: string | null): ErrorGuidance {
 }
 
 /** 把 ValidationResult / 生图失败统一成可读标题；优先用 code 映射，message 作细节 */
-export function formatValidationMessage(
-  result: { ok: boolean; message?: string; code?: string },
-): { title: string; detail?: string; code?: string } {
+export function formatValidationMessage(result: { ok: boolean; message?: string; code?: string }): {
+  title: string;
+  detail?: string;
+  code?: string;
+} {
   if (result.ok) {
     return { title: result.message || '连接成功' };
   }
@@ -165,11 +167,12 @@ export function formatValidationMessage(
   const detail = result.message?.trim();
   // 若主进程 message 已是友好中文且与 title 不同，作为细节保留
   const showDetail =
-    detail &&
-    detail !== g.title &&
-    !detail.startsWith(g.title) &&
-    detail.length > 0
+    detail && detail !== g.title && !detail.startsWith(g.title) && detail.length > 0
       ? detail
       : undefined;
-  return { title: g.title, detail: showDetail ?? (detail && detail !== g.title ? detail : undefined), code: result.code };
+  return {
+    title: g.title,
+    detail: showDetail ?? (detail && detail !== g.title ? detail : undefined),
+    code: result.code,
+  };
 }

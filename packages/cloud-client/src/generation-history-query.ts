@@ -1,11 +1,6 @@
-import {
-  generationHistoryQuerySchema,
-  type GenerationHistoryQuery,
-} from '@musefold/contracts';
+import { generationHistoryQuerySchema, type GenerationHistoryQuery } from '@musefold/contracts';
 
-export function serializeGenerationHistoryQuery(
-  query: GenerationHistoryQuery,
-): string {
+export function serializeGenerationHistoryQuery(query: GenerationHistoryQuery): string {
   const parsed = generationHistoryQuerySchema.parse(query);
   const search = new URLSearchParams({
     limit: String(parsed.limit),

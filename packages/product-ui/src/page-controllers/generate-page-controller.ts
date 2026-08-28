@@ -1,17 +1,17 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
-import type { GenerationSavePromptState } from "../workbench/GenerationSavePromptAction";
-import type { WorkbenchSessionListItemViewModel } from "../models";
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { GenerationSavePromptState } from '../workbench/GenerationSavePromptAction';
+import type { WorkbenchSessionListItemViewModel } from '../models';
 import {
   activeWorkbenchGenerationSnapshots,
   latestWorkbenchGenerationSnapshot,
   sortWorkbenchGenerationSnapshots,
   upsertWorkbenchGenerationSnapshot,
-} from "../workbench/generationSnapshots";
-import { useWorkbenchDraftSyncController } from "../workbench/useWorkbenchDraftSyncController";
-import { useWorkbenchGenerationSyncController } from "../workbench/useWorkbenchGenerationSyncController";
-import { useWorkbenchSessionController } from "../workbench/useWorkbenchSessionController";
-import { useGeneratePageCommands } from "./generate-page-commands";
+} from '../workbench/generationSnapshots';
+import { useWorkbenchDraftSyncController } from '../workbench/useWorkbenchDraftSyncController';
+import { useWorkbenchGenerationSyncController } from '../workbench/useWorkbenchGenerationSyncController';
+import { useWorkbenchSessionController } from '../workbench/useWorkbenchSessionController';
+import { useGeneratePageCommands } from './generate-page-commands';
 import {
   DEFAULT_LIBRARY_PAGE_LIST_KEY,
   DEFAULT_WORKBENCH_SESSION_LIST_KEY,
@@ -19,9 +19,9 @@ import {
   itemsFromQueryData,
   replaceListCache,
   upsertListCache,
-} from "./paged-items";
-import { musefoldQueryKeys } from "./query-client";
-import { requirePageControllerDeps, type GeneratePageControllerDeps } from "./types";
+} from './paged-items';
+import { musefoldQueryKeys } from './query-client';
+import { requirePageControllerDeps, type GeneratePageControllerDeps } from './types';
 import {
   GENERATE_PAGE_RATIO_SIZES,
   areWorkbenchDraftsEqual,
@@ -34,7 +34,7 @@ import {
   type GeneratePageQuality,
   type GeneratePageRatio,
   type GeneratePageSession,
-} from "./generate-page-model";
+} from './generate-page-model';
 
 export type { GeneratePageControllerDeps };
 export {
@@ -46,11 +46,9 @@ export {
   type GeneratePageRatio,
   type GeneratePageSession,
   type WorkbenchDraftInput,
-} from "./generate-page-model";
+} from './generate-page-model';
 
-type SessionListResult<TSession> =
-  | TSession[]
-  | { items: TSession[]; nextCursor?: string | null };
+type SessionListResult<TSession> = TSession[] | { items: TSession[]; nextCursor?: string | null };
 
 export interface GeneratePageHydrateInput<TSession extends GeneratePageSession> {
   sessions: TSession[];
@@ -60,7 +58,9 @@ export interface GeneratePageHydrateInput<TSession extends GeneratePageSession> 
   prompts?: GeneratePagePromptRef[];
 }
 
-export interface GeneratePageController<TSession extends GeneratePageSession = GeneratePageSession> {
+export interface GeneratePageController<
+  TSession extends GeneratePageSession = GeneratePageSession,
+> {
   promptText: string;
   setPromptText: (value: string) => void;
   ratio: GeneratePageRatio;
@@ -75,7 +75,7 @@ export interface GeneratePageController<TSession extends GeneratePageSession = G
   savePromptState: (job: GeneratePageJob) => GenerationSavePromptState;
   retrying: (job: GeneratePageJob) => boolean;
   actionError: string | null;
-  draftSaveStatus: ReturnType<typeof useWorkbenchDraftSyncController>["status"];
+  draftSaveStatus: ReturnType<typeof useWorkbenchDraftSyncController>['status'];
   draftConflict: TSession | null;
   useCloudDraft: () => void;
   overwriteCloudDraft: () => Promise<void>;
@@ -104,12 +104,14 @@ export interface GeneratePageController<TSession extends GeneratePageSession = G
   libraryItems: GeneratePagePromptRef[];
 }
 
-export function useGeneratePageController<TSession extends GeneratePageSession = GeneratePageSession>(
+export function useGeneratePageController<
+  TSession extends GeneratePageSession = GeneratePageSession,
+>(
   deps: GeneratePageControllerDeps & {
     listFn?: () => Promise<SessionListResult<TSession>>;
   },
 ): GeneratePageController<TSession> {
-  const wired = requirePageControllerDeps(deps, "useGeneratePageController");
+  const wired = requirePageControllerDeps(deps, 'useGeneratePageController');
   const depsRef = useRef(wired);
   depsRef.current = wired;
   const queryClient = useQueryClient();
@@ -122,11 +124,11 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
   } = sessionController;
 
   const [workbench, setWorkbench] = useState<TSession | null>(null);
-  const [promptText, setPromptText] = useState("");
+  const [promptText, setPromptText] = useState('');
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<GeneratePagePromptRef | null>(null);
-  const [ratio, setRatio] = useState<GeneratePageRatio>("1:1");
-  const [quality, setQuality] = useState<GeneratePageQuality>("medium");
+  const [ratio, setRatio] = useState<GeneratePageRatio>('1:1');
+  const [quality, setQuality] = useState<GeneratePageQuality>('medium');
   const [job, setJob] = useState<GeneratePageJob | null>(null);
   const [workbenchJobs, setWorkbenchJobs] = useState<GeneratePageJob[]>([]);
   const [trackedGenerationJobs, setTrackedGenerationJobs] = useState<GeneratePageJob[]>([]);
@@ -186,22 +188,25 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
     [runningWorkbenchSessionIds, sessions, workbench?.id],
   );
 
-  const applyDraft = useCallback((session: TSession | null, promptItems: GeneratePagePromptRef[]) => {
-    if (!session) {
-      setPromptText("");
-      setSelectedPromptId(null);
-      setSelectedPrompt(null);
-      setRatio("1:1");
-      setQuality("medium");
-      return;
-    }
-    const refId = session.draft.promptReferenceIds[0] ?? null;
-    setPromptText(session.draft.prompt);
-    setSelectedPromptId(refId);
-    setSelectedPrompt(promptItems.find((prompt) => prompt.id === refId) ?? null);
-    setRatio(workbenchRatio(session));
-    setQuality(session.draft.params.quality ?? "medium");
-  }, []);
+  const applyDraft = useCallback(
+    (session: TSession | null, promptItems: GeneratePagePromptRef[]) => {
+      if (!session) {
+        setPromptText('');
+        setSelectedPromptId(null);
+        setSelectedPrompt(null);
+        setRatio('1:1');
+        setQuality('medium');
+        return;
+      }
+      const refId = session.draft.promptReferenceIds[0] ?? null;
+      setPromptText(session.draft.prompt);
+      setSelectedPromptId(refId);
+      setSelectedPrompt(promptItems.find((prompt) => prompt.id === refId) ?? null);
+      setRatio(workbenchRatio(session));
+      setQuality(session.draft.params.quality ?? 'medium');
+    },
+    [],
+  );
 
   const commitWorkbench = useCallback(
     (next: TSession | null) => {
@@ -240,7 +245,7 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
     loadLatest: (current) => wired.workbench.getWorkbenchSession(current.id) as Promise<TSession>,
     isConflictError: wired.isConflictError ?? (() => false),
     onCommit: commitWorkbench,
-    onError: (error) => setActionError(error instanceof Error ? error.message : "草稿保存失败"),
+    onError: (error) => setActionError(error instanceof Error ? error.message : '草稿保存失败'),
   });
 
   const updateWorkbenchJob = useCallback((nextJob: GeneratePageJob) => {
@@ -274,16 +279,13 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
   useWorkbenchGenerationSyncController<GeneratePageJob>({
     jobs: trackedGenerationJobs,
     enabled: Boolean(generation),
-    getSnapshot: useCallback(
-      (id: string) => {
-        const port = depsRef.current.generation;
-        if (!port) {
-          throw new Error("useGeneratePageController requires generation to sync jobs");
-        }
-        return port.getGeneration(id);
-      },
-      [],
-    ),
+    getSnapshot: useCallback((id: string) => {
+      const port = depsRef.current.generation;
+      if (!port) {
+        throw new Error('useGeneratePageController requires generation to sync jobs');
+      }
+      return port.getGeneration(id);
+    }, []),
     streamEvents: useCallback((id, afterSeq, onEvent, signal) => {
       const port = depsRef.current.generation;
       return port ? port.streamGenerationEvents(id, afterSeq, onEvent, signal) : Promise.resolve();
@@ -297,7 +299,7 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
     ),
     onAuthRequired: useCallback(() => depsRef.current.onAuthRequired?.(), []),
     onError: useCallback((error: unknown) => {
-      setActionError(error instanceof Error ? error.message : "任务状态更新失败");
+      setActionError(error instanceof Error ? error.message : '任务状态更新失败');
     }, []),
   });
 
@@ -318,7 +320,14 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
       applyDraft(input.selected, input.prompts ?? []);
       depsRef.current.onSessionUrlChange?.(input.selected?.id ?? null);
     },
-    [applyDraft, commitWorkbench, queryClient, queryKey, replaceWorkbenchSessions, sessionController.setError],
+    [
+      applyDraft,
+      commitWorkbench,
+      queryClient,
+      queryKey,
+      replaceWorkbenchSessions,
+      sessionController.setError,
+    ],
   );
 
   const commands = useGeneratePageCommands({
@@ -365,10 +374,10 @@ export function useGeneratePageController<TSession extends GeneratePageSession =
   const savePromptState = useCallback(
     (targetJob: GeneratePageJob): GenerationSavePromptState =>
       targetJob.id === savedPromptJobId
-        ? "saved"
+        ? 'saved'
         : targetJob.id === savingPromptJobId
-          ? "saving"
-          : "idle",
+          ? 'saving'
+          : 'idle',
     [savedPromptJobId, savingPromptJobId],
   );
 

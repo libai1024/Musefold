@@ -60,9 +60,10 @@ describe('desktop capability entry mapping', () => {
     for (const [key, flag] of Object.entries(SETTINGS_SECTION_CAPABILITY) as Array<
       [string, string | readonly string[]]
     >) {
-      const expected = typeof flag === 'string'
-        ? capabilities[flag as keyof typeof capabilities]
-        : flag.some((entry) => capabilities[entry as keyof typeof capabilities]);
+      const expected =
+        typeof flag === 'string'
+          ? capabilities[flag as keyof typeof capabilities]
+          : flag.some((entry) => capabilities[entry as keyof typeof capabilities]);
       expect(isCapabilityEntryVisible(SETTINGS_SECTION_CAPABILITY, key)).toBe(expected);
       expect(expected).toBe(true);
     }
@@ -81,10 +82,10 @@ describe('desktop capability entry mapping', () => {
     const settingsView = source('apps/desktop/src/features/settings/components/SettingsView.tsx');
     const commandPalette = source('apps/desktop/src/components/command/CommandPalette.tsx');
 
-    expect(sidebar).toContain('from "../../runtime/capabilities"');
+    expect(sidebar).toContain("from '../../runtime/capabilities'");
     expect(sidebar).toContain('buildSidebarNavItems');
     expect(sidebar).toContain('capabilities');
-    expect(sidebar).not.toContain("getProductCapabilities(");
+    expect(sidebar).not.toContain('getProductCapabilities(');
 
     expect(settingsView).toContain("from '../../../runtime/capabilities'");
     expect(settingsView).toContain('SETTINGS_SECTION_CAPABILITY');
@@ -93,13 +94,13 @@ describe('desktop capability entry mapping', () => {
     expect(settingsView).toContain("id: 'relay'");
     expect(settingsView).toContain("label: '中转站'");
     expect(settingsView).toContain("id: 'open'");
-    expect(settingsView).not.toContain("getProductCapabilities(");
+    expect(settingsView).not.toContain('getProductCapabilities(');
 
     expect(commandPalette).toContain("from '../../runtime/capabilities'");
     expect(commandPalette).toContain('visibleProductCommands');
     expect(commandPalette).toContain("from '@musefold/domain'");
     expect(commandPalette).toContain('runCommand');
     expect(commandPalette).toContain("go('generate')");
-    expect(commandPalette).not.toContain("getProductCapabilities(");
+    expect(commandPalette).not.toContain('getProductCapabilities(');
   });
 });

@@ -144,7 +144,7 @@ describe('AI connection settings UI contract(RELAY-SETTINGS-UI 第二步)', () =
     expect(panelHooks).toContain("toast.success('AI 连接已创建')");
     expect(panel).toContain("(createdId ? (dirty ? '放弃' : '完成') : '取消')");
     // 隐式落库后再改动(dirty)回到「放弃」语义,点击经 onCreated 重挂载回持久化值
-    expect(panelHooks).toContain("form.markPristine();");
+    expect(panelHooks).toContain('form.markPristine();');
     // 保存中句式与生图统一带省略号;眼睛按钮补 title
     expect(panel).toContain("'保存中…'");
     expect(dialogParts).toContain("title={showKey ? '隐藏 API Key' : '显示 API Key'}");

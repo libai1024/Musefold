@@ -41,10 +41,11 @@ export function PetApp(): JSX.Element | null {
     // 同一状态重复推送时不重走加载，否则轮播会被打断重头播。
     // 反应状态可能复用同一条 APNG，但 state 变化仍要让 CSS/状态机语义更新。
     if (
-      shown?.state === frame.state
-      && shown.srcs.length === frame.srcs.length
-      && shown.srcs.every((src, index) => src === frame.srcs[index])
-    ) return;
+      shown?.state === frame.state &&
+      shown.srcs.length === frame.srcs.length &&
+      shown.srcs.every((src, index) => src === frame.srcs[index])
+    )
+      return;
     let alive = true;
     const commit = (): void => {
       if (!alive) return;

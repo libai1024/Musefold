@@ -14,7 +14,7 @@ export const DEFAULT_HISTORY_PAGE_LIST_KEY = { limit: 20 } as const;
 
 export const DEFAULT_LIBRARY_PAGE_LIST_KEY = {
   limit: 20,
-  sort: "updated-desc",
+  sort: 'updated-desc',
 } as const;
 
 /** 工作台会话列表。禁止把 `Date.now()` 解析出的边界写进 key。 */
@@ -24,23 +24,19 @@ export const LIBRARY_PAGE_SEARCH_DEBOUNCE_MS = 220;
 
 export function libraryPageListKey(query: string): {
   limit: 20;
-  sort: "updated-desc";
+  sort: 'updated-desc';
   q?: string;
 } {
   const q = query.trim();
-  return q
-    ? { limit: 20, sort: "updated-desc", q }
-    : { limit: 20, sort: "updated-desc" };
+  return q ? { limit: 20, sort: 'updated-desc', q } : { limit: 20, sort: 'updated-desc' };
 }
 
-export function asPagedItems<TItem extends { id: string }>(
-  current: unknown,
-): PagedItems<TItem> {
+export function asPagedItems<TItem extends { id: string }>(current: unknown): PagedItems<TItem> {
   if (!current) return { items: [], nextCursor: null };
   if (Array.isArray(current)) {
     return { items: current as TItem[], nextCursor: null };
   }
-  if (typeof current === "object" && current !== null && "items" in current) {
+  if (typeof current === 'object' && current !== null && 'items' in current) {
     const page = current as { items?: TItem[]; nextCursor?: string | null };
     return {
       items: page.items ?? [],
@@ -50,9 +46,7 @@ export function asPagedItems<TItem extends { id: string }>(
   return { items: [], nextCursor: null };
 }
 
-export function itemsFromQueryData<TItem extends { id: string }>(
-  current: unknown,
-): TItem[] {
+export function itemsFromQueryData<TItem extends { id: string }>(current: unknown): TItem[] {
   return asPagedItems<TItem>(current).items;
 }
 
@@ -86,10 +80,7 @@ export function upsertListCache<TItem extends { id: string }>(
   return upsertPagedItem(asPagedItems<TItem>(current), item);
 }
 
-export function dropListCache<TItem extends { id: string }>(
-  current: unknown,
-  id: string,
-): unknown {
+export function dropListCache<TItem extends { id: string }>(current: unknown, id: string): unknown {
   if (Array.isArray(current)) {
     return (current as TItem[]).filter((entry) => entry.id !== id);
   }

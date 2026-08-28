@@ -1,11 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type WorkbenchDraftSaveStatus =
-  | "idle"
-  | "saving"
-  | "saved"
-  | "conflict"
-  | "error";
+export type WorkbenchDraftSaveStatus = 'idle' | 'saving' | 'saved' | 'conflict' | 'error';
 
 export interface WorkbenchDraftSession<Draft> {
   id: string;
@@ -25,10 +20,7 @@ export interface WorkbenchDraftSyncControllerOptions<
   saveDraft: (session: Session, draft: Draft) => Promise<Session>;
   loadLatest: (session: Session) => Promise<Session>;
   isConflictError: (error: unknown) => boolean;
-  resolveConflict?: (
-    error: unknown,
-    session: Session,
-  ) => Session | null | Promise<Session | null>;
+  resolveConflict?: (error: unknown, session: Session) => Session | null | Promise<Session | null>;
   onCommit: (session: Session) => void;
   onError?: (error: unknown) => void;
 }
@@ -66,7 +58,7 @@ export function useWorkbenchDraftSyncController<
   const timerRef = useRef<number | null>(null);
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   const revisionRef = useRef(0);
-  const [status, setStatus] = useState<WorkbenchDraftSaveStatus>("idle");
+  const [status, setStatus] = useState<WorkbenchDraftSaveStatus>('idle');
   const [conflict, setConflict] = useState<Session | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -76,80 +68,67 @@ export function useWorkbenchDraftSyncController<
     }
   }, []);
 
-  const save = useCallback(
-    (draftOverride?: Draft, sessionOverride?: Session) => {
-      const target = sessionOverride ?? sessionRef.current;
-      const draft = draftOverride ?? draftRef.current;
-      const targetRevision = revisionRef.current;
-      if (!target) return Promise.resolve<Session | null>(null);
+  const save = useCallback((draftOverride?: Draft, sessionOverride?: Session) => {
+    const target = sessionOverride ?? sessionRef.current;
+    const draft = draftOverride ?? draftRef.current;
+    const targetRevision = revisionRef.current;
+    if (!target) return Promise.resolve<Session | null>(null);
 
-      const operation = queueRef.current.then(async () => {
-        const current = sessionOverride ?? sessionRef.current;
-        if (
-          !current ||
-          targetRevision !== revisionRef.current ||
-          current.id !== target.id
-        ) {
+    const operation = queueRef.current.then(async () => {
+      const current = sessionOverride ?? sessionRef.current;
+      if (!current || targetRevision !== revisionRef.current || current.id !== target.id) {
+        return null;
+      }
+      const currentOptions = optionsRef.current;
+      if (currentOptions.areDraftsEqual(current.draft, draft)) return current;
+
+      setStatus('saving');
+      try {
+        const updated = await currentOptions.saveDraft(current, draft);
+        if (targetRevision !== revisionRef.current || sessionRef.current?.id !== current.id) {
           return null;
         }
-        const currentOptions = optionsRef.current;
-        if (currentOptions.areDraftsEqual(current.draft, draft)) return current;
-
-        setStatus("saving");
-        try {
-          const updated = await currentOptions.saveDraft(current, draft);
-          if (
-            targetRevision !== revisionRef.current ||
-            sessionRef.current?.id !== current.id
-          ) {
-            return null;
-          }
-          currentOptions.onCommit(updated);
-          setConflict(null);
-          setStatus("saved");
-          return updated;
-        } catch (error) {
-          if (
-            targetRevision !== revisionRef.current ||
-            sessionRef.current?.id !== current.id
-          ) {
-            return null;
-          }
-          if (currentOptions.isConflictError(error)) {
-            const latest = currentOptions.resolveConflict
-              ? await currentOptions.resolveConflict(error, current)
-              : await currentOptions.loadLatest(current);
-            if (
-              latest &&
-              targetRevision === revisionRef.current &&
-              sessionRef.current?.id === current.id
-            ) {
-              revisionRef.current += 1;
-              setConflict(latest);
-              setStatus("conflict");
-            }
-          } else {
-            setStatus("error");
-            currentOptions.onError?.(error);
-          }
-          throw error;
+        currentOptions.onCommit(updated);
+        setConflict(null);
+        setStatus('saved');
+        return updated;
+      } catch (error) {
+        if (targetRevision !== revisionRef.current || sessionRef.current?.id !== current.id) {
+          return null;
         }
-      });
+        if (currentOptions.isConflictError(error)) {
+          const latest = currentOptions.resolveConflict
+            ? await currentOptions.resolveConflict(error, current)
+            : await currentOptions.loadLatest(current);
+          if (
+            latest &&
+            targetRevision === revisionRef.current &&
+            sessionRef.current?.id === current.id
+          ) {
+            revisionRef.current += 1;
+            setConflict(latest);
+            setStatus('conflict');
+          }
+        } else {
+          setStatus('error');
+          currentOptions.onError?.(error);
+        }
+        throw error;
+      }
+    });
 
-      queueRef.current = operation.then(
-        () => undefined,
-        () => undefined,
-      );
-      return operation;
-    },
-    [],
-  );
+    queueRef.current = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }, []);
 
   const reset = useCallback(() => {
     revisionRef.current += 1;
     clearTimer();
     setConflict(null);
-    setStatus("idle");
+    setStatus('idle');
   }, [clearTimer]);
 
   const flush = useCallback(() => {
@@ -163,7 +142,7 @@ export function useWorkbenchDraftSyncController<
     revisionRef.current += 1;
     setConflict(null);
     optionsRef.current.onCommit(latest);
-    setStatus("saved");
+    setStatus('saved');
   }, [conflict]);
 
   const overwriteRemoteDraft = useCallback(async () => {
@@ -188,21 +167,14 @@ export function useWorkbenchDraftSyncController<
       return;
     }
 
-    setStatus((current) => (current === "saved" ? "idle" : current));
+    setStatus((current) => (current === 'saved' ? 'idle' : current));
     clearTimer();
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
       void save().catch(() => undefined);
     }, currentOptions.debounceMs ?? 700);
     return clearTimer;
-  }, [
-    clearTimer,
-    conflict,
-    options.draft,
-    options.enabled,
-    options.session,
-    save,
-  ]);
+  }, [clearTimer, conflict, options.draft, options.enabled, options.session, save]);
 
   useEffect(() => clearTimer, [clearTimer]);
 

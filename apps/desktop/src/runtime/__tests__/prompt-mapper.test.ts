@@ -76,9 +76,7 @@ describe('prompt row ↔ document mapping', () => {
     expect(cloudSourceToDesktop('generation')).toBe('import');
     expect(desktopSourceToCloud('slip')).toBe('slip');
 
-    const colored = promptRowToDocument(
-      makeRow({ tags: [{ ...TAG, color: 'red' }] }),
-    );
+    const colored = promptRowToDocument(makeRow({ tags: [{ ...TAG, color: 'red' }] }));
     expect(colored.tags[0].color).toBeNull();
   });
 
@@ -159,9 +157,7 @@ describe('prompt row ↔ document mapping', () => {
     expect(applied.title).toBe('改名');
     expect(applied.content).toBe('rewritten body');
     expect(pickReversiblePromptRow(applied)).toEqual(
-      pickReversiblePromptRow(
-        makeRow({ title: '改名', content: 'rewritten body' }),
-      ),
+      pickReversiblePromptRow(makeRow({ title: '改名', content: 'rewritten body' })),
     );
     expect(applied.previewImagePath).toBe('/tmp/preview.png');
     expect(applied.coverImagePath).toBe('/tmp/cover.png');

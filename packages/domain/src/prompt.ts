@@ -82,17 +82,12 @@ export function composerToGenerationRequest(
   });
 }
 
-export function titleFromPromptContent(
-  content: string,
-  fallback = '生成提示词',
-): string {
+export function titleFromPromptContent(content: string, fallback = '生成提示词'): string {
   const compact = content.trim().replace(/\s+/g, ' ');
   return Array.from(compact).slice(0, 40).join('') || fallback;
 }
 
-export function generationRequestToPromptDraft(
-  request: CloudGenerationRequest,
-): NewPromptDocument {
+export function generationRequestToPromptDraft(request: CloudGenerationRequest): NewPromptDocument {
   const parsed = cloudGenerationRequestSchema.parse(request);
   return newPromptDocumentSchema.parse({
     title: titleFromPromptContent(parsed.prompt),

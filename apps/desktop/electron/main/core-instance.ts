@@ -2,7 +2,12 @@
 // application.ts 在 whenReady 时初始化；后续任务卡（CORE-03/04、API-01）
 // 经 getMusefoldCore() 取用服务面与事件集线器，禁止自行 createMusefoldCore。
 
-import { createEventHub, createMusefoldCore, type EventHub, type MusefoldCore } from '@musefold/core';
+import {
+  createEventHub,
+  createMusefoldCore,
+  type EventHub,
+  type MusefoldCore,
+} from '@musefold/core';
 import { configureCoreRuntime } from '@musefold/core/runtime';
 import { createLogger } from '../system/logger';
 import { getPaths } from '../system/paths';

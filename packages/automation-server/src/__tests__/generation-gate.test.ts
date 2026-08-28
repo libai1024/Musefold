@@ -6,7 +6,11 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEventHub } from '@musefold/core';
 import type { GenerateImageResult } from '@musefold/desktop-contracts/providers';
-import { createAutomationServer, type AutomationServer, type AutomationServerInfo } from '../server';
+import {
+  createAutomationServer,
+  type AutomationServer,
+  type AutomationServerInfo,
+} from '../server';
 import { createGenerationGate, type GenerationHost } from '../generation-routes';
 
 const resources: Array<{ dir: string; stop: () => Promise<void> }> = [];
@@ -30,13 +34,15 @@ interface Fixture {
   events: Array<{ type: string; payload: unknown }>;
 }
 
-async function fixture(overrides: {
-  remaining?: number;
-  estimatePoints?: number | null;
-  managedByAccount?: boolean;
-  confirm?: 'approved' | 'denied' | 'hang';
-  runResult?: Partial<GenerateImageResult>;
-} = {}): Promise<Fixture> {
+async function fixture(
+  overrides: {
+    remaining?: number;
+    estimatePoints?: number | null;
+    managedByAccount?: boolean;
+    confirm?: 'approved' | 'denied' | 'hang';
+    runResult?: Partial<GenerateImageResult>;
+  } = {},
+): Promise<Fixture> {
   const dir = mkdtempSync(join(tmpdir(), 'musefold-gate-'));
   const hub = createEventHub();
   const events: Array<{ type: string; payload: unknown }> = [];
@@ -44,14 +50,17 @@ async function fixture(overrides: {
   const settled: number[] = [];
 
   const host = {
-    run: vi.fn(async (): Promise<GenerateImageResult> => ({
-      historyId: 'his-gate',
-      status: 'success',
-      imagePath: '/tmp/out.png',
-      cost: 18,
-      durationMs: 1200,
-      ...overrides.runResult,
-    } as GenerateImageResult)),
+    run: vi.fn(
+      async (): Promise<GenerateImageResult> =>
+        ({
+          historyId: 'his-gate',
+          status: 'success',
+          imagePath: '/tmp/out.png',
+          cost: 18,
+          durationMs: 1200,
+          ...overrides.runResult,
+        }) as GenerateImageResult,
+    ),
     cancel: vi.fn(() => true),
     estimate: vi.fn(() => ({
       points: overrides.estimatePoints === undefined ? 18 : overrides.estimatePoints,
@@ -77,13 +86,19 @@ async function fixture(overrides: {
       mimeType: 'image/png' as const,
       sizeBytes: bytes.length,
     })),
-    resolveHistoryImage: (historyId: string) => (historyId === 'his-known' ? { path: '/managed/pictures/known.png' } : null),
+    resolveHistoryImage: (historyId: string) =>
+      historyId === 'his-known' ? { path: '/managed/pictures/known.png' } : null,
     settled,
   };
 
   const gate = createGenerationGate(host, hub);
   const server = createAutomationServer({
-    core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }) } },
+    core: {
+      version: '0.1.0',
+      status: {
+        snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }),
+      },
+    },
     events: hub,
     dataDir: dir,
     owner: 'desktop-app',
@@ -95,10 +110,19 @@ async function fixture(overrides: {
   return { info, server, host, hub, events };
 }
 
-async function post(info: AutomationServerInfo, path: string, body: unknown, headers: Record<string, string> = {}) {
+async function post(
+  info: AutomationServerInfo,
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return fetch(`http://127.0.0.1:${info.port}${path}`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${info.token}`, 'content-type': 'application/json', ...headers },
+    headers: {
+      authorization: `Bearer ${info.token}`,
+      'content-type': 'application/json',
+      ...headers,
+    },
     body: JSON.stringify(body),
   });
 }
@@ -126,16 +150,22 @@ describe('策略闸门四分支', () => {
       remaining: 100,
       runResult: {
         imagePath: paths[0],
-        images: paths.map((imagePath) => ({ imagePath, actualSize: { width: 1024, height: 1024 } })),
+        images: paths.map((imagePath) => ({
+          imagePath,
+          actualSize: { width: 1024, height: 1024 },
+        })),
       },
     });
     const response = await post(f.info, '/v1/generations', { prompt: '豆包四图' });
     const submitted = (await response.json()) as { jobId: string };
     await vi.waitFor(() => expect(f.host.settled).toEqual([18]));
 
-    const detail = await fetch(`http://127.0.0.1:${f.info.port}/v1/generations/${submitted.jobId}`, {
-      headers: { authorization: `Bearer ${f.info.token}` },
-    });
+    const detail = await fetch(
+      `http://127.0.0.1:${f.info.port}/v1/generations/${submitted.jobId}`,
+      {
+        headers: { authorization: `Bearer ${f.info.token}` },
+      },
+    );
     expect((await detail.json()) as { assets: Array<{ path: string }> }).toMatchObject({
       status: 'success',
       assets: paths.map((path) => ({ path })),
@@ -208,8 +238,12 @@ describe('策略闸门四分支', () => {
       const required = f.events.find((event) => event.type === 'confirmation.required');
       expect(required).toBeTruthy();
     });
-    const summary = (f.events.find((event) => event.type === 'confirmation.required')!.payload) as { confirmationId: string };
-    const receipt = await post(f.info, `/v1/confirmations/${summary.confirmationId}`, { approved: true });
+    const summary = f.events.find((event) => event.type === 'confirmation.required')!.payload as {
+      confirmationId: string;
+    };
+    const receipt = await post(f.info, `/v1/confirmations/${summary.confirmationId}`, {
+      approved: true,
+    });
     expect(receipt.status).toBe(200);
     const response = await pendingResponse;
     expect(response.status).toBe(202);
@@ -218,9 +252,19 @@ describe('策略闸门四分支', () => {
 
   it('a. Idempotency-Key 重放 → 返回原任务且不再确认/执行', async () => {
     const f = await fixture({ remaining: 100 });
-    const first = await post(f.info, '/v1/generations', { prompt: '幂等重放' }, { 'idempotency-key': 'idem-1' });
+    const first = await post(
+      f.info,
+      '/v1/generations',
+      { prompt: '幂等重放' },
+      { 'idempotency-key': 'idem-1' },
+    );
     const firstPayload = (await first.json()) as any;
-    const replay = await post(f.info, '/v1/generations', { prompt: '幂等重放' }, { 'idempotency-key': 'idem-1' });
+    const replay = await post(
+      f.info,
+      '/v1/generations',
+      { prompt: '幂等重放' },
+      { 'idempotency-key': 'idem-1' },
+    );
     expect(replay.status).toBe(200);
     const replayPayload = (await replay.json()) as any;
     expect(replayPayload.jobId).toBe(firstPayload.jobId);
@@ -229,7 +273,12 @@ describe('策略闸门四分支', () => {
   });
 
   it('托管 Provider 估算未知时不可走预算，必须确认', async () => {
-    const f = await fixture({ remaining: 10_000, estimatePoints: null, managedByAccount: true, confirm: 'approved' });
+    const f = await fixture({
+      remaining: 10_000,
+      estimatePoints: null,
+      managedByAccount: true,
+      confirm: 'approved',
+    });
     await post(f.info, '/v1/generations', { prompt: '未知成本' });
     expect(f.host.requestConfirmation).toHaveBeenCalledOnce();
   });
@@ -250,7 +299,9 @@ describe('策略闸门四分支', () => {
 
   it('DELETE /v1/generations/:jobId 触发取消', async () => {
     const f = await fixture({ remaining: 100, runResult: { status: 'cancelled' } });
-    const started = (await (await post(f.info, '/v1/generations', { prompt: '取消我' })).json()) as any;
+    const started = (await (
+      await post(f.info, '/v1/generations', { prompt: '取消我' })
+    ).json()) as any;
     const cancel = await fetch(`http://127.0.0.1:${f.info.port}/v1/generations/${started.jobId}`, {
       method: 'DELETE',
       headers: { authorization: `Bearer ${f.info.token}` },
@@ -267,15 +318,33 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
     let now = 1_000_000;
     const audits: unknown[] = [];
     const failingHost = {
-      run: vi.fn(async (): Promise<GenerateImageResult> => ({
-        historyId: 'his-fail', status: 'failed', error: { code: 'PROVIDER_ERROR', message: 'boom' },
-      } as GenerateImageResult)),
+      run: vi.fn(
+        async (): Promise<GenerateImageResult> =>
+          ({
+            historyId: 'his-fail',
+            status: 'failed',
+            error: { code: 'PROVIDER_ERROR', message: 'boom' },
+          }) as GenerateImageResult,
+      ),
       cancel: () => true,
-      estimate: () => ({ points: 10, managedByAccount: true, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
+      estimate: () => ({
+        points: 10,
+        managedByAccount: true,
+        providerId: 'p',
+        providerName: 'P',
+        model: 'm',
+        n: 1,
+      }),
       budget: { remainingPoints: () => 10_000, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,
-      stageUpload: async (bytes: Buffer, name: string) => ({ path: name, name, source: 'upload' as const, mimeType: 'image/png' as const, sizeBytes: bytes.length }),
+      stageUpload: async (bytes: Buffer, name: string) => ({
+        path: name,
+        name,
+        source: 'upload' as const,
+        mimeType: 'image/png' as const,
+        sizeBytes: bytes.length,
+      }),
       resolveHistoryImage: () => null,
     };
     const gate = createGenerationGate(failingHost, hub, {
@@ -285,8 +354,17 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
       onSpendAudit: (entry) => audits.push(entry),
     });
     const server = createAutomationServer({
-      core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }) } },
-      events: hub, dataDir: dir, owner: 'desktop-app', appVersion: 'x', routes: gate.routes,
+      core: {
+        version: '0.1.0',
+        status: {
+          snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }),
+        },
+      },
+      events: hub,
+      dataDir: dir,
+      owner: 'desktop-app',
+      appVersion: 'x',
+      routes: gate.routes,
     });
     const info = await server.start();
     resources.push({ dir, stop: () => server.stop() });
@@ -318,21 +396,52 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
     const dir = mkdtempSync(join(tmpdir(), 'musefold-audit-'));
     const hub = createEventHub();
     const host = {
-      run: vi.fn(async (req: { jobId?: string }): Promise<GenerateImageResult> => ({
-        historyId: req.jobId ?? 'h', status: 'success', imagePath: '/tmp/a.png', cost: 18, durationMs: 5,
-      } as GenerateImageResult)),
+      run: vi.fn(
+        async (req: { jobId?: string }): Promise<GenerateImageResult> =>
+          ({
+            historyId: req.jobId ?? 'h',
+            status: 'success',
+            imagePath: '/tmp/a.png',
+            cost: 18,
+            durationMs: 5,
+          }) as GenerateImageResult,
+      ),
       cancel: () => true,
-      estimate: () => ({ points: 18, managedByAccount: true, providerId: 'p', providerName: 'P', model: 'm', n: 1 }),
+      estimate: () => ({
+        points: 18,
+        managedByAccount: true,
+        providerId: 'p',
+        providerName: 'P',
+        model: 'm',
+        n: 1,
+      }),
       budget: { remainingPoints: () => 100, settle: () => {} },
       requestConfirmation: async () => 'approved' as const,
       authorizeReferencePath: () => true,
-      stageUpload: async (bytes: Buffer, name: string) => ({ path: name, name, source: 'upload' as const, mimeType: 'image/png' as const, sizeBytes: bytes.length }),
+      stageUpload: async (bytes: Buffer, name: string) => ({
+        path: name,
+        name,
+        source: 'upload' as const,
+        mimeType: 'image/png' as const,
+        sizeBytes: bytes.length,
+      }),
       resolveHistoryImage: () => null,
     };
-    const gate = createGenerationGate(host, hub, { onSpendAudit: (entry) => audits.push(entry as never) });
+    const gate = createGenerationGate(host, hub, {
+      onSpendAudit: (entry) => audits.push(entry as never),
+    });
     const server = createAutomationServer({
-      core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }) } },
-      events: hub, dataDir: dir, owner: 'desktop-app', appVersion: 'x', routes: gate.routes,
+      core: {
+        version: '0.1.0',
+        status: {
+          snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }),
+        },
+      },
+      events: hub,
+      dataDir: dir,
+      owner: 'desktop-app',
+      appVersion: 'x',
+      routes: gate.routes,
     });
     const info2 = await server.start();
     resources.push({ dir, stop: () => server.stop() });
@@ -354,14 +463,24 @@ describe('熔断与花钱审计（V04-SEC-01）', () => {
 describe('路径白名单与上传（V04-API-04）', () => {
   it('白名单外路径 403 PATH_NOT_ALLOWED；未知历史引用 404', async () => {
     const f = await fixture({ remaining: 100 });
-    const outside = await post(f.info, '/v1/generations', { prompt: 'x', referenceImagePaths: ['/etc/passwd'] });
+    const outside = await post(f.info, '/v1/generations', {
+      prompt: 'x',
+      referenceImagePaths: ['/etc/passwd'],
+    });
     expect(outside.status).toBe(403);
     expect(((await outside.json()) as any).error.code).toBe('PATH_NOT_ALLOWED');
 
-    const missing = await post(f.info, '/v1/generations', { prompt: 'x', referenceHistoryIds: ['his-nope'] });
+    const missing = await post(f.info, '/v1/generations', {
+      prompt: 'x',
+      referenceHistoryIds: ['his-nope'],
+    });
     expect(missing.status).toBe(404);
 
-    const known = await post(f.info, '/v1/generations', { prompt: 'x', referenceHistoryIds: ['his-known'], referenceImagePaths: ['/managed/uploads/a.png'] });
+    const known = await post(f.info, '/v1/generations', {
+      prompt: 'x',
+      referenceHistoryIds: ['his-known'],
+      referenceImagePaths: ['/managed/uploads/a.png'],
+    });
     expect(known.status).toBe(202);
   });
 
@@ -378,7 +497,7 @@ describe('路径白名单与上传（V04-API-04）', () => {
       body: png,
     });
     expect(ok.status).toBe(201);
-    expect((((await ok.json()) as any).image.path)).toBe('/managed/uploads/pasted.png');
+    expect(((await ok.json()) as any).image.path).toBe('/managed/uploads/pasted.png');
 
     const bad = await fetch(`http://127.0.0.1:${f.info.port}/v1/uploads`, {
       method: 'POST',

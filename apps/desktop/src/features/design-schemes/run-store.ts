@@ -77,9 +77,10 @@ export const useSchemeRunStore = create<SchemeRunState>((set, get) => ({
       latest = summaries.data.find((item) => item.id === scheme.id) ?? scheme;
     }
     // 正式方案存在待验证新版本时，「试运行」针对的是新版本（规范 §2.2）。
-    const revisionId = mode === 'trial' && latest.workingDraftRevisionId
-      ? latest.workingDraftRevisionId
-      : latest.currentRevisionId;
+    const revisionId =
+      mode === 'trial' && latest.workingDraftRevisionId
+        ? latest.workingDraftRevisionId
+        : latest.currentRevisionId;
     const revision = await api.designScheme.getRevision(revisionId);
     if (!revision.ok) {
       toast.error('无法打开方案', revision.error.message);
@@ -111,9 +112,10 @@ export const useSchemeRunStore = create<SchemeRunState>((set, get) => ({
     const workbench = useGenerationWorkbenchStore.getState();
     // beginSchemeRunTurn 会连同 Composer 一起重置槽位值，必须先快照再建轮。
     // 修复重跑不经过 Composer，直接复用上次快照。
-    const inputValues = repair && get().lastRun
-      ? { ...get().lastRun!.inputValues }
-      : { ...workbench.schemeInputValues };
+    const inputValues =
+      repair && get().lastRun
+        ? { ...get().lastRun!.inputValues }
+        : { ...workbench.schemeInputValues };
     const executionId = executionUid();
     const begin = workbench.beginSchemeRunTurn({
       userPrompt,
@@ -163,7 +165,11 @@ export const useSchemeRunStore = create<SchemeRunState>((set, get) => ({
       });
       const state = useGenerationWorkbenchStore.getState();
       if (!result.ok) {
-        state.failSchemeRunTurn(begin.turnId, result.error.message, result.error.code === 'CANCELLED');
+        state.failSchemeRunTurn(
+          begin.turnId,
+          result.error.message,
+          result.error.code === 'CANCELLED',
+        );
         return false;
       }
       state.finishSchemeRunTurn(begin.turnId, {
@@ -243,7 +249,9 @@ export const useSchemeRunStore = create<SchemeRunState>((set, get) => ({
     }
     useGenerationWorkbenchStore.getState().patchSchemeRunSource(turnId, { formalized: true });
     toast.show({
-      title: isPromotion ? `「${result.data.name}」正式版本已更新` : `「${result.data.name}」已设为正式`,
+      title: isPromotion
+        ? `「${result.data.name}」正式版本已更新`
+        : `「${result.data.name}」已设为正式`,
       description: '正式方案可以在方案中心直接使用。',
     });
   },
@@ -266,7 +274,10 @@ if (typeof api.designScheme?.onEvent === 'function') {
         workbench.setRunningTurnJob(state.turnId, event.jobId);
         break;
       case 'run-generation-result':
-        workbench.materializeSkillTurnResults(state.turnId, state.plannedJobIds ?? [event.outcome.jobId]);
+        workbench.materializeSkillTurnResults(
+          state.turnId,
+          state.plannedJobIds ?? [event.outcome.jobId],
+        );
         workbench.applySkillGenerationResult(state.turnId, event.outcome);
         break;
       default:

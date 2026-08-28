@@ -63,7 +63,9 @@ export function runDesignSchemeDbMigrations(
   const target = ordered.at(-1)?.version ?? current;
 
   if (current > target) {
-    throw new Error(`Design scheme database schema version ${current} is newer than supported ${target}`);
+    throw new Error(
+      `Design scheme database schema version ${current} is newer than supported ${target}`,
+    );
   }
 
   for (const migration of ordered.filter((item) => item.version > current)) {

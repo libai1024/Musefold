@@ -340,10 +340,18 @@ describe('prefs origin migration orchestration', () => {
   });
 
   it('registers a one-shot pull handler that clears memory', () => {
-    const handlers = new Map<string, (event: { returnValue?: unknown }, ...args: unknown[]) => void>();
-    ipcHandlers.on.mockImplementation((channel: string, handler: (event: { returnValue?: unknown }, ...args: unknown[]) => void) => {
-      handlers.set(channel, handler);
-    });
+    const handlers = new Map<
+      string,
+      (event: { returnValue?: unknown }, ...args: unknown[]) => void
+    >();
+    ipcHandlers.on.mockImplementation(
+      (
+        channel: string,
+        handler: (event: { returnValue?: unknown }, ...args: unknown[]) => void,
+      ) => {
+        handlers.set(channel, handler);
+      },
+    );
     registerPrefsOriginMigrationHandlers();
     seedPendingOriginMigrationPayloadForTests({ 'musefold:theme': 'dark' });
 

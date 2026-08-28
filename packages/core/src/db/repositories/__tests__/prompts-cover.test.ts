@@ -25,7 +25,13 @@ function insertHistory(input: {
   db.prepare(
     `INSERT INTO history (id, prompt_id, provider_id, model, prompt_text, status, image_path, created_at)
      VALUES (?, ?, 'prov', 'model', 'text', ?, ?, ?)`,
-  ).run(input.id, input.promptId ?? null, input.status ?? 'success', input.imagePath ?? null, input.createdAt);
+  ).run(
+    input.id,
+    input.promptId ?? null,
+    input.status ?? 'success',
+    input.imagePath ?? null,
+    input.createdAt,
+  );
   if (input.referencePromptId) {
     db.prepare(
       `INSERT INTO history_prompt_references (history_id, prompt_id, prompt_title, excerpt, scope, sort_order)
@@ -44,7 +50,11 @@ afterAll(() => {
 
 describe('promptsRepo coverImagePath', () => {
   it('默认使用相关作品最新一张成功图；失败/无图记录不参与', () => {
-    const prompt = promptsRepo.create({ title: '海报', content: 'poster', previewImagePath: '/tmp/preview.png' });
+    const prompt = promptsRepo.create({
+      title: '海报',
+      content: 'poster',
+      previewImagePath: '/tmp/preview.png',
+    });
 
     // 无作品 → 兜底 preview
     expect(promptsRepo.get(prompt.id)?.coverImagePath).toBe('/tmp/preview.png');
@@ -52,20 +62,45 @@ describe('promptsRepo coverImagePath', () => {
     insertHistory({ id: 'h1', promptId: prompt.id, imagePath: '/works/old.png', createdAt: 1000 });
     insertHistory({ id: 'h2', promptId: prompt.id, imagePath: '/works/new.png', createdAt: 2000 });
     // 更晚但失败 / 无图：不作为封面
-    insertHistory({ id: 'h3', promptId: prompt.id, status: 'failed', imagePath: null, createdAt: 3000 });
-    insertHistory({ id: 'h4', promptId: prompt.id, status: 'success', imagePath: null, createdAt: 4000 });
+    insertHistory({
+      id: 'h3',
+      promptId: prompt.id,
+      status: 'failed',
+      imagePath: null,
+      createdAt: 3000,
+    });
+    insertHistory({
+      id: 'h4',
+      promptId: prompt.id,
+      status: 'success',
+      imagePath: null,
+      createdAt: 4000,
+    });
 
     const fresh = promptsRepo.get(prompt.id);
     expect(fresh?.coverImagePath).toBe('/works/new.png');
     // list 与 get 同口径
-    expect(promptsRepo.list().find((item) => item.id === prompt.id)?.coverImagePath).toBe('/works/new.png');
+    expect(promptsRepo.list().find((item) => item.id === prompt.id)?.coverImagePath).toBe(
+      '/works/new.png',
+    );
   });
 
   it('引用过本提示词的作品同样计入，取全渠道最新', () => {
     const prompt = promptsRepo.create({ title: '插画', content: 'illust' });
-    insertHistory({ id: 'h10', promptId: prompt.id, imagePath: '/works/direct.png', createdAt: 1000 });
+    insertHistory({
+      id: 'h10',
+      promptId: prompt.id,
+      imagePath: '/works/direct.png',
+      createdAt: 1000,
+    });
     // 引用渠道（history_prompt_references）更新 → 应作为封面
-    insertHistory({ id: 'h11', promptId: null, imagePath: '/works/referenced.png', createdAt: 2000, referencePromptId: prompt.id });
+    insertHistory({
+      id: 'h11',
+      promptId: null,
+      imagePath: '/works/referenced.png',
+      createdAt: 2000,
+      referencePromptId: prompt.id,
+    });
 
     expect(promptsRepo.get(prompt.id)?.coverImagePath).toBe('/works/referenced.png');
   });

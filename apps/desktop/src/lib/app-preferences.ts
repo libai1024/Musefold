@@ -105,7 +105,10 @@ export function clearLegacyAppPreferences(): void {
   }
 }
 
-export function migrateAppPreferences(persisted: unknown, version: number): PersistedAppPreferences {
+export function migrateAppPreferences(
+  persisted: unknown,
+  version: number,
+): PersistedAppPreferences {
   void version;
   return sanitizeAppPreferences(persisted);
 }
@@ -142,7 +145,8 @@ function parseDensity(value: unknown): InterfaceDensity {
 }
 
 function parseSchemePriorityMode(value: unknown): SchemePriorityMode {
-  if (value === 'user_first' || value === 'scheme_first' || value === 'agent_mediated') return value;
+  if (value === 'user_first' || value === 'scheme_first' || value === 'agent_mediated')
+    return value;
   return DEFAULT_APP_PREFERENCES.schemePriorityMode;
 }
 

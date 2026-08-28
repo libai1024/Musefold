@@ -128,9 +128,7 @@ describe('settings account review fixes', () => {
 
   it('uses corner quotes consistently across the account page', () => {
     for (const source of [signedOutForm, signedInPanel, cloudSyncPanel, doubao, section]) {
-      expect(source, 'curly quotes must not appear on the account page').not.toMatch(
-        CURLY_QUOTES,
-      );
+      expect(source, 'curly quotes must not appear on the account page').not.toMatch(CURLY_QUOTES);
     }
   });
 });

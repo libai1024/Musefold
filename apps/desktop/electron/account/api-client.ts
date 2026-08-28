@@ -66,13 +66,18 @@ export function normalizeAccountServerUrl(input: string): string {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new RelayApiError('ACCOUNT/SERVER', '服务器地址只支持 http 或 https');
   }
-  if (url.username || url.password) throw new RelayApiError('ACCOUNT/SERVER', '服务器地址不能包含用户名或密码');
-  if (url.search || url.hash) throw new RelayApiError('ACCOUNT/SERVER', '服务器地址不能包含查询参数或片段');
+  if (url.username || url.password)
+    throw new RelayApiError('ACCOUNT/SERVER', '服务器地址不能包含用户名或密码');
+  if (url.search || url.hash)
+    throw new RelayApiError('ACCOUNT/SERVER', '服务器地址不能包含查询参数或片段');
   url.pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
   return url.toString().replace(/\/$/, '');
 }
 
-export function createNewApiClient(serverUrl: string, options: NewApiClientOptions = {}): NewApiClient {
+export function createNewApiClient(
+  serverUrl: string,
+  options: NewApiClientOptions = {},
+): NewApiClient {
   const base = normalizeAccountServerUrl(serverUrl);
   return createSharedNewApiClient(base, {
     ...options,

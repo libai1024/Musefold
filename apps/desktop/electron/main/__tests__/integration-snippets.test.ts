@@ -41,7 +41,9 @@ describe('客户端接入片段（零依赖 · 无密钥）', () => {
 
   it('Cursor deeplink：base64 config 可还原', () => {
     const link = cursorInstallDeeplink(paths);
-    expect(link).toMatch(/^cursor:\/\/anysphere\.cursor-deeplink\/mcp\/install\?name=musefold&config=/);
+    expect(link).toMatch(
+      /^cursor:\/\/anysphere\.cursor-deeplink\/mcp\/install\?name=musefold&config=/,
+    );
     const encoded = decodeURIComponent(link.split('config=')[1]);
     const decoded = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
     expect(decoded.command).toBe(paths.execPath);

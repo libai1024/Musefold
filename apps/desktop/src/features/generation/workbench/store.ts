@@ -13,11 +13,7 @@ import { createWorkbenchGenerationActions } from './store-generation-actions';
 import { createWorkbenchSchemeActions } from './store-scheme-actions';
 import { createWorkbenchSessionActions } from './store-session-actions';
 import { createWorkbenchSkillActions } from './store-skill-actions';
-import {
-  clearSessionTurnsCacheForTests,
-  composeRefinementPrompt,
-  uid,
-} from './store-shared';
+import { clearSessionTurnsCacheForTests, composeRefinementPrompt, uid } from './store-shared';
 import type { WorkbenchState } from './store-types';
 
 export type { WorkbenchState } from './store-types';

@@ -3,10 +3,7 @@ import type { PromptReference } from '@musefold/desktop-contracts/providers';
 export const MAX_DRAFT_REFERENCES = 6;
 export const MAX_REFERENCE_TEXT_LENGTH = 4000;
 
-export function composePromptWithReferences(
-  prompt: string,
-  references: PromptReference[],
-): string {
+export function composePromptWithReferences(prompt: string, references: PromptReference[]): string {
   const userPrompt = prompt.trim();
   if (references.length === 0) return userPrompt;
 
@@ -36,7 +33,5 @@ export function extractUserPromptFromComposed(
   const referenceBlock = composePromptWithReferences('', references);
   if (composedPrompt === referenceBlock) return '';
   const suffix = `\n\n${referenceBlock}`;
-  return composedPrompt.endsWith(suffix)
-    ? composedPrompt.slice(0, -suffix.length)
-    : composedPrompt;
+  return composedPrompt.endsWith(suffix) ? composedPrompt.slice(0, -suffix.length) : composedPrompt;
 }

@@ -14,9 +14,7 @@ export const DESKTOP_WORKBENCH_ARCHIVED_SESSION_LIST_KEY = {
 
 export function desktopWorkbenchSessionListQueryKey(archived = false) {
   return musefoldQueryKeys.workbench.list(
-    archived
-      ? DESKTOP_WORKBENCH_ARCHIVED_SESSION_LIST_KEY
-      : DESKTOP_WORKBENCH_SESSION_LIST_KEY,
+    archived ? DESKTOP_WORKBENCH_ARCHIVED_SESSION_LIST_KEY : DESKTOP_WORKBENCH_SESSION_LIST_KEY,
   );
 }
 
@@ -33,18 +31,12 @@ export async function fetchDesktopWorkbenchSessions(
   return outcome.value.items;
 }
 
-export function readDesktopWorkbenchSessions(
-  archived = false,
-): WorkbenchSessionSummary[] {
-  const data = desktopQueryClient.getQueryData(
-    desktopWorkbenchSessionListQueryKey(archived),
-  );
+export function readDesktopWorkbenchSessions(archived = false): WorkbenchSessionSummary[] {
+  const data = desktopQueryClient.getQueryData(desktopWorkbenchSessionListQueryKey(archived));
   return Array.isArray(data) ? (data as WorkbenchSessionSummary[]) : [];
 }
 
-export function findDesktopWorkbenchSession(
-  id: string,
-): WorkbenchSessionSummary | undefined {
+export function findDesktopWorkbenchSession(id: string): WorkbenchSessionSummary | undefined {
   return (
     readDesktopWorkbenchSessions(false).find((session) => session.id === id) ??
     readDesktopWorkbenchSessions(true).find((session) => session.id === id)
@@ -55,53 +47,37 @@ export function replaceDesktopWorkbenchSessions(
   archived: boolean,
   items: WorkbenchSessionSummary[],
 ): void {
-  desktopQueryClient.setQueryData(
-    desktopWorkbenchSessionListQueryKey(archived),
-    items,
-  );
+  desktopQueryClient.setQueryData(desktopWorkbenchSessionListQueryKey(archived), items);
 }
 
 export function upsertDesktopWorkbenchSession(
   item: WorkbenchSessionSummary,
   archived = Boolean(item.archivedAt),
 ): void {
-  desktopQueryClient.setQueryData(
-    desktopWorkbenchSessionListQueryKey(archived),
-    (current) => upsertListCache(current ?? [], item),
+  desktopQueryClient.setQueryData(desktopWorkbenchSessionListQueryKey(archived), (current) =>
+    upsertListCache(current ?? [], item),
   );
   if (archived) {
-    desktopQueryClient.setQueryData(
-      desktopWorkbenchSessionListQueryKey(false),
-      (current) =>
-        Array.isArray(current)
-          ? (current as WorkbenchSessionSummary[]).filter(
-              (session) => session.id !== item.id,
-            )
-          : current,
+    desktopQueryClient.setQueryData(desktopWorkbenchSessionListQueryKey(false), (current) =>
+      Array.isArray(current)
+        ? (current as WorkbenchSessionSummary[]).filter((session) => session.id !== item.id)
+        : current,
     );
   } else {
-    desktopQueryClient.setQueryData(
-      desktopWorkbenchSessionListQueryKey(true),
-      (current) =>
-        Array.isArray(current)
-          ? (current as WorkbenchSessionSummary[]).filter(
-              (session) => session.id !== item.id,
-            )
-          : current,
+    desktopQueryClient.setQueryData(desktopWorkbenchSessionListQueryKey(true), (current) =>
+      Array.isArray(current)
+        ? (current as WorkbenchSessionSummary[]).filter((session) => session.id !== item.id)
+        : current,
     );
   }
 }
 
 export function dropDesktopWorkbenchSession(id: string): void {
   for (const archived of [false, true]) {
-    desktopQueryClient.setQueryData(
-      desktopWorkbenchSessionListQueryKey(archived),
-      (current) =>
-        Array.isArray(current)
-          ? (current as WorkbenchSessionSummary[]).filter(
-              (session) => session.id !== id,
-            )
-          : current,
+    desktopQueryClient.setQueryData(desktopWorkbenchSessionListQueryKey(archived), (current) =>
+      Array.isArray(current)
+        ? (current as WorkbenchSessionSummary[]).filter((session) => session.id !== id)
+        : current,
     );
   }
 }
@@ -134,11 +110,7 @@ export function useDesktopWorkbenchSessionList(archived = false) {
   });
   const sessions = Array.isArray(query.data) ? query.data : [];
   const error =
-    query.error instanceof Error
-      ? query.error.message
-      : query.error
-        ? String(query.error)
-        : null;
+    query.error instanceof Error ? query.error.message : query.error ? String(query.error) : null;
   return {
     sessions,
     loading: query.isFetching,

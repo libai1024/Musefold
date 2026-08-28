@@ -1,28 +1,28 @@
-import { useCallback, type MutableRefObject } from "react";
+import { useCallback, type MutableRefObject } from 'react';
 import {
   applyPromptToGeneration,
   canCancelGeneration,
   composerToGenerationRequest,
   generationRequestToPromptDraft,
   type HistoryGateway,
-} from "@musefold/domain";
-import type { QueryClient } from "@tanstack/react-query";
-import type { WorkbenchSessionListItemViewModel } from "../models";
-import type { WorkbenchDraftSyncController } from "../workbench/useWorkbenchDraftSyncController";
-import type { WorkbenchSessionController } from "../workbench/useWorkbenchSessionController";
+} from '@musefold/domain';
+import type { QueryClient } from '@tanstack/react-query';
+import type { WorkbenchSessionListItemViewModel } from '../models';
+import type { WorkbenchDraftSyncController } from '../workbench/useWorkbenchDraftSyncController';
+import type { WorkbenchSessionController } from '../workbench/useWorkbenchSessionController';
 import {
   latestWorkbenchGenerationSnapshot,
   sortWorkbenchGenerationSnapshots,
   upsertWorkbenchGenerationSnapshot,
-} from "../workbench/generationSnapshots";
+} from '../workbench/generationSnapshots';
 import {
   DEFAULT_WORKBENCH_SESSION_LIST_KEY,
   asPagedItems,
   dropListCache,
   replaceListCache,
   upsertListCache,
-} from "./paged-items";
-import type { GeneratePageControllerDeps } from "./types";
+} from './paged-items';
+import type { GeneratePageControllerDeps } from './types';
 import {
   DEFAULT_GENERATE_JOB_PAGE_LIMIT,
   GENERATE_PAGE_HISTORY_RESTORE_LIMIT,
@@ -37,11 +37,9 @@ import {
   type GeneratePageQuality,
   type GeneratePageRatio,
   type GeneratePageSession,
-} from "./generate-page-model";
+} from './generate-page-model';
 
-type SessionListResult<TSession> =
-  | TSession[]
-  | { items: TSession[]; nextCursor?: string | null };
+type SessionListResult<TSession> = TSession[] | { items: TSession[]; nextCursor?: string | null };
 
 export interface GeneratePageCommandContext<TSession extends GeneratePageSession> {
   wired: GeneratePageControllerDeps & {
@@ -137,7 +135,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
 
   const applyPrompt = useCallback(
     async (prompt: GeneratePagePrompt) => {
-      await ctx.wired.prompts?.usePrompt(prompt.id, { action: "apply" }).catch(() => undefined);
+      await ctx.wired.prompts?.usePrompt(prompt.id, { action: 'apply' }).catch(() => undefined);
       const request = applyPromptToGeneration(prompt, {
         quality: ctx.quality,
         aspectRatio: ctx.ratio,
@@ -186,7 +184,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
         ctx.setWorkbenchJobs(restoredRuns);
         ctx.wired.onSessionUrlChange?.(restoredWorkbench.id);
       } catch (error) {
-        ctx.setActionError(error instanceof Error ? error.message : "无法恢复工作台会话");
+        ctx.setActionError(error instanceof Error ? error.message : '无法恢复工作台会话');
       }
     },
     [ctx],
@@ -224,7 +222,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
         ctx.wired.onSessionUrlChange?.(restoredWorkbench.id);
         return restoredWorkbench;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "无法恢复工作台会话";
+        const message = error instanceof Error ? error.message : '无法恢复工作台会话';
         ctx.sessionController.setError(message);
         ctx.setActionError(message);
         return null;
@@ -243,15 +241,11 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
                 ...DEFAULT_WORKBENCH_SESSION_LIST_KEY,
               })
         ).items as TSession[];
-        ctx.queryClient.setQueryData(ctx.queryKey, (current) =>
-          replaceListCache(current, items),
-        );
+        ctx.queryClient.setQueryData(ctx.queryKey, (current) => replaceListCache(current, items));
         return items;
       });
     } catch (error) {
-      ctx.sessionController.setError(
-        error instanceof Error ? error.message : "无法读取最近对话",
-      );
+      ctx.sessionController.setError(error instanceof Error ? error.message : '无法读取最近对话');
     }
   }, [ctx]);
 
@@ -278,7 +272,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
           ctx.wired.onShowGenerate?.();
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "无法归档对话";
+        const message = error instanceof Error ? error.message : '无法归档对话';
         ctx.setActionError(message);
         await refreshSessions();
         ctx.sessionController.setError(message);
@@ -299,13 +293,11 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
           title,
         })) as TSession;
         ctx.sessionController.upsert(renamed);
-        ctx.queryClient.setQueryData(ctx.queryKey, (current) =>
-          upsertListCache(current, renamed),
-        );
+        ctx.queryClient.setQueryData(ctx.queryKey, (current) => upsertListCache(current, renamed));
         void ctx.invalidateSessions();
         if (ctx.workbenchRef.current?.id === renamed.id) ctx.commitWorkbench(renamed);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "无法重命名对话";
+        const message = error instanceof Error ? error.message : '无法重命名对话';
         ctx.setActionError(message);
         await refreshSessions();
         ctx.sessionController.setError(message);
@@ -326,9 +318,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
           target.version,
         )) as TSession;
         ctx.sessionController.remove(deleted.id);
-        ctx.queryClient.setQueryData(ctx.queryKey, (current) =>
-          dropListCache(current, deleted.id),
-        );
+        ctx.queryClient.setQueryData(ctx.queryKey, (current) => dropListCache(current, deleted.id));
         void ctx.invalidateSessions();
         if (ctx.workbenchRef.current?.id === deleted.id) {
           ctx.draftSync.reset();
@@ -337,7 +327,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
           ctx.wired.onShowGenerate?.();
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "无法删除对话";
+        const message = error instanceof Error ? error.message : '无法删除对话';
         ctx.setActionError(message);
         await refreshSessions();
         ctx.sessionController.setError(message);
@@ -361,7 +351,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
       let currentWorkbench = ctx.workbenchRef.current;
       if (!currentWorkbench) {
         currentWorkbench = (await ctx.wired.workbench.createWorkbenchSession({
-          title: ctx.promptText.trim().slice(0, 120) || "未命名创作",
+          title: ctx.promptText.trim().slice(0, 120) || '未命名创作',
           draft: ctx.currentDraft,
         })) as TSession;
         if (!ctx.draftSync.isRevisionCurrent(submissionRevision)) return;
@@ -379,7 +369,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
       ctx.updateWorkbenchJob(nextJob);
       ctx.wired.onHistoryJob?.(nextJob);
     } catch (error) {
-      ctx.setActionError(error instanceof Error ? error.message : "无法创建生成任务");
+      ctx.setActionError(error instanceof Error ? error.message : '无法创建生成任务');
     }
   }, [ctx]);
 
@@ -392,14 +382,14 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
       ctx.updateWorkbenchJob(nextJob);
       ctx.wired.onHistoryJob?.(nextJob);
     } catch (error) {
-      ctx.setActionError(error instanceof Error ? error.message : "无法取消任务");
+      ctx.setActionError(error instanceof Error ? error.message : '无法取消任务');
     }
   }, [ctx]);
 
   const createPromptFromGeneration = useCallback(
     async (targetJob: GeneratePageJob) => {
       if (!ctx.wired.prompts) {
-        throw new Error("useGeneratePageController requires prompts to save a prompt");
+        throw new Error('useGeneratePageController requires prompts to save a prompt');
       }
       const created = await ctx.wired.prompts.createPrompt(
         generationRequestToPromptDraft(targetJob.request),
@@ -412,14 +402,14 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
 
   const savePrompt = useCallback(
     async (targetJob: GeneratePageJob) => {
-      if (targetJob.status !== "succeeded" || ctx.savingPromptJobId === targetJob.id) return;
+      if (targetJob.status !== 'succeeded' || ctx.savingPromptJobId === targetJob.id) return;
       ctx.setSavingPromptJobId(targetJob.id);
       ctx.setActionError(null);
       try {
         await createPromptFromGeneration(targetJob);
         ctx.setSavedPromptJobId(targetJob.id);
       } catch (error) {
-        ctx.setActionError(error instanceof Error ? error.message : "无法存为提示词");
+        ctx.setActionError(error instanceof Error ? error.message : '无法存为提示词');
       } finally {
         ctx.setSavingPromptJobId(null);
       }
@@ -431,7 +421,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
     async (targetJob: GeneratePageJob) => {
       if (
         !ctx.wired.generation ||
-        !["failed", "cancelled"].includes(targetJob.status) ||
+        !['failed', 'cancelled'].includes(targetJob.status) ||
         ctx.retryingJobId === targetJob.id
       ) {
         return;
@@ -447,7 +437,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
         ctx.updateWorkbenchJob(nextJob);
         ctx.wired.onHistoryJob?.(nextJob);
       } catch (error) {
-        ctx.setActionError(error instanceof Error ? error.message : "无法重试任务");
+        ctx.setActionError(error instanceof Error ? error.message : '无法重试任务');
       } finally {
         ctx.setRetryingJobId(null);
       }
@@ -470,7 +460,7 @@ export function useGeneratePageCommands<TSession extends GeneratePageSession>(
       await ctx.draftSync.overwriteRemoteDraft();
     } catch (error) {
       if (!ctx.wired.isConflictError?.(error)) {
-        ctx.setActionError(error instanceof Error ? error.message : "无法保存本机草稿");
+        ctx.setActionError(error instanceof Error ? error.message : '无法保存本机草稿');
       }
     }
   }, [ctx]);

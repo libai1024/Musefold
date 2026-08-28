@@ -71,7 +71,12 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     set(
       open
         ? { providerDialogOpen: true }
-        : { providerDialogOpen: false, editingProvider: null, dialogPresetId: null, dialogDraft: null },
+        : {
+            providerDialogOpen: false,
+            editingProvider: null,
+            dialogPresetId: null,
+            dialogDraft: null,
+          },
     ),
   openProviderDialog: (provider, opts) => {
     if (provider?.managedBy === 'account') return;
@@ -122,9 +127,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     await gateway.desktop.saveProviderKey(id, apiKey);
     const { hasKey, suffix } = await gateway.desktop.hasProviderKey(id);
     set((s) => ({
-      providers: s.providers.map((p) =>
-        p.id === id ? { ...p, hasKey, keySuffix: suffix } : p
-      ),
+      providers: s.providers.map((p) => (p.id === id ? { ...p, hasKey, keySuffix: suffix } : p)),
     }));
   },
 
@@ -169,5 +172,4 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       return result;
     }
   },
-
 }));

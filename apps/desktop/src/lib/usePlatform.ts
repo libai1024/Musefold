@@ -36,7 +36,9 @@ export function useWindowMaximized(): boolean {
   useEffect(() => {
     const w = window.api?.window;
     if (!w) return;
-    w.isMaximized().then(setIsMax).catch(() => {});
+    w.isMaximized()
+      .then(setIsMax)
+      .catch(() => {});
     return w.onMaximizeChange(setIsMax);
   }, []);
 

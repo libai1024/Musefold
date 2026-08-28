@@ -6,4 +6,4 @@
 // 子路径消费方（渲染层、preload、主进程、core、automation-server）依赖该路径。
 // 详见 docs/07-ipc-contracts.md
 
-export * from "./ipc/index";
+export * from './ipc/index';

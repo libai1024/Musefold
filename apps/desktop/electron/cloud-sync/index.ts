@@ -1,33 +1,23 @@
-import os from "node:os";
-import { app, BrowserWindow, powerMonitor } from "electron";
-import {
-  createMusefoldCloudClient,
-  type MusefoldCloudClient,
-} from "@musefold/cloud-client";
-import type {
-  McpConnectionPage,
-  UpdateMcpConnection,
-} from "@musefold/contracts";
-import {
-  DesktopSyncEngine,
-  DesktopSyncRepository,
-  type DesktopSyncConflict,
-} from "@musefold/core";
-import { getDb } from "@musefold/core/db";
-import { IPC } from "@musefold/desktop-contracts/ipc";
+import os from 'node:os';
+import { app, BrowserWindow, powerMonitor } from 'electron';
+import { createMusefoldCloudClient, type MusefoldCloudClient } from '@musefold/cloud-client';
+import type { McpConnectionPage, UpdateMcpConnection } from '@musefold/contracts';
+import { DesktopSyncEngine, DesktopSyncRepository, type DesktopSyncConflict } from '@musefold/core';
+import { getDb } from '@musefold/core/db';
+import { IPC } from '@musefold/desktop-contracts/ipc';
 import type {
   CloudSyncConflictResolution,
   CloudSyncConflictSummary,
   CloudSyncSummary,
-} from "@musefold/desktop-contracts/cloud-sync";
-import { getAccountService } from "../account";
-import { CloudSyncError } from "./errors";
+} from '@musefold/desktop-contracts/cloud-sync';
+import { getAccountService } from '../account';
+import { CloudSyncError } from './errors';
 
 const SYNC_DEBOUNCE_MS = 2_000;
 const SYNC_INTERVAL_MS = 60_000;
 
 type AccountService = ReturnType<typeof getAccountService>;
-type CloudIdentity = NonNullable<ReturnType<AccountService["cloudIdentity"]>>;
+type CloudIdentity = NonNullable<ReturnType<AccountService['cloudIdentity']>>;
 type CloudClientFactory = typeof createMusefoldCloudClient;
 
 export interface CloudSyncServiceOptions {
@@ -98,7 +88,7 @@ export class CloudSyncService {
     const active = this.repository.activateAccount({
       ownerId: identity.ownerId,
       username: identity.username,
-      deviceName: os.hostname() || "Musefold Desktop",
+      deviceName: os.hostname() || 'Musefold Desktop',
       platform: desktopPlatform(),
       clientVersion: app.getVersion(),
     });
@@ -106,8 +96,7 @@ export class CloudSyncService {
       this.repository.setEnabled(active.ownerId, false);
       this.forceDisabledOwnerId = null;
     }
-    if (this.transportOwnerId && this.transportOwnerId !== active.ownerId)
-      this.resetTransport();
+    if (this.transportOwnerId && this.transportOwnerId !== active.ownerId) this.resetTransport();
     if (active.enabled) {
       this.startSchedulers();
       this.schedule(0);
@@ -141,7 +130,7 @@ export class CloudSyncService {
         {
           ownerId: identity.ownerId,
           username: identity.username,
-          deviceName: os.hostname() || "Musefold Desktop",
+          deviceName: os.hostname() || 'Musefold Desktop',
           platform: desktopPlatform(),
           clientVersion: app.getVersion(),
         },
@@ -192,12 +181,12 @@ export class CloudSyncService {
     const unavailableReason = identity
       ? null
       : accountStatus.loggedIn
-        ? "custom-server"
-        : "signed-out";
+        ? 'custom-server'
+        : 'signed-out';
     return {
       available: Boolean(identity),
       unavailableReason,
-      status: this.syncing ? "syncing" : local.status,
+      status: this.syncing ? 'syncing' : local.status,
       account: local.account
         ? {
             ownerId: local.account.ownerId,
@@ -226,7 +215,7 @@ export class CloudSyncService {
     await this.reconcileAccount();
     const active = this.repository.getActiveAccount();
     if (!active || active.ownerId !== identity.ownerId) {
-      throw new CloudSyncError("AUTH_REQUIRED", "请重新登录后再开启云同步");
+      throw new CloudSyncError('AUTH_REQUIRED', '请重新登录后再开启云同步');
     }
     this.repository.setEnabled(identity.ownerId, true);
     this.forceDisabledOwnerId = null;
@@ -246,12 +235,7 @@ export class CloudSyncService {
     if (!this.schedulersStarted || this.accountTransitioning) return;
     const identity = this.accountService().cloudIdentity();
     const active = this.repository.getActiveAccount();
-    if (
-      !identity ||
-      !active?.enabled ||
-      active.ownerId !== identity.ownerId ||
-      this.syncing
-    )
+    if (!identity || !active?.enabled || active.ownerId !== identity.ownerId || this.syncing)
       return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
@@ -262,9 +246,7 @@ export class CloudSyncService {
 
   listConflicts(): CloudSyncConflictSummary[] {
     const identity = this.requireIdentity();
-    return this.repository
-      .listConflicts(identity.ownerId)
-      .map(toConflictSummary);
+    return this.repository.listConflicts(identity.ownerId).map(toConflictSummary);
   }
 
   async resolveConflict(
@@ -293,10 +275,7 @@ export class CloudSyncService {
     return this.trackOperation(this.withClient((client) => client.listConnections()));
   }
 
-  updateConnection(
-    id: string,
-    input: UpdateMcpConnection,
-  ): Promise<McpConnectionPage> {
+  updateConnection(id: string, input: UpdateMcpConnection): Promise<McpConnectionPage> {
     return this.trackOperation(this.withClient((client) => client.updateConnection(id, input)));
   }
 
@@ -315,13 +294,12 @@ export class CloudSyncService {
     try {
       identity = await this.requireValidIdentity();
     } catch (error) {
-      if (error instanceof CloudSyncError && error.code === "AUTH_REQUIRED")
-        this.failClosed();
+      if (error instanceof CloudSyncError && error.code === 'AUTH_REQUIRED') this.failClosed();
       throw error;
     }
     const active = this.repository.getActiveAccount();
     if (!active?.enabled || active.ownerId !== identity.ownerId)
-      throw new CloudSyncError("UNAVAILABLE", "请先开启提示词云同步");
+      throw new CloudSyncError('UNAVAILABLE', '请先开启提示词云同步');
     this.syncing = true;
     this.broadcast();
     try {
@@ -330,7 +308,7 @@ export class CloudSyncService {
         this.requireStableAccount();
         const current = this.repository.getActiveAccount();
         if (!current?.enabled || current.ownerId !== identity.ownerId)
-          throw new CloudSyncError("UNAVAILABLE", "账号正在切换，请稍后重试");
+          throw new CloudSyncError('UNAVAILABLE', '账号正在切换，请稍后重试');
         await engine.run();
       } catch (error) {
         if (!isExpiredSession(error)) throw error;
@@ -339,7 +317,7 @@ export class CloudSyncService {
         this.requireStableAccount();
         const current = this.repository.getActiveAccount();
         if (!current?.enabled || current.ownerId !== identity.ownerId)
-          throw new CloudSyncError("UNAVAILABLE", "账号正在切换，请稍后重试");
+          throw new CloudSyncError('UNAVAILABLE', '账号正在切换，请稍后重试');
         await engine.run();
       }
     } finally {
@@ -350,8 +328,7 @@ export class CloudSyncService {
   }
 
   private async ensureEngine(identity: CloudIdentity): Promise<DesktopSyncEngine> {
-    if (this.engine && this.transportOwnerId === identity.ownerId)
-      return this.engine;
+    if (this.engine && this.transportOwnerId === identity.ownerId) return this.engine;
     const client = await this.ensureClient(identity);
     this.engine = new DesktopSyncEngine(this.repository, client);
     return this.engine;
@@ -359,13 +336,11 @@ export class CloudSyncService {
 
   private async ensureClient(identity: CloudIdentity): Promise<MusefoldCloudClient> {
     this.requireStableAccount();
-    if (this.client && this.transportOwnerId === identity.ownerId)
-      return this.client;
+    if (this.client && this.transportOwnerId === identity.ownerId) return this.client;
     this.resetTransport();
     const controller = new AbortController();
     const client = this.clientFactory(identity.cloudBaseUrl, {
-      fetchImpl: (input, init) =>
-        this.fetchImpl(input, { ...init, signal: controller.signal }),
+      fetchImpl: (input, init) => this.fetchImpl(input, { ...init, signal: controller.signal }),
     });
     this.transportAbort = controller;
     this.transportOwnerId = identity.ownerId;
@@ -374,19 +349,16 @@ export class CloudSyncService {
       this.requireStableAccount();
       const current = this.accountService().cloudIdentity();
       if (!current || current.ownerId !== identity.ownerId)
-        throw new CloudSyncError("AUTH_REQUIRED", "请重新登录后再开启云同步");
+        throw new CloudSyncError('AUTH_REQUIRED', '请重新登录后再开启云同步');
       const session = await client.openDesktopSession(accessToken);
       if (
         controller.signal.aborted ||
         this.transportAbort !== controller ||
         this.accountTransitioning
       )
-        throw new CloudSyncError("UNAVAILABLE", "账号正在切换，请稍后重试");
+        throw new CloudSyncError('UNAVAILABLE', '账号正在切换，请稍后重试');
       if (session.account.id !== identity.ownerId)
-        throw new CloudSyncError(
-          "AUTH_REQUIRED",
-          "云端会话账号与桌面账号不一致，请重新登录",
-        );
+        throw new CloudSyncError('AUTH_REQUIRED', '云端会话账号与桌面账号不一致，请重新登录');
       this.client = client;
       return client;
     } catch (error) {
@@ -395,16 +367,14 @@ export class CloudSyncService {
     }
   }
 
-  private async withClient<T>(
-    operation: (client: MusefoldCloudClient) => Promise<T>,
-  ): Promise<T> {
+  private async withClient<T>(operation: (client: MusefoldCloudClient) => Promise<T>): Promise<T> {
     const identity = await this.requireValidIdentity();
     try {
       const client = await this.ensureClient(identity);
       this.requireStableAccount();
       const current = this.accountService().cloudIdentity();
       if (!current || current.ownerId !== identity.ownerId)
-        throw new CloudSyncError("AUTH_REQUIRED", "请重新登录后再开启云同步");
+        throw new CloudSyncError('AUTH_REQUIRED', '请重新登录后再开启云同步');
       return await operation(client);
     } catch (error) {
       if (!isExpiredSession(error)) throw error;
@@ -413,7 +383,7 @@ export class CloudSyncService {
       this.requireStableAccount();
       const current = this.accountService().cloudIdentity();
       if (!current || current.ownerId !== identity.ownerId)
-        throw new CloudSyncError("AUTH_REQUIRED", "请重新登录后再开启云同步");
+        throw new CloudSyncError('AUTH_REQUIRED', '请重新登录后再开启云同步');
       return operation(client);
     }
   }
@@ -424,46 +394,42 @@ export class CloudSyncService {
     const identity = account.cloudIdentity();
     if (identity) return identity;
     if (!account.status().loggedIn)
-      throw new CloudSyncError("AUTH_REQUIRED", "请先登录 Musefold 账号");
-    throw new CloudSyncError(
-      "UNAVAILABLE",
-      "自定义账号服务器暂不支持 Musefold Cloud 同步",
-    );
+      throw new CloudSyncError('AUTH_REQUIRED', '请先登录 Musefold 账号');
+    throw new CloudSyncError('UNAVAILABLE', '自定义账号服务器暂不支持 Musefold Cloud 同步');
   }
 
   private async requireValidIdentity(): Promise<CloudIdentity> {
     const identity = this.requireIdentity();
     const account = this.accountService();
-    if (account.status().health === "token-invalid")
-      throw new CloudSyncError("AUTH_REQUIRED", "登录状态已失效，请重新登录");
+    if (account.status().health === 'token-invalid')
+      throw new CloudSyncError('AUTH_REQUIRED', '登录状态已失效，请重新登录');
     try {
       await account.managementAccessToken();
       const confirmed = account.cloudIdentity();
       this.requireStableAccount();
       if (!confirmed || confirmed.ownerId !== identity.ownerId)
-        throw new CloudSyncError("AUTH_REQUIRED", "请重新登录后再开启云同步");
+        throw new CloudSyncError('AUTH_REQUIRED', '请重新登录后再开启云同步');
       return confirmed;
     } catch (error) {
       if (isAccountAuthError(error))
-        throw new CloudSyncError("AUTH_REQUIRED", "登录状态已失效，请重新登录");
+        throw new CloudSyncError('AUTH_REQUIRED', '登录状态已失效，请重新登录');
       throw error;
     }
   }
 
   private requireStableAccount(): void {
     if (this.accountTransitioning)
-      throw new CloudSyncError("UNAVAILABLE", "账号正在切换，请稍后重试");
+      throw new CloudSyncError('UNAVAILABLE', '账号正在切换，请稍后重试');
   }
 
   private startSchedulers(): void {
     if (!this.started || this.schedulersStarted) return;
     this.schedulersStarted = true;
     this.intervalTimer = setInterval(() => {
-      if (BrowserWindow.getAllWindows().some((window) => window.isVisible()))
-        this.schedule(0);
+      if (BrowserWindow.getAllWindows().some((window) => window.isVisible())) this.schedule(0);
     }, SYNC_INTERVAL_MS);
-    powerMonitor.on("resume", this.handleResume);
-    app.on("browser-window-focus", this.handleWindowFocus);
+    powerMonitor.on('resume', this.handleResume);
+    app.on('browser-window-focus', this.handleWindowFocus);
   }
 
   private stopSchedulers(): void {
@@ -472,8 +438,8 @@ export class CloudSyncService {
     this.debounceTimer = null;
     this.intervalTimer = null;
     if (this.schedulersStarted) {
-      powerMonitor.removeListener("resume", this.handleResume);
-      app.removeListener("browser-window-focus", this.handleWindowFocus);
+      powerMonitor.removeListener('resume', this.handleResume);
+      app.removeListener('browser-window-focus', this.handleWindowFocus);
     }
     this.schedulersStarted = false;
   }
@@ -482,10 +448,7 @@ export class CloudSyncService {
     this.stopSchedulers();
     const inflight = this.inflight;
     this.resetTransport();
-    await Promise.allSettled([
-      ...(inflight ? [inflight] : []),
-      ...this.inflightOperations,
-    ]);
+    await Promise.allSettled([...(inflight ? [inflight] : []), ...this.inflightOperations]);
   }
 
   private async quiesceAndDisableActiveAccount(): Promise<void> {
@@ -516,51 +479,42 @@ export class CloudSyncService {
   private broadcast(): CloudSyncSummary {
     const summary = this.status();
     for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed())
-        window.webContents.send(IPC.CLOUD_SYNC_CHANGED, summary);
+      if (!window.isDestroyed()) window.webContents.send(IPC.CLOUD_SYNC_CHANGED, summary);
     }
     return summary;
   }
 }
 
-function desktopPlatform(): "macos" | "windows" | "linux" {
-  if (process.platform === "darwin") return "macos";
-  if (process.platform === "win32") return "windows";
-  return "linux";
+function desktopPlatform(): 'macos' | 'windows' | 'linux' {
+  if (process.platform === 'darwin') return 'macos';
+  if (process.platform === 'win32') return 'windows';
+  return 'linux';
 }
 
-function toConflictSummary(
-  conflict: DesktopSyncConflict,
-): CloudSyncConflictSummary {
+function toConflictSummary(conflict: DesktopSyncConflict): CloudSyncConflictSummary {
   return {
     id: conflict.id,
     entityType: conflict.entityType,
     entityId: conflict.entityId,
     localSnapshot: conflict.localSnapshot,
-    remoteSnapshot: conflict.remoteSnapshot as unknown as Record<
-      string,
-      unknown
-    >,
+    remoteSnapshot: conflict.remoteSnapshot as unknown as Record<string, unknown>,
     detectedAt: conflict.detectedAt,
-    canDuplicate: conflict.entityType === "prompt",
+    canDuplicate: conflict.entityType === 'prompt',
   };
 }
 
 function isExpiredSession(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === "object" &&
-      (("code" in error && error.code === "AUTH_SESSION_EXPIRED") ||
-        ("status" in error && error.status === 401)),
+      typeof error === 'object' &&
+      (('code' in error && error.code === 'AUTH_SESSION_EXPIRED') ||
+        ('status' in error && error.status === 401)),
   );
 }
 
 function isAccountAuthError(error: unknown): boolean {
   return Boolean(
-    error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ACCOUNT/AUTH",
+    error && typeof error === 'object' && 'code' in error && error.code === 'ACCOUNT/AUTH',
   );
 }
 

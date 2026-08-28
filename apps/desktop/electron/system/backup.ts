@@ -79,7 +79,7 @@ export async function pruneBackups(): Promise<void> {
   const { backups } = getPaths();
   try {
     const names = (await readdir(backups)).filter(
-      (n) => n.startsWith(BACKUP_PREFIX) && n.endsWith('.db')
+      (n) => n.startsWith(BACKUP_PREFIX) && n.endsWith('.db'),
     );
     // 文件名时间戳是零填充定长的，字典序 == 时间序，不必去 stat
     const stale = names.sort().slice(0, Math.max(0, names.length - KEEP));

@@ -50,9 +50,7 @@ const COMMAND_FLAGS: Record<string, FlagSpec[]> = {
     { name: 'from-env', takesValue: true },
     { name: 'force', takesValue: false },
   ],
-  backup: [
-    { name: 'force', takesValue: false },
-  ],
+  backup: [{ name: 'force', takesValue: false }],
   export: [
     { name: 'out', short: 'o', takesValue: true },
     { name: 'mode', takesValue: true },
@@ -103,7 +101,11 @@ const USAGE = [
   '连接：安装版 CLI 会自动拉起 Musefold App；桌面账号仅由 App 的自动化控制面提供。',
 ].join('\n');
 
-export async function runCli(argv: string[], io: CliIo, env: NodeJS.ProcessEnv = process.env): Promise<number> {
+export async function runCli(
+  argv: string[],
+  io: CliIo,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<number> {
   const [command, ...rest] = argv;
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     io.stdout(USAGE);
@@ -125,7 +127,8 @@ export async function runCli(argv: string[], io: CliIo, env: NodeJS.ProcessEnv =
       args,
       json: args.flags.json === true,
       yes: args.flags.yes === true,
-      maxCostPoints: typeof args.flags['max-cost'] === 'string' ? Number(args.flags['max-cost']) : null,
+      maxCostPoints:
+        typeof args.flags['max-cost'] === 'string' ? Number(args.flags['max-cost']) : null,
       env,
     };
   } catch (error) {
@@ -142,7 +145,14 @@ export async function runCli(argv: string[], io: CliIo, env: NodeJS.ProcessEnv =
     const message = error instanceof Error ? error.message : String(error);
     if (code !== EXIT.NOT_CONNECTED) {
       // NOT_CONNECTED 的引导语已在 connect() 输出
-      printError(io, context.json, error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ERROR', message);
+      printError(
+        io,
+        context.json,
+        error instanceof Error && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : 'ERROR',
+        message,
+      );
     }
     return code;
   }
@@ -159,7 +169,8 @@ async function runServe(argv: string[], io: CliIo): Promise<number> {
     // 纯客户端命令不为它付出冷启动代价。
     const { startHeadlessServe } = await import('./serve-runtime');
     const handle = await startHeadlessServe({
-      dataDir: typeof args.flags['data-dir'] === 'string' ? String(args.flags['data-dir']) : undefined,
+      dataDir:
+        typeof args.flags['data-dir'] === 'string' ? String(args.flags['data-dir']) : undefined,
       port: typeof args.flags.port === 'string' ? Number(args.flags.port) : undefined,
       log: (line) => io.stderr(line),
     });
@@ -176,7 +187,9 @@ async function runServe(argv: string[], io: CliIo): Promise<number> {
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === 'OWNER_LOCK_HELD') {
-      io.stderr(`musefold: ${error instanceof Error ? error.message : String(error)}；接管前请先退出它。`);
+      io.stderr(
+        `musefold: ${error instanceof Error ? error.message : String(error)}；接管前请先退出它。`,
+      );
       return EXIT.NOT_CONNECTED;
     }
     io.stderr(`musefold: 守护启动失败：${error instanceof Error ? error.message : String(error)}`);

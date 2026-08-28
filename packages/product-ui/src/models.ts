@@ -25,8 +25,7 @@ export interface PromptEditorDraft {
   isPinned: boolean;
 }
 
-export type GenerationStatusTone =
-  "neutral" | "progress" | "success" | "warning" | "danger";
+export type GenerationStatusTone = 'neutral' | 'progress' | 'success' | 'warning' | 'danger';
 
 export interface GenerationHistoryItemViewModel {
   id: string;
@@ -69,10 +68,9 @@ export interface GenerationHistoryDetailViewModel {
   error?: GenerationHistoryDetailErrorViewModel | null;
 }
 
-export type GenerationResultSurfaceStatus =
-  "pending" | "success" | "cancelled" | "failed";
+export type GenerationResultSurfaceStatus = 'pending' | 'success' | 'cancelled' | 'failed';
 
-export type WorkbenchSessionListStatus = "idle" | "running" | "unread";
+export type WorkbenchSessionListStatus = 'idle' | 'running' | 'unread';
 
 export interface WorkbenchSessionListItemViewModel {
   id: string;

@@ -15,10 +15,7 @@ export interface GenerationEvent {
  * 历史软删与恢复见 HistoryGateway。
  */
 export interface GenerationGateway {
-  createGeneration(
-    input: CreateGenerationInput,
-    idempotencyKey: string,
-  ): Promise<GenerationJob>;
+  createGeneration(input: CreateGenerationInput, idempotencyKey: string): Promise<GenerationJob>;
   getGeneration(id: string): Promise<GenerationJob>;
   streamGenerationEvents(
     id: string,

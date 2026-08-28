@@ -111,20 +111,33 @@ export function normalizeNewApiUrl(input: string): string {
   } catch {
     throw new NewApiClientError('server', '账号服务器地址不是有效 URL');
   }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
     throw new NewApiClientError('server', '账号服务器地址不符合安全约束');
   }
   url.pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
   return url.toString().replace(/\/$/, '');
 }
 
-export function createNewApiClient(serverUrl: string, options: NewApiClientOptions = {}): NewApiClient {
+export function createNewApiClient(
+  serverUrl: string,
+  options: NewApiClientOptions = {},
+): NewApiClient {
   const base = normalizeNewApiUrl(serverUrl);
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? 10_000;
 
   function fail(code: NewApiErrorCode, message: string, httpStatus: number | null = null): never {
-    throw (options.createError ?? ((c, m, s) => new NewApiClientError(c, m, s)))(code, message, httpStatus);
+    throw (options.createError ?? ((c, m, s) => new NewApiClientError(c, m, s)))(
+      code,
+      message,
+      httpStatus,
+    );
   }
 
   async function request(
@@ -158,7 +171,7 @@ export function createNewApiClient(serverUrl: string, options: NewApiClientOptio
     }
     let envelope: Envelope;
     try {
-      envelope = await response.json() as Envelope;
+      envelope = (await response.json()) as Envelope;
     } catch {
       fail('server', '账号服务器响应无法解析', response.status);
     }
@@ -166,7 +179,7 @@ export function createNewApiClient(serverUrl: string, options: NewApiClientOptio
   }
 
   function record(value: unknown): Record<string, unknown> {
-    return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   }
 
   function user(value: unknown): RelayUser {
@@ -181,11 +194,14 @@ export function createNewApiClient(serverUrl: string, options: NewApiClientOptio
 
   function extractRefreshToken(response: Response): string | null {
     const headers = response.headers as Headers & { getSetCookie?: () => string[] };
-    const cookies = typeof headers.getSetCookie === 'function'
-      ? headers.getSetCookie()
-      : ([headers.get('set-cookie')].filter(Boolean) as string[]);
+    const cookies =
+      typeof headers.getSetCookie === 'function'
+        ? headers.getSetCookie()
+        : ([headers.get('set-cookie')].filter(Boolean) as string[]);
     for (const cookie of cookies) {
-      const match = /(?:^|,\s*)new_api_refresh=([^;]+)/.exec(cookie) ?? new RegExp(`${REFRESH_COOKIE}=([^;]+)`).exec(cookie);
+      const match =
+        /(?:^|,\s*)new_api_refresh=([^;]+)/.exec(cookie) ??
+        new RegExp(`${REFRESH_COOKIE}=([^;]+)`).exec(cookie);
       if (match?.[1]) return match[1];
     }
     return null;
@@ -205,7 +221,12 @@ export function createNewApiClient(serverUrl: string, options: NewApiClientOptio
     };
   }
 
-  function assertSuccess(envelope: Envelope, response: Response, fallback: NewApiErrorCode, message: string): void {
+  function assertSuccess(
+    envelope: Envelope,
+    response: Response,
+    fallback: NewApiErrorCode,
+    message: string,
+  ): void {
     if (envelope.success) return;
     fail(fallback, envelope.message || message, response.status);
   }
@@ -265,7 +286,11 @@ export function createNewApiClient(serverUrl: string, options: NewApiClientOptio
       if (response.status === 401) fail('auth', '登录状态已失效', 401);
       assertSuccess(envelope, response, 'server', '获取令牌列表失败');
       const data = record(envelope.data);
-      const items = Array.isArray(data.items) ? data.items : Array.isArray(envelope.data) ? envelope.data : [];
+      const items = Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(envelope.data)
+          ? envelope.data
+          : [];
       return items.map((item) => {
         const token = record(item);
         return {
@@ -277,14 +302,21 @@ export function createNewApiClient(serverUrl: string, options: NewApiClientOptio
       });
     },
     async fetchTokenKey(jwt, tokenId) {
-      const { envelope, response } = await request('POST', `/api/token/${tokenId}/key`, { jwt, body: {} });
+      const { envelope, response } = await request('POST', `/api/token/${tokenId}/key`, {
+        jwt,
+        body: {},
+      });
       if (response.status === 401) fail('auth', '登录状态已失效', 401);
       const key = String(record(envelope.data).key ?? '');
-      if (!envelope.success || !key) fail('server', envelope.message || '取回令牌失败', response.status);
+      if (!envelope.success || !key)
+        fail('server', envelope.message || '取回令牌失败', response.status);
       return key.startsWith('sk-') ? key : `sk-${key}`;
     },
     async redeem(jwt, code) {
-      const { envelope, response } = await request('POST', '/api/user/topup', { jwt, body: { key: code } });
+      const { envelope, response } = await request('POST', '/api/user/topup', {
+        jwt,
+        body: { key: code },
+      });
       if (response.status === 401) fail('auth', '登录状态已失效', 401);
       if (!envelope.success) fail('redeem', '兑换失败，请检查兑换码后重试', response.status);
       return { quotaAdded: Number(envelope.data ?? 0) };

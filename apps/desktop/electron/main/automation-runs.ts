@@ -11,16 +11,10 @@ import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
 import { estimateProviderCost } from '../settings/pricing';
 import { resolveRatioOptionById } from '@musefold/domain/constants';
-import {
-  remainingAutomationBudgetPoints,
-  settleAutomationBudget,
-} from '../settings/automation';
+import { remainingAutomationBudgetPoints, settleAutomationBudget } from '../settings/automation';
 import { getMusefoldCore } from './core-instance';
 import { runDesignScheme } from './design-scheme/run-session';
-import {
-  executeSkillRuntime,
-  prepareGithubSkillRuntime,
-} from './ipc/skill-runtime';
+import { executeSkillRuntime, prepareGithubSkillRuntime } from './ipc/skill-runtime';
 
 const MAX_RUN_N = 4;
 
@@ -40,16 +34,14 @@ interface ExternalRun {
 
 const externalRuns = new Map<string, ExternalRun>();
 
-interface SpendAuthorizer {
-  (summary: {
-    providerName: string;
-    model: string;
-    n: number;
-    estimatedPoints: number | null;
-    managedByAccount: boolean;
-    promptPreview: string;
-  }): Promise<void>;
-}
+type SpendAuthorizer = (summary: {
+  providerName: string;
+  model: string;
+  n: number;
+  estimatedPoints: number | null;
+  managedByAccount: boolean;
+  promptPreview: string;
+}) => Promise<void>;
 
 interface ProviderPick {
   id: string;
@@ -60,13 +52,17 @@ interface ProviderPick {
 
 function pickProvider(providerId?: string): ProviderPick {
   const db = getDb();
-  const row = (providerId
-    ? db.prepare('SELECT * FROM providers WHERE id = ?').get(providerId)
-    : db.prepare('SELECT * FROM providers WHERE is_active = 1 LIMIT 1').get()) as
-    | Record<string, unknown>
-    | undefined;
+  const row = (
+    providerId
+      ? db.prepare('SELECT * FROM providers WHERE id = ?').get(providerId)
+      : db.prepare('SELECT * FROM providers WHERE is_active = 1 LIMIT 1').get()
+  ) as Record<string, unknown> | undefined;
   if (!row) {
-    throw new AutomationError('INVALID_STATE', providerId ? '指定的 Provider 不存在' : '没有激活的图像 Provider', 422);
+    throw new AutomationError(
+      'INVALID_STATE',
+      providerId ? '指定的 Provider 不存在' : '没有激活的图像 Provider',
+      422,
+    );
   }
   return {
     id: row.id as string,
@@ -94,7 +90,11 @@ function runPayload(run: ExternalRun) {
   };
 }
 
-function buildTemplate(provider: ProviderPick, jobId: string, ratioId: string | undefined): GenerateImageRequest {
+function buildTemplate(
+  provider: ProviderPick,
+  jobId: string,
+  ratioId: string | undefined,
+): GenerateImageRequest {
   const ratio = ratioId && ratioId !== 'auto' ? resolveRatioOptionById(ratioId) : null;
   return {
     jobId,
@@ -130,7 +130,9 @@ export function createExternalRunRoutes(
       const core = getMusefoldCore();
       const detail = core.schemes.get(context.params.id);
       if (!detail) {
-        throw new AutomationError('NOT_FOUND', '设计方案不存在（或尚未转正）', 404, { schemeId: context.params.id });
+        throw new AutomationError('NOT_FOUND', '设计方案不存在（或尚未转正）', 404, {
+          schemeId: context.params.id,
+        });
       }
       const n = body.n ?? 1;
       if (!Number.isInteger(n) || n < 1 || n > MAX_RUN_N) {
@@ -191,12 +193,20 @@ export function createExternalRunRoutes(
           db: getDesignSchemeDb(),
           emit: (event) => {
             if (event.kind === 'trace') {
-              run.stepSummaries.push(`${event.item.title}${event.item.detail ? `：${event.item.detail}` : ''}`);
-              hub.sink.emit({ type: 'scheme.run.step', payload: { jobId: executionId, ...event.item } });
+              run.stepSummaries.push(
+                `${event.item.title}${event.item.detail ? `：${event.item.detail}` : ''}`,
+              );
+              hub.sink.emit({
+                type: 'scheme.run.step',
+                payload: { jobId: executionId, ...event.item },
+              });
             }
           },
           sendProgress: (progress) => {
-            hub.sink.emit({ type: 'generation.progress', payload: { ...progress, jobId: executionId } });
+            hub.sink.emit({
+              type: 'generation.progress',
+              payload: { ...progress, jobId: executionId },
+            });
           },
           signal: controller.signal,
         },
@@ -207,22 +217,34 @@ export function createExternalRunRoutes(
             run.error = { code: result.error.code, message: result.error.message };
           } else {
             const generations = result.data.generations;
-            const succeeded = generations.filter((generation) => generation.result.status === 'success');
+            const succeeded = generations.filter(
+              (generation) => generation.result.status === 'success',
+            );
             run.runId = result.data.runId;
             run.assets = succeeded
               .map((generation) => generation.result.imagePath)
               .filter((path): path is string => Boolean(path))
               .map((path) => ({ path }));
-            const cost = generations.reduce((sum, generation) => sum + (generation.result.costPoints ?? generation.result.cost ?? 0), 0);
+            const cost = generations.reduce(
+              (sum, generation) =>
+                sum + (generation.result.costPoints ?? generation.result.cost ?? 0),
+              0,
+            );
             run.costPoints = cost || null;
-            run.status = succeeded.length > 0 ? 'success' : controller.signal.aborted ? 'cancelled' : 'failed';
+            run.status =
+              succeeded.length > 0 ? 'success' : controller.signal.aborted ? 'cancelled' : 'failed';
             if (cost > 0) settleAutomationBudget(cost);
           }
           recordAudit({
             at: Date.now(),
             action: 'run_scheme',
             promptText: body.brief ?? null,
-            params: { schemeId: detail.summary.id, inputs: body.inputs ?? {}, n, providerId: provider.id },
+            params: {
+              schemeId: detail.summary.id,
+              inputs: body.inputs ?? {},
+              n,
+              providerId: provider.id,
+            },
             estimatedPoints: estimated,
             actualPoints: run.costPoints,
             approvedVia,
@@ -236,7 +258,10 @@ export function createExternalRunRoutes(
         })
         .catch((error) => {
           run.status = 'failed';
-          run.error = { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) };
+          run.error = {
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          };
           hub.sink.emit({ type: 'scheme.run.failed', payload: runPayload(run) });
         });
 
@@ -245,7 +270,8 @@ export function createExternalRunRoutes(
 
     'GET /v1/scheme-runs/:id': (context) => {
       const run = externalRuns.get(context.params.id);
-      if (!run || run.kind !== 'scheme') throw new AutomationError('NOT_FOUND', '方案运行不存在', 404);
+      if (!run || run.kind !== 'scheme')
+        throw new AutomationError('NOT_FOUND', '方案运行不存在', 404);
       return runPayload(run);
     },
 
@@ -330,11 +356,17 @@ export function createExternalRunRoutes(
             emit: (payload) => {
               if (payload.kind === 'trace') {
                 run.stepSummaries.push(payload.item.title);
-                hub.sink.emit({ type: 'skill.runtime.delta', payload: { jobId: executionId, ...payload.item } });
+                hub.sink.emit({
+                  type: 'skill.runtime.delta',
+                  payload: { jobId: executionId, ...payload.item },
+                });
               }
             },
             sendProgress: (progress) => {
-              hub.sink.emit({ type: 'generation.progress', payload: { ...progress, jobId: executionId } });
+              hub.sink.emit({
+                type: 'generation.progress',
+                payload: { ...progress, jobId: executionId },
+              });
             },
           },
         );
@@ -343,14 +375,21 @@ export function createExternalRunRoutes(
           run.error = { code: execution.error.code, message: execution.error.message };
         } else {
           const generations = execution.data.generations;
-          const succeeded = generations.filter((generation) => generation.result.status === 'success');
+          const succeeded = generations.filter(
+            (generation) => generation.result.status === 'success',
+          );
           run.assets = succeeded
             .map((generation) => generation.result.imagePath)
             .filter((path): path is string => Boolean(path))
             .map((path) => ({ path }));
-          const cost = generations.reduce((sum, generation) => sum + (generation.result.costPoints ?? generation.result.cost ?? 0), 0);
+          const cost = generations.reduce(
+            (sum, generation) =>
+              sum + (generation.result.costPoints ?? generation.result.cost ?? 0),
+            0,
+          );
           run.costPoints = cost || null;
-          run.status = succeeded.length > 0 ? 'success' : controller.signal.aborted ? 'cancelled' : 'failed';
+          run.status =
+            succeeded.length > 0 ? 'success' : controller.signal.aborted ? 'cancelled' : 'failed';
           if (cost > 0) settleAutomationBudget(cost);
         }
         recordAudit({
@@ -370,7 +409,10 @@ export function createExternalRunRoutes(
         });
       })().catch((error) => {
         run.status = 'failed';
-        run.error = { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) };
+        run.error = {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : String(error),
+        };
         hub.sink.emit({ type: 'skill.runtime.failed', payload: runPayload(run) });
       });
 
@@ -379,7 +421,8 @@ export function createExternalRunRoutes(
 
     'GET /v1/skill-runs/:id': (context) => {
       const run = externalRuns.get(context.params.id);
-      if (!run || run.kind !== 'skill') throw new AutomationError('NOT_FOUND', 'Skill 运行不存在', 404);
+      if (!run || run.kind !== 'skill')
+        throw new AutomationError('NOT_FOUND', 'Skill 运行不存在', 404);
       return runPayload(run);
     },
 
@@ -391,7 +434,11 @@ export function createExternalRunRoutes(
 function cancelExternalRun(id: string, kind: 'scheme' | 'skill') {
   const run = externalRuns.get(id);
   if (!run || run.kind !== kind) {
-    throw new AutomationError('NOT_FOUND', kind === 'scheme' ? '方案运行不存在' : 'Skill 运行不存在', 404);
+    throw new AutomationError(
+      'NOT_FOUND',
+      kind === 'scheme' ? '方案运行不存在' : 'Skill 运行不存在',
+      404,
+    );
   }
   run.controller.abort();
   return { jobId: run.id, cancelling: true };

@@ -14,7 +14,10 @@ const parse = (r) => JSON.parse(r.content?.[0]?.text ?? '{}');
 
 try {
   await client.connect(transport);
-  await client.callTool({ name: 'start_app', arguments: { main: MAIN, cwd: resolve('.'), timeoutMs: 30000 } });
+  await client.callTool({
+    name: 'start_app',
+    arguments: { main: MAIN, cwd: resolve('.'), timeoutMs: 30000 },
+  });
 
   // 1) 渲染进程：window.api 是否存在、provider 域方法是否可见
   const r = await client.callTool({

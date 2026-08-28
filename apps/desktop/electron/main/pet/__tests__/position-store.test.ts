@@ -22,8 +22,10 @@ describe('pet desktop position store', () => {
     savePetDesktopPosition(root, { x: 321.4, y: 654.6 });
 
     expect(loadPetDesktopPosition(root)).toEqual({ x: 321, y: 655 });
-    expect(JSON.parse(readFileSync(join(root, 'pet-desktop-position.json'), 'utf8')))
-      .toEqual({ x: 321, y: 655 });
+    expect(JSON.parse(readFileSync(join(root, 'pet-desktop-position.json'), 'utf8'))).toEqual({
+      x: 321,
+      y: 655,
+    });
   });
 
   it('ignores missing, malformed, and non-finite positions', () => {
@@ -33,7 +35,11 @@ describe('pet desktop position store', () => {
     writeFileSync(join(root, 'pet-desktop-position.json'), '{broken', 'utf8');
     expect(loadPetDesktopPosition(root)).toBeNull();
 
-    writeFileSync(join(root, 'pet-desktop-position.json'), JSON.stringify({ x: null, y: 20 }), 'utf8');
+    writeFileSync(
+      join(root, 'pet-desktop-position.json'),
+      JSON.stringify({ x: null, y: 20 }),
+      'utf8',
+    );
     expect(loadPetDesktopPosition(root)).toBeNull();
   });
 });

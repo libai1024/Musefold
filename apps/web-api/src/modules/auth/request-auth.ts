@@ -1,8 +1,4 @@
-import type {
-  FastifyReply,
-  FastifyRequest,
-  preHandlerHookHandler,
-} from 'fastify';
+import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify';
 import type { SessionStorePort } from '../account/session-store.js';
 import { AppError } from '../../errors.js';
 
@@ -24,17 +20,10 @@ export function requireMusefoldSession(
 ): preHandlerHookHandler {
   return async (request: FastifyRequest, _reply: FastifyReply) => {
     const rawSessionId =
-      bearerToken(request.headers.authorization) ??
-      request.cookies?.[cookieName];
-    if (!rawSessionId)
-      throw new AppError('AUTH_REQUIRED', '请先登录 Musefold', 401);
+      bearerToken(request.headers.authorization) ?? request.cookies?.[cookieName];
+    if (!rawSessionId) throw new AppError('AUTH_REQUIRED', '请先登录 Musefold', 401);
     const session = await sessions.get(rawSessionId);
-    if (!session)
-      throw new AppError(
-        'AUTH_SESSION_EXPIRED',
-        '登录状态已失效，请重新登录',
-        401,
-      );
+    if (!session) throw new AppError('AUTH_SESSION_EXPIRED', '登录状态已失效，请重新登录', 401);
     request.musefoldPrincipal = {
       ownerId: session.ownerId,
       username: session.username,
@@ -49,18 +38,9 @@ function bearerToken(header: string | undefined): string | undefined {
   return match?.[1];
 }
 
-export async function requireMusefoldCsrf(
-  request: FastifyRequest,
-): Promise<void> {
+export async function requireMusefoldCsrf(request: FastifyRequest): Promise<void> {
   const supplied = request.headers['x-musefold-csrf'];
-  if (
-    typeof supplied !== 'string' ||
-    supplied !== request.musefoldPrincipal.csrfToken
-  ) {
-    throw new AppError(
-      'VALIDATION_FAILED',
-      '请求验证失败，请刷新页面后重试',
-      403,
-    );
+  if (typeof supplied !== 'string' || supplied !== request.musefoldPrincipal.csrfToken) {
+    throw new AppError('VALIDATION_FAILED', '请求验证失败，请刷新页面后重试', 403);
   }
 }

@@ -33,9 +33,7 @@ export const EMPTY_WORKBENCH_DRAFT: WorkbenchDraft = {
   promptReferenceIds: [],
 };
 
-export function workbenchSessionRowToDocument(
-  row: DesktopWorkbenchSession,
-): WorkbenchSession {
+export function workbenchSessionRowToDocument(row: DesktopWorkbenchSession): WorkbenchSession {
   return {
     id: row.id,
     title: row.title.trim() || DEFAULT_SESSION_TITLE,

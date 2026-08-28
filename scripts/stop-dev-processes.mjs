@@ -72,12 +72,16 @@ const remaining = new Map((await listProcesses()).map((item) => [item.pid, item]
 const failed = targets.filter((target) => remaining.get(target.pid)?.command === target.command);
 
 if (failed.length > 0) {
-  console.error(`Failed to stop ${failed.length} development process(es): ${failed.map((item) => item.pid).join(', ')}`);
+  console.error(
+    `Failed to stop ${failed.length} development process(es): ${failed.map((item) => item.pid).join(', ')}`,
+  );
   process.exit(1);
 }
 
 const forcedSuffix = forced > 0 ? ` (${forced} required forced termination)` : '';
-console.log(`Stopped ${targets.length} Musefold development process(es)${forcedSuffix}. Production app was not touched.`);
+console.log(
+  `Stopped ${targets.length} Musefold development process(es)${forcedSuffix}. Production app was not touched.`,
+);
 
 function normalizePath(value) {
   return value.split(sep).join('/').replaceAll('\\', '/');
@@ -119,16 +123,31 @@ function isDevelopmentProcess(item) {
   if (command.includes('/Applications/Musefold.app/')) return false;
   if (!command.includes(`${normalizedRoot}/`)) return false;
 
-  const releaseApp = command.includes(`${normalizedRoot}/release/`) && command.includes('Musefold.app/');
+  const releaseApp =
+    command.includes(`${normalizedRoot}/release/`) && command.includes('Musefold.app/');
   const electronRuntime = command.includes(`${normalizedRoot}/node_modules/electron/`);
-  const electronVite = command.includes(`${normalizedRoot}/node_modules/`) && command.includes('electron-vite');
-  const vite = command.includes(`${normalizedRoot}/node_modules/`) && /(?:^|[/ ])vite(?:\.js)?(?: |$)/.test(command);
+  const electronVite =
+    command.includes(`${normalizedRoot}/node_modules/`) && command.includes('electron-vite');
+  const vite =
+    command.includes(`${normalizedRoot}/node_modules/`) &&
+    /(?:^|[/ ])vite(?:\.js)?(?: |$)/.test(command);
   const esbuild = command.includes(`${normalizedRoot}/node_modules/@esbuild/`);
   const builtMain = command.includes(`${normalizedRoot}/apps/desktop/out/main/`);
-  const cliDaemon = command.includes(`${normalizedRoot}/packages/cli/dist/musefold.mjs`) && /(?:^| )serve(?: |$)/.test(command);
+  const cliDaemon =
+    command.includes(`${normalizedRoot}/packages/cli/dist/musefold.mjs`) &&
+    /(?:^| )serve(?: |$)/.test(command);
   const mcpServer = command.includes(`${normalizedRoot}/packages/mcp/dist/musefold-mcp.mjs`);
 
-  return releaseApp || electronRuntime || electronVite || vite || esbuild || builtMain || cliDaemon || mcpServer;
+  return (
+    releaseApp ||
+    electronRuntime ||
+    electronVite ||
+    vite ||
+    esbuild ||
+    builtMain ||
+    cliDaemon ||
+    mcpServer
+  );
 }
 
 function sendSignal(pid, signal) {
@@ -137,7 +156,9 @@ function sendSignal(pid, signal) {
     return true;
   } catch (error) {
     if (error?.code === 'ESRCH') return false;
-    console.error(`Could not send ${signal} to pid ${pid}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Could not send ${signal} to pid ${pid}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 }

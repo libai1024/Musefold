@@ -49,9 +49,8 @@ export const DialogOverlay = React.forwardRef<
   );
 });
 
-export interface UiDialogContentProps extends React.ComponentPropsWithoutRef<
-  typeof DialogPrimitive.Content
-> {
+export interface UiDialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   hideClose?: boolean;
   overlayClassName?: string;
 }
@@ -136,9 +135,8 @@ export const Drawer = DialogPrimitive.Root;
 export const DrawerTrigger = DialogPrimitive.Trigger;
 export const DrawerClose = DialogPrimitive.Close;
 
-export interface UiDrawerContentProps extends React.ComponentPropsWithoutRef<
-  typeof DialogPrimitive.Content
-> {
+export interface UiDrawerContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   side?: 'left' | 'right' | 'top' | 'bottom';
   hideClose?: boolean;
 }
@@ -377,8 +375,10 @@ export const DropdownMenuSubContent = React.forwardRef<
 
 export const DropdownMenuItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> &
-    { inset?: boolean; tone?: 'danger' }
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
+    inset?: boolean;
+    tone?: 'danger';
+  }
 >(function DropdownMenuItem({ className, inset, tone, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.Item

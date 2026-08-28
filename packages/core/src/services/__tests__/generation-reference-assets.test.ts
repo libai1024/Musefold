@@ -17,12 +17,14 @@ import { generate } from '../generation';
 
 beforeAll(() => {
   initDb();
-  getDb().prepare(
-    `INSERT INTO providers
+  getDb()
+    .prepare(
+      `INSERT INTO providers
        (id, name, type, base_url, model, has_key, is_active, created_at, updated_at)
      VALUES ('doubao-test', '豆包测试', 'doubao-web', 'https://www.doubao.com/chat/create-image',
        'seedream-4.5', 1, 1, 1, 1)`,
-  ).run();
+    )
+    .run();
 
   const repositories = createWorkbenchRepositories();
   const run = repositories.runs.create({
@@ -68,21 +70,25 @@ describe('generation reference asset authorization', () => {
       size: '1024x1024',
       quality: 'medium',
       n: 1,
-      referenceImages: [{
-        source: 'history',
-        historyId: 'doubao-parent',
-        assetId: 'doubao-parent-2',
-        path: '/tmp/doubao-parent-2.png',
-      }],
+      referenceImages: [
+        {
+          source: 'history',
+          historyId: 'doubao-parent',
+          assetId: 'doubao-parent-2',
+          path: '/tmp/doubao-parent-2.png',
+        },
+      ],
     });
 
     expect(result.status).toBe('success');
     expect(doubaoRuntime.generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
-        referenceImages: [expect.objectContaining({
-          assetId: 'doubao-parent-2',
-          path: '/tmp/doubao-parent-2.png',
-        })],
+        referenceImages: [
+          expect.objectContaining({
+            assetId: 'doubao-parent-2',
+            path: '/tmp/doubao-parent-2.png',
+          }),
+        ],
       }),
       expect.any(AbortSignal),
     );
@@ -96,12 +102,14 @@ describe('generation reference asset authorization', () => {
       size: '1024x1024',
       quality: 'medium',
       n: 1,
-      referenceImages: [{
-        source: 'history',
-        historyId: 'doubao-parent',
-        assetId: 'doubao-parent-2',
-        path: '/tmp/not-the-stored-asset.png',
-      }],
+      referenceImages: [
+        {
+          source: 'history',
+          historyId: 'doubao-parent',
+          assetId: 'doubao-parent-2',
+          path: '/tmp/not-the-stored-asset.png',
+        },
+      ],
     });
 
     expect(result).toMatchObject({
@@ -122,12 +130,14 @@ describe('generation reference asset authorization', () => {
       parentHistoryId: 'doubao-parent',
       sourceAssetId: 'doubao-parent-2',
       refinementInstruction: '增强晨光',
-      referenceImages: [{
-        source: 'history',
-        historyId: 'doubao-parent',
-        assetId: 'doubao-parent-2',
-        path: '/tmp/doubao-parent-2.png',
-      }],
+      referenceImages: [
+        {
+          source: 'history',
+          historyId: 'doubao-parent',
+          assetId: 'doubao-parent-2',
+          path: '/tmp/doubao-parent-2.png',
+        },
+      ],
       workbench: {
         sessionId: 'refinement-session',
         sessionTitle: '微调测试',

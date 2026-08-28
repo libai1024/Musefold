@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  createDiagnosticReport,
-  formatDiagnosticReport,
-} from '../diagnostics';
+import { createDiagnosticReport, formatDiagnosticReport } from '../diagnostics';
 
 describe('diagnostic reports', () => {
   beforeEach(() => {

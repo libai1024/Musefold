@@ -1,7 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { mkdir, readFile, stat, unlink, writeFile } from 'fs/promises';
 import { dirname, extname, join, resolve } from 'path';
-import { IPC, type ShareRenderCardRequest, type ShareImportRequest } from '@musefold/desktop-contracts/ipc';
+import {
+  IPC,
+  type ShareRenderCardRequest,
+  type ShareImportRequest,
+} from '@musefold/desktop-contracts/ipc';
 import type { Prompt, PromptParams } from '@musefold/desktop-contracts/models';
 import type { PromptTarget } from '@musefold/desktop-contracts/enums';
 import {
@@ -150,7 +154,10 @@ async function renderShareCardToPng(payload: SharePayload, explicitPath?: string
   const pngPath = explicitPath?.trim()
     ? resolve(explicitPath)
     : join(dir, `musefold-share-${Date.now()}.png`);
-  const htmlPath = join(dir, `share-card-${Date.now()}-${Math.random().toString(16).slice(2)}.html`);
+  const htmlPath = join(
+    dir,
+    `share-card-${Date.now()}-${Math.random().toString(16).slice(2)}.html`,
+  );
   await writeFile(htmlPath, renderShareCardHtml(payload), 'utf8');
 
   const win = new BrowserWindow({

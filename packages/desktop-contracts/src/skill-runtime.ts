@@ -1,9 +1,6 @@
 import type { AppResult } from '@musefold/domain/app-result';
 import type { GenerateImageRequest, GenerateImageResult, LocalImageReference } from './providers';
-import type {
-  SkillRuntimeExecutionMode,
-  SkillRuntimeTraceItem,
-} from './generation-snapshots';
+import type { SkillRuntimeExecutionMode, SkillRuntimeTraceItem } from './generation-snapshots';
 
 export type {
   SkillRuntimeExecutionMode,
@@ -87,7 +84,9 @@ export type SkillRuntimeEvent =
   | { kind: 'generation-result'; executionId: string; outcome: SkillRuntimeGenerationOutcome };
 
 export interface SkillRuntimeApi {
-  prepareGithub: (request: PrepareGithubSkillRuntimeRequest) => Promise<AppResult<SkillRuntimeAttachment>>;
+  prepareGithub: (
+    request: PrepareGithubSkillRuntimeRequest,
+  ) => Promise<AppResult<SkillRuntimeAttachment>>;
   execute: (request: ExecuteSkillRuntimeRequest) => Promise<AppResult<SkillRuntimeExecution>>;
   cancel: (executionId: string) => Promise<{ ok: true }>;
   release: (runtimeId: string) => Promise<{ ok: true }>;

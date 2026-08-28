@@ -38,17 +38,25 @@ describe('desktop installer publish', () => {
         currentVersion: '0.5.0-dev',
         downloads: [
           { platform: 'macos', version: 'latest', path: '/Musefold/downloads/0.5.0-dev/old.dmg' },
-          { platform: 'macos', version: '0.5.0-dev', path: '/Musefold/downloads/0.5.0-dev/old.dmg' },
-          { platform: 'macos', version: '0.3.2', path: '/Musefold/downloads/0.3.2/Musefold-0.3.2-arm64.dmg' },
+          {
+            platform: 'macos',
+            version: '0.5.0-dev',
+            path: '/Musefold/downloads/0.5.0-dev/old.dmg',
+          },
+          {
+            platform: 'macos',
+            version: '0.3.2',
+            path: '/Musefold/downloads/0.3.2/Musefold-0.3.2-arm64.dmg',
+          },
         ],
       },
       '0.5.0-dev.70',
       { dmgName: 'Musefold-0.5.0-dev.70-arm64.dmg', exeName: 'Musefold Setup 0.5.0-dev.70.exe' },
     );
     expect(next.currentVersion).toBe('0.5.0-dev.70');
-    expect(next.downloads.find((row) => row.platform === 'macos' && row.version === 'latest')?.path).toContain(
-      '0.5.0-dev.70',
-    );
+    expect(
+      next.downloads.find((row) => row.platform === 'macos' && row.version === 'latest')?.path,
+    ).toContain('0.5.0-dev.70');
     expect(next.downloads.some((row) => row.version === '0.3.2')).toBe(true);
     expect(next.downloads.filter((row) => row.version === 'latest')).toHaveLength(2);
   });
@@ -72,8 +80,12 @@ describe('desktop installer publish', () => {
     expect(result.ok).toBe(true);
     const catalog = JSON.parse(readFileSync(join(site, 'downloads', 'catalog.json'), 'utf8'));
     expect(catalog.currentVersion).toBe('0.5.0-dev.70');
-    expect(readFileSync(join(site, 'downloads', '0.5.0-dev.70', 'SHA256SUMS.txt'), 'utf8')).toMatch(/dmg/);
-    expect(readFileSync(join(site, 'updates', 'dev', 'latest.yml'), 'utf8')).toContain('zhaozhaoyue.top');
+    expect(readFileSync(join(site, 'downloads', '0.5.0-dev.70', 'SHA256SUMS.txt'), 'utf8')).toMatch(
+      /dmg/,
+    );
+    expect(readFileSync(join(site, 'updates', 'dev', 'latest.yml'), 'utf8')).toContain(
+      'zhaozhaoyue.top',
+    );
   });
 });
 

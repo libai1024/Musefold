@@ -12,31 +12,31 @@
  *   1 — usage / config / network error
  */
 
-const { execSync } = require("child_process");
-const { BASE_URL, ACCESS_TOKEN, USER_ID } = require("./env");
-const { fetchTokenKey } = require("./fetch-key");
+const { execSync } = require('child_process');
+const { BASE_URL, ACCESS_TOKEN, USER_ID } = require('./env');
+const { fetchTokenKey } = require('./fetch-key');
 
 // --- Args ---
 
 const tokenId = process.argv[2];
 if (!tokenId || !/^\d+$/.test(tokenId)) {
-  console.error("Usage: copy-key.js <token_id>  (token_id must be a number)");
+  console.error('Usage: copy-key.js <token_id>  (token_id must be a number)');
   process.exit(1);
 }
 
 // --- Clipboard utility detection ---
 
 function detectClipboard() {
-  if (process.platform === "darwin") return "pbcopy";
+  if (process.platform === 'darwin') return 'pbcopy';
   try {
-    execSync("command -v xclip", { stdio: "ignore" });
-    return "xclip -selection clipboard";
+    execSync('command -v xclip', { stdio: 'ignore' });
+    return 'xclip -selection clipboard';
   } catch {
     // xclip 不在 PATH 时改试 xsel，不是错误。
   }
   try {
-    execSync("command -v xsel", { stdio: "ignore" });
-    return "xsel --clipboard --input";
+    execSync('command -v xsel', { stdio: 'ignore' });
+    return 'xsel --clipboard --input';
   } catch {
     // xsel 也不在 PATH；由调用方提示安装剪贴板工具。
   }
@@ -48,7 +48,7 @@ function detectClipboard() {
 async function main() {
   const clipCmd = detectClipboard();
   if (!clipCmd) {
-    console.error("ERROR: No clipboard utility found (need pbcopy / xclip / xsel)");
+    console.error('ERROR: No clipboard utility found (need pbcopy / xclip / xsel)');
     process.exit(1);
   }
 
@@ -65,9 +65,9 @@ async function main() {
   }
 
   try {
-    execSync(clipCmd, { input: fullKey, stdio: ["pipe", "ignore", "ignore"] });
+    execSync(clipCmd, { input: fullKey, stdio: ['pipe', 'ignore', 'ignore'] });
   } catch {
-    console.error("ERROR: Failed to write to clipboard");
+    console.error('ERROR: Failed to write to clipboard');
     process.exit(1);
   }
 
@@ -75,6 +75,6 @@ async function main() {
 }
 
 main().catch(() => {
-  console.error("ERROR: Unexpected failure");
+  console.error('ERROR: Unexpected failure');
   process.exit(1);
 });

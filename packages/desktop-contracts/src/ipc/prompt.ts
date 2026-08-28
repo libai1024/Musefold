@@ -1,8 +1,8 @@
 // packages/desktop-contracts/src/ipc/prompt.ts
 // prompt / searchHistory 域：请求响应类型 + Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
 
-import type { Prompt, NewPrompt, LibraryQuerySnapshot, SearchHistoryItem } from "../models";
-import type { PromptSource } from "../enums";
+import type { Prompt, NewPrompt, LibraryQuerySnapshot, SearchHistoryItem } from '../models';
+import type { PromptSource } from '../enums';
 
 /** IPC 侧提示词列表查询，与 LibraryQuerySnapshot 同构。排序方向缺省 desc（title 的 desc 语义为 A→Z，见 repositories/prompts.ts）。 */
 export type ListPromptsQuery = LibraryQuerySnapshot;
@@ -15,7 +15,7 @@ export interface UpdatePromptPatch {
   isPinned?: boolean;
   folderId?: string | null;
   modelId?: string | null;
-  params?: Prompt["params"];
+  params?: Prompt['params'];
   previewImagePath?: string | null;
   rating?: number;
   tagIds?: string[];

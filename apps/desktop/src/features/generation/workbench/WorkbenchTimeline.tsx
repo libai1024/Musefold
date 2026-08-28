@@ -1,16 +1,16 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
-import { ArrowDown } from "../../../components/ui/icons";
+import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { ArrowDown } from '../../../components/ui/icons';
 import {
   WorkbenchEmptyState,
   WorkbenchTimelineStage,
   useWorkbenchTimelineController,
-} from "@musefold/product-ui";
-import { ImageLightbox } from "../../../components/image-lightbox";
-import { useGenerationWorkbenchStore } from "./store";
-import { useSkillRuntimeStore } from "./skill-runtime-store";
-import { GenerationTurnView } from "./GenerationTurnView";
-import { PendingSkillConversation } from "./PendingSkillConversation";
+} from '@musefold/product-ui';
+import { ImageLightbox } from '../../../components/image-lightbox';
+import { useGenerationWorkbenchStore } from './store';
+import { useSkillRuntimeStore } from './skill-runtime-store';
+import { GenerationTurnView } from './GenerationTurnView';
+import { PendingSkillConversation } from './PendingSkillConversation';
 
 export function WorkbenchTimeline({
   emptyComposer,
@@ -22,34 +22,19 @@ export function WorkbenchTimeline({
   const setDraftPrompt = useGenerationWorkbenchStore((s) => s.setDraftPrompt);
   const attachmentsActive = useGenerationWorkbenchStore(
     (s) =>
-      s.refinementContext !== null ||
-      s.draftImages.length > 0 ||
-      s.draftSource.kind === "scheme",
+      s.refinementContext !== null || s.draftImages.length > 0 || s.draftSource.kind === 'scheme',
   );
-  const skillSubmittedPrompt = useSkillRuntimeStore(
-    (state) => state.submittedPrompt,
-  );
-  const skillConversationTurnId = useSkillRuntimeStore(
-    (state) => state.conversationTurnId,
-  );
+  const skillSubmittedPrompt = useSkillRuntimeStore((state) => state.submittedPrompt);
+  const skillConversationTurnId = useSkillRuntimeStore((state) => state.conversationTurnId);
   const skillTrace = useSkillRuntimeStore((state) => state.trace);
-  const pendingSkillConversation = Boolean(
-    skillSubmittedPrompt && !skillConversationTurnId,
-  );
-  const skillTraceSignal = skillTrace
-    .map((item) => `${item.id}:${item.status}`)
-    .join("|");
-  const [zoom, setZoom] = useState<{ path: string; prompt: string } | null>(
-    null,
-  );
+  const pendingSkillConversation = Boolean(skillSubmittedPrompt && !skillConversationTurnId);
+  const skillTraceSignal = skillTrace.map((item) => `${item.id}:${item.status}`).join('|');
+  const [zoom, setZoom] = useState<{ path: string; prompt: string } | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const timeline = useWorkbenchTimelineController({
-    followKey: [
-      attachmentsActive,
-      pendingSkillConversation,
-      skillTraceSignal,
-      turns.length,
-    ].join("|"),
+    followKey: [attachmentsActive, pendingSkillConversation, skillTraceSignal, turns.length].join(
+      '|',
+    ),
     itemCount: turns.length + (pendingSkillConversation ? 1 : 0),
   });
 
@@ -57,12 +42,11 @@ export function WorkbenchTimeline({
     <WorkbenchTimelineStage
       controller={timeline}
       onPointerDown={(event) => {
-        if (!(event.target as Element).closest("[data-user-message]"))
-          setActiveMessageId(null);
+        if (!(event.target as Element).closest('[data-user-message]')) setActiveMessageId(null);
       }}
       className="relative min-h-0 flex-1 overflow-y-auto"
       itemCount={turns.length + (pendingSkillConversation ? 1 : 0)}
-      bottomInset={attachmentsActive ? "attachments" : "composer"}
+      bottomInset={attachmentsActive ? 'attachments' : 'composer'}
       empty={
         <WorkbenchEmptyState
           composer={emptyComposer}
@@ -73,10 +57,7 @@ export function WorkbenchTimeline({
                 '[data-workbench-testid="workbench-prompt"]',
               );
               textarea?.focus();
-              textarea?.setSelectionRange(
-                suggestion.length,
-                suggestion.length,
-              );
+              textarea?.setSelectionRange(suggestion.length, suggestion.length);
             });
           }}
         />
@@ -112,10 +93,7 @@ export function WorkbenchTimeline({
         />
       ))}
       {pendingSkillConversation && skillSubmittedPrompt && (
-        <PendingSkillConversation
-          prompt={skillSubmittedPrompt}
-          trace={skillTrace}
-        />
+        <PendingSkillConversation prompt={skillSubmittedPrompt} trace={skillTrace} />
       )}
     </WorkbenchTimelineStage>
   );

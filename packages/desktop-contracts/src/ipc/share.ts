@@ -1,8 +1,8 @@
 // packages/desktop-contracts/src/ipc/share.ts
 // share / deeplink 域：请求响应类型 + Api namespace（V13-GOV-04 自 ipc.ts 分域拆出；docs/product/15 TASK-DIF-05）。
 
-import type { Prompt } from "../models";
-import type { SharePayload } from "../share";
+import type { Prompt } from '../models';
+import type { SharePayload } from '../share';
 
 export interface ShareRenderCardRequest {
   promptId?: string;
@@ -43,9 +43,7 @@ export interface ShareImportResult {
 export interface ShareApi {
   renderCard: (req: ShareRenderCardRequest) => Promise<ShareRenderCardResult>;
   buildDeeplink: (req: ShareBuildDeeplinkRequest) => Promise<ShareBuildDeeplinkResult>;
-  parseDeeplink: (
-    req: ShareParseDeeplinkRequest,
-  ) => Promise<ShareParseDeeplinkResult>;
+  parseDeeplink: (req: ShareParseDeeplinkRequest) => Promise<ShareParseDeeplinkResult>;
   import: (req: ShareImportRequest) => Promise<ShareImportResult>;
   consumePending: () => Promise<{ payloads: SharePayload[] }>;
   /** 订阅 OS deeplink 唤起事件，返回取消订阅函数。 */

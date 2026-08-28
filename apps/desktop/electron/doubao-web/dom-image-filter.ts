@@ -21,20 +21,20 @@ export function isDoubaoGeneratedDomImageCandidate(candidate: DoubaoDomImageCand
   const src = candidate.src.trim().toLowerCase();
   if (!src || src.startsWith('data:image/svg+xml')) return false;
   return (
-    candidate.naturalWidth >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE
-    && candidate.naturalHeight >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE
-    && candidate.displayWidth >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE
-    && candidate.displayHeight >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE
+    candidate.naturalWidth >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE &&
+    candidate.naturalHeight >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE &&
+    candidate.displayWidth >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE &&
+    candidate.displayHeight >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE
   );
 }
 
 /** 带参考图生成完成后，豆包会自动用大画布打开单张结果。 */
 export function isDoubaoGeneratedCanvasCandidate(candidate: DoubaoDomCanvasCandidate): boolean {
   return (
-    candidate.width >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE
-    && candidate.height >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE
-    && candidate.displayWidth >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE
-    && candidate.displayHeight >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE
+    candidate.width >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE &&
+    candidate.height >= DOUBAO_GENERATED_IMAGE_MIN_NATURAL_SIZE &&
+    candidate.displayWidth >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE &&
+    candidate.displayHeight >= DOUBAO_GENERATED_IMAGE_MIN_DISPLAY_SIZE
   );
 }
 

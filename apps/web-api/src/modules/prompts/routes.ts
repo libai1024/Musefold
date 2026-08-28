@@ -11,10 +11,7 @@ import {
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { SessionStorePort } from '../account/session-store.js';
-import {
-  requireMusefoldCsrf,
-  requireMusefoldSession,
-} from '../auth/request-auth.js';
+import { requireMusefoldCsrf, requireMusefoldSession } from '../auth/request-auth.js';
 import type { PromptServicePort } from './service.js';
 
 interface PromptRoutesOptions {
@@ -31,10 +28,7 @@ const includeDeletedQuery = z.object({
   includeDeleted: z.coerce.boolean().default(false),
 });
 
-export const promptRoutes: FastifyPluginAsync<PromptRoutesOptions> = async (
-  app,
-  options,
-) => {
+export const promptRoutes: FastifyPluginAsync<PromptRoutesOptions> = async (app, options) => {
   const auth = requireMusefoldSession(options.sessions, options.cookieName);
 
   app.get(
@@ -47,10 +41,7 @@ export const promptRoutes: FastifyPluginAsync<PromptRoutesOptions> = async (
       const query = promptListQuerySchema.parse(
         normalizePromptQuery(request.query as Record<string, unknown>),
       );
-      return options.promptService.listPrompts(
-        request.musefoldPrincipal.ownerId,
-        query,
-      );
+      return options.promptService.listPrompts(request.musefoldPrincipal.ownerId, query);
     },
   );
 
@@ -295,9 +286,7 @@ export const promptRoutes: FastifyPluginAsync<PromptRoutesOptions> = async (
   );
 };
 
-function normalizePromptQuery(
-  query: Record<string, unknown>,
-): Record<string, unknown> {
+function normalizePromptQuery(query: Record<string, unknown>): Record<string, unknown> {
   const tagIds = query.tagIds;
   return {
     ...query,

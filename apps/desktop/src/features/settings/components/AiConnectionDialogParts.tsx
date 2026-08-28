@@ -92,7 +92,10 @@ export function Field({
       {children}
       {hint && <span className="mt-1 block text-meta leading-relaxed text-tertiary">{hint}</span>}
       {error && (
-        <p className="mt-1 text-meta leading-relaxed text-danger" data-testid="ai-connection-field-error">
+        <p
+          className="mt-1 text-meta leading-relaxed text-danger"
+          data-testid="ai-connection-field-error"
+        >
           {error}
         </p>
       )}
@@ -213,10 +216,7 @@ export function AiConnectionKeyField({
   onRevoke: () => void;
 }) {
   return (
-    <Field
-      label="API Key"
-      hint="费用由服务商或网关计费;刷新模型或测试连接会先保存当前填写内容。"
-    >
+    <Field label="API Key" hint="费用由服务商或网关计费;刷新模型或测试连接会先保存当前填写内容。">
       {/* 状态行:状态 + 掩码 + 撤销同排,渲染在输入框上方 */}
       {keySaved && (
         <div
@@ -235,7 +235,11 @@ export function AiConnectionKeyField({
             disabled={revoking}
             data-testid="ai-connection-revoke-key"
           >
-            {revoking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unplug className="h-3 w-3" />}
+            {revoking ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Unplug className="h-3 w-3" />
+            )}
             撤销
           </Button>
         </div>

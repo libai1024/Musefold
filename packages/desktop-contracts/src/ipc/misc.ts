@@ -1,10 +1,10 @@
 // packages/desktop-contracts/src/ipc/misc.ts
 // pet / diagnostics 域 + skillRuntime / designScheme 既有 Api 面的再导出（V13-GOV-04 自 ipc.ts 分域拆出）。
 
-import type { PetFrame, PetInteraction, PetComposerAnchor } from "../pet";
-import type { DiagnosticReport } from "../diagnostics";
-import type { SkillRuntimeApi } from "../skill-runtime";
-import type { DesignSchemeApi } from "../design-scheme";
+import type { PetFrame, PetInteraction, PetComposerAnchor } from '../pet';
+import type { DiagnosticReport } from '../diagnostics';
+import type { SkillRuntimeApi } from '../skill-runtime';
+import type { DesignSchemeApi } from '../design-scheme';
 
 export type { SkillRuntimeApi, DesignSchemeApi };
 

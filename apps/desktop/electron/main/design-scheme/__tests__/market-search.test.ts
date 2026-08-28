@@ -24,7 +24,8 @@ function githubItem(overrides: Record<string, unknown> = {}) {
 }
 
 function fetchOk(items: unknown[]): typeof fetch {
-  return (async () => new Response(JSON.stringify({ items }), { status: 200 })) as unknown as typeof fetch;
+  return (async () =>
+    new Response(JSON.stringify({ items }), { status: 200 })) as unknown as typeof fetch;
 }
 
 describe('searchMarketCandidates', () => {
@@ -42,7 +43,10 @@ describe('searchMarketCandidates', () => {
   it('把 GitHub 搜索结果映射为候选并写入缓存', async () => {
     const result = await searchMarketCandidates('插画 illustration', {
       db,
-      fetchImpl: fetchOk([githubItem(), githubItem({ id: 102, full_name: 'a/b', license: null, stargazers_count: 1, topics: [] })]),
+      fetchImpl: fetchOk([
+        githubItem(),
+        githubItem({ id: 102, full_name: 'a/b', license: null, stargazers_count: 1, topics: [] }),
+      ]),
       now: () => 1_000,
     });
     expect(result.ok).toBe(true);
@@ -65,21 +69,33 @@ describe('searchMarketCandidates', () => {
     expect(second.riskSummary).toContain('许可证');
     expect(second.riskSummary).toContain('还原度');
 
-    const rows = db.prepare('SELECT query, repository_url FROM market_candidates ORDER BY candidate_id').all() as Array<{ query: string; repository_url: string }>;
+    const rows = db
+      .prepare('SELECT query, repository_url FROM market_candidates ORDER BY candidate_id')
+      .all() as Array<{ query: string; repository_url: string }>;
     expect(rows).toHaveLength(2);
     expect(rows[0].query).toBe('插画 illustration');
   });
 
   it('网络失败时回退缓存候选；无缓存时报网络错误', async () => {
-    const failingFetch = (async () => { throw new Error('offline'); }) as unknown as typeof fetch;
+    const failingFetch = (async () => {
+      throw new Error('offline');
+    }) as unknown as typeof fetch;
 
     const missed = await searchMarketCandidates('插画', { db, fetchImpl: failingFetch });
     expect(missed.ok).toBe(false);
     if (!missed.ok) expect(missed.error.code).toBe('NETWORK_ERROR');
 
     // 先成功一次写缓存，再断网 → 返回缓存并标记 fromCache。
-    await searchMarketCandidates('插画', { db, fetchImpl: fetchOk([githubItem()]), now: () => 2_000 });
-    const cached = await searchMarketCandidates('插画', { db, fetchImpl: failingFetch, now: () => 3_000 });
+    await searchMarketCandidates('插画', {
+      db,
+      fetchImpl: fetchOk([githubItem()]),
+      now: () => 2_000,
+    });
+    const cached = await searchMarketCandidates('插画', {
+      db,
+      fetchImpl: failingFetch,
+      now: () => 3_000,
+    });
     expect(cached.ok).toBe(true);
     if (!cached.ok) return;
     expect(cached.data.fromCache).toBe(true);
@@ -88,7 +104,10 @@ describe('searchMarketCandidates', () => {
 
   it('空搜索词直接拒绝，不触发网络请求', async () => {
     let called = false;
-    const spyFetch = (async () => { called = true; return new Response('{}'); }) as unknown as typeof fetch;
+    const spyFetch = (async () => {
+      called = true;
+      return new Response('{}');
+    }) as unknown as typeof fetch;
     const result = await searchMarketCandidates('   ', { db, fetchImpl: spyFetch });
     expect(result.ok).toBe(false);
     expect(called).toBe(false);

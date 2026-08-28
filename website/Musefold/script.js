@@ -1,29 +1,25 @@
-(function () {
-  const summary = document.querySelector("[data-download-summary]");
-  const totalElement = document.querySelector("[data-download-total]");
-  const statusElement = document.querySelector("[data-download-status]");
-  const countElements = document.querySelectorAll("[data-download-count]");
-  const skillUrlElement = document.querySelector("[data-skill-url]");
-  const skillCopyButton = document.querySelector("[data-skill-copy]");
-  const skillCopyLabel = skillCopyButton?.querySelector("span");
-  const skillCopyStatus = document.querySelector("[data-skill-copy-status]");
+(() => {
+  const summary = document.querySelector('[data-download-summary]');
+  const totalElement = document.querySelector('[data-download-total]');
+  const statusElement = document.querySelector('[data-download-status]');
+  const countElements = document.querySelectorAll('[data-download-count]');
+  const skillUrlElement = document.querySelector('[data-skill-url]');
+  const skillCopyButton = document.querySelector('[data-skill-copy]');
+  const skillCopyLabel = skillCopyButton?.querySelector('span');
+  const skillCopyStatus = document.querySelector('[data-skill-copy-status]');
 
   if (skillUrlElement && skillCopyButton) {
-    skillCopyButton.addEventListener("click", async function () {
+    skillCopyButton.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(skillUrlElement.textContent.trim());
-        if (skillCopyLabel) skillCopyLabel.textContent = "已复制";
-        if (skillCopyStatus)
-          skillCopyStatus.textContent = "网址已复制，可以直接粘贴给 AI";
-        window.setTimeout(function () {
-          if (skillCopyLabel) skillCopyLabel.textContent = "复制网址";
-          if (skillCopyStatus)
-            skillCopyStatus.textContent =
-              "SKILL.md · 先审阅，再调用";
+        if (skillCopyLabel) skillCopyLabel.textContent = '已复制';
+        if (skillCopyStatus) skillCopyStatus.textContent = '网址已复制，可以直接粘贴给 AI';
+        window.setTimeout(() => {
+          if (skillCopyLabel) skillCopyLabel.textContent = '复制网址';
+          if (skillCopyStatus) skillCopyStatus.textContent = 'SKILL.md · 先审阅，再调用';
         }, 1800);
       } catch (error) {
-        if (skillCopyStatus)
-          skillCopyStatus.textContent = "浏览器未授权复制，请手动选择上方网址";
+        if (skillCopyStatus) skillCopyStatus.textContent = '浏览器未授权复制，请手动选择上方网址';
       }
     });
   }
@@ -33,73 +29,71 @@
   }
 
   function formatCount(value) {
-    return new Intl.NumberFormat("zh-CN").format(value);
+    return new Intl.NumberFormat('zh-CN').format(value);
   }
 
   async function loadDownloadStatistics() {
     if (!summary || !totalElement || !statusElement) return;
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(function () {
+    const timeout = window.setTimeout(() => {
       controller.abort();
     }, 5000);
     try {
-      const response = await fetch("/Musefold/api/download-stats", {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-        credentials: "omit",
+      const response = await fetch('/Musefold/api/download-stats', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'omit',
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error("statistics request failed");
+      if (!response.ok) throw new Error('statistics request failed');
 
       const payload = await response.json();
       if (
         !isCount(payload.total) ||
-        typeof payload.byVersion !== "object" ||
+        typeof payload.byVersion !== 'object' ||
         payload.byVersion === null
       ) {
-        throw new Error("statistics response is invalid");
+        throw new Error('statistics response is invalid');
       }
 
       totalElement.textContent = formatCount(payload.total);
       const currentVersion =
-        typeof payload.currentVersion === "string" && payload.currentVersion
+        typeof payload.currentVersion === 'string' && payload.currentVersion
           ? payload.currentVersion
           : null;
-      countElements.forEach(function (element) {
+      countElements.forEach((element) => {
         const version = currentVersion || element.dataset.downloadVersion;
         const platform = element.dataset.downloadCount;
         const count = payload.byVersion?.[version]?.byPlatform?.[platform];
-        element.textContent = isCount(count)
-          ? formatCount(count) + " 次"
-          : "-- 次";
+        element.textContent = isCount(count) ? formatCount(count) + ' 次' : '-- 次';
       });
-      document.querySelectorAll("[data-download-label]").forEach(function (element) {
-        const platform = element.getAttribute("data-download-label");
+      document.querySelectorAll('[data-download-label]').forEach((element) => {
+        const platform = element.getAttribute('data-download-label');
         if (!currentVersion) return;
         element.textContent =
-          platform === "macos"
-            ? "Apple Silicon · DMG · " + currentVersion
-            : "安装程序 · " + currentVersion;
+          platform === 'macos'
+            ? 'Apple Silicon · DMG · ' + currentVersion
+            : '安装程序 · ' + currentVersion;
       });
-      const note = document.querySelector("[data-download-note]");
+      const note = document.querySelector('[data-download-note]');
       if (note && currentVersion) {
         note.textContent =
-          "Windows：" +
+          'Windows：' +
           currentVersion +
-          " · macOS：" +
+          ' · macOS：' +
           currentVersion +
-          " · 当前内测包未签名/未公证，请仅在测试环境使用。";
+          ' · 当前内测包未签名/未公证，请仅在测试环境使用。';
       }
-      statusElement.textContent = "按下载开始统计";
-      summary.dataset.state = "ready";
+      statusElement.textContent = '按下载开始统计';
+      summary.dataset.state = 'ready';
     } catch (error) {
-      totalElement.textContent = "--";
-      countElements.forEach(function (element) {
-        element.textContent = "-- 次";
+      totalElement.textContent = '--';
+      countElements.forEach((element) => {
+        element.textContent = '-- 次';
       });
-      statusElement.textContent = "统计暂不可用";
-      summary.dataset.state = "error";
+      statusElement.textContent = '统计暂不可用';
+      summary.dataset.state = 'error';
     } finally {
       window.clearTimeout(timeout);
     }

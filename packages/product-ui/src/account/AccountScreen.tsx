@@ -1,10 +1,10 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Button, Input } from "@musefold/ui";
-import { BadgeCheck, LogOut, RefreshCw } from "@musefold/ui/icons";
-import { AccountSummaryPanel, type AccountSummaryViewModel } from "./AccountSummaryPanel";
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { Button, Input } from '@musefold/ui';
+import { BadgeCheck, LogOut, RefreshCw } from '@musefold/ui/icons';
+import { AccountSummaryPanel, type AccountSummaryViewModel } from './AccountSummaryPanel';
 
 export interface AccountActionFeedback {
-  tone: "success" | "error";
+  tone: 'success' | 'error';
   message: string;
 }
 
@@ -27,7 +27,7 @@ export interface AccountScreenProps {
 /** Shared account surface. Hosts own server state and adapt actions to safe feedback. */
 export function AccountScreen({
   account,
-  description = "个人账户与生图额度",
+  description = '个人账户与生图额度',
   onRedeem,
   onRefresh,
   onLogout,
@@ -40,7 +40,7 @@ export function AccountScreen({
   className,
   testId,
 }: AccountScreenProps) {
-  const [redeemCode, setRedeemCode] = useState("");
+  const [redeemCode, setRedeemCode] = useState('');
   const [feedback, setFeedback] = useState<AccountActionFeedback | null>(null);
   const accountBusy = redeemBusy || refreshBusy;
 
@@ -53,9 +53,9 @@ export function AccountScreen({
     try {
       const nextFeedback = await onRedeem(code);
       setFeedback(nextFeedback);
-      if (nextFeedback.tone === "success") setRedeemCode("");
+      if (nextFeedback.tone === 'success') setRedeemCode('');
     } catch {
-      setFeedback({ tone: "error", message: "兑换失败，请稍后重试" });
+      setFeedback({ tone: 'error', message: '兑换失败，请稍后重试' });
     }
   };
 
@@ -65,15 +65,15 @@ export function AccountScreen({
     setFeedback(null);
     try {
       const nextFeedback = await onRefresh();
-      setFeedback(nextFeedback ?? { tone: "success", message: "账户信息已刷新" });
+      setFeedback(nextFeedback ?? { tone: 'success', message: '账户信息已刷新' });
     } catch {
-      setFeedback({ tone: "error", message: "刷新失败，请稍后重试" });
+      setFeedback({ tone: 'error', message: '刷新失败，请稍后重试' });
     }
   };
 
   return (
     <section
-      className={`mf-account-screen${className ? ` ${className}` : ""}`}
+      className={`mf-account-screen${className ? ` ${className}` : ''}`}
       data-testid={testId}
     >
       {showHeading ? (
@@ -96,7 +96,7 @@ export function AccountScreen({
         <AccountSummaryPanel
           testId="account-summary-panel"
           account={account}
-          headerAction={(
+          headerAction={
             <Button
               variant="secondary"
               className="mf-account-button mf-account-button-secondary mf-account-refresh"
@@ -108,11 +108,14 @@ export function AccountScreen({
             >
               刷新账户
             </Button>
-          )}
+          }
         />
       </section>
 
-      <section className="mf-account-surface mf-account-redeem" aria-labelledby="account-redeem-title">
+      <section
+        className="mf-account-surface mf-account-redeem"
+        aria-labelledby="account-redeem-title"
+      >
         <header className="mf-account-surface-heading">
           <div>
             <h2 id="account-redeem-title">额度与兑换</h2>
@@ -152,7 +155,7 @@ export function AccountScreen({
             <p
               className="mf-account-feedback"
               data-tone={feedback.tone}
-              role={feedback.tone === "error" ? "alert" : "status"}
+              role={feedback.tone === 'error' ? 'alert' : 'status'}
               aria-live="polite"
             >
               {feedback.message}

@@ -11,7 +11,9 @@ import type {
 import { ElectronAiSecretKeychain, type AiSecretKeychain } from '../security/ai-keychain';
 import { AccountError } from '../account/errors';
 
-function defaultCapabilities(routeKind: AiConnectionProfile['routeKind']): AiConnectionCapabilities {
+function defaultCapabilities(
+  routeKind: AiConnectionProfile['routeKind'],
+): AiConnectionCapabilities {
   return {
     modelDiscovery: 'unknown',
     supportedStructuredOutputModes: ['json-schema', 'json-object', 'json-text'],
@@ -90,7 +92,8 @@ export const AI_CONNECTION_PRESETS: readonly AiConnectionPreset[] = [
   },
 ] as const;
 
-interface PersistedAiConnection extends Omit<AiConnectionProfile, 'hasKey' | 'keySuffix' | 'managedBy'> {
+interface PersistedAiConnection
+  extends Omit<AiConnectionProfile, 'hasKey' | 'keySuffix' | 'managedBy'> {
   /** 旧 electron-store 记录没有该字段，读取时归一为 null。 */
   managedBy?: 'account' | null;
 }
@@ -151,10 +154,12 @@ export class AiConnectionStore {
   private readonly now: () => number;
 
   constructor(options: AiConnectionStoreOptions = {}) {
-    this.store = options.store ?? new Store<ConnectionStoreShape>({
-      name: AI_CONNECTION_STORE_NAME,
-      defaults: { connections: {}, activeId: null },
-    });
+    this.store =
+      options.store ??
+      new Store<ConnectionStoreShape>({
+        name: AI_CONNECTION_STORE_NAME,
+        defaults: { connections: {}, activeId: null },
+      });
     this.secrets = options.secrets ?? new ElectronAiSecretKeychain();
     this.idFactory = options.idFactory ?? ulid;
     this.now = options.now ?? Date.now;
@@ -176,7 +181,9 @@ export class AiConnectionStore {
 
   list(): AiConnectionProfile[] {
     return Object.values(this.records())
-      .sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name))
+      .sort(
+        (left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name),
+      )
       .map((record) => this.profile(record));
   }
 
@@ -229,7 +236,7 @@ export class AiConnectionStore {
       ...(patch.presetId !== undefined ? { presetId: patch.presetId } : {}),
       ...(patch.baseUrl !== undefined ? { baseUrl: normalizeAiBaseUrl(patch.baseUrl) } : {}),
       ...(patch.model !== undefined ? { model: normalizedModel(patch.model) } : {}),
-      ...((patch.baseUrl !== undefined || patch.model !== undefined || patch.routeKind !== undefined)
+      ...(patch.baseUrl !== undefined || patch.model !== undefined || patch.routeKind !== undefined
         ? { capabilities: defaultCapabilities(nextRouteKind) }
         : {}),
       updatedAt: this.now(),
@@ -250,7 +257,9 @@ export class AiConnectionStore {
     this.store.set('connections', next);
     this.secrets.delete(id);
     if (this.store.get('activeId') === id) {
-      const replacement = Object.values(next).sort((left, right) => right.updatedAt - left.updatedAt)[0];
+      const replacement = Object.values(next).sort(
+        (left, right) => right.updatedAt - left.updatedAt,
+      )[0];
       this.store.set('activeId', replacement?.id ?? null);
     }
   }
@@ -319,7 +328,9 @@ export class AiConnectionStore {
   removeManagedAccount(existingId: string | null): void {
     const records = this.records();
     let ids = Object.values(records)
-      .filter((record) => record.managedBy === 'account' && (!existingId || record.id === existingId))
+      .filter(
+        (record) => record.managedBy === 'account' && (!existingId || record.id === existingId),
+      )
       .map((record) => record.id);
     // 本机 session id 可能因崩溃/手工迁移失效；找不到指定行时回收全部托管遗留。
     if (ids.length === 0 && existingId) {
@@ -336,7 +347,9 @@ export class AiConnectionStore {
     }
     this.store.set('connections', next);
     if (ids.includes(this.store.get('activeId') ?? '')) {
-      const replacement = Object.values(next).sort((left, right) => right.updatedAt - left.updatedAt)[0];
+      const replacement = Object.values(next).sort(
+        (left, right) => right.updatedAt - left.updatedAt,
+      )[0];
       this.store.set('activeId', replacement?.id ?? null);
     }
   }
@@ -348,7 +361,10 @@ export class AiConnectionStore {
     return key;
   }
 
-  updateCapabilities(id: string, capabilities: Partial<AiConnectionCapabilities>): AiConnectionProfile {
+  updateCapabilities(
+    id: string,
+    capabilities: Partial<AiConnectionCapabilities>,
+  ): AiConnectionProfile {
     const records = this.records();
     const current = records[id];
     if (!current) throw new Error('AI 连接不存在');

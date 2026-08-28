@@ -14,9 +14,23 @@ const REVISED_JSON = JSON.stringify({
   name: '极简杂志海报 3:4',
   summary: '双色印刷版式方案（默认 3:4）',
   fidelity: 'adapted',
-  inputs: [{ label: '海报主题', kind: 'text', required: true, variable: 'topic', description: '一句话主题' }],
+  inputs: [
+    {
+      label: '海报主题',
+      kind: 'text',
+      required: true,
+      variable: 'topic',
+      description: '一句话主题',
+    },
+  ],
   constraints: [
-    { domain: 'output', statement: '默认输出 3:4 竖版', mode: 'required', userOverridable: true, evidencePaths: [] },
+    {
+      domain: 'output',
+      statement: '默认输出 3:4 竖版',
+      mode: 'required',
+      userOverridable: true,
+      evidencePaths: [],
+    },
   ],
   promptProgram: [
     { kind: 'input-template', template: '为「{{topic}}」设计极简杂志海报', variables: ['topic'] },
@@ -33,7 +47,8 @@ function makeAdapter(): OpenAiCompatibleTextAdapter {
     modelId: 'test-model',
     connectionName: 'test-conn',
     complete: async (request: TextCompletionRequest) => {
-      if (request.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      if (request.signal?.aborted)
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' });
       expect(request.system).toContain('方案修订器');
       return { text: REVISED_JSON, model: 'test-model' };
     },
@@ -52,11 +67,32 @@ function documentFixture(): DesignSchemeRevisionDocument {
     inputs: [{ id: 'topic', label: '海报主题', kind: 'text', required: true }],
     parameters: [],
     constraints: [
-      { id: 'con_1', domain: 'color', statement: '只用两种油墨色', mode: 'required', userOverridable: false, sourceIds: ['src_brief'] },
+      {
+        id: 'con_1',
+        domain: 'color',
+        statement: '只用两种油墨色',
+        mode: 'required',
+        userOverridable: false,
+        sourceIds: ['src_brief'],
+      },
     ],
     promptProgram: [
-      { id: 'pm_1', order: 0, kind: 'input-template', template: '为「{{topic}}」设计海报', variables: ['topic'], sourceIds: ['src_brief'] },
-      { id: 'pm_2', order: 1, kind: 'style-rule', template: '双色印刷质感', variables: [], sourceIds: ['src_brief'] },
+      {
+        id: 'pm_1',
+        order: 0,
+        kind: 'input-template',
+        template: '为「{{topic}}」设计海报',
+        variables: ['topic'],
+        sourceIds: ['src_brief'],
+      },
+      {
+        id: 'pm_2',
+        order: 1,
+        kind: 'style-rule',
+        template: '双色印刷质感',
+        variables: [],
+        sourceIds: ['src_brief'],
+      },
     ],
     compilation: {
       compiledAt: 1,
@@ -96,11 +132,19 @@ describe('DesignSchemeModifySession', () => {
   });
 
   const collect = (event: DesignSchemeCreationEvent) => events.push(event);
-  const states = () => events.filter((event) => event.kind === 'state').map((event) => (event as { state: string }).state);
+  const states = () =>
+    events
+      .filter((event) => event.kind === 'state')
+      .map((event) => (event as { state: string }).state);
 
   it('草稿修改：Agent 输出新版本并直接替换当前草稿', async () => {
     const session = new DesignSchemeModifySession(
-      { executionId: 'mod-1', schemeId: 'dsch_mod', baseRevisionId: 'dsrv_base', instruction: '把默认比例改成 3:4' },
+      {
+        executionId: 'mod-1',
+        schemeId: 'dsch_mod',
+        baseRevisionId: 'dsrv_base',
+        instruction: '把默认比例改成 3:4',
+      },
       { db, resolveAdapter: makeAdapter, emit: collect },
     );
     const result = await session.run();
@@ -130,7 +174,12 @@ describe('DesignSchemeModifySession', () => {
     repository.formalize('dsch_mod');
 
     const session = new DesignSchemeModifySession(
-      { executionId: 'mod-2', schemeId: 'dsch_mod', baseRevisionId: 'dsrv_base', instruction: '标题区域加宽' },
+      {
+        executionId: 'mod-2',
+        schemeId: 'dsch_mod',
+        baseRevisionId: 'dsrv_base',
+        instruction: '标题区域加宽',
+      },
       { db, resolveAdapter: makeAdapter, emit: collect },
     );
     const result = await session.run();
@@ -141,7 +190,8 @@ describe('DesignSchemeModifySession', () => {
     expect(result.data.scheme.workingDraftRevisionId).toBe(result.data.revisionId);
     // 展示名保持正式版本
     expect(result.data.scheme.name).toBe('极简杂志海报');
-    const saveTrace = events.filter((event) => event.kind === 'trace')
+    const saveTrace = events
+      .filter((event) => event.kind === 'trace')
       .map((event) => (event as { item: { id: string; detail?: string } }).item)
       .find((item) => item.id === 'save-revision');
     expect(saveTrace?.detail).toContain('正式版本保持可用');
@@ -149,7 +199,12 @@ describe('DesignSchemeModifySession', () => {
 
   it('没有可用文本模型时直接阻断并提示配置 AI', async () => {
     const session = new DesignSchemeModifySession(
-      { executionId: 'mod-3', schemeId: 'dsch_mod', baseRevisionId: 'dsrv_base', instruction: '随便改点' },
+      {
+        executionId: 'mod-3',
+        schemeId: 'dsch_mod',
+        baseRevisionId: 'dsrv_base',
+        instruction: '随便改点',
+      },
       { db, resolveAdapter: () => null, emit: collect },
     );
     const result = await session.run();

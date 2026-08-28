@@ -58,12 +58,9 @@ export function useDraftForm<TDraft extends object, TField extends string>({
 
   const errors = useMemo(() => validateRef.current(draft), [draft]);
 
-  const setField = useCallback(
-    <TKey extends keyof TDraft>(key: TKey, value: TDraft[TKey]) => {
-      setDraft((current) => ({ ...current, [key]: value }));
-    },
-    [],
-  );
+  const setField = useCallback(<TKey extends keyof TDraft>(key: TKey, value: TDraft[TKey]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }, []);
 
   const markTouched = useCallback((field: TField) => {
     setTouched((current) => ({ ...current, [field]: true }));

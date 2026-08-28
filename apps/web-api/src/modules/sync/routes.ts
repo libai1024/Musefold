@@ -4,18 +4,12 @@ import {
   syncPullQuerySchema,
   syncPushRequestSchema,
   syncUsagePushRequestSchema,
-} from "@musefold/contracts";
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import type { SessionStorePort } from "../account/session-store.js";
-import {
-  requireMusefoldCsrf,
-  requireMusefoldSession,
-} from "../auth/request-auth.js";
-import {
-  RATE_LIMIT_POLICIES,
-  type RateLimiterPort,
-} from "../rate-limit/service.js";
-import type { SyncServicePort } from "./service.js";
+} from '@musefold/contracts';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import type { SessionStorePort } from '../account/session-store.js';
+import { requireMusefoldCsrf, requireMusefoldSession } from '../auth/request-auth.js';
+import { RATE_LIMIT_POLICIES, type RateLimiterPort } from '../rate-limit/service.js';
+import type { SyncServicePort } from './service.js';
 
 interface SyncRoutesOptions {
   syncService: SyncServicePort;
@@ -24,23 +18,20 @@ interface SyncRoutesOptions {
   rateLimiter?: RateLimiterPort;
 }
 
-export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (
-  app,
-  options,
-) => {
+export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (app, options) => {
   const auth = requireMusefoldSession(options.sessions, options.cookieName);
   const rateLimit = async (request: FastifyRequest) =>
     options.rateLimiter?.assertAllowed(
-      "prompt-sync",
+      'prompt-sync',
       String(request.musefoldPrincipal.ownerId),
       RATE_LIMIT_POLICIES.promptSync,
     );
 
   app.post(
-    "/api/musefold/v1/sync/devices",
+    '/api/musefold/v1/sync/devices',
     {
       preHandler: [auth, requireMusefoldCsrf, rateLimit],
-      schema: { tags: ["sync"], body: syncDeviceRegistrationSchema },
+      schema: { tags: ['sync'], body: syncDeviceRegistrationSchema },
     },
     async (request, reply) => {
       const result = await options.syncService.registerDevice(
@@ -52,10 +43,10 @@ export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (
   );
 
   app.get(
-    "/api/musefold/v1/sync/bootstrap",
+    '/api/musefold/v1/sync/bootstrap',
     {
       preHandler: [auth, rateLimit],
-      schema: { tags: ["sync"], querystring: syncBootstrapQuerySchema },
+      schema: { tags: ['sync'], querystring: syncBootstrapQuerySchema },
     },
     async (request) => {
       const query = syncBootstrapQuerySchema.parse(
@@ -71,10 +62,10 @@ export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (
   );
 
   app.get(
-    "/api/musefold/v1/sync/pull",
+    '/api/musefold/v1/sync/pull',
     {
       preHandler: [auth, rateLimit],
-      schema: { tags: ["sync"], querystring: syncPullQuerySchema },
+      schema: { tags: ['sync'], querystring: syncPullQuerySchema },
     },
     async (request) => {
       const query = syncPullQuerySchema.parse(
@@ -90,11 +81,11 @@ export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (
   );
 
   app.post(
-    "/api/musefold/v1/sync/push",
+    '/api/musefold/v1/sync/push',
     {
       bodyLimit: 512 * 1024,
       preHandler: [auth, requireMusefoldCsrf, rateLimit],
-      schema: { tags: ["sync"], body: syncPushRequestSchema },
+      schema: { tags: ['sync'], body: syncPushRequestSchema },
     },
     async (request) => {
       const body = syncPushRequestSchema.parse(request.body);
@@ -107,11 +98,11 @@ export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (
   );
 
   app.post(
-    "/api/musefold/v1/sync/usage",
+    '/api/musefold/v1/sync/usage',
     {
       bodyLimit: 128 * 1024,
       preHandler: [auth, requireMusefoldCsrf, rateLimit],
-      schema: { tags: ["sync"], body: syncUsagePushRequestSchema },
+      schema: { tags: ['sync'], body: syncUsagePushRequestSchema },
     },
     async (request) => {
       const body = syncUsagePushRequestSchema.parse(request.body);
@@ -123,26 +114,15 @@ export const syncRoutes: FastifyPluginAsync<SyncRoutesOptions> = async (
     },
   );
 
-  app.get(
-    "/api/musefold/v1/sync/status",
-    { preHandler: [auth, rateLimit] },
-    async (request) => {
-      const deviceId = String(
-        (request.query as { deviceId?: string }).deviceId ?? "",
-      );
-      return options.syncService.status(
-        request.musefoldPrincipal.ownerId,
-        deviceId,
-      );
-    },
-  );
+  app.get('/api/musefold/v1/sync/status', { preHandler: [auth, rateLimit] }, async (request) => {
+    const deviceId = String((request.query as { deviceId?: string }).deviceId ?? '');
+    return options.syncService.status(request.musefoldPrincipal.ownerId, deviceId);
+  });
 };
 
-function normalizeQuery(
-  query: Record<string, unknown>,
-): Record<string, unknown> {
+function normalizeQuery(query: Record<string, unknown>): Record<string, unknown> {
   return {
     ...query,
-    limit: typeof query.limit === "string" ? Number(query.limit) : query.limit,
+    limit: typeof query.limit === 'string' ? Number(query.limit) : query.limit,
   };
 }

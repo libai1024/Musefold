@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode } from 'react';
 
 export interface WorkbenchResultGridProps {
   count: number;
@@ -15,16 +15,14 @@ export function WorkbenchResultGrid({
   aspectRatio,
   children,
   className,
-  testId = "refine-results",
+  testId = 'refine-results',
   provider,
 }: WorkbenchResultGridProps) {
   const safeCount = Math.max(1, count);
   const style: CSSProperties = { maxWidth: resultGridMaxWidth(safeCount, aspectRatio) };
   return (
     <div
-      className={["mf-workbench-result-grid", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={['mf-workbench-result-grid', className].filter(Boolean).join(' ')}
       style={style}
       data-testid={testId}
       data-count={safeCount}
@@ -38,8 +36,7 @@ export function WorkbenchResultGrid({
 
 function resultGridMaxWidth(count: number, ratioId: string): string {
   const ratio = ratioValue(ratioId);
-  if (count <= 1)
-    return `min(100%, 480px, ${Math.round(46 * ratio * 10) / 10}dvh)`;
+  if (count <= 1) return `min(100%, 480px, ${Math.round(46 * ratio * 10) / 10}dvh)`;
   if (count === 2)
     return `min(100%, 458px, calc(${Math.round(33 * ratio * 2 * 10) / 10}dvh + 10px))`;
   if (count <= 4) return `${Math.round(Math.min(210, 205 * ratio) * 2 + 10)}px`;
@@ -47,15 +44,9 @@ function resultGridMaxWidth(count: number, ratioId: string): string {
 }
 
 function ratioValue(ratioId: string): number {
-  const [width, height] = ratioId.split(":").map(Number);
-  if (
-    !Number.isFinite(width) ||
-    !Number.isFinite(height) ||
-    width <= 0 ||
-    height <= 0
-  ) {
+  const [width, height] = ratioId.split(':').map(Number);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     return 1;
   }
   return width / height;
 }
-

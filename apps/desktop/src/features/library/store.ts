@@ -151,8 +151,13 @@ interface LibraryState {
 /** 防抖句柄：模块级，保证跨 action 共享同一个 timer */
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-function message(err: unknown): string { const e = err as { message?: string; code?: string }; return e?.message || e?.code || '未知错误'; }
-function cacheLibraryList(prompts: DesktopLibraryPrompt[], query: LibraryQuerySnapshot): void { desktopQueryClient.setQueryData(musefoldQueryKeys.library.list(query), prompts); }
+function message(err: unknown): string {
+  const e = err as { message?: string; code?: string };
+  return e?.message || e?.code || '未知错误';
+}
+function cacheLibraryList(prompts: DesktopLibraryPrompt[], query: LibraryQuerySnapshot): void {
+  desktopQueryClient.setQueryData(musefoldQueryKeys.library.list(query), prompts);
+}
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   prompts: [],
@@ -248,7 +253,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ listQuery: query });
       void get().reloadPrompts();
       if (term) {
-        void desktopExtras.addSearchHistory(term)
+        void desktopExtras
+          .addSearchHistory(term)
           .then(() => get().reloadSearchHistory())
           .catch(() => {
             /* 搜索历史是辅助能力，失败不打断搜索 */
@@ -296,7 +302,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
               updatedAtMs: Date.now(),
               updatedAt: epochMsToIso(Date.now()),
             }
-          : x
+          : x,
       ),
     });
     cacheLibraryList(get().prompts, get().listQuery);
@@ -412,7 +418,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const used = await promptGateway.usePrompt(id, { action: 'copy' });
       set((s) => ({
         prompts: s.prompts.map((x) =>
-          x.id === id ? applyPromptDocumentToDesktopLibraryPrompt(x, used.prompt) : x
+          x.id === id ? applyPromptDocumentToDesktopLibraryPrompt(x, used.prompt) : x,
         ),
       }));
     } catch {
@@ -554,10 +560,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 }));
 
 /** 从当前状态组装 list 查询 */
-export function buildLibraryQuerySnapshot(s: Pick<
-  LibraryState,
-  'search' | 'filters' | 'sort' | 'sortDir'
->): LibraryQuerySnapshot {
+export function buildLibraryQuerySnapshot(
+  s: Pick<LibraryState, 'search' | 'filters' | 'sort' | 'sortDir'>,
+): LibraryQuerySnapshot {
   return {
     search: s.search.trim() || undefined,
     filters: Object.keys(s.filters).length > 0 ? s.filters : undefined,

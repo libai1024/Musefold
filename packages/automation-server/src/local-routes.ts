@@ -9,14 +9,24 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from './server';
+import {
+  AutomationError,
+  type AutomationRouteContext,
+  type AutomationRouteHandler,
+} from './server';
 import { tokenEquals } from './token';
 
 const CHALLENGE_DIR = '.local-challenges';
 const CHALLENGE_TTL_MS = 60_000;
 
 export interface LocalAdminOps {
-  createProvider(input: { name: string; type: string; baseUrl: string; model: string; isActive?: boolean }): unknown;
+  createProvider(input: {
+    name: string;
+    type: string;
+    baseUrl: string;
+    model: string;
+    isActive?: boolean;
+  }): unknown;
   setProviderKey(providerId: string, apiKey: string): unknown;
   deleteProvider(providerId: string): unknown;
   setActiveProvider(providerId: string): unknown;
@@ -59,7 +69,11 @@ export function createLocalRoutes(dataDir: string, ops: LocalAdminOps): LocalRou
     const proof = Array.isArray(header) ? header[0] : header;
     const separator = proof?.indexOf(':') ?? -1;
     if (!proof || separator <= 0) {
-      throw new AutomationError('LOCAL_PROOF_REQUIRED', '该操作仅限本机本人：请先完成本地质询（/v1/local/challenge）', 403);
+      throw new AutomationError(
+        'LOCAL_PROOF_REQUIRED',
+        '该操作仅限本机本人：请先完成本地质询（/v1/local/challenge）',
+        403,
+      );
     }
     const challengeId = proof.slice(0, separator);
     const provided = proof.slice(separator + 1);
@@ -71,16 +85,22 @@ export function createLocalRoutes(dataDir: string, ops: LocalAdminOps): LocalRou
     }
   };
 
-  const guarded = (
-    handler: (context: AutomationRouteContext) => unknown | Promise<unknown>,
-  ): AutomationRouteHandler => async (context) => {
-    requireProof(context);
-    return handler(context);
-  };
+  const guarded =
+    (
+      handler: (context: AutomationRouteContext) => unknown | Promise<unknown>,
+    ): AutomationRouteHandler =>
+    async (context) => {
+      requireProof(context);
+      return handler(context);
+    };
 
   const body = (context: AutomationRouteContext): Record<string, unknown> => {
     if (context.body == null) return {};
-    if (typeof context.body !== 'object' || Array.isArray(context.body) || Buffer.isBuffer(context.body)) {
+    if (
+      typeof context.body !== 'object' ||
+      Array.isArray(context.body) ||
+      Buffer.isBuffer(context.body)
+    ) {
       throw new AutomationError('INVALID_PARAMS', '请求体必须是 JSON 对象', 400);
     }
     return context.body as Record<string, unknown>;
@@ -101,18 +121,24 @@ export function createLocalRoutes(dataDir: string, ops: LocalAdminOps): LocalRou
       }),
       'POST /v1/local/providers/:id/key': guarded((context) => {
         const { key } = body(context);
-        if (typeof key !== 'string' || !key.trim()) throw new AutomationError('INVALID_PARAMS', 'key 为必填', 400);
+        if (typeof key !== 'string' || !key.trim())
+          throw new AutomationError('INVALID_PARAMS', 'key 为必填', 400);
         return ops.setProviderKey(context.params.id, key.trim());
       }),
       'DELETE /v1/local/providers/:id': guarded((context) => ops.deleteProvider(context.params.id)),
-      'POST /v1/local/providers/:id/activate': guarded((context) => ops.setActiveProvider(context.params.id)),
-      'POST /v1/local/providers/:id/validate': guarded((context) => ops.validateProvider(context.params.id)),
+      'POST /v1/local/providers/:id/activate': guarded((context) =>
+        ops.setActiveProvider(context.params.id),
+      ),
+      'POST /v1/local/providers/:id/validate': guarded((context) =>
+        ops.validateProvider(context.params.id),
+      ),
 
       'POST /v1/local/backups': guarded(() => ops.backupNow()),
       'GET /v1/local/backups': guarded(() => ops.listBackups()),
       'POST /v1/local/backups/restore': guarded((context) => {
         const { file } = body(context);
-        if (typeof file !== 'string' || !file) throw new AutomationError('INVALID_PARAMS', 'file 为必填', 400);
+        if (typeof file !== 'string' || !file)
+          throw new AutomationError('INVALID_PARAMS', 'file 为必填', 400);
         return ops.restoreBackup(file);
       }),
 

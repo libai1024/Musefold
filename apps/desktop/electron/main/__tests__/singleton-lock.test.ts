@@ -44,8 +44,10 @@ afterEach(() => {
 
 describe('parseSingletonLockTarget', () => {
   it('解析 hostname-pid（主机名自身可含连字符）', () => {
-    expect(parseSingletonLockTarget('wangweideMacMini-64.local-71918'))
-      .toEqual({ host: 'wangweideMacMini-64.local', pid: 71918 });
+    expect(parseSingletonLockTarget('wangweideMacMini-64.local-71918')).toEqual({
+      host: 'wangweideMacMini-64.local',
+      pid: 71918,
+    });
   });
 
   it('非法目标返回 null', () => {
@@ -61,7 +63,11 @@ describe('clearStaleSingletonLock', () => {
   it('持锁进程已死（ESRCH）：清掉锁三件套并返回 true', () => {
     const dir = userDataDir();
     plantLock(dir, 'test-host-4242');
-    const cleared = clearStaleSingletonLock(dir, { platform: 'darwin', host: 'test-host', probeProcess: dead });
+    const cleared = clearStaleSingletonLock(dir, {
+      platform: 'darwin',
+      host: 'test-host',
+      probeProcess: dead,
+    });
     expect(cleared).toBe(true);
     for (const name of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
       expect(linkExists(join(dir, name))).toBe(false);
@@ -71,32 +77,50 @@ describe('clearStaleSingletonLock', () => {
   it('持锁进程仍活着：绝不动锁（真实第二实例场景）', () => {
     const dir = userDataDir();
     plantLock(dir, 'test-host-4242');
-    expect(clearStaleSingletonLock(dir, { platform: 'darwin', host: 'test-host', probeProcess: alive })).toBe(false);
+    expect(
+      clearStaleSingletonLock(dir, { platform: 'darwin', host: 'test-host', probeProcess: alive }),
+    ).toBe(false);
     expect(linkExists(join(dir, 'SingletonLock'))).toBe(true);
   });
 
   it('EPERM（PID 被他人进程复用）：不动锁，交回 Chromium 仲裁', () => {
     const dir = userDataDir();
     plantLock(dir, 'test-host-4242');
-    expect(clearStaleSingletonLock(dir, { platform: 'darwin', host: 'test-host', probeProcess: foreign })).toBe(false);
+    expect(
+      clearStaleSingletonLock(dir, {
+        platform: 'darwin',
+        host: 'test-host',
+        probeProcess: foreign,
+      }),
+    ).toBe(false);
     expect(linkExists(join(dir, 'SingletonLock'))).toBe(true);
   });
 
   it('别的主机留下的锁（共享目录）：不动', () => {
     const dir = userDataDir();
     plantLock(dir, 'other-host-4242');
-    expect(clearStaleSingletonLock(dir, { platform: 'darwin', host: 'test-host', probeProcess: dead })).toBe(false);
+    expect(
+      clearStaleSingletonLock(dir, { platform: 'darwin', host: 'test-host', probeProcess: dead }),
+    ).toBe(false);
     expect(linkExists(join(dir, 'SingletonLock'))).toBe(true);
   });
 
   it('没有锁文件：静默返回 false', () => {
-    expect(clearStaleSingletonLock(userDataDir(), { platform: 'darwin', host: 'test-host', probeProcess: dead })).toBe(false);
+    expect(
+      clearStaleSingletonLock(userDataDir(), {
+        platform: 'darwin',
+        host: 'test-host',
+        probeProcess: dead,
+      }),
+    ).toBe(false);
   });
 
   it('Windows 平台直接跳过', () => {
     const dir = userDataDir();
     plantLock(dir, 'test-host-4242');
-    expect(clearStaleSingletonLock(dir, { platform: 'win32', host: 'test-host', probeProcess: dead })).toBe(false);
+    expect(
+      clearStaleSingletonLock(dir, { platform: 'win32', host: 'test-host', probeProcess: dead }),
+    ).toBe(false);
     expect(linkExists(join(dir, 'SingletonLock'))).toBe(true);
   });
 

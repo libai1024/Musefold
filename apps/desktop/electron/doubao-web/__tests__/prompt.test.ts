@@ -22,15 +22,21 @@ describe('composeDoubaoWebPrompt', () => {
   });
 
   it('sends only the current instruction when refining an image', () => {
-    expect(composeDoubaoWebPrompt(request({
-      prompt: `# Pasted Skill\n${'很长的规则'.repeat(10_000)}`,
-      negative: '首次生成的负面提示词',
-      refinementInstruction: '增强晨光，保持陶器造型不变',
-      referenceImages: [{
-        source: 'history',
-        historyId: 'doubao-batch',
-        path: '/tmp/doubao-batch-3.png',
-      }],
-    }))).toBe('增强晨光，保持陶器造型不变');
+    expect(
+      composeDoubaoWebPrompt(
+        request({
+          prompt: `# Pasted Skill\n${'很长的规则'.repeat(10_000)}`,
+          negative: '首次生成的负面提示词',
+          refinementInstruction: '增强晨光，保持陶器造型不变',
+          referenceImages: [
+            {
+              source: 'history',
+              historyId: 'doubao-batch',
+              path: '/tmp/doubao-batch-3.png',
+            },
+          ],
+        }),
+      ),
+    ).toBe('增强晨光，保持陶器造型不变');
   });
 });

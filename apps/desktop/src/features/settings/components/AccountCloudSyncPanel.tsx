@@ -60,7 +60,9 @@ export function AccountCloudSyncPanel({
         </Button>
       </div>
       {!signedIn && (
-        <InlineMessage tone="warning">登录 Musefold 账号后才能启用云同步，本地内容可继续离线使用。</InlineMessage>
+        <InlineMessage tone="warning">
+          登录 Musefold 账号后才能启用云同步，本地内容可继续离线使用。
+        </InlineMessage>
       )}
       {cloudError && <InlineMessage tone="warning">{cloudError}</InlineMessage>}
       {cloudConflicts.length > 0 && (

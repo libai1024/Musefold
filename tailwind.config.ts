@@ -42,10 +42,6 @@ export default {
       ringColor: {
         accent: 'var(--accent)',
       },
-      fontFamily: {
-        sans: '"SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-        mono: '"SF Mono", "Cascadia Code", "JetBrains Mono", ui-monospace, "Roboto Mono", monospace',
-      },
       borderRadius: {
         xs: 'var(--radius-xs)',
         sm: 'var(--radius-sm)',
@@ -63,6 +59,8 @@ export default {
         'control-md': 'var(--control-md)',
         'control-lg': 'var(--control-lg)',
       },
+      // 历史上此文件曾有第二个 fontFamily(sans/mono)被本块静默覆盖、从未生效;
+      // v2.5 M1 清理死配置,仅保留实际生效的 theater。字体体系在 M3 shadcn 主题化时重建。
       fontFamily: {
         theater: ['var(--font-theater)'],
       },

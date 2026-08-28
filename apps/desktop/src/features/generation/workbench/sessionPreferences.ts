@@ -1,4 +1,4 @@
-import { LOCAL_STORAGE_PREFIX } from "@musefold/domain/constants";
+import { LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
 import {
   readPinnedSessionIds,
   readUnreadSessionIds,
@@ -6,7 +6,7 @@ import {
   SESSION_UNREAD_CHANGED_EVENT,
   setSessionPinned,
   setSessionUnread,
-} from "@musefold/product-ui";
+} from '@musefold/product-ui';
 
 // Keep this compatibility entrypoint tied to the versioned Desktop namespace.
 void LOCAL_STORAGE_PREFIX;

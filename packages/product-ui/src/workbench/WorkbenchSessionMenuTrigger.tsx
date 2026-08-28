@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
-import { MoreHorizontal } from "@musefold/ui/icons";
-import { IconButton } from "@musefold/ui";
-import { WorkbenchSessionContextMenu } from "./WorkbenchSessionContextMenu";
+import { useRef, useState } from 'react';
+import { MoreHorizontal } from '@musefold/ui/icons';
+import { IconButton } from '@musefold/ui';
+import { WorkbenchSessionContextMenu } from './WorkbenchSessionContextMenu';
 
 export interface WorkbenchSessionMenuTriggerProps {
   title: string;
@@ -25,7 +25,7 @@ export function WorkbenchSessionMenuTrigger({
   onMarkUnread,
   onDelete,
   className,
-  testId = "workbench-session-menu-trigger",
+  testId = 'workbench-session-menu-trigger',
 }: WorkbenchSessionMenuTriggerProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);

@@ -8,7 +8,7 @@ const application = readFileSync('apps/desktop/electron/main/application.ts', 'u
 
 describe('pet interaction contract', () => {
   it('opens the main window only from an explicit double-click action', () => {
-    expect(renderer).toContain("desktopHost as api");
+    expect(renderer).toContain('desktopHost as api');
     expect(renderer).toContain("api.pet.interact('pointer-down')");
     expect(renderer).toContain("onDoubleClick={() => api.pet.interact('open-main')}");
     expect(controller).toContain("if (interaction === 'pointer-down')");
@@ -16,7 +16,9 @@ describe('pet interaction contract', () => {
     expect(controller).toContain('openMainWindowFromPet()');
     expect(application).toContain('if (isPetActivationSuppressed()) return;');
     expect(application).toContain('const main = getMainWindow();');
-    expect(application).not.toContain("BrowserWindow.getAllWindows().find((win) => !isPetWindow(win))");
+    expect(application).not.toContain(
+      'BrowserWindow.getAllWindows().find((win) => !isPetWindow(win))',
+    );
     expect(windowSource).toContain("type: process.platform === 'darwin' ? 'panel' : undefined");
     expect(windowSource).toContain('focusable: false');
   });

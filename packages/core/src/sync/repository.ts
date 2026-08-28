@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
-import type Database from "better-sqlite3";
-import { ulid } from "ulid";
+import { createHash, randomUUID } from 'node:crypto';
+import type Database from 'better-sqlite3';
+import { ulid } from 'ulid';
 import type {
   PromptDocument,
   PromptFolder,
@@ -14,17 +14,17 @@ import type {
   SyncUsageAction,
   SyncUsageEvent,
   SyncUsageEventResult,
-} from "@musefold/contracts";
-import { tokenizeForFts } from "../db/fts";
+} from '@musefold/contracts';
+import { tokenizeForFts } from '../db/fts';
 
-export type DesktopSyncStatus = "disabled" | "idle" | "syncing" | "conflict" | "error";
+export type DesktopSyncStatus = 'disabled' | 'idle' | 'syncing' | 'conflict' | 'error';
 
 export interface DesktopSyncAccountInput {
   ownerId: string;
   username: string;
   deviceId?: string;
   deviceName: string;
-  platform: "macos" | "windows" | "linux";
+  platform: 'macos' | 'windows' | 'linux';
   clientVersion: string;
 }
 
@@ -33,7 +33,7 @@ export interface DesktopSyncAccount {
   username: string;
   deviceId: string;
   deviceName: string;
-  platform: "macos" | "windows" | "linux";
+  platform: 'macos' | 'windows' | 'linux';
   clientVersion: string;
   enabled: boolean;
   cursor: string;
@@ -66,7 +66,7 @@ interface AccountRow {
   username: string;
   device_id: string;
   device_name: string;
-  platform: DesktopSyncAccount["platform"];
+  platform: DesktopSyncAccount['platform'];
   client_version: string;
   enabled: number;
   cursor: string;
@@ -78,7 +78,7 @@ interface AccountRow {
 interface EntityStateRow {
   cloud_version: number | null;
   last_synced_hash: string | null;
-  sync_status: "clean" | "pending" | "conflict" | "error";
+  sync_status: 'clean' | 'pending' | 'conflict' | 'error';
 }
 
 interface OutboxRow {
@@ -117,11 +117,11 @@ export class DesktopSyncRepository {
   activateAccount(input: DesktopSyncAccountInput, disableOnActivate = false): DesktopSyncAccount {
     const now = Date.now();
     const existing = this.db
-      .prepare("SELECT device_id FROM cloud_sync_accounts WHERE owner_id = ?")
+      .prepare('SELECT device_id FROM cloud_sync_accounts WHERE owner_id = ?')
       .get(input.ownerId) as { device_id: string } | undefined;
     const deviceId = existing?.device_id ?? input.deviceId ?? randomUUID();
     this.db.transaction(() => {
-      this.db.prepare("UPDATE cloud_sync_accounts SET active = 0").run();
+      this.db.prepare('UPDATE cloud_sync_accounts SET active = 0').run();
       this.db
         .prepare(
           `INSERT INTO cloud_sync_accounts
@@ -156,22 +156,18 @@ export class DesktopSyncRepository {
   deactivateAccount(ownerId?: string): void {
     if (ownerId)
       this.db
-        .prepare(
-          "UPDATE cloud_sync_accounts SET active = 0, updated_at = ? WHERE owner_id = ?",
-        )
+        .prepare('UPDATE cloud_sync_accounts SET active = 0, updated_at = ? WHERE owner_id = ?')
         .run(Date.now(), ownerId);
     else
       this.db
-        .prepare(
-          "UPDATE cloud_sync_accounts SET active = 0, updated_at = ? WHERE active = 1",
-        )
+        .prepare('UPDATE cloud_sync_accounts SET active = 0, updated_at = ? WHERE active = 1')
         .run(Date.now());
   }
 
   setEnabled(ownerId: string, enabled: boolean): DesktopSyncAccount {
     this.db
       .prepare(
-        "UPDATE cloud_sync_accounts SET enabled = ?, last_error = NULL, updated_at = ? WHERE owner_id = ?",
+        'UPDATE cloud_sync_accounts SET enabled = ?, last_error = NULL, updated_at = ? WHERE owner_id = ?',
       )
       .run(enabled ? 1 : 0, Date.now(), ownerId);
     return this.requireAccount(ownerId);
@@ -179,7 +175,7 @@ export class DesktopSyncRepository {
 
   getActiveAccount(): DesktopSyncAccount | null {
     const row = this.db
-      .prepare("SELECT * FROM cloud_sync_accounts WHERE active = 1 LIMIT 1")
+      .prepare('SELECT * FROM cloud_sync_accounts WHERE active = 1 LIMIT 1')
       .get() as AccountRow | undefined;
     return row ? accountFromRow(row) : null;
   }
@@ -189,7 +185,7 @@ export class DesktopSyncRepository {
     if (!account)
       return {
         account: null,
-        status: "disabled",
+        status: 'disabled',
         pendingMutations: 0,
         conflicts: 0,
       };
@@ -209,7 +205,7 @@ export class DesktopSyncRepository {
       (
         this.db
           .prepare(
-            "SELECT count(*) AS value FROM cloud_sync_conflicts WHERE owner_id = ? AND resolved_at IS NULL",
+            'SELECT count(*) AS value FROM cloud_sync_conflicts WHERE owner_id = ? AND resolved_at IS NULL',
           )
           .get(account.ownerId) as { value: number }
       ).value,
@@ -217,12 +213,12 @@ export class DesktopSyncRepository {
     return {
       account,
       status: !account.enabled
-        ? "disabled"
+        ? 'disabled'
         : conflicts > 0
-          ? "conflict"
+          ? 'conflict'
           : account.lastError
-            ? "error"
-            : "idle",
+            ? 'error'
+            : 'idle',
       pendingMutations,
       conflicts,
     };
@@ -230,9 +226,7 @@ export class DesktopSyncRepository {
 
   setSyncError(ownerId: string, message: string | null): void {
     this.db
-      .prepare(
-        "UPDATE cloud_sync_accounts SET last_error = ?, updated_at = ? WHERE owner_id = ?",
-      )
+      .prepare('UPDATE cloud_sync_accounts SET last_error = ?, updated_at = ? WHERE owner_id = ?')
       .run(message, Date.now(), ownerId);
   }
 
@@ -267,11 +261,9 @@ export class DesktopSyncRepository {
   }
 
   setCursor(ownerId: string, cursor: string): void {
-    if (!/^\d+$/.test(cursor)) throw new Error("Invalid cloud sync cursor");
+    if (!/^\d+$/.test(cursor)) throw new Error('Invalid cloud sync cursor');
     this.db
-      .prepare(
-        "UPDATE cloud_sync_accounts SET cursor = ?, updated_at = ? WHERE owner_id = ?",
-      )
+      .prepare('UPDATE cloud_sync_accounts SET cursor = ?, updated_at = ? WHERE owner_id = ?')
       .run(cursor, Date.now(), ownerId);
   }
 
@@ -284,25 +276,19 @@ export class DesktopSyncRepository {
            ORDER BY CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END, sort_order, id`,
         )
         .all() as Array<{ id: string }>;
-      const tags = this.db
-        .prepare("SELECT id FROM tags ORDER BY id")
-        .all() as Array<{ id: string }>;
-      const prompts = this.db
-        .prepare("SELECT id FROM prompts ORDER BY id")
-        .all() as Array<{ id: string }>;
-      for (const { id } of folders)
-        if (this.enqueue(ownerId, "folder", id, "create")) count += 1;
-      for (const { id } of tags)
-        if (this.enqueue(ownerId, "tag", id, "create")) count += 1;
+      const tags = this.db.prepare('SELECT id FROM tags ORDER BY id').all() as Array<{
+        id: string;
+      }>;
+      const prompts = this.db.prepare('SELECT id FROM prompts ORDER BY id').all() as Array<{
+        id: string;
+      }>;
+      for (const { id } of folders) if (this.enqueue(ownerId, 'folder', id, 'create')) count += 1;
+      for (const { id } of tags) if (this.enqueue(ownerId, 'tag', id, 'create')) count += 1;
       for (const { id } of prompts) {
-        const row = this.db
-          .prepare("SELECT deleted_at FROM prompts WHERE id = ?")
-          .get(id) as { deleted_at: number | null };
-        if (
-          row.deleted_at === null &&
-          this.enqueue(ownerId, "prompt", id, "create")
-        )
-          count += 1;
+        const row = this.db.prepare('SELECT deleted_at FROM prompts WHERE id = ?').get(id) as {
+          deleted_at: number | null;
+        };
+        if (row.deleted_at === null && this.enqueue(ownerId, 'prompt', id, 'create')) count += 1;
       }
     })();
     return count;
@@ -315,7 +301,7 @@ export class DesktopSyncRepository {
     requestedOperation: SyncMutationOperation,
   ): boolean {
     const state = this.entityState(ownerId, entityType, entityId);
-    if (state?.sync_status === "conflict") return false;
+    if (state?.sync_status === 'conflict') return false;
     const existing = this.db
       .prepare(
         `SELECT mutation_id, entity_type, entity_id, operation, base_version, payload_json
@@ -325,40 +311,34 @@ export class DesktopSyncRepository {
       )
       .get(ownerId, entityType, entityId) as OutboxRow | undefined;
     const payload =
-      requestedOperation === "delete"
-        ? {}
-        : localPayload(this.db, entityType, entityId);
-    if (!payload && requestedOperation !== "delete") return false;
+      requestedOperation === 'delete' ? {} : localPayload(this.db, entityType, entityId);
+    if (!payload && requestedOperation !== 'delete') return false;
     const payloadHash = payload ? hashPayload(payload) : null;
 
     if (
-      requestedOperation !== "delete" &&
+      requestedOperation !== 'delete' &&
       state?.cloud_version &&
       state.last_synced_hash === payloadHash
     ) {
       this.clearEntityOutbox(ownerId, entityType, entityId);
-      this.markEntityStatus(ownerId, entityType, entityId, "clean");
+      this.markEntityStatus(ownerId, entityType, entityId, 'clean');
       return false;
     }
 
-    if (requestedOperation === "delete" && !state?.cloud_version) {
+    if (requestedOperation === 'delete' && !state?.cloud_version) {
       this.clearEntityOutbox(ownerId, entityType, entityId);
       this.db
         .prepare(
-          "DELETE FROM cloud_entity_state WHERE owner_id = ? AND entity_type = ? AND local_id = ?",
+          'DELETE FROM cloud_entity_state WHERE owner_id = ? AND entity_type = ? AND local_id = ?',
         )
         .run(ownerId, entityType, entityId);
       return false;
     }
 
-    let operation = normalizeOperation(
-      requestedOperation,
-      state?.cloud_version ?? null,
-    );
-    let baseVersion =
-      operation === "create" ? null : (state?.cloud_version ?? null);
-    if (existing?.operation === "create" && operation !== "delete") {
-      operation = "create";
+    let operation = normalizeOperation(requestedOperation, state?.cloud_version ?? null);
+    let baseVersion = operation === 'create' ? null : (state?.cloud_version ?? null);
+    if (existing?.operation === 'create' && operation !== 'delete') {
+      operation = 'create';
       baseVersion = null;
     }
     const mutationId = existing?.mutation_id ?? ulid();
@@ -395,13 +375,7 @@ export class DesktopSyncRepository {
          VALUES (?, ?, ?, ?, ?, 'pending')
          ON CONFLICT(owner_id, entity_type, local_id) DO UPDATE SET sync_status = 'pending'`,
       )
-      .run(
-        ownerId,
-        entityType,
-        entityId,
-        entityId,
-        state?.cloud_version ?? null,
-      );
+      .run(ownerId, entityType, entityId, entityId, state?.cloud_version ?? null);
     return true;
   }
 
@@ -426,11 +400,7 @@ export class DesktopSyncRepository {
            o.created_at, o.mutation_id
          LIMIT ?`,
       )
-      .all(
-        ownerId,
-        Date.now(),
-        Math.max(1, Math.min(limit, 100)),
-      ) as OutboxRow[];
+      .all(ownerId, Date.now(), Math.max(1, Math.min(limit, 100))) as OutboxRow[];
     return rows.map((row) => ({
       mutationId: row.mutation_id,
       entityType: row.entity_type,
@@ -441,17 +411,13 @@ export class DesktopSyncRepository {
     }));
   }
 
-  enqueueUsageEvent(
-    ownerId: string,
-    promptId: string,
-    action: SyncUsageAction,
-  ): string {
+  enqueueUsageEvent(ownerId: string, promptId: string, action: SyncUsageAction): string {
     const eventId = ulid();
     this.db
       .prepare(
         `INSERT INTO cloud_sync_usage_outbox
           (event_id, owner_id, prompt_id, action, created_at)
-         VALUES (?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?)`,
       )
       .run(eventId, ownerId, promptId, action, Date.now());
     return eventId;
@@ -476,7 +442,7 @@ export class DesktopSyncRepository {
   markUsageEventAttempt(ownerId: string, eventId: string, error: string): void {
     const row = this.db
       .prepare(
-        "SELECT attempt_count FROM cloud_sync_usage_outbox WHERE owner_id = ? AND event_id = ?",
+        'SELECT attempt_count FROM cloud_sync_usage_outbox WHERE owner_id = ? AND event_id = ?',
       )
       .get(ownerId, eventId) as { attempt_count: number } | undefined;
     if (!row) return;
@@ -501,11 +467,9 @@ export class DesktopSyncRepository {
       for (const event of events) {
         const result = byId.get(event.eventId);
         if (!result) continue;
-        if (result.status === "applied" || result.status === "duplicate") {
+        if (result.status === 'applied' || result.status === 'duplicate') {
           this.db
-            .prepare(
-              "DELETE FROM cloud_sync_usage_outbox WHERE owner_id = ? AND event_id = ?",
-            )
+            .prepare('DELETE FROM cloud_sync_usage_outbox WHERE owner_id = ? AND event_id = ?')
             .run(ownerId, event.eventId);
         } else {
           this.db
@@ -514,62 +478,38 @@ export class DesktopSyncRepository {
                SET next_attempt_at = 0, last_error = ?
                WHERE owner_id = ? AND event_id = ?`,
             )
-            .run(result.errorCode ?? "SYNC_USAGE_REJECTED", ownerId, event.eventId);
+            .run(result.errorCode ?? 'SYNC_USAGE_REJECTED', ownerId, event.eventId);
         }
       }
     })();
   }
 
-  markMutationAttempt(
-    ownerId: string,
-    mutationId: string,
-    error: string,
-  ): void {
+  markMutationAttempt(ownerId: string, mutationId: string, error: string): void {
     const row = this.db
-      .prepare(
-        "SELECT attempt_count FROM cloud_sync_outbox WHERE owner_id = ? AND mutation_id = ?",
-      )
+      .prepare('SELECT attempt_count FROM cloud_sync_outbox WHERE owner_id = ? AND mutation_id = ?')
       .get(ownerId, mutationId) as { attempt_count: number } | undefined;
     if (!row) return;
     const attempts = row.attempt_count + 1;
     const exponential = 2 ** Math.min(attempts, 8) * 1_000;
-    const delay = Math.min(
-      300_000,
-      Math.round(exponential * (0.75 + Math.random() * 0.5)),
-    );
+    const delay = Math.min(300_000, Math.round(exponential * (0.75 + Math.random() * 0.5)));
     this.db
       .prepare(
         `UPDATE cloud_sync_outbox SET attempt_count = ?, next_attempt_at = ?, last_error = ?
          WHERE owner_id = ? AND mutation_id = ?`,
       )
-      .run(
-        attempts,
-        Date.now() + delay,
-        error.slice(0, 500),
-        ownerId,
-        mutationId,
-      );
+      .run(attempts, Date.now() + delay, error.slice(0, 500), ownerId, mutationId);
   }
 
-  applyPushResult(
-    ownerId: string,
-    mutation: SyncMutation,
-    result: SyncMutationResult,
-  ): void {
+  applyPushResult(ownerId: string, mutation: SyncMutation, result: SyncMutationResult): void {
     this.db.transaction(() => {
-      if (
-        (result.status === "applied" || result.status === "duplicate") &&
-        result.snapshot
-      ) {
+      if ((result.status === 'applied' || result.status === 'duplicate') && result.snapshot) {
         this.applySnapshot(ownerId, mutation.entityType, result.snapshot);
         this.db
-          .prepare(
-            "DELETE FROM cloud_sync_outbox WHERE owner_id = ? AND mutation_id = ?",
-          )
+          .prepare('DELETE FROM cloud_sync_outbox WHERE owner_id = ? AND mutation_id = ?')
           .run(ownerId, mutation.mutationId);
         return;
       }
-      if (result.status === "conflict" && result.snapshot) {
+      if (result.status === 'conflict' && result.snapshot) {
         this.recordConflict(ownerId, mutation, result.snapshot);
         return;
       }
@@ -578,17 +518,8 @@ export class DesktopSyncRepository {
           `UPDATE cloud_sync_outbox SET last_error = ?, next_attempt_at = 0
            WHERE owner_id = ? AND mutation_id = ?`,
         )
-        .run(
-          result.errorCode ?? "SYNC_MUTATION_REJECTED",
-          ownerId,
-          mutation.mutationId,
-        );
-      this.markEntityStatus(
-        ownerId,
-        mutation.entityType,
-        mutation.entityId,
-        "error",
-      );
+        .run(result.errorCode ?? 'SYNC_MUTATION_REJECTED', ownerId, mutation.mutationId);
+      this.markEntityStatus(ownerId, mutation.entityType, mutation.entityId, 'error');
     })();
   }
 
@@ -598,50 +529,34 @@ export class DesktopSyncRepository {
     snapshot: SyncSnapshot,
   ): void {
     this.applyRemoteChange(ownerId, {
-      seq: "0",
+      seq: '0',
       entityType,
       entityId: snapshot.id,
-      operation: snapshot.deletedAt ? "delete" : "upsert",
+      operation: snapshot.deletedAt ? 'delete' : 'upsert',
       version: snapshot.version,
       snapshot,
     });
   }
 
-  applyBootstrapPage(
-    ownerId: string,
-    entityType: SyncEntityType,
-    snapshots: SyncSnapshot[],
-  ): void {
+  applyBootstrapPage(ownerId: string, entityType: SyncEntityType, snapshots: SyncSnapshot[]): void {
     this.db.transaction(() => {
-      for (const snapshot of snapshots)
-        this.applyBootstrapSnapshot(ownerId, entityType, snapshot);
+      for (const snapshot of snapshots) this.applyBootstrapSnapshot(ownerId, entityType, snapshot);
     })();
   }
 
-  applyPullPage(
-    ownerId: string,
-    changes: SyncChange[],
-    nextCursor: string,
-  ): void {
+  applyPullPage(ownerId: string, changes: SyncChange[], nextCursor: string): void {
     this.db.transaction(() => {
       for (const change of changes) this.applyRemoteChange(ownerId, change);
       this.setCursor(ownerId, nextCursor);
     })();
   }
 
-  applyPushBatch(
-    ownerId: string,
-    mutations: SyncMutation[],
-    results: SyncMutationResult[],
-  ): void {
-    const byMutationId = new Map(
-      results.map((result) => [result.mutationId, result]),
-    );
+  applyPushBatch(ownerId: string, mutations: SyncMutation[], results: SyncMutationResult[]): void {
+    const byMutationId = new Map(results.map((result) => [result.mutationId, result]));
     this.db.transaction(() => {
       for (const mutation of mutations) {
         const result = byMutationId.get(mutation.mutationId);
-        if (!result)
-          throw new Error(`Missing sync result for ${mutation.mutationId}`);
+        if (!result) throw new Error(`Missing sync result for ${mutation.mutationId}`);
         this.applyPushResult(ownerId, mutation, result);
       }
     })();
@@ -651,7 +566,7 @@ export class DesktopSyncRepository {
     const state = this.entityState(ownerId, change.entityType, change.entityId);
     if (state?.cloud_version && change.version <= state.cloud_version) return;
     const local = localPayload(this.db, change.entityType, change.entityId);
-    if (state?.sync_status === "pending" || state?.sync_status === "conflict") {
+    if (state?.sync_status === 'pending' || state?.sync_status === 'conflict') {
       const mutation = this.db
         .prepare(
           `SELECT mutation_id, entity_type, entity_id, operation, base_version, payload_json
@@ -659,8 +574,7 @@ export class DesktopSyncRepository {
            WHERE owner_id = ? AND entity_type = ? AND entity_id = ?
            ORDER BY created_at LIMIT 1`,
         )
-        .get(ownerId, change.entityType, change.entityId) as
-        OutboxRow | undefined;
+        .get(ownerId, change.entityType, change.entityId) as OutboxRow | undefined;
       if (mutation) {
         this.recordConflict(
           ownerId,
@@ -670,10 +584,7 @@ export class DesktopSyncRepository {
             entityId: mutation.entity_id,
             operation: mutation.operation,
             baseVersion: mutation.base_version,
-            payload: JSON.parse(mutation.payload_json) as Record<
-              string,
-              unknown
-            >,
+            payload: JSON.parse(mutation.payload_json) as Record<string, unknown>,
           },
           change.snapshot,
         );
@@ -691,7 +602,7 @@ export class DesktopSyncRepository {
           mutationId: ulid(),
           entityType: change.entityType,
           entityId: change.entityId,
-          operation: "create",
+          operation: 'create',
           baseVersion: null,
           payload: local,
         },
@@ -716,10 +627,7 @@ export class DesktopSyncRepository {
       entityId: row.entity_id,
       mutationId: row.mutation_id,
       baseVersion: row.base_version,
-      localSnapshot: JSON.parse(row.local_snapshot_json) as Record<
-        string,
-        unknown
-      >,
+      localSnapshot: JSON.parse(row.local_snapshot_json) as Record<string, unknown>,
       remoteSnapshot: JSON.parse(row.remote_snapshot_json) as SyncSnapshot,
       detectedAt: row.detected_at,
     }));
@@ -728,7 +636,7 @@ export class DesktopSyncRepository {
   resolveConflict(
     ownerId: string,
     conflictId: string,
-    resolution: "remote" | "local" | "duplicate",
+    resolution: 'remote' | 'local' | 'duplicate',
   ): void {
     this.db.transaction(() => {
       const conflict = this.db
@@ -737,14 +645,9 @@ export class DesktopSyncRepository {
            WHERE id = ? AND owner_id = ? AND resolved_at IS NULL`,
         )
         .get(conflictId, ownerId) as ConflictRow | undefined;
-      if (!conflict) throw new Error("Cloud sync conflict not found");
-      const localSnapshot = JSON.parse(conflict.local_snapshot_json) as Record<
-        string,
-        unknown
-      >;
-      const remoteSnapshot = JSON.parse(
-        conflict.remote_snapshot_json,
-      ) as SyncSnapshot;
+      if (!conflict) throw new Error('Cloud sync conflict not found');
+      const localSnapshot = JSON.parse(conflict.local_snapshot_json) as Record<string, unknown>;
+      const remoteSnapshot = JSON.parse(conflict.remote_snapshot_json) as SyncSnapshot;
       this.db
         .prepare(
           `DELETE FROM cloud_sync_outbox
@@ -753,28 +656,23 @@ export class DesktopSyncRepository {
         .run(ownerId, conflict.entity_type, conflict.entity_id);
       this.applySnapshot(ownerId, conflict.entity_type, remoteSnapshot);
 
-      if (resolution === "local") {
-        applyLocalPayload(
-          this.db,
-          conflict.entity_type,
-          conflict.entity_id,
-          localSnapshot,
-        );
+      if (resolution === 'local') {
+        applyLocalPayload(this.db, conflict.entity_type, conflict.entity_id, localSnapshot);
         this.enqueue(
           ownerId,
           conflict.entity_type,
           conflict.entity_id,
-          remoteSnapshot.deletedAt ? "restore" : "update",
+          remoteSnapshot.deletedAt ? 'restore' : 'update',
         );
-      } else if (resolution === "duplicate") {
-        if (conflict.entity_type !== "prompt")
-          throw new Error("Only prompt conflicts can be duplicated");
+      } else if (resolution === 'duplicate') {
+        if (conflict.entity_type !== 'prompt')
+          throw new Error('Only prompt conflicts can be duplicated');
         const duplicateId = ulid();
-        applyLocalPayload(this.db, "prompt", duplicateId, {
+        applyLocalPayload(this.db, 'prompt', duplicateId, {
           ...localSnapshot,
-          title: `${String(localSnapshot.title ?? "未命名")}（本地副本）`,
+          title: `${String(localSnapshot.title ?? '未命名')}（本地副本）`,
         });
-        this.enqueue(ownerId, "prompt", duplicateId, "create");
+        this.enqueue(ownerId, 'prompt', duplicateId, 'create');
       }
 
       this.db
@@ -783,21 +681,12 @@ export class DesktopSyncRepository {
            SET resolved_at = ?, resolution = ? WHERE id = ? AND owner_id = ?`,
         )
         .run(Date.now(), resolution, conflictId, ownerId);
-      if (resolution === "remote")
-        this.markEntityStatus(
-          ownerId,
-          conflict.entity_type,
-          conflict.entity_id,
-          "clean",
-        );
+      if (resolution === 'remote')
+        this.markEntityStatus(ownerId, conflict.entity_type, conflict.entity_id, 'clean');
     })();
   }
 
-  private applySnapshot(
-    ownerId: string,
-    entityType: SyncEntityType,
-    snapshot: SyncSnapshot,
-  ): void {
+  private applySnapshot(ownerId: string, entityType: SyncEntityType, snapshot: SyncSnapshot): void {
     applyCloudSnapshot(this.db, ownerId, entityType, snapshot);
     const now = Date.now();
     this.db
@@ -826,11 +715,7 @@ export class DesktopSyncRepository {
       );
   }
 
-  private recordConflict(
-    ownerId: string,
-    mutation: SyncMutation,
-    remote: SyncSnapshot,
-  ): void {
+  private recordConflict(ownerId: string, mutation: SyncMutation, remote: SyncSnapshot): void {
     this.db
       .prepare(
         `INSERT INTO cloud_sync_conflicts
@@ -894,8 +779,7 @@ export class DesktopSyncRepository {
            FROM cloud_entity_state
            WHERE owner_id = ? AND entity_type = ? AND local_id = ?`,
         )
-        .get(ownerId, entityType, entityId) as EntityStateRow | undefined) ??
-      null
+        .get(ownerId, entityType, entityId) as EntityStateRow | undefined) ?? null
     );
   }
 
@@ -903,7 +787,7 @@ export class DesktopSyncRepository {
     ownerId: string,
     entityType: SyncEntityType,
     entityId: string,
-    status: EntityStateRow["sync_status"],
+    status: EntityStateRow['sync_status'],
   ): void {
     this.db
       .prepare(
@@ -913,23 +797,19 @@ export class DesktopSyncRepository {
       .run(status, ownerId, entityType, entityId);
   }
 
-  private clearEntityOutbox(
-    ownerId: string,
-    entityType: SyncEntityType,
-    entityId: string,
-  ): void {
+  private clearEntityOutbox(ownerId: string, entityType: SyncEntityType, entityId: string): void {
     this.db
       .prepare(
-        "DELETE FROM cloud_sync_outbox WHERE owner_id = ? AND entity_type = ? AND entity_id = ?",
+        'DELETE FROM cloud_sync_outbox WHERE owner_id = ? AND entity_type = ? AND entity_id = ?',
       )
       .run(ownerId, entityType, entityId);
   }
 
   private requireAccount(ownerId: string): DesktopSyncAccount {
     const row = this.db
-      .prepare("SELECT * FROM cloud_sync_accounts WHERE owner_id = ?")
+      .prepare('SELECT * FROM cloud_sync_accounts WHERE owner_id = ?')
       .get(ownerId) as AccountRow | undefined;
-    if (!row) throw new Error("Cloud sync account not found");
+    if (!row) throw new Error('Cloud sync account not found');
     return accountFromRow(row);
   }
 }
@@ -941,29 +821,20 @@ export function enqueueActiveAccountMutation(
   operation: SyncMutationOperation,
 ): boolean {
   const syncTablesReady = db
-    .prepare(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cloud_sync_accounts'",
-    )
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cloud_sync_accounts'")
     .get();
   if (!syncTablesReady) return false;
   const account = db
-    .prepare(
-      "SELECT owner_id FROM cloud_sync_accounts WHERE active = 1 LIMIT 1",
-    )
+    .prepare('SELECT owner_id FROM cloud_sync_accounts WHERE active = 1 LIMIT 1')
     .get() as { owner_id: string } | undefined;
   if (!account) return false;
-  return new DesktopSyncRepository(db).enqueue(
-    account.owner_id,
-    entityType,
-    entityId,
-    operation,
-  );
+  return new DesktopSyncRepository(db).enqueue(account.owner_id, entityType, entityId, operation);
 }
 
 export function enqueueActiveAccountUsageEvent(
   db: Database.Database,
   promptId: string,
-  action: SyncUsageAction = "apply",
+  action: SyncUsageAction = 'apply',
 ): string | null {
   const syncTablesReady = db
     .prepare(
@@ -972,16 +843,10 @@ export function enqueueActiveAccountUsageEvent(
     .get();
   if (!syncTablesReady) return null;
   const account = db
-    .prepare(
-      "SELECT owner_id FROM cloud_sync_accounts WHERE active = 1 LIMIT 1",
-    )
+    .prepare('SELECT owner_id FROM cloud_sync_accounts WHERE active = 1 LIMIT 1')
     .get() as { owner_id: string } | undefined;
   if (!account) return null;
-  return new DesktopSyncRepository(db).enqueueUsageEvent(
-    account.owner_id,
-    promptId,
-    action,
-  );
+  return new DesktopSyncRepository(db).enqueueUsageEvent(account.owner_id, promptId, action);
 }
 
 function accountFromRow(row: AccountRow): DesktopSyncAccount {
@@ -1004,8 +869,8 @@ function normalizeOperation(
   operation: SyncMutationOperation,
   cloudVersion: number | null,
 ): SyncMutationOperation {
-  if (!cloudVersion) return operation === "delete" ? "delete" : "create";
-  if (operation === "create") return "update";
+  if (!cloudVersion) return operation === 'delete' ? 'delete' : 'create';
+  if (operation === 'create') return 'update';
   return operation;
 }
 
@@ -1014,62 +879,58 @@ function localPayload(
   entityType: SyncEntityType,
   entityId: string,
 ): Record<string, unknown> | null {
-  if (entityType === "prompt") {
-    const row = db
-      .prepare("SELECT * FROM prompts WHERE id = ?")
-      .get(entityId) as Record<string, unknown> | undefined;
+  if (entityType === 'prompt') {
+    const row = db.prepare('SELECT * FROM prompts WHERE id = ?').get(entityId) as
+      | Record<string, unknown>
+      | undefined;
     if (!row) return null;
     const tagIds = (
       db
-        .prepare(
-          "SELECT tag_id FROM prompt_tags WHERE prompt_id = ? ORDER BY tag_id",
-        )
+        .prepare('SELECT tag_id FROM prompt_tags WHERE prompt_id = ? ORDER BY tag_id')
         .all(entityId) as Array<{ tag_id: string }>
     ).map((item) => item.tag_id);
     return {
-      title: String(row.title ?? "").trim(),
+      title: String(row.title ?? '').trim(),
       description: nullableText(row.description),
-      content: String(row.content ?? "").trim(),
+      content: String(row.content ?? '').trim(),
       negative: nullableText(row.content_negative),
-      folderId: typeof row.folder_id === "string" ? row.folder_id : null,
+      folderId: typeof row.folder_id === 'string' ? row.folder_id : null,
       tagIds,
       modelId: nullableText(row.model_id),
       params: sanitizeCloudJson(parseJson(row.params)),
       rating: Number(row.rating ?? 0),
       isPinned: Boolean(row.is_pinned),
-      pinOrder: typeof row.pin_order === "number" ? row.pin_order : null,
+      pinOrder: typeof row.pin_order === 'number' ? row.pin_order : null,
       source: normalizeSource(row.source),
       sourceUrl: normalizeSourceUrl(row.source_url),
     };
   }
-  if (entityType === "folder") {
-    const row = db
-      .prepare("SELECT * FROM folders WHERE id = ?")
-      .get(entityId) as Record<string, unknown> | undefined;
+  if (entityType === 'folder') {
+    const row = db.prepare('SELECT * FROM folders WHERE id = ?').get(entityId) as
+      | Record<string, unknown>
+      | undefined;
     return row
       ? {
-          name: String(row.name ?? "").trim(),
-          parentId: typeof row.parent_id === "string" ? row.parent_id : null,
+          name: String(row.name ?? '').trim(),
+          parentId: typeof row.parent_id === 'string' ? row.parent_id : null,
           sortOrder: Number(row.sort_order ?? 0),
         }
       : null;
   }
-  const row = db.prepare("SELECT * FROM tags WHERE id = ?").get(entityId) as
-    Record<string, unknown> | undefined;
+  const row = db.prepare('SELECT * FROM tags WHERE id = ?').get(entityId) as
+    | Record<string, unknown>
+    | undefined;
   return row
     ? {
-        name: String(row.name ?? "").trim(),
+        name: String(row.name ?? '').trim(),
         group: nullableText(row.tag_group),
         color: normalizeColor(row.color),
       }
     : null;
 }
 
-function cloudPayload(
-  entityType: SyncEntityType,
-  snapshot: SyncSnapshot,
-): Record<string, unknown> {
-  if (entityType === "prompt") {
+function cloudPayload(entityType: SyncEntityType, snapshot: SyncSnapshot): Record<string, unknown> {
+  if (entityType === 'prompt') {
     const prompt = snapshot as PromptDocument;
     return {
       title: prompt.title,
@@ -1087,7 +948,7 @@ function cloudPayload(
       sourceUrl: prompt.sourceUrl,
     };
   }
-  if (entityType === "folder") {
+  if (entityType === 'folder') {
     const folder = snapshot as PromptFolder;
     return {
       name: folder.name,
@@ -1106,37 +967,27 @@ function applyCloudSnapshot(
   snapshot: SyncSnapshot,
 ): void {
   if (snapshot.deletedAt) {
-    if (entityType === "prompt") {
-      db.prepare(
-        "UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?",
-      ).run(
+    if (entityType === 'prompt') {
+      db.prepare('UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?').run(
         Date.parse(snapshot.deletedAt),
         Date.parse(snapshot.updatedAt),
         snapshot.id,
       );
-    } else if (entityType === "folder") {
-      db.prepare("UPDATE folders SET parent_id = NULL WHERE parent_id = ?").run(
-        snapshot.id,
-      );
-      db.prepare("DELETE FROM folders WHERE id = ?").run(snapshot.id);
+    } else if (entityType === 'folder') {
+      db.prepare('UPDATE folders SET parent_id = NULL WHERE parent_id = ?').run(snapshot.id);
+      db.prepare('DELETE FROM folders WHERE id = ?').run(snapshot.id);
     } else {
       const affectedPromptIds = (
         db
-          .prepare("SELECT prompt_id AS id FROM prompt_tags WHERE tag_id = ?")
+          .prepare('SELECT prompt_id AS id FROM prompt_tags WHERE tag_id = ?')
           .all(snapshot.id) as Array<{ id: string }>
       ).map((row) => row.id);
-      db.prepare("DELETE FROM tags WHERE id = ?").run(snapshot.id);
+      db.prepare('DELETE FROM tags WHERE id = ?').run(snapshot.id);
       for (const promptId of affectedPromptIds) syncPromptFts(db, promptId);
     }
     return;
   }
-  applyLocalPayload(
-    db,
-    entityType,
-    snapshot.id,
-    cloudPayload(entityType, snapshot),
-    snapshot,
-  );
+  applyLocalPayload(db, entityType, snapshot.id, cloudPayload(entityType, snapshot), snapshot);
   restoreCloudRelations(db, ownerId, entityType, snapshot.id);
 }
 
@@ -1148,12 +999,10 @@ function applyLocalPayload(
   snapshot?: SyncSnapshot,
 ): void {
   const now = Date.now();
-  if (entityType === "folder") {
-    const requestedParentId =
-      typeof payload.parentId === "string" ? payload.parentId : null;
+  if (entityType === 'folder') {
+    const requestedParentId = typeof payload.parentId === 'string' ? payload.parentId : null;
     const parentId =
-      requestedParentId &&
-      db.prepare("SELECT 1 FROM folders WHERE id = ?").get(requestedParentId)
+      requestedParentId && db.prepare('SELECT 1 FROM folders WHERE id = ?').get(requestedParentId)
         ? requestedParentId
         : null;
     db.prepare(
@@ -1165,17 +1014,17 @@ function applyLocalPayload(
          sort_order = excluded.sort_order`,
     ).run(
       entityId,
-      String(payload.name ?? ""),
+      String(payload.name ?? ''),
       parentId,
       Number(payload.sortOrder ?? 0),
       snapshot ? Date.parse(snapshot.createdAt) : now,
     );
     return;
   }
-  if (entityType === "tag") {
+  if (entityType === 'tag') {
     const affectedPromptIds = (
       db
-        .prepare("SELECT prompt_id AS id FROM prompt_tags WHERE tag_id = ?")
+        .prepare('SELECT prompt_id AS id FROM prompt_tags WHERE tag_id = ?')
         .all(entityId) as Array<{ id: string }>
     ).map((row) => row.id);
     db.prepare(
@@ -1187,8 +1036,8 @@ function applyLocalPayload(
          color = excluded.color`,
     ).run(
       entityId,
-      String(payload.name ?? ""),
-      typeof payload.group === "string" ? payload.group : null,
+      String(payload.name ?? ''),
+      typeof payload.group === 'string' ? payload.group : null,
       normalizeColor(payload.color),
       snapshot ? Date.parse(snapshot.createdAt) : now,
     );
@@ -1197,11 +1046,9 @@ function applyLocalPayload(
   }
   const promptSnapshot = snapshot as PromptDocument | undefined;
   const source = normalizeSource(payload.source);
-  const requestedFolderId =
-    typeof payload.folderId === "string" ? payload.folderId : null;
+  const requestedFolderId = typeof payload.folderId === 'string' ? payload.folderId : null;
   const folderId =
-    requestedFolderId &&
-    db.prepare("SELECT 1 FROM folders WHERE id = ?").get(requestedFolderId)
+    requestedFolderId && db.prepare('SELECT 1 FROM folders WHERE id = ?').get(requestedFolderId)
       ? requestedFolderId
       : null;
   db.prepare(
@@ -1228,30 +1075,28 @@ function applyLocalPayload(
       deleted_at = NULL`,
   ).run(
     entityId,
-    String(payload.title ?? ""),
+    String(payload.title ?? ''),
     nullableText(payload.description),
-    String(payload.content ?? ""),
+    String(payload.content ?? ''),
     nullableText(payload.negative),
     folderId,
     nullableText(payload.modelId),
     payload.params ? JSON.stringify(sanitizeCloudJson(payload.params)) : null,
     Number(payload.rating ?? 0),
     payload.isPinned ? 1 : 0,
-    typeof payload.pinOrder === "number" ? payload.pinOrder : null,
+    typeof payload.pinOrder === 'number' ? payload.pinOrder : null,
     promptSnapshot?.usageCount ?? 0,
     promptSnapshot?.lastUsedAt ? Date.parse(promptSnapshot.lastUsedAt) : null,
-    source === "share" ? "shared" : source,
+    source === 'share' ? 'shared' : source,
     normalizeSourceUrl(payload.sourceUrl),
     promptSnapshot ? Date.parse(promptSnapshot.createdAt) : now,
     promptSnapshot ? Date.parse(promptSnapshot.updatedAt) : now,
   );
   const tagIds = Array.isArray(payload.tagIds)
-    ? payload.tagIds.filter((id): id is string => typeof id === "string")
+    ? payload.tagIds.filter((id): id is string => typeof id === 'string')
     : [];
-  db.prepare("DELETE FROM prompt_tags WHERE prompt_id = ?").run(entityId);
-  const insert = db.prepare(
-    "INSERT OR IGNORE INTO prompt_tags(prompt_id, tag_id) VALUES (?, ?)",
-  );
+  db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(entityId);
+  const insert = db.prepare('INSERT OR IGNORE INTO prompt_tags(prompt_id, tag_id) VALUES (?, ?)');
   for (const tagId of tagIds) insert.run(entityId, tagId);
   syncPromptFts(db, entityId);
 }
@@ -1262,7 +1107,7 @@ function restoreCloudRelations(
   entityType: SyncEntityType,
   entityId: string,
 ): void {
-  if (entityType === "folder") {
+  if (entityType === 'folder') {
     const childFolders = db
       .prepare(
         `SELECT local_id FROM cloud_entity_state
@@ -1270,9 +1115,7 @@ function restoreCloudRelations(
            AND json_extract(remote_snapshot_json, '$.parentId') = ?`,
       )
       .all(ownerId, entityId) as Array<{ local_id: string }>;
-    const reparent = db.prepare(
-      "UPDATE folders SET parent_id = ? WHERE id = ?",
-    );
+    const reparent = db.prepare('UPDATE folders SET parent_id = ? WHERE id = ?');
     for (const child of childFolders) reparent.run(entityId, child.local_id);
 
     const prompts = db
@@ -1282,13 +1125,11 @@ function restoreCloudRelations(
            AND json_extract(remote_snapshot_json, '$.folderId') = ?`,
       )
       .all(ownerId, entityId) as Array<{ local_id: string }>;
-    const movePrompt = db.prepare(
-      "UPDATE prompts SET folder_id = ? WHERE id = ?",
-    );
+    const movePrompt = db.prepare('UPDATE prompts SET folder_id = ? WHERE id = ?');
     for (const prompt of prompts) movePrompt.run(entityId, prompt.local_id);
     return;
   }
-  if (entityType !== "tag") return;
+  if (entityType !== 'tag') return;
   const prompts = db
     .prepare(
       `SELECT DISTINCT state.local_id
@@ -1298,9 +1139,7 @@ function restoreCloudRelations(
          AND json_extract(tag.value, '$.id') = ?`,
     )
     .all(ownerId, entityId) as Array<{ local_id: string }>;
-  const insert = db.prepare(
-    "INSERT OR IGNORE INTO prompt_tags(prompt_id, tag_id) VALUES (?, ?)",
-  );
+  const insert = db.prepare('INSERT OR IGNORE INTO prompt_tags(prompt_id, tag_id) VALUES (?, ?)');
   for (const prompt of prompts) {
     insert.run(prompt.local_id, entityId);
     syncPromptFts(db, prompt.local_id);
@@ -1309,9 +1148,7 @@ function restoreCloudRelations(
 
 function syncPromptFts(db: Database.Database, id: string): void {
   const row = db
-    .prepare(
-      "SELECT rowid, title, description, content FROM prompts WHERE id = ?",
-    )
+    .prepare('SELECT rowid, title, description, content FROM prompts WHERE id = ?')
     .get(id) as
     | {
         rowid: number;
@@ -1329,51 +1166,45 @@ function syncPromptFts(db: Database.Database, id: string): void {
       )
       .all(id) as Array<{ name: string }>
   ).map((item) => item.name);
-  db.prepare("DELETE FROM prompts_fts WHERE rowid = ?").run(row.rowid);
+  db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
   db.prepare(
     `INSERT INTO prompts_fts(rowid, title, description, content, tags_index)
      VALUES (?, ?, ?, ?, ?)`,
   ).run(
     row.rowid,
     row.title,
-    row.description ?? "",
+    row.description ?? '',
     row.content,
     tokenizeForFts(row.title, row.description, row.content, tags),
   );
 }
 
-function hashSnapshot(
-  entityType: SyncEntityType,
-  snapshot: SyncSnapshot,
-): string {
+function hashSnapshot(entityType: SyncEntityType, snapshot: SyncSnapshot): string {
   return hashPayload(cloudPayload(entityType, snapshot));
 }
 
 function hashPayload(payload: unknown): string {
-  return createHash("sha256").update(canonicalJson(payload)).digest("hex");
+  return createHash('sha256').update(canonicalJson(payload)).digest('hex');
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
     return `{${Object.keys(record)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-      .join(",")}}`;
+      .join(',')}}`;
   }
-  return JSON.stringify(value) ?? "null";
+  return JSON.stringify(value) ?? 'null';
 }
 
 function sanitizeCloudJson(value: unknown, depth = 0): unknown {
   if (depth > 8) return null;
-  if (value === null || typeof value === "boolean" || typeof value === "number")
-    return value;
-  if (typeof value === "string")
-    return ABSOLUTE_PATH.test(value) ? null : value;
-  if (Array.isArray(value))
-    return value.map((item) => sanitizeCloudJson(item, depth + 1));
-  if (!value || typeof value !== "object") return null;
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
+  if (typeof value === 'string') return ABSOLUTE_PATH.test(value) ? null : value;
+  if (Array.isArray(value)) return value.map((item) => sanitizeCloudJson(item, depth + 1));
+  if (!value || typeof value !== 'object') return null;
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
     if (SENSITIVE_KEY.test(key)) continue;
@@ -1383,7 +1214,7 @@ function sanitizeCloudJson(value: unknown, depth = 0): unknown {
 }
 
 function parseJson(value: unknown): unknown {
-  if (typeof value !== "string" || !value) return null;
+  if (typeof value !== 'string' || !value) return null;
   try {
     return JSON.parse(value);
   } catch {
@@ -1392,30 +1223,25 @@ function parseJson(value: unknown): unknown {
 }
 
 function nullableText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function normalizeSource(value: unknown): PromptDocument["source"] {
-  if (value === "shared" || value === "share") return "share";
-  if (value === "import" || value === "slip" || value === "generation")
-    return value;
-  return "manual";
+function normalizeSource(value: unknown): PromptDocument['source'] {
+  if (value === 'shared' || value === 'share') return 'share';
+  if (value === 'import' || value === 'slip' || value === 'generation') return value;
+  return 'manual';
 }
 
 function normalizeSourceUrl(value: unknown): string | null {
-  if (typeof value !== "string" || !value.trim()) return null;
+  if (typeof value !== 'string' || !value.trim()) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.toString()
-      : null;
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
   } catch {
     return null;
   }
 }
 
 function normalizeColor(value: unknown): string | null {
-  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
-    ? value
-    : null;
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : null;
 }

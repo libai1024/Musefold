@@ -18,11 +18,7 @@ import {
   Trash2,
 } from '@musefold/ui/icons';
 import { Button } from '@musefold/ui';
-import {
-  musefoldQueryKeys,
-  SettingsCard,
-  SettingsSection,
-} from '@musefold/product-ui';
+import { musefoldQueryKeys, SettingsCard, SettingsSection } from '@musefold/product-ui';
 import type { WebGateway } from '../runtime';
 import { ConnectionsView } from './ConnectionsView';
 
@@ -195,7 +191,7 @@ export function WebArchivedChatsSection({ gateway }: { gateway: WebGateway }) {
         title="归档记录"
         description="恢复暂时收起的聊天，或删除不再需要的云端记录。"
         testId="web-settings-archived"
-        action={(
+        action={
           <Button
             size="icon"
             variant="ghost"
@@ -210,15 +206,21 @@ export function WebArchivedChatsSection({ gateway }: { gateway: WebGateway }) {
               <RefreshCw className="h-4 w-4" />
             )}
           </Button>
-        )}
+        }
       >
         {actionError || deleteMutation.error ? (
           <p className="px-4 pt-4 text-[12px] text-danger" role="alert">
-            {actionError ?? (deleteMutation.error instanceof Error ? deleteMutation.error.message : '删除聊天失败，请稍后重试')}
+            {actionError ??
+              (deleteMutation.error instanceof Error
+                ? deleteMutation.error.message
+                : '删除聊天失败，请稍后重试')}
           </p>
         ) : null}
         {sessionsQuery.isPending ? (
-          <div className="flex min-h-32 items-center justify-center gap-2 px-4 text-[12px] text-secondary" role="status">
+          <div
+            className="flex min-h-32 items-center justify-center gap-2 px-4 text-[12px] text-secondary"
+            role="status"
+          >
             <Loader2 className="h-4 w-4 animate-spin" />
             正在读取归档聊天...
           </div>
@@ -230,7 +232,10 @@ export function WebArchivedChatsSection({ gateway }: { gateway: WebGateway }) {
             </p>
           </div>
         ) : archivedSessions.length === 0 ? (
-          <div className="flex min-h-32 flex-col items-center justify-center px-4 text-center" data-testid="web-settings-archived-empty">
+          <div
+            className="flex min-h-32 flex-col items-center justify-center px-4 text-center"
+            data-testid="web-settings-archived-empty"
+          >
             <Archive className="h-5 w-5 text-quaternary" aria-hidden="true" />
             <p className="mt-3 text-[13px] font-medium text-primary">还没有已归档聊天</p>
           </div>
@@ -239,10 +244,16 @@ export function WebArchivedChatsSection({ gateway }: { gateway: WebGateway }) {
             {archivedSessions.map((session) => {
               const busy = busyId === session.id || deleteMutation.isPending;
               return (
-                <div className="setting-item flex items-center gap-3 px-4 py-3" key={session.id} data-testid={`web-settings-archived-row-${session.id}`}>
+                <div
+                  className="setting-item flex items-center gap-3 px-4 py-3"
+                  key={session.id}
+                  data-testid={`web-settings-archived-row-${session.id}`}
+                >
                   <Archive className="h-4 w-4 shrink-0 text-secondary" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-[13px] font-medium text-primary">{session.title}</strong>
+                    <strong className="block truncate text-[13px] font-medium text-primary">
+                      {session.title}
+                    </strong>
                     <span className="mt-0.5 block text-[11px] text-tertiary">
                       最近更新 {new Date(session.updatedAt).toLocaleString('zh-CN')}
                     </span>
@@ -254,7 +265,11 @@ export function WebArchivedChatsSection({ gateway }: { gateway: WebGateway }) {
                     onClick={() => void restore(session)}
                     data-testid={`web-settings-archived-restore-${session.id}`}
                   >
-                    {busyId === session.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                    {busyId === session.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    )}
                     恢复
                   </Button>
                   <Button
@@ -278,12 +293,34 @@ export function WebArchivedChatsSection({ gateway }: { gateway: WebGateway }) {
         )}
       </SettingsCard>
       {deleteTarget ? (
-        <div className="mt-3 flex items-center justify-between gap-3 border border-solid border-subtle bg-inset px-4 py-3" role="alertdialog" aria-label="确认删除归档聊天">
-          <span className="min-w-0 text-[12px] text-secondary">删除“{deleteTarget.title}”？此操作会移除云端聊天记录。</span>
+        <div
+          className="mt-3 flex items-center justify-between gap-3 border border-solid border-subtle bg-inset px-4 py-3"
+          role="alertdialog"
+          aria-label="确认删除归档聊天"
+        >
+          <span className="min-w-0 text-[12px] text-secondary">
+            删除“{deleteTarget.title}”？此操作会移除云端聊天记录。
+          </span>
           <div className="flex shrink-0 gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>取消</Button>
-            <Button size="sm" variant="danger" onClick={() => void deleteMutation.mutateAsync(deleteTarget)} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMutation.isPending}
+            >
+              取消
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => void deleteMutation.mutateAsync(deleteTarget)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
               删除
             </Button>
           </div>

@@ -28,16 +28,17 @@ function formatFromMime(contentType: string): ImageFormat | null {
 
 function formatFromBytes(bytes: Uint8Array): ImageFormat | null {
   if (
-    bytes.length >= 8
-    && bytes[0] === 0x89
-    && bytes[1] === 0x50
-    && bytes[2] === 0x4e
-    && bytes[3] === 0x47
-    && bytes[4] === 0x0d
-    && bytes[5] === 0x0a
-    && bytes[6] === 0x1a
-    && bytes[7] === 0x0a
-  ) return MIME_FORMATS['image/png'];
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  )
+    return MIME_FORMATS['image/png'];
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
     return MIME_FORMATS['image/jpeg'];
   }
@@ -77,7 +78,10 @@ function decodeBase64Data(payload: string): Buffer {
       throw new Error('图片 Base64 数据 URL 编码无效');
     }
   }
-  const normalized = encoded.replace(/[\t\n\r\f ]/g, '').replace(/-/g, '+').replace(/_/g, '/');
+  const normalized = encoded
+    .replace(/[\t\n\r\f ]/g, '')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
   if (!normalized || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
     throw new Error('图片 Base64 数据无效');
   }

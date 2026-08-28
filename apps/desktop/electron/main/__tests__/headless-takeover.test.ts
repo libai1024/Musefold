@@ -3,7 +3,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { OWNER_LOCK_FILE, writeDiscoveryFile, type OwnerLockInfo } from '@musefold/automation-server';
+import {
+  OWNER_LOCK_FILE,
+  writeDiscoveryFile,
+  type OwnerLockInfo,
+} from '@musefold/automation-server';
 import { acquireDesktopOwnerLockWithHeadlessTakeover } from '../headless-takeover';
 
 const tempDirs: string[] = [];
@@ -21,7 +25,11 @@ describe('acquireDesktopOwnerLockWithHeadlessTakeover', () => {
   it('stops a headless daemon and lets the desktop app acquire owner.lock', async () => {
     const dir = tempDir();
     const child = await spawnIdleChild();
-    writeOwnerLock(dir, { pid: child.pid, owner: 'headless-daemon', acquiredAt: new Date(0).toISOString() });
+    writeOwnerLock(dir, {
+      pid: child.pid,
+      owner: 'headless-daemon',
+      acquiredAt: new Date(0).toISOString(),
+    });
     writeDiscoveryFile(dir, discoveryDocument(child.pid, 'headless-daemon'));
 
     const result = await acquireDesktopOwnerLockWithHeadlessTakeover(dir, {
@@ -40,7 +48,11 @@ describe('acquireDesktopOwnerLockWithHeadlessTakeover', () => {
   it('does not terminate a process when discovery ownership does not match the headless lock', async () => {
     const dir = tempDir();
     const child = await spawnIdleChild();
-    writeOwnerLock(dir, { pid: child.pid, owner: 'headless-daemon', acquiredAt: new Date(0).toISOString() });
+    writeOwnerLock(dir, {
+      pid: child.pid,
+      owner: 'headless-daemon',
+      acquiredAt: new Date(0).toISOString(),
+    });
     writeDiscoveryFile(dir, discoveryDocument(child.pid, 'desktop-app'));
 
     const result = await acquireDesktopOwnerLockWithHeadlessTakeover(dir, {
@@ -54,7 +66,11 @@ describe('acquireDesktopOwnerLockWithHeadlessTakeover', () => {
 
   it('leaves an existing desktop owner alone', async () => {
     const dir = tempDir();
-    writeOwnerLock(dir, { pid: process.pid, owner: 'desktop-app', acquiredAt: new Date(0).toISOString() });
+    writeOwnerLock(dir, {
+      pid: process.pid,
+      owner: 'desktop-app',
+      acquiredAt: new Date(0).toISOString(),
+    });
 
     const result = await acquireDesktopOwnerLockWithHeadlessTakeover(dir);
 
@@ -70,7 +86,9 @@ function tempDir(): string {
 }
 
 async function spawnIdleChild(): Promise<ChildProcess & { pid: number }> {
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], { stdio: 'ignore' });
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], {
+    stdio: 'ignore',
+  });
   await new Promise<void>((resolve, reject) => {
     child.once('spawn', resolve);
     child.once('error', reject);

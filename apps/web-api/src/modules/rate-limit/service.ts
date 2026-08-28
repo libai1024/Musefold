@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
-import { sql, type Kysely } from "kysely";
-import type { MusefoldDatabase } from "../../database/types.js";
-import { AppError } from "../../errors.js";
+import { createHmac } from 'node:crypto';
+import { sql, type Kysely } from 'kysely';
+import type { MusefoldDatabase } from '../../database/types.js';
+import { AppError } from '../../errors.js';
 
 export interface RateLimitPolicy {
   capacity: number;
@@ -10,11 +10,7 @@ export interface RateLimitPolicy {
 }
 
 export interface RateLimiterPort {
-  assertAllowed(
-    namespace: string,
-    subject: string,
-    policy: RateLimitPolicy,
-  ): Promise<void>;
+  assertAllowed(namespace: string, subject: string, policy: RateLimitPolicy): Promise<void>;
 }
 
 export const RATE_LIMIT_POLICIES = {
@@ -34,20 +30,16 @@ export class PostgresRateLimiter implements RateLimiterPort {
     private readonly keySecret: string,
   ) {}
 
-  async assertAllowed(
-    namespace: string,
-    subject: string,
-    policy: RateLimitPolicy,
-  ): Promise<void> {
+  async assertAllowed(namespace: string, subject: string, policy: RateLimitPolicy): Promise<void> {
     if (!namespace || !subject) {
-      throw new AppError("INTERNAL_ERROR", "限流键配置无效", 500);
+      throw new AppError('INTERNAL_ERROR', '限流键配置无效', 500);
     }
     const cost = policy.cost ?? 1;
-    const keyHash = createHmac("sha256", this.keySecret)
+    const keyHash = createHmac('sha256', this.keySecret)
       .update(namespace)
-      .update("\0")
+      .update('\0')
       .update(subject)
-      .digest("hex");
+      .digest('hex');
     const result = await sql<{
       allowed: boolean;
       remaining_tokens: number;
@@ -63,19 +55,13 @@ export class PostgresRateLimiter implements RateLimiterPort {
     `.execute(this.db);
     const decision = result.rows[0];
     if (!decision) {
-      throw new AppError("INTERNAL_ERROR", "限流服务暂时不可用", 500, true);
+      throw new AppError('INTERNAL_ERROR', '限流服务暂时不可用', 500, true);
     }
     if (!decision.allowed) {
-      throw new AppError(
-        "RATE_LIMITED",
-        "请求过于频繁，请稍后重试",
-        429,
-        true,
-        {
-          retryAfterSeconds: decision.retry_after_seconds,
-          remaining: decision.remaining_tokens,
-        },
-      );
+      throw new AppError('RATE_LIMITED', '请求过于频繁，请稍后重试', 429, true, {
+        retryAfterSeconds: decision.retry_after_seconds,
+        remaining: decision.remaining_tokens,
+      });
     }
   }
 }

@@ -5,11 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import {
-  Search,
-  FileText,
-  MessageSquareText,
-} from '../ui/icons';
+import { Search, FileText, MessageSquareText } from '../ui/icons';
 import { useAppStore, type ViewKey } from '../../stores/app';
 import { useLibraryStore } from '../../features/library/store';
 import { useSettingsStore, type SettingsSectionInput } from '../../features/settings/store';
@@ -128,7 +124,7 @@ export function CommandPalette() {
         run: () => runCommand(spec),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [theme]
+    [theme],
   );
 
   const q = query.trim().toLowerCase();
@@ -139,7 +135,7 @@ export function CommandPalette() {
       (a) =>
         a.label.toLowerCase().includes(q) ||
         a.keywords?.toLowerCase().includes(q) ||
-        a.group.toLowerCase().includes(q)
+        a.group.toLowerCase().includes(q),
     );
   }, [actions, q]);
 
@@ -150,27 +146,33 @@ export function CommandPalette() {
         (p) =>
           p.title.toLowerCase().includes(q) ||
           p.content.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q)
+          p.description?.toLowerCase().includes(q),
       )
       .slice(0, 6);
   }, [prompts, q]);
 
-  const sessionHits = useMemo(() => sessions
-    .filter((session) => !q || session.title.toLowerCase().includes(q))
-    .slice(0, q ? 6 : 3), [q, sessions]);
+  const sessionHits = useMemo(
+    () =>
+      sessions
+        .filter((session) => !q || session.title.toLowerCase().includes(q))
+        .slice(0, q ? 6 : 3),
+    [q, sessions],
+  );
 
   // 扁平化：动作、对话、提示词共享同一套键盘索引。
   const flat = useMemo(() => {
     const items: { type: 'action' | 'session' | 'prompt'; id: string; run: () => void }[] = [];
     filteredActions.forEach((a) => items.push({ type: 'action', id: a.id, run: a.run }));
-    sessionHits.forEach((session) => items.push({
-      type: 'session',
-      id: session.id,
-      run: () => {
-        void openSession(session.id);
-        setOpen(false);
-      },
-    }));
+    sessionHits.forEach((session) =>
+      items.push({
+        type: 'session',
+        id: session.id,
+        run: () => {
+          void openSession(session.id);
+          setOpen(false);
+        },
+      }),
+    );
     promptHits.forEach((p) =>
       items.push({
         type: 'prompt',
@@ -183,7 +185,7 @@ export function CommandPalette() {
           });
           setOpen(false);
         },
-      })
+      }),
     );
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,7 +238,10 @@ export function CommandPalette() {
             <input
               ref={inputRef}
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActive(0);
+              }}
               placeholder="搜索命令、对话或提示词…"
               aria-label="搜索 Musefold"
               role="combobox"
@@ -333,7 +338,6 @@ export function CommandPalette() {
               </Group>
             )}
           </div>
-
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -383,9 +387,7 @@ function Row({
       <Icon />
       <span className="mf-command-row-label">{label}</span>
       {hint && <span className="mf-command-row-hint">{hint}</span>}
-      {group && (
-        <span className="mf-command-row-group">{group}</span>
-      )}
+      {group && <span className="mf-command-row-group">{group}</span>}
     </button>
   );
 }

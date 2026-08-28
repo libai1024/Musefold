@@ -1,11 +1,11 @@
-import type { SVGProps } from "react";
+import type { SVGProps } from 'react';
 
 export interface MusefoldMarkProps extends SVGProps<SVGSVGElement> {
   title?: string;
 }
 
 /** Static product mark shared by compact and animated brand surfaces. */
-export function MusefoldMark({ title = "Musefold / 未像", ...props }: MusefoldMarkProps) {
+export function MusefoldMark({ title = 'Musefold / 未像', ...props }: MusefoldMarkProps) {
   return (
     <svg
       {...props}

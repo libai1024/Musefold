@@ -1,4 +1,7 @@
-import type { DesignSchemeAssetSummary, DesignSchemeSourceSnapshotDetail } from '@musefold/desktop-contracts/design-scheme';
+import type {
+  DesignSchemeAssetSummary,
+  DesignSchemeSourceSnapshotDetail,
+} from '@musefold/desktop-contracts/design-scheme';
 import type {
   ConstraintDomain,
   ConstraintMode,

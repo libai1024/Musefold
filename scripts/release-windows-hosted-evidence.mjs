@@ -109,11 +109,14 @@ function parseGitHubActionsUrl(value) {
     throw new Error(`runUrl must be an https://github.com Actions URL: ${value}`);
   }
   const parts = url.pathname.split('/').filter(Boolean);
-  const validRun = parts.length >= 5 && parts[2] === 'actions' && parts[3] === 'runs' && /^\d+$/.test(parts[4]);
+  const validRun =
+    parts.length >= 5 && parts[2] === 'actions' && parts[3] === 'runs' && /^\d+$/.test(parts[4]);
   const jobSegmentPresent = parts.length >= 6;
   const validJob = validRun && parts.length >= 7 && parts[5] === 'job' && /^\d+$/.test(parts[6]);
   if (!validRun || (jobSegmentPresent && !validJob)) {
-    throw new Error(`runUrl must look like https://github.com/OWNER/REPO/actions/runs/RUN_ID[/job/JOB_ID]: ${value}`);
+    throw new Error(
+      `runUrl must look like https://github.com/OWNER/REPO/actions/runs/RUN_ID[/job/JOB_ID]: ${value}`,
+    );
   }
   return true;
 }
@@ -135,7 +138,11 @@ async function readEvidence() {
 function validateHostedEvidence(evidence) {
   const gate = evidence?.windowsHostedRuntimeSmoke;
   if (gate === undefined) {
-    record('Windows hosted runtime evidence', 'manual', `missing ${evidencePath}:windowsHostedRuntimeSmoke`);
+    record(
+      'Windows hosted runtime evidence',
+      'manual',
+      `missing ${evidencePath}:windowsHostedRuntimeSmoke`,
+    );
     return null;
   }
 
@@ -147,16 +154,32 @@ function validateHostedEvidence(evidence) {
   }
   if (Number.isNaN(Date.parse(gate.checkedAt))) issues.push('checkedAt invalid');
   if (typeof gate.os !== 'string' || !/windows/i.test(gate.os)) issues.push('os must name Windows');
-  if (typeof gate.architecture !== 'string' || !/^(x64|amd64)$/i.test(gate.architecture.trim())) issues.push('architecture must be x64');
+  if (typeof gate.architecture !== 'string' || !/^(x64|amd64)$/i.test(gate.architecture.trim()))
+    issues.push('architecture must be x64');
   if (!isSha(gate.installerSha256)) issues.push('installerSha256 invalid');
-  if (typeof gate.testCommand !== 'string' || !gate.testCommand.includes('windows_runtime_smoke.py')) issues.push('testCommand must include windows_runtime_smoke.py');
+  if (
+    typeof gate.testCommand !== 'string' ||
+    !gate.testCommand.includes('windows_runtime_smoke.py')
+  )
+    issues.push('testCommand must include windows_runtime_smoke.py');
   const result = gate.result ?? {};
-  for (const key of ['installedAppLaunch', 'fakeGeneration', 'mediaPreview', 'historyRecord', 'exportImport', 'deeplinkImport']) {
+  for (const key of [
+    'installedAppLaunch',
+    'fakeGeneration',
+    'mediaPreview',
+    'historyRecord',
+    'exportImport',
+    'deeplinkImport',
+  ]) {
     if (result[key] !== true) issues.push(`result.${key} must be true`);
   }
 
   if (issues.length === 0) {
-    record('Windows hosted runtime evidence', 'pass', `${evidencePath}:windowsHostedRuntimeSmoke is complete`);
+    record(
+      'Windows hosted runtime evidence',
+      'pass',
+      `${evidencePath}:windowsHostedRuntimeSmoke is complete`,
+    );
   } else {
     record('Windows hosted runtime evidence', 'fail', issues.join('; '));
   }
@@ -165,7 +188,11 @@ function validateHostedEvidence(evidence) {
 
 async function generateEvidenceSnippet() {
   if (process.platform !== 'win32') {
-    record('Windows hosted evidence generation host', 'fail', `must run on Windows after runtime smoke; current platform=${process.platform}`);
+    record(
+      'Windows hosted evidence generation host',
+      'fail',
+      `must run on Windows after runtime smoke; current platform=${process.platform}`,
+    );
     return null;
   }
   record('Windows hosted evidence generation host', 'pass', `platform=${process.platform}`);
@@ -183,24 +210,40 @@ async function generateEvidenceSnippet() {
     record('Windows installed-package runtime smoke', 'pass', testCommand);
   }
 
-  const installerPath = installerPathArg ?? await defaultInstallerPath();
+  const installerPath = installerPathArg ?? (await defaultInstallerPath());
   let installer = null;
   if (await exists(installerPath)) {
     installer = await fileSummary(installerPath);
-    record('Windows hosted x64 installer hash', 'pass', `${installer.path} (${installer.bytes.toLocaleString('en-US')} bytes, sha256 ${installer.sha256})`);
+    record(
+      'Windows hosted x64 installer hash',
+      'pass',
+      `${installer.path} (${installer.bytes.toLocaleString('en-US')} bytes, sha256 ${installer.sha256})`,
+    );
   } else {
-    record('Windows hosted x64 installer hash', 'fail', `${installerPath} missing; run npm run package:win -- --x64 first`);
+    record(
+      'Windows hosted x64 installer hash',
+      'fail',
+      `${installerPath} missing; run npm run package:win -- --x64 first`,
+    );
   }
 
   const runUrl = runUrlArg ?? githubRunUrlFromEnv();
   if (!runUrl) {
-    record('GitHub Actions run URL', 'fail', 'missing --run-url or GITHUB_REPOSITORY/GITHUB_RUN_ID');
+    record(
+      'GitHub Actions run URL',
+      'fail',
+      'missing --run-url or GITHUB_REPOSITORY/GITHUB_RUN_ID',
+    );
   } else {
     try {
       parseGitHubActionsUrl(runUrl);
       record('GitHub Actions run URL', 'pass', runUrl);
     } catch (error) {
-      record('GitHub Actions run URL', 'fail', error instanceof Error ? error.message : String(error));
+      record(
+        'GitHub Actions run URL',
+        'fail',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
@@ -249,11 +292,14 @@ async function main() {
   const ok = failed.length === 0 && (!strict || pending.length === 0);
 
   if (json) {
-    console.log(JSON.stringify({ evidencePath, checks, existingGate, evidenceSnippet, strict, ok }, null, 2));
+    console.log(
+      JSON.stringify({ evidencePath, checks, existingGate, evidenceSnippet, strict, ok }, null, 2),
+    );
   } else {
     console.log('Windows hosted runner runtime smoke evidence:');
     for (const check of checks) {
-      const mark = check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
+      const mark =
+        check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
       console.log(`${mark} ${check.name}${check.details ? ` - ${check.details}` : ''}`);
     }
     if (evidenceSnippet) {
@@ -261,7 +307,9 @@ async function main() {
       console.log(JSON.stringify(evidenceSnippet, null, 2));
     } else if (pending.length > 0) {
       console.log('\nGenerate this evidence on the Windows CI runner after runtime smoke:');
-      console.log('npm run release:windows:hosted -- --runtime-smoke-passed --out release/windows-hosted-runtime-evidence.json');
+      console.log(
+        'npm run release:windows:hosted -- --runtime-smoke-passed --out release/windows-hosted-runtime-evidence.json',
+      );
     }
     if (!strict && pending.length > 0) {
       console.log('\nUse --strict before public release to require this evidence block.');

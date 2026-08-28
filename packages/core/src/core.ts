@@ -5,11 +5,7 @@
 // 服务在构造时不碰数据库（惰性到方法调用），宿主须先完成 db 初始化。
 
 import type { Clock, CoreOptions, Logger, PathsPort } from './ports';
-import {
-  cancelGeneration,
-  generate,
-  hasActiveImageJobs,
-} from './services/generation';
+import { cancelGeneration, generate, hasActiveImageJobs } from './services/generation';
 import type {
   GenerateImageRequest,
   GenerateImageResult,

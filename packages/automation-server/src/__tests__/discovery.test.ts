@@ -12,18 +12,28 @@ import {
 } from '../discovery';
 
 const dirs: string[] = [];
-afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
 
 function document(overrides: Partial<DiscoveryDocument> = {}): DiscoveryDocument {
   return {
-    version: 1, apiVersion: 'v1', pid: 123, port: 4567, token: 'mf_at_secret',
-    owner: 'desktop-app', appVersion: '0.4.0-dev', startedAt: new Date(0).toISOString(), ...overrides,
+    version: 1,
+    apiVersion: 'v1',
+    pid: 123,
+    port: 4567,
+    token: 'mf_at_secret',
+    owner: 'desktop-app',
+    appVersion: '0.4.0-dev',
+    startedAt: new Date(0).toISOString(),
+    ...overrides,
   };
 }
 
 describe('automation discovery file', () => {
   it('writes atomically with restrictive permissions and validates reads', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'musefold-automation-discovery-')); dirs.push(dir);
+    const dir = mkdtempSync(join(tmpdir(), 'musefold-automation-discovery-'));
+    dirs.push(dir);
     const path = writeDiscoveryFile(dir, document());
     expect(path).toBe(discoveryFilePath(dir));
     expect(discoveryFileMode(dir)).toBe(0o600);
@@ -32,7 +42,8 @@ describe('automation discovery file', () => {
   });
 
   it('rejects malformed or insecure ownership replacements', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'musefold-automation-discovery-')); dirs.push(dir);
+    const dir = mkdtempSync(join(tmpdir(), 'musefold-automation-discovery-'));
+    dirs.push(dir);
     writeDiscoveryFile(dir, document());
     chmodSync(discoveryFilePath(dir), 0o644);
     expect(discoveryFileMode(dir)).toBe(0o644);

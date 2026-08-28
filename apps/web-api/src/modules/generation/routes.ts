@@ -1,15 +1,9 @@
-import {
-  createGenerationInputSchema,
-  generationHistoryQuerySchema,
-} from '@musefold/contracts';
+import { createGenerationInputSchema, generationHistoryQuerySchema } from '@musefold/contracts';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { SessionStorePort } from '../account/session-store.js';
 import type { GenerationEventWaiter } from '../../database/runtime.js';
-import {
-  requireMusefoldCsrf,
-  requireMusefoldSession,
-} from '../auth/request-auth.js';
+import { requireMusefoldCsrf, requireMusefoldSession } from '../auth/request-auth.js';
 import type { GenerationServicePort } from './service.js';
 
 interface GenerationRoutesOptions {
@@ -24,9 +18,10 @@ const idempotencyHeaders = z
   .object({ 'idempotency-key': z.string().trim().min(8).max(128) })
   .passthrough();
 
-export const generationRoutes: FastifyPluginAsync<
-  GenerationRoutesOptions
-> = async (app, options) => {
+export const generationRoutes: FastifyPluginAsync<GenerationRoutesOptions> = async (
+  app,
+  options,
+) => {
   const auth = requireMusefoldSession(options.sessions, options.cookieName);
   const csrfAuth = [auth, requireMusefoldCsrf];
 
@@ -98,13 +93,8 @@ export const generationRoutes: FastifyPluginAsync<
         .parse(request.query).after;
       const lastEventId = request.headers['last-event-id'];
       const headerAfter =
-        typeof lastEventId === 'string' && /^\d+$/.test(lastEventId)
-          ? Number(lastEventId)
-          : 0;
-      const after = Math.max(
-        requestedAfter,
-        Number.isSafeInteger(headerAfter) ? headerAfter : 0,
-      );
+        typeof lastEventId === 'string' && /^\d+$/.test(lastEventId) ? Number(lastEventId) : 0;
+      const after = Math.max(requestedAfter, Number.isSafeInteger(headerAfter) ? headerAfter : 0);
       reply.hijack();
       const response = reply.raw;
       response.writeHead(200, {
@@ -115,35 +105,19 @@ export const generationRoutes: FastifyPluginAsync<
       });
       let cursor = after;
       for (let attempt = 0; attempt < 25 && !response.destroyed; attempt += 1) {
-        const events = await options.service.events(
-          request.musefoldPrincipal.ownerId,
-          id,
-          cursor,
-        );
+        const events = await options.service.events(request.musefoldPrincipal.ownerId, id, cursor);
         for (const event of events) {
           cursor = event.seq;
           response.write(
             `id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`,
           );
         }
-        const current = await options.service.get(
-          request.musefoldPrincipal.ownerId,
-          id,
-        );
-        if (
-          ['succeeded', 'failed', 'cancelled', 'rejected', 'expired'].includes(
-            current.status,
-          )
-        )
+        const current = await options.service.get(request.musefoldPrincipal.ownerId, id);
+        if (['succeeded', 'failed', 'cancelled', 'rejected', 'expired'].includes(current.status))
           break;
         response.write(': keep-alive\n\n');
         if (options.events) {
-          await options.events.wait(
-            request.musefoldPrincipal.ownerId,
-            id,
-            cursor,
-            1_000,
-          );
+          await options.events.wait(request.musefoldPrincipal.ownerId, id, cursor, 1_000);
         } else {
           await new Promise((resolve) => setTimeout(resolve, 1_000));
         }
@@ -227,14 +201,8 @@ export const generationRoutes: FastifyPluginAsync<
     },
     async (request) => {
       const params = idParams.parse(request.params);
-      const body = z
-        .object({ token: z.string().min(16).max(256) })
-        .parse(request.body);
-      return options.service.approveCloud(
-        request.musefoldPrincipal.ownerId,
-        params.id,
-        body.token,
-      );
+      const body = z.object({ token: z.string().min(16).max(256) }).parse(request.body);
+      return options.service.approveCloud(request.musefoldPrincipal.ownerId, params.id, body.token);
     },
   );
 

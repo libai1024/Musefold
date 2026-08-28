@@ -18,9 +18,7 @@ export async function withOwnerTransaction<T>(
     ? db.transaction().setIsolationLevel(options.isolationLevel)
     : db.transaction();
   return transaction.execute(async (trx) => {
-    await sql`SELECT set_config('app.owner_id', ${String(ownerId)}, true)`.execute(
-      trx,
-    );
+    await sql`SELECT set_config('app.owner_id', ${String(ownerId)}, true)`.execute(trx);
     return callback(trx);
   });
 }

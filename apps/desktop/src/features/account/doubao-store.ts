@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import type { DoubaoWebAccountStatus, DoubaoWebUsageStatus } from '@musefold/desktop-contracts/providers';
+import type {
+  DoubaoWebAccountStatus,
+  DoubaoWebUsageStatus,
+} from '@musefold/desktop-contracts/providers';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 
 interface DoubaoAccountState {
@@ -20,7 +23,8 @@ export const useDoubaoAccountStore = create<DoubaoAccountState>((set) => ({
   refreshStatus: async () => {
     if (statusRequest) return statusRequest;
     set({ loading: true, error: null });
-    statusRequest = api.provider.webStatus()
+    statusRequest = api.provider
+      .webStatus()
       .then((status) => {
         set({ status, loading: false, error: null });
         return status;
@@ -40,7 +44,8 @@ export const useDoubaoAccountStore = create<DoubaoAccountState>((set) => ({
 
   refreshUsage: async () => {
     if (usageRequest) return usageRequest;
-    usageRequest = api.provider.webUsage()
+    usageRequest = api.provider
+      .webUsage()
       .then((usage) => {
         set((state) => ({
           status: state.status
@@ -71,7 +76,11 @@ if (typeof window !== 'undefined') {
   const onWebLoginChanged = api.provider?.onWebLoginChanged;
   if (onWebLoginChanged) {
     onWebLoginChanged((status) => {
-      useDoubaoAccountStore.setState({ status, loading: false, error: status.errorMessage ?? null });
+      useDoubaoAccountStore.setState({
+        status,
+        loading: false,
+        error: status.errorMessage ?? null,
+      });
     });
   }
 }

@@ -3,11 +3,7 @@ import electronUpdater from 'electron-updater';
 import { IPC } from '@musefold/desktop-contracts/ipc';
 import { APP_VERSION } from '../system/app-version';
 import { getUpdateChannel } from '../settings/update-channel';
-import {
-  resolveUpdateFeedUrl,
-  UpdaterService,
-  type UpdaterAdapter,
-} from './updater-service';
+import { resolveUpdateFeedUrl, UpdaterService, type UpdaterAdapter } from './updater-service';
 import { scheduleContentUpdateChecks } from './content-updater';
 
 let updaterService: UpdaterService | null = null;
@@ -38,20 +34,19 @@ export interface InitializeUpdaterOptions {
 export function initializeUpdater(options: InitializeUpdaterOptions = {}): UpdaterService {
   if (updaterService) return updaterService;
 
-  const disabledReason = process.env['MUSEFOLD_DISABLE_AUTO_UPDATE'] === '1'
-    ? 'disabled-by-environment'
-    : !app.isPackaged
-      ? 'development'
-      : process.platform !== 'darwin' && process.platform !== 'win32'
-        ? 'unsupported-platform'
-        : undefined;
+  const disabledReason =
+    process.env['MUSEFOLD_DISABLE_AUTO_UPDATE'] === '1'
+      ? 'disabled-by-environment'
+      : !app.isPackaged
+        ? 'development'
+        : process.platform !== 'darwin' && process.platform !== 'win32'
+          ? 'unsupported-platform'
+          : undefined;
   const enabled = disabledReason === undefined;
   const channel = getUpdateChannel();
 
   updaterService = new UpdaterService({
-    adapter: enabled
-      ? (electronUpdater.autoUpdater as unknown as UpdaterAdapter)
-      : noopAdapter,
+    adapter: enabled ? (electronUpdater.autoUpdater as unknown as UpdaterAdapter) : noopAdapter,
     currentVersion: APP_VERSION,
     enabled,
     disabledReason,
@@ -77,9 +72,16 @@ export function getUpdaterService(): UpdaterService {
 
 function scheduleChecks(service: UpdaterService): void {
   // Give the first window time to finish loading, then keep the about page fresh.
-  const firstCheck = setTimeout(() => { void service.check(); }, 10_000);
+  const firstCheck = setTimeout(() => {
+    void service.check();
+  }, 10_000);
   firstCheck.unref();
 
-  const periodicCheck = setInterval(() => { void service.check(); }, 6 * 60 * 60 * 1000);
+  const periodicCheck = setInterval(
+    () => {
+      void service.check();
+    },
+    6 * 60 * 60 * 1000,
+  );
   periodicCheck.unref();
 }

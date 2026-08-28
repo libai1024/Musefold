@@ -6,10 +6,7 @@ import {
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { SessionStorePort } from '../account/session-store.js';
-import {
-  requireMusefoldCsrf,
-  requireMusefoldSession,
-} from '../auth/request-auth.js';
+import { requireMusefoldCsrf, requireMusefoldSession } from '../auth/request-auth.js';
 import type { WorkbenchServicePort } from './service.js';
 
 interface WorkbenchRoutesOptions {
@@ -21,9 +18,7 @@ interface WorkbenchRoutesOptions {
 const idParams = z.object({ id: z.string().trim().min(1).max(64) });
 const versionBody = z.object({ expectedVersion: z.number().int().positive() });
 
-export const workbenchRoutes: FastifyPluginAsync<
-  WorkbenchRoutesOptions
-> = async (app, options) => {
+export const workbenchRoutes: FastifyPluginAsync<WorkbenchRoutesOptions> = async (app, options) => {
   const auth = requireMusefoldSession(options.sessions, options.cookieName);
 
   app.get(

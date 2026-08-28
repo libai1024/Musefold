@@ -1,12 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
-import { inflateSync } from "node:zlib";
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { inflateSync } from 'node:zlib';
 
-const root = resolve(import.meta.dirname, "..");
-const output = resolve(root, "artifacts/v1.1/shared-ui-visuals");
-const webOutput = join(output, "web");
-const desktopOutput = join(output, "desktop");
+const root = resolve(import.meta.dirname, '..');
+const output = resolve(root, 'artifacts/v1.1/shared-ui-visuals');
+const webOutput = join(output, 'web');
+const desktopOutput = join(output, 'desktop');
 rmSync(output, { recursive: true, force: true });
 mkdirSync(webOutput, { recursive: true });
 mkdirSync(desktopOutput, { recursive: true });
@@ -15,29 +15,29 @@ function run(command, args, env) {
   const result = spawnSync(command, args, {
     cwd: root,
     env: { ...process.env, ...env },
-    stdio: "inherit",
+    stdio: 'inherit',
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
 run(
-  "npm",
+  'npm',
   [
-    "run",
-    "test:e2e",
-    "--workspace",
-    "@musefold/web",
-    "--",
-    "--grep",
-    "canonical Desktop/Web surfaces|generation result failure",
+    'run',
+    'test:e2e',
+    '--workspace',
+    '@musefold/web',
+    '--',
+    '--grep',
+    'canonical Desktop/Web surfaces|generation result failure',
   ],
   { MUSEFOLD_VISUAL_OUTPUT_DIR: webOutput },
 );
 
-const pytest = existsSync(join(root, ".venv-test/bin/pytest"))
-  ? join(root, ".venv-test/bin/pytest")
-  : "pytest";
-run(pytest, ["tests/e2e/test_11_visual_qa.py", "-q"], {
+const pytest = existsSync(join(root, '.venv-test/bin/pytest'))
+  ? join(root, '.venv-test/bin/pytest')
+  : 'pytest';
+run(pytest, ['tests/e2e/test_11_visual_qa.py', '-q'], {
   MUSEFOLD_VISUAL_OUTPUT_DIR: desktopOutput,
 });
 
@@ -46,98 +46,98 @@ run(pytest, ["tests/e2e/test_11_visual_qa.py", "-q"], {
 // pair is history-detail-compact meanError=0.0994 / changedPixelRatio=0.1301.
 const surfaces = [
   {
-    id: "product-sidebar",
-    file: "shared-product-sidebar-1440x900.png",
+    id: 'product-sidebar',
+    file: 'shared-product-sidebar-1440x900.png',
     maxMeanError: 0.14,
     maxChangedPixels: 0.16,
   },
   {
-    id: "workbench",
-    file: "shared-workbench-1440x900.png",
+    id: 'workbench',
+    file: 'shared-workbench-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.08,
   },
   {
-    id: "workbench-composer",
-    file: "shared-workbench-composer-1440x900.png",
+    id: 'workbench-composer',
+    file: 'shared-workbench-composer-1440x900.png',
     maxMeanError: 0.08,
     maxChangedPixels: 0.1,
   },
   {
-    id: "workbench-composer-mobile",
-    file: "shared-workbench-composer-390x844.png",
+    id: 'workbench-composer-mobile',
+    file: 'shared-workbench-composer-390x844.png',
     maxMeanError: 0.1,
     maxChangedPixels: 0.14,
   },
   {
-    id: "workbench-result",
-    file: "shared-workbench-result-1440x900.png",
+    id: 'workbench-result',
+    file: 'shared-workbench-result-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
   {
-    id: "workbench-result-failed",
-    file: "shared-workbench-result-failed-1440x900.png",
+    id: 'workbench-result-failed',
+    file: 'shared-workbench-result-failed-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
   {
-    id: "workbench-result-cancelled",
-    file: "shared-workbench-result-cancelled-1440x900.png",
+    id: 'workbench-result-cancelled',
+    file: 'shared-workbench-result-cancelled-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
   {
-    id: "workbench-result-cancelled-mobile",
-    file: "shared-workbench-result-cancelled-390x844.png",
+    id: 'workbench-result-cancelled-mobile',
+    file: 'shared-workbench-result-cancelled-390x844.png',
     maxMeanError: 0.14,
     maxChangedPixels: 0.18,
   },
   {
-    id: "library-list",
-    file: "shared-library-list-1440x900.png",
+    id: 'library-list',
+    file: 'shared-library-list-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.12,
   },
   {
-    id: "prompt-detail",
-    file: "shared-prompt-detail-1440x900.png",
+    id: 'prompt-detail',
+    file: 'shared-prompt-detail-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.12,
   },
   {
-    id: "prompt-reference-card",
-    file: "shared-prompt-reference-card-1440x900.png",
+    id: 'prompt-reference-card',
+    file: 'shared-prompt-reference-card-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
   {
-    id: "prompt-reference-preview",
-    file: "shared-prompt-reference-preview-1440x900.png",
+    id: 'prompt-reference-preview',
+    file: 'shared-prompt-reference-preview-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
   {
-    id: "history-detail-compact",
-    file: "shared-history-detail-compact.png",
+    id: 'history-detail-compact',
+    file: 'shared-history-detail-compact.png',
     maxMeanError: 0.14,
     maxChangedPixels: 0.16,
   },
   {
-    id: "history-workspace",
-    file: "shared-history-workspace-1440x900.png",
+    id: 'history-workspace',
+    file: 'shared-history-workspace-1440x900.png',
     maxMeanError: 0.08,
     maxChangedPixels: 0.12,
   },
   {
-    id: "account-summary",
-    file: "shared-account-summary-1440x900.png",
+    id: 'account-summary',
+    file: 'shared-account-summary-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
   {
-    id: "connected-apps",
-    file: "shared-connected-apps-1440x900.png",
+    id: 'connected-apps',
+    file: 'shared-connected-apps-1440x900.png',
     maxMeanError: 0.12,
     maxChangedPixels: 0.14,
   },
@@ -148,9 +148,7 @@ for (const surface of surfaces) {
   const webPng = join(webOutput, surface.file);
   const desktopPng = join(desktopOutput, surface.file);
   if (!existsSync(webPng) || !existsSync(desktopPng)) {
-    console.error(
-      `Missing shared UI screenshot for ${surface.id}: ${webPng} / ${desktopPng}`,
-    );
+    console.error(`Missing shared UI screenshot for ${surface.id}: ${webPng} / ${desktopPng}`);
     failed = true;
     continue;
   }
@@ -168,7 +166,7 @@ for (const surface of surfaces) {
   }
 }
 if (failed) process.exit(1);
-console.log("Shared UI visual contract passed.");
+console.log('Shared UI visual contract passed.');
 
 function comparePng(leftPath, rightPath) {
   const left = decodePng(readFileSync(leftPath));
@@ -190,19 +188,13 @@ function comparePng(leftPath, rightPath) {
       const endRow = Math.min(height, height - alignmentY);
       let total = 0;
       let changed = 0;
-      const pixels =
-        (endColumn - startColumn) * (endRow - startRow);
+      const pixels = (endColumn - startColumn) * (endRow - startRow);
 
       for (let row = startRow; row < endRow; row += 1) {
         for (let column = startColumn; column < endColumn; column += 1) {
-          const leftIndex =
-            (row * left.width + leftOffset + column) * 4;
+          const leftIndex = (row * left.width + leftOffset + column) * 4;
           const rightIndex =
-            ((row + alignmentY) * right.width +
-              rightOffset +
-              column +
-              alignmentX) *
-            4;
+            ((row + alignmentY) * right.width + rightOffset + column + alignmentX) * 4;
           const delta =
             (Math.abs(left.data[leftIndex] - right.data[rightIndex]) +
               Math.abs(left.data[leftIndex + 1] - right.data[rightIndex + 1]) +
@@ -235,7 +227,7 @@ function comparePng(leftPath, rightPath) {
 }
 
 function decodePng(buffer) {
-  if (buffer.toString("ascii", 1, 4) !== "PNG") throw new Error("Invalid PNG");
+  if (buffer.toString('ascii', 1, 4) !== 'PNG') throw new Error('Invalid PNG');
   let width;
   let height;
   let bitDepth;
@@ -244,16 +236,16 @@ function decodePng(buffer) {
   let offset = 8;
   while (offset < buffer.length) {
     const length = buffer.readUInt32BE(offset);
-    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
     const payload = buffer.subarray(offset + 8, offset + 8 + length);
-    if (type === "IHDR") {
+    if (type === 'IHDR') {
       width = payload.readUInt32BE(0);
       height = payload.readUInt32BE(4);
       bitDepth = payload[8];
       colorType = payload[9];
-    } else if (type === "IDAT") compressed.push(payload);
+    } else if (type === 'IDAT') compressed.push(payload);
     offset += length + 12;
-    if (type === "IEND") break;
+    if (type === 'IEND') break;
   }
   if (bitDepth !== 8 || ![2, 6].includes(colorType)) {
     throw new Error(
@@ -270,20 +262,11 @@ function decodePng(buffer) {
     const rowStart = row * stride;
     for (let column = 0; column < stride; column += 1) {
       const current = raw[source++];
-      const left =
-        column >= channels ? filtered[rowStart + column - channels] : 0;
+      const left = column >= channels ? filtered[rowStart + column - channels] : 0;
       const above = row > 0 ? filtered[rowStart - stride + column] : 0;
       const upperLeft =
-        row > 0 && column >= channels
-          ? filtered[rowStart - stride + column - channels]
-          : 0;
-      filtered[rowStart + column] = unfilter(
-        filter,
-        current,
-        left,
-        above,
-        upperLeft,
-      );
+        row > 0 && column >= channels ? filtered[rowStart - stride + column - channels] : 0;
+      filtered[rowStart + column] = unfilter(filter, current, left, above, upperLeft);
     }
   }
   const data = Buffer.alloc(height * width * 4);
@@ -310,8 +293,7 @@ function paeth(left, above, upperLeft) {
   const leftDistance = Math.abs(estimate - left);
   const aboveDistance = Math.abs(estimate - above);
   const upperLeftDistance = Math.abs(estimate - upperLeft);
-  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance)
-    return left;
+  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance) return left;
   if (aboveDistance <= upperLeftDistance) return above;
   return upperLeft;
 }

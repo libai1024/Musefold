@@ -1,5 +1,5 @@
-import type { MusefoldMarkProps } from "@musefold/ui";
-import { MusefoldMark } from "@musefold/ui";
+import type { MusefoldMarkProps } from '@musefold/ui';
+import { MusefoldMark } from '@musefold/ui';
 
 export type WorkbenchBrandProps = MusefoldMarkProps;
 
@@ -8,9 +8,7 @@ export function WorkbenchBrand({ className, ...props }: WorkbenchBrandProps) {
   return (
     <MusefoldMark
       {...props}
-      className={["mf-workbench-brand-image", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={['mf-workbench-brand-image', className].filter(Boolean).join(' ')}
       data-testid="workbench-brand"
     />
   );

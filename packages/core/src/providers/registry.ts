@@ -10,14 +10,17 @@ type ProviderFactory = (id: string, baseUrl: string, model: string, name: string
 
 const registry = new Map<ProviderType, ProviderFactory>();
 
-registry.set('openai', (id, baseUrl, model, name) =>
-  new OpenAICompatibleProvider(id, baseUrl, model, name)
+registry.set(
+  'openai',
+  (id, baseUrl, model, name) => new OpenAICompatibleProvider(id, baseUrl, model, name),
 );
-registry.set('openai-compatible', (id, baseUrl, model, name) =>
-  new OpenAICompatibleProvider(id, baseUrl, model, name)
+registry.set(
+  'openai-compatible',
+  (id, baseUrl, model, name) => new OpenAICompatibleProvider(id, baseUrl, model, name),
 );
-registry.set('doubao-web', (id, baseUrl, model, name) =>
-  new DoubaoWebProvider(id, baseUrl, model, name)
+registry.set(
+  'doubao-web',
+  (id, baseUrl, model, name) => new DoubaoWebProvider(id, baseUrl, model, name),
 );
 
 export function createProvider(
@@ -25,7 +28,7 @@ export function createProvider(
   id: string,
   baseUrl: string,
   model: string,
-  name: string
+  name: string,
 ): ImageProvider {
   const factory = registry.get(type);
   if (!factory) throw new Error(`Unknown provider type: ${type}`);

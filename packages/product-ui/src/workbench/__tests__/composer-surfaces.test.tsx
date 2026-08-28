@@ -1,19 +1,12 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { WorkbenchComposerContextTray } from "../WorkbenchComposerContextTray";
-import { WorkbenchEmptyState } from "../WorkbenchEmptyState";
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { WorkbenchComposerContextTray } from '../WorkbenchComposerContextTray';
+import { WorkbenchEmptyState } from '../WorkbenchEmptyState';
 
-const suggestions = [
-  "方向一",
-  "方向二",
-  "方向三",
-  "方向四",
-  "方向五",
-  "方向六",
-];
+const suggestions = ['方向一', '方向二', '方向三', '方向四', '方向五', '方向六'];
 
-describe("shared workbench composer surfaces", () => {
-  it("keeps context label and horizontally scannable item slot separate", () => {
+describe('shared workbench composer surfaces', () => {
+  it('keeps context label and horizontally scannable item slot separate', () => {
     const html = renderToStaticMarkup(
       <WorkbenchComposerContextTray label="参考">
         <button type="button">提示词引用</button>
@@ -23,18 +16,15 @@ describe("shared workbench composer surfaces", () => {
 
     expect(html).toContain('data-testid="workbench-context-tray"');
     expect(html).toContain('class="mf-workbench-context-tray-label"');
-    expect(html).toContain(">参考</span>");
+    expect(html).toContain('>参考</span>');
     expect(html).toContain('class="mf-workbench-context-tray-items"');
-    expect(html).toContain("提示词引用");
-    expect(html).toContain("两张图片");
+    expect(html).toContain('提示词引用');
+    expect(html).toContain('两张图片');
   });
 
-  it("shows at most three low-weight starter directions without an expander", () => {
+  it('shows at most three low-weight starter directions without an expander', () => {
     const html = renderToStaticMarkup(
-      <WorkbenchEmptyState
-        suggestions={suggestions}
-        onSelectSuggestion={() => undefined}
-      />,
+      <WorkbenchEmptyState suggestions={suggestions} onSelectSuggestion={() => undefined} />,
     );
 
     // v2.0(02 §6 / 11 §6.2):建议最多三条,无「浏览灵感」展开器,只回填草稿。
@@ -44,17 +34,17 @@ describe("shared workbench composer surfaces", () => {
     expect(html.match(/mf-workbench-direction-row/g)?.length).toBe(3);
     expect(html.match(/mf-workbench-direction-hit/g)).toHaveLength(3);
     expect(html).not.toContain('data-testid="generation-directions-toggle"');
-    expect(html).toContain("方向一");
-    expect(html).toContain("方向三");
-    expect(html).not.toContain("方向四");
-    expect(html).not.toContain("方向六");
+    expect(html).toContain('方向一');
+    expect(html).toContain('方向三');
+    expect(html).not.toContain('方向四');
+    expect(html).not.toContain('方向六');
     expect(html.match(/class="mf-workbench-direction-track" aria-hidden="true"/g)).toHaveLength(3);
   });
 
-  it("falls back to defaults when an empty suggestion list is supplied", () => {
+  it('falls back to defaults when an empty suggestion list is supplied', () => {
     const html = renderToStaticMarkup(<WorkbenchEmptyState suggestions={[]} />);
 
     expect(html.match(/data-testid="generation-example"/g)).toHaveLength(3);
-    expect(html).toContain("漂浮在云层上的小型图书馆");
+    expect(html).toContain('漂浮在云层上的小型图书馆');
   });
 });

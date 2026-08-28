@@ -83,12 +83,14 @@ export function compileSchemePrompt(input: CompileSchemePromptInput): CompiledSc
   const modules = [...input.document.promptProgram].sort((left, right) => left.order - right.order);
   const moduleSections: string[] = [];
   for (const module of modules) {
-    const text = module.template.replace(/\{\{\s*([a-zA-Z0-9_\-\u4e00-\u9fff]+)\s*\}\}/g, (_match, name: string) => {
-      const value = input.inputValues[name]?.trim();
-      if (value) return value;
-      unresolved.add(name);
-      return '';
-    }).trim();
+    const text = module.template
+      .replace(/\{\{\s*([a-zA-Z0-9_\-\u4e00-\u9fff]+)\s*\}\}/g, (_match, name: string) => {
+        const value = input.inputValues[name]?.trim();
+        if (value) return value;
+        unresolved.add(name);
+        return '';
+      })
+      .trim();
     if (text) moduleSections.push(text);
   }
 
@@ -101,9 +103,11 @@ export function compileSchemePrompt(input: CompileSchemePromptInput): CompiledSc
   } else {
     sections.push(...moduleSections);
     if (brief) {
-      sections.push(mode === 'agent_mediated'
-        ? `补充要求：\n${brief}\n（若与方案规则冲突，请以整体视觉质量为先自动协调取舍）`
-        : `补充要求（不改变方案核心规则）：\n${brief}`);
+      sections.push(
+        mode === 'agent_mediated'
+          ? `补充要求：\n${brief}\n（若与方案规则冲突，请以整体视觉质量为先自动协调取舍）`
+          : `补充要求（不改变方案核心规则）：\n${brief}`,
+      );
     }
   }
 

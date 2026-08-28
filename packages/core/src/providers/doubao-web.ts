@@ -30,10 +30,7 @@ export class DoubaoWebProvider implements ImageProvider {
     if (!selected || DOUBAO_IMAGE_MODELS.some((model) => model.id === selected)) {
       return DOUBAO_IMAGE_MODELS;
     }
-    return [
-      { id: selected, name: selected, description: '当前配置模型' },
-      ...DOUBAO_IMAGE_MODELS,
-    ];
+    return [{ id: selected, name: selected, description: '当前配置模型' }, ...DOUBAO_IMAGE_MODELS];
   }
 
   async validateConnection(): Promise<ValidationResult> {
@@ -49,9 +46,6 @@ export class DoubaoWebProvider implements ImageProvider {
   }
 
   generateImage(req: GenerateImageRequest, signal?: AbortSignal): Promise<GenerateImageResult> {
-    return getDoubaoWebRuntime().generateImage(
-      { ...req, model: req.model ?? this.model },
-      signal,
-    );
+    return getDoubaoWebRuntime().generateImage({ ...req, model: req.model ?? this.model }, signal);
   }
 }

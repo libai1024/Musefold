@@ -39,26 +39,31 @@ export function isManagedUploadPath(path: string): boolean {
 
 function mimeFromHeader(header: Uint8Array): SupportedImageMimeType | null {
   if (
-    header.length >= 8
-    && header[0] === 0x89
-    && header[1] === 0x50
-    && header[2] === 0x4e
-    && header[3] === 0x47
-    && header[4] === 0x0d
-    && header[5] === 0x0a
-    && header[6] === 0x1a
-    && header[7] === 0x0a
-  ) return 'image/png';
-  if (header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) return 'image/jpeg';
+    header.length >= 8 &&
+    header[0] === 0x89 &&
+    header[1] === 0x50 &&
+    header[2] === 0x4e &&
+    header[3] === 0x47 &&
+    header[4] === 0x0d &&
+    header[5] === 0x0a &&
+    header[6] === 0x1a &&
+    header[7] === 0x0a
+  )
+    return 'image/png';
+  if (header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff)
+    return 'image/jpeg';
   if (
-    header.length >= 12
-    && String.fromCharCode(...header.slice(0, 4)) === 'RIFF'
-    && String.fromCharCode(...header.slice(8, 12)) === 'WEBP'
-  ) return 'image/webp';
+    header.length >= 12 &&
+    String.fromCharCode(...header.slice(0, 4)) === 'RIFF' &&
+    String.fromCharCode(...header.slice(8, 12)) === 'WEBP'
+  )
+    return 'image/webp';
   return null;
 }
 
-async function inspectPath(path: string): Promise<{ mimeType: SupportedImageMimeType; sizeBytes: number }> {
+async function inspectPath(
+  path: string,
+): Promise<{ mimeType: SupportedImageMimeType; sizeBytes: number }> {
   if (!isAbsolute(path)) throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
   let fileStat;
   try {
@@ -66,7 +71,8 @@ async function inspectPath(path: string): Promise<{ mimeType: SupportedImageMime
   } catch {
     throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
   }
-  if (!fileStat.isFile()) throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
+  if (!fileStat.isFile())
+    throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');
   if (fileStat.size > MAX_LOCAL_IMAGE_BYTES) {
     throw new LocalImageError('IMAGE_TOO_LARGE', '图片不能超过 20 MiB，请选择较小的文件');
   }
@@ -80,7 +86,8 @@ async function inspectPath(path: string): Promise<{ mimeType: SupportedImageMime
     const header = Buffer.alloc(12);
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
     const mimeType = mimeFromHeader(header.subarray(0, bytesRead));
-    if (!mimeType) throw new LocalImageError('IMAGE_TYPE_UNSUPPORTED', '请选择 PNG、JPG 或 WebP 图片');
+    if (!mimeType)
+      throw new LocalImageError('IMAGE_TYPE_UNSUPPORTED', '请选择 PNG、JPG 或 WebP 图片');
     return { mimeType, sizeBytes: fileStat.size };
   } finally {
     await handle.close();
@@ -106,13 +113,17 @@ export async function stageLocalImage(path: string): Promise<LocalImageReference
   };
 }
 
-export async function stageLocalImageBytes(input: StageLocalImageInput): Promise<LocalImageReference> {
-  const bytes = input.bytes instanceof Uint8Array ? input.bytes : Uint8Array.from(input.bytes ?? []);
+export async function stageLocalImageBytes(
+  input: StageLocalImageInput,
+): Promise<LocalImageReference> {
+  const bytes =
+    input.bytes instanceof Uint8Array ? input.bytes : Uint8Array.from(input.bytes ?? []);
   if (bytes.byteLength > MAX_LOCAL_IMAGE_BYTES) {
     throw new LocalImageError('IMAGE_TOO_LARGE', '图片不能超过 20 MiB，请选择较小的文件');
   }
   const mimeType = mimeFromHeader(bytes.subarray(0, 12));
-  if (!mimeType) throw new LocalImageError('IMAGE_TYPE_UNSUPPORTED', '请选择 PNG、JPG 或 WebP 图片');
+  if (!mimeType)
+    throw new LocalImageError('IMAGE_TYPE_UNSUPPORTED', '请选择 PNG、JPG 或 WebP 图片');
 
   const uploadsDir = join(getPaths().previews, 'uploads');
   await mkdir(uploadsDir, { recursive: true });

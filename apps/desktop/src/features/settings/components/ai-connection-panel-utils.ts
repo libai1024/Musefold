@@ -1,10 +1,7 @@
 // src/features/settings/components/ai-connection-panel-utils.ts
 // Agent 中转站详情面板的纯函数与错误上报(自 AiConnectionDialog 迁入,行为不变)。
 
-import type {
-  AiConnectionValidationResult,
-  AiTextModelInfo,
-} from '@musefold/desktop-contracts/ai';
+import type { AiConnectionValidationResult, AiTextModelInfo } from '@musefold/desktop-contracts/ai';
 import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
 import { toast } from '../../../stores/toast';
 import { aiConnectionErrorMessage, isAiConnectionRuntimeMismatch } from '../ai-connection-errors';

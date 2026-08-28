@@ -1,75 +1,71 @@
-import { randomUUID } from "node:crypto";
-import cookie from "@fastify/cookie";
-import formbody from "@fastify/formbody";
-import swagger from "@fastify/swagger";
-import { createNewApiClient } from "@musefold/new-api-client";
-import Fastify, { type FastifyInstance } from "fastify";
+import { randomUUID } from 'node:crypto';
+import cookie from '@fastify/cookie';
+import formbody from '@fastify/formbody';
+import swagger from '@fastify/swagger';
+import { createNewApiClient } from '@musefold/new-api-client';
+import Fastify, { type FastifyInstance } from 'fastify';
 import {
   hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler,
-} from "fastify-type-provider-zod";
-import type { WebApiConfig } from "./config.js";
-import { DatabaseRuntime, type ReadinessProbe } from "./database/runtime.js";
-import { AppError, toErrorResponse } from "./errors.js";
-import { accountRoutes } from "./modules/account/routes.js";
-import { AccountService } from "./modules/account/service.js";
-import { SessionStore } from "./modules/account/session-store.js";
-import { AccountCredentialStore } from "./modules/account/credential-store.js";
-import { promptRoutes } from "./modules/prompts/routes.js";
-import { PromptService } from "./modules/prompts/service.js";
-import { syncRoutes } from "./modules/sync/routes.js";
-import { SyncService } from "./modules/sync/service.js";
-import { workbenchRoutes } from "./modules/workbench/routes.js";
-import { WorkbenchService } from "./modules/workbench/service.js";
-import { generationRoutes } from "./modules/generation/routes.js";
-import { GenerationService } from "./modules/generation/service.js";
-import { S3AssetUrlSigner } from "./storage/s3-signer.js";
-import { healthRoutes } from "./modules/health/routes.js";
-import { oauthRoutes } from "./modules/oauth/routes.js";
-import { OAuthService } from "./modules/oauth/service.js";
-import { createCloudOidcProvider } from "./modules/oauth/provider.js";
-import { mcpRoutes } from "./modules/mcp/routes.js";
-import { SkillService } from "./modules/mcp/skills.js";
-import { PostgresRateLimiter } from "./modules/rate-limit/service.js";
+} from 'fastify-type-provider-zod';
+import type { WebApiConfig } from './config.js';
+import { DatabaseRuntime, type ReadinessProbe } from './database/runtime.js';
+import { AppError, toErrorResponse } from './errors.js';
+import { accountRoutes } from './modules/account/routes.js';
+import { AccountService } from './modules/account/service.js';
+import { SessionStore } from './modules/account/session-store.js';
+import { AccountCredentialStore } from './modules/account/credential-store.js';
+import { promptRoutes } from './modules/prompts/routes.js';
+import { PromptService } from './modules/prompts/service.js';
+import { syncRoutes } from './modules/sync/routes.js';
+import { SyncService } from './modules/sync/service.js';
+import { workbenchRoutes } from './modules/workbench/routes.js';
+import { WorkbenchService } from './modules/workbench/service.js';
+import { generationRoutes } from './modules/generation/routes.js';
+import { GenerationService } from './modules/generation/service.js';
+import { S3AssetUrlSigner } from './storage/s3-signer.js';
+import { healthRoutes } from './modules/health/routes.js';
+import { oauthRoutes } from './modules/oauth/routes.js';
+import { OAuthService } from './modules/oauth/service.js';
+import { createCloudOidcProvider } from './modules/oauth/provider.js';
+import { mcpRoutes } from './modules/mcp/routes.js';
+import { SkillService } from './modules/mcp/skills.js';
+import { PostgresRateLimiter } from './modules/rate-limit/service.js';
 
 export interface BuildWebApiOptions {
   config: WebApiConfig;
   readinessProbe?: ReadinessProbe;
 }
 
-export async function buildWebApi(
-  options: BuildWebApiOptions,
-): Promise<FastifyInstance> {
+export async function buildWebApi(options: BuildWebApiOptions): Promise<FastifyInstance> {
   const app = Fastify({
     trustProxy: options.config.TRUST_PROXY,
     logger:
-      options.config.LOG_LEVEL === "silent"
+      options.config.LOG_LEVEL === 'silent'
         ? false
         : {
             level: options.config.LOG_LEVEL,
             redact: {
               paths: [
-                "req.headers.authorization",
-                "req.headers.cookie",
-                "res.headers.set-cookie",
-                "*.password",
-                "*.reauthPassword",
-                "*.token",
-                "*.refreshToken",
-                "*.code",
-                "*.prompt",
-                "*.negative",
+                'req.headers.authorization',
+                'req.headers.cookie',
+                'res.headers.set-cookie',
+                '*.password',
+                '*.reauthPassword',
+                '*.token',
+                '*.refreshToken',
+                '*.code',
+                '*.prompt',
+                '*.negative',
               ],
-              censor: "[REDACTED]",
+              censor: '[REDACTED]',
             },
           },
     genReqId: (request) => {
-      const supplied = request.headers["x-request-id"];
-      return typeof supplied === "string" && supplied.length <= 128
-        ? supplied
-        : randomUUID();
+      const supplied = request.headers['x-request-id'];
+      return typeof supplied === 'string' && supplied.length <= 128 ? supplied : randomUUID();
     },
   });
 
@@ -80,24 +76,19 @@ export async function buildWebApi(
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
-      if (
-        error.code === "RATE_LIMITED" &&
-        typeof error.details.retryAfterSeconds === "number"
-      ) {
+      if (error.code === 'RATE_LIMITED' && typeof error.details.retryAfterSeconds === 'number') {
         reply.header(
-          "Retry-After",
+          'Retry-After',
           String(Math.max(1, Math.ceil(error.details.retryAfterSeconds))),
         );
       }
-      return reply
-        .code(error.statusCode)
-        .send(toErrorResponse(error, request.id));
+      return reply.code(error.statusCode).send(toErrorResponse(error, request.id));
     }
 
     if (hasZodFastifySchemaValidationErrors(error)) {
       const validationError = new AppError(
-        "VALIDATION_FAILED",
-        "请求参数不符合接口约束",
+        'VALIDATION_FAILED',
+        '请求参数不符合接口约束',
         400,
         false,
         { issues: error.validation },
@@ -105,26 +96,21 @@ export async function buildWebApi(
       return reply.code(400).send(toErrorResponse(validationError, request.id));
     }
 
-    request.log.error({ err: error }, "Unhandled request error");
-    const internalError = new AppError(
-      "INTERNAL_ERROR",
-      "服务暂时不可用",
-      500,
-      true,
-    );
+    request.log.error({ err: error }, 'Unhandled request error');
+    const internalError = new AppError('INTERNAL_ERROR', '服务暂时不可用', 500, true);
     return reply.code(500).send(toErrorResponse(internalError, request.id));
   });
 
   app.setNotFoundHandler((request, reply) => {
-    const error = new AppError("VALIDATION_FAILED", "接口不存在", 404);
+    const error = new AppError('VALIDATION_FAILED', '接口不存在', 404);
     return reply.code(404).send(toErrorResponse(error, request.id));
   });
 
   await app.register(swagger, {
     openapi: {
       info: {
-        title: "Musefold Web API",
-        version: "1.1.0",
+        title: 'Musefold Web API',
+        version: '1.1.0',
       },
       servers: [{ url: options.config.PUBLIC_ORIGIN }],
     },
@@ -133,7 +119,7 @@ export async function buildWebApi(
 
   if (options.config.OPENAPI_ENABLED) {
     app.get(
-      "/api/musefold/v1/openapi.json",
+      '/api/musefold/v1/openapi.json',
       {
         schema: { hide: true },
       },
@@ -141,11 +127,9 @@ export async function buildWebApi(
     );
   }
 
-  const database = options.readinessProbe
-    ? null
-    : new DatabaseRuntime(options.config);
+  const database = options.readinessProbe ? null : new DatabaseRuntime(options.config);
   const readinessProbe = options.readinessProbe ?? database;
-  if (!readinessProbe) throw new Error("Readiness probe is required");
+  if (!readinessProbe) throw new Error('Readiness probe is required');
 
   if (database) {
     try {
@@ -153,13 +137,13 @@ export async function buildWebApi(
     } catch (error) {
       app.log.warn(
         { err: error },
-        "generation LISTEN unavailable; SSE will use bounded event polling",
+        'generation LISTEN unavailable; SSE will use bounded event polling',
       );
     }
-    app.addHook("onClose", async () => database.close());
+    app.addHook('onClose', async () => database.close());
     app.decorateRequest(
-      "musefoldPrincipal",
-      undefined as unknown as import("./modules/auth/request-auth.js").MusefoldPrincipal,
+      'musefoldPrincipal',
+      undefined as unknown as import('./modules/auth/request-auth.js').MusefoldPrincipal,
     );
     const sessions = new SessionStore(database.db, options.config);
     const credentials = new AccountCredentialStore(database.db, options.config);
@@ -177,10 +161,7 @@ export async function buildWebApi(
       new S3AssetUrlSigner(options.config),
       options.config.SESSION_ENCRYPTION_KEY,
     );
-    const rateLimiter = new PostgresRateLimiter(
-      database.db,
-      options.config.SESSION_ENCRYPTION_KEY,
-    );
+    const rateLimiter = new PostgresRateLimiter(database.db, options.config.SESSION_ENCRYPTION_KEY);
     await app.register(accountRoutes, {
       accountService,
       config: options.config,

@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-  type UIEvent,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject, type UIEvent } from 'react';
 
 export interface UseWorkbenchTimelineControllerOptions {
   /** Changes when a new turn or a visible generation state is available. */
@@ -66,7 +59,7 @@ export function useWorkbenchTimelineController({
     setNearLatest(nextNearLatest);
   }, []);
 
-  const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const element = viewportRef.current;
     element?.scrollTo({ top: element.scrollHeight, behavior });
   }, []);
@@ -88,7 +81,7 @@ export function useWorkbenchTimelineController({
   useEffect(() => {
     const element = viewportRef.current;
     const content = element?.firstElementChild;
-    if (!element || !content || typeof ResizeObserver === "undefined") return;
+    if (!element || !content || typeof ResizeObserver === 'undefined') return;
 
     const observer = new ResizeObserver(() => {
       if (shouldFollowWorkbenchTimelineResize(itemCount, nearLatestRef.current)) {

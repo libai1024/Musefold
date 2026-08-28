@@ -11,19 +11,9 @@ import type {
  * 不另造 saveDraft。
  */
 export interface WorkbenchGateway {
-  listWorkbenchSessions(
-    query: WorkbenchSessionListQuery,
-  ): Promise<WorkbenchSessionPage>;
+  listWorkbenchSessions(query: WorkbenchSessionListQuery): Promise<WorkbenchSessionPage>;
   getWorkbenchSession(id: string): Promise<WorkbenchSession>;
-  createWorkbenchSession(
-    input: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  updateWorkbenchSession(
-    id: string,
-    input: UpdateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  deleteWorkbenchSession(
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession>;
+  createWorkbenchSession(input: CreateWorkbenchSession): Promise<WorkbenchSession>;
+  updateWorkbenchSession(id: string, input: UpdateWorkbenchSession): Promise<WorkbenchSession>;
+  deleteWorkbenchSession(id: string, expectedVersion: number): Promise<WorkbenchSession>;
 }

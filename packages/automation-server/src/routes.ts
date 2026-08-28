@@ -3,7 +3,11 @@
 // 花钱端点（generations / scheme runs / skill runs）由宿主在 P2/P3 注入。
 
 import type { MusefoldCore } from '@musefold/core';
-import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from './server';
+import {
+  AutomationError,
+  type AutomationRouteContext,
+  type AutomationRouteHandler,
+} from './server';
 
 const DEFAULT_LIST_LIMIT = 20;
 const MAX_LIST_LIMIT = 50;
@@ -63,22 +67,26 @@ export function createV1ReadRoutes(core: MusefoldCore): Record<string, Automatio
         search: optionalString(context, 'query'),
         folderId: optionalString(context, 'folderId'),
         tagIds: optionalString(context, 'tagIds')?.split(',').filter(Boolean),
-        ...(source && source !== 'any'
-          ? { filters: { source: source as 'manual' | 'slip' } }
-          : {}),
+        ...(source && source !== 'any' ? { filters: { source: source as 'manual' | 'slip' } } : {}),
       });
       const limit = queryLimit(context);
       return { prompts: prompts.slice(0, limit), total: prompts.length };
     },
     'GET /v1/prompts/:id': (context) => {
       const prompt = core.library.get(context.params.id);
-      if (!prompt) throw new AutomationError('NOT_FOUND', '提示词不存在', 404, { id: context.params.id });
+      if (!prompt)
+        throw new AutomationError('NOT_FOUND', '提示词不存在', 404, { id: context.params.id });
       return { prompt };
     },
     'POST /v1/prompts': (context) => {
       const body = requireObjectBody(context);
       const title = typeof body.title === 'string' ? body.title.trim() : '';
-      const content = typeof body.body === 'string' ? body.body : typeof body.content === 'string' ? body.content : '';
+      const content =
+        typeof body.body === 'string'
+          ? body.body
+          : typeof body.content === 'string'
+            ? body.content
+            : '';
       if (!title || !content) {
         throw new AutomationError('INVALID_PARAMS', 'title 与 body 均为必填', 400);
       }
@@ -103,7 +111,13 @@ export function createV1ReadRoutes(core: MusefoldCore): Record<string, Automatio
       try {
         return { models: await core.providers.listModels(context.params.id) };
       } catch (error) {
-        if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'NOT_FOUND') throw error;
+        if (
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          (error as { code: string }).code === 'NOT_FOUND'
+        )
+          throw error;
         throw new AutomationError(
           'PROVIDER_ERROR',
           `Provider 模型列举失败：${error instanceof Error ? error.message : String(error)}`,
@@ -126,7 +140,8 @@ export function createV1ReadRoutes(core: MusefoldCore): Record<string, Automatio
     }),
     'GET /v1/history/:id': (context) => {
       const record = core.history.get(context.params.id);
-      if (!record) throw new AutomationError('NOT_FOUND', '历史记录不存在', 404, { id: context.params.id });
+      if (!record)
+        throw new AutomationError('NOT_FOUND', '历史记录不存在', 404, { id: context.params.id });
       return { history: record };
     },
 
@@ -135,7 +150,9 @@ export function createV1ReadRoutes(core: MusefoldCore): Record<string, Automatio
     'GET /v1/schemes/:id': (context) => {
       const detail = core.schemes.get(context.params.id);
       if (!detail) {
-        throw new AutomationError('NOT_FOUND', '设计方案不存在（或尚未转正）', 404, { id: context.params.id });
+        throw new AutomationError('NOT_FOUND', '设计方案不存在（或尚未转正）', 404, {
+          id: context.params.id,
+        });
       }
       return detail;
     },

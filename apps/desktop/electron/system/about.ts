@@ -36,4 +36,3 @@ export async function openAboutResource(resource: AboutResourceId): Promise<void
   const error = await shell.openPath(path);
   if (error) throw new Error(`ABOUT_RESOURCE_OPEN_FAILED: ${error}`);
 }
-

@@ -40,10 +40,10 @@ export function ProvidersRelayPanel() {
   const [creating, setCreating] = useState<{ presetId?: string } | null>(null);
   const selectedProvider = creating
     ? null
-    : stationProviders.find((p) => p.id === selectedId) ??
+    : (stationProviders.find((p) => p.id === selectedId) ??
       stationProviders.find((p) => p.id === activeProviderId) ??
       stationProviders[0] ??
-      null;
+      null);
 
   // dirty 守卫:面板 dirty 上抛 + 待执行切换;tab 层经 relay-dirty-store 读取
   const [panelDirty, setPanelDirty] = useState(false);
@@ -101,7 +101,13 @@ export function ProvidersRelayPanel() {
   ) : undefined;
 
   if (stationProviders.length === 0 && !creating) {
-    return <ProviderEmptyGuide context="settings" testId="settings-empty-provider" onOpenNew={startCreate} />;
+    return (
+      <ProviderEmptyGuide
+        context="settings"
+        testId="settings-empty-provider"
+        onOpenNew={startCreate}
+      />
+    );
   }
 
   return (

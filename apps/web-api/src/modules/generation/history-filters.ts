@@ -1,5 +1,5 @@
-import { sql, type RawBuilder } from "kysely";
-import type { ParsedGenerationHistoryQuery } from "@musefold/contracts";
+import { sql, type RawBuilder } from 'kysely';
+import type { ParsedGenerationHistoryQuery } from '@musefold/contracts';
 
 export type GenerationHistoryCursor = {
   id: string;
@@ -13,14 +13,11 @@ export function buildGenerationHistoryConditions(
   const conditions: RawBuilder<unknown>[] = [
     query.includeDeleted ? sql`TRUE` : sql`r.deleted_at IS NULL`,
   ];
-  if (query.sessionId)
-    conditions.push(sql`r.session_id = ${query.sessionId}`);
+  if (query.sessionId) conditions.push(sql`r.session_id = ${query.sessionId}`);
   if (query.status) conditions.push(sql`r.status = ${query.status}`);
-  if (query.from)
-    conditions.push(sql`r.created_at >= ${new Date(query.from)}`);
+  if (query.from) conditions.push(sql`r.created_at >= ${new Date(query.from)}`);
   if (query.to) conditions.push(sql`r.created_at <= ${new Date(query.to)}`);
-  if (query.providerModel)
-    conditions.push(sql`r.provider_model = ${query.providerModel}`);
+  if (query.providerModel) conditions.push(sql`r.provider_model = ${query.providerModel}`);
   if (query.search) {
     const pattern = `%${query.search}%`;
     conditions.push(sql`(
@@ -31,9 +28,7 @@ export function buildGenerationHistoryConditions(
     )`);
   }
   if (cursor) {
-    conditions.push(
-      sql`(r.created_at, r.id) < (${new Date(cursor.createdAt)}, ${cursor.id})`,
-    );
+    conditions.push(sql`(r.created_at, r.id) < (${new Date(cursor.createdAt)}, ${cursor.id})`);
   }
   return conditions;
 }

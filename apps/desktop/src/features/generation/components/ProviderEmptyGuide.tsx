@@ -4,10 +4,7 @@
 // 其后是 BYOK 预设行与自定义添加入口。
 
 import { ArrowRight, Image, Plus, QrCode, UserRound } from '../../../components/ui/icons';
-import {
-  DOUBAO_WEB_DAILY_IMAGE_LIMIT,
-  PROVIDER_PRESETS,
-} from '@musefold/domain/constants';
+import { DOUBAO_WEB_DAILY_IMAGE_LIMIT, PROVIDER_PRESETS } from '@musefold/domain/constants';
 import { useAppStore } from '../../../stores/app';
 import { useSettingsStore } from '@renderer/runtime/settings-access';
 import { useAccountStore } from '@renderer/runtime/account-access';
@@ -103,11 +100,18 @@ export function ProviderEmptyGuide({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[12px] font-medium text-primary">
                 豆包扫码登录
-                <span className="text-meta font-normal text-tertiary">每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次</span>
+                <span className="text-meta font-normal text-tertiary">
+                  每日 {DOUBAO_WEB_DAILY_IMAGE_LIMIT} 次
+                </span>
               </span>
-              <span className="mt-0.5 block text-meta leading-relaxed text-tertiary">使用本机独立浏览器会话，无需 API Key。</span>
+              <span className="mt-0.5 block text-meta leading-relaxed text-tertiary">
+                使用本机独立浏览器会话，无需 API Key。
+              </span>
             </span>
-            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
+            <ArrowRight
+              className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+              aria-hidden="true"
+            />
           </button>
         )}
         {!loggedIn && context !== 'settings' && (
@@ -121,13 +125,18 @@ export function ProviderEmptyGuide({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[12px] font-medium text-primary">
                 登录 Musefold 账号
-                <span className="rounded-full border border-border-default px-1.5 py-px text-meta font-medium text-tertiary">推荐</span>
+                <span className="rounded-full border border-border-default px-1.5 py-px text-meta font-medium text-tertiary">
+                  推荐
+                </span>
               </span>
               <span className="mt-0.5 block text-meta leading-relaxed text-tertiary">
                 一次登录，生图与 Agent 自动配置，无需 API Key。
               </span>
             </span>
-            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
+            <ArrowRight
+              className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+              aria-hidden="true"
+            />
           </button>
         )}
         {PROVIDER_PRESETS.filter((preset) => preset.type !== 'doubao-web').map((preset) => (
@@ -141,11 +150,18 @@ export function ProviderEmptyGuide({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 text-[12px] font-medium text-primary">
                 {preset.name}
-                {preset.recommended && <span className="text-meta font-normal text-tertiary">自备推荐</span>}
+                {preset.recommended && (
+                  <span className="text-meta font-normal text-tertiary">自备推荐</span>
+                )}
               </span>
-              <span className="mt-0.5 line-clamp-2 block text-meta leading-relaxed text-tertiary">{preset.hint}</span>
+              <span className="mt-0.5 line-clamp-2 block text-meta leading-relaxed text-tertiary">
+                {preset.hint}
+              </span>
             </span>
-            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
+            <ArrowRight
+              className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+              aria-hidden="true"
+            />
           </button>
         ))}
         <button
@@ -156,7 +172,10 @@ export function ProviderEmptyGuide({
         >
           <Plus className="h-4 w-4 shrink-0 text-tertiary" aria-hidden="true" />
           <span className="flex-1 text-[12px] font-medium text-primary">自定义添加服务商</span>
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
+          <ArrowRight
+            className="h-3.5 w-3.5 shrink-0 text-quaternary transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+            aria-hidden="true"
+          />
         </button>
       </div>
     </div>

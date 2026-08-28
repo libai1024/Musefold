@@ -5,11 +5,7 @@
 // 运行时请按子路径导入：@musefold/desktop-contracts/history-documents
 
 import type { GenerationJob } from '@musefold/contracts';
-import type {
-  CostUnit,
-  GenerationUsageChannel,
-  PromptReference,
-} from './generation-snapshots';
+import type { CostUnit, GenerationUsageChannel, PromptReference } from './generation-snapshots';
 import type { PromptParams } from './generation-snapshots';
 
 /** `history.related` 对某条提示词的命中原因。普通 history.list 不填。 */

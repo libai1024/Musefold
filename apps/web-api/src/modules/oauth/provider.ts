@@ -1,9 +1,5 @@
 import type { Kysely } from 'kysely';
-import Provider, {
-  errors,
-  type Configuration,
-  type Provider as OidcProvider,
-} from 'oidc-provider';
+import Provider, { errors, type Configuration, type Provider as OidcProvider } from 'oidc-provider';
 import type { WebApiConfig } from '../../config.js';
 import type { MusefoldDatabase } from '../../database/types.js';
 import { MCP_SCOPES } from './service.js';
@@ -16,11 +12,7 @@ export function createCloudOidcProvider(
   db: Kysely<MusefoldDatabase>,
   config: Pick<
     WebApiConfig,
-    | 'NODE_ENV'
-    | 'PUBLIC_ORIGIN'
-    | 'MCP_RESOURCE_URL'
-    | 'SESSION_ENCRYPTION_KEY'
-    | 'OAUTH_JWKS_JSON'
+    'NODE_ENV' | 'PUBLIC_ORIGIN' | 'MCP_RESOURCE_URL' | 'SESSION_ENCRYPTION_KEY' | 'OAUTH_JWKS_JSON'
   >,
 ): OidcProvider {
   const secureCookies = new URL(config.PUBLIC_ORIGIN).protocol === 'https:';
@@ -34,8 +26,7 @@ export function createCloudOidcProvider(
       token_endpoint_auth_method: 'none',
     },
     clientBasedCORS: (_ctx, origin, client) =>
-      client.redirectUris?.some((uri) => new URL(uri).origin === origin) ??
-      false,
+      client.redirectUris?.some((uri) => new URL(uri).origin === origin) ?? false,
     cookies: {
       keys: [config.SESSION_ENCRYPTION_KEY],
       names: {
@@ -63,8 +54,7 @@ export function createCloudOidcProvider(
       registrationManagement: { enabled: false },
       revocation: {
         enabled: true,
-        allowedPolicy: async (_ctx, client, token) =>
-          token.clientId === client.clientId,
+        allowedPolicy: async (_ctx, client, token) => token.clientId === client.clientId,
       },
       resourceIndicators: {
         enabled: true,
@@ -93,8 +83,7 @@ export function createCloudOidcProvider(
       claims: async () => ({ sub: accountId }),
     }),
     interactions: {
-      url: async (_ctx, interaction) =>
-        `${OAUTH_INTERACTION_PATH}/${interaction.uid}`,
+      url: async (_ctx, interaction) => `${OAUTH_INTERACTION_PATH}/${interaction.uid}`,
     },
     issueRefreshToken: async () => true,
     jwks: parseJwks(config.OAUTH_JWKS_JSON),

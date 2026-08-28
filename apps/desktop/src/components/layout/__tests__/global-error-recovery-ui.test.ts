@@ -33,9 +33,11 @@ describe('fatal render error recovery', () => {
 
   it('locks repeated restart attempts while relaunching', async () => {
     let resolveRelaunch: (() => void) | undefined;
-    relaunch.mockReturnValue(new Promise<void>((resolve) => {
-      resolveRelaunch = resolve;
-    }));
+    relaunch.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveRelaunch = resolve;
+      }),
+    );
     const instance = createBoundary();
     const restartApp = (instance as unknown as { restartApp: () => Promise<void> }).restartApp;
 

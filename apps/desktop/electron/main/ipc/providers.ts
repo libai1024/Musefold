@@ -67,19 +67,38 @@ export function registerProviderHandlers(): void {
       db.prepare('UPDATE providers SET is_active = 0').run();
     }
     db.prepare(
-      'INSERT INTO providers (id, name, type, base_url, model, has_key, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)'
+      'INSERT INTO providers (id, name, type, base_url, model, has_key, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)',
     ).run(id, p.name, p.type, p.baseUrl, p.model, p.isActive ? 1 : 0, now, now);
-    return rowToProvider(db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as Record<string, unknown>);
+    return rowToProvider(
+      db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as Record<string, unknown>,
+    );
   });
 
   ipcMain.handle(IPC.PROVIDER_UPDATE, (_e, id: string, patch: Partial<NewProviderConfig>) => {
     assertManagedProviderWriteAllowed(id, 'update');
     const db = getDb();
     const now = Date.now();
-    if (patch.name !== undefined) db.prepare('UPDATE providers SET name = ?, updated_at = ? WHERE id = ?').run(patch.name, now, id);
-    if (patch.baseUrl !== undefined) db.prepare('UPDATE providers SET base_url = ?, updated_at = ? WHERE id = ?').run(patch.baseUrl, now, id);
-    if (patch.model !== undefined) db.prepare('UPDATE providers SET model = ?, updated_at = ? WHERE id = ?').run(patch.model, now, id);
-    return rowToProvider(db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as Record<string, unknown>);
+    if (patch.name !== undefined)
+      db.prepare('UPDATE providers SET name = ?, updated_at = ? WHERE id = ?').run(
+        patch.name,
+        now,
+        id,
+      );
+    if (patch.baseUrl !== undefined)
+      db.prepare('UPDATE providers SET base_url = ?, updated_at = ? WHERE id = ?').run(
+        patch.baseUrl,
+        now,
+        id,
+      );
+    if (patch.model !== undefined)
+      db.prepare('UPDATE providers SET model = ?, updated_at = ? WHERE id = ?').run(
+        patch.model,
+        now,
+        id,
+      );
+    return rowToProvider(
+      db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as Record<string, unknown>,
+    );
   });
 
   ipcMain.handle(IPC.PROVIDER_DELETE, (_e, id: string) => {
@@ -99,14 +118,18 @@ export function registerProviderHandlers(): void {
     saveApiKey(id, apiKey);
     const suffix = getKeySuffix(id);
     const db = getDb();
-    db.prepare('UPDATE providers SET has_key = 1, key_suffix = ?, updated_at = ? WHERE id = ?').run(suffix, Date.now(), id);
+    db.prepare('UPDATE providers SET has_key = 1, key_suffix = ?, updated_at = ? WHERE id = ?').run(
+      suffix,
+      Date.now(),
+      id,
+    );
     return { ok: true as const };
   });
 
   ipcMain.handle(IPC.PROVIDER_HAS_KEY, (_e, id: string) => {
-    const row = getDb().prepare('SELECT type, has_key, key_suffix FROM providers WHERE id = ?').get(id) as
-      | { type: string; has_key: number; key_suffix: string | null }
-      | undefined;
+    const row = getDb()
+      .prepare('SELECT type, has_key, key_suffix FROM providers WHERE id = ?')
+      .get(id) as { type: string; has_key: number; key_suffix: string | null } | undefined;
     if (row?.type === 'doubao-web') {
       return { hasKey: Boolean(row.has_key), suffix: row.key_suffix };
     }
@@ -121,7 +144,9 @@ export function registerProviderHandlers(): void {
   ipcMain.handle(IPC.PROVIDER_WEB_LOGOUT, async () => {
     const result = await logoutDoubaoWeb();
     const db = getDb();
-    db.prepare("UPDATE providers SET has_key = 0, key_suffix = NULL, updated_at = ? WHERE type = 'doubao-web'").run(Date.now());
+    db.prepare(
+      "UPDATE providers SET has_key = 0, key_suffix = NULL, updated_at = ? WHERE type = 'doubao-web'",
+    ).run(Date.now());
     return result;
   });
   ipcMain.handle(IPC.PROVIDER_WEB_LOGIN_STATE, () => getDoubaoWebAccountStatus());
@@ -146,15 +171,16 @@ export function registerProviderHandlers(): void {
         row.id as string,
         row.base_url as string,
         row.model as string,
-        row.name as string
+        row.name as string,
       );
       logger.info('测试连接', `provider=${row.name}(${row.type})`);
       const result = await provider.validateConnection();
       if (isDoubaoWeb) {
         const shouldClearSessionState = result.code === 'AUTH';
         if (result.ok || shouldClearSessionState) {
-          db.prepare('UPDATE providers SET has_key = ?, key_suffix = ?, updated_at = ? WHERE id = ?')
-            .run(result.ok ? 1 : 0, result.ok ? '网页会话' : null, Date.now(), id);
+          db.prepare(
+            'UPDATE providers SET has_key = ?, key_suffix = ?, updated_at = ? WHERE id = ?',
+          ).run(result.ok ? 1 : 0, result.ok ? '网页会话' : null, Date.now(), id);
         }
       }
       logger.info('测试连接结果', `ok=${result.ok}`, result.message);
@@ -185,15 +211,19 @@ export function registerProviderHandlers(): void {
     const db = getDb();
     db.transaction(() => {
       db.prepare('UPDATE providers SET is_active = 0').run();
-      db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?').run(Date.now(), id);
+      db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?').run(
+        Date.now(),
+        id,
+      );
     })();
     return { ok: true as const };
   });
 
   subscribeDoubaoWebLogin((status) => {
     const db = getDb();
-    db.prepare("UPDATE providers SET has_key = ?, key_suffix = ?, updated_at = ? WHERE type = 'doubao-web'")
-      .run(status.loggedIn ? 1 : 0, status.loggedIn ? '网页会话' : null, Date.now());
+    db.prepare(
+      "UPDATE providers SET has_key = ?, key_suffix = ?, updated_at = ? WHERE type = 'doubao-web'",
+    ).run(status.loggedIn ? 1 : 0, status.loggedIn ? '网页会话' : null, Date.now());
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send(IPC.PROVIDER_WEB_LOGIN_CHANGED, status);
     }

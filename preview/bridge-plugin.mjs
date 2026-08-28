@@ -57,13 +57,62 @@ async function dispatch(channel, args) {
     // -------- BYOK text AI (preview-only Fake AI) --------
     case 'aiConnection:listPresets':
       return [
-        { id: 'deepseek', name: 'DeepSeek', routeKind: 'direct', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', hint: 'OpenAI-compatible API' },
-        { id: 'kimi', name: 'Kimi', routeKind: 'direct', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', hint: 'OpenAI-compatible API' },
-        { id: 'glm', name: 'GLM', routeKind: 'direct', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', hint: 'OpenAI-compatible API' },
-        { id: 'minimax', name: 'MiniMax', routeKind: 'direct', baseUrl: 'https://api.minimaxi.com/v1', model: 'MiniMax-M2.1', hint: 'OpenAI-compatible API' },
-        { id: 'litellm', name: 'LiteLLM', routeKind: 'gateway', baseUrl: 'http://localhost:4000/v1', model: 'default', hint: '外部网关' },
-        { id: 'new-api', name: 'New API', routeKind: 'gateway', baseUrl: 'http://localhost:3000/v1', model: 'default', hint: '外部网关' },
-        { id: 'custom', name: '自定义兼容接口', routeKind: 'gateway', baseUrl: 'https://example.com/v1', model: 'model-id', hint: 'OpenAI-compatible API' },
+        {
+          id: 'deepseek',
+          name: 'DeepSeek',
+          routeKind: 'direct',
+          baseUrl: 'https://api.deepseek.com/v1',
+          model: 'deepseek-chat',
+          hint: 'OpenAI-compatible API',
+        },
+        {
+          id: 'kimi',
+          name: 'Kimi',
+          routeKind: 'direct',
+          baseUrl: 'https://api.moonshot.cn/v1',
+          model: 'moonshot-v1-8k',
+          hint: 'OpenAI-compatible API',
+        },
+        {
+          id: 'glm',
+          name: 'GLM',
+          routeKind: 'direct',
+          baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+          model: 'glm-4-flash',
+          hint: 'OpenAI-compatible API',
+        },
+        {
+          id: 'minimax',
+          name: 'MiniMax',
+          routeKind: 'direct',
+          baseUrl: 'https://api.minimaxi.com/v1',
+          model: 'MiniMax-M2.1',
+          hint: 'OpenAI-compatible API',
+        },
+        {
+          id: 'litellm',
+          name: 'LiteLLM',
+          routeKind: 'gateway',
+          baseUrl: 'http://localhost:4000/v1',
+          model: 'default',
+          hint: '外部网关',
+        },
+        {
+          id: 'new-api',
+          name: 'New API',
+          routeKind: 'gateway',
+          baseUrl: 'http://localhost:3000/v1',
+          model: 'default',
+          hint: '外部网关',
+        },
+        {
+          id: 'custom',
+          name: '自定义兼容接口',
+          routeKind: 'gateway',
+          baseUrl: 'https://example.com/v1',
+          model: 'model-id',
+          hint: 'OpenAI-compatible API',
+        },
       ];
 
     case 'aiConnection:list':
@@ -95,7 +144,8 @@ async function dispatch(channel, args) {
         updatedAt: createdAt,
       };
       if (profile.isActive) {
-        for (const [id0, item] of previewAiConnections) previewAiConnections.set(id0, { ...item, isActive: false });
+        for (const [id0, item] of previewAiConnections)
+          previewAiConnections.set(id0, { ...item, isActive: false });
         activeAiConnectionId = id;
       }
       previewAiConnections.set(id, profile);
@@ -120,7 +170,12 @@ async function dispatch(channel, args) {
       const current = previewAiConnections.get(a0);
       if (!current) throw new Error('AI 连接不存在');
       previewAiKeys.set(a0, String(a1 ?? ''));
-      const updated = { ...current, hasKey: true, keySuffix: String(a1 ?? '').slice(-4), updatedAt: now() };
+      const updated = {
+        ...current,
+        hasKey: true,
+        keySuffix: String(a1 ?? '').slice(-4),
+        updatedAt: now(),
+      };
       previewAiConnections.set(a0, updated);
       return updated;
     }
@@ -150,20 +205,33 @@ async function dispatch(channel, args) {
 
     case 'aiConnection:listModels':
       if (!previewAiConnections.has(a0)) throw new Error('AI 连接不存在');
-      return [{ id: 'preview-text-model', name: 'preview-text-model', ownedBy: 'Musefold Fake AI' }];
+      return [
+        { id: 'preview-text-model', name: 'preview-text-model', ownedBy: 'Musefold Fake AI' },
+      ];
 
     case 'aiConnection:validate': {
       const current = previewAiConnections.get(a0);
       if (!current) throw new Error('AI 连接不存在');
       if (!previewAiKeys.has(a0)) {
-        return { ok: false, message: '尚未配置 API Key', models: [], capabilities: current.capabilities };
+        return {
+          ok: false,
+          message: '尚未配置 API Key',
+          models: [],
+          capabilities: current.capabilities,
+        };
       }
-      const capabilities = { ...current.capabilities, modelDiscovery: 'available', lastValidatedAt: now() };
+      const capabilities = {
+        ...current.capabilities,
+        modelDiscovery: 'available',
+        lastValidatedAt: now(),
+      };
       previewAiConnections.set(a0, { ...current, capabilities });
       return {
         ok: true,
         message: 'Fake AI 连接成功，共发现 1 个模型',
-        models: [{ id: 'preview-text-model', name: 'preview-text-model', ownedBy: 'Musefold Fake AI' }],
+        models: [
+          { id: 'preview-text-model', name: 'preview-text-model', ownedBy: 'Musefold Fake AI' },
+        ],
         capabilities,
       };
     }
@@ -276,7 +344,8 @@ async function dispatch(channel, args) {
       return { ok: true, image: null };
 
     case 'image:stageLocal': {
-      const sizeBytes = a0?.bytes?.byteLength ?? a0?.bytes?.length ?? Object.keys(a0?.bytes ?? {}).length;
+      const sizeBytes =
+        a0?.bytes?.byteLength ?? a0?.bytes?.length ?? Object.keys(a0?.bytes ?? {}).length;
       // 对齐真实契约（PickLocalImagesResult.images 数组）；path 用 data: URL，
       // toImageSrc 直通渲染，预览环境没有真实文件系统。
       const staged = {
@@ -291,14 +360,7 @@ async function dispatch(channel, args) {
 
     case 'image:generate': {
       // a0: GenerateImageRequest -> GenerateImageResult
-      const {
-        jobId,
-        providerId,
-        prompt,
-        model,
-        size = '1024x1024',
-        quality = 'auto',
-      } = a0 ?? {};
+      const { jobId, providerId, prompt, model, size = '1024x1024', quality = 'auto' } = a0 ?? {};
       const started = now();
       try {
         const { client, config } = clientFor(providerId ?? activeId);
@@ -366,7 +428,13 @@ async function dispatch(channel, args) {
     case 'system:backupNow': {
       const createdAt = now();
       const file = `backup-${createdAt}-manual.db`;
-      const info = { file, path: `Preview/Backups/${file}`, size: 262144, createdAt, kind: 'manual' };
+      const info = {
+        file,
+        path: `Preview/Backups/${file}`,
+        size: 262144,
+        createdAt,
+        kind: 'manual',
+      };
       previewBackups.unshift(info);
       return { path: info.path };
     }
@@ -461,7 +529,9 @@ async function dispatch(channel, args) {
     case 'prompt:update': {
       const current = previewPrompts.get(a0);
       if (!current) throw new Error('提示词不存在');
-      const patch = Object.fromEntries(Object.entries(a1 ?? {}).filter(([, value]) => value !== undefined));
+      const patch = Object.fromEntries(
+        Object.entries(a1 ?? {}).filter(([, value]) => value !== undefined),
+      );
       const updated = { ...current, ...patch, updatedAt: now() };
       previewPrompts.set(a0, updated);
       return updated;
@@ -513,9 +583,7 @@ export function previewApiBridge() {
             res.end(JSON.stringify({ ok: true, result }));
           } catch (err) {
             res.statusCode = 200; // 让前端拿到结构化错误，而非网络异常
-            res.end(
-              JSON.stringify({ ok: false, error: normalizeError(err) }),
-            );
+            res.end(JSON.stringify({ ok: false, error: normalizeError(err) }));
           }
         });
       });

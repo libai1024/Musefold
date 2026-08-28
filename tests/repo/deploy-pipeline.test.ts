@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest';
 import { REPO_ROOT } from '../../tooling/aliases.mjs';
 import { parseRestrictedYaml } from '../../.github/scripts/detect-layers.mjs';
 import { extractUpSource, lintMigrationSource } from '../../scripts/deploy/expand-contract.mjs';
-import { filesMatch, migrationDatabaseUrl, parseDotEnv, workerDatabaseUrl } from '../../scripts/deploy/infra-guard.mjs';
+import {
+  filesMatch,
+  migrationDatabaseUrl,
+  parseDotEnv,
+  workerDatabaseUrl,
+} from '../../scripts/deploy/infra-guard.mjs';
 import { deploy, parseLayers, waitHttp } from '../../scripts/deploy/run.mjs';
 import { emptyState, recordLayer } from '../../scripts/deploy/state.mjs';
 import {
@@ -146,7 +151,11 @@ describe('deploy orchestration', () => {
   });
 
   it('skips when no layers are requested', async () => {
-    const result = await deploy({ sha: 'abc1234', layers: { content: false, service: false }, dryRun: true });
+    const result = await deploy({
+      sha: 'abc1234',
+      layers: { content: false, service: false },
+      dryRun: true,
+    });
     expect(result.skipped).toBe(true);
   });
 
@@ -248,16 +257,26 @@ describe('deploy orchestration', () => {
     mkdirSync(join(repo, 'infra/v1.1'), { recursive: true });
     writeFileSync(join(repo, 'infra/v1.1/Caddyfile'), 'caddy\n');
     writeFileSync(join(repo, 'infra/v1.1/remote-compose.yaml'), 'compose\n');
-    writeFileSync(join(composeDir, '.env.v11'), 'DATABASE_URL=postgres://musefold_migration:x@db:5432/musefold\n');
+    writeFileSync(
+      join(composeDir, '.env.v11'),
+      'DATABASE_URL=postgres://musefold_migration:x@db:5432/musefold\n',
+    );
     writeFileSync(join(composeDir, 'docker-compose.yml'), 'HOST STACK\n');
-    writeFileSync(join(composeDir, '.deploy-state.json'), JSON.stringify({
-      web: { current: null, previous: null },
-      service: { current: 'deadbee', previous: null },
-    }));
+    writeFileSync(
+      join(composeDir, '.deploy-state.json'),
+      JSON.stringify({
+        web: { current: null, previous: null },
+        service: { current: 'deadbee', previous: null },
+      }),
+    );
     const commands = [];
     const exec = (command, args, options = {}) => {
       commands.push({ command, args, imageTag: options.env?.MUSEFOLD_IMAGE_TAG });
-      return { status: 0, stdout: command === 'docker' && args[0] === 'ps' ? 'caddy\n' : '', stderr: '' };
+      return {
+        status: 0,
+        stdout: command === 'docker' && args[0] === 'ps' ? 'caddy\n' : '',
+        stderr: '',
+      };
     };
     await expect(
       deploy({
@@ -273,14 +292,20 @@ describe('deploy orchestration', () => {
         envFile: join(composeDir, '.env.v11'),
         skipBuild: true,
         exec,
-        fetchImpl: async () => ({ ok: false, status: 503, text: async () => '{"status":"unavailable"}' }),
+        fetchImpl: async () => ({
+          ok: false,
+          status: 503,
+          text: async () => '{"status":"unavailable"}',
+        }),
         readyUrl: 'https://example.test/health/ready',
         readyTimeoutMs: 20,
         readyIntervalMs: 5,
       }),
     ).rejects.toThrow(/health\/ready/);
     const migrateAt = commands.findIndex((row) => row.args?.includes('db:migrate'));
-    const upAt = commands.findIndex((row) => row.args?.includes('--force-recreate') || row.args?.includes('force-recreate'));
+    const upAt = commands.findIndex(
+      (row) => row.args?.includes('--force-recreate') || row.args?.includes('force-recreate'),
+    );
     const rollbackAt = commands.findLastIndex(
       (row) => row.args?.includes('--force-recreate') && row.imageTag === 'deadbee',
     );
@@ -352,8 +377,10 @@ describe('CI and deploy workflow contracts', () => {
     expect(ci).toContain("if: needs.changes.outputs.shared_visual == 'true'");
     expect(ci).toContain('npm run test:visual:shared');
     expect(ci).toContain("if: needs.changes.outputs.openapi == 'true'");
-    expect(ci).toContain('OPENAPI_ENABLED: \'true\'');
-    expect(ci).toContain('MUSEFOLD_OPENAPI_URL: http://127.0.0.1:60160/api/musefold/v1/openapi.json');
+    expect(ci).toContain("OPENAPI_ENABLED: 'true'");
+    expect(ci).toContain(
+      'MUSEFOLD_OPENAPI_URL: http://127.0.0.1:60160/api/musefold/v1/openapi.json',
+    );
     expect(ci).toContain('npm run openapi:check');
     expect(ci).toContain("if: needs.changes.outputs.postgres_integration == 'true'");
     expect(ci).toContain('npm run test:integration:v1.1');
@@ -398,10 +425,14 @@ describe('CI and deploy workflow contracts', () => {
 
 describe('layer detection', () => {
   it('keeps detect-layers self-test green', () => {
-    const result = spawnSync(process.execPath, ['.github/scripts/detect-layers.mjs', '--self-test'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    });
+    const result = spawnSync(
+      process.execPath,
+      ['.github/scripts/detect-layers.mjs', '--self-test'],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+      },
+    );
     if (result.status !== 0) {
       throw new Error(result.stderr || result.stdout || 'detect-layers self-test failed');
     }

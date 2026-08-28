@@ -46,7 +46,16 @@ function renderSettings(section: Parameters<typeof WebSettingsView>[0]['section'
 describe('WebSettingsView', () => {
   it('exposes the complete eight-section settings information architecture', () => {
     const html = renderSettings();
-    for (const label of ['账号', '中转站', '偏好', '开放能力', '使用统计', '数据存储', '关于 App', '已归档聊天']) {
+    for (const label of [
+      '账号',
+      '中转站',
+      '偏好',
+      '开放能力',
+      '使用统计',
+      '数据存储',
+      '关于 App',
+      '已归档聊天',
+    ]) {
       expect(html).toContain(label);
     }
     expect(html).toContain('data-testid="web-settings-workspace"');

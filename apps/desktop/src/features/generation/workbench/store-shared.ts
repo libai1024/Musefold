@@ -3,9 +3,16 @@ import type {
   LocalImageReference,
 } from '@musefold/desktop-contracts/providers';
 import { useAppStore } from '../../../stores/app';
-import { DEFAULT_REFINE_PARAMS, type RefineParams, type RefineSource } from '../../../lib/generation-params';
+import {
+  DEFAULT_REFINE_PARAMS,
+  type RefineParams,
+  type RefineSource,
+} from '../../../lib/generation-params';
 import type { GenerationResultItem, GenerationSource, GenerationTurn } from './types';
-import type { GenerationRun, WorkbenchSessionDocument } from '@musefold/desktop-contracts/workbench';
+import type {
+  GenerationRun,
+  WorkbenchSessionDocument,
+} from '@musefold/desktop-contracts/workbench';
 import type {
   SkillRuntimeExecutionMode,
   SkillRuntimeSnapshot,
@@ -15,17 +22,25 @@ import { uniqueReferenceImages } from './imageReferences';
 import { setSessionUnread } from './sessionPreferences';
 import { workbenchSessionController } from './sessionController';
 import { resultStatus } from './generationSyncController';
-import { findDesktopWorkbenchSession, upsertDesktopWorkbenchSession } from './workbench-session-query';
+import {
+  type findDesktopWorkbenchSession,
+  upsertDesktopWorkbenchSession,
+} from './workbench-session-query';
 import type { WorkbenchGet } from './store-types';
 
 export const SKILL_RUNTIME_PROMPT_LIMIT = 8 * 1024 * 1024;
 let seq = 0;
-export const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
+export const uid = (prefix: string) =>
+  `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 export const mapTurnsEverywhere = workbenchSessionController.mapTurnsEverywhere.bind(
   workbenchSessionController,
 );
-export const findTurnAnywhere = workbenchSessionController.findTurn.bind(workbenchSessionController);
-export const cacheSessionTurns = workbenchSessionController.cacheTurns.bind(workbenchSessionController);
+export const findTurnAnywhere = workbenchSessionController.findTurn.bind(
+  workbenchSessionController,
+);
+export const cacheSessionTurns = workbenchSessionController.cacheTurns.bind(
+  workbenchSessionController,
+);
 export const sessionIdForTurn = workbenchSessionController.sessionIdForTurn.bind(
   workbenchSessionController,
 );
@@ -75,11 +90,11 @@ function parseSkillRuntimeSnapshot(candidate: unknown): SkillRuntimeSnapshot | n
     trace: value.trace.filter((item): item is SkillRuntimeTraceItem =>
       Boolean(
         item &&
-        typeof item === 'object' &&
-        typeof item.id === 'string' &&
-        typeof item.title === 'string' &&
-        ['tool', 'assistant', 'system'].includes(item.kind) &&
-        ['running', 'success', 'warning', 'error'].includes(item.status),
+          typeof item === 'object' &&
+          typeof item.id === 'string' &&
+          typeof item.title === 'string' &&
+          ['tool', 'assistant', 'system'].includes(item.kind) &&
+          ['running', 'success', 'warning', 'error'].includes(item.status),
       ),
     ),
   };

@@ -60,4 +60,3 @@ export const settingsPreferencesStorage = createMigratingJSONStorage<PersistedSe
   readLegacy: readLegacySettingsPreferences,
   clearLegacy: clearLegacySettingsPreferences,
 });
-

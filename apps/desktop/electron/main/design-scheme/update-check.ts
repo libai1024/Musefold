@@ -37,14 +37,19 @@ export async function checkSchemeUpdate(
   try {
     summary = repository.requireSummary(schemeId);
   } catch (error) {
-    return fail(appError('MISSING_REFERENCE', error instanceof Error ? error.message : '方案不存在', {
-      recoveryAction: 'retry',
-    }));
+    return fail(
+      appError('MISSING_REFERENCE', error instanceof Error ? error.message : '方案不存在', {
+        recoveryAction: 'retry',
+      }),
+    );
   }
   const base = repository.getRevisionDocument(summary.currentRevisionId);
-  if (!base) return fail(appError('MISSING_REFERENCE', '方案版本不存在', { recoveryAction: 'retry' }));
+  if (!base)
+    return fail(appError('MISSING_REFERENCE', '方案版本不存在', { recoveryAction: 'retry' }));
 
-  const repoBinding = base.sources.find((binding) => binding.kind.startsWith('github') && binding.uri);
+  const repoBinding = base.sources.find(
+    (binding) => binding.kind.startsWith('github') && binding.uri,
+  );
   if (!repoBinding?.uri) {
     return ok({ status: 'no-source', detail: '这个方案没有 GitHub 来源，不需要检查更新。' });
   }
@@ -53,7 +58,12 @@ export async function checkSchemeUpdate(
     const resolved = await resolveGithubSource(repoBinding.uri);
     if (deps.signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
     if (!resolved.ok) {
-      return fail(appError('NETWORK_ERROR', resolved.error.message, { retryable: true, recoveryAction: 'retry' }));
+      return fail(
+        appError('NETWORK_ERROR', resolved.error.message, {
+          retryable: true,
+          recoveryAction: 'retry',
+        }),
+      );
     }
     const source = resolved.data;
     if (source.commitHash && repoBinding.commit && source.commitHash === repoBinding.commit) {
@@ -65,31 +75,46 @@ export async function checkSchemeUpdate(
 
     const adapter = deps.resolveAdapter();
     if (!adapter) {
-      return fail(appError('AUTH_REQUIRED', '发现上游更新，但需要 Agent 重新编译。请先在「设置 → AI 连接」配置文本模型。', {
-        recoveryAction: 'configure-ai',
-      }));
+      return fail(
+        appError(
+          'AUTH_REQUIRED',
+          '发现上游更新，但需要 Agent 重新编译。请先在「设置 → AI 连接」配置文本模型。',
+          {
+            recoveryAction: 'configure-ai',
+          },
+        ),
+      );
     }
 
     const persisted = persistGithubSnapshot(deps.db, source, deps.userDataDir);
-    const { report } = await runRepositoryAnalyst(adapter, {
-      brief: base.compilation.briefExcerpt ?? '',
-      repositoryLabel: source.repositoryLabel,
-      textFiles: source.textFiles.map((file) => ({ path: file.path, text: file.text })),
-      imagePaths: source.imageFiles.map((file) => file.relativePath),
-      license: source.license,
-    }, deps.signal);
+    const { report } = await runRepositoryAnalyst(
+      adapter,
+      {
+        brief: base.compilation.briefExcerpt ?? '',
+        repositoryLabel: source.repositoryLabel,
+        textFiles: source.textFiles.map((file) => ({ path: file.path, text: file.text })),
+        imagePaths: source.imageFiles.map((file) => file.relativePath),
+        license: source.license,
+      },
+      deps.signal,
+    );
     if (deps.signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
-    const { output } = await runSchemeCompiler(adapter, {
-      brief: base.compilation.briefExcerpt ?? '',
-      repositoryLabel: source.repositoryLabel,
-      analystReport: report,
-    }, deps.signal);
+    const { output } = await runSchemeCompiler(
+      adapter,
+      {
+        brief: base.compilation.briefExcerpt ?? '',
+        repositoryLabel: source.repositoryLabel,
+        analystReport: report,
+      },
+      deps.signal,
+    );
     if (deps.signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
 
     // 基线是修改校验的锚点：正式方案已有待验证草稿时，在草稿之上继续更新。
-    const baseRevisionId = summary.status === 'formal' && summary.workingDraftRevisionId
-      ? summary.workingDraftRevisionId
-      : summary.currentRevisionId;
+    const baseRevisionId =
+      summary.status === 'formal' && summary.workingDraftRevisionId
+        ? summary.workingDraftRevisionId
+        : summary.currentRevisionId;
 
     const sources: SourceBinding[] = [];
     const briefBinding = base.sources.find((binding) => binding.kind === 'user-brief');
@@ -104,12 +129,14 @@ export async function checkSchemeUpdate(
       ...(source.commitHash ? { commit: source.commitHash } : {}),
       ...(source.license ? { license: source.license } : {}),
     });
-    const trace: CompilationTraceItem[] = [{
-      id: 'update-check',
-      title: '上游 Skill 更新',
-      detail: `commit ${repoBinding.commit?.slice(0, 10) ?? '未知'} → ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}`,
-      status: 'success',
-    }];
+    const trace: CompilationTraceItem[] = [
+      {
+        id: 'update-check',
+        title: '上游 Skill 更新',
+        detail: `commit ${repoBinding.commit?.slice(0, 10) ?? '未知'} → ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}`,
+        status: 'success',
+      },
+    ];
     const document: DesignSchemeRevisionDocument = {
       schemaVersion: base.schemaVersion,
       revisionId: `dsrv_${randomUUID()}`,
@@ -152,9 +179,10 @@ export async function checkSchemeUpdate(
     ]);
     return ok({
       status: 'draft-created',
-      detail: summary.status === 'formal'
-        ? `上游已更新到 commit ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}；新版本已保存为待验证草稿，正式版本保持可用。`
-        : `上游已更新到 commit ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}；草稿已更新，请重新试运行。`,
+      detail:
+        summary.status === 'formal'
+          ? `上游已更新到 commit ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}；新版本已保存为待验证草稿，正式版本保持可用。`
+          : `上游已更新到 commit ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}；草稿已更新，请重新试运行。`,
       scheme: saved.summary,
       revisionId: saved.document.revisionId,
     });

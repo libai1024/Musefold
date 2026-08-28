@@ -112,7 +112,11 @@ export const useAccountStore = create<AccountState>((set) => {
           // 发起（设置页、引导流、主进程自身），渲染层列表都要跟上。
           const loggedInBefore = useAccountStore.getState().status.loggedIn;
           desktopQueryClient.setQueryData(musefoldQueryKeys.account.status, status);
-          set({ status, loaded: true, ...(status.username ? { lastUsername: status.username } : {}) });
+          set({
+            status,
+            loaded: true,
+            ...(status.username ? { lastUsername: status.username } : {}),
+          });
           if (loggedInBefore !== status.loggedIn) void reloadManagedStacks();
         });
       }
@@ -120,35 +124,66 @@ export const useAccountStore = create<AccountState>((set) => {
       try {
         const status = await desktopExtras.accountStatus();
         desktopQueryClient.setQueryData(musefoldQueryKeys.account.status, status);
-        set({ status, loaded: true, loading: false, ...(status.username ? { lastUsername: status.username } : {}) });
+        set({
+          status,
+          loaded: true,
+          loading: false,
+          ...(status.username ? { lastUsername: status.username } : {}),
+        });
       } catch (error) {
         set({ loaded: true, loading: false, error: uiError(error) });
       }
     },
 
     login: async (input) => {
-      const status = await run('login', () => desktopExtras.accountLogin(input), (s) => s);
+      const status = await run(
+        'login',
+        () => desktopExtras.accountLogin(input),
+        (s) => s,
+      );
       set({ lastUsername: input.username });
       await reloadManagedStacks();
       return status;
     },
     register: async (input) => {
-      const status = await run('register', () => desktopExtras.accountRegister(input), (s) => s);
+      const status = await run(
+        'register',
+        () => desktopExtras.accountRegister(input),
+        (s) => s,
+      );
       set({ lastUsername: input.username });
       await reloadManagedStacks();
       return status;
     },
     logout: async () => {
       const before = useAccountStore.getState().status.username;
-      const status = await run('logout', () => desktopExtras.accountLogout(), (s) => s);
+      const status = await run(
+        'logout',
+        () => desktopExtras.accountLogout(),
+        (s) => s,
+      );
       if (before) set({ lastUsername: before });
       await reloadManagedStacks();
       return status;
     },
-    redeem: (code) => run('redeem', () => desktopExtras.accountRedeem(code), (result) => result.status),
-    refreshQuota: () => run('refresh', () => desktopExtras.accountRefreshQuota(), (status) => status),
+    redeem: (code) =>
+      run(
+        'redeem',
+        () => desktopExtras.accountRedeem(code),
+        (result) => result.status,
+      ),
+    refreshQuota: () =>
+      run(
+        'refresh',
+        () => desktopExtras.accountRefreshQuota(),
+        (status) => status,
+      ),
     setServerUrl: async (url) => {
-      const status = await run('server', () => desktopExtras.accountSetServerUrl(url), (s) => s);
+      const status = await run(
+        'server',
+        () => desktopExtras.accountSetServerUrl(url),
+        (s) => s,
+      );
       // 换服务器可能触发主进程回收托管条目，同样要重载。
       await reloadManagedStacks();
       return status;

@@ -76,7 +76,9 @@ export function coerceMigrationRecord(raw: unknown): PrefsOriginMigrationRecord 
       ? rec.status
       : 'pending';
   const exportAttempts =
-    typeof rec.exportAttempts === 'number' && Number.isFinite(rec.exportAttempts) && rec.exportAttempts >= 0
+    typeof rec.exportAttempts === 'number' &&
+    Number.isFinite(rec.exportAttempts) &&
+    rec.exportAttempts >= 0
       ? Math.floor(rec.exportAttempts)
       : 0;
   const next: PrefsOriginMigrationRecord = { status, exportAttempts };
@@ -86,7 +88,11 @@ export function coerceMigrationRecord(raw: unknown): PrefsOriginMigrationRecord 
   if (typeof rec.abandonedAt === 'number' && Number.isFinite(rec.abandonedAt)) {
     next.abandonedAt = rec.abandonedAt;
   }
-  if (typeof rec.migratedKeyCount === 'number' && Number.isFinite(rec.migratedKeyCount) && rec.migratedKeyCount >= 0) {
+  if (
+    typeof rec.migratedKeyCount === 'number' &&
+    Number.isFinite(rec.migratedKeyCount) &&
+    rec.migratedKeyCount >= 0
+  ) {
     next.migratedKeyCount = Math.floor(rec.migratedKeyCount);
   }
   return next;
@@ -110,9 +116,7 @@ export function decidePrepare(input: {
   return { run: true };
 }
 
-export function beginExportAttempt(
-  record: PrefsOriginMigrationRecord,
-): PrefsOriginMigrationRecord {
+export function beginExportAttempt(record: PrefsOriginMigrationRecord): PrefsOriginMigrationRecord {
   const current = coerceMigrationRecord(record);
   return {
     ...current,
@@ -219,9 +223,10 @@ export function isOriginMigrationPullHandlerReady(
   return listenerCount(IPC.PREFS_PULL_ORIGIN_MIGRATION) > 0;
 }
 
-export function consumePendingPayload(
-  pending: Record<string, string> | null,
-): { delivered: Record<string, string>; remaining: null } {
+export function consumePendingPayload(pending: Record<string, string> | null): {
+  delivered: Record<string, string>;
+  remaining: null;
+} {
   return { delivered: pending ? { ...pending } : {}, remaining: null };
 }
 

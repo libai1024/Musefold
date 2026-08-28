@@ -11,9 +11,9 @@ import { runMigrations } from './run-migrations';
 let dbInstance: Database.Database | null = null;
 
 function tableExists(db: Database.Database, table: string): boolean {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-  ).get(table));
+  return Boolean(
+    db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table),
+  );
 }
 
 export function migrateAndRemoveLegacyRecipeDatabase(
@@ -29,16 +29,19 @@ export function migrateAndRemoveLegacyRecipeDatabase(
   const legacy = new Database(path, { readonly: true, fileMustExist: true });
   try {
     if (
-      tableExists(legacy, 'workbench_sessions')
-      && tableExists(legacy, 'generation_runs')
-      && tableExists(legacy, 'generated_assets')
+      tableExists(legacy, 'workbench_sessions') &&
+      tableExists(legacy, 'generation_runs') &&
+      tableExists(legacy, 'generated_assets')
     ) {
-      const legacySessions = legacy.prepare(
-        `SELECT id, title, created_at, updated_at, archived_at, deleted_at
+      const legacySessions = legacy
+        .prepare(
+          `SELECT id, title, created_at, updated_at, archived_at, deleted_at
          FROM workbench_sessions`,
-      ).all() as Array<Record<string, unknown>>;
-      const runs = legacy.prepare(
-        `SELECT id, run_kind, workbench_session_id, workbench_turn_id, turn_index, result_index,
+        )
+        .all() as Array<Record<string, unknown>>;
+      const runs = legacy
+        .prepare(
+          `SELECT id, run_kind, workbench_session_id, workbench_turn_id, turn_index, result_index,
                 parent_run_id, retry_of_run_id, source_asset_id, provider_id, model, user_prompt,
                 base_prompt, refinement_instruction, final_prompt, negative_prompt, params_json,
                 prompt_snapshot_json, status, error_code, error_message, request_id, estimated_cost,
@@ -46,17 +49,26 @@ export function migrateAndRemoveLegacyRecipeDatabase(
          FROM generation_runs
          WHERE run_kind IN ('free_generation', 'refinement', 'retry')
          ORDER BY created_at, id`,
-      ).all() as Array<Record<string, unknown>>;
+        )
+        .all() as Array<Record<string, unknown>>;
       const runIds = new Set(runs.map((run) => String(run.id)));
       const sessionIds = new Set(
-        runs.map((run) => run.workbench_session_id).filter(Boolean).map(String),
+        runs
+          .map((run) => run.workbench_session_id)
+          .filter(Boolean)
+          .map(String),
       );
       const sessions = legacySessions.filter((session) => sessionIds.has(String(session.id)));
-      const assets = legacy.prepare(
-        `SELECT id, run_id, position, status, media_path, mime_type, width, height,
+      const assets = legacy
+        .prepare(
+          `SELECT id, run_id, position, status, media_path, mime_type, width, height,
                 file_size, checksum, created_at
          FROM generated_assets`,
-      ).all().filter((asset) => runIds.has(String((asset as Record<string, unknown>).run_id))) as Array<Record<string, unknown>>;
+        )
+        .all()
+        .filter((asset) => runIds.has(String((asset as Record<string, unknown>).run_id))) as Array<
+        Record<string, unknown>
+      >;
       const assetIds = new Set(assets.map((asset) => String(asset.id)));
 
       const insertSession = mainDb.prepare(

@@ -71,8 +71,9 @@ export function appError(
 }
 
 export function fieldPathFromSegments(path: ReadonlyArray<PropertyKey>): string | undefined {
-  const segments = path.filter((segment): segment is string | number => (
-    typeof segment === 'string' || typeof segment === 'number'
-  ));
+  const segments = path.filter(
+    (segment): segment is string | number =>
+      typeof segment === 'string' || typeof segment === 'number',
+  );
   return segments.length > 0 ? segments.map(String).join('.') : undefined;
 }

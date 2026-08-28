@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   Button,
   Dialog,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-} from "@musefold/ui";
+} from '@musefold/ui';
 
 export interface WorkbenchSessionRenameDialogProps {
   open: boolean;
@@ -27,10 +27,10 @@ export function WorkbenchSessionRenameDialog({
   onConfirm,
   busy = false,
 }: WorkbenchSessionRenameDialogProps) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState('');
 
   useEffect(() => {
-    if (open) setValue(title ?? "");
+    if (open) setValue(title ?? '');
   }, [open, title]);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -66,12 +66,7 @@ export function WorkbenchSessionRenameDialog({
             >
               取消
             </Button>
-            <Button
-              type="submit"
-              disabled={busy || !value.trim()}
-              busy={busy}
-              busyLabel="保存中"
-            >
+            <Button type="submit" disabled={busy || !value.trim()} busy={busy} busyLabel="保存中">
               保存
             </Button>
           </DialogFooter>

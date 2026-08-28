@@ -11,7 +11,10 @@ export function normalizeNewlines(text) {
 
 export function filesMatch(leftPath, rightPath) {
   if (!existsSync(leftPath) || !existsSync(rightPath)) return false;
-  return normalizeNewlines(readFileSync(leftPath, 'utf8')) === normalizeNewlines(readFileSync(rightPath, 'utf8'));
+  return (
+    normalizeNewlines(readFileSync(leftPath, 'utf8')) ===
+    normalizeNewlines(readFileSync(rightPath, 'utf8'))
+  );
 }
 
 export function publishInfraFile(repoFile, liveFile, archiveDir) {

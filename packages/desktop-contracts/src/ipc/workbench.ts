@@ -7,7 +7,7 @@ import type {
   WorkbenchSessionDocument,
   WorkbenchSessionListQuery,
   WorkbenchSessionListResult,
-} from "../workbench";
+} from '../workbench';
 
 export interface WorkbenchSessionApi {
   ensure: (command: EnsureWorkbenchSessionCommand) => Promise<WorkbenchSession>;

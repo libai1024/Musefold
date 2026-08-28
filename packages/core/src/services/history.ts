@@ -40,17 +40,20 @@ export function rowToHistory(row: unknown): HistoryRecord {
     costUnit: 'point',
     durationMs: (r.duration_ms as number) ?? null,
     createdAt: r.created_at as number,
-    parentHistoryId: typeof parentHistoryId === 'string' && parentHistoryId ? parentHistoryId : undefined,
+    parentHistoryId:
+      typeof parentHistoryId === 'string' && parentHistoryId ? parentHistoryId : undefined,
   };
 }
 
 export function referencesForHistory(db: Database.Database, historyId: string): PromptReference[] {
-  const rows = db.prepare(
-    `SELECT prompt_id, prompt_title, excerpt, scope
+  const rows = db
+    .prepare(
+      `SELECT prompt_id, prompt_title, excerpt, scope
      FROM history_prompt_references
      WHERE history_id = ?
      ORDER BY sort_order`,
-  ).all(historyId) as Array<{
+    )
+    .all(historyId) as Array<{
     prompt_id: string | null;
     prompt_title: string;
     excerpt: string;
@@ -113,7 +116,10 @@ export function createHistoryService(db: () => Database.Database = getDb): Histo
   return {
     list(query = {}) {
       const { sql, values } = buildHistoryListSql(query);
-      return db().prepare(sql).all(...values).map(rowToHistory);
+      return db()
+        .prepare(sql)
+        .all(...values)
+        .map(rowToHistory);
     },
     get(id) {
       const row = db().prepare('SELECT * FROM history WHERE id = ?').get(id);

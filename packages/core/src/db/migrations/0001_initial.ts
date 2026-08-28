@@ -13,7 +13,7 @@ export function up(db: Database.Database): void {
   // 预设标签 seed
   const now = Date.now();
   const insertTag = db.prepare(
-    'INSERT OR IGNORE INTO tags (id, name, tag_group, created_at) VALUES (?, ?, ?, ?)'
+    'INSERT OR IGNORE INTO tags (id, name, tag_group, created_at) VALUES (?, ?, ?, ?)',
   );
   for (const { group, tags } of SEED_TAG_GROUPS) {
     for (const name of tags) {

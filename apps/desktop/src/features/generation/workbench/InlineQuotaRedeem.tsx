@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { useAccountStore } from "@renderer/runtime/account-access";
+import { useState, type FormEvent } from 'react';
+import { useAccountStore } from '@renderer/runtime/account-access';
 
 /**
  * 额度不足的就地恢复：在失败卡上直接兑换，成功后自动重试本张。
@@ -14,7 +14,7 @@ export function InlineQuotaRedeem({
 }) {
   const redeem = useAccountStore((s) => s.redeem);
   const [open, setOpen] = useState(false);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -38,12 +38,12 @@ export function InlineQuotaRedeem({
     setMessage(null);
     try {
       await redeem(code.trim());
-      setMessage("已到账，正在重试…");
+      setMessage('已到账，正在重试…');
       setOpen(false);
       onRetry();
     } catch (error) {
       const e = error as { message?: string };
-      setMessage(e?.message || "兑换失败，请检查兑换码后重试");
+      setMessage(e?.message || '兑换失败，请检查兑换码后重试');
     } finally {
       setBusy(false);
     }
@@ -70,7 +70,7 @@ export function InlineQuotaRedeem({
           className="no-drag rounded-full border border-danger/35 px-3 py-1 text-meta font-medium text-danger transition-colors hover:border-danger disabled:opacity-45"
           data-testid="result-redeem-submit"
         >
-          {busy ? "兑换中…" : "兑换并重试"}
+          {busy ? '兑换中…' : '兑换并重试'}
         </button>
         <button
           type="button"
@@ -83,11 +83,7 @@ export function InlineQuotaRedeem({
           取消
         </button>
       </div>
-      {message && (
-        <span className="text-center text-meta leading-relaxed">
-          {message}
-        </span>
-      )}
+      {message && <span className="text-center text-meta leading-relaxed">{message}</span>}
     </form>
   );
 }

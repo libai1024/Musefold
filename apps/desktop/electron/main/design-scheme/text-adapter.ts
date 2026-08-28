@@ -165,12 +165,12 @@ export interface StructuredCallResult<T> {
   retried: boolean;
 }
 
-type StructuredAttempt<T> =
-  | { ok: true; value: T; model: string }
-  | { ok: false; issues: string[] };
+type StructuredAttempt<T> = { ok: true; value: T; model: string } | { ok: false; issues: string[] };
 
 /** 结构化角色调用：一次校验失败后带 issues 重试一次（规范 §3.2）。 */
-export async function completeStructured<T>(options: StructuredCallOptions<T>): Promise<StructuredCallResult<T>> {
+export async function completeStructured<T>(
+  options: StructuredCallOptions<T>,
+): Promise<StructuredCallResult<T>> {
   const attempt = async (extraUser?: string): Promise<StructuredAttempt<T>> => {
     const completion = await options.adapter.complete({
       system: options.system,
@@ -189,7 +189,9 @@ export async function completeStructured<T>(options: StructuredCallOptions<T>): 
     if (!checked.success) {
       return {
         ok: false,
-        issues: checked.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`),
+        issues: checked.error.issues.map(
+          (issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`,
+        ),
       };
     }
     return { ok: true, value: checked.data, model: completion.model };
@@ -209,5 +211,7 @@ export async function completeStructured<T>(options: StructuredCallOptions<T>): 
   if (second.ok) {
     return { value: second.value, model: second.model, retried: true };
   }
-  throw new Error(`${options.label}的 AI 返回两次都未通过校验：${second.issues.slice(0, 3).join('；')}`);
+  throw new Error(
+    `${options.label}的 AI 返回两次都未通过校验：${second.issues.slice(0, 3).join('；')}`,
+  );
 }

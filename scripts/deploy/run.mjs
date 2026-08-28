@@ -3,7 +3,12 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadDotEnv, migrationDatabaseUrl, publishInfraFile, workerDatabaseUrl } from './infra-guard.mjs';
+import {
+  loadDotEnv,
+  migrationDatabaseUrl,
+  publishInfraFile,
+  workerDatabaseUrl,
+} from './infra-guard.mjs';
 import { recordLayer, readDeployState, writeDeployState } from './state.mjs';
 import {
   DEFAULT_KEEP,
@@ -86,7 +91,10 @@ export function createExec(runner = spawnSync) {
   };
 }
 
-export async function waitHttp(url, { timeoutMs = 120_000, intervalMs = 2000, expectText, expectRe, fetchImpl = fetch } = {}) {
+export async function waitHttp(
+  url,
+  { timeoutMs = 120_000, intervalMs = 2000, expectText, expectRe, fetchImpl = fetch } = {},
+) {
   const start = Date.now();
   let last = 'not attempted';
   while (Date.now() - start < timeoutMs) {
@@ -95,7 +103,8 @@ export async function waitHttp(url, { timeoutMs = 120_000, intervalMs = 2000, ex
       const text = await response.text();
       const matchesText = !expectText || text.includes(expectText) || text.trim() === expectText;
       const matchesRe = !expectRe || expectRe.test(text);
-      if (response.ok && matchesText && matchesRe) return { ok: true, status: response.status, text };
+      if (response.ok && matchesText && matchesRe)
+        return { ok: true, status: response.status, text };
       last = `${response.status} ${text.slice(0, 180)}`;
     } catch (error) {
       last = error instanceof Error ? error.message : String(error);
@@ -121,18 +130,39 @@ export function extractWebDist({ exec, image, dest }) {
 }
 
 export function buildImage({ exec, repoRoot, image, sha, cpus, memory }) {
-  const args = ['build', '--cpus', String(cpus), '--memory', String(memory), '-t', `${image}:${sha}`, '-f', 'infra/v1.1/Dockerfile', '.'];
+  const args = [
+    'build',
+    '--cpus',
+    String(cpus),
+    '--memory',
+    String(memory),
+    '-t',
+    `${image}:${sha}`,
+    '-f',
+    'infra/v1.1/Dockerfile',
+    '.',
+  ];
   try {
     dockerRun(exec, args, { cwd: repoRoot });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (!/memory|cpus|cgroup/i.test(message)) throw error;
-    dockerRun(exec, ['build', '-t', `${image}:${sha}`, '-f', 'infra/v1.1/Dockerfile', '.'], { cwd: repoRoot });
+    dockerRun(exec, ['build', '-t', `${image}:${sha}`, '-f', 'infra/v1.1/Dockerfile', '.'], {
+      cwd: repoRoot,
+    });
   }
 }
 
 function composeArgs(composeDir, composeFile, remoteComposeFile, envFile) {
-  const args = ['compose', '--project-directory', composeDir, '-f', composeFile, '-f', remoteComposeFile];
+  const args = [
+    'compose',
+    '--project-directory',
+    composeDir,
+    '-f',
+    composeFile,
+    '-f',
+    remoteComposeFile,
+  ];
   if (envFile) args.push('--env-file', envFile);
   return args;
 }
@@ -150,7 +180,9 @@ export function migrateAndRoll({
   const env = { ...process.env, ...loadDotEnv(envFile), MUSEFOLD_IMAGE_TAG: sha };
   const migrationUrl = migrationDatabaseUrl(env);
   if (!migrationUrl) {
-    throw new Error('MIGRATION_DATABASE_URL / MIGRATION_DB_PASSWORD / DATABASE_URL missing in compose env file');
+    throw new Error(
+      'MIGRATION_DATABASE_URL / MIGRATION_DB_PASSWORD / DATABASE_URL missing in compose env file',
+    );
   }
   const workerUrl = workerDatabaseUrl(env);
   const fileArgs = envFile ? ['--env-file', envFile] : [];
@@ -196,16 +228,40 @@ export function migrateAndRoll({
 
   dockerRun(
     exec,
-    [...composeArgs(composeDir, composeFile, remoteComposeFile, envFile), 'up', '-d', '--no-deps', '--force-recreate', 'v11-web-api', 'v11-worker'],
+    [
+      ...composeArgs(composeDir, composeFile, remoteComposeFile, envFile),
+      'up',
+      '-d',
+      '--no-deps',
+      '--force-recreate',
+      'v11-web-api',
+      'v11-worker',
+    ],
     { cwd: composeDir, env },
   );
 }
 
-export function rollbackService({ exec, composeDir, composeFile, remoteComposeFile, image, sha, envFile }) {
+export function rollbackService({
+  exec,
+  composeDir,
+  composeFile,
+  remoteComposeFile,
+  image,
+  sha,
+  envFile,
+}) {
   const env = { ...process.env, ...loadDotEnv(envFile), MUSEFOLD_IMAGE_TAG: sha };
   dockerRun(
     exec,
-    [...composeArgs(composeDir, composeFile, remoteComposeFile, envFile), 'up', '-d', '--no-deps', '--force-recreate', 'v11-web-api', 'v11-worker'],
+    [
+      ...composeArgs(composeDir, composeFile, remoteComposeFile, envFile),
+      'up',
+      '-d',
+      '--no-deps',
+      '--force-recreate',
+      'v11-web-api',
+      'v11-worker',
+    ],
     { cwd: composeDir, env },
   );
   dockerRun(exec, ['tag', `${image}:${sha}`, `${image}:latest`], { allowFail: true });
@@ -219,7 +275,9 @@ export function reloadCaddy(exec) {
     .filter(Boolean);
   const caddy = names.find((name) => /caddy/i.test(name));
   if (!caddy) return false;
-  dockerRun(exec, ['exec', caddy, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile'], { allowFail: true });
+  dockerRun(exec, ['exec', caddy, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile'], {
+    allowFail: true,
+  });
   return true;
 }
 

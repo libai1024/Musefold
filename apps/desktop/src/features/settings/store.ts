@@ -75,19 +75,23 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       section: 'account',
-      setSection: (input) => set((state) => ({
-        section: resolveSection(input),
-        relayTab: input === 'providers' || input === 'ai' ? input : state.relayTab,
-      })),
+      setSection: (input) =>
+        set((state) => ({
+          section: resolveSection(input),
+          relayTab: input === 'providers' || input === 'ai' ? input : state.relayTab,
+        })),
       relayTab: 'providers',
       setRelayTab: (relayTab) => set({ relayTab }),
       accountImageSource: initialAccountImageSource,
       setAccountImageSource: (accountImageSource) => set({ accountImageSource }),
       accountSetupRequest: null,
       requestAccountSetup: (requestId, mode) => set({ accountSetupRequest: { requestId, mode } }),
-      consumeAccountSetup: (requestId) => set((state) => (
-        state.accountSetupRequest?.requestId === requestId ? { accountSetupRequest: null } : state
-      )),
+      consumeAccountSetup: (requestId) =>
+        set((state) =>
+          state.accountSetupRequest?.requestId === requestId
+            ? { accountSetupRequest: null }
+            : state,
+        ),
       doubaoForeground: false,
       setDoubaoForeground: (visible) => set({ doubaoForeground: visible }),
     }),

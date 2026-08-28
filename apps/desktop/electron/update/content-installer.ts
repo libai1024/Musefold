@@ -53,10 +53,7 @@ export type ContentInstallResult =
   | { status: 'incomplete_bundle' }
   | { status: 'disk_error' };
 
-export type ContentInstallFetch = (
-  input: string | URL,
-  init?: RequestInit,
-) => Promise<Response>;
+export type ContentInstallFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export type InstallContentBundleDeps = {
   fetch?: ContentInstallFetch;
@@ -188,11 +185,7 @@ function conclude(
       `elapsedMs=${elapsedMs}`,
     );
   } else if (FAILURE_STATUSES.has(result.status)) {
-    const parts = [
-      `version=${versionLabel}`,
-      `reason=${result.status}`,
-      `elapsedMs=${elapsedMs}`,
-    ];
+    const parts = [`version=${versionLabel}`, `reason=${result.status}`, `elapsedMs=${elapsedMs}`];
     if (typeof bytes === 'number' && bytes > 0) parts.splice(2, 0, `bytes=${bytes}`);
     logger.warn('content bundle install failed', ...parts);
   }

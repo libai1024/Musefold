@@ -15,7 +15,7 @@ export function defaultHistoryPromptTitle(
 
 export function historyRecordToPromptInput(
   record: DesktopGenerationEntry,
-  title?: string
+  title?: string,
 ): NewPrompt {
   return {
     title: title?.trim() || defaultHistoryPromptTitle(record),

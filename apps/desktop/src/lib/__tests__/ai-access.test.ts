@@ -16,14 +16,18 @@ describe('AI access source helpers', () => {
 
   it('treats Doubao and official providers as account mode', () => {
     expect(accessModeOfProvider({ type: 'doubao-web', managedBy: null })).toBe('account');
-    expect(accessModeOfProvider({ type: 'openai-compatible', managedBy: 'account' })).toBe('account');
+    expect(accessModeOfProvider({ type: 'openai-compatible', managedBy: 'account' })).toBe(
+      'account',
+    );
     expect(accessModeOfProvider({ type: 'openai-compatible', managedBy: null })).toBe('relay');
     expect(accessModeOfProvider(null)).toBeNull();
   });
 
   it('identifies the selected account image source from the active provider', () => {
     expect(accountImageSourceOfProvider({ type: 'doubao-web', managedBy: null })).toBe('doubao');
-    expect(accountImageSourceOfProvider({ type: 'openai-compatible', managedBy: 'account' })).toBe('official');
+    expect(accountImageSourceOfProvider({ type: 'openai-compatible', managedBy: 'account' })).toBe(
+      'official',
+    );
     expect(accountImageSourceOfProvider({ type: 'openai-compatible', managedBy: null })).toBeNull();
   });
 
@@ -51,10 +55,12 @@ describe('AI access source helpers', () => {
     const image = vi.fn(async () => ({ ok: true }));
     const agent = vi.fn(async () => ({ ok: true }));
 
-    await expect(verifyAiAccessConnectivity([
-      { label: '生图', run: image },
-      { label: 'Agent', run: agent },
-    ])).resolves.toBeUndefined();
+    await expect(
+      verifyAiAccessConnectivity([
+        { label: '生图', run: image },
+        { label: 'Agent', run: agent },
+      ]),
+    ).resolves.toBeUndefined();
     expect(image).toHaveBeenCalledOnce();
     expect(agent).toHaveBeenCalledOnce();
   });
@@ -65,10 +71,12 @@ describe('AI access source helpers', () => {
       throw new Error('网关超时');
     });
 
-    await expect(verifyAiAccessConnectivity([
-      { label: '生图', run: image },
-      { label: 'Agent', run: agent },
-    ])).rejects.toThrow('生图：模型不可用；Agent：网关超时');
+    await expect(
+      verifyAiAccessConnectivity([
+        { label: '生图', run: image },
+        { label: 'Agent', run: agent },
+      ]),
+    ).rejects.toThrow('生图：模型不可用；Agent：网关超时');
     expect(image).toHaveBeenCalledOnce();
     expect(agent).toHaveBeenCalledOnce();
   });

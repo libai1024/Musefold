@@ -18,12 +18,25 @@ function documentFixture(): DesignSchemeRevisionDocument {
     sources: [{ id: 'src_brief', kind: 'user-brief', role: 'context' }],
     inputs: [
       { id: 'topic', label: '主题', kind: 'text', required: true },
-      { id: 'main_image', label: '主体图片', kind: 'image', required: true, imageRole: 'subject-reference' },
+      {
+        id: 'main_image',
+        label: '主体图片',
+        kind: 'image',
+        required: true,
+        imageRole: 'subject-reference',
+      },
     ],
     parameters: [],
     constraints: [],
     promptProgram: [
-      { id: 'pm_1', order: 0, kind: 'input-template', template: '{{topic}}', variables: ['topic'], sourceIds: ['src_brief'] },
+      {
+        id: 'pm_1',
+        order: 0,
+        kind: 'input-template',
+        template: '{{topic}}',
+        variables: ['topic'],
+        sourceIds: ['src_brief'],
+      },
     ],
     compilation: {
       compiledAt: 1,
@@ -89,7 +102,9 @@ describe('DesignSchemeRepository 运行切片', () => {
 
   it('封面只能选择本方案的资产', () => {
     completeTrialRun();
-    expect(() => repository.selectCover('dsch_run_1', 'dsa_not_exists')).toThrow(/本方案的试运行结果/);
+    expect(() => repository.selectCover('dsch_run_1', 'dsa_not_exists')).toThrow(
+      /本方案的试运行结果/,
+    );
   });
 
   it('结构化编辑：图片槽位改可选并删除 → 新 revision，试运行校验重置', () => {
@@ -116,31 +131,44 @@ describe('DesignSchemeRepository 运行切片', () => {
 
   it('结构化编辑守卫：模板引用的文本槽位不可删，过期版本/新增槽位被拒绝', () => {
     // topic 被 {{topic}} 引用 → 删除被拒
-    expect(() => repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
-      { id: 'main_image', required: true },
-    ])).toThrow(/被方案提示词模板引用/);
+    expect(() =>
+      repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
+        { id: 'main_image', required: true },
+      ]),
+    ).toThrow(/被方案提示词模板引用/);
     // 新增未知槽位被拒
-    expect(() => repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
-      { id: 'topic', required: true },
-      { id: 'brand_new', required: false },
-    ])).toThrow(/新增/);
+    expect(() =>
+      repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
+        { id: 'topic', required: true },
+        { id: 'brand_new', required: false },
+      ]),
+    ).toThrow(/新增/);
     // 基于过期 revision 编辑被拒
     const { summary } = repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
       { id: 'topic', required: true },
       { id: 'main_image', required: false },
     ]);
-    expect(() => repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
-      { id: 'topic', required: true },
-    ])).toThrow(/更新版本/);
+    expect(() =>
+      repository.updateRevisionInputs('dsch_run_1', 'dsrv_run_1', [
+        { id: 'topic', required: true },
+      ]),
+    ).toThrow(/更新版本/);
     // 正式方案不允许结构化编辑
     const assetId = repository.insertLocalRunAsset(summary.currentRevisionId, '/tmp/x.png');
-    repository.insertRun({ runId: 'dsr_new', revisionId: summary.currentRevisionId, mode: 'trial', policy: {} });
+    repository.insertRun({
+      runId: 'dsr_new',
+      revisionId: summary.currentRevisionId,
+      mode: 'trial',
+      policy: {},
+    });
     repository.updateRunStatus('dsr_new', 'completed');
     repository.selectCover('dsch_run_1', assetId);
     repository.formalize('dsch_run_1');
-    expect(() => repository.updateRevisionInputs('dsch_run_1', summary.currentRevisionId, [
-      { id: 'topic', required: true },
-    ])).toThrow(/正式方案/);
+    expect(() =>
+      repository.updateRevisionInputs('dsch_run_1', summary.currentRevisionId, [
+        { id: 'topic', required: true },
+      ]),
+    ).toThrow(/正式方案/);
   });
 
   it('listAssets 返回方案全部相册资产（详情页数据源）', () => {
@@ -155,20 +183,37 @@ describe('DesignSchemeRepository 运行切片', () => {
       role: 'example',
       origin: 'local-run',
     });
-    expect(assets.map((asset) => asset.path)).toEqual(expect.arrayContaining(['/tmp/a.png', '/tmp/b.png']));
+    expect(assets.map((asset) => asset.path)).toEqual(
+      expect.arrayContaining(['/tmp/a.png', '/tmp/b.png']),
+    );
     // 其他方案查不到这些资产
     expect(repository.listAssets('dsch_other')).toEqual([]);
   });
 
   it('失败/取消的试运行不计入成功记录', () => {
-    repository.insertRun({ runId: 'dsr_fail', revisionId: 'dsrv_run_1', mode: 'trial', policy: {} });
+    repository.insertRun({
+      runId: 'dsr_fail',
+      revisionId: 'dsrv_run_1',
+      mode: 'trial',
+      policy: {},
+    });
     repository.updateRunStatus('dsr_fail', 'failed');
-    repository.insertRun({ runId: 'dsr_cancel', revisionId: 'dsrv_run_1', mode: 'trial', policy: {} });
+    repository.insertRun({
+      runId: 'dsr_cancel',
+      revisionId: 'dsrv_run_1',
+      mode: 'trial',
+      policy: {},
+    });
     repository.updateRunStatus('dsr_cancel', 'cancelled');
     expect(repository.hasSuccessfulTrial('dsrv_run_1')).toBe(false);
 
     // 正式模式的运行也不满足「本机试运行」要求。
-    repository.insertRun({ runId: 'dsr_formal', revisionId: 'dsrv_run_1', mode: 'formal', policy: {} });
+    repository.insertRun({
+      runId: 'dsr_formal',
+      revisionId: 'dsrv_run_1',
+      mode: 'formal',
+      policy: {},
+    });
     repository.updateRunStatus('dsr_formal', 'completed');
     expect(repository.hasSuccessfulTrial('dsrv_run_1')).toBe(false);
   });
@@ -179,7 +224,12 @@ describe('DesignSchemeRepository 运行切片', () => {
     const afterTrial = repository.requireSummary('dsch_run_1').lastRunAt;
     expect(afterTrial).toBeTypeOf('number');
     // 失败运行不更新最近使用
-    repository.insertRun({ runId: 'dsr_fail_last', revisionId: 'dsrv_run_1', mode: 'formal', policy: {} });
+    repository.insertRun({
+      runId: 'dsr_fail_last',
+      revisionId: 'dsrv_run_1',
+      mode: 'formal',
+      policy: {},
+    });
     repository.updateRunStatus('dsr_fail_last', 'failed');
     expect(repository.requireSummary('dsch_run_1').lastRunAt).toBe(afterTrial);
   });
@@ -212,11 +262,34 @@ describe('DesignSchemeRepository 运行切片', () => {
     expect(repository.listSourceFiles('dsch_run_1')).toEqual([]);
 
     const snapshot = repository.saveSourceSnapshot({
-      package: { id: 'pkg_src', kind: 'github', repositoryUrl: 'https://github.com/acme/poster', license: 'MIT' },
-      snapshot: { id: 'snap_src', ref: 'main', commitHash: 'abc123def456', totalBytes: 30, scan: {} },
+      package: {
+        id: 'pkg_src',
+        kind: 'github',
+        repositoryUrl: 'https://github.com/acme/poster',
+        license: 'MIT',
+      },
+      snapshot: {
+        id: 'snap_src',
+        ref: 'main',
+        commitHash: 'abc123def456',
+        totalBytes: 30,
+        scan: {},
+      },
       files: [
-        { path: 'SKILL.md', kind: 'text', contentHash: 'h1', sizeBytes: 20, textContent: '# 规则\n双色印刷' },
-        { path: 'examples/a.png', kind: 'image', contentHash: 'h2', sizeBytes: 10, storeKey: 'design-scheme-sources/snap_src/examples/a.png' },
+        {
+          path: 'SKILL.md',
+          kind: 'text',
+          contentHash: 'h1',
+          sizeBytes: 20,
+          textContent: '# 规则\n双色印刷',
+        },
+        {
+          path: 'examples/a.png',
+          kind: 'image',
+          contentHash: 'h2',
+          sizeBytes: 10,
+          storeKey: 'design-scheme-sources/snap_src/examples/a.png',
+        },
       ],
     });
     db.prepare(
@@ -233,8 +306,12 @@ describe('DesignSchemeRepository 运行切片', () => {
       license: 'MIT',
     });
     expect(details[0].files).toHaveLength(2);
-    expect(details[0].files.find((file) => file.path === 'SKILL.md')?.textExcerpt).toContain('双色印刷');
-    expect(details[0].files.find((file) => file.path === 'examples/a.png')?.storeKey).toContain('snap_src');
+    expect(details[0].files.find((file) => file.path === 'SKILL.md')?.textExcerpt).toContain(
+      '双色印刷',
+    );
+    expect(details[0].files.find((file) => file.path === 'examples/a.png')?.storeKey).toContain(
+      'snap_src',
+    );
   });
 
   it('applyAgentRevision（草稿）：新 revision 直接替换当前版本，过期基线被拒绝', () => {
@@ -244,17 +321,23 @@ describe('DesignSchemeRepository 运行切片', () => {
       name: '修改后的方案',
       summary: '标题区域更宽',
     };
-    const { summary, document } = repository.applyAgentRevision('dsch_run_1', 'dsrv_run_1', revised);
+    const { summary, document } = repository.applyAgentRevision(
+      'dsch_run_1',
+      'dsrv_run_1',
+      revised,
+    );
     expect(summary.status).toBe('draft');
     expect(summary.currentRevisionId).toBe('dsrv_run_2');
     expect(summary.workingDraftRevisionId).toBeNull();
     expect(summary.name).toBe('修改后的方案');
     expect(document.revisionId).toBe('dsrv_run_2');
     // 来源绑定继承基线；基于过期基线的修改被拒绝
-    expect(() => repository.applyAgentRevision('dsch_run_1', 'dsrv_run_1', {
-      ...documentFixture(),
-      revisionId: 'dsrv_run_3',
-    })).toThrow(/更新版本/);
+    expect(() =>
+      repository.applyAgentRevision('dsch_run_1', 'dsrv_run_1', {
+        ...documentFixture(),
+        revisionId: 'dsrv_run_3',
+      }),
+    ).toThrow(/更新版本/);
   });
 
   it('applyAgentRevision（正式）→ promoteWorkingDraft：正式版本保持可用，新版本试运行后才替换', () => {
@@ -288,7 +371,12 @@ describe('DesignSchemeRepository 运行切片', () => {
     expect(secondPass.summary.workingDraftRevisionId).toBe('dsrv_working_2');
 
     // 完成新版本的本机试运行后可替换
-    repository.insertRun({ runId: 'dsr_wd', revisionId: 'dsrv_working_2', mode: 'trial', policy: {} });
+    repository.insertRun({
+      runId: 'dsr_wd',
+      revisionId: 'dsrv_working_2',
+      mode: 'trial',
+      policy: {},
+    });
     repository.updateRunStatus('dsr_wd', 'completed');
     const promoted = repository.promoteWorkingDraft('dsch_run_1');
     expect(promoted.currentRevisionId).toBe('dsrv_working_2');
@@ -303,26 +391,46 @@ describe('DesignSchemeRepository 运行切片', () => {
       snapshot: { id: 'snap_upd', ref: 'main', commitHash: 'ffff0000', totalBytes: 0, scan: {} },
       files: [],
     });
-    const { document } = repository.applyAgentRevision('dsch_run_1', 'dsrv_run_1', {
-      ...documentFixture(),
-      revisionId: 'dsrv_upd_1',
-    }, [{ snapshotId: snapshot.snapshotId, role: 'normative' }]);
-    const bindings = db.prepare(
-      'SELECT source_snapshot_id, role FROM design_scheme_source_bindings WHERE revision_id = ?',
-    ).all(document.revisionId) as Array<{ source_snapshot_id: string; role: string }>;
-    expect(bindings).toEqual(expect.arrayContaining([
-      { source_snapshot_id: 'snap_upd', role: 'normative' },
-    ]));
+    const { document } = repository.applyAgentRevision(
+      'dsch_run_1',
+      'dsrv_run_1',
+      {
+        ...documentFixture(),
+        revisionId: 'dsrv_upd_1',
+      },
+      [{ snapshotId: snapshot.snapshotId, role: 'normative' }],
+    );
+    const bindings = db
+      .prepare(
+        'SELECT source_snapshot_id, role FROM design_scheme_source_bindings WHERE revision_id = ?',
+      )
+      .all(document.revisionId) as Array<{ source_snapshot_id: string; role: string }>;
+    expect(bindings).toEqual(
+      expect.arrayContaining([{ source_snapshot_id: 'snap_upd', role: 'normative' }]),
+    );
   });
 
   it('运行步骤 upsert：同 step 覆盖状态并保留已有输入输出', () => {
-    repository.insertRun({ runId: 'dsr_steps', revisionId: 'dsrv_run_1', mode: 'trial', policy: {} });
-    repository.upsertRunStep('dsr_steps', 'compile-prompt', { status: 'running', input: { modules: 1 } });
-    repository.upsertRunStep('dsr_steps', 'compile-prompt', { status: 'completed', output: { promptLength: 42 } });
+    repository.insertRun({
+      runId: 'dsr_steps',
+      revisionId: 'dsrv_run_1',
+      mode: 'trial',
+      policy: {},
+    });
+    repository.upsertRunStep('dsr_steps', 'compile-prompt', {
+      status: 'running',
+      input: { modules: 1 },
+    });
+    repository.upsertRunStep('dsr_steps', 'compile-prompt', {
+      status: 'completed',
+      output: { promptLength: 42 },
+    });
 
-    const row = db.prepare(
-      'SELECT status, input_json, output_json, completed_at FROM design_scheme_run_steps WHERE run_id = ? AND step_id = ?',
-    ).get('dsr_steps', 'compile-prompt') as {
+    const row = db
+      .prepare(
+        'SELECT status, input_json, output_json, completed_at FROM design_scheme_run_steps WHERE run_id = ? AND step_id = ?',
+      )
+      .get('dsr_steps', 'compile-prompt') as {
       status: string;
       input_json: string | null;
       output_json: string | null;

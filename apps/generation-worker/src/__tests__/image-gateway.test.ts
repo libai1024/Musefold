@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  generateImage,
-  imageChecksum,
-} from '../image-gateway.js';
+import { generateImage, imageChecksum } from '../image-gateway.js';
 
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -41,11 +38,7 @@ describe('generation image gateway', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const [image] = await generateImage(
-      'https://newapi.example',
-      'secret',
-      request,
-    );
+    const [image] = await generateImage('https://newapi.example', 'secret', request);
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(image).toMatchObject({ mimeType: 'image/png', width: 1, height: 1 });
@@ -58,10 +51,9 @@ describe('generation image gateway', () => {
       'fetch',
       vi.fn(
         async () =>
-          new Response(
-            JSON.stringify({ error: { message: 'insufficient balance' } }),
-            { status: 402 },
-          ),
+          new Response(JSON.stringify({ error: { message: 'insufficient balance' } }), {
+            status: 402,
+          }),
       ),
     );
 
@@ -98,16 +90,10 @@ describe('generation image gateway', () => {
       );
     vi.stubGlobal('fetch', fetchMock);
 
-    const [image] = await generateImage(
-      'https://newapi.example',
-      'secret',
-      request,
-    );
+    const [image] = await generateImage('https://newapi.example', 'secret', request);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1]?.[0]).toEqual(
-      new URL('https://assets.example/generated.png'),
-    );
+    expect(fetchMock.mock.calls[1]?.[0]).toEqual(new URL('https://assets.example/generated.png'));
     expect(image.bytes).toEqual(onePixelPng);
   });
 
@@ -118,18 +104,14 @@ describe('generation image gateway', () => {
         async () =>
           new Response(
             JSON.stringify({
-              data: [
-                { b64_json: Buffer.from('not an image').toString('base64') },
-              ],
+              data: [{ b64_json: Buffer.from('not an image').toString('base64') }],
             }),
             { status: 200 },
           ),
       ),
     );
 
-    await expect(
-      generateImage('https://newapi.example', 'secret', request),
-    ).rejects.toMatchObject({
+    await expect(generateImage('https://newapi.example', 'secret', request)).rejects.toMatchObject({
       code: 'rejected',
       message: '上游返回了不支持的图像格式',
     });

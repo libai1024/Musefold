@@ -8,7 +8,7 @@ export function workbenchComposerPlaceholder({
   hasTurns = false,
   hasPromptReference = false,
 }: WorkbenchComposerPlaceholderOptions = {}): string {
-  if (hasPromptReference) return "已引用提示词，可补充本次要求（可选）…";
-  if (hasTurns) return "描述下一步调整…";
-  return "描述你想生成的图片…";
+  if (hasPromptReference) return '已引用提示词，可补充本次要求（可选）…';
+  if (hasTurns) return '描述下一步调整…';
+  return '描述你想生成的图片…';
 }

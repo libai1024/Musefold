@@ -122,11 +122,11 @@ export function GenerationHistoryDetailActions({
     typeof items === 'function' ? items(closeMenu) : items;
   const hasMenu = Boolean(
     downloadUrl ||
-    onCopyPrompt ||
-    (layout === 'inline' && onSavePrompt) ||
-    additionalMenuItems ||
-    additionalDangerMenuItems ||
-    onDelete,
+      onCopyPrompt ||
+      (layout === 'inline' && onSavePrompt) ||
+      additionalMenuItems ||
+      additionalDangerMenuItems ||
+      onDelete,
   );
 
   return (

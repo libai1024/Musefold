@@ -83,8 +83,7 @@ export const DEFAULT_ACCOUNT_SERVER_URL = 'https://zhaozhaoyue.top';
 
 /** 给本地 Agent 读取的公开 Musefold 自动化 Skill；网站与设置页共用这个稳定地址。 */
 export const MUSEFOLD_SKILL_VERSION = 'v0.4.0';
-export const MUSEFOLD_SKILL_URL =
-  `https://raw.githubusercontent.com/libai1024/Musefold-Skills/${MUSEFOLD_SKILL_VERSION}/skills/musefold/SKILL.md`;
+export const MUSEFOLD_SKILL_URL = `https://raw.githubusercontent.com/libai1024/Musefold-Skills/${MUSEFOLD_SKILL_VERSION}/skills/musefold/SKILL.md`;
 export const MUSEFOLD_SKILL_MANIFEST_URL =
   'https://raw.githubusercontent.com/libai1024/Musefold-Skills/main/manifest.json';
 /** 官方账号服务器的故障切换入口；只在主域名网络不可达或返回 5xx 时使用。 */
@@ -137,7 +136,9 @@ export const RATIO_OPTIONS: RatioOption[] = [
 export const CUSTOM_RATIO_LIMIT = 4;
 
 /** 校验并解析 `custom:W:H`；越界/非法返回 null */
-export function parseCustomRatioId(value: string | null | undefined): { w: number; h: number } | null {
+export function parseCustomRatioId(
+  value: string | null | undefined,
+): { w: number; h: number } | null {
   if (!value) return null;
   const match = /^custom:(\d{1,2}):(\d{1,2})$/.exec(value);
   if (!match) return null;

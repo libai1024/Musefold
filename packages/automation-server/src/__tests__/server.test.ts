@@ -7,13 +7,23 @@ import { createAutomationServer, AutomationError } from '../server';
 import { discoveryFileMode, readDiscoveryFile } from '../discovery';
 
 const resources: Array<{ dir: string; stop?: () => Promise<void> }> = [];
-afterEach(async () => { for (const resource of resources.splice(0)) { await resource.stop?.(); rmSync(resource.dir, { recursive: true, force: true }); } });
+afterEach(async () => {
+  for (const resource of resources.splice(0)) {
+    await resource.stop?.();
+    rmSync(resource.dir, { recursive: true, force: true });
+  }
+});
 
 function createFixture(overrides: Record<string, unknown> = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'musefold-automation-server-'));
   const hub = createEventHub();
   const server = createAutomationServer({
-    core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 2, formalSchemes: 0, providers: 1, activeProviderId: 'tvt' }) } },
+    core: {
+      version: '0.1.0',
+      status: {
+        snapshot: () => ({ prompts: 2, formalSchemes: 0, providers: 1, activeProviderId: 'tvt' }),
+      },
+    },
     events: hub,
     dataDir: dir,
     owner: 'desktop-app',
@@ -26,7 +36,11 @@ function createFixture(overrides: Record<string, unknown> = {}) {
   return { dir, hub, server };
 }
 
-async function request(info: { port: number; token: string }, path: string, init: RequestInit = {}) {
+async function request(
+  info: { port: number; token: string },
+  path: string,
+  init: RequestInit = {},
+) {
   const headers = new Headers(init.headers);
   headers.set('authorization', `Bearer ${info.token}`);
   return fetch(`http://127.0.0.1:${info.port}${path}`, { ...init, headers });
@@ -63,22 +77,36 @@ describe('automation server', () => {
     const info = await server.start();
     const missing = await fetch(`http://127.0.0.1:${info.port}/v1/health`);
     expect(missing.status).toBe(401);
-    const invalid = await fetch(`http://127.0.0.1:${info.port}/v1/health`, { headers: { authorization: 'Bearer nope' } });
+    const invalid = await fetch(`http://127.0.0.1:${info.port}/v1/health`, {
+      headers: { authorization: 'Bearer nope' },
+    });
     expect(invalid.status).toBe(401);
     const origin = await request(info, '/v1/health', { headers: { origin: 'https://evil.test' } });
     expect(origin.status).toBe(403);
-    expect((await origin.json()) as { error: { code: string } }).toMatchObject({ error: { code: 'ORIGIN_NOT_ALLOWED' } });
+    expect((await origin.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: 'ORIGIN_NOT_ALLOWED' },
+    });
   });
 
   it('enforces request limits, maps errors and emits audit records', async () => {
     const audit: unknown[] = [];
-    const { server } = createFixture({ requestBodyLimit: 8, onAudit: (record: unknown) => { audit.push(record); } });
+    const { server } = createFixture({
+      requestBodyLimit: 8,
+      onAudit: (record: unknown) => {
+        audit.push(record);
+      },
+    });
     const info = await server.start();
-    const tooLarge = await request(info, '/v1/echo', { method: 'POST', body: JSON.stringify({ message: 'too long' }) });
+    const tooLarge = await request(info, '/v1/echo', {
+      method: 'POST',
+      body: JSON.stringify({ message: 'too long' }),
+    });
     expect(tooLarge.status).toBe(413);
     const missing = await request(info, '/v1/nope');
     expect(missing.status).toBe(404);
-    expect((await missing.json()) as { error: { code: string } }).toMatchObject({ error: { code: 'NOT_FOUND' } });
+    expect((await missing.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: 'NOT_FOUND' },
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(audit).toHaveLength(2);
   });
@@ -102,8 +130,24 @@ describe('automation server', () => {
   });
 
   it('rejects non-loopback binding before opening a socket', () => {
-    expect(() => createAutomationServer({
-      core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }) } }, dataDir: tmpdir(), owner: 'desktop-app', appVersion: 'x', host: '0.0.0.0',
-    })).toThrowError(AutomationError);
+    expect(() =>
+      createAutomationServer({
+        core: {
+          version: '0.1.0',
+          status: {
+            snapshot: () => ({
+              prompts: 0,
+              formalSchemes: 0,
+              providers: 0,
+              activeProviderId: null,
+            }),
+          },
+        },
+        dataDir: tmpdir(),
+        owner: 'desktop-app',
+        appVersion: 'x',
+        host: '0.0.0.0',
+      }),
+    ).toThrowError(AutomationError);
   });
 });

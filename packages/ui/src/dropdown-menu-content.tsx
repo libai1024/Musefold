@@ -44,14 +44,7 @@ export const DropdownMenuContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
   DropdownMenuContentProps
 >(function DropdownMenuContent(
-  {
-    className,
-    sideOffset = 4,
-    onKeyDownCapture,
-    onOpenAutoFocus,
-    onCloseAutoFocus,
-    ...props
-  },
+  { className, sideOffset = 4, onKeyDownCapture, onOpenAutoFocus, onCloseAutoFocus, ...props },
   ref,
 ) {
   const returnFocusRef = React.useRef<HTMLElement | null>(null);

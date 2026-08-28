@@ -80,7 +80,11 @@ describe('application tray', () => {
     expect(mocks.nativeImage.createFromPath).toHaveBeenCalledWith(
       join(process.cwd(), 'resources', 'icon.png'),
     );
-    expect(mocks.icon.resize).toHaveBeenCalledWith({ width: iconSize, height: iconSize, quality: 'best' });
+    expect(mocks.icon.resize).toHaveBeenCalledWith({
+      width: iconSize,
+      height: iconSize,
+      quality: 'best',
+    });
     expect(template[0]?.click).toBeTypeOf('function');
     expect(template[2]?.click).toBeTypeOf('function');
 

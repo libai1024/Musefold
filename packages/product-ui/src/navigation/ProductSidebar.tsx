@@ -1,6 +1,6 @@
-import { Button, IconButton, MusefoldMark } from "@musefold/ui";
-import { PanelLeft, SquarePen } from "@musefold/ui/icons";
-import type { CSSProperties, ReactNode } from "react";
+import { Button, IconButton, MusefoldMark } from '@musefold/ui';
+import { PanelLeft, SquarePen } from '@musefold/ui/icons';
+import type { CSSProperties, ReactNode } from 'react';
 
 export interface ProductSidebarNavItem {
   id: string;
@@ -36,7 +36,7 @@ export interface ProductSidebarProps {
 
 export function ProductNavButton({
   item,
-  className = "",
+  className = '',
 }: {
   item: ProductSidebarNavItem;
   className?: string;
@@ -46,8 +46,8 @@ export function ProductNavButton({
       unstyled
       type="button"
       onClick={item.onSelect}
-      aria-current={item.active ? "page" : undefined}
-      data-active={item.active ? "true" : "false"}
+      aria-current={item.active ? 'page' : undefined}
+      data-active={item.active ? 'true' : 'false'}
       data-testid={item.testId ?? `nav-${item.id}`}
       className={`mf-product-sidebar-nav-button ${className}`}
     >
@@ -68,9 +68,9 @@ export function ProductSidebar({
   sessionList,
   account,
   footer,
-  newShortcut = "⌘N",
+  newShortcut = '⌘N',
   headerStartInset = 12,
-  ariaLabel = "Musefold 导航",
+  ariaLabel = 'Musefold 导航',
 }: ProductSidebarProps) {
   return (
     <aside
@@ -82,7 +82,7 @@ export function ProductSidebar({
         className="mf-product-sidebar-header"
         style={
           {
-            "--mf-sidebar-header-inset": `${headerStartInset}px`,
+            '--mf-sidebar-header-inset': `${headerStartInset}px`,
           } as CSSProperties
         }
       >
@@ -134,7 +134,7 @@ export function ProductSidebar({
           onClick={account.onSelect}
           aria-current={account.active ? 'page' : undefined}
           className="mf-product-sidebar-account no-drag"
-          data-testid={account.testId ?? "sidebar-account"}
+          data-testid={account.testId ?? 'sidebar-account'}
         >
           <span className="mf-product-sidebar-avatar" aria-hidden="true">
             {account.avatar ?? account.name.slice(0, 1)}
@@ -145,9 +145,7 @@ export function ProductSidebar({
           </span>
         </Button>
       ) : null}
-      {footer ? (
-        <div className="mf-product-sidebar-footer no-drag">{footer}</div>
-      ) : null}
+      {footer ? <div className="mf-product-sidebar-footer no-drag">{footer}</div> : null}
     </aside>
   );
 }

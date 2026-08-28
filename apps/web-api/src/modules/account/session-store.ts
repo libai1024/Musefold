@@ -1,13 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import type { WebApiConfig } from '../../config.js';
 import type { MusefoldDatabase } from '../../database/types.js';
-import {
-  createCsrfToken,
-  createOpaqueId,
-  hashSessionId,
-  openJson,
-  sealJson,
-} from './crypto.js';
+import { createCsrfToken, createOpaqueId, hashSessionId, openJson, sealJson } from './crypto.js';
 
 export interface SessionCredentials {
   accessToken: string;
@@ -61,9 +55,7 @@ export class SessionStore implements SessionStorePort {
     private readonly db: Kysely<MusefoldDatabase>,
     private readonly config: Pick<
       WebApiConfig,
-      | 'SESSION_ENCRYPTION_KEY'
-      | 'SESSION_IDLE_TTL_SECONDS'
-      | 'SESSION_ABSOLUTE_TTL_SECONDS'
+      'SESSION_ENCRYPTION_KEY' | 'SESSION_IDLE_TTL_SECONDS' | 'SESSION_ABSOLUTE_TTL_SECONDS'
     >,
   ) {}
 
@@ -76,10 +68,7 @@ export class SessionStore implements SessionStorePort {
     const rawId = createOpaqueId();
     const idHash = hashSessionId(rawId);
     const csrfToken = createCsrfToken();
-    const sealed = sealJson(
-      input.credentials,
-      this.config.SESSION_ENCRYPTION_KEY,
-    );
+    const sealed = sealJson(input.credentials, this.config.SESSION_ENCRYPTION_KEY);
     const now = new Date();
     const accessExpiresAt = input.accessExpiresAt;
     const absoluteExpiresAt = new Date(
@@ -119,9 +108,7 @@ export class SessionStore implements SessionStorePort {
       this.config.SESSION_ENCRYPTION_KEY,
     );
     if (Date.now() - row.last_seen_at.getTime() > 60_000) {
-      await sql`SELECT auth.touch_web_session(${hashSessionId(rawId)})`.execute(
-        this.db,
-      );
+      await sql`SELECT auth.touch_web_session(${hashSessionId(rawId)})`.execute(this.db);
     }
     return {
       rawId,
@@ -149,8 +136,6 @@ export class SessionStore implements SessionStorePort {
   }
 
   async revoke(rawId: string): Promise<void> {
-    await sql`SELECT auth.revoke_web_session(${hashSessionId(rawId)})`.execute(
-      this.db,
-    );
+    await sql`SELECT auth.revoke_web_session(${hashSessionId(rawId)})`.execute(this.db);
   }
 }

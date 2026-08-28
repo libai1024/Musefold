@@ -12,7 +12,9 @@ export function AutomationConfirmCard() {
   useEffect(() => {
     const offRequired = api.automation.onConfirmationRequired((summary) => {
       setQueue((current) =>
-        current.some((item) => item.confirmationId === summary.confirmationId) ? current : [...current, summary],
+        current.some((item) => item.confirmationId === summary.confirmationId)
+          ? current
+          : [...current, summary],
       );
     });
     const offResolved = api.automation.onConfirmationResolved(({ confirmationId }) => {
@@ -31,8 +33,7 @@ export function AutomationConfirmCard() {
 
   if (queue.length === 0) return null;
   const active = queue[0];
-  const cost =
-    active.estimatedPoints != null ? `预估 ${active.estimatedPoints} 积分` : '成本未知';
+  const cost = active.estimatedPoints != null ? `预估 ${active.estimatedPoints} 积分` : '成本未知';
 
   return (
     <div

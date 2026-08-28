@@ -1,8 +1,4 @@
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-} from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import { loadWorkerConfig } from './config.js';
 import { createStorageClient, ensureStorageBucket } from './storage.js';
@@ -22,18 +18,13 @@ try {
       ContentType: 'text/plain',
     }),
   );
-  const result = await client.send(
-    new GetObjectCommand({ Bucket: config.S3_BUCKET, Key: key }),
-  );
+  const result = await client.send(new GetObjectCommand({ Bucket: config.S3_BUCKET, Key: key }));
   const actual = Buffer.from(await result.Body!.transformToByteArray());
-  if (!actual.equals(expected))
-    throw new Error('S3 smoke object content mismatch');
+  if (!actual.equals(expected)) throw new Error('S3 smoke object content mismatch');
   process.stdout.write(
     `${JSON.stringify({ ok: true, bucket: config.S3_BUCKET, bucketState, key })}\n`,
   );
 } finally {
-  await client.send(
-    new DeleteObjectCommand({ Bucket: config.S3_BUCKET, Key: key }),
-  );
+  await client.send(new DeleteObjectCommand({ Bucket: config.S3_BUCKET, Key: key }));
   client.destroy();
 }

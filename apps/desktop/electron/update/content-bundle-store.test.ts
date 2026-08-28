@@ -143,9 +143,7 @@ describe('content bundle store', () => {
   it('generates installId once and then reuses the persisted value', () => {
     const first = getInstallId();
     const second = getInstallId();
-    expect(first).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    );
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(second).toBe(first);
     expect(storeState.calls.filter(([key]) => key === 'contentUpdate.installId')).toHaveLength(1);
   });

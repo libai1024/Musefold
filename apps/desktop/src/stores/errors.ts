@@ -33,8 +33,8 @@ export const useErrorStore = create<ErrorState>((set) => ({
     set((state) => {
       const duplicateIndex = state.items.findIndex(
         (item) =>
-          diagnosticFingerprint(item.report) === fingerprint
-          && now - item.lastSeen <= DEDUPE_WINDOW_MS,
+          diagnosticFingerprint(item.report) === fingerprint &&
+          now - item.lastSeen <= DEDUPE_WINDOW_MS,
       );
       if (duplicateIndex >= 0) {
         const duplicate = state.items[duplicateIndex];
@@ -48,16 +48,16 @@ export const useErrorStore = create<ErrorState>((set) => ({
         return { items: next };
       }
       return {
-        items: [
-          ...state.items,
-          { report, occurrences: 1, firstSeen: now, lastSeen: now },
-        ].slice(-MAX_ITEMS),
+        items: [...state.items, { report, occurrences: 1, firstSeen: now, lastSeen: now }].slice(
+          -MAX_ITEMS,
+        ),
       };
     });
   },
-  dismiss: (id) => set((state) => ({
-    items: state.items.filter((item) => item.report.id !== id),
-  })),
+  dismiss: (id) =>
+    set((state) => ({
+      items: state.items.filter((item) => item.report.id !== id),
+    })),
   clear: () => set({ items: [] }),
 }));
 
@@ -66,7 +66,9 @@ function appContext(): Pick<CreateDiagnosticReportInput, 'appVersion' | 'platfor
   const version = title?.match(/v([^\s]+)/i)?.[1];
   return {
     ...(version ? { appVersion: version } : {}),
-    ...(typeof navigator !== 'undefined' ? { platform: navigator.platform || navigator.userAgent } : {}),
+    ...(typeof navigator !== 'undefined'
+      ? { platform: navigator.platform || navigator.userAgent }
+      : {}),
     ...(typeof location !== 'undefined' ? { route: location.pathname } : {}),
   };
 }
@@ -101,13 +103,13 @@ export function isDiagnosticReport(value: unknown): value is DiagnosticReport {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<DiagnosticReport>;
   return Boolean(
-    typeof candidate.id === 'string'
-      && typeof candidate.timestamp === 'string'
-      && typeof candidate.process === 'string'
-      && typeof candidate.source === 'string'
-      && candidate.error
-      && typeof candidate.error === 'object'
-      && typeof candidate.error.message === 'string',
+    typeof candidate.id === 'string' &&
+      typeof candidate.timestamp === 'string' &&
+      typeof candidate.process === 'string' &&
+      typeof candidate.source === 'string' &&
+      candidate.error &&
+      typeof candidate.error === 'object' &&
+      typeof candidate.error.message === 'string',
   );
 }
 

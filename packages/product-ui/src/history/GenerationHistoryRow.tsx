@@ -1,7 +1,7 @@
-import { Button, StatusBadge } from "@musefold/ui";
-import { CornerDownRight, History, ImageOff, LoaderCircle } from "@musefold/ui/icons";
-import { useEffect, useState, type ReactNode } from "react";
-import type { GenerationHistoryItemViewModel } from "../models";
+import { Button, StatusBadge } from '@musefold/ui';
+import { CornerDownRight, History, ImageOff, LoaderCircle } from '@musefold/ui/icons';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { GenerationHistoryItemViewModel } from '../models';
 
 export interface GenerationHistoryRowProps {
   item: GenerationHistoryItemViewModel;
@@ -22,10 +22,7 @@ export function GenerationHistoryRow({
   useEffect(() => setImageBroken(false), [item.imageUrl]);
 
   return (
-    <div
-      className="mf-history-thread-row"
-      style={{ paddingInlineStart: `${depth * 26}px` }}
-    >
+    <div className="mf-history-thread-row" style={{ paddingInlineStart: `${depth * 26}px` }}>
       {depth > 0 && (
         <span
           className="mf-history-thread-connector"
@@ -37,8 +34,8 @@ export function GenerationHistoryRow({
       )}
       <article
         className="mf-history-row"
-        data-selected={item.selected ? "true" : "false"}
-        data-tone={item.statusTone ?? "neutral"}
+        data-selected={item.selected ? 'true' : 'false'}
+        data-tone={item.statusTone ?? 'neutral'}
         data-status={item.statusKey}
         data-depth={depth}
         data-thread-root={item.threadRootId}
@@ -51,17 +48,12 @@ export function GenerationHistoryRow({
           className="mf-history-thumb"
           onClick={onOpenImage}
           disabled={!onOpenImage}
-          aria-label={onOpenImage ? "放大预览" : undefined}
-          title={onOpenImage ? "放大预览" : undefined}
+          aria-label={onOpenImage ? '放大预览' : undefined}
+          title={onOpenImage ? '放大预览' : undefined}
           data-testid="history-thumb-open"
         >
           {item.imageUrl && !imageBroken ? (
-            <img
-              src={item.imageUrl}
-              alt=""
-              loading="lazy"
-              onError={() => setImageBroken(true)}
-            />
+            <img src={item.imageUrl} alt="" loading="lazy" onError={() => setImageBroken(true)} />
           ) : item.imageUrl ? (
             <ImageOff aria-hidden="true" />
           ) : (
@@ -85,15 +77,13 @@ export function GenerationHistoryRow({
                 {item.refinementLabel}
               </span>
             )}
-            <span>{item.prompt || "（无提示词）"}</span>
+            <span>{item.prompt || '（无提示词）'}</span>
           </strong>
           <span>
             <StatusBadge
               className="mf-status-label"
-              tone={item.statusTone ?? "neutral"}
-              data-testid={
-                item.isRetrying ? "history-retrying" : "history-status-label"
-              }
+              tone={item.statusTone ?? 'neutral'}
+              data-testid={item.isRetrying ? 'history-retrying' : 'history-status-label'}
               icon={
                 item.isRetrying ? (
                   <LoaderCircle className="mf-spin" aria-hidden="true" />
@@ -108,10 +98,7 @@ export function GenerationHistoryRow({
               </span>
             ))}
             {Boolean(item.refinementCount) && (
-              <span
-                className="mf-history-meta-item"
-                data-testid="history-thread-count"
-              >
+              <span className="mf-history-meta-item" data-testid="history-thread-count">
                 {item.refinementCount} 次微调
               </span>
             )}

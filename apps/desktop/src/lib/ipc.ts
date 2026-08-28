@@ -25,7 +25,7 @@ function createMissingApiProxy(): Api {
           throw new Error(message);
         };
       },
-    }
+    },
   );
   return new Proxy({} as Api, {
     get() {

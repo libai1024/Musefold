@@ -15,12 +15,17 @@ import type {
   DesignSchemeCreationEvent,
   StartDesignSchemeRunRequest,
 } from '@musefold/desktop-contracts/design-scheme';
-import type { GenerateImageRequest, GenerateImageResult } from '@musefold/desktop-contracts/providers';
+import type {
+  GenerateImageRequest,
+  GenerateImageResult,
+} from '@musefold/desktop-contracts/providers';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { fakePngBuffer } from './evaluation.test';
 
-const generateMock = vi.hoisted(() => vi.fn<(req: GenerateImageRequest) => Promise<GenerateImageResult>>());
+const generateMock = vi.hoisted(() =>
+  vi.fn<(req: GenerateImageRequest) => Promise<GenerateImageResult>>(),
+);
 vi.mock('../../ipc/images', () => ({ generate: (req: GenerateImageRequest) => generateMock(req) }));
 
 import { runDesignScheme } from '../run-session';
@@ -47,8 +52,22 @@ function documentFixture(): DesignSchemeRevisionDocument {
     parameters: [],
     constraints: [],
     promptProgram: [
-      { id: 'pm_1', order: 0, kind: 'input-template', template: '为「{{topic}}」创作插画', variables: ['topic'], sourceIds: ['src_brief'] },
-      { id: 'pm_2', order: 1, kind: 'style-rule', template: '手绘线条，暖色', variables: [], sourceIds: ['src_brief'] },
+      {
+        id: 'pm_1',
+        order: 0,
+        kind: 'input-template',
+        template: '为「{{topic}}」创作插画',
+        variables: ['topic'],
+        sourceIds: ['src_brief'],
+      },
+      {
+        id: 'pm_2',
+        order: 1,
+        kind: 'style-rule',
+        template: '手绘线条，暖色',
+        variables: [],
+        sourceIds: ['src_brief'],
+      },
     ],
     compilation: {
       compiledAt: 1,
@@ -61,7 +80,9 @@ function documentFixture(): DesignSchemeRevisionDocument {
   };
 }
 
-function runRequest(overrides: Partial<StartDesignSchemeRunRequest> = {}): StartDesignSchemeRunRequest {
+function runRequest(
+  overrides: Partial<StartDesignSchemeRunRequest> = {},
+): StartDesignSchemeRunRequest {
   return {
     executionId: 'exec-1',
     schemeId: 'dsch_rs',
@@ -92,7 +113,9 @@ describe('runDesignScheme', () => {
 
   const deps = () => ({
     db,
-    emit: (event: DesignSchemeCreationEvent) => { events.push(event); },
+    emit: (event: DesignSchemeCreationEvent) => {
+      events.push(event);
+    },
     sendProgress: () => undefined,
     signal: controller.signal,
   });
@@ -134,7 +157,9 @@ describe('runDesignScheme', () => {
 
     const repository = new DesignSchemeRepository(db);
     expect(repository.hasSuccessfulTrial('dsrv_rs')).toBe(true);
-    const runRow = db.prepare('SELECT mode, status, policy_json FROM design_scheme_runs WHERE run_id = ?').get(result.data.runId) as { mode: string; status: string; policy_json: string };
+    const runRow = db
+      .prepare('SELECT mode, status, policy_json FROM design_scheme_runs WHERE run_id = ?')
+      .get(result.data.runId) as { mode: string; status: string; policy_json: string };
     expect(runRow.mode).toBe('trial');
     expect(runRow.status).toBe('completed');
     // 缺省优先级按「方案主导」写入快照（设计规范 §4.3）。
@@ -142,15 +167,26 @@ describe('runDesignScheme', () => {
 
     // 质量门（§5.5）：结果携带评估、证据入库、轨迹有可读结论。
     expect(result.data.evaluation?.passed).toBe(true);
-    expect(result.data.evaluation?.checks.map((check) => check.status)).toEqual(['pass', 'pass', 'pass']);
+    expect(result.data.evaluation?.checks.map((check) => check.status)).toEqual([
+      'pass',
+      'pass',
+      'pass',
+    ]);
     const stored = repository.getRunEvaluation(result.data.runId);
     expect(stored?.passed).toBe(true);
     expect(stored?.evidence).toHaveLength(2);
     expect(result.data.trace.find((item) => item.id === 'quality-gate')?.status).toBe('success');
 
     // 事件序列：每张图先 start 后 result。
-    const kinds = events.filter((event) => event.kind.startsWith('run-generation')).map((event) => event.kind);
-    expect(kinds).toEqual(['run-generation-start', 'run-generation-result', 'run-generation-start', 'run-generation-result']);
+    const kinds = events
+      .filter((event) => event.kind.startsWith('run-generation'))
+      .map((event) => event.kind);
+    expect(kinds).toEqual([
+      'run-generation-start',
+      'run-generation-result',
+      'run-generation-start',
+      'run-generation-result',
+    ]);
   });
 
   it('质量门：部分成功/比例漂移记 warn，不改变运行结论', async () => {
@@ -169,11 +205,17 @@ describe('runDesignScheme', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // 有成功输出 → run 仍 completed；质量门 warn 呈现在轨迹里。
-    const runRow = db.prepare('SELECT status FROM design_scheme_runs WHERE run_id = ?').get(result.data.runId) as { status: string };
+    const runRow = db
+      .prepare('SELECT status FROM design_scheme_runs WHERE run_id = ?')
+      .get(result.data.runId) as { status: string };
     expect(runRow.status).toBe('completed');
     expect(result.data.evaluation?.passed).toBe(true);
-    expect(result.data.evaluation?.checks.find((check) => check.id === 'output-count')?.status).toBe('warn');
-    expect(result.data.evaluation?.checks.find((check) => check.id === 'aspect-ratio')?.status).toBe('warn');
+    expect(
+      result.data.evaluation?.checks.find((check) => check.id === 'output-count')?.status,
+    ).toBe('warn');
+    expect(
+      result.data.evaluation?.checks.find((check) => check.id === 'aspect-ratio')?.status,
+    ).toBe('warn');
     expect(result.data.trace.find((item) => item.id === 'quality-gate')?.status).toBe('warning');
     // 有偏差 → 给出确定性修复建议（有限修复链入口）。
     expect(result.data.evaluation?.repairHint).toContain('3:4');
@@ -195,10 +237,14 @@ describe('runDesignScheme', () => {
     // 建议作为修复要求进入编译提示词（方案文档不变）。
     expect(result.data.compiledPrompt).toContain('修复要求：严格按照 3:4 的画面比例输出');
     // 策略快照记录修复来源；原始运行不受影响。
-    const runRow = db.prepare('SELECT policy_json FROM design_scheme_runs WHERE run_id = ?').get(result.data.runId) as { policy_json: string };
+    const runRow = db
+      .prepare('SELECT policy_json FROM design_scheme_runs WHERE run_id = ?')
+      .get(result.data.runId) as { policy_json: string };
     expect(JSON.parse(runRow.policy_json).repairOfRunId).toBe('dsr_prev');
     // 输出仍是 1:1，比例检查仍 warn——但修复运行不再给建议（链长 1）。
-    expect(result.data.evaluation?.checks.find((check) => check.id === 'aspect-ratio')?.status).toBe('warn');
+    expect(
+      result.data.evaluation?.checks.find((check) => check.id === 'aspect-ratio')?.status,
+    ).toBe('warn');
     expect(result.data.evaluation?.repairHint).toBeNull();
     // 轨迹里有修复上下文条目。
     expect(result.data.trace.find((item) => item.id === 'repair-context')?.detail).toContain('3:4');
@@ -210,7 +256,9 @@ describe('runDesignScheme', () => {
     if (result.ok) return;
     expect(result.error.message).toContain('主题');
     expect(generateMock).not.toHaveBeenCalled();
-    const row = db.prepare("SELECT status FROM design_scheme_runs WHERE mode = 'trial'").get() as { status: string };
+    const row = db.prepare("SELECT status FROM design_scheme_runs WHERE mode = 'trial'").get() as {
+      status: string;
+    };
     expect(row.status).toBe('blocked');
   });
 
@@ -226,7 +274,9 @@ describe('runDesignScheme', () => {
     if (!result.ok) return;
     expect(result.data.generations.every((item) => item.assetId === undefined)).toBe(true);
     expect(new DesignSchemeRepository(db).hasSuccessfulTrial('dsrv_rs')).toBe(false);
-    const runRow = db.prepare('SELECT status FROM design_scheme_runs WHERE run_id = ?').get(result.data.runId) as { status: string };
+    const runRow = db
+      .prepare('SELECT status FROM design_scheme_runs WHERE run_id = ?')
+      .get(result.data.runId) as { status: string };
     expect(runRow.status).toBe('failed');
   });
 
@@ -255,13 +305,19 @@ describe('runDesignScheme', () => {
   it('user_first 优先级：快照记录模式，用户要求在提示词最前', async () => {
     generateMock.mockImplementation(async (req) => successResult(req.jobId ?? 'h'));
     const result = await runDesignScheme(
-      runRequest({ priorityMode: 'user_first', brief: '改成夜景', generation: { ...runRequest().generation, jobIds: ['job-a'] } }),
+      runRequest({
+        priorityMode: 'user_first',
+        brief: '改成夜景',
+        generation: { ...runRequest().generation, jobIds: ['job-a'] },
+      }),
       deps(),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.compiledPrompt.startsWith('用户本次要求（优先')).toBe(true);
-    const runRow = db.prepare('SELECT policy_json FROM design_scheme_runs WHERE run_id = ?').get(result.data.runId) as { policy_json: string };
+    const runRow = db
+      .prepare('SELECT policy_json FROM design_scheme_runs WHERE run_id = ?')
+      .get(result.data.runId) as { policy_json: string };
     expect(JSON.parse(runRow.policy_json).priorityMode).toBe('user_first');
   });
 
@@ -275,11 +331,16 @@ describe('runDesignScheme', () => {
 
     generateMock.mockImplementation(async (req) => successResult(req.jobId ?? 'h'));
 
-    const result = await runDesignScheme(runRequest({ mode: 'formal', generation: { ...runRequest().generation, jobIds: ['job-f'] } }), deps());
+    const result = await runDesignScheme(
+      runRequest({ mode: 'formal', generation: { ...runRequest().generation, jobIds: ['job-f'] } }),
+      deps(),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.generations[0]?.assetId).toBeUndefined();
-    const runRow = db.prepare('SELECT mode, status FROM design_scheme_runs WHERE run_id = ?').get(result.data.runId) as { mode: string; status: string };
+    const runRow = db
+      .prepare('SELECT mode, status FROM design_scheme_runs WHERE run_id = ?')
+      .get(result.data.runId) as { mode: string; status: string };
     expect(runRow).toEqual({ mode: 'formal', status: 'completed' });
   });
 });

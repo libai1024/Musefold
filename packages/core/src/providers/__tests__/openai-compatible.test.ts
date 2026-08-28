@@ -73,18 +73,33 @@ describe('OpenAICompatibleProvider image edits', () => {
       const images = form.getAll('image[]') as File[];
       expect(images.map((image) => image.name)).toEqual(['reference-1.png', 'reference-2.png']);
       expect(images.every((image) => image.type === 'image/png')).toBe(true);
-      expect(await images[0].arrayBuffer()).toEqual(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).buffer);
+      expect(await images[0].arrayBuffer()).toEqual(
+        Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).buffer,
+      );
 
       return jsonResponse({ data: [{ b64_json: Buffer.from([1, 2, 3]).toString('base64') }] });
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const provider = new OpenAICompatibleProvider('provider-1', 'https://images.test/v1', 'gpt-image-2', 'Images');
+    const provider = new OpenAICompatibleProvider(
+      'provider-1',
+      'https://images.test/v1',
+      'gpt-image-2',
+      'Images',
+    );
     const result = await provider.generateImage({
       ...REQUEST,
       referenceImages: [
-        { source: 'upload', path: '/tmp/previews/uploads/reference-1.png', name: 'reference-1.png' },
-        { source: 'upload', path: '/tmp/previews/uploads/reference-2.png', name: 'reference-2.png' },
+        {
+          source: 'upload',
+          path: '/tmp/previews/uploads/reference-1.png',
+          name: 'reference-1.png',
+        },
+        {
+          source: 'upload',
+          path: '/tmp/previews/uploads/reference-2.png',
+          name: 'reference-2.png',
+        },
       ],
     });
 
@@ -94,14 +109,23 @@ describe('OpenAICompatibleProvider image edits', () => {
   });
 
   it('maps edit authentication failures to AUTH without retrying', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ error: { message: 'invalid api key' } }, 401));
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ error: { message: 'invalid api key' } }, 401));
     vi.stubGlobal('fetch', fetchMock);
-    const provider = new OpenAICompatibleProvider('provider-1', 'https://images.test/v1', 'gpt-image-2', 'Images');
+    const provider = new OpenAICompatibleProvider(
+      'provider-1',
+      'https://images.test/v1',
+      'gpt-image-2',
+      'Images',
+    );
 
-    await expect(provider.generateImage({
-      ...REQUEST,
-      referenceImages: [{ source: 'upload', path: '/tmp/previews/uploads/reference.png' }],
-    })).rejects.toMatchObject({ code: 'AUTH', status: 401 });
+    await expect(
+      provider.generateImage({
+        ...REQUEST,
+        referenceImages: [{ source: 'upload', path: '/tmp/previews/uploads/reference.png' }],
+      }),
+    ).rejects.toMatchObject({ code: 'AUTH', status: 401 });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

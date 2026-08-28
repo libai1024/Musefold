@@ -90,7 +90,9 @@ function defaultRuntime(): PrefsOriginMigrationRuntime {
 }
 
 export function readPrefsOriginMigrationRecord(): PrefsOriginMigrationRecord {
-  return coerceMigrationRecord(store.get('prefsOriginMigration', DEFAULT_PREFS_ORIGIN_MIGRATION_RECORD));
+  return coerceMigrationRecord(
+    store.get('prefsOriginMigration', DEFAULT_PREFS_ORIGIN_MIGRATION_RECORD),
+  );
 }
 
 export function writePrefsOriginMigrationRecord(record: PrefsOriginMigrationRecord): void {
@@ -125,7 +127,9 @@ export function resetPrefsOriginMigrationForTests(): void {
   windowAllClosedSuppression = 0;
 }
 
-export function seedPendingOriginMigrationPayloadForTests(payload: Record<string, string> | null): void {
+export function seedPendingOriginMigrationPayloadForTests(
+  payload: Record<string, string> | null,
+): void {
   pendingPayload = payload;
 }
 
@@ -299,7 +303,10 @@ function requireSnapshotObject(raw: unknown): Record<string, string> {
   return coerceStringMap(raw);
 }
 
-function abandonIfNeeded(record: PrefsOriginMigrationRecord, now: number): PrefsOriginMigrationRecord {
+function abandonIfNeeded(
+  record: PrefsOriginMigrationRecord,
+  now: number,
+): PrefsOriginMigrationRecord {
   if (record.status === 'abandoned') return record;
   return {
     status: 'abandoned',

@@ -55,7 +55,11 @@ function readJpegSize(buffer: Buffer): ImagePixelSize | null {
 }
 
 function readWebpSize(buffer: Buffer): ImagePixelSize | null {
-  if (buffer.length < 30 || buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') {
+  if (
+    buffer.length < 30 ||
+    buffer.toString('ascii', 0, 4) !== 'RIFF' ||
+    buffer.toString('ascii', 8, 12) !== 'WEBP'
+  ) {
     return null;
   }
   const chunk = buffer.toString('ascii', 12, 16);

@@ -83,9 +83,7 @@ export function codexConfigSnippet(paths: IntegrationPaths): string {
 
 /** CLI shim（POSIX）：装进 PATH 后终端直接 `musefold …`；serve 需要 NODE_PATH 指向打包内原生模块 */
 export function cliShimPosix(paths: IntegrationPaths): string {
-  const nodePathLine = paths.nodeModulesPath
-    ? `export NODE_PATH="${paths.nodeModulesPath}"\n`
-    : '';
+  const nodePathLine = paths.nodeModulesPath ? `export NODE_PATH="${paths.nodeModulesPath}"\n` : '';
   return [
     '#!/bin/sh',
     '# Musefold CLI shim —— 由 Musefold App 生成（设置 → 自动化 → 安装命令行工具）',
@@ -95,7 +93,9 @@ export function cliShimPosix(paths: IntegrationPaths): string {
     nodePathLine.trimEnd(),
     `exec "${paths.execPath}" "${paths.cliScriptPath}" "$@"`,
     '',
-  ].filter((line) => line !== '').join('\n');
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 /** CLI shim（Windows .cmd） */

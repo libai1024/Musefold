@@ -28,11 +28,20 @@ function candidate(patch: Partial<DoubaoAccountNameCandidate> = {}): DoubaoAccou
 
 describe('pickDoubaoAccountName', () => {
   it('selects the named account control at the bottom of the left rail', () => {
-    expect(pickDoubaoAccountName([
-      candidate({ text: '主对话', top: 390, tagName: 'A', hasAvatar: false, ariaLabel: '', conversationItem: true }),
-      candidate({ text: '李小白\n›' }),
-      candidate({ text: '更多', left: 610, ariaLabel: '' }),
-    ])).toBe('李小白');
+    expect(
+      pickDoubaoAccountName([
+        candidate({
+          text: '主对话',
+          top: 390,
+          tagName: 'A',
+          hasAvatar: false,
+          ariaLabel: '',
+          conversationItem: true,
+        }),
+        candidate({ text: '李小白\n›' }),
+        candidate({ text: '更多', left: 610, ariaLabel: '' }),
+      ]),
+    ).toBe('李小白');
   });
 
   it('returns the matching Doubao avatar with the selected account', () => {
@@ -43,11 +52,20 @@ describe('pickDoubaoAccountName', () => {
   });
 
   it('rejects navigation and composer controls', () => {
-    expect(pickDoubaoAccountName([
-      candidate({ text: '设置', hasAvatar: false, ariaLabel: '' }),
-      candidate({ text: '新对话', top: 120, hasAvatar: false, ariaLabel: '' }),
-      candidate({ text: '', left: 430, width: 620, height: 96, hasAvatar: false, ariaLabel: '消息输入框' }),
-    ])).toBeNull();
+    expect(
+      pickDoubaoAccountName([
+        candidate({ text: '设置', hasAvatar: false, ariaLabel: '' }),
+        candidate({ text: '新对话', top: 120, hasAvatar: false, ariaLabel: '' }),
+        candidate({
+          text: '',
+          left: 430,
+          width: 620,
+          height: 96,
+          hasAvatar: false,
+          ariaLabel: '消息输入框',
+        }),
+      ]),
+    ).toBeNull();
   });
 
   it('accepts only known HTTPS avatar hosts', () => {
@@ -58,17 +76,19 @@ describe('pickDoubaoAccountName', () => {
   });
 
   it('does not mistake a conversation link near the viewport edge for the account', () => {
-    expect(pickDoubaoAccountName([
-      candidate({
-        text: '零基础练腹肌时间与计划',
-        tagName: 'A',
-        top: 763,
-        height: 32,
-        viewportHeight: 788,
-        ariaLabel: '',
-        conversationItem: true,
-      }),
-      candidate({ text: '李小白', top: 738, height: 36, viewportHeight: 788 }),
-    ])).toBe('李小白');
+    expect(
+      pickDoubaoAccountName([
+        candidate({
+          text: '零基础练腹肌时间与计划',
+          tagName: 'A',
+          top: 763,
+          height: 32,
+          viewportHeight: 788,
+          ariaLabel: '',
+          conversationItem: true,
+        }),
+        candidate({ text: '李小白', top: 738, height: 36, viewportHeight: 788 }),
+      ]),
+    ).toBe('李小白');
   });
 });

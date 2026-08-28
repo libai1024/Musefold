@@ -13,8 +13,12 @@ describe('design-schemes feature isolation', () => {
     );
     for (const file of files) {
       const source = readFileSync(join(schemesDir, file), 'utf8');
-      expect(source, `${file} must not import generation/workbench`).not.toContain('generation/workbench');
-      expect(source, `${file} must not import generation/params`).not.toContain('generation/params');
+      expect(source, `${file} must not import generation/workbench`).not.toContain(
+        'generation/workbench',
+      );
+      expect(source, `${file} must not import generation/params`).not.toContain(
+        'generation/params',
+      );
     }
   });
 });

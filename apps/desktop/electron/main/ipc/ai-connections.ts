@@ -7,13 +7,10 @@ import type {
 } from '@musefold/desktop-contracts/ai';
 import {
   AI_CONNECTION_PRESETS,
-  AiConnectionStore,
+  type AiConnectionStore,
   getAiConnectionStore,
 } from '../../ai/connection-store';
-import {
-  classifyAiError,
-  OpenAiCompatibleAssistant,
-} from '../../ai/openai-compatible-assistant';
+import { classifyAiError, OpenAiCompatibleAssistant } from '../../ai/openai-compatible-assistant';
 
 interface AiConnectionIpcTarget {
   handle: IpcMain['handle'];
@@ -38,13 +35,15 @@ function localErrorMessage(error: unknown): string | null {
     : null;
 }
 
-export function registerAiConnectionHandlers(dependencies: AiConnectionHandlerDependencies = {}): void {
+export function registerAiConnectionHandlers(
+  dependencies: AiConnectionHandlerDependencies = {},
+): void {
   const target = dependencies.target ?? ipcMain;
   const store = dependencies.store ?? getAiConnectionStore();
   const now = dependencies.now ?? Date.now;
-  const createAssistant = dependencies.createAssistant ?? ((profile, apiKey) => (
-    new OpenAiCompatibleAssistant({ connection: profile, apiKey })
-  ));
+  const createAssistant =
+    dependencies.createAssistant ??
+    ((profile, apiKey) => new OpenAiCompatibleAssistant({ connection: profile, apiKey }));
   const assistantFor = (id: string) => {
     const profile = store.require(id);
     return { profile, assistant: createAssistant(profile, store.loadKey(id)) };
@@ -52,13 +51,19 @@ export function registerAiConnectionHandlers(dependencies: AiConnectionHandlerDe
 
   target.handle(IPC.AI_CONNECTION_LIST_PRESETS, () => structuredClone(AI_CONNECTION_PRESETS));
   target.handle(IPC.AI_CONNECTION_LIST, () => store.list());
-  target.handle(IPC.AI_CONNECTION_CREATE, (_event, input: CreateAiConnectionInput) => store.create(input));
-  target.handle(IPC.AI_CONNECTION_UPDATE, (_event, id: string, patch: UpdateAiConnectionInput) => store.update(id, patch));
+  target.handle(IPC.AI_CONNECTION_CREATE, (_event, input: CreateAiConnectionInput) =>
+    store.create(input),
+  );
+  target.handle(IPC.AI_CONNECTION_UPDATE, (_event, id: string, patch: UpdateAiConnectionInput) =>
+    store.update(id, patch),
+  );
   target.handle(IPC.AI_CONNECTION_DELETE, (_event, id: string) => {
     store.delete(id);
     return { ok: true as const };
   });
-  target.handle(IPC.AI_CONNECTION_SAVE_KEY, (_event, id: string, apiKey: string) => store.saveKey(id, apiKey));
+  target.handle(IPC.AI_CONNECTION_SAVE_KEY, (_event, id: string, apiKey: string) =>
+    store.saveKey(id, apiKey),
+  );
   target.handle(IPC.AI_CONNECTION_DELETE_KEY, (_event, id: string) => store.deleteKey(id));
   target.handle(IPC.AI_CONNECTION_HAS_KEY, (_event, id: string) => {
     const profile = store.require(id);
@@ -81,9 +86,10 @@ export function registerAiConnectionHandlers(dependencies: AiConnectionHandlerDe
       });
       return {
         ok: true,
-        message: validation.modelDiscovery === 'available'
-          ? `连接成功，发现 ${validation.models.length} 个模型`
-          : '连接成功，模型列表需手动维护',
+        message:
+          validation.modelDiscovery === 'available'
+            ? `连接成功，发现 ${validation.models.length} 个模型`
+            : '连接成功，模型列表需手动维护',
         models: validation.models,
         capabilities: updated.capabilities,
       };

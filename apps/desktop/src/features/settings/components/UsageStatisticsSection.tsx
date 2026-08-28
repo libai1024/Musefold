@@ -122,9 +122,7 @@ export function UsageStatisticsSection() {
           label="累计生成"
           value={allTimeLoaded ? formatUsageCount(allTime.totalCount) : '—'}
           unit={allTimeLoaded ? '次' : undefined}
-          detail={
-            allTimeLoaded ? `${formatUsageCount(allTime.attemptCount)} 次尝试` : '统计加载中'
-          }
+          detail={allTimeLoaded ? `${formatUsageCount(allTime.attemptCount)} 次尝试` : '统计加载中'}
           pending={!allTimeLoaded}
         />
         <UsageSummaryMetric

@@ -17,72 +17,75 @@ export function EmberHatchOverlay() {
   const innerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
 
-  useGSAP(() => {
-    if (phase !== 'flying' || !from) return;
-    const outer = outerRef.current;
-    const inner = innerRef.current;
-    if (!outer || !inner) return;
+  useGSAP(
+    () => {
+      if (phase !== 'flying' || !from) return;
+      const outer = outerRef.current;
+      const inner = innerRef.current;
+      if (!outer || !inner) return;
 
-    let raf = 0;
-    let frames = 0;
-    const start = {
-      x: from.x + from.width / 2 - DOT_SIZE / 2,
-      y: from.y + from.height / 2 - DOT_SIZE / 2,
-      scale: Math.max(0.2, from.width / DOT_SIZE),
-    };
-    // 先把覆盖点放到起点（引导层刚卸载，这枚点就是视觉上的“同一枚”）
-    gsap.set(outer, { x: start.x });
-    gsap.set(inner, { y: start.y, scale: start.scale, transformOrigin: '50% 50%' });
+      let raf = 0;
+      let frames = 0;
+      const start = {
+        x: from.x + from.width / 2 - DOT_SIZE / 2,
+        y: from.y + from.height / 2 - DOT_SIZE / 2,
+        scale: Math.max(0.2, from.width / DOT_SIZE),
+      };
+      // 先把覆盖点放到起点（引导层刚卸载，这枚点就是视觉上的“同一枚”）
+      gsap.set(outer, { x: start.x });
+      gsap.set(inner, { y: start.y, scale: start.scale, transformOrigin: '50% 50%' });
 
-    const begin = () => {
-      const target = document.querySelector('[data-testid="ember-mark"]');
-      if (!target) {
-        frames += 1;
-        // 落点尚未挂载：等最多 ~1.5s，超时直接落印（不留悬空点）
-        if (frames < 90) {
-          raf = requestAnimationFrame(begin);
+      const begin = () => {
+        const target = document.querySelector('[data-testid="ember-mark"]');
+        if (!target) {
+          frames += 1;
+          // 落点尚未挂载：等最多 ~1.5s，超时直接落印（不留悬空点）
+          if (frames < 90) {
+            raf = requestAnimationFrame(begin);
+            return;
+          }
+          useEmberHatchStore.getState().land();
           return;
         }
-        useEmberHatchStore.getState().land();
-        return;
-      }
-      const rect = target.getBoundingClientRect();
-      const end = {
-        x: rect.x + rect.width / 2 - DOT_SIZE / 2,
-        y: rect.y + rect.height / 2 - DOT_SIZE / 2,
+        const rect = target.getBoundingClientRect();
+        const end = {
+          x: rect.x + rect.width / 2 - DOT_SIZE / 2,
+          y: rect.y + rect.height / 2 - DOT_SIZE / 2,
+        };
+        // 运笔的弧：横向匀势，纵向先扬后落；全程不弹跳（钤印在落地段由本体完成）
+        const lift = Math.max(60, Math.abs(end.x - start.x) * 0.1);
+        const timeline = gsap.timeline({
+          onComplete: () => useEmberHatchStore.getState().land(),
+        });
+        timeline
+          .to(outer, { x: end.x, duration: 0.9, ease: 'power1.inOut' }, 0)
+          .to(inner, { y: Math.min(start.y, end.y) - lift, duration: 0.36, ease: 'power2.out' }, 0)
+          .to(inner, { y: end.y, duration: 0.54, ease: 'power2.in' }, 0.36)
+          .to(inner, { scale: 1, duration: 0.9, ease: 'power1.inOut' }, 0);
+        timelineRef.current = timeline;
       };
-      // 运笔的弧：横向匀势，纵向先扬后落；全程不弹跳（钤印在落地段由本体完成）
-      const lift = Math.max(60, Math.abs(end.x - start.x) * 0.1);
-      const timeline = gsap.timeline({
-        onComplete: () => useEmberHatchStore.getState().land(),
-      });
-      timeline
-        .to(outer, { x: end.x, duration: 0.9, ease: 'power1.inOut' }, 0)
-        .to(inner, { y: Math.min(start.y, end.y) - lift, duration: 0.36, ease: 'power2.out' }, 0)
-        .to(inner, { y: end.y, duration: 0.54, ease: 'power2.in' }, 0.36)
-        .to(inner, { scale: 1, duration: 0.9, ease: 'power1.inOut' }, 0);
-      timelineRef.current = timeline;
-    };
-    begin();
+      begin();
 
-    const skipToEnd = () => {
-      if (timelineRef.current) {
-        timelineRef.current.progress(1);
-      } else {
+      const skipToEnd = () => {
+        if (timelineRef.current) {
+          timelineRef.current.progress(1);
+        } else {
+          cancelAnimationFrame(raf);
+          useEmberHatchStore.getState().land();
+        }
+      };
+      window.addEventListener('pointerdown', skipToEnd, true);
+      window.addEventListener('resize', skipToEnd);
+      return () => {
         cancelAnimationFrame(raf);
-        useEmberHatchStore.getState().land();
-      }
-    };
-    window.addEventListener('pointerdown', skipToEnd, true);
-    window.addEventListener('resize', skipToEnd);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('pointerdown', skipToEnd, true);
-      window.removeEventListener('resize', skipToEnd);
-      timelineRef.current?.kill();
-      timelineRef.current = null;
-    };
-  }, { dependencies: [phase, from] });
+        window.removeEventListener('pointerdown', skipToEnd, true);
+        window.removeEventListener('resize', skipToEnd);
+        timelineRef.current?.kill();
+        timelineRef.current = null;
+      };
+    },
+    { dependencies: [phase, from] },
+  );
 
   if (phase !== 'flying') return null;
   return (

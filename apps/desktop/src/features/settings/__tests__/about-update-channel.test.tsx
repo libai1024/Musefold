@@ -10,21 +10,20 @@ import {
 import { UpdateRow } from '../components/AboutUpdateRow';
 
 function setChannelMock() {
-  return vi.fn(async (channel: Channel): Promise<UpdateChannelResult> => ({
-    ok: true,
-    channel,
-    lockedByEnv: false,
-  }));
+  return vi.fn(
+    async (channel: Channel): Promise<UpdateChannelResult> => ({
+      ok: true,
+      channel,
+      lockedByEnv: false,
+    }),
+  );
 }
 
 describe('about update channel row', () => {
   it('does not call set before the user confirms', async () => {
     const setChannel = setChannelMock();
     const html = renderToStaticMarkup(
-      <UpdateChannelRow
-        info={{ channel: 'stable', lockedByEnv: false }}
-        onCommit={setChannel}
-      />,
+      <UpdateChannelRow info={{ channel: 'stable', lockedByEnv: false }} onCommit={setChannel} />,
     );
     expect(html).toContain('data-testid="about-update-channel"');
     expect(html).toContain('data-testid="about-channel-beta"');
@@ -57,10 +56,7 @@ describe('about update channel row', () => {
   it('is read-only when the environment variable locks the channel', async () => {
     const setChannel = setChannelMock();
     const html = renderToStaticMarkup(
-      <UpdateChannelRow
-        info={{ channel: 'dev', lockedByEnv: true }}
-        onCommit={setChannel}
-      />,
+      <UpdateChannelRow info={{ channel: 'dev', lockedByEnv: true }} onCommit={setChannel} />,
     );
     expect(html).toContain('data-testid="about-channel-locked"');
     expect(html).toContain('MUSEFOLD_UPDATE_CHANNEL');

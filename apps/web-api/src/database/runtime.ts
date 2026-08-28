@@ -6,12 +6,7 @@ import type { MusefoldDatabase } from './types.js';
 const GENERATION_EVENTS_CHANNEL = 'musefold_generation_events';
 
 export interface GenerationEventWaiter {
-  wait(
-    ownerId: number,
-    runId: string,
-    afterSeq: number,
-    timeoutMs: number,
-  ): Promise<boolean>;
+  wait(ownerId: number, runId: string, afterSeq: number, timeoutMs: number): Promise<boolean>;
 }
 
 interface EventWaiter {
@@ -47,22 +42,20 @@ export class GenerationEventNotifier implements GenerationEventWaiter {
     this.canListen = true;
   }
 
-  wait(
-    ownerId: number,
-    runId: string,
-    afterSeq: number,
-    timeoutMs: number,
-  ): Promise<boolean> {
+  wait(ownerId: number, runId: string, afterSeq: number, timeoutMs: number): Promise<boolean> {
     if (!this.client || !this.canListen) return Promise.resolve(false);
     return new Promise((resolve) => {
       const waiter: EventWaiter = {
         ownerId,
         runId,
         afterSeq,
-        timer: setTimeout(() => {
-          this.waiters.delete(waiter);
-          resolve(false);
-        }, Math.max(1, timeoutMs)),
+        timer: setTimeout(
+          () => {
+            this.waiters.delete(waiter);
+            resolve(false);
+          },
+          Math.max(1, timeoutMs),
+        ),
         resolve,
       };
       this.waiters.add(waiter);
@@ -93,13 +86,15 @@ export class GenerationEventNotifier implements GenerationEventWaiter {
         typeof value.ownerId !== 'number' ||
         typeof value.runId !== 'string' ||
         typeof value.seq !== 'number'
-      ) return;
+      )
+        return;
       for (const waiter of [...this.waiters]) {
         if (
           waiter.ownerId !== value.ownerId ||
           waiter.runId !== value.runId ||
           value.seq <= waiter.afterSeq
-        ) continue;
+        )
+          continue;
         clearTimeout(waiter.timer);
         this.waiters.delete(waiter);
         waiter.resolve(true);
@@ -125,9 +120,7 @@ export class DatabaseRuntime implements ReadinessProbe {
   readonly db: Kysely<MusefoldDatabase>;
   readonly generationEvents: GenerationEventNotifier;
 
-  constructor(
-    config: Pick<WebApiConfig, 'DATABASE_URL' | 'DATABASE_MAX_CONNECTIONS'>,
-  ) {
+  constructor(config: Pick<WebApiConfig, 'DATABASE_URL' | 'DATABASE_MAX_CONNECTIONS'>) {
     this.pool = new Pool({
       connectionString: config.DATABASE_URL,
       max: config.DATABASE_MAX_CONNECTIONS,
@@ -149,16 +142,13 @@ export class DatabaseRuntime implements ReadinessProbe {
       return {
         ok: migrationTable === 'pgmigrations',
         latencyMs: Math.round(performance.now() - startedAt),
-        detail: migrationTable
-          ? undefined
-          : 'database migrations have not been applied',
+        detail: migrationTable ? undefined : 'database migrations have not been applied',
       };
     } catch (error) {
       return {
         ok: false,
         latencyMs: Math.round(performance.now() - startedAt),
-        detail:
-          error instanceof Error ? error.message : 'database check failed',
+        detail: error instanceof Error ? error.message : 'database check failed',
       };
     }
   }

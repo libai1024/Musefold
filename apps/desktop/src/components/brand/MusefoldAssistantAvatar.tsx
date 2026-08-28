@@ -2,10 +2,7 @@ import type { HTMLAttributes } from 'react';
 import musefoldAssistantLogo from './musefold-assistant-avatar.png';
 import { cn } from '../../lib/utils';
 
-export function MusefoldAssistantAvatar({
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
+export function MusefoldAssistantAvatar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       role="img"

@@ -31,10 +31,7 @@ export function createStorageClient(config: StorageConfig): S3Client {
 
 export async function ensureStorageBucket(
   client: Pick<S3Client, 'send'>,
-  config: Pick<
-    StorageConfig,
-    'S3_BUCKET' | 'S3_REGION' | 'S3_AUTO_CREATE_BUCKET'
-  >,
+  config: Pick<StorageConfig, 'S3_BUCKET' | 'S3_REGION' | 'S3_AUTO_CREATE_BUCKET'>,
 ): Promise<'existing' | 'created'> {
   try {
     await client.send(new HeadBucketCommand({ Bucket: config.S3_BUCKET }));

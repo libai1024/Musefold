@@ -1,4 +1,4 @@
-import { Button } from "@musefold/ui";
+import { Button } from '@musefold/ui';
 
 export interface WorkbenchDraftConflictNoticeProps {
   onUseRemote: () => void;
@@ -18,16 +18,16 @@ export interface WorkbenchDraftConflictNoticeProps {
 export function WorkbenchDraftConflictNotice({
   onUseRemote,
   onKeepLocal,
-  title = "云端草稿已更新",
-  description = "请选择保留的版本",
-  useRemoteLabel = "使用云端",
-  keepLocalLabel = "保留本机",
+  title = '云端草稿已更新',
+  description = '请选择保留的版本',
+  useRemoteLabel = '使用云端',
+  keepLocalLabel = '保留本机',
   className,
-  testId = "workbench-draft-conflict",
+  testId = 'workbench-draft-conflict',
 }: WorkbenchDraftConflictNoticeProps) {
   return (
     <div
-      className={["composer-conflict", className].filter(Boolean).join(" ")}
+      className={['composer-conflict', className].filter(Boolean).join(' ')}
       role="alert"
       data-testid={testId}
     >

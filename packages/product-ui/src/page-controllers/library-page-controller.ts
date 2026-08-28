@@ -1,6 +1,6 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
-import type { PromptGateway } from "@musefold/domain";
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
+import type { PromptGateway } from '@musefold/domain';
 import {
   LIBRARY_PAGE_SEARCH_DEBOUNCE_MS,
   asPagedItems,
@@ -8,15 +8,15 @@ import {
   itemsFromQueryData,
   libraryPageListKey,
   upsertListCache,
-} from "./paged-items";
-import { musefoldQueryKeys } from "./query-client";
-import { requirePageControllerDeps, type LibraryPageControllerDeps } from "./types";
+} from './paged-items';
+import { musefoldQueryKeys } from './query-client';
+import { requirePageControllerDeps, type LibraryPageControllerDeps } from './types';
 
 export type { LibraryPageControllerDeps };
 
-type PromptDocument = Awaited<ReturnType<PromptGateway["getPrompt"]>>;
-type NewPromptDocument = Parameters<PromptGateway["createPrompt"]>[0];
-type UpdatePromptDocument = Parameters<PromptGateway["updatePrompt"]>[1];
+type PromptDocument = Awaited<ReturnType<PromptGateway['getPrompt']>>;
+type NewPromptDocument = Parameters<PromptGateway['createPrompt']>[0];
+type UpdatePromptDocument = Parameters<PromptGateway['updatePrompt']>[1];
 
 export interface LibraryPageController<TItem extends { id: string } = PromptDocument> {
   items: TItem[];
@@ -46,9 +46,9 @@ export function useLibraryPageController<TItem extends { id: string } = PromptDo
     listFn?: () => Promise<LibraryListResult<TItem>>;
   },
 ): LibraryPageController<TItem> {
-  const wired = requirePageControllerDeps(deps, "useLibraryPageController");
+  const wired = requirePageControllerDeps(deps, 'useLibraryPageController');
   const queryClient = useQueryClient();
-  const [internalQuery, setInternalQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const query = wired.query ?? internalQuery;
   const setQuery = wired.onQueryChange ?? setInternalQuery;
@@ -66,9 +66,7 @@ export function useLibraryPageController<TItem extends { id: string } = PromptDo
   const result = useQuery<unknown, Error>({
     queryKey,
     queryFn: () =>
-      wired.listFn
-        ? wired.listFn()
-        : wired.prompts.listPrompts(libraryPageListKey(debouncedQuery)),
+      wired.listFn ? wired.listFn() : wired.prompts.listPrompts(libraryPageListKey(debouncedQuery)),
     placeholderData: keepPreviousData,
     enabled: wired.listEnabled ?? true,
   });
@@ -144,7 +142,7 @@ export function useLibraryPageController<TItem extends { id: string } = PromptDo
     const trashPage = await wired.prompts.listPrompts({
       includeDeleted: true,
       limit: 100,
-      sort: "updated-desc",
+      sort: 'updated-desc',
     });
     return trashPage.items.filter((item) => Boolean(item.deletedAt));
   }, [wired.prompts]);
@@ -159,7 +157,8 @@ export function useLibraryPageController<TItem extends { id: string } = PromptDo
     nextCursor: page.nextCursor,
     loading: result.isFetching,
     initialized: result.isFetched,
-    error: result.error instanceof Error ? result.error.message : result.error ? "加载提示词失败" : null,
+    error:
+      result.error instanceof Error ? result.error.message : result.error ? '加载提示词失败' : null,
     refetch: result.refetch,
     query,
     setQuery,

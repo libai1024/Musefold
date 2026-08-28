@@ -12,9 +12,7 @@ describe('generation object storage bootstrap', () => {
   it('leaves an existing bucket unchanged', async () => {
     const send = vi.fn().mockResolvedValue({});
 
-    await expect(
-      ensureStorageBucket({ send } as never, baseConfig),
-    ).resolves.toBe('existing');
+    await expect(ensureStorageBucket({ send } as never, baseConfig)).resolves.toBe('existing');
     expect(send).toHaveBeenCalledOnce();
     expect(send.mock.calls[0]?.[0]).toBeInstanceOf(HeadBucketCommand);
   });
@@ -28,9 +26,7 @@ describe('generation object storage bootstrap', () => {
       })
       .mockResolvedValueOnce({});
 
-    await expect(
-      ensureStorageBucket({ send } as never, baseConfig),
-    ).resolves.toBe('created');
+    await expect(ensureStorageBucket({ send } as never, baseConfig)).resolves.toBe('created');
     expect(send.mock.calls[1]?.[0]).toBeInstanceOf(CreateBucketCommand);
   });
 

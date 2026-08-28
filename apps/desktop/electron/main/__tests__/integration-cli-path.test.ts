@@ -14,7 +14,9 @@ describe('CLI user PATH management', () => {
       kind: 'zsh',
       path: '/Users/test/.zprofile',
     });
-    expect(resolvePosixShellProfile('/Users/test', '/bin/bash', (path) => path.endsWith('.bash_login'))).toEqual({
+    expect(
+      resolvePosixShellProfile('/Users/test', '/bin/bash', (path) => path.endsWith('.bash_login')),
+    ).toEqual({
       kind: 'bash',
       path: '/Users/test/.bash_login',
     });

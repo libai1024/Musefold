@@ -1,4 +1,4 @@
-import Ajv from "ajv";
+import Ajv from 'ajv';
 import { sql, type Kysely } from 'kysely';
 import type { MusefoldDatabase } from '../../database/types.js';
 import { AppError } from '../../errors.js';
@@ -17,12 +17,7 @@ export class SkillService {
   constructor(private readonly db: Kysely<MusefoldDatabase>) {}
 
   async list(): Promise<
-    Array<
-      Pick<
-        PublishedSkill,
-        'id' | 'version' | 'title' | 'summary' | 'contentHash'
-      >
-    >
+    Array<Pick<PublishedSkill, 'id' | 'version' | 'title' | 'summary' | 'contentHash'>>
   > {
     const result = await sql<{
       id: string;
@@ -59,8 +54,7 @@ export class SkillService {
       WHERE id = ${id} AND version = ${version} AND status = 'published'
     `.execute(this.db);
     const row = result.rows[0];
-    if (!row)
-      throw new AppError('VALIDATION_FAILED', '官方 Skill 不存在或已下线', 404);
+    if (!row) throw new AppError('VALIDATION_FAILED', '官方 Skill 不存在或已下线', 404);
     return {
       id: row.id,
       version: row.version,
@@ -72,33 +66,25 @@ export class SkillService {
     };
   }
 
-  validateInputs(
-    skill: PublishedSkill,
-    inputs: Record<string, unknown>,
-  ): void {
-    let validate: ReturnType<Ajv["compile"]>;
+  validateInputs(skill: PublishedSkill, inputs: Record<string, unknown>): void {
+    let validate: ReturnType<Ajv['compile']>;
     try {
-      validate = new Ajv({ allErrors: true, strict: true }).compile(
-        skill.inputSchema,
-      );
+      validate = new Ajv({ allErrors: true, strict: true }).compile(skill.inputSchema);
     } catch {
       // schema 编译失败不得把 Ajv 细节泄漏给客户端
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "官方 Skill 输入 schema 无法使用",
-        500,
-        false,
-        { skillId: skill.id, skillVersion: skill.version },
-      );
+      throw new AppError('INTERNAL_ERROR', '官方 Skill 输入 schema 无法使用', 500, false, {
+        skillId: skill.id,
+        skillVersion: skill.version,
+      });
     }
     if (validate(inputs)) return;
     const detail = (validate.errors ?? [])
       .slice(0, 4)
-      .map((error) => `${error.instancePath || "/"} ${error.message ?? "无效"}`)
-      .join("；");
+      .map((error) => `${error.instancePath || '/'} ${error.message ?? '无效'}`)
+      .join('；');
     throw new AppError(
-      "VALIDATION_FAILED",
-      `Skill 输入不符合 schema${detail ? `：${detail}` : ""}`,
+      'VALIDATION_FAILED',
+      `Skill 输入不符合 schema${detail ? `：${detail}` : ''}`,
       400,
     );
   }

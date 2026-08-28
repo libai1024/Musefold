@@ -47,29 +47,39 @@ export interface DetailedConnection {
 }
 
 export async function connectDetailed(context: CliContext): Promise<DetailedConnection> {
-  const endpoint = typeof context.args.flags.endpoint === 'string' ? context.args.flags.endpoint : undefined;
+  const endpoint =
+    typeof context.args.flags.endpoint === 'string' ? context.args.flags.endpoint : undefined;
   const token = typeof context.args.flags.token === 'string' ? context.args.flags.token : undefined;
   if (endpoint && token) {
     const explicitDataDir = context.env.MUSEFOLD_DATA_DIR ?? null;
     return { client: new MusefoldClient({ endpoint, token }), dataDir: explicitDataDir };
   }
 
-  const autostart = context.args.flags.autostart === true
-    || context.env.MUSEFOLD_AUTOSTART === '1'
-    || context.env.ELECTRON_RUN_AS_NODE === '1';
+  const autostart =
+    context.args.flags.autostart === true ||
+    context.env.MUSEFOLD_AUTOSTART === '1' ||
+    context.env.ELECTRON_RUN_AS_NODE === '1';
   const discovered = await discoverOrStartEndpoint({
     env: context.env,
     autostart,
     logger: (line) => context.io.stderr(`musefold: ${line}`),
   });
   if (!discovered) {
-    const message = '无法连接 Musefold 0.5 桌面控制面。请启动 Musefold，并在“设置 > 自动化”中开启本地控制面。';
+    const message =
+      '无法连接 Musefold 0.5 桌面控制面。请启动 Musefold，并在“设置 > 自动化”中开启本地控制面。';
     context.io.stderr(`musefold: ${message}`);
-    if (context.json) context.io.stdout(JSON.stringify({ type: 'error', code: 'NOT_CONNECTED', message }));
+    if (context.json)
+      context.io.stdout(JSON.stringify({ type: 'error', code: 'NOT_CONNECTED', message }));
     throw new CliExit(EXIT.NOT_CONNECTED);
   }
-  const dataDir = discovered.source === 'env' ? (context.env.MUSEFOLD_DATA_DIR ?? null) : dirname(discovered.source);
-  return { client: new MusefoldClient({ endpoint: discovered.endpoint, token: discovered.token }), dataDir };
+  const dataDir =
+    discovered.source === 'env'
+      ? (context.env.MUSEFOLD_DATA_DIR ?? null)
+      : dirname(discovered.source);
+  return {
+    client: new MusefoldClient({ endpoint: discovered.endpoint, token: discovered.token }),
+    dataDir,
+  };
 }
 
 /**
@@ -104,7 +114,8 @@ export function exitCodeForError(error: unknown): number {
   if (error instanceof ArgsError) return EXIT.ARGS;
   if (error instanceof MusefoldClientError) {
     if (error.code === 'NOT_CONNECTED') return EXIT.NOT_CONNECTED;
-    if (error.code === 'CONFIRMATION_DENIED' || error.code === 'CONFIRMATION_TIMEOUT') return EXIT.REFUSED;
+    if (error.code === 'CONFIRMATION_DENIED' || error.code === 'CONFIRMATION_TIMEOUT')
+      return EXIT.REFUSED;
     if (error.code === 'BUDGET_EXCEEDED') return EXIT.BUDGET;
     if (error.code.startsWith('PROVIDER')) return EXIT.PROVIDER;
     return EXIT.GENERAL;

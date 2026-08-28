@@ -8,7 +8,10 @@ import {
   loadRelatedHistory,
 } from '../related-history';
 
-const relatedHistorySource = readFileSync(new URL('../related-history.ts', import.meta.url), 'utf8');
+const relatedHistorySource = readFileSync(
+  new URL('../related-history.ts', import.meta.url),
+  'utf8',
+);
 const promptWorksPanelSource = readFileSync(
   new URL('../../features/library/components/PromptWorksPanel.tsx', import.meta.url),
   'utf8',
@@ -59,12 +62,20 @@ describe('related history compatibility', () => {
   });
 
   it('recognizes only the missing-handler transport error', () => {
-    expect(isMissingRelatedHistoryHandler(new Error(
-      "Error invoking remote method 'db:history:related': Error: No handler registered for 'db:history:related'",
-    ))).toBe(true);
-    expect(isMissingRelatedHistoryHandler(new Error(
-      "Error invoking remote method 'db:history:linkPrompt': Error: No handler registered for 'db:history:linkPrompt'",
-    ))).toBe(true);
+    expect(
+      isMissingRelatedHistoryHandler(
+        new Error(
+          "Error invoking remote method 'db:history:related': Error: No handler registered for 'db:history:related'",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isMissingRelatedHistoryHandler(
+        new Error(
+          "Error invoking remote method 'db:history:linkPrompt': Error: No handler registered for 'db:history:linkPrompt'",
+        ),
+      ),
+    ).toBe(true);
     expect(isMissingRelatedHistoryHandler(new Error('SQLITE_CORRUPT'))).toBe(false);
   });
 
@@ -97,19 +108,21 @@ describe('related history compatibility', () => {
 
   it('DB v9 uses extras.relatedHistory', async () => {
     const relatedHistory = vi.fn().mockResolvedValue({
-      items: [{ ...history('reference', null), promptRelations: [{ kind: 'reference', scope: 'excerpt' }] }],
+      items: [
+        {
+          ...history('reference', null),
+          promptRelations: [{ kind: 'reference', scope: 'excerpt' }],
+        },
+      ],
       total: 1,
     });
     const listHistory = vi.fn();
     const query = { promptId: 'prompt-1' };
-    const result = await loadRelatedHistory(
-      query,
-      {
-        listHistory,
-        relatedHistory,
-        getSystemVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 9 }),
-      },
-    );
+    const result = await loadRelatedHistory(query, {
+      listHistory,
+      relatedHistory,
+      getSystemVersion: vi.fn().mockResolvedValue({ app: '0.1.0', db: 9 }),
+    });
     expect(relatedHistory).toHaveBeenCalledWith(query);
     expect(relatedHistory.mock.calls[0][0]).toBe(query);
     expect(listHistory).not.toHaveBeenCalled();
@@ -135,7 +148,10 @@ describe('related history compatibility', () => {
       conflicts: [],
       missing: [],
     });
-    expect(linkHistoryPrompt).toHaveBeenCalledWith({ promptId: 'prompt-1', historyIds: ['h1', 'h2'] });
+    expect(linkHistoryPrompt).toHaveBeenCalledWith({
+      promptId: 'prompt-1',
+      historyIds: ['h1', 'h2'],
+    });
 
     extras.getSystemVersion.mockResolvedValue({ app: '0.1.0', db: 9 });
     linkHistoryPrompt.mockClear();

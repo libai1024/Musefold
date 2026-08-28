@@ -26,7 +26,9 @@ export function accessSourceOf(entry: AccessEntry | null | undefined): AiAccessS
 }
 
 /** 豆包和 Musefold 托管 Provider 都属于账号模式；其余 Provider 属于中转站模式。 */
-export function accessModeOfProvider(entry: AccessProviderEntry | null | undefined): AiAccessMode | null {
+export function accessModeOfProvider(
+  entry: AccessProviderEntry | null | undefined,
+): AiAccessMode | null {
   if (!entry) return null;
   return entry.type === 'doubao-web' || entry.managedBy === 'account' ? 'account' : 'relay';
 }
@@ -41,9 +43,14 @@ export function accountImageSourceOfProvider(
 
 /** 最近使用且已配置密钥的自备服务优先；没有可用密钥时仍返回最近条目供用户修复。 */
 export function preferredByokEntry<T extends RecentAccessEntry>(entries: T[]): T | null {
-  return entries
-    .filter((entry) => entry.managedBy !== 'account')
-    .sort((left, right) => Number(right.hasKey) - Number(left.hasKey) || right.updatedAt - left.updatedAt)[0] ?? null;
+  return (
+    entries
+      .filter((entry) => entry.managedBy !== 'account')
+      .sort(
+        (left, right) =>
+          Number(right.hasKey) - Number(left.hasKey) || right.updatedAt - left.updatedAt,
+      )[0] ?? null
+  );
 }
 
 function errorMessage(error: unknown): string {
@@ -51,7 +58,9 @@ function errorMessage(error: unknown): string {
 }
 
 /** 所有目标通道并行验证；任一失败时汇总原因，调用方不得提交切换。 */
-export async function verifyAiAccessConnectivity(checks: AiAccessConnectivityCheck[]): Promise<void> {
+export async function verifyAiAccessConnectivity(
+  checks: AiAccessConnectivityCheck[],
+): Promise<void> {
   const results = await Promise.allSettled(checks.map((check) => check.run()));
   const failures = results.flatMap((result, index) => {
     const check = checks[index];

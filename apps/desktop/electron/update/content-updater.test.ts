@@ -211,7 +211,8 @@ describe('runContentUpdateCheckOnce', () => {
     const packed = packCompleteBundle();
     const fakeSignature = Buffer.alloc(64).toString('base64');
     const fetchFn = vi.fn(
-      async () => new Response(JSON.stringify({ ...unsignedBody(packed), signature: fakeSignature })),
+      async () =>
+        new Response(JSON.stringify({ ...unsignedBody(packed), signature: fakeSignature })),
     );
     const result = await runContentUpdateCheckOnce({
       fetch: fetchFn,
@@ -298,7 +299,8 @@ describe('runContentUpdateCheckOnce', () => {
     const fakeSignature = Buffer.alloc(64).toString('base64');
     await runContentUpdateCheckOnce({
       fetch: vi.fn(
-        async () => new Response(JSON.stringify({ ...unsignedBody(packed), signature: fakeSignature })),
+        async () =>
+          new Response(JSON.stringify({ ...unsignedBody(packed), signature: fakeSignature })),
       ),
       publicKeys: [publicKey],
       channel: 'dev',
@@ -339,12 +341,12 @@ describe('content update schedule plan', () => {
   });
 
   it('disables scheduling in any build when MUSEFOLD_CONTENT_UPDATE_DISABLED=1', () => {
-    expect(resolveContentUpdateSchedulePlan({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, true).disabled).toBe(
-      true,
-    );
-    expect(resolveContentUpdateSchedulePlan({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, false).disabled).toBe(
-      true,
-    );
+    expect(
+      resolveContentUpdateSchedulePlan({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, true).disabled,
+    ).toBe(true);
+    expect(
+      resolveContentUpdateSchedulePlan({ MUSEFOLD_CONTENT_UPDATE_DISABLED: '1' }, false).disabled,
+    ).toBe(true);
   });
 });
 

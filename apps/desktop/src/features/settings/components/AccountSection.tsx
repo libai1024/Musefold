@@ -1,30 +1,18 @@
 // 设置 → 账号（v0.5，CODEX 极简风）
 // 纯边线 + 留白 + 排版承重；无阴影/渐变/装饰插图；所有动作 pill 几何。
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
-import { ACCOUNT_QUOTA_PER_USD } from "@musefold/contracts/billing.js";
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { ACCOUNT_QUOTA_PER_USD } from '@musefold/contracts/billing.js';
 import type {
   CloudSyncConflictResolution,
   CloudSyncConflictSummary,
   CloudSyncSummary,
-} from "@musefold/desktop-contracts/cloud-sync";
-import {
-  getAccountDesktopExtras,
-  useAccountStore,
-} from "@renderer/runtime/account-access";
-import { useSettingsStore } from "../store";
-import {
-  type AuthMode,
-  NOTICE_READ_KEY,
-  initialReadNotices,
-} from "./account-section-helpers";
-import { AccountSignedInPanel } from "./AccountSignedInPanel";
-import { AccountSignedOutForm } from "./AccountSignedOutForm";
+} from '@musefold/desktop-contracts/cloud-sync';
+import { getAccountDesktopExtras, useAccountStore } from '@renderer/runtime/account-access';
+import { useSettingsStore } from '../store';
+import { type AuthMode, NOTICE_READ_KEY, initialReadNotices } from './account-section-helpers';
+import { AccountSignedInPanel } from './AccountSignedInPanel';
+import { AccountSignedOutForm } from './AccountSignedOutForm';
 
 export function AccountSection() {
   const status = useAccountStore((s) => s.status);
@@ -41,33 +29,25 @@ export function AccountSection() {
   const accountSetupRequest = useSettingsStore((s) => s.accountSetupRequest);
   const consumeAccountSetup = useSettingsStore((s) => s.consumeAccountSetup);
 
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [mode, setMode] = useState<AuthMode>('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   // 注册两次密码不一致的表单级错误：按钮 disabled 拦不住 Enter 提交等边缘路径，须可见反馈。
   const [formError, setFormError] = useState<string | null>(null);
   const [serverEditing, setServerEditing] = useState(false);
   const [serverUrl, setServerUrlInput] = useState(status.serverUrl);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [readNoticeIds, setReadNoticeIds] =
-    useState<string[]>(initialReadNotices);
+  const [readNoticeIds, setReadNoticeIds] = useState<string[]>(initialReadNotices);
   const [cloudSync, setCloudSync] = useState<CloudSyncSummary | null>(null);
-  const [cloudConflicts, setCloudConflicts] = useState<
-    CloudSyncConflictSummary[]
-  >([]);
+  const [cloudConflicts, setCloudConflicts] = useState<CloudSyncConflictSummary[]>([]);
   const [cloudError, setCloudError] = useState<string | null>(null);
 
-  const isAuthBusy = action === "login" || action === "register";
+  const isAuthBusy = action === 'login' || action === 'register';
   // $1 按 ¥1 计费（积分 = 人民币 × 10），换算系数与美元锚定一致。
-  const quotaCny = status.quota
-    ? status.quota.value / ACCOUNT_QUOTA_PER_USD
-    : null;
+  const quotaCny = status.quota ? status.quota.value / ACCOUNT_QUOTA_PER_USD : null;
   const notices = useMemo(
-    () =>
-      status.notices
-        .filter((notice) => !readNoticeIds.includes(notice.id))
-        .slice(0, 5),
+    () => status.notices.filter((notice) => !readNoticeIds.includes(notice.id)).slice(0, 5),
     [readNoticeIds, status.notices],
   );
 
@@ -78,8 +58,7 @@ export function AccountSection() {
 
   // 登出 / 登录失效后回到表单时预填上次的用户名，重新登录只需输密码。
   useEffect(() => {
-    if (!status.loggedIn && lastUsername)
-      setUsername((current) => current || lastUsername);
+    if (!status.loggedIn && lastUsername) setUsername((current) => current || lastUsername);
   }, [lastUsername, status.loggedIn]);
 
   useEffect(() => {
@@ -92,7 +71,7 @@ export function AccountSection() {
     clearError();
     const requestId = accountSetupRequest.requestId;
     requestAnimationFrame(() => {
-      document.getElementById("account-username")?.focus();
+      document.getElementById('account-username')?.focus();
       consumeAccountSetup(requestId);
     });
   }, [accountSetupRequest, clearError, consumeAccountSetup, status.loggedIn]);
@@ -111,13 +90,9 @@ export function AccountSection() {
         const next = await extras.cloudSyncStatus();
         if (!active) return;
         setCloudSync(next);
-        if (next.conflicts > 0)
-          setCloudConflicts(await extras.cloudSyncConflicts());
+        if (next.conflicts > 0) setCloudConflicts(await extras.cloudSyncConflicts());
       } catch (cause) {
-        if (active)
-          setCloudError(
-            cause instanceof Error ? cause.message : "无法读取云同步状态",
-          );
+        if (active) setCloudError(cause instanceof Error ? cause.message : '无法读取云同步状态');
       }
     };
     void load();
@@ -138,10 +113,9 @@ export function AccountSection() {
       const extras = getAccountDesktopExtras();
       const next = await extras.cloudSyncSetEnabled(enabled);
       setCloudSync(next);
-      if (next.conflicts > 0)
-        setCloudConflicts(await extras.cloudSyncConflicts());
+      if (next.conflicts > 0) setCloudConflicts(await extras.cloudSyncConflicts());
     } catch (cause) {
-      setCloudError(cause instanceof Error ? cause.message : "云同步操作失败");
+      setCloudError(cause instanceof Error ? cause.message : '云同步操作失败');
     }
   };
 
@@ -151,11 +125,9 @@ export function AccountSection() {
       const extras = getAccountDesktopExtras();
       const next = await extras.cloudSyncNow();
       setCloudSync(next);
-      setCloudConflicts(
-        next.conflicts > 0 ? await extras.cloudSyncConflicts() : [],
-      );
+      setCloudConflicts(next.conflicts > 0 ? await extras.cloudSyncConflicts() : []);
     } catch (cause) {
-      setCloudError(cause instanceof Error ? cause.message : "云同步失败");
+      setCloudError(cause instanceof Error ? cause.message : '云同步失败');
     }
   };
 
@@ -168,11 +140,9 @@ export function AccountSection() {
       const extras = getAccountDesktopExtras();
       const next = await extras.cloudSyncResolve(conflictId, resolution);
       setCloudSync(next);
-      setCloudConflicts(
-        next.conflicts > 0 ? await extras.cloudSyncConflicts() : [],
-      );
+      setCloudConflicts(next.conflicts > 0 ? await extras.cloudSyncConflicts() : []);
     } catch (cause) {
-      setCloudError(cause instanceof Error ? cause.message : "冲突处理失败");
+      setCloudError(cause instanceof Error ? cause.message : '冲突处理失败');
     }
   };
   const markNoticeRead = (id: string) => {
@@ -190,19 +160,19 @@ export function AccountSection() {
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
     clearError();
-    if (mode === "register" && password !== confirmPassword) {
-      setFormError("两次输入的密码不一致，请检查后重试");
+    if (mode === 'register' && password !== confirmPassword) {
+      setFormError('两次输入的密码不一致，请检查后重试');
       return;
     }
     setFormError(null);
     try {
-      if (mode === "register") await register({ username, password });
+      if (mode === 'register') await register({ username, password });
       else await login({ username, password });
-      setPassword("");
-      setConfirmPassword("");
+      setPassword('');
+      setConfirmPassword('');
     } catch {
-      setPassword("");
-      setConfirmPassword("");
+      setPassword('');
+      setConfirmPassword('');
     }
   };
 

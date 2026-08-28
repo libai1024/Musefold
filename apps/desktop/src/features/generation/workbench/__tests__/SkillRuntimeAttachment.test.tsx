@@ -8,7 +8,9 @@ const storage = {
   removeItem: (key: string) => storageValues.delete(key),
   clear: () => storageValues.clear(),
   key: (index: number) => [...storageValues.keys()][index] ?? null,
-  get length() { return storageValues.size; },
+  get length() {
+    return storageValues.size;
+  },
 } as Storage;
 vi.stubGlobal('localStorage', storage);
 
@@ -31,7 +33,13 @@ beforeAll(async () => {
 
 const trace = [
   { id: 'one', kind: 'tool' as const, title: '读取 GitHub 仓库', status: 'success' as const },
-  { id: 'two', kind: 'assistant' as const, title: 'Agent', status: 'running' as const, output: '正在整理画面规则' },
+  {
+    id: 'two',
+    kind: 'assistant' as const,
+    title: 'Agent',
+    status: 'running' as const,
+    output: '正在整理画面规则',
+  },
   { id: 'three', kind: 'tool' as const, title: '调用生图模型', status: 'success' as const },
 ];
 
@@ -39,7 +47,7 @@ describe('SkillRuntimeConversation stepper', () => {
   it('draws only the two adjacent connectors for a three-step trace', () => {
     const html = renderToStaticMarkup(<SkillRuntimeConversation trace={trace} />);
     // Three segments (start / through / end) form exactly two adjacent gaps.
-    expect((html.match(/left-\[calc\(0\.4375rem-23\.5px\)\]/g) ?? [])).toHaveLength(3);
+    expect(html.match(/left-\[calc\(0\.4375rem-23\.5px\)\]/g) ?? []).toHaveLength(3);
     expect(html).toContain('bottom-0 top-[0.9375rem]');
     expect(html).toContain('bottom-0 top-0');
     expect(html).toContain('top-0 h-[0.9375rem]');

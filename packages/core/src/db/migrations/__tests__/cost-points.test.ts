@@ -23,7 +23,9 @@ describe('0016_cost_points', () => {
       { id: 'byok', cost: 3.2, cost_unit: 'point' },
       { id: 'managed', cost: 1.2, cost_unit: 'point' },
     ]);
-    expect(db.prepare('SELECT estimated_points, actual_points FROM automation_audit').get()).toEqual({
+    expect(
+      db.prepare('SELECT estimated_points, actual_points FROM automation_audit').get(),
+    ).toEqual({
       estimated_points: 3.2,
       actual_points: 4,
     });

@@ -28,27 +28,24 @@ export async function generateImage(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120_000);
   try {
-    const response = await fetch(
-      `${baseUrl.replace(/\/+$/, '')}/v1/images/generations`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'musefold-image-pro',
-          prompt: request.negative
-            ? `${request.prompt}\n\nNegative prompt: ${request.negative}`
-            : request.prompt,
-          size: request.size === 'auto' ? undefined : request.size,
-          quality: request.quality === 'auto' ? undefined : request.quality,
-          n: request.count,
-        }),
-        signal: controller.signal,
+    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/v1/images/generations`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
-    );
+      body: JSON.stringify({
+        model: 'musefold-image-pro',
+        prompt: request.negative
+          ? `${request.prompt}\n\nNegative prompt: ${request.negative}`
+          : request.prompt,
+        size: request.size === 'auto' ? undefined : request.size,
+        quality: request.quality === 'auto' ? undefined : request.quality,
+        n: request.count,
+      }),
+      signal: controller.signal,
+    });
     const payload = (await response.json().catch(() => ({}))) as {
       data?: Array<{ b64_json?: string; url?: string }>;
       error?: { message?: string; code?: string };
@@ -56,9 +53,7 @@ export async function generateImage(
     };
     if (!response.ok) {
       const message =
-        payload.error?.message ??
-        payload.message ??
-        `上游生图失败（HTTP ${response.status}）`;
+        payload.error?.message ?? payload.message ?? `上游生图失败（HTTP ${response.status}）`;
       if (response.status === 402 || /quota|balance|余额|配额/i.test(message))
         throw new UpstreamImageError('quota', message);
       if (response.status >= 400 && response.status < 500)
@@ -66,8 +61,7 @@ export async function generateImage(
       throw new UpstreamImageError('unknown', message);
     }
     const items = payload.data ?? [];
-    if (!items.length)
-      throw new UpstreamImageError('unknown', '上游没有返回图像数据');
+    if (!items.length) throw new UpstreamImageError('unknown', '上游没有返回图像数据');
     const images: GeneratedImage[] = [];
     for (const item of items) {
       const bytes = item.b64_json
@@ -75,11 +69,9 @@ export async function generateImage(
         : item.url
           ? await downloadImage(item.url)
           : null;
-      if (!bytes?.length)
-        throw new UpstreamImageError('unknown', '上游图像数据为空');
+      if (!bytes?.length) throw new UpstreamImageError('unknown', '上游图像数据为空');
       const metadata = detectImage(bytes);
-      if (!metadata)
-        throw new UpstreamImageError('rejected', '上游返回了不支持的图像格式');
+      if (!metadata) throw new UpstreamImageError('rejected', '上游返回了不支持的图像格式');
       images.push({ bytes, ...metadata });
     }
     return images;
@@ -106,12 +98,10 @@ async function downloadImage(url: string): Promise<Buffer> {
   const response = await fetch(parsed, { redirect: 'error' });
   if (!response.ok) throw new UpstreamImageError('unknown', '下载上游图像失败');
   const contentLength = Number(response.headers.get('content-length') ?? 0);
-  if (contentLength > MAX_IMAGE_BYTES)
-    throw new UpstreamImageError('rejected', '图像文件过大');
+  if (contentLength > MAX_IMAGE_BYTES) throw new UpstreamImageError('rejected', '图像文件过大');
   if (!response.body) {
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_IMAGE_BYTES)
-      throw new UpstreamImageError('rejected', '图像文件过大');
+    if (bytes.length > MAX_IMAGE_BYTES) throw new UpstreamImageError('rejected', '图像文件过大');
     return bytes;
   }
   const reader = response.body.getReader();
@@ -123,8 +113,7 @@ async function downloadImage(url: string): Promise<Buffer> {
       if (next.done) break;
       const chunk = Buffer.from(next.value);
       total += chunk.length;
-      if (total > MAX_IMAGE_BYTES)
-        throw new UpstreamImageError('rejected', '图像文件过大');
+      if (total > MAX_IMAGE_BYTES) throw new UpstreamImageError('rejected', '图像文件过大');
       chunks.push(chunk);
     }
   } finally {
@@ -138,8 +127,7 @@ function decodeBase64Image(value: string): Buffer {
     throw new UpstreamImageError('rejected', '图像文件过大');
   }
   const bytes = Buffer.from(value, 'base64');
-  if (bytes.length > MAX_IMAGE_BYTES)
-    throw new UpstreamImageError('rejected', '图像文件过大');
+  if (bytes.length > MAX_IMAGE_BYTES) throw new UpstreamImageError('rejected', '图像文件过大');
   return bytes;
 }
 

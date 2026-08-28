@@ -18,10 +18,7 @@ export interface PromptGateway {
   listPrompts(query: PromptListQuery): Promise<PromptPage>;
   getPrompt(id: string): Promise<PromptDocument>;
   createPrompt(input: NewPromptDocument): Promise<PromptDocument>;
-  updatePrompt(
-    id: string,
-    input: UpdatePromptDocument,
-  ): Promise<PromptDocument>;
+  updatePrompt(id: string, input: UpdatePromptDocument): Promise<PromptDocument>;
   deletePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
   restorePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
   usePrompt(id: string, input: PromptUseInput): Promise<PromptUseResult>;

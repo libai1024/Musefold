@@ -49,7 +49,9 @@ export function publishMarketingSite(repoRoot, siteRoot) {
       copied.push('downloads/catalog.json');
     } else {
       const live = JSON.parse(readFileSync(liveCatalog, 'utf8'));
-      const hasLatest = Array.isArray(live.downloads) && live.downloads.some((entry) => entry?.version === 'latest');
+      const hasLatest =
+        Array.isArray(live.downloads) &&
+        live.downloads.some((entry) => entry?.version === 'latest');
       if (!hasLatest) {
         cpSync(gitCatalog, liveCatalog);
         copied.push('downloads/catalog.json');

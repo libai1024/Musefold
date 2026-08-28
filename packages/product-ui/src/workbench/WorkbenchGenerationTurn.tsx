@@ -1,13 +1,13 @@
-import type { HTMLAttributes, ReactNode } from "react";
-import { WorkbenchAssistantFrame } from "./WorkbenchAssistantFrame";
-import { WorkbenchResultGrid } from "./WorkbenchResultGrid";
-import { WorkbenchTurnFrame } from "./WorkbenchTurnFrame";
+import type { HTMLAttributes, ReactNode } from 'react';
+import { WorkbenchAssistantFrame } from './WorkbenchAssistantFrame';
+import { WorkbenchResultGrid } from './WorkbenchResultGrid';
+import { WorkbenchTurnFrame } from './WorkbenchTurnFrame';
 
 export interface WorkbenchGenerationTurnProps {
   turnId: string;
   status?: string;
   userTestId?: string;
-  userProps?: Omit<HTMLAttributes<HTMLDivElement>, "children" | "className">;
+  userProps?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>;
   userMessage: ReactNode;
   avatar: ReactNode;
   header?: ReactNode;
@@ -25,16 +25,16 @@ export interface WorkbenchGenerationTurnProps {
 export function WorkbenchGenerationTurn({
   turnId,
   status,
-  userTestId = "generation-user-message",
+  userTestId = 'generation-user-message',
   userProps,
   userMessage,
   avatar,
   header,
-  assistantTestId = "generation-result-group",
+  assistantTestId = 'generation-result-group',
   preface,
   results,
   resultCount = 0,
-  resultAspectRatio = "1:1",
+  resultAspectRatio = '1:1',
   resultProvider,
   actions,
   appendix,

@@ -54,9 +54,7 @@ export function PromptReferenceSidebar({
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const [promptLoading, setPromptLoading] = useState(true);
   const [promptError, setPromptError] = useState<string | null>(null);
-  const [isOverlay, setIsOverlay] = useState(() =>
-    window.matchMedia(DOCK_OVERLAY_QUERY).matches,
-  );
+  const [isOverlay, setIsOverlay] = useState(() => window.matchMedia(DOCK_OVERLAY_QUERY).matches);
   const searchRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -81,9 +79,7 @@ export function PromptReferenceSidebar({
         })
         .catch((reason: unknown) => {
           if (!cancelled) {
-            setPromptError(
-              reason instanceof Error ? reason.message : '提示词加载失败',
-            );
+            setPromptError(reason instanceof Error ? reason.message : '提示词加载失败');
           }
         })
         .finally(() => {
@@ -107,9 +103,7 @@ export function PromptReferenceSidebar({
   useEffect(() => {
     if (!open) return;
     returnFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusTimer = isOverlay
       ? window.setTimeout(() => searchRef.current?.focus(), 120)
       : undefined;
@@ -155,10 +149,7 @@ export function PromptReferenceSidebar({
       onWidthChange(
         Math.min(
           resize.maxWidth,
-          Math.max(
-            DOCK_MIN_WIDTH,
-            resize.startWidth + resize.startX - event.clientX,
-          ),
+          Math.max(DOCK_MIN_WIDTH, resize.startWidth + resize.startX - event.clientX),
         ),
       );
     };
@@ -177,15 +168,10 @@ export function PromptReferenceSidebar({
     };
   }, [onWidthChange]);
 
-  const captureSelection = (
-    prompt: DesktopLibraryPrompt,
-    container: HTMLElement,
-  ) => {
+  const captureSelection = (prompt: DesktopLibraryPrompt, container: HTMLElement) => {
     const current = window.getSelection();
     if (!current || current.isCollapsed || current.rangeCount === 0) {
-      setSelection((existing) =>
-        existing?.promptId === prompt.id ? null : existing,
-      );
+      setSelection((existing) => (existing?.promptId === prompt.id ? null : existing));
       return;
     }
     const range = current.getRangeAt(0);
@@ -196,17 +182,11 @@ export function PromptReferenceSidebar({
 
   const add = (reference: PromptReference) => {
     if (references.length >= MAX_DRAFT_REFERENCES) {
-      toast.error(
-        '引用数量已满',
-        `最多同时引用 ${MAX_DRAFT_REFERENCES} 条提示词。`,
-      );
+      toast.error('引用数量已满', `最多同时引用 ${MAX_DRAFT_REFERENCES} 条提示词。`);
       return;
     }
     if (reference.text.length > MAX_REFERENCE_TEXT_LENGTH) {
-      toast.error(
-        '选中内容过长',
-        `请把选区缩短到 ${MAX_REFERENCE_TEXT_LENGTH} 字以内。`,
-      );
+      toast.error('选中内容过长', `请把选区缩短到 ${MAX_REFERENCE_TEXT_LENGTH} 字以内。`);
       return;
     }
     if (isDuplicateReference(references, reference)) {
@@ -219,9 +199,7 @@ export function PromptReferenceSidebar({
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (isOverlay || event.button !== 0) return;
-    const page = panelRef.current?.closest<HTMLElement>(
-      '[data-testid="generation-workbench"]',
-    );
+    const page = panelRef.current?.closest<HTMLElement>('[data-testid="generation-workbench"]');
     if (!page) return;
     const maxWidth = Math.min(
       DOCK_MAX_WIDTH,
@@ -243,9 +221,7 @@ export function PromptReferenceSidebar({
     else if (event.key === 'End') onWidthChange(DOCK_MAX_WIDTH);
     else {
       const delta = event.key === 'ArrowLeft' ? 16 : -16;
-      onWidthChange(
-        Math.min(DOCK_MAX_WIDTH, Math.max(DOCK_MIN_WIDTH, width + delta)),
-      );
+      onWidthChange(Math.min(DOCK_MAX_WIDTH, Math.max(DOCK_MIN_WIDTH, width + delta)));
     }
   };
 
@@ -313,10 +289,7 @@ export function PromptReferenceSidebar({
 
         <div className="shrink-0 border-b border-border-subtle p-2.5">
           <label className="flex h-8 items-center gap-2 rounded-[var(--radius-tooltip)] border border-border-default bg-elevated px-2.5 transition-colors focus-within:border-border-strong">
-            <Search
-              className="h-3.5 w-3.5 shrink-0 text-tertiary"
-              aria-hidden="true"
-            />
+            <Search className="h-3.5 w-3.5 shrink-0 text-tertiary" aria-hidden="true" />
             <input
               ref={searchRef}
               value={query}
@@ -348,10 +321,7 @@ export function PromptReferenceSidebar({
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {promptLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-meta text-tertiary">
-              <Loader2
-                className="h-3.5 w-3.5 animate-spin"
-                aria-hidden="true"
-              />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               加载提示词
             </div>
           ) : promptError ? (
@@ -359,9 +329,7 @@ export function PromptReferenceSidebar({
               {promptError}
             </div>
           ) : prompts.length === 0 ? (
-            <div className="px-4 py-12 text-center text-meta text-tertiary">
-              没有找到提示词
-            </div>
+            <div className="px-4 py-12 text-center text-meta text-tertiary">没有找到提示词</div>
           ) : (
             <div className="space-y-1">
               {prompts.map((prompt) => {
@@ -372,14 +340,9 @@ export function PromptReferenceSidebar({
                   text: prompt.content,
                   scope: 'full',
                 };
-                const fullReferenced = isDuplicateReference(
-                  references,
-                  fullReference,
-                );
-                const selectedText =
-                  selection?.promptId === prompt.id ? selection.text : '';
-                const selectionTooLong =
-                  selectedText.length > MAX_REFERENCE_TEXT_LENGTH;
+                const fullReferenced = isDuplicateReference(references, fullReference);
+                const selectedText = selection?.promptId === prompt.id ? selection.text : '';
+                const selectionTooLong = selectedText.length > MAX_REFERENCE_TEXT_LENGTH;
                 const excerptReferenced = selectedText
                   ? isDuplicateReference(references, {
                       ...fullReference,
@@ -447,12 +410,8 @@ export function PromptReferenceSidebar({
                       <div className="border-t border-border-subtle px-2.5 pb-2.5 pt-2">
                         <div
                           tabIndex={0}
-                          onMouseUp={(event) =>
-                            captureSelection(prompt, event.currentTarget)
-                          }
-                          onKeyUp={(event) =>
-                            captureSelection(prompt, event.currentTarget)
-                          }
+                          onMouseUp={(event) => captureSelection(prompt, event.currentTarget)}
+                          onKeyUp={(event) => captureSelection(prompt, event.currentTarget)}
                           className="max-h-52 select-text overflow-y-auto whitespace-pre-wrap rounded-[var(--radius-tooltip)] bg-inset/55 px-2.5 py-2 text-meta leading-relaxed text-secondary outline-none focus:ring-2 focus:ring-accent/15"
                           data-testid="workbench-reference-content"
                         >
@@ -462,9 +421,7 @@ export function PromptReferenceSidebar({
                           <p
                             className={cn(
                               'mt-1.5 text-meta',
-                              selectionTooLong
-                                ? 'text-danger'
-                                : 'text-tertiary',
+                              selectionTooLong ? 'text-danger' : 'text-tertiary',
                             )}
                           >
                             已选择 {selectedText.length} 字

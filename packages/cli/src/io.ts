@@ -30,11 +30,14 @@ export function printError(io: CliIo, json: boolean, code: string, message: stri
 /** 简单两列对齐（全角字符按 2 宽度计） */
 export function table(rows: Array<[string, string]>): string[] {
   const width = Math.max(...rows.map(([key]) => displayWidth(key)), 0);
-  return rows.map(([key, value]) => `${key}${' '.repeat(Math.max(1, width - displayWidth(key) + 2))}${value}`);
+  return rows.map(
+    ([key, value]) => `${key}${' '.repeat(Math.max(1, width - displayWidth(key) + 2))}${value}`,
+  );
 }
 
 function displayWidth(text: string): number {
   let width = 0;
-  for (const char of text) width += /[\u1100-\uFFFD]/.test(char) && char.charCodeAt(0) > 0x2e7f ? 2 : 1;
+  for (const char of text)
+    width += /[\u1100-\uFFFD]/.test(char) && char.charCodeAt(0) > 0x2e7f ? 2 : 1;
   return width;
 }

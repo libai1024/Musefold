@@ -73,7 +73,9 @@ if (fs.existsSync(manifestPath)) {
       violations.push(`${entry.name}: 引用 Font Awesome，禁止第二图标源`);
     }
   }
-  console.log(violations.length ? 'SITE ICON CONTRACT FAIL:' : 'site icon contract OK (sprite only)');
+  console.log(
+    violations.length ? 'SITE ICON CONTRACT FAIL:' : 'site icon contract OK (sprite only)',
+  );
   for (const v of violations) console.log('  - ' + v);
 }
 process.exit(violations.length ? 1 : 0);

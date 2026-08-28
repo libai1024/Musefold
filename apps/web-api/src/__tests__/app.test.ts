@@ -92,17 +92,9 @@ describe('Web API foundation', () => {
   });
 
   it('only trusts explicitly named reverse proxies', () => {
-    expect(
-      webApiConfigSchema.parse({ TRUST_PROXY: 'loopback' }).TRUST_PROXY,
-    ).toBe('loopback');
-    expect(webApiConfigSchema.parse({ TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(
-      false,
-    );
-    expect(webApiConfigSchema.safeParse({ TRUST_PROXY: 'true' }).success).toBe(
-      false,
-    );
-    expect(webApiConfigSchema.safeParse({ TRUST_PROXY: '*' }).success).toBe(
-      false,
-    );
+    expect(webApiConfigSchema.parse({ TRUST_PROXY: 'loopback' }).TRUST_PROXY).toBe('loopback');
+    expect(webApiConfigSchema.parse({ TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+    expect(webApiConfigSchema.safeParse({ TRUST_PROXY: 'true' }).success).toBe(false);
+    expect(webApiConfigSchema.safeParse({ TRUST_PROXY: '*' }).success).toBe(false);
   });
 });

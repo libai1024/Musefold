@@ -4,9 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { PetThemeManifest } from '@musefold/desktop-contracts/pet';
 
 const root = join(process.cwd(), 'resources/pet/cat');
-const theme = JSON.parse(
-  readFileSync(join(root, 'theme.json'), 'utf8'),
-) as PetThemeManifest;
+const theme = JSON.parse(readFileSync(join(root, 'theme.json'), 'utf8')) as PetThemeManifest;
 
 describe('Musefold cat theme assets', () => {
   it('defines high-frame-rate left and right running loops', () => {

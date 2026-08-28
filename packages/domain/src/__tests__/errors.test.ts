@@ -2,12 +2,7 @@
 // TASK-GEN-03：错误码 → 友好文案 + 可执行动作
 
 import { describe, expect, it } from 'vitest';
-import {
-  errorGuidance,
-  friendlyError,
-  formatValidationMessage,
-  toErrorCode,
-} from '../errors';
+import { errorGuidance, friendlyError, formatValidationMessage, toErrorCode } from '../errors';
 
 describe('toErrorCode', () => {
   it('maps known codes case-insensitively', () => {
@@ -44,7 +39,10 @@ describe('errorGuidance', () => {
   it('RATE_LIMIT / SERVER / NETWORK → 重试', () => {
     for (const code of ['RATE_LIMIT', 'SERVER', 'NETWORK', 'TIMEOUT'] as const) {
       const g = errorGuidance(code);
-      expect(g.actions.some((a) => a.kind === 'retry'), code).toBe(true);
+      expect(
+        g.actions.some((a) => a.kind === 'retry'),
+        code,
+      ).toBe(true);
     }
   });
 

@@ -43,7 +43,9 @@ export function assertTagMatchesVersion(tag, version) {
   const normalized = String(tag || '').replace(/^refs\/tags\//, '');
   const expected = `v${version}`;
   if (normalized !== expected) {
-    throw new Error(`tag ${JSON.stringify(normalized)} does not match apps/desktop version ${JSON.stringify(expected)}`);
+    throw new Error(
+      `tag ${JSON.stringify(normalized)} does not match apps/desktop version ${JSON.stringify(expected)}`,
+    );
   }
   return version;
 }
@@ -86,7 +88,8 @@ export function mergeCatalog(existing, version, files) {
   const kept = downloads.filter((entry) => {
     if (!entry || typeof entry !== 'object') return false;
     if (entry.version === 'latest') return false;
-    if (entry.version === version && (entry.platform === 'macos' || entry.platform === 'windows')) return false;
+    if (entry.version === version && (entry.platform === 'macos' || entry.platform === 'windows'))
+      return false;
     return true;
   });
   return {
@@ -104,7 +107,11 @@ export function rewriteGenericLatestYml(text, version, fileName) {
 }
 
 export function selectArtifacts({ macDir, winDir, version }) {
-  const dmg = findNamed(macDir, (name) => name === `Musefold-${version}-arm64.dmg` || name.endsWith('.dmg'), 'macOS DMG');
+  const dmg = findNamed(
+    macDir,
+    (name) => name === `Musefold-${version}-arm64.dmg` || name.endsWith('.dmg'),
+    'macOS DMG',
+  );
   const zip = existsSync(macDir)
     ? readdirSync(macDir)
         .map((name) => join(macDir, name))
@@ -113,11 +120,15 @@ export function selectArtifacts({ macDir, winDir, version }) {
   const macYml = existsSync(join(macDir, 'latest-mac.yml'))
     ? join(macDir, 'latest-mac.yml')
     : readdirSync(macDir).find((name) => name.endsWith('latest-mac.yml'))
-      ? join(macDir, readdirSync(macDir).find((name) => name.endsWith('latest-mac.yml')))
+      ? join(
+          macDir,
+          readdirSync(macDir).find((name) => name.endsWith('latest-mac.yml')),
+        )
       : null;
   const exe = findNamed(
     winDir,
-    (name) => name === `Musefold Setup ${version}.exe` || (/Setup/i.test(name) && name.endsWith('.exe')),
+    (name) =>
+      name === `Musefold Setup ${version}.exe` || (/Setup/i.test(name) && name.endsWith('.exe')),
     'Windows NSIS',
   );
   const winYml = existsSync(join(winDir, 'latest.yml')) ? join(winDir, 'latest.yml') : null;
@@ -214,7 +225,11 @@ export function publishDesktop(options) {
   if (artifacts.macYml) {
     writeFileSync(
       join(devFeed, 'latest-mac.yml'),
-      rewriteGenericLatestYml(readFileSync(artifacts.macYml, 'utf8'), version, artifacts.zip ? basename(artifacts.zip) : artifacts.dmgName),
+      rewriteGenericLatestYml(
+        readFileSync(artifacts.macYml, 'utf8'),
+        version,
+        artifacts.zip ? basename(artifacts.zip) : artifacts.dmgName,
+      ),
     );
   }
 

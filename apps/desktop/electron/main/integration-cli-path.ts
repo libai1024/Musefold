@@ -21,25 +21,30 @@ export function resolvePosixShellProfile(
     return { kind: 'fish', path: join(home, '.config', 'fish', 'conf.d', 'musefold.fish') };
   }
   if (shell === 'bash') {
-    const candidates = [join(home, '.bash_profile'), join(home, '.bash_login'), join(home, '.profile')];
+    const candidates = [
+      join(home, '.bash_profile'),
+      join(home, '.bash_login'),
+      join(home, '.profile'),
+    ];
     return { kind: 'bash', path: candidates.find(exists) ?? candidates[2] };
   }
   return null;
 }
 
 export function managedCliPathBlock(kind: PosixShellKind): string {
-  const body = kind === 'fish'
-    ? [
-        'if not contains -- "$HOME/.local/bin" $PATH',
-        '  set -gx PATH "$HOME/.local/bin" $PATH',
-        'end',
-      ]
-    : [
-        'case ":$PATH:" in',
-        '  *:"$HOME/.local/bin":*) ;;',
-        '  *) export PATH="$HOME/.local/bin:$PATH" ;;',
-        'esac',
-      ];
+  const body =
+    kind === 'fish'
+      ? [
+          'if not contains -- "$HOME/.local/bin" $PATH',
+          '  set -gx PATH "$HOME/.local/bin" $PATH',
+          'end',
+        ]
+      : [
+          'case ":$PATH:" in',
+          '  *:"$HOME/.local/bin":*) ;;',
+          '  *) export PATH="$HOME/.local/bin:$PATH" ;;',
+          'esac',
+        ];
   return [CLI_PATH_BLOCK_START, ...body, CLI_PATH_BLOCK_END].join('\n');
 }
 

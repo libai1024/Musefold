@@ -2,16 +2,16 @@
 // Codex 指挥中心导航轨 —— 分区导航（计数 + 活动指示） + 底部 Provider 状态
 // 详见 docs/06-ui-design-system.md §6.2
 
-import { useEffect, useMemo, useState } from "react";
-import { Power } from "../ui/icons";
-import { useAppStore, type ViewKey } from "../../stores/app";
-import { useGenerationWorkbenchStore } from "../../features/generation/workbench/store";
-import { useDesktopWorkbenchSessionList } from "../../features/generation/workbench/workbench-session-query";
-import { Button } from "../ui/button";
-import { desktopHost as api } from "@renderer/runtime/desktop-host-services";
-import { WORKBENCH_SESSION_RESTART_REQUIRED } from "../../features/generation/workbench/sessionErrors";
-import { usePlatform, useWindowFullscreen } from "../../lib/usePlatform";
-import { SidebarAccessSwitcher } from "./SidebarAccessSwitcher";
+import { useEffect, useMemo, useState } from 'react';
+import { Power } from '../ui/icons';
+import { useAppStore, type ViewKey } from '../../stores/app';
+import { useGenerationWorkbenchStore } from '../../features/generation/workbench/store';
+import { useDesktopWorkbenchSessionList } from '../../features/generation/workbench/workbench-session-query';
+import { Button } from '../ui/button';
+import { desktopHost as api } from '@renderer/runtime/desktop-host-services';
+import { WORKBENCH_SESSION_RESTART_REQUIRED } from '../../features/generation/workbench/sessionErrors';
+import { usePlatform, useWindowFullscreen } from '../../lib/usePlatform';
+import { SidebarAccessSwitcher } from './SidebarAccessSwitcher';
 import {
   readPinnedSessionIds,
   readUnreadSessionIds,
@@ -19,7 +19,7 @@ import {
   SESSION_UNREAD_CHANGED_EVENT,
   setSessionPinned,
   setSessionUnread,
-} from "../../features/generation/workbench/sessionPreferences";
+} from '../../features/generation/workbench/sessionPreferences';
 import {
   WorkbenchSessionList,
   WorkbenchSessionContextMenu,
@@ -27,8 +27,8 @@ import {
   type WorkbenchSessionListItemViewModel,
   ProductSidebar,
   buildSidebarNavItems,
-} from "@musefold/product-ui";
-import { capabilities } from "../../runtime/capabilities";
+} from '@musefold/product-ui';
+import { capabilities } from '../../runtime/capabilities';
 
 export function Sidebar() {
   const { isMac } = usePlatform();
@@ -38,7 +38,7 @@ export function Sidebar() {
   const newConversation = useAppStore((s) => s.newConversation);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const navItems = buildSidebarNavItems({
-    surface: "desktop",
+    surface: 'desktop',
     capabilities,
     currentView,
     onSelect: (id) => setView(id as ViewKey),
@@ -49,7 +49,7 @@ export function Sidebar() {
       navItems={navItems}
       onNewDesign={newConversation}
       onCollapse={() => setSidebarCollapsed(true)}
-      newShortcut={`${isMac ? "⌘" : "Ctrl"} N`}
+      newShortcut={`${isMac ? '⌘' : 'Ctrl'} N`}
       headerStartInset={isMac && !isFullscreen ? 86 : 12}
       sessionList={<ConversationList />}
       footer={<SidebarAccessSwitcher />}
@@ -60,19 +60,14 @@ export function Sidebar() {
 
 function ConversationList() {
   const currentView = useAppStore((s) => s.currentView);
-  const {
-    sessions,
-    loading,
-    error: queryError,
-    refetch,
-  } = useDesktopWorkbenchSessionList();
+  const { sessions, loading, error: queryError, refetch } = useDesktopWorkbenchSessionList();
   const activeSessionId = useGenerationWorkbenchStore((s) => s.activeSessionId);
   // 并行生成：逐会话点亮运行指示（稳定字符串选择器避免无谓重渲）。
   const runningSessionKey = useGenerationWorkbenchStore((s) =>
     Object.values(s.runningTurns)
       .map((entry) => entry.sessionId)
       .sort()
-      .join(","),
+      .join(','),
   );
   const mutationError = useGenerationWorkbenchStore((s) => s.sessionsError);
   const error = mutationError ?? queryError;
@@ -88,62 +83,50 @@ function ConversationList() {
     returnFocusTarget: HTMLElement;
   } | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
   } | null>(null);
-  const [pinnedSessionIds, setPinnedSessionIds] =
-    useState(readPinnedSessionIds);
-  const [unreadSessionIds, setUnreadSessionIds] =
-    useState(readUnreadSessionIds);
+  const [pinnedSessionIds, setPinnedSessionIds] = useState(readPinnedSessionIds);
+  const [unreadSessionIds, setUnreadSessionIds] = useState(readUnreadSessionIds);
   const restartRequired = error === WORKBENCH_SESSION_RESTART_REQUIRED;
   const conversationItems = useMemo<WorkbenchSessionListItemViewModel[]>(() => {
-    const runningSessionIds = new Set(
-      runningSessionKey ? runningSessionKey.split(",") : [],
-    );
+    const runningSessionIds = new Set(runningSessionKey ? runningSessionKey.split(',') : []);
     return sessions.map((session) => {
       const running =
         runningSessionIds.has(session.id) ||
-        session.latestStatus === "queued" ||
-        session.latestStatus === "running";
+        session.latestStatus === 'queued' ||
+        session.latestStatus === 'running';
       const unread = !running && unreadSessionIds.includes(session.id);
       return {
         id: session.id,
         title: session.title,
         updatedAt: new Date(session.updatedAt).toISOString(),
-        kind: session.conversationKind ?? "chat",
+        kind: session.conversationKind ?? 'chat',
         selected: activeSessionId === session.id,
         pinned: pinnedSessionIds.includes(session.id),
-        status: running ? "running" : unread ? "unread" : "idle",
+        status: running ? 'running' : unread ? 'unread' : 'idle',
       };
     });
-  }, [
-    activeSessionId,
-    pinnedSessionIds,
-    runningSessionKey,
-    sessions,
-    unreadSessionIds,
-  ]);
+  }, [activeSessionId, pinnedSessionIds, runningSessionKey, sessions, unreadSessionIds]);
 
   useEffect(() => {
     const syncPins = () => setPinnedSessionIds(readPinnedSessionIds());
     window.addEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
-    return () =>
-      window.removeEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
+    return () => window.removeEventListener(SESSION_PINS_CHANGED_EVENT, syncPins);
   }, []);
 
   useEffect(() => {
     const syncUnread = () => setUnreadSessionIds(readUnreadSessionIds());
     window.addEventListener(SESSION_UNREAD_CHANGED_EVENT, syncUnread);
-    return () =>
-      window.removeEventListener(SESSION_UNREAD_CHANGED_EVENT, syncUnread);
+    return () => window.removeEventListener(SESSION_UNREAD_CHANGED_EVENT, syncUnread);
   }, []);
 
   // 回到制作工作台查看当前会话即视为已读；仅在视图/会话切换时清除，
   // 不清除用户在停留期间手动标记的未读。
   useEffect(() => {
-    if (currentView !== "generate" || !activeSessionId) return;
+    if (currentView !== 'generate' || !activeSessionId) return;
     if (readUnreadSessionIds().includes(activeSessionId)) {
       setUnreadSessionIds(setSessionUnread(activeSessionId, false));
     }
@@ -154,7 +137,7 @@ function ConversationList() {
     if (!title) return;
     await renameSession(id, title);
     setRenameId(null);
-    setRenameValue("");
+    setRenameValue('');
   };
 
   return (
@@ -163,7 +146,7 @@ function ConversationList() {
         items={conversationItems}
         loading={loading}
         error={error}
-        errorTitle={restartRequired ? "需要重启应用" : "对话读取失败"}
+        errorTitle={restartRequired ? '需要重启应用' : '对话读取失败'}
         errorActions={
           restartRequired ? (
             <Button
@@ -224,9 +207,7 @@ function ConversationList() {
           onMarkUnread={() => {
             setUnreadSessionIds(setSessionUnread(contextMenu.id, true));
           }}
-          onDelete={() =>
-            setDeleteTarget({ id: contextMenu.id, title: contextMenu.title })
-          }
+          onDelete={() => setDeleteTarget({ id: contextMenu.id, title: contextMenu.title })}
         />
       )}
       <WorkbenchSessionDeleteDialog

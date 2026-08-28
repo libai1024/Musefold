@@ -4,10 +4,7 @@ import { cn } from '../../lib/utils';
 
 export function MusefoldLogo({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn('relative aspect-[2.7/1] overflow-hidden', className)}
-      {...props}
-    >
+    <div className={cn('relative aspect-[2.7/1] overflow-hidden', className)} {...props}>
       <img
         src={musefoldLogo}
         alt="Musefold / 未像"

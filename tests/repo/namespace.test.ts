@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  APP_DATA_NAMESPACE,
-  LOCAL_STORAGE_PREFIX,
-} from '@musefold/domain/constants';
+import { APP_DATA_NAMESPACE, LOCAL_STORAGE_PREFIX } from '@musefold/domain/constants';
 import {
   AI_CONNECTION_STORE_NAME,
   BACKUPS_DIR_NAME,
@@ -12,11 +9,7 @@ import {
   PREVIEWS_DIR_NAME,
   STORE_NAME,
 } from '@musefold/core/constants';
-import {
-  EXPORT_FORMAT,
-  EXPORT_IMAGES_DIR,
-  EXPORT_JSON_NAME,
-} from '@musefold/domain/export-format';
+import { EXPORT_FORMAT, EXPORT_IMAGES_DIR, EXPORT_JSON_NAME } from '@musefold/domain/export-format';
 
 describe('v0.3.0 runtime namespace', () => {
   it('keeps the runtime data domain isolated from older namespaces', () => {

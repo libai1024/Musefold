@@ -40,9 +40,11 @@ function* walk(dir: string): Generator<string> {
 }
 
 describe('V13-REUSE-03 边界 baseline 归零', () => {
-  const known = JSON.parse(
-    readFileSync(join(REPO_ROOT, KNOWN_VIOLATIONS_PATH), 'utf8'),
-  ) as { rule?: { name?: string }; from?: string; to?: string }[];
+  const known = JSON.parse(readFileSync(join(REPO_ROOT, KNOWN_VIOLATIONS_PATH), 'utf8')) as {
+    rule?: { name?: string };
+    from?: string;
+    to?: string;
+  }[];
   const config = readFileSync(join(REPO_ROOT, CONFIG_PATH), 'utf8');
 
   it('known-violations 不得再登记 feature 互导或行模型违规', () => {
@@ -50,8 +52,7 @@ describe('V13-REUSE-03 边界 baseline 归零', () => {
       .filter((entry) => {
         const rule = entry.rule?.name ?? '';
         return (
-          rule.startsWith('renderer-features-isolated') ||
-          rule === 'renderer-row-models-banned'
+          rule.startsWith('renderer-features-isolated') || rule === 'renderer-row-models-banned'
         );
       })
       .map((entry) => `${entry.rule?.name}: ${entry.from} → ${entry.to}`);

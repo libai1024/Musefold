@@ -29,14 +29,17 @@ export function migrateOnboardingPreferences(
   version: number,
 ): PersistedOnboardingPreferences {
   void version;
-  const value = persisted && typeof persisted === 'object' ? (persisted as { onboarded?: unknown }) : {};
+  const value =
+    persisted && typeof persisted === 'object' ? (persisted as { onboarded?: unknown }) : {};
   return { onboarded: value.onboarded === true };
 }
 
 export function readStoredOnboardingPreferences(): PersistedOnboardingPreferences {
   if (typeof localStorage === 'undefined') return { onboarded: false };
   try {
-    const stored = persistStateOf<{ onboarded?: unknown }>(localStorage.getItem(ONBOARDING_PREFERENCES_KEY));
+    const stored = persistStateOf<{ onboarded?: unknown }>(
+      localStorage.getItem(ONBOARDING_PREFERENCES_KEY),
+    );
     if (stored) return { onboarded: stored.onboarded === true };
   } catch {
     /* 新 key 损坏时回落旧哨兵 */
@@ -44,11 +47,11 @@ export function readStoredOnboardingPreferences(): PersistedOnboardingPreference
   return readLegacyOnboardingPreferences() ?? { onboarded: false };
 }
 
-export const onboardingPreferencesStorage = createMigratingJSONStorage<PersistedOnboardingPreferences>({
-  readLegacy: readLegacyOnboardingPreferences,
-  clearLegacy: () => {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(LEGACY_ONBOARDED_KEY);
-  },
-});
-
+export const onboardingPreferencesStorage =
+  createMigratingJSONStorage<PersistedOnboardingPreferences>({
+    readLegacy: readLegacyOnboardingPreferences,
+    clearLegacy: () => {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.removeItem(LEGACY_ONBOARDED_KEY);
+    },
+  });

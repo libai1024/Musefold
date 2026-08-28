@@ -1,5 +1,5 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
-import { sql, type Kysely } from "kysely";
+import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { sql, type Kysely } from 'kysely';
 import {
   cloudGenerationRequestSchema,
   createGenerationInputSchema,
@@ -9,19 +9,13 @@ import {
   type GenerationHistoryPage,
   type GenerationJob,
   type ParsedGenerationHistoryQuery,
-} from "@musefold/contracts";
-import { assertGenerationTransition } from "@musefold/domain";
-import {
-  withOwnerTransaction,
-  type OwnerTransaction,
-} from "../../database/owner-context.js";
-import type { MusefoldDatabase } from "../../database/types.js";
-import { AppError } from "../../errors.js";
-import type {
-  AssetUrlSigner,
-  SignedAssetUrl,
-} from "../../storage/s3-signer.js";
-import { buildGenerationHistoryConditions } from "./history-filters.js";
+} from '@musefold/contracts';
+import { assertGenerationTransition } from '@musefold/domain';
+import { withOwnerTransaction, type OwnerTransaction } from '../../database/owner-context.js';
+import type { MusefoldDatabase } from '../../database/types.js';
+import { AppError } from '../../errors.js';
+import type { AssetUrlSigner, SignedAssetUrl } from '../../storage/s3-signer.js';
+import { buildGenerationHistoryConditions } from './history-filters.js';
 
 const MCP_ESTIMATED_POINTS = 1_000;
 
@@ -30,15 +24,15 @@ type RunRow = {
   session_id: string | null;
   parent_run_id: string | null;
   prompt_id: string | null;
-  run_kind: GenerationJob["actorType"] extends never
+  run_kind: GenerationJob['actorType'] extends never
     ? string
-    : "free_generation" | "refinement" | "retry";
-  actor_type: GenerationJob["actorType"];
-  approval_status: GenerationJob["approvalStatus"];
+    : 'free_generation' | 'refinement' | 'retry';
+  actor_type: GenerationJob['actorType'];
+  approval_status: GenerationJob['approvalStatus'];
   prompt_snapshot: Record<string, unknown> | null;
   request: Record<string, unknown>;
   provider_model: string | null;
-  status: GenerationJob["status"];
+  status: GenerationJob['status'];
   progress: number;
   cost_points: number | null;
   error_code: string | null;
@@ -53,7 +47,7 @@ type AssetRow = {
   id: string;
   run_id: string;
   object_key: string;
-  mime_type: "image/png" | "image/jpeg" | "image/webp";
+  mime_type: 'image/png' | 'image/jpeg' | 'image/webp';
   width: number;
   height: number;
   byte_size: string;
@@ -67,16 +61,9 @@ export interface GenerationServicePort {
     idempotencyKey: string,
   ): Promise<GenerationJob>;
   get(ownerId: number, id: string): Promise<GenerationJob>;
-  history(
-    ownerId: number,
-    query: ParsedGenerationHistoryQuery,
-  ): Promise<GenerationHistoryPage>;
+  history(ownerId: number, query: ParsedGenerationHistoryQuery): Promise<GenerationHistoryPage>;
   cancel(ownerId: number, id: string): Promise<GenerationJob>;
-  retry(
-    ownerId: number,
-    id: string,
-    idempotencyKey: string,
-  ): Promise<GenerationJob>;
+  retry(ownerId: number, id: string, idempotencyKey: string): Promise<GenerationJob>;
   remove(ownerId: number, id: string): Promise<GenerationJob>;
   restore(ownerId: number, id: string): Promise<GenerationJob>;
   assetRedirectUrl(ownerId: number, assetId: string): Promise<string>;
@@ -96,11 +83,7 @@ export interface GenerationServicePort {
       };
     },
   ): Promise<{ job: GenerationJob; approvalToken: string | null }>;
-  approveCloud(
-    ownerId: number,
-    id: string,
-    approvalToken: string,
-  ): Promise<GenerationJob>;
+  approveCloud(ownerId: number, id: string, approvalToken: string): Promise<GenerationJob>;
   events(
     ownerId: number,
     id: string,
@@ -129,16 +112,11 @@ export class GenerationService implements GenerationServicePort {
   ): Promise<GenerationJob> {
     const input = createGenerationInputSchema.parse(rawInput);
     const baseRequest = cloudGenerationRequestSchema.parse(input);
-    const result = await this.createQueued(
-      ownerId,
-      baseRequest,
-      idempotencyKey,
-      {
-        sessionId: input.sessionId,
-        parentRunId: input.parentRunId,
-        runKind: input.runKind,
-      },
-    );
+    const result = await this.createQueued(ownerId, baseRequest, idempotencyKey, {
+      sessionId: input.sessionId,
+      parentRunId: input.parentRunId,
+      runKind: input.runKind,
+    });
     return result.job;
   }
 
@@ -168,15 +146,14 @@ export class GenerationService implements GenerationServicePort {
         ORDER BY r.created_at DESC, r.id DESC
         LIMIT ${query.limit + 1}
       `.execute(trx);
-      const selectedRows = rows.rows.length > query.limit
-        ? rows.rows.slice(0, -1)
-        : rows.rows;
-      const assets = selectedRows.length > 0
-        ? await this.getAssetsForRunsTx(
-            trx,
-            selectedRows.map((run) => run.id),
-          )
-        : [];
+      const selectedRows = rows.rows.length > query.limit ? rows.rows.slice(0, -1) : rows.rows;
+      const assets =
+        selectedRows.length > 0
+          ? await this.getAssetsForRunsTx(
+              trx,
+              selectedRows.map((run) => run.id),
+            )
+          : [];
       return {
         rows: rows.rows,
         assets,
@@ -190,9 +167,7 @@ export class GenerationService implements GenerationServicePort {
       assets.push(asset);
       assetsByRunId.set(asset.run_id, assets);
     }
-    const items = rows.map((run) =>
-      this.toJob(run, assetsByRunId.get(run.id) ?? []),
-    );
+    const items = rows.map((run) => this.toJob(run, assetsByRunId.get(run.id) ?? []));
     const last = rows.at(-1);
     return {
       items,
@@ -207,29 +182,24 @@ export class GenerationService implements GenerationServicePort {
     const result = await withOwnerTransaction(this.db, ownerId, async (trx) => {
       const current = await this.getRunAndAssetsTx(trx, id);
       if (
-        current.run.status === "cancelled" ||
-        current.run.status === "succeeded" ||
-        current.run.status === "failed" ||
-        current.run.status === "rejected" ||
-        current.run.status === "expired"
+        current.run.status === 'cancelled' ||
+        current.run.status === 'succeeded' ||
+        current.run.status === 'failed' ||
+        current.run.status === 'rejected' ||
+        current.run.status === 'expired'
       ) {
-        throw new AppError(
-          "GENERATION_ALREADY_TERMINAL",
-          "生成任务已经结束",
-          409,
-        );
+        throw new AppError('GENERATION_ALREADY_TERMINAL', '生成任务已经结束', 409);
       }
-      const next =
-        current.run.status === "running" ? "cancelling" : "cancelled";
+      const next = current.run.status === 'running' ? 'cancelling' : 'cancelled';
       assertGenerationTransition(current.run.status, next);
       await sql`
-        UPDATE app.generation_runs SET status = ${next}, progress = ${next === "cancelled" ? 100 : current.run.progress},
-          cancelled_at = ${next === "cancelled" ? sql`now()` : sql`NULL`},
-          finished_at = ${next === "cancelled" ? sql`now()` : sql`NULL`}
+        UPDATE app.generation_runs SET status = ${next}, progress = ${next === 'cancelled' ? 100 : current.run.progress},
+          cancelled_at = ${next === 'cancelled' ? sql`now()` : sql`NULL`},
+          finished_at = ${next === 'cancelled' ? sql`now()` : sql`NULL`}
         WHERE owner_id = ${ownerId} AND id = ${id}
       `.execute(trx);
       await this.appendEvent(trx, ownerId, id, `generation.${next}`, {});
-      if (next === "cancelled") {
+      if (next === 'cancelled') {
         await sql`
           UPDATE app.mcp_spend_reservations
           SET status = 'released', released_at = now()
@@ -242,24 +212,14 @@ export class GenerationService implements GenerationServicePort {
     return this.toJob(result.run, result.assets);
   }
 
-  async retry(
-    ownerId: number,
-    id: string,
-    idempotencyKey: string,
-  ): Promise<GenerationJob> {
+  async retry(ownerId: number, id: string, idempotencyKey: string): Promise<GenerationJob> {
     const source = await this.get(ownerId, id);
-    if (source.status !== "failed" && source.status !== "cancelled")
-      throw new AppError(
-        "VALIDATION_FAILED",
-        "只有失败或取消的任务可以重试",
-        409,
-      );
-    const result = await this.createQueued(
-      ownerId,
-      source.request,
-      idempotencyKey,
-      { parentRunId: source.id, runKind: "retry" },
-    );
+    if (source.status !== 'failed' && source.status !== 'cancelled')
+      throw new AppError('VALIDATION_FAILED', '只有失败或取消的任务可以重试', 409);
+    const result = await this.createQueued(ownerId, source.request, idempotencyKey, {
+      parentRunId: source.id,
+      runKind: 'retry',
+    });
     return result.job;
   }
 
@@ -275,23 +235,15 @@ export class GenerationService implements GenerationServicePort {
     return (await this.assetSignedUrl(ownerId, assetId)).url;
   }
 
-  async assetSignedUrl(
-    ownerId: number,
-    assetId: string,
-  ): Promise<SignedAssetUrl> {
-    const objectKey = await withOwnerTransaction(
-      this.db,
-      ownerId,
-      async (trx) => {
-        const result = await sql<{ object_key: string }>`
+  async assetSignedUrl(ownerId: number, assetId: string): Promise<SignedAssetUrl> {
+    const objectKey = await withOwnerTransaction(this.db, ownerId, async (trx) => {
+      const result = await sql<{ object_key: string }>`
         SELECT object_key FROM app.generation_assets WHERE id = ${assetId} AND deleted_at IS NULL
       `.execute(trx);
-        const row = result.rows[0];
-        if (!row)
-          throw new AppError("GENERATION_NOT_FOUND", "生成资产不存在", 404);
-        return row.object_key;
-      },
-    );
+      const row = result.rows[0];
+      if (!row) throw new AppError('GENERATION_NOT_FOUND', '生成资产不存在', 404);
+      return row.object_key;
+    });
     return this.signer.sign(objectKey);
   }
 
@@ -312,38 +264,29 @@ export class GenerationService implements GenerationServicePort {
   ): Promise<{ job: GenerationJob; approvalToken: string | null }> {
     const input = createGenerationInputSchema.parse(rawInput);
     const request = cloudGenerationRequestSchema.parse(input);
-    const scopedIdempotencyKey = `mcp:${createHash("sha256")
+    const scopedIdempotencyKey = `mcp:${createHash('sha256')
       .update(options.grantId)
-      .update("\0")
+      .update('\0')
       .update(idempotencyKey)
-      .digest("hex")}`;
-    const result = await this.createQueued(
-      ownerId,
-      request,
-      scopedIdempotencyKey,
-      {
-        sessionId: input.sessionId,
-        parentRunId: input.parentRunId,
-        runKind: input.runKind,
-        actorType: "cloud_mcp",
-        mcpGrantId: options.grantId,
-        approvalRequired: options.approvalRequired,
-        skill: options.skill,
-      },
-    );
+      .digest('hex')}`;
+    const result = await this.createQueued(ownerId, request, scopedIdempotencyKey, {
+      sessionId: input.sessionId,
+      parentRunId: input.parentRunId,
+      runKind: input.runKind,
+      actorType: 'cloud_mcp',
+      mcpGrantId: options.grantId,
+      approvalRequired: options.approvalRequired,
+      skill: options.skill,
+    });
     return result;
   }
 
-  async approveCloud(
-    ownerId: number,
-    id: string,
-    approvalToken: string,
-  ): Promise<GenerationJob> {
+  async approveCloud(ownerId: number, id: string, approvalToken: string): Promise<GenerationJob> {
     const tokenHash = hashOpaque(approvalToken);
     const result = await withOwnerTransaction(this.db, ownerId, async (trx) => {
       const current = await sql<{
-        status: GenerationJob["status"];
-        approval_status: GenerationJob["approvalStatus"];
+        status: GenerationJob['status'];
+        approval_status: GenerationJob['approvalStatus'];
         mcp_grant_id: string;
       }>`
         SELECT status, approval_status, mcp_grant_id
@@ -356,22 +299,14 @@ export class GenerationService implements GenerationServicePort {
       `.execute(trx);
       if (!current.rows[0])
         throw new AppError(
-          "GENERATION_APPROVAL_EXPIRED",
-          "审批链接已失效，请让 AI 重新发起生成",
+          'GENERATION_APPROVAL_EXPIRED',
+          '审批链接已失效，请让 AI 重新发起生成',
           410,
         );
-      assertGenerationTransition(current.rows[0].status, "queued");
+      assertGenerationTransition(current.rows[0].status, 'queued');
       if (!current.rows[0].mcp_grant_id)
-        throw new AppError(
-          "GENERATION_APPROVAL_EXPIRED",
-          "审批任务已失效",
-          410,
-        );
-      await this.lockAndCheckMcpBudget(
-        trx,
-        current.rows[0].mcp_grant_id,
-        ownerId,
-      );
+        throw new AppError('GENERATION_APPROVAL_EXPIRED', '审批任务已失效', 410);
+      await this.lockAndCheckMcpBudget(trx, current.rows[0].mcp_grant_id, ownerId);
       await sql`
         UPDATE app.generation_runs
         SET status = 'queued', approval_status = 'approved', approval_token_hash = NULL,
@@ -383,7 +318,7 @@ export class GenerationService implements GenerationServicePort {
         VALUES (${randomUUID()}, ${ownerId}, ${current.rows[0].mcp_grant_id}, ${id}, ${MCP_ESTIMATED_POINTS})
         ON CONFLICT (generation_run_id) DO NOTHING
       `.execute(trx);
-      await this.appendEvent(trx, ownerId, id, "generation.approved", {});
+      await this.appendEvent(trx, ownerId, id, 'generation.approved', {});
       await sql`SELECT app.enqueue_generation(${id})`.execute(trx);
       return this.getRunAndAssetsTx(trx, id);
     });
@@ -431,8 +366,8 @@ export class GenerationService implements GenerationServicePort {
     options: {
       sessionId?: string;
       parentRunId?: string;
-      runKind: "free_generation" | "refinement" | "retry";
-      actorType?: "web" | "cloud_mcp";
+      runKind: 'free_generation' | 'refinement' | 'retry';
+      actorType?: 'web' | 'cloud_mcp';
       mcpGrantId?: string;
       approvalRequired?: boolean;
       skill?: {
@@ -444,7 +379,7 @@ export class GenerationService implements GenerationServicePort {
     },
   ): Promise<{ job: GenerationJob; approvalToken: string | null }> {
     if (!/^[\x20-\x7e]{8,128}$/.test(idempotencyKey))
-      throw new AppError("VALIDATION_FAILED", "Idempotency-Key 无效", 400);
+      throw new AppError('VALIDATION_FAILED', 'Idempotency-Key 无效', 400);
     const result = await withOwnerTransaction(this.db, ownerId, async (trx) => {
       const duplicate = await sql<
         RunRow & {
@@ -466,7 +401,7 @@ export class GenerationService implements GenerationServicePort {
             assets: await this.getAssetsTx(trx, run.id),
           },
           approvalToken:
-            run.status === "pending_approval" &&
+            run.status === 'pending_approval' &&
             run.mcp_grant_id &&
             run.approval_expires_at &&
             new Date(run.approval_expires_at).getTime() > Date.now()
@@ -482,28 +417,22 @@ export class GenerationService implements GenerationServicePort {
           SELECT jsonb_build_object('id', id, 'title', title, 'content', content, 'negative', negative, 'version', version) AS snapshot
           FROM app.prompts WHERE id = ${request.promptId}
         `.execute(trx);
-        if (!prompt.rows[0])
-          throw new AppError("PROMPT_NOT_FOUND", "提示词不存在", 404);
+        if (!prompt.rows[0]) throw new AppError('PROMPT_NOT_FOUND', '提示词不存在', 404);
         promptSnapshot = prompt.rows[0].snapshot;
       }
       const id = randomUUID();
-      const actorType = options.actorType ?? "web";
-      let approvalRequired =
-        actorType === "cloud_mcp" && options.approvalRequired === true;
-      if (actorType === "cloud_mcp" && options.mcpGrantId) {
-        const budget = await this.lockAndCheckMcpBudget(
-          trx,
-          options.mcpGrantId,
-          ownerId,
-        );
+      const actorType = options.actorType ?? 'web';
+      let approvalRequired = actorType === 'cloud_mcp' && options.approvalRequired === true;
+      if (actorType === 'cloud_mcp' && options.mcpGrantId) {
+        const budget = await this.lockAndCheckMcpBudget(trx, options.mcpGrantId, ownerId);
         approvalRequired = approvalRequired || !budget.allowed;
       }
-      const status = approvalRequired ? "pending_approval" : "queued";
+      const status = approvalRequired ? 'pending_approval' : 'queued';
       const approvalStatus = approvalRequired
-        ? "pending_approval"
-        : actorType === "cloud_mcp"
-          ? "approved"
-          : "not_required";
+        ? 'pending_approval'
+        : actorType === 'cloud_mcp'
+          ? 'approved'
+          : 'not_required';
       const approvalToken =
         approvalRequired && options.mcpGrantId
           ? this.approvalToken(ownerId, id, options.mcpGrantId)
@@ -524,22 +453,17 @@ export class GenerationService implements GenerationServicePort {
           ${options.skill?.contentHash ?? null}, ${options.skill ? JSON.stringify(options.skill.inputs) : null}
         )
       `.execute(trx);
-      if (
-        !approvalRequired &&
-        actorType === "cloud_mcp" &&
-        options.mcpGrantId
-      ) {
+      if (!approvalRequired && actorType === 'cloud_mcp' && options.mcpGrantId) {
         await sql`
           INSERT INTO app.mcp_spend_reservations(id, owner_id, grant_id, generation_run_id, estimated_points)
           VALUES (${randomUUID()}, ${ownerId}, ${options.mcpGrantId}, ${id}, ${MCP_ESTIMATED_POINTS})
         `.execute(trx);
       }
-      await this.appendEvent(trx, ownerId, id, "generation.requested", {
+      await this.appendEvent(trx, ownerId, id, 'generation.requested', {
         runKind: options.runKind,
         actorType,
       });
-      if (!approvalRequired)
-        await sql`SELECT app.enqueue_generation(${id})`.execute(trx);
+      if (!approvalRequired) await sql`SELECT app.enqueue_generation(${id})`.execute(trx);
       return { result: await this.getRunAndAssetsTx(trx, id), approvalToken };
     });
     return {
@@ -575,14 +499,11 @@ export class GenerationService implements GenerationServicePort {
       FROM app.generation_runs WHERE id = ${id}
     `.execute(trx);
     const run = result.rows[0];
-    if (!run) throw new AppError("GENERATION_NOT_FOUND", "生成任务不存在", 404);
+    if (!run) throw new AppError('GENERATION_NOT_FOUND', '生成任务不存在', 404);
     return { run, assets: await this.getAssetsTx(trx, id) };
   }
 
-  private async getAssetsTx(
-    trx: OwnerTransaction,
-    runId: string,
-  ): Promise<AssetRow[]> {
+  private async getAssetsTx(trx: OwnerTransaction, runId: string): Promise<AssetRow[]> {
     const result = await sql<AssetRow>`
       SELECT id, run_id, object_key, mime_type, width, height, byte_size::text, deleted_at
       FROM app.generation_assets WHERE run_id = ${runId} AND deleted_at IS NULL ORDER BY id
@@ -598,36 +519,27 @@ export class GenerationService implements GenerationServicePort {
     const result = await sql<AssetRow>`
       SELECT id, run_id, object_key, mime_type, width, height, byte_size::text, deleted_at
       FROM app.generation_assets
-      WHERE run_id IN (${sql.join(runIds.map((id) => sql`${id}`), sql`, `)})
+      WHERE run_id IN (${sql.join(
+        runIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})
         AND deleted_at IS NULL
       ORDER BY run_id, id
     `.execute(trx);
     return result.rows;
   }
 
-  private async requireSession(
-    trx: OwnerTransaction,
-    id: string,
-  ): Promise<void> {
+  private async requireSession(trx: OwnerTransaction, id: string): Promise<void> {
     const result =
       await sql`SELECT 1 FROM app.workbench_sessions WHERE id = ${id} AND deleted_at IS NULL`.execute(
         trx,
       );
-    if (!result.rows[0])
-      throw new AppError(
-        "WORKBENCH_SESSION_NOT_FOUND",
-        "工作台会话不存在",
-        404,
-      );
+    if (!result.rows[0]) throw new AppError('WORKBENCH_SESSION_NOT_FOUND', '工作台会话不存在', 404);
   }
 
   private async requireRun(trx: OwnerTransaction, id: string): Promise<void> {
-    const result =
-      await sql`SELECT 1 FROM app.generation_runs WHERE id = ${id}`.execute(
-        trx,
-      );
-    if (!result.rows[0])
-      throw new AppError("GENERATION_NOT_FOUND", "生成任务不存在", 404);
+    const result = await sql`SELECT 1 FROM app.generation_runs WHERE id = ${id}`.execute(trx);
+    if (!result.rows[0]) throw new AppError('GENERATION_NOT_FOUND', '生成任务不存在', 404);
   }
 
   private async lockAndCheckMcpBudget(
@@ -645,8 +557,7 @@ export class GenerationService implements GenerationServicePort {
       FOR UPDATE
     `.execute(trx);
     const row = grant.rows[0];
-    if (!row)
-      throw new AppError("OAUTH_INVALID_GRANT", "MCP 授权已暂停或撤销", 401);
+    if (!row) throw new AppError('OAUTH_INVALID_GRANT', 'MCP 授权已暂停或撤销', 401);
     const spent = await sql<{ points: string }>`
       SELECT coalesce(sum(
         CASE WHEN status = 'settled'
@@ -661,26 +572,21 @@ export class GenerationService implements GenerationServicePort {
     `.execute(trx);
     return {
       allowed:
-        row.mode === "auto_with_limits" &&
+        row.mode === 'auto_with_limits' &&
         row.max_points_per_generation >= MCP_ESTIMATED_POINTS &&
-        row.max_points_per_day >=
-          Number(spent.rows[0]?.points ?? 0) + MCP_ESTIMATED_POINTS,
+        row.max_points_per_day >= Number(spent.rows[0]?.points ?? 0) + MCP_ESTIMATED_POINTS,
     };
   }
 
-  private approvalToken(
-    ownerId: number,
-    runId: string,
-    grantId: string,
-  ): string {
-    return createHmac("sha256", this.approvalSecret)
-      .update("musefold-cloud-approval\0")
+  private approvalToken(ownerId: number, runId: string, grantId: string): string {
+    return createHmac('sha256', this.approvalSecret)
+      .update('musefold-cloud-approval\0')
       .update(String(ownerId))
-      .update("\0")
+      .update('\0')
       .update(runId)
-      .update("\0")
+      .update('\0')
       .update(grantId)
-      .digest("base64url");
+      .digest('base64url');
   }
 
   private async appendEvent(
@@ -720,7 +626,7 @@ export class GenerationService implements GenerationServicePort {
       error: run.error_code
         ? {
             code: mapGenerationError(run.error_code),
-            message: run.error_detail_safe ?? "生成失败",
+            message: run.error_detail_safe ?? '生成失败',
           }
         : null,
       createdAt: toIso(run.created_at),
@@ -733,29 +639,23 @@ export class GenerationService implements GenerationServicePort {
 
 function mapGenerationError(
   code: string,
-): GenerationJob["error"] extends infer T
-  ? T extends { code: infer C }
-    ? C
-    : never
-  : never {
+): GenerationJob['error'] extends infer T ? (T extends { code: infer C } ? C : never) : never {
   const allowed = new Set([
-    "ACCOUNT_QUOTA_INSUFFICIENT",
-    "GENERATION_UPSTREAM_REJECTED",
-    "GENERATION_UPSTREAM_UNKNOWN",
-    "GENERATION_STORAGE_FAILED",
-    "INTERNAL_ERROR",
+    'ACCOUNT_QUOTA_INSUFFICIENT',
+    'GENERATION_UPSTREAM_REJECTED',
+    'GENERATION_UPSTREAM_UNKNOWN',
+    'GENERATION_STORAGE_FAILED',
+    'INTERNAL_ERROR',
   ] as const);
-  return (allowed.has(code as never) ? code : "INTERNAL_ERROR") as never;
+  return (allowed.has(code as never) ? code : 'INTERNAL_ERROR') as never;
 }
 
 function hashOpaque(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
+  return createHash('sha256').update(value).digest('hex');
 }
 
 function toIso(value: Date | string): string {
-  return value instanceof Date
-    ? value.toISOString()
-    : new Date(value).toISOString();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function toIsoOrNull(value: Date | string | null): string | null {
@@ -763,18 +663,19 @@ function toIsoOrNull(value: Date | string | null): string | null {
 }
 
 function encodeCursor(value: { id: string; createdAt: string }): string {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 }
 
 function decodeCursor(cursor: string): { id: string; createdAt: string } {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
-    ) as { id?: unknown; createdAt?: unknown };
-    if (typeof parsed.id !== "string" || typeof parsed.createdAt !== "string")
-      throw new Error("invalid");
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      id?: unknown;
+      createdAt?: unknown;
+    };
+    if (typeof parsed.id !== 'string' || typeof parsed.createdAt !== 'string')
+      throw new Error('invalid');
     return { id: parsed.id, createdAt: parsed.createdAt };
   } catch {
-    throw new AppError("VALIDATION_FAILED", "生成历史分页游标无效", 400);
+    throw new AppError('VALIDATION_FAILED', '生成历史分页游标无效', 400);
   }
 }

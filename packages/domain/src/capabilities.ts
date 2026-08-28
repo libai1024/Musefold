@@ -45,11 +45,7 @@ export type CapabilityAvailabilityStatus =
   | 'disabled'
   | 'rollout';
 
-export type CapabilityFallbackAction =
-  | 'sign_in'
-  | 'retry'
-  | 'open_settings'
-  | 'use_other_host';
+export type CapabilityFallbackAction = 'sign_in' | 'retry' | 'open_settings' | 'use_other_host';
 
 export type CapabilityAvailability =
   | {
@@ -164,14 +160,8 @@ const CURRENT_WEB_ROLLOUT = new Set<ProductFeature>([
   'mcpConnections',
 ]);
 
-const DESKTOP_SIGN_IN_REQUIRED = new Set<CapabilityId>([
-  'mcpConnections',
-  'cloudSyncControl',
-]);
-const DESKTOP_ONLINE_REQUIRED = new Set<CapabilityId>([
-  'mcpConnections',
-  'cloudSyncControl',
-]);
+const DESKTOP_SIGN_IN_REQUIRED = new Set<CapabilityId>(['mcpConnections', 'cloudSyncControl']);
+const DESKTOP_ONLINE_REQUIRED = new Set<CapabilityId>(['mcpConnections', 'cloudSyncControl']);
 
 const UNAVAILABLE_DETAILS: Readonly<
   Record<
@@ -325,10 +315,11 @@ const MANIFESTS: Readonly<Record<MusefoldSurface, CapabilityManifest>> = Object.
   web: createCapabilityManifest({ surface: 'web' }),
 });
 
-const CAPABILITIES: Readonly<Record<MusefoldSurface, Readonly<ProductCapabilities>>> = Object.freeze({
-  desktop: legacyCapabilitiesFromManifest(MANIFESTS.desktop),
-  web: legacyCapabilitiesFromManifest(MANIFESTS.web),
-});
+const CAPABILITIES: Readonly<Record<MusefoldSurface, Readonly<ProductCapabilities>>> =
+  Object.freeze({
+    desktop: legacyCapabilitiesFromManifest(MANIFESTS.desktop),
+    web: legacyCapabilitiesFromManifest(MANIFESTS.web),
+  });
 
 export function getCapabilityManifest(surface: MusefoldSurface): CapabilityManifest {
   return MANIFESTS[surface];

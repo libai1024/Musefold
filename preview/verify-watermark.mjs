@@ -11,7 +11,12 @@ await page.waitForSelector('[data-testid="workbench-empty"]', { timeout: 15000 }
 const first = page.locator('.mf-workbench-empty-watermark-word span').first();
 const before = await first.evaluate((el) => {
   const cs = getComputedStyle(el);
-  return { animationName: cs.animationName, opacity: cs.opacity, color: cs.color, fontFamily: cs.fontFamily };
+  return {
+    animationName: cs.animationName,
+    opacity: cs.opacity,
+    color: cs.color,
+    fontFamily: cs.fontFamily,
+  };
 });
 console.log('before:', JSON.stringify(before, null, 2));
 

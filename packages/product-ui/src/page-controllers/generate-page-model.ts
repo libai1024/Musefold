@@ -1,23 +1,21 @@
-import type { GenerationGateway, PromptGateway, WorkbenchGateway } from "@musefold/domain";
-import type { WorkbenchSessionListItemViewModel } from "../models";
+import type { GenerationGateway, PromptGateway, WorkbenchGateway } from '@musefold/domain';
+import type { WorkbenchSessionListItemViewModel } from '../models';
 
-export type GeneratePageSession = Awaited<
-  ReturnType<WorkbenchGateway["getWorkbenchSession"]>
->;
-export type GeneratePageJob = Awaited<ReturnType<GenerationGateway["createGeneration"]>>;
-export type GeneratePagePrompt = Awaited<ReturnType<PromptGateway["getPrompt"]>>;
-export type GeneratePageDraft = GeneratePageSession["draft"];
+export type GeneratePageSession = Awaited<ReturnType<WorkbenchGateway['getWorkbenchSession']>>;
+export type GeneratePageJob = Awaited<ReturnType<GenerationGateway['createGeneration']>>;
+export type GeneratePagePrompt = Awaited<ReturnType<PromptGateway['getPrompt']>>;
+export type GeneratePageDraft = GeneratePageSession['draft'];
 
-export const GENERATE_PAGE_RATIOS = ["1:1", "16:9", "9:16"] as const;
+export const GENERATE_PAGE_RATIOS = ['1:1', '16:9', '9:16'] as const;
 export type GeneratePageRatio = (typeof GENERATE_PAGE_RATIOS)[number];
 
-export type GeneratePageQuality = "low" | "medium" | "high" | "auto";
-export type GeneratePageSize = "auto" | "1024x1024" | "1536x1024" | "1024x1536";
+export type GeneratePageQuality = 'low' | 'medium' | 'high' | 'auto';
+export type GeneratePageSize = 'auto' | '1024x1024' | '1536x1024' | '1024x1536';
 
 export const GENERATE_PAGE_RATIO_SIZES: Record<GeneratePageRatio, GeneratePageSize> = {
-  "1:1": "1024x1024",
-  "16:9": "1536x1024",
-  "9:16": "1024x1536",
+  '1:1': '1024x1024',
+  '16:9': '1536x1024',
+  '9:16': '1024x1536',
 };
 
 export const DEFAULT_GENERATE_JOB_PAGE_LIMIT = 100;
@@ -46,7 +44,7 @@ export function buildWorkbenchDraft({
 }: WorkbenchDraftInput): GeneratePageDraft {
   return {
     prompt,
-    negative: "",
+    negative: '',
     params: { size, aspectRatio, quality },
     promptReferenceIds: selectedPromptId ? [selectedPromptId] : [],
   };
@@ -72,7 +70,7 @@ export function areWorkbenchDraftsEqual(
 export function generatePageRatio(value: string | undefined): GeneratePageRatio {
   return GENERATE_PAGE_RATIOS.includes(value as GeneratePageRatio)
     ? (value as GeneratePageRatio)
-    : "1:1";
+    : '1:1';
 }
 
 export function workbenchRatio(session: GeneratePageSession): GeneratePageRatio {
@@ -80,9 +78,7 @@ export function workbenchRatio(session: GeneratePageSession): GeneratePageRatio 
 }
 
 export async function collectGatewayPages<TItem>(
-  loadPage: (
-    cursor?: string,
-  ) => Promise<{ items: readonly TItem[]; nextCursor?: string | null }>,
+  loadPage: (cursor?: string) => Promise<{ items: readonly TItem[]; nextCursor?: string | null }>,
 ): Promise<TItem[]> {
   const items: TItem[] = [];
   let cursor: string | undefined;
@@ -104,6 +100,6 @@ export function generatePageSessionItems(
     title: item.title,
     updatedAt: item.updatedAt,
     selected: item.id === selectedId,
-    status: runningIds.has(item.id) ? "running" : "idle",
+    status: runningIds.has(item.id) ? 'running' : 'idle',
   }));
 }

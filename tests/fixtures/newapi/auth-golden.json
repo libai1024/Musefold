@@ -45,7 +45,13 @@
       "body": {
         "success": true,
         "message": "",
-        "data": { "id": 4, "username": "smoke01", "quota": 968437, "group": "default", "used_quota": 31563 }
+        "data": {
+          "id": 4,
+          "username": "smoke01",
+          "quota": 968437,
+          "group": "default",
+          "used_quota": 31563
+        }
       }
     },
     "user_models": {
@@ -122,7 +128,9 @@
       "body": {
         "success": true,
         "data": {
-          "announcements": [{ "content": "8/20 02:00-04:00 服务器维护", "publishDate": "2026-08-14T10:00:00Z" }],
+          "announcements": [
+            { "content": "8/20 02:00-04:00 服务器维护", "publishDate": "2026-08-14T10:00:00Z" }
+          ],
           "announcements_enabled": true
         }
       }

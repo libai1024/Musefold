@@ -5,17 +5,10 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-} from "react";
-import { createPortal } from "react-dom";
-import {
-  Archive,
-  MessageSquareText,
-  Pin,
-  PinOff,
-  Pencil,
-  Trash2,
-} from "@musefold/ui/icons";
-import { Button } from "@musefold/ui";
+} from 'react';
+import { createPortal } from 'react-dom';
+import { Archive, MessageSquareText, Pin, PinOff, Pencil, Trash2 } from '@musefold/ui/icons';
+import { Button } from '@musefold/ui';
 
 export interface WorkbenchSessionContextMenuProps {
   anchor: { x: number; y: number };
@@ -47,8 +40,8 @@ export function WorkbenchSessionContextMenu({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const [position, setPosition] = useState(anchor);
   const portalTarget =
-    returnFocusTarget?.closest<HTMLElement>(".mf-ui-drawer-content") ??
-    (typeof document !== "undefined" ? document.body : null);
+    returnFocusTarget?.closest<HTMLElement>('.mf-ui-drawer-content') ??
+    (typeof document !== 'undefined' ? document.body : null);
 
   useLayoutEffect(() => {
     const updatePosition = () => {
@@ -65,14 +58,12 @@ export function WorkbenchSessionContextMenu({
       });
     };
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    return () => window.removeEventListener("resize", updatePosition);
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
   }, [anchor.x, anchor.y, portalTarget]);
 
   useEffect(() => {
-    returnFocusRef.current =
-      returnFocusTarget ??
-      (document.activeElement as HTMLElement | null);
+    returnFocusRef.current = returnFocusTarget ?? (document.activeElement as HTMLElement | null);
     menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
   }, [returnFocusTarget]);
 
@@ -86,50 +77,44 @@ export function WorkbenchSessionContextMenu({
     const closeOnPointerDown = (event: PointerEvent) => {
       const target = event.target as Element;
       if (
-        !target.closest("[data-workbench-session-context-menu]") &&
-        !target.closest("[data-workbench-session-menu-trigger]")
+        !target.closest('[data-workbench-session-context-menu]') &&
+        !target.closest('[data-workbench-session-menu-trigger]')
       ) {
         onClose();
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         event.preventDefault();
         closeAndRestoreFocus();
       }
     };
-    document.addEventListener("pointerdown", closeOnPointerDown);
-    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener('pointerdown', closeOnPointerDown);
+    document.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", closeOnPointerDown);
-      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener('pointerdown', closeOnPointerDown);
+      document.removeEventListener('keydown', closeOnEscape);
     };
   }, [onClose]);
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLButtonElement>(
-        '[role="menuitem"]',
-      ) ?? [],
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
     );
     if (items.length === 0) return;
-    const currentIndex = items.indexOf(
-      document.activeElement as HTMLButtonElement,
-    );
-    if (event.key === "ArrowDown") {
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === 'ArrowDown') {
       event.preventDefault();
       items[currentIndex >= 0 ? (currentIndex + 1) % items.length : 0]?.focus();
-    } else if (event.key === "ArrowUp") {
+    } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       items[
-        currentIndex >= 0
-          ? (currentIndex - 1 + items.length) % items.length
-          : items.length - 1
+        currentIndex >= 0 ? (currentIndex - 1 + items.length) % items.length : items.length - 1
       ]?.focus();
-    } else if (event.key === "Home") {
+    } else if (event.key === 'Home') {
       event.preventDefault();
       items[0]?.focus();
-    } else if (event.key === "End") {
+    } else if (event.key === 'End') {
       event.preventDefault();
       items.at(-1)?.focus();
     }
@@ -140,14 +125,14 @@ export function WorkbenchSessionContextMenu({
     icon: ReactNode,
     onSelect: () => void,
     testId: string,
-    tone: "default" | "danger" = "default",
+    tone: 'default' | 'danger' = 'default',
   ) => (
     <Button
       unstyled
       type="button"
       role="menuitem"
       className="mf-ui-dropdown-item mf-workbench-session-context-action"
-      data-tone={tone === "danger" ? tone : undefined}
+      data-tone={tone === 'danger' ? tone : undefined}
       onClick={() => {
         onSelect();
         onClose();
@@ -173,36 +158,31 @@ export function WorkbenchSessionContextMenu({
       style={{ left: position.x, top: position.y }}
     >
       {action(
-        pinned ? "取消置顶聊天" : "置顶聊天",
+        pinned ? '取消置顶聊天' : '置顶聊天',
         pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />,
         onTogglePinned,
-        "conversation-context-pin",
+        'conversation-context-pin',
       )}
+      {action('重命名聊天', <Pencil aria-hidden="true" />, onRename, 'conversation-context-rename')}
       {action(
-        "重命名聊天",
-        <Pencil aria-hidden="true" />,
-        onRename,
-        "conversation-context-rename",
-      )}
-      {action(
-        "归档聊天",
+        '归档聊天',
         <Archive aria-hidden="true" />,
         onArchive,
-        "conversation-context-archive",
+        'conversation-context-archive',
       )}
       {action(
-        "标记为未读",
+        '标记为未读',
         <MessageSquareText aria-hidden="true" />,
         onMarkUnread,
-        "conversation-context-unread",
+        'conversation-context-unread',
       )}
       <div className="mf-ui-dropdown-separator" role="separator" />
       {action(
-        "删除聊天",
+        '删除聊天',
         <Trash2 aria-hidden="true" />,
         onDelete,
-        "conversation-context-delete",
-        "danger",
+        'conversation-context-delete',
+        'danger',
       )}
     </div>,
     portalTarget,

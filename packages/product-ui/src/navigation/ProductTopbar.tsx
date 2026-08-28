@@ -6,41 +6,38 @@ import {
   Link2,
   MessageSquareText,
   Settings,
-} from "@musefold/ui/icons";
-import type { ReactNode } from "react";
+} from '@musefold/ui/icons';
+import type { ReactNode } from 'react';
 
 export type ProductViewKey =
-  | "generate"
-  | "library"
-  | "design-schemes"
-  | "history"
-  | "settings"
-  | "connections"
-  | "account";
+  | 'generate'
+  | 'library'
+  | 'design-schemes'
+  | 'history'
+  | 'settings'
+  | 'connections'
+  | 'account';
 
 /** Keep the compact desktop/web title treatment identical for long sessions. */
-export function productTopbarDisplayTitle(
-  title: string,
-  maxCharacters = 10,
-): string {
-  return Array.from(title).slice(0, maxCharacters).join("");
+export function productTopbarDisplayTitle(title: string, maxCharacters = 10): string {
+  return Array.from(title).slice(0, maxCharacters).join('');
 }
 
 export function ProductViewIcon({ view }: { view: ProductViewKey }) {
   switch (view) {
-    case "library":
+    case 'library':
       return <LibraryBig aria-hidden="true" />;
-    case "design-schemes":
+    case 'design-schemes':
       return <Blocks aria-hidden="true" />;
-    case "history":
+    case 'history':
       return <History aria-hidden="true" />;
-    case "settings":
+    case 'settings':
       return <Settings aria-hidden="true" />;
-    case "connections":
+    case 'connections':
       return <Link2 aria-hidden="true" />;
-    case "account":
+    case 'account':
       return <CircleUserRound aria-hidden="true" />;
-    case "generate":
+    case 'generate':
     default:
       return <MessageSquareText aria-hidden="true" />;
   }
@@ -67,9 +64,9 @@ export function ProductTopbar({
   leading,
   titleSuffix,
   actions,
-  titleTestId = "titlebar-title",
-  testId = "titlebar",
-  className = "",
+  titleTestId = 'titlebar-title',
+  testId = 'titlebar',
+  className = '',
 }: ProductTopbarProps) {
   return (
     <header className={`mf-product-topbar ${className}`} data-testid={testId}>
@@ -82,15 +79,9 @@ export function ProductTopbar({
           {displayTitle}
         </h1>
         {titleSuffix}
-        {statusLabel ? (
-          <span className="mf-product-status-chip">{statusLabel}</span>
-        ) : null}
+        {statusLabel ? <span className="mf-product-status-chip">{statusLabel}</span> : null}
       </div>
-      {actions ? (
-        <div className="mf-product-topbar-actions topbar-actions">
-          {actions}
-        </div>
-      ) : null}
+      {actions ? <div className="mf-product-topbar-actions topbar-actions">{actions}</div> : null}
     </header>
   );
 }

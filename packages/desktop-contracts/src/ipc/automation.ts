@@ -1,7 +1,7 @@
 // packages/desktop-contracts/src/ipc/automation.ts
 // automation 域：控制面类型 + Api namespace（V13-GOV-04 自 ipc.ts 分域拆出）。
 
-import type { ProviderType } from "../enums";
+import type { ProviderType } from '../enums';
 
 /** 控制面状态（设置页「自动化」面板；token 仅在本机 UI 展示，用于接入配置） */
 export interface AutomationStatus {
@@ -9,7 +9,7 @@ export interface AutomationStatus {
   running: boolean;
   port: number | null;
   token: string | null;
-  apiVersion: "v1";
+  apiVersion: 'v1';
   discoveryPath: string | null;
 }
 
@@ -27,16 +27,10 @@ export interface AutomationAuditEntry {
 export interface AutomationSpendAudit {
   id: number;
   at: number;
-  action: "generate_image" | "run_scheme" | "run_github_skill";
+  action: 'generate_image' | 'run_scheme' | 'run_github_skill';
   promptText: string | null;
-  approvedVia:
-    | "budget"
-    | "confirmation"
-    | "consent"
-    | "idempotent-replay"
-    | "denied"
-    | "timeout";
-  status: "success" | "failed" | "cancelled" | "denied" | "timeout";
+  approvedVia: 'budget' | 'confirmation' | 'consent' | 'idempotent-replay' | 'denied' | 'timeout';
+  status: 'success' | 'failed' | 'cancelled' | 'denied' | 'timeout';
   estimatedPoints: number | null;
   actualPoints: number | null;
   jobId: string | null;
@@ -69,8 +63,8 @@ export interface AutomationProviderDraft {
 /** 主进程通知渲染层打开原生安全配置表单；永不包含密钥或账号凭据。 */
 export interface AutomationSetupRequest {
   requestId: string;
-  kind: "account" | "provider";
-  mode?: "login" | "register";
+  kind: 'account' | 'provider';
+  mode?: 'login' | 'register';
   draft?: AutomationProviderDraft;
 }
 
@@ -91,9 +85,9 @@ export interface IntegrationInfo {
     skillMarkdown: string;
   };
   skills: {
-    targets: Record<"claude" | "codex" | "cursor", string>;
-    installed: Record<"claude" | "codex" | "cursor", boolean>;
-    installedVersions: Record<"claude" | "codex" | "cursor", string | null>;
+    targets: Record<'claude' | 'codex' | 'cursor', string>;
+    installed: Record<'claude' | 'codex' | 'cursor', boolean>;
+    installedVersions: Record<'claude' | 'codex' | 'cursor', string | null>;
     bundledVersion: string;
     availableVersion: string;
     updateAvailable: boolean;
@@ -117,18 +111,18 @@ export interface IntegrationInfo {
 }
 
 export type IntegrationAction =
-  | "install-cli"
-  | "uninstall-cli"
-  | "open-skill-url"
-  | "open-cursor-deeplink"
-  | "register-claude-code"
-  | "check-skill-update"
-  | "enable-skill-auto-update"
-  | "disable-skill-auto-update"
-  | "install-skill-claude"
-  | "install-skill-codex"
-  | "install-skill-cursor"
-  | "install-skill-all";
+  | 'install-cli'
+  | 'uninstall-cli'
+  | 'open-skill-url'
+  | 'open-cursor-deeplink'
+  | 'register-claude-code'
+  | 'check-skill-update'
+  | 'enable-skill-auto-update'
+  | 'disable-skill-auto-update'
+  | 'install-skill-claude'
+  | 'install-skill-codex'
+  | 'install-skill-cursor'
+  | 'install-skill-all';
 
 export interface IntegrationActionResult {
   ok: boolean;
@@ -146,23 +140,14 @@ export interface AutomationApi {
     get: () => Promise<AutomationBudget>;
     set: (monthlyLimitPoints: number) => Promise<AutomationBudget>;
   };
-  onConfirmationRequired: (
-    cb: (summary: AutomationConfirmationSummary) => void,
-  ) => () => void;
+  onConfirmationRequired: (cb: (summary: AutomationConfirmationSummary) => void) => () => void;
   onConfirmationResolved: (
-    cb: (payload: {
-      confirmationId: string;
-      outcome: "approved" | "denied" | "timeout";
-    }) => void,
+    cb: (payload: { confirmationId: string; outcome: 'approved' | 'denied' | 'timeout' }) => void,
   ) => () => void;
   /** 外部任务活动流（朱点忙碌态，SET-02）：jobId + running 快照 */
-  onActivity: (
-    cb: (payload: { jobId: string; running: boolean }) => void,
-  ) => () => void;
+  onActivity: (cb: (payload: { jobId: string; running: boolean }) => void) => () => void;
   onSetupRequested: (cb: (request: AutomationSetupRequest) => void) => () => void;
-  onProviderChanged: (
-    cb: (payload: { providerId: string }) => void,
-  ) => () => void;
+  onProviderChanged: (cb: (payload: { providerId: string }) => void) => () => void;
   /** 客户端接入向导（Cursor / ChatGPT 桌面 / Claude Code / CLI） */
   integrationInfo: () => Promise<IntegrationInfo>;
   integrationAction: (action: IntegrationAction) => Promise<IntegrationActionResult>;

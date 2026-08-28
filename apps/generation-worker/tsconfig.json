@@ -11,8 +11,5 @@
     "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [
-    { "path": "../../packages/contracts" },
-    { "path": "../../packages/server-crypto" }
-  ]
+  "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/server-crypto" }]
 }

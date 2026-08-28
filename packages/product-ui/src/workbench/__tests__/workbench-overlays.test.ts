@@ -77,7 +77,7 @@ describe('workbench action overlays', () => {
 
   it('keeps the session context menu inside a modal drawer when opened from touch navigation', () => {
     expect(sessionContextMenu).toContain(
-      'returnFocusTarget?.closest<HTMLElement>(".mf-ui-drawer-content")',
+      "returnFocusTarget?.closest<HTMLElement>('.mf-ui-drawer-content')",
     );
     expect(sessionContextMenu).toContain('portalTarget.getBoundingClientRect()');
     expect(sessionContextMenu).toContain('portalTarget,');

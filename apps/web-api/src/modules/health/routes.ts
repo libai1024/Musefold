@@ -23,10 +23,7 @@ interface HealthRoutesOptions {
   readinessProbe: ReadinessProbe;
 }
 
-export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (
-  app,
-  options,
-) => {
+export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (app, options) => {
   app.get(
     '/health/live',
     {

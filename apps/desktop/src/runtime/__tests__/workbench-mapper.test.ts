@@ -46,13 +46,31 @@ describe('workbench session mapping', () => {
   it('merges active and archived then paginates by updatedAt', () => {
     const merged = mergeWorkbenchSessionRows(
       {
-        items: [{ ...session('a', { updatedAt: 10 }), turnCount: 0, runCount: 0, latestAssetPath: null, conversationKind: 'chat', latestStatus: null }],
+        items: [
+          {
+            ...session('a', { updatedAt: 10 }),
+            turnCount: 0,
+            runCount: 0,
+            latestAssetPath: null,
+            conversationKind: 'chat',
+            latestStatus: null,
+          },
+        ],
         total: 1,
         limit: 200,
         offset: 0,
       },
       {
-        items: [{ ...session('b', { updatedAt: 20, archivedAt: 15 }), turnCount: 1, runCount: 1, latestAssetPath: null, conversationKind: 'prompt', latestStatus: 'success' }],
+        items: [
+          {
+            ...session('b', { updatedAt: 20, archivedAt: 15 }),
+            turnCount: 1,
+            runCount: 1,
+            latestAssetPath: null,
+            conversationKind: 'prompt',
+            latestStatus: 'success',
+          },
+        ],
         total: 1,
         limit: 200,
         offset: 0,

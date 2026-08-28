@@ -1,6 +1,6 @@
-import type { SkillRuntimeTraceItem } from "@musefold/desktop-contracts/skill-runtime";
-import { MusefoldAssistantAvatar } from "../../../components/brand/MusefoldAssistantAvatar";
-import { SkillRuntimeConversation } from "../../../components/SkillRuntimeConversation";
+import type { SkillRuntimeTraceItem } from '@musefold/desktop-contracts/skill-runtime';
+import { MusefoldAssistantAvatar } from '../../../components/brand/MusefoldAssistantAvatar';
+import { SkillRuntimeConversation } from '../../../components/SkillRuntimeConversation';
 
 export function PendingSkillConversation({
   prompt,
@@ -17,9 +17,7 @@ export function PendingSkillConversation({
       <div className="flex gap-3">
         <MusefoldAssistantAvatar data-testid="skill-runtime-assistant-avatar" />
         <div className="min-w-0 flex-1">
-          <div className="mb-1 text-[11px] font-medium text-secondary">
-            Musefold
-          </div>
+          <div className="mb-1 text-[11px] font-medium text-secondary">Musefold</div>
           <SkillRuntimeConversation trace={trace} />
         </div>
       </div>

@@ -32,20 +32,14 @@ describe('resolveDateRange', () => {
   });
 
   it('custom swaps inverted from/to', () => {
-    const r = resolveDateRange(
-      { datePreset: 'custom', customFrom: 2000, customTo: 1000 },
-      NOW,
-    );
+    const r = resolveDateRange({ datePreset: 'custom', customFrom: 2000, customTo: 1000 }, NOW);
     expect(r.from).toBe(1000);
     expect(r.to).toBe(2000);
     expect(r.swapped).toBe(true);
   });
 
   it('custom keeps order when valid', () => {
-    const r = resolveDateRange(
-      { datePreset: 'custom', customFrom: 1000, customTo: 2000 },
-      NOW,
-    );
+    const r = resolveDateRange({ datePreset: 'custom', customFrom: 1000, customTo: 2000 }, NOW);
     expect(r).toEqual({ from: 1000, to: 2000, swapped: false });
   });
 });

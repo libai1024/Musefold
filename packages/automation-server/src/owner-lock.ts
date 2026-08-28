@@ -27,7 +27,10 @@ function lockPath(dataDir: string): string {
 function readLock(dataDir: string): OwnerLockInfo | null {
   try {
     const parsed = JSON.parse(readFileSync(lockPath(dataDir), 'utf8')) as Partial<OwnerLockInfo>;
-    if (typeof parsed.pid !== 'number' || (parsed.owner !== 'desktop-app' && parsed.owner !== 'headless-daemon')) {
+    if (
+      typeof parsed.pid !== 'number' ||
+      (parsed.owner !== 'desktop-app' && parsed.owner !== 'headless-daemon')
+    ) {
       return null;
     }
     return parsed as OwnerLockInfo;
@@ -46,10 +49,7 @@ function processAlive(pid: number): boolean {
   }
 }
 
-export function acquireOwnerLock(
-  dataDir: string,
-  owner: OwnerLockInfo['owner'],
-): AcquireResult {
+export function acquireOwnerLock(dataDir: string, owner: OwnerLockInfo['owner']): AcquireResult {
   const path = lockPath(dataDir);
   const info: OwnerLockInfo = { pid: process.pid, owner, acquiredAt: new Date().toISOString() };
 

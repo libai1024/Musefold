@@ -6,7 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@musefold/ui";
+} from '@musefold/ui';
 
 export interface WorkbenchSessionDeleteDialogProps {
   open: boolean;
@@ -34,11 +34,7 @@ export function WorkbenchSessionDeleteDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={busy}
-          >
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             取消
           </Button>
           <Button

@@ -87,29 +87,33 @@ export class DesignSchemeRepository {
   saveSourceSnapshot(input: SourceSnapshotWriteInput): { packageId: string; snapshotId: string } {
     const now = Date.now();
     this.db.transaction(() => {
-      this.db.prepare(
-        `INSERT OR IGNORE INTO source_packages (id, kind, repository_url, license, created_at)
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO source_packages (id, kind, repository_url, license, created_at)
          VALUES (?, ?, ?, ?, ?)`,
-      ).run(
-        input.package.id,
-        input.package.kind,
-        input.package.repositoryUrl ?? null,
-        input.package.license ?? null,
-        now,
-      );
-      this.db.prepare(
-        `INSERT INTO source_snapshots (id, package_id, ref, commit_hash, content_hash, total_bytes, scan_json, created_at)
+        )
+        .run(
+          input.package.id,
+          input.package.kind,
+          input.package.repositoryUrl ?? null,
+          input.package.license ?? null,
+          now,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO source_snapshots (id, package_id, ref, commit_hash, content_hash, total_bytes, scan_json, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        input.snapshot.id,
-        input.package.id,
-        input.snapshot.ref,
-        input.snapshot.commitHash,
-        input.snapshot.contentHash ?? null,
-        input.snapshot.totalBytes,
-        JSON.stringify(input.snapshot.scan ?? {}),
-        now,
-      );
+        )
+        .run(
+          input.snapshot.id,
+          input.package.id,
+          input.snapshot.ref,
+          input.snapshot.commitHash,
+          input.snapshot.contentHash ?? null,
+          input.snapshot.totalBytes,
+          JSON.stringify(input.snapshot.scan ?? {}),
+          now,
+        );
       const insertFile = this.db.prepare(
         `INSERT INTO source_files (snapshot_id, path, kind, content_hash, size_bytes, store_key, text_content)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -133,34 +137,38 @@ export class DesignSchemeRepository {
     const document = assertValidDocument(input.document);
     const now = Date.now();
     this.db.transaction(() => {
-      this.db.prepare(
-        `INSERT INTO design_schemes
+      this.db
+        .prepare(
+          `INSERT INTO design_schemes
            (id, name, summary, status, source_presentation, source_label,
             current_revision_id, fidelity, created_at, updated_at)
          VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        document.schemeId,
-        document.name,
-        document.summary,
-        input.sourcePresentation,
-        input.sourceLabel,
-        document.revisionId,
-        document.fidelity,
-        now,
-        now,
-      );
-      this.db.prepare(
-        `INSERT INTO design_scheme_revisions
+        )
+        .run(
+          document.schemeId,
+          document.name,
+          document.summary,
+          input.sourcePresentation,
+          input.sourceLabel,
+          document.revisionId,
+          document.fidelity,
+          now,
+          now,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO design_scheme_revisions
            (revision_id, scheme_id, schema_version, document_json, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
-      ).run(
-        document.revisionId,
-        document.schemeId,
-        document.schemaVersion,
-        JSON.stringify(document),
-        input.createdBy,
-        now,
-      );
+        )
+        .run(
+          document.revisionId,
+          document.schemeId,
+          document.schemaVersion,
+          JSON.stringify(document),
+          input.createdBy,
+          now,
+        );
       const insertBinding = this.db.prepare(
         `INSERT OR IGNORE INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
          VALUES (?, ?, ?)`,
@@ -173,26 +181,30 @@ export class DesignSchemeRepository {
   }
 
   listSummaries(): DesignSchemeSummary[] {
-    const rows = this.db.prepare(
-      `SELECT ${SCHEME_SUMMARY_COLUMNS}
+    const rows = this.db
+      .prepare(
+        `SELECT ${SCHEME_SUMMARY_COLUMNS}
          FROM design_schemes
         WHERE deleted_at IS NULL
         ORDER BY updated_at DESC
         LIMIT 200`,
-    ).all() as SchemeRow[];
+      )
+      .all() as SchemeRow[];
     return rows.map((row) => this.toSummary(row));
   }
 
   /** 方案全部相册资产（跨 revision），新结果在前；封面排序交给 UI。 */
   listAssets(schemeId: string): DesignSchemeAssetSummary[] {
-    const rows = this.db.prepare(
-      `SELECT a.id, a.revision_id, a.store_key, a.role, a.origin, a.created_at
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, a.revision_id, a.store_key, a.role, a.origin, a.created_at
          FROM design_scheme_assets a
          JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
         WHERE r.scheme_id = ?
         ORDER BY a.created_at DESC
         LIMIT 200`,
-    ).all(schemeId) as Array<{
+      )
+      .all(schemeId) as Array<{
       id: string;
       revision_id: string;
       store_key: string;
@@ -211,11 +223,13 @@ export class DesignSchemeRepository {
   }
 
   requireSummary(schemeId: string): DesignSchemeSummary {
-    const row = this.db.prepare(
-      `SELECT ${SCHEME_SUMMARY_COLUMNS}
+    const row = this.db
+      .prepare(
+        `SELECT ${SCHEME_SUMMARY_COLUMNS}
          FROM design_schemes
         WHERE id = ? AND deleted_at IS NULL`,
-    ).get(schemeId) as SchemeRow | undefined;
+      )
+      .get(schemeId) as SchemeRow | undefined;
     if (!row) throw new Error('设计方案不存在');
     return this.toSummary(row);
   }
@@ -226,9 +240,11 @@ export class DesignSchemeRepository {
     if (!trimmed) throw new Error('方案名称不能为空');
     if (trimmed.length > 80) throw new Error('方案名称不能超过 80 个字符');
     this.requireSummary(schemeId);
-    this.db.prepare(
-      `UPDATE design_schemes SET name = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    ).run(trimmed, Date.now(), schemeId);
+    this.db
+      .prepare(
+        `UPDATE design_schemes SET name = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(trimmed, Date.now(), schemeId);
     return this.requireSummary(schemeId);
   }
 
@@ -238,9 +254,11 @@ export class DesignSchemeRepository {
    */
   softDelete(schemeId: string): void {
     this.requireSummary(schemeId);
-    this.db.prepare(
-      `UPDATE design_schemes SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    ).run(Date.now(), Date.now(), schemeId);
+    this.db
+      .prepare(
+        `UPDATE design_schemes SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(Date.now(), Date.now(), schemeId);
   }
 
   /**
@@ -249,14 +267,16 @@ export class DesignSchemeRepository {
    */
   listSourceFiles(schemeId: string): DesignSchemeSourceSnapshotDetail[] {
     const summary = this.requireSummary(schemeId);
-    const snapshots = this.db.prepare(
-      `SELECT s.id, s.ref, s.commit_hash, s.created_at, p.kind, p.repository_url, p.license
+    const snapshots = this.db
+      .prepare(
+        `SELECT s.id, s.ref, s.commit_hash, s.created_at, p.kind, p.repository_url, p.license
          FROM design_scheme_source_bindings b
          JOIN source_snapshots s ON s.id = b.source_snapshot_id
          JOIN source_packages p ON p.id = s.package_id
         WHERE b.revision_id = ?
         ORDER BY s.created_at`,
-    ).all(summary.currentRevisionId) as Array<{
+      )
+      .all(summary.currentRevisionId) as Array<{
       id: string;
       ref: string;
       commit_hash: string | null;
@@ -277,13 +297,15 @@ export class DesignSchemeRepository {
       commitHash: snapshot.commit_hash,
       license: snapshot.license,
       createdAt: snapshot.created_at,
-      files: (fileQuery.all(snapshot.id) as Array<{
-        path: string;
-        kind: 'text' | 'image' | 'other';
-        size_bytes: number;
-        store_key: string | null;
-        text_content: string | null;
-      }>).map((file) => ({
+      files: (
+        fileQuery.all(snapshot.id) as Array<{
+          path: string;
+          kind: 'text' | 'image' | 'other';
+          size_bytes: number;
+          store_key: string | null;
+          text_content: string | null;
+        }>
+      ).map((file) => ({
         path: file.path,
         kind: file.kind,
         sizeBytes: file.size_bytes,
@@ -298,72 +320,92 @@ export class DesignSchemeRepository {
   // -------------------------------------------------------------------------
 
   insertRun(input: SchemeRunWriteInput): void {
-    this.db.prepare(
-      `INSERT INTO design_scheme_runs (run_id, revision_id, mode, status, policy_json, provider_json, created_at)
+    this.db
+      .prepare(
+        `INSERT INTO design_scheme_runs (run_id, revision_id, mode, status, policy_json, provider_json, created_at)
        VALUES (?, ?, ?, 'planning', ?, ?, ?)`,
-    ).run(
-      input.runId,
-      input.revisionId,
-      input.mode,
-      JSON.stringify(input.policy ?? {}),
-      input.provider === undefined ? null : JSON.stringify(input.provider),
-      Date.now(),
-    );
+      )
+      .run(
+        input.runId,
+        input.revisionId,
+        input.mode,
+        JSON.stringify(input.policy ?? {}),
+        input.provider === undefined ? null : JSON.stringify(input.provider),
+        Date.now(),
+      );
   }
 
   updateRunStatus(
     runId: string,
-    status: 'planning' | 'executing' | 'evaluating' | 'completed' | 'blocked' | 'failed' | 'cancelled',
+    status:
+      | 'planning'
+      | 'executing'
+      | 'evaluating'
+      | 'completed'
+      | 'blocked'
+      | 'failed'
+      | 'cancelled',
   ): void {
     const terminal = ['completed', 'blocked', 'failed', 'cancelled'].includes(status);
-    this.db.prepare(
-      `UPDATE design_scheme_runs SET status = ?, completed_at = ? WHERE run_id = ?`,
-    ).run(status, terminal ? Date.now() : null, runId);
+    this.db
+      .prepare(`UPDATE design_scheme_runs SET status = ?, completed_at = ? WHERE run_id = ?`)
+      .run(status, terminal ? Date.now() : null, runId);
   }
 
-  upsertRunStep(runId: string, stepId: string, patch: {
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-    input?: unknown;
-    output?: unknown;
-  }): void {
+  upsertRunStep(
+    runId: string,
+    stepId: string,
+    patch: {
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      input?: unknown;
+      output?: unknown;
+    },
+  ): void {
     const now = Date.now();
-    this.db.prepare(
-      `INSERT INTO design_scheme_run_steps (run_id, step_id, status, input_json, output_json, started_at, completed_at)
+    this.db
+      .prepare(
+        `INSERT INTO design_scheme_run_steps (run_id, step_id, status, input_json, output_json, started_at, completed_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id, step_id) DO UPDATE SET
          status = excluded.status,
          input_json = COALESCE(excluded.input_json, design_scheme_run_steps.input_json),
          output_json = COALESCE(excluded.output_json, design_scheme_run_steps.output_json),
          completed_at = excluded.completed_at`,
-    ).run(
-      runId,
-      stepId,
-      patch.status,
-      patch.input === undefined ? null : JSON.stringify(patch.input),
-      patch.output === undefined ? null : JSON.stringify(patch.output),
-      now,
-      ['completed', 'failed', 'cancelled'].includes(patch.status) ? now : null,
-    );
+      )
+      .run(
+        runId,
+        stepId,
+        patch.status,
+        patch.input === undefined ? null : JSON.stringify(patch.input),
+        patch.output === undefined ? null : JSON.stringify(patch.output),
+        now,
+        ['completed', 'failed', 'cancelled'].includes(patch.status) ? now : null,
+      );
   }
 
   /** 质量门结果入库（开发规范 §10：metrics 指标 + 逐张证据），返回评估 id。 */
-  insertEvaluation(runId: string, input: {
-    passed: boolean;
-    metrics: unknown;
-    evidence: unknown;
-  }): string {
+  insertEvaluation(
+    runId: string,
+    input: {
+      passed: boolean;
+      metrics: unknown;
+      evidence: unknown;
+    },
+  ): string {
     const evaluationId = `dse_${ulid()}`;
-    this.db.prepare(
-      `INSERT INTO design_scheme_evaluations (evaluation_id, run_id, passed, metrics_json, evidence_json, created_at)
+    this.db
+      .prepare(
+        `INSERT INTO design_scheme_evaluations (evaluation_id, run_id, passed, metrics_json, evidence_json, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(
-      evaluationId,
-      runId,
-      input.passed ? 1 : 0,
-      JSON.stringify(input.metrics),
-      JSON.stringify(input.evidence),
-      Date.now(),
-    );
+      )
+      .run(
+        evaluationId,
+        runId,
+        input.passed ? 1 : 0,
+        JSON.stringify(input.metrics),
+        JSON.stringify(input.evidence),
+        Date.now(),
+      );
     return evaluationId;
   }
 
@@ -374,16 +416,20 @@ export class DesignSchemeRepository {
     evidence: unknown;
     createdAt: number;
   } | null {
-    const row = this.db.prepare(
-      `SELECT evaluation_id, passed, metrics_json, evidence_json, created_at
+    const row = this.db
+      .prepare(
+        `SELECT evaluation_id, passed, metrics_json, evidence_json, created_at
          FROM design_scheme_evaluations WHERE run_id = ? ORDER BY created_at DESC LIMIT 1`,
-    ).get(runId) as {
-      evaluation_id: string;
-      passed: number;
-      metrics_json: string;
-      evidence_json: string;
-      created_at: number;
-    } | undefined;
+      )
+      .get(runId) as
+      | {
+          evaluation_id: string;
+          passed: number;
+          metrics_json: string;
+          evidence_json: string;
+          created_at: number;
+        }
+      | undefined;
     if (!row) return null;
     return {
       evaluationId: row.evaluation_id,
@@ -397,24 +443,30 @@ export class DesignSchemeRepository {
   /** 试运行成功结果自动进入草稿相册（UI 规范 §5.2），返回资产 id。 */
   insertLocalRunAsset(revisionId: string, storeKey: string): string {
     const assetId = `dsa_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
-    this.db.prepare(
-      `INSERT INTO design_scheme_assets (id, revision_id, store_key, role, origin, created_at)
+    this.db
+      .prepare(
+        `INSERT INTO design_scheme_assets (id, revision_id, store_key, role, origin, created_at)
        VALUES (?, ?, ?, 'example', 'local-run', ?)`,
-    ).run(assetId, revisionId, storeKey, Date.now());
+      )
+      .run(assetId, revisionId, storeKey, Date.now());
     return assetId;
   }
 
   /** 封面必须是本方案某个 revision 的资产；普通上传图片不能直接设为封面。 */
   selectCover(schemeId: string, assetId: string): DesignSchemeSummary {
-    const asset = this.db.prepare(
-      `SELECT a.id FROM design_scheme_assets a
+    const asset = this.db
+      .prepare(
+        `SELECT a.id FROM design_scheme_assets a
         JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
        WHERE a.id = ? AND r.scheme_id = ?`,
-    ).get(assetId, schemeId) as { id: string } | undefined;
+      )
+      .get(assetId, schemeId) as { id: string } | undefined;
     if (!asset) throw new Error('封面必须选择本方案的试运行结果');
-    this.db.prepare(
-      `UPDATE design_schemes SET cover_asset_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    ).run(assetId, Date.now(), schemeId);
+    this.db
+      .prepare(
+        `UPDATE design_schemes SET cover_asset_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(assetId, Date.now(), schemeId);
     return this.requireSummary(schemeId);
   }
 
@@ -446,9 +498,7 @@ export class DesignSchemeRepository {
       if (!existing.has(edit.id)) throw new Error('结构化编辑不支持新增输入槽位');
     }
     const keptIds = new Set(nextInputs.map((edit) => edit.id));
-    const templateVariables = new Set(
-      document.promptProgram.flatMap((module) => module.variables),
-    );
+    const templateVariables = new Set(document.promptProgram.flatMap((module) => module.variables));
     for (const slot of document.inputs) {
       if (keptIds.has(slot.id)) continue;
       const isTextSlot = slot.kind === 'text' || slot.kind === 'article' || slot.kind === 'choice';
@@ -466,18 +516,24 @@ export class DesignSchemeRepository {
     const nextDocument = assertValidDocument({ ...document, revisionId, inputs });
     const now = Date.now();
     this.db.transaction(() => {
-      this.db.prepare(
-        `INSERT INTO design_scheme_revisions
+      this.db
+        .prepare(
+          `INSERT INTO design_scheme_revisions
            (revision_id, scheme_id, schema_version, document_json, created_by, created_at)
          VALUES (?, ?, ?, ?, 'user', ?)`,
-      ).run(revisionId, schemeId, nextDocument.schemaVersion, JSON.stringify(nextDocument), now);
-      this.db.prepare(
-        `INSERT OR IGNORE INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+        )
+        .run(revisionId, schemeId, nextDocument.schemaVersion, JSON.stringify(nextDocument), now);
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
          SELECT ?, source_snapshot_id, role FROM design_scheme_source_bindings WHERE revision_id = ?`,
-      ).run(revisionId, baseRevisionId);
-      this.db.prepare(
-        `UPDATE design_schemes SET current_revision_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-      ).run(revisionId, now, schemeId);
+        )
+        .run(revisionId, baseRevisionId);
+      this.db
+        .prepare(
+          `UPDATE design_schemes SET current_revision_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+        )
+        .run(revisionId, now, schemeId);
     })();
     return { summary: this.requireSummary(schemeId), document: nextDocument };
   }
@@ -496,23 +552,35 @@ export class DesignSchemeRepository {
     extraBindings: Array<{ snapshotId: string; role: SourceRole }> = [],
   ): { summary: DesignSchemeSummary; document: DesignSchemeRevisionDocument } {
     const summary = this.requireSummary(schemeId);
-    const validBase = summary.status === 'draft'
-      ? baseRevisionId === summary.currentRevisionId
-      : baseRevisionId === summary.currentRevisionId || baseRevisionId === summary.workingDraftRevisionId;
+    const validBase =
+      summary.status === 'draft'
+        ? baseRevisionId === summary.currentRevisionId
+        : baseRevisionId === summary.currentRevisionId ||
+          baseRevisionId === summary.workingDraftRevisionId;
     if (!validBase) throw new Error('方案已有更新版本，请刷新后再修改');
     if (document.schemeId !== schemeId) throw new Error('修改结果与方案不匹配');
     const validated = assertValidDocument(document);
     const now = Date.now();
     this.db.transaction(() => {
-      this.db.prepare(
-        `INSERT INTO design_scheme_revisions
+      this.db
+        .prepare(
+          `INSERT INTO design_scheme_revisions
            (revision_id, scheme_id, schema_version, document_json, created_by, created_at)
          VALUES (?, ?, ?, ?, 'agent', ?)`,
-      ).run(validated.revisionId, schemeId, validated.schemaVersion, JSON.stringify(validated), now);
-      this.db.prepare(
-        `INSERT OR IGNORE INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+        )
+        .run(
+          validated.revisionId,
+          schemeId,
+          validated.schemaVersion,
+          JSON.stringify(validated),
+          now,
+        );
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
          SELECT ?, source_snapshot_id, role FROM design_scheme_source_bindings WHERE revision_id = ?`,
-      ).run(validated.revisionId, baseRevisionId);
+        )
+        .run(validated.revisionId, baseRevisionId);
       const insertBinding = this.db.prepare(
         `INSERT OR IGNORE INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
          VALUES (?, ?, ?)`,
@@ -521,16 +589,27 @@ export class DesignSchemeRepository {
         insertBinding.run(validated.revisionId, binding.snapshotId, binding.role);
       }
       if (summary.status === 'draft') {
-        this.db.prepare(
-          `UPDATE design_schemes
+        this.db
+          .prepare(
+            `UPDATE design_schemes
               SET current_revision_id = ?, name = ?, summary = ?, fidelity = ?, updated_at = ?
             WHERE id = ? AND deleted_at IS NULL`,
-        ).run(validated.revisionId, validated.name, validated.summary, validated.fidelity, now, schemeId);
+          )
+          .run(
+            validated.revisionId,
+            validated.name,
+            validated.summary,
+            validated.fidelity,
+            now,
+            schemeId,
+          );
       } else {
         // 正式方案：名称/简介保持正式版本的展示；新内容只挂在待验证草稿上。
-        this.db.prepare(
-          `UPDATE design_schemes SET working_draft_revision_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-        ).run(validated.revisionId, now, schemeId);
+        this.db
+          .prepare(
+            `UPDATE design_schemes SET working_draft_revision_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+          )
+          .run(validated.revisionId, now, schemeId);
       }
     })();
     return { summary: this.requireSummary(schemeId), document: validated };
@@ -550,21 +629,25 @@ export class DesignSchemeRepository {
     }
     const document = this.getRevisionDocument(workingDraft);
     if (!document) throw new Error('待验证版本不存在');
-    this.db.prepare(
-      `UPDATE design_schemes
+    this.db
+      .prepare(
+        `UPDATE design_schemes
           SET current_revision_id = ?, working_draft_revision_id = NULL,
               name = ?, summary = ?, fidelity = ?, updated_at = ?
         WHERE id = ? AND deleted_at IS NULL`,
-    ).run(workingDraft, document.name, document.summary, document.fidelity, Date.now(), schemeId);
+      )
+      .run(workingDraft, document.name, document.summary, document.fidelity, Date.now(), schemeId);
     return this.requireSummary(schemeId);
   }
 
   hasSuccessfulTrial(revisionId: string): boolean {
-    const row = this.db.prepare(
-      `SELECT 1 AS hit FROM design_scheme_runs
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS hit FROM design_scheme_runs
         WHERE revision_id = ? AND mode = 'trial' AND status = 'completed'
         LIMIT 1`,
-    ).get(revisionId) as { hit: number } | undefined;
+      )
+      .get(revisionId) as { hit: number } | undefined;
     return Boolean(row);
   }
 
@@ -577,24 +660,26 @@ export class DesignSchemeRepository {
     if (summary.status === 'formal') throw new Error('方案已是正式状态');
     if (!summary.hasSuccessfulTrial) throw new Error('转为正式前需要至少一次成功的本机试运行');
     if (!summary.coverAssetId) throw new Error('请先从试运行结果中选择封面');
-    this.db.prepare(
-      `UPDATE design_schemes SET status = 'formal', updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    ).run(Date.now(), schemeId);
+    this.db
+      .prepare(
+        `UPDATE design_schemes SET status = 'formal', updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(Date.now(), schemeId);
     return this.requireSummary(schemeId);
   }
 
   private coverImagePath(coverAssetId: string | null): string | null {
     if (!coverAssetId) return null;
-    const row = this.db.prepare(
-      'SELECT store_key FROM design_scheme_assets WHERE id = ?',
-    ).get(coverAssetId) as { store_key: string } | undefined;
+    const row = this.db
+      .prepare('SELECT store_key FROM design_scheme_assets WHERE id = ?')
+      .get(coverAssetId) as { store_key: string } | undefined;
     return row?.store_key ?? null;
   }
 
   getRevisionDocument(revisionId: string): DesignSchemeRevisionDocument | null {
-    const row = this.db.prepare(
-      'SELECT document_json FROM design_scheme_revisions WHERE revision_id = ?',
-    ).get(revisionId) as { document_json: string } | undefined;
+    const row = this.db
+      .prepare('SELECT document_json FROM design_scheme_revisions WHERE revision_id = ?')
+      .get(revisionId) as { document_json: string } | undefined;
     if (!row) return null;
     const parsed = parseDesignSchemeRevisionDocument(JSON.parse(row.document_json));
     if (!parsed.ok) throw new Error('设计方案文档已损坏，无法读取');
@@ -624,19 +709,23 @@ export class DesignSchemeRepository {
 
   /** 方案任意 revision 最近一次完成运行的时间（选择器「最近使用」排序）。 */
   private lastRunAt(schemeId: string): number | null {
-    const row = this.db.prepare(
-      `SELECT MAX(run.created_at) AS latest
+    const row = this.db
+      .prepare(
+        `SELECT MAX(run.created_at) AS latest
          FROM design_scheme_runs run
          JOIN design_scheme_revisions rev ON rev.revision_id = run.revision_id
         WHERE rev.scheme_id = ? AND run.status = 'completed'`,
-    ).get(schemeId) as { latest: number | null } | undefined;
+      )
+      .get(schemeId) as { latest: number | null } | undefined;
     return row?.latest ?? null;
   }
 
   private inputLabels(revisionId: string): string[] {
     try {
       const document = this.getRevisionDocument(revisionId);
-      return (document?.inputs ?? []).map((input) => input.required ? `${input.label} · 必需` : input.label);
+      return (document?.inputs ?? []).map((input) =>
+        input.required ? `${input.label} · 必需` : input.label,
+      );
     } catch {
       return [];
     }

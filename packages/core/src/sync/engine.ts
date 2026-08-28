@@ -126,11 +126,7 @@ export class DesktopSyncEngine {
       } catch (error) {
         const message = safeErrorMessage(error);
         for (const mutation of mutations)
-          this.repository.markMutationAttempt(
-            ownerId,
-            mutation.mutationId,
-            message,
-          );
+          this.repository.markMutationAttempt(ownerId, mutation.mutationId, message);
         throw error;
       }
     }
@@ -158,15 +154,11 @@ export class DesktopSyncEngine {
 
 function isCursorExpired(error: unknown): boolean {
   return Boolean(
-    error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    error.code === 'SYNC_CURSOR_EXPIRED',
+    error && typeof error === 'object' && 'code' in error && error.code === 'SYNC_CURSOR_EXPIRED',
   );
 }
 
 function safeErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim())
-    return error.message.slice(0, 500);
+  if (error instanceof Error && error.message.trim()) return error.message.slice(0, 500);
   return '云同步暂时不可用';
 }

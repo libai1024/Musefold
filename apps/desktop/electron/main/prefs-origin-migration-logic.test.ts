@@ -37,7 +37,7 @@ function memoryStorage(initial: Record<string, string> = {}): {
       return Object.keys(data)[index] ?? null;
     },
     getItem(key: string) {
-      return Object.prototype.hasOwnProperty.call(data, key) ? data[key]! : null;
+      return Object.hasOwn(data, key) ? data[key]! : null;
     },
     setItem(key: string, value: string) {
       data[key] = value;
@@ -169,20 +169,16 @@ describe('planLocalStorageCopy', () => {
   });
 
   it('never overwrites keys that already exist on the target origin', () => {
-    const plan = planLocalStorageCopy(
-      { 'musefold:theme': 'dark', 'musefold:density': 'compact' },
-      ['musefold:theme'],
-    );
+    const plan = planLocalStorageCopy({ 'musefold:theme': 'dark', 'musefold:density': 'compact' }, [
+      'musefold:theme',
+    ]);
     expect(plan.toWrite).toEqual({ 'musefold:density': 'compact' });
     expect(plan.skippedExisting).toBe(1);
   });
 
   it('skips a single key whose value exceeds 1 MiB', () => {
     const huge = 'x'.repeat(MAX_SINGLE_KEY_BYTES + 1);
-    const plan = planLocalStorageCopy(
-      { 'musefold:ok': 'yes', 'musefold:huge': huge },
-      [],
-    );
+    const plan = planLocalStorageCopy({ 'musefold:ok': 'yes', 'musefold:huge': huge }, []);
     expect(plan.toWrite).toEqual({ 'musefold:ok': 'yes' });
     expect(plan.skippedOversize).toBe(1);
     expect(plan.skippedOversizeKeys).toEqual(['musefold:huge']);

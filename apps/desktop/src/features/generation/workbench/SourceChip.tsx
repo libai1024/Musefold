@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { FileText, History, X } from "../../../components/ui/icons";
-import { WorkbenchPromptReferenceCard } from "@musefold/product-ui";
-import { WorkbenchPromptFullTextCard } from "@musefold/product-ui";
-import type { GenerationSource } from "./types";
+import { useState } from 'react';
+import { FileText, History, X } from '../../../components/ui/icons';
+import { WorkbenchPromptReferenceCard } from '@musefold/product-ui';
+import { WorkbenchPromptFullTextCard } from '@musefold/product-ui';
+import type { GenerationSource } from './types';
 
 // 来源芯片（提示词/历史引用）：Codex 式附件芯片，表达在 Composer 上方的上下文区；提示词来源悬停可看全文。
 export function SourceChip({
@@ -14,19 +14,15 @@ export function SourceChip({
   onClear: () => void;
   previewText?: string;
 }) {
-  const fromPrompt = source.kind === "prompt";
+  const fromPrompt = source.kind === 'prompt';
   const Icon = fromPrompt ? FileText : History;
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   if (fromPrompt) {
     return (
       <WorkbenchPromptReferenceCard
-        title={source.label ?? "提示词"}
+        title={source.label ?? '提示词'}
         text={previewText ?? source.content}
-        subtitle={
-          (previewText ?? source.content)
-            ? "引用提示词 · 悬停查看全文"
-            : "来自提示词库"
-        }
+        subtitle={(previewText ?? source.content) ? '引用提示词 · 悬停查看全文' : '来自提示词库'}
         onClear={onClear}
       />
     );
@@ -38,9 +34,7 @@ export function SourceChip({
       data-workbench-testid="workbench-source"
       data-source-kind={source.kind}
       onMouseEnter={
-        previewText
-          ? (event) => setAnchor(event.currentTarget.getBoundingClientRect())
-          : undefined
+        previewText ? (event) => setAnchor(event.currentTarget.getBoundingClientRect()) : undefined
       }
       onMouseLeave={previewText ? () => setAnchor(null) : undefined}
     >
@@ -50,16 +44,16 @@ export function SourceChip({
       <span className="min-w-0 flex-1">
         <span
           className="block truncate text-meta font-medium text-primary"
-          title={source.label ?? ""}
+          title={source.label ?? ''}
         >
-          {source.label ?? (fromPrompt ? "提示词" : "历史记录")}
+          {source.label ?? (fromPrompt ? '提示词' : '历史记录')}
         </span>
         <span className="mt-0.5 block truncate text-meta text-tertiary">
           {fromPrompt
             ? previewText
-              ? "引用提示词 · 悬停查看全文"
-              : "来自提示词库"
-            : "来自生成历史"}
+              ? '引用提示词 · 悬停查看全文'
+              : '来自提示词库'
+            : '来自生成历史'}
         </span>
       </span>
       <button
@@ -75,7 +69,7 @@ export function SourceChip({
       </button>
       {anchor && previewText && (
         <WorkbenchPromptFullTextCard
-          title={source.label ?? "提示词"}
+          title={source.label ?? '提示词'}
           text={previewText}
           anchor={anchor}
         />

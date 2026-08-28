@@ -55,9 +55,7 @@ export function registerMediaProtocolHandler(): void {
       const target = resolve(raw);
 
       // 目录穿越校验：必须落在允许的根目录之内
-      const ok = allowedRoots().some(
-        (root) => target === root || target.startsWith(root + sep)
-      );
+      const ok = allowedRoots().some((root) => target === root || target.startsWith(root + sep));
       if (!ok) return new Response('Forbidden', { status: 403 });
 
       const buf = await readFile(target);

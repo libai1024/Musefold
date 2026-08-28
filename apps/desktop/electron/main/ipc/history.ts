@@ -12,10 +12,7 @@ import type {
   RelatedHistoryQuery,
   RelatedHistoryResult,
 } from '@musefold/desktop-contracts/ipc';
-import type {
-  HistoryRecord,
-  PromptHistoryRelation,
-} from '@musefold/desktop-contracts/models';
+import type { HistoryRecord, PromptHistoryRelation } from '@musefold/desktop-contracts/models';
 import type { HistoryStatus } from '@musefold/desktop-contracts/enums';
 import { unlink } from 'fs/promises';
 import { resolve, sep } from 'path';
@@ -71,12 +68,14 @@ function attachPromptRelations(
   }
 
   const placeholders = items.map(() => '?').join(', ');
-  const referenceRows = db.prepare(
-    `SELECT history_id, prompt_title, excerpt, scope
+  const referenceRows = db
+    .prepare(
+      `SELECT history_id, prompt_title, excerpt, scope
      FROM history_prompt_references
      WHERE prompt_id = ? AND history_id IN (${placeholders})
      ORDER BY history_id, sort_order`,
-  ).all(promptId, ...items.map((item) => item.id)) as Array<{
+    )
+    .all(promptId, ...items.map((item) => item.id)) as Array<{
     history_id: string;
     prompt_title: string;
     excerpt: string;
@@ -168,13 +167,15 @@ function markAssetByHistoryFile(
   status: 'deleted' | 'missing',
 ): number {
   if (!imagePath) return 0;
-  return getDb().prepare(
-    `UPDATE generated_assets
+  return getDb()
+    .prepare(
+      `UPDATE generated_assets
      SET status = ?
      WHERE run_id = ?
        AND media_path = ?
        AND status = 'available'`,
-  ).run(status, historyId, imagePath).changes;
+    )
+    .run(status, historyId, imagePath).changes;
 }
 
 async function deleteManagedHistoryFile(imagePath: string): Promise<ManagedFileDeleteResult> {
@@ -270,9 +271,9 @@ export function registerHistoryHandlers(): void {
       if (!promptId || historyIds.length === 0) {
         return { linked: 0, alreadyLinked: 0, conflicts: [], missing: [] };
       }
-      const promptExists = db.prepare(
-        'SELECT 1 FROM prompts WHERE id = ? AND deleted_at IS NULL',
-      ).get(promptId);
+      const promptExists = db
+        .prepare('SELECT 1 FROM prompts WHERE id = ? AND deleted_at IS NULL')
+        .get(promptId);
       if (!promptExists) throw new Error('PROMPT_NOT_FOUND: 提示词不存在或已删除');
 
       const getHistory = db.prepare('SELECT prompt_id FROM history WHERE id = ?');
@@ -343,7 +344,8 @@ export function registerHistoryHandlers(): void {
     const { sql, values } = buildHistoryClearSql(req);
     const result = db.prepare(sql).run(...values);
     const deletedRows = rows.slice(0, result.changes);
-    const runsDeleted = result.changes > 0 ? markGenerationRunsDeleted(deletedRows.map((row) => row.id)) : 0;
+    const runsDeleted =
+      result.changes > 0 ? markGenerationRunsDeleted(deletedRows.map((row) => row.id)) : 0;
     const fileErrors: Array<{ id: string; path: string; message: string }> = [];
     let filesDeleted = 0;
     let filesMissing = 0;

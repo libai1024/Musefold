@@ -1,6 +1,9 @@
 import { ipcMain } from 'electron';
 import { IPC } from '@musefold/desktop-contracts/ipc';
-import type { EnsureWorkbenchSessionCommand, WorkbenchSessionListQuery } from '@musefold/desktop-contracts/workbench';
+import type {
+  EnsureWorkbenchSessionCommand,
+  WorkbenchSessionListQuery,
+} from '@musefold/desktop-contracts/workbench';
 import type { ImageProviderResponseSummary } from '@musefold/desktop-contracts/providers';
 import { getDb } from '@musefold/core/db';
 import { parseJsonColumn } from '@musefold/core/db/json';
@@ -22,10 +25,11 @@ function providerResponseFromParams(raw: unknown): ImageProviderResponseSummary 
   if (!value || typeof value !== 'object') return undefined;
   const summary = value as Partial<ImageProviderResponseSummary>;
   if (
-    summary.kind !== 'doubao-web'
-    || typeof summary.expectedImageCount !== 'number'
-    || typeof summary.receivedImageCount !== 'number'
-  ) return undefined;
+    summary.kind !== 'doubao-web' ||
+    typeof summary.expectedImageCount !== 'number' ||
+    typeof summary.receivedImageCount !== 'number'
+  )
+    return undefined;
   return {
     kind: 'doubao-web',
     expectedImageCount: summary.expectedImageCount,
@@ -54,12 +58,14 @@ function getSessionDocument(id: string) {
       providerResponse: providerResponseFromParams(
         (getHistoryParams.get(item.run.id) as { params: string | null } | undefined)?.params,
       ),
-      promptReferences: (statement.all(item.run.id) as Array<{
-        prompt_id: string | null;
-        prompt_title: string;
-        excerpt: string;
-        scope: 'full' | 'excerpt';
-      }>).map((row) => ({
+      promptReferences: (
+        statement.all(item.run.id) as Array<{
+          prompt_id: string | null;
+          prompt_title: string;
+          excerpt: string;
+          scope: 'full' | 'excerpt';
+        }>
+      ).map((row) => ({
         promptId: row.prompt_id ?? '',
         title: row.prompt_title,
         text: row.excerpt,
@@ -74,15 +80,19 @@ export function registerWorkbenchSessionHandlers(): void {
     repositories().sessions.ensure({
       ...command,
       id: requiredId(command?.id),
-    }));
+    }),
+  );
   ipcMain.handle(IPC.WORKBENCH_SESSION_LIST, (_event, query?: WorkbenchSessionListQuery) =>
-    repositories().sessions.list(query));
-  ipcMain.handle(IPC.WORKBENCH_SESSION_GET, (_event, id: string) =>
-    getSessionDocument(id));
+    repositories().sessions.list(query),
+  );
+  ipcMain.handle(IPC.WORKBENCH_SESSION_GET, (_event, id: string) => getSessionDocument(id));
   ipcMain.handle(IPC.WORKBENCH_SESSION_RENAME, (_event, id: string, title: string) =>
-    repositories().sessions.rename(requiredId(id), title));
+    repositories().sessions.rename(requiredId(id), title),
+  );
   ipcMain.handle(IPC.WORKBENCH_SESSION_ARCHIVE, (_event, id: string, archived = true) =>
-    repositories().sessions.archive(requiredId(id), Boolean(archived)));
+    repositories().sessions.archive(requiredId(id), Boolean(archived)),
+  );
   ipcMain.handle(IPC.WORKBENCH_SESSION_DELETE, (_event, id: string) =>
-    repositories().sessions.softDelete(requiredId(id)));
+    repositories().sessions.softDelete(requiredId(id)),
+  );
 }

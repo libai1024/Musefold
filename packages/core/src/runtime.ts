@@ -6,7 +6,11 @@
 // security/keychain、system/logger、settings/pricing），零行为变化。
 // P3 收口 shared/ 进 core 时，这里将折叠进正式的 ports（异步 SecretsPort 等）。
 
-import type { GenerateImageRequest, GenerateImageResult, ValidationResult } from '@musefold/desktop-contracts/providers';
+import type {
+  GenerateImageRequest,
+  GenerateImageResult,
+  ValidationResult,
+} from '@musefold/desktop-contracts/providers';
 import type { Logger } from './ports';
 
 /** 与 electron/system/paths.ts 的 getPaths() 同形态。 */
@@ -33,10 +37,7 @@ export interface CoreRuntime {
    */
   loadApiKey(providerId: string): string | null;
   createLogger(scope: string): Logger;
-  estimateProviderCost(
-    providerId: string,
-    req: { n?: number },
-  ): number | null;
+  estimateProviderCost(providerId: string, req: { n?: number }): number | null;
   doubaoWeb?: DoubaoWebRuntime;
 }
 
@@ -82,10 +83,7 @@ export function createLogger(scope: string): Logger {
   return { debug: emit('debug'), info: emit('info'), warn: emit('warn'), error: emit('error') };
 }
 
-export function estimateProviderCost(
-  providerId: string,
-  req: { n?: number },
-): number | null {
+export function estimateProviderCost(providerId: string, req: { n?: number }): number | null {
   return getCoreRuntime().estimateProviderCost(providerId, req);
 }
 

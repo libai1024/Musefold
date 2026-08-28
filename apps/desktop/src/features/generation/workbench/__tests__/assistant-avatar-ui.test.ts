@@ -20,7 +20,7 @@ const assetGenerator = readFileSync('scripts/generate-app-icons.swift', 'utf8');
 describe('assistant avatar UI contract', () => {
   it('uses the shared Musefold avatar for generation replies', () => {
     expect(assetGenerator).toContain('logo-circle.png');
-    expect(avatar).toContain("./musefold-assistant-avatar.png");
+    expect(avatar).toContain('./musefold-assistant-avatar.png');
     expect(avatar).toContain('rounded-full');
     expect(avatar).toContain('h-14 w-14');
     expect(workbench).toContain('WorkbenchAssistantAvatar,');

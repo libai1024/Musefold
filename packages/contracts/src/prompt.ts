@@ -9,7 +9,10 @@ export const promptTagSchema = z.object({
   id: entityIdSchema,
   name: promptTagNameSchema,
   group: z.string().trim().min(1).max(40).nullable(),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .nullable(),
   version: z.number().int().positive(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,

@@ -44,18 +44,24 @@ for (const helperName of helperNames) {
   const helperPath = resolve(appPath, 'Contents', 'Frameworks', helperName);
   await run('codesign', [
     '--force',
-    '--sign', '-',
-    '--options', 'runtime',
-    '--entitlements', entitlementsPath,
+    '--sign',
+    '-',
+    '--options',
+    'runtime',
+    '--entitlements',
+    entitlementsPath,
     helperPath,
   ]);
 }
 
 await run('codesign', [
   '--force',
-  '--sign', '-',
-  '--options', 'runtime',
-  '--entitlements', entitlementsPath,
+  '--sign',
+  '-',
+  '--options',
+  'runtime',
+  '--entitlements',
+  entitlementsPath,
   appPath,
 ]);
 await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath]);

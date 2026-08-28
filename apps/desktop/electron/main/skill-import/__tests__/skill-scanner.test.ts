@@ -112,10 +112,21 @@ describe('Agent Skill safe-subset scanner', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.files.find((file) => file.relativePath === 'references/layout/layers.md')?.fileKind).toBe('reference');
-    expect(result.data.files.find((file) => file.relativePath === 'assets/examples/dark/preview.webp')?.fileKind).toBe('asset');
-    expect(result.data.files.find((file) => file.relativePath === 'scripts/checks/validate.sh')?.fileKind).toBe('script');
-    expect(result.data.files.find((file) => file.relativePath === 'tools/helper.py')?.fileKind).toBe('script');
+    expect(
+      result.data.files.find((file) => file.relativePath === 'references/layout/layers.md')
+        ?.fileKind,
+    ).toBe('reference');
+    expect(
+      result.data.files.find((file) => file.relativePath === 'assets/examples/dark/preview.webp')
+        ?.fileKind,
+    ).toBe('asset');
+    expect(
+      result.data.files.find((file) => file.relativePath === 'scripts/checks/validate.sh')
+        ?.fileKind,
+    ).toBe('script');
+    expect(
+      result.data.files.find((file) => file.relativePath === 'tools/helper.py')?.fileKind,
+    ).toBe('script');
   });
 
   it('retains unknown frontmatter as inert declarations and never grants tools or permissions', () => {

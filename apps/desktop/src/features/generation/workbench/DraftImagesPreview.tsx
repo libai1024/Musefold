@@ -1,6 +1,6 @@
-import type { LocalImageReference } from "@musefold/desktop-contracts/providers";
-import { WorkbenchDraftImagesPreview } from "@musefold/product-ui";
-import { toImageSrc } from "../../../lib/media";
+import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
+import { WorkbenchDraftImagesPreview } from '@musefold/product-ui';
+import { toImageSrc } from '../../../lib/media';
 
 export function DraftImagesPreview({
   images,

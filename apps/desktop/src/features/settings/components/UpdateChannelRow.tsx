@@ -124,7 +124,8 @@ export function UpdateChannelRow({
           <DialogHeader>
             <DialogTitle>切换更新通道？</DialogTitle>
             <DialogDescription>
-              非稳定通道面向测试者，版本可能不稳定，且不保证能自动降级回稳定版。确认将更新源切换为「{pendingLabel}」吗？
+              非稳定通道面向测试者，版本可能不稳定，且不保证能自动降级回稳定版。确认将更新源切换为「
+              {pendingLabel}」吗？
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

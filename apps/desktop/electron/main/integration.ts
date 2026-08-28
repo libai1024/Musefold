@@ -3,14 +3,7 @@
 // 不需要 Node/npm/网络下载。
 
 import { execFile, execFileSync } from 'child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { delimiter, dirname, join } from 'path';
 import { app, shell } from 'electron';
@@ -52,10 +45,7 @@ import {
   resolvePosixShellProfile,
   upsertManagedCliPathBlock,
 } from './integration-cli-path';
-import {
-  getSkillAutoUpdateEnabled,
-  setSkillAutoUpdateEnabled,
-} from '../settings/automation';
+import { getSkillAutoUpdateEnabled, setSkillAutoUpdateEnabled } from '../settings/automation';
 
 const logger = createLogger('integration');
 const SHIM_NAME = process.platform === 'win32' ? 'musefold.cmd' : 'musefold';
@@ -113,7 +103,11 @@ function installedShimPath(): string | null {
 }
 
 function pathEntryEquals(left: string, right: string): boolean {
-  const clean = (value: string) => value.trim().replace(/^"|"$/g, '').replace(/[\\/]+$/, '');
+  const clean = (value: string) =>
+    value
+      .trim()
+      .replace(/^"|"$/g, '')
+      .replace(/[\\/]+$/, '');
   const a = clean(left);
   const b = clean(right);
   return process.platform === 'win32' ? a.toLocaleLowerCase() === b.toLocaleLowerCase() : a === b;
@@ -151,11 +145,19 @@ function shimUpToDate(paths: IntegrationPaths): boolean {
 }
 
 function detectBinary(name: string): boolean {
-  const pathValues = [process.env.PATH ?? '', ...(process.platform === 'win32' ? [windowsUserPath()] : [])];
-  return pathValues.flatMap((value) => value.split(process.platform === 'win32' ? ';' : delimiter)).some((dir) => {
-    if (!dir) return false;
-    return existsSync(join(dir, name)) || (process.platform === 'win32' && existsSync(join(dir, `${name}.exe`)));
-  });
+  const pathValues = [
+    process.env.PATH ?? '',
+    ...(process.platform === 'win32' ? [windowsUserPath()] : []),
+  ];
+  return pathValues
+    .flatMap((value) => value.split(process.platform === 'win32' ? ';' : delimiter))
+    .some((dir) => {
+      if (!dir) return false;
+      return (
+        existsSync(join(dir, name)) ||
+        (process.platform === 'win32' && existsSync(join(dir, `${name}.exe`)))
+      );
+    });
 }
 
 function fileContains(path: string, needle: string): boolean {
@@ -217,9 +219,8 @@ function bundledSkillRelease(): MusefoldSkillReleaseManifest {
     minimumAppVersion: '0.0.0',
     files: [...files].map(([path, content]) => ({
       path,
-      url: path === 'SKILL.md'
-        ? MUSEFOLD_SKILL_URL
-        : MUSEFOLD_SKILL_URL.replace(/SKILL\.md$/, path),
+      url:
+        path === 'SKILL.md' ? MUSEFOLD_SKILL_URL : MUSEFOLD_SKILL_URL.replace(/SKILL\.md$/, path),
       sha256: sha256Text(content),
     })),
   };
@@ -240,20 +241,24 @@ async function fetchText(url: string): Promise<string> {
   const contentLength = Number(response.headers.get('content-length') ?? 0);
   if (contentLength > SKILL_FILE_MAX_BYTES) throw new Error('Skill 发布文件超过大小限制');
   const text = await response.text();
-  if (Buffer.byteLength(text, 'utf8') > SKILL_FILE_MAX_BYTES) throw new Error('Skill 发布文件超过大小限制');
+  if (Buffer.byteLength(text, 'utf8') > SKILL_FILE_MAX_BYTES)
+    throw new Error('Skill 发布文件超过大小限制');
   return text;
 }
 
 async function checkRemoteSkillRelease(): Promise<MusefoldSkillReleaseManifest | null> {
   skillReleaseCheckedAt = new Date().toISOString();
   try {
-    const manifest = validateSkillReleaseManifest(JSON.parse(await fetchText(MUSEFOLD_SKILL_MANIFEST_URL)));
+    const manifest = validateSkillReleaseManifest(
+      JSON.parse(await fetchText(MUSEFOLD_SKILL_MANIFEST_URL)),
+    );
     if (compareReleaseVersions(app.getVersion(), manifest.minimumAppVersion) < 0) {
-      throw new Error(`最新版 Skill ${manifest.version} 需要 Musefold ${manifest.minimumAppVersion} 或更高版本`);
+      throw new Error(
+        `最新版 Skill ${manifest.version} 需要 Musefold ${manifest.minimumAppVersion} 或更高版本`,
+      );
     }
-    remoteSkillRelease = compareReleaseVersions(manifest.version, MUSEFOLD_SKILL_VERSION) >= 0
-      ? manifest
-      : null;
+    remoteSkillRelease =
+      compareReleaseVersions(manifest.version, MUSEFOLD_SKILL_VERSION) >= 0 ? manifest : null;
     skillReleaseCheckError = null;
     return remoteSkillRelease ?? bundledSkillRelease();
   } catch (error) {
@@ -418,7 +423,15 @@ function setWindowsUserPath(dir: string, add: boolean): Promise<void> {
   return new Promise((resolvePromise, reject) => {
     execFile(
       'powershell.exe',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-EncodedCommand',
+        encoded,
+      ],
       { timeout: 15_000, windowsHide: true },
       (error, _stdout, stderr) => {
         if (error) reject(new Error(stderr.trim() || error.message));
@@ -538,7 +551,10 @@ function registerClaudeCode(): Promise<IntegrationActionResult> {
   const paths = resolveIntegrationPaths();
   const spec = mcpLaunchSpec(paths);
   return new Promise((resolvePromise) => {
-    const envArgs = Object.entries(spec.env).flatMap(([key, value]) => ['--env', `${key}=${value}`]);
+    const envArgs = Object.entries(spec.env).flatMap(([key, value]) => [
+      '--env',
+      `${key}=${value}`,
+    ]);
     execFile(
       'claude',
       ['mcp', 'add', 'musefold', '-s', 'user', ...envArgs, '--', spec.command, ...spec.args],
@@ -548,14 +564,19 @@ function registerClaudeCode(): Promise<IntegrationActionResult> {
           resolvePromise({ ok: false, message: `claude mcp add 失败：${stderr || error.message}` });
         } else {
           logger.info('Claude Code 已注册 musefold');
-          resolvePromise({ ok: true, message: stdout.trim() || '已注册到 Claude Code（user 作用域）' });
+          resolvePromise({
+            ok: true,
+            message: stdout.trim() || '已注册到 Claude Code（user 作用域）',
+          });
         }
       },
     );
   });
 }
 
-export async function runIntegrationAction(action: IntegrationAction): Promise<IntegrationActionResult> {
+export async function runIntegrationAction(
+  action: IntegrationAction,
+): Promise<IntegrationActionResult> {
   switch (action) {
     case 'install-cli':
       return installCliShim();
@@ -617,7 +638,10 @@ export async function runIntegrationAction(action: IntegrationAction): Promise<I
       );
       const failed = results.filter((result) => !result.ok);
       return failed.length === 0
-        ? { ok: true, message: `已将 Musefold Skill ${release.version} 安装到 Claude Code、Codex/ChatGPT、Cursor；现有目录已保留时间戳备份` }
+        ? {
+            ok: true,
+            message: `已将 Musefold Skill ${release.version} 安装到 Claude Code、Codex/ChatGPT、Cursor；现有目录已保留时间戳备份`,
+          }
         : { ok: false, message: failed.map((result) => result.message).join('；') };
     }
     default:
@@ -634,7 +658,8 @@ export async function checkSkillUpdatesAtStartup(): Promise<void> {
   for (const [target, dir] of Object.entries(targets) as Array<[keyof typeof targets, string]>) {
     if (!existsSync(join(dir, 'SKILL.md'))) continue;
     const installedVersion = installedSkillVersion(dir);
-    if (installedVersion && compareReleaseVersions(installedVersion, selected.version) >= 0) continue;
+    if (installedVersion && compareReleaseVersions(installedVersion, selected.version) >= 0)
+      continue;
     const result = await installSkill(target, selected);
     if (!result.ok) logger.warn(`Skill 自动更新失败（${target}）`, result.message);
   }

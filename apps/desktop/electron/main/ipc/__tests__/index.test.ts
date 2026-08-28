@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const registrations = vi.hoisted(() => ({
   prompt: vi.fn(),
@@ -20,60 +20,58 @@ const registrations = vi.hoisted(() => ({
   prefsOriginMigration: vi.fn(),
 }));
 
-vi.mock("../prompts", () => ({ registerPromptHandlers: registrations.prompt }));
-vi.mock("../smartSets", () => ({
+vi.mock('../prompts', () => ({ registerPromptHandlers: registrations.prompt }));
+vi.mock('../smartSets', () => ({
   registerSmartSetHandlers: registrations.smartSet,
 }));
-vi.mock("../providers", () => ({
+vi.mock('../providers', () => ({
   registerProviderHandlers: registrations.provider,
 }));
-vi.mock("../images", () => ({ registerImageHandlers: registrations.image }));
-vi.mock("../history", () => ({
+vi.mock('../images', () => ({ registerImageHandlers: registrations.image }));
+vi.mock('../history', () => ({
   registerHistoryHandlers: registrations.history,
 }));
-vi.mock("../system", () => ({ registerSystemHandlers: registrations.system }));
-vi.mock("../share", () => ({ registerShareHandlers: registrations.share }));
-vi.mock("../workbench-sessions", () => ({
+vi.mock('../system', () => ({ registerSystemHandlers: registrations.system }));
+vi.mock('../share', () => ({ registerShareHandlers: registrations.share }));
+vi.mock('../workbench-sessions', () => ({
   registerWorkbenchSessionHandlers: registrations.workbenchSession,
 }));
-vi.mock("../skill-runtime", () => ({
+vi.mock('../skill-runtime', () => ({
   registerSkillRuntimeHandlers: registrations.skillRuntime,
 }));
-vi.mock("../design-scheme", () => ({
+vi.mock('../design-scheme', () => ({
   registerDesignSchemeHandlers: registrations.designScheme,
 }));
-vi.mock("../automation", () => ({
+vi.mock('../automation', () => ({
   registerAutomationHandlers: registrations.automation,
 }));
-vi.mock("../account", () => ({
+vi.mock('../account', () => ({
   registerAccountHandlers: registrations.account,
 }));
-vi.mock("../cloud-sync", () => ({
+vi.mock('../cloud-sync', () => ({
   registerCloudSyncHandlers: registrations.cloudSync,
 }));
-vi.mock("../ai-connections", () => ({
+vi.mock('../ai-connections', () => ({
   registerAiConnectionHandlers: registrations.aiConnection,
 }));
-vi.mock("../updater", () => ({
+vi.mock('../updater', () => ({
   registerUpdaterHandlers: registrations.updater,
 }));
-vi.mock("../../pet", () => ({ registerPetHandlers: registrations.pet }));
-vi.mock("../../prefs-origin-migration", () => ({
+vi.mock('../../pet', () => ({ registerPetHandlers: registrations.pet }));
+vi.mock('../../prefs-origin-migration', () => ({
   registerPrefsOriginMigrationHandlers: registrations.prefsOriginMigration,
 }));
 
-import { registerAllHandlers } from "../index";
+import { registerAllHandlers } from '../index';
 
-describe("main IPC registry", () => {
+describe('main IPC registry', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("registers every active IPC domain on application startup", () => {
+  it('registers every active IPC domain on application startup', () => {
     registerAllHandlers();
 
-    expect(
-      Object.values(registrations).every(
-        (register) => register.mock.calls.length === 1,
-      ),
-    ).toBe(true);
+    expect(Object.values(registrations).every((register) => register.mock.calls.length === 1)).toBe(
+      true,
+    );
   });
 });

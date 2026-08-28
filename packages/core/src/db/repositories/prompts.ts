@@ -3,10 +3,7 @@
 
 import { ulid } from 'ulid';
 import type { Prompt, NewPrompt, PromptParams } from '@musefold/desktop-contracts/models';
-import type {
-  ListPromptsQuery,
-  UpdatePromptPatch,
-} from '@musefold/desktop-contracts/ipc';
+import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { PromptStats } from '@musefold/desktop-contracts/ipc';
 import type { SyncUsageAction } from '@musefold/contracts';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
@@ -27,9 +24,7 @@ import {
 function syncFts(id: string): void {
   const db = getDb();
   const row = db
-    .prepare(
-      'SELECT rowid, title, description, content FROM prompts WHERE id = ?',
-    )
+    .prepare('SELECT rowid, title, description, content FROM prompts WHERE id = ?')
     .get(id) as
     | {
         rowid: number;
@@ -40,12 +35,7 @@ function syncFts(id: string): void {
     | undefined;
   if (!row) return;
   const tagNames = tagsRepo.getByPromptId(id).map((t) => t.name);
-  const tagsIndex = tokenizeForFts(
-    row.title,
-    row.description,
-    row.content,
-    tagNames,
-  );
+  const tagsIndex = tokenizeForFts(row.title, row.description, row.content, tagNames);
   db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
   db.prepare(
     'INSERT INTO prompts_fts (rowid, title, description, content, tags_index) VALUES (?, ?, ?, ?, ?)',
@@ -55,7 +45,8 @@ function syncFts(id: string): void {
 function removeFts(id: string): void {
   const db = getDb();
   const row = db.prepare('SELECT rowid FROM prompts WHERE id = ?').get(id) as
-    { rowid: number } | undefined;
+    | { rowid: number }
+    | undefined;
   if (row) db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
 }
 
@@ -88,10 +79,7 @@ function rowToPrompt(row: unknown): Prompt {
     modelId: (r.model_id as string) ?? null,
     params: parseJsonColumn<PromptParams | null>(r.params, null),
     previewImagePath: (r.preview_image_path as string) ?? null,
-    coverImagePath:
-      (r.latest_work_image as string) ??
-      (r.preview_image_path as string) ??
-      null,
+    coverImagePath: (r.latest_work_image as string) ?? (r.preview_image_path as string) ?? null,
     rating: r.rating as number,
     isPinned: Boolean(r.is_pinned),
     pinOrder: (r.pin_order as number) ?? null,
@@ -126,20 +114,11 @@ const SORT_COLUMN = {
  * - 追加 updated_at + id 作次级键：保证同值稳定排序（评分/次数全 0 时不抖动）。
  * - title 的「默认方向」是 A→Z，与时间/数值类相反，所以 desc/asc 在此语义翻转。
  */
-function buildOrderBy(
-  sort: ListPromptsQuery['sort'],
-  dir: ListPromptsQuery['sortDir'],
-): string {
+function buildOrderBy(sort: ListPromptsQuery['sort'], dir: ListPromptsQuery['sortDir']): string {
   const key = SORT_COLUMN[sort ?? 'updated'];
   const descending = (dir ?? 'desc') === 'desc';
   const direction =
-    key === SORT_COLUMN.title
-      ? descending
-        ? 'ASC'
-        : 'DESC'
-      : descending
-        ? 'DESC'
-        : 'ASC';
+    key === SORT_COLUMN.title ? (descending ? 'ASC' : 'DESC') : descending ? 'DESC' : 'ASC';
   return `p.is_pinned DESC, CASE WHEN p.is_pinned = 1 THEN p.pin_order END ASC, ${key} ${direction}, p.updated_at DESC, p.id DESC`;
 }
 
@@ -256,9 +235,7 @@ export const promptsRepo = {
   get(id: string): Prompt | null {
     const db = getDb();
     const row = db
-      .prepare(
-        `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.id = ?`,
-      )
+      .prepare(`SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.id = ?`)
       .get(id);
     if (!row) return null;
     return attachTags(rowToPrompt(row));
@@ -373,9 +350,11 @@ export const promptsRepo = {
     // 软删除保留 FTS 行；list() 的 `p.deleted_at IS NULL` 已把它挡在搜索结果外，
     // 恢复时无需重建索引。
     db.transaction(() => {
-      db.prepare(
-        'UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?',
-      ).run(Date.now(), Date.now(), id);
+      db.prepare('UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?').run(
+        Date.now(),
+        Date.now(),
+        id,
+      );
       enqueueActiveAccountMutation(db, 'prompt', id, 'delete');
     })();
   },
@@ -397,9 +376,10 @@ export const promptsRepo = {
   restore(id: string): Prompt {
     const db = getDb();
     db.transaction(() => {
-      db.prepare(
-        'UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE id = ?',
-      ).run(Date.now(), id);
+      db.prepare('UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE id = ?').run(
+        Date.now(),
+        id,
+      );
       syncFts(id);
       enqueueActiveAccountMutation(db, 'prompt', id, 'restore');
     })();
@@ -419,9 +399,7 @@ export const promptsRepo = {
   /** 清空回收站；返回清理条数 */
   purgeAllDeleted(): number {
     const db = getDb();
-    const ids = db
-      .prepare('SELECT id FROM prompts WHERE deleted_at IS NOT NULL')
-      .all() as {
+    const ids = db.prepare('SELECT id FROM prompts WHERE deleted_at IS NOT NULL').all() as {
       id: string;
     }[];
     db.transaction(() => {
@@ -441,31 +419,23 @@ export const promptsRepo = {
   stats(): PromptStats {
     const db = getDb();
     const total = (
-      db
-        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL')
-        .get() as { c: number }
+      db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL').get() as {
+        c: number;
+      }
     ).c;
     const unfiled = (
       db
-        .prepare(
-          'SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND folder_id IS NULL',
-        )
+        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND folder_id IS NULL')
         .get() as { c: number }
     ).c;
     const trashed = (
-      db
-        .prepare(
-          'SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NOT NULL',
-        )
-        .get() as {
+      db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NOT NULL').get() as {
         c: number;
       }
     ).c;
     const pinned = (
       db
-        .prepare(
-          'SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND is_pinned = 1',
-        )
+        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND is_pinned = 1')
         .get() as { c: number }
     ).c;
 
@@ -508,9 +478,7 @@ export const promptsRepo = {
     const db = getDb();
     const now = Date.now();
     const maxOrder = db
-      .prepare(
-        'SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1',
-      )
+      .prepare('SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1')
       .get() as { m: number };
     db.transaction(() => {
       db.prepare(
@@ -523,9 +491,7 @@ export const promptsRepo = {
 
   reorderPins(ids: string[]): void {
     const db = getDb();
-    const stmt = db.prepare(
-      'UPDATE prompts SET pin_order = ?, updated_at = ? WHERE id = ?',
-    );
+    const stmt = db.prepare('UPDATE prompts SET pin_order = ?, updated_at = ? WHERE id = ?');
     const now = Date.now();
     db.transaction(() => {
       ids.forEach((id, i) => {

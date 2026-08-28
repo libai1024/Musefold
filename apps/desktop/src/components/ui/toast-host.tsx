@@ -19,13 +19,14 @@ function ToastStatusIcon({
 }: {
   variant: 'default' | 'success' | 'danger' | 'warning' | 'accent';
 }) {
-  const Icon = variant === 'success'
-    ? CheckCircle2
-    : variant === 'danger'
-      ? AlertCircle
-      : variant === 'warning'
-        ? AlertTriangle
-        : Info;
+  const Icon =
+    variant === 'success'
+      ? CheckCircle2
+      : variant === 'danger'
+        ? AlertCircle
+        : variant === 'warning'
+          ? AlertTriangle
+          : Info;
   return (
     <ToastIcon>
       <Icon aria-hidden="true" />

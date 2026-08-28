@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  estimateCostFromPricing,
-  parseStoredProviderPricing,
-} from '../pricing';
+import { estimateCostFromPricing, parseStoredProviderPricing } from '../pricing';
 
 describe('managed provider pricing storage parsing', () => {
   it('rejects invalid or retired modes and negative points', () => {

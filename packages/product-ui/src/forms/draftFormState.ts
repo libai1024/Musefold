@@ -16,9 +16,7 @@ export function visibleError<TField extends string>(
 }
 
 /** 提交路径一次点亮全部字段。 */
-export function allTouched<TField extends string>(
-  fields: readonly TField[],
-): DraftTouched<TField> {
+export function allTouched<TField extends string>(fields: readonly TField[]): DraftTouched<TField> {
   return Object.fromEntries(fields.map((field) => [field, true])) as DraftTouched<TField>;
 }
 

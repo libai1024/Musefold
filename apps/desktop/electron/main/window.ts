@@ -117,12 +117,8 @@ export function createWindow(): BrowserWindow {
   };
   win.on('maximize', emitMaxState);
   win.on('unmaximize', emitMaxState);
-  win.on('enter-full-screen', () =>
-    win.webContents.send('window:fullscreenChanged', true)
-  );
-  win.on('leave-full-screen', () =>
-    win.webContents.send('window:fullscreenChanged', false)
-  );
+  win.on('enter-full-screen', () => win.webContents.send('window:fullscreenChanged', true));
+  win.on('leave-full-screen', () => win.webContents.send('window:fullscreenChanged', false));
 
   // 开发环境加载 dev server，生产环境加载固定 origin 下的构建产物。
   // MUSEFOLD_E2E=1 时附加 ?musefold_e2e=1 —— 渲染层据此安装 window.__musefold_test 测试钩子
@@ -181,12 +177,18 @@ export function registerWindowHandlers(): void {
     if (w && !w.isDestroyed()) fn(w);
   };
 
-  ipcMain.on('window:minimize', withWin((w) => w.minimize()));
+  ipcMain.on(
+    'window:minimize',
+    withWin((w) => w.minimize()),
+  );
   ipcMain.on(
     'window:maximizeToggle',
-    withWin((w) => (w.isMaximized() ? w.unmaximize() : w.maximize()))
+    withWin((w) => (w.isMaximized() ? w.unmaximize() : w.maximize())),
   );
-  ipcMain.on('window:close', withWin((w) => w.close()));
+  ipcMain.on(
+    'window:close',
+    withWin((w) => w.close()),
+  );
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
   ipcMain.handle('window:platform', () => process.platform);
 }

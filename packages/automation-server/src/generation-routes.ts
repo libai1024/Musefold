@@ -16,7 +16,11 @@ import type {
   LocalImageReference,
 } from '@musefold/desktop-contracts/providers';
 import { resolveRatioOptionById } from '@musefold/domain/constants';
-import { AutomationError, type AutomationRouteContext, type AutomationRouteHandler } from './server';
+import {
+  AutomationError,
+  type AutomationRouteContext,
+  type AutomationRouteHandler,
+} from './server';
 
 export const CONFIRMATION_TIMEOUT_MS = 120_000;
 export const MAX_GENERATION_N = 4;
@@ -212,7 +216,12 @@ export function createGenerationGate(
     }
     const n = parsed.n ?? 1;
     if (!Number.isInteger(n) || n < 1 || n > MAX_GENERATION_N) {
-      throw new AutomationError('INVALID_PARAMS', `n 必须是 1–${MAX_GENERATION_N} 的整数（T1 限制）`, 400, { n });
+      throw new AutomationError(
+        'INVALID_PARAMS',
+        `n 必须是 1–${MAX_GENERATION_N} 的整数（T1 限制）`,
+        400,
+        { n },
+      );
     }
     return parsed;
   }
@@ -221,16 +230,34 @@ export function createGenerationGate(
     const references: LocalImageReference[] = [];
     for (const path of body.referenceImagePaths ?? []) {
       if (!host.authorizeReferencePath(path)) {
-        throw new AutomationError('PATH_NOT_ALLOWED', '参考图路径不在允许范围内（请先经 /v1/uploads 转存）', 403, { path });
+        throw new AutomationError(
+          'PATH_NOT_ALLOWED',
+          '参考图路径不在允许范围内（请先经 /v1/uploads 转存）',
+          403,
+          { path },
+        );
       }
-      references.push({ path, name: path.split('/').pop() ?? 'reference', source: 'upload', mimeType: 'image/png', sizeBytes: 0 });
+      references.push({
+        path,
+        name: path.split('/').pop() ?? 'reference',
+        source: 'upload',
+        mimeType: 'image/png',
+        sizeBytes: 0,
+      });
     }
     for (const historyId of body.referenceHistoryIds ?? []) {
       const resolved = host.resolveHistoryImage(historyId);
       if (!resolved) {
         throw new AutomationError('NOT_FOUND', '引用的历史产物不存在', 404, { historyId });
       }
-      references.push({ path: resolved.path, name: `history-${historyId}`, source: 'history', historyId, mimeType: 'image/png', sizeBytes: 0 });
+      references.push({
+        path: resolved.path,
+        name: `history-${historyId}`,
+        source: 'history',
+        historyId,
+        mimeType: 'image/png',
+        sizeBytes: 0,
+      });
     }
     if (references.length > 16) {
       throw new AutomationError('INVALID_PARAMS', '参考图不能超过 16 张', 400);
@@ -245,7 +272,12 @@ export function createGenerationGate(
     approvedVia: 'budget' | 'confirmation' | 'consent',
   ): JobRecord {
     const jobId = randomUUID().replaceAll('-', '').slice(0, 26).toUpperCase();
-    const record: JobRecord = { jobId, status: 'running', startedAt: Date.now(), estimatedPoints: estimate.points };
+    const record: JobRecord = {
+      jobId,
+      status: 'running',
+      startedAt: Date.now(),
+      estimatedPoints: estimate.points,
+    };
     jobs.set(jobId, record);
     const request = toGenerateRequest(body, estimate, jobId, references);
     void host
@@ -253,7 +285,12 @@ export function createGenerationGate(
         hub.sink.emit({ type: 'generation.progress', payload: { ...progress, jobId } });
       })
       .then((result) => {
-        record.status = result.status === 'success' ? 'success' : result.status === 'cancelled' ? 'cancelled' : 'failed';
+        record.status =
+          result.status === 'success'
+            ? 'success'
+            : result.status === 'cancelled'
+              ? 'cancelled'
+              : 'failed';
         record.result = result;
         const actualPoints = result.costPoints ?? result.cost ?? 0;
         if (result.status === 'success') host.budget.settle(actualPoints);
@@ -297,7 +334,10 @@ export function createGenerationGate(
         record.result = {
           historyId: jobId,
           status: 'failed',
-          error: { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) },
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          },
         };
         noteOutcome('failed');
         audit({
@@ -311,7 +351,10 @@ export function createGenerationGate(
           status: 'failed',
           jobId,
         });
-        hub.sink.emit({ type: 'generation.failed', payload: { jobId, status: 'failed', error: record.result.error } });
+        hub.sink.emit({
+          type: 'generation.failed',
+          payload: { jobId, status: 'failed', error: record.result.error },
+        });
       });
     return record;
   }
@@ -401,7 +444,10 @@ export function createGenerationGate(
         const settle = (verdict: 'approved' | 'denied' | 'timeout') => {
           if (settled) return;
           settled = true;
-          hub.sink.emit({ type: 'confirmation.resolved', payload: { confirmationId, outcome: verdict } });
+          hub.sink.emit({
+            type: 'confirmation.resolved',
+            payload: { confirmationId, outcome: verdict },
+          });
           resolveOutcome(verdict);
         };
         const entry: PendingConfirmation = {
@@ -417,7 +463,10 @@ export function createGenerationGate(
         const timeout = setTimeout(() => settle('timeout'), CONFIRMATION_TIMEOUT_MS);
         hub.sink.emit({ type: 'confirmation.required', payload: summary });
         // 宿主的确认通道（App 卡片）与 HTTP 回执并行竞争，先到先得
-        void host.requestConfirmation(summary).then((verdict) => settle(verdict)).catch(() => {});
+        void host
+          .requestConfirmation(summary)
+          .then((verdict) => settle(verdict))
+          .catch(() => {});
 
         const verdict = await outcome;
         clearTimeout(timeout);
@@ -436,18 +485,26 @@ export function createGenerationGate(
           });
         }
         if (verdict === 'timeout') {
-          throw new AutomationError('CONFIRMATION_TIMEOUT', '等待确认超时（120s），本次生成未执行', 409, { confirmationId });
+          throw new AutomationError(
+            'CONFIRMATION_TIMEOUT',
+            '等待确认超时（120s），本次生成未执行',
+            409,
+            { confirmationId },
+          );
         }
         if (verdict === 'denied') {
-          throw new AutomationError('CONFIRMATION_DENIED', '用户拒绝了本次生成', 403, { confirmationId });
+          throw new AutomationError('CONFIRMATION_DENIED', '用户拒绝了本次生成', 403, {
+            confirmationId,
+          });
         }
       }
 
-      const approvedVia = body.consent === 'interactive'
-        ? 'consent'
-        : unmeteredProvider || budgetCovered
-          ? 'budget'
-          : 'confirmation';
+      const approvedVia =
+        body.consent === 'interactive'
+          ? 'consent'
+          : unmeteredProvider || budgetCovered
+            ? 'budget'
+            : 'confirmation';
       const record = launch(body, estimate, references, approvedVia);
       if (idempotencyKey) approvedIdempotencyKeys.set(idempotencyKey, record.jobId);
       context.json(jobPayload(record), 202);
@@ -455,13 +512,19 @@ export function createGenerationGate(
 
     'GET /v1/generations/:jobId': (context) => {
       const record = jobs.get(context.params.jobId);
-      if (!record) throw new AutomationError('NOT_FOUND', '生成任务不存在（或已随重启失效）', 404, { jobId: context.params.jobId });
+      if (!record)
+        throw new AutomationError('NOT_FOUND', '生成任务不存在（或已随重启失效）', 404, {
+          jobId: context.params.jobId,
+        });
       return jobPayload(record);
     },
 
     'DELETE /v1/generations/:jobId': (context) => {
       const record = jobs.get(context.params.jobId);
-      if (!record) throw new AutomationError('NOT_FOUND', '生成任务不存在', 404, { jobId: context.params.jobId });
+      if (!record)
+        throw new AutomationError('NOT_FOUND', '生成任务不存在', 404, {
+          jobId: context.params.jobId,
+        });
       host.cancel(record.jobId);
       return { jobId: record.jobId, cancelling: true };
     },
@@ -469,19 +532,30 @@ export function createGenerationGate(
     'POST /v1/confirmations/:id': (context) => {
       const body = (context.body ?? {}) as { approved?: boolean };
       const ok = gate.resolveConfirmation(context.params.id, body.approved !== false);
-      if (!ok) throw new AutomationError('NOT_FOUND', '确认请求不存在或已处理', 404, { id: context.params.id });
+      if (!ok)
+        throw new AutomationError('NOT_FOUND', '确认请求不存在或已处理', 404, {
+          id: context.params.id,
+        });
       return { ok: true };
     },
 
     'POST /v1/uploads': async (context) => {
       if (!Buffer.isBuffer(context.body)) {
-        throw new AutomationError('INVALID_PARAMS', '上传体必须是原始图片字节（content-type: image/*）', 400);
+        throw new AutomationError(
+          'INVALID_PARAMS',
+          '上传体必须是原始图片字节（content-type: image/*）',
+          400,
+        );
       }
       const contentType = String(context.request.headers['content-type'] ?? '');
       if (!/^image\/(png|jpeg|webp)/.test(contentType)) {
-        throw new AutomationError('INVALID_PARAMS', '仅支持 PNG / JPEG / WebP', 400, { contentType });
+        throw new AutomationError('INVALID_PARAMS', '仅支持 PNG / JPEG / WebP', 400, {
+          contentType,
+        });
       }
-      const name = firstHeader(context, 'x-musefold-filename') ?? `upload.${contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'}`;
+      const name =
+        firstHeader(context, 'x-musefold-filename') ??
+        `upload.${contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'}`;
       try {
         const image = await host.stageUpload(context.body, name, contentType.split(';')[0]);
         context.json({ image }, 201);

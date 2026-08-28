@@ -55,7 +55,10 @@ describe('history save as prompt mapping', () => {
 
   it('falls back to the first 20 compact prompt characters', () => {
     const record = makeRecord({
-      request: { ...makeRecord().request, prompt: '  first line\nsecond line with more words than needed  ' },
+      request: {
+        ...makeRecord().request,
+        prompt: '  first line\nsecond line with more words than needed  ',
+      },
     });
 
     expect(defaultHistoryPromptTitle(record)).toBe('first line second li');

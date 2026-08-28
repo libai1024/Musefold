@@ -17,14 +17,16 @@ function relayV1Url(serverUrl: string): string {
 function managedProviderId(existingId: string | null): string | null {
   const db = getDb();
   if (existingId) {
-    const row = db.prepare(
-      `SELECT id FROM providers WHERE id = ? AND managed_by = 'account'`,
-    ).get(existingId) as { id: string } | undefined;
+    const row = db
+      .prepare(`SELECT id FROM providers WHERE id = ? AND managed_by = 'account'`)
+      .get(existingId) as { id: string } | undefined;
     if (row) return row.id;
   }
-  const fallback = db.prepare(
-    `SELECT id FROM providers WHERE managed_by = 'account' ORDER BY updated_at DESC LIMIT 1`,
-  ).get() as { id: string } | undefined;
+  const fallback = db
+    .prepare(
+      `SELECT id FROM providers WHERE managed_by = 'account' ORDER BY updated_at DESC LIMIT 1`,
+    )
+    .get() as { id: string } | undefined;
   return fallback?.id ?? null;
 }
 
@@ -35,7 +37,9 @@ function upsertManagedProvider(
   const db = getDb();
   const id = managedProviderId(existingId) ?? ulid();
   const exists = db.prepare('SELECT 1 FROM providers WHERE id = ?').get(id);
-  const active = db.prepare('SELECT id FROM providers WHERE is_active = 1 LIMIT 1').get() as { id: string } | undefined;
+  const active = db.prepare('SELECT id FROM providers WHERE is_active = 1 LIMIT 1').get() as
+    | { id: string }
+    | undefined;
   const shouldActivate = !active || active.id === id;
   const now = Date.now();
 
@@ -89,19 +93,25 @@ function upsertManagedProvider(
 function removeManagedProvider(existingId: string | null): void {
   const db = getDb();
   let rows = existingId
-    ? db.prepare(
-      `SELECT id FROM providers WHERE id = ? AND managed_by = 'account'`,
-    ).all(existingId) as Array<{ id: string }>
-    : db.prepare(`SELECT id FROM providers WHERE managed_by = 'account'`).all() as Array<{ id: string }>;
+    ? (db
+        .prepare(`SELECT id FROM providers WHERE id = ? AND managed_by = 'account'`)
+        .all(existingId) as Array<{ id: string }>)
+    : (db.prepare(`SELECT id FROM providers WHERE managed_by = 'account'`).all() as Array<{
+        id: string;
+      }>);
   if (rows.length === 0 && existingId) {
-    rows = db.prepare(`SELECT id FROM providers WHERE managed_by = 'account'`).all() as Array<{ id: string }>;
+    rows = db.prepare(`SELECT id FROM providers WHERE managed_by = 'account'`).all() as Array<{
+      id: string;
+    }>;
   }
   if (rows.length === 0) return;
 
   const ids = rows.map((row) => row.id);
-  const wasActive = db.prepare(
-    `SELECT 1 FROM providers WHERE is_active = 1 AND id IN (${ids.map(() => '?').join(',')})`,
-  ).get(...ids);
+  const wasActive = db
+    .prepare(
+      `SELECT 1 FROM providers WHERE is_active = 1 AND id IN (${ids.map(() => '?').join(',')})`,
+    )
+    .get(...ids);
   db.prepare(
     `DELETE FROM providers WHERE managed_by = 'account' AND id IN (${ids.map(() => '?').join(',')})`,
   ).run(...ids);
@@ -111,12 +121,14 @@ function removeManagedProvider(existingId: string | null): void {
   }
 
   if (wasActive) {
-    const replacement = db.prepare(
-      `SELECT id FROM providers WHERE managed_by IS NULL ORDER BY updated_at DESC LIMIT 1`,
-    ).get() as { id: string } | undefined;
+    const replacement = db
+      .prepare(`SELECT id FROM providers WHERE managed_by IS NULL ORDER BY updated_at DESC LIMIT 1`)
+      .get() as { id: string } | undefined;
     if (replacement) {
-      db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?')
-        .run(Date.now(), replacement.id);
+      db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?').run(
+        Date.now(),
+        replacement.id,
+      );
     }
   }
 }
@@ -158,9 +170,9 @@ export function createManagedProvisioner(): ManagedProvisioner {
     },
 
     applyImagePrice(providerId, pricePoints) {
-      const row = getDb().prepare(
-        `SELECT 1 FROM providers WHERE id = ? AND managed_by = 'account'`,
-      ).get(providerId);
+      const row = getDb()
+        .prepare(`SELECT 1 FROM providers WHERE id = ? AND managed_by = 'account'`)
+        .get(providerId);
       if (!row) return;
       setManagedProviderPricing(providerId, pricePoints);
     },

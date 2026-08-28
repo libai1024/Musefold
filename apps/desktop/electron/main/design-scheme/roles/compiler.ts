@@ -2,7 +2,11 @@
  * Scheme Compiler：把分析结果（或纯想法）编译成结构化设计方案草稿。
  * 输出经 zod 校验后由 Runtime 落域写库（开发规范 §6.1）。
  */
-import { compilerOutputSchema, type AnalystReport, type CompilerOutput } from '@musefold/desktop-contracts/design-scheme/agents';
+import {
+  compilerOutputSchema,
+  type AnalystReport,
+  type CompilerOutput,
+} from '@musefold/desktop-contracts/design-scheme/agents';
 import { completeStructured, type OpenAiCompatibleTextAdapter } from '../text-adapter';
 
 export interface CompilerInput {
@@ -66,29 +70,37 @@ export async function runSchemeCompiler(
         `## 仓库分析报告（${extra.repositoryLabel}）\n${JSON.stringify(extra.analystReport, null, 2)}`,
       );
     }
-    sections.push('要求：constraints 优先来自分析报告的 rules 并保留 evidencePaths；报告 unsupported 中的能力不要假装支持，写进 omitted 或 warnings。');
+    sections.push(
+      '要求：constraints 优先来自分析报告的 rules 并保留 evidencePaths；报告 unsupported 中的能力不要假装支持，写进 omitted 或 warnings。',
+    );
     if ((input.additionalRepositories?.length ?? 0) > 0) {
-      sections.push([
-        '本次有多个来源仓库，请把它们合并为一个组合方案：',
-        '- 能力互补时合并为统一的 promptProgram 与 constraints；',
-        '- 规则冲突时按用户想法择优，舍弃的一方写进 omitted 并在 warnings 说明取舍；',
-        '- 输入去重：语义相同的变量只保留一个；',
-        '- creationSummary 说明方案由哪些来源合并、各自贡献了什么。',
-      ].join('\n'));
+      sections.push(
+        [
+          '本次有多个来源仓库，请把它们合并为一个组合方案：',
+          '- 能力互补时合并为统一的 promptProgram 与 constraints；',
+          '- 规则冲突时按用户想法择优，舍弃的一方写进 omitted 并在 warnings 说明取舍；',
+          '- 输入去重：语义相同的变量只保留一个；',
+          '- creationSummary 说明方案由哪些来源合并、各自贡献了什么。',
+        ].join('\n'),
+      );
     }
   } else if (input.historyContext) {
     const prompts = input.historyContext.prompts.slice(0, 8);
-    sections.push([
-      `## 历史来源（用户挑选的 ${input.historyContext.imageCount} 张历史作品）`,
-      prompts.length > 0
-        ? `这些作品当时使用的生成提示词：\n${prompts.map((text, index) => `${index + 1}. ${text}`).join('\n')}`
-        : '（用户未附带这些作品的提示词。）',
-      '要求：从提示词与用户想法中提取可复用的视觉规则（风格、构图、色彩、材质方向）；',
-      '不要把某张作品的具体主体、人物、品牌或原始文案当作固定规则——除非用户想法明确要求保留。',
-      'fidelity 使用 adapted，并在 warnings 提醒方案由历史作品归纳、建议试运行校准。',
-    ].join('\n'));
+    sections.push(
+      [
+        `## 历史来源（用户挑选的 ${input.historyContext.imageCount} 张历史作品）`,
+        prompts.length > 0
+          ? `这些作品当时使用的生成提示词：\n${prompts.map((text, index) => `${index + 1}. ${text}`).join('\n')}`
+          : '（用户未附带这些作品的提示词。）',
+        '要求：从提示词与用户想法中提取可复用的视觉规则（风格、构图、色彩、材质方向）；',
+        '不要把某张作品的具体主体、人物、品牌或原始文案当作固定规则——除非用户想法明确要求保留。',
+        'fidelity 使用 adapted，并在 warnings 提醒方案由历史作品归纳、建议试运行校准。',
+      ].join('\n'),
+    );
   } else {
-    sections.push('本次创建没有来源仓库，fidelity 使用 adapted，并在 warnings 里提醒方案基于用户描述、建议试运行校准。');
+    sections.push(
+      '本次创建没有来源仓库，fidelity 使用 adapted，并在 warnings 里提醒方案基于用户描述、建议试运行校准。',
+    );
   }
 
   const result = await completeStructured({

@@ -152,9 +152,7 @@ describe('cloud-connections-store AccountGateway wiring', () => {
   it('revoke 失败时不再 list，错误写入 state', async () => {
     vi.mocked(gateway.revokeConnection).mockRejectedValue(new Error('撤销失败'));
 
-    await expect(useCloudConnectionsStore.getState().revoke('conn-1')).rejects.toThrow(
-      '撤销失败',
-    );
+    await expect(useCloudConnectionsStore.getState().revoke('conn-1')).rejects.toThrow('撤销失败');
 
     expect(gateway.listConnections).not.toHaveBeenCalled();
     expect(useCloudConnectionsStore.getState().error).toBe('撤销失败');

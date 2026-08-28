@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { skipTheaterMotion, theaterDurationMs } from "./useTheaterIdle";
+import { useEffect, useRef, useState } from 'react';
+import { skipTheaterMotion, theaterDurationMs } from './useTheaterIdle';
 
-export type ResultRevealDecision = "idle" | "reveal";
+export type ResultRevealDecision = 'idle' | 'reveal';
 
 /** 结果就位决策：只有挂载后「无图 → 有图」的转场才显形；静态挂载与减少动效直接 idle。 */
 export function resultRevealDecision(
   becameAvailable: boolean,
   skipMotion: boolean,
 ): ResultRevealDecision {
-  return becameAvailable && !skipMotion ? "reveal" : "idle";
+  return becameAvailable && !skipMotion ? 'reveal' : 'idle';
 }
 
 /**
@@ -24,7 +24,7 @@ export function useResultTheaterReveal(imageAvailable: boolean) {
   useEffect(() => {
     const becameAvailable = !wasAvailable.current && imageAvailable;
     wasAvailable.current = imageAvailable;
-    if (resultRevealDecision(becameAvailable, skipTheaterMotion()) === "idle") {
+    if (resultRevealDecision(becameAvailable, skipTheaterMotion()) === 'idle') {
       setIdle(true);
       return;
     }
@@ -36,16 +36,11 @@ export function useResultTheaterReveal(imageAvailable: boolean) {
   useEffect(() => {
     if (!revealing) return;
     const node = mediaRef.current;
-    const raw = node
-      ? getComputedStyle(node).getPropertyValue("--dur-theater-enter").trim()
-      : "";
-    const timer = window.setTimeout(
-      () => {
-        setRevealing(false);
-        setIdle(true);
-      },
-      theaterDurationMs(raw) + 80,
-    );
+    const raw = node ? getComputedStyle(node).getPropertyValue('--dur-theater-enter').trim() : '';
+    const timer = window.setTimeout(() => {
+      setRevealing(false);
+      setIdle(true);
+    }, theaterDurationMs(raw) + 80);
     return () => window.clearTimeout(timer);
   }, [revealing]);
 

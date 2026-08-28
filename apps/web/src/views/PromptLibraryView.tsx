@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  type NewPromptDocument,
-  type PromptDocument,
-  type UpdatePromptDocument,
-} from '@musefold/contracts';
+import type { NewPromptDocument, PromptDocument, UpdatePromptDocument } from '@musefold/contracts';
 import type { PlatformServices, PromptGateway } from '@musefold/domain';
 import {
   PromptDetailScreen,
@@ -314,7 +310,12 @@ export function PromptLibraryView({
   // 列表保持挂载，弹窗经 Portal 覆盖。
   const editorDialog =
     mode === 'editor' ? (
-      <Dialog open onOpenChange={(next) => { if (!next) closeEditor(); }}>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) closeEditor();
+        }}
+      >
         <DialogContent
           className="web-prompt-editor-dialog"
           hideClose
@@ -332,7 +333,12 @@ export function PromptLibraryView({
 
   const trashDialog =
     mode === 'trash' ? (
-      <Dialog open onOpenChange={(next) => { if (!next) closeTrash(); }}>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) closeTrash();
+        }}
+      >
         <DialogContent
           className="web-prompt-trash-dialog"
           aria-label="回收站"

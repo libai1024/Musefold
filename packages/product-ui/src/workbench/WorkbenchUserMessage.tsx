@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 export interface WorkbenchUserMessageProps {
   prompt: ReactNode;
@@ -14,7 +14,7 @@ export interface WorkbenchUserMessageProps {
 /** Shared user-turn presentation. Attachments and actions are capability slots. */
 export function WorkbenchUserMessage({
   prompt,
-  promptTestId = "generation-prompt",
+  promptTestId = 'generation-prompt',
   meta,
   attachments,
   prefix,
@@ -23,11 +23,7 @@ export function WorkbenchUserMessage({
   className,
 }: WorkbenchUserMessageProps) {
   return (
-    <div
-      className={["mf-workbench-user-message", className]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <div className={['mf-workbench-user-message', className].filter(Boolean).join(' ')}>
       {attachments}
       <div className="mf-workbench-user-bubble">
         {meta ? <div className="mf-workbench-user-meta">{meta}</div> : null}
@@ -35,15 +31,10 @@ export function WorkbenchUserMessage({
         <p className="mf-workbench-user-prompt" data-testid={promptTestId}>
           {prompt}
         </p>
-        {negative ? (
-          <p className="mf-workbench-user-negative">排除：{negative}</p>
-        ) : null}
+        {negative ? <p className="mf-workbench-user-negative">排除：{negative}</p> : null}
       </div>
       {actions ? (
-        <div
-          className="mf-workbench-user-actions"
-          data-testid="generation-user-message-actions"
-        >
+        <div className="mf-workbench-user-actions" data-testid="generation-user-message-actions">
           {actions}
         </div>
       ) : null}

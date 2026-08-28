@@ -6,7 +6,10 @@ export const DESIGN_PLAN_COMMAND_LABEL = '创建设计方案';
 
 /** Composer 里以 / 开头时给出的指令提示；两种写法等价。 */
 export const DESIGN_PLAN_COMMAND_HINTS = [
-  { command: '/create design plan', description: '用一段想法（可附 GitHub Skill 地址）创建设计方案' },
+  {
+    command: '/create design plan',
+    description: '用一段想法（可附 GitHub Skill 地址）创建设计方案',
+  },
   { command: '/创建设计方案', description: '同上，中文指令' },
 ] as const;
 

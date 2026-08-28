@@ -13,7 +13,14 @@ const mocks = vi.hoisted(() => ({
   appSetView: vi.fn(),
   // 完成生成时的未读判定读取当前视图；默认模拟用户停留在制作工作台。
   appView: { current: 'generate' },
-  provider: { id: 'p1', isActive: true, hasKey: true, name: 'Test', model: 'image', type: 'openai-compatible' },
+  provider: {
+    id: 'p1',
+    isActive: true,
+    hasKey: true,
+    name: 'Test',
+    model: 'image',
+    type: 'openai-compatible',
+  },
 }));
 
 vi.mock('../../../../lib/ipc', () => ({
@@ -38,7 +45,11 @@ vi.mock('../../store', () => ({
 
 vi.mock('../../../../stores/app', () => ({
   useAppStore: {
-    getState: () => ({ defaultProviderId: null, setView: mocks.appSetView, currentView: mocks.appView.current }),
+    getState: () => ({
+      defaultProviderId: null,
+      setView: mocks.appSetView,
+      currentView: mocks.appView.current,
+    }),
   },
 }));
 
@@ -50,7 +61,9 @@ vi.stubGlobal('localStorage', {
   removeItem: (key: string) => storageValues.delete(key),
   clear: () => storageValues.clear(),
   key: (index: number) => [...storageValues.keys()][index] ?? null,
-  get length() { return storageValues.size; },
+  get length() {
+    return storageValues.size;
+  },
 } as Storage);
 
 import {
@@ -119,8 +132,16 @@ function reset(): void {
 
 describe('session creation timing', () => {
   it('adds a titled running session as soon as send is clicked', async () => {
-    let finishGeneration!: (value: { historyId: string; status: 'success'; imagePath: string }) => void;
-    mocks.generate.mockReturnValueOnce(new Promise((resolve) => { finishGeneration = resolve; }));
+    let finishGeneration!: (value: {
+      historyId: string;
+      status: 'success';
+      imagePath: string;
+    }) => void;
+    mocks.generate.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishGeneration = resolve;
+      }),
+    );
     const state = useGenerationWorkbenchStore.getState();
     state.setDraftPrompt('  一张 极简的 城市海报  ');
 
@@ -136,10 +157,12 @@ describe('session creation timing', () => {
       conversationKind: 'chat',
       latestStatus: 'running',
     });
-    expect(mocks.sessionEnsure).toHaveBeenCalledWith(expect.objectContaining({
-      id: state.sessionId,
-      title: '一张 极简的 城市海报',
-    }));
+    expect(mocks.sessionEnsure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: state.sessionId,
+        title: '一张 极简的 城市海报',
+      }),
+    );
 
     finishGeneration({ historyId: 'run-now', status: 'success', imagePath: '/tmp/run-now.png' });
     await submission;
@@ -160,7 +183,12 @@ describe('single-surface workbench', () => {
   });
 
   it('adds, deduplicates and removes reference snapshots without generating', () => {
-    const reference = { promptId: 'prompt-1', title: 'Light', text: 'soft light', scope: 'excerpt' as const };
+    const reference = {
+      promptId: 'prompt-1',
+      title: 'Light',
+      text: 'soft light',
+      scope: 'excerpt' as const,
+    };
     const state = useGenerationWorkbenchStore.getState();
     state.addDraftReference(reference);
     state.addDraftReference(reference);
@@ -174,36 +202,64 @@ describe('single-surface workbench', () => {
 
 describe('submitDraft', () => {
   it('sends the composed prompt, reference snapshot and workbench grouping without a mode field', async () => {
-    mocks.generate.mockResolvedValue({ historyId: 'history-1', status: 'success', imagePath: '/tmp/one.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'history-1',
+      status: 'success',
+      imagePath: '/tmp/one.png',
+    });
     const state = useGenerationWorkbenchStore.getState();
     state.setParams({ n: 1 });
     state.setDraftPrompt('portrait');
-    state.addDraftReference({ promptId: 'prompt-1', title: 'Light', text: 'soft side light', scope: 'excerpt' });
+    state.addDraftReference({
+      promptId: 'prompt-1',
+      title: 'Light',
+      text: 'soft side light',
+      scope: 'excerpt',
+    });
 
     await state.submitDraft();
 
     const request = mocks.generate.mock.calls[0][0];
-    expect(request.prompt).toBe(composePromptWithRatioConstraint(
-      'portrait\n\n参考提示词：\n\n【Light｜选中片段】\nsoft side light',
-      '1:1',
-    ));
-    expect(request.promptReferences).toEqual([{ promptId: 'prompt-1', title: 'Light', text: 'soft side light', scope: 'excerpt' }]);
-    expect(request.workbench).toMatchObject({ turnIndex: 0, resultIndex: 0, userPrompt: 'portrait' });
+    expect(request.prompt).toBe(
+      composePromptWithRatioConstraint(
+        'portrait\n\n参考提示词：\n\n【Light｜选中片段】\nsoft side light',
+        '1:1',
+      ),
+    );
+    expect(request.promptReferences).toEqual([
+      { promptId: 'prompt-1', title: 'Light', text: 'soft side light', scope: 'excerpt' },
+    ]);
+    expect(request.workbench).toMatchObject({
+      turnIndex: 0,
+      resultIndex: 0,
+      userPrompt: 'portrait',
+    });
     expect(request).not.toHaveProperty('generationMode');
     expect(useGenerationWorkbenchStore.getState().turns[0]).not.toHaveProperty('mode');
   });
 
   it('allows reference-only submission and blocks final prompts over the shared limit', async () => {
-    mocks.generate.mockResolvedValue({ historyId: 'history-ref', status: 'success', imagePath: '/tmp/ref.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'history-ref',
+      status: 'success',
+      imagePath: '/tmp/ref.png',
+    });
     const state = useGenerationWorkbenchStore.getState();
     state.setParams({ n: 1 });
-    state.addDraftReference({ promptId: 'p1', title: 'Only', text: 'reference body', scope: 'full' });
+    state.addDraftReference({
+      promptId: 'p1',
+      title: 'Only',
+      text: 'reference body',
+      scope: 'full',
+    });
     await state.submitDraft();
     expect(mocks.generate).toHaveBeenCalledTimes(1);
 
     reset();
     useGenerationWorkbenchStore.getState().setDraftPrompt('x'.repeat(WORKBENCH_PROMPT_LIMIT));
-    useGenerationWorkbenchStore.getState().addDraftReference({ promptId: 'p2', title: 'Extra', text: 'more', scope: 'full' });
+    useGenerationWorkbenchStore
+      .getState()
+      .addDraftReference({ promptId: 'p2', title: 'Extra', text: 'more', scope: 'full' });
     await useGenerationWorkbenchStore.getState().submitDraft();
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(useGenerationWorkbenchStore.getState().lastError?.code).toBe('PROMPT_TOO_LONG');
@@ -224,7 +280,12 @@ describe('submitDraft', () => {
     const turn = useGenerationWorkbenchStore.getState().turns[0];
     expect(mocks.generate).toHaveBeenCalledTimes(4);
     expect(turn.results).toHaveLength(4);
-    expect(turn.results.map((result) => result.status)).toEqual(['success', 'failed', 'success', 'success']);
+    expect(turn.results.map((result) => result.status)).toEqual([
+      'success',
+      'failed',
+      'success',
+      'success',
+    ]);
     expect(turn.status).toBe('partial');
   });
 
@@ -286,12 +347,14 @@ describe('submitDraft', () => {
     });
     const state = useGenerationWorkbenchStore.getState();
     state.setDraftPrompt('带参考图的请求');
-    state.addDraftImages([{
-      source: 'upload',
-      path: '/tmp/previews/uploads/reference.png',
-      name: 'reference.png',
-      mimeType: 'image/png',
-    }]);
+    state.addDraftImages([
+      {
+        source: 'upload',
+        path: '/tmp/previews/uploads/reference.png',
+        name: 'reference.png',
+        mimeType: 'image/png',
+      },
+    ]);
 
     await state.submitDraft();
 
@@ -346,17 +409,21 @@ describe('submitDraft', () => {
       status: 'success',
       imagePath: '/tmp/doubao-refined.png',
     });
-    await useGenerationWorkbenchStore.getState().submitRefinement(parent.id, selected.id, '增强晨光');
+    await useGenerationWorkbenchStore
+      .getState()
+      .submitRefinement(parent.id, selected.id, '增强晨光');
     const refinementRequest = mocks.generate.mock.calls.at(-1)?.[0];
     expect(refinementRequest).toMatchObject({
       prompt: '增强晨光',
       refinementInstruction: '增强晨光',
       sourceAssetId: 'doubao-batch-3',
-      referenceImages: [{
-        historyId: 'doubao-batch',
-        assetId: 'doubao-batch-3',
-        path: '/tmp/doubao-batch-3.png',
-      }],
+      referenceImages: [
+        {
+          historyId: 'doubao-batch',
+          assetId: 'doubao-batch-3',
+          path: '/tmp/doubao-batch-3.png',
+        },
+      ],
     });
     expect(refinementRequest.prompt).not.toContain('Pasted Skill');
     expect(refinementRequest.skillRuntime).toBeUndefined();
@@ -364,7 +431,11 @@ describe('submitDraft', () => {
 
   it('marks the session unread when generation finishes outside the workbench view', async () => {
     mocks.appView.current = 'library';
-    mocks.generate.mockResolvedValue({ historyId: 'history-away', status: 'success', imagePath: '/tmp/away.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'history-away',
+      status: 'success',
+      imagePath: '/tmp/away.png',
+    });
     const state = useGenerationWorkbenchStore.getState();
     state.setParams({ n: 1 });
     state.setDraftPrompt('后台完成的生成');
@@ -373,7 +444,11 @@ describe('submitDraft', () => {
   });
 
   it('keeps the session read when the user watches the workbench during generation', async () => {
-    mocks.generate.mockResolvedValue({ historyId: 'history-watch', status: 'success', imagePath: '/tmp/watch.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'history-watch',
+      status: 'success',
+      imagePath: '/tmp/watch.png',
+    });
     const state = useGenerationWorkbenchStore.getState();
     state.setParams({ n: 1 });
     state.setDraftPrompt('看着完成的生成');
@@ -392,7 +467,11 @@ describe('submitDraft', () => {
   });
 
   it('passes a staged local image to the provider and clears it after submission', async () => {
-    mocks.generate.mockResolvedValue({ historyId: 'image-edit', status: 'success', imagePath: '/tmp/edited.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'image-edit',
+      status: 'success',
+      imagePath: '/tmp/edited.png',
+    });
     const image = {
       source: 'upload' as const,
       path: '/tmp/previews/uploads/reference.png',
@@ -413,7 +492,11 @@ describe('submitDraft', () => {
   });
 
   it('restores an earlier message and its reference image without automatically submitting', async () => {
-    mocks.generate.mockResolvedValue({ historyId: 'image-edit', status: 'success', imagePath: '/tmp/edited.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'image-edit',
+      status: 'success',
+      imagePath: '/tmp/edited.png',
+    });
     const image = {
       source: 'upload' as const,
       path: '/tmp/previews/uploads/reference.png',
@@ -442,7 +525,11 @@ describe('submitDraft', () => {
 
 describe('refinement', () => {
   async function createParent(): Promise<void> {
-    mocks.generate.mockResolvedValueOnce({ historyId: 'parent-run', status: 'success', imagePath: '/tmp/parent.png' });
+    mocks.generate.mockResolvedValueOnce({
+      historyId: 'parent-run',
+      status: 'success',
+      imagePath: '/tmp/parent.png',
+    });
     const state = useGenerationWorkbenchStore.getState();
     state.setParams({ n: 1 });
     state.setDraftPrompt('base prompt');
@@ -453,28 +540,35 @@ describe('refinement', () => {
     await createParent();
     const parent = useGenerationWorkbenchStore.getState().turns[0];
     useGenerationWorkbenchStore.getState().startRefinement(parent.id, parent.results[0].id);
-    expect(useGenerationWorkbenchStore.getState().refinementContext).toMatchObject({ historyId: 'parent-run' });
+    expect(useGenerationWorkbenchStore.getState().refinementContext).toMatchObject({
+      historyId: 'parent-run',
+    });
 
-    mocks.generate.mockResolvedValueOnce({ historyId: 'child-run', status: 'success', imagePath: '/tmp/child.png' });
-    await useGenerationWorkbenchStore.getState().submitRefinement(parent.id, parent.results[0].id, '增加留白');
+    mocks.generate.mockResolvedValueOnce({
+      historyId: 'child-run',
+      status: 'success',
+      imagePath: '/tmp/child.png',
+    });
+    await useGenerationWorkbenchStore
+      .getState()
+      .submitRefinement(parent.id, parent.results[0].id, '增加留白');
     const request = mocks.generate.mock.calls.at(-1)?.[0];
     expect(request).toMatchObject({
       parentHistoryId: 'parent-run',
       sourceAssetId: 'parent-run',
       refinementInstruction: '增加留白',
       prompt: composePromptWithRefinementImageHint(
-        composeRefinementPrompt(
-          composePromptWithRatioConstraint('base prompt', '1:1'),
-          '增加留白',
-        ),
+        composeRefinementPrompt(composePromptWithRatioConstraint('base prompt', '1:1'), '增加留白'),
         1,
       ),
-      referenceImages: [{
-        source: 'history',
-        path: '/tmp/parent.png',
-        historyId: 'parent-run',
-        name: '图 1',
-      }],
+      referenceImages: [
+        {
+          source: 'history',
+          path: '/tmp/parent.png',
+          historyId: 'parent-run',
+          name: '图 1',
+        },
+      ],
     });
     expect(useGenerationWorkbenchStore.getState().turns).toHaveLength(2);
     expect(useGenerationWorkbenchStore.getState().refinementContext).toBeNull();
@@ -491,14 +585,15 @@ describe('refinement', () => {
       mimeType: 'image/webp' as const,
       sizeBytes: 256,
     };
-    mocks.generate.mockResolvedValueOnce({ historyId: 'child-replaced', status: 'success', imagePath: '/tmp/child.webp' });
+    mocks.generate.mockResolvedValueOnce({
+      historyId: 'child-replaced',
+      status: 'success',
+      imagePath: '/tmp/child.webp',
+    });
 
-    await useGenerationWorkbenchStore.getState().submitRefinement(
-      parent.id,
-      parent.results[0].id,
-      '换成冷色背景',
-      [replacement],
-    );
+    await useGenerationWorkbenchStore
+      .getState()
+      .submitRefinement(parent.id, parent.results[0].id, '换成冷色背景', [replacement]);
 
     const request = mocks.generate.mock.calls.at(-1)?.[0];
     expect(request.referenceImages).toEqual([
@@ -517,19 +612,29 @@ describe('refinement', () => {
   it('supports chained refinement and rejects an oversized child prompt', async () => {
     await createParent();
     const parent = useGenerationWorkbenchStore.getState().turns[0];
-    mocks.generate.mockResolvedValueOnce({ historyId: 'child-run', status: 'success', imagePath: '/tmp/child.png' });
-    await useGenerationWorkbenchStore.getState().submitRefinement(parent.id, parent.results[0].id, '调整结构');
+    mocks.generate.mockResolvedValueOnce({
+      historyId: 'child-run',
+      status: 'success',
+      imagePath: '/tmp/child.png',
+    });
+    await useGenerationWorkbenchStore
+      .getState()
+      .submitRefinement(parent.id, parent.results[0].id, '调整结构');
     const child = useGenerationWorkbenchStore.getState().turns[1];
-    mocks.generate.mockResolvedValueOnce({ historyId: 'grandchild-run', status: 'success', imagePath: '/tmp/grandchild.png' });
-    await useGenerationWorkbenchStore.getState().submitRefinement(child.id, child.results[0].id, '减少文字');
+    mocks.generate.mockResolvedValueOnce({
+      historyId: 'grandchild-run',
+      status: 'success',
+      imagePath: '/tmp/grandchild.png',
+    });
+    await useGenerationWorkbenchStore
+      .getState()
+      .submitRefinement(child.id, child.results[0].id, '减少文字');
     expect(useGenerationWorkbenchStore.getState().turns).toHaveLength(3);
 
     const calls = mocks.generate.mock.calls.length;
-    await useGenerationWorkbenchStore.getState().submitRefinement(
-      child.id,
-      child.results[0].id,
-      'x'.repeat(WORKBENCH_PROMPT_LIMIT),
-    );
+    await useGenerationWorkbenchStore
+      .getState()
+      .submitRefinement(child.id, child.results[0].id, 'x'.repeat(WORKBENCH_PROMPT_LIMIT));
     expect(mocks.generate).toHaveBeenCalledTimes(calls);
     expect(useGenerationWorkbenchStore.getState().lastError?.code).toBe('PROMPT_TOO_LONG');
   });
@@ -537,18 +642,25 @@ describe('refinement', () => {
 
 describe('reuse and session restore', () => {
   it('turns a missing session handler into an actionable restart state', async () => {
-    mocks.sessionList.mockRejectedValueOnce(new Error(
-      "Error invoking remote method 'workbenchSession:list': Error: No handler registered for 'workbenchSession:list'",
-    ));
+    mocks.sessionList.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'workbenchSession:list': Error: No handler registered for 'workbenchSession:list'",
+      ),
+    );
 
     await useGenerationWorkbenchStore.getState().loadSessions();
 
-    expect(useGenerationWorkbenchStore.getState().sessionsError)
-      .toBe(WORKBENCH_SESSION_RESTART_REQUIRED);
+    expect(useGenerationWorkbenchStore.getState().sessionsError).toBe(
+      WORKBENCH_SESSION_RESTART_REQUIRED,
+    );
   });
 
   it('restores the submitted text, references and parameter snapshot for another pass', async () => {
-    mocks.generate.mockResolvedValue({ historyId: 'history-reuse', status: 'success', imagePath: '/tmp/reuse.png' });
+    mocks.generate.mockResolvedValue({
+      historyId: 'history-reuse',
+      status: 'success',
+      imagePath: '/tmp/reuse.png',
+    });
     const state = useGenerationWorkbenchStore.getState();
     state.setParams({ n: 2, ratioId: '16:9', quality: 'high' });
     state.setDraftPrompt('reuse me');
@@ -567,77 +679,124 @@ describe('reuse and session restore', () => {
   it('restores prompt reference snapshots when opening a persisted session', async () => {
     mocks.sessionGet.mockResolvedValue({
       session: {
-        id: 'session-1', title: 'Saved',
-        createdAt: 100, updatedAt: 200, archivedAt: null, deletedAt: null,
+        id: 'session-1',
+        title: 'Saved',
+        createdAt: 100,
+        updatedAt: 200,
+        archivedAt: null,
+        deletedAt: null,
       },
-      runs: [{
-        run: {
-          id: 'run-1', runKind: 'free_generation',
-          workbenchSessionId: 'session-1', workbenchTurnId: 'turn-1', turnIndex: 0, resultIndex: 0,
-          parentRunId: null, retryOfRunId: null, sourceAssetId: null, providerId: 'p1', model: 'image',
-          userPrompt: 'saved prompt', basePrompt: 'saved prompt', refinementInstruction: null,
-          finalPrompt: 'saved prompt', negativePrompt: null,
-          params: {
-            schemaVersion: 1,
-            aspectRatio: '1:1',
-            quality: 'medium',
-            n: 1,
-            background: 'auto',
-            referenceImages: [{
-              path: '/tmp/saved-reference.png',
-              source: 'upload',
-              name: 'saved-reference.png',
-              mimeType: 'image/png',
-              sizeBytes: 42,
-            }],
-            skillRuntime: {
-              label: 'Saved Skill',
-              repositoryUrl: 'https://github.com/example/saved-skill',
-              executionMode: 'agent',
-              trace: [
-                { id: 'agent', kind: 'tool', title: 'Agent 执行 Skill', status: 'success' },
-                { id: 'image-generation', kind: 'tool', title: '调用生图模型', status: 'running' },
+      runs: [
+        {
+          run: {
+            id: 'run-1',
+            runKind: 'free_generation',
+            workbenchSessionId: 'session-1',
+            workbenchTurnId: 'turn-1',
+            turnIndex: 0,
+            resultIndex: 0,
+            parentRunId: null,
+            retryOfRunId: null,
+            sourceAssetId: null,
+            providerId: 'p1',
+            model: 'image',
+            userPrompt: 'saved prompt',
+            basePrompt: 'saved prompt',
+            refinementInstruction: null,
+            finalPrompt: 'saved prompt',
+            negativePrompt: null,
+            params: {
+              schemaVersion: 1,
+              aspectRatio: '1:1',
+              quality: 'medium',
+              n: 1,
+              background: 'auto',
+              referenceImages: [
+                {
+                  path: '/tmp/saved-reference.png',
+                  source: 'upload',
+                  name: 'saved-reference.png',
+                  mimeType: 'image/png',
+                  sizeBytes: 42,
+                },
               ],
+              skillRuntime: {
+                label: 'Saved Skill',
+                repositoryUrl: 'https://github.com/example/saved-skill',
+                executionMode: 'agent',
+                trace: [
+                  { id: 'agent', kind: 'tool', title: 'Agent 执行 Skill', status: 'success' },
+                  {
+                    id: 'image-generation',
+                    kind: 'tool',
+                    title: '调用生图模型',
+                    status: 'running',
+                  },
+                ],
+              },
             },
+            promptSnapshot: {
+              schemaVersion: 1,
+              userPrompt: 'saved prompt',
+              basePrompt: 'saved prompt',
+              refinementInstruction: null,
+              finalPrompt: 'saved prompt',
+              negativePrompt: null,
+              sourceRanges: [],
+            },
+            status: 'success',
+            errorCode: null,
+            errorMessage: null,
+            requestId: 'run-1',
+            estimatedCost: null,
+            actualCost: 0.1,
+            durationMs: 1000,
+            createdAt: 100,
+            startedAt: 101,
+            finishedAt: 200,
+            deletedAt: null,
           },
-          promptSnapshot: { schemaVersion: 1, userPrompt: 'saved prompt', basePrompt: 'saved prompt', refinementInstruction: null, finalPrompt: 'saved prompt', negativePrompt: null, sourceRanges: [] },
-          status: 'success', errorCode: null, errorMessage: null, requestId: 'run-1', estimatedCost: null,
-          actualCost: 0.1, durationMs: 1000, createdAt: 100, startedAt: 101, finishedAt: 200, deletedAt: null,
+          assets: [0, 1, 2, 3].map((position) => ({
+            id: `run-1-${position}`,
+            runId: 'run-1',
+            position,
+            status: 'available',
+            mediaPath: `/tmp/saved-${position + 1}.png`,
+            mimeType: 'image/png',
+            width: 1024,
+            height: 1024,
+            fileSize: null,
+            checksum: null,
+            createdAt: 200 + position,
+          })),
+          providerResponse: {
+            kind: 'doubao-web',
+            message: '豆包附带的回复文字',
+            expectedImageCount: 4,
+            receivedImageCount: 4,
+          },
+          promptReferences: [
+            { promptId: 'prompt-1', title: 'Snapshot', text: 'frozen excerpt', scope: 'excerpt' },
+          ],
         },
-        assets: [0, 1, 2, 3].map((position) => ({
-          id: `run-1-${position}`,
-          runId: 'run-1',
-          position,
-          status: 'available',
-          mediaPath: `/tmp/saved-${position + 1}.png`,
-          mimeType: 'image/png',
-          width: 1024,
-          height: 1024,
-          fileSize: null,
-          checksum: null,
-          createdAt: 200 + position,
-        })),
-        providerResponse: {
-          kind: 'doubao-web',
-          message: '豆包附带的回复文字',
-          expectedImageCount: 4,
-          receivedImageCount: 4,
-        },
-        promptReferences: [{ promptId: 'prompt-1', title: 'Snapshot', text: 'frozen excerpt', scope: 'excerpt' }],
-      }],
+      ],
     });
 
     await useGenerationWorkbenchStore.getState().openSession('session-1');
     const state = useGenerationWorkbenchStore.getState();
     expect(state.activeSessionId).toBe('session-1');
-    expect(state.turns[0].references).toEqual([{ promptId: 'prompt-1', title: 'Snapshot', text: 'frozen excerpt', scope: 'excerpt' }]);
-    expect(state.turns[0].referenceImages).toEqual([{
-      path: '/tmp/saved-reference.png',
-      source: 'upload',
-      name: 'saved-reference.png',
-      mimeType: 'image/png',
-      sizeBytes: 42,
-    }]);
+    expect(state.turns[0].references).toEqual([
+      { promptId: 'prompt-1', title: 'Snapshot', text: 'frozen excerpt', scope: 'excerpt' },
+    ]);
+    expect(state.turns[0].referenceImages).toEqual([
+      {
+        path: '/tmp/saved-reference.png',
+        source: 'upload',
+        name: 'saved-reference.png',
+        mimeType: 'image/png',
+        sizeBytes: 42,
+      },
+    ]);
     expect(state.turns[0].results.map((result) => result.imagePath)).toEqual([
       '/tmp/saved-1.png',
       '/tmp/saved-2.png',
@@ -654,7 +813,11 @@ describe('reuse and session restore', () => {
       label: 'Saved Skill',
       repositoryUrl: 'https://github.com/example/saved-skill',
       trace: expect.arrayContaining([
-        expect.objectContaining({ id: 'image-generation', status: 'success', title: '图片生成完成' }),
+        expect.objectContaining({
+          id: 'image-generation',
+          status: 'success',
+          title: '图片生成完成',
+        }),
       ]),
     });
   });
@@ -794,14 +957,16 @@ describe('background sessions during generation', () => {
     expect(begin).not.toBeNull();
     const runSessionId = useGenerationWorkbenchStore.getState().sessionId;
     // 同一对话内单飞锁仍然生效（不能再次发起）。
-    expect(useGenerationWorkbenchStore.getState().beginSchemeRunTurn({
-      userPrompt: 'x',
-      executionId: 'exec-2',
-      providerId: 'p1',
-      params: { ...DEFAULT_WORKBENCH_PARAMS, n: 1 },
-      referenceImages: [],
-      source: schemeSource,
-    })).toBeNull();
+    expect(
+      useGenerationWorkbenchStore.getState().beginSchemeRunTurn({
+        userPrompt: 'x',
+        executionId: 'exec-2',
+        providerId: 'p1',
+        params: { ...DEFAULT_WORKBENCH_PARAMS, n: 1 },
+        referenceImages: [],
+        source: schemeSource,
+      }),
+    ).toBeNull();
 
     // 运行中开新对话：不再被阻塞，运行对话进入后台。
     useGenerationWorkbenchStore.getState().newSession();
@@ -812,16 +977,28 @@ describe('background sessions during generation', () => {
 
     // 运行事件与完成结果写回后台缓存里的原对话。
     useGenerationWorkbenchStore.getState().upsertSchemeRunTrace(begin!.turnId, {
-      id: 'compile-prompt', kind: 'tool', title: '编译方案提示词', status: 'success',
+      id: 'compile-prompt',
+      kind: 'tool',
+      title: '编译方案提示词',
+      status: 'success',
     });
     useGenerationWorkbenchStore.getState().finishSchemeRunTurn(begin!.turnId, {
       compiledPrompt: 'compiled prompt',
-      generations: [{
-        jobId: begin!.jobIds[0],
-        resultIndex: 0,
-        result: { historyId: 'h1', status: 'success', imagePath: '/tmp/bg-run.png' },
-      }],
-      trace: [{ id: 'run-final', kind: 'system', title: '试运行成功，结果已加入草稿相册', status: 'success' }],
+      generations: [
+        {
+          jobId: begin!.jobIds[0],
+          resultIndex: 0,
+          result: { historyId: 'h1', status: 'success', imagePath: '/tmp/bg-run.png' },
+        },
+      ],
+      trace: [
+        {
+          id: 'run-final',
+          kind: 'system',
+          title: '试运行成功，结果已加入草稿相册',
+          status: 'success',
+        },
+      ],
     });
     expect(useGenerationWorkbenchStore.getState().isGenerating).toBe(false);
     // 用户不在原对话：即使停留在制作视图也要标未读。
@@ -833,7 +1010,10 @@ describe('background sessions during generation', () => {
     expect(mocks.sessionGet).not.toHaveBeenCalled();
     expect(restored.sessionId).toBe(runSessionId);
     expect(restored.turns).toHaveLength(1);
-    expect(restored.turns[0].results[0]).toMatchObject({ status: 'success', imagePath: '/tmp/bg-run.png' });
+    expect(restored.turns[0].results[0]).toMatchObject({
+      status: 'success',
+      imagePath: '/tmp/bg-run.png',
+    });
     expect(restored.turns[0].source).toMatchObject({ kind: 'scheme-run', state: 'succeeded' });
   });
 
@@ -854,14 +1034,21 @@ describe('background sessions during generation', () => {
 
     // B 对话：提交普通生图，不再被 A 的运行阻塞。
     useGenerationWorkbenchStore.getState().newSession();
-    mocks.generate.mockResolvedValueOnce({ historyId: 'h-parallel', status: 'success', imagePath: '/tmp/parallel.png' });
+    mocks.generate.mockResolvedValueOnce({
+      historyId: 'h-parallel',
+      status: 'success',
+      imagePath: '/tmp/parallel.png',
+    });
     useGenerationWorkbenchStore.getState().setDraftPrompt('并行生成的海报');
     useGenerationWorkbenchStore.getState().setParams({ n: 1 });
     await useGenerationWorkbenchStore.getState().submitDraft();
 
     const state = useGenerationWorkbenchStore.getState();
     expect(state.turns).toHaveLength(1);
-    expect(state.turns[0].results[0]).toMatchObject({ status: 'success', imagePath: '/tmp/parallel.png' });
+    expect(state.turns[0].results[0]).toMatchObject({
+      status: 'success',
+      imagePath: '/tmp/parallel.png',
+    });
     // B 完成后，A 的方案运行仍在登记中（全局仍在生成，但只锁 A 对话）。
     expect(state.isGenerating).toBe(true);
     expect(Object.values(state.runningTurns)).toHaveLength(1);
@@ -870,7 +1057,13 @@ describe('background sessions during generation', () => {
     // A 完成后登记清空。
     useGenerationWorkbenchStore.getState().finishSchemeRunTurn(begin!.turnId, {
       compiledPrompt: 'p',
-      generations: [{ jobId: begin!.jobIds[0], resultIndex: 0, result: { historyId: 'h1', status: 'success', imagePath: '/tmp/a.png' } }],
+      generations: [
+        {
+          jobId: begin!.jobIds[0],
+          resultIndex: 0,
+          result: { historyId: 'h1', status: 'success', imagePath: '/tmp/a.png' },
+        },
+      ],
       trace: [],
     });
     expect(useGenerationWorkbenchStore.getState().isGenerating).toBe(false);
@@ -885,25 +1078,29 @@ describe('background sessions during generation', () => {
     });
     expect(begin).not.toBeNull();
     const creationSessionId = useGenerationWorkbenchStore.getState().sessionId;
-    useGenerationWorkbenchStore.getState().completeSchemeCreationTurn(begin!.turnId, {
-      id: 'dsch_1',
-      name: '极简海报',
-      summary: '双色印刷',
-      status: 'draft',
-      sourcePresentation: 'musefold-created',
-      sourceLabel: 'Musefold 创建',
-      fidelity: 'adapted',
-      currentRevisionId: 'dsrv_1',
-      workingDraftRevisionId: null,
-      inputLabels: [],
-      coverAssetId: null,
-      coverImagePath: null,
-      hasSuccessfulTrial: false,
-      lastRunAt: null,
-      createdAt: 1,
-      updatedAt: 1,
-      creationSummary: '已生成草稿',
-    }, []);
+    useGenerationWorkbenchStore.getState().completeSchemeCreationTurn(
+      begin!.turnId,
+      {
+        id: 'dsch_1',
+        name: '极简海报',
+        summary: '双色印刷',
+        status: 'draft',
+        sourcePresentation: 'musefold-created',
+        sourceLabel: 'Musefold 创建',
+        fidelity: 'adapted',
+        currentRevisionId: 'dsrv_1',
+        workingDraftRevisionId: null,
+        inputLabels: [],
+        coverAssetId: null,
+        coverImagePath: null,
+        hasSuccessfulTrial: false,
+        lastRunAt: null,
+        createdAt: 1,
+        updatedAt: 1,
+        creationSummary: '已生成草稿',
+      },
+      [],
+    );
     expect(useGenerationWorkbenchStore.getState().isGenerating).toBe(false);
 
     // 草稿未试运行，直接开新对话——对话应被保留而不是丢失。

@@ -11,29 +11,27 @@ function scopedUsageScope(accountName?: string | null): string {
   return normalized ? `${USAGE_SCOPE}:${normalized}` : LEGACY_USAGE_SCOPE;
 }
 
-function migrateLegacyUsage(
-  db: Database.Database,
-  date: string,
-  scope: string,
-  now: Date,
-): void {
+function migrateLegacyUsage(db: Database.Database, date: string, scope: string, now: Date): void {
   if (scope === LEGACY_USAGE_SCOPE) return;
-  const legacy = db.prepare(
-    'SELECT request_count, updated_at FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?',
-  ).get(LEGACY_USAGE_SCOPE, date) as { request_count: number; updated_at: number } | undefined;
+  const legacy = db
+    .prepare(
+      'SELECT request_count, updated_at FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?',
+    )
+    .get(LEGACY_USAGE_SCOPE, date) as { request_count: number; updated_at: number } | undefined;
   if (!legacy) return;
-  const existing = db.prepare(
-    'SELECT 1 FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?',
-  ).get(scope, date);
+  const existing = db
+    .prepare('SELECT 1 FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?')
+    .get(scope, date);
   if (!existing) {
     db.prepare(`
       INSERT INTO doubao_web_daily_usage (usage_scope, usage_date, request_count, updated_at)
       VALUES (?, ?, ?, ?)
     `).run(scope, date, legacy.request_count, legacy.updated_at || now.getTime());
   }
-  db.prepare(
-    'DELETE FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?',
-  ).run(LEGACY_USAGE_SCOPE, date);
+  db.prepare('DELETE FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?').run(
+    LEGACY_USAGE_SCOPE,
+    date,
+  );
 }
 
 export class DoubaoDailyLimitError extends Error {
@@ -58,9 +56,11 @@ export function getDoubaoWebUsage(
   const date = localDateKey(now);
   const scope = scopedUsageScope(accountName);
   migrateLegacyUsage(db, date, scope, now);
-  const row = db.prepare(
-    'SELECT request_count FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?',
-  ).get(scope, date) as { request_count: number } | undefined;
+  const row = db
+    .prepare(
+      'SELECT request_count FROM doubao_web_daily_usage WHERE usage_scope = ? AND usage_date = ?',
+    )
+    .get(scope, date) as { request_count: number } | undefined;
   const used = Math.max(0, row?.request_count ?? 0);
   return {
     date,
@@ -80,16 +80,19 @@ export function reserveDoubaoWebGeneration(
   const scope = scopedUsageScope(accountName);
   return db.transaction(() => {
     migrateLegacyUsage(db, date, scope, now);
-    const result = db.prepare(`
+    const result = db
+      .prepare(`
       INSERT INTO doubao_web_daily_usage (usage_scope, usage_date, request_count, updated_at)
       VALUES (?, ?, 1, ?)
       ON CONFLICT(usage_scope, usage_date) DO UPDATE SET
         request_count = request_count + 1,
         updated_at = excluded.updated_at
       WHERE request_count < ?
-    `).run(scope, date, now.getTime(), DOUBAO_WEB_DAILY_IMAGE_LIMIT);
+    `)
+      .run(scope, date, now.getTime(), DOUBAO_WEB_DAILY_IMAGE_LIMIT);
 
-    if (result.changes === 0) throw new DoubaoDailyLimitError(getDoubaoWebUsage(db, now, accountName));
+    if (result.changes === 0)
+      throw new DoubaoDailyLimitError(getDoubaoWebUsage(db, now, accountName));
     db.prepare('DELETE FROM doubao_web_daily_usage WHERE usage_date < ?').run(date);
     return getDoubaoWebUsage(db, now, accountName);
   })();

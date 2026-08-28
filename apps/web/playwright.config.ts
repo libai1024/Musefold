@@ -1,12 +1,12 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig } from '@playwright/test';
 
 const testPort = Number(process.env.MUSEFOLD_WEB_TEST_PORT ?? 4175);
 const testOrigin = `http://127.0.0.1:${testPort}`;
 const onCi = Boolean(process.env.CI);
 
 export default defineConfig({
-  testDir: "./e2e",
-  outputDir: "../../test-results/web",
+  testDir: './e2e',
+  outputDir: '../../test-results/web',
   // GitHub hosted runners are several times slower per core than a laptop;
   // CI-scaled budgets keep the same assertions without timing out mid-flow.
   timeout: onCi ? 60_000 : 20_000,
@@ -19,16 +19,16 @@ export default defineConfig({
   retries: onCi ? 2 : 0,
   reporter: onCi
     ? [
-        ["list"],
-        ["html", { open: "never" }],
-        ["json", { outputFile: "test-results/web/report.json" }],
+        ['list'],
+        ['html', { open: 'never' }],
+        ['json', { outputFile: 'test-results/web/report.json' }],
       ]
-    : "list",
+    : 'list',
   use: {
     baseURL: `${testOrigin}/Musefold/app/`,
-    locale: "zh-CN",
-    screenshot: "only-on-failure",
-    trace: "retain-on-failure",
+    locale: 'zh-CN',
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
   },
   webServer: {
     command: `npm run dev:fixtures -- --port ${testPort}`,

@@ -14,7 +14,9 @@ function installLocalStorage(initial: Record<string, string> = {}): Map<string, 
     removeItem: (key: string) => values.delete(key),
     clear: () => values.clear(),
     key: (index: number) => [...values.keys()][index] ?? null,
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
   });
   return values;
 }
@@ -35,7 +37,10 @@ describe('settings preferences persist', () => {
     const values = installLocalStorage({ [LEGACY_ACCOUNT_IMAGE_SOURCE_KEY]: 'doubao' });
     const { useSettingsStore } = await import('../store');
     useSettingsStore.getState().setAccountImageSource('official');
-    expect(persistStateOf<{ accountImageSource?: string }>(values.get(SETTINGS_PREFERENCES_KEY) ?? null)?.accountImageSource).toBe('official');
+    expect(
+      persistStateOf<{ accountImageSource?: string }>(values.get(SETTINGS_PREFERENCES_KEY) ?? null)
+        ?.accountImageSource,
+    ).toBe('official');
     expect(values.has(LEGACY_ACCOUNT_IMAGE_SOURCE_KEY)).toBe(false);
   });
 });

@@ -35,7 +35,9 @@ describe('formatParamsSummary', () => {
 
 describe('formatSourceLabel', () => {
   it('prefers prompt title', () => {
-    expect(formatSourceLabel({ promptTitle: '电影感人像', promptId: 'p1' })).toBe('库「电影感人像」');
+    expect(formatSourceLabel({ promptTitle: '电影感人像', promptId: 'p1' })).toBe(
+      '库「电影感人像」',
+    );
   });
 
   it('falls back when prompt deleted but id remains', () => {

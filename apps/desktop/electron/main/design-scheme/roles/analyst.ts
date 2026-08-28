@@ -2,7 +2,10 @@
  * Repository Analyst：只做分析，不做转换（开发规范 §6）。
  * 输入固定 commit 快照的文本与图片清单，输出结构化分析报告。
  */
-import { analystReportSchema, type AnalystReport } from '@musefold/desktop-contracts/design-scheme/agents';
+import {
+  analystReportSchema,
+  type AnalystReport,
+} from '@musefold/desktop-contracts/design-scheme/agents';
 import { completeStructured, type OpenAiCompatibleTextAdapter } from '../text-adapter';
 
 const MAX_FILE_CHARS = 20_000;
@@ -65,7 +68,9 @@ export async function runRepositoryAnalyst(
     input.brief.trim() ? `用户创建方案时的说明：${input.brief.trim()}` : '用户未提供额外说明。',
     '',
     `## 图片清单（${input.imagePaths.length} 张）`,
-    input.imagePaths.length > 0 ? input.imagePaths.map((path) => `- ${path}`).join('\n') : '（无图片）',
+    input.imagePaths.length > 0
+      ? input.imagePaths.map((path) => `- ${path}`).join('\n')
+      : '（无图片）',
     '',
     '## 文本文件',
     fileSections(input.textFiles),

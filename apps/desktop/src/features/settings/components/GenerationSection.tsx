@@ -35,7 +35,10 @@ export function GenerationSection() {
 
   return (
     <>
-      <SettingsCard title="生成参数" description="设置新设计默认使用的画幅、质量、背景和生成数量；修改会同步应用到当前工作台草稿。">
+      <SettingsCard
+        title="生成参数"
+        description="设置新设计默认使用的画幅、质量、背景和生成数量；修改会同步应用到当前工作台草稿。"
+      >
         <SettingRow label="默认比例" hint="与工作台一致的画幅下拉">
           <RatioPicker
             value={params.ratioId}
@@ -83,9 +86,7 @@ export function GenerationSection() {
             schemePriorityMode === 'agent_mediated' ? (
               <>
                 {describePriorityMode(schemePriorityMode)}
-                <span className="block">
-                  调用文本模型自动取舍，会产生额外的文本模型消耗
-                </span>
+                <span className="block">调用文本模型自动取舍，会产生额外的文本模型消耗</span>
               </>
             ) : (
               describePriorityMode(schemePriorityMode)

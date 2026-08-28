@@ -1,1 +1,1 @@
-export { Tabs, TabsContent, TabsList, TabsTrigger } from "@musefold/ui";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from '@musefold/ui';

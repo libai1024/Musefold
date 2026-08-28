@@ -4,8 +4,8 @@ import {
   useRef,
   type FormEvent,
   type TextareaHTMLAttributes,
-} from "react";
-import { Textarea } from "@musefold/ui";
+} from 'react';
+import { Textarea } from '@musefold/ui';
 
 export interface WorkbenchComposerPromptProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   autoResize?: boolean;
@@ -23,7 +23,7 @@ export const WorkbenchComposerPrompt = forwardRef<
   const resize = () => {
     const element = localRef.current;
     if (!autoResize || !element) return;
-    element.style.height = "auto";
+    element.style.height = 'auto';
     element.style.height = `${Math.min(Math.max(element.scrollHeight, 76), 180)}px`;
   };
 
@@ -31,7 +31,7 @@ export const WorkbenchComposerPrompt = forwardRef<
 
   const setRef = (element: HTMLTextAreaElement | null) => {
     localRef.current = element;
-    if (typeof forwardedRef === "function") forwardedRef(element);
+    if (typeof forwardedRef === 'function') forwardedRef(element);
     else if (forwardedRef) forwardedRef.current = element;
   };
 
@@ -46,7 +46,7 @@ export const WorkbenchComposerPrompt = forwardRef<
       ref={setRef}
       value={value}
       onInput={handleInput}
-      className={["mf-workbench-prompt", className].filter(Boolean).join(" ")}
+      className={['mf-workbench-prompt', className].filter(Boolean).join(' ')}
     />
   );
 });

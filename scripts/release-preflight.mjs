@@ -120,7 +120,10 @@ async function checkLegacyGenerationState() {
     if (patterns.some((pattern) => pattern.test(text))) hits.push(relPath(file));
   }
   if (hits.length === 0) {
-    pass('Legacy Studio/generation APIs are absent', 'Workbench owns draft, turns, cancel, retry, and submit');
+    pass(
+      'Legacy Studio/generation APIs are absent',
+      'Workbench owns draft, turns, cancel, retry, and submit',
+    );
   } else {
     fail('Legacy Studio/generation APIs are absent', hits.join(', '));
   }
@@ -129,12 +132,31 @@ async function checkLegacyGenerationState() {
 async function checkRatioOptions() {
   const constants = await readText('packages/domain/src/constants.ts');
   const picker = await readText('apps/desktop/src/features/generation/components/RatioPicker.tsx');
-  const required = ['1:1', '2:3', '3:4', '3:2', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9', 'auto'];
+  const required = [
+    '1:1',
+    '2:3',
+    '3:4',
+    '3:2',
+    '4:3',
+    '4:5',
+    '5:4',
+    '9:16',
+    '16:9',
+    '21:9',
+    'auto',
+  ];
   const missing = required.filter((id) => !constants.includes(`id: '${id}'`));
-  if (missing.length === 0 && picker.includes('RatioSelectionPreview') && picker.includes('RatioOptionGrid')) {
+  if (
+    missing.length === 0 &&
+    picker.includes('RatioSelectionPreview') &&
+    picker.includes('RatioOptionGrid')
+  ) {
     pass('Ratio picker keeps visual previews and legacy ratios', required.join(', '));
   } else {
-    fail('Ratio picker keeps visual previews and legacy ratios', `missing/options: ${missing.join(', ') || 'none'}`);
+    fail(
+      'Ratio picker keeps visual previews and legacy ratios',
+      `missing/options: ${missing.join(', ') || 'none'}`,
+    );
   }
 }
 
@@ -147,7 +169,10 @@ async function checkRoadmap() {
   if (taskRows.length === 85 && incomplete.length === 0) {
     pass('Product roadmap task index is fully closed', '85 TASK rows, all ✅');
   } else {
-    fail('Product roadmap task index is fully closed', `${taskRows.length} rows; incomplete: ${incomplete.join(', ') || 'none'}`);
+    fail(
+      'Product roadmap task index is fully closed',
+      `${taskRows.length} rows; incomplete: ${incomplete.join(', ') || 'none'}`,
+    );
   }
 
   const requiredExternalGatePhrases = [
@@ -231,8 +256,22 @@ async function checkDocsAndWorkflow() {
     windowsTargetChecklist.includes('windowsArm64TargetRuntime') &&
     windowsTargetChecklist.includes('PE_MACHINE_ARM64') &&
     windowsTargetChecklist.includes('musefold://');
-  if (missingScripts.length === 0 && wrapper.includes('restored apps/desktop/package.json after electron-builder metadata pruning') && evidenceReady && ciEvidenceReady && windowsHostedReady && macosSigningReady && signingPrecheckReady && windowsTargetReady) {
-    pass('Package scripts protect the development manifest during packaging', 'run-builder restores apps/desktop/package.json after electron-builder');
+  if (
+    missingScripts.length === 0 &&
+    wrapper.includes(
+      'restored apps/desktop/package.json after electron-builder metadata pruning',
+    ) &&
+    evidenceReady &&
+    ciEvidenceReady &&
+    windowsHostedReady &&
+    macosSigningReady &&
+    signingPrecheckReady &&
+    windowsTargetReady
+  ) {
+    pass(
+      'Package scripts protect the development manifest during packaging',
+      'run-builder restores apps/desktop/package.json after electron-builder',
+    );
   } else {
     const details = [`missing/unsafe scripts: ${missingScripts.join(', ') || 'none'}`];
     if (!evidenceReady) details.push('release gate evidence script/template missing');
@@ -258,7 +297,10 @@ async function checkDocsAndWorkflow() {
   ];
   const docsMissing = docsNeedles.filter((needle) => !readme.includes(needle));
   if (docsMissing.length === 0) {
-    pass('Product README summarizes desktop state without overclaiming', 'local complete, external gates still named');
+    pass(
+      'Product README summarizes desktop state without overclaiming',
+      'local complete, external gates still named',
+    );
   } else {
     fail('Product README summarizes desktop state without overclaiming', docsMissing.join(', '));
   }
@@ -300,12 +342,18 @@ async function checkDocsAndWorkflow() {
   const workflowMissing = workflowNeedles.filter((needle) => !workflow.includes(needle));
   const duplicatedPathBlock = /(^|\n)[ \t]+path:\s*\|\s*\r?\n[ \t]+path:\s*\|/.test(workflow);
   if (workflowMissing.length === 0 && !duplicatedPathBlock) {
-    pass('CI workflow covers source, E2E, package, Windows host runtime smoke, and production deploy', '.github/workflows/ci.yml + desktop-ci.yml + package-smoke.yml + deploy.yml');
+    pass(
+      'CI workflow covers source, E2E, package, Windows host runtime smoke, and production deploy',
+      '.github/workflows/ci.yml + desktop-ci.yml + package-smoke.yml + deploy.yml',
+    );
   } else {
     const details = [];
     if (workflowMissing.length > 0) details.push(`missing: ${workflowMissing.join(', ')}`);
     if (duplicatedPathBlock) details.push('malformed duplicate path: | block');
-    fail('CI workflow covers source, E2E, package, Windows host runtime smoke, and production deploy', details.join('; '));
+    fail(
+      'CI workflow covers source, E2E, package, Windows host runtime smoke, and production deploy',
+      details.join('; '),
+    );
   }
 }
 
@@ -317,7 +365,9 @@ function releaseVersionFamily(version) {
 async function checkV14ReleaseVersionSync() {
   const pkg = JSON.parse(await readText('apps/desktop/package.json'));
   const websiteHtml = await readText('website/Musefold/index.html');
-  const jsonLdMatch = websiteHtml.match(/<script\s+type="application\/ld\+json">([\s\S]*?)<\/script>/i);
+  const jsonLdMatch = websiteHtml.match(
+    /<script\s+type="application\/ld\+json">([\s\S]*?)<\/script>/i,
+  );
   let websiteVersion;
   try {
     websiteVersion = JSON.parse(jsonLdMatch?.[1] ?? '{}').softwareVersion ?? '';
@@ -326,8 +376,13 @@ async function checkV14ReleaseVersionSync() {
     return;
   }
 
-  const catalogPaths = ['website/Musefold/downloads/catalog.json', 'services/musefold-downloads/catalog.json'];
-  const catalogs = await Promise.all(catalogPaths.map(async (path) => ({ path, value: JSON.parse(await readText(path)) })));
+  const catalogPaths = [
+    'website/Musefold/downloads/catalog.json',
+    'services/musefold-downloads/catalog.json',
+  ];
+  const catalogs = await Promise.all(
+    catalogPaths.map(async (path) => ({ path, value: JSON.parse(await readText(path)) })),
+  );
   const appVersion = String(pkg.version);
   const expectedFamily = releaseVersionFamily(appVersion);
   const formalRelease = !appVersion.includes('-');
@@ -349,7 +404,8 @@ async function checkV14ReleaseVersionSync() {
   } else {
     const details = [];
     if (versionMismatch.length > 0) details.push(`versions: ${versions.join(', ')}`);
-    if (latestPathMismatch.length > 0) details.push(`latest paths: ${latestPathMismatch.join(', ')}`);
+    if (latestPathMismatch.length > 0)
+      details.push(`latest paths: ${latestPathMismatch.join(', ')}`);
     fail('v1.4 release versions stay synchronized', details.join('; '));
   }
 }
@@ -415,9 +471,15 @@ async function checkGeneratedArtifactsClean() {
 
   await walkForPycache('tests');
   if (found.length === 0) {
-    pass('Generated test/cache artifacts are clean', 'release/ and out/ are intentionally not removed here');
+    pass(
+      'Generated test/cache artifacts are clean',
+      'release/ and out/ are intentionally not removed here',
+    );
   } else {
-    fail('Generated test/cache artifacts are clean', `run npm run clean:artifacts; found: ${found.join(', ')}`);
+    fail(
+      'Generated test/cache artifacts are clean',
+      `run npm run clean:artifacts; found: ${found.join(', ')}`,
+    );
   }
 }
 

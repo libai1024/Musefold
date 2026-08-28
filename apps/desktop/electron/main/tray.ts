@@ -17,17 +17,19 @@ export function createAppTray(onOpenMainWindow: () => void): Tray {
 
   appTray = new Tray(icon);
   appTray.setToolTip(APP_NAME);
-  appTray.setContextMenu(Menu.buildFromTemplate([
-    {
-      label: `打开 ${APP_NAME}`,
-      click: onOpenMainWindow,
-    },
-    { type: 'separator' },
-    {
-      label: `退出 ${APP_NAME}`,
-      click: () => app.quit(),
-    },
-  ]));
+  appTray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: `打开 ${APP_NAME}`,
+        click: onOpenMainWindow,
+      },
+      { type: 'separator' },
+      {
+        label: `退出 ${APP_NAME}`,
+        click: () => app.quit(),
+      },
+    ]),
+  );
   appTray.on('click', onOpenMainWindow);
 
   return appTray;

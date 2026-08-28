@@ -26,7 +26,9 @@ Use clear layers and readable labels.
 
 const cacheRoots: string[] = [];
 
-async function archiveBytes(entries: ReadonlyArray<{ name: string; content: string }>): Promise<Buffer> {
+async function archiveBytes(
+  entries: ReadonlyArray<{ name: string; content: string }>,
+): Promise<Buffer> {
   const archive = archiver('zip', { zlib: { level: 6 } });
   const chunks: Buffer[] = [];
   const completed = new Promise<void>((resolve, reject) => {
@@ -75,11 +77,13 @@ function response(value: unknown, status = 200, headers: Record<string, string> 
 }
 
 function createGithubFixture(options: GithubFixtureOptions = {}) {
-  const files = options.files ?? new Map<string, Buffer>([
-    [SKILL_SHA, Buffer.from(skillMarkdown)],
-    [REFERENCE_SHA, Buffer.from('Keep four aligned layers.')],
-    [LICENSE_SHA, Buffer.from('Apache License fixture')],
-  ]);
+  const files =
+    options.files ??
+    new Map<string, Buffer>([
+      [SKILL_SHA, Buffer.from(skillMarkdown)],
+      [REFERENCE_SHA, Buffer.from('Keep four aligned layers.')],
+      [LICENSE_SHA, Buffer.from('Apache License fixture')],
+    ]);
   const treeEntries = options.treeEntries ?? [
     {
       path: 'skills/image/SKILL.md',
@@ -105,7 +109,9 @@ function createGithubFixture(options: GithubFixtureOptions = {}) {
   ];
   const calls: Array<{ url: URL; headers: Headers }> = [];
   const fetchImpl = vi.fn(async (input: URL | Request | string, init?: RequestInit) => {
-    const url = new URL(input instanceof URL ? input.href : input instanceof Request ? input.url : String(input));
+    const url = new URL(
+      input instanceof URL ? input.href : input instanceof Request ? input.url : String(input),
+    );
     calls.push({ url, headers: new Headers(init?.headers) });
     if (url.pathname === REPO_PATH) {
       return response({ default_branch: options.defaultBranch ?? 'main' });
@@ -118,10 +124,12 @@ function createGithubFixture(options: GithubFixtureOptions = {}) {
           options.commitHeaders,
         );
       }
-      return response(options.commitBody ?? {
-        sha: COMMIT_SHA,
-        commit: { tree: { sha: TREE_SHA } },
-      });
+      return response(
+        options.commitBody ?? {
+          sha: COMMIT_SHA,
+          commit: { tree: { sha: TREE_SHA } },
+        },
+      );
     }
     if (url.pathname === `${REPO_PATH}/git/trees/${TREE_SHA}`) {
       return response(options.treeBody ?? { truncated: false, tree: treeEntries });
@@ -149,12 +157,21 @@ describe('public GitHub Agent Skill reader', () => {
     const bytes = await archiveBytes([
       { name: 'image-skill-main/README.md', content: 'repository readme' },
       { name: 'image-skill-main/skills/poster/SKILL.md', content: skillMarkdown },
-      { name: 'image-skill-main/skills/poster/references/layout.md', content: 'Keep the poster sparse.' },
+      {
+        name: 'image-skill-main/skills/poster/references/layout.md',
+        content: 'Keep the poster sparse.',
+      },
     ]);
-    const fetchMock = vi.fn(async (_input: URL | Request | string) => new Response(bytes, {
-      status: 200,
-      headers: { 'Content-Length': String(bytes.byteLength), 'Content-Type': 'application/zip' },
-    }));
+    const fetchMock = vi.fn(
+      async (_input: URL | Request | string) =>
+        new Response(bytes, {
+          status: 200,
+          headers: {
+            'Content-Length': String(bytes.byteLength),
+            'Content-Type': 'application/zip',
+          },
+        }),
+    );
     const fetchImpl = fetchMock as unknown as typeof fetch;
     const request = {
       repositoryUrl: 'https://github.com/acme/image-skill',
@@ -173,11 +190,14 @@ describe('public GitHub Agent Skill reader', () => {
       'SKILL.md',
     ]);
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname)
-      .toBe('/acme/image-skill/zip/HEAD');
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      '/acme/image-skill/zip/HEAD',
+    );
     expect(readdirSync(cacheDir).filter((name) => name.endsWith('.zip'))).toHaveLength(1);
 
-    fetchMock.mockImplementation(async () => { throw new Error('network should not be used'); });
+    fetchMock.mockImplementation(async () => {
+      throw new Error('network should not be used');
+    });
     const second = await readPublicGithubAgentSkillSource(request, {
       fetchImpl,
       archiveBaseUrl: 'https://codeload.test',
@@ -190,14 +210,17 @@ describe('public GitHub Agent Skill reader', () => {
   it('pins the requested ref to an immutable commit and scans only the selected Skill path', async () => {
     const fixture = createGithubFixture();
 
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-      skillPath: 'skills/image',
-    }, {
-      fetchImpl: fixture.fetchImpl,
-      apiBaseUrl: API_BASE,
-    });
+    const result = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+        skillPath: 'skills/image',
+      },
+      {
+        fetchImpl: fixture.fetchImpl,
+        apiBaseUrl: API_BASE,
+      },
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -232,18 +255,23 @@ description: A Skill without a declared license.
     const fixture = createGithubFixture({
       defaultBranch: 'trunk',
       files,
-      treeEntries: [{
-        path: 'SKILL.md',
-        mode: '100644',
-        type: 'blob',
-        sha: SKILL_SHA,
-        size: noLicenseMarkdown.byteLength,
-      }],
+      treeEntries: [
+        {
+          path: 'SKILL.md',
+          mode: '100644',
+          type: 'blob',
+          sha: SKILL_SHA,
+          size: noLicenseMarkdown.byteLength,
+        },
+      ],
     });
 
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-    }, { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE });
+    const result = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+      },
+      { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE },
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -257,8 +285,14 @@ description: A Skill without a declared license.
     [{ repositoryUrl: 'http://github.com/acme/image-skill' }, 'INVALID_TYPE'],
     [{ repositoryUrl: 'https://user:token@github.com/acme/image-skill' }, 'INVALID_TYPE'],
     [{ repositoryUrl: 'https://github.com/acme/image-skill?token=secret' }, 'INVALID_TYPE'],
-    [{ repositoryUrl: 'https://github.com/acme/image-skill', requestedRef: '../main' }, 'INVALID_TYPE'],
-    [{ repositoryUrl: 'https://github.com/acme/image-skill', skillPath: '../skills/image' }, 'INVALID_TYPE'],
+    [
+      { repositoryUrl: 'https://github.com/acme/image-skill', requestedRef: '../main' },
+      'INVALID_TYPE',
+    ],
+    [
+      { repositoryUrl: 'https://github.com/acme/image-skill', skillPath: '../skills/image' },
+      'INVALID_TYPE',
+    ],
   ] as const)('rejects unsafe source input before making a request', async (request, code) => {
     const fixture = createGithubFixture();
     const result = await readPublicGithubAgentSkillSource(request, {
@@ -271,32 +305,67 @@ description: A Skill without a declared license.
 
   it.each([
     [{ truncated: true, tree: [] }, 'TOO_MANY_ITEMS'],
-    [{ truncated: false, tree: [{ path: 'SKILL.md', mode: '120000', type: 'blob', sha: SKILL_SHA, size: 3 }] }, 'INVALID_TYPE'],
-    [{ truncated: false, tree: [{ path: 'vendor', mode: '160000', type: 'commit', sha: SKILL_SHA }] }, 'INVALID_TYPE'],
-    [{ truncated: false, tree: [{ path: 'SKILL.md', mode: '100644', type: 'blob', sha: SKILL_SHA, size: 16 * 1024 * 1024 + 1 }] }, 'INVALID_RANGE'],
+    [
+      {
+        truncated: false,
+        tree: [{ path: 'SKILL.md', mode: '120000', type: 'blob', sha: SKILL_SHA, size: 3 }],
+      },
+      'INVALID_TYPE',
+    ],
+    [
+      {
+        truncated: false,
+        tree: [{ path: 'vendor', mode: '160000', type: 'commit', sha: SKILL_SHA }],
+      },
+      'INVALID_TYPE',
+    ],
+    [
+      {
+        truncated: false,
+        tree: [
+          {
+            path: 'SKILL.md',
+            mode: '100644',
+            type: 'blob',
+            sha: SKILL_SHA,
+            size: 16 * 1024 * 1024 + 1,
+          },
+        ],
+      },
+      'INVALID_RANGE',
+    ],
   ] as const)('rejects unsafe or over-limit repository trees', async (treeBody, code) => {
     const fixture = createGithubFixture({ treeBody });
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE });
+    const result = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+      },
+      { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE },
+    );
     expect(result).toMatchObject({ ok: false, error: { code } });
   });
 
   it('rejects a Skill tree with more than 500 entries before downloading blobs', async () => {
-    const treeEntries = Array.from({ length: 501 }, (_, index): TreeEntryFixture => ({
-      path: `assets/item-${String(index).padStart(3, '0')}.bin`,
-      mode: '100644',
-      type: 'blob',
-      sha: SKILL_SHA,
-      size: 1,
-    }));
+    const treeEntries = Array.from(
+      { length: 501 },
+      (_, index): TreeEntryFixture => ({
+        path: `assets/item-${String(index).padStart(3, '0')}.bin`,
+        mode: '100644',
+        type: 'blob',
+        sha: SKILL_SHA,
+        size: 1,
+      }),
+    );
     const fixture = createGithubFixture({ treeEntries });
 
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE });
+    const result = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+      },
+      { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE },
+    );
 
     expect(result).toMatchObject({ ok: false, error: { code: 'TOO_MANY_ITEMS' } });
     expect(fixture.calls.some((call) => call.url.pathname.includes('/git/blobs/'))).toBe(false);
@@ -304,26 +373,34 @@ description: A Skill without a declared license.
 
   it('rejects malformed commit and blob data instead of trusting mutable metadata', async () => {
     const malformedCommit = createGithubFixture({ commitBody: { sha: 'not-a-sha', commit: {} } });
-    const commitResult = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl: malformedCommit.fetchImpl, apiBaseUrl: API_BASE });
+    const commitResult = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+      },
+      { fetchImpl: malformedCommit.fetchImpl, apiBaseUrl: API_BASE },
+    );
     expect(commitResult).toMatchObject({ ok: false, error: { code: 'INVALID_TYPE' } });
 
     const malformedBlob = createGithubFixture({
       files: new Map([[SKILL_SHA, Buffer.from(skillMarkdown)]]),
-      treeEntries: [{
-        path: 'SKILL.md',
-        mode: '100644',
-        type: 'blob',
-        sha: SKILL_SHA,
-        size: Buffer.byteLength(skillMarkdown) + 1,
-      }],
+      treeEntries: [
+        {
+          path: 'SKILL.md',
+          mode: '100644',
+          type: 'blob',
+          sha: SKILL_SHA,
+          size: Buffer.byteLength(skillMarkdown) + 1,
+        },
+      ],
     });
-    const blobResult = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl: malformedBlob.fetchImpl, apiBaseUrl: API_BASE });
+    const blobResult = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+      },
+      { fetchImpl: malformedBlob.fetchImpl, apiBaseUrl: API_BASE },
+    );
     expect(blobResult).toMatchObject({ ok: false, error: { code: 'INVALID_TYPE' } });
   });
 
@@ -331,29 +408,38 @@ description: A Skill without a declared license.
     [404, 'MISSING_REFERENCE', false],
     [403, 'AUTH_REQUIRED', false],
     [500, 'NETWORK_ERROR', true],
-  ] as const)('maps GitHub HTTP %s without exposing upstream bodies', async (status, code, retryable) => {
-    const fixture = createGithubFixture({ commitStatus: status });
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE });
-    expect(result).toMatchObject({ ok: false, error: { code, retryable } });
-    expect(JSON.stringify(result)).not.toContain('private upstream detail');
-    if (status === 404 || status === 403) {
-      expect(result.ok ? '' : result.error.message).toContain('当前版本仅支持公开 GitHub 仓库');
-      expect(result.ok ? '' : result.error.message).toContain('不要把 Token 写入地址');
-    }
-  });
+  ] as const)(
+    'maps GitHub HTTP %s without exposing upstream bodies',
+    async (status, code, retryable) => {
+      const fixture = createGithubFixture({ commitStatus: status });
+      const result = await readPublicGithubAgentSkillSource(
+        {
+          repositoryUrl: 'https://github.com/acme/image-skill',
+          requestedRef: 'main',
+        },
+        { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE },
+      );
+      expect(result).toMatchObject({ ok: false, error: { code, retryable } });
+      expect(JSON.stringify(result)).not.toContain('private upstream detail');
+      if (status === 404 || status === 403) {
+        expect(result.ok ? '' : result.error.message).toContain('当前版本仅支持公开 GitHub 仓库');
+        expect(result.ok ? '' : result.error.message).toContain('不要把 Token 写入地址');
+      }
+    },
+  );
 
   it('distinguishes anonymous rate limiting from unsupported private repository access', async () => {
     const fixture = createGithubFixture({
       commitStatus: 403,
       commitHeaders: { 'x-ratelimit-remaining': '0' },
     });
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE });
+    const result = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+      },
+      { fetchImpl: fixture.fetchImpl, apiBaseUrl: API_BASE },
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -368,11 +454,16 @@ description: A Skill without a declared license.
 
   it('maps request timeouts to a retryable timeout without leaking request details', async () => {
     const timeout = Object.assign(new Error('socket detail'), { name: 'TimeoutError' });
-    const fetchImpl = vi.fn(async () => { throw timeout; }) as unknown as typeof fetch;
-    const result = await readPublicGithubAgentSkillSource({
-      repositoryUrl: 'https://github.com/acme/image-skill',
-      requestedRef: 'main',
-    }, { fetchImpl, apiBaseUrl: API_BASE });
+    const fetchImpl = vi.fn(async () => {
+      throw timeout;
+    }) as unknown as typeof fetch;
+    const result = await readPublicGithubAgentSkillSource(
+      {
+        repositoryUrl: 'https://github.com/acme/image-skill',
+        requestedRef: 'main',
+      },
+      { fetchImpl, apiBaseUrl: API_BASE },
+    );
     expect(result).toMatchObject({ ok: false, error: { code: 'TIMEOUT', retryable: true } });
     expect(JSON.stringify(result)).not.toContain('socket detail');
   });

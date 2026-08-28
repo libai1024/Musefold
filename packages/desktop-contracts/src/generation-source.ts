@@ -7,10 +7,7 @@ import type {
   DesignSchemeSummary,
 } from './design-scheme';
 import type { InputSlot } from './design-scheme/schema';
-import type {
-  SkillRuntimeExecutionMode,
-  SkillRuntimeTraceItem,
-} from './skill-runtime';
+import type { SkillRuntimeExecutionMode, SkillRuntimeTraceItem } from './skill-runtime';
 
 export interface SchemeCreationDraftCard extends DesignSchemeSummary {
   creationSummary: string;

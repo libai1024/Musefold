@@ -179,7 +179,9 @@ export function registerHistoryStatsHandler(): void {
   ipcMain.handle(IPC.HISTORY_STATS, (_e, q: HistoryStatsQuery): HistoryStats => {
     const db = getDb();
     const sql = buildHistoryStatsSql(q ?? {});
-    const totalRow = db.prepare(sql.totalSql).get(...sql.values) as Record<string, unknown> | undefined;
+    const totalRow = db.prepare(sql.totalSql).get(...sql.values) as
+      | Record<string, unknown>
+      | undefined;
     const totalCount = Number(totalRow?.totalCount ?? 0);
     const attemptCount = Number(totalRow?.attemptCount ?? 0);
     const failedCount = Number(totalRow?.failedCount ?? 0);
@@ -188,12 +190,17 @@ export function registerHistoryStatsHandler(): void {
     const accountPoints = Number(totalRow?.accountPoints ?? 0);
     const accountSuccessCount = Number(totalRow?.accountSuccessCount ?? 0);
     const accountAverage = accountSuccessCount > 0 ? accountPoints / accountSuccessCount : 0;
-    const totals = accountSuccessCount > 0 ? [{
-      unit: 'point' as const,
-      cost: accountPoints,
-      count: accountSuccessCount,
-      avgCost: accountAverage,
-    }] : [];
+    const totals =
+      accountSuccessCount > 0
+        ? [
+            {
+              unit: 'point' as const,
+              cost: accountPoints,
+              count: accountSuccessCount,
+              avgCost: accountAverage,
+            },
+          ]
+        : [];
     const channelsByBucket = new Map<string, HistoryStats['buckets'][number]['channels']>();
     for (const row of db.prepare(sql.channelBucketsSql).all(...sql.values)) {
       const r = row as Record<string, unknown>;
@@ -207,51 +214,63 @@ export function registerHistoryStatsHandler(): void {
       });
       channelsByBucket.set(key, channels);
     }
-    const buckets = db.prepare(sql.bucketsSql).all(...sql.values).map((row) => {
-      const r = row as Record<string, unknown>;
-      const key = String(r.key ?? '');
-      return {
-        key,
-        cost: Number(r.cost ?? 0),
-        count: Number(r.count ?? 0),
-        attemptCount: Number(r.attemptCount ?? 0),
-        failedCount: Number(r.failedCount ?? 0),
-        cancelledCount: Number(r.cancelledCount ?? 0),
-        channels: channelsByBucket.get(key) ?? [],
-        unit: 'point' as const,
-      };
-    });
-    const byProvider = db.prepare(sql.byProviderSql).all(...sql.values).map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        providerId: String(r.providerId ?? ''),
-        name: String(r.name ?? r.providerId ?? ''),
-        cost: Number(r.cost ?? 0),
-        count: Number(r.count ?? 0),
-        unit: 'point' as const,
-      };
-    });
-    const byChannel = db.prepare(sql.byChannelSql).all(...sql.values).map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        channelId: String(r.channelId ?? ''),
-        kind: String(r.kind ?? 'provider') as 'account' | 'doubao' | 'provider',
-        name: String(r.name ?? r.channelId ?? ''),
-        providerId: r.providerId == null ? null : String(r.providerId),
-        attemptCount: Number(r.attemptCount ?? 0),
-        successCount: Number(r.successCount ?? 0),
-        failedCount: Number(r.failedCount ?? 0),
-        cancelledCount: Number(r.cancelledCount ?? 0),
-        accountPoints: r.accountPoints == null ? null : Number(r.accountPoints),
-      };
-    });
-    const byModel = db.prepare(sql.byModelSql).all(...sql.values).map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        model: String(r.model ?? '未标注模型'),
-        count: Number(r.count ?? 0),
-      };
-    });
+    const buckets = db
+      .prepare(sql.bucketsSql)
+      .all(...sql.values)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        const key = String(r.key ?? '');
+        return {
+          key,
+          cost: Number(r.cost ?? 0),
+          count: Number(r.count ?? 0),
+          attemptCount: Number(r.attemptCount ?? 0),
+          failedCount: Number(r.failedCount ?? 0),
+          cancelledCount: Number(r.cancelledCount ?? 0),
+          channels: channelsByBucket.get(key) ?? [],
+          unit: 'point' as const,
+        };
+      });
+    const byProvider = db
+      .prepare(sql.byProviderSql)
+      .all(...sql.values)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          providerId: String(r.providerId ?? ''),
+          name: String(r.name ?? r.providerId ?? ''),
+          cost: Number(r.cost ?? 0),
+          count: Number(r.count ?? 0),
+          unit: 'point' as const,
+        };
+      });
+    const byChannel = db
+      .prepare(sql.byChannelSql)
+      .all(...sql.values)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          channelId: String(r.channelId ?? ''),
+          kind: String(r.kind ?? 'provider') as 'account' | 'doubao' | 'provider',
+          name: String(r.name ?? r.channelId ?? ''),
+          providerId: r.providerId == null ? null : String(r.providerId),
+          attemptCount: Number(r.attemptCount ?? 0),
+          successCount: Number(r.successCount ?? 0),
+          failedCount: Number(r.failedCount ?? 0),
+          cancelledCount: Number(r.cancelledCount ?? 0),
+          accountPoints: r.accountPoints == null ? null : Number(r.accountPoints),
+        };
+      });
+    const byModel = db
+      .prepare(sql.byModelSql)
+      .all(...sql.values)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          model: String(r.model ?? '未标注模型'),
+          count: Number(r.count ?? 0),
+        };
+      });
 
     return {
       totals,

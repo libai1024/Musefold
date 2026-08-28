@@ -15,19 +15,53 @@ function validDocument(): DesignSchemeRevisionDocument {
     summary: '基于 gc-minimal-zine-poster 的版式方案',
     fidelity: 'faithful',
     sources: [
-      { id: 'src_repo', kind: 'github-skill', role: 'normative', uri: 'https://github.com/a/b', ref: 'main', commit: 'abc' },
+      {
+        id: 'src_repo',
+        kind: 'github-skill',
+        role: 'normative',
+        uri: 'https://github.com/a/b',
+        ref: 'main',
+        commit: 'abc',
+      },
     ],
     inputs: [
       { id: 'input_1', label: '主题描述', kind: 'text', required: true },
-      { id: 'input_2', label: '主体图片', kind: 'image', required: false, imageRole: 'subject-reference' },
+      {
+        id: 'input_2',
+        label: '主体图片',
+        kind: 'image',
+        required: false,
+        imageRole: 'subject-reference',
+      },
     ],
     parameters: [],
     constraints: [
-      { id: 'con_1', domain: 'composition', statement: '大面积留白，主体置于下三分之一', mode: 'required', sourceIds: ['src_repo'], userOverridable: false },
+      {
+        id: 'con_1',
+        domain: 'composition',
+        statement: '大面积留白，主体置于下三分之一',
+        mode: 'required',
+        sourceIds: ['src_repo'],
+        userOverridable: false,
+      },
     ],
     promptProgram: [
-      { id: 'pm_1', order: 0, kind: 'input-template', template: '为「{{topic}}」设计海报', variables: ['topic'], sourceIds: ['src_repo'] },
-      { id: 'pm_2', order: 1, kind: 'style-rule', template: '极简杂志风，网格排版', variables: [], sourceIds: ['src_repo'] },
+      {
+        id: 'pm_1',
+        order: 0,
+        kind: 'input-template',
+        template: '为「{{topic}}」设计海报',
+        variables: ['topic'],
+        sourceIds: ['src_repo'],
+      },
+      {
+        id: 'pm_2',
+        order: 1,
+        kind: 'style-rule',
+        template: '极简杂志风，网格排版',
+        variables: [],
+        sourceIds: ['src_repo'],
+      },
     ],
     compilation: {
       compiledAt: 1_700_000_000_000,
@@ -36,7 +70,14 @@ function validDocument(): DesignSchemeRevisionDocument {
       omitted: ['需要执行脚本的排版工具'],
       warnings: [],
       briefExcerpt: '做一个杂志海报方案',
-      trace: [{ id: 'analyst', title: 'Repository Analyst 分析仓库', status: 'success', durationMs: 1200 }],
+      trace: [
+        {
+          id: 'analyst',
+          title: 'Repository Analyst 分析仓库',
+          status: 'success',
+          durationMs: 1200,
+        },
+      ],
     },
   };
 }

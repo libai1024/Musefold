@@ -1,4 +1,4 @@
-import type { ImageQuality } from "@musefold/desktop-contracts/enums";
+import type { ImageQuality } from '@musefold/desktop-contracts/enums';
 import {
   ArrowUp,
   Blocks,
@@ -10,20 +10,20 @@ import {
   Search,
   Square,
   Wand2,
-} from "../../../components/ui/icons";
+} from '../../../components/ui/icons';
 import {
   WorkbenchComposerSubmitButton,
   WorkbenchContextMenu,
   WorkbenchGenerationSettingsPopover,
   WorkbenchRatioPicker,
-} from "@musefold/product-ui";
-import { useAppStore } from "../../../stores/app";
-import { REFINE_COUNTS } from "../../../lib/generation-params";
-import { WORKBENCH_PROMPT_LIMIT } from "./store";
-import { SchemeRunPickerPopover } from "@renderer/runtime/scheme-access";
-import { PromptPickerPopover } from "./PromptPickerPopover";
-import { QUALITY_OPTIONS, WORKBENCH_RATIO_OPTIONS } from "./workbench-display";
-import type { WorkbenchComposerViewProps } from "./workbenchComposerViewProps";
+} from '@musefold/product-ui';
+import { useAppStore } from '../../../stores/app';
+import { REFINE_COUNTS } from '../../../lib/generation-params';
+import { WORKBENCH_PROMPT_LIMIT } from './store';
+import { SchemeRunPickerPopover } from '@renderer/runtime/scheme-access';
+import { PromptPickerPopover } from './PromptPickerPopover';
+import { QUALITY_OPTIONS, WORKBENCH_RATIO_OPTIONS } from './workbench-display';
+import type { WorkbenchComposerViewProps } from './workbenchComposerViewProps';
 
 export function workbenchComposerControls(props: WorkbenchComposerViewProps) {
   const {
@@ -70,77 +70,72 @@ export function workbenchComposerControls(props: WorkbenchComposerViewProps) {
         title="添加图片，引用提示词、设计方案或 Skill"
         actions={[
           {
-            id: "add-image",
-            section: "添加",
+            id: 'add-image',
+            section: '添加',
             primary: true,
-            label: "添加图片",
-            hint: "上传、粘贴或拖入",
+            label: '添加图片',
+            hint: '上传、粘贴或拖入',
             icon: <ImagePlus aria-hidden="true" />,
             onSelect: () => void pickImage(),
-            testId: "workbench-context-add-image",
+            testId: 'workbench-context-add-image',
           },
           {
-            id: "ref-prompt",
-            section: "引用",
-            label: "提示词",
-            hint: "从库中引用",
+            id: 'ref-prompt',
+            section: '引用',
+            label: '提示词',
+            hint: '从库中引用',
             icon: <FileText aria-hidden="true" />,
             onSelect: () => setPromptPickerOpen(true),
-            testId: "workbench-context-ref-prompt",
+            testId: 'workbench-context-ref-prompt',
           },
           {
-            id: "ref-scheme",
-            label: "设计方案",
-            hint: "套用视觉方向",
+            id: 'ref-scheme',
+            label: '设计方案',
+            hint: '套用视觉方向',
             icon: <Blocks aria-hidden="true" />,
             onSelect: () => setSchemePickerOpen(true),
           },
           {
-            id: "paste-skill",
-            label: "GitHub Skill",
-            hint: doubaoImageMode ? "粘贴后直传豆包" : "读取设计能力",
+            id: 'paste-skill',
+            label: 'GitHub Skill',
+            hint: doubaoImageMode ? '粘贴后直传豆包' : '读取设计能力',
             icon: <GitBranch aria-hidden="true" />,
             onSelect: () => void importGithubFromClipboard(),
-            testId: "workbench-context-paste-skill",
+            testId: 'workbench-context-paste-skill',
           },
           ...(!doubaoImageMode
             ? [
                 {
-                  id: "design-plan",
-                  section: "Agent",
-                  label: "生成设计方案",
-                  hint: "先出草稿",
+                  id: 'design-plan',
+                  section: 'Agent',
+                  label: '生成设计方案',
+                  hint: '先出草稿',
                   icon: <Wand2 aria-hidden="true" />,
                   onSelect: () => {
-                    setDraftCommand("design-plan");
-                    window.requestAnimationFrame(() =>
-                      textareaRef.current?.focus(),
-                    );
+                    setDraftCommand('design-plan');
+                    window.requestAnimationFrame(() => textareaRef.current?.focus());
                   },
-                  testId: "composer-menu-design-plan",
+                  testId: 'composer-menu-design-plan',
                 },
                 {
-                  id: "history-source",
-                  label: "从历史内容创建",
-                  hint: "自行选择来源",
+                  id: 'history-source',
+                  label: '从历史内容创建',
+                  hint: '自行选择来源',
                   icon: <History aria-hidden="true" />,
                   onSelect: () => setHistorySourceOpen(true),
                 },
                 {
-                  id: "find-scheme",
-                  label: "寻找设计方案",
-                  hint: "打开方案库",
+                  id: 'find-scheme',
+                  label: '寻找设计方案',
+                  hint: '打开方案库',
                   icon: <Search aria-hidden="true" />,
-                  onSelect: () =>
-                    useAppStore.getState().setView("design-schemes"),
+                  onSelect: () => useAppStore.getState().setView('design-schemes'),
                 },
               ]
             : []),
         ]}
       />
-      {schemePickerOpen && (
-        <SchemeRunPickerPopover onClose={() => setSchemePickerOpen(false)} />
-      )}
+      {schemePickerOpen && <SchemeRunPickerPopover onClose={() => setSchemePickerOpen(false)} />}
       {promptPickerOpen && (
         <PromptPickerPopover
           onClose={() => setPromptPickerOpen(false)}
@@ -162,17 +157,15 @@ export function workbenchComposerControls(props: WorkbenchComposerViewProps) {
             count={effectiveImageCount}
             countOptions={REFINE_COUNTS}
             negative={negative}
-            onQualityChange={(quality) =>
-              setParams({ quality: quality as ImageQuality })
-            }
+            onQualityChange={(quality) => setParams({ quality: quality as ImageQuality })}
             onCountChange={(n) => setParams({ n })}
             onNegativeChange={setNegative}
-            managedLabel={doubaoImageMode ? "豆包 · 网页" : undefined}
+            managedLabel={doubaoImageMode ? '豆包 · 网页' : undefined}
             managedDescription={
               doubaoImageMode
                 ? referenceImageCount > 0
-                  ? "编辑结果数量由豆包网页决定，回复文字随图片归组；本地每日最多提交 10 次。"
-                  : "文字生图返回 4 张，图片与回复文字按同一批次归组；本地每日最多提交 10 次。"
+                  ? '编辑结果数量由豆包网页决定，回复文字随图片归组；本地每日最多提交 10 次。'
+                  : '文字生图返回 4 张，图片与回复文字按同一批次归组；本地每日最多提交 10 次。'
                 : undefined
             }
           />
@@ -193,48 +186,43 @@ export function workbenchComposerControls(props: WorkbenchComposerViewProps) {
       active
       disabled={cancelRequested}
       onClick={() => void handleCancel()}
-      activeLabel={cancelRequested ? "正在取消生成" : "停止生成"}
-      activeIcon={
-        cancelRequested ? <Loader2 className="animate-spin" /> : <Square />
-      }
+      activeLabel={cancelRequested ? '正在取消生成' : '停止生成'}
+      activeIcon={cancelRequested ? <Loader2 className="animate-spin" /> : <Square />}
       className="no-drag"
       data-testid="refine-cancel"
       data-workbench-testid="workbench-cancel"
     />
   ) : (
     <WorkbenchComposerSubmitButton
-      disabled={
-        !canSubmit ||
-        (!submissionProvider && !designPlanIntent && !schemeModifyMode)
-      }
+      disabled={!canSubmit || (!submissionProvider && !designPlanIntent && !schemeModifyMode)}
       onClick={handleSubmit}
       idleLabel={
         designPlanIntent
-          ? "创建设计方案"
+          ? '创建设计方案'
           : schemeSource
-            ? schemeSource.mode === "modify"
-              ? "发送修改要求"
-              : schemeSource.mode === "trial"
-                ? "试运行方案"
-                : "按方案生成"
+            ? schemeSource.mode === 'modify'
+              ? '发送修改要求'
+              : schemeSource.mode === 'trial'
+                ? '试运行方案'
+                : '按方案生成'
             : refinementContext
-              ? "提交微调"
+              ? '提交微调'
               : `生成图像，${effectiveImageCount} 张`
       }
       title={
         designPlanIntent
-          ? "创建设计方案（Enter）"
+          ? '创建设计方案（Enter）'
           : schemeSource
-            ? schemeSource.mode === "modify"
-              ? "发送修改要求（Enter）"
-              : schemeSource.mode === "trial"
-                ? "试运行方案（Enter）"
-                : "按方案生成（Enter）"
+            ? schemeSource.mode === 'modify'
+              ? '发送修改要求（Enter）'
+              : schemeSource.mode === 'trial'
+                ? '试运行方案（Enter）'
+                : '按方案生成（Enter）'
             : refinementContext
-              ? "提交微调（Enter）"
+              ? '提交微调（Enter）'
               : submissionProvider
-                ? "生成图像（Enter）"
-                : "请先连接服务商"
+                ? '生成图像（Enter）'
+                : '请先连接服务商'
       }
       idleIcon={<ArrowUp />}
       className="no-drag"

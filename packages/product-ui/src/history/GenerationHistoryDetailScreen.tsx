@@ -124,10 +124,8 @@ export function GenerationHistoryDetailContent({
   );
 }
 
-export interface GenerationHistoryDetailScreenProps extends Omit<
-  GenerationHistoryDetailContentProps,
-  'density'
-> {
+export interface GenerationHistoryDetailScreenProps
+  extends Omit<GenerationHistoryDetailContentProps, 'density'> {
   onBack: () => void;
   backLabel?: string;
   onReuse?: () => void;

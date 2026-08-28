@@ -28,7 +28,10 @@ interface DiscoveryFileShape {
  * 与 Electron 的 userData 路径算法对齐。当前 0.5 安装包由根包名派生为
  * `musefold-app`；旧版曾使用 `Musefold` / `musefold`，保留回退以兼容已有数据。
  */
-export function candidateDataDirs(env: NodeJS.ProcessEnv = process.env, platform = process.platform): string[] {
+export function candidateDataDirs(
+  env: NodeJS.ProcessEnv = process.env,
+  platform = process.platform,
+): string[] {
   const explicit = env.MUSEFOLD_DATA_DIR;
   if (explicit) return [explicit];
   const home = homedir();
@@ -46,12 +49,18 @@ export function candidateDataDirs(env: NodeJS.ProcessEnv = process.env, platform
 
 function readDiscovery(dataDir: string): DiscoveryFileShape | null {
   try {
-    const parsed = JSON.parse(readFileSync(join(dataDir, 'automation.json'), 'utf8')) as Partial<DiscoveryFileShape>;
+    const parsed = JSON.parse(
+      readFileSync(join(dataDir, 'automation.json'), 'utf8'),
+    ) as Partial<DiscoveryFileShape>;
     if (
-      parsed.version !== 1 || parsed.apiVersion !== 'v1' ||
-      typeof parsed.port !== 'number' || parsed.port <= 0 ||
-      typeof parsed.token !== 'string' || !parsed.token
-    ) return null;
+      parsed.version !== 1 ||
+      parsed.apiVersion !== 'v1' ||
+      typeof parsed.port !== 'number' ||
+      parsed.port <= 0 ||
+      typeof parsed.token !== 'string' ||
+      !parsed.token
+    )
+      return null;
     return parsed as DiscoveryFileShape;
   } catch {
     return null;
@@ -74,14 +83,23 @@ export async function discoverEndpoint(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<DiscoveredEndpoint | null> {
   if (env.MUSEFOLD_ENDPOINT && env.MUSEFOLD_TOKEN) {
-    return { endpoint: env.MUSEFOLD_ENDPOINT.replace(/\/$/, ''), token: env.MUSEFOLD_TOKEN, source: 'env' };
+    return {
+      endpoint: env.MUSEFOLD_ENDPOINT.replace(/\/$/, ''),
+      token: env.MUSEFOLD_TOKEN,
+      source: 'env',
+    };
   }
   for (const dataDir of candidateDataDirs(env)) {
     const document = readDiscovery(dataDir);
     if (!document) continue;
     const endpoint = `http://127.0.0.1:${document.port}`;
     if (await alive(endpoint, document.token)) {
-      return { endpoint, token: document.token, source: join(dataDir, 'automation.json'), owner: document.owner };
+      return {
+        endpoint,
+        token: document.token,
+        source: join(dataDir, 'automation.json'),
+        owner: document.owner,
+      };
     }
   }
   return null;

@@ -13,7 +13,10 @@ const GITHUB_SEGMENT = /^[A-Za-z0-9_.-]+$/;
 
 function decodePathSegments(pathname: string): string[] | null {
   try {
-    const segments = pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+    const segments = pathname
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment));
     return segments.some((segment) => segment === '.' || segment === '..') ? null : segments;
   } catch {
     return null;

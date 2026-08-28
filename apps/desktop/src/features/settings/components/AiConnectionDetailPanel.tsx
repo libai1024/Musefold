@@ -5,10 +5,7 @@
 // 预设网格与 API Key 字段块在 AiConnectionDialogParts;模型分组在 AiConnectionModelSection;
 // 底部操作条与分组标题复用 MasterDetail 的 PanelActions / PanelSectionTitle(与生图面板同构)。
 import { useEffect, useState, type ReactNode } from 'react';
-import type {
-  AiConnectionPreset,
-  AiConnectionProfile,
-} from '@musefold/desktop-contracts/ai';
+import type { AiConnectionPreset, AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 import { Check, KeyRound, Trash2 } from '../../../components/ui/icons';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';

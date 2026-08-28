@@ -153,12 +153,12 @@ export function WebSettingsView({
       onSectionChange={(next) => onSectionChange(next as WebSettingsSection)}
       searchValue={search}
       onSearchChange={setSearch}
-      headerAction={(
+      headerAction={
         <button type="button" className="mf-settings-header-action-button" onClick={onBack}>
           <ArrowLeft aria-hidden="true" />
           返回工作区
         </button>
-      )}
+      }
     >
       <div className="mf-settings-content">
         {section === 'account' ? (

@@ -5,11 +5,7 @@
  * 事件是 UI 展示与恢复的事实源（开发规范 §11）。
  */
 import type { AppResult } from '@musefold/domain/app-result';
-import type {
-  DesignSchemeRevisionDocument,
-  Fidelity,
-  SchemeStatus,
-} from './design-scheme/schema';
+import type { DesignSchemeRevisionDocument, Fidelity, SchemeStatus } from './design-scheme/schema';
 import type { GenerateImageRequest, GenerateImageResult } from './providers';
 
 /** 与 SkillRuntimeTraceItem 同构，便于复用对话轨迹渲染组件。 */
@@ -279,7 +275,9 @@ export interface MarketSearchResult {
 
 export interface DesignSchemeApi {
   /** 启动创建管线；Promise 在终态（草稿就绪/失败/取消）时结算，过程经事件推送。 */
-  startCreation: (request: StartDesignSchemeCreationRequest) => Promise<AppResult<DesignSchemeCreationResult>>;
+  startCreation: (
+    request: StartDesignSchemeCreationRequest,
+  ) => Promise<AppResult<DesignSchemeCreationResult>>;
   /** 响应安装确认层；accept=false 时管线以 cancelled 收尾且不丢 Composer 内容。 */
   confirmInstall: (executionId: string, accept: boolean) => Promise<{ ok: true }>;
   cancelCreation: (executionId: string) => Promise<{ ok: true }>;
@@ -307,7 +305,9 @@ export interface DesignSchemeApi {
   /** 「查看来源」：当前 revision 绑定的来源快照与固化文件清单。 */
   listSourceFiles: (schemeId: string) => Promise<AppResult<DesignSchemeSourceSnapshotDetail[]>>;
   /** 修改方案：Agent 更新草稿（新 revision）/ 为正式方案产出待验证草稿，过程经事件推送。 */
-  startModify: (request: StartDesignSchemeModifyRequest) => Promise<AppResult<DesignSchemeCreationResult>>;
+  startModify: (
+    request: StartDesignSchemeModifyRequest,
+  ) => Promise<AppResult<DesignSchemeCreationResult>>;
   cancelModify: (executionId: string) => Promise<{ ok: true }>;
   /** 正式方案：待验证草稿完成试运行后由用户确认替换当前正式版本。 */
   promoteWorkingDraft: (schemeId: string) => Promise<AppResult<DesignSchemeSummary>>;
@@ -316,7 +316,10 @@ export interface DesignSchemeApi {
   /** 发现页市场搜索（Explorer）：只在用户显式发起时运行，结果写候选缓存。 */
   marketSearch: (query: string) => Promise<AppResult<MarketSearchResult>>;
   /** 导出正式方案为 .musefold.design 分享包；不传 targetPath 时弹系统保存框。 */
-  exportScheme: (schemeId: string, targetPath?: string) => Promise<AppResult<DesignSchemeExportOutcome>>;
+  exportScheme: (
+    schemeId: string,
+    targetPath?: string,
+  ) => Promise<AppResult<DesignSchemeExportOutcome>>;
   /** 导入 .musefold.design 分享包为新草稿；不传 sourcePath 时弹系统选择框。 */
   importScheme: (sourcePath?: string) => Promise<AppResult<DesignSchemeImportOutcome>>;
   onEvent: (cb: (event: DesignSchemeCreationEvent) => void) => () => void;

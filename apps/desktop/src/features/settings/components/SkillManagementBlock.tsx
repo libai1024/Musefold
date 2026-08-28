@@ -113,9 +113,11 @@ export function SkillManagementBlock({
         />
       </div>
       {integration?.skills.checkError && (
-        <p className="settings-integration-item-error mt-2 text-meta" data-testid="integration-skill-error">
-          {integration.skills.checkError}；仍可安装 App 内置版本{' '}
-          {integration.skills.bundledVersion}
+        <p
+          className="settings-integration-item-error mt-2 text-meta"
+          data-testid="integration-skill-error"
+        >
+          {integration.skills.checkError}；仍可安装 App 内置版本 {integration.skills.bundledVersion}
         </p>
       )}
       <code

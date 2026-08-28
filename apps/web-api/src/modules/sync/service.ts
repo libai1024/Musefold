@@ -1,5 +1,5 @@
-import { sql, type Kysely } from "kysely";
-import { ZodError } from "zod";
+import { sql, type Kysely } from 'kysely';
+import { ZodError } from 'zod';
 import {
   newPromptDocumentSchema,
   newPromptFolderSchema,
@@ -17,23 +17,17 @@ import {
   type SyncUsageEvent,
   type SyncUsageEventResult,
   type SyncUsagePushResult,
-} from "@musefold/contracts";
-import type { MusefoldDatabase } from "../../database/types.js";
-import {
-  withOwnerTransaction,
-  type OwnerTransaction,
-} from "../../database/owner-context.js";
-import { AppError } from "../../errors.js";
-import type { PromptServicePort } from "../prompts/service.js";
+} from '@musefold/contracts';
+import type { MusefoldDatabase } from '../../database/types.js';
+import { withOwnerTransaction, type OwnerTransaction } from '../../database/owner-context.js';
+import { AppError } from '../../errors.js';
+import type { PromptServicePort } from '../prompts/service.js';
 
 export interface SyncServicePort {
-  registerDevice(
-    ownerId: number,
-    input: SyncDeviceRegistration,
-  ): Promise<SyncDevice>;
+  registerDevice(ownerId: number, input: SyncDeviceRegistration): Promise<SyncDevice>;
   bootstrap(
     ownerId: number,
-    entity: "prompt" | "folder" | "tag",
+    entity: 'prompt' | 'folder' | 'tag',
     after: string | undefined,
     limit: number,
   ): Promise<SyncBootstrapPage>;
@@ -43,11 +37,7 @@ export interface SyncServicePort {
     limit: number,
     deviceId?: string,
   ): Promise<{ changes: SyncChange[]; nextCursor: string; hasMore: boolean }>;
-  push(
-    ownerId: number,
-    deviceId: string,
-    mutations: SyncMutation[],
-  ): Promise<SyncPushResult>;
+  push(ownerId: number, deviceId: string, mutations: SyncMutation[]): Promise<SyncPushResult>;
   pushUsage(
     ownerId: number,
     deviceId: string,
@@ -66,7 +56,7 @@ export interface SyncServicePort {
 type DeviceRow = {
   id: string;
   name: string;
-  platform: SyncDevice["platform"];
+  platform: SyncDevice['platform'];
   client_version: string;
   last_pull_seq: string;
   last_seen_at: Date | string;
@@ -74,9 +64,9 @@ type DeviceRow = {
 };
 
 type StoredMutationRow = {
-  result_status: SyncMutationResult["status"];
+  result_status: SyncMutationResult['status'];
   result_version: number | null;
-  result_snapshot: SyncMutationResult["snapshot"];
+  result_snapshot: SyncMutationResult['snapshot'];
   error_code: string | null;
 };
 
@@ -86,21 +76,14 @@ export class SyncService implements SyncServicePort {
     private readonly prompts: PromptServicePort,
   ) {}
 
-  async registerDevice(
-    ownerId: number,
-    input: SyncDeviceRegistration,
-  ): Promise<SyncDevice> {
+  async registerDevice(ownerId: number, input: SyncDeviceRegistration): Promise<SyncDevice> {
     return withOwnerTransaction(this.db, ownerId, async (trx) => {
       const existing =
         await sql<DeviceRow>`SELECT id, name, platform, client_version, last_pull_seq, last_seen_at, revoked_at FROM app.sync_devices WHERE owner_id = ${ownerId} AND id = ${input.deviceId}`.execute(
           trx,
         );
       if (existing.rows[0]?.revoked_at)
-        throw new AppError(
-          "VALIDATION_FAILED",
-          "该设备已撤销，请使用新的设备标识",
-          409,
-        );
+        throw new AppError('VALIDATION_FAILED', '该设备已撤销，请使用新的设备标识', 409);
       await sql`
         INSERT INTO app.sync_devices(owner_id, id, name, platform, client_version)
         VALUES (${ownerId}, ${input.deviceId}, ${input.name}, ${input.platform}, ${input.clientVersion})
@@ -116,7 +99,7 @@ export class SyncService implements SyncServicePort {
 
   async bootstrap(
     ownerId: number,
-    entity: "prompt" | "folder" | "tag",
+    entity: 'prompt' | 'folder' | 'tag',
     after: string | undefined,
     limit: number,
   ): Promise<SyncBootstrapPage> {
@@ -126,19 +109,17 @@ export class SyncService implements SyncServicePort {
       async (trx) => {
         const cursorResult = await sql<{
           cursor: string;
-        }>`SELECT COALESCE(max(seq), 0)::text AS cursor FROM app.sync_changes`.execute(
-          trx,
-        );
-        const snapshotCursor = cursorResult.rows[0]?.cursor ?? "0";
-        const afterValue = after ?? "";
+        }>`SELECT COALESCE(max(seq), 0)::text AS cursor FROM app.sync_changes`.execute(trx);
+        const snapshotCursor = cursorResult.rows[0]?.cursor ?? '0';
+        const afterValue = after ?? '';
         const ids =
-          entity === "prompt"
+          entity === 'prompt'
             ? await sql<{
                 id: string;
               }>`SELECT id FROM app.prompts WHERE id > ${afterValue} ORDER BY id LIMIT ${limit + 1}`.execute(
                 trx,
               )
-            : entity === "folder"
+            : entity === 'folder'
               ? await sql<{
                   id: string;
                 }>`SELECT id FROM app.prompt_folders WHERE id > ${afterValue} ORDER BY id LIMIT ${limit + 1}`.execute(
@@ -153,30 +134,20 @@ export class SyncService implements SyncServicePort {
         const rows = hasMore ? ids.rows.slice(0, limit) : ids.rows;
         const context = { transaction: trx };
         const items =
-          entity === "prompt"
-            ? await Promise.all(
-                rows.map((row) =>
-                  this.prompts.getPrompt(ownerId, row.id, context),
-                ),
-              )
-            : entity === "folder"
+          entity === 'prompt'
+            ? await Promise.all(rows.map((row) => this.prompts.getPrompt(ownerId, row.id, context)))
+            : entity === 'folder'
               ? await Promise.all(
-                  rows.map((row) =>
-                    this.prompts.getFolder(ownerId, row.id, context),
-                  ),
+                  rows.map((row) => this.prompts.getFolder(ownerId, row.id, context)),
                 )
-              : await Promise.all(
-                  rows.map((row) =>
-                    this.prompts.getTag(ownerId, row.id, context),
-                  ),
-                );
+              : await Promise.all(rows.map((row) => this.prompts.getTag(ownerId, row.id, context)));
         return {
           snapshotCursor,
           items,
           nextPage: hasMore && rows.at(-1) ? rows.at(-1)!.id : null,
         };
       },
-      { isolationLevel: "repeatable read" },
+      { isolationLevel: 'repeatable read' },
     );
   }
 
@@ -196,26 +167,18 @@ export class SyncService implements SyncServicePort {
           COALESCE((SELECT min_available_cursor FROM app.sync_retention_state LIMIT 1), 0)::text AS min_available_cursor,
           (SELECT max(seq)::text FROM app.sync_changes) AS max_seq
       `.execute(trx);
-      const minAvailableCursor = BigInt(
-        boundary.rows[0]?.min_available_cursor ?? "0",
-      );
-      const maxSeq = boundary.rows[0]?.max_seq
-        ? BigInt(boundary.rows[0].max_seq)
-        : numericCursor;
+      const minAvailableCursor = BigInt(boundary.rows[0]?.min_available_cursor ?? '0');
+      const maxSeq = boundary.rows[0]?.max_seq ? BigInt(boundary.rows[0].max_seq) : numericCursor;
       if (deviceId) await this.assertActiveDeviceTx(trx, ownerId, deviceId);
       if (numericCursor < minAvailableCursor)
-        throw new AppError(
-          "SYNC_CURSOR_EXPIRED",
-          "同步游标已过期，请重新执行全量同步",
-          410,
-        );
+        throw new AppError('SYNC_CURSOR_EXPIRED', '同步游标已过期，请重新执行全量同步', 410);
       const result = await sql<{
         seq: string;
-        entity_type: SyncChange["entityType"];
+        entity_type: SyncChange['entityType'];
         entity_id: string;
-        operation: SyncChange["operation"];
+        operation: SyncChange['operation'];
         entity_version: number;
-        snapshot: SyncChange["snapshot"];
+        snapshot: SyncChange['snapshot'];
       }>`
         SELECT seq::text, entity_type, entity_id, operation, entity_version, snapshot
         FROM app.sync_changes WHERE seq > ${numericCursor.toString()} ORDER BY seq LIMIT ${limit + 1}
@@ -274,8 +237,8 @@ export class SyncService implements SyncServicePort {
           if (!prompt.rows[0]) {
             return {
               eventId: event.eventId,
-              status: "rejected",
-              errorCode: "PROMPT_NOT_FOUND",
+              status: 'rejected',
+              errorCode: 'PROMPT_NOT_FOUND',
             } satisfies SyncUsageEventResult;
           }
           const inserted = await sql<{ id: string }>`
@@ -287,7 +250,7 @@ export class SyncService implements SyncServicePort {
           if (!inserted.rows[0]) {
             return {
               eventId: event.eventId,
-              status: "duplicate",
+              status: 'duplicate',
               errorCode: null,
             } satisfies SyncUsageEventResult;
           }
@@ -298,7 +261,7 @@ export class SyncService implements SyncServicePort {
           `.execute(trx);
           return {
             eventId: event.eventId,
-            status: "applied",
+            status: 'applied',
             errorCode: null,
           } satisfies SyncUsageEventResult;
         }),
@@ -319,9 +282,7 @@ export class SyncService implements SyncServicePort {
       const device = await this.getDeviceTx(trx, deviceId);
       const server = await sql<{
         cursor: string;
-      }>`SELECT COALESCE(max(seq), 0)::text AS cursor FROM app.sync_changes`.execute(
-        trx,
-      );
+      }>`SELECT COALESCE(max(seq), 0)::text AS cursor FROM app.sync_changes`.execute(trx);
       const conflicts = await sql<{
         count: string;
       }>`SELECT count(*)::text AS count FROM app.sync_mutations WHERE device_id = ${deviceId} AND result_status = 'conflict'`.execute(
@@ -329,7 +290,7 @@ export class SyncService implements SyncServicePort {
       );
       return {
         device,
-        serverCursor: server.rows[0]?.cursor ?? "0",
+        serverCursor: server.rows[0]?.cursor ?? '0',
         pendingConflicts: Number(conflicts.rows[0]?.count ?? 0),
       };
     });
@@ -353,7 +314,7 @@ export class SyncService implements SyncServicePort {
       if (duplicate) {
         return {
           mutationId: mutation.mutationId,
-          status: "duplicate",
+          status: 'duplicate',
           version: duplicate.result_version,
           snapshot: duplicate.result_snapshot,
           errorCode: duplicate.error_code,
@@ -364,27 +325,22 @@ export class SyncService implements SyncServicePort {
       try {
         mutationResult = await this.executeMutation(ownerId, mutation, trx);
       } catch (error) {
-        if (
-          error instanceof AppError &&
-          error.code === "PROMPT_VERSION_CONFLICT"
-        ) {
-          const current = error.details
-            .current as SyncMutationResult["snapshot"];
+        if (error instanceof AppError && error.code === 'PROMPT_VERSION_CONFLICT') {
+          const current = error.details.current as SyncMutationResult['snapshot'];
           mutationResult = {
             mutationId: mutation.mutationId,
-            status: "conflict",
-            version: current && "version" in current ? current.version : null,
+            status: 'conflict',
+            version: current && 'version' in current ? current.version : null,
             snapshot: current,
-            errorCode: "SYNC_MUTATION_CONFLICT",
+            errorCode: 'SYNC_MUTATION_CONFLICT',
           };
         } else if (error instanceof AppError || error instanceof ZodError) {
           mutationResult = {
             mutationId: mutation.mutationId,
-            status: "rejected",
+            status: 'rejected',
             version: null,
             snapshot: null,
-            errorCode:
-              error instanceof AppError ? error.code : "VALIDATION_FAILED",
+            errorCode: error instanceof AppError ? error.code : 'VALIDATION_FAILED',
           };
         } else {
           throw error;
@@ -405,36 +361,28 @@ export class SyncService implements SyncServicePort {
     trx: OwnerTransaction,
   ): Promise<SyncMutationResult> {
     const payload = mutation.payload;
-    if (mutation.operation === "create" && mutation.baseVersion !== null)
-      throw new AppError(
-        "VALIDATION_FAILED",
-        "创建 mutation 的 baseVersion 必须为空",
-        400,
-      );
-    if (mutation.operation !== "create" && mutation.baseVersion === null)
-      throw new AppError(
-        "VALIDATION_FAILED",
-        "更新或删除 mutation 缺少 baseVersion",
-        400,
-      );
+    if (mutation.operation === 'create' && mutation.baseVersion !== null)
+      throw new AppError('VALIDATION_FAILED', '创建 mutation 的 baseVersion 必须为空', 400);
+    if (mutation.operation !== 'create' && mutation.baseVersion === null)
+      throw new AppError('VALIDATION_FAILED', '更新或删除 mutation 缺少 baseVersion', 400);
     const context = { transaction: trx };
     let snapshot: PromptDocument | PromptFolder | PromptTag;
-    if (mutation.entityType === "prompt") {
-      if (mutation.operation === "create")
+    if (mutation.entityType === 'prompt') {
+      if (mutation.operation === 'create')
         snapshot = await this.prompts.createPrompt(
           ownerId,
           newPromptDocumentSchema.parse(payload),
           mutation.entityId,
           context,
         );
-      else if (mutation.operation === "update")
+      else if (mutation.operation === 'update')
         snapshot = await this.prompts.updatePrompt(
           ownerId,
           mutation.entityId,
           { ...payload, expectedVersion: mutation.baseVersion! } as never,
           context,
         );
-      else if (mutation.operation === "delete")
+      else if (mutation.operation === 'delete')
         snapshot = await this.prompts.deletePrompt(
           ownerId,
           mutation.entityId,
@@ -448,22 +396,22 @@ export class SyncService implements SyncServicePort {
           mutation.baseVersion!,
           context,
         );
-    } else if (mutation.entityType === "folder") {
-      if (mutation.operation === "create")
+    } else if (mutation.entityType === 'folder') {
+      if (mutation.operation === 'create')
         snapshot = await this.prompts.createFolder(
           ownerId,
           newPromptFolderSchema.parse(payload),
           mutation.entityId,
           context,
         );
-      else if (mutation.operation === "update")
+      else if (mutation.operation === 'update')
         snapshot = await this.prompts.updateFolder(
           ownerId,
           mutation.entityId,
           { ...payload, expectedVersion: mutation.baseVersion! } as never,
           context,
         );
-      else if (mutation.operation === "delete")
+      else if (mutation.operation === 'delete')
         snapshot = await this.prompts.deleteFolder(
           ownerId,
           mutation.entityId,
@@ -478,21 +426,21 @@ export class SyncService implements SyncServicePort {
           context,
         );
     } else {
-      if (mutation.operation === "create")
+      if (mutation.operation === 'create')
         snapshot = await this.prompts.createTag(
           ownerId,
           newPromptTagSchema.parse(payload),
           mutation.entityId,
           context,
         );
-      else if (mutation.operation === "update")
+      else if (mutation.operation === 'update')
         snapshot = await this.prompts.updateTag(
           ownerId,
           mutation.entityId,
           { ...payload, expectedVersion: mutation.baseVersion! } as never,
           context,
         );
-      else if (mutation.operation === "delete")
+      else if (mutation.operation === 'delete')
         snapshot = await this.prompts.deleteTag(
           ownerId,
           mutation.entityId,
@@ -509,23 +457,20 @@ export class SyncService implements SyncServicePort {
     }
     return {
       mutationId: mutation.mutationId,
-      status: "applied",
+      status: 'applied',
       version: snapshot.version,
       snapshot,
       errorCode: null,
     };
   }
 
-  private async getDeviceTx(
-    trx: OwnerTransaction,
-    deviceId: string,
-  ): Promise<SyncDevice> {
+  private async getDeviceTx(trx: OwnerTransaction, deviceId: string): Promise<SyncDevice> {
     const result =
       await sql<DeviceRow>`SELECT id, name, platform, client_version, last_pull_seq, last_seen_at, revoked_at FROM app.sync_devices WHERE id = ${deviceId}`.execute(
         trx,
       );
     const row = result.rows[0];
-    if (!row) throw new AppError("VALIDATION_FAILED", "同步设备不存在", 404);
+    if (!row) throw new AppError('VALIDATION_FAILED', '同步设备不存在', 404);
     return {
       deviceId: row.id,
       name: row.name,
@@ -547,13 +492,11 @@ export class SyncService implements SyncServicePort {
       WHERE owner_id = ${ownerId} AND id = ${deviceId} AND revoked_at IS NULL
       FOR UPDATE
     `.execute(trx);
-    if (!result.rows[0])
-      throw new AppError("VALIDATION_FAILED", "同步设备不存在或已撤销", 409);
+    if (!result.rows[0]) throw new AppError('VALIDATION_FAILED', '同步设备不存在或已撤销', 409);
   }
 }
 
 function parseCursor(cursor: string): bigint {
-  if (!/^\d+$/.test(cursor))
-    throw new AppError("VALIDATION_FAILED", "同步游标无效", 400);
+  if (!/^\d+$/.test(cursor)) throw new AppError('VALIDATION_FAILED', '同步游标无效', 400);
   return BigInt(cursor);
 }

@@ -3,24 +3,29 @@ import type {
   ImageProviderResponseSummary,
   LocalImageReference,
   PromptReference,
-} from "@musefold/desktop-contracts/providers";
-import type { RefineParams } from "../../../lib/generation-params";
+} from '@musefold/desktop-contracts/providers';
+import type { RefineParams } from '../../../lib/generation-params';
 import type {
   GenerationSource,
   SchemeCreationDraftCard,
-} from "@musefold/desktop-contracts/generation-source";
+} from '@musefold/desktop-contracts/generation-source';
 
 export type { GenerationSource, SchemeCreationDraftCard };
 
 export type GenerationTurnStatus =
-  "pending" | "running" | "partial" | "success" | "failed" | "cancelled";
+  | 'pending'
+  | 'running'
+  | 'partial'
+  | 'success'
+  | 'failed'
+  | 'cancelled';
 
 export interface GenerationResultItem {
   id: string;
   jobId: string;
   historyId?: string;
   assetId?: string;
-  status: "pending" | "success" | "failed" | "cancelled";
+  status: 'pending' | 'success' | 'failed' | 'cancelled';
   imagePath?: string;
   cost?: number;
   durationMs?: number;

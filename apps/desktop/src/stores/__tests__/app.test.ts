@@ -18,7 +18,9 @@ function installLocalStorage(initial: Record<string, string> = {}): Map<string, 
     removeItem: (key: string) => values.delete(key),
     clear: () => values.clear(),
     key: (index: number) => [...values.keys()][index] ?? null,
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
   });
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
   return values;
@@ -50,7 +52,9 @@ describe('appearance preferences', () => {
 
     useAppStore.getState().setReducedMotion('off');
     useAppStore.getState().setDensity('comfortable');
-    const persisted = persistStateOf<PersistedAppPreferences>(values.get(APP_PREFERENCES_KEY) ?? null);
+    const persisted = persistStateOf<PersistedAppPreferences>(
+      values.get(APP_PREFERENCES_KEY) ?? null,
+    );
     expect(persisted?.reducedMotion).toBe('off');
     expect(persisted?.density).toBe('comfortable');
     expect(values.has(LEGACY_REDUCED_MOTION_KEY)).toBe(false);

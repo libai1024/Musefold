@@ -29,7 +29,11 @@ import { getDb } from '@musefold/core/db/index';
 import { createSpendAuditService } from '@musefold/core/services/audit';
 import { stageLocalImageBytes } from '@musefold/core/providers/local-image';
 import { trackPetGeneration } from './pet';
-import type { AutomationAuditEntry, AutomationSpendAudit, AutomationStatus } from '@musefold/desktop-contracts/ipc';
+import type {
+  AutomationAuditEntry,
+  AutomationSpendAudit,
+  AutomationStatus,
+} from '@musefold/desktop-contracts/ipc';
 import { createLogger } from '../system/logger';
 import { getPaths } from '../system/paths';
 import { estimateProviderCost } from '../settings/pricing';
@@ -115,15 +119,19 @@ function createElectronGenerationHost(): GenerationHost {
     cancel: (jobId) => core.generation.cancel(jobId),
     estimate(body) {
       const db = getDb();
-      const row = (body.providerId
-        ? db.prepare('SELECT * FROM providers WHERE id = ?').get(body.providerId)
-        : db.prepare('SELECT * FROM providers WHERE is_active = 1 LIMIT 1').get()) as
-        | Record<string, unknown>
-        | undefined;
+      const row = (
+        body.providerId
+          ? db.prepare('SELECT * FROM providers WHERE id = ?').get(body.providerId)
+          : db.prepare('SELECT * FROM providers WHERE is_active = 1 LIMIT 1').get()
+      ) as Record<string, unknown> | undefined;
       if (!row) {
-        throw new CoreError('INVALID_STATE', body.providerId ? '指定的 Provider 不存在' : '没有激活的图像 Provider', {
-          providerId: body.providerId ?? null,
-        });
+        throw new CoreError(
+          'INVALID_STATE',
+          body.providerId ? '指定的 Provider 不存在' : '没有激活的图像 Provider',
+          {
+            providerId: body.providerId ?? null,
+          },
+        );
       }
       const n = body.n ?? 1;
       return {
@@ -142,7 +150,11 @@ function createElectronGenerationHost(): GenerationHost {
     requestConfirmation: (summary) => requestRendererConfirmation(summary),
     authorizeReferencePath: isAllowedReferencePath,
     stageUpload: (bytes, name, mimeType) =>
-      stageLocalImageBytes({ bytes, name, mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp' }),
+      stageLocalImageBytes({
+        bytes,
+        name,
+        mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
+      }),
     resolveHistoryImage(historyId) {
       const row = getDb().prepare('SELECT image_path FROM history WHERE id = ?').get(historyId) as
         | { image_path: string | null }
@@ -192,7 +204,10 @@ async function authorizeExternalSpend(summary: {
 }): Promise<void> {
   if (externalSpendCovered(summary.estimatedPoints, summary.managedByAccount)) return;
   const { managedByAccount: _managedByAccount, ...confirmationSummary } = summary;
-  const confirmation: ConfirmationSummary = { confirmationId: randomUUID(), ...confirmationSummary };
+  const confirmation: ConfirmationSummary = {
+    confirmationId: randomUUID(),
+    ...confirmationSummary,
+  };
   getCoreEventHub().sink.emit({ type: 'confirmation.required', payload: confirmation });
   const verdict = await Promise.race([
     requestRendererConfirmation(confirmation),
@@ -232,7 +247,11 @@ export async function startAutomationServer(): Promise<void> {
     const payload = event.payload as { jobId?: string } | null;
     const jobId = payload && typeof payload === 'object' ? payload.jobId : undefined;
     if (!jobId) return;
-    if (event.type === 'generation.progress' || event.type === 'scheme.run.step' || event.type === 'skill.runtime.delta') {
+    if (
+      event.type === 'generation.progress' ||
+      event.type === 'scheme.run.step' ||
+      event.type === 'skill.runtime.delta'
+    ) {
       broadcastToWindows('automation:activity', { jobId, running: true });
     }
     if (/\.(completed|failed)$/.test(event.type)) {

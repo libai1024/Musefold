@@ -1,9 +1,8 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-export type CloudSyncAvailabilityReason = "signed-out" | "custom-server" | null;
+export type CloudSyncAvailabilityReason = 'signed-out' | 'custom-server' | null;
 
-export type CloudSyncRuntimeStatus =
-  "disabled" | "idle" | "syncing" | "conflict" | "error";
+export type CloudSyncRuntimeStatus = 'disabled' | 'idle' | 'syncing' | 'conflict' | 'error';
 
 export interface CloudSyncAccountSummary {
   ownerId: string;
@@ -25,7 +24,7 @@ export interface CloudSyncSummary {
 
 export interface CloudSyncConflictSummary {
   id: string;
-  entityType: "prompt" | "folder" | "tag";
+  entityType: 'prompt' | 'folder' | 'tag';
   entityId: string;
   localSnapshot: Record<string, unknown>;
   remoteSnapshot: Record<string, unknown>;
@@ -33,12 +32,9 @@ export interface CloudSyncConflictSummary {
   canDuplicate: boolean;
 }
 
-export type CloudSyncConflictResolution = "remote" | "local" | "duplicate";
+export type CloudSyncConflictResolution = 'remote' | 'local' | 'duplicate';
 
-export const cloudSyncErrorCodeSchema = z.enum([
-  "AUTH_REQUIRED",
-  "UNAVAILABLE",
-]);
+export const cloudSyncErrorCodeSchema = z.enum(['AUTH_REQUIRED', 'UNAVAILABLE']);
 
 export type CloudSyncErrorCode = z.infer<typeof cloudSyncErrorCodeSchema>;
 
@@ -47,6 +43,4 @@ export const cloudSyncErrorPayloadSchema = z.object({
   message: z.string().min(1),
 });
 
-export type CloudSyncErrorPayload = z.infer<
-  typeof cloudSyncErrorPayloadSchema
->;
+export type CloudSyncErrorPayload = z.infer<typeof cloudSyncErrorPayloadSchema>;

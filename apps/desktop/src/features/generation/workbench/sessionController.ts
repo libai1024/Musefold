@@ -12,7 +12,9 @@ import type { GenerationTurn } from './types';
 import { getWorkbenchIO } from './io';
 
 export type WorkbenchSessionOperation<T> =
-  { status: 'success'; value: T } | { status: 'stale' } | { status: 'error'; error: unknown };
+  | { status: 'success'; value: T }
+  | { status: 'stale' }
+  | { status: 'error'; error: unknown };
 
 const SESSION_TURNS_CACHE_LIMIT = 12;
 

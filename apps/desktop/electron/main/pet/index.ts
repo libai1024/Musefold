@@ -168,7 +168,7 @@ async function animatePetTo(target: PetPoint): Promise<boolean> {
     const tick = (): void => {
       if (generation !== motionGeneration) return;
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      const eased = 1 - (1 - progress) ** 3;
       setPetWindowPosition(startX + dx * eased, startY + dy * eased);
       if (progress >= 1) finish();
     };
@@ -380,9 +380,9 @@ export function notifyGenerationPending(): void {
  * 包在**调用 core 的 Electron 侧门面**上，而不是包在 core 里 —— core 不该知道
  * 桌宠存在。生成结果原样透传，桌宠出问题也不影响出图。
  */
-export async function trackPetGeneration<
-  T extends { status: 'success' | 'failed' | 'cancelled' },
->(run: () => Promise<T>): Promise<T> {
+export async function trackPetGeneration<T extends { status: 'success' | 'failed' | 'cancelled' }>(
+  run: () => Promise<T>,
+): Promise<T> {
   const settle = notifyGenerationStart();
   try {
     const result = await run();
@@ -445,8 +445,7 @@ export function registerPetHandlers(): void {
       }
       beginPetDrag();
       machine.setState('react-drag', true);
-    }
-    else if (interaction === 'drag-end' && machine.getState() === 'react-drag') {
+    } else if (interaction === 'drag-end' && machine.getState() === 'react-drag') {
       finishPetDrag();
       if (locationState === 'desktop') {
         const point = currentPetPosition();

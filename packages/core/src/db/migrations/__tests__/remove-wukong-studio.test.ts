@@ -70,7 +70,9 @@ describe('0020_remove_wukong_studio', () => {
 
     up(db);
 
-    expect(db.prepare(`SELECT id FROM providers WHERE is_active = 1`).get()).toEqual({ id: 'tvt-1' });
+    expect(db.prepare(`SELECT id FROM providers WHERE is_active = 1`).get()).toEqual({
+      id: 'tvt-1',
+    });
   });
 
   it('leaves an empty provider table intact when only wukong rows existed', () => {

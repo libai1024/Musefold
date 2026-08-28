@@ -24,11 +24,19 @@ const runSpy = vi.fn();
 function capture() {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  return { stdout, stderr, io: { stdout: (l: string) => stdout.push(l), stderr: (l: string) => stderr.push(l) } };
+  return {
+    stdout,
+    stderr,
+    io: { stdout: (l: string) => stdout.push(l), stderr: (l: string) => stderr.push(l) },
+  };
 }
 
 function run(argv: string[], io: ReturnType<typeof capture>) {
-  return runCli([...argv, '--endpoint', `http://127.0.0.1:${info.port}`, '--token', info.token], io.io, {});
+  return runCli(
+    [...argv, '--endpoint', `http://127.0.0.1:${info.port}`, '--token', info.token],
+    io.io,
+    {},
+  );
 }
 
 beforeAll(async () => {
@@ -39,18 +47,40 @@ beforeAll(async () => {
   const hub = createEventHub();
   const gate = createGenerationGate(
     {
-      run: runSpy.mockImplementation(async (req: { jobId?: string }, onProgress: (p: unknown) => void): Promise<GenerateImageResult> => {
-        onProgress({ phase: 'generating', percent: 50 });
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        return { historyId: req.jobId ?? 'his-x', status: 'success', imagePath: assetPath, cost: 18, durationMs: 30 };
-      }),
+      run: runSpy.mockImplementation(
+        async (
+          req: { jobId?: string },
+          onProgress: (p: unknown) => void,
+        ): Promise<GenerateImageResult> => {
+          onProgress({ phase: 'generating', percent: 50 });
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return {
+            historyId: req.jobId ?? 'his-x',
+            status: 'success',
+            imagePath: assetPath,
+            cost: 18,
+            durationMs: 30,
+          };
+        },
+      ),
       cancel: vi.fn(() => true),
-      estimate: vi.fn(() => ({ points: 18, managedByAccount: true, providerId: 'prov', providerName: '测试站', model: 'gpt-image-2', n: 1 })),
+      estimate: vi.fn(() => ({
+        points: 18,
+        managedByAccount: true,
+        providerId: 'prov',
+        providerName: '测试站',
+        model: 'gpt-image-2',
+        n: 1,
+      })),
       budget: { remainingPoints: () => 0, settle: vi.fn() },
       requestConfirmation: vi.fn(async () => 'denied' as const),
       authorizeReferencePath: () => true,
       stageUpload: vi.fn(async (bytes: Buffer, name: string) => ({
-        path: join(root, name), name, source: 'upload' as const, mimeType: 'image/png' as const, sizeBytes: bytes.length,
+        path: join(root, name),
+        name,
+        source: 'upload' as const,
+        mimeType: 'image/png' as const,
+        sizeBytes: bytes.length,
       })),
       resolveHistoryImage: () => null,
     },
@@ -58,7 +88,12 @@ beforeAll(async () => {
   );
 
   server = createAutomationServer({
-    core: { version: '0.1.0', status: { snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }) } },
+    core: {
+      version: '0.1.0',
+      status: {
+        snapshot: () => ({ prompts: 0, formalSchemes: 0, providers: 0, activeProviderId: null }),
+      },
+    },
     events: hub,
     dataDir: root,
     owner: 'desktop-app',
@@ -86,17 +121,22 @@ describe('musefold generate', () => {
 
   it('多图 Provider：JSON 结果保留全部 assets', async () => {
     const paths = [assetPath, `${assetPath}-2`, `${assetPath}-3`, `${assetPath}-4`];
-    runSpy.mockImplementationOnce(async (req: { jobId?: string }, onProgress: (p: unknown) => void): Promise<GenerateImageResult> => {
-      onProgress({ phase: 'generating', percent: 50 });
-      return {
-        historyId: req.jobId ?? 'his-multi',
-        status: 'success',
-        imagePath: paths[0],
-        images: paths.map((imagePath) => ({ imagePath })),
-        cost: 0,
-        durationMs: 30,
-      };
-    });
+    runSpy.mockImplementationOnce(
+      async (
+        req: { jobId?: string },
+        onProgress: (p: unknown) => void,
+      ): Promise<GenerateImageResult> => {
+        onProgress({ phase: 'generating', percent: 50 });
+        return {
+          historyId: req.jobId ?? 'his-multi',
+          status: 'success',
+          imagePath: paths[0],
+          images: paths.map((imagePath) => ({ imagePath })),
+          cost: 0,
+          durationMs: 30,
+        };
+      },
+    );
     const io = capture();
     const code = await run(['generate', '-p', '豆包四图', '-y', '--json'], io);
     expect(code).toBe(EXIT.OK);
@@ -114,18 +154,23 @@ describe('musefold generate', () => {
   });
 
   it('账号成本在人类输出中使用积分', async () => {
-    runSpy.mockImplementationOnce(async (req: { jobId?: string }, onProgress: (p: unknown) => void): Promise<GenerateImageResult> => {
-      onProgress({ phase: 'generating', percent: 50 });
-      return {
-        historyId: req.jobId ?? 'his-account',
-        status: 'success',
-        imagePath: assetPath,
-        cost: 1.2,
-        costUnit: 'point',
-        costPoints: 1.2,
-        durationMs: 30,
-      };
-    });
+    runSpy.mockImplementationOnce(
+      async (
+        req: { jobId?: string },
+        onProgress: (p: unknown) => void,
+      ): Promise<GenerateImageResult> => {
+        onProgress({ phase: 'generating', percent: 50 });
+        return {
+          historyId: req.jobId ?? 'his-account',
+          status: 'success',
+          imagePath: assetPath,
+          cost: 1.2,
+          costUnit: 'point',
+          costPoints: 1.2,
+          durationMs: 30,
+        };
+      },
+    );
     const io = capture();
     const code = await run(['generate', '-p', '账号点数', '-y'], io);
     expect(code).toBe(EXIT.OK);
@@ -133,18 +178,23 @@ describe('musefold generate', () => {
   });
 
   it('账号 JSON 只返回积分口径', async () => {
-    runSpy.mockImplementationOnce(async (req: { jobId?: string }, onProgress: (p: unknown) => void): Promise<GenerateImageResult> => {
-      onProgress({ phase: 'generating', percent: 50 });
-      return {
-        historyId: req.jobId ?? 'his-account-json',
-        status: 'success',
-        imagePath: assetPath,
-        cost: 1.2,
-        costUnit: 'point',
-        costPoints: 1.2,
-        durationMs: 30,
-      };
-    });
+    runSpy.mockImplementationOnce(
+      async (
+        req: { jobId?: string },
+        onProgress: (p: unknown) => void,
+      ): Promise<GenerateImageResult> => {
+        onProgress({ phase: 'generating', percent: 50 });
+        return {
+          historyId: req.jobId ?? 'his-account-json',
+          status: 'success',
+          imagePath: assetPath,
+          cost: 1.2,
+          costUnit: 'point',
+          costPoints: 1.2,
+          durationMs: 30,
+        };
+      },
+    );
     const io = capture();
     const code = await run(['generate', '-p', '账号点数 JSON', '-y', '--json'], io);
     expect(code).toBe(EXIT.OK);

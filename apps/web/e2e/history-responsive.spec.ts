@@ -25,7 +25,9 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 }
 
-test('history filters clear back to the default view without horizontal overflow', async ({ page }) => {
+test('history filters clear back to the default view without horizontal overflow', async ({
+  page,
+}) => {
   await openFixtureHistory(page, 1280, 720);
   const filter = page.getByTestId('history-filter-bar');
   await expect(filter).toBeVisible();
@@ -59,7 +61,6 @@ test('1280 keeps the list and occupying inspector layout', async ({ page }) => {
   expect(geometry.listWidth + geometry.inspectorWidth).toBeCloseTo(geometry.workspaceWidth, 0);
   await expectNoHorizontalOverflow(page);
 });
-
 
 test('390 opens a modal bottom sheet and restores the opening row focus', async ({ page }) => {
   await openFixtureHistory(page, 390, 844);

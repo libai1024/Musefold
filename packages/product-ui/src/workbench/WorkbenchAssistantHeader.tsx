@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 export interface WorkbenchAssistantHeaderProps {
   label: ReactNode;
@@ -13,14 +13,9 @@ export function WorkbenchAssistantHeader({
   className,
 }: WorkbenchAssistantHeaderProps) {
   return (
-    <div
-      className={["mf-workbench-assistant-header", className]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <div className={['mf-workbench-assistant-header', className].filter(Boolean).join(' ')}>
       <strong>{label}</strong>
       {detail ? <span>· {detail}</span> : null}
     </div>
   );
 }
-

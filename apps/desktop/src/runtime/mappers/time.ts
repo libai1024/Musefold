@@ -22,11 +22,7 @@ export function parseOffsetCursor(cursor: string | undefined): number {
   return Number.isFinite(offset) && offset >= 0 ? offset : 0;
 }
 
-export function resolvePageLimit(
-  limit: unknown,
-  fallback = 20,
-  max = 100,
-): number {
+export function resolvePageLimit(limit: unknown, fallback = 20, max = 100): number {
   const value = typeof limit === 'number' ? limit : Number(limit);
   if (!Number.isFinite(value)) return fallback;
   return Math.min(Math.max(Math.trunc(value), 1), max);

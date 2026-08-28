@@ -38,7 +38,9 @@ describe('provider retry policy', () => {
       throw errorWithStatus(503);
     });
 
-    await expect(withRetry(operation, { sleep, random: () => 0 })).rejects.toMatchObject({ status: 503 });
+    await expect(withRetry(operation, { sleep, random: () => 0 })).rejects.toMatchObject({
+      status: 503,
+    });
     expect(operation).toHaveBeenCalledTimes(4);
     expect(sleep.mock.calls.map((call) => (call as unknown[])[0])).toEqual([1000, 2000, 4000]);
   });

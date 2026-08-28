@@ -6,7 +6,10 @@ import { ConnectedAppsSection } from './ConnectedAppsSection';
 
 export function OpenCapabilitiesSection() {
   return (
-    <SectionShell title="开放能力" description="把 Musefold 的能力开放给本机 Agent、脚本与已连接的 AI 客户端。">
+    <SectionShell
+      title="开放能力"
+      description="把 Musefold 的能力开放给本机 Agent、脚本与已连接的 AI 客户端。"
+    >
       <AutomationSection />
       <ConnectedAppsSection />
     </SectionShell>

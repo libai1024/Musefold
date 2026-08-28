@@ -12,8 +12,9 @@ describe('workbench session IPC runtime errors', () => {
     );
 
     expect(isWorkbenchSessionRuntimeMismatch(error)).toBe(true);
-    expect(workbenchSessionErrorMessage(error, '加载对话失败'))
-      .toBe(WORKBENCH_SESSION_RESTART_REQUIRED);
+    expect(workbenchSessionErrorMessage(error, '加载对话失败')).toBe(
+      WORKBENCH_SESSION_RESTART_REQUIRED,
+    );
   });
 
   it('preserves ordinary session errors', () => {

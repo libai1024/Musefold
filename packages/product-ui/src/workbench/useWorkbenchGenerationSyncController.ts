@@ -1,10 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo } from 'react';
 import {
   activeWorkbenchGenerationSnapshots,
   isWorkbenchGenerationActive,
   type WorkbenchGenerationSnapshot,
   type WorkbenchGenerationStatus,
-} from "./generationSnapshots";
+} from './generationSnapshots';
 
 export interface WorkbenchGenerationEventCursor {
   seq: number;
@@ -47,7 +47,7 @@ export function useWorkbenchGenerationSyncController<
       activeWorkbenchGenerationSnapshots(jobs)
         .map((job) => job.id)
         .sort()
-        .join("\u0000"),
+        .join('\u0000'),
     [jobs],
   );
 
@@ -61,9 +61,9 @@ export function useWorkbenchGenerationSyncController<
       if (stopped) return;
       if (
         error &&
-        typeof error === "object" &&
-        "code" in error &&
-        ["AUTH_REQUIRED", "AUTH_SESSION_EXPIRED"].includes(
+        typeof error === 'object' &&
+        'code' in error &&
+        ['AUTH_REQUIRED', 'AUTH_SESSION_EXPIRED'].includes(
           String((error as { code?: unknown }).code),
         )
       ) {
@@ -73,7 +73,7 @@ export function useWorkbenchGenerationSyncController<
       onError?.(error);
     };
 
-    for (const jobId of activeJobIds.split("\u0000")) {
+    for (const jobId of activeJobIds.split('\u0000')) {
       let lastEventId = 0;
       let retryDelay = 500;
 

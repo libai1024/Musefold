@@ -56,9 +56,15 @@ export function readDiscoveryFile(dataDir: string): DiscoveryDocument | null {
     if (
       parsed.version !== 1 ||
       parsed.apiVersion !== 'v1' ||
-      typeof parsed.pid !== 'number' || !Number.isInteger(parsed.pid) || parsed.pid <= 0 ||
-      typeof parsed.port !== 'number' || !Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535 ||
-      typeof parsed.token !== 'string' || parsed.token.length === 0 ||
+      typeof parsed.pid !== 'number' ||
+      !Number.isInteger(parsed.pid) ||
+      parsed.pid <= 0 ||
+      typeof parsed.port !== 'number' ||
+      !Number.isInteger(parsed.port) ||
+      parsed.port <= 0 ||
+      parsed.port > 65535 ||
+      typeof parsed.token !== 'string' ||
+      parsed.token.length === 0 ||
       (parsed.owner !== 'desktop-app' && parsed.owner !== 'headless-daemon') ||
       typeof parsed.appVersion !== 'string' ||
       typeof parsed.startedAt !== 'string'

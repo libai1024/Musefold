@@ -14,9 +14,7 @@ export function OnboardingHeader({
   onClose: () => void;
 }) {
   return (
-    <header
-      className="mf-onboarding-header"
-    >
+    <header className="mf-onboarding-header">
       <div className="mf-onboarding-header-start">
         {step === 1 ? (
           <span className="mf-onboarding-first-badge">首次设置</span>
@@ -96,14 +94,30 @@ export function OptionGroup({ label, children }: { label: string; children: Reac
   );
 }
 
-export function ValidationLine({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+export function ValidationLine({
+  label,
+  ok,
+  detail,
+}: {
+  label: string;
+  ok: boolean;
+  detail: string;
+}) {
   return (
     <div className="flex items-center gap-3 py-3.5 text-left">
-      {ok
-        ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-        : <AlertCircle className="h-4 w-4 shrink-0 text-danger" />}
+      {ok ? (
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+      ) : (
+        <AlertCircle className="h-4 w-4 shrink-0 text-danger" />
+      )}
       <span className="min-w-0 flex-1 text-[12px] font-medium text-primary">{label}</span>
-      <span className={cn('max-w-[58%] break-words text-right text-meta leading-relaxed', ok ? 'text-tertiary' : 'text-danger')} title={detail}>
+      <span
+        className={cn(
+          'max-w-[58%] break-words text-right text-meta leading-relaxed',
+          ok ? 'text-tertiary' : 'text-danger',
+        )}
+        title={detail}
+      >
         {detail}
       </span>
     </div>

@@ -1,10 +1,6 @@
 import { EventEmitter } from 'events';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  installConsoleOutputGuards,
-  isBrokenPipeError,
-  writeConsoleLine,
-} from '../console-output';
+import { installConsoleOutputGuards, isBrokenPipeError, writeConsoleLine } from '../console-output';
 
 class FakeOutputStream extends EventEmitter {
   destroyed = false;

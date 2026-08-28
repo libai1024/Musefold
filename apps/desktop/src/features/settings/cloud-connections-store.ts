@@ -4,10 +4,7 @@
 
 import { create } from 'zustand';
 import type { AccountGateway } from '@musefold/domain';
-import type {
-  McpConnectionPage,
-  UpdateMcpConnection,
-} from '@musefold/contracts';
+import type { McpConnectionPage, UpdateMcpConnection } from '@musefold/contracts';
 import { desktopGateway } from '../../runtime';
 
 const EMPTY_CONNECTIONS: McpConnectionPage = { items: [] };
@@ -41,12 +38,13 @@ export const useCloudConnectionsStore = create<CloudConnectionsState>((set, get)
   loading: false,
   error: null,
 
-  clear: () => set({
-    connections: EMPTY_CONNECTIONS,
-    loaded: false,
-    loading: false,
-    error: null,
-  }),
+  clear: () =>
+    set({
+      connections: EMPTY_CONNECTIONS,
+      loaded: false,
+      loading: false,
+      error: null,
+    }),
 
   load: async () => {
     if (get().loading) return get().connections;

@@ -2,10 +2,7 @@ import type {
   DesktopGenerationEntry,
   DesktopRelatedHistoryResult,
 } from '@musefold/desktop-contracts/history-documents';
-import type {
-  HistoryLinkPromptResult,
-  RelatedHistoryQuery,
-} from '@musefold/desktop-contracts/ipc';
+import type { HistoryLinkPromptResult, RelatedHistoryQuery } from '@musefold/desktop-contracts/ipc';
 import type { DesktopExtras } from '@musefold/desktop-contracts/desktop-extras';
 import { desktopGateway } from '../runtime';
 

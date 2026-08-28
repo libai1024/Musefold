@@ -30,9 +30,9 @@ function readDefaultEnvironment(): AppPathEnvironment {
 function defaultAppRootProbe(dir: string): boolean {
   if (!existsSync(join(dir, 'resources'))) return false;
   try {
-    const pkg = JSON.parse(
-      readFileSync(join(dir, 'apps', 'desktop', 'package.json'), 'utf-8'),
-    ) as { name?: unknown };
+    const pkg = JSON.parse(readFileSync(join(dir, 'apps', 'desktop', 'package.json'), 'utf-8')) as {
+      name?: unknown;
+    };
     return pkg.name === APP_PACKAGE_NAME;
   } catch {
     return false;
@@ -68,10 +68,7 @@ function computeAppRoot(environment: AppPathEnvironment, probe: AppRootProbe): s
   return environment.appPath;
 }
 
-export function resolveAppRoot(
-  environment?: AppPathEnvironment,
-  probe?: AppRootProbe,
-): string {
+export function resolveAppRoot(environment?: AppPathEnvironment, probe?: AppRootProbe): string {
   const useCache = environment === undefined && probe === undefined;
   const env = environment ?? readDefaultEnvironment();
   const key = environmentCacheKey(env);

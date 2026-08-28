@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { cn } from "../../../lib/utils";
+import type { ReactNode } from 'react';
+import { cn } from '../../../lib/utils';
 
 export function Field({
   label,
@@ -13,10 +13,8 @@ export function Field({
   className?: string;
 }) {
   return (
-    <label htmlFor={htmlFor} className={cn("block", className)}>
-      <span className="mb-1.5 block text-[11px] font-medium text-secondary">
-        {label}
-      </span>
+    <label htmlFor={htmlFor} className={cn('block', className)}>
+      <span className="mb-1.5 block text-[11px] font-medium text-secondary">{label}</span>
       {children}
     </label>
   );
@@ -27,18 +25,18 @@ export function InlineMessage({
   children,
   className,
 }: {
-  tone: "danger" | "warning" | "success";
+  tone: 'danger' | 'warning' | 'success';
   children: ReactNode;
   className?: string;
 }) {
   return (
     <p
-      role={tone === "danger" ? "alert" : "status"}
+      role={tone === 'danger' ? 'alert' : 'status'}
       className={cn(
-        "mt-3 border-l pl-3 text-[11px] leading-relaxed",
-        tone === "danger" && "border-danger text-danger",
-        tone === "warning" && "border-warning text-warning",
-        tone === "success" && "border-success text-success",
+        'mt-3 border-l pl-3 text-[11px] leading-relaxed',
+        tone === 'danger' && 'border-danger text-danger',
+        tone === 'warning' && 'border-warning text-warning',
+        tone === 'success' && 'border-success text-success',
         className,
       )}
     >

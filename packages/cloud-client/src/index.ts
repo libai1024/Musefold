@@ -69,8 +69,8 @@ import {
   type WorkbenchSession,
   type WorkbenchSessionListQuery,
   type WorkbenchSessionPage,
-} from "@musefold/contracts";
-import { serializeGenerationHistoryQuery } from "./generation-history-query.js";
+} from '@musefold/contracts';
+import { serializeGenerationHistoryQuery } from './generation-history-query.js';
 
 export interface GenerationEvent {
   seq: number;
@@ -98,7 +98,7 @@ export class MusefoldCloudError extends Error {
     details: Record<string, unknown> = {},
   ) {
     super(message);
-    this.name = "MusefoldCloudError";
+    this.name = 'MusefoldCloudError';
     this.code = code;
     this.status = status;
     this.retryable = retryable;
@@ -117,10 +117,7 @@ export interface MusefoldCloudClient {
   listPrompts(query: PromptListQuery): Promise<PromptPage>;
   getPrompt(id: string): Promise<PromptDocument>;
   createPrompt(input: NewPromptDocument): Promise<PromptDocument>;
-  updatePrompt(
-    id: string,
-    input: UpdatePromptDocument,
-  ): Promise<PromptDocument>;
+  updatePrompt(id: string, input: UpdatePromptDocument): Promise<PromptDocument>;
   deletePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
   restorePrompt(id: string, expectedVersion: number): Promise<PromptDocument>;
   usePrompt(id: string, input: PromptUseInput): Promise<PromptUseResult>;
@@ -130,10 +127,7 @@ export interface MusefoldCloudClient {
   push(input: SyncPushRequest): Promise<SyncPushResult>;
   pushUsage(input: SyncUsagePushRequest): Promise<SyncUsagePushResult>;
   syncStatus(deviceId: string): Promise<SyncStatus>;
-  createGeneration(
-    input: CreateGenerationInput,
-    idempotencyKey: string,
-  ): Promise<GenerationJob>;
+  createGeneration(input: CreateGenerationInput, idempotencyKey: string): Promise<GenerationJob>;
   getGeneration(id: string): Promise<GenerationJob>;
   streamGenerationEvents(
     id: string,
@@ -146,29 +140,14 @@ export interface MusefoldCloudClient {
   deleteGeneration(id: string): Promise<GenerationJob>;
   restoreGeneration(id: string): Promise<GenerationJob>;
   approveGeneration(id: string, token: string): Promise<GenerationJob>;
-  listGenerationHistory(
-    query: GenerationHistoryQuery,
-  ): Promise<GenerationHistoryPage>;
-  listWorkbenchSessions(
-    query: WorkbenchSessionListQuery,
-  ): Promise<WorkbenchSessionPage>;
+  listGenerationHistory(query: GenerationHistoryQuery): Promise<GenerationHistoryPage>;
+  listWorkbenchSessions(query: WorkbenchSessionListQuery): Promise<WorkbenchSessionPage>;
   getWorkbenchSession(id: string): Promise<WorkbenchSession>;
-  createWorkbenchSession(
-    input: CreateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  updateWorkbenchSession(
-    id: string,
-    input: UpdateWorkbenchSession,
-  ): Promise<WorkbenchSession>;
-  deleteWorkbenchSession(
-    id: string,
-    expectedVersion: number,
-  ): Promise<WorkbenchSession>;
+  createWorkbenchSession(input: CreateWorkbenchSession): Promise<WorkbenchSession>;
+  updateWorkbenchSession(id: string, input: UpdateWorkbenchSession): Promise<WorkbenchSession>;
+  deleteWorkbenchSession(id: string, expectedVersion: number): Promise<WorkbenchSession>;
   listConnections(): Promise<McpConnectionPage>;
-  updateConnection(
-    id: string,
-    input: UpdateMcpConnection,
-  ): Promise<McpConnectionPage>;
+  updateConnection(id: string, input: UpdateMcpConnection): Promise<McpConnectionPage>;
   revokeConnection(id: string): Promise<void>;
 }
 
@@ -195,20 +174,20 @@ export function createMusefoldCloudClient(
   ): Promise<T> {
     if (csrf && !csrfToken)
       throw new MusefoldCloudError(
-        "AUTH_SESSION_EXPIRED",
-        "会话验证信息缺失，请重新载入账号",
+        'AUTH_SESSION_EXPIRED',
+        '会话验证信息缺失，请重新载入账号',
         401,
         false,
         null,
       );
     const response = await fetchImpl(`${base}${path}`, {
       ...init,
-      credentials: "include",
+      credentials: 'include',
       headers: {
-        Accept: "application/json",
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-        ...(csrf ? { "X-Musefold-CSRF": csrfToken! } : {}),
+        ...(csrf ? { 'X-Musefold-CSRF': csrfToken! } : {}),
         ...init.headers,
       },
     });
@@ -226,7 +205,7 @@ export function createMusefoldCloudClient(
         );
       }
       throw new MusefoldCloudError(
-        "INTERNAL_ERROR",
+        'INTERNAL_ERROR',
         `请求失败（${response.status}）`,
         response.status,
         response.status >= 500,
@@ -246,11 +225,11 @@ export function createMusefoldCloudClient(
     const response = await fetchImpl(
       `${base}/generations/${encodeURIComponent(id)}/events?after=${Math.max(0, Math.trunc(afterSeq))}`,
       {
-        credentials: "include",
+        credentials: 'include',
         signal,
         headers: {
-          Accept: "text/event-stream",
-          "Last-Event-ID": String(Math.max(0, Math.trunc(afterSeq))),
+          Accept: 'text/event-stream',
+          'Last-Event-ID': String(Math.max(0, Math.trunc(afterSeq))),
           ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
         },
       },
@@ -269,7 +248,7 @@ export function createMusefoldCloudClient(
         );
       }
       throw new MusefoldCloudError(
-        "INTERNAL_ERROR",
+        'INTERNAL_ERROR',
         `请求失败（${response.status}）`,
         response.status,
         response.status >= 500,
@@ -280,56 +259,50 @@ export function createMusefoldCloudClient(
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let lineBuffer = "";
+    let lineBuffer = '';
     let eventId: number | null = null;
-    let eventType = "message";
+    let eventType = 'message';
     let dataLines: string[] = [];
 
     const dispatch = async () => {
       if (eventId === null || dataLines.length === 0) {
         eventId = null;
-        eventType = "message";
+        eventType = 'message';
         dataLines = [];
         return;
       }
-      const data = dataLines.join("\n");
+      const data = dataLines.join('\n');
       let payload: Record<string, unknown>;
       try {
         const parsed = JSON.parse(data) as unknown;
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-          throw new Error("invalid event payload");
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+          throw new Error('invalid event payload');
         payload = parsed as Record<string, unknown>;
       } catch {
-        throw new MusefoldCloudError(
-          "INTERNAL_ERROR",
-          "生成事件数据无效",
-          502,
-          true,
-          null,
-        );
+        throw new MusefoldCloudError('INTERNAL_ERROR', '生成事件数据无效', 502, true, null);
       }
       await onEvent({ seq: eventId, type: eventType, payload });
       eventId = null;
-      eventType = "message";
+      eventType = 'message';
       dataLines = [];
     };
 
     const processLine = async (rawLine: string) => {
-      const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-      if (line === "") {
+      const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+      if (line === '') {
         await dispatch();
         return;
       }
-      if (line.startsWith(":")) return;
-      const separator = line.indexOf(":");
+      if (line.startsWith(':')) return;
+      const separator = line.indexOf(':');
       const field = separator < 0 ? line : line.slice(0, separator);
-      const value = separator < 0 ? "" : line.slice(separator + 1).replace(/^ /, "");
-      if (field === "id") {
+      const value = separator < 0 ? '' : line.slice(separator + 1).replace(/^ /, '');
+      if (field === 'id') {
         const parsed = Number(value);
         eventId = Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-      } else if (field === "event") {
-        eventType = value || "message";
-      } else if (field === "data") {
+      } else if (field === 'event') {
+        eventType = value || 'message';
+      } else if (field === 'data') {
         dataLines.push(value);
       }
     };
@@ -340,8 +313,8 @@ export function createMusefoldCloudClient(
         lineBuffer += decoder.decode(next.value ?? new Uint8Array(), {
           stream: !next.done,
         });
-        const lines = lineBuffer.split("\n");
-        lineBuffer = lines.pop() ?? "";
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() ?? '';
         for (const line of lines) await processLine(line);
         if (next.done) break;
       }
@@ -352,13 +325,10 @@ export function createMusefoldCloudClient(
     }
   }
 
-  async function accountRequest(
-    path: string,
-    body?: unknown,
-  ): Promise<AccountSession> {
+  async function accountRequest(path: string, body?: unknown): Promise<AccountSession> {
     const session = await request(
       path,
-      body === undefined ? {} : { method: "POST", body: JSON.stringify(body) },
+      body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) },
       accountSessionSchema,
     );
     csrfToken = session.csrfToken;
@@ -368,9 +338,9 @@ export function createMusefoldCloudClient(
   return {
     async openDesktopSession(accessToken) {
       const result = await request(
-        "/auth/device-session",
+        '/auth/device-session',
         {
-          method: "POST",
+          method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}` },
         },
         desktopAccountSessionSchema,
@@ -379,25 +349,18 @@ export function createMusefoldCloudClient(
       csrfToken = result.csrfToken;
       return result;
     },
-    getSession: () => accountRequest("/auth/me"),
-    login: (input) =>
-      accountRequest("/auth/login", loginRequestSchema.parse(input)),
-    register: (input) =>
-      accountRequest("/auth/register", registerRequestSchema.parse(input)),
+    getSession: () => accountRequest('/auth/me'),
+    login: (input) => accountRequest('/auth/login', loginRequestSchema.parse(input)),
+    register: (input) => accountRequest('/auth/register', registerRequestSchema.parse(input)),
     async logout() {
-      await request(
-        "/auth/logout",
-        { method: "POST" },
-        { parse: () => undefined },
-        true,
-      );
+      await request('/auth/logout', { method: 'POST' }, { parse: () => undefined }, true);
       csrfToken = null;
     },
     redeem: (code) =>
       request(
-        "/auth/redeem",
+        '/auth/redeem',
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(redeemRequestSchema.parse({ code })),
         },
         redeemResultSchema,
@@ -406,25 +369,22 @@ export function createMusefoldCloudClient(
     listPrompts(query) {
       const parsed = promptListQuerySchema.parse(query);
       const search = new URLSearchParams();
-      if (parsed.q) search.set("q", parsed.q);
-      if (parsed.cursor) search.set("cursor", parsed.cursor);
-      search.set("limit", String(parsed.limit));
-      search.set("includeDeleted", String(parsed.includeDeleted));
-      search.set("sort", parsed.sort);
-      if (parsed.folderId !== undefined)
-        search.set("folderId", parsed.folderId ?? "");
-      if (parsed.tagIds?.length) search.set("tagIds", parsed.tagIds.join(","));
-      if (parsed.pinnedOnly !== undefined)
-        search.set("pinnedOnly", String(parsed.pinnedOnly));
+      if (parsed.q) search.set('q', parsed.q);
+      if (parsed.cursor) search.set('cursor', parsed.cursor);
+      search.set('limit', String(parsed.limit));
+      search.set('includeDeleted', String(parsed.includeDeleted));
+      search.set('sort', parsed.sort);
+      if (parsed.folderId !== undefined) search.set('folderId', parsed.folderId ?? '');
+      if (parsed.tagIds?.length) search.set('tagIds', parsed.tagIds.join(','));
+      if (parsed.pinnedOnly !== undefined) search.set('pinnedOnly', String(parsed.pinnedOnly));
       return request(`/prompts?${search.toString()}`, {}, promptPageSchema);
     },
-    getPrompt: (id) =>
-      request(`/prompts/${encodeURIComponent(id)}`, {}, promptDocumentSchema),
+    getPrompt: (id) => request(`/prompts/${encodeURIComponent(id)}`, {}, promptDocumentSchema),
     createPrompt: (input) =>
       request(
-        "/prompts",
+        '/prompts',
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(newPromptDocumentSchema.parse(input)),
         },
         promptDocumentSchema,
@@ -434,7 +394,7 @@ export function createMusefoldCloudClient(
       request(
         `/prompts/${encodeURIComponent(id)}`,
         {
-          method: "PATCH",
+          method: 'PATCH',
           body: JSON.stringify(updatePromptDocumentSchema.parse(input)),
         },
         promptDocumentSchema,
@@ -443,14 +403,14 @@ export function createMusefoldCloudClient(
     deletePrompt: (id, expectedVersion) =>
       request(
         `/prompts/${encodeURIComponent(id)}`,
-        { method: "DELETE", body: JSON.stringify({ expectedVersion }) },
+        { method: 'DELETE', body: JSON.stringify({ expectedVersion }) },
         promptDocumentSchema,
         true,
       ),
     restorePrompt: (id, expectedVersion) =>
       request(
         `/prompts/${encodeURIComponent(id)}/restore`,
-        { method: "POST", body: JSON.stringify({ expectedVersion }) },
+        { method: 'POST', body: JSON.stringify({ expectedVersion }) },
         promptDocumentSchema,
         true,
       ),
@@ -458,7 +418,7 @@ export function createMusefoldCloudClient(
       request(
         `/prompts/${encodeURIComponent(id)}/use`,
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(promptUseInputSchema.parse(input)),
         },
         promptUseResultSchema,
@@ -466,9 +426,9 @@ export function createMusefoldCloudClient(
       ),
     registerDevice: (input) =>
       request(
-        "/sync/devices",
+        '/sync/devices',
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(syncDeviceRegistrationSchema.parse(input)),
         },
         syncDeviceSchema,
@@ -480,12 +440,8 @@ export function createMusefoldCloudClient(
         entity: parsed.entity,
         limit: String(parsed.limit),
       });
-      if (parsed.after) search.set("after", parsed.after);
-      return request(
-        `/sync/bootstrap?${search.toString()}`,
-        {},
-        syncBootstrapPageSchema,
-      );
+      if (parsed.after) search.set('after', parsed.after);
+      return request(`/sync/bootstrap?${search.toString()}`, {}, syncBootstrapPageSchema);
     },
     pull(input) {
       const parsed = syncPullQuerySchema.parse(input);
@@ -493,18 +449,14 @@ export function createMusefoldCloudClient(
         cursor: parsed.cursor,
         limit: String(parsed.limit),
       });
-      if (parsed.deviceId) search.set("deviceId", parsed.deviceId);
-      return request(
-        `/sync/pull?${search.toString()}`,
-        {},
-        syncPullResultSchema,
-      );
+      if (parsed.deviceId) search.set('deviceId', parsed.deviceId);
+      return request(`/sync/pull?${search.toString()}`, {}, syncPullResultSchema);
     },
     push: (input) =>
       request(
-        "/sync/push",
+        '/sync/push',
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(syncPushRequestSchema.parse(input)),
         },
         syncPushResultSchema,
@@ -512,42 +464,34 @@ export function createMusefoldCloudClient(
       ),
     pushUsage: (input) =>
       request(
-        "/sync/usage",
+        '/sync/usage',
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(syncUsagePushRequestSchema.parse(input)),
         },
         syncUsagePushResultSchema,
         true,
       ),
     syncStatus: (deviceId) =>
-      request(
-        `/sync/status?deviceId=${encodeURIComponent(deviceId)}`,
-        {},
-        syncStatusSchema,
-      ),
+      request(`/sync/status?deviceId=${encodeURIComponent(deviceId)}`, {}, syncStatusSchema),
     createGeneration: (input, idempotencyKey) =>
       request(
-        "/generations",
+        '/generations',
         {
-          method: "POST",
-          headers: { "Idempotency-Key": idempotencyKey },
+          method: 'POST',
+          headers: { 'Idempotency-Key': idempotencyKey },
           body: JSON.stringify(createGenerationInputSchema.parse(input)),
         },
         generationJobSchema,
         true,
       ),
     getGeneration: (id) =>
-      request(
-        `/generations/${encodeURIComponent(id)}`,
-        {},
-        generationJobSchema,
-      ),
+      request(`/generations/${encodeURIComponent(id)}`, {}, generationJobSchema),
     streamGenerationEvents,
     cancelGeneration: (id) =>
       request(
         `/generations/${encodeURIComponent(id)}/cancel`,
-        { method: "POST" },
+        { method: 'POST' },
         generationJobSchema,
         true,
       ),
@@ -555,8 +499,8 @@ export function createMusefoldCloudClient(
       request(
         `/generations/${encodeURIComponent(id)}/retry`,
         {
-          method: "POST",
-          headers: { "Idempotency-Key": idempotencyKey },
+          method: 'POST',
+          headers: { 'Idempotency-Key': idempotencyKey },
         },
         generationJobSchema,
         true,
@@ -564,21 +508,21 @@ export function createMusefoldCloudClient(
     deleteGeneration: (id) =>
       request(
         `/generations/${encodeURIComponent(id)}`,
-        { method: "DELETE" },
+        { method: 'DELETE' },
         generationJobSchema,
         true,
       ),
     restoreGeneration: (id) =>
       request(
         `/generations/${encodeURIComponent(id)}/restore`,
-        { method: "POST" },
+        { method: 'POST' },
         generationJobSchema,
         true,
       ),
     approveGeneration: (id, token) =>
       request(
         `/approvals/${encodeURIComponent(id)}`,
-        { method: "POST", body: JSON.stringify({ token }) },
+        { method: 'POST', body: JSON.stringify({ token }) },
         generationJobSchema,
         true,
       ),
@@ -596,24 +540,16 @@ export function createMusefoldCloudClient(
         includeArchived: String(parsed.includeArchived),
         includeDeleted: String(parsed.includeDeleted),
       });
-      if (parsed.cursor) search.set("cursor", parsed.cursor);
-      return request(
-        `/workbench/sessions?${search.toString()}`,
-        {},
-        workbenchSessionPageSchema,
-      );
+      if (parsed.cursor) search.set('cursor', parsed.cursor);
+      return request(`/workbench/sessions?${search.toString()}`, {}, workbenchSessionPageSchema);
     },
     getWorkbenchSession: (id) =>
-      request(
-        `/workbench/sessions/${encodeURIComponent(id)}`,
-        {},
-        workbenchSessionSchema,
-      ),
+      request(`/workbench/sessions/${encodeURIComponent(id)}`, {}, workbenchSessionSchema),
     createWorkbenchSession: (input) =>
       request(
-        "/workbench/sessions",
+        '/workbench/sessions',
         {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify(createWorkbenchSessionSchema.parse(input)),
         },
         workbenchSessionSchema,
@@ -623,7 +559,7 @@ export function createMusefoldCloudClient(
       request(
         `/workbench/sessions/${encodeURIComponent(id)}`,
         {
-          method: "PATCH",
+          method: 'PATCH',
           body: JSON.stringify(updateWorkbenchSessionSchema.parse(input)),
         },
         workbenchSessionSchema,
@@ -632,16 +568,16 @@ export function createMusefoldCloudClient(
     deleteWorkbenchSession: (id, expectedVersion) =>
       request(
         `/workbench/sessions/${encodeURIComponent(id)}`,
-        { method: "DELETE", body: JSON.stringify({ expectedVersion }) },
+        { method: 'DELETE', body: JSON.stringify({ expectedVersion }) },
         workbenchSessionSchema,
         true,
       ),
-    listConnections: () => request("/connections", {}, mcpConnectionPageSchema),
+    listConnections: () => request('/connections', {}, mcpConnectionPageSchema),
     updateConnection: (id, input) =>
       request(
         `/connections/${encodeURIComponent(id)}`,
         {
-          method: "PATCH",
+          method: 'PATCH',
           body: JSON.stringify(updateMcpConnectionSchema.parse(input)),
         },
         mcpConnectionPageSchema,
@@ -650,7 +586,7 @@ export function createMusefoldCloudClient(
     revokeConnection: async (id) => {
       await request(
         `/connections/${encodeURIComponent(id)}`,
-        { method: "DELETE" },
+        { method: 'DELETE' },
         { parse: () => undefined },
         true,
       );
@@ -659,10 +595,10 @@ export function createMusefoldCloudClient(
 }
 
 function normalizeBaseUrl(input: string): string {
-  const value = input.trim().replace(/\/+$/, "");
-  if (value.startsWith("/")) return value;
+  const value = input.trim().replace(/\/+$/, '');
+  if (value.startsWith('/')) return value;
   const url = new URL(value);
-  if (!["http:", "https:"].includes(url.protocol))
-    throw new Error("Musefold Cloud URL must use HTTP or HTTPS");
-  return url.toString().replace(/\/+$/, "");
+  if (!['http:', 'https:'].includes(url.protocol))
+    throw new Error('Musefold Cloud URL must use HTTP or HTTPS');
+  return url.toString().replace(/\/+$/, '');
 }

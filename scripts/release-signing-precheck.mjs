@@ -66,7 +66,13 @@ function run(command, commandArgs) {
 }
 
 function firstLine(value) {
-  return `${value || ''}`.trim().split('\n').map((line) => line.trim()).find(Boolean) || '';
+  return (
+    `${value || ''}`
+      .trim()
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || ''
+  );
 }
 
 function firstLines(value, count = 3) {
@@ -80,7 +86,9 @@ function firstLines(value, count = 3) {
 }
 
 function presentEnv(names) {
-  return names.filter((name) => typeof process.env[name] === 'string' && process.env[name].trim().length > 0);
+  return names.filter(
+    (name) => typeof process.env[name] === 'string' && process.env[name].trim().length > 0,
+  );
 }
 
 function missingEnv(names) {
@@ -92,14 +100,22 @@ async function checkProjectConfig() {
   const pkg = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
   const builder = await readFile(safePath('apps/desktop/electron-builder.yml'), 'utf8');
   const issues = [];
-  if (!/^appId:\s*com\.musefold\.app\s*$/m.test(builder)) issues.push('appId must remain com.musefold.app');
+  if (!/^appId:\s*com\.musefold\.app\s*$/m.test(builder))
+    issues.push('appId must remain com.musefold.app');
   if (!/^productName:\s*Musefold\s*$/m.test(builder)) issues.push('productName must be Musefold');
-  if (!/^\s+hardenedRuntime:\s*true\s*$/m.test(builder)) issues.push('mac.hardenedRuntime must be true');
-  if (!/^\s+category:\s*public\.app-category\.productivity\s*$/m.test(builder)) issues.push('mac category missing');
-  if (!pkg.scripts?.['package:mac']?.includes('run-builder.mjs --mac')) issues.push('package:mac must use run-builder');
+  if (!/^\s+hardenedRuntime:\s*true\s*$/m.test(builder))
+    issues.push('mac.hardenedRuntime must be true');
+  if (!/^\s+category:\s*public\.app-category\.productivity\s*$/m.test(builder))
+    issues.push('mac category missing');
+  if (!pkg.scripts?.['package:mac']?.includes('run-builder.mjs --mac'))
+    issues.push('package:mac must use run-builder');
 
   if (issues.length === 0) {
-    record('macOS signing build configuration', 'pass', 'appId, hardened runtime, category, and package:mac script are present');
+    record(
+      'macOS signing build configuration',
+      'pass',
+      'appId, hardened runtime, category, and package:mac script are present',
+    );
   } else {
     record('macOS signing build configuration', 'fail', issues.join('; '));
   }
@@ -107,7 +123,11 @@ async function checkProjectConfig() {
 
 function checkHostTools() {
   if (process.platform !== 'darwin') {
-    record('macOS signing host tools', 'manual', `current platform is ${process.platform}; run on a macOS signing host`);
+    record(
+      'macOS signing host tools',
+      'manual',
+      `current platform is ${process.platform}; run on a macOS signing host`,
+    );
     return;
   }
 
@@ -121,16 +141,25 @@ function checkHostTools() {
   ];
   const missing = [];
   for (const [label, commandArgs] of checksToRun) {
-    const result = commandArgs[0] === 'xcrun'
-      ? run('xcrun', commandArgs.slice(1))
-      : run('/usr/bin/which', commandArgs);
+    const result =
+      commandArgs[0] === 'xcrun'
+        ? run('xcrun', commandArgs.slice(1))
+        : run('/usr/bin/which', commandArgs);
     if (result.status !== 0) missing.push(label);
   }
 
   if (missing.length === 0) {
-    record('macOS signing host tools', 'pass', 'codesign, security, spctl, hdiutil, notarytool, and stapler are available');
+    record(
+      'macOS signing host tools',
+      'pass',
+      'codesign, security, spctl, hdiutil, notarytool, and stapler are available',
+    );
   } else {
-    record('macOS signing host tools', 'manual', `install or select Xcode command line tools; missing: ${missing.join(', ')}`);
+    record(
+      'macOS signing host tools',
+      'manual',
+      `install or select Xcode command line tools; missing: ${missing.join(', ')}`,
+    );
   }
 }
 
@@ -149,26 +178,38 @@ async function checkReleaseArtifacts() {
   if (!zipExists) missing.push(zipPath);
 
   if (missing.length > 0) {
-    record('macOS release artifacts for signing', 'manual', `build with npm run package:mac first; missing: ${missing.join(', ')}`);
+    record(
+      'macOS release artifacts for signing',
+      'manual',
+      `build with npm run package:mac first; missing: ${missing.join(', ')}`,
+    );
     return;
   }
 
-  record('macOS release artifacts for signing', 'pass', [
-    appPath,
-    await fileSummary(dmgPath),
-    await fileSummary(zipPath),
-  ].join('; '));
+  record(
+    'macOS release artifacts for signing',
+    'pass',
+    [appPath, await fileSummary(dmgPath), await fileSummary(zipPath)].join('; '),
+  );
 }
 
 function checkDeveloperIdIdentity() {
   if (process.platform !== 'darwin') {
-    record('Developer ID Application identity', 'manual', 'identity lookup requires macOS keychain');
+    record(
+      'Developer ID Application identity',
+      'manual',
+      'identity lookup requires macOS keychain',
+    );
     return;
   }
 
   const result = run('security', ['find-identity', '-v', '-p', 'codesigning']);
   if (result.status !== 0) {
-    record('Developer ID Application identity', 'manual', firstLine(result.stderr || result.stdout) || 'security find-identity failed');
+    record(
+      'Developer ID Application identity',
+      'manual',
+      firstLine(result.stderr || result.stdout) || 'security find-identity failed',
+    );
     return;
   }
 
@@ -177,9 +218,17 @@ function checkDeveloperIdIdentity() {
     .filter((line) => /Developer ID Application:/.test(line) && /[A-Fa-f0-9]{40}/.test(line));
   developerIdIdentityFound = identities.length > 0;
   if (developerIdIdentityFound) {
-    record('Developer ID Application identity', 'pass', `${identities.length} usable Developer ID Application identity found`);
+    record(
+      'Developer ID Application identity',
+      'pass',
+      `${identities.length} usable Developer ID Application identity found`,
+    );
   } else {
-    record('Developer ID Application identity', 'manual', 'no Developer ID Application identity found in the current keychain');
+    record(
+      'Developer ID Application identity',
+      'manual',
+      'no Developer ID Application identity found in the current keychain',
+    );
   }
 }
 
@@ -192,24 +241,44 @@ function checkSigningEnvironment() {
   const appleIdPresent = presentEnv(appleIdAuth);
 
   if (signingSelectorPresent.length > 0) {
-    record('Code signing identity selection', 'pass', `${signingSelectorPresent.join(', ')} is set (values hidden)`);
+    record(
+      'Code signing identity selection',
+      'pass',
+      `${signingSelectorPresent.join(', ')} is set (values hidden)`,
+    );
   } else if (developerIdIdentityFound) {
-    record('Code signing identity selection', 'pass', 'keychain Developer ID identity can be used; set CSC_NAME in CI for deterministic selection');
+    record(
+      'Code signing identity selection',
+      'pass',
+      'keychain Developer ID identity can be used; set CSC_NAME in CI for deterministic selection',
+    );
   } else {
-    record('Code signing identity selection', 'manual', 'set CSC_LINK or CSC_NAME, or import a Developer ID Application certificate into the signing keychain');
+    record(
+      'Code signing identity selection',
+      'manual',
+      'set CSC_LINK or CSC_NAME, or import a Developer ID Application certificate into the signing keychain',
+    );
   }
 
   if (apiKeyPresent.length === apiKeyAuth.length) {
-    record('Apple notarization credentials', 'pass', `${apiKeyAuth.join(', ')} are set (values hidden)`);
+    record(
+      'Apple notarization credentials',
+      'pass',
+      `${apiKeyAuth.join(', ')} are set (values hidden)`,
+    );
   } else if (appleIdPresent.length === appleIdAuth.length) {
-    record('Apple notarization credentials', 'pass', `${appleIdAuth.join(', ')} are set (values hidden)`);
+    record(
+      'Apple notarization credentials',
+      'pass',
+      `${appleIdAuth.join(', ')} are set (values hidden)`,
+    );
   } else {
     const missingApi = missingEnv(apiKeyAuth);
     const missingAppleId = missingEnv(appleIdAuth);
     record(
       'Apple notarization credentials',
       'manual',
-      `set either ${apiKeyAuth.join('+')} (missing ${missingApi.join(', ') || 'none'}) or ${appleIdAuth.join('+')} (missing ${missingAppleId.join(', ') || 'none'})`
+      `set either ${apiKeyAuth.join('+')} (missing ${missingApi.join(', ') || 'none'}) or ${appleIdAuth.join('+')} (missing ${missingAppleId.join(', ') || 'none'})`,
     );
   }
 }
@@ -222,36 +291,79 @@ async function checkCurrentSignatureState() {
   if (process.platform !== 'darwin') {
     record('Current app bundle code signature', 'manual', 'codesign verification requires macOS');
     record('Gatekeeper assessment', 'manual', 'spctl assessment requires macOS');
-    record('Notarization ticket staple validation', 'manual', 'xcrun stapler validation requires macOS');
+    record(
+      'Notarization ticket staple validation',
+      'manual',
+      'xcrun stapler validation requires macOS',
+    );
     return;
   }
 
   if (!appBundleExists) {
-    record('Current app bundle code signature', 'manual', 'app bundle missing; build package before verifying signature');
+    record(
+      'Current app bundle code signature',
+      'manual',
+      'app bundle missing; build package before verifying signature',
+    );
   } else {
     const result = run('codesign', ['--verify', '--deep', '--strict', safePath(appPath)]);
     if (result.status === 0) {
-      record('Current app bundle code signature', 'pass', 'codesign --verify --deep --strict passed');
-      const spctl = run('spctl', ['--assess', '--type', 'execute', '--verbose=4', safePath(appPath)]);
+      record(
+        'Current app bundle code signature',
+        'pass',
+        'codesign --verify --deep --strict passed',
+      );
+      const spctl = run('spctl', [
+        '--assess',
+        '--type',
+        'execute',
+        '--verbose=4',
+        safePath(appPath),
+      ]);
       if (spctl.status === 0) {
-        record('Gatekeeper assessment', 'pass', firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment passed');
+        record(
+          'Gatekeeper assessment',
+          'pass',
+          firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment passed',
+        );
       } else {
-        record('Gatekeeper assessment', 'manual', firstLine(spctl.stderr || spctl.stdout) || 'spctl assessment pending until notarization is accepted');
+        record(
+          'Gatekeeper assessment',
+          'manual',
+          firstLine(spctl.stderr || spctl.stdout) ||
+            'spctl assessment pending until notarization is accepted',
+        );
       }
     } else {
-      record('Current app bundle code signature', 'manual', firstLine(result.stderr || result.stdout) || 'app bundle is not signed yet');
+      record(
+        'Current app bundle code signature',
+        'manual',
+        firstLine(result.stderr || result.stdout) || 'app bundle is not signed yet',
+      );
       record('Gatekeeper assessment', 'manual', 'skipped until codesign verification passes');
     }
   }
 
   if (!dmgExists) {
-    record('Notarization ticket staple validation', 'manual', 'DMG missing; build package before stapler validation');
+    record(
+      'Notarization ticket staple validation',
+      'manual',
+      'DMG missing; build package before stapler validation',
+    );
   } else {
     const result = run('xcrun', ['stapler', 'validate', safePath(dmgPath)]);
     if (result.status === 0) {
-      record('Notarization ticket staple validation', 'pass', firstLine(result.stdout || result.stderr) || 'stapler validate passed');
+      record(
+        'Notarization ticket staple validation',
+        'pass',
+        firstLine(result.stdout || result.stderr) || 'stapler validate passed',
+      );
     } else {
-      record('Notarization ticket staple validation', 'manual', firstLines(result.stderr || result.stdout) || 'notarization ticket is not stapled yet');
+      record(
+        'Notarization ticket staple validation',
+        'manual',
+        firstLines(result.stderr || result.stdout) || 'notarization ticket is not stapled yet',
+      );
     }
   }
 }
@@ -260,7 +372,7 @@ function addRunbook() {
   record(
     'Signing runbook',
     'pass',
-    'On the signing host: set CSC_NAME/CSC_LINK and Apple notarization env, run npm run package:mac -- -c.mac.notarize=true, then verify codesign, spctl, and xcrun stapler validate.'
+    'On the signing host: set CSC_NAME/CSC_LINK and Apple notarization env, run npm run package:mac -- -c.mac.notarize=true, then verify codesign, spctl, and xcrun stapler validate.',
   );
 }
 
@@ -282,7 +394,8 @@ async function main() {
   } else {
     console.log('macOS Developer ID signing precheck:');
     for (const check of checks) {
-      const mark = check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
+      const mark =
+        check.status === 'pass' ? '[pass]' : check.status === 'fail' ? '[fail]' : '[manual]';
       console.log(`${mark} ${check.name}${check.details ? ` - ${check.details}` : ''}`);
     }
     if (!strict && pending.length > 0) {

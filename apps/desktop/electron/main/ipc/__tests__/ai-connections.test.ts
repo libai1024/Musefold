@@ -58,7 +58,9 @@ function harness() {
     })),
   };
   registerAiConnectionHandlers({
-    target: { handle: ((channel: string, listener: Handler) => handlers.set(channel, listener)) as never },
+    target: {
+      handle: ((channel: string, listener: Handler) => handlers.set(channel, listener)) as never,
+    },
     store: store as never,
     createAssistant: () => assistant,
     now: () => 100,
@@ -69,19 +71,21 @@ function harness() {
 describe('AI connection IPC handlers', () => {
   it('registers the complete preload surface', () => {
     const { handlers } = harness();
-    expect([...handlers.keys()].sort()).toEqual([
-      IPC.AI_CONNECTION_LIST_PRESETS,
-      IPC.AI_CONNECTION_LIST,
-      IPC.AI_CONNECTION_CREATE,
-      IPC.AI_CONNECTION_UPDATE,
-      IPC.AI_CONNECTION_DELETE,
-      IPC.AI_CONNECTION_SAVE_KEY,
-      IPC.AI_CONNECTION_DELETE_KEY,
-      IPC.AI_CONNECTION_HAS_KEY,
-      IPC.AI_CONNECTION_SET_ACTIVE,
-      IPC.AI_CONNECTION_LIST_MODELS,
-      IPC.AI_CONNECTION_VALIDATE,
-    ].sort());
+    expect([...handlers.keys()].sort()).toEqual(
+      [
+        IPC.AI_CONNECTION_LIST_PRESETS,
+        IPC.AI_CONNECTION_LIST,
+        IPC.AI_CONNECTION_CREATE,
+        IPC.AI_CONNECTION_UPDATE,
+        IPC.AI_CONNECTION_DELETE,
+        IPC.AI_CONNECTION_SAVE_KEY,
+        IPC.AI_CONNECTION_DELETE_KEY,
+        IPC.AI_CONNECTION_HAS_KEY,
+        IPC.AI_CONNECTION_SET_ACTIVE,
+        IPC.AI_CONNECTION_LIST_MODELS,
+        IPC.AI_CONNECTION_VALIDATE,
+      ].sort(),
+    );
   });
 
   it('lists account-managed connections without exposing their key', async () => {

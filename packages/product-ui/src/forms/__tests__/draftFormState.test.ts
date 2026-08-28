@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  allTouched,
-  isDraftDirty,
-  isDraftValid,
-  visibleError,
-} from '../draftFormState';
+import { allTouched, isDraftDirty, isDraftValid, visibleError } from '../draftFormState';
 
 type Field = 'title' | 'content';
 

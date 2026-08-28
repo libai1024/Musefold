@@ -1,15 +1,7 @@
 import { copyFile, stat } from 'fs/promises';
 import { basename, extname, join, resolve } from 'path';
 
-const IMAGE_EXTENSIONS = new Set([
-  '.avif',
-  '.bmp',
-  '.gif',
-  '.jpeg',
-  '.jpg',
-  '.png',
-  '.webp',
-]);
+const IMAGE_EXTENSIONS = new Set(['.avif', '.bmp', '.gif', '.jpeg', '.jpg', '.png', '.webp']);
 
 export interface ImageFileInfo {
   path: string;
@@ -42,13 +34,19 @@ export async function saveImageFile(sourcePath: string, targetPath: string): Pro
   return target;
 }
 
-async function availableImagePath(directory: string, name: string, reserved: Set<string>): Promise<string> {
+async function availableImagePath(
+  directory: string,
+  name: string,
+  reserved: Set<string>,
+): Promise<string> {
   const extension = extname(name);
   const stem = basename(name, extension);
   for (let index = 1; index < 10_000; index += 1) {
     const candidate = join(directory, index === 1 ? name : `${stem} (${index})${extension}`);
     if (reserved.has(candidate)) continue;
-    const exists = await stat(candidate).then(() => true).catch(() => false);
+    const exists = await stat(candidate)
+      .then(() => true)
+      .catch(() => false);
     if (!exists) {
       reserved.add(candidate);
       return candidate;
@@ -57,9 +55,14 @@ async function availableImagePath(directory: string, name: string, reserved: Set
   throw new Error(`无法为 ${name} 创建不重复的文件名`);
 }
 
-export async function saveImageFiles(sourcePaths: string[], targetDirectory: string): Promise<string[]> {
-  if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) throw new Error('请选择至少一张图片');
-  if (typeof targetDirectory !== 'string' || !targetDirectory.trim()) throw new Error('保存目录不能为空');
+export async function saveImageFiles(
+  sourcePaths: string[],
+  targetDirectory: string,
+): Promise<string[]> {
+  if (!Array.isArray(sourcePaths) || sourcePaths.length === 0)
+    throw new Error('请选择至少一张图片');
+  if (typeof targetDirectory !== 'string' || !targetDirectory.trim())
+    throw new Error('保存目录不能为空');
 
   const directory = resolve(targetDirectory);
   const directoryInfo = await stat(directory).catch(() => null);

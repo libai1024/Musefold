@@ -72,10 +72,7 @@ export default defineConfig({
       },
     },
     resolve: {
-      alias: pickAliases(
-        ['@musefold/desktop-contracts', '@musefold/domain'],
-        repoRoot,
-      ),
+      alias: pickAliases(['@musefold/desktop-contracts', '@musefold/domain'], repoRoot),
     },
   },
   renderer: {
@@ -95,12 +92,7 @@ export default defineConfig({
     },
     resolve: {
       alias: pickAliases(
-        [
-          '@musefold/desktop-contracts',
-          '@musefold/domain',
-          '@musefold/contracts',
-          '@renderer',
-        ],
+        ['@musefold/desktop-contracts', '@musefold/domain', '@musefold/contracts', '@renderer'],
         repoRoot,
       ),
     },

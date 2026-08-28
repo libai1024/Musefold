@@ -128,7 +128,7 @@ describe('provider settings master-detail UI contract(RELAY-SETTINGS-UI 第二�
     expect(panel).toContain("'放弃'");
     expect(panel).toContain("(createdId ? (dirty ? '放弃' : '完成') : '取消')");
     // 隐式落库后再改动(dirty)回到「放弃」语义,点击经 onCreated 重挂载回持久化值
-    expect(panel).toContain("form.markPristine();");
+    expect(panel).toContain('form.markPristine();');
     expect(panel).toContain('form.reset()');
     // 删除自头部迁至底部操作条左端,沿用 InlineConfirm 二次确认(文案带宾语)
     expect(panel).toContain('InlineConfirm');
@@ -147,8 +147,8 @@ describe('provider settings master-detail UI contract(RELAY-SETTINGS-UI 第二�
     expect(dialogField).toContain('error?: string;');
     expect(dialogField).toContain('text-danger');
     // 三个必填字段接线 errorFor;保存尝试(touchAll)与 blur(markTouched)双触达
-    expect(panel).toContain('nameError={form.errorFor(\'name\')}');
-    expect(panel).toContain('baseUrlError={form.errorFor(\'baseUrl\')}');
+    expect(panel).toContain("nameError={form.errorFor('name')}");
+    expect(panel).toContain("baseUrlError={form.errorFor('baseUrl')}");
     expect(panel).toContain("error={form.errorFor('model')}");
     expect(panel).toContain('form.touchAll(PROVIDER_DRAFT_FIELDS)');
     expect(panelParts).toContain('onBlur={onNameTouch}');
@@ -166,7 +166,7 @@ describe('provider settings master-detail UI contract(RELAY-SETTINGS-UI 第二�
     expect(panel).toContain('loadDisabled={!loadModelsReady || testing || saving}');
     // 拉到列表后:模型留空时自动选首个可用模型(单模型自动选中逻辑的推广)
     expect(panel).toContain('!draft.model.trim() || (models.length === 1');
-    expect(panel).toContain('form.setField(\'model\', models[0].id)');
+    expect(panel).toContain("form.setField('model', models[0].id)");
   });
 
   it('toasts the implicit create and renames the discard action to 完成', () => {

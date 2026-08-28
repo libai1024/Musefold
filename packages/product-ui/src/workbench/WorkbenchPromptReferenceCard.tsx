@@ -1,7 +1,7 @@
-import { FileText, X } from "@musefold/ui/icons";
-import { Button } from "@musefold/ui";
-import { createPortal } from "react-dom";
-import { useState, type CSSProperties } from "react";
+import { FileText, X } from '@musefold/ui/icons';
+import { Button } from '@musefold/ui';
+import { createPortal } from 'react-dom';
+import { useState, type CSSProperties } from 'react';
 
 export interface WorkbenchPromptReferenceCardProps {
   title: string;
@@ -17,10 +17,10 @@ export interface WorkbenchPromptReferenceCardProps {
 export function WorkbenchPromptReferenceCard({
   title,
   text,
-  subtitle = "引用提示词 · 悬停查看全文",
+  subtitle = '引用提示词 · 悬停查看全文',
   onClear,
-  testId = "refine-source",
-  workbenchTestId = "workbench-source",
+  testId = 'refine-source',
+  workbenchTestId = 'workbench-source',
   className,
 }: WorkbenchPromptReferenceCardProps) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
@@ -32,9 +32,7 @@ export function WorkbenchPromptReferenceCard({
 
   return (
     <div
-      className={["mf-workbench-prompt-reference-card", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={['mf-workbench-prompt-reference-card', className].filter(Boolean).join(' ')}
       data-testid={testId}
       data-workbench-testid={workbenchTestId}
       data-source-kind="prompt"
@@ -50,9 +48,7 @@ export function WorkbenchPromptReferenceCard({
         <span className="mf-workbench-prompt-reference-title" title={title}>
           {title}
         </span>
-        <span className="mf-workbench-prompt-reference-subtitle">
-          {subtitle}
-        </span>
+        <span className="mf-workbench-prompt-reference-subtitle">{subtitle}</span>
       </span>
       <Button
         unstyled
@@ -66,7 +62,7 @@ export function WorkbenchPromptReferenceCard({
       >
         <X aria-hidden="true" />
       </Button>
-      {anchor && text && typeof document !== "undefined"
+      {anchor && text && typeof document !== 'undefined'
         ? createPortal(
             <div
               className="mf-workbench-prompt-reference-preview"
@@ -74,12 +70,8 @@ export function WorkbenchPromptReferenceCard({
               role="tooltip"
               data-testid="prompt-reference-preview"
             >
-              <span className="mf-workbench-prompt-reference-preview-title">
-                {title}
-              </span>
-              <span className="mf-workbench-prompt-reference-preview-text">
-                {text}
-              </span>
+              <span className="mf-workbench-prompt-reference-preview-title">{title}</span>
+              <span className="mf-workbench-prompt-reference-preview-text">{text}</span>
             </div>,
             document.body,
           )

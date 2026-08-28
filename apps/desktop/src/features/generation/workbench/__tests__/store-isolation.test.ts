@@ -18,11 +18,7 @@ const STORE_FILES = [
 
 describe('workbench store feature isolation', () => {
   it('does not import account or history feature stores', () => {
-    const banned = [
-      'account/doubao-store',
-      'account/store',
-      'history/store',
-    ];
+    const banned = ['account/doubao-store', 'account/store', 'history/store'];
     for (const file of STORE_FILES) {
       const source = readFileSync(join(workbenchDir, file), 'utf8');
       for (const needle of banned) {

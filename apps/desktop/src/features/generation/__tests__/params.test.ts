@@ -2,7 +2,12 @@
 // 精修参数 → 生图请求的映射（docs/product/12 §1.3 两类 Provider 的尺寸语义差异）
 
 import { describe, it, expect } from 'vitest';
-import { buildImageRequest, resolveRatio, DEFAULT_REFINE_PARAMS, type RefineParams } from '../../../lib/generation-params';
+import {
+  buildImageRequest,
+  resolveRatio,
+  DEFAULT_REFINE_PARAMS,
+  type RefineParams,
+} from '../../../lib/generation-params';
 
 const base: RefineParams = { ...DEFAULT_REFINE_PARAMS };
 
@@ -79,13 +84,15 @@ describe('buildImageRequest', () => {
   });
 
   it('透传经过主进程托管的参考图片', () => {
-    const referenceImages = [{
-      source: 'upload' as const,
-      path: '/tmp/previews/uploads/reference.png',
-      name: 'reference.png',
-      mimeType: 'image/png' as const,
-      sizeBytes: 512,
-    }];
+    const referenceImages = [
+      {
+        source: 'upload' as const,
+        path: '/tmp/previews/uploads/reference.png',
+        name: 'reference.png',
+        mimeType: 'image/png' as const,
+        sizeBytes: 512,
+      },
+    ];
     expect(build({ referenceImages }).referenceImages).toEqual(referenceImages);
   });
 
@@ -94,12 +101,19 @@ describe('buildImageRequest', () => {
       label: 'Poster Skill',
       repositoryUrl: 'https://github.com/example/poster-skill',
       executionMode: 'agent' as const,
-      trace: [{ id: 'agent', kind: 'tool' as const, title: '执行 Skill', status: 'success' as const }],
+      trace: [
+        { id: 'agent', kind: 'tool' as const, title: '执行 Skill', status: 'success' as const },
+      ],
     };
     expect(build({ skillRuntime }).skillRuntime).toEqual(skillRuntime);
   });
 
   it('默认参数是高清方图单张', () => {
-    expect(DEFAULT_REFINE_PARAMS).toEqual({ ratioId: '1:1', quality: 'medium', n: 1, background: 'auto' });
+    expect(DEFAULT_REFINE_PARAMS).toEqual({
+      ratioId: '1:1',
+      quality: 'medium',
+      n: 1,
+      background: 'auto',
+    });
   });
 });

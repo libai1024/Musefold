@@ -1,4 +1,4 @@
-import { X } from "@musefold/ui/icons";
+import { X } from '@musefold/ui/icons';
 
 export interface WorkbenchDraftImageItem {
   id: string;
@@ -28,7 +28,7 @@ export function WorkbenchDraftImagesPreview({
       data-position="above-composer"
     >
       <span className="shrink-0 self-center px-0.5 text-[11px] text-secondary">
-        {supportingRefinement ? "其他图片" : "参考图片"}
+        {supportingRefinement ? '其他图片' : '参考图片'}
       </span>
       {images.map((image, index) => {
         const imageNumber = startIndex + index;

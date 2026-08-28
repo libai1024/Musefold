@@ -1,5 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { GenerationHistoryPage, GenerationJob, PromptDocument, PromptPage } from '@musefold/contracts';
+import type {
+  GenerationHistoryPage,
+  GenerationJob,
+  PromptDocument,
+  PromptPage,
+} from '@musefold/contracts';
 import {
   DEFAULT_HISTORY_PAGE_LIST_KEY,
   DEFAULT_LIBRARY_PAGE_LIST_KEY,

@@ -22,7 +22,14 @@ try {
 
   const { tools } = await client.listTools();
   log(`tools exposed: ${tools.length}`);
-  log('sample:', tools.slice(0, 8).map((t) => t.name).join(', '), '…');
+  log(
+    'sample:',
+    tools
+      .slice(0, 8)
+      .map((t) => t.name)
+      .join(', '),
+    '…',
+  );
 
   log('start_app →', MAIN);
   const started = await client.callTool({

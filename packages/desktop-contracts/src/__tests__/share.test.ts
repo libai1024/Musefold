@@ -73,16 +73,12 @@ describe('share deeplink payload', () => {
     expect(() => parseShareDeeplink('https://example.com/import?data=abc')).toThrow(
       /INVALID_DEEPLINK/,
     );
-    expect(() => parseShareDeeplink('musefold://import?data=@@@')).toThrow(
-      /INVALID_DEEPLINK/,
-    );
+    expect(() => parseShareDeeplink('musefold://import?data=@@@')).toThrow(/INVALID_DEEPLINK/);
     expect(() => parseShareDeeplink('musefold://import')).toThrow(/INVALID_DEEPLINK/);
   });
 
   it('rejects over-large encoded payloads before decoding', () => {
     const maxBase64Length = Math.ceil(SHARE_DEEPLINK_MAX_BYTES / 3) * 4 + 4;
-    expect(() => decodeSharePayload('A'.repeat(maxBase64Length + 8))).toThrow(
-      /PAYLOAD_TOO_LARGE/,
-    );
+    expect(() => decodeSharePayload('A'.repeat(maxBase64Length + 8))).toThrow(/PAYLOAD_TOO_LARGE/);
   });
 });

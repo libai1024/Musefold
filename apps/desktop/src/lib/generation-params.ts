@@ -11,7 +11,11 @@ import type {
   PromptReference,
   WorkbenchRunContext,
 } from '@musefold/desktop-contracts/providers';
-import type { ImageQuality, ImageBackground, ModerationLevel } from '@musefold/desktop-contracts/enums';
+import type {
+  ImageQuality,
+  ImageBackground,
+  ModerationLevel,
+} from '@musefold/desktop-contracts/enums';
 import type { SkillRuntimeSnapshot } from '@musefold/desktop-contracts/skill-runtime';
 import { resolveRatioOptionById } from '@musefold/domain/constants';
 

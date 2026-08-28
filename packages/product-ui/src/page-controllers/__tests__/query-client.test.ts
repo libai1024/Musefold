@@ -1,14 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   MUSEFOLD_QUERY_GC_TIME_MS,
   MUSEFOLD_QUERY_RETRY,
   MUSEFOLD_QUERY_STALE_TIME_MS,
   createMusefoldQueryClient,
   musefoldQueryKeys,
-} from "../query-client";
+} from '../query-client';
 
-describe("createMusefoldQueryClient", () => {
-  it("returns an isolated client with the shared conservative defaults", () => {
+describe('createMusefoldQueryClient', () => {
+  it('returns an isolated client with the shared conservative defaults', () => {
     const first = createMusefoldQueryClient();
     const second = createMusefoldQueryClient();
     const queries = first.getDefaultOptions().queries;
@@ -23,15 +23,15 @@ describe("createMusefoldQueryClient", () => {
     expect(mutations?.retry).toBe(0);
   });
 
-  it("keeps domain query-key prefixes stable for later invalidation", () => {
-    expect(musefoldQueryKeys.history.all).toEqual(["history"]);
-    expect(musefoldQueryKeys.history.lists).toEqual(["history", "list"]);
-    expect(musefoldQueryKeys.library.all).toEqual(["library"]);
-    expect(musefoldQueryKeys.account.status).toEqual(["account", "status"]);
-    expect(musefoldQueryKeys.workbench.all).toEqual(["workbench"]);
+  it('keeps domain query-key prefixes stable for later invalidation', () => {
+    expect(musefoldQueryKeys.history.all).toEqual(['history']);
+    expect(musefoldQueryKeys.history.lists).toEqual(['history', 'list']);
+    expect(musefoldQueryKeys.library.all).toEqual(['library']);
+    expect(musefoldQueryKeys.account.status).toEqual(['account', 'status']);
+    expect(musefoldQueryKeys.workbench.all).toEqual(['workbench']);
     expect(musefoldQueryKeys.workbench.list({ limit: 20 })).toEqual([
-      "workbench",
-      "sessions",
+      'workbench',
+      'sessions',
       { limit: 20 },
     ]);
   });

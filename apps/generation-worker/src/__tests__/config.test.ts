@@ -12,15 +12,12 @@ describe('generation worker configuration', () => {
   });
 
   it('rejects unbounded worker concurrency', () => {
-    expect(
-      workerConfigSchema.safeParse({ WORKER_CONCURRENCY: 0 }).success,
-    ).toBe(false);
+    expect(workerConfigSchema.safeParse({ WORKER_CONCURRENCY: 0 }).success).toBe(false);
   });
 
   it('parses bucket bootstrap as an explicit boolean', () => {
-    expect(
-      workerConfigSchema.parse({ S3_AUTO_CREATE_BUCKET: 'false' })
-        .S3_AUTO_CREATE_BUCKET,
-    ).toBe(false);
+    expect(workerConfigSchema.parse({ S3_AUTO_CREATE_BUCKET: 'false' }).S3_AUTO_CREATE_BUCKET).toBe(
+      false,
+    );
   });
 });

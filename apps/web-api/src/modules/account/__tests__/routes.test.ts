@@ -1,9 +1,6 @@
 import cookie from '@fastify/cookie';
 import Fastify from 'fastify';
-import {
-  serializerCompiler,
-  validatorCompiler,
-} from 'fastify-type-provider-zod';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { accountRoutes } from '../routes.js';
 

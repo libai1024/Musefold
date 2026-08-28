@@ -1,5 +1,5 @@
-import { IconButton } from "@musefold/ui";
-import { RefreshCw } from "@musefold/ui/icons";
+import { IconButton } from '@musefold/ui';
+import { RefreshCw } from '@musefold/ui/icons';
 
 export interface GenerationRetryActionProps {
   onRetry: () => void;
@@ -15,21 +15,19 @@ export function GenerationRetryAction({
   disabled = false,
   busy = false,
   className,
-  testId = "result-retry",
+  testId = 'result-retry',
 }: GenerationRetryActionProps) {
   return (
     <IconButton
       size="xs"
-      label={busy ? "重试中" : "重试"}
-      className={["mf-generation-retry-action", className]
-        .filter(Boolean)
-        .join(" ")}
+      label={busy ? '重试中' : '重试'}
+      className={['mf-generation-retry-action', className].filter(Boolean).join(' ')}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
       onClick={onRetry}
       data-testid={testId}
     >
-      <RefreshCw className={busy ? "mf-spin" : undefined} aria-hidden="true" />
+      <RefreshCw className={busy ? 'mf-spin' : undefined} aria-hidden="true" />
     </IconButton>
   );
 }

@@ -18,11 +18,7 @@ export function petTravelDuration(distance: number): number {
   return Math.min(2_800, Math.max(960, distance * 2.4));
 }
 
-export function clampPetPosition(
-  point: PetPoint,
-  bounds: PetBounds,
-  size: PetSize,
-): PetPoint {
+export function clampPetPosition(point: PetPoint, bounds: PetBounds, size: PetSize): PetPoint {
   const clamp = (value: number, min: number, max: number): number =>
     Math.min(Math.max(value, min), Math.max(min, max));
 

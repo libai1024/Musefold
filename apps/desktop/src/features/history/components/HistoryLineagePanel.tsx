@@ -25,7 +25,9 @@ export function HistoryLineagePanel({ record }: { record: DesktopGenerationEntry
   return (
     <section data-testid="history-lineage-panel">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">微调链</div>
+        <div className="text-meta font-semibold uppercase tracking-wider text-quaternary">
+          微调链
+        </div>
         <span className="font-mono text-meta tabular-nums text-quaternary">{thread.length} 步</span>
       </div>
       <div className="overflow-hidden rounded-md border border-border-subtle">
@@ -81,12 +83,21 @@ function LineageNode({
       title={r.request.prompt}
     >
       {item.depth > 0 && (
-        <CornerDownRight className="h-3 w-3 shrink-0 text-quaternary" strokeWidth={1.8} aria-hidden="true" />
+        <CornerDownRight
+          className="h-3 w-3 shrink-0 text-quaternary"
+          strokeWidth={1.8}
+          aria-hidden="true"
+        />
       )}
       <NodeThumb path={r.status === 'succeeded' ? r.imagePath : null} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className={cn('truncate text-[11px] leading-4', current ? 'font-semibold text-primary' : 'font-medium text-secondary')}>
+          <span
+            className={cn(
+              'truncate text-[11px] leading-4',
+              current ? 'font-semibold text-primary' : 'font-medium text-secondary',
+            )}
+          >
             {label}
           </span>
           {meta.status !== 'succeeded' && (
@@ -112,7 +123,12 @@ function NodeThumb({ path }: { path: string | null }) {
   return (
     <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded border border-border-subtle bg-inset">
       {path && !broken ? (
-        <img src={toImageSrc(path)} alt="" onError={() => setBroken(true)} className="h-full w-full object-cover" />
+        <img
+          src={toImageSrc(path)}
+          alt=""
+          onError={() => setBroken(true)}
+          className="h-full w-full object-cover"
+        />
       ) : (
         <ImageOff className="h-3 w-3 text-quaternary" />
       )}

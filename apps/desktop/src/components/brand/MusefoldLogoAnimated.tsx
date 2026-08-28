@@ -28,74 +28,98 @@ export function MusefoldLogoAnimated({
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const reducedMotion = useAppStore((s) => s.reducedMotion);
 
-  useGSAP((_context, contextSafe) => {
-    const media = gsap.matchMedia();
-    // calm 只放慢入场编排；待机呼吸的时长独立指定，不随入场变速。
-    const slow = tempo === 'calm' ? 2.1 : 1;
-    const startMotion = () => {
-      const timeline = gsap.timeline({ defaults: { ease: 'power3.out' } });
-      timeline
-        .from('[data-logo-frame]', { autoAlpha: 0, x: -5, y: -5, duration: 0.42 * slow })
-        .from('[data-logo-edges]', { autoAlpha: 0, x: 4, y: 4, duration: 0.42 * slow }, `-=${0.26 * slow}`)
-        .from('[data-logo-fold]', {
-          autoAlpha: 0,
-          scale: 0.25,
-          rotation: -24,
-          transformOrigin: '100% 0%',
-          duration: 0.5 * slow,
-          ease: 'back.out(1.5)',
-        }, `-=${0.2 * slow}`)
-        .from('[data-logo-dot]', {
-          autoAlpha: 0,
-          scale: 0,
-          transformOrigin: '50% 50%',
-          duration: 0.34 * slow,
-          ease: 'back.out(2.4)',
-        }, `-=${0.18 * slow}`);
-      if (idle) {
-        // 无限循环使 isActive() 恒为 true，悬停重播随之自然停用。
+  useGSAP(
+    (_context, contextSafe) => {
+      const media = gsap.matchMedia();
+      // calm 只放慢入场编排；待机呼吸的时长独立指定，不随入场变速。
+      const slow = tempo === 'calm' ? 2.1 : 1;
+      const startMotion = () => {
+        const timeline = gsap.timeline({ defaults: { ease: 'power3.out' } });
         timeline
-          .to('[data-logo-dot]', {
-            scale: 1.07,
-            transformOrigin: '50% 50%',
-            duration: 1.4,
-            ease: 'sine.inOut',
-            yoyo: true,
-            repeat: -1,
-          }, '+=0.6')
-          .to('[data-logo-svg]', {
-            y: -2.5,
-            duration: 2.6,
-            ease: 'sine.inOut',
-            yoyo: true,
-            repeat: -1,
-          }, '<');
-      }
-      timelineRef.current = timeline;
-      return () => {
-        // revert 而不是 kill：中途切换“减少动态”时恢复到完整可见的最终状态
-        timeline.revert();
-        timelineRef.current = null;
+          .from('[data-logo-frame]', { autoAlpha: 0, x: -5, y: -5, duration: 0.42 * slow })
+          .from(
+            '[data-logo-edges]',
+            { autoAlpha: 0, x: 4, y: 4, duration: 0.42 * slow },
+            `-=${0.26 * slow}`,
+          )
+          .from(
+            '[data-logo-fold]',
+            {
+              autoAlpha: 0,
+              scale: 0.25,
+              rotation: -24,
+              transformOrigin: '100% 0%',
+              duration: 0.5 * slow,
+              ease: 'back.out(1.5)',
+            },
+            `-=${0.2 * slow}`,
+          )
+          .from(
+            '[data-logo-dot]',
+            {
+              autoAlpha: 0,
+              scale: 0,
+              transformOrigin: '50% 50%',
+              duration: 0.34 * slow,
+              ease: 'back.out(2.4)',
+            },
+            `-=${0.18 * slow}`,
+          );
+        if (idle) {
+          // 无限循环使 isActive() 恒为 true，悬停重播随之自然停用。
+          timeline
+            .to(
+              '[data-logo-dot]',
+              {
+                scale: 1.07,
+                transformOrigin: '50% 50%',
+                duration: 1.4,
+                ease: 'sine.inOut',
+                yoyo: true,
+                repeat: -1,
+              },
+              '+=0.6',
+            )
+            .to(
+              '[data-logo-svg]',
+              {
+                y: -2.5,
+                duration: 2.6,
+                ease: 'sine.inOut',
+                yoyo: true,
+                repeat: -1,
+              },
+              '<',
+            );
+        }
+        timelineRef.current = timeline;
+        return () => {
+          // revert 而不是 kill：中途切换“减少动态”时恢复到完整可见的最终状态
+          timeline.revert();
+          timelineRef.current = null;
+        };
       };
-    };
 
-    const replay = contextSafe?.(() => {
-      const timeline = timelineRef.current;
-      if (timeline && !timeline.isActive()) timeline.restart();
-    });
-    const root = rootRef.current;
-    if (replay) root?.addEventListener('pointerenter', replay);
+      const replay = contextSafe?.(() => {
+        const timeline = timelineRef.current;
+        if (timeline && !timeline.isActive()) timeline.restart();
+      });
+      const root = rootRef.current;
+      if (replay) root?.addEventListener('pointerenter', replay);
 
-    let cleanupMotion: (() => void) | undefined;
-    if (reducedMotion === 'off') cleanupMotion = startMotion();
-    else if (reducedMotion !== 'on') media.add('(prefers-reduced-motion: no-preference)', startMotion);
+      let cleanupMotion: (() => void) | undefined;
+      if (reducedMotion === 'off') cleanupMotion = startMotion();
+      else if (reducedMotion !== 'on')
+        media.add('(prefers-reduced-motion: no-preference)', startMotion);
 
-    return () => {
-      if (replay) root?.removeEventListener('pointerenter', replay);
-      cleanupMotion?.();
-      media.revert();
-    };
-  }, { scope: rootRef, dependencies: [reducedMotion, tempo, idle] });
+      return () => {
+        if (replay) root?.removeEventListener('pointerenter', replay);
+        cleanupMotion?.();
+        media.revert();
+      };
+    },
+    { scope: rootRef, dependencies: [reducedMotion, tempo, idle] },
+  );
 
   return (
     <div
@@ -105,7 +129,14 @@ export function MusefoldLogoAnimated({
       className={cn('text-primary', className)}
       {...props}
     >
-      <svg data-logo-svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="block h-full w-full">
+      <svg
+        data-logo-svg
+        viewBox="0 0 100 100"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+        className="block h-full w-full"
+      >
         {/* 背板：厚石墨 L（左侧 + 顶部） */}
         <path
           data-logo-frame

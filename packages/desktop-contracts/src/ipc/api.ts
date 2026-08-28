@@ -1,20 +1,15 @@
 // packages/desktop-contracts/src/ipc/api.ts
 // Api 聚合接口（V13-GOV-04：按域拆分后的组合面；形状与拆分前完全一致，消费方零改动）。
 
-import type { PromptApi, SearchHistoryApi } from "./prompt";
-import type { HistoryApi } from "./history";
-import type { WorkbenchSessionApi } from "./workbench";
-import type { AiConnectionApi, ProviderApi, ImageApi } from "./generation";
-import type { AccountApi, CloudSyncApi, CloudConnectionsApi } from "./account";
-import type {
-  SystemApi,
-  UpdaterApi,
-  LogApi,
-  WindowApi,
-} from "./system";
-import type { AutomationApi } from "./automation";
-import type { ShareApi } from "./share";
-import type { DiagnosticsApi, PetApi, SkillRuntimeApi, DesignSchemeApi } from "./misc";
+import type { PromptApi, SearchHistoryApi } from './prompt';
+import type { HistoryApi } from './history';
+import type { WorkbenchSessionApi } from './workbench';
+import type { AiConnectionApi, ProviderApi, ImageApi } from './generation';
+import type { AccountApi, CloudSyncApi, CloudConnectionsApi } from './account';
+import type { SystemApi, UpdaterApi, LogApi, WindowApi } from './system';
+import type { AutomationApi } from './automation';
+import type { ShareApi } from './share';
+import type { DiagnosticsApi, PetApi, SkillRuntimeApi, DesignSchemeApi } from './misc';
 
 // ---------- IPC 错误 ----------
 export interface IpcError {

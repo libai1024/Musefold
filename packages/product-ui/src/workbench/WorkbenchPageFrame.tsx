@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode } from 'react';
 
 export interface WorkbenchPageFrameProps {
   timeline: ReactNode;
@@ -16,37 +16,31 @@ export function WorkbenchPageFrame({
   composer,
   auxiliary,
   auxiliaryWidth,
-  className = "",
-  stageClassName = "",
-  testId = "generation-workbench",
+  className = '',
+  stageClassName = '',
+  testId = 'generation-workbench',
 }: WorkbenchPageFrameProps) {
   const style =
     auxiliary && auxiliaryWidth
       ? ({
-          "--mf-workbench-auxiliary-width": `${auxiliaryWidth}px`,
+          '--mf-workbench-auxiliary-width': `${auxiliaryWidth}px`,
         } as CSSProperties)
       : undefined;
 
   return (
     <div
-      className={["mf-workbench-page", className].filter(Boolean).join(" ")}
-      data-auxiliary-open={auxiliary ? "true" : "false"}
+      className={['mf-workbench-page', className].filter(Boolean).join(' ')}
+      data-auxiliary-open={auxiliary ? 'true' : 'false'}
       data-testid={testId}
       style={style}
     >
       <div className="mf-workbench-primary">
-        <div
-          className={["mf-workbench-stage", stageClassName]
-            .filter(Boolean)
-            .join(" ")}
-        >
+        <div className={['mf-workbench-stage', stageClassName].filter(Boolean).join(' ')}>
           {timeline}
         </div>
         {composer}
       </div>
-      {auxiliary ? (
-        <div className="mf-workbench-auxiliary">{auxiliary}</div>
-      ) : null}
+      {auxiliary ? <div className="mf-workbench-auxiliary">{auxiliary}</div> : null}
     </div>
   );
 }

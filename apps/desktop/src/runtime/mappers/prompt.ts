@@ -12,7 +12,10 @@ import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { NewPrompt, Prompt, PromptParams, Tag } from '@musefold/desktop-contracts/models';
 import type { DesktopLibraryPrompt } from '@musefold/desktop-contracts/library-documents';
-import type { PromptSource as DesktopPromptSource, TagGroup } from '@musefold/desktop-contracts/enums';
+import type {
+  PromptSource as DesktopPromptSource,
+  TagGroup,
+} from '@musefold/desktop-contracts/enums';
 import {
   epochMsToIso,
   epochMsToIsoOrNull,
@@ -144,12 +147,9 @@ function promptTagToRow(tag: PromptTag): Tag {
   };
 }
 
-function toDesktopParams(
-  params: Record<string, unknown> | null | undefined,
-): PromptParams | null {
+function toDesktopParams(params: Record<string, unknown> | null | undefined): PromptParams | null {
   if (params == null) return null;
-  const schemaVersion =
-    typeof params.schemaVersion === 'number' ? params.schemaVersion : 1;
+  const schemaVersion = typeof params.schemaVersion === 'number' ? params.schemaVersion : 1;
   // 有损：云 params 是自由 record；桌面 PromptParams 要求 schemaVersion，缺则补 1。
   return { ...params, schemaVersion };
 }

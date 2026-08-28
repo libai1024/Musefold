@@ -3,13 +3,13 @@ import type {
   LoginRequest,
   RedeemResult,
   RegisterRequest,
-} from "@musefold/contracts";
-import type { NewApiClient, RelayUser } from "@musefold/new-api-client";
-import { AppError } from "../../errors.js";
-import type { AccountCredentialStorePort } from "./credential-store.js";
-import type { SessionStorePort, StoredSession } from "./session-store.js";
+} from '@musefold/contracts';
+import type { NewApiClient, RelayUser } from '@musefold/new-api-client';
+import { AppError } from '../../errors.js';
+import type { AccountCredentialStorePort } from './credential-store.js';
+import type { SessionStorePort, StoredSession } from './session-store.js';
 
-const CLOUD_TOKEN_NAME = "Musefold Cloud v1.1";
+const CLOUD_TOKEN_NAME = 'Musefold Cloud v1.1';
 
 export class AccountService {
   constructor(
@@ -18,9 +18,7 @@ export class AccountService {
     private readonly credentials: AccountCredentialStorePort,
   ) {}
 
-  async register(
-    input: RegisterRequest,
-  ): Promise<AccountSession & { rawSessionId: string }> {
+  async register(input: RegisterRequest): Promise<AccountSession & { rawSessionId: string }> {
     try {
       await this.client.register({
         username: input.username,
@@ -32,17 +30,11 @@ export class AccountService {
     }
   }
 
-  async login(
-    input: LoginRequest,
-  ): Promise<AccountSession & { rawSessionId: string }> {
+  async login(input: LoginRequest): Promise<AccountSession & { rawSessionId: string }> {
     try {
       const auth = await this.client.login(input);
       const credential = await this.ensureGenerationCredential(auth.jwt);
-      await this.credentials.put(
-        auth.user.id,
-        { apiKey: credential.key },
-        credential.id,
-      );
+      await this.credentials.put(auth.user.id, { apiKey: credential.key }, credential.id);
       const session = await this.sessions.create({
         ownerId: auth.user.id,
         username: auth.user.username,
@@ -61,15 +53,11 @@ export class AccountService {
     try {
       const user = await this.client.getSelf(accessToken);
       const credential = await this.ensureGenerationCredential(accessToken);
-      await this.credentials.put(
-        user.id,
-        { apiKey: credential.key },
-        credential.id,
-      );
+      await this.credentials.put(user.id, { apiKey: credential.key }, credential.id);
       const session = await this.sessions.create({
         ownerId: user.id,
         username: user.username,
-        credentials: { accessToken, refreshToken: "" },
+        credentials: { accessToken, refreshToken: '' },
         accessExpiresAt: accessTokenExpiry(accessToken),
       });
       return this.toResponse(session, user);
@@ -78,16 +66,9 @@ export class AccountService {
     }
   }
 
-  async getSession(
-    rawSessionId: string,
-  ): Promise<AccountSession & { rawSessionId: string }> {
+  async getSession(rawSessionId: string): Promise<AccountSession & { rawSessionId: string }> {
     const session = await this.sessions.get(rawSessionId);
-    if (!session)
-      throw new AppError(
-        "AUTH_SESSION_EXPIRED",
-        "登录状态已失效，请重新登录",
-        401,
-      );
+    if (!session) throw new AppError('AUTH_SESSION_EXPIRED', '登录状态已失效，请重新登录', 401);
     const refreshed = await this.refreshIfNeeded(session);
     try {
       const user = await this.client.getSelf(refreshed.credentials.accessToken);
@@ -95,11 +76,7 @@ export class AccountService {
     } catch (error) {
       if (this.isAuthError(error)) {
         await this.sessions.revoke(rawSessionId);
-        throw new AppError(
-          "AUTH_SESSION_EXPIRED",
-          "登录状态已失效，请重新登录",
-          401,
-        );
+        throw new AppError('AUTH_SESSION_EXPIRED', '登录状态已失效，请重新登录', 401);
       }
       throw this.mapRelayError(error);
     }
@@ -108,10 +85,7 @@ export class AccountService {
   async redeem(rawSessionId: string, code: string): Promise<RedeemResult> {
     const session = await this.requireSession(rawSessionId);
     try {
-      const result = await this.client.redeem(
-        session.credentials.accessToken,
-        code,
-      );
+      const result = await this.client.redeem(session.credentials.accessToken, code);
       const user = await this.client.getSelf(session.credentials.accessToken);
       return {
         account: this.toAccount(user),
@@ -120,22 +94,10 @@ export class AccountService {
     } catch (error) {
       if (this.isAuthError(error)) {
         await this.sessions.revoke(rawSessionId);
-        throw new AppError(
-          "AUTH_SESSION_EXPIRED",
-          "登录状态已失效，请重新登录",
-          401,
-        );
+        throw new AppError('AUTH_SESSION_EXPIRED', '登录状态已失效，请重新登录', 401);
       }
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "redeem"
-      ) {
-        throw new AppError(
-          "ACCOUNT_REDEEM_INVALID",
-          "兑换失败，请检查兑换码后重试",
-          400,
-        );
+      if (error instanceof Error && 'code' in error && error.code === 'redeem') {
+        throw new AppError('ACCOUNT_REDEEM_INVALID', '兑换失败，请检查兑换码后重试', 400);
       }
       throw this.mapRelayError(error);
     }
@@ -145,29 +107,17 @@ export class AccountService {
     await this.sessions.revoke(rawSessionId);
   }
 
-  async reauthenticate(
-    ownerId: number,
-    username: string,
-    password: string,
-  ): Promise<void> {
+  async reauthenticate(ownerId: number, username: string, password: string): Promise<void> {
     try {
       const auth = await this.client.login({ username, password });
       if (auth.user.id !== ownerId || auth.user.username !== username) {
-        throw new AppError(
-          "AUTH_CREDENTIALS_INVALID",
-          "账号验证失败，请重新输入密码",
-          401,
-        );
+        throw new AppError('AUTH_CREDENTIALS_INVALID', '账号验证失败，请重新输入密码', 401);
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
       const mapped = this.mapRelayError(error);
-      if (mapped.code === "AUTH_CREDENTIALS_INVALID") {
-        throw new AppError(
-          "AUTH_CREDENTIALS_INVALID",
-          "账号验证失败，请重新输入密码",
-          401,
-        );
+      if (mapped.code === 'AUTH_CREDENTIALS_INVALID') {
+        throw new AppError('AUTH_CREDENTIALS_INVALID', '账号验证失败，请重新输入密码', 401);
       }
       throw mapped;
     }
@@ -175,48 +125,30 @@ export class AccountService {
 
   private async requireSession(rawSessionId: string): Promise<StoredSession> {
     const session = await this.sessions.get(rawSessionId);
-    if (!session)
-      throw new AppError(
-        "AUTH_SESSION_EXPIRED",
-        "登录状态已失效，请重新登录",
-        401,
-      );
+    if (!session) throw new AppError('AUTH_SESSION_EXPIRED', '登录状态已失效，请重新登录', 401);
     return this.refreshIfNeeded(session);
   }
 
-  private async refreshIfNeeded(
-    session: StoredSession,
-  ): Promise<StoredSession> {
+  private async refreshIfNeeded(session: StoredSession): Promise<StoredSession> {
     if (session.accessExpiresAt.getTime() - Date.now() > 60_000) return session;
     try {
-      const refreshed = await this.client.refresh(
-        session.credentials.refreshToken,
-      );
+      const refreshed = await this.client.refresh(session.credentials.refreshToken);
       const credentials = {
         accessToken: refreshed.jwt,
         refreshToken: refreshed.refreshToken,
       };
       const accessExpiresAt = new Date(refreshed.jwtExpiresAt * 1_000);
-      await this.sessions.replaceCredentials(
-        session.rawId,
-        credentials,
-        accessExpiresAt,
-      );
+      await this.sessions.replaceCredentials(session.rawId, credentials, accessExpiresAt);
       return { ...session, credentials, accessExpiresAt };
     } catch (error) {
       throw this.mapRelayError(error);
     }
   }
 
-  private async ensureGenerationCredential(
-    jwt: string,
-  ): Promise<{ id: number; key: string }> {
+  private async ensureGenerationCredential(jwt: string): Promise<{ id: number; key: string }> {
     let tokens = await this.client.listTokens(jwt);
     let token = tokens
-      .filter(
-        (candidate) =>
-          candidate.name === CLOUD_TOKEN_NAME && candidate.status === 1,
-      )
+      .filter((candidate) => candidate.name === CLOUD_TOKEN_NAME && candidate.status === 1)
       .sort((a, b) => b.id - a.id)[0];
     if (!token) {
       await this.client.createToken(jwt, { name: CLOUD_TOKEN_NAME });
@@ -225,8 +157,7 @@ export class AccountService {
         .filter((candidate) => candidate.name === CLOUD_TOKEN_NAME)
         .sort((a, b) => b.id - a.id)[0];
     }
-    if (!token)
-      throw new AppError("INTERNAL_ERROR", "无法供给账号生图凭据", 502, true);
+    if (!token) throw new AppError('INTERNAL_ERROR', '无法供给账号生图凭据', 502, true);
     return {
       id: token.id,
       key: await this.client.fetchTokenKey(jwt, token.id),
@@ -244,57 +175,39 @@ export class AccountService {
     };
   }
 
-  private toAccount(user: RelayUser): AccountSession["account"] {
+  private toAccount(user: RelayUser): AccountSession['account'] {
     return {
       id: String(user.id),
       username: user.username,
       displayName: null,
       quota: Math.floor(user.quota),
-      quotaUnit: "点",
+      quotaUnit: '点',
       canGenerate: user.quota > 0,
     };
   }
 
   private isAuthError(error: unknown): boolean {
-    return Boolean(
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "auth",
-    );
+    return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'auth');
   }
 
   private mapRelayError(error: unknown): AppError {
-    const code =
-      error && typeof error === "object" && "code" in error ? error.code : null;
-    if (code === "credentials")
-      return new AppError(
-        "AUTH_CREDENTIALS_INVALID",
-        "用户名或密码不正确",
-        401,
-      );
-    if (code === "conflict")
-      return new AppError("VALIDATION_FAILED", "账号无法注册", 409);
-    if (code === "auth")
-      return new AppError(
-        "AUTH_SESSION_EXPIRED",
-        "登录状态已失效，请重新登录",
-        401,
-      );
-    if (code === "network")
-      return new AppError("INTERNAL_ERROR", "账号服务暂时不可用", 503, true);
-    return new AppError("INTERNAL_ERROR", "账号服务暂时不可用", 502, true);
+    const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+    if (code === 'credentials')
+      return new AppError('AUTH_CREDENTIALS_INVALID', '用户名或密码不正确', 401);
+    if (code === 'conflict') return new AppError('VALIDATION_FAILED', '账号无法注册', 409);
+    if (code === 'auth')
+      return new AppError('AUTH_SESSION_EXPIRED', '登录状态已失效，请重新登录', 401);
+    if (code === 'network') return new AppError('INTERNAL_ERROR', '账号服务暂时不可用', 503, true);
+    return new AppError('INTERNAL_ERROR', '账号服务暂时不可用', 502, true);
   }
 }
 
 function accessTokenExpiry(accessToken: string): Date {
   try {
     const payload = JSON.parse(
-      Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(
-        "utf8",
-      ),
+      Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
     ) as { exp?: unknown };
-    if (typeof payload.exp === "number" && Number.isFinite(payload.exp))
+    if (typeof payload.exp === 'number' && Number.isFinite(payload.exp))
       return new Date(payload.exp * 1_000);
   } catch {
     // getSelf already authenticated opaque or non-JWT tokens; use a short metadata expiry.

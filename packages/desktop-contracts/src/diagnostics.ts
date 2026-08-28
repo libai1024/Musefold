@@ -89,7 +89,8 @@ function sanitizeValue(
     const output = input
       .slice(0, MAX_ARRAY_ITEMS)
       .map((item) => sanitizeValue(item, depth + 1, seen));
-    if (input.length > MAX_ARRAY_ITEMS) output.push(`[${input.length - MAX_ARRAY_ITEMS} more items]`);
+    if (input.length > MAX_ARRAY_ITEMS)
+      output.push(`[${input.length - MAX_ARRAY_ITEMS} more items]`);
     seen.delete(input);
     return output;
   }
@@ -134,7 +135,8 @@ function serializeError(
   };
   if (typeof rawStack === 'string' && rawStack) serialized.stack = redactString(rawStack);
   if (rawCode != null) serialized.code = redactString(String(rawCode));
-  if (rawDetails !== undefined) serialized.details = sanitizeValue(rawDetails, depth + 1, seen, 'details');
+  if (rawDetails !== undefined)
+    serialized.details = sanitizeValue(rawDetails, depth + 1, seen, 'details');
   if (rawCause && depth < MAX_DEPTH) {
     serialized.cause = serializeUnknownError(rawCause, depth + 1, seen);
   }
@@ -181,7 +183,7 @@ export function createDiagnosticReport(
   input: CreateDiagnosticReportInput,
 ): DiagnosticReport {
   const context = input.context
-    ? sanitizeValue(input.context, 0, new WeakSet<object>()) as Record<string, unknown>
+    ? (sanitizeValue(input.context, 0, new WeakSet<object>()) as Record<string, unknown>)
     : undefined;
   return {
     id: createReportId(),
@@ -219,7 +221,8 @@ export function formatDiagnosticReport(report: DiagnosticReport, occurrences = 1
   lines.push(`Message: ${safe.error.message}`);
   if (safe.error.stack) lines.push('', 'Stack:', safe.error.stack);
   if (safe.error.cause) lines.push('', 'Cause:', JSON.stringify(safe.error.cause, null, 2));
-  if (safe.error.details !== undefined) lines.push('', 'Details:', JSON.stringify(safe.error.details, null, 2));
+  if (safe.error.details !== undefined)
+    lines.push('', 'Details:', JSON.stringify(safe.error.details, null, 2));
   if (safe.context) lines.push('', 'Context:', JSON.stringify(safe.context, null, 2));
   return lines.join('\n');
 }

@@ -20,14 +20,16 @@ interface LegacyHistoryRow {
  * after generation; deliberately avoid fuzzy text matching.
  */
 export function up(db: Database.Database): void {
-  const prompts = db.prepare(
-    `SELECT id, content, content_negative, created_at
+  const prompts = db
+    .prepare(
+      `SELECT id, content, content_negative, created_at
      FROM prompts
      WHERE deleted_at IS NULL
        AND source = 'manual'
        AND source_url IS NULL
      ORDER BY created_at ASC`,
-  ).all() as LegacyPromptRow[];
+    )
+    .all() as LegacyPromptRow[];
   const findHistory = db.prepare(
     `SELECT id, image_path
      FROM history
@@ -40,7 +42,9 @@ export function up(db: Database.Database): void {
        AND created_at >= ?
      ORDER BY created_at DESC`,
   );
-  const linkHistory = db.prepare('UPDATE history SET prompt_id = ? WHERE id = ? AND prompt_id IS NULL');
+  const linkHistory = db.prepare(
+    'UPDATE history SET prompt_id = ? WHERE id = ? AND prompt_id IS NULL',
+  );
   const updatePrompt = db.prepare(
     `UPDATE prompts
      SET source_url = COALESCE(source_url, ?),
@@ -60,11 +64,6 @@ export function up(db: Database.Database): void {
 
     for (const history of histories) linkHistory.run(prompt.id, history.id);
     const nearest = histories[0];
-    updatePrompt.run(
-      `history://${nearest.id}`,
-      nearest.image_path,
-      prompt.created_at,
-      prompt.id,
-    );
+    updatePrompt.run(`history://${nearest.id}`, nearest.image_path, prompt.created_at, prompt.id);
   }
 }

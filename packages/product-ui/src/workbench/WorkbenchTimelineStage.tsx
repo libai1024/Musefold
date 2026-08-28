@@ -1,14 +1,14 @@
-import type { PointerEventHandler, ReactNode } from "react";
-import { WorkbenchTimelineContent } from "./WorkbenchTimelineContent";
-import { WorkbenchTimelineViewport } from "./WorkbenchTimelineViewport";
-import type { WorkbenchTimelineController } from "./useWorkbenchTimelineController";
+import type { PointerEventHandler, ReactNode } from 'react';
+import { WorkbenchTimelineContent } from './WorkbenchTimelineContent';
+import { WorkbenchTimelineViewport } from './WorkbenchTimelineViewport';
+import type { WorkbenchTimelineController } from './useWorkbenchTimelineController';
 
 export interface WorkbenchTimelineStageProps {
   controller: WorkbenchTimelineController;
   itemCount: number;
   children?: ReactNode;
   empty?: ReactNode;
-  bottomInset?: "composer" | "attachments";
+  bottomInset?: 'composer' | 'attachments';
   className?: string;
   testId?: string;
   onPointerDown?: PointerEventHandler<HTMLDivElement>;
@@ -34,11 +34,7 @@ export function WorkbenchTimelineStage({
       testId={testId}
       onPointerDown={onPointerDown}
     >
-      <WorkbenchTimelineContent
-        itemCount={itemCount}
-        bottomInset={bottomInset}
-        empty={empty}
-      >
+      <WorkbenchTimelineContent itemCount={itemCount} bottomInset={bottomInset} empty={empty}>
         {children}
       </WorkbenchTimelineContent>
       {trailing}
