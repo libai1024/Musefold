@@ -66,4 +66,21 @@ export const DESKTOP_MIGRATIONS: MigrationMeta[] = [
     folderMillis: 1787936645137,
     hash: 'eb58f87918941e75a74a9652bf2a48dc4153170aa4a5534a7e8eea7fd3d5c2c3',
   },
+  {
+    sql: [
+      'ALTER TABLE `generation_runs` ADD `prompt_id` text;',
+      'CREATE INDEX `idx_generation_runs_prompt_created` ON `generation_runs` (`prompt_id`,`created_at`) WHERE prompt_id IS NOT NULL;',
+      "-- 单账本回填(V25 生命周期决议:generation_runs 是唯一生成账本):\n-- history 旧行按同 id 迁入 generation_runs;双写期两边同 id,已存在的跳过(幂等)。\n-- 语义映射:\n--   * created_at:旧 history 在生成完成时写入,故同时充当 finished_at;started_at 留空(未知)。\n--   * cost:cost_unit='point' 原值即积分;'cny_cent'(BYOK 分)换算为元(÷100)。\n--   * 空 prompt/provider/model 用占位符满足 CHECK 约束;非法 status 归并为 failed。\n--   * history_prompt_references 内嵌进 prompt_snapshot_json.promptReferences(快照语义不变)。\nINSERT INTO generation_runs (\n  id, run_kind, prompt_id, provider_id, model,\n  user_prompt, base_prompt, final_prompt, negative_prompt,\n  params_json, prompt_snapshot_json,\n  status, error_code, error_message, actual_cost, duration_ms,\n  created_at, finished_at\n)\nSELECT\n  h.id,\n  'free_generation',\n  h.prompt_id,\n  CASE WHEN length(trim(h.provider_id)) > 0 THEN h.provider_id ELSE 'unknown' END,\n  CASE WHEN length(trim(h.model)) > 0 THEN h.model ELSE 'unknown' END,\n  h.prompt_text,\n  CASE WHEN length(trim(h.prompt_text)) > 0 THEN h.prompt_text ELSE '(未记录提示词)' END,\n  CASE WHEN length(trim(h.prompt_text)) > 0 THEN h.prompt_text ELSE '(未记录提示词)' END,\n  h.negative_text,\n  CASE WHEN h.params IS NOT NULL AND json_valid(h.params) THEN h.params ELSE '{\"schemaVersion\":1}' END,\n  json_object(\n    'schemaVersion', 1,\n    'userPrompt', h.prompt_text,\n    'basePrompt', CASE WHEN length(trim(h.prompt_text)) > 0 THEN h.prompt_text ELSE '(未记录提示词)' END,\n    'refinementInstruction', NULL,\n    'finalPrompt', CASE WHEN length(trim(h.prompt_text)) > 0 THEN h.prompt_text ELSE '(未记录提示词)' END,\n    'negativePrompt', h.negative_text,\n    'promptReferences', json(COALESCE((\n      SELECT json_group_array(json_object(\n        'promptId', r.prompt_id,\n        'title', r.prompt_title,\n        'excerpt', r.excerpt,\n        'scope', r.scope\n      ) ORDER BY r.sort_order)\n      FROM history_prompt_references r\n      WHERE r.history_id = h.id\n    ), '[]'))\n  ),\n  CASE WHEN h.status IN ('success', 'failed', 'cancelled') THEN h.status ELSE 'failed' END,\n  h.error_code,\n  h.error_message,\n  CASE\n    WHEN h.cost IS NULL THEN NULL\n    WHEN h.cost_unit = 'cny_cent' THEN h.cost / 100.0\n    ELSE h.cost\n  END,\n  h.duration_ms,\n  h.created_at,\n  h.created_at\nFROM history h\nWHERE NOT EXISTS (SELECT 1 FROM generation_runs gr WHERE gr.id = h.id);",
+      "-- 成功行的出图落为 position 0 资产(资产 id 沿用 run id,与 runs.complete 的约定一致)。\nINSERT INTO generated_assets (id, run_id, position, status, media_path, created_at)\nSELECT h.id, h.id, 0, 'available', h.image_path, h.created_at\nFROM history h\nWHERE h.image_path IS NOT NULL\n  AND h.status = 'success'\n  AND NOT EXISTS (SELECT 1 FROM generated_assets ga WHERE ga.run_id = h.id AND ga.position = 0)\n  AND NOT EXISTS (SELECT 1 FROM generated_assets ga2 WHERE ga2.id = h.id);",
+    ],
+    bps: true,
+    folderMillis: 1788013036888,
+    hash: '6f712290dd5f03cd0a48e632e99b78a615cb04dfaffbe1d1b87555371f343326',
+  },
+  {
+    sql: ['DROP TABLE `history_prompt_references`;', 'DROP TABLE `history`;'],
+    bps: true,
+    folderMillis: 1788013114959,
+    hash: '94687ce1de5b693f9e4148fdbb11dedfcc88a3be4200602ea254c65a686e63bf',
+  },
 ];

@@ -15,6 +15,20 @@
       "when": 1787936645137,
       "tag": "0001_stormy_sharon_carter",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788013036888,
+      "tag": "0002_massive_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788013114959,
+      "tag": "0003_certain_tenebrous",
+      "breakpoints": true
     }
   ]
 }

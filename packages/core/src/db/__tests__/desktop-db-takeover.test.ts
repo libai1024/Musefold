@@ -1,15 +1,21 @@
 // 接管正确性守护(至 M5c 删除 core legacy 链前,双体系一致性以此为准):
 // 1) baseline(忠实 DDL)建的空库 ≡ legacy 链(core 0001→0020)建的库(对象/列/索引集合);
 // 2) 既有库接管零数据搬运、先备份、可重入;3) 非终态旧库拒绝接管。
+// 测试住在 core 而非 desktop-db:依赖方向是 core → desktop-db(initDb 内嵌接管),
+// desktop-db 保持零 workspace 依赖,而本测试需要 core 的 legacy 链建旧库。
 
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runMigrations } from '@musefold/core/db/run-migrations';
-import { configureCoreRuntime } from '@musefold/core/runtime';
+import {
+  LEGACY_FINAL_USER_VERSION,
+  REQUIRED_TABLES,
+  takeoverDesktopDatabase,
+} from '@musefold/desktop-db';
 import Database from 'better-sqlite3';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { LEGACY_FINAL_USER_VERSION, REQUIRED_TABLES, takeoverDesktopDatabase } from '../index';
+import { configureCoreRuntime } from '../../runtime';
+import { runMigrations } from '../run-migrations';
 
 let scratch: string;
 const cleanups: Array<() => void> = [];
@@ -125,29 +131,39 @@ function seedLegacyData(db: Database.Database): void {
     `INSERT INTO providers (id, name, type, base_url, model, created_at, updated_at)
      VALUES ('prov-1', '网关', 'openai-compatible', 'https://gw.example', 'flux', ?, ?)`,
   ).run(now, now);
+  // 旧账本行(含引用与成图):迁移 0002 应把它完整回填进 generation_runs / generated_assets。
   db.prepare(
-    "INSERT INTO history (id, provider_id, model, prompt_text, status, created_at) VALUES ('h1', 'prov-1', 'flux', '一只猫', 'success', ?)",
+    `INSERT INTO history
+       (id, prompt_id, provider_id, model, prompt_text, status, image_path, cost, cost_unit, created_at)
+     VALUES ('h1', 'p1', 'prov-1', 'flux', '一只猫', 'success', '/tmp/h1.png', 60, 'point', ?)`,
   ).run(now);
+  db.prepare(
+    `INSERT INTO history_prompt_references
+       (history_id, prompt_id, prompt_title, excerpt, scope, sort_order)
+     VALUES ('h1', 'p1', '测试提示词', '一只在月光下的猫', 'full', 0)`,
+  ).run();
 }
 
 describe('takeoverDesktopDatabase', () => {
-  it('baseline 空库与 legacy 链建库对象集合一致', () => {
+  it('legacy 链接管后与全新库收敛到同一形状(单账本:history 已退役)', () => {
+    // 增量迁移开始改动共享表(0002 加列、0003 DROP history)后,
+    // 等价点从 baseline 移到迁移链头:接管旧库跑完增量 ≡ 全新库跑完全链。
     const legacy = buildLegacyDb('legacy-shape.db');
+    expect(takeoverDesktopDatabase(legacy).mode).toBe('adopted');
     const fresh = openDb('fresh-shape.db');
-    const result = takeoverDesktopDatabase(fresh);
-    expect(result.mode).toBe('fresh');
+    expect(takeoverDesktopDatabase(fresh).mode).toBe('fresh');
 
-    const legacyShape = introspect(legacy);
+    const adoptedShape = introspect(legacy);
     const freshShape = introspect(fresh);
-    // fresh 比 legacy 仅多出 drizzle 增量迁移引入的表(当前:workbench_drafts)。
-    const extra = freshShape.tables.filter((t) => !legacyShape.tables.includes(t));
-    expect(extra).toEqual(['workbench_drafts']);
-    for (const table of legacyShape.tables) {
-      expect(freshShape.columnsByTable[table], `表 ${table} 列不一致`).toEqual(
-        legacyShape.columnsByTable[table],
+    expect(adoptedShape.tables).toEqual(freshShape.tables);
+    expect(adoptedShape.tables).not.toContain('history');
+    expect(adoptedShape.tables).not.toContain('history_prompt_references');
+    for (const table of freshShape.tables) {
+      expect(adoptedShape.columnsByTable[table], `表 ${table} 列不一致`).toEqual(
+        freshShape.columnsByTable[table],
       );
-      expect(freshShape.indexesByTable[table], `表 ${table} 索引不一致`).toEqual(
-        legacyShape.indexesByTable[table],
+      expect(adoptedShape.indexesByTable[table], `表 ${table} 索引不一致`).toEqual(
+        freshShape.indexesByTable[table],
       );
     }
   });
@@ -167,9 +183,38 @@ describe('takeoverDesktopDatabase', () => {
     expect(
       db.prepare("SELECT title FROM prompts WHERE id = 'p1'").get() as { title: string },
     ).toEqual({ title: '测试提示词' });
-    expect(counts('generation_runs')).toBe(1);
-    expect(counts('generated_assets')).toBe(1);
-    expect(counts('history')).toBe(1);
+
+    // 单账本回填(0002):旧 history 行 h1 迁入 generation_runs(同 id)+ 成图落资产,
+    // 引用内嵌进 prompt_snapshot_json;随后 0003 DROP 两张旧表。
+    expect(counts('generation_runs')).toBe(2);
+    expect(counts('generated_assets')).toBe(2);
+    const backfilled = db
+      .prepare(
+        `SELECT run_kind, prompt_id, provider_id, status, actual_cost, final_prompt, prompt_snapshot_json
+       FROM generation_runs WHERE id = 'h1'`,
+      )
+      .get() as Record<string, unknown>;
+    expect(backfilled).toMatchObject({
+      run_kind: 'free_generation',
+      prompt_id: 'p1',
+      provider_id: 'prov-1',
+      status: 'success',
+      actual_cost: 60,
+      final_prompt: '一只猫',
+    });
+    expect(JSON.parse(backfilled.prompt_snapshot_json as string).promptReferences).toEqual([
+      { promptId: 'p1', title: '测试提示词', excerpt: '一只在月光下的猫', scope: 'full' },
+    ]);
+    expect(
+      db
+        .prepare(
+          "SELECT run_id, position, status, media_path FROM generated_assets WHERE id = 'h1'",
+        )
+        .get(),
+    ).toEqual({ run_id: 'h1', position: 0, status: 'available', media_path: '/tmp/h1.png' });
+    expect(
+      db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'history'").get(),
+    ).toBeUndefined();
 
     // 增量迁移(0001 workbench_drafts)在被接管的旧库上也已应用
     db.prepare(

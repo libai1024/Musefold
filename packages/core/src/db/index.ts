@@ -4,8 +4,9 @@
 import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'fs';
 import { dirname, join } from 'path';
+import { takeoverDesktopDatabase } from '@musefold/desktop-db';
 import { APP_DATA_NAMESPACE } from '@musefold/domain/constants';
-import { getPaths } from '../runtime';
+import { createLogger, getPaths } from '../runtime';
 import { runMigrations } from './run-migrations';
 
 let dbInstance: Database.Database | null = null;
@@ -157,6 +158,14 @@ export function initDb(): Database.Database {
   db.pragma('foreign_keys = ON');
 
   runMigrations(db);
+  // legacy 链(冻结在 0020)终态后交给 drizzle 受管迁移收敛到当前 schema。
+  // 下沉在 initDb 内做,任何宿主(桌面/CLI 守护/备份恢复重开)都不可能漏掉接管。
+  const takeover = takeoverDesktopDatabase(db, { backupDir: paths.backups });
+  if (takeover.mode !== 'noop') {
+    createLogger('db').info(
+      `desktop-db 接管:${takeover.mode}${takeover.backupPath ? `(备份 ${takeover.backupPath})` : ''}`,
+    );
+  }
   migrateAndRemoveLegacyRecipeDatabase(db, paths.userData);
   recoverInterruptedGenerationRuns(db);
 

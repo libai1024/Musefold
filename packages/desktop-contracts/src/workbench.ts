@@ -25,6 +25,13 @@ export interface PromptSnapshot {
   refinementInstruction: string | null;
   finalPrompt: string;
   negativePrompt: string | null;
+  /** 生成时引用的提示词快照(不随源提示词编辑漂移);单账本后取代 history_prompt_references。 */
+  promptReferences?: Array<{
+    promptId: string | null;
+    title: string;
+    excerpt: string;
+    scope: 'full' | 'excerpt';
+  }>;
 }
 
 export interface GenerationRun {
@@ -37,6 +44,8 @@ export interface GenerationRun {
   parentRunId: string | null;
   retryOfRunId: string | null;
   sourceAssetId: string | null;
+  /** 直接生成自提示词库时的来源提示词;不设外键,提示词删除后记录保持原样(与云端 PG 对齐)。 */
+  promptId: string | null;
   providerId: string;
   model: string;
   userPrompt: string;

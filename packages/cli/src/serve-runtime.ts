@@ -210,10 +210,15 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
         mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
       }),
     resolveHistoryImage(historyId) {
-      const row = getDb().prepare('SELECT image_path FROM history WHERE id = ?').get(historyId) as
-        | { image_path: string | null }
-        | undefined;
-      return row?.image_path ? { path: row.image_path } : null;
+      // 单账本:按运行 id 取首张可用资产(旧 history.image_path 的等价物)。
+      const row = getDb()
+        .prepare(
+          `SELECT media_path FROM generated_assets
+         WHERE run_id = ? AND status = 'available' AND media_path IS NOT NULL
+         ORDER BY position LIMIT 1`,
+        )
+        .get(historyId) as { media_path: string | null } | undefined;
+      return row?.media_path ? { path: row.media_path } : null;
     },
   };
 

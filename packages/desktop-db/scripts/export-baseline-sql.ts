@@ -25,7 +25,7 @@ const rows = db
 db.close();
 
 const header = `-- v2.5 baseline:core legacy 迁移链(0001→0020)终态的忠实导出(sqlite_master)。
--- 手工审阅并由 __tests__/takeover.test.ts 与 legacy 链逐对象比对;含 CHECK 约束、
+-- 手工审阅并由 packages/core/src/db/__tests__/desktop-db-takeover.test.ts 与 legacy 链逐对象比对;含 CHECK 约束、
 -- partial/DESC 索引与 prompts_fts 虚表(这些无法由 drizzle-kit 表达,meta 快照有意不含)。
 -- 本文件只在全新空库上执行;既有库经 fake-apply 直接标记为已应用(见 src/takeover.ts)。
 `;

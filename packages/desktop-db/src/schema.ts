@@ -100,53 +100,8 @@ export const promptTags = sqliteTable(
   ],
 );
 
-export const history = sqliteTable(
-  'history',
-  {
-    id: text().primaryKey(),
-    promptId: text('prompt_id').references(() => prompts.id, { onDelete: 'set null' }),
-    providerId: text('provider_id').notNull(),
-    model: text().notNull(),
-    promptText: text('prompt_text').notNull(),
-    negativeText: text('negative_text'),
-    params: text(),
-    status: text().notNull(),
-    errorCode: text('error_code'),
-    errorMessage: text('error_message'),
-    imagePath: text('image_path'),
-    cost: integer(),
-    durationMs: integer('duration_ms'),
-    createdAt: integer('created_at').notNull(),
-    costUnit: text('cost_unit').default('cny_cent').notNull(),
-  },
-  (table) => [
-    index('idx_history_status').on(table.status),
-    index('idx_history_prompt').on(table.promptId),
-    index('idx_history_created').on(table.createdAt),
-  ],
-);
-
-export const historyPromptReferences = sqliteTable(
-  'history_prompt_references',
-  {
-    historyId: text('history_id')
-      .notNull()
-      .references(() => history.id, { onDelete: 'cascade' }),
-    promptId: text('prompt_id').references(() => prompts.id, { onDelete: 'set null' }),
-    promptTitle: text('prompt_title').notNull(),
-    excerpt: text().notNull(),
-    scope: text().notNull(),
-    sortOrder: integer('sort_order').notNull(),
-  },
-  (table) => [
-    index('idx_history_prompt_refs_history').on(table.historyId, table.sortOrder),
-    index('idx_history_prompt_refs_prompt').on(table.promptId),
-    primaryKey({
-      columns: [table.historyId, table.sortOrder],
-      name: 'history_prompt_references_history_id_sort_order_pk',
-    }),
-  ],
-);
+// history / history_prompt_references 已随单账本迁移退役:
+// 0002 把旧行回填进 generation_runs / generated_assets,0003 DROP 两表。
 
 export const smartSets = sqliteTable(
   'smart_sets',
@@ -251,6 +206,8 @@ export const generationRuns = sqliteTable(
     parentRunId: text('parent_run_id'),
     retryOfRunId: text('retry_of_run_id'),
     sourceAssetId: text('source_asset_id'),
+    /** 来源提示词(单账本迁移 0002 自 history.prompt_id 回填);不设外键,与云端 PG 对齐。 */
+    promptId: text('prompt_id'),
     providerId: text('provider_id').notNull(),
     model: text().notNull(),
     userPrompt: text('user_prompt').default('').notNull(),
@@ -277,6 +234,10 @@ export const generationRuns = sqliteTable(
     index('idx_generation_runs_parent_created')
       .on(table.parentRunId, table.createdAt)
       .where(sql`parent_run_id IS NOT NULL`),
+    // 提示词封面/相关作品查询走这条(prompts.ts COVER_IMAGE_SELECT)。
+    index('idx_generation_runs_prompt_created')
+      .on(table.promptId, table.createdAt)
+      .where(sql`prompt_id IS NOT NULL`),
     index('idx_generation_runs_workbench_order')
       .on(table.workbenchSessionId, table.turnIndex, table.resultIndex, table.createdAt)
       .where(sql`workbench_session_id IS NOT NULL AND deleted_at IS NULL`),

@@ -224,14 +224,14 @@ export async function loadEnvelope(path: string): Promise<ZipContents> {
 
 /**
  * replace 策略要清的表。顺序 = 反向外键顺序，先清子表再清父表。
- * history 也一并清 —— 留着会指向已不存在的 prompt_id。
+ * 生成账本也一并清 —— 留着会指向已不存在的 prompt_id(单账本:generated_assets → generation_runs)。
  */
 const REPLACE_ORDER = [
   'prompt_tags',
   'search_history',
   'smart_sets',
-  'history_prompt_references',
-  'history',
+  'generated_assets',
+  'generation_runs',
   'prompts',
   'tags',
   'folders',
@@ -553,18 +553,19 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
   }
 
   // ---- history（仅当文件里带了；无 updated_at，冲突一律跳过）----
-  const existingHistory = idSet(db, 'history');
-  const insHistory = db.prepare(
-    `INSERT INTO history
-       (id, prompt_id, provider_id, model, prompt_text,
-        negative_text, params, status, error_code, error_message, image_path, cost,
-        cost_unit, duration_ms, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  // 单账本:导入信封的 history 段(含旧版本导出文件)映射为 generation_runs + generated_assets,
+  // 提示词引用内嵌进 prompt_snapshot_json(与迁移 0002 的回填口径一致)。
+  const existingRuns = idSet(db, 'generation_runs');
+  const insRun = db.prepare(
+    `INSERT INTO generation_runs
+       (id, run_kind, prompt_id, provider_id, model, user_prompt, base_prompt, final_prompt,
+        negative_prompt, params_json, prompt_snapshot_json, status, error_code, error_message,
+        actual_cost, duration_ms, created_at, finished_at)
+     VALUES (?, 'free_generation', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  const insHistoryReference = db.prepare(
-    `INSERT INTO history_prompt_references
-       (history_id, prompt_id, prompt_title, excerpt, scope, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+  const insRunAsset = db.prepare(
+    `INSERT INTO generated_assets (id, run_id, position, status, media_path, created_at)
+     VALUES (?, ?, 0, 'available', ?, ?)`,
   );
   for (const r of arr(d.history)) {
     const id = asStr(r.id);
@@ -572,33 +573,21 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
     const model = asStr(r.model);
     const promptText = asStr(r.promptText);
     const status = asStr(r.status);
-    if (!id || !providerId || !model || promptText == null || !status) {
+    if (!id || !providerId || !model || !promptText?.trim() || !status) {
       stats.history.failed += 1;
       continue;
     }
-    if (existingHistory.has(id)) {
+    if (existingRuns.has(id)) {
       stats.history.skipped += 1;
       continue;
     }
-    const promptId = asStr(r.promptId);
-    insHistory.run(
-      id,
-      promptId && existingPrompts.has(promptId) ? promptId : null,
-      providerId,
-      model,
-      promptText,
-      asStr(r.negativeText),
-      asJson(r.params),
-      status,
-      asStr(r.errorCode),
-      asStr(r.errorMessage),
-      mapImagePath(ctx, asStr(r.imagePath)),
-      asNullNum(r.cost),
-      'point',
-      asNullNum(r.durationMs),
-      asNum(r.createdAt, now),
-    );
-    for (const [index, reference] of arr(r.promptReferences).entries()) {
+    const promptReferences: Array<{
+      promptId: string | null;
+      title: string;
+      excerpt: string;
+      scope: 'full' | 'excerpt';
+    }> = [];
+    for (const reference of arr(r.promptReferences)) {
       const title = asStr(reference.title);
       const text = asStr(reference.text);
       const scope = asStr(reference.scope);
@@ -607,18 +596,49 @@ function applyEnvelope(ctx: Ctx, env: ExportEnvelope): void {
         continue;
       }
       const referencePromptId = asStr(reference.promptId);
-      insHistoryReference.run(
-        id,
-        referencePromptId && existingPrompts.has(referencePromptId) ? referencePromptId : null,
+      promptReferences.push({
+        promptId:
+          referencePromptId && existingPrompts.has(referencePromptId) ? referencePromptId : null,
         title,
-        text,
+        excerpt: text,
         scope,
-        // The exported array is the canonical order. Re-number on import so a
-        // malformed or hand-edited sortOrder cannot collide with the primary key.
-        index,
-      );
+      });
     }
-    existingHistory.add(id);
+    const promptId = asStr(r.promptId);
+    const createdAt = asNum(r.createdAt, now);
+    const runStatus = status === 'success' || status === 'cancelled' ? status : 'failed';
+    insRun.run(
+      id,
+      promptId && existingPrompts.has(promptId) ? promptId : null,
+      providerId,
+      model,
+      promptText,
+      promptText,
+      promptText,
+      asStr(r.negativeText),
+      asJson(r.params) ?? '{"schemaVersion":1}',
+      JSON.stringify({
+        schemaVersion: 1,
+        userPrompt: promptText,
+        basePrompt: promptText,
+        refinementInstruction: null,
+        finalPrompt: promptText,
+        negativePrompt: asStr(r.negativeText),
+        ...(promptReferences.length > 0 ? { promptReferences } : {}),
+      }),
+      runStatus,
+      asStr(r.errorCode),
+      asStr(r.errorMessage),
+      asNullNum(r.cost),
+      asNullNum(r.durationMs),
+      createdAt,
+      createdAt,
+    );
+    const imagePath = mapImagePath(ctx, asStr(r.imagePath));
+    if (imagePath && runStatus === 'success') {
+      insRunAsset.run(id, id, imagePath, createdAt);
+    }
+    existingRuns.add(id);
     stats.history.imported += 1;
   }
 }

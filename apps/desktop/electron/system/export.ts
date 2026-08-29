@@ -228,45 +228,48 @@ export function buildExportPayload(opts: {
     },
   };
 
-  // history 默认缺席；开了开关才带，且同样过 redact
+  // history 默认缺席；开了开关才带，且同样过 redact。
+  // 单账本后从 generation_runs + generated_assets 合成同一信封形状(旧导出文件可继续导入)。
   if (opts.includeHistory) {
-    const referenceRows = db
-      .prepare(
-        `SELECT history_id, prompt_id, prompt_title, excerpt, scope, sort_order
-       FROM history_prompt_references
-       ORDER BY history_id, sort_order`,
-      )
-      .all() as Record<string, unknown>[];
-    const referencesByHistory = new Map<string, Record<string, unknown>[]>();
-    for (const reference of referenceRows) {
-      const historyId = String(reference.history_id);
-      const item = scrubFields(
-        {
-          promptId: str(reference.prompt_id),
-          title: String(reference.prompt_title),
-          text: String(reference.excerpt),
-          scope: String(reference.scope),
-          sortOrder: Number(reference.sort_order),
-        },
-        ['title', 'text'],
-        counter,
-      );
-      const existing = referencesByHistory.get(historyId) ?? [];
-      existing.push(item);
-      referencesByHistory.set(historyId, existing);
-    }
     const history = (
       db
         .prepare(
-          `SELECT id, prompt_id, provider_id, model, prompt_text,
-                  negative_text, params, status, error_code, error_message, image_path, cost,
-                  cost_unit, duration_ms, created_at
-           FROM history`,
+          `SELECT gr.id, gr.prompt_id, gr.provider_id, gr.model,
+                  gr.final_prompt AS prompt_text, gr.negative_prompt AS negative_text,
+                  gr.params_json AS params, gr.status, gr.error_code, gr.error_message,
+                  ga.media_path AS image_path, gr.actual_cost AS cost,
+                  gr.duration_ms, gr.created_at, gr.prompt_snapshot_json
+           FROM generation_runs gr
+           LEFT JOIN generated_assets ga
+             ON ga.run_id = gr.id AND ga.position = 0 AND ga.status = 'available'
+           WHERE gr.status IN ('success', 'failed', 'cancelled') AND gr.deleted_at IS NULL
+           ORDER BY gr.created_at`,
         )
         .all() as Record<string, unknown>[]
     ).map((r) => {
       const img = str(r.image_path);
       if (img) imagePaths.push(img);
+      const snapshot = parseJson<{
+        promptReferences?: Array<{
+          promptId: string | null;
+          title: string;
+          excerpt: string;
+          scope: string;
+        }>;
+      } | null>(r.prompt_snapshot_json, null);
+      const promptReferences = (snapshot?.promptReferences ?? []).map((reference, index) =>
+        scrubFields(
+          {
+            promptId: reference.promptId ?? null,
+            title: reference.title,
+            text: reference.excerpt,
+            scope: reference.scope,
+            sortOrder: index,
+          },
+          ['title', 'text'],
+          counter,
+        ),
+      );
       const out = {
         id: r.id as string,
         promptId: str(r.prompt_id),
@@ -283,7 +286,7 @@ export function buildExportPayload(opts: {
         costUnit: 'point',
         durationMs: num(r.duration_ms),
         createdAt: Number(r.created_at),
-        promptReferences: referencesByHistory.get(String(r.id)) ?? [],
+        promptReferences,
       };
       return scrubFields(out, ['promptText', 'negativeText', 'errorMessage'], counter);
     });

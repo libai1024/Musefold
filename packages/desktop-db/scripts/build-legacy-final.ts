@@ -1,6 +1,9 @@
 // 一次性工具:用 core 的 legacy 迁移链(0001→0020)构建终态库文件,
 // 供 drizzle-kit pull 生成 baseline(schema.ts + 0000_baseline.sql)。
-// M5c 删除 core 时本脚本随之退役;此前一致性由 __tests__/takeover.test.ts 守护。
+// M5c 删除 core 时本脚本随之退役;此前一致性由
+// packages/core/src/db/__tests__/desktop-db-takeover.test.ts 守护。
+// 注意:本包对 core 无 package 依赖(避免与 core → desktop-db 生产边成环),
+// 下面的 @musefold/core 导入靠 tsx 读 tsconfig paths 解析,仅 dev 场景可用。
 
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

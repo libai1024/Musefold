@@ -26,6 +26,7 @@ type RunRow = {
   parent_run_id: string | null;
   retry_of_run_id: string | null;
   source_asset_id: string | null;
+  prompt_id: string | null;
   provider_id: string;
   model: string;
   user_prompt: string;
@@ -81,6 +82,7 @@ export interface CreateGenerationRunInput {
   parentRunId?: string | null;
   retryOfRunId?: string | null;
   sourceAssetId?: string | null;
+  promptId?: string | null;
   providerId: string;
   model: string;
   userPrompt?: string;
@@ -98,6 +100,8 @@ export interface CompleteGenerationRunInput {
   actualCost?: number | null;
   durationMs?: number | null;
   finishedAt?: number;
+  /** 成功后带 providerResponse 等补充信息的最终参数快照;省略则保留创建时的 params_json。 */
+  params?: GenerationParamsSnapshot;
 }
 
 function rowToRun(row: RunRow): GenerationRun {
@@ -119,6 +123,7 @@ function rowToRun(row: RunRow): GenerationRun {
     parentRunId: row.parent_run_id,
     retryOfRunId: row.retry_of_run_id,
     sourceAssetId: row.source_asset_id,
+    promptId: row.prompt_id,
     providerId: row.provider_id,
     model: row.model,
     userPrompt: row.user_prompt,
@@ -287,7 +292,12 @@ export class WorkbenchRepository {
       runs: runs.map((run) => ({
         run,
         assets: assets.filter((asset) => asset.run_id === run.id).map(rowToAsset),
-        promptReferences: [],
+        promptReferences: (run.promptSnapshot.promptReferences ?? []).map((reference) => ({
+          promptId: reference.promptId ?? '',
+          title: reference.title,
+          text: reference.excerpt,
+          scope: reference.scope,
+        })),
       })),
     };
   }
@@ -345,10 +355,10 @@ export class GenerationRunRepository {
       .prepare(
         `INSERT INTO generation_runs
         (id, run_kind, workbench_session_id, workbench_turn_id, turn_index, result_index,
-         parent_run_id, retry_of_run_id, source_asset_id, provider_id, model, user_prompt,
+         parent_run_id, retry_of_run_id, source_asset_id, prompt_id, provider_id, model, user_prompt,
          base_prompt, refinement_instruction, final_prompt, negative_prompt, params_json,
          prompt_snapshot_json, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
       )
       .run(
         id,
@@ -360,6 +370,7 @@ export class GenerationRunRepository {
         input.parentRunId ?? null,
         input.retryOfRunId ?? null,
         input.sourceAssetId ?? null,
+        input.promptId ?? null,
         input.providerId,
         input.model,
         input.userPrompt ?? '',
@@ -409,9 +420,17 @@ export class GenerationRunRepository {
       });
       this.db
         .prepare(
-          `UPDATE generation_runs SET status = 'success', actual_cost = ?, duration_ms = ?, finished_at = ? WHERE id = ?`,
+          `UPDATE generation_runs SET status = 'success', actual_cost = ?, duration_ms = ?, finished_at = ?,
+           params_json = COALESCE(?, params_json)
+         WHERE id = ?`,
         )
-        .run(input.actualCost ?? null, input.durationMs ?? null, finishedAt, id);
+        .run(
+          input.actualCost ?? null,
+          input.durationMs ?? null,
+          finishedAt,
+          input.params ? JSON.stringify(input.params) : null,
+          id,
+        );
     })();
     return this.get(id)!;
   }

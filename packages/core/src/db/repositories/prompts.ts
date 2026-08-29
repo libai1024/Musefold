@@ -54,15 +54,26 @@ function removeFts(id: string): void {
  * 展示封面子查询：该提示词最新一张关联成功作品。
  * 语义见 Prompt.coverImagePath —— 「相关作品作为封面」，preview_image_path 只是兜底。
  */
-/** 相关作品口径与 history.related 一致：直接以本提示词生成的 + 引用过本提示词的，取最新一张成功图。 */
+/**
+ * 相关作品口径:直接以本提示词生成的(generation_runs.prompt_id)+ 引用过本提示词的
+ * (prompt_snapshot_json.promptReferences,单账本后取代 history_prompt_references),
+ * 取最新一张成功图;回收站(软删)不计入封面。
+ */
 const COVER_IMAGE_SELECT = `(
-  SELECT related.image_path FROM (
-    SELECT h.image_path, h.created_at FROM history h
-    WHERE h.prompt_id = p.id AND h.status = 'success' AND h.image_path IS NOT NULL
+  SELECT related.media_path FROM (
+    SELECT ga.media_path, gr.created_at FROM generation_runs gr
+    JOIN generated_assets ga ON ga.run_id = gr.id AND ga.position = 0
+    WHERE gr.prompt_id = p.id AND gr.status = 'success' AND gr.deleted_at IS NULL
+      AND ga.status = 'available' AND ga.media_path IS NOT NULL
     UNION ALL
-    SELECT h.image_path, h.created_at FROM history h
-    JOIN history_prompt_references r ON r.history_id = h.id
-    WHERE r.prompt_id = p.id AND h.status = 'success' AND h.image_path IS NOT NULL
+    SELECT ga.media_path, gr.created_at FROM generation_runs gr
+    JOIN generated_assets ga ON ga.run_id = gr.id AND ga.position = 0
+    WHERE gr.status = 'success' AND gr.deleted_at IS NULL
+      AND ga.status = 'available' AND ga.media_path IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM json_each(gr.prompt_snapshot_json, '$.promptReferences') je
+        WHERE json_extract(je.value, '$.promptId') = p.id
+      )
   ) related
   ORDER BY related.created_at DESC LIMIT 1
 ) AS latest_work_image`;

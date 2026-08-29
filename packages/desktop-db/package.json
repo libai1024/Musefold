@@ -12,15 +12,13 @@
   "scripts": {
     "typecheck": "tsc -b --pretty false",
     "db:generate": "drizzle-kit generate",
-    "db:bundle": "tsx scripts/bundle-migrations.ts",
-    "test": "vitest run"
+    "db:bundle": "tsx scripts/bundle-migrations.ts"
   },
   "dependencies": {
     "better-sqlite3": "13.0.2",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
-    "@musefold/core": "workspace:*",
     "@types/better-sqlite3": "^7.6.12",
     "drizzle-kit": "^0.31.10",
     "typescript": "^5.7.2",

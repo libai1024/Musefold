@@ -13,6 +13,7 @@ const electronPaths = { root: `/tmp/musefold-prompt-cover-${process.pid}` };
 
 configureTestCoreRuntime(electronPaths.root);
 
+// 单账本后「作品」= generation_runs + generated_assets;引用渠道进 prompt_snapshot_json。
 function insertHistory(input: {
   id: string;
   promptId?: string | null;
@@ -22,21 +23,39 @@ function insertHistory(input: {
   referencePromptId?: string;
 }): void {
   const db = getDb();
+  const snapshot = {
+    schemaVersion: 1,
+    userPrompt: 'text',
+    basePrompt: 'text',
+    refinementInstruction: null,
+    finalPrompt: 'text',
+    negativePrompt: null,
+    ...(input.referencePromptId
+      ? {
+          promptReferences: [
+            { promptId: input.referencePromptId, title: 't', excerpt: 'e', scope: 'full' },
+          ],
+        }
+      : {}),
+  };
   db.prepare(
-    `INSERT INTO history (id, prompt_id, provider_id, model, prompt_text, status, image_path, created_at)
-     VALUES (?, ?, 'prov', 'model', 'text', ?, ?, ?)`,
+    `INSERT INTO generation_runs
+      (id, run_kind, prompt_id, provider_id, model, user_prompt, base_prompt, final_prompt,
+       params_json, prompt_snapshot_json, status, created_at, finished_at)
+     VALUES (?, 'free_generation', ?, 'prov', 'model', 'text', 'text', 'text', '{}', ?, ?, ?, ?)`,
   ).run(
     input.id,
     input.promptId ?? null,
+    JSON.stringify(snapshot),
     input.status ?? 'success',
-    input.imagePath ?? null,
+    input.createdAt,
     input.createdAt,
   );
-  if (input.referencePromptId) {
+  if (input.imagePath) {
     db.prepare(
-      `INSERT INTO history_prompt_references (history_id, prompt_id, prompt_title, excerpt, scope, sort_order)
-       VALUES (?, ?, 't', 'e', 'full', 0)`,
-    ).run(input.id, input.referencePromptId);
+      `INSERT INTO generated_assets (id, run_id, position, status, media_path, created_at)
+       VALUES (?, ?, 0, 'available', ?, ?)`,
+    ).run(`asset-${input.id}`, input.id, input.imagePath, input.createdAt);
   }
 }
 

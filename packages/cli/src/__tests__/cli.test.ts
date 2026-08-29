@@ -67,10 +67,16 @@ beforeAll(async () => {
   });
 
   core.library.create({ title: '玄鹤衔烛速记桩', content: 'cli test prompt body' });
+  // 单账本:历史行即 generation_runs 终态行(actual_cost 对应旧 cost 列)。
   getDb()
     .prepare(
-      `INSERT INTO history (id, provider_id, model, prompt_text, status, cost, created_at)
-     VALUES ('his-cli', 'prov-cli', 'gpt-image-2', 'cli history prompt', 'success', 12, 1000)`,
+      `INSERT INTO generation_runs
+        (id, run_kind, provider_id, model, user_prompt, base_prompt, final_prompt,
+         params_json, prompt_snapshot_json, status, actual_cost, created_at, finished_at)
+       VALUES ('his-cli', 'free_generation', 'prov-cli', 'gpt-image-2', 'cli history prompt',
+         'cli history prompt', 'cli history prompt', '{}',
+         '{"schemaVersion":1,"userPrompt":"cli history prompt","basePrompt":"cli history prompt","refinementInstruction":null,"finalPrompt":"cli history prompt","negativePrompt":null}',
+         'success', 12, 1000, 1000)`,
     )
     .run();
   server = createAutomationServer({

@@ -16,23 +16,44 @@ import { createStatusService } from '../status';
 const library = createLibraryService();
 const history = createHistoryService();
 
+// 单账本后历史面由 generation_runs 合成:播种直接写运行账本。
 function insertHistoryRow(input: {
   id: string;
   status?: string;
   providerId?: string;
   createdAt: number;
   promptId?: string | null;
+  promptReferences?: Array<{
+    promptId: string | null;
+    title: string;
+    excerpt: string;
+    scope: 'full' | 'excerpt';
+  }>;
 }): void {
+  const snapshot = {
+    schemaVersion: 1,
+    userPrompt: 'a prompt',
+    basePrompt: 'a prompt',
+    refinementInstruction: null,
+    finalPrompt: 'a prompt',
+    negativePrompt: null,
+    ...(input.promptReferences ? { promptReferences: input.promptReferences } : {}),
+  };
   getDb()
     .prepare(
-      `INSERT INTO history (id, prompt_id, provider_id, model, prompt_text, status, created_at)
-       VALUES (?, ?, ?, 'model-x', 'a prompt', ?, ?)`,
+      `INSERT INTO generation_runs
+        (id, run_kind, prompt_id, provider_id, model, user_prompt, base_prompt, final_prompt,
+         params_json, prompt_snapshot_json, status, created_at, finished_at)
+       VALUES (?, 'free_generation', ?, ?, 'model-x', 'a prompt', 'a prompt', 'a prompt',
+         '{}', ?, ?, ?, ?)`,
     )
     .run(
       input.id,
       input.promptId ?? null,
       input.providerId ?? 'prov-a',
+      JSON.stringify(snapshot),
       input.status ?? 'success',
+      input.createdAt,
       input.createdAt,
     );
 }
@@ -138,13 +159,14 @@ describe('HistoryService', () => {
       title: '引用源',
       content: 'referenced content',
     });
-    insertHistoryRow({ id: 'his-ref', createdAt: 4000, promptId: prompt.id });
-    getDb()
-      .prepare(
-        `INSERT INTO history_prompt_references (history_id, prompt_id, prompt_title, excerpt, scope, sort_order)
-         VALUES ('his-ref', ?, '引用源', 'referenced content', 'full', 0)`,
-      )
-      .run(prompt.id);
+    insertHistoryRow({
+      id: 'his-ref',
+      createdAt: 4000,
+      promptId: prompt.id,
+      promptReferences: [
+        { promptId: prompt.id, title: '引用源', excerpt: 'referenced content', scope: 'full' },
+      ],
+    });
 
     const detail = history.get('his-ref');
     expect(detail?.promptReferences).toHaveLength(1);

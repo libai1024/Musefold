@@ -1,12 +1,13 @@
 import { getDb } from '@musefold/core/db/index';
 import { createBackup } from './backup';
 
+// 单账本:生成账本(generated_assets → generation_runs)取代旧 history 两表。
 const RESET_ORDER = [
   'prompt_tags',
   'search_history',
   'smart_sets',
-  'history_prompt_references',
-  'history',
+  'generated_assets',
+  'generation_runs',
   'prompts',
   'tags',
   'folders',

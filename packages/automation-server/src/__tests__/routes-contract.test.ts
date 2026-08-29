@@ -107,10 +107,16 @@ beforeAll(async () => {
      VALUES ('prov-contract', '契约站', 'openai-compatible', 'https://contract.example/v1', 'gpt-image-2', 1, 'cd34', 1, 1, 1)`,
     )
     .run();
+  // 单账本:历史行即 generation_runs 终态行(actual_cost 对应旧 cost 列)。
   getDb()
     .prepare(
-      `INSERT INTO history (id, prompt_id, provider_id, model, prompt_text, status, cost, created_at)
-     VALUES ('his-contract', ?, 'prov-contract', 'gpt-image-2', 'a prompt', 'success', 18, 1000)`,
+      `INSERT INTO generation_runs
+        (id, run_kind, prompt_id, provider_id, model, user_prompt, base_prompt, final_prompt,
+         params_json, prompt_snapshot_json, status, actual_cost, created_at, finished_at)
+       VALUES ('his-contract', 'free_generation', ?, 'prov-contract', 'gpt-image-2', 'a prompt',
+         'a prompt', 'a prompt', '{}',
+         '{"schemaVersion":1,"userPrompt":"a prompt","basePrompt":"a prompt","refinementInstruction":null,"finalPrompt":"a prompt","negativePrompt":null}',
+         'success', 18, 1000, 1000)`,
     )
     .run(prompt.id);
 

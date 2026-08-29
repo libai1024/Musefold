@@ -1,6 +1,7 @@
 // GenerationService（V04-CORE-05）：全 App 生图唯一汇聚点，自 electron/main/ipc/images.ts
-// 主库账本（history + generation_runs）、进度回调、
+// 单账本（generation_runs + generated_assets）、进度回调、
 // 取消句柄都在此收口；IPC 与控制面（API-03）都是它的薄壳。
+// 所有生成(工作台/自由生成/automation/Skill)一律落 generation_runs——旧 history 双账本已随迁移 0002/0003 退役。
 
 import { resolve } from 'path';
 import { ulid } from 'ulid';
@@ -10,9 +11,9 @@ import type {
   GenerateImageResult,
   ImageGenerationProgress,
   LocalImageReference,
-  PromptReference,
 } from '@musefold/desktop-contracts/providers';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
+import type { GenerationParamsSnapshot } from '@musefold/desktop-contracts/workbench';
 import { getDb } from '../db/index';
 import { createWorkbenchRepositories } from '../db/repositories/workbench';
 import { parseJsonColumn } from '../db/json';
@@ -35,13 +36,9 @@ interface RunContext {
 function createRunContext(
   req: GenerateImageRequest,
   createdAt: number,
+  params: GenerationParamsSnapshot,
   retryOfRunId?: string,
-): RunContext | null {
-  const shouldCreateRun = Boolean(
-    req.workbench || retryOfRunId || req.sourceAssetId || req.refinementInstruction,
-  );
-  if (!shouldCreateRun) return null;
-
+): RunContext {
   const db = getDb();
   const repositories = createWorkbenchRepositories(db);
   return db.transaction(() => {
@@ -78,18 +75,22 @@ function createRunContext(
       retrySource?.basePrompt ??
       (refinementInstruction ? refinementParent?.finalPrompt : null) ??
       req.prompt;
-    const params = {
-      schemaVersion: 1 as const,
-      size: req.size,
-      aspectRatio: req.aspectRatio,
-      quality: req.quality,
-      n: req.n,
-      background: req.background,
-      moderation: req.moderation,
-      ...(req.referenceImages?.length ? { referenceImages: req.referenceImages } : {}),
-      ...(req.skillRuntime ? { skillRuntime: req.skillRuntime } : {}),
-      sourceKind: req.promptId || req.promptReferences?.length ? 'prompt' : 'chat',
-    };
+    // 来源提示词与引用快照:只保留仍存在的提示词 id,避免落库即悬挂(prompt_id 无外键)。
+    const promptExists = db.prepare('SELECT 1 FROM prompts WHERE id = ?');
+    const requestedPromptId = req.promptId ?? retrySource?.promptId ?? null;
+    const promptId =
+      requestedPromptId && promptExists.get(requestedPromptId) ? requestedPromptId : null;
+    const promptReferences = (req.promptReferences ?? []).map((reference) => ({
+      promptId:
+        reference.promptId && promptExists.get(reference.promptId) ? reference.promptId : null,
+      title: reference.title,
+      excerpt: reference.text,
+      scope: reference.scope,
+    }));
+    const snapshotReferences =
+      promptReferences.length > 0
+        ? promptReferences
+        : (retrySource?.promptSnapshot.promptReferences ?? []);
     const promptSnapshot = {
       schemaVersion: 1 as const,
       userPrompt: workbench?.userPrompt ?? retrySource?.userPrompt ?? '',
@@ -97,6 +98,7 @@ function createRunContext(
       refinementInstruction,
       finalPrompt: req.prompt,
       negativePrompt: req.negative ?? null,
+      ...(snapshotReferences.length > 0 ? { promptReferences: snapshotReferences } : {}),
     };
 
     // Refinement runs must be created through the repository aggregate so the
@@ -118,6 +120,7 @@ function createRunContext(
         runKind: 'refinement',
         parentRunId: req.parentHistoryId,
         sourceAssetId: req.sourceAssetId,
+        promptId,
         refinementInstruction,
         finalPrompt: req.prompt,
         basePrompt,
@@ -148,6 +151,7 @@ function createRunContext(
       parentRunId,
       retryOfRunId: retryOf,
       sourceAssetId,
+      promptId,
       providerId: req.providerId,
       model: req.model ?? 'unknown',
       userPrompt: workbench?.userPrompt ?? req.prompt,
@@ -164,46 +168,35 @@ function createRunContext(
   })();
 }
 
-function writeHistoryWithReferences(
-  db: ReturnType<typeof getDb>,
-  historyId: string,
-  references: PromptReference[] | undefined,
-  insertHistory: () => void,
-): void {
-  db.transaction(() => {
-    insertHistory();
-    if (!references?.length) return;
-
-    const promptExists = db.prepare('SELECT 1 FROM prompts WHERE id = ?');
-    const insertReference = db.prepare(
-      `INSERT INTO history_prompt_references
-         (history_id, prompt_id, prompt_title, excerpt, scope, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    );
-    references.forEach((reference, index) => {
-      const promptId =
-        reference.promptId && promptExists.get(reference.promptId) ? reference.promptId : null;
-      insertReference.run(
-        historyId,
-        promptId,
-        reference.title,
-        reference.text,
-        reference.scope,
-        index,
-      );
-    });
-  })();
-}
-
-function withGenerationMetadata(base: Record<string, unknown>, req: GenerateImageRequest): string {
-  return JSON.stringify({
-    ...base,
+/** 参数快照:重试要靠它重建请求,请求形状字段 + 渠道快照都要留下。 */
+function buildParamsSnapshot(
+  req: GenerateImageRequest,
+  providerRow: Record<string, unknown> | undefined,
+): GenerationParamsSnapshot {
+  return {
+    schemaVersion: 1 as const,
+    size: req.size,
+    aspectRatio: req.aspectRatio,
+    quality: req.quality,
+    n: req.n,
+    background: req.background,
+    moderation: req.moderation,
+    usageChannel: !providerRow
+      ? 'provider'
+      : providerRow.managed_by === 'account'
+        ? 'account'
+        : providerRow.type === 'doubao-web'
+          ? 'doubao'
+          : 'provider',
+    ...(providerRow ? { providerNameSnapshot: providerRow.name as string } : {}),
+    ...(providerRow ? { providerTypeSnapshot: providerRow.type as string } : {}),
+    sourceKind: req.promptId || req.promptReferences?.length ? 'prompt' : 'chat',
     ...(req.parentHistoryId ? { parentHistoryId: req.parentHistoryId } : {}),
     ...(req.sourceAssetId ? { sourceAssetId: req.sourceAssetId } : {}),
     ...(req.refinementInstruction ? { refinementInstruction: req.refinementInstruction } : {}),
     ...(req.referenceImages?.length ? { referenceImages: req.referenceImages } : {}),
     ...(req.skillRuntime ? { skillRuntime: req.skillRuntime } : {}),
-  });
+  };
 }
 
 function authorizeReferenceImages(
@@ -243,15 +236,20 @@ function authorizeReferenceImages(
       (error as { code?: string }).code = 'IMAGE_HISTORY_MISSING';
       throw error;
     }
-    const row = db
-      .prepare('SELECT image_path FROM history WHERE id = ?')
-      .get(reference.historyId) as { image_path: string | null } | undefined;
-    if (!row?.image_path || resolve(row.image_path) !== resolve(reference.path)) {
+    // 未带 assetId 的旧引用:按运行 id 在资产账本里找可用图并核对路径。
+    const assetRows = db
+      .prepare(
+        `SELECT media_path FROM generated_assets
+       WHERE run_id = ? AND status = 'available' AND media_path IS NOT NULL`,
+      )
+      .all(reference.historyId) as Array<{ media_path: string }>;
+    const matched = assetRows.find((row) => resolve(row.media_path) === resolve(reference.path));
+    if (!matched) {
       const error = new Error('上一张图片已不可用，请重新选择');
       (error as { code?: string }).code = 'IMAGE_HISTORY_MISSING';
       throw error;
     }
-    return { ...reference, path: row.image_path };
+    return { ...reference, path: matched.media_path };
   });
 }
 
@@ -285,38 +283,47 @@ export async function generate(
       durationMs: Date.now() - startTs,
     };
   }
-  /** 记账单位快照（FR-COST-03）：托管 Provider 以「点」入账；providerRow 加载后回填 */
+  /** 记账单位快照（FR-COST-03）：托管 Provider 以「点」入账 */
   const costUnit = 'point' as const;
 
-  /** 写一条失败/取消历史并返回结构化结果（见下方"为什么不 throw"） */
+  // 读 Provider 配置(可能已删除;此时仍要在账本留下失败运行)。
+  const providerRow = db.prepare('SELECT * FROM providers WHERE id = ?').get(req.providerId) as
+    | Record<string, unknown>
+    | undefined;
+
+  const params = buildParamsSnapshot(effectiveReq, providerRow);
+
+  // 单账本:任何被受理的生成请求先落 generation_runs,成功/失败/取消都在同一行收敛。
+  let runContext: RunContext;
+  try {
+    runContext = createRunContext(effectiveReq, startTs, params, options.retryOfRunId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('generation run 创建失败', `run=${historyId}`, message);
+    return {
+      historyId,
+      status: 'failed',
+      error: {
+        code: 'GENERATION_RUN_CREATE_FAILED',
+        message: '生成运行记录创建失败，已停止本次生成',
+      },
+      durationMs: Date.now() - startTs,
+      costUnit,
+    };
+  }
+
+  /** 把失败/取消收敛进账本并返回结构化结果（见下方"为什么不 throw"） */
   const fail = (
     status: 'failed' | 'cancelled',
     code: string,
     message: string,
-    model: string,
-    paramsJson: string | null,
   ): GenerateImageResult => {
-    writeHistoryWithReferences(db, historyId, req.promptReferences, () => {
-      db.prepare(
-        `INSERT INTO history
-          (id, prompt_id, provider_id, model, prompt_text, negative_text, params,
-           status, error_code, error_message, cost_unit, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        historyId,
-        req.promptId ?? null,
-        req.providerId,
-        model,
-        req.prompt,
-        req.negative ?? null,
-        paramsJson,
-        status,
-        code,
-        message,
-        costUnit,
-        Date.now(),
-      );
-    });
+    const finishedAt = Date.now();
+    if (status === 'cancelled') {
+      runContext.repositories.runs.cancel(runContext.runId, finishedAt);
+    } else {
+      runContext.repositories.runs.fail(runContext.runId, code, message, finishedAt);
+    }
     return {
       historyId,
       status,
@@ -326,15 +333,11 @@ export async function generate(
     };
   };
 
-  // 读 Provider 配置
-  const providerRow = db.prepare('SELECT * FROM providers WHERE id = ?').get(req.providerId) as
-    | Record<string, unknown>
-    | undefined;
   if (!providerRow) {
     // 选中的服务商已被删除。同样走返回值而非 throw，否则渲染层只能看到
     // "Error invoking remote method ..." 这种没法给用户看的字符串。
-    logger.error('generate 失败', `history=${historyId}`, 'code=NO_PROVIDER', 'Provider 不存在');
-    return fail('failed', 'NO_PROVIDER', 'Provider 不存在或已被删除', req.model ?? 'unknown', null);
+    logger.error('generate 失败', `run=${historyId}`, 'code=NO_PROVIDER', 'Provider 不存在');
+    return fail('failed', 'NO_PROVIDER', 'Provider 不存在或已被删除');
   }
 
   const provider = createProvider(
@@ -360,46 +363,8 @@ export async function generate(
       : 'mode=image-generation',
   );
 
-  // 参数快照：重试要靠它重建请求，所以请求的形状字段都得留下 ——
-  // aspectRatio 少存一个，重试就会丢掉比例、出一张形状不同的图。
-  const paramsJson = withGenerationMetadata(
-    {
-      size: effectiveReq.size,
-      aspectRatio: effectiveReq.aspectRatio,
-      quality: effectiveReq.quality,
-      n: effectiveReq.n,
-      background: effectiveReq.background,
-      moderation: effectiveReq.moderation,
-      usageChannel:
-        providerRow.managed_by === 'account'
-          ? 'account'
-          : providerRow.type === 'doubao-web'
-            ? 'doubao'
-            : 'provider',
-      providerNameSnapshot: providerRow.name,
-      providerTypeSnapshot: providerRow.type,
-    },
-    effectiveReq,
-  );
-  let runContext: RunContext | null = null;
   try {
-    runContext = createRunContext(effectiveReq, startTs, options.retryOfRunId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error('generation run 创建失败', `history=${historyId}`, message);
-    return fail(
-      'failed',
-      'GENERATION_RUN_CREATE_FAILED',
-      '生成运行记录创建失败，已停止本次生成',
-      req.model ?? (providerRow.model as string),
-      paramsJson,
-    );
-  }
-
-  try {
-    if (runContext) {
-      runContext.repositories.runs.start(runContext.runId, jobId, startTs);
-    }
+    runContext.repositories.runs.start(runContext.runId, jobId, startTs);
     const result: GenerateImageResult = await provider.generateImage(
       effectiveReq,
       controller.signal,
@@ -414,75 +379,49 @@ export async function generate(
         : result.imagePath
           ? [{ imagePath: result.imagePath, actualSize: result.actualSize }]
           : [];
-    const assetIdBase = runContext?.runId ?? historyId;
+    const assetIdBase = runContext.runId;
     const images = providerImages.map((image, index) => ({
       ...image,
-      ...(runContext ? { assetId: index === 0 ? assetIdBase : `${assetIdBase}-${index + 1}` } : {}),
+      assetId: index === 0 ? assetIdBase : `${assetIdBase}-${index + 1}`,
     }));
     const normalizedResult: GenerateImageResult = {
       ...result,
       imagePath: images[0]?.imagePath ?? result.imagePath,
       ...(images.length > 0 ? { images } : {}),
     };
-    const completedParamsJson = normalizedResult.providerResponse
-      ? JSON.stringify({
-          ...parseJsonColumn<Record<string, unknown>>(paramsJson, {}),
-          providerResponse: normalizedResult.providerResponse,
-        })
-      : paramsJson;
-    writeHistoryWithReferences(db, historyId, req.promptReferences, () => {
-      db.prepare(
-        `INSERT INTO history
-          (id, prompt_id, provider_id, model, prompt_text, negative_text, params,
-           status, image_path, cost, cost_unit, duration_ms, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        historyId,
-        req.promptId ?? null,
-        req.providerId,
-        req.model ?? (providerRow.model as string),
-        req.prompt,
-        req.negative ?? null,
-        completedParamsJson,
-        normalizedResult.status,
-        normalizedResult.imagePath ?? null,
-        normalizedResult.cost ?? null,
-        costUnit,
-        normalizedResult.durationMs ?? null,
-        Date.now(),
+    const finishedAt = Date.now();
+    if (normalizedResult.status === 'cancelled') {
+      runContext.repositories.runs.cancel(runContext.runId, finishedAt);
+    } else if (normalizedResult.status === 'failed') {
+      runContext.repositories.runs.fail(
+        runContext.runId,
+        normalizedResult.error?.code ?? 'UNKNOWN',
+        normalizedResult.error?.message ?? '生成失败',
+        finishedAt,
       );
-    });
-    if (runContext) {
-      const finishedAt = Date.now();
-      if (normalizedResult.status === 'cancelled') {
-        runContext.repositories.runs.cancel(runContext.runId, finishedAt);
-      } else if (normalizedResult.status === 'failed') {
-        runContext.repositories.runs.fail(
-          runContext.runId,
-          normalizedResult.error?.code ?? 'UNKNOWN',
-          normalizedResult.error?.message ?? '生成失败',
-          finishedAt,
-        );
-      } else {
-        runContext.repositories.runs.complete(runContext.runId, {
-          actualCost: normalizedResult.cost ?? null,
-          durationMs: normalizedResult.durationMs ?? null,
-          finishedAt,
-          assets: images.map((image, position) => ({
-            id: image.assetId,
-            position,
-            status: 'available',
-            mediaPath: image.imagePath,
-            width: image.actualSize?.width ?? null,
-            height: image.actualSize?.height ?? null,
-            createdAt: finishedAt,
-          })),
-        });
-      }
+    } else {
+      runContext.repositories.runs.complete(runContext.runId, {
+        actualCost: normalizedResult.cost ?? null,
+        durationMs: normalizedResult.durationMs ?? null,
+        finishedAt,
+        // providerResponse 追加进参数快照(旧 history.params 的等价信息面)。
+        params: normalizedResult.providerResponse
+          ? { ...params, providerResponse: normalizedResult.providerResponse }
+          : undefined,
+        assets: images.map((image, position) => ({
+          id: image.assetId,
+          position,
+          status: 'available',
+          mediaPath: image.imagePath,
+          width: image.actualSize?.width ?? null,
+          height: image.actualSize?.height ?? null,
+          createdAt: finishedAt,
+        })),
+      });
     }
     logger.info(
       'generate 成功',
-      `history=${historyId}`,
+      `run=${historyId}`,
       `status=${normalizedResult.status}`,
       images.length > 1 ? `images=${images.length}` : '',
       normalizedResult.durationMs ? `${normalizedResult.durationMs}ms` : '',
@@ -506,19 +445,11 @@ export async function generate(
               : upstreamCode
         : upstreamCode;
     const message = (err as Error).message || 'Unknown error';
-    // 取消不算失败：历史状态记 cancelled，日志降级为 info
+    // 取消不算失败：运行状态记 cancelled，日志降级为 info
     const cancelled = code === 'CANCELLED';
-    const histStatus = cancelled ? 'cancelled' : 'failed';
-    if (cancelled) logger.info('generate 取消', `history=${historyId}`);
-    else logger.error('generate 失败', `history=${historyId}`, `code=${code}`, message);
-    if (runContext) {
-      const finishedAt = Date.now();
-      if (cancelled) {
-        runContext.repositories.runs.cancel(runContext.runId, finishedAt);
-      } else {
-        runContext.repositories.runs.fail(runContext.runId, code, message, finishedAt);
-      }
-    }
+    const runStatus = cancelled ? 'cancelled' : 'failed';
+    if (cancelled) logger.info('generate 取消', `run=${historyId}`);
+    else logger.error('generate 失败', `run=${historyId}`, `code=${code}`, message);
     // 用**返回值**而不是 throw 把失败交回渲染层。
     //
     // ipcRenderer.invoke 在 handler 抛错时只把 error.message 序列化过去（还会包上
@@ -529,7 +460,7 @@ export async function generate(
     //
     // GenerateImageResult 本来就有 status: 'failed' | 'cancelled' + error{code,message}
     // 这套形状，渲染层的 applyResult 也早已按它分流 —— 走返回值才是这份契约的原意。
-    return fail(histStatus, code, message, req.model ?? (providerRow.model as string), paramsJson);
+    return fail(runStatus, code, message);
   } finally {
     abortControllers.delete(jobId);
   }

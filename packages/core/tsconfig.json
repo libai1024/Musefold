@@ -11,6 +11,7 @@
   "references": [
     { "path": "../contracts" },
     { "path": "../desktop-contracts" },
+    { "path": "../desktop-db" },
     { "path": "../domain" }
   ]
 }

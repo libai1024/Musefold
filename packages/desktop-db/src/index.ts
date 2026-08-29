@@ -16,14 +16,12 @@ export * as desktopSchema from './schema';
 /** legacy 链(core run-migrations)的最终 user_version;接管的唯一合法起点。 */
 export const LEGACY_FINAL_USER_VERSION = 20;
 
-/** 接管与迁移后必须存在的表(缺一即视为库损坏,拒绝启动)。 */
+/** 接管与迁移后必须存在的表(缺一即视为库损坏,拒绝启动)。history 两表已随单账本迁移 0003 退役。 */
 export const REQUIRED_TABLES = [
   'folders',
   'prompts',
   'tags',
   'prompt_tags',
-  'history',
-  'history_prompt_references',
   'smart_sets',
   'search_history',
   'providers',
@@ -134,6 +132,14 @@ export function takeoverDesktopDatabase(
       mode = 'adopted';
     } else {
       mode = 'fresh';
+    }
+  } else if (options.backupDir) {
+    // 已受管库有待应用迁移(可能含破坏性 DDL,如 0003 DROP history)→ 迁移前照例备份。
+    const applied = db.prepare('SELECT count(*) AS count FROM "__drizzle_migrations"').get() as {
+      count: number;
+    };
+    if (applied.count < DESKTOP_MIGRATIONS.length) {
+      backupPath = backupInto(db, options.backupDir, now);
     }
   }
 
