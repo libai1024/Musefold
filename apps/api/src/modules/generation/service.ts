@@ -409,7 +409,7 @@ export class GenerationService {
         width: asset.width,
         height: asset.height,
         byteSize: asset.byteSize,
-        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        expiresAt: new Date(Date.now() + this.signer.urlTtlSeconds * 1_000).toISOString(),
       })),
       error: run.errorCode
         ? {

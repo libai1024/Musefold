@@ -8,6 +8,13 @@
       "when": 1787911431998,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788011711147,
+      "tag": "0001_high_iron_monger",
+      "breakpoints": true
     }
   ]
 }

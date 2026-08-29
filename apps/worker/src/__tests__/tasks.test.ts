@@ -1,7 +1,14 @@
 import type { S3Client } from '@aws-sdk/client-s3';
 import { cloudGenerationRequestSchema } from '@musefold/contracts';
+import type { MusefoldDatabase } from '@musefold/db';
 import { describe, expect, it } from 'vitest';
-import { decideLeaseRecovery, downloadReferences } from '../tasks.js';
+import {
+  decideFailureTransition,
+  decideFinishTransition,
+  decideLeaseRecovery,
+  downloadReferences,
+  reconcileStaleRuns,
+} from '../tasks.js';
 
 describe('生成租约恢复决策', () => {
   const now = Date.parse('2026-08-19T00:00:00.000Z');
@@ -52,6 +59,87 @@ describe('生成租约恢复决策', () => {
         now,
       ),
     ).toBe('skip');
+  });
+
+  it('cancelling 且未发出上游请求、租约过期 → 收敛为 cancelled 而不是重跑', () => {
+    expect(
+      decideLeaseRecovery(
+        {
+          status: 'cancelling',
+          upstreamRequestSent: false,
+          leaseExpiresAt: new Date('2026-08-18T23:59:00.000Z'),
+        },
+        now,
+      ),
+    ).toBe('mark_cancelled');
+  });
+
+  it('cancelling 但上游请求已发出、租约过期 → 仍按计费安全标记 unknown', () => {
+    expect(
+      decideLeaseRecovery(
+        {
+          status: 'cancelling',
+          upstreamRequestSent: true,
+          leaseExpiresAt: new Date('2026-08-18T23:59:00.000Z'),
+        },
+        now,
+      ),
+    ).toBe('mark_unknown');
+  });
+});
+
+describe('终局裁决(成功/失败路径的状态守卫)', () => {
+  it('成功路径:running 提交,cancelling 收敛取消,其余终态跳过', () => {
+    expect(decideFinishTransition('running')).toBe('succeed');
+    expect(decideFinishTransition('cancelling')).toBe('cancel');
+    expect(decideFinishTransition('cancelled')).toBe('skip');
+    expect(decideFinishTransition('failed')).toBe('skip');
+    expect(decideFinishTransition(undefined)).toBe('skip');
+  });
+
+  it('失败路径:running 记失败,cancelling 收敛取消(用户取消意图优先),终态跳过', () => {
+    expect(decideFailureTransition('running')).toBe('fail');
+    expect(decideFailureTransition('cancelling')).toBe('cancel');
+    expect(decideFailureTransition('succeeded')).toBe('skip');
+    expect(decideFailureTransition(undefined)).toBe('skip');
+  });
+});
+
+describe('卡死运行巡检(generation.reconcile)', () => {
+  function fakeDb(staleRows: Array<{ id: string; userId: string }>) {
+    const enqueued: string[] = [];
+    const db = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => staleRows,
+          }),
+        }),
+      }),
+      execute: async (query: { queryChunks?: unknown }) => {
+        enqueued.push(JSON.stringify(query.queryChunks ?? query));
+        return { rows: [] };
+      },
+    } as unknown as Pick<MusefoldDatabase, 'select' | 'execute'>;
+    return { db, enqueued };
+  }
+
+  it('每个过期/卡死行重新 add_job 一次', async () => {
+    const { db, enqueued } = fakeDb([
+      { id: 'run-1', userId: 'user-1' },
+      { id: 'run-2', userId: 'user-2' },
+    ]);
+    const count = await reconcileStaleRuns(db);
+    expect(count).toBe(2);
+    expect(enqueued).toHaveLength(2);
+    expect(enqueued[0]).toContain('run-1');
+    expect(enqueued[1]).toContain('run-2');
+  });
+
+  it('没有卡死行时不入队', async () => {
+    const { db, enqueued } = fakeDb([]);
+    expect(await reconcileStaleRuns(db)).toBe(0);
+    expect(enqueued).toHaveLength(0);
   });
 });
 

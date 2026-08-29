@@ -13,6 +13,8 @@ export interface SignedAssetUrl {
 }
 
 export interface AssetUrlSigner {
+  /** 签名 URL 的有效期(秒);契约层 expiresAt 按它派生,与真实预签名同步。 */
+  readonly urlTtlSeconds: number;
   sign(objectKey: string): Promise<SignedAssetUrl>;
   /** 参考图上传落对象存储(服务端已校验魔数与尺寸)。 */
   putObject(objectKey: string, body: Uint8Array, contentType: string): Promise<void>;
@@ -21,9 +23,11 @@ export interface AssetUrlSigner {
 }
 
 export class S3AssetUrlSigner implements AssetUrlSigner {
+  readonly urlTtlSeconds: number;
   private readonly client: S3Client;
 
   constructor(private readonly env: ApiEnv) {
+    this.urlTtlSeconds = env.ASSET_URL_TTL_SECONDS;
     this.client = new S3Client({
       endpoint: env.S3_ENDPOINT,
       region: env.S3_REGION,

@@ -45,7 +45,12 @@ function createFakeNewApi(): NewApiClient {
       if (password !== 'correct-password') {
         throw Object.assign(new Error('用户名或密码错误'), { code: 'credentials' });
       }
-      return { ...relaySession(), user: { ...RELAY_USER, username } };
+      // newApiUserId 全局唯一(一个中继账号=一个云端用户),每个用户名派生独立 id。
+      const id =
+        username === RELAY_USER.username
+          ? RELAY_USER.id
+          : 10_000 + [...username].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+      return { ...relaySession(), user: { ...RELAY_USER, id, username } };
     },
     async refresh() {
       return relaySession();
@@ -84,6 +89,8 @@ function createFakeNewApi(): NewApiClient {
 const purgedObjectKeys: string[][] = [];
 const putObjects: Array<{ objectKey: string; byteLength: number; contentType: string }> = [];
 const fakeSigner: AssetUrlSigner = {
+  // 故意用非默认值:验证契约 expiresAt 跟随签名 TTL 而不是硬编码。
+  urlTtlSeconds: 7_200,
   async sign(objectKey) {
     return { url: `https://cdn.test/${objectKey}?sig=x`, expiresAt: new Date().toISOString() };
   },
@@ -493,6 +500,67 @@ describeDb('API 集成(真 PostgreSQL)', () => {
       [job.id],
     );
     expect(orphanAssets.rows[0].count).toBe(0);
+  });
+
+  it('幂等键按用户隔离:另一账号复用同一个键各自成单', async () => {
+    // 用户 A 在上一个用例已用 itest-generation-0001 建单;复合唯一(user_id, idempotency_key)
+    // 下用户 B 复用同一个键必须各自成单,而不是撞全局唯一约束或拿到 A 的任务。
+    const signup = await app.request('/api/auth/sign-up/new-api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'tester-b@musefold.app', password: 'correct-password' }),
+    });
+    expect(signup.status).toBe(200);
+    const otherCookie = (signup.headers.get('set-cookie') ?? '')
+      .split(/,(?=[^;]+=)/)
+      .map((part) => part.split(';')[0])
+      .join('; ');
+
+    const created = await app.request('/api/v1/generations', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: otherCookie,
+        'idempotency-key': 'itest-generation-0001',
+      },
+      body: JSON.stringify({
+        prompt: 'same key, different user',
+        size: 'auto',
+        quality: 'auto',
+        count: 1,
+        runKind: 'free_generation',
+      }),
+    });
+    expect(created.status).toBe(201);
+    const job = (await created.json()) as { request: { prompt: string } };
+    expect(job.request.prompt).toBe('same key, different user');
+  });
+
+  it('资产 expiresAt 跟随签名 TTL 派生', async () => {
+    const created = await request('/api/v1/generations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'itest-ttl-0001' },
+      body: JSON.stringify({
+        prompt: 'ttl check',
+        size: 'auto',
+        quality: 'auto',
+        count: 1,
+        runKind: 'free_generation',
+      }),
+    });
+    const job = (await created.json()) as { id: string };
+    await pool.query(
+      `INSERT INTO generation_assets
+         (id, run_id, user_id, object_key, mime_type, width, height, byte_size, checksum_sha256, position)
+       SELECT 'itest-asset-ttl', r.id, r.user_id, 'assets/itest-asset-ttl.png', 'image/png', 512, 512, 1024, repeat('0', 64), 0
+       FROM generation_runs r WHERE r.id = $1`,
+      [job.id],
+    );
+    const fetched = await request(`/api/v1/generations/${job.id}`);
+    const fetchedJob = (await fetched.json()) as { assets: Array<{ expiresAt: string }> };
+    const deltaSeconds = (Date.parse(fetchedJob.assets[0]?.expiresAt ?? '') - Date.now()) / 1_000;
+    expect(deltaSeconds).toBeGreaterThan(fakeSigner.urlTtlSeconds - 120);
+    expect(deltaSeconds).toBeLessThanOrEqual(fakeSigner.urlTtlSeconds + 120);
   });
 
   it('参考图:上传落对象存储,展示 URL 302,随生成入库时 URL 归一化', async () => {

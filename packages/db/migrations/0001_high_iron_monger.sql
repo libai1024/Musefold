@@ -1,0 +1,2 @@
+ALTER TABLE "generation_runs" DROP CONSTRAINT "generation_runs_idempotency_key_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "generation_runs_user_idempotency_key_idx" ON "generation_runs" USING btree ("user_id","idempotency_key");

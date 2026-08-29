@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth.js';
@@ -51,7 +52,8 @@ export const generationRuns = pgTable(
     request: jsonb('request').$type<Record<string, unknown>>().notNull(),
     /** 生成时的提示词快照(溯源用,契约不外露)。 */
     promptSnapshot: jsonb('prompt_snapshot').$type<Record<string, unknown>>(),
-    idempotencyKey: varchar('idempotency_key', { length: 160 }).unique(),
+    /** 幂等键按用户隔离(复合唯一,见表级索引):不同用户可以撞同一个键。 */
+    idempotencyKey: varchar('idempotency_key', { length: 160 }),
     providerModel: varchar('provider_model', { length: 128 }),
     costPoints: integer('cost_points'),
     errorCode: varchar('error_code', { length: 80 }),
@@ -72,6 +74,7 @@ export const generationRuns = pgTable(
     index('generation_runs_user_created_idx').on(table.userId, table.createdAt),
     index('generation_runs_user_session_idx').on(table.userId, table.sessionId),
     index('generation_runs_user_status_idx').on(table.userId, table.status),
+    uniqueIndex('generation_runs_user_idempotency_key_idx').on(table.userId, table.idempotencyKey),
   ],
 );
 

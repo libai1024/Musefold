@@ -239,10 +239,11 @@ module.exports = {
   ],
   options: {
     doNotFollow: {
-      path: ['node_modules', '(^|/)(dist|out|coverage|\\.turbo|\\.tsout)(/|$)'],
+      path: ['node_modules', '(^|/)(dist|out|coverage|\\.turbo|\\.tsout|\\.next)(/|$)'],
     },
     exclude: {
-      path: ['(^|/)(dist|out|coverage|\\.turbo|\\.tsout)(/|$)'],
+      // .next 必须排除:turbo 并发下 next build 的临时产物会让 depcruise 扫描 ENOENT。
+      path: ['(^|/)(dist|out|coverage|\\.turbo|\\.tsout|\\.next)(/|$)'],
     },
     moduleSystems: ['es6', 'cjs'],
     tsPreCompilationDeps: true,
