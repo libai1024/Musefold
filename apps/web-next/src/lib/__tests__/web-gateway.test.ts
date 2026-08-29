@@ -36,4 +36,16 @@ describe('web settings gateway', () => {
     const gateway = createWebGateway('https://api.test');
     expect((await gateway.settings.getPreferences()).theme).toBe('system');
   });
+
+  it('upgrades legacy boolean reducedMotion archives without dropping other values', async () => {
+    window.localStorage.setItem(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ theme: 'dark', language: 'zh-CN', reducedMotion: true }),
+    );
+    const gateway = createWebGateway('https://api.test');
+    const preferences = await gateway.settings.getPreferences();
+    // 旧布尔档案就地升级为三态,不触发整包回退默认值(主题保留)。
+    expect(preferences.reducedMotion).toBe('on');
+    expect(preferences.theme).toBe('dark');
+  });
 });

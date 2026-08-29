@@ -1,4 +1,4 @@
-export { AccountFooter } from './AccountFooter';
+export { AccountFooter, MobileQuotaReadout } from './AccountFooter';
 export { AccountPanel } from './AccountPanel';
 export { AiConnectionsPanel } from './AiConnectionsPanel';
 export { CloudSyncPanel } from './CloudSyncPanel';

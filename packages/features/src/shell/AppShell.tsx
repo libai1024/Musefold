@@ -1,7 +1,8 @@
 'use client';
 
+import { MusefoldMark } from '@musefold/ui/components/brand-mark';
 import { Button } from '@musefold/ui/components/button';
-import { PanelLeft } from '@musefold/ui/icons';
+import { PanelLeft, Search } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
 import { type ReactNode, useState } from 'react';
 import { SHELL_NAV_ITEMS, type ShellNavItem } from './nav';
@@ -21,6 +22,8 @@ export interface AppShellProps {
   footer?: ReactNode;
   /** macOS 红绿灯让位:品牌行左侧额外缩进(px),桌面宿主注入。 */
   brandInset?: number;
+  /** 移动顶栏右侧插槽(额度 readout 等,V25-UI-SPEC §2.3)。 */
+  mobileExtra?: ReactNode;
   children: ReactNode;
 }
 
@@ -36,23 +39,28 @@ export function AppShell({
   sessions,
   footer,
   brandInset = 0,
+  mobileExtra,
   children,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const activeLabel = items.find((item) => item.id === activeId)?.label ?? '未像';
+  // 设置不占导航轨(承 ZCode/Codex/Cursor 布局语法):入口在左下角账号区齿轮;
+  // 移动端无侧栏账号区,底部标签栏保留完整目录。
+  const railItems = items.filter((item) => item.id !== 'settings');
 
   return (
     <div className="flex min-h-dvh bg-background">
       {!collapsed && (
         <aside
-          className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-border border-r bg-sidebar md:flex"
+          className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-border/70 border-r bg-sidebar md:flex"
           data-testid="app-sidebar"
         >
           <div
             className="flex h-12 shrink-0 items-center gap-2 pr-2 pl-4"
             style={brandInset > 0 ? { paddingLeft: brandInset } : undefined}
           >
-            <span className="inline-block size-3 rounded-full bg-primary" aria-hidden />
-            <span className="font-semibold text-sidebar-foreground text-sm">Musefold</span>
+            <MusefoldMark className="size-4 shrink-0 text-sidebar-foreground" aria-hidden />
+            <span className="font-semibold text-[13px] text-sidebar-foreground">Musefold</span>
             <Button
               variant="ghost"
               size="icon"
@@ -65,10 +73,10 @@ export function AppShell({
             </Button>
           </div>
 
-          {action && <div className="px-3 pb-1">{action}</div>}
+          {action && <div className="px-3 pt-1 pb-0.5">{action}</div>}
 
-          <nav className="flex flex-col gap-0.5 px-3 py-2" aria-label="主导航">
-            {items.map(({ id, label, icon: Icon }) => (
+          <nav className="flex flex-col gap-px px-3 pt-0.5 pb-2" aria-label="主导航">
+            {railItems.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
@@ -76,13 +84,19 @@ export function AppShell({
                 aria-current={activeId === id ? 'page' : undefined}
                 data-testid={`nav-${id}`}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+                  'flex h-8 items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] transition-colors duration-(--dur-fast)',
                   activeId === id
                     ? 'bg-sidebar-accent font-medium text-sidebar-foreground'
-                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                    : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
                 )}
               >
-                <Icon className="size-4" aria-hidden />
+                <Icon
+                  className={cn(
+                    'size-4',
+                    activeId === id ? 'text-sidebar-foreground' : 'text-muted-foreground/80',
+                  )}
+                  aria-hidden
+                />
                 {label}
               </button>
             ))}
@@ -90,7 +104,7 @@ export function AppShell({
 
           {sessions && <div className="flex min-h-0 flex-1 flex-col px-3">{sessions}</div>}
 
-          {footer && <div className="shrink-0 border-border border-t px-3 py-2">{footer}</div>}
+          {footer && <div className="shrink-0 border-border/70 border-t px-2 py-1.5">{footer}</div>}
         </aside>
       )}
 
@@ -109,8 +123,23 @@ export function AppShell({
           </Button>
         )}
         <header className="flex h-12 items-center gap-2 border-border border-b px-4 md:hidden">
-          <span className="inline-block size-2.5 rounded-full bg-primary" aria-hidden />
-          <span className="font-semibold text-foreground text-sm">未像</span>
+          <MusefoldMark className="size-4 shrink-0 text-foreground" aria-hidden />
+          <span className="min-w-0 truncate font-semibold text-foreground text-sm">
+            {activeLabel}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {mobileExtra}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground"
+              aria-label="搜索提示词"
+              data-testid="mobile-search"
+              onClick={() => onNavigate('prompts')}
+            >
+              <Search className="size-4" />
+            </Button>
+          </div>
         </header>
         <main className="flex-1 pb-16 md:pb-0">{children}</main>
       </div>

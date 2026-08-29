@@ -33,6 +33,8 @@
 | [V25-DELIVERY-PLAN.md](./V25-DELIVERY-PLAN.md) | M0–M5 交付批次、卡片、验收标准与回退 |
 | [V25-DATA-MIGRATION.md](./V25-DATA-MIGRATION.md) | 桌面 SQLite、PostgreSQL、账号体系、热更通道四条数据线 |
 | [V25-UI-SPEC.md](./V25-UI-SPEC.md) | 渲染层唯一基准:壳与各屏布局、状态矩阵、交互约定、组件复用矩阵、与旧版差异登记 |
+| [V25-OLD-NEW-DIFF.md](./V25-OLD-NEW-DIFF.md) | 审计报告(非规范):旧版 `v2.5-baseline` 与当前实现的技术栈/代码量/逐屏 UI 与交互对比,含未迁清单与缺口 |
+| [ui-parity/](./ui-parity/README.md) | **逐屏对照系列(16 篇)**:Codex 级质感基线(00,C 系列增益语汇)+ 主界面/侧栏/工作台/提示词库/历史/设计方案/设置(8 分区),每屏组件+布局+交互+动效+UIUX 五维对照与带优先级任务清单;UI/UX 交互任务的基石依据 |
 
 ## 实施期间的权威顺序
 

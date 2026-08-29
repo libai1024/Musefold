@@ -1,6 +1,6 @@
 'use client';
 
-import { AccountFooter } from '@musefold/features/account';
+import { AccountFooter, MobileQuotaReadout } from '@musefold/features/account';
 import { AppShell as SharedAppShell, SHELL_NAV_ITEMS } from '@musefold/features/shell';
 import { NewSessionAction, SessionListPanel } from '@musefold/features/workbench';
 import { usePathname, useRouter } from 'next/navigation';
@@ -14,13 +14,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const activeId = SHELL_NAV_ITEMS.find((item) => pathname.startsWith(`/${item.id}`))?.id ?? null;
   const openWorkbench = () => router.push('/workbench');
 
+  if (pathname === '/ceramic-button') {
+    return <>{children}</>;
+  }
+
   return (
     <SharedAppShell
       activeId={activeId}
       onNavigate={(id) => router.push(`/${id}`)}
       action={<NewSessionAction onOpen={openWorkbench} />}
       sessions={<SessionListPanel onOpen={openWorkbench} />}
-      footer={<AccountFooter onOpenAccount={() => router.push('/settings')} />}
+      footer={<AccountFooter onOpenSettings={() => router.push('/settings')} />}
+      mobileExtra={<MobileQuotaReadout />}
     >
       {children}
     </SharedAppShell>

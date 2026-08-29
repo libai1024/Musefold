@@ -1,4 +1,9 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ApiEnv } from '../../env.js';
 
@@ -9,6 +14,10 @@ export interface SignedAssetUrl {
 
 export interface AssetUrlSigner {
   sign(objectKey: string): Promise<SignedAssetUrl>;
+  /** 参考图上传落对象存储(服务端已校验魔数与尺寸)。 */
+  putObject(objectKey: string, body: Uint8Array, contentType: string): Promise<void>;
+  /** 永久删除时清理对象存储(幂等;对象不存在不报错)。 */
+  removeObjects(objectKeys: string[]): Promise<void>;
 }
 
 export class S3AssetUrlSigner implements AssetUrlSigner {
@@ -37,5 +46,26 @@ export class S3AssetUrlSigner implements AssetUrlSigner {
       url,
       expiresAt: new Date(Date.now() + expiresIn * 1_000).toISOString(),
     };
+  }
+
+  async putObject(objectKey: string, body: Uint8Array, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.env.S3_BUCKET,
+        Key: objectKey,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+  }
+
+  async removeObjects(objectKeys: string[]): Promise<void> {
+    if (objectKeys.length === 0) return;
+    await this.client.send(
+      new DeleteObjectsCommand({
+        Bucket: this.env.S3_BUCKET,
+        Delete: { Objects: objectKeys.map((key) => ({ Key: key })), Quiet: true },
+      }),
+    );
   }
 }

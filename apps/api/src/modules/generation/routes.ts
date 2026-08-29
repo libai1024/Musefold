@@ -1,4 +1,5 @@
 import {
+  MAX_REFERENCE_IMAGE_BYTES,
   createGenerationInputSchema,
   generationHistoryPageSchema,
   generationHistoryQuerySchema,
@@ -166,9 +167,51 @@ export function generationRoutes(service: GenerationService) {
     async (c, input) => c.json(await service.restore(c.get('userId'), input.params.id)),
   );
 
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/generations/{id}/purge',
+      tags,
+      params: idParams,
+      response: z.object({ ok: z.literal(true) }),
+    },
+    async (c, input) => {
+      await service.purge(c.get('userId'), input.params.id);
+      return c.json({ ok: true as const });
+    },
+  );
+
   app.get('/assets/:id/url', async (c) => {
     const id = idParams.parse({ id: c.req.param('id') }).id;
     const signed = await service.assetSignedUrl(c.get('userId'), id);
+    return c.redirect(signed.url, 302);
+  });
+
+  // 参考图上传(multipart,字段 file):魔数与尺寸在 service 校验,返回可随 create 提交的引用。
+  app.post('/reference-images', async (c) => {
+    const declaredLength = Number(c.req.header('content-length') ?? 0);
+    // multipart 头部有开销,给 1MiB 余量;超限直接拒,不吃进内存。
+    if (declaredLength > MAX_REFERENCE_IMAGE_BYTES + 1024 * 1024) {
+      throw new AppError('VALIDATION_FAILED', '图片不能超过 20 MiB');
+    }
+    const form = await c.req.formData().catch(() => null);
+    const file = form?.get('file');
+    if (!(file instanceof File)) {
+      throw new AppError('VALIDATION_FAILED', '缺少图片文件(multipart 字段 file)');
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const uploaded = await service.uploadReferenceImage(c.get('userId'), {
+      name: file.name || 'reference.png',
+      bytes,
+    });
+    return c.json(uploaded, 201);
+  });
+
+  // 与 /assets/:id/url 同款 302:cookie 鉴权下 <img src> 直接可用。
+  app.get('/reference-images/:id/url', async (c) => {
+    const id = idParams.parse({ id: c.req.param('id') }).id;
+    const signed = await service.referenceImageSignedUrl(c.get('userId'), id);
     return c.redirect(signed.url, 302);
   });
 

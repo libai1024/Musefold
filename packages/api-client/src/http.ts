@@ -62,14 +62,21 @@ export class ApiHttp {
     // 字符串拼接而非 new URL():baseUrl 为空时保持相对路径形态。
     const url = search.size > 0 ? `${target}?${search.toString()}` : target;
 
+    // FormData 直传(参考图上传等 multipart 场景),content-type 由 fetch 自带 boundary。
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const response = await this.fetchImpl(url, {
       method: options.method,
       credentials: 'include',
       headers: {
-        ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(options.body === undefined || isFormData ? {} : { 'content-type': 'application/json' }),
         ...options.headers,
       },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body:
+        options.body === undefined
+          ? undefined
+          : isFormData
+            ? (options.body as FormData)
+            : JSON.stringify(options.body),
     });
 
     if (!response.ok) {

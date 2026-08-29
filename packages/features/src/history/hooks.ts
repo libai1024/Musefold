@@ -98,6 +98,15 @@ export function useRestoreGeneration() {
   });
 }
 
+export function usePurgeGeneration() {
+  const { gateway } = usePlatform();
+  const invalidate = useInvalidateGeneration();
+  return useMutation({
+    mutationFn: (id: string) => gateway.generation.purge(id),
+    onSuccess: invalidate,
+  });
+}
+
 /** SSR/jsdom 安全的媒体查询(Inspector 内嵌/抽屉分叉),不支持的环境回退 false。 */
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(

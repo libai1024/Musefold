@@ -1,16 +1,39 @@
 'use client';
 
-import type { GenerationJob } from '@musefold/contracts';
+import type { GenerationAsset, GenerationJob } from '@musefold/contracts';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@musefold/ui/components/alert-dialog';
 import { Button } from '@musefold/ui/components/button';
 import { Sheet, SheetContent, SheetTitle } from '@musefold/ui/components/sheet';
 import { Skeleton } from '@musefold/ui/components/skeleton';
+import { toast } from '@musefold/ui/components/sonner';
 import { Spinner } from '@musefold/ui/components/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@musefold/ui/components/tabs';
 import { History as HistoryIcon, Trash2 } from '@musefold/ui/icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useCancelGeneration, useRetryGeneration } from '../workbench/hooks';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  jobToSavePromptSource,
+  SavePromptDialog,
+  type SavePromptSource,
+} from '../prompts/SavePromptDialog';
+import { useScreenIntent } from '../shell/screen-intent-store';
+import {
+  assetSaveName,
+  useCancelGeneration,
+  useRetryGeneration,
+  useSaveAsset,
+} from '../workbench/hooks';
 import { HistoryFilterBar } from './HistoryFilterBar';
 import { HistoryInspector } from './HistoryInspector';
+import { HistoryLightbox, type LightboxEntry } from './HistoryLightbox';
 import { HistoryRow } from './HistoryRow';
 import { threadJobs } from './format';
 import {
@@ -19,6 +42,7 @@ import {
   type HistoryFilters,
   useHistoryList,
   useMediaQuery,
+  usePurgeGeneration,
   useRemoveGeneration,
   useRestoreGeneration,
 } from './hooks';
@@ -26,19 +50,26 @@ import {
 export interface HistoryScreenProps {
   /** 跳到所属会话(宿主注入:切工作台视图/路由并激活该会话)。 */
   onOpenSession?(sessionId: string): void;
+  /** 「存为提示词」成功 toast「查看」跳库的切屏回调(宿主注入)。 */
+  onOpenPrompts?(): void;
 }
 
 /**
  * 生成历史屏(V25-UI-SPEC §5):筛选栏 + 线程缩进列表 + 详情 Inspector + 回收站。
  * Inspector:lg+ 内嵌右栏;窄屏 Sheet。
  */
-export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
+export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenProps) {
   const [tab, setTab] = useState<'all' | 'trash'>('all');
   const [filters, setFilters] = useState<HistoryFilters>(DEFAULT_HISTORY_FILTERS);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+
+  const consumeIntent = useScreenIntent((s) => s.consume);
+  useEffect(() => {
+    if (consumeIntent('history-trash')) setTab('trash');
+  }, [consumeIntent]);
 
   // 搜索 300ms 防抖(V25-UI-SPEC §5.2)。
   useEffect(() => {
@@ -55,6 +86,26 @@ export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
   const retryGeneration = useRetryGeneration();
   const removeGeneration = useRemoveGeneration();
   const restoreGeneration = useRestoreGeneration();
+  const purgeGeneration = usePurgeGeneration();
+  const [purgeTarget, setPurgeTarget] = useState<GenerationJob | null>(null);
+  const [savePromptSource, setSavePromptSource] = useState<SavePromptSource | null>(null);
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
+  const saveAsset = useSaveAsset();
+
+  /** 保存图片(05 §3):桌面系统对话框 / Web 浏览器下载;取消不提示。 */
+  function handleSaveAsset(asset: GenerationAsset) {
+    saveAsset.mutate(
+      { url: asset.url, name: assetSaveName(asset) },
+      {
+        onSuccess: (result) => {
+          if (result === 'saved') toast.success('图片已保存');
+        },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : '保存图片失败');
+        },
+      },
+    );
+  }
 
   const jobs = useMemo(() => (list.data?.pages ?? []).flatMap((page) => page.items), [list.data]);
   const threaded = useMemo(() => threadJobs(jobs), [jobs]);
@@ -63,6 +114,22 @@ export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
     [jobs],
   );
   const selectedJob = jobs.find((job) => job.id === selectedId) ?? null;
+
+  // Lightbox 可翻集合(05 §7):成功且有资产的记录,顺序与列表可视顺序(线程序)一致。
+  const lightboxEntries = useMemo(
+    () =>
+      threaded.flatMap(({ job }): LightboxEntry[] => {
+        const asset = job.assets[0];
+        return job.status === 'succeeded' && asset ? [{ job, asset }] : [];
+      }),
+    [threaded],
+  );
+
+  /** 打开/翻图共用:选中行跟随当前图(05 §7)。 */
+  function openLightbox(id: string) {
+    setLightboxId(id);
+    setSelectedId(id);
+  }
 
   // 选中记录翻页/筛选后不在结果集时收起详情。
   useEffect(() => {
@@ -80,6 +147,7 @@ export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
   }
 
   function rowActions(job: GenerationJob) {
+    const inLightboxSet = job.status === 'succeeded' && job.assets.length > 0;
     return {
       onOpen: () => setSelectedId(job.id),
       onCancel: () => cancelGeneration.mutate(job.id),
@@ -89,6 +157,9 @@ export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
         removeGeneration.mutate(job.id);
       },
       onRestore: () => restoreGeneration.mutate(job.id),
+      onPurge: () => setPurgeTarget(job),
+      // 行缩略点击放大(05 §7);无成图行仍走开详情。
+      ...(inLightboxSet ? { onOpenLightbox: () => openLightbox(job.id) } : {}),
     };
   }
 
@@ -103,6 +174,16 @@ export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
         setSelectedId(null);
       }}
       onRestore={() => restoreGeneration.mutate(selectedJob.id)}
+      onSavePrompt={() => setSavePromptSource(jobToSavePromptSource(selectedJob))}
+      onSaveAsset={() => {
+        const first = selectedJob.assets[0];
+        if (first) handleSaveAsset(first);
+      }}
+      onOpenLightbox={
+        selectedJob.status === 'succeeded' && selectedJob.assets.length > 0
+          ? () => openLightbox(selectedJob.id)
+          : undefined
+      }
       onOpenSession={onOpenSession}
     />
   );
@@ -225,6 +306,54 @@ export function HistoryScreen({ onOpenSession }: HistoryScreenProps) {
           </SheetContent>
         </Sheet>
       )}
+
+      <SavePromptDialog
+        source={savePromptSource}
+        onOpenChange={(open) => {
+          if (!open) setSavePromptSource(null);
+        }}
+        onOpenPrompts={onOpenPrompts}
+      />
+
+      <HistoryLightbox
+        entries={lightboxEntries}
+        activeId={lightboxId}
+        onNavigate={openLightbox}
+        onClose={() => setLightboxId(null)}
+        onSaveAsset={handleSaveAsset}
+      />
+
+      <AlertDialog
+        open={purgeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setPurgeTarget(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>永久删除生成记录?</AlertDialogTitle>
+            <AlertDialogDescription>
+              该记录与生成的图片将被彻底删除,无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="history-purge-confirm"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (purgeTarget) {
+                  if (selectedId === purgeTarget.id) setSelectedId(null);
+                  purgeGeneration.mutate(purgeTarget.id);
+                }
+                setPurgeTarget(null);
+              }}
+            >
+              永久删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

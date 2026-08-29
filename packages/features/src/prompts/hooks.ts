@@ -1,13 +1,15 @@
 'use client';
 
-import type {
-  NewPromptDocument,
-  NewPromptFolder,
-  NewPromptTag,
-  PromptDocument,
-  PromptListQuery,
-  PromptUseInput,
-  UpdatePromptDocument,
+import {
+  type NewPromptDocument,
+  type NewPromptFolder,
+  type NewPromptTag,
+  type PromptDocument,
+  type PromptListQuery,
+  type PromptUseInput,
+  type UpdatePromptDocument,
+  type WorkbenchDraft,
+  workbenchDraftSchema,
 } from '@musefold/contracts';
 import { queryKeys, useGateway } from '@musefold/platform';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -81,6 +83,15 @@ export function useRestorePrompt() {
   });
 }
 
+export function usePurgePrompt() {
+  const gateway = useGateway();
+  const invalidate = useInvalidatePrompts();
+  return useMutation({
+    mutationFn: (id: string) => gateway.prompts.purge(id),
+    onSuccess: invalidate,
+  });
+}
+
 export function useUsePrompt() {
   const gateway = useGateway();
   const invalidate = useInvalidatePrompts();
@@ -132,4 +143,28 @@ export async function copyPromptContent(prompt: PromptDocument): Promise<void> {
   await navigator.clipboard.writeText(
     prompt.negative ? `${prompt.content}\n\nNegative: ${prompt.negative}` : prompt.content,
   );
+}
+
+/**
+ * 「使用」= 送工作台草稿(ui-parity 04 P0,承旧 openDraft):
+ * 正文/反向词必达;params 是宽松 record,仅收编契约认可的比例与质量,
+ * 奇形旧档丢参数保正文——使用动作不因参数失败。
+ */
+export function promptToWorkbenchDraft(prompt: PromptDocument): WorkbenchDraft {
+  const raw = prompt.params ?? {};
+  const parsed = workbenchDraftSchema.shape.params.safeParse({
+    ...(typeof raw.aspectRatio === 'string' ? { aspectRatio: raw.aspectRatio } : {}),
+    ...(typeof raw.quality === 'string' ? { quality: raw.quality } : {}),
+  });
+  const params = parsed.success ? parsed.data : {};
+  return {
+    prompt: prompt.content,
+    negative: prompt.negative ?? '',
+    // 与 Composer 草稿口径一致:auto/缺省不落键,size 不进草稿。
+    params: {
+      ...(params.aspectRatio ? { aspectRatio: params.aspectRatio } : {}),
+      ...(params.quality && params.quality !== 'auto' ? { quality: params.quality } : {}),
+    },
+    promptReferenceIds: [],
+  };
 }

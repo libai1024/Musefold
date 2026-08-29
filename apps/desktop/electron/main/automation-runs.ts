@@ -288,9 +288,11 @@ export function createExternalRunRoutes(
       if (!body.url || !/^https:\/\/github\.com\//.test(body.url)) {
         throw new AutomationError('INVALID_PARAMS', 'url 必须是公开 GitHub 仓库地址', 400);
       }
+      const repositoryUrl = body.url;
       if (!body.prompt?.trim()) {
         throw new AutomationError('INVALID_PARAMS', 'prompt 为必填', 400);
       }
+      const userPrompt = body.prompt;
       const n = body.n ?? 1;
       if (!Number.isInteger(n) || n < 1 || n > MAX_RUN_N) {
         throw new AutomationError('INVALID_PARAMS', `n 必须是 1–${MAX_RUN_N} 的整数`, 400, { n });
@@ -331,7 +333,7 @@ export function createExternalRunRoutes(
       externalRuns.set(executionId, run);
 
       void (async () => {
-        const prepared = await prepareGithubSkillRuntime({ repositoryUrl: body.url! });
+        const prepared = await prepareGithubSkillRuntime({ repositoryUrl });
         if (!prepared.ok) {
           run.status = 'failed';
           run.error = { code: prepared.error.code, message: prepared.error.message };
@@ -342,7 +344,7 @@ export function createExternalRunRoutes(
           {
             runtimeId: prepared.data.runtimeId,
             executionId,
-            userPrompt: body.prompt!,
+            userPrompt,
             userImages: [],
             availableImageSlots: 16,
             generation: {

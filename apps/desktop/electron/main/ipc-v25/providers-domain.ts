@@ -2,7 +2,7 @@
 // 密钥经 security/keychain(safeStorage)存取,渲染层只见 hasKey / keySuffix;
 // 表列 has_key / key_suffix 同步维护(core 旧读者仍在),事实源是 keychain。
 
-import type { AiProvider } from '@musefold/contracts';
+import type { AiProvider, AiProviderTestResult } from '@musefold/contracts';
 import {
   createAiProviderSchema,
   entityIdSchema,
@@ -11,7 +11,13 @@ import {
 import { getDb } from '@musefold/core/db';
 import { ulid } from 'ulid';
 import { z } from 'zod';
-import { deleteApiKey, getKeySuffix, hasApiKey, saveApiKey } from '../../security/keychain';
+import {
+  deleteApiKey,
+  getKeySuffix,
+  hasApiKey,
+  loadApiKey,
+  saveApiKey,
+} from '../../security/keychain';
 import { BridgeError, type MethodDef } from './envelope';
 
 interface ProviderRow {
@@ -79,6 +85,41 @@ function setActiveRow(id: string): void {
 }
 
 const updatePayloadSchema = z.object({ id: entityIdSchema, patch: updateAiProviderSchema });
+
+const TEST_TIMEOUT_MS = 8_000;
+
+/**
+ * 「测试连接」探测(§7.2):GET {baseUrl}/models 带 bearer。
+ * openai-compatible 网关的标准轻量端点,不产生任何生成费用。
+ */
+export async function probeProvider(
+  baseUrl: string,
+  apiKey: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AiProviderTestResult> {
+  const url = `${baseUrl.replace(/\/$/, '')}/models`;
+  const startedAt = Date.now();
+  try {
+    const response = await fetchImpl(url, {
+      method: 'GET',
+      headers: apiKey ? { authorization: `Bearer ${apiKey}` } : {},
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+    const latencyMs = Date.now() - startedAt;
+    if (response.ok) return { ok: true, message: '连接正常', latencyMs };
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, message: 'API Key 无效或无权限', latencyMs };
+    }
+    return { ok: false, message: `服务返回 HTTP ${response.status}`, latencyMs };
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === 'TimeoutError';
+    return {
+      ok: false,
+      message: timedOut ? '连接超时,请检查 Base URL 与网络' : '无法连接到服务,请检查 Base URL',
+      latencyMs: null,
+    };
+  }
+}
 
 export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
   return {
@@ -162,6 +203,14 @@ export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
         requireRow(id);
         setActiveRow(id);
         return toAiProvider(requireRow(id));
+      },
+    },
+    'aiProviders.test': {
+      input: z.object({ id: entityIdSchema }),
+      handle: async (payload) => {
+        const { id } = payload as { id: string };
+        const row = requireRow(id);
+        return probeProvider(row.base_url, loadApiKey(id));
       },
     },
   };

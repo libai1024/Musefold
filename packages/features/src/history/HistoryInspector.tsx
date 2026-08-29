@@ -3,10 +3,13 @@
 import type { GenerationJob } from '@musefold/contracts';
 import { Badge } from '@musefold/ui/components/badge';
 import { Button } from '@musefold/ui/components/button';
+import { FadeImage } from '@musefold/ui/components/fade-image';
 import { Separator } from '@musefold/ui/components/separator';
 import {
+  BookmarkPlus,
   Check,
   Copy,
+  Download,
   MessageSquare,
   RotateCcw,
   Square,
@@ -51,7 +54,7 @@ function ParamRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 text-xs">
       <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="truncate text-foreground">{value}</span>
+      <span className="truncate text-foreground tabular-nums">{value}</span>
     </div>
   );
 }
@@ -63,6 +66,12 @@ export interface HistoryInspectorProps {
   onRetry(): void;
   onRemove(): void;
   onRestore(): void;
+  /** 「存为提示词」(03/05 §7 共用链路):Dialog 由 Screen 层持有。 */
+  onSavePrompt(): void;
+  /** 「保存图片」(05 §3):mutation 与 toast 由 Screen 层持有(Lightbox 复用)。 */
+  onSaveAsset(): void;
+  /** 检视图点击放大(05 §7 Lightbox);未注入(无成图)时图不可点。 */
+  onOpenLightbox?(): void;
   /** 跳到所属会话(宿主注入导航);无 sessionId 时不展示入口。 */
   onOpenSession?(sessionId: string): void;
 }
@@ -75,6 +84,9 @@ export function HistoryInspector({
   onRetry,
   onRemove,
   onRestore,
+  onSavePrompt,
+  onSaveAsset,
+  onOpenLightbox,
   onOpenSession,
 }: HistoryInspectorProps) {
   const asset = job.assets[0];
@@ -104,16 +116,32 @@ export function HistoryInspector({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-        {asset && (
-          <div className="overflow-hidden rounded-lg border border-border bg-muted">
-            <img
-              src={asset.url}
-              alt={job.request.prompt}
-              className="max-h-80 w-full object-contain"
-              data-testid="history-inspector-image"
-            />
-          </div>
-        )}
+        {asset &&
+          (onOpenLightbox ? (
+            <button
+              type="button"
+              className="overflow-hidden rounded-xl border border-border bg-muted transition-opacity hover:opacity-95"
+              onClick={onOpenLightbox}
+              aria-label="放大预览"
+              data-testid="history-inspector-image-open"
+            >
+              <FadeImage
+                src={asset.url}
+                alt={job.request.prompt}
+                className="max-h-80 w-full object-contain"
+                data-testid="history-inspector-image"
+              />
+            </button>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border bg-muted">
+              <FadeImage
+                src={asset.url}
+                alt={job.request.prompt}
+                className="max-h-80 w-full object-contain"
+                data-testid="history-inspector-image"
+              />
+            </div>
+          ))}
         {job.error && (
           <p
             className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs"
@@ -200,6 +228,28 @@ export function HistoryInspector({
                 onClick={onRetry}
               >
                 <RotateCcw className="size-3.5" /> 重试
+              </Button>
+            )}
+            {job.status === 'succeeded' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground"
+                data-testid="history-inspector-save-prompt"
+                onClick={onSavePrompt}
+              >
+                <BookmarkPlus className="size-3.5" /> 存为提示词
+              </Button>
+            )}
+            {job.status === 'succeeded' && asset && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground"
+                data-testid="history-inspector-save-asset"
+                onClick={onSaveAsset}
+              >
+                <Download className="size-3.5" /> 保存图片
               </Button>
             )}
             {job.sessionId && onOpenSession && (

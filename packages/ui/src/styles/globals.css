@@ -4,6 +4,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * 品牌名字体(工作台空态水印与关于页品牌面板,00-codex-craft §5.5 唯二品牌时刻)。
+ * ZCOOL XiaoWei 拉丁子集承旧 v2.5-baseline(OFL 许可,fonts/ 同目录),双端打包自托管。
+ */
+@font-face {
+  font-family: 'ZCOOL XiaoWei';
+  src: url('../../fonts/zcool-xiaowei-subset.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
  * v2.5 主题:旧 packages/legacy-ui tokens.css 的品牌语义映射到 shadcn/ui 变量集。
  * 陶土橙品牌色、暖灰中性面、8px 控件圆角均继承自 v2.0 设计语言(DESIGN.md)。
  */
@@ -46,6 +58,10 @@
   --sidebar-border: #dfdfdb;
   --sidebar-ring: rgba(214, 101, 63, 0.55);
   --radius: 0.5rem;
+
+  /* 悬浮表面阴影(值承旧 v2.5-baseline tokens.css --shadow-composer/--shadow-pop)。 */
+  --surface-shadow-composer: 0 12px 36px rgba(28, 30, 34, 0.1), 0 2px 8px rgba(28, 30, 34, 0.05);
+  --surface-shadow-pop: 0 16px 40px rgba(28, 30, 34, 0.08);
 }
 
 .dark {
@@ -86,6 +102,9 @@
   --sidebar-accent-foreground: #f4f4f1;
   --sidebar-border: #33353a;
   --sidebar-ring: rgba(239, 122, 82, 0.55);
+
+  --surface-shadow-composer: 0 14px 38px rgba(0, 0, 0, 0.36), 0 2px 10px rgba(0, 0, 0, 0.22);
+  --surface-shadow-pop: 0 18px 46px rgba(0, 0, 0, 0.5);
 }
 
 @theme inline {
@@ -133,6 +152,25 @@
     'Segoe UI', system-ui, sans-serif;
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  --shadow-composer: var(--surface-shadow-composer);
+  --shadow-pop: var(--surface-shadow-pop);
+}
+
+/*
+ * C-1 动效 token(00-codex-craft §3,值承旧 v2.5-baseline tokens.css):
+ * 组件动效一律引用 token(duration-(--dur-*) / ease-(--ease-*) / ease-out 工具类),
+ * 评审见裸毫秒值打回。static:无条件输出到 :root,保证运行时 var() 与 JS 读取可解析。
+ * --ease-out/--ease-in-out 覆盖 Tailwind 内置刻度,`ease-out` 工具类直接得承旧曲线。
+ * theater 时长(640ms)不进全局 token:定义在工作台结果 reveal 作用域内(03 §7)。
+ */
+@theme static {
+  --dur-instant: 90ms; /* 按压反馈、图标形态切换、文案 crossfade */
+  --dur-fast: 130ms; /* hover 底色、行动作组渐显、菜单/Popover 入场 */
+  --dur-base: 180ms; /* 气泡入场、Dialog、chip 弹出/离场 */
+  --dur-med: 220ms; /* 抽屉/Inspector 滑入、侧栏宽度 */
+  --dur-slow: 260ms; /* 大面积布局重排(慎用,通常应拆成局部动效) */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 @layer base {
@@ -141,5 +179,317 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/*
+ * 动效分级压制(契约 motionLevelSchema;MotionSync 负责挂标记,承旧 motion.css 双通道):
+ * - on:根挂 `.reduce-motion` + data-motion="on" —— 无条件压制;
+ * - system:data-motion="system"(或 SSR 首帧无标记)—— 仅系统 prefers-reduced-motion 命中时压制;
+ * - off:data-motion="off" —— 双通道都不命中,即使系统减弱也保留完整动效。
+ *
+ * 压制 = 时长压到 0.01ms + 单次迭代:动画「瞬时到达终态」而非「不执行」,
+ * 依赖 animationend 的浮层关闭逻辑(Radix/tw-animate)不悬挂;无限循环动画
+ * (pulse/marquee/呼吸)经单次迭代直接停机,合成器归零,这是省电与降负载的主要来源。
+ * [data-motion-exempt] 豁免信息性动画(Spinner/进度):它们传达"仍在进行",冻结反而像卡死。
+ */
+/* biome-ignore-start lint/complexity/noImportantStyles: 压制必须盖过内联与工具类动画值,!important 是该机制的语义本体(承旧 motion.css) */
+html.reduce-motion *:not([data-motion-exempt]),
+html.reduce-motion *:not([data-motion-exempt])::before,
+html.reduce-motion *:not([data-motion-exempt])::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='off']) *:not([data-motion-exempt]),
+  html:not([data-motion='off']) *:not([data-motion-exempt])::before,
+  html:not([data-motion='off']) *:not([data-motion-exempt])::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: 压制块结束 */
+
+/*
+ * 工作台空态品牌动效(ui-parity 03 §5 P1 恢复,值承旧 v2.5-baseline product-ui/styles.css)。
+ * 品牌时刻仅此一处 + 关于页品牌面板(00 §5.5);6s 呼吸与横滚是长周期环境动画,
+ * 承旧裸值不进交互 token 表(00 §3 只管 90–260ms 交互档)。
+ * 结构布局(容器/间距/字号)由 features WorkbenchEmptyState 的工具类承担,
+ * 这里只放水印、Ember 呼吸、横滚三组「无法用工具类表达」的 keyframes 与降级规则。
+ */
+
+/* 英文名称水印:整区背景,沉在内容之下;逐字母 6s 呼吸 0.28s 错相,hover 单字母升主色。 */
+.mf-workbench-empty-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mf-workbench-empty-watermark-word {
+  position: absolute;
+  top: calc(clamp(48px, 12vh, 96px) - 0.15em);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--foreground);
+  font-family: 'ZCOOL XiaoWei', 'Songti SC', 'Noto Serif SC', serif;
+  font-size: clamp(88px, 17vw, 128px);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+@media (min-width: 48rem) {
+  .mf-workbench-empty-watermark-word {
+    top: calc(clamp(72px, 16vh, 140px) - 0.15em);
+  }
+}
+
+.mf-workbench-empty-watermark-word span {
+  display: inline-block;
+  opacity: 0.07;
+  pointer-events: auto;
+  animation: mf-workbench-watermark-breathe 6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.28s);
+  transition: color var(--dur-base) var(--ease-out);
+}
+
+@keyframes mf-workbench-watermark-breathe {
+  0%,
+  100% {
+    opacity: 0.04;
+  }
+  50% {
+    opacity: 0.07;
+  }
+}
+
+.mf-workbench-empty-watermark-word span:hover {
+  animation: none;
+  opacity: 0.9;
+  color: var(--primary);
+}
+
+/* Ember 点与水印同周期(6s)微弱脉动,首屏只有一个呼吸节奏。 */
+.mf-workbench-empty-brand svg circle {
+  animation: mf-workbench-ember-breathe 6s ease-in-out infinite;
+}
+
+@keyframes mf-workbench-ember-breathe {
+  0%,
+  100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 快捷建议横滚:三行无缝 marquee,速度/负延迟错相承旧,两侧 16% 遮罩,hover 暂停。 */
+.mf-workbench-direction-row {
+  position: relative;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+}
+
+.mf-workbench-direction-track {
+  display: flex;
+  align-items: center;
+  gap: 2.5em;
+  width: max-content;
+  padding: 4px 0;
+  animation: mf-workbench-direction-scroll var(--speed, 44s) linear infinite;
+  animation-delay: var(--offset, 0s);
+}
+
+.mf-workbench-direction-row:nth-child(1) .mf-workbench-direction-track {
+  --speed: 38s;
+  --offset: -9s;
+}
+
+.mf-workbench-direction-row:nth-child(2) .mf-workbench-direction-track {
+  --speed: 55s;
+  --offset: -31s;
+}
+
+.mf-workbench-direction-row:nth-child(3) .mf-workbench-direction-track {
+  --speed: 47s;
+  --offset: -20s;
+}
+
+.mf-workbench-direction-row:hover .mf-workbench-direction-track {
+  animation-play-state: paused;
+}
+
+@keyframes mf-workbench-direction-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.mf-workbench-direction-item {
+  padding: 2px 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.mf-workbench-direction-row:hover .mf-workbench-direction-item,
+.mf-workbench-direction-row:focus-within .mf-workbench-direction-item {
+  color: var(--foreground);
+}
+
+/*
+ * 侧栏会话 running 状态点(ui-parity 02 §6 P2 恢复,值承旧 status-breathe):
+ * 1.8s 缩放呼吸替代标准 pulse;减少动效由压制规则收敛为静态点。
+ */
+@keyframes mf-status-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.78);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.mf-status-breathe {
+  animation: mf-status-breathe 1.8s var(--ease-in-out) infinite;
+}
+
+/*
+ * 时间线气泡入场(ui-parity 03 §5 P2,承旧 bubble-in):8px 上移 + 0.98 scale 淡入。
+ * 初载整列各播一次(180ms 快而静);减少动效由全局压制规则瞬时到终态,无需显式降级。
+ */
+@keyframes mf-workbench-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mf-workbench-bubble-in {
+  animation: mf-workbench-bubble-in var(--dur-base) var(--ease-out) both;
+}
+
+/*
+ * 结果就位 reveal(ui-parity 03-C6):全产品唯一允许 >260ms 的剧场时刻。
+ * 只在「本次会话内经历生成中→成图」的回合播一次;多图逐张 60ms 错相(内联 delay)。
+ * 时长/缓动是屏内作用域,刻意不进全局 @theme(00 §3:交互 token 表只管 90–260ms)。
+ */
+@keyframes mf-workbench-result-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mf-workbench-result-reveal {
+  --dur-theater-enter: 640ms;
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  animation: mf-workbench-result-reveal var(--dur-theater-enter) var(--ease-smooth) both;
+}
+
+/*
+ * Lightbox 图片落定(ui-parity 05-C1):开启/翻图时 scale 0.98→1(--dur-base + --ease-out);
+ * 翻图由 key 重挂重播;减少动效由全局压制规则瞬时到终态。
+ */
+@keyframes mf-lightbox-settle {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.mf-lightbox-settle {
+  animation: mf-lightbox-settle var(--dur-base) var(--ease-out) both;
+}
+
+/*
+ * 跨屏定位高亮(「存为提示词 → 查看」跳库,ui-parity 03/05 §7):
+ * 目标行 accent 底色 2s 渐隐,一次性提示;减少动效由压制规则瞬时到终态(无高亮)。
+ */
+@keyframes mf-row-highlight {
+  from {
+    background-color: var(--accent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.mf-row-highlight {
+  animation: mf-row-highlight 2s var(--ease-out) both;
+}
+
+/*
+ * 减少动效降级(双通道,与上方压制规则同形):
+ * 呼吸类停在声明值即可;横滚需要布局降级 —— 静态单份居中、关遮罩,
+ * 否则压制只把动画瞬时化,轨道会停在 translateX(-50%) 且两侧仍被遮罩截断。
+ */
+html.reduce-motion .mf-workbench-empty-watermark-word span,
+html.reduce-motion .mf-workbench-empty-brand svg circle {
+  animation: none;
+}
+
+html.reduce-motion .mf-workbench-direction-track {
+  width: auto;
+  justify-content: center;
+  animation: none;
+}
+
+html.reduce-motion .mf-workbench-direction-item:nth-child(n + 2) {
+  display: none;
+}
+
+html.reduce-motion .mf-workbench-direction-row {
+  mask-image: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='off']) .mf-workbench-empty-watermark-word span,
+  html:not([data-motion='off']) .mf-workbench-empty-brand svg circle {
+    animation: none;
+  }
+
+  html:not([data-motion='off']) .mf-workbench-direction-track {
+    width: auto;
+    justify-content: center;
+    animation: none;
+  }
+
+  html:not([data-motion='off']) .mf-workbench-direction-item:nth-child(n + 2) {
+    display: none;
+  }
+
+  html:not([data-motion='off']) .mf-workbench-direction-row {
+    mask-image: none;
   }
 }

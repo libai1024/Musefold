@@ -3,11 +3,15 @@ import {
   type CreateGenerationInput,
   type GenerationHistoryPage,
   type GenerationJob,
+  type GenerationReferenceImage,
   type ParsedGenerationHistoryQuery,
+  type UploadReferenceImageInput,
   cloudGenerationRequestSchema,
   createGenerationInputSchema,
   generationHistoryQuerySchema,
   generationJobSchema,
+  generationReferenceImageSchema,
+  uploadReferenceImageInputSchema,
 } from '@musefold/contracts';
 import {
   type MusefoldDatabase,
@@ -46,7 +50,7 @@ export class GenerationService {
     idempotencyKey: string,
   ): Promise<GenerationJob> {
     const input = createGenerationInputSchema.parse(rawInput);
-    const request = cloudGenerationRequestSchema.parse(input);
+    const request = canonicalizeReferenceUrls(cloudGenerationRequestSchema.parse(input));
     return this.createQueued(userId, request, idempotencyKey, {
       sessionId: input.sessionId,
       parentRunId: input.parentRunId,
@@ -165,6 +169,25 @@ export class GenerationService {
     return this.changeDeleted(userId, id, false);
   }
 
+  /** 回收站内永久删除:仅已软删行合法;先硬删行(资产/事件级联),再尽力清理对象存储。 */
+  async purge(userId: string, id: string): Promise<void> {
+    const objectKeys = await this.db.transaction(async (tx) => {
+      const { run, assets } = await this.getRunAndAssets(tx, userId, id);
+      if (run.deletedAt == null) {
+        throw new AppError('VALIDATION_FAILED', '只能永久删除回收站中的记录');
+      }
+      if (!TERMINAL_STATUSES.has(run.status)) {
+        throw new AppError('VALIDATION_FAILED', '任务仍在进行中,请先取消');
+      }
+      await tx
+        .delete(generationRuns)
+        .where(and(eq(generationRuns.userId, userId), eq(generationRuns.id, id)));
+      return assets.map((asset) => asset.objectKey);
+    });
+    // 对象删除失败不回滚行删除:孤儿对象可由存储保留策略兜底,不阻塞用户操作。
+    await this.signer.removeObjects(objectKeys).catch(() => undefined);
+  }
+
   async assetSignedUrl(userId: string, assetId: string): Promise<SignedAssetUrl> {
     const rows = await this.db
       .select({ objectKey: generationAssets.objectKey })
@@ -172,6 +195,39 @@ export class GenerationService {
       .where(and(eq(generationAssets.userId, userId), eq(generationAssets.id, assetId)));
     if (!rows[0]) throw new AppError('GENERATION_NOT_FOUND', '生成资产不存在');
     return this.signer.sign(rows[0].objectKey);
+  }
+
+  /**
+   * 参考图上传(ui-parity 03 §7 P0):魔数嗅探定 mime,对象键 users/{userId}/references/{id},
+   * 无独立行表 —— run.request 里内联引用,worker 由 userId+id 推导对象键取字节。
+   */
+  async uploadReferenceImage(
+    userId: string,
+    rawInput: UploadReferenceImageInput,
+  ): Promise<GenerationReferenceImage> {
+    const parsed = uploadReferenceImageInputSchema.safeParse(rawInput);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_FAILED', '参考图无效:文件为空或超过 20 MiB');
+    }
+    const input = parsed.data;
+    const mimeType = sniffImageMime(input.bytes);
+    if (!mimeType) throw new AppError('VALIDATION_FAILED', '请选择 PNG、JPG 或 WebP 图片');
+    const id = randomUUID();
+    await this.signer.putObject(referenceObjectKey(userId, id), input.bytes, mimeType);
+    return generationReferenceImageSchema.parse({
+      id,
+      url: referenceImageUrl(id),
+      name: input.name,
+      mimeType,
+      byteSize: input.bytes.byteLength,
+    });
+  }
+
+  /** 参考图展示 URL:按用户前缀重建对象键再签名,天然只允许访问自己的上传。 */
+  async referenceImageSignedUrl(userId: string, referenceId: string): Promise<SignedAssetUrl> {
+    const id = generationReferenceImageSchema.shape.id.safeParse(referenceId);
+    if (!id.success) throw new AppError('VALIDATION_FAILED', '参考图标识无效');
+    return this.signer.sign(referenceObjectKey(userId, id.data));
   }
 
   async events(
@@ -377,6 +433,58 @@ async function appendEvent(
   payload: Record<string, unknown>,
 ): Promise<void> {
   await tx.insert(generationEvents).values({ userId, runId, eventType, payload });
+}
+
+function referenceObjectKey(userId: string, referenceId: string): string {
+  return `users/${userId}/references/${referenceId}`;
+}
+
+function referenceImageUrl(referenceId: string): string {
+  return `/api/v1/reference-images/${encodeURIComponent(referenceId)}/url`;
+}
+
+/** 入库前把参考图展示 URL 归一为服务端路由,不透传客户端自报地址。 */
+function canonicalizeReferenceUrls(
+  request: ReturnType<typeof cloudGenerationRequestSchema.parse>,
+): ReturnType<typeof cloudGenerationRequestSchema.parse> {
+  if (request.referenceImages.length === 0) return request;
+  return {
+    ...request,
+    referenceImages: request.referenceImages.map((reference) => ({
+      ...reference,
+      url: referenceImageUrl(reference.id),
+    })),
+  };
+}
+
+/** PNG/JPEG/WebP 魔数嗅探(与桌面 staging、worker 资产校验同口径);不识别返回 null。 */
+export function sniffImageMime(
+  bytes: Uint8Array,
+): 'image/png' | 'image/jpeg' | 'image/webp' | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes.length >= 12 &&
+    String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF' &&
+    String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
 }
 
 /** history 原生行(execute 返回 snake_case)→ drizzle 行形状。 */

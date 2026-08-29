@@ -1,8 +1,13 @@
-import { AccountFooter } from '@musefold/features/account';
+import { AccountFooter, MobileQuotaReadout } from '@musefold/features/account';
 import { HistoryScreen } from '@musefold/features/history';
 import { PromptLibraryScreen } from '@musefold/features/prompts';
-import { SettingsScreen, ThemeSync } from '@musefold/features/settings';
-import { AppShell, SHELL_NAV_ITEMS, type ShellNavItem } from '@musefold/features/shell';
+import { MotionSync, SettingsScreen, ThemeSync } from '@musefold/features/settings';
+import {
+  AppShell,
+  SHELL_NAV_ITEMS,
+  ShellErrorBoundary,
+  type ShellNavItem,
+} from '@musefold/features/shell';
 import {
   NewSessionAction,
   SessionListPanel,
@@ -40,11 +45,16 @@ function DesktopView({ view, onOpenView }: { view: ViewId; onOpenView: (id: View
   if (view === 'workbench') {
     return (
       <div className="h-[calc(100dvh-7rem)] md:h-dvh">
-        <WorkbenchScreen />
+        <WorkbenchScreen
+          onOpenSettings={() => onOpenView('settings')}
+          onOpenPrompts={() => onOpenView('prompts')}
+        />
       </div>
     );
   }
-  if (view === 'prompts') return <PromptLibraryScreen />;
+  if (view === 'prompts') {
+    return <PromptLibraryScreen onOpenWorkbench={() => onOpenView('workbench')} />;
+  }
   if (view === 'history') {
     return (
       <div className="h-[calc(100dvh-7rem)] md:h-dvh">
@@ -53,11 +63,12 @@ function DesktopView({ view, onOpenView }: { view: ViewId; onOpenView: (id: View
             setActiveSessionId(sessionId);
             onOpenView('workbench');
           }}
+          onOpenPrompts={() => onOpenView('prompts')}
         />
       </div>
     );
   }
-  return <SettingsScreen />;
+  return <SettingsScreen onOpenScreen={onOpenView} />;
 }
 
 // macOS hiddenInset 交通灯占位(window.ts trafficLightPosition x=14 + 三灯宽度)。
@@ -69,25 +80,29 @@ function V25Shell() {
 
   return (
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <PlatformProvider runtime={runtime}>
-          <ThemeSync />
-          <div className="min-h-dvh bg-background" data-testid="v25-shell">
-            <AppShell
-              activeId={view}
-              items={DESKTOP_NAV_ITEMS}
-              onNavigate={setView}
-              action={<NewSessionAction onOpen={openWorkbench} />}
-              sessions={<SessionListPanel onOpen={openWorkbench} />}
-              footer={<AccountFooter onOpenAccount={() => setView('settings')} />}
-              brandInset={IS_MAC ? 78 : 0}
-            >
-              <DesktopView view={view} onOpenView={setView} />
-            </AppShell>
-          </div>
-          <Toaster position="bottom-right" />
-        </PlatformProvider>
-      </QueryClientProvider>
+      <ShellErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <PlatformProvider runtime={runtime}>
+            <ThemeSync />
+            <MotionSync />
+            <div className="min-h-dvh bg-background" data-testid="v25-shell">
+              <AppShell
+                activeId={view}
+                items={DESKTOP_NAV_ITEMS}
+                onNavigate={setView}
+                action={<NewSessionAction onOpen={openWorkbench} />}
+                sessions={<SessionListPanel onOpen={openWorkbench} />}
+                footer={<AccountFooter onOpenSettings={() => setView('settings')} />}
+                mobileExtra={<MobileQuotaReadout />}
+                brandInset={IS_MAC ? 78 : 0}
+              >
+                <DesktopView view={view} onOpenView={setView} />
+              </AppShell>
+            </div>
+            <Toaster position="bottom-right" />
+          </PlatformProvider>
+        </QueryClientProvider>
+      </ShellErrorBoundary>
     </StrictMode>
   );
 }

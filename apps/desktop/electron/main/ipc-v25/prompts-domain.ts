@@ -384,6 +384,18 @@ export function buildPromptsDomainMethods(): Record<string, MethodDef> {
         return getDocument(id);
       },
     },
+    'prompts.purge': {
+      input: idPayloadSchema,
+      handle: async (input) => {
+        const { id } = input as { id: string };
+        const current = getDocument(id);
+        if (current.deletedAt == null) {
+          throw new BridgeError('VALIDATION_FAILED', '只能永久删除回收站中的提示词');
+        }
+        promptsRepo.purge(id);
+        return undefined;
+      },
+    },
     'prompts.restore': {
       input: idPayloadSchema,
       handle: async (input) => {

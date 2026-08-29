@@ -11,6 +11,7 @@ const request = {
   size: '1024x1024' as const,
   quality: 'low' as const,
   count: 1 as const,
+  referenceImages: [],
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -44,6 +45,37 @@ describe('generation image gateway', () => {
     expect(image).toMatchObject({ mimeType: 'image/png', width: 1, height: 1 });
     expect(image.bytes).toEqual(onePixelPng);
     expect(imageChecksum(image.bytes)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('routes to /images/edits as multipart when references are provided', async () => {
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('https://newapi.example/v1/images/edits');
+      expect(init?.method).toBe('POST');
+      const form = init?.body as FormData;
+      expect(form).toBeInstanceOf(FormData);
+      expect(form.get('model')).toBe('musefold-image-pro');
+      expect(form.get('prompt')).toBe(request.prompt);
+      expect(form.get('size')).toBe(request.size);
+      const images = form.getAll('image[]');
+      expect(images).toHaveLength(2);
+      expect((images[0] as File).name).toBe('style.png');
+      return new Response(
+        JSON.stringify({ data: [{ b64_json: onePixelPng.toString('base64') }] }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const [image] = await generateImage('https://newapi.example', 'secret', request, [
+      { bytes: onePixelPng, mimeType: 'image/png', name: 'style.png' },
+      { bytes: onePixelPng, mimeType: 'image/png', name: 'pose.png' },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(image).toMatchObject({ mimeType: 'image/png', width: 1, height: 1 });
   });
 
   it('maps upstream quota failures without retrying them locally', async () => {

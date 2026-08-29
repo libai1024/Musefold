@@ -182,3 +182,10 @@ export function useSetActiveAiProvider() {
     onSuccess: invalidate,
   });
 }
+
+export function useTestAiProvider() {
+  const aiProviders = useAiProvidersGateway();
+  return useMutation({
+    mutationFn: (id: string) => aiProviders.test(id),
+  });
+}

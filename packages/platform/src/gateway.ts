@@ -1,6 +1,7 @@
 import type {
   AccountSummary,
   AiProvider,
+  AiProviderTestResult,
   AppPreferences,
   AppPreferencesPatch,
   CreateAiProvider,
@@ -10,6 +11,7 @@ import type {
   GenerationHistoryPage,
   GenerationHistoryQuery,
   GenerationJob,
+  GenerationReferenceImage,
   LoginRequest,
   NewPromptDocument,
   NewPromptFolder,
@@ -24,11 +26,14 @@ import type {
   ProviderOption,
   RedeemResult,
   RegisterRequest,
+  SaveAssetInput,
+  SaveAssetResult,
   UpdateAiProvider,
   UpdatePromptDocument,
   UpdatePromptFolder,
   UpdatePromptTag,
   UpdateWorkbenchSession,
+  UploadReferenceImageInput,
   WorkbenchSession,
   WorkbenchSessionListQuery,
   WorkbenchSessionPage,
@@ -85,6 +90,8 @@ export interface AiProvidersGateway {
   update(id: string, patch: UpdateAiProvider): Promise<AiProvider>;
   remove(id: string): Promise<void>;
   setActive(id: string): Promise<AiProvider>;
+  /** 主进程真发探测请求(GET /models),验证 Base URL 可达与密钥有效。 */
+  test(id: string): Promise<AiProviderTestResult>;
 }
 
 export interface PromptsGateway {
@@ -94,6 +101,8 @@ export interface PromptsGateway {
   update(id: string, patch: UpdatePromptDocument): Promise<PromptDocument>;
   remove(id: string): Promise<PromptDocument>;
   restore(id: string): Promise<PromptDocument>;
+  /** 回收站内永久删除(仅已软删行合法);桌面直删 SQLite,云端硬删 PG。 */
+  purge(id: string): Promise<void>;
   use(id: string, input: PromptUseInput): Promise<PromptUseResult>;
   listFolders(): Promise<PromptFolder[]>;
   createFolder(input: NewPromptFolder): Promise<PromptFolder>;
@@ -122,6 +131,18 @@ export interface GenerationGateway {
   retry(id: string): Promise<GenerationJob>;
   remove(id: string): Promise<GenerationJob>;
   restore(id: string): Promise<GenerationJob>;
+  /** 回收站内永久删除(仅已软删行合法);桌面同时清理磁盘资产,云端清理对象存储。 */
+  purge(id: string): Promise<void>;
   /** 可选 Provider 目录:云端为服务端固定项,桌面为本地 AI 连接。 */
   listProviders(): Promise<ProviderOption[]>;
+  /**
+   * 参考图上传(ui-parity 03 §7 P0):宿主嗅探魔数、校验尺寸后落存储
+   * (桌面 staging 目录 / 云端对象存储),返回可展示、可随 create 提交的引用。
+   */
+  uploadReferenceImage(input: UploadReferenceImageInput): Promise<GenerationReferenceImage>;
+  /**
+   * 保存资产到本地(ui-parity 03/05 §7 P1):桌面走系统保存对话框(可取消),
+   * Web 触发浏览器下载(fetch → blob → a[download],跨域受限时降级新窗口打开)。
+   */
+  saveAsset(input: SaveAssetInput): Promise<SaveAssetResult>;
 }

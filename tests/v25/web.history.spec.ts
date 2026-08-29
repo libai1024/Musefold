@@ -223,6 +223,12 @@ test('移入回收站与恢复闭环', async ({ page }) => {
 
 test('历史屏视觉基线', async ({ page }) => {
   await expect(page.getByTestId('history-row')).toHaveCount(3);
+  // 缩略图未完成解码时行内布局会晃,等全部图片就绪再截,基线才可复现。
+  await page.waitForFunction(() =>
+    Array.from(document.querySelectorAll('[data-testid="history-row"] img')).every(
+      (img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0,
+    ),
+  );
   // 行时间戳随运行时刻变化,mask 掉保证基线稳定。
   await expect(page).toHaveScreenshot('history-list.png', {
     mask: [page.getByTestId('history-row-time')],

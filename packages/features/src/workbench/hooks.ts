@@ -3,8 +3,12 @@
 import type {
   CreateGenerationInput,
   CreateWorkbenchSession,
+  GenerationAsset,
   GenerationJob,
+  SaveAssetInput,
   UpdateWorkbenchSession,
+  UploadReferenceImageInput,
+  WorkbenchSession,
   WorkbenchSessionListQuery,
 } from '@musefold/contracts';
 import { queryKeys, usePlatform } from '@musefold/platform';
@@ -22,11 +26,22 @@ export function hasActiveJob(jobs: readonly GenerationJob[] | undefined): boolea
   return (jobs ?? []).some((job) => ACTIVE_STATUSES.has(job.status));
 }
 
+/** 会话行状态点:该会话最近一次生成仍在进行。 */
+export function sessionHasActiveJob(session: WorkbenchSession): boolean {
+  return (
+    session.latestJobStatus === 'queued' ||
+    session.latestJobStatus === 'running' ||
+    session.latestJobStatus === 'cancelling'
+  );
+}
+
 export function useSessionList(query: WorkbenchSessionListQuery = {}) {
   const { gateway } = usePlatform();
   return useQuery({
     queryKey: queryKeys.workbench.sessions(query),
     queryFn: () => gateway.workbench.listSessions(query),
+    // 有会话在生成时短轮询,驱动侧栏状态点翻终态(推送机制随 M5 遗留卡收口)。
+    refetchInterval: (q) => (q.state.data?.items.some(sessionHasActiveJob) ? 3_000 : false),
   });
 }
 
@@ -109,6 +124,44 @@ export function useRetryGeneration() {
     mutationFn: (id: string) => gateway.generation.retry(id),
     onSuccess: invalidate,
   });
+}
+
+/** 删除回合(软删,进历史回收站;时间线与历史列表同步失效)。 */
+export function useRemoveGeneration() {
+  const { gateway } = usePlatform();
+  const invalidate = useInvalidateGeneration();
+  return useMutation({
+    mutationFn: (id: string) => gateway.generation.remove(id),
+    onSuccess: invalidate,
+  });
+}
+
+/** 参考图上传(草稿态,不触发列表失效;失败由调用方就地提示)。 */
+export function useUploadReferenceImage() {
+  const { gateway } = usePlatform();
+  return useMutation({
+    mutationFn: (input: UploadReferenceImageInput) =>
+      gateway.generation.uploadReferenceImage(input),
+  });
+}
+
+/** 保存资产到本地(03/05 §7):桌面系统对话框 / Web 浏览器下载;toast 由调用方按结果提示。 */
+export function useSaveAsset() {
+  const { gateway } = usePlatform();
+  return useMutation({
+    mutationFn: (input: SaveAssetInput) => gateway.generation.saveAsset(input),
+  });
+}
+
+const ASSET_EXT: Record<GenerationAsset['mimeType'], string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+};
+
+/** 保存图片的默认文件名:musefold-{资产短 id}.{按 mimeType 的扩展名}。 */
+export function assetSaveName(asset: GenerationAsset): string {
+  return `musefold-${asset.id.slice(0, 8)}.${ASSET_EXT[asset.mimeType]}`;
 }
 
 export function useProviders() {

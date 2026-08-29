@@ -102,10 +102,10 @@ describe('Musefold Skill release contract', () => {
         version: 'v0.4.0',
         source: 'github-release',
       });
-      expect(backup).not.toBeNull();
-      expect(dirname(backup!)).toBe(join(root, '.codex', 'musefold-skill-backups'));
-      expect(relative(skillRoot, backup!).startsWith('..')).toBe(true);
-      expect(readFileSync(join(backup!, 'SKILL.md'), 'utf8')).toBe('old');
+      if (backup == null) throw new Error('expected backup path');
+      expect(dirname(backup)).toBe(join(root, '.codex', 'musefold-skill-backups'));
+      expect(relative(skillRoot, backup).startsWith('..')).toBe(true);
+      expect(readFileSync(join(backup, 'SKILL.md'), 'utf8')).toBe('old');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -118,13 +118,27 @@ test('主题切换经主进程持久化并生效', async () => {
   await expect(page.locator('html')).not.toHaveClass(/dark/);
 });
 
-test('减弱动效开关往返主进程', async () => {
-  const toggle = page.getByTestId('settings-reduced-motion');
-  await expect(toggle).toHaveAttribute('data-state', 'unchecked');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('data-state', 'checked');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('data-state', 'unchecked');
+test('动效三档经主进程持久化并真实作用到根节点', async () => {
+  const trigger = page.getByTestId('settings-motion-trigger');
+  await expect(trigger).toHaveText(/跟随系统/);
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'system');
+
+  // on:挂 reduce-motion class(压制规则生效锚点)
+  await trigger.click();
+  await page.getByTestId('settings-motion-on').click();
+  await expect(page.locator('html')).toHaveClass(/reduce-motion/);
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'on');
+
+  // off:摘 class,显式完整动效档
+  await trigger.click();
+  await page.getByTestId('settings-motion-off').click();
+  await expect(page.locator('html')).not.toHaveClass(/reduce-motion/);
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'off');
+
+  // 回 system,保持视觉基线用例的前置状态
+  await trigger.click();
+  await page.getByTestId('settings-motion-system').click();
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'system');
 });
 
 test('桌面设置页视觉基线(浅色)', async () => {

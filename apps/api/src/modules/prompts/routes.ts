@@ -18,7 +18,14 @@ import { createAuthedRouter, route } from '../../lib/openapi.js';
 import type { PromptService } from './service.js';
 
 const idParams = z.object({ id: z.string().trim().min(1).max(64) });
-const expectedVersionBody = z.object({ expectedVersion: z.number().int().positive() });
+/**
+ * 删除/恢复的乐观锁版本:api-client 的 remove(id)/restore(id) 不携带 body,
+ * 缺省视为无条件执行(按服务端当前版本);显式提供时严格校验。
+ */
+const expectedVersionBody = z
+  .object({ expectedVersion: z.number().int().positive().optional() })
+  .optional()
+  .default({});
 const includeDeletedQuery = z.object({ includeDeleted: z.coerce.boolean().default(false) });
 
 /** HTTP 查询串里 tagIds 是逗号分隔字符串,进契约前先拆分。 */
@@ -120,6 +127,21 @@ export function promptRoutes(prompts: PromptService) {
       c.json(
         await prompts.restorePrompt(c.get('userId'), input.params.id, input.body.expectedVersion),
       ),
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/prompts/{id}/purge',
+      tags,
+      params: idParams,
+      response: z.object({ ok: z.literal(true) }),
+    },
+    async (c, input) => {
+      await prompts.purgePrompt(c.get('userId'), input.params.id);
+      return c.json({ ok: true as const });
+    },
   );
 
   route(

@@ -161,6 +161,31 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
         ]),
       );
     }
+    // 参考图上传(multipart):返回契约引用;字节不落盘,展示 URL 由下方 GET 路由回小图。
+    if (path === '/reference-images' && method === 'POST') {
+      seq += 1;
+      const id = `REF${String(seq).padStart(23, '0')}`;
+      return route.fulfill(
+        json(
+          {
+            id,
+            url: `/api/v1/reference-images/${id}/url`,
+            name: `ref-${seq}.png`,
+            mimeType: 'image/png',
+            byteSize: 68,
+          },
+          201,
+        ),
+      );
+    }
+    if (/^\/reference-images\/[^/]+\/url$/.test(path) && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(TINY_PNG, 'base64'),
+      });
+    }
+
     if (path === '/generations' && method === 'POST') {
       const input = request.postDataJSON() as Record<string, unknown>;
       seq += 1;
@@ -178,6 +203,7 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
           size: input.size ?? 'auto',
           quality: input.quality ?? 'auto',
           count: 1,
+          referenceImages: input.referenceImages ?? [],
         },
         providerModel: 'musefold-image-pro',
         costPoints: null,
@@ -237,13 +263,21 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
+  // 空态问候语随本地时段变化;固定页面时钟保证视觉基线确定(15:00 → 下午档)。
+  // setFixedTime 只钉 Date,定时器照常走,不影响轮询用例。
+  await page.clock.setFixedTime(new Date('2026-08-29T15:00:00'));
   await installWorkbenchApiMock(page);
   await page.goto('/workbench');
   await expect(page.getByTestId('workbench')).toBeVisible();
 });
 
 test('空态与视觉基线', async ({ page }) => {
-  await expect(page.getByTestId('timeline-empty')).toBeVisible();
+  // 品牌空态(V25-UI-SPEC §3.1):问候语 + 标语 + 内联 Composer + 快捷建议。
+  await expect(page.getByTestId('workbench-empty')).toBeVisible();
+  await expect(page.getByTestId('workbench-empty-greeting')).toHaveText('下午好，继续你的创作');
+  await expect(page.getByTestId('workbench-empty-slogan')).toHaveText('把想法变成可生成的视觉');
+  await expect(page.getByTestId('workbench-empty').getByTestId('composer-prompt')).toBeVisible();
+  await expect(page.getByTestId('generation-example').first()).toBeVisible();
   await expect(page).toHaveScreenshot('workbench-empty.png');
 });
 
@@ -275,6 +309,8 @@ test('会话新建与重命名', async ({ page }, testInfo) => {
   await create.click();
   await expect(page.getByTestId('session-panel').getByText('未命名创作')).toBeVisible();
 
+  // 行动作 hover 渐显(静息态让位给相对时间戳),先悬停会话行。
+  await page.getByTestId('session-panel').getByText('未命名创作').hover();
   await page.getByTestId('session-rename').click();
   await page.getByTestId('session-rename-input').fill('落日湖泊系列');
   await page.getByTestId('session-rename-commit').click();
@@ -287,6 +323,7 @@ test('删除会话经确认对话框', async ({ page }, testInfo) => {
   await page.getByTestId('session-create').click();
   await expect(page.getByTestId('session-panel').getByText('未命名创作')).toBeVisible();
 
+  await page.getByTestId('session-panel').getByText('未命名创作').hover();
   await page.getByTestId('session-remove').click();
   await page.getByTestId('session-remove-confirm').click();
   await expect(page.getByTestId('session-panel').getByText('未命名创作')).toBeHidden();
@@ -301,6 +338,31 @@ test('运行中可取消', async ({ page }) => {
     timeout: 10_000,
   });
   await expect(page.getByTestId('job-retry')).toBeVisible();
+});
+
+test('拖拽参考图:覆盖层→缩略条→随生成入回合附件', async ({ page }) => {
+  // 页面上下文构造带 PNG File 的 DataTransfer,驱动真实 drag 事件链。
+  const dataTransfer = await page.evaluateHandle((base64: string) => {
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], 'ref.png', { type: 'image/png' }));
+    return transfer;
+  }, TINY_PNG);
+
+  const prompt = page.getByTestId('composer-prompt');
+  await prompt.dispatchEvent('dragenter', { dataTransfer });
+  await expect(page.getByTestId('composer-drop-overlay')).toBeVisible();
+
+  await prompt.dispatchEvent('drop', { dataTransfer });
+  await expect(page.getByTestId('composer-drop-overlay')).toBeHidden();
+  await expect(page.getByTestId('composer-reference')).toHaveAttribute('data-status', 'ready');
+
+  await prompt.fill('remix with reference');
+  await page.getByTestId('composer-submit').click();
+
+  // 参考图缩略图进入回合附件区,提交后草稿缩略条清空
+  await expect(page.getByTestId('job-references').locator('img')).toHaveCount(1);
+  await expect(page.getByTestId('composer-reference')).toHaveCount(0);
 });
 
 test('生成完成后的视觉基线', async ({ page }) => {

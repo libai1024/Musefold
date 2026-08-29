@@ -10,6 +10,7 @@ describe('packaged CLI installation policy', () => {
     expect(nsis).toContain('!macro customInstall');
     expect(nsis).toContain('$PROFILE\\.musefold\\bin\\musefold.cmd');
     expect(nsis).toContain('WriteRegExpandStr HKCU "Environment" "Path"');
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: 断言 NSIS 脚本的字面量语法
     expect(nsis).toContain('${WM_SETTINGCHANGE}');
     expect(nsis).toContain('!macro customUnInstall');
     expect(nsis).toContain('Delete "$PROFILE\\.musefold\\bin\\musefold.cmd"');

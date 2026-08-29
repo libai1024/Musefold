@@ -10,6 +10,8 @@
     "biome.json"
   ],
   "globalEnv": ["NODE_VERSION"],
+  // PORT 只是本地预览端口(vite.preview.config.ts / E2E),不影响构建产物哈希。
+  "globalPassThroughEnv": ["PORT"],
   "tasks": {
     "typecheck": {
       "dependsOn": ["^typecheck"],
@@ -87,10 +89,14 @@
         "apps/desktop/electron/**",
         "packages/core/**",
         "packages/desktop-contracts/**",
+        "packages/desktop-db/**",
         "packages/domain/**",
         "packages/automation-server/**",
         "packages/contracts/**",
+        "packages/features/**",
         "packages/new-api-client/**",
+        "packages/platform/**",
+        "packages/ui/**",
         "packages/update-protocol/**",
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"

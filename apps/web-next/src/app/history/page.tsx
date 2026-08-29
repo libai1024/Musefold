@@ -16,6 +16,7 @@ export default function HistoryPage() {
           setActiveSessionId(sessionId);
           router.push('/workbench');
         }}
+        onOpenPrompts={() => router.push('/prompts')}
       />
     </div>
   );

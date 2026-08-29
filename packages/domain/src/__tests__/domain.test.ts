@@ -104,6 +104,7 @@ describe('prompt application rules', () => {
       aspectRatio: '16:9',
       quality: 'medium',
       count: 1,
+      referenceImages: [],
     });
   });
 
@@ -123,6 +124,7 @@ describe('prompt application rules', () => {
       aspectRatio: '1:1',
       quality: 'medium',
       count: 1,
+      referenceImages: [],
     });
   });
 

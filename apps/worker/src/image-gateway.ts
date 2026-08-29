@@ -10,6 +10,13 @@ export interface GeneratedImage {
   height: number;
 }
 
+/** 已从对象存储取回的参考图字节(与 request.referenceImages 同序)。 */
+export interface ReferenceImageInput {
+  bytes: Buffer;
+  mimeType: string;
+  name: string;
+}
+
 export class UpstreamImageError extends Error {
   constructor(
     readonly code: 'quota' | 'rejected' | 'unknown',
@@ -24,28 +31,39 @@ export async function generateImage(
   baseUrl: string,
   apiKey: string,
   request: ParsedCloudGenerationRequest,
+  references: ReferenceImageInput[] = [],
 ): Promise<GeneratedImage[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120_000);
   try {
-    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/v1/images/generations`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'musefold-image-pro',
-        prompt: request.negative
-          ? `${request.prompt}\n\nNegative prompt: ${request.negative}`
-          : request.prompt,
-        size: request.size === 'auto' ? undefined : request.size,
-        quality: request.quality === 'auto' ? undefined : request.quality,
-        n: request.count,
-      }),
-      signal: controller.signal,
-    });
+    const base = baseUrl.replace(/\/+$/, '');
+    const prompt = request.negative
+      ? `${request.prompt}\n\nNegative prompt: ${request.negative}`
+      : request.prompt;
+    // 带参考图走图片编辑通道(multipart image[],与桌面 OpenAICompatibleProvider 同款)。
+    const response = references.length
+      ? await fetch(`${base}/v1/images/edits`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+          body: buildEditForm(prompt, request, references),
+          signal: controller.signal,
+        })
+      : await fetch(`${base}/v1/images/generations`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'musefold-image-pro',
+            prompt,
+            size: request.size === 'auto' ? undefined : request.size,
+            quality: request.quality === 'auto' ? undefined : request.quality,
+            n: request.count,
+          }),
+          signal: controller.signal,
+        });
     const payload = (await response.json().catch(() => ({}))) as {
       data?: Array<{ b64_json?: string; url?: string }>;
       error?: { message?: string; code?: string };
@@ -84,6 +102,27 @@ export async function generateImage(
   } finally {
     clearTimeout(timer);
   }
+}
+
+function buildEditForm(
+  prompt: string,
+  request: ParsedCloudGenerationRequest,
+  references: ReferenceImageInput[],
+): FormData {
+  const form = new FormData();
+  form.append('model', 'musefold-image-pro');
+  form.append('prompt', prompt);
+  form.append('n', String(request.count));
+  if (request.size !== 'auto') form.append('size', request.size);
+  if (request.quality !== 'auto') form.append('quality', request.quality);
+  for (const reference of references) {
+    form.append(
+      'image[]',
+      new Blob([new Uint8Array(reference.bytes)], { type: reference.mimeType }),
+      reference.name || 'reference.png',
+    );
+  }
+  return form;
 }
 
 async function downloadImage(url: string): Promise<Buffer> {

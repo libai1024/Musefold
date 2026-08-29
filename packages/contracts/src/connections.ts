@@ -71,6 +71,14 @@ export const updateAiProviderSchema = z.object({
   apiKey: z.string().trim().min(1).max(512).nullable().optional(),
 });
 
+/** 「测试连接」结果(主进程真发探测请求,§7.2):ok + 人话 message + 延迟。 */
+export const aiProviderTestResultSchema = z.object({
+  ok: z.boolean(),
+  message: z.string().max(300),
+  latencyMs: z.number().int().nonnegative().nullable(),
+});
+
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type CreateAiProvider = z.infer<typeof createAiProviderSchema>;
 export type UpdateAiProvider = z.infer<typeof updateAiProviderSchema>;
+export type AiProviderTestResult = z.infer<typeof aiProviderTestResultSchema>;

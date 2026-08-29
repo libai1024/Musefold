@@ -17,6 +17,12 @@ import type { DbLike } from '../sync/change-log.js';
 
 type Tx = DbLike;
 
+/** 会话行状态点(§3.3)的派生数据:每会话最近一次生成的状态与完成时刻。 */
+interface LatestJob {
+  status: WorkbenchSession['latestJobStatus'];
+  finishedAt: string | null;
+}
+
 export class WorkbenchService {
   constructor(private readonly db: MusefoldDatabase) {}
 
@@ -46,8 +52,13 @@ export class WorkbenchService {
     const hasMore = rows.length > query.limit;
     const page = hasMore ? rows.slice(0, query.limit) : rows;
     const last = page.at(-1);
+    const latest = await this.latestJobBySession(
+      this.db,
+      userId,
+      page.map((row) => row.id),
+    );
     return {
-      items: page.map(toWorkbenchSession),
+      items: page.map((row) => toWorkbenchSession(row, latest.get(row.id))),
       nextCursor:
         hasMore && last
           ? encodeCursor({ id: last.id, updatedAt: last.updatedAt.toISOString() })
@@ -115,23 +126,34 @@ export class WorkbenchService {
     });
   }
 
-  async remove(userId: string, id: string, expectedVersion: number): Promise<WorkbenchSession> {
+  async remove(
+    userId: string,
+    id: string,
+    expectedVersion: number | undefined,
+  ): Promise<WorkbenchSession> {
     return this.changeDeletedState(userId, id, expectedVersion, true);
   }
 
-  async restore(userId: string, id: string, expectedVersion: number): Promise<WorkbenchSession> {
+  async restore(
+    userId: string,
+    id: string,
+    expectedVersion: number | undefined,
+  ): Promise<WorkbenchSession> {
     return this.changeDeletedState(userId, id, expectedVersion, false);
   }
 
   private async changeDeletedState(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     deleted: boolean,
   ): Promise<WorkbenchSession> {
     return this.db.transaction(async (tx) => {
       const current = await this.getTx(tx, userId, id);
-      if (current.version !== expectedVersion) throw conflict(current);
+      // 缺省 expectedVersion 视为无条件执行(api-client remove/restore 不携带版本)。
+      if (expectedVersion !== undefined && current.version !== expectedVersion) {
+        throw conflict(current);
+      }
       await tx
         .update(workbenchSessions)
         .set({
@@ -143,7 +165,7 @@ export class WorkbenchService {
           and(
             eq(workbenchSessions.userId, userId),
             eq(workbenchSessions.id, id),
-            eq(workbenchSessions.version, expectedVersion),
+            eq(workbenchSessions.version, current.version),
           ),
         );
       return this.getTx(tx, userId, id);
@@ -156,7 +178,36 @@ export class WorkbenchService {
       .from(workbenchSessions)
       .where(and(eq(workbenchSessions.userId, userId), eq(workbenchSessions.id, id)));
     if (!rows[0]) throw new AppError('WORKBENCH_SESSION_NOT_FOUND', '工作台会话不存在');
-    return toWorkbenchSession(rows[0]);
+    const latest = await this.latestJobBySession(tx, userId, [id]);
+    return toWorkbenchSession(rows[0], latest.get(id));
+  }
+
+  private async latestJobBySession(
+    tx: Tx,
+    userId: string,
+    sessionIds: string[],
+  ): Promise<Map<string, LatestJob>> {
+    if (sessionIds.length === 0) return new Map();
+    const result = await tx.execute(sql`
+      SELECT DISTINCT ON (session_id) session_id, status, finished_at
+      FROM generation_runs
+      WHERE user_id = ${userId}
+        AND session_id IN (${sql.join(
+          sessionIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
+        AND deleted_at IS NULL
+      ORDER BY session_id, created_at DESC, id DESC
+    `);
+    const map = new Map<string, LatestJob>();
+    for (const raw of result.rows as unknown as Array<Record<string, unknown>>) {
+      map.set(String(raw.session_id), {
+        status: raw.status as LatestJob['status'],
+        finishedAt:
+          raw.finished_at == null ? null : new Date(String(raw.finished_at)).toISOString(),
+      });
+    }
+    return map;
   }
 
   private async validatePromptReferences(tx: Tx, userId: string, ids: string[]): Promise<void> {
@@ -174,7 +225,10 @@ export class WorkbenchService {
   }
 }
 
-function toWorkbenchSession(row: typeof workbenchSessions.$inferSelect): WorkbenchSession {
+function toWorkbenchSession(
+  row: typeof workbenchSessions.$inferSelect,
+  latest?: LatestJob,
+): WorkbenchSession {
   const draft = row.draft as unknown as WorkbenchDraft;
   return {
     id: row.id,
@@ -190,6 +244,8 @@ function toWorkbenchSession(row: typeof workbenchSessions.$inferSelect): Workben
     updatedAt: row.updatedAt.toISOString(),
     archivedAt: row.archivedAt?.toISOString() ?? null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
+    latestJobStatus: latest?.status ?? null,
+    latestJobFinishedAt: latest?.finishedAt ?? null,
   };
 }
 

@@ -10,7 +10,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useScreenIntent } from '../../shell/screen-intent-store';
 import { AccountFooter } from '../AccountFooter';
 import { AccountPanel } from '../AccountPanel';
 import { AiConnectionsPanel } from '../AiConnectionsPanel';
@@ -57,6 +58,11 @@ function createGateway(overrides: GatewayOverrides = {}) {
     creditedQuota: 500_000,
   }));
   const createProvider = vi.fn(async () => PROVIDER);
+  const testProvider = vi.fn(async () => ({
+    ok: true as const,
+    message: '连接正常',
+    latencyMs: 128,
+  }));
   const gateway = {
     account: {
       getStatus: async () => {
@@ -74,9 +80,10 @@ function createGateway(overrides: GatewayOverrides = {}) {
       update: vi.fn(),
       remove: vi.fn(),
       setActive: vi.fn(),
+      test: testProvider,
     },
   } as unknown as MusefoldGateway;
-  return { gateway, login, logout, redeem, createProvider };
+  return { gateway, login, logout, redeem, createProvider, testProvider };
 }
 
 function renderWith(
@@ -163,18 +170,74 @@ describe('AccountPanel', () => {
 });
 
 describe('AccountFooter', () => {
-  it('renders sign-in entry when logged out and account chip when logged in', async () => {
-    const signedOut = createGateway();
-    const onOpen = vi.fn();
-    renderWith(signedOut.gateway, <AccountFooter onOpenAccount={onOpen} />);
+  beforeEach(() => {
+    useScreenIntent.setState({ intent: null });
+  });
+
+  it('opens the identity menu when signed out and deep-links login to settings', async () => {
+    const { gateway } = createGateway();
+    const onOpenSettings = vi.fn();
+    renderWith(gateway, <AccountFooter onOpenSettings={onOpenSettings} />);
+
     await screen.findByTestId('account-footer-signed-out');
     await userEvent.click(screen.getByTestId('account-footer-signed-out'));
-    expect(onOpen).toHaveBeenCalled();
+    await userEvent.click(await screen.findByTestId('account-menu-login'));
 
-    const signedIn = createGateway({ signedIn: true });
-    renderWith(signedIn.gateway, <AccountFooter onOpenAccount={vi.fn()} />);
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'settings-account' });
+  });
+
+  it('shows identity summary and logs out after confirmation when signed in', async () => {
+    const { gateway, logout } = createGateway({ signedIn: true });
+    renderWith(gateway, <AccountFooter onOpenSettings={vi.fn()} />);
+
+    const trigger = await screen.findByTestId('account-footer');
+    expect(trigger.textContent).toContain('xiaomiao');
+    expect(trigger.textContent).toContain('62.8 积分');
+
+    await userEvent.click(trigger);
+    await userEvent.click(await screen.findByTestId('account-menu-logout'));
+    await userEvent.click(await screen.findByTestId('account-menu-logout-confirm'));
+
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalled();
+    });
+  });
+
+  it('lists relay and doubao access entries on desktop and deep-links to connections', async () => {
+    const { gateway } = createGateway({
+      signedIn: true,
+      providers: [
+        PROVIDER,
+        { ...PROVIDER, id: 'prov-doubao', name: '豆包网页', type: 'doubao-web' },
+      ],
+    });
+    const onOpenSettings = vi.fn();
+    renderWith(gateway, <AccountFooter onOpenSettings={onOpenSettings} />, DESKTOP_CAPABILITIES);
+
     await screen.findByTestId('account-footer');
-    expect(screen.getByTestId('account-footer').textContent).toContain('xiaomiao');
+    await userEvent.click(screen.getByTestId('account-footer'));
+
+    const relayRow = await screen.findByTestId('account-menu-relay');
+    await waitFor(() => {
+      expect(relayRow.textContent).toContain('1 个连接');
+      expect(screen.getByTestId('account-menu-doubao').textContent).toContain('已接入');
+    });
+
+    await userEvent.click(relayRow);
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'settings-connections' });
+  });
+
+  it('hides access entries on web where local providers are unavailable', async () => {
+    const { gateway } = createGateway();
+    renderWith(gateway, <AccountFooter onOpenSettings={vi.fn()} />, WEB_CAPABILITIES);
+
+    await screen.findByTestId('account-footer-signed-out');
+    await userEvent.click(screen.getByTestId('account-footer-signed-out'));
+    await screen.findByTestId('account-menu-login');
+    expect(screen.queryByTestId('account-menu-relay')).toBeNull();
+    expect(screen.queryByTestId('account-menu-doubao')).toBeNull();
   });
 });
 
@@ -211,5 +274,18 @@ describe('AiConnectionsPanel', () => {
         activate: false,
       });
     });
+  });
+
+  it('tests a connection and shows the inline result', async () => {
+    const { gateway, testProvider } = createGateway({ providers: [PROVIDER] });
+    renderWith(gateway, <AiConnectionsPanel />, DESKTOP_CAPABILITIES);
+
+    await screen.findByTestId('ai-providers-list');
+    await userEvent.click(screen.getByTestId('ai-provider-test'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-provider-test-result').textContent).toBe('连接正常 · 128ms');
+    });
+    expect(testProvider).toHaveBeenCalledWith(PROVIDER.id);
   });
 });

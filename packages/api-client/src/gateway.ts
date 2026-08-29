@@ -6,6 +6,7 @@ import {
   type GenerationHistoryQuery,
   generationHistoryPageSchema,
   generationJobSchema,
+  generationReferenceImageSchema,
   type NewPromptDocument,
   type NewPromptFolder,
   type NewPromptTag,
@@ -20,9 +21,11 @@ import {
   redeemResultSchema,
   type RegisterRequest,
   type UpdatePromptDocument,
+  type SaveAssetInput,
   type UpdatePromptFolder,
   type UpdatePromptTag,
   type UpdateWorkbenchSession,
+  type UploadReferenceImageInput,
   type WorkbenchSessionListQuery,
   workbenchSessionPageSchema,
   workbenchSessionSchema,
@@ -42,6 +45,8 @@ const authSessionResponseSchema = z.looseObject({ token: z.string().min(1) });
 
 export function createCloudDataGateway(config: ApiClientConfig): CloudDataGateway {
   const http = new ApiHttp(config);
+  // 资产下载直取绝对 URL(预签名/同源),沿用注入 fetch 便于测试与 SSR。
+  const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
   const getStatus = () =>
     http.request({ method: 'GET', path: '/account/status', response: accountSummarySchema });
@@ -118,6 +123,13 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           path: `/prompts/${id}/restore`,
           response: promptDocumentSchema,
         }),
+      purge: async (id) => {
+        await http.request({
+          method: 'POST',
+          path: `/prompts/${id}/purge`,
+          response: z.object({ ok: z.literal(true) }),
+        });
+      },
       use: (id, input: PromptUseInput) =>
         http.request({
           method: 'POST',
@@ -241,12 +253,58 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           path: `/generations/${id}/restore`,
           response: generationJobSchema,
         }),
+      purge: async (id) => {
+        await http.request({
+          method: 'POST',
+          path: `/generations/${id}/purge`,
+          response: z.object({ ok: z.literal(true) }),
+        });
+      },
       listProviders: () =>
         http.request({
           method: 'GET',
           path: '/generations/providers',
           response: z.array(providerOptionSchema),
         }),
+      uploadReferenceImage: (input: UploadReferenceImageInput) => {
+        const form = new FormData();
+        // BlobPart 直接收 Uint8Array;文件名随表单字段带给服务端做展示名。
+        form.append('file', new Blob([input.bytes as Uint8Array<ArrayBuffer>]), input.name);
+        return http.request({
+          method: 'POST',
+          path: '/reference-images',
+          body: form,
+          response: generationReferenceImageSchema,
+        });
+      },
+      saveAsset: async (input: SaveAssetInput) => {
+        // 浏览器下载:同源/CORS 允许时 fetch → blob → a[download];
+        // 预签名跨域未开 CORS 时降级新窗口打开(浏览器按响应头处置)。
+        try {
+          const response = await fetchImpl(input.url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          try {
+            triggerDownload(objectUrl, input.name);
+          } finally {
+            URL.revokeObjectURL(objectUrl);
+          }
+        } catch {
+          window.open(input.url, '_blank', 'noopener');
+        }
+        return 'saved' as const;
+      },
     },
   };
+}
+
+function triggerDownload(href: string, name: string): void {
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = name;
+  anchor.rel = 'noopener';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
 }

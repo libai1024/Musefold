@@ -8,6 +8,7 @@
 import type {
   GenerationAsset,
   GenerationJob,
+  GenerationReferenceImage,
   GenerationStatus,
   ProviderOption,
   WorkbenchDraft,
@@ -18,17 +19,25 @@ import {
   createWorkbenchSessionSchema,
   entityIdSchema,
   generationHistoryQuerySchema,
+  saveAssetInputSchema,
   updateWorkbenchSessionSchema,
+  uploadReferenceImageInputSchema,
   workbenchDraftSchema,
   workbenchSessionListQuerySchema,
 } from '@musefold/contracts';
 import { getDb } from '@musefold/core/db';
+import { LocalImageError, stageLocalImageBytes } from '@musefold/core/providers/local-image';
+import { getPaths } from '@musefold/core/runtime';
 import type { GenerationParamsSnapshot } from '@musefold/desktop-contracts/workbench';
-import type { GenerateImageRequest } from '@musefold/desktop-contracts/providers';
+import type {
+  GenerateImageRequest,
+  LocalImageReference,
+} from '@musefold/desktop-contracts/providers';
 import { cancelGeneration, generate } from '@musefold/core/services/generation';
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'path';
+import { copyFile } from 'node:fs/promises';
+import { basename, extname, join, resolve, sep } from 'path';
 import { ulid } from 'ulid';
 import { z } from 'zod';
 import { createLogger } from '../../system/logger';
@@ -146,7 +155,37 @@ interface SessionRow {
   deleted_at: number | null;
 }
 
-function sessionRowToDocument(row: SessionRow, draft: WorkbenchDraft): WorkbenchSession {
+/** 会话行状态点(§3.3)派生:每会话最近一次生成的状态与完成时刻。 */
+interface LatestJobRow {
+  session_id: string;
+  status: RunRow['status'];
+  finished_at: number | null;
+}
+
+function readLatestJobMap(sessionIds: string[]): Map<string, LatestJobRow> {
+  if (sessionIds.length === 0) return new Map();
+  const rows = getDb()
+    .prepare(
+      `SELECT r.workbench_session_id AS session_id, r.status, r.finished_at
+       FROM generation_runs r
+       JOIN (
+         SELECT workbench_session_id AS sid, MAX(created_at) AS latest_created
+         FROM generation_runs
+         WHERE workbench_session_id IN (${sessionIds.map(() => '?').join(', ')})
+           AND deleted_at IS NULL
+         GROUP BY workbench_session_id
+       ) latest ON latest.sid = r.workbench_session_id AND latest.latest_created = r.created_at
+       WHERE r.deleted_at IS NULL`,
+    )
+    .all(...sessionIds) as LatestJobRow[];
+  return new Map(rows.map((row) => [row.session_id, row]));
+}
+
+function sessionRowToDocument(
+  row: SessionRow,
+  draft: WorkbenchDraft,
+  latest?: LatestJobRow,
+): WorkbenchSession {
   return {
     id: row.id,
     title: row.title,
@@ -156,6 +195,8 @@ function sessionRowToDocument(row: SessionRow, draft: WorkbenchDraft): Workbench
     updatedAt: epochMsToIso(row.updated_at),
     archivedAt: epochMsToIsoOrNull(row.archived_at),
     deletedAt: epochMsToIsoOrNull(row.deleted_at),
+    latestJobStatus: latest ? RUN_STATUS_TO_JOB[latest.status] : null,
+    latestJobFinishedAt: epochMsToIsoOrNull(latest?.finished_at),
   };
 }
 
@@ -169,7 +210,7 @@ function getSessionRow(id: string): SessionRow {
 
 async function getSession(id: string): Promise<WorkbenchSession> {
   const row = getSessionRow(id);
-  return sessionRowToDocument(row, readDraft(row.id));
+  return sessionRowToDocument(row, readDraft(row.id), readLatestJobMap([row.id]).get(row.id));
 }
 
 // ---------- 生成 run → 契约 job ----------
@@ -217,6 +258,26 @@ const RUN_STATUS_TO_JOB: Record<RunRow['status'], GenerationStatus> = {
 const MIME_FALLBACK = 'image/png';
 const CONTRACT_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
+/**
+ * 解析 media://local/?p=<path> 为绝对路径并校验落在受管根目录内
+ * (防目录穿越,与 media-protocol.ts 读盘通道同款约束;保存资产用)。
+ */
+function mediaUrlToManagedPath(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'media:') return null;
+  const raw = parsed.searchParams.get('p');
+  if (!raw) return null;
+  const target = resolve(raw);
+  const paths = getPaths();
+  const roots = [paths.pictures, paths.previews, paths.userData].map((root) => resolve(root));
+  return roots.some((root) => target === root || target.startsWith(root + sep)) ? target : null;
+}
+
 function assetRowToContract(row: AssetRow): GenerationAsset | null {
   if (row.status !== 'available' || !row.media_path) return null;
   const mime = row.mime_type && CONTRACT_MIMES.has(row.mime_type) ? row.mime_type : MIME_FALLBACK;
@@ -252,6 +313,9 @@ function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
       quality: (params.quality as GenerationJob['request']['quality']) ?? 'auto',
       count: 1,
       providerId: row.provider_id,
+      referenceImages: (params.referenceImages ?? [])
+        .map(stagedPathToContractReference)
+        .filter((reference): reference is GenerationReferenceImage => reference !== null),
     },
     providerModel: row.model,
     costPoints: row.actual_cost != null ? Math.round(row.actual_cost) : null,
@@ -289,6 +353,58 @@ function getJob(id: string): GenerationJob {
     .prepare('SELECT * FROM generated_assets WHERE run_id = ?')
     .all(id) as AssetRow[];
   return runRowToJob(row, assets);
+}
+
+// ---------- 参考图(staging 目录 ↔ 契约引用) ----------
+
+const REFERENCE_MIME_EXTENSION: Record<GenerationReferenceImage['mimeType'], string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+};
+
+const REFERENCE_EXTENSION_MIME: Record<string, GenerationReferenceImage['mimeType']> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
+
+function referenceUploadsDir(): string {
+  return join(getPaths().previews, 'uploads');
+}
+
+function stagedPathToContractReference(
+  reference: LocalImageReference,
+): GenerationReferenceImage | null {
+  const ext = extname(reference.path).toLowerCase();
+  const mimeType = reference.mimeType ?? REFERENCE_EXTENSION_MIME[ext];
+  if (!mimeType) return null;
+  const stem = basename(reference.path, extname(reference.path));
+  // 契约 id 只收 [0-9A-Za-z_-]{8,64}(staging 文件名是 ulid,天然满足);异常命名不回显。
+  if (!/^[0-9A-Za-z_-]{8,64}$/.test(stem)) return null;
+  return {
+    id: stem,
+    url: `media://local/?p=${encodeURIComponent(reference.path)}`,
+    mimeType,
+    name: reference.name?.trim() || `参考图${REFERENCE_MIME_EXTENSION[mimeType]}`,
+    byteSize: reference.sizeBytes ?? 0,
+  };
+}
+
+/**
+ * 契约引用 → core LocalImageReference:路径由 staging 目录 + id + 扩展名重建,
+ * 不信任渲染层自报 url;不存在的引用直接拒(core 侧 isManagedUploadPath 二次把关)。
+ */
+function contractReferenceToLocal(reference: GenerationReferenceImage): LocalImageReference {
+  const path = join(
+    referenceUploadsDir(),
+    `${reference.id}${REFERENCE_MIME_EXTENSION[reference.mimeType]}`,
+  );
+  if (!existsSync(path)) {
+    throw new BridgeError('VALIDATION_FAILED', `参考图「${reference.name}」已不可用,请重新添加`);
+  }
+  return { path, source: 'upload', name: reference.name };
 }
 
 // ---------- 生成提交 ----------
@@ -361,8 +477,11 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
           .all(query.limit + 1, offset) as SessionRow[];
         const page = rows.slice(0, query.limit);
         const drafts = readDraftMap(page.map((row) => row.id));
+        const latest = readLatestJobMap(page.map((row) => row.id));
         return {
-          items: page.map((row) => sessionRowToDocument(row, drafts.get(row.id) ?? EMPTY_DRAFT)),
+          items: page.map((row) =>
+            sessionRowToDocument(row, drafts.get(row.id) ?? EMPTY_DRAFT, latest.get(row.id)),
+          ),
           nextCursor: rows.length > query.limit ? String(offset + query.limit) : null,
         };
       },
@@ -442,6 +561,7 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
       handle: async (input) => {
         const parsed = input as z.output<typeof createGenerationInputSchema>;
         const providerId = resolveProviderId(parsed.providerId);
+        const referenceImages = parsed.referenceImages.map(contractReferenceToLocal);
         const jobId = ulid();
         let workbench: GenerateImageRequest['workbench'];
         if (parsed.sessionId) {
@@ -469,8 +589,43 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
           n: 1,
           promptId: parsed.promptId,
           workbench,
+          ...(referenceImages.length > 0 ? { referenceImages } : {}),
         });
         return waitForRun(jobId);
+      },
+    },
+    'generation.uploadReferenceImage': {
+      input: uploadReferenceImageInputSchema,
+      handle: async (input) => {
+        const parsed = input as z.output<typeof uploadReferenceImageInputSchema>;
+        try {
+          const staged = await stageLocalImageBytes({ bytes: parsed.bytes, name: parsed.name });
+          const reference = stagedPathToContractReference({ ...staged, name: parsed.name });
+          if (!reference) throw new BridgeError('INTERNAL_ERROR', '参考图暂存结果异常');
+          return reference;
+        } catch (error) {
+          if (error instanceof BridgeError) throw error;
+          if (error instanceof LocalImageError) {
+            throw new BridgeError('VALIDATION_FAILED', error.message);
+          }
+          throw error;
+        }
+      },
+    },
+    'generation.saveAsset': {
+      input: saveAssetInputSchema,
+      handle: async (input) => {
+        const parsed = input as z.output<typeof saveAssetInputSchema>;
+        const sourcePath = mediaUrlToManagedPath(parsed.url);
+        if (!sourcePath || !existsSync(sourcePath)) {
+          throw new BridgeError('VALIDATION_FAILED', '图片文件不存在或不可访问');
+        }
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          defaultPath: join(app.getPath('downloads'), parsed.name),
+        });
+        if (canceled || !filePath) return 'cancelled';
+        await copyFile(sourcePath, filePath);
+        return 'saved';
       },
     },
     'generation.list': {
@@ -588,6 +743,35 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
         getRunRow(id as string);
         db().prepare('UPDATE generation_runs SET deleted_at = NULL WHERE id = ?').run(id);
         return getJob(id as string);
+      },
+    },
+    'generation.purge': {
+      input: entityIdSchema,
+      handle: async (id) => {
+        const row = getRunRow(id as string);
+        if (row.deleted_at == null) {
+          throw new BridgeError('VALIDATION_FAILED', '只能永久删除回收站中的记录');
+        }
+        if (row.status === 'queued' || row.status === 'running') {
+          throw new BridgeError('VALIDATION_FAILED', '任务仍在进行中,请先取消');
+        }
+        const assets = db()
+          .prepare('SELECT media_path FROM generated_assets WHERE run_id = ?')
+          .all(id) as Array<{ media_path: string | null }>;
+        // 先删行(assets 级联),后清磁盘:文件删除失败只留孤儿文件,不阻塞用户操作。
+        db().prepare('DELETE FROM generation_runs WHERE id = ?').run(id);
+        for (const asset of assets) {
+          if (!asset.media_path) continue;
+          try {
+            rmSync(asset.media_path, { force: true });
+          } catch (error) {
+            logger.warn(
+              '永久删除时清理资产文件失败',
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
+        return undefined;
       },
     },
     'generation.listProviders': {

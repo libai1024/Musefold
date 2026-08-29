@@ -10,8 +10,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
-import { PromptLibraryScreen } from '../PromptLibraryScreen';
+import { describe, expect, it, vi } from 'vitest';
+import { useScreenIntent } from '../../shell/screen-intent-store';
+import { useActiveSession } from '../../workbench/session-store';
+import { promptToWorkbenchDraft } from '../hooks';
+import { PromptLibraryScreen, type PromptLibraryScreenProps } from '../PromptLibraryScreen';
 
 /** Radix Tabs 等组件依赖完整 pointer 事件序列,统一走 user-event。 */
 const user = userEvent.setup({ pointerEventsCheck: 0 });
@@ -90,6 +93,11 @@ function createMemoryPromptsGateway(): PromptsGateway {
       documents.set(id, doc);
       return doc;
     },
+    purge: async (id) => {
+      const doc = get(id);
+      if (doc.deletedAt == null) throw new Error('VALIDATION_FAILED: 仅回收站行可永久删除');
+      documents.delete(id);
+    },
     use: async (id) => ({ prompt: get(id), recorded: true }),
     listFolders: async () => [],
     createFolder: async () => {
@@ -127,7 +135,7 @@ const BASE_INPUT: Omit<NewPromptDocument, 'title' | 'content'> = {
   sourceUrl: null,
 };
 
-function renderLibrary(prompts: PromptsGateway) {
+function renderLibrary(prompts: PromptsGateway, props?: PromptLibraryScreenProps) {
   const gateway = { prompts } as unknown as MusefoldGateway;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Providers({ children }: { children: ReactNode }) {
@@ -139,7 +147,7 @@ function renderLibrary(prompts: PromptsGateway) {
       </QueryClientProvider>
     );
   }
-  return render(<PromptLibraryScreen />, { wrapper: Providers });
+  return render(<PromptLibraryScreen {...props} />, { wrapper: Providers });
 }
 
 describe('PromptLibraryScreen', () => {
@@ -196,6 +204,55 @@ describe('PromptLibraryScreen', () => {
     });
   });
 
+  it('「使用」把提示词送入工作台草稿并切屏(ui-parity 04 P0)', async () => {
+    useActiveSession.setState({ pendingDraft: null });
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({
+      ...BASE_INPUT,
+      title: '胶片街拍',
+      content: 'film street photo',
+      negative: 'blurry',
+      params: { aspectRatio: '16:9', quality: 'high' },
+    });
+    const onOpenWorkbench = vi.fn();
+    renderLibrary(prompts, { onOpenWorkbench });
+
+    fireEvent.click(await screen.findByTestId('prompt-row-use'));
+
+    expect(useActiveSession.getState().pendingDraft).toEqual({
+      prompt: 'film street photo',
+      negative: 'blurry',
+      params: { aspectRatio: '16:9', quality: 'high' },
+      promptReferenceIds: [],
+    });
+    expect(onOpenWorkbench).toHaveBeenCalledTimes(1);
+    useActiveSession.setState({ pendingDraft: null });
+  });
+
+  it('purges a trashed prompt permanently after confirmation', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const created = await prompts.create({ ...BASE_INPUT, title: '油画肖像', content: 'oil' });
+    await prompts.remove(created.id);
+    renderLibrary(prompts);
+
+    await user.click(screen.getByTestId('prompt-tab-trash'));
+    await waitFor(() => {
+      expect(screen.getByText('油画肖像')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('prompt-row-purge'));
+    // 破坏性动作必须有确认对话框(V25-UI-SPEC §8-I4)。
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-purge-confirm')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId('prompt-purge-confirm'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-empty')).toBeTruthy();
+    });
+    await expect(prompts.get(created.id)).rejects.toThrow('NOT_FOUND');
+  });
+
   it('toggles pin and moves the row into the pinned section', async () => {
     const prompts = createMemoryPromptsGateway();
     const created = await prompts.create({ ...BASE_INPUT, title: '像素风', content: 'pixel art' });
@@ -214,5 +271,50 @@ describe('PromptLibraryScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('置顶')).toBeTruthy();
     });
+  });
+
+  it('「prompt-highlight」意图:目标行带高亮渐隐类并消费意图(存为提示词「查看」落点)', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const created = await prompts.create({
+      ...BASE_INPUT,
+      title: '来自生成',
+      content: 'saved from generation',
+      source: 'generation',
+    });
+    useScreenIntent.setState({ intent: { kind: 'prompt-highlight', promptId: created.id } });
+    renderLibrary(prompts);
+
+    await waitFor(() => {
+      expect(screen.getByTestId(`prompt-row-${created.id}`)).toBeTruthy();
+    });
+    expect(screen.getByTestId(`prompt-row-${created.id}`).className).toContain('mf-row-highlight');
+    expect(useScreenIntent.getState().intent).toBeNull();
+    useScreenIntent.setState({ intent: null });
+  });
+});
+
+describe('promptToWorkbenchDraft(参数收编与降级)', () => {
+  const doc = {
+    content: 'poster study',
+    negative: null,
+    params: null,
+  } as Parameters<typeof promptToWorkbenchDraft>[0];
+
+  it('收编契约认可的比例与质量', () => {
+    expect(
+      promptToWorkbenchDraft({ ...doc, params: { aspectRatio: '3:4', quality: 'medium' } }),
+    ).toEqual({
+      prompt: 'poster study',
+      negative: '',
+      params: { aspectRatio: '3:4', quality: 'medium' },
+      promptReferenceIds: [],
+    });
+  });
+
+  it('奇形参数丢参保正文,使用动作不失败', () => {
+    expect(
+      promptToWorkbenchDraft({ ...doc, params: { aspectRatio: '超宽', quality: 'ultra' } }).params,
+    ).toEqual({});
+    expect(promptToWorkbenchDraft(doc).params).toEqual({});
   });
 });

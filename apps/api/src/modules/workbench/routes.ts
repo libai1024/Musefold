@@ -10,7 +10,11 @@ import { createAuthedRouter, route } from '../../lib/openapi.js';
 import type { WorkbenchService } from './service.js';
 
 const idParams = z.object({ id: z.string().trim().min(1).max(64) });
-const versionBody = z.object({ expectedVersion: z.number().int().positive() });
+/** 删除/恢复缺省无条件执行(api-client 不携带版本);显式提供时严格校验。 */
+const versionBody = z
+  .object({ expectedVersion: z.number().int().positive().optional() })
+  .optional()
+  .default({});
 
 export function workbenchRoutes(service: WorkbenchService) {
   const app = createAuthedRouter();

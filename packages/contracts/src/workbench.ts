@@ -26,6 +26,12 @@ export const workbenchSessionSchema = z.object({
   updatedAt: isoDateTimeSchema,
   archivedAt: isoDateTimeSchema.nullable(),
   deletedAt: isoDateTimeSchema.nullable(),
+  /**
+   * 会话行状态点(V25-UI-SPEC §3.3)的派生字段:该会话最近一次生成的状态与完成时刻。
+   * 服务端/桥在 list/get 时从 runs 推导;default null 使旧响应无损兼容。
+   */
+  latestJobStatus: generationJobSchema.shape.status.nullable().default(null),
+  latestJobFinishedAt: isoDateTimeSchema.nullable().default(null),
 });
 
 export const createWorkbenchSessionSchema = z.object({

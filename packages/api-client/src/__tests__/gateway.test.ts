@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCloudDataGateway } from '../gateway';
 import { ApiRequestError } from '../http';
 
@@ -83,6 +83,57 @@ describe('createCloudDataGateway', () => {
     expect((error as ApiRequestError).retryable).toBe(true);
   });
 
+  it('purge posts to /prompts/{id}/purge and resolves void', async () => {
+    const { impl, calls } = fetchStub(() => jsonResponse({ ok: true }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(gateway.prompts.purge('p1')).resolves.toBeUndefined();
+    expect(calls[0]?.url.pathname).toBe('/api/v1/prompts/p1/purge');
+    expect(calls[0]?.init?.method).toBe('POST');
+  });
+
+  it('generation purge posts to /generations/{id}/purge and resolves void', async () => {
+    const { impl, calls } = fetchStub(() => jsonResponse({ ok: true }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(gateway.generation.purge('g1')).resolves.toBeUndefined();
+    expect(calls[0]?.url.pathname).toBe('/api/v1/generations/g1/purge');
+    expect(calls[0]?.init?.method).toBe('POST');
+  });
+
+  it('uploads reference images as multipart form data', async () => {
+    const { impl, calls } = fetchStub(() =>
+      jsonResponse(
+        {
+          id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          url: '/api/v1/reference-images/01ARZ3NDEKTSV4RRFFQ69G5FAV/url',
+          name: 'ref.png',
+          mimeType: 'image/png',
+          byteSize: 4,
+        },
+        201,
+      ),
+    );
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    const uploaded = await gateway.generation.uploadReferenceImage({
+      name: 'ref.png',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+    });
+
+    expect(uploaded.id).toBe('01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    expect(calls[0]?.url.pathname).toBe('/api/v1/reference-images');
+    expect(calls[0]?.init?.method).toBe('POST');
+    // multipart 边界由 fetch 生成,不能手写 JSON content-type。
+    const headers = (calls[0]?.init?.headers ?? {}) as Record<string, string>;
+    expect(headers['content-type']).toBeUndefined();
+    const body = calls[0]?.init?.body;
+    expect(body).toBeInstanceOf(FormData);
+    const file = (body as FormData).get('file');
+    expect(file).toBeInstanceOf(File);
+    expect((file as File).name).toBe('ref.png');
+  });
+
   it('sends JSON bodies for mutations', async () => {
     const { impl, calls } = fetchStub(() =>
       jsonResponse({
@@ -105,5 +156,63 @@ describe('createCloudDataGateway', () => {
       group: null,
       color: null,
     });
+  });
+});
+
+describe('generation.saveAsset(Web 浏览器下载)', () => {
+  const anchor = { href: '', download: '', rel: '', click: vi.fn(), remove: vi.fn() };
+  const bodyAppend = vi.fn();
+  const windowOpen = vi.fn();
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
+  beforeEach(() => {
+    anchor.href = '';
+    anchor.download = '';
+    // node 环境无 DOM:替身仅覆盖 triggerDownload 用到的最小面。
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => anchor),
+      body: { append: bodyAppend },
+    });
+    vi.stubGlobal('window', { open: windowOpen });
+    URL.createObjectURL = vi.fn(() => 'blob:musefold-test') as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  it('fetch 成功:blob 转 a[download] 触发下载并回收 object URL', async () => {
+    const { impl, calls } = fetchStub(
+      () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+    );
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(
+      gateway.generation.saveAsset({ url: 'https://cdn.test/a.png', name: 'musefold-a.png' }),
+    ).resolves.toBe('saved');
+
+    expect(calls[0]?.url.href).toBe('https://cdn.test/a.png');
+    expect(anchor.href).toBe('blob:musefold-test');
+    expect(anchor.download).toBe('musefold-a.png');
+    expect(anchor.click).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:musefold-test');
+    expect(windowOpen).not.toHaveBeenCalled();
+  });
+
+  it('fetch 失败(跨域未开 CORS / 非 2xx):降级新窗口打开', async () => {
+    const { impl } = fetchStub(() => new Response('forbidden', { status: 403 }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(
+      gateway.generation.saveAsset({ url: 'https://cdn.test/b.png', name: 'b.png' }),
+    ).resolves.toBe('saved');
+
+    expect(anchor.click).not.toHaveBeenCalled();
+    expect(windowOpen).toHaveBeenCalledWith('https://cdn.test/b.png', '_blank', 'noopener');
   });
 });

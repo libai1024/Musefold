@@ -3,6 +3,7 @@
 import type { GenerationJob } from '@musefold/contracts';
 import { Badge } from '@musefold/ui/components/badge';
 import { Button } from '@musefold/ui/components/button';
+import { FadeImage } from '@musefold/ui/components/fade-image';
 import { Spinner } from '@musefold/ui/components/spinner';
 import {
   CornerDownRight,
@@ -33,6 +34,10 @@ export interface HistoryRowProps {
   onRetry(): void;
   onRemove(): void;
   onRestore(): void;
+  /** 回收站行「永久删除」;确认对话框由屏幕层持有。 */
+  onPurge(): void;
+  /** 缩略点击放大(05 §7 Lightbox);未注入(无成图)时缩略点击走开详情。 */
+  onOpenLightbox?(): void;
 }
 
 /** 历史列表行(承旧 GenerationHistoryRow):缩略图 + 提示词/元信息 + 常驻操作组;线程缩进。 */
@@ -46,6 +51,8 @@ export function HistoryRow({
   onRetry,
   onRemove,
   onRestore,
+  onPurge,
+  onOpenLightbox,
 }: HistoryRowProps) {
   const [imageBroken, setImageBroken] = useState(false);
   const asset = job.assets[0];
@@ -79,14 +86,14 @@ export function HistoryRow({
         <button
           type="button"
           className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground"
-          onClick={onOpen}
-          aria-label="查看详情"
+          onClick={!imageBroken && onOpenLightbox ? onOpenLightbox : onOpen}
+          aria-label={!imageBroken && onOpenLightbox ? '放大预览' : '查看详情'}
           data-testid="history-thumb"
         >
           {active ? (
             <Spinner className="size-4" />
           ) : asset && !imageBroken ? (
-            <img
+            <FadeImage
               src={asset.url}
               alt=""
               loading="lazy"
@@ -109,7 +116,7 @@ export function HistoryRow({
           <span className="truncate font-medium text-foreground text-sm">
             {job.request.prompt || '(无提示词)'}
           </span>
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
             <Badge
               variant={statusBadgeVariant(job.status)}
               className="px-1.5 py-0 text-[10px]"
@@ -126,16 +133,28 @@ export function HistoryRow({
         {/* 触屏常显;md+ hover/聚焦渐显(V25-UI-SPEC §8-I2)。 */}
         <div className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
           {deletedView ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
-              aria-label="恢复记录"
-              data-testid="history-row-restore"
-              onClick={onRestore}
-            >
-              <Undo2 className="size-4" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:text-foreground"
+                aria-label="恢复记录"
+                data-testid="history-row-restore"
+                onClick={onRestore}
+              >
+                <Undo2 className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:text-destructive"
+                aria-label="永久删除"
+                data-testid="history-row-purge"
+                onClick={onPurge}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </>
           ) : active ? (
             <Button
               variant="ghost"

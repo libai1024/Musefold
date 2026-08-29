@@ -10,11 +10,17 @@ import type { ReactNode } from 'react';
 
 export interface PromptListRowProps {
   prompt: PromptDocument;
+  /** 跨屏定位高亮(「存为提示词 → 查看」落点):accent 底色 2s 渐隐并滚入视口。 */
+  highlighted?: boolean;
+  /** 「使用」= 送工作台草稿并切屏(承旧行尾主动作,ui-parity 04 P0)。 */
+  onUse(prompt: PromptDocument): void;
   onEdit(prompt: PromptDocument): void;
   onCopy(prompt: PromptDocument): void;
   onTogglePin(prompt: PromptDocument): void;
   onRemove(prompt: PromptDocument): void;
   onRestore(prompt: PromptDocument): void;
+  /** 回收站行「永久删除」;确认对话框由屏幕层持有。 */
+  onPurge(prompt: PromptDocument): void;
 }
 
 function RowAction({
@@ -50,15 +56,18 @@ function RowAction({
 /**
  * 库列表行(信息架构承自 v2.0 PromptListRow):
  * 缩略图 + 标题/摘要/元信息 + 常驻操作组。操作不藏浮层——
- * 桌面 hover 渐显、触屏常显,回收站行只留「恢复」。
+ * 桌面 hover 渐显、触屏常显,回收站行留「恢复/永久删除」。
  */
 export function PromptListRow({
   prompt,
+  highlighted = false,
+  onUse,
   onEdit,
   onCopy,
   onTogglePin,
   onRemove,
   onRestore,
+  onPurge,
 }: PromptListRowProps) {
   const deleted = prompt.deletedAt != null;
   const summary = prompt.description?.trim() || prompt.content;
@@ -66,9 +75,13 @@ export function PromptListRow({
   return (
     <article
       data-testid={`prompt-row-${prompt.id}`}
+      ref={(node) => {
+        if (highlighted) node?.scrollIntoView?.({ block: 'nearest' });
+      }}
       className={cn(
         'group flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-card',
         deleted && 'opacity-70',
+        highlighted && 'mf-row-highlight',
       )}
     >
       <div
@@ -92,14 +105,14 @@ export function PromptListRow({
             {prompt.title}
           </span>
           {prompt.rating > 0 && (
-            <span className="flex shrink-0 items-center gap-0.5 text-warning text-xs">
+            <span className="flex shrink-0 items-center gap-0.5 text-warning text-xs tabular-nums">
               <Star className="size-3 fill-current" aria-hidden />
               {prompt.rating}
             </span>
           )}
         </span>
         <span className="truncate text-muted-foreground text-xs">{summary}</span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground/80">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground/80 tabular-nums">
           {prompt.usageCount > 0 && <span>使用 {prompt.usageCount} 次</span>}
           {prompt.tags.slice(0, 4).map((tag) => (
             <Badge
@@ -122,11 +135,25 @@ export function PromptListRow({
         )}
       >
         {deleted ? (
-          <RowAction label="恢复" testId="prompt-row-restore" onClick={() => onRestore(prompt)}>
-            <RotateCcw className="size-4" />
-          </RowAction>
+          <>
+            <RowAction label="恢复" testId="prompt-row-restore" onClick={() => onRestore(prompt)}>
+              <RotateCcw className="size-4" />
+            </RowAction>
+            <RowAction label="永久删除" testId="prompt-row-purge" onClick={() => onPurge(prompt)}>
+              <Trash2 className="size-4" />
+            </RowAction>
+          </>
         ) : (
           <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 font-medium text-primary text-xs hover:text-primary"
+              data-testid="prompt-row-use"
+              onClick={() => onUse(prompt)}
+            >
+              使用
+            </Button>
             <RowAction label="复制内容" testId="prompt-row-copy" onClick={() => onCopy(prompt)}>
               <Copy className="size-4" />
             </RowAction>

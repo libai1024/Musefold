@@ -1,6 +1,6 @@
 'use client';
 
-import { ThemeSync } from '@musefold/features/settings';
+import { MotionSync, ThemeSync } from '@musefold/features/settings';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
@@ -28,6 +28,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <PlatformProvider runtime={runtime}>
         <ThemeSync />
+        <MotionSync />
         {children}
       </PlatformProvider>
     </QueryClientProvider>

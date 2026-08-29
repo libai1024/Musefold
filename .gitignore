@@ -15,6 +15,11 @@ __pycache__/
 *.py[cod]
 *.tsbuildinfo
 .tsout/
+# 声明产物只进 .tsout;src 里的 .d.ts 会盖过同名 .ts,是契约漂移地雷。
+# 手写的三方库环境声明用 ! 逐个豁免。
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+!packages/desktop-contracts/src/diff-match-patch.d.ts
 *.log
 .DS_Store
 .env
@@ -27,6 +32,8 @@ backups/
 *.db-journal
 *.db-wal
 .electron-driver/
+# electron-vite 加载 TS 配置时的临时 bundle;进程异常退出会残留。
+apps/desktop/electron.vite.config.*.mjs
 .claude/settings.local.json
 .zcode/
 

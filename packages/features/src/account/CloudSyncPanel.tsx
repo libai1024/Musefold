@@ -89,7 +89,10 @@ function SyncControls({ data }: { data: DesktopSyncStatus }) {
           <p className="font-medium text-foreground text-sm">
             {data.enabled ? '同步已开启' : '同步未开启'}
           </p>
-          <p className="mt-0.5 text-muted-foreground text-xs" data-testid="sync-subtitle">
+          <p
+            className="mt-0.5 text-muted-foreground text-xs tabular-nums"
+            data-testid="sync-subtitle"
+          >
             {data.enabled
               ? `${data.account?.username ?? ''} · ${formatSyncedAt(data.lastSyncedAt)}`
               : signedIn

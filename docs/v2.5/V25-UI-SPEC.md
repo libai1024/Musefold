@@ -129,10 +129,12 @@
 ### 2.5 壳交付状态(M4b 收尾记录,2026-08-28)
 
 - [x] 会话列表迁入壳侧栏「对话」区:`SessionListPanel` + `NewSessionAction`(features/workbench),双宿主经 `action`/`sessions` 插槽注入;活动会话为 zustand 共享 store(`useActiveSession`)。
-- [x] 侧栏品牌行 + 收起/展开(收起态主区左上展开钮)。
+- [x] 侧栏品牌行(`MusefoldMark` 承旧几何,朱点走 `--primary`)+「功能」分节标签 + 收起/展开(收起态主区左上展开钮)。
+- [x] 「新设计」钮含 kbd 提示(⌘N / Ctrl+N)与全局快捷键绑定(组件内,双宿主自动获得;浏览器保留键位时尽力而为)。
 - [x] 桌面 macOS 红绿灯 inset(`brandInset` prop,收起态展开钮同步让位);侧栏为窗口拖拽区(桌面宿主 CSS 作用域)。
-- [ ] 移动顶栏的搜索钮与额度 readout:依赖账号域,随 M4d 补齐(当前移动顶栏仅品牌)。
-- [ ] 会话行运行/未读状态点、置顶:待契约补 `latestStatus` 与偏好通道,随 M4e 收口(§3.3)。
+- [x] 移动顶栏:品牌标记 + 当前域标题 + 搜索钮(跳提示词库)+ 额度 readout(`MobileQuotaReadout`,宿主经 `mobileExtra` 插槽注入;未登录不占位)。
+- [x] 会话置顶:偏好通道承接(`AppPreferences.pinnedSessionIds`,D6 同机制);置顶组排前、行首 Pin 标记、离场自动清偏好。
+- [x] 会话行运行/未读状态点:契约会话实体补派生字段 `latestJobStatus`/`latestJobFinishedAt`(default null 兼容);running 动画点(queued/running/cancelling)、unread 实心点(本次运行期内完成且未查看,`useActiveSession.seenAt` 内存追踪);列表有活动生成时 3s 短轮询驱动翻终态。
 
 ---
 
@@ -146,31 +148,31 @@
 │  [回合 1] 用户气泡(右对齐)                   │
 │           助手帧(头像+结果网格+动作行)         │
 │  [回合 2] …                                │
-│  ▼ 自动贴底                                 │
-├───────────────────────────────────────────┤
-│ Composer(貼底,同宽居中)                     │
+│  ▼ 自动贴底(底部留白,内容可滚过卡片背后)        │
 │ ┌─────────────────────────────────────┐   │
+│ │ Composer 悬浮卡(728px 居中,浮起阴影)    │   │
 │ │ 提示词多行输入(自动增高,Enter 发送)      │   │
 │ │ [＋] [比例▾] [设置⚙▾]      [发送/停止] │   │
 │ └─────────────────────────────────────┘   │
 └───────────────────────────────────────────┘
 ```
 
-- **空态(无回合)**:品牌锁定区(标记+一句欢迎语)+ 内联 Composer 居中(承旧 v2.0 §11 形态);首次发送后 Composer 落底。
+- **悬浮贴底(承旧 floating 布局)**:Composer 绝对定位贴底,轨道透明不截获事件;卡片 728px 居中、浮起阴影 + 轻透底毛玻璃,时间线内容列(同 728px 中轴)以底部留白从卡片背后滚过。运行中卡片边框转品牌色 30%。
+- **空态(无回合)**:品牌锁定区(标记+一句欢迎语)+ 内联 Composer 居中(承旧 v2.0 §11 形态,20px 品牌焦点外框);垂直定位用 `clamp(72px,16vh,140px)` 顶距随窗口高度呼吸;首次发送后 Composer 落底。
 - 会话列表不在本屏(住壳侧栏,§2.2);移动端在本屏顶部放会话选择器(§3.4)。
 
 ### 3.2 Composer 规格
 
 | 控件 | 形态 | 契约字段 | 约定 |
 |---|---|---|---|
-| 提示词输入 | 多行 textarea,自动增高(max 8 行) | `prompt` | Enter 发送 / Shift+Enter 换行;≥90% 限长时右下角显示 `字数/上限` 计数 |
-| 比例选择 | 紧凑触发钮 + Popover 选项组 | `aspectRatio` | 选项:自动、1:1、4:3、3:4、16:9、9:16;承旧 RatioPicker 交互,自定义比例暂缓 |
-| 生成设置 | 齿轮触发钮 + Popover | `quality`、`negative` | 质量:自动/低/中/高;反向提示词 textarea 收进弹层(不常驻);数量锁 1(§9-D3) |
+| 提示词输入 | 多行 textarea,自动增高(76–180px) | `prompt` | Enter 或 ⌘/Ctrl+Enter 发送 / Shift+Enter 换行;IME 组合期(含 keyCode 229)不截获;占位语分支承旧:空会话「描述你想生成的图片…」/有回合「描述下一步调整…」;≥90% 限长时工具条尾部显示 `字数/上限` 计数 |
+| 比例选择 | 形状预览触发钮(mono 值 + 几何色板)+ 368px 网格菜单 | `aspectRatio` | 目录承旧 v2.1 全集 11 档(1:1/2:3/3:4/3:2/4:3/4:5/5:4/9:16/16:9/21:9/auto 殿后);3 列卡片含形状预览 + 勾选,打开即聚焦当前项,方向键 ±1 环绕 + Home/End;自定义比例暂缓(§9-D7) |
+| 生成设置 | 值摘要触发钮(显示当前质量档,反向词非空追加「· 反向词」)+ 304px 弹层 | `quality`、`negative` | 质量档 radio 组承旧命名:自动/标准/高清/超清(枚举值 auto/low/medium/high 不变);反向提示词 textarea 收进弹层(不常驻);数量锁 1(§9-D3) |
 | Provider 选择 | 下拉(桌面显示本地连接;云端固定「Musefold 云生图」) | `providerId` | 无可用连接时禁用发送并给引导文案 |
-| 「+」菜单 | 触发钮 + 菜单 | — | v2.5 首版仅「参考图(上传)」占位禁用;设计方案/Skill/历史来源项不迁(§0.2) |
-| 发送/停止 | 主按钮,状态互斥 | — | 空提示词或无 Provider 时禁用;运行中变「停止生成」(Square 图标),取消中 spinner+「正在取消」 |
+| 「+」菜单 | 触发钮 + 菜单 | — | v2.5 首版仅「添加图片」(参考图三路入图);设计方案/Skill/历史来源项不迁(§0.2) |
+| 发送/停止 | 36px 圆形主按钮(承旧),状态互斥 | — | 空提示词或无 Provider 时禁用;hover 上浮/按压下沉微动效;运行中变「停止生成」(Square 图标,Esc 亦可停止),取消中 spinner 禁用 |
 
-testid 约定:`composer-prompt`、`composer-submit`、`composer-cancel`、`composer-ratio`、`composer-settings`、`composer-provider`。
+testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、`composer-cancel`、`composer-ratio`、`composer-ratio-grid`、`composer-ratio-{w}x{h}`、`composer-settings`、`composer-quality`(radio 组,选项 `composer-quality-{id}`)、`composer-negative`、`composer-provider`、`composer-no-provider`(无连接引导行,含「前往设置」)。
 
 ### 3.3 会话列表(壳侧栏「对话」区)——`SessionListPanel`
 
@@ -250,7 +252,7 @@ Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创�
 ### 4.5 遗留差值(随 M4d 抛光收口)
 
 - [ ] 标签管理器(TaxonomyManager)移动端切 Sheet。
-- [ ] 回收站内永久删除(需契约补 purge 方法,AlertDialog 确认);移入回收站维持不确认(可恢复,承旧)。
+- [x] 回收站内永久删除:契约 `prompts.purge`(仅已软删行合法),行动作「永久删除」+ AlertDialog 红主钮;桌面直删 SQLite(FTS 同步清理),云端硬删 PG 并广播 delete 同步事件。移入回收站维持不确认(可恢复,承旧)。
 
 ---
 
@@ -289,7 +291,7 @@ Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创�
 
 ### 5.4 回收站
 
-Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除」(AlertDialog,红主钮);永久删除桌面本地含磁盘资产清理(M4e 收口)。
+Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除」(AlertDialog,红主钮)✅。永久删除契约 `generation.purge`(仅已软删终态行合法):桌面硬删 run 行(资产行级联)并清理磁盘资产文件;云端硬删 PG 行并尽力清理对象存储(失败留孤儿对象给保留策略,不阻塞操作)。
 
 ---
 
@@ -308,7 +310,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | 访问 | 云同步 | 开关(登录 ≠ 同步)/状态/立即同步(§7.3,桌面 only) | M4e ✅ |
 | 访问 | AI 连接 | 本地 Provider 列表 + 新建/编辑/删除/设默认(§7.2) | M4d ✅ |
 | 通用 | 偏好 | 主题(浅/深/跟随系统)、语言占位、减少动效 | 已交付(M3 打样)|
-| 应用 | 数据 | 导出/导入、回收站入口、清理缓存 | 后续卡(M4e 未含 UI) |
+| 应用 | 数据 | 回收站入口(提示词/生成历史,经 `useScreenIntent` 跨屏直达 trash tab)✅;导出/导入、清理缓存 | 入口已交付;其余后续卡 |
 | 应用 | 关于 | 版本号、更新检查、开源许可 | M5b |
 | 应用 | 归档会话 | 占位「即将推出」 | 暂缓 |
 
@@ -336,7 +338,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 
 - 列表行:名称 + 「默认」Badge(活动连接)+ 副行(模型 · Base URL · 密钥尾号/未配置)+ 常驻操作(设为默认/编辑/删除)。
 - 新建/编辑 Dialog:名称、Base URL、模型、API Key(密文输入,只写不回显;编辑留空=不动)。类型不设 select:v2.5 新建一律 openai-compatible,存量异型数据兼容展示。
-- 「测试连接」钮:**推迟**——需主进程真发探测请求,随生成域集成打磨排卡。
+- 「测试连接」钮 ✅:行内 Plug 图标钮;主进程 `aiProviders.test` 真发探测(GET `{baseUrl}/models` 带 bearer,8s 超时),结果行内展示(成功「连接正常 · NNNms」绿字 / 失败可读引导红字),不产生生成费用。
 - Key 只经主进程 safeStorage(keychain),SQLite 只存 has_key/key_suffix 展示位;渲染层不落任何密钥(红线承 v2.1)。
 - 删除:AlertDialog(密钥一并删除,历史保留);删除默认连接时最近更新的一条自动接管默认。
 - 数据面与工作台 Composer 的 Provider 下拉同源(SQLite providers 表),增删改后两处同时失效刷新。
@@ -384,6 +386,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | D10 | 设置布局 | 分组导航工作区 | 暂为单列卡片流 | 已交付分区仅 3-4 个,导航反增导航成本;分区 ≥5 时按 §6.1 目标形态切换 |
 | D11 | AI 连接类型选择 | 新建时可选类型 | 固定 openai-compatible | v2.5 唯一受支持协议;豆包网页等随各自域后续排卡 |
 | D12 | Web↔API 部署形态 | 分域(CORS) | 同源(宿主反代 /api/*) | 会话 cookie 同站直用,免 CORS/第三方 cookie 一整类问题;API 刻意不开 CORS |
+| D13 | 工作台空态快捷建议 | 三行逐字横滚动画 + 英文水印背景(大段自定义 CSS) | 静态三条低权重文本行,点击回填草稿 | 信息架构与文案承旧;动画实现臃肿且不可主题化,简化为 token 化静态行 |
 
 ---
 

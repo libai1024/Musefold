@@ -1,6 +1,6 @@
 'use client';
 
-import type { AiProvider } from '@musefold/contracts';
+import type { AiProvider, AiProviderTestResult } from '@musefold/contracts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,13 +32,15 @@ import { Label } from '@musefold/ui/components/label';
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { Spinner } from '@musefold/ui/components/spinner';
 import { toast } from '@musefold/ui/components/sonner';
-import { Pencil, Plus, Trash2 } from '@musefold/ui/icons';
+import { cn } from '@musefold/ui/lib/utils';
+import { Pencil, Plug, Plus, Trash2 } from '@musefold/ui/icons';
 import { type FormEvent, useState } from 'react';
 import {
   useAiProviders,
   useCreateAiProvider,
   useRemoveAiProvider,
   useSetActiveAiProvider,
+  useTestAiProvider,
   useUpdateAiProvider,
 } from './hooks';
 
@@ -182,58 +184,90 @@ function ProviderRow({
   onDelete: () => void;
 }) {
   const setActive = useSetActiveAiProvider();
+  const test = useTestAiProvider();
+  const [testResult, setTestResult] = useState<AiProviderTestResult | null>(null);
 
   return (
     <li
-      className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5"
+      className="flex flex-col gap-1 rounded-md border border-border px-3 py-2.5"
       data-testid={`ai-provider-${provider.id}`}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate font-medium text-foreground text-sm">{provider.name}</p>
-          {provider.isActive && (
-            <Badge variant="secondary" data-testid="ai-provider-active-badge">
-              默认
-            </Badge>
-          )}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="truncate font-medium text-foreground text-sm">{provider.name}</p>
+            {provider.isActive && (
+              <Badge variant="secondary" data-testid="ai-provider-active-badge">
+                默认
+              </Badge>
+            )}
+          </div>
+          <p className="mt-0.5 truncate text-muted-foreground text-xs">
+            {provider.model} · {provider.baseUrl}
+            {provider.hasKey ? ` · 密钥 …${provider.keySuffix ?? ''}` : ' · 未配置密钥'}
+          </p>
         </div>
-        <p className="mt-0.5 truncate text-muted-foreground text-xs">
-          {provider.model} · {provider.baseUrl}
-          {provider.hasKey ? ` · 密钥 …${provider.keySuffix ?? ''}` : ' · 未配置密钥'}
-        </p>
-      </div>
-      {!provider.isActive && (
+        {!provider.isActive && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground text-xs"
+            onClick={() => setActive.mutate(provider.id)}
+            disabled={setActive.isPending}
+            data-testid="ai-provider-set-active"
+          >
+            设为默认
+          </Button>
+        )}
         <Button
           variant="ghost"
-          size="sm"
-          className="text-muted-foreground text-xs"
-          onClick={() => setActive.mutate(provider.id)}
-          disabled={setActive.isPending}
-          data-testid="ai-provider-set-active"
+          size="icon"
+          className="size-7 text-muted-foreground"
+          aria-label="测试连接"
+          disabled={test.isPending}
+          onClick={() => {
+            setTestResult(null);
+            test.mutate(provider.id, {
+              onSuccess: setTestResult,
+              onError: (error) =>
+                setTestResult({ ok: false, message: errorMessage(error), latencyMs: null }),
+            });
+          }}
+          data-testid="ai-provider-test"
         >
-          设为默认
+          {test.isPending ? <Spinner className="size-3.5" /> : <Plug className="size-3.5" />}
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
+          aria-label="编辑连接"
+          onClick={onEdit}
+          data-testid="ai-provider-edit"
+        >
+          <Pencil className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground hover:text-destructive"
+          aria-label="删除连接"
+          onClick={onDelete}
+          data-testid="ai-provider-delete"
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+      {testResult && (
+        <p
+          className={cn('text-xs', testResult.ok ? 'text-emerald-600' : 'text-destructive')}
+          data-testid="ai-provider-test-result"
+        >
+          {testResult.ok
+            ? `连接正常${testResult.latencyMs != null ? ` · ${testResult.latencyMs}ms` : ''}`
+            : testResult.message}
+        </p>
       )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 text-muted-foreground"
-        aria-label="编辑连接"
-        onClick={onEdit}
-        data-testid="ai-provider-edit"
-      >
-        <Pencil className="size-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 text-muted-foreground hover:text-destructive"
-        aria-label="删除连接"
-        onClick={onDelete}
-        data-testid="ai-provider-delete"
-      >
-        <Trash2 className="size-3.5" />
-      </Button>
     </li>
   );
 }

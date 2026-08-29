@@ -1,7 +1,9 @@
 'use client';
 
 import { SettingsScreen } from '@musefold/features/settings';
+import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
-  return <SettingsScreen />;
+  const router = useRouter();
+  return <SettingsScreen onOpenScreen={(id) => router.push(`/${id}`)} />;
 }

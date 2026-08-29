@@ -4,3 +4,119 @@
 @source '../../../../packages/ui/src';
 @source '../../../../packages/features/src';
 @source '../../src';
+
+.mf-ceramic-button-demo {
+  --ceramic-surface: var(--card);
+  --ceramic-edge: var(--border);
+  --ceramic-shadow: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --ceramic-shadow-deep: color-mix(in srgb, var(--foreground) 12%, transparent);
+  position: fixed;
+  inset: 0;
+  display: grid;
+  min-width: 320px;
+  place-items: center;
+  overflow: auto;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.mf-ceramic-button-demo::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  opacity: 0.26;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+
+.mf-ceramic-button {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  display: inline-grid;
+  width: 184px;
+  height: 56px;
+  place-items: center;
+  border: 1px solid var(--ceramic-edge);
+  border-radius: 18px;
+  padding: 0 28px;
+  background: var(--ceramic-surface);
+  color: var(--foreground);
+  box-shadow:
+    inset 0 1px 0 var(--popover),
+    inset 0 -2px 3px var(--ceramic-shadow-deep),
+    0 3px 0 var(--ceramic-shadow-deep),
+    0 10px 18px var(--ceramic-shadow);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 130ms var(--ease-spring),
+    border-color 130ms ease-out,
+    box-shadow 130ms ease-out;
+}
+
+.mf-ceramic-button::before {
+  position: absolute;
+  inset: 5px;
+  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--popover) 78%, transparent);
+  border-radius: 13px;
+  pointer-events: none;
+  content: '';
+}
+
+.mf-ceramic-button::after {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  left: 16px;
+  height: 1px;
+  border-radius: 50%;
+  pointer-events: none;
+  content: '';
+  background: var(--popover);
+  filter: brightness(1.1);
+  opacity: 0.74;
+}
+
+.mf-ceramic-button:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--ceramic-edge));
+  box-shadow:
+    inset 0 1px 0 var(--popover),
+    inset 0 -2px 3px var(--ceramic-shadow-deep),
+    0 3px 0 var(--ceramic-shadow-deep),
+    0 12px 22px var(--ceramic-shadow);
+}
+
+.mf-ceramic-button:active {
+  transform: translateY(2px) scale(0.985);
+  box-shadow:
+    inset 0 2px 4px var(--ceramic-shadow),
+    0 1px 0 var(--ceramic-shadow-deep),
+    0 4px 8px var(--ceramic-shadow-deep);
+}
+
+.mf-ceramic-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 5px;
+}
+
+.dark .mf-ceramic-button-demo::before {
+  mix-blend-mode: screen;
+  opacity: 0.13;
+}
+
+@media (pointer: coarse) {
+  .mf-ceramic-button {
+    height: 64px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mf-ceramic-button {
+    transition: none;
+  }
+}

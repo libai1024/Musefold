@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
 import {
   type ParsedCloudGenerationRequest,
   cloudGenerationRequestSchema,
@@ -18,6 +18,7 @@ import type { TaskList } from 'graphile-worker';
 import type { WorkerEnv } from './env.js';
 import {
   type GeneratedImage,
+  type ReferenceImageInput,
   UpstreamImageError,
   generateImage,
   imageChecksum,
@@ -189,7 +190,13 @@ export function createTaskList(deps: TaskDependencies): TaskList {
           env.CREDENTIAL_ENCRYPTION_KEY,
         );
 
-        const images = await generateImage(env.NEW_API_BASE_URL, credential.apiKey, request);
+        const references = await downloadReferences(s3, env.S3_BUCKET, payload.userId, request);
+        const images = await generateImage(
+          env.NEW_API_BASE_URL,
+          credential.apiKey,
+          request,
+          references,
+        );
         const uploaded = await uploadImages(s3, env.S3_BUCKET, payload, images);
 
         await db.transaction(async (tx) => {
@@ -237,6 +244,29 @@ export function createTaskList(deps: TaskDependencies): TaskList {
       }
     },
   };
+}
+
+/** 从对象存储取回参考图字节(对象键由 userId + 引用 id 推导,与 API 上传侧同构)。 */
+export async function downloadReferences(
+  s3: S3Client,
+  bucket: string,
+  userId: string,
+  request: ParsedCloudGenerationRequest,
+): Promise<ReferenceImageInput[]> {
+  const references: ReferenceImageInput[] = [];
+  for (const reference of request.referenceImages) {
+    try {
+      const result = await s3.send(
+        new GetObjectCommand({ Bucket: bucket, Key: `users/${userId}/references/${reference.id}` }),
+      );
+      const bytes = Buffer.from((await result.Body?.transformToByteArray()) ?? []);
+      if (bytes.length === 0) throw new Error('empty');
+      references.push({ bytes, mimeType: reference.mimeType, name: reference.name });
+    } catch {
+      throw new UpstreamImageError('rejected', `参考图「${reference.name}」已不可用,请重新上传`);
+    }
+  }
+  return references;
 }
 
 async function uploadImages(

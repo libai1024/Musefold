@@ -1,6 +1,16 @@
 'use client';
 
 import type { PromptDocument, PromptListQuery } from '@musefold/contracts';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@musefold/ui/components/alert-dialog';
 import { Badge } from '@musefold/ui/components/badge';
 import { Button } from '@musefold/ui/components/button';
 import { Input } from '@musefold/ui/components/input';
@@ -16,16 +26,21 @@ import { Tabs, TabsList, TabsTrigger } from '@musefold/ui/components/tabs';
 import { TooltipProvider } from '@musefold/ui/components/tooltip';
 import { Library, Plus, Search } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useScreenIntent } from '../shell/screen-intent-store';
 import { PromptEditorDialog, editorValueToNewDocument } from './PromptEditorDialog';
 import { PromptListRow } from './PromptListRow';
 import { TaxonomyManager } from './TaxonomyManager';
+import { toast } from '@musefold/ui/components/sonner';
+import { useActiveSession } from '../workbench/session-store';
 import {
   copyPromptContent,
+  promptToWorkbenchDraft,
   useCreatePrompt,
   usePromptFolders,
   usePromptList,
   usePromptTags,
+  usePurgePrompt,
   useRemovePrompt,
   useRestorePrompt,
   useUpdatePrompt,
@@ -51,12 +66,17 @@ interface RowSection {
   items: PromptDocument[];
 }
 
+export interface PromptLibraryScreenProps {
+  /** 「使用」送稿后的切屏回调(宿主注入:切工作台视图/路由)。 */
+  onOpenWorkbench?(): void;
+}
+
 /**
  * 提示词库屏幕 —— v2.5 第一个数据域,双宿主同一份。
  * 信息架构承自 v2.0:页头计数、搜索工具条、「置顶/全部」分节列表、
  * 回收站独立视图;数据经 MusefoldGateway,组件全部走语义 token。
  */
-export function PromptLibraryScreen() {
+export function PromptLibraryScreen({ onOpenWorkbench }: PromptLibraryScreenProps = {}) {
   const [tab, setTab] = useState<LibraryTab>('library');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<LibrarySort>('updated-desc');
@@ -64,6 +84,16 @@ export function PromptLibraryScreen() {
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<PromptDocument | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<PromptDocument | null>(null);
+
+  // 「存为提示词 → 查看」落点(03/05 §7):高亮新条目 2s 渐隐,一次性。
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const consumeIntent = useScreenIntent((s) => s.consume);
+  useEffect(() => {
+    if (consumeIntent('prompts-trash')) setTab('trash');
+    const highlight = consumeIntent('prompt-highlight');
+    if (highlight) setHighlightId(highlight.promptId);
+  }, [consumeIntent]);
 
   const deferredSearch = useDeferredValue(search);
 
@@ -87,6 +117,7 @@ export function PromptLibraryScreen() {
   const updatePrompt = useUpdatePrompt();
   const removePrompt = useRemovePrompt();
   const restorePrompt = useRestorePrompt();
+  const purgePrompt = usePurgePrompt();
   const usePromptAction = useUsePrompt();
 
   const sections = useMemo<RowSection[]>(() => {
@@ -119,6 +150,16 @@ export function PromptLibraryScreen() {
   async function handleCopy(prompt: PromptDocument) {
     await copyPromptContent(prompt);
     usePromptAction.mutate({ id: prompt.id, input: { action: 'copy' } });
+  }
+
+  const setPendingDraft = useActiveSession((s) => s.setPendingDraft);
+
+  /** 「使用」:送工作台草稿 + 使用计数 + 切屏(承旧「已送入制作」闭环)。 */
+  function handleUse(prompt: PromptDocument) {
+    setPendingDraft(promptToWorkbenchDraft(prompt));
+    usePromptAction.mutate({ id: prompt.id, input: { action: 'apply' } });
+    toast.success('已送入制作', { description: prompt.title });
+    onOpenWorkbench?.();
   }
 
   function handleTogglePin(prompt: PromptDocument) {
@@ -270,11 +311,14 @@ export function PromptLibraryScreen() {
                     <PromptListRow
                       key={prompt.id}
                       prompt={prompt}
+                      highlighted={prompt.id === highlightId}
+                      onUse={handleUse}
                       onEdit={openEdit}
                       onCopy={handleCopy}
                       onTogglePin={handleTogglePin}
                       onRemove={(target) => removePrompt.mutate(target.id)}
                       onRestore={(target) => restorePrompt.mutate(target.id)}
+                      onPurge={setPurgeTarget}
                     />
                   ))}
                 </section>
@@ -293,6 +337,35 @@ export function PromptLibraryScreen() {
             )}
           </div>
         )}
+
+        <AlertDialog
+          open={purgeTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setPurgeTarget(null);
+          }}
+        >
+          <AlertDialogContent className="max-w-sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>永久删除提示词?</AlertDialogTitle>
+              <AlertDialogDescription>
+                「{purgeTarget?.title}」将被彻底删除,无法恢复。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                data-testid="prompt-purge-confirm"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (purgeTarget) purgePrompt.mutate(purgeTarget.id);
+                  setPurgeTarget(null);
+                }}
+              >
+                永久删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <PromptEditorDialog
           open={editorOpen}

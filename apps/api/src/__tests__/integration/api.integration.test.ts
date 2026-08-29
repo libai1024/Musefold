@@ -81,9 +81,17 @@ function createFakeNewApi(): NewApiClient {
   };
 }
 
+const purgedObjectKeys: string[][] = [];
+const putObjects: Array<{ objectKey: string; byteLength: number; contentType: string }> = [];
 const fakeSigner: AssetUrlSigner = {
   async sign(objectKey) {
     return { url: `https://cdn.test/${objectKey}?sig=x`, expiresAt: new Date().toISOString() };
+  },
+  async putObject(objectKey, body, contentType) {
+    putObjects.push({ objectKey, byteLength: body.byteLength, contentType });
+  },
+  async removeObjects(objectKeys) {
+    purgedObjectKeys.push(objectKeys);
   },
 };
 
@@ -256,6 +264,39 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(conflict.status).toBe(409);
   });
 
+  it('回收站:无 body 软删/恢复(api-client 形态)与永久删除', async () => {
+    const created = await request('/api/v1/prompts', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: '待清理',
+        description: null,
+        content: 'to be purged',
+        negative: null,
+        folderId: null,
+        modelId: null,
+        params: null,
+      }),
+    });
+    const prompt = (await created.json()) as { id: string };
+
+    // api-client 的 remove/restore 不携带 expectedVersion body,必须可用。
+    const removed = await request(`/api/v1/prompts/${prompt.id}`, { method: 'DELETE' });
+    expect(removed.status).toBe(200);
+    const restoredNoBody = await request(`/api/v1/prompts/${prompt.id}/restore`, {
+      method: 'POST',
+    });
+    expect(restoredNoBody.status).toBe(200);
+
+    // 活跃行不允许 purge;软删后 purge 成功且行彻底消失。
+    const purgeActive = await request(`/api/v1/prompts/${prompt.id}/purge`, { method: 'POST' });
+    expect(purgeActive.status).toBe(400);
+    await request(`/api/v1/prompts/${prompt.id}`, { method: 'DELETE' });
+    const purged = await request(`/api/v1/prompts/${prompt.id}/purge`, { method: 'POST' });
+    expect(purged.status).toBe(200);
+    const gone = await request(`/api/v1/prompts/${prompt.id}`);
+    expect(gone.status).toBe(404);
+  });
+
   it('同步:注册设备 → push 变更 → pull 收敛', async () => {
     const deviceId = '00000000-0000-4000-8000-000000000001';
     const registered = await request('/api/v1/sync/devices', {
@@ -337,11 +378,35 @@ describeDb('API 集成(真 PostgreSQL)', () => {
       body: JSON.stringify({ title: '晚霞尝试', draft: { prompt: 'sunset', size: 'auto' } }),
     });
     expect(created.status).toBe(201);
-    const session = (await created.json()) as { id: string; version: number };
+    const session = (await created.json()) as {
+      id: string;
+      version: number;
+      latestJobStatus: string | null;
+    };
+    expect(session.latestJobStatus).toBeNull();
+
+    // 挂一个生成任务后,会话行状态点派生字段反映最近 run(§3.3)。
+    const generationInSession = await request('/api/v1/generations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'itest-session-dot-001' },
+      body: JSON.stringify({
+        prompt: 'sunset over the sea',
+        sessionId: session.id,
+        size: 'auto',
+        quality: 'auto',
+        count: 1,
+        runKind: 'free_generation',
+      }),
+    });
+    expect(generationInSession.status).toBe(201);
 
     const list = await request('/api/v1/workbench/sessions');
-    const page = (await list.json()) as { items: Array<{ id: string }> };
-    expect(page.items.some((item) => item.id === session.id)).toBe(true);
+    const page = (await list.json()) as {
+      items: Array<{ id: string; latestJobStatus: string | null }>;
+    };
+    const listed = page.items.find((item) => item.id === session.id);
+    expect(listed).toBeTruthy();
+    expect(listed?.latestJobStatus).toBe('queued');
 
     const removed = await request(`/api/v1/workbench/sessions/${session.id}`, {
       method: 'DELETE',
@@ -352,6 +417,9 @@ describeDb('API 集成(真 PostgreSQL)', () => {
 
   it('生成任务入队(幂等)并可取消', async () => {
     const idempotencyKey = 'itest-generation-0001';
+    const jobsBefore = await pool.query(
+      "SELECT count(*)::int AS count FROM graphile_worker.jobs WHERE task_identifier = 'generation.generate'",
+    );
     const createBody = JSON.stringify({
       prompt: 'a red fox in snow',
       promptId,
@@ -377,10 +445,11 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(duplicated.status).toBe(201);
     expect(((await duplicated.json()) as { id: string }).id).toBe(job.id);
 
-    const jobs = await pool.query(
+    // 增量计数(其他用例也会入队):创建 + 幂等重放只多 1 个任务。
+    const jobsAfter = await pool.query(
       "SELECT count(*)::int AS count FROM graphile_worker.jobs WHERE task_identifier = 'generation.generate'",
     );
-    expect(jobs.rows[0].count).toBe(1);
+    expect(jobsAfter.rows[0].count - jobsBefore.rows[0].count).toBe(1);
 
     const cancelled = await request(`/api/v1/generations/${job.id}/cancel`, { method: 'POST' });
     expect(cancelled.status).toBe(200);
@@ -402,6 +471,101 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(liveBody.items.some((item) => item.id === job.id)).toBe(false);
     const restored = await request(`/api/v1/generations/${job.id}/restore`, { method: 'POST' });
     expect(restored.status).toBe(200);
+
+    // 永久删除闭环:活跃行拒绝;软删后 purge 硬删行(资产级联)并转交对象存储清理。
+    const purgeActive = await request(`/api/v1/generations/${job.id}/purge`, { method: 'POST' });
+    expect(purgeActive.status).toBe(400);
+    await pool.query(
+      `INSERT INTO generation_assets
+         (id, run_id, user_id, object_key, mime_type, width, height, byte_size, checksum_sha256, position)
+       SELECT 'itest-asset-1', r.id, r.user_id, 'assets/itest-asset-1.png', 'image/png', 512, 512, 1024, repeat('0', 64), 0
+       FROM generation_runs r WHERE r.id = $1`,
+      [job.id],
+    );
+    await request(`/api/v1/generations/${job.id}`, { method: 'DELETE' });
+    const purged = await request(`/api/v1/generations/${job.id}/purge`, { method: 'POST' });
+    expect(purged.status).toBe(200);
+    expect(purgedObjectKeys.at(-1)).toEqual(['assets/itest-asset-1.png']);
+    const gone = await request(`/api/v1/generations/${job.id}`);
+    expect(gone.status).toBe(404);
+    const orphanAssets = await pool.query(
+      'SELECT count(*)::int AS count FROM generation_assets WHERE run_id = $1',
+      [job.id],
+    );
+    expect(orphanAssets.rows[0].count).toBe(0);
+  });
+
+  it('参考图:上传落对象存储,展示 URL 302,随生成入库时 URL 归一化', async () => {
+    // PNG 魔数 + 填充字节(服务端嗅探魔数定 mime,不信任表单自报类型)。
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const form = new FormData();
+    form.append('file', new File([pngBytes], 'style.png', { type: 'image/png' }));
+    const uploaded = await app.request('/api/v1/reference-images', {
+      method: 'POST',
+      headers: { cookie },
+      body: form,
+    });
+    expect(uploaded.status).toBe(201);
+    const reference = (await uploaded.json()) as {
+      id: string;
+      url: string;
+      name: string;
+      mimeType: string;
+      byteSize: number;
+    };
+    expect(reference.mimeType).toBe('image/png');
+    expect(reference.name).toBe('style.png');
+    expect(reference.byteSize).toBe(pngBytes.byteLength);
+    expect(reference.url).toBe(`/api/v1/reference-images/${reference.id}/url`);
+    const stored = putObjects.at(-1);
+    expect(stored?.contentType).toBe('image/png');
+    expect(stored?.objectKey).toMatch(new RegExp(`^users/.+/references/${reference.id}$`));
+
+    // 展示 URL:按用户前缀重建对象键签名后 302(与资产 URL 同款,<img src> 直接可用)。
+    const redirect = await request(reference.url);
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get('location')).toBe(`https://cdn.test/${stored?.objectKey}?sig=x`);
+
+    // 非图片字节被魔数嗅探拒绝。
+    const badForm = new FormData();
+    badForm.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'fake.png'));
+    const rejected = await app.request('/api/v1/reference-images', {
+      method: 'POST',
+      headers: { cookie },
+      body: badForm,
+    });
+    expect(rejected.status).toBe(400);
+
+    // 随生成提交:客户端自报的 url 被服务端归一为标准路由后入库。
+    const created = await request('/api/v1/generations', {
+      method: 'POST',
+      headers: { 'idempotency-key': 'itest-reference-001' },
+      body: JSON.stringify({
+        prompt: 'remix with reference',
+        size: 'auto',
+        quality: 'auto',
+        count: 1,
+        referenceImages: [{ ...reference, url: 'https://evil.example/spoof.png' }],
+      }),
+    });
+    expect(created.status).toBe(201);
+    const job = (await created.json()) as {
+      id: string;
+      request: { referenceImages: Array<{ id: string; url: string }> };
+    };
+    expect(job.request.referenceImages).toHaveLength(1);
+    expect(job.request.referenceImages[0]?.url).toBe(
+      `/api/v1/reference-images/${reference.id}/url`,
+    );
+
+    // 历史读回同样携带参考图(时间线回合附件区数据源)。
+    const fetched = await request(`/api/v1/generations/${job.id}`);
+    const fetchedJob = (await fetched.json()) as {
+      request: { referenceImages: Array<{ url: string }> };
+    };
+    expect(fetchedJob.request.referenceImages[0]?.url).toBe(
+      `/api/v1/reference-images/${reference.id}/url`,
+    );
   });
 
   it('MCP well-known 资源元数据可发现,未带 token 的调用返回 401', async () => {

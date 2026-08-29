@@ -24,6 +24,8 @@ test('新建会话并重命名', async () => {
   await page.getByTestId('session-create').click();
   await expect(page.getByTestId('session-panel').getByText('未命名创作')).toBeVisible();
 
+  // 行动作 hover 渐显(静息态让位给相对时间戳),先悬停会话行。
+  await page.getByTestId('session-panel').getByText('未命名创作').hover();
   await page.getByTestId('session-rename').click();
   await page.getByTestId('session-rename-input').fill('霓虹城市习作');
   await page.getByTestId('session-rename-commit').click();
@@ -42,10 +44,12 @@ test('草稿输入防抖落盘,重启后仍在', async () => {
   await expect(page.getByTestId('composer-prompt')).toHaveValue('cyberpunk street, rainy night');
 });
 
-test('无 AI 连接时提交给出可读错误', async () => {
+test('无 AI 连接时发送禁用并引导去设置', async () => {
+  // V25-UI-SPEC §3.2 无连接态:不再允许提交后报错,而是禁发 + 引导。
   await page.getByTestId('composer-prompt').fill('a lighthouse in fog');
-  await page.getByTestId('composer-submit').click();
-  await expect(page.getByTestId('generation-error')).toContainText('尚未配置 AI 连接');
+  await expect(page.getByTestId('composer-no-provider')).toBeVisible();
+  await expect(page.getByTestId('composer-no-provider')).toContainText('尚未配置可用的 AI 连接');
+  await expect(page.getByTestId('composer-submit')).toBeDisabled();
 });
 
 test('提交生成:run 落库,失败态与重试呈现在时间线', async () => {
@@ -57,6 +61,12 @@ test('提交生成:run 落库,失败态与重试呈现在时间线', async () =>
      VALUES ('e2e-provider', 'E2E 连接', 'openai-compatible', 'http://127.0.0.1:9/v1', 'test-model', 0, 1, ?, ?)`,
   ).run(Date.now(), Date.now());
   db.close();
+
+  // 桥无 provider 变更推送,重启应用让渲染层 providers 目录重新加载(解除禁发)。
+  await app.close();
+  ({ app } = await launchV25App('musefold-v25-workbench-', userDataDir));
+  page = await v25ShellPage(app);
+  await expect(page.getByTestId('workbench')).toBeVisible();
 
   await page.getByTestId('composer-prompt').fill('a lighthouse in fog');
   await page.getByTestId('composer-submit').click();

@@ -5,9 +5,11 @@ import {
   type AppPreferences,
   accountSummarySchema,
   aiProviderSchema,
+  aiProviderTestResultSchema,
   appPreferencesSchema,
   desktopSyncStatusSchema,
   generationHistoryPageSchema,
+  generationReferenceImageSchema,
   redeemResultSchema,
   generationJobSchema,
   promptDocumentSchema,
@@ -16,6 +18,7 @@ import {
   promptTagSchema,
   promptUseResultSchema,
   providerOptionSchema,
+  saveAssetResultSchema,
   workbenchSessionPageSchema,
   workbenchSessionSchema,
 } from '@musefold/contracts';
@@ -102,6 +105,7 @@ export function createDesktopGateway(): MusefoldGateway {
       update: (id, patch) => invoke('aiProviders.update', { id, patch }, aiProviderSchema),
       remove: (id) => invoke('aiProviders.remove', { id }, voidSchema),
       setActive: (id) => invoke('aiProviders.setActive', { id }, aiProviderSchema),
+      test: (id) => invoke('aiProviders.test', { id }, aiProviderTestResultSchema),
     },
     prompts: {
       list: (query) => invoke('prompts.list', query, promptPageSchema),
@@ -110,6 +114,7 @@ export function createDesktopGateway(): MusefoldGateway {
       update: (id, patch) => invoke('prompts.update', { id, patch }, promptDocumentSchema),
       remove: (id) => invoke('prompts.remove', { id }, promptDocumentSchema),
       restore: (id) => invoke('prompts.restore', { id }, promptDocumentSchema),
+      purge: (id) => invoke('prompts.purge', { id }, voidSchema),
       use: (id, input) => invoke('prompts.use', { id, input }, promptUseResultSchema),
       listFolders: () => invoke('prompts.listFolders', undefined, promptFolderListSchema),
       createFolder: (input) => invoke('prompts.createFolder', input, promptFolderSchema),
@@ -138,7 +143,13 @@ export function createDesktopGateway(): MusefoldGateway {
       retry: (id) => invoke('generation.retry', id, generationJobSchema),
       remove: (id) => invoke('generation.remove', id, generationJobSchema),
       restore: (id) => invoke('generation.restore', id, generationJobSchema),
+      purge: (id) => invoke('generation.purge', id, voidSchema),
       listProviders: () => invoke('generation.listProviders', undefined, providerOptionListSchema),
+      // Uint8Array 经 ipcRenderer.invoke 结构化克隆原样到主进程,由主进程嗅探魔数落 staging。
+      uploadReferenceImage: (input) =>
+        invoke('generation.uploadReferenceImage', input, generationReferenceImageSchema),
+      // 主进程解 media:// 路径 + 系统保存对话框;取消返回 'cancelled'。
+      saveAsset: (input) => invoke('generation.saveAsset', input, saveAssetResultSchema),
     },
   };
 }

@@ -241,7 +241,7 @@ export class PromptService {
   async deletePrompt(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptDocument> {
     return this.changePromptDeletedState(userId, id, expectedVersion, true, context);
@@ -250,10 +250,32 @@ export class PromptService {
   async restorePrompt(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptDocument> {
     return this.changePromptDeletedState(userId, id, expectedVersion, false, context);
+  }
+
+  /** 回收站内永久删除:仅允许已软删的行,硬删并广播 delete 同步事件(幂等)。 */
+  async purgePrompt(userId: string, id: string, context?: PromptOperationContext): Promise<void> {
+    return this.withTx(context, async (tx) => {
+      const current = await this.getPromptTx(tx, userId, id);
+      if (current.deletedAt == null) {
+        throw new AppError('VALIDATION_FAILED', '只能永久删除回收站中的提示词');
+      }
+      // 标签关联经外键 onDelete cascade 清理;usage 事件为软引用留作审计。
+      await tx.delete(prompts).where(and(eq(prompts.userId, userId), eq(prompts.id, id)));
+      await appendSyncChange(
+        tx,
+        userId,
+        'prompt',
+        id,
+        'delete',
+        current.version + 1,
+        current,
+        context?.source,
+      );
+    });
   }
 
   async usePrompt(
@@ -388,7 +410,7 @@ export class PromptService {
   async deleteFolder(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
     return this.changeFolderDeletedState(userId, id, expectedVersion, true, context);
@@ -397,7 +419,7 @@ export class PromptService {
   async restoreFolder(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
     return this.changeFolderDeletedState(userId, id, expectedVersion, false, context);
@@ -477,7 +499,7 @@ export class PromptService {
   async deleteTag(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
     return this.changeTagDeletedState(userId, id, expectedVersion, true, context);
@@ -486,7 +508,7 @@ export class PromptService {
   async restoreTag(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
     return this.changeTagDeletedState(userId, id, expectedVersion, false, context);
@@ -495,13 +517,16 @@ export class PromptService {
   private async changePromptDeletedState(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     deleted: boolean,
     context?: PromptOperationContext,
   ): Promise<PromptDocument> {
     return this.withTx(context, async (tx) => {
       const current = await this.getPromptTx(tx, userId, id);
-      if (current.version !== expectedVersion) throw promptVersionConflict(current);
+      // 缺省 expectedVersion 视为无条件执行(api-client remove/restore 不携带版本)。
+      if (expectedVersion !== undefined && current.version !== expectedVersion) {
+        throw promptVersionConflict(current);
+      }
       await tx
         .update(prompts)
         .set({
@@ -510,7 +535,7 @@ export class PromptService {
           updatedAt: new Date(),
         })
         .where(
-          and(eq(prompts.userId, userId), eq(prompts.id, id), eq(prompts.version, expectedVersion)),
+          and(eq(prompts.userId, userId), eq(prompts.id, id), eq(prompts.version, current.version)),
         );
       const prompt = await this.getPromptTx(tx, userId, id);
       await appendSyncChange(
@@ -530,13 +555,15 @@ export class PromptService {
   private async changeFolderDeletedState(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     deleted: boolean,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
     return this.withTx(context, async (tx) => {
       const current = await this.getFolderTx(tx, userId, id);
-      if (current.version !== expectedVersion) throw promptVersionConflict(current);
+      if (expectedVersion !== undefined && current.version !== expectedVersion) {
+        throw promptVersionConflict(current);
+      }
       if (!deleted && current.parentId) await this.requireFolder(tx, userId, current.parentId);
       if (deleted && !current.deletedAt) {
         await this.detachFolderRelations(tx, userId, id, context?.source);
@@ -552,7 +579,7 @@ export class PromptService {
           and(
             eq(promptFolders.userId, userId),
             eq(promptFolders.id, id),
-            eq(promptFolders.version, expectedVersion),
+            eq(promptFolders.version, current.version),
           ),
         );
       const folder = await this.getFolderTx(tx, userId, id);
@@ -573,13 +600,15 @@ export class PromptService {
   private async changeTagDeletedState(
     userId: string,
     id: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     deleted: boolean,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
     return this.withTx(context, async (tx) => {
       const current = await this.getTagTx(tx, userId, id);
-      if (current.version !== expectedVersion) throw promptVersionConflict(current);
+      if (expectedVersion !== undefined && current.version !== expectedVersion) {
+        throw promptVersionConflict(current);
+      }
       if (deleted && !current.deletedAt) {
         await this.detachTagRelations(tx, userId, id, context?.source);
       }
@@ -594,7 +623,7 @@ export class PromptService {
           and(
             eq(promptTags.userId, userId),
             eq(promptTags.id, id),
-            eq(promptTags.version, expectedVersion),
+            eq(promptTags.version, current.version),
           ),
         );
       const tag = await this.getTagTx(tx, userId, id);
