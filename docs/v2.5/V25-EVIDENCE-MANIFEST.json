@@ -382,26 +382,31 @@
       "sourcePaths": [
         "packages/contracts/src/design-scheme.ts",
         "packages/platform/src/gateway.ts",
+        "packages/features/src/design-schemes/SchemeDetailView.tsx",
+        "packages/features/src/design-schemes/SchemesScreen.tsx",
+        "apps/web-next/src/app/design-schemes/page.tsx",
         "apps/desktop/electron/main/ipc-v25/design-scheme-domain.ts",
         "docs/v2.5/V25-MIGRATION-CARDS.md"
       ],
       "testPaths": [
         "packages/contracts/src/__tests__/design-scheme.test.ts",
         "packages/platform/src/__tests__/platform.test.ts",
+        "packages/features/src/design-schemes/__tests__/design-schemes.test.tsx",
+        "apps/web-next/src/app/design-schemes/__tests__/page.test.tsx",
         "apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts"
       ],
       "workflowPaths": [
         ".github/workflows/pr.yml",
         ".github/workflows/main.yml"
       ],
-      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts",
+      "command": "pnpm exec vitest run packages/features/src/design-schemes/__tests__/design-schemes.test.tsx apps/web-next/src/app/design-schemes/__tests__/page.test.tsx packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts",
       "commit": null,
       "date": null,
       "report": null,
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "当前仅有 contracts、持久化 scaffold、disabled capability 和 fail-closed transport seam；无 Web consumer、成功 Desktop adapter、features 或入口的当前 report",
+      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop adapter、共享 features 与双端入口源码和定向测试；完整云端 runtime、成功 Desktop execution、Agent 事件管线、真实 E2E 与 durable report/artifact 仍未登记，不能把 source/定向测试扩大解释为 P01 完成",
       "failureReason": null,
       "rerun": "按 P01-1..P01-13 分卡登记合同、数据、adapter、UI、入口、Agent 和安全证据，禁止以 source seam 声称完成"
     },

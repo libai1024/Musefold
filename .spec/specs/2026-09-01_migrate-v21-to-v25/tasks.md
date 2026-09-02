@@ -34,7 +34,7 @@
   - verify: 各域 IPC 单测、preload/window/gateway tests 通过；数据域保持 `musefold:invoke`，窗口信号不混入业务 gateway；`pnpm run check` 已通过。原生 macOS fullscreen runtime 另记为环境阻塞
 - [ ] 完成设计方案全链路迁移与 v2.1 功能 parity
   - boundary: `packages/contracts`、`packages/platform`、`packages/features/src/design-schemes`、`packages/core/src/db/design-scheme`、`packages/db`、`packages/desktop-db`、`apps/api`、`packages/api-client`、桌面 `ipc-v25/design-scheme-domain.ts`/gateway、双端路由与就地/E2E 测试；不触碰豆包内部或桌宠
-  - verify: v2.1 设计方案导航、列表/详情、创建/编辑/复制/删除、AI 生成/运行、版本与工作台联动按历史实现逐项验证；Web 与 Electron E2E、contracts/repository/API/IPC/features tests 通过。当前本地历史来源 owner-safe 链路、确定性 adapter、固定计划校验、取消和 `.musefold.design` 安全 staging/archive 已接线；共享屏已增加可选详情生命周期回调，Web `/design-schemes` 已同步 `?scheme=<id>` deep-link、返回/删除清理 query，并拒绝非法 scheme 参数，相关 Web/features 定向测试通过。共享 UI、Web runtime、云端 run/assets/package、Desktop Agent event 和真实成功 E2E 尚未闭合
+  - verify: v2.1 设计方案导航、列表/详情、创建/编辑/复制/删除、AI 生成/运行、版本与工作台联动按历史实现逐项验证；Web 与 Electron E2E、contracts/repository/API/IPC/features tests 通过。当前本地历史来源 owner-safe 链路、确定性 adapter、固定计划校验、取消和 `.musefold.design` 安全 staging/archive 已接线；共享屏已增加可选详情生命周期回调，Web `/design-schemes` 已同步 `?scheme=<id>` deep-link、返回/删除清理 query，并拒绝非法 scheme 参数，正式方案详情已补齐常驻「在 Composer 中修改」入口且保留下拉菜单补充动作，相关 Web/features 定向测试通过。共享 UI、Web runtime、云端 run/assets/package、Desktop Agent event 和真实成功 E2E 尚未闭合
 - [ ] 完成共享 AppShell、工作台、提示词库、历史、设置、账号/连接和归档会话 parity
   - boundary: `packages/features`、必要的 `packages/ui`；共享组件不得 import electron/next，桌宠代码不触碰
   - verify: features unit tests、`V25-UI-SPEC.md` 状态矩阵和 testid 对照通过；主要 v2.1 动作均有可发现入口。当前主路径和定向 Web/Electron E2E 已通过，History 列表行已补已知 `costPoints` 展示且未知成本保持隐藏，Workbench 时间线已恢复内容尺寸变化后的贴底跟随且用户离底不抢位；但首次启动引导、部分历史/生成 parity、费用审批、移动键盘和若干详情/批量动作仍缺

@@ -647,6 +647,58 @@ describe('SchemesScreen 详情页', () => {
     expect(onDetailBack).toHaveBeenCalledTimes(1);
   });
 
+  it('正式方案详情常驻「在 Composer 中修改」并沿用 summary', async () => {
+    const actions = actionsWithSpies();
+    const formalSummary = makeSummary({
+      status: 'formal',
+      hasSuccessfulTrial: true,
+      coverAssetId: 'asset-1',
+    });
+    renderScreen(
+      {
+        schemes: [formalSummary],
+        documents: { 'rev-1': makeDocument() },
+        assets: { 'scheme-1': [makeAsset({ id: 'asset-1' })] },
+      },
+      { actions },
+    );
+
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await openDetailFromList('scheme-1');
+
+    const modifyButton = screen.getByTestId('runtime-scheme-modify');
+    expect(modifyButton.textContent).toContain('在 Composer 中修改');
+    await user.click(modifyButton);
+    expect(actions.onModifyScheme).toHaveBeenCalledTimes(1);
+    expect(actions.onModifyScheme).toHaveBeenCalledWith(formalSummary);
+    expect(screen.getByTestId('runtime-scheme-menu')).toBeTruthy();
+  });
+
+  it('正式方案无修改接缝时常驻按钮禁用并解释原因', async () => {
+    const actions: DesignSchemesActions = { onRunScheme: vi.fn() };
+    renderScreen(
+      {
+        schemes: [
+          makeSummary({
+            status: 'formal',
+            hasSuccessfulTrial: true,
+            coverAssetId: 'asset-1',
+          }),
+        ],
+        documents: { 'rev-1': makeDocument() },
+        assets: { 'scheme-1': [makeAsset({ id: 'asset-1' })] },
+      },
+      { actions },
+    );
+
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await openDetailFromList('scheme-1');
+
+    const modifyButton = screen.getByTestId('runtime-scheme-modify');
+    expect(modifyButton.hasAttribute('disabled')).toBe(true);
+    expect(modifyButton.getAttribute('title')).toBe('当前环境暂未接入方案修改');
+  });
+
   it('详情删除成功通知宿主并回列表', async () => {
     const onDetailRemoved = vi.fn();
     const { designSchemes } = renderScreen(detailSeed, {

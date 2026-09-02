@@ -20,7 +20,7 @@
 
 ## 测试与验证
 - [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出。Design Scheme 本地历史来源闭环由 contracts、source-ingestion、domain 3 个定向文件覆盖，共 87 tests passed；真实 Web/cloud/Agent/Electron 成功路径仍未宣称完成
-- [x] Web 桌面/移动与 Electron 已验证 shell/workbench/prompts/settings/sync 关键路径；Design Scheme Web deep-link 的打开、返回、删除 query 生命周期和非法参数清理已有 22 个 Web host tests；本轮 `@musefold/features` 共 23 个文件、281 个测试通过，覆盖 History 成本展示、时间线内容尺寸变化贴底与用户离底不抢位；移动 Workbench 完成态视觉基线已刷新并连续复核通过；原生 macOS fullscreen 被 runner 前台焦点阻塞
+- [x] Web 桌面/移动与 Electron 已验证 shell/workbench/prompts/settings/sync 关键路径；Design Scheme Web deep-link 的打开、返回、删除 query 生命周期和非法参数清理已有 22 个 Web host tests；本轮 `@musefold/features` 共 23 个文件、283 个测试通过，覆盖 Design Scheme 正式详情常驻修改入口、History 成本展示、时间线内容尺寸变化贴底与用户离底不抢位；移动 Workbench 完成态视觉基线已刷新并连续复核通过；原生 macOS fullscreen 被 runner 前台焦点阻塞
 
 ## 文档同步
 - [x] 受影响的 v2.5 台账、UI 规范差异和证据边界已更新；未登记的历史数字未被冒充当前通过
@@ -42,7 +42,7 @@
 
 ## 分支与多代理治理
 - [x] 当前位于 `spec/2026-09-01_migrate-v21-to-v25` integration branch
-- [x] 本包执行与验收均在该分支进行，未提交、未推送、未覆盖既有 dirty worktree
+- [x] 本包执行与验收均在该分支进行，已建立不推送 checkpoint，未覆盖既有 dirty worktree
 - [x] sidecar ownership、non-targets、verify 和主线程合流门禁已记录在 `spec.md` 编排策略
 
 ## 编排治理

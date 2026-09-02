@@ -1,10 +1,7 @@
 'use client';
 
 import type { DesignSchemeRevisionDocument } from '@musefold/contracts';
-import {
-  DESIGN_SCHEME_DOCUMENT_VERSION,
-  DESIGN_SCHEME_PACKAGE_FORMAT_VERSION,
-} from '@musefold/contracts';
+import { DESIGN_SCHEME_PACKAGE_FORMAT_VERSION } from '@musefold/contracts';
 import { Button } from '@musefold/ui/components/button';
 import {
   DropdownMenu,
@@ -477,6 +474,19 @@ export function SchemeDetailView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {!isDraft ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-8 gap-1.5"
+                disabled={modifyDisabledReason != null}
+                title={modifyDisabledReason ?? undefined}
+                onClick={() => actions.onModifyScheme?.(summary)}
+                data-testid="runtime-scheme-modify"
+              >
+                <Pencil className="size-3.5" aria-hidden />在 Composer 中修改
+              </Button>
+            ) : null}
             {isDraft ? (
               <Button
                 variant="outline"
