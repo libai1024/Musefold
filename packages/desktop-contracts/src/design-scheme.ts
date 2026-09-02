@@ -77,6 +77,8 @@ export interface DesignSchemeSummary {
   /** 例如 "LiamGvchi/gc-minimal-zine-poster" 或 "Musefold 创建"。 */
   sourceLabel: string;
   currentRevisionId: string;
+  /** 乐观锁版本；每次方案元数据写入递增，revision 本身仍不可变。 */
+  version: number;
   /** 正式方案的待验证新版本（修改/上游更新产生）；null 表示没有（规范 §2.2）。 */
   workingDraftRevisionId: string | null;
   /** 需要提供的输入标签（含必填标记由 UI 处理）。 */
@@ -151,6 +153,8 @@ export interface StartDesignSchemeRunRequest {
   brief: string;
   /** 文本槽位值：slotId → 用户填写内容。 */
   inputValues: Record<string, string>;
+  /** Canonical adapter may reserve the immutable local run id before execution. */
+  runId?: string;
   generation: DesignSchemeRunPlan;
   /**
    * 有限修复链（开发规范 §5.5）：按上一次质量门建议重跑一次。

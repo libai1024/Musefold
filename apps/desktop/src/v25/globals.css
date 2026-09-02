@@ -12,3 +12,42 @@
 [data-testid='app-sidebar'] :is(button, a, input, [role='button']) {
   -webkit-app-region: no-drag;
 }
+
+/*
+ * 收起态占位轨(ui-parity 01 §4-3):承旧顶栏 drag 语义,侧栏收起后窗口仍可经左轨拖拽。
+ * 拖宽手柄骑在侧栏与拖拽区接缝上,必须显式 no-drag 才能收到指针事件。
+ */
+[data-testid='sidebar-expand-rail'] {
+  -webkit-app-region: drag;
+}
+[data-testid='sidebar-expand-rail'] :is(button, a, input, [role='button']) {
+  -webkit-app-region: no-drag;
+}
+[data-testid='sidebar-resize-handle'] {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * 自绘窗口控件(Win/Linux,window-controls.tsx):整层 no-drag——
+ * 控件浮在内容区右上角之上,内容区将来接顶部拖拽带时按钮仍必须可点。
+ */
+[data-testid='window-controls'],
+[data-testid='window-controls'] button {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * Portal 浮层豁免:菜单/选择器/右键菜单经 Radix portal 渲染到 body,
+ * 叠在侧栏拖拽区上方时(如左下角账号上拉菜单、会话右键菜单),
+ * 真实鼠标点击会被 Electron 当成窗口拖拽吞掉——必须整层 no-drag。
+ * 合成事件(Playwright/CDP)绕过窗口拖拽层,e2e 测不出此缺陷。
+ */
+[data-radix-popper-content-wrapper],
+[data-slot='dialog-overlay'],
+[data-slot='dialog-content'],
+[data-slot='alert-dialog-overlay'],
+[data-slot='alert-dialog-content'],
+[data-slot='sheet-overlay'],
+[data-slot='sheet-content'] {
+  -webkit-app-region: no-drag;
+}

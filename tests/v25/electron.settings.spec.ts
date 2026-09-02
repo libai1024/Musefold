@@ -6,6 +6,42 @@ let app: ElectronApplication;
 let page: Page;
 let userDataDir: string;
 
+function seedArchivedSessions(dbPath: string): void {
+  const db = new Database(dbPath);
+  const now = Date.now();
+  const insertSession = db.prepare(
+    `INSERT INTO workbench_sessions
+       (id, title, created_at, updated_at, archived_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, NULL)`,
+  );
+  insertSession.run('e2e-archive-restore', '待恢复归档', now - 10_000, now - 5_000, now - 5_000);
+  insertSession.run('e2e-archive-delete', '待删除归档', now - 20_000, now - 15_000, now - 15_000);
+
+  db.prepare(
+    `INSERT INTO generation_runs (
+       id, run_kind, workbench_session_id, parent_run_id, provider_id, model,
+       user_prompt, base_prompt, final_prompt, negative_prompt,
+       params_json, prompt_snapshot_json, status, error_code, error_message,
+       created_at, started_at, finished_at, deleted_at
+     ) VALUES (
+       ?, 'free_generation', ?, NULL, 'e2e-provider', 'e2e-model',
+       ?, ?, ?, NULL,
+       '{}', '{}', 'success', NULL, NULL,
+       ?, ?, ?, NULL
+     )`,
+  ).run(
+    'e2e-archive-retained-run',
+    'e2e-archive-delete',
+    '归档后仍保留的生成',
+    '归档后仍保留的生成',
+    '归档后仍保留的生成',
+    now - 12_000,
+    now - 11_000,
+    now - 10_000,
+  );
+  db.close();
+}
+
 test.beforeAll(async () => {
   ({ app, userDataDir } = await launchV25App('musefold-v25-e2e-'));
   page = await v25ShellPage(app);
@@ -99,13 +135,13 @@ test('AI 连接:新建 → 密钥落安全存储 → 设为默认 → 删除,全
   expect(rows).toEqual([{ name: '测试网关', is_active: 1 }]);
 });
 
-test('云同步卡:未登录时开关禁用,经 IPC 桥返回未开启态', async () => {
+test('云同步卡:未登录时仅提示登录,不提供同步动作', async () => {
   const card = page.getByTestId('settings-sync-card');
   await card.scrollIntoViewIfNeeded();
   await expect(card).toBeVisible();
   await expect(card.getByText('同步未开启')).toBeVisible();
-  await expect(page.getByTestId('sync-subtitle')).toHaveText('登录账号后可开启');
-  await expect(page.getByTestId('sync-toggle')).toBeDisabled();
+  await expect(page.getByTestId('sync-subtitle')).toHaveText('登录账号后可开启云同步');
+  await expect(card.getByRole('button')).toHaveCount(0);
 });
 
 test('主题切换经主进程持久化并生效', async () => {
@@ -144,6 +180,52 @@ test('动效三档经主进程持久化并真实作用到根节点', async () =>
 test('桌面设置页视觉基线(浅色)', async () => {
   await expect(page.getByTestId('settings-account-signed-out')).toBeVisible();
   await expect(page).toHaveScreenshot('desktop-settings-light.png');
+});
+
+test('归档闭环:恢复清 archived_at,删除写 deleted_at 且 generation run 保留', async () => {
+  seedArchivedSessions(desktopDbPath(userDataDir));
+  await page.reload();
+  await page.getByTestId('nav-settings').click();
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+
+  await page.getByTestId('archived-toggle').click();
+  await expect(page.getByTestId('archived-session-e2e-archive-restore')).toBeVisible();
+  await expect(page.getByTestId('archived-session-e2e-archive-delete')).toBeVisible();
+
+  await page.getByTestId('archived-restore-e2e-archive-restore').click();
+  await expect(page.getByTestId('archived-session-e2e-archive-restore')).toBeHidden();
+
+  const db = new Database(desktopDbPath(userDataDir));
+  const restored = db
+    .prepare('SELECT archived_at, deleted_at FROM workbench_sessions WHERE id = ?')
+    .get('e2e-archive-restore') as { archived_at: number | null; deleted_at: number | null };
+  db.close();
+  expect(restored).toEqual({ archived_at: null, deleted_at: null });
+  await expect(page.getByTestId('session-panel').getByText('待恢复归档')).toBeVisible();
+
+  await page.getByTestId('archived-remove-e2e-archive-delete').click();
+  await expect(page.getByTestId('archived-remove-confirm')).toBeVisible();
+  await page.getByTestId('archived-remove-confirm').click();
+  await expect(page.getByTestId('archived-session-e2e-archive-delete')).toBeHidden();
+
+  const dbAfterDelete = new Database(desktopDbPath(userDataDir));
+  const deleted = dbAfterDelete
+    .prepare('SELECT archived_at, deleted_at FROM workbench_sessions WHERE id = ?')
+    .get('e2e-archive-delete') as { archived_at: number | null; deleted_at: number | null };
+  const retainedRun = dbAfterDelete
+    .prepare('SELECT workbench_session_id, deleted_at FROM generation_runs WHERE id = ?')
+    .get('e2e-archive-retained-run') as {
+    workbench_session_id: string | null;
+    deleted_at: number | null;
+  };
+  dbAfterDelete.close();
+  expect(deleted.archived_at).not.toBeNull();
+  expect(deleted.deleted_at).not.toBeNull();
+  expect(retainedRun).toEqual({ workbench_session_id: 'e2e-archive-delete', deleted_at: null });
+
+  await page.getByTestId('nav-history').click();
+  await expect(page.getByTestId('history')).toBeVisible();
+  await expect(page.getByTestId('history-row')).toContainText('归档后仍保留的生成');
 });
 
 test('桌面设置页视觉基线(深色)', async () => {

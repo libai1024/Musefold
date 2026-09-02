@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { ulid } from 'ulid';
+import type { ResolvedPromptReferenceSnapshot } from '@musefold/contracts';
 import type {
   EnsureWorkbenchSessionCommand,
   GeneratedAsset,
@@ -15,6 +16,79 @@ import type {
 } from '@musefold/desktop-contracts/workbench';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
+
+type PersistedPromptSnapshot = Omit<PromptSnapshot, 'promptReferences'> & {
+  promptReferences?: StoredPromptReference[];
+};
+
+type StoredPromptReference =
+  | ResolvedPromptReferenceSnapshot
+  | {
+      promptId: string | null;
+      title: string;
+      excerpt: string;
+      scope: 'full' | 'excerpt';
+    };
+
+function parseStoredPromptSnapshot(
+  raw: string | null | undefined,
+  fallback: PersistedPromptSnapshot,
+): PersistedPromptSnapshot {
+  const parsed = parseJsonColumn<unknown>(raw, null);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return fallback;
+  const value = parsed as Record<string, unknown>;
+  const references = Array.isArray(value.promptReferences)
+    ? value.promptReferences.flatMap((reference): StoredPromptReference[] => {
+        if (!reference || typeof reference !== 'object' || Array.isArray(reference)) return [];
+        const candidate = reference as Record<string, unknown>;
+        const promptId =
+          typeof candidate.promptId === 'string'
+            ? candidate.promptId
+            : candidate.promptId === null
+              ? null
+              : null;
+        const title = typeof candidate.title === 'string' ? candidate.title : '';
+        const scope =
+          candidate.scope === 'full' || candidate.scope === 'excerpt' ? candidate.scope : null;
+        if (!title || !scope) return [];
+        if (
+          typeof candidate.text === 'string' &&
+          typeof candidate.sourceVersion === 'number' &&
+          Number.isInteger(candidate.sourceVersion) &&
+          candidate.sourceVersion > 0
+        ) {
+          return [
+            {
+              promptId,
+              title,
+              text: candidate.text,
+              scope,
+              sourceVersion: candidate.sourceVersion,
+            },
+          ];
+        }
+        if (typeof candidate.excerpt === 'string') {
+          return [{ promptId, title, excerpt: candidate.excerpt, scope }];
+        }
+        return [];
+      })
+    : [];
+  return {
+    schemaVersion: value.schemaVersion === 1 ? 1 : fallback.schemaVersion,
+    userPrompt: typeof value.userPrompt === 'string' ? value.userPrompt : fallback.userPrompt,
+    basePrompt: typeof value.basePrompt === 'string' ? value.basePrompt : fallback.basePrompt,
+    refinementInstruction:
+      typeof value.refinementInstruction === 'string' || value.refinementInstruction === null
+        ? value.refinementInstruction
+        : fallback.refinementInstruction,
+    finalPrompt: typeof value.finalPrompt === 'string' ? value.finalPrompt : fallback.finalPrompt,
+    negativePrompt:
+      typeof value.negativePrompt === 'string' || value.negativePrompt === null
+        ? value.negativePrompt
+        : fallback.negativePrompt,
+    ...(references.length > 0 ? { promptReferences: references } : {}),
+  };
+}
 
 type RunRow = {
   id: string;
@@ -105,7 +179,7 @@ export interface CompleteGenerationRunInput {
 }
 
 function rowToRun(row: RunRow): GenerationRun {
-  const fallback: PromptSnapshot = {
+  const fallback: PersistedPromptSnapshot = {
     schemaVersion: 1,
     userPrompt: row.user_prompt,
     basePrompt: row.base_prompt,
@@ -113,6 +187,7 @@ function rowToRun(row: RunRow): GenerationRun {
     finalPrompt: row.final_prompt,
     negativePrompt: row.negative_prompt,
   };
+  const promptSnapshot = parseStoredPromptSnapshot(row.prompt_snapshot_json, fallback);
   return {
     id: row.id,
     runKind: row.run_kind,
@@ -132,7 +207,7 @@ function rowToRun(row: RunRow): GenerationRun {
     finalPrompt: row.final_prompt,
     negativePrompt: row.negative_prompt,
     params: parseJsonColumn(row.params_json, { schemaVersion: 1 }),
-    promptSnapshot: parseJsonColumn(row.prompt_snapshot_json, fallback),
+    promptSnapshot: promptSnapshot as PromptSnapshot,
     status: row.status,
     errorCode: row.error_code,
     errorMessage: row.error_message,
@@ -292,12 +367,20 @@ export class WorkbenchRepository {
       runs: runs.map((run) => ({
         run,
         assets: assets.filter((asset) => asset.run_id === run.id).map(rowToAsset),
-        promptReferences: (run.promptSnapshot.promptReferences ?? []).map((reference) => ({
-          promptId: reference.promptId ?? '',
-          title: reference.title,
-          text: reference.excerpt,
-          scope: reference.scope,
-        })),
+        promptReferences: (run.promptSnapshot.promptReferences ?? []).flatMap((reference) => {
+          const value = reference as StoredPromptReference;
+          const text = 'text' in value ? value.text : value.excerpt;
+          return text
+            ? [
+                {
+                  promptId: value.promptId ?? '',
+                  title: value.title,
+                  text,
+                  scope: value.scope,
+                },
+              ]
+            : [];
+        }),
       })),
     };
   }
@@ -386,43 +469,30 @@ export class GenerationRunRepository {
   }
 
   start(id: string, requestId?: string | null, startedAt = Date.now()): GenerationRun {
-    this.db
+    const result = this.db
       .prepare(
-        `UPDATE generation_runs SET status = 'running', request_id = ?, started_at = ? WHERE id = ? AND status = 'queued'`,
+        `UPDATE generation_runs
+         SET status = 'running', request_id = ?, started_at = ?
+         WHERE id = ? AND status = 'queued'`,
       )
       .run(requestId ?? null, startedAt, id);
-    return this.get(id)!;
+    // A run may have been cancelled (or started) concurrently. Never overwrite
+    // the winner; the current row is the authoritative result of the transition.
+    if (result.changes !== 1) return this.getRequired(id);
+    return this.getRequired(id);
   }
 
   complete(id: string, input: CompleteGenerationRunInput): GenerationRun {
     const finishedAt = input.finishedAt ?? Date.now();
-    this.db.transaction(() => {
-      input.assets.forEach((asset, position) => {
-        this.db
-          .prepare(
-            `INSERT INTO generated_assets
-            (id, run_id, position, status, media_path, mime_type, width, height, file_size, checksum, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            asset.id ?? (position === 0 ? id : `${id}-${position + 1}`),
-            id,
-            asset.position ?? position,
-            asset.status ?? 'available',
-            asset.mediaPath,
-            asset.mimeType ?? null,
-            asset.width ?? null,
-            asset.height ?? null,
-            asset.fileSize ?? null,
-            asset.checksum ?? null,
-            asset.createdAt ?? finishedAt,
-          );
-      });
-      this.db
+    return this.db.transaction(() => {
+      // Transition first, so assets can only be inserted for a run that won
+      // running -> success. A late provider response therefore has no write path.
+      const result = this.db
         .prepare(
-          `UPDATE generation_runs SET status = 'success', actual_cost = ?, duration_ms = ?, finished_at = ?,
-           params_json = COALESCE(?, params_json)
-         WHERE id = ?`,
+          `UPDATE generation_runs
+           SET status = 'success', actual_cost = ?, duration_ms = ?, finished_at = ?,
+               params_json = COALESCE(?, params_json)
+           WHERE id = ? AND status = 'running'`,
         )
         .run(
           input.actualCost ?? null,
@@ -431,8 +501,30 @@ export class GenerationRunRepository {
           input.params ? JSON.stringify(input.params) : null,
           id,
         );
+      if (result.changes !== 1) return this.getRequired(id);
+
+      const insertAsset = this.db.prepare(
+        `INSERT INTO generated_assets
+          (id, run_id, position, status, media_path, mime_type, width, height, file_size, checksum, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      input.assets.forEach((asset, position) => {
+        insertAsset.run(
+          asset.id ?? (position === 0 ? id : `${id}-${position + 1}`),
+          id,
+          asset.position ?? position,
+          asset.status ?? 'available',
+          asset.mediaPath,
+          asset.mimeType ?? null,
+          asset.width ?? null,
+          asset.height ?? null,
+          asset.fileSize ?? null,
+          asset.checksum ?? null,
+          asset.createdAt ?? finishedAt,
+        );
+      });
+      return this.getRequired(id);
     })();
-    return this.get(id)!;
   }
 
   fail(
@@ -441,19 +533,33 @@ export class GenerationRunRepository {
     errorMessage: string,
     finishedAt = Date.now(),
   ): GenerationRun {
-    this.db
+    const result = this.db
       .prepare(
-        `UPDATE generation_runs SET status = 'failed', error_code = ?, error_message = ?, finished_at = ? WHERE id = ?`,
+        `UPDATE generation_runs
+         SET status = 'failed', error_code = ?, error_message = ?, finished_at = ?
+         WHERE id = ? AND status IN ('queued', 'running')`,
       )
       .run(errorCode, errorMessage, finishedAt, id);
-    return this.get(id)!;
+    if (result.changes !== 1) return this.getRequired(id);
+    return this.getRequired(id);
   }
 
   cancel(id: string, finishedAt = Date.now()): GenerationRun {
-    this.db
-      .prepare(`UPDATE generation_runs SET status = 'cancelled', finished_at = ? WHERE id = ?`)
+    const result = this.db
+      .prepare(
+        `UPDATE generation_runs
+         SET status = 'cancelled', error_code = NULL, error_message = NULL, finished_at = ?
+         WHERE id = ? AND status IN ('queued', 'running')`,
+      )
       .run(finishedAt, id);
-    return this.get(id)!;
+    if (result.changes !== 1) return this.getRequired(id);
+    return this.getRequired(id);
+  }
+
+  private getRequired(id: string): GenerationRun {
+    const run = this.get(id);
+    if (!run) throw new Error(`生成运行不存在: ${id}`);
+    return run;
   }
 
   softDelete(ids: string[], deletedAt = Date.now()): number {

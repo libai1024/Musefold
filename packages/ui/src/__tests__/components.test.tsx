@@ -11,6 +11,7 @@ import { Kbd } from '../components/kbd';
 import { Label } from '../components/label';
 import { Separator } from '../components/separator';
 import { Skeleton } from '../components/skeleton';
+import { defaultToastPosition } from '../components/sonner';
 import { cn } from '../lib/utils';
 
 describe('@musefold/ui shadcn components', () => {
@@ -82,6 +83,11 @@ describe('@musefold/ui shadcn components', () => {
     expect(html).toContain('Musefold / 未像');
     expect(html).toContain('var(--primary)');
     expect(html).toContain('viewBox="0 0 100 100"');
+  });
+
+  it('places global toasts at desktop top-right and mobile top-center', () => {
+    expect(defaultToastPosition(false)).toBe('top-right');
+    expect(defaultToastPosition(true)).toBe('top-center');
   });
 
   it('cn merges tailwind classes with later value winning', () => {

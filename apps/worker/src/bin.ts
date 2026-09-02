@@ -20,7 +20,7 @@ const runner = await run({
   pgPool: pool,
   concurrency: env.WORKER_CONCURRENCY,
   taskList: createTaskList({ db, env, s3 }),
-  crontab: ['* * * * * generation.reconcile', '0 4 * * * maintenance.cleanup'].join('\n'),
+  crontab: ['* * * * * generation.reconcile', '17 * * * * maintenance.cleanup'].join('\n'),
 });
 
 console.log('[worker] generation worker started');

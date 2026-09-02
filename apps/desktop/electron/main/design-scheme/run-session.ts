@@ -28,12 +28,17 @@ import type {
 } from '@musefold/desktop-contracts/providers';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { buildRepairHint, evaluateSchemeRun } from './evaluation';
+import { probeImageAssetMetadata } from './source-ingestion';
 import { generate as runProviderGeneration } from '../generation-facade';
 
 export interface RunSessionDeps {
   db: Database.Database;
+  /** Primary desktop database used by the shared generation ledger. */
+  coreDb?: Database.Database;
   emit: (event: DesignSchemeCreationEvent) => void;
   sendProgress: (progress: ImageGenerationProgress) => void;
+  /** Keep the run in evaluating until a host adapter validates its canonical result. */
+  deferTerminalStatus?: boolean;
   signal: AbortSignal;
 }
 
@@ -67,7 +72,7 @@ export async function runDesignScheme(
     return prepared;
   }
   const { document, schemeName } = prepared.data;
-  const runId = `dsr_${ulid()}`;
+  const runId = request.runId ?? `dsr_${ulid()}`;
   const modeLabel = request.mode === 'trial' ? '试运行' : '正式运行';
   // 每次运行保存当时的优先级快照（设计规范 §4.3）；缺省按「方案主导」。
   const priorityMode = request.priorityMode ?? 'scheme_first';
@@ -217,11 +222,22 @@ export async function runDesignScheme(
       n: 1,
       workbench: template.workbench ? { ...template.workbench, resultIndex } : undefined,
     };
-    const result = await runProviderGeneration(generateRequest, deps.sendProgress);
+    const result = await runProviderGeneration(generateRequest, deps.sendProgress, {
+      ...(deps.coreDb ? { db: deps.coreDb } : {}),
+      promptAlreadyComposed: true,
+      userPrompt: request.brief,
+      signal: deps.signal,
+    });
     const outcome: DesignSchemeRunGeneration = { jobId, resultIndex, result };
     if (request.mode === 'trial' && result.status === 'success' && result.imagePath) {
       // 首次成功试运行结果自动加入草稿相册（UI 规范 §5.2）；失败结果不进入相册。
-      outcome.assetId = repository.insertLocalRunAsset(request.revisionId, result.imagePath);
+      // v6：入库前对产物做真实元数据探测（stat/sha256/魔数/尺寸），
+      // 探测失败（文件已消失/无法解析）只落 storeKey，由详情读路径省略，不伪造。
+      outcome.assetId = repository.insertLocalRunAsset(
+        request.revisionId,
+        result.imagePath,
+        probeImageAssetMetadata(result.imagePath) ?? undefined,
+      );
     }
     repository.upsertRunStep(runId, `generate-${resultIndex}`, {
       status:
@@ -260,9 +276,10 @@ export async function runDesignScheme(
     repository.updateRunStatus(runId, 'evaluating');
     const outcome = evaluateSchemeRun({
       plannedCount: request.generation.jobIds.length,
-      outputs: generations
-        .filter((item) => item.result.status === 'success' && item.result.imagePath)
-        .map((item) => ({ jobId: item.jobId, imagePath: item.result.imagePath! })),
+      outputs: generations.flatMap((item) => {
+        if (item.result.status !== 'success' || !item.result.imagePath) return [];
+        return [{ jobId: item.jobId, imagePath: item.result.imagePath }];
+      }),
       ratioId: request.generation.ratioId,
     });
     // 有限修复链（§12）：只有非修复运行才给修复建议，链长固定为 1。
@@ -294,10 +311,12 @@ export async function runDesignScheme(
     });
   }
 
-  repository.updateRunStatus(
-    runId,
-    succeeded > 0 ? 'completed' : cancelled ? 'cancelled' : 'failed',
-  );
+  if (!deps.deferTerminalStatus) {
+    repository.updateRunStatus(
+      runId,
+      succeeded > 0 ? 'completed' : cancelled ? 'cancelled' : 'failed',
+    );
+  }
   upsertTrace({
     id: 'run-final',
     kind: 'system',
@@ -321,6 +340,14 @@ export async function runDesignScheme(
   });
 }
 
+export function finalizeDesignSchemeRun(
+  db: Database.Database,
+  runId: string,
+  status: 'completed' | 'blocked' | 'failed' | 'cancelled',
+): void {
+  new DesignSchemeRepository(db).finalizeRunStatus(runId, status);
+}
+
 function prepareRun(
   repository: DesignSchemeRepository,
   request: StartDesignSchemeRunRequest,
@@ -340,7 +367,7 @@ function prepareRun(
       appError('MISSING_REFERENCE', '方案版本不存在或已被删除', { recoveryAction: 'retry' }),
     );
   }
-  let summary;
+  let summary: ReturnType<DesignSchemeRepository['requireSummary']>;
   try {
     summary = repository.requireSummary(request.schemeId);
   } catch {

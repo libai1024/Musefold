@@ -50,6 +50,11 @@ export const aiProviderSchema = z.object({
   /** 密钥尾号(展示用,如「…a1b2」),无密钥为 null。 */
   keySuffix: z.string().max(12).nullable(),
   isActive: z.boolean(),
+  /**
+   * 账号托管标记(承 V05 FR-GW-01):'account' 行是登录态维护的官方生图通道,
+   * 渲染层用于把它和用户自建中转站区分开;非托管行为 null。
+   */
+  managedBy: z.enum(['account']).nullable().default(null),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

@@ -8,23 +8,50 @@ import {
   appPreferencesPatchSchema,
   appPreferencesSchema,
   defaultAppPreferences,
+  V25_METHODS_BY_DOMAIN,
 } from '@musefold/contracts';
 import { app, ipcMain } from 'electron';
-import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from 'zod';
 import { buildAccountDomainMethods } from './account-domain';
 import type { BridgeEnvelope, MethodDef } from './envelope';
 import { BridgeError } from './envelope';
+import { buildDoubaoDomainMethods } from './doubao-domain';
 import { buildPromptsDomainMethods } from './prompts-domain';
+import { buildDesignSchemesDomainMethods } from './design-scheme-domain';
 import { buildAiProvidersDomainMethods } from './providers-domain';
 import { buildSyncDomainMethods } from './sync-domain';
 import { buildWorkbenchDomainMethods } from './workbench-domain';
+import { isApplicationAdmissionOpen, trackApplicationRequest } from '../lifecycle-admission';
 
 export type { BridgeEnvelope } from './envelope';
 
 const V25_CHANNEL = 'musefold:invoke';
 const PREFERENCES_FILE = 'v25-preferences.json';
+const INTERNAL_ERROR_MESSAGE = '主进程处理失败';
+
+export function assertMethodSet(
+  label: string,
+  expectedMethods: readonly string[],
+  methods: Record<string, MethodDef>,
+): void {
+  const actual = Object.keys(methods).sort();
+  const expected = [...expectedMethods].sort();
+  if (
+    actual.length !== expected.length ||
+    actual.some((method, index) => method !== expected[index])
+  ) {
+    throw new Error(`IPC domain method set mismatch: ${label}`);
+  }
+}
+
+export function assertDomainMethods(
+  domain: keyof typeof V25_METHODS_BY_DOMAIN,
+  methods: Record<string, MethodDef>,
+): void {
+  assertMethodSet(domain, V25_METHODS_BY_DOMAIN[domain], methods);
+}
 
 function preferencesPath(): string {
   return join(app.getPath('userData'), PREFERENCES_FILE);
@@ -43,15 +70,15 @@ async function writeV25Preferences(next: AppPreferences): Promise<void> {
   await writeFile(preferencesPath(), JSON.stringify(next, null, 2), 'utf8');
 }
 
-function buildMethods(): Record<string, MethodDef> {
-  return {
+export function buildMethods(): Record<string, MethodDef> {
+  const settings = {
     'settings.getPreferences': {
       input: z.undefined().or(z.object({}).strict()),
       handle: async () => readV25Preferences(),
     },
     'settings.updatePreferences': {
       input: appPreferencesPatchSchema,
-      handle: async (patch) => {
+      handle: async (patch: unknown) => {
         const next = {
           ...(await readV25Preferences()),
           ...(patch as Partial<AppPreferences>),
@@ -60,22 +87,58 @@ function buildMethods(): Record<string, MethodDef> {
         return next;
       },
     },
-    ...buildAccountDomainMethods(),
-    ...buildAiProvidersDomainMethods(),
-    ...buildPromptsDomainMethods(),
-    ...buildSyncDomainMethods(),
-    ...buildWorkbenchDomainMethods(),
+  } satisfies Record<string, MethodDef>;
+  assertDomainMethods('settings', settings);
+  const account = buildAccountDomainMethods();
+  const sync = buildSyncDomainMethods();
+  const aiProviders = buildAiProvidersDomainMethods();
+  const doubao = buildDoubaoDomainMethods();
+  const designSchemes = buildDesignSchemesDomainMethods();
+  const prompts = buildPromptsDomainMethods();
+  const combinedWorkbench = buildWorkbenchDomainMethods();
+  const workbench = Object.fromEntries(
+    Object.entries(combinedWorkbench).filter(([method]) => method.startsWith('workbench.')),
+  );
+  const generation = Object.fromEntries(
+    Object.entries(combinedWorkbench).filter(([method]) => method.startsWith('generation.')),
+  );
+  assertDomainMethods('account', account);
+  assertDomainMethods('sync', sync);
+  assertDomainMethods('aiProviders', aiProviders);
+  assertDomainMethods('doubao', doubao);
+  assertDomainMethods('designSchemes', designSchemes);
+  assertDomainMethods('prompts', prompts);
+  assertDomainMethods('workbench', workbench);
+  assertDomainMethods('generation', generation);
+
+  return {
+    ...settings,
+    ...account,
+    ...aiProviders,
+    ...doubao,
+    ...designSchemes,
+    ...sync,
+    ...prompts,
+    ...workbench,
+    ...generation,
   };
 }
 
-export function registerV25GatewayBridge(): void {
-  const methods = buildMethods();
-
+export function registerV25GatewayBridge(
+  methods: Record<string, MethodDef> = buildMethods(),
+): void {
   ipcMain.handle(
     V25_CHANNEL,
-    async (_event, method: unknown, payload: unknown): Promise<BridgeEnvelope<unknown>> => {
+    async (event, method: unknown, payload: unknown): Promise<BridgeEnvelope<unknown>> => {
       try {
-        if (typeof method !== 'string' || !(method in methods)) {
+        if (!isApplicationAdmissionOpen()) {
+          return {
+            ok: false,
+            code: 'APP_SHUTTING_DOWN',
+            message: 'Musefold 正在退出，请稍后重试',
+          };
+        }
+        if (typeof method !== 'string' || !Object.hasOwn(methods, method)) {
           return { ok: false, code: 'METHOD_NOT_FOUND', message: `未知方法:${String(method)}` };
         }
         const def = methods[method] as MethodDef;
@@ -88,7 +151,10 @@ export function registerV25GatewayBridge(): void {
             message: first ? `${first.path.join('.') || '?'}: ${first.message}` : '入参无效',
           };
         }
-        return { ok: true, data: await def.handle(parsed.data) };
+        const data = await trackApplicationRequest(() =>
+          def.handle(parsed.data, { senderId: event.sender.id }),
+        );
+        return { ok: true, data };
       } catch (error) {
         if (error instanceof BridgeError) {
           return { ok: false, code: error.code, message: error.message };
@@ -96,7 +162,7 @@ export function registerV25GatewayBridge(): void {
         return {
           ok: false,
           code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : '主进程处理失败',
+          message: INTERNAL_ERROR_MESSAGE,
         };
       }
     },

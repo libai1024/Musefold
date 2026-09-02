@@ -1,18 +1,28 @@
 'use client';
 
 import { AccountFooter, MobileQuotaReadout } from '@musefold/features/account';
-import { AppShell as SharedAppShell, SHELL_NAV_ITEMS } from '@musefold/features/shell';
-import { NewSessionAction, SessionListPanel } from '@musefold/features/workbench';
+import { AppShell as SharedAppShell, getShellNavItems } from '@musefold/features/shell';
+import { NewSessionAction, SessionListPanel, useActiveSession } from '@musefold/features/workbench';
+import { useCapabilities } from '@musefold/platform';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { createWorkbenchHref } from '../lib/workbench-session-url';
 
 /** Web 宿主壳:骨架与视觉在 features/shell 收口,这里只接 Next 路由。 */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  // 导航目录由 runtime capability 驱动(能力关闭即无入口,不出现死页面)。
+  const capabilities = useCapabilities();
+  const navItems = getShellNavItems(capabilities);
 
-  const activeId = SHELL_NAV_ITEMS.find((item) => pathname.startsWith(`/${item.id}`))?.id ?? null;
-  const openWorkbench = () => router.push('/workbench');
+  const activeId = navItems.find((item) => pathname.startsWith(`/${item.id}`))?.id ?? null;
+  const openWorkbench = () => {
+    // 会话列表与「新设计」先更新共享指针,再由宿主带着该指针进入工作台。
+    if (pathname === '/workbench') return;
+    const { activeSessionId, draftSession } = useActiveSession.getState();
+    router.push(createWorkbenchHref(draftSession ? null : activeSessionId));
+  };
 
   if (pathname === '/ceramic-button') {
     return <>{children}</>;
@@ -21,7 +31,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <SharedAppShell
       activeId={activeId}
-      onNavigate={(id) => router.push(`/${id}`)}
+      items={navItems}
+      onNavigate={(id) => (id === 'workbench' ? openWorkbench() : router.push(`/${id}`))}
       action={<NewSessionAction onOpen={openWorkbench} />}
       sessions={<SessionListPanel onOpen={openWorkbench} />}
       footer={<AccountFooter onOpenSettings={() => router.push('/settings')} />}

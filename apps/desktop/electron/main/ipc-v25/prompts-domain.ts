@@ -32,6 +32,7 @@ import {
 } from '@musefold/contracts';
 import { getDb } from '@musefold/core/db';
 import { promptsRepo } from '@musefold/core/db/repositories/prompts';
+import { resolveLocalContentWorkspace } from '@musefold/core/db/workspaces';
 import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { NewPrompt, Prompt, Tag } from '@musefold/desktop-contracts/models';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
@@ -220,6 +221,7 @@ function usePrompt(id: string, input: PromptUseInput): PromptUseResult {
 // ---------- folders(直写 folders 表;合成 version/updatedAt) ----------
 
 interface FolderRow {
+  workspace_id: string;
   id: string;
   name: string;
   parent_id: string | null;
@@ -242,53 +244,61 @@ function folderRowToDocument(row: FolderRow): PromptFolder {
 }
 
 function getFolderRow(id: string): FolderRow {
-  const row = getDb().prepare('SELECT * FROM folders WHERE id = ?').get(id) as
-    | FolderRow
-    | undefined;
+  const workspaceId = resolveLocalContentWorkspace(getDb());
+  const row = getDb()
+    .prepare('SELECT * FROM folders WHERE workspace_id = ? AND id = ?')
+    .get(workspaceId, id) as FolderRow | undefined;
   if (!row) throw new BridgeError('NOT_FOUND', `文件夹不存在:${id}`);
   return row;
 }
 
 function listFolders(): PromptFolder[] {
+  const workspaceId = resolveLocalContentWorkspace(getDb());
   const rows = getDb()
-    .prepare('SELECT * FROM folders ORDER BY sort_order ASC, created_at ASC')
-    .all() as FolderRow[];
+    .prepare('SELECT * FROM folders WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC')
+    .all(workspaceId) as FolderRow[];
   return rows.map(folderRowToDocument);
 }
 
 function createFolder(input: NewPromptFolder): PromptFolder {
+  const db = getDb();
+  const workspaceId = resolveLocalContentWorkspace(db);
   const id = ulid();
-  getDb()
-    .prepare(
-      'INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, ?, ?, ?)',
-    )
-    .run(id, input.name, input.parentId, input.sortOrder, Date.now());
+  db.prepare(
+    'INSERT INTO folders (workspace_id, id, name, parent_id, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(workspaceId, id, input.name, input.parentId, input.sortOrder, Date.now());
   return folderRowToDocument(getFolderRow(id));
 }
 
 function updateFolder(id: string, patch: UpdatePromptFolder): PromptFolder {
+  const db = getDb();
+  const workspaceId = resolveLocalContentWorkspace(db);
   const current = getFolderRow(id);
-  getDb()
-    .prepare('UPDATE folders SET name = ?, parent_id = ?, sort_order = ? WHERE id = ?')
-    .run(
-      patch.name ?? current.name,
-      patch.parentId !== undefined ? patch.parentId : current.parent_id,
-      patch.sortOrder ?? current.sort_order,
-      id,
-    );
+  db.prepare(
+    'UPDATE folders SET name = ?, parent_id = ?, sort_order = ? WHERE workspace_id = ? AND id = ?',
+  ).run(
+    patch.name ?? current.name,
+    patch.parentId !== undefined ? patch.parentId : current.parent_id,
+    patch.sortOrder ?? current.sort_order,
+    workspaceId,
+    id,
+  );
   return folderRowToDocument(getFolderRow(id));
 }
 
 function removeFolder(id: string): PromptFolder {
+  const db = getDb();
+  const workspaceId = resolveLocalContentWorkspace(db);
   const doc = folderRowToDocument(getFolderRow(id));
   // 子文件夹随 FK CASCADE 删除;prompts.folder_id 置 NULL(归入未整理)。
-  getDb().prepare('DELETE FROM folders WHERE id = ?').run(id);
+  db.prepare('DELETE FROM folders WHERE workspace_id = ? AND id = ?').run(workspaceId, id);
   return { ...doc, deletedAt: epochMsToIso(Date.now()) };
 }
 
 // ---------- tags(直写 tags 表) ----------
 
 interface TagRow {
+  workspace_id: string;
   id: string;
   name: string;
   tag_group: string | null;
@@ -307,41 +317,54 @@ function tagTableRowToDocument(row: TagRow): PromptTag {
 }
 
 function getTagRow(id: string): TagRow {
-  const row = getDb().prepare('SELECT * FROM tags WHERE id = ?').get(id) as TagRow | undefined;
+  const workspaceId = resolveLocalContentWorkspace(getDb());
+  const row = getDb()
+    .prepare('SELECT * FROM tags WHERE workspace_id = ? AND id = ?')
+    .get(workspaceId, id) as TagRow | undefined;
   if (!row) throw new BridgeError('NOT_FOUND', `标签不存在:${id}`);
   return row;
 }
 
 function listTags(): PromptTag[] {
-  const rows = getDb().prepare('SELECT * FROM tags ORDER BY name ASC').all() as TagRow[];
+  const workspaceId = resolveLocalContentWorkspace(getDb());
+  const rows = getDb()
+    .prepare('SELECT * FROM tags WHERE workspace_id = ? ORDER BY name ASC')
+    .all(workspaceId) as TagRow[];
   return rows.map(tagTableRowToDocument);
 }
 
 function createTag(input: NewPromptTag): PromptTag {
+  const db = getDb();
+  const workspaceId = resolveLocalContentWorkspace(db);
   const id = ulid();
-  getDb()
-    .prepare('INSERT INTO tags (id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, input.name, input.group, input.color, Date.now());
+  db.prepare(
+    'INSERT INTO tags (workspace_id, id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(workspaceId, id, input.name, input.group, input.color, Date.now());
   return tagTableRowToDocument(getTagRow(id));
 }
 
 function updateTag(id: string, patch: UpdatePromptTag): PromptTag {
+  const db = getDb();
+  const workspaceId = resolveLocalContentWorkspace(db);
   const current = getTagRow(id);
-  getDb()
-    .prepare('UPDATE tags SET name = ?, tag_group = ?, color = ? WHERE id = ?')
-    .run(
-      patch.name ?? current.name,
-      patch.group !== undefined ? patch.group : current.tag_group,
-      patch.color !== undefined ? patch.color : current.color,
-      id,
-    );
+  db.prepare(
+    'UPDATE tags SET name = ?, tag_group = ?, color = ? WHERE workspace_id = ? AND id = ?',
+  ).run(
+    patch.name ?? current.name,
+    patch.group !== undefined ? patch.group : current.tag_group,
+    patch.color !== undefined ? patch.color : current.color,
+    workspaceId,
+    id,
+  );
   return tagTableRowToDocument(getTagRow(id));
 }
 
 function removeTag(id: string): PromptTag {
+  const db = getDb();
+  const workspaceId = resolveLocalContentWorkspace(db);
   const doc = tagTableRowToDocument(getTagRow(id));
   // prompt_tags 随 FK CASCADE 清理。
-  getDb().prepare('DELETE FROM tags WHERE id = ?').run(id);
+  db.prepare('DELETE FROM tags WHERE workspace_id = ? AND id = ?').run(workspaceId, id);
   return { ...doc, deletedAt: epochMsToIso(Date.now()) };
 }
 

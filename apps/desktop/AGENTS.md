@@ -8,7 +8,7 @@ Electron 43 应用。渲染层规范以 `docs/v2.5/V25-UI-SPEC.md` 为准,本文
 electron/main/            应用编排(application.ts)、v25 单通道桥(ipc-v25/ 按域分文件)、
                           遗留装配(ipc/index.ts:updater + pet + doubao 登录同步)、
                           automation 全家(CLI/MCP/Automation API 的宿主侧)、design-scheme、skill-import
-electron/preload/v25.ts   主窗口唯一 preload:单通道纯转发(musefold:invoke),不 import electron 之外任何模块
+electron/preload/v25.ts   主窗口唯一 preload:数据域经 `musefold:invoke` 单通道纯转发;另可暴露窗口宿主信号(只读查询/事件)与窗口生命周期动作(minimize/maximizeToggle/close),不 import electron 之外任何模块
 electron/preload/index.ts 桌宠窗口专用 preload(pet.* + updater.notifyContentReady)
 electron/update/          electron-updater 封装 + 内容热更(Ed25519,基于 packages/update-protocol)
 electron/{ai,security,settings,system,doubao-web}/  按域的主进程模块
@@ -28,7 +28,7 @@ src/pet/                  桌宠窗口(冻结面,独立 renderer 入口,不与 v
 4. **Web 对等**:同一 gateway 方法在 `packages/api-client` 有 HTTP 实现;两端行为必须等价(features 是同一份)。
 5. **测试**:域方法表就地 `__tests__/`;跨进程行为跑 Electron E2E(`tests/v25/electron.*.spec.ts`)。
 
-规则:错误走 `BridgeError`(结构化信封),不靠异常序列化;preload 永远只做转发;不要绕开桥另开通道——遗留多通道面(updater/pet)是冻结清单,不加新成员。
+规则:数据域错误走 `BridgeError`(结构化信封),不靠异常序列化;preload 对数据域永远只做转发。窗口全屏/最大化等只读宿主信号与最小化/最大化切换/关闭等窗口生命周期动作可走独立的受控通道(查询/事件/动作,Win/Linux 自绘控件即经此接线),不进入 `musefold:invoke` 方法表,不得扩展为业务或数据通道;遗留多通道面(updater/pet)是冻结清单,不加新成员。
 
 ## SQLite 迁移流程(packages/desktop-db,Drizzle 受管)
 
@@ -54,5 +54,6 @@ Playwright 驱动真实 Electron:`tests/v25/electron.*.spec.ts`。跑法:先 `pn
 ## 冻结面与暂缓域(保持现状,不顺手改)
 
 - **桌宠**(`src/pet` + `electron/main/pet/` + 桌宠专用 preload):冻结,不迁移不重构。
-- **暂缓域**(主进程语义保留、渲染层暂缓,后续排卡):design-scheme、skill-runtime 对话、分享/导入、豆包登录管理、热更控制面。服务函数由 automation 直连,删除即破坏 Agent 对外能力。
+- **设计方案**:已纳入 v2.1→v2.5 迁移;复用 `electron/main/design-scheme/` 与 automation 语义,数据域经 v25 单通道桥接,专用 `.musefold.design` 导入/导出随本域迁移。
+- **暂缓域**(主进程语义保留、渲染层暂缓,后续排卡):skill-runtime 对话、通用分享/导入、豆包登录管理、热更控制面。服务函数由 automation 直连,删除即破坏 Agent 对外能力。
 - doubao-web/browser-service 是已知巨型文件(3000 行门禁内);`updater` 行为改动必须有对应单测(FakeUpdater 注入模式)。

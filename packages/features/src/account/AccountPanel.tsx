@@ -44,13 +44,30 @@ function AuthForm() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // 确认密码是纯 UI 态:只用于提交前比对,绝不进 gateway payload / cache / 日志。
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
   const login = useLogin();
   const register = useRegister();
   const active = mode === 'login' ? login : register;
+  const authPending = login.isPending || register.isPending;
+
+  const switchMode = () => {
+    if (authPending) return;
+    setMode(mode === 'login' ? 'register' : 'login');
+    setConfirmPassword('');
+    setPasswordMismatch(false);
+  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!username.trim() || !password) return;
+    // 密码按原始字符串精确比较(不 trim);提交路径(按钮点击与 Enter 隐式提交)
+    // 统一走这里再校验一次,可提交状态不作为唯一拦截。
+    if (mode === 'register' && password !== confirmPassword) {
+      setPasswordMismatch(true);
+      return;
+    }
     active.mutate({ username: username.trim(), password });
   };
 
@@ -74,9 +91,42 @@ function AuthForm() {
           type="password"
           autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={passwordMismatch || undefined}
+          aria-describedby={passwordMismatch ? 'account-password-mismatch' : undefined}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setPasswordMismatch(false);
+          }}
         />
       </div>
+      {mode === 'register' && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="account-confirm-password">确认密码</Label>
+          <Input
+            id="account-confirm-password"
+            data-testid="account-confirm-password"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            aria-invalid={passwordMismatch || undefined}
+            aria-describedby={passwordMismatch ? 'account-password-mismatch' : undefined}
+            onChange={(event) => {
+              setConfirmPassword(event.target.value);
+              setPasswordMismatch(false);
+            }}
+          />
+        </div>
+      )}
+      {passwordMismatch && (
+        <p
+          id="account-password-mismatch"
+          className="text-destructive text-sm"
+          data-testid="account-password-mismatch"
+          role="alert"
+        >
+          两次输入的密码不一致
+        </p>
+      )}
       {active.isError && (
         <p className="text-destructive text-sm" data-testid="account-auth-error">
           {errorMessage(active.error)}
@@ -87,7 +137,8 @@ function AuthForm() {
           type="button"
           variant="link"
           className="h-auto p-0 text-muted-foreground text-xs"
-          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+          onClick={switchMode}
+          disabled={authPending}
         >
           {mode === 'login' ? '没有账号?注册' : '已有账号?登录'}
         </Button>

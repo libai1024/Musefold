@@ -13,16 +13,30 @@ export interface V25App {
   userDataDir: string;
 }
 
+export interface LaunchV25AppOptions {
+  reuseUserDataDir?: string;
+  /** 单个 E2E 可注入回环服务地址等测试环境;隔离开关与 userData 仍由 helper 强制设置。 */
+  env?: Record<string, string | undefined>;
+}
+
 /** 启动 v2.5 壳。传 reuseUserDataDir 可复用上次目录(重启持久化类用例)。 */
-export async function launchV25App(prefix: string, reuseUserDataDir?: string): Promise<V25App> {
+export async function launchV25App(
+  prefix: string,
+  reuseOrOptions?: string | LaunchV25AppOptions,
+): Promise<V25App> {
+  const options =
+    typeof reuseOrOptions === 'string'
+      ? { reuseUserDataDir: reuseOrOptions }
+      : (reuseOrOptions ?? {});
   // electron 包的默认导出是可执行文件路径
   const electronPath = require('electron') as unknown as string;
-  const userDataDir = reuseUserDataDir ?? mkdtempSync(join(tmpdir(), prefix));
+  const userDataDir = options.reuseUserDataDir ?? mkdtempSync(join(tmpdir(), prefix));
   const app = await electron.launch({
     executablePath: electronPath,
     args: [join(repoRoot, 'apps/desktop/out/main/index.js')],
     env: {
       ...process.env,
+      ...options.env,
       MUSEFOLD_E2E: '1',
       MUSEFOLD_E2E_USER_DATA_DIR: userDataDir,
     },

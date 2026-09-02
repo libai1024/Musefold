@@ -52,7 +52,15 @@ export const promptDocumentSchema = z.object({
   usageCount: z.number().int().nonnegative(),
   lastUsedAt: isoDateTimeSchema.nullable(),
   source: promptSourceSchema,
-  sourceUrl: z.string().url().max(2_048).nullable(),
+  sourceUrl: z
+    .string()
+    .url()
+    .refine((value) => {
+      const protocol = new URL(value).protocol;
+      return protocol === 'https:' || protocol === 'http:';
+    }, 'sourceUrl must use http or https')
+    .max(2_048)
+    .nullable(),
   version: z.number().int().positive(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,

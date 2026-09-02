@@ -6,6 +6,8 @@ import {
   generationJobSchema,
   providerOptionSchema,
 } from '@musefold/contracts';
+import type { MiddlewareHandler } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors.js';
@@ -14,6 +16,23 @@ import { type GenerationService, PROVIDER_MODEL } from './service.js';
 
 const idParams = z.object({ id: z.string().trim().min(1).max(64) });
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
+const REFERENCE_UPLOAD_BODY_BYTES = MAX_REFERENCE_IMAGE_BYTES + 1024 * 1024;
+
+const limitReferenceUploadBody: MiddlewareHandler = async (c, next) => {
+  const headers = new Headers(c.req.raw.headers);
+  headers.delete('content-length');
+  c.req.raw = new Request(c.req.raw, {
+    body: c.req.raw.body,
+    duplex: 'half',
+    headers,
+  });
+  return bodyLimit({
+    maxSize: REFERENCE_UPLOAD_BODY_BYTES,
+    onError: () => {
+      throw new AppError('VALIDATION_FAILED', '图片不能超过 20 MiB', 413);
+    },
+  })(c, next);
+};
 
 function requireIdempotencyKey(header: string | undefined): string {
   if (!header || !/^[\x20-\x7e]{8,128}$/.test(header)) {
@@ -189,12 +208,7 @@ export function generationRoutes(service: GenerationService) {
   });
 
   // 参考图上传(multipart,字段 file):魔数与尺寸在 service 校验,返回可随 create 提交的引用。
-  app.post('/reference-images', async (c) => {
-    const declaredLength = Number(c.req.header('content-length') ?? 0);
-    // multipart 头部有开销,给 1MiB 余量;超限直接拒,不吃进内存。
-    if (declaredLength > MAX_REFERENCE_IMAGE_BYTES + 1024 * 1024) {
-      throw new AppError('VALIDATION_FAILED', '图片不能超过 20 MiB');
-    }
+  app.post('/reference-images', limitReferenceUploadBody, async (c) => {
     const form = await c.req.formData().catch(() => null);
     const file = form?.get('file');
     if (!(file instanceof File)) {

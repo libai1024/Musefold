@@ -128,4 +128,76 @@ describe('OpenAICompatibleProvider image edits', () => {
     ).rejects.toMatchObject({ code: 'AUTH', status: 401 });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
+
+  it('sanitizes secrets in provider error messages while preserving code and status', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            message:
+              'invalid api key Bearer sk-AAAABBBBCCCC123456 rejected; trace /Users/wangwei/.musefold/logs/main.log and https://relay.test/v1/keys?token=abcdefghij1234567890abcd',
+          },
+        },
+        401,
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = new OpenAICompatibleProvider(
+      'provider-1',
+      'https://images.test/v1',
+      'gpt-image-2',
+      'Images',
+    );
+
+    let thrown: Error & { code?: string; status?: number } = new Error('no error');
+    try {
+      await provider.generateImage({
+        ...REQUEST,
+        referenceImages: [{ source: 'upload', path: '/tmp/previews/uploads/reference.png' }],
+      });
+    } catch (error) {
+      thrown = error as Error & { code?: string; status?: number };
+    }
+
+    // 分类与状态保持稳定，消息不再携带密钥/签名 URL/本地路径。
+    expect(thrown.code).toBe('AUTH');
+    expect(thrown.status).toBe(401);
+    expect(thrown.message).not.toContain('sk-AAAABBBBCCCC123456');
+    expect(thrown.message).not.toContain('token=');
+    expect(thrown.message).not.toContain('/Users/wangwei');
+    expect(thrown.message.length).toBeLessThanOrEqual(500);
+    expect(thrown.message).toContain('invalid api key');
+  });
+
+  it('collapses raw JSON bodies in provider errors to their readable message', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        jsonResponse(
+          { error: { message: '{"code":-32000,"error":{"message":"upstream billing declined"}}' } },
+          402,
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = new OpenAICompatibleProvider(
+      'provider-1',
+      'https://images.test/v1',
+      'gpt-image-2',
+      'Images',
+    );
+
+    let thrown: Error & { code?: string } = new Error('no error');
+    try {
+      await provider.generateImage({
+        ...REQUEST,
+        referenceImages: [{ source: 'upload', path: '/tmp/previews/uploads/reference.png' }],
+      });
+    } catch (error) {
+      thrown = error as Error & { code?: string };
+    }
+
+    expect(thrown.code).toBe('NO_BALANCE');
+    expect(thrown.message).toContain('upstream billing declined');
+    expect(thrown.message).not.toContain('{"code"');
+  });
 });

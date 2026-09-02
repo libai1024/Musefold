@@ -44,6 +44,8 @@
         "tsconfig*.json",
         "apps/desktop/tsconfig*.json",
         "tooling/tsconfig.base.json",
+        "docs/v2.5/V25-EVIDENCE-MANIFEST.json",
+        "docs/v2.5/V25-MIGRATION-CARDS.md",
         "apps/desktop/src/**",
         "apps/desktop/electron/**",
         "packages/**",
@@ -57,10 +59,18 @@
     },
     "//#test": {
       "env": ["CI", "MUSEFOLD_TVT_KEY"],
+      "passThroughEnv": [
+        "MUSEFOLD_E2E_USERNAME",
+        "MUSEFOLD_E2E_PASSWORD",
+        "MUSEFOLD_E2E_IMAGE_API_KEY"
+      ],
       "inputs": [
         "package.json",
+        "tsconfig*.json",
         "vitest.config.ts",
         "tooling/aliases.mjs",
+        "docs/v2.5/V25-EVIDENCE-MANIFEST.json",
+        "docs/v2.5/V25-MIGRATION-CARDS.md",
         "apps/desktop/src/**",
         "tests/repo/**",
         "apps/desktop/electron/**",

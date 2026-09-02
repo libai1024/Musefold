@@ -17,6 +17,186 @@ export const syncSnapshotSchema = z.union([
   promptTagSchema,
 ]);
 
+export const desktopSyncConsentSchema = z.enum(['unset', 'enabled', 'paused']);
+export const desktopSyncPhaseSchema = z.enum([
+  'signed_out',
+  'awaiting_consent',
+  'paused',
+  'enabling',
+  'idle',
+  'syncing',
+  'conflict',
+  'auth_blocked',
+  'error',
+]);
+
+export const syncConflictResolutionSchema = z.enum(['remote', 'local', 'duplicate']);
+
+const syncConflictCommonSchema = {
+  id: entityIdSchema,
+  entityId: entityIdSchema,
+  remoteSnapshot: syncSnapshotSchema,
+  createdAt: isoDateTimeSchema,
+};
+
+const unsafeLocalSnapshotKey = new Set([
+  'apikey',
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'sessiontoken',
+  'idtoken',
+  'bearertoken',
+  'secret',
+  'credential',
+  'password',
+  'passwd',
+  'filepath',
+  'imagepath',
+  'localpath',
+  'ownerid',
+  'workspaceid',
+  'authorization',
+  'bearer',
+  'privatekey',
+  'signingkey',
+]);
+const absoluteLocalPath = /^(?:[a-zA-Z]:[\\/]|\\\\|\/|file:)/i;
+
+function isUnsafeLocalSnapshotKey(key: string): boolean {
+  const normalized = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  if (unsafeLocalSnapshotKey.has(normalized)) return true;
+  if (normalized.includes('secret') || normalized.includes('credential')) return true;
+  if (normalized.includes('password') || normalized.includes('passwd')) return true;
+  if (normalized.includes('token') && !normalized.endsWith('tokens')) return true;
+  if (normalized.startsWith('api') && normalized.includes('key')) return true;
+  return (
+    normalized.endsWith('path') &&
+    ['file', 'image', 'local', 'absolute', 'managed', 'asset', 'reference', 'thumbnail'].some(
+      (prefix) => normalized.startsWith(prefix),
+    )
+  );
+}
+
+function safeLocalPayload<T extends z.ZodType>(schema: T): T {
+  return schema.superRefine((value, ctx) => {
+    const visit = (item: unknown, path: PropertyKey[]): void => {
+      if (path[0] === 'params' && typeof item === 'string' && absoluteLocalPath.test(item)) {
+        ctx.addIssue({
+          code: 'custom',
+          path,
+          message: 'localSnapshot params contain an absolute local path',
+        });
+      }
+      if (!item || typeof item !== 'object') return;
+      if (Array.isArray(item)) {
+        item.forEach((child, index) => {
+          visit(child, [...path, index]);
+        });
+        return;
+      }
+      for (const [key, child] of Object.entries(item)) {
+        if (isUnsafeLocalSnapshotKey(key)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [...path, key],
+            message: 'localSnapshot contains a forbidden field',
+          });
+        }
+        visit(child, [...path, key]);
+      }
+    };
+    visit(value, []);
+  }) as T;
+}
+
+const syncLocalPromptPayloadSchema = safeLocalPayload(
+  z
+    .object({
+      title: promptDocumentSchema.shape.title,
+      description: promptDocumentSchema.shape.description,
+      content: promptDocumentSchema.shape.content,
+      negative: promptDocumentSchema.shape.negative,
+      folderId: promptDocumentSchema.shape.folderId,
+      tagIds: z.array(entityIdSchema).max(20),
+      modelId: promptDocumentSchema.shape.modelId,
+      params: promptDocumentSchema.shape.params,
+      rating: promptDocumentSchema.shape.rating,
+      isPinned: promptDocumentSchema.shape.isPinned,
+      pinOrder: promptDocumentSchema.shape.pinOrder,
+      source: promptDocumentSchema.shape.source,
+      sourceUrl: promptDocumentSchema.shape.sourceUrl,
+    })
+    .partial()
+    .strict(),
+);
+
+const syncLocalFolderPayloadSchema = safeLocalPayload(
+  z
+    .object({
+      name: promptFolderSchema.shape.name,
+      parentId: promptFolderSchema.shape.parentId,
+      sortOrder: promptFolderSchema.shape.sortOrder,
+    })
+    .partial()
+    .strict(),
+);
+
+const syncLocalTagPayloadSchema = safeLocalPayload(
+  z
+    .object({
+      name: promptTagSchema.shape.name,
+      group: promptTagSchema.shape.group,
+      color: promptTagSchema.shape.color,
+    })
+    .partial()
+    .strict(),
+);
+
+/**
+ * 冲突摘要不携带 owner/workspace 内部归属。duplicate 仅对 prompt 有意义,
+ * 由 discriminated union 在契约层固定 folder/tag 的能力为 false。
+ */
+export const syncConflictSummarySchema = z.discriminatedUnion('entityType', [
+  z
+    .object({
+      ...syncConflictCommonSchema,
+      entityType: z.literal('prompt'),
+      localSnapshot: syncLocalPromptPayloadSchema,
+      canDuplicate: z.literal(true),
+    })
+    .strict(),
+  z
+    .object({
+      ...syncConflictCommonSchema,
+      entityType: z.literal('folder'),
+      localSnapshot: syncLocalFolderPayloadSchema,
+      canDuplicate: z.literal(false),
+    })
+    .strict(),
+  z
+    .object({
+      ...syncConflictCommonSchema,
+      entityType: z.literal('tag'),
+      localSnapshot: syncLocalTagPayloadSchema,
+      canDuplicate: z.literal(false),
+    })
+    .strict(),
+]);
+
+/** Conflict 列表返回的稳定摘要契约。 */
+export const syncConflictSchema = syncConflictSummarySchema;
+export const syncConflictListSchema = z.array(syncConflictSummarySchema);
+export const syncConflictResolutionInputSchema = z
+  .object({
+    conflictId: entityIdSchema,
+    resolution: syncConflictResolutionSchema,
+  })
+  .strict();
+
+/** Renderer 只提交冲突 id 和三选一决议,不接受 owner/workspace 等内部字段。 */
+export const resolveSyncConflictInputSchema = syncConflictResolutionInputSchema;
+
 export const syncDeviceRegistrationSchema = z.object({
   deviceId: z.string().uuid(),
   name: z.string().trim().min(1).max(120),
@@ -123,28 +303,67 @@ export const syncStatusSchema = z.object({
 
 export const desktopSyncStateSchema = z.enum(['disabled', 'idle', 'syncing', 'conflict', 'error']);
 
-/** 桌面云同步开关状态。登录 ≠ 同步:enabled 只由用户在设置里显式打开。 */
-export const desktopSyncStatusSchema = z.object({
-  enabled: z.boolean(),
-  state: desktopSyncStateSchema,
-  /** 已在本机激活过同步的账号(未登录/未激活为 null)。 */
-  account: z
+function legacyDesktopSyncPhase(value: Record<string, unknown>): DesktopSyncPhase {
+  if (value.consent === 'paused') return 'paused';
+  if (value.account === null || value.account === undefined) return 'signed_out';
+  if (value.enabled !== true) return 'awaiting_consent';
+  if (value.state === 'syncing') return 'syncing';
+  if (value.state === 'conflict') return 'conflict';
+  if (value.state === 'error') return 'error';
+  return 'idle';
+}
+
+/**
+ * 桌面云同步状态。consent 是 durable 用户决定,phase 是 runtime 派生状态;
+ * enabled/state 仅保留给尚未迁移的当前消费方。旧响应缺少新字段时在边界补出
+ * 保守的 unset/派生 phase,新宿主仍应发送显式字段。
+ */
+export const desktopSyncStatusSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+    const record = value as Record<string, unknown>;
+    return {
+      ...record,
+      consent:
+        record.consent ?? (record.enabled === true ? ('enabled' as const) : ('unset' as const)),
+      phase: record.phase ?? legacyDesktopSyncPhase(record),
+    };
+  },
+  z
     .object({
-      username: z.string().min(1),
-      deviceName: z.string().min(1),
+      consent: desktopSyncConsentSchema,
+      phase: desktopSyncPhaseSchema,
+      enabled: z.boolean(),
+      state: desktopSyncStateSchema,
+      /** 已在本机激活过同步的账号(未登录/未激活为 null)。 */
+      account: z
+        .object({
+          username: z.string().min(1),
+          deviceName: z.string().min(1),
+        })
+        .nullable(),
+      lastSyncedAt: isoDateTimeSchema.nullable(),
+      pendingMutations: z.number().int().nonnegative(),
+      conflicts: z.number().int().nonnegative(),
+      error: z.string().nullable(),
     })
-    .nullable(),
-  lastSyncedAt: isoDateTimeSchema.nullable(),
-  pendingMutations: z.number().int().nonnegative(),
-  conflicts: z.number().int().nonnegative(),
-  error: z.string().nullable(),
-});
+    .strict(),
+);
 
 export const setSyncEnabledSchema = z.object({ enabled: z.boolean() });
+/** Gateway setConsent 接受 durable consent 值本身; transport 可另包一层对象。 */
+export const setSyncConsentSchema = desktopSyncConsentSchema;
+export const setSyncConsentInputSchema = z.object({ consent: desktopSyncConsentSchema }).strict();
 
 export type SyncEntityType = z.infer<typeof syncEntityTypeSchema>;
 export type SyncMutationOperation = z.infer<typeof syncMutationOperationSchema>;
 export type SyncSnapshot = z.infer<typeof syncSnapshotSchema>;
+export type DesktopSyncConsent = z.infer<typeof desktopSyncConsentSchema>;
+export type DesktopSyncPhase = z.infer<typeof desktopSyncPhaseSchema>;
+export type SyncConflictSummary = z.infer<typeof syncConflictSummarySchema>;
+export type SyncConflict = SyncConflictSummary;
+export type SyncConflictResolution = z.infer<typeof syncConflictResolutionSchema>;
+export type SyncConflictResolutionInput = z.infer<typeof syncConflictResolutionInputSchema>;
 export type SyncDeviceRegistration = z.infer<typeof syncDeviceRegistrationSchema>;
 export type SyncDevice = z.infer<typeof syncDeviceSchema>;
 export type SyncBootstrapQuery = z.input<typeof syncBootstrapQuerySchema>;
@@ -165,3 +384,4 @@ export type SyncStatus = z.infer<typeof syncStatusSchema>;
 export type DesktopSyncState = z.infer<typeof desktopSyncStateSchema>;
 export type DesktopSyncStatus = z.infer<typeof desktopSyncStatusSchema>;
 export type SetSyncEnabled = z.infer<typeof setSyncEnabledSchema>;
+export type SetSyncConsent = z.infer<typeof setSyncConsentSchema>;

@@ -4,10 +4,12 @@ import {
   DESIGN_SCHEME_DB_BOOTSTRAP_SQL,
   DESIGN_SCHEME_DB_NAMESPACE,
   DESIGN_SCHEME_EVALUATION_TABLES_SQL,
+  DESIGN_SCHEME_METADATA_COLUMNS_SQL,
   DESIGN_SCHEME_RUN_TABLES_SQL,
   DESIGN_SCHEME_SOURCE_TABLES_SQL,
   MARKET_CANDIDATE_TABLES_SQL,
   SHARE_PACKAGE_TABLES_SQL,
+  DESIGN_SCHEME_VERSION_TABLES_SQL,
 } from './schema';
 
 export interface DesignSchemeDbMigration {
@@ -50,6 +52,20 @@ export const designSchemeDbMigrations: DesignSchemeDbMigration[] = [
     name: '0004_share_packages',
     up(db) {
       db.exec(SHARE_PACKAGE_TABLES_SQL);
+    },
+  },
+  {
+    version: 5,
+    name: '0005_design_scheme_version',
+    up(db) {
+      db.exec(DESIGN_SCHEME_VERSION_TABLES_SQL);
+    },
+  },
+  {
+    version: 6,
+    name: '0006_asset_and_source_file_metadata',
+    up(db) {
+      db.exec(DESIGN_SCHEME_METADATA_COLUMNS_SQL);
     },
   },
 ];

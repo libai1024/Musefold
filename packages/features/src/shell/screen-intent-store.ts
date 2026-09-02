@@ -11,7 +11,9 @@ export type ScreenIntent =
   | { kind: 'prompt-highlight'; promptId: string }
   /** 侧栏账号区深链(01 §2 左下角账号/中转站/豆包):落设置对应卡并滚动高亮。 */
   | { kind: 'settings-account' }
-  | { kind: 'settings-connections' };
+  | { kind: 'settings-connections' }
+  /** 设计方案详情深链(工作台「查看详情」):落方案中心整屏详情,宿主切屏后由视图 mount 消费。 */
+  | { kind: 'scheme-detail'; schemeId: string };
 
 interface ScreenIntentState {
   intent: ScreenIntent | null;

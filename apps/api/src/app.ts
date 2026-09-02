@@ -9,6 +9,8 @@ import type { ApiEnv } from './env.js';
 import { AppError, toErrorBody } from './lib/errors.js';
 import { accountRoutes } from './modules/account/routes.js';
 import type { AccountService } from './modules/account/service.js';
+import { designSchemeRoutes } from './modules/design-schemes/routes.js';
+import { DesignSchemeService } from './modules/design-schemes/service.js';
 import { generationRoutes } from './modules/generation/routes.js';
 import type { GenerationService } from './modules/generation/service.js';
 import { createCloudMcpRequestHandler } from './modules/mcp/handler.js';
@@ -93,6 +95,7 @@ export function createApp(deps: AppDependencies) {
   api.route('/', promptRoutes(services.prompts));
   api.route('/', workbenchRoutes(services.workbench));
   api.route('/', generationRoutes(services.generation));
+  api.route('/', designSchemeRoutes(new DesignSchemeService(deps.db)));
   api.route('/', syncRoutes(services.sync, rateLimiter));
   api.route('/', accountRoutes(services.account, rateLimiter));
   app.route('/api/v1', api);

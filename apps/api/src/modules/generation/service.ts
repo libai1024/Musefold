@@ -1,23 +1,36 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   type CreateGenerationInput,
   type GenerationHistoryPage,
   type GenerationJob,
   type GenerationReferenceImage,
+  type ParsedCreateGenerationInput,
   type ParsedGenerationHistoryQuery,
+  type ResolvedPromptReferenceSnapshot,
   type UploadReferenceImageInput,
   cloudGenerationRequestSchema,
   createGenerationInputSchema,
   generationHistoryQuerySchema,
   generationJobSchema,
   generationReferenceImageSchema,
+  resolvedPromptReferenceSnapshotSchema,
   uploadReferenceImageInputSchema,
 } from '@musefold/contracts';
 import {
+  composeGenerationPrompt,
+  isValidUtf16SliceRange,
+  type PromptReferenceCompositionResult,
+} from '@musefold/domain/generation-prompt';
+import {
   type MusefoldDatabase,
+  acknowledgeObjectCleanup,
+  enqueueObjectCleanup,
   generationAssets,
   generationEvents,
+  generationReferenceLinks,
+  generationReferenceUploads,
   generationRuns,
+  markObjectCleanupAttemptFailed,
   prompts,
   workbenchSessions,
 } from '@musefold/db';
@@ -29,10 +42,53 @@ import type { AssetUrlSigner, SignedAssetUrl } from './s3-signer.js';
 type Tx = DbLike;
 type RunRow = typeof generationRuns.$inferSelect;
 type AssetRow = typeof generationAssets.$inferSelect;
+type QueuedRunOptions = {
+  sessionId?: string;
+  parentRunId?: string;
+  runKind: 'free_generation' | 'refinement' | 'retry';
+};
+
+type PromptSourceSnapshot = {
+  id: string;
+  title: string;
+  content: string;
+  negative: string | null;
+  version: number;
+};
+
+type GenerationPromptSnapshot = {
+  schemaVersion: 1;
+  userPrompt: string;
+  logicalRequest: Record<string, unknown>;
+  logicalRequestFingerprint: string;
+  directPrompt: PromptSourceSnapshot | null;
+  promptReferences: ResolvedPromptReferenceSnapshot[];
+  finalPrompt: string;
+  negative: string | null;
+};
+
+type FreshQueuedRun = QueuedRunOptions & {
+  kind: 'fresh';
+  input: ParsedCreateGenerationInput;
+  legacyRequest: ReturnType<typeof cloudGenerationRequestSchema.parse> | null;
+  logicalRequest: Record<string, unknown>;
+  logicalRequestFingerprint: string;
+};
+
+type RetryQueuedRun = QueuedRunOptions & {
+  kind: 'retry';
+  request: ReturnType<typeof cloudGenerationRequestSchema.parse>;
+  promptId: string | null;
+  promptSnapshot: Record<string, unknown> | null;
+};
+
+type QueuedRun = FreshQueuedRun | RetryQueuedRun;
 
 export const PROVIDER_MODEL = 'musefold-image-pro';
 /** 生图任务的终态集合(取消/失败/成功等不可再变的状态)。 */
 const TERMINAL_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
+/** Unlinked successful uploads expire after 24 hours; linked runs retain them until all links disappear. */
+export const REFERENCE_UPLOAD_TTL_MS = 24 * 60 * 60_000;
 
 /**
  * 生图运行编排(v2.5:云端 MCP 为只读白名单,审批/花费预留流程不迁移)。
@@ -50,8 +106,17 @@ export class GenerationService {
     idempotencyKey: string,
   ): Promise<GenerationJob> {
     const input = createGenerationInputSchema.parse(rawInput);
-    const request = canonicalizeReferenceUrls(cloudGenerationRequestSchema.parse(input));
-    return this.createQueued(userId, request, idempotencyKey, {
+    const canonicalInput = canonicalizeCreateReferenceUrls(input);
+    const logicalRequest = canonicalLogicalRequest(canonicalInput);
+    const legacyRequest = canonicalInput.prompt
+      ? cloudGenerationRequestSchema.parse(canonicalInput)
+      : null;
+    return this.createQueued(userId, idempotencyKey, {
+      kind: 'fresh',
+      input: canonicalInput,
+      legacyRequest,
+      logicalRequest,
+      logicalRequestFingerprint: fingerprintLogicalRequest(logicalRequest),
       sessionId: input.sessionId,
       parentRunId: input.parentRunId,
       runKind: input.runKind,
@@ -129,36 +194,49 @@ export class GenerationService {
 
   async cancel(userId: string, id: string): Promise<GenerationJob> {
     const outcome = await this.db.transaction(async (tx) => {
-      const { run } = await this.getRunAndAssets(tx, userId, id);
-      if (TERMINAL_STATUSES.has(run.status)) {
-        throw new AppError('GENERATION_ALREADY_TERMINAL', '生成任务已经结束');
-      }
-      const next = run.status === 'running' ? 'cancelling' : 'cancelled';
-      await tx
+      // One guarded UPDATE owns the transition after any competing worker update
+      // commits, so a queued run cannot be cancelled using stale state.
+      const transitioned = await tx
         .update(generationRuns)
         .set({
-          status: next,
-          progress: next === 'cancelled' ? 100 : run.progress,
-          finishedAt: next === 'cancelled' ? new Date() : null,
+          status: sql`CASE WHEN ${generationRuns.status} = 'running' THEN 'cancelling' ELSE 'cancelled' END`,
+          progress: sql`CASE WHEN ${generationRuns.status} = 'running' THEN ${generationRuns.progress} ELSE 100 END`,
+          finishedAt: sql`CASE WHEN ${generationRuns.status} = 'running' THEN ${generationRuns.finishedAt} ELSE now() END`,
         })
-        .where(and(eq(generationRuns.userId, userId), eq(generationRuns.id, id)));
-      await appendEvent(tx, userId, id, `generation.${next}`, {});
-      return this.getRunAndAssets(tx, userId, id);
+        .where(
+          and(
+            eq(generationRuns.userId, userId),
+            eq(generationRuns.id, id),
+            inArray(generationRuns.status, ['running', 'pending_approval', 'queued']),
+          ),
+        )
+        .returning();
+      if (transitioned[0]) {
+        await appendEvent(tx, userId, id, `generation.${transitioned[0].status}`, {});
+        return this.getRunAndAssets(tx, userId, id);
+      }
+
+      const current = await this.getRunAndAssets(tx, userId, id);
+      if (current.run.status === 'cancelling' || current.run.status === 'cancelled') return current;
+      throw new AppError('GENERATION_ALREADY_TERMINAL', '生成任务已经结束');
     });
     return this.toJob(outcome.run, outcome.assets);
   }
 
   async retry(userId: string, id: string, idempotencyKey: string): Promise<GenerationJob> {
-    const source = await this.get(userId, id);
+    const { run: source } = await this.getRunAndAssets(this.db, userId, id);
     if (source.status !== 'failed' && source.status !== 'cancelled') {
       throw new AppError('VALIDATION_FAILED', '只有失败或取消的任务可以重试', 409);
     }
-    return this.createQueued(
-      userId,
-      cloudGenerationRequestSchema.parse(source.request),
-      idempotencyKey,
-      { parentRunId: source.id, runKind: 'retry' },
-    );
+    return this.createQueued(userId, idempotencyKey, {
+      kind: 'retry',
+      request: cloudGenerationRequestSchema.parse(source.request),
+      promptId: source.promptId,
+      promptSnapshot: source.promptSnapshot,
+      sessionId: source.sessionId ?? undefined,
+      parentRunId: source.id,
+      runKind: 'retry',
+    });
   }
 
   async remove(userId: string, id: string): Promise<GenerationJob> {
@@ -169,7 +247,7 @@ export class GenerationService {
     return this.changeDeleted(userId, id, false);
   }
 
-  /** 回收站内永久删除:仅已软删行合法;先硬删行(资产/事件级联),再尽力清理对象存储。 */
+  /** 回收站内永久删除:同事务记录对象清理意图并硬删行,提交后尽力删除和确认。 */
   async purge(userId: string, id: string): Promise<void> {
     const objectKeys = await this.db.transaction(async (tx) => {
       const { run, assets } = await this.getRunAndAssets(tx, userId, id);
@@ -179,13 +257,29 @@ export class GenerationService {
       if (!TERMINAL_STATUSES.has(run.status)) {
         throw new AppError('VALIDATION_FAILED', '任务仍在进行中,请先取消');
       }
+      const keys = assets.map((asset) => asset.objectKey);
+      await enqueueObjectCleanup(
+        tx,
+        keys.map((objectKey) => ({
+          objectKey,
+          ownerId: userId,
+          objectType: 'generation_asset' as const,
+          reason: 'generation_purge' as const,
+        })),
+      );
       await tx
         .delete(generationRuns)
         .where(and(eq(generationRuns.userId, userId), eq(generationRuns.id, id)));
-      return assets.map((asset) => asset.objectKey);
+      return keys;
     });
-    // 对象删除失败不回滚行删除:孤儿对象可由存储保留策略兜底,不阻塞用户操作。
-    await this.signer.removeObjects(objectKeys).catch(() => undefined);
+    if (objectKeys.length === 0) return;
+    try {
+      await this.signer.removeObjects(objectKeys);
+      await acknowledgeObjectCleanup(this.db, objectKeys);
+    } catch (error) {
+      // User purge already committed. Preserve retry intent and never surface an S3 outage.
+      await markObjectCleanupAttemptFailed(this.db, objectKeys, error).catch(() => undefined);
+    }
   }
 
   async assetSignedUrl(userId: string, assetId: string): Promise<SignedAssetUrl> {
@@ -198,8 +292,8 @@ export class GenerationService {
   }
 
   /**
-   * 参考图上传(ui-parity 03 §7 P0):魔数嗅探定 mime,对象键 users/{userId}/references/{id},
-   * 无独立行表 —— run.request 里内联引用,worker 由 userId+id 推导对象键取字节。
+   * Register-before-upload makes incomplete S3 writes discoverable. Successful unlinked
+   * uploads are retained for 24 hours; linking to a run transactionally extends liveness.
    */
   async uploadReferenceImage(
     userId: string,
@@ -213,7 +307,58 @@ export class GenerationService {
     const mimeType = sniffImageMime(input.bytes);
     if (!mimeType) throw new AppError('VALIDATION_FAILED', '请选择 PNG、JPG 或 WebP 图片');
     const id = randomUUID();
-    await this.signer.putObject(referenceObjectKey(userId, id), input.bytes, mimeType);
+    const objectKey = referenceObjectKey(userId, id);
+    const now = new Date();
+    await this.db.insert(generationReferenceUploads).values({
+      id,
+      userId,
+      objectKey,
+      originalName: input.name,
+      mimeType,
+      byteSize: input.bytes.byteLength,
+      status: 'uploading',
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + REFERENCE_UPLOAD_TTL_MS),
+    });
+    try {
+      await this.signer.putObject(objectKey, input.bytes, mimeType);
+      const uploaded = await this.db
+        .update(generationReferenceUploads)
+        .set({ status: 'available', uploadedAt: new Date() })
+        .where(
+          and(
+            eq(generationReferenceUploads.id, id),
+            eq(generationReferenceUploads.userId, userId),
+            eq(generationReferenceUploads.status, 'uploading'),
+          ),
+        )
+        .returning({ id: generationReferenceUploads.id });
+      if (!uploaded[0]) throw new Error('Reference upload row disappeared during finalization');
+    } catch (error) {
+      // A failed PUT may still have reached S3. Queue the deterministic key before returning.
+      await this.db
+        .transaction(async (tx) => {
+          await tx
+            .update(generationReferenceUploads)
+            .set({ status: 'cleanup_pending', cleanupQueuedAt: new Date() })
+            .where(
+              and(
+                eq(generationReferenceUploads.id, id),
+                eq(generationReferenceUploads.userId, userId),
+              ),
+            );
+          await enqueueObjectCleanup(tx, [
+            {
+              objectKey,
+              ownerId: userId,
+              objectType: 'generation_reference',
+              reason: 'reference_upload_failed',
+            },
+          ]);
+        })
+        .catch(() => undefined);
+      throw error;
+    }
     return generationReferenceImageSchema.parse({
       id,
       url: referenceImageUrl(id),
@@ -223,11 +368,27 @@ export class GenerationService {
     });
   }
 
-  /** 参考图展示 URL:按用户前缀重建对象键再签名,天然只允许访问自己的上传。 */
+  /** Reference signing requires an available owner-scoped registry row; keys never leave the API. */
   async referenceImageSignedUrl(userId: string, referenceId: string): Promise<SignedAssetUrl> {
     const id = generationReferenceImageSchema.shape.id.safeParse(referenceId);
     if (!id.success) throw new AppError('VALIDATION_FAILED', '参考图标识无效');
-    return this.signer.sign(referenceObjectKey(userId, id.data));
+    const rows = await this.db
+      .select({ objectKey: generationReferenceUploads.objectKey })
+      .from(generationReferenceUploads)
+      .where(
+        and(
+          eq(generationReferenceUploads.userId, userId),
+          eq(generationReferenceUploads.id, id.data),
+          eq(generationReferenceUploads.status, 'available'),
+          sql`(${generationReferenceUploads.expiresAt} > now() OR EXISTS (
+            SELECT 1 FROM ${generationReferenceLinks}
+            WHERE ${generationReferenceLinks.referenceId} = ${generationReferenceUploads.id}
+              AND ${generationReferenceLinks.userId} = ${generationReferenceUploads.userId}
+          ))`,
+        ),
+      );
+    if (!rows[0]) throw new AppError('GENERATION_NOT_FOUND', '参考图不存在');
+    return this.signer.sign(rows[0].objectKey);
   }
 
   async events(
@@ -260,74 +421,304 @@ export class GenerationService {
 
   private async createQueued(
     userId: string,
-    request: ReturnType<typeof cloudGenerationRequestSchema.parse>,
     idempotencyKey: string,
-    options: {
-      sessionId?: string;
-      parentRunId?: string;
-      runKind: 'free_generation' | 'refinement' | 'retry';
-    },
+    queued: QueuedRun,
   ): Promise<GenerationJob> {
     if (!/^[\x20-\x7e]{8,128}$/.test(idempotencyKey)) {
       throw new AppError('VALIDATION_FAILED', 'Idempotency-Key 无效');
     }
     const outcome = await this.db.transaction(async (tx) => {
-      const duplicate = await tx
-        .select()
-        .from(generationRuns)
-        .where(
-          and(eq(generationRuns.userId, userId), eq(generationRuns.idempotencyKey, idempotencyKey)),
-        );
-      if (duplicate[0]) {
-        return { run: duplicate[0], assets: await this.getAssets(tx, duplicate[0].id) };
+      const duplicate = await this.findIdempotentRun(tx, userId, idempotencyKey);
+      if (duplicate) {
+        assertSameGenerationInput(duplicate, queued);
+        return { run: duplicate, assets: await this.getAssets(tx, duplicate.id) };
       }
-      if (options.sessionId) await this.requireSession(tx, userId, options.sessionId);
-      if (options.parentRunId) await this.requireRun(tx, userId, options.parentRunId);
-      let promptSnapshot: Record<string, unknown> | null = null;
-      if (request.promptId) {
-        const prompt = await tx
-          .select({
-            id: prompts.id,
-            title: prompts.title,
-            content: prompts.content,
-            negative: prompts.negative,
-            version: prompts.version,
-          })
-          .from(prompts)
-          .where(and(eq(prompts.userId, userId), eq(prompts.id, request.promptId)));
-        if (!prompt[0]) throw new AppError('PROMPT_NOT_FOUND', '提示词不存在');
-        promptSnapshot = prompt[0];
+
+      if (queued.kind === 'fresh') {
+        if (queued.sessionId) await this.requireSession(tx, userId, queued.sessionId);
+        if (queued.parentRunId) await this.requireRun(tx, userId, queued.parentRunId);
       }
+      const prepared =
+        queued.kind === 'fresh'
+          ? await this.prepareFreshRun(tx, userId, queued)
+          : await this.prepareRetryRun(tx, userId, queued);
       const id = randomUUID();
-      await tx.insert(generationRuns).values({
-        id,
-        userId,
-        sessionId: options.sessionId ?? null,
-        parentRunId: options.parentRunId ?? null,
-        promptId: request.promptId ?? null,
-        runKind: options.runKind,
-        actorType: 'web',
-        approvalStatus: 'not_required',
-        status: 'queued',
-        request: request as unknown as Record<string, unknown>,
-        promptSnapshot,
-        idempotencyKey,
-        providerModel: PROVIDER_MODEL,
-      });
+      const inserted = await tx
+        .insert(generationRuns)
+        .values({
+          id,
+          userId,
+          sessionId: queued.sessionId ?? null,
+          parentRunId: queued.parentRunId ?? null,
+          promptId: prepared.promptId,
+          runKind: queued.runKind,
+          actorType: 'web',
+          approvalStatus: 'not_required',
+          status: 'queued',
+          request: prepared.request as unknown as Record<string, unknown>,
+          promptSnapshot: prepared.promptSnapshot,
+          idempotencyKey,
+          providerModel: PROVIDER_MODEL,
+        })
+        .onConflictDoNothing({
+          target: [generationRuns.userId, generationRuns.idempotencyKey],
+        })
+        .returning();
+      const run = inserted[0];
+      if (!run) {
+        // The unique conflict waits for the winner to commit. Compare the logical
+        // pre-composition intent, never the winner's composed provider request.
+        const concurrent = await this.findIdempotentRun(tx, userId, idempotencyKey);
+        if (!concurrent) throw new Error('Idempotency row disappeared after conflict');
+        assertSameGenerationInput(concurrent, queued);
+        return { run: concurrent, assets: await this.getAssets(tx, concurrent.id) };
+      }
+
+      await this.linkRunReferences(tx, userId, id, prepared.referenceIds);
       await appendEvent(tx, userId, id, 'generation.requested', {
-        runKind: options.runKind,
+        runKind: queued.runKind,
         actorType: 'web',
       });
       await tx.execute(sql`
         SELECT graphile_worker.add_job(
           'generation.generate',
           json_build_object('userId', ${userId}::text, 'runId', ${id}::text),
-          max_attempts := 1
+          max_attempts := 1,
+          job_key := ${generationJobKey(id)},
+          job_key_mode := 'replace'
         )
       `);
       return this.getRunAndAssets(tx, userId, id);
     });
     return this.toJob(outcome.run, outcome.assets);
+  }
+
+  private async findIdempotentRun(
+    tx: Tx,
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<RunRow | null> {
+    const rows = await tx
+      .select()
+      .from(generationRuns)
+      .where(
+        and(eq(generationRuns.userId, userId), eq(generationRuns.idempotencyKey, idempotencyKey)),
+      );
+    return rows[0] ?? null;
+  }
+
+  private async prepareFreshRun(
+    tx: Tx,
+    userId: string,
+    queued: FreshQueuedRun,
+  ): Promise<{
+    request: ReturnType<typeof cloudGenerationRequestSchema.parse>;
+    promptId: string | null;
+    promptSnapshot: GenerationPromptSnapshot;
+    referenceIds: string[];
+  }> {
+    const directPrompt = queued.input.promptId
+      ? await this.resolvePromptSource(tx, userId, queued.input.promptId)
+      : null;
+    const resolvedReferences = await this.resolvePromptReferences(tx, userId, queued.input);
+    const acceptedReferenceImages = await this.resolveImageReferences(
+      tx,
+      userId,
+      queued.input.referenceImages,
+    );
+    const composed = requireComposedPrompt(
+      composeGenerationPrompt({
+        userPrompt: queued.input.prompt,
+        promptReferences: resolvedReferences,
+        imageCount: acceptedReferenceImages.length,
+        ratioId: queued.input.aspectRatio,
+      }),
+    );
+    const request = canonicalizeReferenceUrls(
+      cloudGenerationRequestSchema.parse({
+        ...queued.input,
+        referenceImages: acceptedReferenceImages,
+        prompt: composed.finalPrompt,
+      }),
+    );
+    return {
+      request,
+      promptId: queued.input.promptId ?? null,
+      promptSnapshot: {
+        schemaVersion: 1,
+        userPrompt: queued.input.prompt,
+        logicalRequest: queued.logicalRequest,
+        logicalRequestFingerprint: queued.logicalRequestFingerprint,
+        directPrompt,
+        promptReferences: composed.promptReferences,
+        finalPrompt: request.prompt,
+        negative: request.negative ?? null,
+      },
+      referenceIds: acceptedReferenceImages.map((reference) => reference.id),
+    };
+  }
+
+  private async prepareRetryRun(
+    tx: Tx,
+    userId: string,
+    queued: RetryQueuedRun,
+  ): Promise<{
+    request: ReturnType<typeof cloudGenerationRequestSchema.parse>;
+    promptId: string | null;
+    promptSnapshot: Record<string, unknown> | null;
+    referenceIds: string[];
+  }> {
+    const referenceImages = await this.resolveImageReferences(
+      tx,
+      userId,
+      queued.request.referenceImages,
+    );
+    return {
+      request: canonicalizeReferenceUrls({ ...queued.request, referenceImages }),
+      promptId: queued.promptId,
+      promptSnapshot: queued.promptSnapshot,
+      referenceIds: referenceImages.map((reference) => reference.id),
+    };
+  }
+
+  private async resolveImageReferences(
+    tx: Tx,
+    userId: string,
+    references: ParsedCreateGenerationInput['referenceImages'],
+  ): Promise<ParsedCreateGenerationInput['referenceImages']> {
+    if (references.length === 0) return [];
+    const referenceIds = [...new Set(references.map((reference) => reference.id))];
+    if (referenceIds.length !== references.length) {
+      throw new AppError('VALIDATION_FAILED', '参考图不能重复');
+    }
+    const rows = await tx
+      .select({
+        upload: generationReferenceUploads,
+        linkedRunId: generationReferenceLinks.runId,
+      })
+      .from(generationReferenceUploads)
+      .leftJoin(
+        generationReferenceLinks,
+        and(
+          eq(generationReferenceLinks.referenceId, generationReferenceUploads.id),
+          eq(generationReferenceLinks.userId, generationReferenceUploads.userId),
+        ),
+      )
+      .where(
+        and(
+          eq(generationReferenceUploads.userId, userId),
+          inArray(generationReferenceUploads.id, referenceIds),
+          eq(generationReferenceUploads.status, 'available'),
+          sql`(${generationReferenceUploads.expiresAt} > now() OR ${generationReferenceLinks.runId} IS NOT NULL)`,
+        ),
+      )
+      .for('update', { of: generationReferenceUploads });
+    const byId = new Map(rows.map((row) => [row.upload.id, row.upload]));
+    return references.map((reference) => {
+      const stored = byId.get(reference.id);
+      if (!stored) throw new AppError('GENERATION_NOT_FOUND', '参考图不存在或已过期');
+      return generationReferenceImageSchema.parse({
+        id: stored.id,
+        url: referenceImageUrl(stored.id),
+        name: stored.originalName,
+        mimeType: stored.mimeType,
+        byteSize: stored.byteSize,
+      });
+    });
+  }
+
+  private async linkRunReferences(
+    tx: Tx,
+    userId: string,
+    runId: string,
+    referenceIds: string[],
+  ): Promise<void> {
+    if (referenceIds.length === 0) return;
+    await tx
+      .insert(generationReferenceLinks)
+      .values(referenceIds.map((referenceId) => ({ runId, referenceId, userId })))
+      .onConflictDoNothing();
+  }
+
+  private async resolvePromptSource(
+    tx: Tx,
+    userId: string,
+    promptId: string,
+  ): Promise<PromptSourceSnapshot> {
+    const rows = await tx
+      .select({
+        id: prompts.id,
+        title: prompts.title,
+        content: prompts.content,
+        negative: prompts.negative,
+        version: prompts.version,
+      })
+      .from(prompts)
+      .where(and(eq(prompts.userId, userId), eq(prompts.id, promptId), isNull(prompts.deletedAt)));
+    if (!rows[0]) throw new AppError('PROMPT_NOT_FOUND', '提示词不存在');
+    return rows[0];
+  }
+
+  private async resolvePromptReferences(
+    tx: Tx,
+    userId: string,
+    input: ParsedCreateGenerationInput,
+  ): Promise<ResolvedPromptReferenceSnapshot[]> {
+    if (input.promptReferenceSelections.length === 0) return [];
+    const promptIds = [...new Set(input.promptReferenceSelections.map((item) => item.promptId))];
+    const rows = await tx
+      .select({
+        id: prompts.id,
+        title: prompts.title,
+        content: prompts.content,
+        version: prompts.version,
+      })
+      .from(prompts)
+      .where(
+        and(eq(prompts.userId, userId), inArray(prompts.id, promptIds), isNull(prompts.deletedAt)),
+      );
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return input.promptReferenceSelections.map((selection, index) => {
+      const prompt = byId.get(selection.promptId);
+      if (!prompt) throw new AppError('PROMPT_NOT_FOUND', '引用的提示词不存在');
+      if (prompt.version !== selection.expectedVersion) {
+        throw new AppError(
+          'PROMPT_VERSION_CONFLICT',
+          '引用的提示词已更新，请重新选择',
+          409,
+          false,
+          {
+            promptId: selection.promptId,
+            expectedVersion: selection.expectedVersion,
+            currentVersion: prompt.version,
+          },
+        );
+      }
+      const text =
+        selection.scope === 'full'
+          ? prompt.content
+          : excerptPromptContent(prompt.content, selection.range, index);
+      const trimmed = text.trim();
+      if (!trimmed) {
+        throw new AppError('VALIDATION_FAILED', '引用的提示词片段不能为空', 400, false, {
+          fieldPath: `promptReferenceSelections.${index}.range`,
+        });
+      }
+      if (trimmed.length > 4_000) {
+        throw new AppError('VALIDATION_FAILED', '引用提示词不能超过 4000 个字符', 400, false, {
+          fieldPath: `promptReferenceSelections.${index}`,
+          max: 4_000,
+          actual: trimmed.length,
+        });
+      }
+      return resolvedPromptReferenceSnapshotSchema.parse({
+        promptId: prompt.id,
+        title: prompt.title,
+        text: trimmed,
+        scope: selection.scope,
+        sourceVersion: prompt.version,
+      });
+    });
   }
 
   private async changeDeleted(
@@ -390,11 +781,18 @@ export class GenerationService {
   }
 
   private toJob(run: RunRow, assets: AssetRow[]): GenerationJob {
+    const promptSnapshot = readGenerationPromptSnapshot(run.promptSnapshot);
     return generationJobSchema.parse({
       id: run.id,
       sessionId: run.sessionId,
       parentRunId: run.parentRunId,
       promptId: run.promptId,
+      ...(promptSnapshot
+        ? {
+            userPrompt: promptSnapshot.userPrompt,
+            promptReferences: promptSnapshot.promptReferences,
+          }
+        : {}),
       actorType: run.actorType,
       approvalStatus: run.approvalStatus,
       status: run.status,
@@ -425,6 +823,177 @@ export class GenerationService {
   }
 }
 
+function canonicalLogicalRequest(input: ParsedCreateGenerationInput): Record<string, unknown> {
+  return stripUndefined({
+    prompt: input.prompt,
+    negative: input.negative,
+    promptId: input.promptId,
+    size: input.size,
+    aspectRatio: input.aspectRatio,
+    quality: input.quality,
+    count: input.count,
+    providerId: input.providerId,
+    referenceImages: input.referenceImages,
+    promptReferenceSelections: input.promptReferenceSelections,
+    sessionId: input.sessionId,
+    parentRunId: input.parentRunId,
+    runKind: input.runKind,
+  });
+}
+
+function fingerprintLogicalRequest(logicalRequest: Record<string, unknown>): string {
+  return createHash('sha256').update(canonicalJson(logicalRequest)).digest('hex');
+}
+
+function stripUndefined(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value));
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJsonValue);
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, sortJsonValue(record[key])]),
+    );
+  }
+  return value;
+}
+
+function canonicalRequestJson(value: unknown): string | null {
+  const parsed = cloudGenerationRequestSchema.safeParse(value);
+  return parsed.success ? canonicalJson(parsed.data) : null;
+}
+
+function assertSameGenerationInput(existing: RunRow, queued: QueuedRun): void {
+  const sameRunOptions =
+    existing.sessionId === (queued.sessionId ?? null) &&
+    existing.parentRunId === (queued.parentRunId ?? null) &&
+    existing.runKind === queued.runKind;
+  if (!sameRunOptions) throw generationIdempotencyConflict();
+
+  if (queued.kind === 'fresh') {
+    const snapshot = readGenerationPromptSnapshot(existing.promptSnapshot);
+    if (snapshot) {
+      if (
+        snapshot.logicalRequestFingerprint !== queued.logicalRequestFingerprint ||
+        canonicalJson(snapshot.logicalRequest) !== canonicalJson(queued.logicalRequest)
+      ) {
+        throw generationIdempotencyConflict();
+      }
+      return;
+    }
+    // Legacy rows have no logical envelope. Preserve the old persisted-request
+    // comparison rather than resolving current Prompt records for a replay.
+    const existingRequestJson = canonicalRequestJson(existing.request);
+    if (
+      queued.legacyRequest === null ||
+      existingRequestJson === null ||
+      existingRequestJson !== canonicalRequestJson(queued.legacyRequest)
+    ) {
+      throw generationIdempotencyConflict();
+    }
+    return;
+  }
+
+  if (
+    canonicalRequestJson(existing.request) !== canonicalRequestJson(queued.request) ||
+    canonicalJson(existing.promptSnapshot) !== canonicalJson(queued.promptSnapshot)
+  ) {
+    throw generationIdempotencyConflict();
+  }
+}
+
+function generationIdempotencyConflict(): AppError {
+  return new AppError('GENERATION_IDEMPOTENCY_CONFLICT', 'Idempotency-Key 已用于不同的生成请求');
+}
+
+function requireComposedPrompt(
+  result: ReturnType<typeof composeGenerationPrompt>,
+): PromptReferenceCompositionResult {
+  if (result.ok) return result.data;
+  throw new AppError('VALIDATION_FAILED', result.error.message, 400, false, {
+    domainCode: result.error.code,
+    ...(result.error.fieldPath ? { fieldPath: result.error.fieldPath } : {}),
+    ...(result.error.recoveryAction ? { recoveryAction: result.error.recoveryAction } : {}),
+    ...(result.error.details ?? {}),
+  });
+}
+
+function excerptPromptContent(
+  content: string,
+  range: { start: number; end: number },
+  index: number,
+): string {
+  // String#slice indexes UTF-16 code units, matching browser selection offsets.
+  if (!isValidUtf16SliceRange(content, range)) {
+    throw new AppError('VALIDATION_FAILED', '引用的提示词片段范围无效', 400, false, {
+      fieldPath: `promptReferenceSelections.${index}.range`,
+      start: range.start,
+      end: range.end,
+      length: content.length,
+    });
+  }
+  return content.slice(range.start, range.end);
+}
+
+function readGenerationPromptSnapshot(
+  value: Record<string, unknown> | null,
+): GenerationPromptSnapshot | null {
+  if (value?.schemaVersion !== 1) return null;
+  const userPrompt = value.userPrompt;
+  const logicalRequest = value.logicalRequest;
+  const logicalRequestFingerprint = value.logicalRequestFingerprint;
+  const promptReferences = value.promptReferences;
+  if (
+    typeof userPrompt !== 'string' ||
+    !logicalRequest ||
+    typeof logicalRequest !== 'object' ||
+    typeof logicalRequestFingerprint !== 'string' ||
+    !Array.isArray(promptReferences) ||
+    typeof value.finalPrompt !== 'string'
+  ) {
+    return null;
+  }
+  const resolvedReferences = promptReferences.flatMap((reference) => {
+    const parsed = resolvedPromptReferenceSnapshotSchema.safeParse(reference);
+    return parsed.success ? [parsed.data] : [];
+  });
+  if (resolvedReferences.length !== promptReferences.length) return null;
+  return {
+    schemaVersion: 1,
+    userPrompt,
+    logicalRequest: logicalRequest as Record<string, unknown>,
+    logicalRequestFingerprint,
+    directPrompt: isPromptSourceSnapshot(value.directPrompt) ? value.directPrompt : null,
+    promptReferences: resolvedReferences,
+    finalPrompt: value.finalPrompt,
+    negative: typeof value.negative === 'string' ? value.negative : null,
+  };
+}
+
+function isPromptSourceSnapshot(value: unknown): value is PromptSourceSnapshot {
+  if (!value || typeof value !== 'object') return false;
+  const source = value as Record<string, unknown>;
+  return (
+    typeof source.id === 'string' &&
+    typeof source.title === 'string' &&
+    typeof source.content === 'string' &&
+    (source.negative === null || typeof source.negative === 'string') &&
+    typeof source.version === 'number'
+  );
+}
+
+function generationJobKey(runId: string): string {
+  return `generation:${runId}`;
+}
+
 async function appendEvent(
   tx: Tx,
   userId: string,
@@ -441,6 +1010,19 @@ function referenceObjectKey(userId: string, referenceId: string): string {
 
 function referenceImageUrl(referenceId: string): string {
   return `/api/v1/reference-images/${encodeURIComponent(referenceId)}/url`;
+}
+
+function canonicalizeCreateReferenceUrls(
+  input: ParsedCreateGenerationInput,
+): ParsedCreateGenerationInput {
+  if (input.referenceImages.length === 0) return input;
+  return {
+    ...input,
+    referenceImages: input.referenceImages.map((reference) => ({
+      ...reference,
+      url: referenceImageUrl(reference.id),
+    })),
+  };
 }
 
 /** 入库前把参考图展示 URL 归一为服务端路由,不透传客户端自报地址。 */

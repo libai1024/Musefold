@@ -339,6 +339,9 @@ importers:
       '@musefold/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@musefold/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@musefold/new-api-client':
         specifier: workspace:*
         version: link:../../packages/new-api-client

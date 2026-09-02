@@ -5,7 +5,7 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const tempDir = mkdtempSync(join(tmpdir(), 'musefold-workbench-domain-'));
 
@@ -26,6 +26,7 @@ import { configureCoreRuntime } from '@musefold/core/runtime';
 import { generate } from '@musefold/core/services/generation';
 import { dialog } from 'electron';
 import { buildWorkbenchDomainMethods } from '../workbench-domain';
+import { BridgeError } from '../envelope';
 
 configureCoreRuntime({
   getPaths: () => ({
@@ -46,18 +47,133 @@ configureCoreRuntime({
   estimateProviderCost: () => null,
 });
 
-type Methods = Record<string, { handle(input: unknown): Promise<unknown> }>;
+type Methods = Record<
+  string,
+  { input: { parse(input: unknown): unknown }; handle(input: unknown): Promise<unknown> }
+>;
 
-function insertRun(id: string, status: string, deletedAt: number | null): void {
+interface CapturedRequest {
+  jobId: string;
+  providerId: string;
+  model?: string;
+  prompt: string;
+  negative?: string;
+  size?: string;
+  aspectRatio?: string;
+  quality?: string;
+  promptId?: string;
+  referenceImages?: unknown[];
+  promptReferences?: unknown[];
+}
+
+interface CapturedOptions {
+  retryOfRunId?: string;
+  promptAlreadyComposed?: boolean;
+  userPrompt?: string;
+}
+
+function activateTestAccount(ownerId: string, withWorkspace = true): string | null {
+  const db = getDb();
+  db.prepare('UPDATE cloud_sync_accounts SET active = 0, enabled = 0').run();
+  db.prepare(
+    `INSERT INTO cloud_sync_accounts
+       (owner_id, username, device_id, device_name, platform, client_version, active, enabled,
+        cursor, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'macos', 'test', 1, 1, '0', ?, ?)
+     ON CONFLICT(owner_id) DO UPDATE SET active = 1, enabled = 1, updated_at = excluded.updated_at`,
+  ).run(ownerId, ownerId, `device-${ownerId}`, '测试设备', Date.now(), Date.now());
+  if (!withWorkspace) return null;
+  const workspaceId = `account:${ownerId}`;
+  db.prepare(
+    `INSERT INTO local_workspaces (id, owner_id, kind, created_at, updated_at)
+     VALUES (?, ?, 'account', ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+  ).run(workspaceId, ownerId, Date.now(), Date.now());
+  return workspaceId;
+}
+
+function activateTestWorkspace(ownerId: string): string {
+  const workspaceId = activateTestAccount(ownerId);
+  if (!workspaceId) throw new Error(`test workspace missing for ${ownerId}`);
+  return workspaceId;
+}
+
+function insertPrompt(
+  workspaceId: string,
+  id: string,
+  title: string,
+  content: string,
+  deletedAt: number | null = null,
+): void {
+  const now = Date.now();
+  getDb()
+    .prepare(
+      `INSERT INTO prompts (workspace_id, id, title, content, rating, is_pinned, source,
+         usage_count, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, 0, 0, 'manual', 0, ?, ?, ?)`,
+    )
+    .run(workspaceId, id, title, content, now, now, deletedAt);
+}
+
+function insertQueuedJob(
+  request: CapturedRequest,
+  options: CapturedOptions = {},
+  promptSnapshot?: Record<string, unknown>,
+): void {
+  const userPrompt = options.userPrompt ?? request.prompt;
+  const snapshot = promptSnapshot ?? {
+    schemaVersion: 1,
+    userPrompt,
+    basePrompt: userPrompt,
+    refinementInstruction: null,
+    finalPrompt: request.prompt,
+    negativePrompt: request.negative ?? null,
+    ...(request.promptReferences?.length ? { promptReferences: request.promptReferences } : {}),
+  };
+  const params = {
+    schemaVersion: 1,
+    size: request.size ?? 'auto',
+    quality: request.quality ?? 'auto',
+    n: 1,
+    ...(request.aspectRatio ? { aspectRatio: request.aspectRatio } : {}),
+    ...(request.referenceImages?.length ? { referenceImages: request.referenceImages } : {}),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO generation_runs
+         (id, run_kind, prompt_id, provider_id, model, user_prompt, base_prompt, final_prompt,
+          negative_prompt, params_json, prompt_snapshot_json, status, created_at)
+       VALUES (?, 'free_generation', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+    )
+    .run(
+      request.jobId,
+      request.promptId ?? null,
+      request.providerId,
+      request.model ?? 'test-model',
+      userPrompt,
+      userPrompt,
+      request.prompt,
+      request.negative ?? null,
+      JSON.stringify(params),
+      JSON.stringify(snapshot),
+      Date.now(),
+    );
+}
+function insertRun(
+  id: string,
+  status: string,
+  deletedAt: number | null,
+  promptId: string | null = null,
+): void {
   const now = Date.now();
   getDb()
     .prepare(
       `INSERT INTO generation_runs
-         (id, run_kind, provider_id, model, base_prompt, final_prompt,
+         (id, run_kind, prompt_id, provider_id, model, base_prompt, final_prompt,
           params_json, prompt_snapshot_json, status, created_at, deleted_at)
-       VALUES (?, 'free_generation', 'p1', 'test-model', 'a prompt', 'a prompt', '{}', '{}', ?, ?, ?)`,
+       VALUES (?, 'free_generation', ?, 'p1', 'test-model', 'a prompt', 'a prompt', '{}', '{}', ?, ?, ?)`,
     )
-    .run(id, status, now, deletedAt);
+    .run(id, promptId, status, now, deletedAt);
 }
 
 function insertAsset(id: string, runId: string, mediaPath: string | null): void {
@@ -74,6 +190,50 @@ describe('workbench 域桥:生成记录永久删除', () => {
 
   beforeAll(() => {
     methods = buildWorkbenchDomainMethods() as Methods;
+  });
+
+  it('generation.get 保留来源 promptId 到 job 与请求快照', async () => {
+    const now = Date.now();
+    getDb()
+      .prepare(
+        `INSERT INTO prompts
+           (workspace_id, id, title, content, rating, is_pinned, source, usage_count, created_at, updated_at)
+         VALUES ('local-only-legacy', 'prompt-job-source', '来源提示词', 'a prompt', 0, 0, 'manual', 0, ?, ?)`,
+      )
+      .run(now, now);
+    insertRun('run-with-prompt', 'success', null, 'prompt-job-source');
+
+    const job = (await methods['generation.get'].handle('run-with-prompt')) as {
+      promptId: string | null;
+      request: { promptId?: string };
+    };
+
+    expect(job.promptId).toBe('prompt-job-source');
+    expect(job.request.promptId).toBe('prompt-job-source');
+  });
+
+  it('终态 cancel 与 retry 规则和 Web 对齐', async () => {
+    insertRun('run-cancelled-idempotent', 'cancelled', null);
+    insertRun('run-succeeded-terminal', 'success', null);
+
+    await expect(
+      methods['generation.cancel'].handle('run-cancelled-idempotent'),
+    ).resolves.toMatchObject({ status: 'cancelled' });
+
+    const cancelError = await methods['generation.cancel']
+      .handle('run-succeeded-terminal')
+      .catch((reason) => reason);
+    expect(cancelError).toBeInstanceOf(BridgeError);
+    expect(cancelError).toMatchObject({ code: 'CONFLICT' });
+
+    const retryError = await methods['generation.retry']
+      .handle('run-succeeded-terminal')
+      .catch((reason) => reason);
+    expect(retryError).toBeInstanceOf(BridgeError);
+    expect(retryError).toMatchObject({
+      code: 'CONFLICT',
+      message: '只有失败或取消的任务可以重试',
+    });
   });
 
   it('活跃行与进行中行拒绝 purge', async () => {
@@ -149,6 +309,20 @@ describe('workbench 域桥:参考图输入链(ui-parity 03 §7 P0)', () => {
         bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
       }),
     ).rejects.toThrow('请选择 PNG、JPG 或 WebP 图片');
+  });
+
+  it('create 对不存在或已删除的 promptId 返回 PROMPT_NOT_FOUND', async () => {
+    const error = await methods['generation.create']
+      .handle({
+        prompt: 'missing prompt source',
+        providerId: 'prov-ref',
+        promptId: 'missing-prompt',
+      })
+      .catch((reason) => reason);
+
+    expect(error).toBeInstanceOf(BridgeError);
+    expect(error).toMatchObject({ code: 'NOT_FOUND', message: '提示词不存在' });
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
   });
 
   it('create:契约引用重建受管路径传给 core;回读回合带参考图缩略', async () => {
@@ -281,5 +455,409 @@ describe('workbench 域桥:保存图片(ui-parity 03/05 结果消费)', () => {
       }),
     ).rejects.toThrow('不存在或不可访问');
     expect(showSaveDialog).not.toHaveBeenCalled();
+  });
+});
+
+describe('workbench 域桥:归档会话筛选', () => {
+  it('archivedOnly 覆盖 include 开关,仅返回已归档且未软删会话', async () => {
+    const now = Date.now();
+    const insert = getDb().prepare(
+      `INSERT INTO workbench_sessions
+         (id, title, created_at, updated_at, archived_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    insert.run('session-active-only', '普通', now, now, null, null);
+    insert.run('session-archived-only', '归档', now, now + 1, now, null);
+    insert.run('session-archived-deleted', '归档后删除', now, now + 2, now, now);
+    insert.run('session-deleted-only', '仅删除', now, now + 3, null, now);
+
+    const methods = buildWorkbenchDomainMethods() as unknown as Methods;
+    const page = (await methods['workbench.listSessions'].handle({
+      limit: 20,
+      archivedOnly: true,
+      includeArchived: true,
+      includeDeleted: true,
+    })) as { items: Array<{ id: string }> };
+
+    expect(page.items.map((item) => item.id)).toEqual(['session-archived-only']);
+  });
+});
+
+describe('workbench 域桥:提示词引用选择与快照', () => {
+  let methods: Methods;
+
+  beforeAll(() => {
+    methods = buildWorkbenchDomainMethods() as Methods;
+  });
+
+  afterEach(() => {
+    const db = getDb();
+    db.prepare('UPDATE cloud_sync_accounts SET active = 0, enabled = 0').run();
+    db.prepare("DELETE FROM local_workspaces WHERE owner_id LIKE 'prompt-ref-test-%'").run();
+    db.prepare("DELETE FROM cloud_sync_accounts WHERE owner_id LIKE 'prompt-ref-test-%'").run();
+    vi.mocked(generate).mockClear();
+  });
+
+  async function createAndReadJob(input: Record<string, unknown>): Promise<{
+    job: Record<string, any>;
+    request: CapturedRequest;
+    options: CapturedOptions;
+  }> {
+    const generateMock = vi.mocked(generate);
+    generateMock.mockClear();
+    const pending = methods['generation.create'].handle(
+      methods['generation.create'].input.parse(input),
+    );
+    await vi.waitFor(() => expect(generateMock).toHaveBeenCalledTimes(1));
+    const call = generateMock.mock.calls[0];
+    const request = call?.[0] as CapturedRequest;
+    const options = (call?.[2] ?? {}) as CapturedOptions;
+    insertQueuedJob(request, options);
+    return {
+      job: (await pending) as Record<string, any>,
+      request,
+      options,
+    };
+  }
+
+  it('resolves full and excerpt selections with JavaScript UTF-16 coordinates', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-utf16');
+    insertPrompt(workspaceId, 'prompt-ref-utf16', '星空提示', '前🙂后\n完整内容');
+
+    const result = await createAndReadJob({
+      prompt: 'raw request',
+      providerId: 'prov-ref',
+      referenceImages: [],
+      promptReferenceSelections: [
+        { promptId: 'prompt-ref-utf16', scope: 'full', expectedVersion: 1 },
+        {
+          promptId: 'prompt-ref-utf16',
+          scope: 'excerpt',
+          expectedVersion: 1,
+          range: { start: 1, end: 4 },
+        },
+      ],
+    });
+
+    expect(result.request.promptReferences).toEqual([
+      {
+        promptId: 'prompt-ref-utf16',
+        title: '星空提示',
+        text: '前🙂后\n完整内容',
+        scope: 'full',
+        sourceVersion: 1,
+      },
+      {
+        promptId: 'prompt-ref-utf16',
+        title: '星空提示',
+        text: '🙂后',
+        scope: 'excerpt',
+        sourceVersion: 1,
+      },
+    ]);
+    expect(result.job.promptReferences).toEqual(result.request.promptReferences);
+  });
+
+  it('rejects excerpt boundaries that split an astral UTF-16 surrogate pair', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-split-surrogate');
+    insertPrompt(workspaceId, 'prompt-ref-split-surrogate', '星空提示', '🙂x');
+
+    for (const range of [
+      { start: 0, end: 1 },
+      { start: 1, end: 2 },
+    ]) {
+      const error = await methods['generation.create']
+        .handle(
+          methods['generation.create'].input.parse({
+            prompt: '',
+            providerId: 'prov-ref',
+            referenceImages: [],
+            promptReferenceSelections: [
+              {
+                promptId: 'prompt-ref-split-surrogate',
+                scope: 'excerpt',
+                expectedVersion: 1,
+                range,
+              },
+            ],
+          }),
+        )
+        .catch((reason) => reason);
+
+      expect(error).toBeInstanceOf(BridgeError);
+      expect(error).toMatchObject({ code: 'VALIDATION_FAILED' });
+    }
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+  });
+
+  it('uses the active account workspace when the same prompt id exists in legacy data', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-account');
+    insertPrompt('local-only-legacy', 'prompt-ref-same-id', '旧提示词', 'legacy text');
+    insertPrompt(workspaceId, 'prompt-ref-same-id', '账号提示词', 'account text');
+
+    const result = await createAndReadJob({
+      prompt: '',
+      providerId: 'prov-ref',
+      referenceImages: [],
+      promptReferenceSelections: [
+        { promptId: 'prompt-ref-same-id', scope: 'full', expectedVersion: 1 },
+      ],
+    });
+
+    expect(result.request.promptReferences?.[0]).toMatchObject({
+      title: '账号提示词',
+      text: 'account text',
+    });
+  });
+
+  it('uses the legacy workspace for prompt references before explicit adoption', async () => {
+    activateTestAccount('prompt-ref-test-missing-workspace', false);
+    insertPrompt(
+      'local-only-legacy',
+      'prompt-ref-missing-workspace',
+      '离线提示词',
+      'offline prompt text',
+    );
+
+    const result = await createAndReadJob({
+      prompt: 'raw request',
+      providerId: 'prov-ref',
+      referenceImages: [],
+      promptReferenceSelections: [
+        { promptId: 'prompt-ref-missing-workspace', scope: 'full', expectedVersion: 1 },
+      ],
+    });
+
+    expect(result.request.promptReferences?.[0]).toMatchObject({
+      title: '离线提示词',
+      text: 'offline prompt text',
+    });
+  });
+
+  it('rejects missing, deleted, and stale-version prompt references', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-validation');
+    insertPrompt(workspaceId, 'prompt-ref-deleted', '已删除', 'deleted text', Date.now());
+    insertPrompt(workspaceId, 'prompt-ref-version', '版本提示词', 'version text');
+
+    const createError = async (selection: Record<string, unknown>) =>
+      methods['generation.create']
+        .handle(
+          methods['generation.create'].input.parse({
+            prompt: 'raw request',
+            providerId: 'prov-ref',
+            referenceImages: [],
+            promptReferenceSelections: [selection],
+          }),
+        )
+        .catch((reason) => reason);
+
+    await expect(
+      createError({ promptId: 'prompt-ref-absent', scope: 'full', expectedVersion: 1 }),
+    ).resolves.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(
+      createError({ promptId: 'prompt-ref-deleted', scope: 'full', expectedVersion: 1 }),
+    ).resolves.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(
+      createError({ promptId: 'prompt-ref-version', scope: 'full', expectedVersion: 2 }),
+    ).resolves.toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid excerpt bounds and blank excerpts', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-range');
+    insertPrompt(workspaceId, 'prompt-ref-range', '范围提示词', '   🙂   ');
+
+    const createError = async (range: { start: number; end: number }) =>
+      methods['generation.create']
+        .handle(
+          methods['generation.create'].input.parse({
+            prompt: 'raw request',
+            providerId: 'prov-ref',
+            referenceImages: [],
+            promptReferenceSelections: [
+              { promptId: 'prompt-ref-range', scope: 'excerpt', expectedVersion: 1, range },
+            ],
+          }),
+        )
+        .catch((reason) => reason);
+
+    await expect(createError({ start: 0, end: 99 })).resolves.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+    await expect(createError({ start: 0, end: 3 })).resolves.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+    expect(vi.mocked(generate)).not.toHaveBeenCalled();
+  });
+
+  it('rejects renderer-owned prompt fields through the strict input schema', () => {
+    expect(() =>
+      methods['generation.create'].input.parse({
+        prompt: 'raw request',
+        providerId: 'prov-ref',
+        referenceImages: [],
+        promptReferenceSelections: [
+          {
+            promptId: 'prompt-ref-forged',
+            scope: 'full',
+            expectedVersion: 1,
+            title: 'forged renderer title',
+            text: 'forged renderer text',
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it('passes one shared-composed prompt, raw userPrompt, and immutable references to core', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-compose');
+    insertPrompt(workspaceId, 'prompt-ref-compose', '构图参考', 'use cinematic lighting');
+
+    const result = await createAndReadJob({
+      prompt: 'raw user request',
+      providerId: 'prov-ref',
+      size: '1536x1024',
+      aspectRatio: '32:18',
+      quality: 'high',
+      referenceImages: [],
+      promptReferenceSelections: [
+        { promptId: 'prompt-ref-compose', scope: 'full', expectedVersion: 1 },
+      ],
+    }).catch((error) => {
+      throw error;
+    });
+
+    expect(result.request.prompt).toContain('raw user request');
+    expect(result.request.prompt).toContain('参考提示词：');
+    expect(result.request.prompt).toContain('构图参考');
+    expect(result.request.prompt).toContain('画面比例约束：严格按照 16:9');
+    expect(result.request.prompt.indexOf('raw user request')).toBeLessThan(
+      result.request.prompt.indexOf('参考提示词：'),
+    );
+    expect(result.request.prompt.indexOf('参考提示词：')).toBeLessThan(
+      result.request.prompt.indexOf('画面比例约束：'),
+    );
+    expect(result.options).toEqual({ promptAlreadyComposed: true, userPrompt: 'raw user request' });
+    expect(result.request.promptReferences).toEqual([
+      {
+        promptId: 'prompt-ref-compose',
+        title: '构图参考',
+        text: 'use cinematic lighting',
+        scope: 'full',
+        sourceVersion: 1,
+      },
+    ]);
+  });
+
+  it('keeps job raw text and immutable snapshots after source prompt edits and deletion', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-immutable');
+    insertPrompt(workspaceId, 'prompt-ref-immutable', '原始标题', '原始内容');
+    const result = await createAndReadJob({
+      prompt: 'raw immutable request',
+      providerId: 'prov-ref',
+      referenceImages: [],
+      promptReferenceSelections: [
+        { promptId: 'prompt-ref-immutable', scope: 'full', expectedVersion: 1 },
+      ],
+    });
+
+    getDb()
+      .prepare(
+        'UPDATE prompts SET title = ?, content = ?, deleted_at = ? WHERE workspace_id = ? AND id = ?',
+      )
+      .run('新标题', '新内容', Date.now(), workspaceId, 'prompt-ref-immutable');
+
+    const job = (await methods['generation.get'].handle(result.request.jobId)) as Record<
+      string,
+      any
+    >;
+    expect(job.userPrompt).toBe('raw immutable request');
+    expect(job.promptReferences).toEqual([
+      {
+        promptId: 'prompt-ref-immutable',
+        title: '原始标题',
+        text: '原始内容',
+        scope: 'full',
+        sourceVersion: 1,
+      },
+    ]);
+  });
+
+  it('retries from the stored final request and snapshot after source prompt deletion', async () => {
+    const workspaceId = activateTestWorkspace('prompt-ref-test-retry');
+    insertPrompt(workspaceId, 'prompt-ref-retry', '重试来源', 'live prompt');
+    const sourceRequest: CapturedRequest = {
+      jobId: 'prompt-ref-retry-source',
+      providerId: 'prov-ref',
+      model: 'frozen-model',
+      prompt: 'frozen final prompt',
+      negative: 'frozen negative',
+      size: '1536x1024',
+      aspectRatio: '16:9',
+      quality: 'high',
+      promptId: 'prompt-ref-retry',
+      promptReferences: [
+        {
+          promptId: 'prompt-ref-retry',
+          title: '重试来源',
+          text: 'frozen reference text',
+          scope: 'full',
+          sourceVersion: 1,
+        },
+      ],
+    };
+    insertQueuedJob(
+      sourceRequest,
+      { userPrompt: 'raw retry request' },
+      {
+        schemaVersion: 1,
+        userPrompt: 'raw retry request',
+        basePrompt: 'frozen base prompt',
+        refinementInstruction: null,
+        finalPrompt: 'frozen final prompt',
+        negativePrompt: 'frozen negative',
+        promptReferences: sourceRequest.promptReferences,
+      },
+    );
+    getDb()
+      .prepare("UPDATE generation_runs SET status = 'failed' WHERE id = ?")
+      .run(sourceRequest.jobId);
+    getDb()
+      .prepare(
+        'UPDATE prompts SET title = ?, content = ?, deleted_at = ? WHERE workspace_id = ? AND id = ?',
+      )
+      .run('删除后标题', '删除后内容', Date.now(), workspaceId, 'prompt-ref-retry');
+
+    const pending = methods['generation.retry'].handle(sourceRequest.jobId);
+    await vi.waitFor(() => expect(vi.mocked(generate)).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(generate).mock.calls[0];
+    const retryRequest = call?.[0] as CapturedRequest;
+    const retryOptions = (call?.[2] ?? {}) as CapturedOptions;
+    expect(retryRequest).toMatchObject({
+      prompt: 'frozen final prompt',
+      negative: 'frozen negative',
+      size: '1536x1024',
+      aspectRatio: '16:9',
+      quality: 'high',
+    });
+    expect(retryOptions).toMatchObject({ retryOfRunId: sourceRequest.jobId });
+    insertQueuedJob(retryRequest, retryOptions, {
+      schemaVersion: 1,
+      userPrompt: 'raw retry request',
+      basePrompt: 'frozen base prompt',
+      refinementInstruction: null,
+      finalPrompt: 'frozen final prompt',
+      negativePrompt: 'frozen negative',
+      promptReferences: sourceRequest.promptReferences,
+    });
+    const retryJob = (await pending) as Record<string, any>;
+    expect(retryJob.userPrompt).toBe('raw retry request');
+    expect(retryJob.promptReferences).toEqual(sourceRequest.promptReferences);
   });
 });

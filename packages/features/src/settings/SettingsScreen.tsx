@@ -24,7 +24,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AccountPanel } from '../account/AccountPanel';
 import { AiConnectionsPanel } from '../account/AiConnectionsPanel';
 import { CloudSyncPanel } from '../account/CloudSyncPanel';
+import { DoubaoConnectionPanel } from '../account/DoubaoConnectionPanel';
 import { useScreenIntent } from '../shell/screen-intent-store';
+import { ArchivedSessionsPanel } from './ArchivedSessionsPanel';
 import { usePreferences, useUpdatePreferences } from './hooks';
 
 const THEME_LABELS: Record<AppTheme, string> = {
@@ -211,13 +213,15 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
 
       {capabilities.hasCloudSyncControls && <CloudSyncPanel />}
 
-      {capabilities.hasLocalAiProviders && (
+      {(capabilities.hasLocalAiProviders || capabilities.hasDoubaoWebLogin) && (
         <div
           ref={connectionsAnchorRef}
-          className={anchorClass(highlight === 'connections')}
+          className={cn('flex flex-col gap-6', anchorClass(highlight === 'connections'))}
           data-testid="settings-connections-anchor"
         >
-          <AiConnectionsPanel />
+          {capabilities.hasLocalAiProviders && <AiConnectionsPanel />}
+          {/* 豆包免费试用(V25-UI-SPEC §0.2 可达入口):仅桌面宿主渲染。 */}
+          {capabilities.hasDoubaoWebLogin && <DoubaoConnectionPanel />}
         </div>
       )}
 
@@ -225,7 +229,7 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
         <Card data-testid="settings-data-card">
           <CardHeader>
             <CardTitle>数据</CardTitle>
-            <CardDescription>已删除的内容进入回收站,可恢复或永久删除</CardDescription>
+            <CardDescription>已删除的内容进入回收站;已归档对话可就地恢复或删除</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-1 pt-0">
             <button
@@ -254,6 +258,8 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
               <span className="flex-1 text-foreground">生成历史回收站</span>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             </button>
+            <Separator className="my-1" />
+            <ArchivedSessionsPanel />
           </CardContent>
         </Card>
       )}

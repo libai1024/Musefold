@@ -6,9 +6,14 @@ export type BridgeEnvelope<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string };
 
+export interface MethodContext {
+  /** Electron webContents identity; used only for renderer-owned host resources. */
+  senderId: number;
+}
+
 export interface MethodDef {
   input: z.ZodType;
-  handle(input: unknown): Promise<unknown>;
+  handle(input: unknown, context?: MethodContext): Promise<unknown>;
 }
 
 /** 业务错误:经信封序列化为 { ok:false, code, message },不走异常通道。 */

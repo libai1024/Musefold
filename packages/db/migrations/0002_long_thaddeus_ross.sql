@@ -1,0 +1,1 @@
+ALTER TABLE "sync_mutation_results" ADD COLUMN "request_fingerprint" varchar(64);

@@ -2,20 +2,315 @@ import { describe, expect, it } from 'vitest';
 import {
   appPreferencesSchema,
   cloudGenerationRequestSchema,
+  createGenerationInputSchema,
+  createWorkbenchSessionSchema,
+  desktopSyncConsentSchema,
+  desktopSyncPhaseSchema,
+  desktopSyncStatusSchema,
+  resolveSyncConflictInputSchema,
+  syncConflictListSchema,
+  syncConflictResolutionSchema,
+  syncConflictSummarySchema,
   generationAssetUrlSchema,
+  generationIdempotencyKeySchema,
+  generationJobSchema,
   generationReferenceImageSchema,
   mcpConnectionSchema,
   promptDocumentSchema,
   promptListQuerySchema,
+  promptReferenceSelectionSchema,
+  promptReferenceSelectionsSchema,
+  promptReferenceSelectionRangeSchema,
+  promptReferenceSnapshotSchema,
   registerRequestSchema,
   saveAssetInputSchema,
   saveAssetResultSchema,
   updateMcpConnectionSchema,
+  updateWorkbenchSessionSchema,
   uploadReferenceImageInputSchema,
   generationHistoryQuerySchema,
+  workbenchDraftSchema,
+  workbenchSessionListQuerySchema,
 } from '../index';
 
 describe('cloud-safe contracts', () => {
+  it('validates three-state desktop sync consent and runtime phases', () => {
+    expect(desktopSyncConsentSchema.parse('unset')).toBe('unset');
+    expect(desktopSyncConsentSchema.parse('enabled')).toBe('enabled');
+    expect(desktopSyncConsentSchema.parse('paused')).toBe('paused');
+    expect(desktopSyncConsentSchema.safeParse('disabled').success).toBe(false);
+
+    for (const phase of [
+      'signed_out',
+      'awaiting_consent',
+      'paused',
+      'enabling',
+      'idle',
+      'syncing',
+      'conflict',
+      'auth_blocked',
+      'error',
+    ]) {
+      expect(desktopSyncPhaseSchema.safeParse(phase).success).toBe(true);
+    }
+
+    const legacy = {
+      enabled: false,
+      state: 'disabled' as const,
+      account: null,
+      lastSyncedAt: null,
+      pendingMutations: 0,
+      conflicts: 0,
+      error: null,
+    };
+    expect(desktopSyncStatusSchema.parse(legacy)).toMatchObject({
+      consent: 'unset',
+      phase: 'signed_out',
+    });
+    expect(desktopSyncStatusSchema.safeParse({ ...legacy, unexpected: true }).success).toBe(false);
+    expect(
+      desktopSyncStatusSchema.parse({
+        ...legacy,
+        account: { username: 'user', deviceName: 'Mac' },
+        consent: 'paused',
+      }),
+    ).toMatchObject({ consent: 'paused', phase: 'paused' });
+  });
+
+  it('keeps conflict summaries strict and ties duplicate capability to prompts', () => {
+    const remoteSnapshot = {
+      id: 'prompt-1',
+      title: 'Conflict prompt',
+      description: null,
+      content: 'remote content',
+      negative: null,
+      folderId: null,
+      tags: [],
+      modelId: null,
+      params: null,
+      rating: 0,
+      isPinned: false,
+      pinOrder: null,
+      usageCount: 0,
+      lastUsedAt: null,
+      source: 'manual' as const,
+      sourceUrl: null,
+      version: 1,
+      createdAt: '2026-08-29T00:00:00+00:00',
+      updatedAt: '2026-08-29T00:00:00+00:00',
+      deletedAt: null,
+    };
+    // 真实 repository localSnapshot 是 outbox payload,不要求云实体的 id/version/timestamps。
+    const localSnapshot = { title: 'Local title', content: 'local content', folderId: null };
+    const promptConflict = {
+      id: 'conflict-1',
+      entityType: 'prompt' as const,
+      entityId: 'prompt-1',
+      localSnapshot,
+      remoteSnapshot,
+      createdAt: '2026-08-29T00:00:00+00:00',
+      canDuplicate: true as const,
+    };
+    expect(syncConflictSummarySchema.parse(promptConflict)).toEqual(promptConflict);
+    expect(syncConflictListSchema.parse([promptConflict])).toHaveLength(1);
+    expect(
+      syncConflictSummarySchema.safeParse({ ...promptConflict, ownerId: 'owner-1' }).success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({ ...promptConflict, workspaceId: 'workspace-1' })
+        .success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({ ...promptConflict, canDuplicate: false }).success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...promptConflict,
+        entityType: 'folder',
+        canDuplicate: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      resolveSyncConflictInputSchema.parse({ conflictId: 'conflict-1', resolution: 'remote' }),
+    ).toEqual({ conflictId: 'conflict-1', resolution: 'remote' });
+    expect(syncConflictResolutionSchema.safeParse('nope').success).toBe(false);
+    expect(
+      resolveSyncConflictInputSchema.safeParse({
+        conflictId: 'conflict-1',
+        resolution: 'remote',
+        workspaceId: 'workspace-1',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('keeps conflict local payloads renderer-safe and entity-specific', () => {
+    const createdAt = '2026-08-29T00:00:00+00:00';
+    const promptConflict = {
+      id: 'conflict-prompt',
+      entityType: 'prompt' as const,
+      entityId: 'prompt-1',
+      localSnapshot: {},
+      remoteSnapshot: {
+        id: 'prompt-1',
+        title: 'Remote prompt',
+        description: null,
+        content: 'remote content',
+        negative: null,
+        folderId: null,
+        tags: [],
+        modelId: null,
+        params: null,
+        rating: 0,
+        isPinned: false,
+        pinOrder: null,
+        usageCount: 0,
+        lastUsedAt: null,
+        source: 'manual' as const,
+        sourceUrl: null,
+        version: 1,
+        createdAt,
+        updatedAt: createdAt,
+        deletedAt: null,
+      },
+      createdAt,
+      canDuplicate: true as const,
+    };
+    const folderConflict = {
+      id: 'conflict-folder',
+      entityType: 'folder' as const,
+      entityId: 'folder-1',
+      localSnapshot: {},
+      remoteSnapshot: {
+        id: 'folder-1',
+        name: 'Remote folder',
+        parentId: null,
+        sortOrder: 0,
+        version: 1,
+        createdAt,
+        updatedAt: createdAt,
+        deletedAt: null,
+      },
+      createdAt,
+      canDuplicate: false as const,
+    };
+    const tagConflict = {
+      id: 'conflict-tag',
+      entityType: 'tag' as const,
+      entityId: 'tag-1',
+      localSnapshot: {},
+      remoteSnapshot: {
+        id: 'tag-1',
+        name: 'Remote tag',
+        group: null,
+        color: null,
+        version: 1,
+        createdAt,
+        updatedAt: createdAt,
+        deletedAt: null,
+      },
+      createdAt,
+      canDuplicate: false as const,
+    };
+
+    expect(
+      syncConflictListSchema.parse([promptConflict, folderConflict, tagConflict]),
+    ).toHaveLength(3);
+
+    for (const forbiddenField of ['localPath', 'apiKey', 'token', 'ownerId', 'workspaceId']) {
+      expect(
+        syncConflictSummarySchema.safeParse({
+          ...promptConflict,
+          localSnapshot: { [forbiddenField]: 'private' },
+        }).success,
+      ).toBe(false);
+    }
+
+    for (const forbiddenField of ['apiKey', 'token', 'ownerId', 'workspaceId', 'imagePath']) {
+      expect(
+        syncConflictSummarySchema.safeParse({
+          ...promptConflict,
+          localSnapshot: { params: { nested: { [forbiddenField]: 'private' } } },
+        }).success,
+      ).toBe(false);
+    }
+
+    for (const forbiddenField of [
+      'api__key',
+      'authorization',
+      'private_key',
+      'signing_key',
+      'passwd',
+    ]) {
+      expect(
+        syncConflictSummarySchema.safeParse({
+          ...promptConflict,
+          localSnapshot: { params: { [forbiddenField]: 'private' } },
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...promptConflict,
+        localSnapshot: { params: { max_tokens: 128 } },
+      }).success,
+    ).toBe(true);
+
+    for (const localPath of [
+      '/Users/person/private.png',
+      '/home/person/private.png',
+      '/var/lib/musefold/private.png',
+      '/private/var/folders/private.png',
+      '/Volumes/External/private.png',
+      'C:\\Users\\person\\private.png',
+      '\\\\server\\private.png',
+      'file:///Users/person/private.png',
+    ]) {
+      expect(
+        syncConflictSummarySchema.safeParse({
+          ...promptConflict,
+          localSnapshot: { params: { reference: localPath } },
+        }).success,
+      ).toBe(false);
+    }
+
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...promptConflict,
+        localSnapshot: { params: { references: ['/Users/person/private.png'] } },
+      }).success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...promptConflict,
+        localSnapshot: { sourceUrl: 'file:///Users/person/private.png' },
+      }).success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...promptConflict,
+        localSnapshot: { sourceUrl: 'https://example.com/prompt' },
+      }).success,
+    ).toBe(true);
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...folderConflict,
+        localSnapshot: { content: 'prompt-only' },
+      }).success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...tagConflict,
+        localSnapshot: { sortOrder: 2 },
+      }).success,
+    ).toBe(false);
+    expect(
+      syncConflictSummarySchema.safeParse({
+        ...promptConflict,
+        localSnapshot: { group: 'tag-only' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('applies stable list and generation defaults', () => {
     expect(promptListQuerySchema.parse({})).toMatchObject({
       limit: 20,
@@ -26,6 +321,257 @@ describe('cloud-safe contracts', () => {
       size: 'auto',
       quality: 'auto',
       count: 1,
+    });
+  });
+
+  it('validates generation idempotency keys against the API wire grammar', () => {
+    expect(generationIdempotencyKeySchema.parse('intent-0001')).toBe('intent-0001');
+    expect(generationIdempotencyKeySchema.safeParse('short').success).toBe(false);
+    expect(generationIdempotencyKeySchema.safeParse('x'.repeat(129)).success).toBe(false);
+    expect(generationIdempotencyKeySchema.safeParse('intent-\n001').success).toBe(false);
+  });
+
+  it('keeps canonical aspect ratios strict for new client creates', () => {
+    for (const aspectRatio of ['1:4', '4:1', '16:9', '7:3']) {
+      expect(createGenerationInputSchema.safeParse({ prompt: 'p', aspectRatio }).success).toBe(
+        true,
+      );
+    }
+    for (const aspectRatio of ['99:1', '1:5', '0:1', '1:0', '01:04', 'custom:7:3', 'wide']) {
+      expect(createGenerationInputSchema.safeParse({ prompt: 'p', aspectRatio }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it('keeps persisted ratio rows backward-readable while raw creates stay canonical', () => {
+    expect(
+      cloudGenerationRequestSchema.parse({ prompt: 'legacy', aspectRatio: '01:04' }).aspectRatio,
+    ).toBe('01:04');
+    expect(
+      cloudGenerationRequestSchema.parse({ prompt: 'legacy', aspectRatio: '99:1' }).aspectRatio,
+    ).toBe('99:1');
+    expect(
+      createGenerationInputSchema.safeParse({ prompt: 'new', aspectRatio: '01:04' }).success,
+    ).toBe(false);
+    expect(
+      createGenerationInputSchema.safeParse({ prompt: 'new', aspectRatio: '99:1' }).success,
+    ).toBe(false);
+    expect(
+      createGenerationInputSchema.safeParse({ prompt: 'new', aspectRatio: '7:3' }).success,
+    ).toBe(true);
+    expect(
+      createGenerationInputSchema.parse({ prompt: 'new', aspectRatio: '2:8' }).aspectRatio,
+    ).toBe('1:4');
+    expect(
+      createGenerationInputSchema.parse({ prompt: 'new', aspectRatio: '1:4' }).aspectRatio,
+    ).toBe('1:4');
+    expect(
+      createGenerationInputSchema.parse({ prompt: 'new', aspectRatio: '7:3' }).aspectRatio,
+    ).toBe('7:3');
+    expect(cloudGenerationRequestSchema.safeParse({ prompt: 'x'.repeat(12_000) }).success).toBe(
+      true,
+    );
+    expect(cloudGenerationRequestSchema.safeParse({ prompt: 'x'.repeat(12_001) }).success).toBe(
+      false,
+    );
+    expect(createGenerationInputSchema.safeParse({ prompt: 'x'.repeat(8_000) }).success).toBe(true);
+    expect(createGenerationInputSchema.safeParse({ prompt: 'x'.repeat(8_001) }).success).toBe(
+      false,
+    );
+  });
+
+  it('validates prompt reference selection intent without trusting renderer text', () => {
+    const full = { promptId: 'prompt-1', scope: 'full', expectedVersion: 2 } as const;
+    const excerpt = {
+      promptId: 'prompt-2',
+      scope: 'excerpt',
+      expectedVersion: 3,
+      range: { start: 2, end: 8 },
+    } as const;
+    expect(promptReferenceSelectionSchema.parse(full)).toEqual(full);
+    expect(promptReferenceSelectionSchema.parse(excerpt)).toEqual(excerpt);
+    expect(
+      promptReferenceSelectionSchema.safeParse({ ...full, range: { start: 0, end: 1 } }).success,
+    ).toBe(false);
+    expect(
+      promptReferenceSelectionSchema.safeParse({
+        promptId: 'prompt-1',
+        scope: 'excerpt',
+        expectedVersion: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      promptReferenceSelectionSchema.safeParse({ ...full, title: 'forged', text: 'forged' })
+        .success,
+    ).toBe(false);
+    expect(promptReferenceSelectionRangeSchema.safeParse({ start: 4, end: 4 }).success).toBe(false);
+    expect(promptReferenceSelectionRangeSchema.safeParse({ start: -1, end: 1 }).success).toBe(
+      false,
+    );
+    // Coordinates are UTF-16 code units: an astral symbol occupies two coordinate units.
+    expect(promptReferenceSelectionRangeSchema.parse({ start: 0, end: 2 })).toEqual({
+      start: 0,
+      end: 2,
+    });
+    expect(promptReferenceSelectionRangeSchema.safeParse({ start: 0, end: 12_000 }).success).toBe(
+      true,
+    );
+    expect(promptReferenceSelectionRangeSchema.safeParse({ start: 0, end: 12_001 }).success).toBe(
+      false,
+    );
+  });
+
+  it('supports reference-only creates and enforces the six-selection limit', () => {
+    const selection = { promptId: 'prompt-1', scope: 'full', expectedVersion: 1 } as const;
+    expect(
+      createGenerationInputSchema.parse({ prompt: '', promptReferenceSelections: [selection] }),
+    ).toMatchObject({
+      prompt: '',
+      promptReferenceSelections: [selection],
+    });
+    expect(createGenerationInputSchema.safeParse({ prompt: '   ' }).success).toBe(false);
+    expect(
+      createGenerationInputSchema.safeParse({
+        prompt: '',
+        promptReferenceSelections: Array.from({ length: 7 }, (_, index) => ({
+          promptId: `prompt-${index}`,
+          scope: 'full' as const,
+          expectedVersion: 1,
+        })),
+      }).success,
+    ).toBe(false);
+    expect(promptReferenceSelectionsSchema.safeParse([]).success).toBe(true);
+  });
+
+  it('keeps legacy workbench drafts unchanged while defaulting reference intents', () => {
+    expect(
+      workbenchDraftSchema.parse({
+        prompt: 'legacy prompt',
+        negative: '',
+        params: {},
+        promptReferenceIds: ['legacy-prompt'],
+      }),
+    ).toMatchObject({
+      prompt: 'legacy prompt',
+      promptReferenceIds: ['legacy-prompt'],
+      promptReferenceSelections: [],
+    });
+    expect(workbenchDraftSchema.parse({ prompt: '', negative: '', params: {} })).toMatchObject({
+      promptReferenceIds: [],
+      promptReferenceSelections: [],
+    });
+    expect(
+      workbenchDraftSchema.safeParse({
+        prompt: 'x'.repeat(12_000),
+        negative: '',
+        params: {},
+      }).success,
+    ).toBe(true);
+    expect(
+      workbenchDraftSchema.safeParse({
+        prompt: 'x'.repeat(12_001),
+        negative: '',
+        params: {},
+      }).success,
+    ).toBe(false);
+    expect(
+      workbenchDraftSchema.safeParse({
+        prompt: 'draft',
+        negative: '',
+        params: { aspectRatio: '99:1' },
+        promptReferenceIds: [],
+      }).success,
+    ).toBe(true);
+    expect(
+      workbenchDraftSchema.safeParse({
+        prompt: 'draft',
+        negative: '',
+        params: { aspectRatio: '01:04' },
+      }).success,
+    ).toBe(true);
+    expect(
+      createWorkbenchSessionSchema.safeParse({
+        draft: { prompt: 'draft', negative: '', params: { aspectRatio: '99:1' } },
+      }).success,
+    ).toBe(false);
+    expect(
+      updateWorkbenchSessionSchema.safeParse({
+        expectedVersion: 1,
+        draft: { prompt: 'draft', negative: '', params: { aspectRatio: '01:04' } },
+      }).success,
+    ).toBe(false);
+    expect(
+      createWorkbenchSessionSchema.parse({
+        draft: { prompt: 'draft', negative: '', params: { aspectRatio: '2:8' } },
+      }).draft.params?.aspectRatio,
+    ).toBe('1:4');
+    expect(
+      workbenchDraftSchema.parse({
+        prompt: 'draft',
+        negative: '',
+        params: { aspectRatio: '2:8' },
+      }).params.aspectRatio,
+    ).toBe('2:8');
+  });
+
+  it('keeps immutable snapshots strict and permits hard-deleted source links', () => {
+    const snapshot = {
+      promptId: null,
+      title: 'Frozen title',
+      text: '  frozen text  ',
+      scope: 'excerpt' as const,
+      sourceVersion: 4,
+    };
+    expect(promptReferenceSnapshotSchema.parse(snapshot)).toMatchObject({
+      promptId: null,
+      text: 'frozen text',
+    });
+    expect(
+      promptReferenceSnapshotSchema.safeParse({ ...snapshot, content: 'forged' }).success,
+    ).toBe(false);
+  });
+
+  it('keeps legacy generation jobs readable and defaults frozen timeline fields', () => {
+    const legacyJob = {
+      id: 'job-1',
+      sessionId: null,
+      parentRunId: null,
+      promptId: null,
+      actorType: 'web',
+      approvalStatus: 'not_required',
+      status: 'succeeded',
+      progress: 100,
+      request: { prompt: 'legacy request' },
+      providerModel: null,
+      costPoints: null,
+      assets: [],
+      error: null,
+      createdAt: '2026-08-18T00:00:00.000Z',
+      startedAt: null,
+      finishedAt: '2026-08-18T00:00:00.000Z',
+    } as const;
+    expect(generationJobSchema.parse(legacyJob)).toMatchObject({
+      request: { prompt: 'legacy request' },
+      promptReferences: [],
+    });
+    expect(generationJobSchema.parse(legacyJob)).not.toHaveProperty('userPrompt');
+    const referenceOnlyJob = generationJobSchema.parse({
+      ...legacyJob,
+      userPrompt: '',
+      promptReferences: [
+        {
+          promptId: 'prompt-1',
+          title: 'Source',
+          text: 'Reference text',
+          scope: 'full',
+          sourceVersion: 1,
+        },
+      ],
+    });
+    expect(referenceOnlyJob).toMatchObject({
+      userPrompt: '',
+      promptReferences: [{ promptId: 'prompt-1' }],
     });
   });
 
@@ -120,6 +666,28 @@ describe('cloud-safe contracts', () => {
       providerModel: 'musefold-image-pro',
     });
     expect(generationHistoryQuerySchema.safeParse({ status: 'success' }).success).toBe(false);
+  });
+
+  it('defaults and parses the archived-only workbench list filter', () => {
+    expect(workbenchSessionListQuerySchema.parse({})).toMatchObject({
+      limit: 20,
+      includeArchived: false,
+      includeDeleted: false,
+      archivedOnly: false,
+    });
+    expect(
+      workbenchSessionListQuerySchema.parse({
+        archivedOnly: 'true',
+        includeArchived: false,
+        includeDeleted: true,
+      }),
+    ).toMatchObject({
+      archivedOnly: true,
+      includeDeleted: true,
+    });
+    expect(workbenchSessionListQuerySchema.safeParse({ archivedOnly: 'invalid' }).success).toBe(
+      false,
+    );
   });
 
   it('strips non-contract registration fields', () => {

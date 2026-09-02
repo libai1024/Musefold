@@ -6,6 +6,7 @@ import type { Tag } from '@musefold/desktop-contracts/models';
 import type { TagGroup } from '@musefold/desktop-contracts/enums';
 import { getDb } from '../index';
 import { enqueueActiveAccountMutation } from '../../sync/repository';
+import { resolveLocalContentWorkspace } from '../workspaces';
 
 function rowToTag(row: unknown): Tag {
   const r = row as Record<string, unknown>;
@@ -19,27 +20,33 @@ function rowToTag(row: unknown): Tag {
 }
 
 export const tagsRepo = {
-  assignToPrompt(promptId: string, tagIds: string[]): void {
+  assignToPrompt(promptId: string, tagIds: string[], workspaceId?: string): void {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     db.transaction(() => {
-      db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(promptId);
-      const stmt = db.prepare(
-        'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
+      db.prepare('DELETE FROM prompt_tags WHERE workspace_id = ? AND prompt_id = ?').run(
+        scope,
+        promptId,
       );
-      tagIds.forEach((tid) => stmt.run(promptId, tid));
-      enqueueActiveAccountMutation(db, 'prompt', promptId, 'update');
+      const stmt = db.prepare(
+        'INSERT OR IGNORE INTO prompt_tags (workspace_id, prompt_id, tag_id) VALUES (?, ?, ?)',
+      );
+      for (const tid of tagIds) stmt.run(scope, promptId, tid);
+      enqueueActiveAccountMutation(db, 'prompt', promptId, 'update', scope);
     })();
   },
 
-  getByPromptId(promptId: string): Tag[] {
+  getByPromptId(promptId: string, workspaceId?: string): Tag[] {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const rows = db
       .prepare(
         `SELECT t.* FROM tags t
        JOIN prompt_tags pt ON pt.tag_id = t.id
-       WHERE pt.prompt_id = ?`,
+       WHERE pt.workspace_id = ? AND pt.prompt_id = ?
+         AND t.workspace_id = pt.workspace_id`,
       )
-      .all(promptId);
+      .all(scope, promptId);
     return rows.map(rowToTag);
   },
 };

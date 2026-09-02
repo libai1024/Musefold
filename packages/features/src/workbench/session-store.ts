@@ -12,11 +12,17 @@ import { create } from 'zustand';
  */
 interface ActiveSessionState {
   activeSessionId: string | null;
+  /**
+   * 「新设计」草稿态:工作台呈空白待发(不自动回落最近会话),
+   * 首次发送才真正建会话——不产生「未命名创作」空行。
+   */
+  draftSession: boolean;
   seenAt: Record<string, number>;
   /** 手动「标记为未读」集合(ui-parity 02 §7):轻量「稍后回看」,打开会话即清。 */
   unreadMarks: Record<string, true>;
   pendingDraft: WorkbenchDraft | null;
   setActiveSessionId(id: string | null): void;
+  startDraftSession(): void;
   markSeen(id: string): void;
   markUnread(id: string): void;
   setPendingDraft(draft: WorkbenchDraft): void;
@@ -31,15 +37,18 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
 
 export const useActiveSession = create<ActiveSessionState>((set) => ({
   activeSessionId: null,
+  draftSession: false,
   seenAt: {},
   unreadMarks: {},
   pendingDraft: null,
   setActiveSessionId: (id) =>
     set((state) => ({
       activeSessionId: id,
+      draftSession: false,
       seenAt: id ? { ...state.seenAt, [id]: Date.now() } : state.seenAt,
       unreadMarks: id ? withoutKey(state.unreadMarks, id) : state.unreadMarks,
     })),
+  startDraftSession: () => set({ activeSessionId: null, draftSession: true }),
   markSeen: (id) =>
     set((state) => ({
       seenAt: { ...state.seenAt, [id]: Date.now() },

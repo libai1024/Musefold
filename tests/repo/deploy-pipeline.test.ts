@@ -30,7 +30,7 @@ function tempDir() {
   return mkdtempSync(join(tmpdir(), 'mf-deploy-'));
 }
 
-function writeTree(root, files) {
+function writeTree(root: string, files: Record<string, string>) {
   for (const [rel, body] of Object.entries(files)) {
     const path = join(root, rel);
     mkdirSync(dirname(path), { recursive: true });
@@ -172,13 +172,13 @@ describe('deploy orchestration', () => {
     const liveRemoteCompose = join(composeDir, 'remote-compose.yaml');
     writeFileSync(liveCompose, 'HOST STACK\n');
 
-    const calls = [];
-    const exec = (command, args) => {
+    const calls: string[][] = [];
+    const exec = (command: string, args: string[]) => {
       calls.push([command, ...args]);
       return { status: 0, stdout: '', stderr: '' };
     };
 
-    const okFetch = async (url) => ({
+    const okFetch = async (url: string | URL) => ({
       ok: true,
       status: 200,
       text: async () => (String(url).includes(SHA_MARKER) ? 'abc1234def' : ''),
@@ -268,8 +268,12 @@ describe('deploy orchestration', () => {
         service: { current: 'deadbee', previous: null },
       }),
     );
-    const commands = [];
-    const exec = (command, args, options = {}) => {
+    const commands: { command: string; args: string[]; imageTag: string | undefined }[] = [];
+    const exec = (
+      command: string,
+      args: string[],
+      options: { env?: Record<string, string> } = {},
+    ) => {
       commands.push({ command, args, imageTag: options.env?.MUSEFOLD_IMAGE_TAG });
       return {
         status: 0,
@@ -313,8 +317,8 @@ describe('deploy orchestration', () => {
     expect(rollbackAt).toBeGreaterThan(upAt);
     expect(readFileSync(join(composeDir, 'docker-compose.yml'), 'utf8')).toBe('HOST STACK\n');
     const up = commands.find((row) => row.args?.includes('--force-recreate'));
-    expect(up.args).toContain(join(composeDir, 'docker-compose.yml'));
-    expect(up.args).toContain(join(composeDir, 'remote-compose.yaml'));
+    expect(up?.args).toContain(join(composeDir, 'docker-compose.yml'));
+    expect(up?.args).toContain(join(composeDir, 'remote-compose.yaml'));
   });
 });
 

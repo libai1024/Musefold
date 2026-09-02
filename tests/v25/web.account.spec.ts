@@ -21,8 +21,11 @@ function apiError(code: string, message: string, status: number) {
 }
 
 /** 安装账号域 mock;返回可变会话状态供用例断言/推进。 */
-async function installAccountApiMock(page: Page): Promise<{ state: { signedIn: boolean } }> {
+async function installAccountApiMock(
+  page: Page,
+): Promise<{ state: { signedIn: boolean }; registrations: Array<Record<string, unknown>> }> {
   const state = { signedIn: false };
+  const registrations: Array<Record<string, unknown>> = [];
   let quota = ACCOUNT.quota;
 
   await page.route('**/api/auth/**', async (route) => {
@@ -36,6 +39,11 @@ async function installAccountApiMock(page: Page): Promise<{ state: { signedIn: b
       }
       state.signedIn = true;
       return route.fulfill(json({ token: 'e2e-session-token', user: { id: 'u1' } }));
+    }
+    if (path === '/api/auth/sign-up/new-api') {
+      registrations.push(route.request().postDataJSON() as Record<string, unknown>);
+      state.signedIn = true;
+      return route.fulfill(json({ token: 'e2e-registration-token', user: { id: 'u1' } }));
     }
     if (path === '/api/auth/sign-out') {
       state.signedIn = false;
@@ -59,8 +67,28 @@ async function installAccountApiMock(page: Page): Promise<{ state: { signedIn: b
     return route.fulfill(apiError('NOT_FOUND', `mock 未覆盖:${path}`, 404));
   });
 
-  return { state };
+  return { state, registrations };
 }
+
+test('注册确认密码只在注册模式显示,失配拦截 Enter,匹配后只发送账号密码', async ({ page }) => {
+  const { registrations } = await installAccountApiMock(page);
+  await page.goto('/settings');
+
+  await page.getByRole('button', { name: '没有账号?注册' }).click();
+  await expect(page.getByTestId('account-confirm-password')).toBeVisible();
+
+  await page.getByTestId('account-username').fill('new-user');
+  await page.getByTestId('account-password').fill(' secret ');
+  await page.getByTestId('account-confirm-password').fill('secret');
+  await page.getByTestId('account-confirm-password').press('Enter');
+  await expect(page.getByTestId('account-password-mismatch')).toBeVisible();
+  expect(registrations).toHaveLength(0);
+
+  await page.getByTestId('account-confirm-password').fill(' secret ');
+  await page.getByTestId('account-confirm-password').press('Enter');
+  await expect(page.getByTestId('account-signed-in')).toBeVisible();
+  expect(registrations).toEqual([{ email: 'new-user', password: ' secret ' }]);
+});
 
 test('账密登录 → 已登录视图与侧栏账号区 → 兑换 → 退出', async ({ page, isMobile }) => {
   await installAccountApiMock(page);

@@ -76,6 +76,85 @@ describe('DesignSchemeRepository 运行切片', () => {
     return repository.insertLocalRunAsset('dsrv_run_1', '/tmp/trial-result.png');
   }
 
+  it('跨连接的独立数据库可回放同一 schema', () => {
+    const otherConnection = new Database(':memory:');
+    try {
+      runDesignSchemeDbMigrations(otherConnection);
+      const source = otherConnection
+        .prepare("SELECT sql FROM sqlite_master WHERE name = 'design_schemes'")
+        .get() as { sql: string };
+      expect(source.sql).toContain('version INTEGER');
+      expect(otherConnection.pragma('foreign_keys', { simple: true })).toBe(1);
+    } finally {
+      otherConnection.close();
+    }
+  });
+
+  it('版本字段递增，跨连接语义下过期 expectedVersion 被拒绝且无额外 revision', () => {
+    const initial = repository.requireSummary('dsch_run_1');
+    expect(initial.version).toBe(1);
+    const renamed = repository.rename('dsch_run_1', '版本一', initial.version);
+    expect(renamed.version).toBe(2);
+    expect(() => repository.rename('dsch_run_1', '过期写入', initial.version)).toThrow(
+      /版本已变化/,
+    );
+    expect(repository.requireSummary('dsch_run_1').name).toBe('版本一');
+    expect(repository.requireSummary('dsch_run_1').version).toBe(2);
+  });
+
+  it('软删除保留 revision、source、asset、run、step、evaluation 和 share 索引', () => {
+    const source = repository.saveSourceSnapshot({
+      package: {
+        id: 'pkg_retention',
+        kind: 'github',
+        repositoryUrl: 'https://github.com/acme/retention',
+      },
+      snapshot: { id: 'snap_retention', ref: 'main', commitHash: null, totalBytes: 0, scan: {} },
+      files: [],
+    });
+    db.prepare(
+      `INSERT INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+       VALUES (?, ?, 'context')`,
+    ).run('dsrv_run_1', source.snapshotId);
+    repository.insertRun({
+      runId: 'dsr_retention',
+      revisionId: 'dsrv_run_1',
+      mode: 'trial',
+      policy: {},
+    });
+    repository.upsertRunStep('dsr_retention', 'compile', {
+      status: 'completed',
+      output: { ok: true },
+    });
+    repository.insertEvaluation('dsr_retention', { passed: true, metrics: {}, evidence: {} });
+    const assetId = repository.insertLocalRunAsset('dsrv_run_1', 'managed/retention.png');
+    db.prepare(
+      `INSERT INTO share_packages (package_id, scheme_id, manifest_json, path, created_at)
+       VALUES ('share_retention', 'dsch_run_1', '{}', '/managed/retention.musefold.design', ?)`,
+    ).run(Date.now());
+
+    repository.softDelete('dsch_run_1');
+
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_revisions').get()).toEqual({
+      count: 1,
+    });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM source_snapshots').get()).toEqual({
+      count: 1,
+    });
+    expect(
+      db.prepare('SELECT COUNT(*) AS count FROM design_scheme_assets WHERE id = ?').get(assetId),
+    ).toEqual({ count: 1 });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_runs').get()).toEqual({
+      count: 1,
+    });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_run_steps').get()).toEqual({
+      count: 1,
+    });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_evaluations').get()).toEqual({
+      count: 1,
+    });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM share_packages').get()).toEqual({ count: 1 });
+  });
   it('新草稿没有成功试运行，转正被拒绝', () => {
     const summary = repository.requireSummary('dsch_run_1');
     expect(summary.status).toBe('draft');
@@ -171,13 +250,152 @@ describe('DesignSchemeRepository 运行切片', () => {
     ).toThrow(/正式方案/);
   });
 
-  it('listAssets 返回方案全部相册资产（详情页数据源）', () => {
+  it('多语句版本冲突回滚新 revision 与来源绑定', () => {
+    const initial = repository.requireSummary('dsch_run_1');
+    const source = repository.saveSourceSnapshot({
+      package: {
+        id: 'pkg_conflict',
+        kind: 'github',
+        repositoryUrl: 'https://github.com/acme/conflict',
+      },
+      snapshot: { id: 'snap_conflict', ref: 'main', commitHash: null, totalBytes: 0, scan: {} },
+      files: [],
+    });
+    db.prepare(
+      `INSERT INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+       VALUES ('dsrv_run_1', ?, 'context')`,
+    ).run(source.snapshotId);
+    const beforeRevisions = db
+      .prepare('SELECT COUNT(*) AS count FROM design_scheme_revisions')
+      .get() as { count: number };
+    const beforeBindings = db
+      .prepare('SELECT COUNT(*) AS count FROM design_scheme_source_bindings')
+      .get() as { count: number };
+    db.exec(`
+      CREATE TRIGGER bump_scheme_version_after_revision
+      AFTER INSERT ON design_scheme_revisions
+      WHEN NEW.scheme_id = 'dsch_run_1'
+      BEGIN
+        UPDATE design_schemes SET version = version + 1 WHERE id = NEW.scheme_id;
+      END;
+    `);
+    expect(() =>
+      repository.updateRevisionInputs(
+        'dsch_run_1',
+        'dsrv_run_1',
+        [
+          { id: 'topic', required: true },
+          { id: 'main_image', required: false },
+        ],
+        initial.version,
+      ),
+    ).toThrow(/版本已变化/);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_revisions').get()).toEqual(
+      beforeRevisions,
+    );
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_source_bindings').get()).toEqual(
+      beforeBindings,
+    );
+    expect(repository.requireSummary('dsch_run_1')).toMatchObject({
+      currentRevisionId: 'dsrv_run_1',
+      version: initial.version,
+    });
+  });
+
+  it('applyAgentRevision 的版本冲突回滚新 revision 与附加来源绑定', () => {
+    const initial = repository.requireSummary('dsch_run_1');
+    const source = repository.saveSourceSnapshot({
+      package: {
+        id: 'pkg_agent_conflict',
+        kind: 'github',
+        repositoryUrl: 'https://github.com/acme/agent-conflict',
+      },
+      snapshot: {
+        id: 'snap_agent_conflict',
+        ref: 'main',
+        commitHash: null,
+        totalBytes: 0,
+        scan: {},
+      },
+      files: [],
+    });
+    db.prepare(
+      `INSERT INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+       VALUES ('dsrv_run_1', ?, 'context')`,
+    ).run(source.snapshotId);
+    const beforeRevisions = db
+      .prepare('SELECT COUNT(*) AS count FROM design_scheme_revisions')
+      .get() as { count: number };
+    const beforeBindings = db
+      .prepare('SELECT COUNT(*) AS count FROM design_scheme_source_bindings')
+      .get() as { count: number };
+    db.exec(`
+      CREATE TRIGGER bump_scheme_version_after_agent_revision
+      AFTER INSERT ON design_scheme_revisions
+      WHEN NEW.scheme_id = 'dsch_run_1'
+      BEGIN
+        UPDATE design_schemes SET version = version + 1 WHERE id = NEW.scheme_id;
+      END;
+    `);
+
+    expect(() =>
+      repository.applyAgentRevision(
+        'dsch_run_1',
+        'dsrv_run_1',
+        { ...documentFixture(), revisionId: 'dsrv_agent_conflict' },
+        [{ snapshotId: source.snapshotId, role: 'normative' }],
+        initial.version,
+      ),
+    ).toThrow(/版本已变化/);
+
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_revisions').get()).toEqual(
+      beforeRevisions,
+    );
+    expect(db.prepare('SELECT COUNT(*) AS count FROM design_scheme_source_bindings').get()).toEqual(
+      beforeBindings,
+    );
+    expect(repository.requireSummary('dsch_run_1')).toMatchObject({
+      currentRevisionId: 'dsrv_run_1',
+      workingDraftRevisionId: null,
+      version: initial.version,
+    });
+  });
+
+  it('终态运行不会被后续状态更新覆盖', () => {
+    repository.insertRun({
+      runId: 'dsr_terminal_guard',
+      revisionId: 'dsrv_run_1',
+      mode: 'trial',
+      policy: {},
+    });
+    repository.updateRunStatus('dsr_terminal_guard', 'failed');
+    repository.updateRunStatus('dsr_terminal_guard', 'completed');
+    repository.updateRunStatus('dsr_terminal_guard', 'executing');
+    expect(
+      db
+        .prepare('SELECT status, completed_at FROM design_scheme_runs WHERE run_id = ?')
+        .get('dsr_terminal_guard'),
+    ).toMatchObject({ status: 'failed' });
+  });
+
+  it('资产列表映射 repository 来源并保持稳定排序', () => {
     expect(repository.listAssets('dsch_run_1')).toEqual([]);
     const first = repository.insertLocalRunAsset('dsrv_run_1', '/tmp/a.png');
     const second = repository.insertLocalRunAsset('dsrv_run_1', '/tmp/b.png');
+    db.prepare(
+      `INSERT INTO design_scheme_assets (id, revision_id, store_key, role, origin, created_at)
+       VALUES ('dsa_repository', 'dsrv_run_1', 'managed/repository.png', 'example', 'repository', ?)`,
+    ).run(Date.now() - 1000);
     const assets = repository.listAssets('dsch_run_1');
-    expect(assets).toHaveLength(2);
-    expect(assets.map((asset) => asset.id)).toEqual(expect.arrayContaining([first, second]));
+    expect(assets).toHaveLength(3);
+    expect(assets.map((asset) => asset.id)).toEqual(
+      expect.arrayContaining([first, second, 'dsa_repository']),
+    );
+    expect(assets.find((asset) => asset.id === 'dsa_repository')).toMatchObject({
+      revisionId: 'dsrv_run_1',
+      role: 'example',
+      origin: 'repo-example',
+    });
     expect(assets[0]).toMatchObject({
       revisionId: 'dsrv_run_1',
       role: 'example',

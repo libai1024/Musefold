@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -74,6 +75,7 @@ export const generationRuns = pgTable(
     index('generation_runs_user_created_idx').on(table.userId, table.createdAt),
     index('generation_runs_user_session_idx').on(table.userId, table.sessionId),
     index('generation_runs_user_status_idx').on(table.userId, table.status),
+    unique('generation_runs_id_user_unique').on(table.id, table.userId),
     uniqueIndex('generation_runs_user_idempotency_key_idx').on(table.userId, table.idempotencyKey),
   ],
 );

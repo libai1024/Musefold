@@ -4,7 +4,17 @@ import type { PromptDocument } from '@musefold/contracts';
 import { Badge } from '@musefold/ui/components/badge';
 import { Button } from '@musefold/ui/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@musefold/ui/components/tooltip';
-import { Copy, FileText, Pencil, Pin, PinOff, RotateCcw, Star, Trash2 } from '@musefold/ui/icons';
+import {
+  Blocks,
+  Copy,
+  FileText,
+  Pencil,
+  Pin,
+  PinOff,
+  RotateCcw,
+  Star,
+  Trash2,
+} from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
 import type { ReactNode } from 'react';
 
@@ -21,6 +31,12 @@ export interface PromptListRowProps {
   onRestore(prompt: PromptDocument): void;
   /** 回收站行「永久删除」;确认对话框由屏幕层持有。 */
   onPurge(prompt: PromptDocument): void;
+  /**
+   * 「创建方案」(承 v2.1 详情页菜单项):把提示词整理成可复用方案的创建意图送工作台。
+   * 可选——方案域能力关闭或宿主未接切屏回调时不渲染该钮(D2,不留死入口);
+   * 回收站行同样不出现。
+   */
+  onCreateScheme?(prompt: PromptDocument): void;
 }
 
 function RowAction({
@@ -68,6 +84,7 @@ export function PromptListRow({
   onRemove,
   onRestore,
   onPurge,
+  onCreateScheme,
 }: PromptListRowProps) {
   const deleted = prompt.deletedAt != null;
   const summary = prompt.description?.trim() || prompt.content;
@@ -157,6 +174,15 @@ export function PromptListRow({
             <RowAction label="复制内容" testId="prompt-row-copy" onClick={() => onCopy(prompt)}>
               <Copy className="size-4" />
             </RowAction>
+            {onCreateScheme ? (
+              <RowAction
+                label="创建方案"
+                testId="prompt-row-create-scheme"
+                onClick={() => onCreateScheme(prompt)}
+              >
+                <Blocks className="size-4" />
+              </RowAction>
+            ) : null}
             <RowAction label="编辑" testId="prompt-row-edit" onClick={() => onEdit(prompt)}>
               <Pencil className="size-4" />
             </RowAction>

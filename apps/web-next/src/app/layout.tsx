@@ -32,7 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="antialiased">
         <Providers>
           <AppShell>{children}</AppShell>
-          <Toaster position="bottom-right" />
+          <Toaster />
         </Providers>
       </body>
     </html>

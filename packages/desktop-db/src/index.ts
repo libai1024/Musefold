@@ -69,33 +69,70 @@ function backupInto(db: Database.Database, backupDir: string, now: () => Date): 
   return target;
 }
 
-/** 既有库结构 ≡ baseline(由测试守护),把 baseline 标记为已应用而不执行。 */
-function fakeApplyBaseline(db: Database.Database): void {
-  const baseline = DESKTOP_MIGRATIONS[0];
-  if (!baseline) throw new Error('desktop-db 迁移常量为空,包构建产物损坏');
-  db.exec(
-    'CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)',
-  );
-  db.prepare('INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)').run(
-    baseline.hash,
-    baseline.folderMillis,
-  );
-}
+/**
+ * Apply the inline migration chain atomically. An adopted legacy database gets
+ * the baseline marker in this same transaction so a failed takeover restores the
+ * exact pre-takeover schema and data, not merely the data rows.
+ */
+function runDrizzleMigrations(db: Database.Database, markLegacyBaseline = false): void {
+  if (db.inTransaction) {
+    throw new Error('桌面库迁移必须在事务外启动,否则 SQLite 外键开关不会生效');
+  }
+  const foreignKeysWereEnabled = Number(db.pragma('foreign_keys', { simple: true })) === 1;
+  const apply = db.transaction(() => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)',
+    );
+    if (markLegacyBaseline) {
+      const baseline = DESKTOP_MIGRATIONS[0];
+      if (!baseline) throw new Error('desktop-db 迁移常量为空,包构建产物损坏');
+      db.prepare('INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)').run(
+        baseline.hash,
+        baseline.folderMillis,
+      );
+    }
 
-function runDrizzleMigrations(db: Database.Database): void {
-  const orm = drizzle(db, { schema }) as unknown as {
-    dialect: {
-      migrate(migrations: typeof DESKTOP_MIGRATIONS, session: unknown, config?: unknown): void;
-    };
-    session: unknown;
-  };
-  orm.dialect.migrate(DESKTOP_MIGRATIONS, orm.session);
+    const lastMigration = db
+      .prepare('SELECT created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1')
+      .get() as { created_at: number } | undefined;
+    const lastCreatedAt = lastMigration?.created_at;
+    for (const migration of DESKTOP_MIGRATIONS) {
+      if (lastCreatedAt === undefined || lastCreatedAt < migration.folderMillis) {
+        for (const statement of migration.sql) db.exec(statement);
+        db.prepare('INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)').run(
+          migration.hash,
+          migration.folderMillis,
+        );
+      }
+    }
+    verifyDesktopDatabase(db);
+  });
+
+  if (foreignKeysWereEnabled) db.pragma('foreign_keys = OFF');
+  try {
+    apply();
+  } finally {
+    if (foreignKeysWereEnabled) db.pragma('foreign_keys = ON');
+  }
 }
 
 export function verifyDesktopDatabase(db: Database.Database): void {
   const integrity = db.pragma('integrity_check', { simple: true });
   if (integrity !== 'ok') {
     throw new Error(`桌面库完整性校验失败:${String(integrity)}`);
+  }
+  const foreignKeyViolations = db.pragma('foreign_key_check') as Array<{
+    table: string;
+    rowid: number | null;
+    parent: string;
+    fkid: number;
+  }>;
+  if (foreignKeyViolations.length > 0) {
+    throw new Error(
+      `桌面库外键校验失败:${foreignKeyViolations
+        .map(({ table, rowid, parent, fkid }) => `${table}[${String(rowid)}] -> ${parent}#${fkid}`)
+        .join(',')}`,
+    );
   }
   for (const table of REQUIRED_TABLES) {
     if (!tableExists(db, table)) {
@@ -128,7 +165,6 @@ export function takeoverDesktopDatabase(
         );
       }
       if (options.backupDir) backupPath = backupInto(db, options.backupDir, now);
-      fakeApplyBaseline(db);
       mode = 'adopted';
     } else {
       mode = 'fresh';
@@ -143,8 +179,7 @@ export function takeoverDesktopDatabase(
     }
   }
 
-  runDrizzleMigrations(db);
-  verifyDesktopDatabase(db);
+  runDrizzleMigrations(db, mode === 'adopted');
   return { mode, backupPath };
 }
 

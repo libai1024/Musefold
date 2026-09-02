@@ -9,6 +9,7 @@ import type { SyncUsageAction } from '@musefold/contracts';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
+import { resolveLocalContentWorkspace } from '../workspaces';
 import { tagsRepo } from './tags';
 import { tokenizeForFts, buildMatchQuery } from '../fts';
 import {
@@ -16,16 +17,24 @@ import {
   enqueueActiveAccountUsageEvent,
 } from '../../sync/repository';
 
+function requirePrompt(prompt: Prompt | null): Prompt {
+  if (!prompt) throw new Error('提示词写入后无法读取');
+  return prompt;
+}
+
 /**
  * FTS 由本层显式维护（schema.ts 已说明为何不能用触发器：分词在 JS 侧）。
  * 约定：任何改动 prompts 的 title/description/content/tags 的写路径，
  * 都必须在同一事务内调用 syncFts；硬删除必须调用 removeFts。
  */
-function syncFts(id: string): void {
+function syncFts(id: string, workspaceId?: string): void {
   const db = getDb();
+  const scope = workspaceId ?? resolveLocalContentWorkspace(db);
   const row = db
-    .prepare('SELECT rowid, title, description, content FROM prompts WHERE id = ?')
-    .get(id) as
+    .prepare(
+      'SELECT rowid, title, description, content FROM prompts WHERE workspace_id = ? AND id = ?',
+    )
+    .get(scope, id) as
     | {
         rowid: number;
         title: string;
@@ -34,7 +43,7 @@ function syncFts(id: string): void {
       }
     | undefined;
   if (!row) return;
-  const tagNames = tagsRepo.getByPromptId(id).map((t) => t.name);
+  const tagNames = tagsRepo.getByPromptId(id, scope).map((t) => t.name);
   const tagsIndex = tokenizeForFts(row.title, row.description, row.content, tagNames);
   db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
   db.prepare(
@@ -42,11 +51,12 @@ function syncFts(id: string): void {
   ).run(row.rowid, row.title, row.description ?? '', row.content, tagsIndex);
 }
 
-function removeFts(id: string): void {
+function removeFts(id: string, workspaceId?: string): void {
   const db = getDb();
-  const row = db.prepare('SELECT rowid FROM prompts WHERE id = ?').get(id) as
-    | { rowid: number }
-    | undefined;
+  const scope = workspaceId ?? resolveLocalContentWorkspace(db);
+  const row = db
+    .prepare('SELECT rowid FROM prompts WHERE workspace_id = ? AND id = ?')
+    .get(scope, id) as { rowid: number } | undefined;
   if (row) db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(row.rowid);
 }
 
@@ -105,8 +115,8 @@ function rowToPrompt(row: unknown): Prompt {
   };
 }
 
-function attachTags(p: Prompt): Prompt {
-  return { ...p, tags: tagsRepo.getByPromptId(p.id) };
+function attachTags(p: Prompt, workspaceId?: string): Prompt {
+  return { ...p, tags: tagsRepo.getByPromptId(p.id, workspaceId) };
 }
 
 /** 排序键（方向由 sortDir 决定；desc 为各键的「自然」方向，title 例外见下） */
@@ -134,8 +144,9 @@ function buildOrderBy(sort: ListPromptsQuery['sort'], dir: ListPromptsQuery['sor
 }
 
 export const promptsRepo = {
-  list(q: ListPromptsQuery = {}): Prompt[] {
+  list(q: ListPromptsQuery = {}, workspaceId?: string): Prompt[] {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
 
     // 走 FTS5 搜索时，用 BM25 排序；否则走普通查询
     const match = q.search ? buildMatchQuery(q.search) : null;
@@ -144,9 +155,9 @@ export const promptsRepo = {
       let sql = `
         SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts_fts f
         JOIN prompts p ON p.rowid = f.rowid
-        WHERE prompts_fts MATCH ? AND p.deleted_at IS NULL
+        WHERE prompts_fts MATCH ? AND p.workspace_id = ? AND p.deleted_at IS NULL
       `;
-      const values: unknown[] = [match];
+      const values: unknown[] = [match, scope];
       if (q.folderId === UNFILED_FOLDER_ID) {
         sql += ' AND p.folder_id IS NULL';
       } else if (q.folderId) {
@@ -183,21 +194,21 @@ export const promptsRepo = {
         const placeholders = q.tagIds.map(() => '?').join(',');
         sql += ` AND p.id IN (
           SELECT prompt_id FROM prompt_tags
-          WHERE tag_id IN (${placeholders})
+          WHERE workspace_id = ? AND tag_id IN (${placeholders})
           GROUP BY prompt_id HAVING COUNT(DISTINCT tag_id) = ?
         )`;
-        values.push(...q.tagIds, q.tagIds.length);
+        values.push(scope, ...q.tagIds, q.tagIds.length);
       }
       // 搜索态按相关度排序（bm25），但收藏仍归到置顶区，与 UI 分区一致
       sql +=
         ' ORDER BY p.is_pinned DESC, CASE WHEN p.is_pinned = 1 THEN p.pin_order END ASC, bm25(prompts_fts) LIMIT 500';
       const rows = db.prepare(sql).all(...values);
-      return rows.map(rowToPrompt).map(attachTags);
+      return rows.map(rowToPrompt).map((row) => attachTags(row, scope));
     }
 
     // 非搜索路径
-    let sql = `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.deleted_at IS NULL`;
-    const values: unknown[] = [];
+    let sql = `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.workspace_id = ? AND p.deleted_at IS NULL`;
+    const values: unknown[] = [scope];
     if (q.folderId === UNFILED_FOLDER_ID) {
       sql += ' AND p.folder_id IS NULL';
     } else if (q.folderId) {
@@ -232,37 +243,42 @@ export const promptsRepo = {
       const placeholders = q.tagIds.map(() => '?').join(',');
       sql += ` AND p.id IN (
         SELECT prompt_id FROM prompt_tags
-        WHERE tag_id IN (${placeholders})
+        WHERE workspace_id = ? AND tag_id IN (${placeholders})
         GROUP BY prompt_id HAVING COUNT(DISTINCT tag_id) = ?
       )`;
-      values.push(...q.tagIds, q.tagIds.length);
+      values.push(scope, ...q.tagIds, q.tagIds.length);
     }
     // 收藏优先置顶
     sql += ` ORDER BY ${buildOrderBy(q.sort, q.sortDir)} LIMIT 1000`;
     const rows = db.prepare(sql).all(...values);
-    return rows.map(rowToPrompt).map(attachTags);
+    return rows.map(rowToPrompt).map((row) => attachTags(row, scope));
   },
 
-  get(id: string): Prompt | null {
+  get(id: string, workspaceId?: string): Prompt | null {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const row = db
-      .prepare(`SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.id = ?`)
-      .get(id);
+      .prepare(
+        `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.workspace_id = ? AND p.id = ?`,
+      )
+      .get(scope, id);
     if (!row) return null;
-    return attachTags(rowToPrompt(row));
+    return attachTags(rowToPrompt(row), scope);
   },
 
-  create(p: NewPrompt): Prompt {
+  create(p: NewPrompt, workspaceId?: string): Prompt {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const now = Date.now();
     const id = ulid();
     db.transaction(() => {
       db.prepare(
-        `INSERT INTO prompts (id, title, description, content, content_negative, folder_id, model_id,
+        `INSERT INTO prompts (workspace_id, id, title, description, content, content_negative, folder_id, model_id,
           params, preview_image_path, rating, is_pinned, source, source_url, created_at, updated_at)
-         VALUES (@id, @title, @description, @content, @content_negative, @folder_id, @model_id,
+         VALUES (@workspace_id, @id, @title, @description, @content, @content_negative, @folder_id, @model_id,
           @params, @preview_image_path, @rating, @is_pinned, @source, @source_url, @created_at, @updated_at)`,
       ).run({
+        workspace_id: scope,
         id,
         title: p.title,
         description: p.description ?? null,
@@ -280,20 +296,21 @@ export const promptsRepo = {
         updated_at: now,
       });
       if (p.tagIds && p.tagIds.length > 0) {
-        tagsRepo.assignToPrompt(id, p.tagIds);
+        tagsRepo.assignToPrompt(id, p.tagIds, scope);
       }
       // 标签写入后再建 FTS 行，保证 tags_index 含标签词
-      syncFts(id);
-      enqueueActiveAccountMutation(db, 'prompt', id, 'create');
+      syncFts(id, scope);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'create', scope);
     })();
-    return this.get(id)!;
+    return requirePrompt(this.get(id));
   },
 
-  update(id: string, patch: UpdatePromptPatch): Prompt {
+  update(id: string, patch: UpdatePromptPatch, workspaceId?: string): Prompt {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const now = Date.now();
     const fields: string[] = [];
-    const values: Record<string, unknown> = { id, updated_at: now };
+    const values: Record<string, unknown> = { workspace_id: scope, id, updated_at: now };
     if (patch.title !== undefined) {
       fields.push('title = @title');
       values.title = patch.title;
@@ -342,82 +359,90 @@ export const promptsRepo = {
     db.transaction(() => {
       if (fields.length > 0) {
         db.prepare(
-          `UPDATE prompts SET ${fields.join(', ')}, updated_at = @updated_at WHERE id = @id`,
+          `UPDATE prompts SET ${fields.join(', ')}, updated_at = @updated_at
+           WHERE workspace_id = @workspace_id AND id = @id`,
         ).run(values);
       }
       // 标签变更
       if (patch.tagIds !== undefined) {
-        tagsRepo.assignToPrompt(id, patch.tagIds);
+        tagsRepo.assignToPrompt(id, patch.tagIds, scope);
       }
       // 重建 FTS 行（title/description/content/tags 任一变化都要重算分词）
-      syncFts(id);
-      enqueueActiveAccountMutation(db, 'prompt', id, 'update');
+      syncFts(id, scope);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'update', scope);
     })();
-    return this.get(id)!;
+    return requirePrompt(this.get(id));
   },
 
-  softDelete(id: string): void {
+  softDelete(id: string, workspaceId?: string): void {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     // 软删除保留 FTS 行；list() 的 `p.deleted_at IS NULL` 已把它挡在搜索结果外，
     // 恢复时无需重建索引。
     db.transaction(() => {
-      db.prepare('UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE id = ?').run(
-        Date.now(),
-        Date.now(),
-        id,
-      );
-      enqueueActiveAccountMutation(db, 'prompt', id, 'delete');
+      db.prepare(
+        'UPDATE prompts SET deleted_at = ?, updated_at = ? WHERE workspace_id = ? AND id = ?',
+      ).run(Date.now(), Date.now(), scope, id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'delete', scope);
     })();
   },
 
   // ---------- 回收站（docs/product/10 TASK-LIB-12） ----------
 
   /** 回收站列表：仅已软删除的条目，按删除时间倒序 */
-  listDeleted(): Prompt[] {
+  listDeleted(workspaceId?: string): Prompt[] {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const rows = db
       .prepare(
-        'SELECT * FROM prompts WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 500',
+        'SELECT * FROM prompts WHERE workspace_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 500',
       )
-      .all();
-    return rows.map(rowToPrompt).map(attachTags);
+      .all(scope);
+    return rows.map(rowToPrompt).map((row) => attachTags(row, scope));
   },
 
   /** 从回收站恢复 */
-  restore(id: string): Prompt {
+  restore(id: string, workspaceId?: string): Prompt {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     db.transaction(() => {
-      db.prepare('UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE id = ?').run(
-        Date.now(),
-        id,
-      );
-      syncFts(id);
-      enqueueActiveAccountMutation(db, 'prompt', id, 'restore');
+      db.prepare(
+        'UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE workspace_id = ? AND id = ?',
+      ).run(Date.now(), scope, id);
+      syncFts(id, scope);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'restore', scope);
     })();
-    return this.get(id)!;
+    return requirePrompt(this.get(id, scope));
   },
 
   /** 彻底删除（不可恢复）：先清 FTS 行，再删主表；关联表由外键 CASCADE 清理 */
-  purge(id: string): void {
+  purge(id: string, workspaceId?: string): void {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     db.transaction(() => {
-      removeFts(id);
-      db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(id);
-      db.prepare('DELETE FROM prompts WHERE id = ?').run(id);
+      removeFts(id, scope);
+      db.prepare('DELETE FROM prompt_tags WHERE workspace_id = ? AND prompt_id = ?').run(scope, id);
+      db.prepare('DELETE FROM prompts WHERE workspace_id = ? AND id = ?').run(scope, id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'delete', scope);
     })();
   },
 
   /** 清空回收站；返回清理条数 */
-  purgeAllDeleted(): number {
+  purgeAllDeleted(workspaceId?: string): number {
     const db = getDb();
-    const ids = db.prepare('SELECT id FROM prompts WHERE deleted_at IS NOT NULL').all() as {
-      id: string;
-    }[];
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
+    const ids = db
+      .prepare('SELECT id FROM prompts WHERE workspace_id = ? AND deleted_at IS NOT NULL')
+      .all(scope) as { id: string }[];
     db.transaction(() => {
       for (const { id } of ids) {
-        removeFts(id);
-        db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(id);
-        db.prepare('DELETE FROM prompts WHERE id = ?').run(id);
+        removeFts(id, scope);
+        db.prepare('DELETE FROM prompt_tags WHERE workspace_id = ? AND prompt_id = ?').run(
+          scope,
+          id,
+        );
+        db.prepare('DELETE FROM prompts WHERE workspace_id = ? AND id = ?').run(scope, id);
+        enqueueActiveAccountMutation(db, 'prompt', id, 'delete', scope);
       }
     })();
     return ids.length;
@@ -427,36 +452,47 @@ export const promptsRepo = {
    * 侧栏计数徽标（docs/product/10 TASK-LIB-03/06 验收项）。
    * 不能在渲染进程用 prompts.length 现算：list() 有 LIMIT，且被搜索/筛选收敛过。
    */
-  stats(): PromptStats {
+  stats(workspaceId?: string): PromptStats {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const total = (
-      db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL').get() as {
+      db
+        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE workspace_id = ? AND deleted_at IS NULL')
+        .get(scope) as {
         c: number;
       }
     ).c;
     const unfiled = (
       db
-        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND folder_id IS NULL')
-        .get() as { c: number }
+        .prepare(
+          'SELECT COUNT(*) AS c FROM prompts WHERE workspace_id = ? AND deleted_at IS NULL AND folder_id IS NULL',
+        )
+        .get(scope) as { c: number }
     ).c;
     const trashed = (
-      db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NOT NULL').get() as {
+      db
+        .prepare(
+          'SELECT COUNT(*) AS c FROM prompts WHERE workspace_id = ? AND deleted_at IS NOT NULL',
+        )
+        .get(scope) as {
         c: number;
       }
     ).c;
     const pinned = (
       db
-        .prepare('SELECT COUNT(*) AS c FROM prompts WHERE deleted_at IS NULL AND is_pinned = 1')
-        .get() as { c: number }
+        .prepare(
+          'SELECT COUNT(*) AS c FROM prompts WHERE workspace_id = ? AND deleted_at IS NULL AND is_pinned = 1',
+        )
+        .get(scope) as { c: number }
     ).c;
 
     const byFolder: Record<string, number> = {};
     for (const r of db
       .prepare(
         `SELECT folder_id AS id, COUNT(*) AS c FROM prompts
-         WHERE deleted_at IS NULL AND folder_id IS NOT NULL GROUP BY folder_id`,
+         WHERE workspace_id = ? AND deleted_at IS NULL AND folder_id IS NOT NULL GROUP BY folder_id`,
       )
-      .all() as { id: string; c: number }[]) {
+      .all(scope) as { id: string; c: number }[]) {
       byFolder[r.id] = r.c;
     }
 
@@ -464,10 +500,10 @@ export const promptsRepo = {
     for (const r of db
       .prepare(
         `SELECT pt.tag_id AS id, COUNT(*) AS c FROM prompt_tags pt
-         JOIN prompts p ON p.id = pt.prompt_id
-         WHERE p.deleted_at IS NULL GROUP BY pt.tag_id`,
+         JOIN prompts p ON p.workspace_id = pt.workspace_id AND p.id = pt.prompt_id
+         WHERE pt.workspace_id = ? AND p.deleted_at IS NULL GROUP BY pt.tag_id`,
       )
-      .all() as { id: string; c: number }[]) {
+      .all(scope) as { id: string; c: number }[]) {
       byTag[r.id] = r.c;
     }
 
@@ -475,50 +511,62 @@ export const promptsRepo = {
   },
 
   /** 全量重建 FTS 索引（迁移/导入后调用） */
-  reindexFts(): number {
+  reindexFts(workspaceId?: string): number {
     const db = getDb();
-    const ids = db.prepare('SELECT id FROM prompts').all() as { id: string }[];
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
+    const rows = db.prepare('SELECT id, rowid FROM prompts WHERE workspace_id = ?').all(scope) as {
+      id: string;
+      rowid: number;
+    }[];
     db.transaction(() => {
-      db.prepare('DELETE FROM prompts_fts').run();
-      for (const { id } of ids) syncFts(id);
+      for (const { rowid } of rows)
+        db.prepare('DELETE FROM prompts_fts WHERE rowid = ?').run(rowid);
+      for (const { id } of rows) syncFts(id, scope);
     })();
-    return ids.length;
+    return rows.length;
   },
 
-  togglePin(id: string, pinned: boolean): Prompt {
+  togglePin(id: string, pinned: boolean, workspaceId?: string): Prompt {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     const now = Date.now();
     const maxOrder = db
-      .prepare('SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE is_pinned = 1')
-      .get() as { m: number };
+      .prepare(
+        'SELECT COALESCE(MAX(pin_order), -1) AS m FROM prompts WHERE workspace_id = ? AND is_pinned = 1',
+      )
+      .get(scope) as { m: number };
     db.transaction(() => {
       db.prepare(
-        'UPDATE prompts SET is_pinned = ?, pin_order = ?, updated_at = ? WHERE id = ?',
-      ).run(pinned ? 1 : 0, pinned ? maxOrder.m + 1 : null, now, id);
-      enqueueActiveAccountMutation(db, 'prompt', id, 'update');
+        'UPDATE prompts SET is_pinned = ?, pin_order = ?, updated_at = ? WHERE workspace_id = ? AND id = ?',
+      ).run(pinned ? 1 : 0, pinned ? maxOrder.m + 1 : null, now, scope, id);
+      enqueueActiveAccountMutation(db, 'prompt', id, 'update', scope);
     })();
-    return this.get(id)!;
+    return requirePrompt(this.get(id, scope));
   },
 
-  reorderPins(ids: string[]): void {
+  reorderPins(ids: string[], workspaceId?: string): void {
     const db = getDb();
-    const stmt = db.prepare('UPDATE prompts SET pin_order = ?, updated_at = ? WHERE id = ?');
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
+    const stmt = db.prepare(
+      'UPDATE prompts SET pin_order = ?, updated_at = ? WHERE workspace_id = ? AND id = ?',
+    );
     const now = Date.now();
     db.transaction(() => {
       ids.forEach((id, i) => {
-        stmt.run(i, now, id);
-        enqueueActiveAccountMutation(db, 'prompt', id, 'update');
+        stmt.run(i, now, scope, id);
+        enqueueActiveAccountMutation(db, 'prompt', id, 'update', scope);
       });
     })();
   },
 
-  incrementUsage(id: string, action: SyncUsageAction = 'apply'): void {
+  incrementUsage(id: string, action: SyncUsageAction = 'apply', workspaceId?: string): void {
     const db = getDb();
+    const scope = workspaceId ?? resolveLocalContentWorkspace(db);
     db.transaction(() => {
       db.prepare(
-        'UPDATE prompts SET usage_count = usage_count + 1, last_used_at = ? WHERE id = ?',
-      ).run(Date.now(), id);
-      enqueueActiveAccountUsageEvent(db, id, action);
+        'UPDATE prompts SET usage_count = usage_count + 1, last_used_at = ? WHERE workspace_id = ? AND id = ?',
+      ).run(Date.now(), scope, id);
+      enqueueActiveAccountUsageEvent(db, id, action, scope);
     })();
   },
 };

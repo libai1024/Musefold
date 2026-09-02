@@ -1,10 +1,11 @@
 'use client';
 
-import type {
-  GenerationQuality,
-  GenerationReferenceImage,
-  ProviderOption,
-  WorkbenchDraft,
+import {
+  type GenerationQuality,
+  type GenerationReferenceImage,
+  type PromptReferenceSelection,
+  type WorkbenchDraft,
+  generationAspectRatioSchema,
 } from '@musefold/contracts';
 import { Button } from '@musefold/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@musefold/ui/components/dialog';
@@ -12,27 +13,27 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@musefold/ui/components/dropdown-menu';
+import { Input } from '@musefold/ui/components/input';
 import { Label } from '@musefold/ui/components/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@musefold/ui/components/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@musefold/ui/components/select';
 import { Spinner } from '@musefold/ui/components/spinner';
 import { Textarea } from '@musefold/ui/components/textarea';
 import {
   ArrowUp,
+  Blocks,
   Check,
   ChevronDown,
+  FileText,
+  History,
   ImagePlus,
   Plus,
+  Search,
   SlidersHorizontal,
   Square,
+  Wand2,
   X,
 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
@@ -44,11 +45,19 @@ import {
   useRef,
   useState,
 } from 'react';
+import {
+  type SchemeComposerAttachment,
+  type SchemeCreationContext,
+  schemeAttachmentReadiness,
+} from '../design-schemes/integration-store';
+import type { PromptReferenceResolution } from './prompt-references';
+import { SchemeAttachmentBlock } from './SchemeAttachment';
 
 /**
- * 比例目录承旧 v2.1 domain RATIO_OPTIONS 全集(11 档,auto 殿后);
- * 自定义比例仍暂缓(V25-UI-SPEC §9-D7)。detail 只对 auto 有意义:
- * v2.5 统一发 size:'auto',预设不再承诺具体像素档。
+ * 比例目录承旧 v2.1 domain RATIO_OPTIONS 全集(11 档,auto 殿后)。
+ * 自定义比例承旧 v2.1 RatioPicker:网格下单带自定义行,目录外合法 `W:H` 即自定义。
+ * 契约只接受规范 `W:H`(contracts aspectRatio 正则),domain 旧 `custom:W:H` 前缀不进 v2.5 数据流;
+ * detail 只对 auto 有意义:v2.5 统一发 size:'auto',预设不再承诺具体像素档。
  */
 const RATIO_CATALOG = [
   { id: '1:1', label: '方图' },
@@ -65,12 +74,22 @@ const RATIO_CATALOG = [
 ] as const;
 
 type RatioCatalogEntry = (typeof RATIO_CATALOG)[number];
-export type ComposerRatio = RatioCatalogEntry['id'];
+/** 目录预设 id,或合法自定义 `W:H`(1–99 整数,比例 1:4–4:1,由 parseAspectRatio 把关)。 */
+export type ComposerRatio = RatioCatalogEntry['id'] | `${number}:${number}`;
 
 const RATIO_IDS = RATIO_CATALOG.map((option) => option.id) as readonly string[];
 
-/** 契约限长(contracts createGenerationInputSchema.prompt);≥90% 时显示计数。 */
-const PROMPT_MAX = 12_000;
+/** 校验并解析 canonical `W:H`(1–99 整数、比例 1:4–4:1);越界/非法返回 null。 */
+export function parseAspectRatio(value: string): { w: number; h: number } | null {
+  const parsed = generationAspectRatioSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const [w, h] = parsed.data.split(':').map(Number);
+  return { w, h };
+}
+
+/** 契约限长(createGenerationInputSchema);存量草稿可更长,但必须先缩短才能重新提交。 */
+const PROMPT_MAX = 8_000;
+const NEGATIVE_MAX = 4_000;
 const PROMPT_COUNTER_THRESHOLD = PROMPT_MAX * 0.9;
 
 /** 质量档文案承旧 v2.1 WORKBENCH_QUALITY_OPTIONS(枚举值不变,只还原命名)。 */
@@ -90,7 +109,7 @@ export interface ComposerValue {
   negative: string;
   aspectRatio: ComposerRatio;
   quality: GenerationQuality;
-  providerId: string | null;
+  promptReferenceSelections: PromptReferenceSelection[];
 }
 
 /** 参考图接受的文件类型(输入过滤;最终由宿主嗅探魔数把关)。 */
@@ -112,7 +131,10 @@ export function filterReferenceFiles(files: Iterable<File>): File[] {
 }
 
 export function toComposerRatio(value: string | undefined): ComposerRatio {
-  return RATIO_IDS.includes(value ?? '') ? (value as ComposerRatio) : 'auto';
+  if (!value) return 'auto';
+  const parsed = generationAspectRatioSchema.safeParse(value);
+  if (!parsed.success) return 'auto';
+  return parsed.data as ComposerRatio;
 }
 
 export function draftToComposerValue(draft: WorkbenchDraft): ComposerValue {
@@ -121,7 +143,7 @@ export function draftToComposerValue(draft: WorkbenchDraft): ComposerValue {
     negative: draft.negative,
     aspectRatio: toComposerRatio(draft.params.aspectRatio),
     quality: draft.params.quality ?? 'auto',
-    providerId: null,
+    promptReferenceSelections: draft.promptReferenceSelections,
   };
 }
 
@@ -133,13 +155,45 @@ export function composerValueToDraft(value: ComposerValue): WorkbenchDraft {
       ...(value.aspectRatio !== 'auto' ? { aspectRatio: value.aspectRatio } : {}),
       ...(value.quality !== 'auto' ? { quality: value.quality } : {}),
     },
+    promptReferenceSelections: value.promptReferenceSelections,
     promptReferenceIds: [],
   };
 }
 
-/** 占位语分支承旧 workbenchComposerPlaceholder:空会话引导生成,有回合引导迭代。 */
-function composerPlaceholder(hasTurns: boolean): string {
+/**
+ * 占位语分支(承旧):方案创建/附件各有专用文案(逐字承 v2.1),
+ * 否则空会话引导生成,有回合引导迭代。
+ */
+function composerPlaceholder(hasTurns: boolean, scheme?: ComposerSchemeProps): string {
+  if (scheme?.creation) return '描述你的方案想法，可附 GitHub Skill 地址…';
+  const mode = scheme?.attachment?.mode;
+  if (mode === 'modify') return '描述要修改的内容，例如：把默认比例改成 3:4…';
+  if (mode === 'trial') return '补充这次试运行的具体内容（可选）…';
+  if (mode === 'formal') return '补充本次要求（可选），方案会保持视觉方向…';
   return hasTurns ? '描述下一步调整…' : '描述你想生成的图片…';
+}
+
+/**
+ * 方案域 Composer 接缝(设计方案域恢复卡;Skill 运行时仍暂缓,不出现):
+ * - attachment:挂载的方案(试运行/使用/修改),必需槽位收集齐才允许提交;
+ * - creation:design-plan 创建态(承旧 draftCommand),提交路由方案创建管线;
+ * - submitDisabledReason:宿主运行管线未接入时的禁用理由(I4 禁用必须解释),
+ *   非空即禁用提交——绝不回落普通生成伪造方案运行;
+ * - menu:「+」菜单四个方案项的回调,缺省项禁用并给出理由(域整体未恢复时
+ *   屏幕层不传 scheme,菜单项完全不出现,承 D2)。
+ */
+export interface ComposerSchemeProps {
+  attachment: SchemeComposerAttachment | null;
+  creation: SchemeCreationContext | null;
+  inputValues: Record<string, string>;
+  submitDisabledReason: string | null;
+  onChangeInput(slotId: string, value: string): void;
+  onClearAttachment(): void;
+  onClearCreation(): void;
+  onOpenPicker?(): void;
+  onStartCreation?(): void;
+  onOpenHistorySource?(): void;
+  onOpenDesignSchemes?(detailId?: string): void;
 }
 
 /** 比例形状预览(承旧 ratioShape):26px 基准边,auto 为虚线方框 + 中心点。 */
@@ -150,9 +204,9 @@ function ratioShape(ratioId: string): { width: number; height: number } {
   return { width: Math.max(9, Math.round(26 * ratio)), height: 26 };
 }
 
-function RatioPreview({ option, className }: { option: RatioCatalogEntry; className?: string }) {
-  const auto = option.id === 'auto';
-  const shape = ratioShape(auto ? '1:1' : option.id);
+function RatioPreview({ ratio, className }: { ratio: string; className?: string }) {
+  const auto = ratio === 'auto';
+  const shape = ratioShape(auto ? '1:1' : ratio);
   return (
     <span
       aria-hidden="true"
@@ -174,7 +228,6 @@ const TOOLBAR_TRIGGER_CLASS =
 
 export interface ComposerProps {
   value: ComposerValue;
-  providers: readonly ProviderOption[];
   submitting: boolean;
   disabled?: boolean;
   /**
@@ -192,27 +245,40 @@ export interface ComposerProps {
   noProvider?: boolean;
   /** 草稿参考图(ui-parity 03 §7 P0):三路入图(选择/拖拽/粘贴)落这里,提交时随请求携带。 */
   references?: readonly ComposerReference[];
+  /**
+   * 提示词引用托盘卡(上下文):意图只含 id/区间,展示由屏幕层 owner-safe 解析;
+   * unavailable(已删除/无权)/stale(源已更新)可见且可移除,不伪造内容。
+   */
+  promptReferences?: readonly PromptReferenceResolution[];
   /** 提示词 textarea 引用:回填路径(编辑消息/建议点击)聚焦置尾用(03 §6 焦点管理)。 */
   promptRef?: Ref<HTMLTextAreaElement>;
+  /** 「添加上下文」触发钮引用:参考素材面板关闭后焦点归还(§8-I9)。 */
+  contextMenuTriggerRef?: Ref<HTMLButtonElement>;
   onChange(value: ComposerValue): void;
   onSubmit(): void;
   onCancel?(): void;
   /** 三路入图汇聚点:文件已按 png/jpg/webp 过滤,上传与限数由屏幕层处理。 */
   onAddImages?(files: File[]): void;
   onRemoveReference?(key: string): void;
+  /** 移除一条提示词引用(按 promptReferenceKey)。 */
+  onRemovePromptReference?(key: string): void;
+  /** 「+」菜单「提示词」动作:打开参考素材面板(面板态由屏幕层持有)。 */
+  onOpenPromptReferences?(): void;
   /** 无连接引导「前往设置」的切屏回调(宿主注入)。 */
   onOpenSettings?(): void;
+  /** 方案域接缝(附件/创建态/菜单项);缺省 = 域未恢复,方案菜单项不出现(D2)。 */
+  scheme?: ComposerSchemeProps;
 }
 
 /**
  * 生成输入区(V25-UI-SPEC §3.2,几何与交互承旧 v2.1 WorkbenchComposer):
  * 728px 居中悬浮卡片(浮起阴影 + 轻透底 + 毛玻璃),提示词区上、工具条下(细分缝);
- * 工具条 = 「+」/ 比例(形状预览 + 网格菜单)/ 设置(值摘要触发)/ Provider / 36px 圆形发送钮。
+ * 工具条 = 「+」/ 比例(形状预览 + 网格菜单)/ 设置(值摘要触发)/ 36px 圆形发送钮。
+ * 生图通道不在此选择——跟随侧栏左下角账号区的活跃连接(V25-UI-SPEC §2.2-5)。
  * 运行中边框转品牌色 30%,拖拽入图时点亮 accent 虚线罩。
  */
 export function Composer({
   value,
-  providers,
   submitting,
   disabled = false,
   variant = 'docked',
@@ -221,35 +287,100 @@ export function Composer({
   cancelling = false,
   noProvider = false,
   references = [],
+  promptReferences = [],
   promptRef,
+  contextMenuTriggerRef,
   onChange,
   onSubmit,
   onCancel,
   onAddImages,
   onRemoveReference,
+  onRemovePromptReference,
+  onOpenPromptReferences,
   onOpenSettings,
+  scheme,
 }: ComposerProps) {
   const [ratioOpen, setRatioOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  /**
+   * 菜单退出后才执行的动作(打开素材面板/方案选择器/历史来源层):
+   * 先完成菜单退出再开下一层,不得叠两层浮层(§3.2);onCloseAutoFocus 统一承接。
+   */
+  const pendingContextMenuActionRef = useRef<(() => void) | null>(null);
+  // 自定义比例输入草稿:关弹层保留(切换预设不清),打开时当前值是自定义则回填。
+  const [customWidth, setCustomWidth] = useState('');
+  const [customHeight, setCustomHeight] = useState('');
+  const [customTouched, setCustomTouched] = useState(false);
   // 拖拽深度计数:子元素间的 enter/leave 会成对出现,归零才算真正离开。
   const [dragDepth, setDragDepth] = useState(0);
   const [previewReference, setPreviewReference] = useState<ComposerReference | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ratioOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const uploadingReferences = references.some((reference) => reference.status === 'uploading');
+  const readyImageCount = references.filter((reference) => reference.status === 'ready').length;
+  const promptLength = value.prompt.length;
+  const promptTooLong = promptLength > PROMPT_MAX;
+  const negativeTooLong = value.negative.length > NEGATIVE_MAX;
+  const schemeAttachment = scheme?.attachment ?? null;
+  const schemeCreation = scheme?.creation ?? null;
+  const schemeMode = schemeAttachment?.mode ?? null;
+  // 必需输入收集语义(承旧 schemeCanSubmit):必需文本槽位非空 + 必需图片槽位被就绪参考图覆盖。
+  const schemeReadiness = schemeAttachment
+    ? schemeAttachmentReadiness(schemeAttachment, scheme?.inputValues ?? {}, readyImageCount)
+    : null;
+  /**
+   * 提交门控:普通生成要求正文或引用非空;方案运行允许空正文(「补充本次要求(可选)」)
+   * 但必需槽位必须集齐;修改/创建以正文为 brief 必填。创建不强制 Provider(承旧:
+   * designPlanIntent 豁免 submissionProvider);运行/修改仍跟随活跃连接。
+   * 运行管线接缝缺失(submitDisabledReason 非空)一律禁用并解释,不伪造方案提交。
+   */
   const canSubmit =
     !disabled &&
     !submitting &&
     !running &&
-    !noProvider &&
+    (!noProvider || Boolean(schemeCreation)) &&
     !uploadingReferences &&
-    value.prompt.trim().length > 0;
-  const promptLength = value.prompt.length;
+    !promptTooLong &&
+    !negativeTooLong &&
+    (schemeAttachment
+      ? (schemeMode === 'modify' ? value.prompt.trim().length > 0 : true) &&
+        Boolean(schemeReadiness?.ready) &&
+        scheme?.submitDisabledReason == null
+      : schemeCreation
+        ? value.prompt.trim().length > 0 && scheme?.submitDisabledReason == null
+        : value.prompt.trim().length > 0 || value.promptReferenceSelections.length > 0);
+  /** 提交钮文案(逐字承旧 idleLabel):创建/修改/试运行/按方案生成/生成图像。 */
+  const submitLabel = schemeCreation
+    ? '创建设计方案'
+    : schemeMode === 'modify'
+      ? '发送修改要求'
+      : schemeMode === 'trial'
+        ? '试运行方案'
+        : schemeMode === 'formal'
+          ? '按方案生成'
+          : '生成图像';
+  const submitTitle =
+    scheme?.submitDisabledReason != null && (schemeAttachment || schemeCreation)
+      ? scheme.submitDisabledReason
+      : noProvider && !schemeCreation
+        ? '请先连接服务商'
+        : `${submitLabel}(Enter)`;
   const canAddImages = Boolean(onAddImages) && !disabled;
+  // 目录外合法 `W:H` = 自定义当前态(承旧 RatioPicker):不回落 auto,目录项不标选中。
+  const catalogRatio = RATIO_CATALOG.find((option) => option.id === value.aspectRatio);
+  const customSelected = !catalogRatio && parseAspectRatio(value.aspectRatio) !== null;
   const selectedRatio =
-    RATIO_CATALOG.find((option) => option.id === value.aspectRatio) ??
-    RATIO_CATALOG[RATIO_CATALOG.length - 1];
-  const selectedRatioIndex = RATIO_CATALOG.findIndex((option) => option.id === selectedRatio.id);
+    catalogRatio ?? (customSelected ? null : RATIO_CATALOG[RATIO_CATALOG.length - 1]);
+  // 键盘巡航锚点:自定义态无选中项,初始焦点与 tabIndex 落 auto(殿后项)。
+  const selectedRatioIndex = RATIO_CATALOG.findIndex(
+    (option) => option.id === (selectedRatio?.id ?? 'auto'),
+  );
+  const customCandidate = `${customWidth}:${customHeight}`;
+  const parsedCustomCandidate = generationAspectRatioSchema.safeParse(customCandidate);
+  const customValid = parsedCustomCandidate.success;
+  const showCustomError =
+    customTouched && !customValid && (customWidth !== '' || customHeight !== '');
   const negativeActive = value.negative.trim().length > 0;
 
   // Esc 停止生成(承旧窗口级快捷键):Radix 浮层关闭会 preventDefault,已让位。
@@ -296,6 +427,40 @@ export function Composer({
     }
   }
 
+  /** 比例弹层开合:打开时清错误态;当前值是自定义则回填输入(auto/预设不预填)。 */
+  function handleRatioOpenChange(open: boolean) {
+    setRatioOpen(open);
+    if (!open) return;
+    setCustomTouched(false);
+    const parsed = RATIO_IDS.includes(value.aspectRatio)
+      ? null
+      : parseAspectRatio(value.aspectRatio);
+    if (parsed) {
+      setCustomWidth(String(parsed.w));
+      setCustomHeight(String(parsed.h));
+    }
+  }
+
+  /** 自定义输入清洗(承旧):只留数字、最多 2 位;0 由 parseAspectRatio 判无效。 */
+  function sanitizeCustomInput(raw: string): string {
+    return raw.replace(/\D/g, '').slice(0, 2);
+  }
+
+  /** 应用自定义比例:合法才 onChange + 关弹层;非法非空保持打开并亮 role=alert。 */
+  function applyCustomRatio() {
+    setCustomTouched(true);
+    if (!customWidth || !customHeight || !parsedCustomCandidate.success) return;
+    onChange({ ...value, aspectRatio: parsedCustomCandidate.data as ComposerRatio });
+    setRatioOpen(false);
+  }
+
+  function handleCustomInputKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyCustomRatio();
+    }
+  }
+
   return (
     <div
       className={cn('w-full', variant === 'docked' && 'pointer-events-none')}
@@ -336,6 +501,114 @@ export function Composer({
             data-testid="composer-drop-overlay"
           >
             <p className="font-medium text-primary text-xs">松开以添加参考图</p>
+          </div>
+        )}
+
+        {schemeAttachment && scheme && (
+          <SchemeAttachmentBlock
+            attachment={schemeAttachment}
+            inputValues={scheme.inputValues}
+            readyImageCount={readyImageCount}
+            onChangeInput={scheme.onChangeInput}
+            onClear={scheme.onClearAttachment}
+            onSwap={() => scheme.onOpenPicker?.()}
+            onOpenDetail={
+              scheme.onOpenDesignSchemes
+                ? () => scheme.onOpenDesignSchemes?.(schemeAttachment.schemeId)
+                : undefined
+            }
+            onPickImages={() => fileInputRef.current?.click()}
+          />
+        )}
+
+        {schemeCreation && scheme && (
+          <div className="px-1 pb-1.5">
+            <div
+              className="flex h-8 max-w-full items-center gap-1.5 rounded-full border border-primary/35 bg-accent px-2.5 text-xs"
+              data-testid="composer-scheme-creation"
+            >
+              <Wand2 className="size-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="shrink-0 font-medium text-foreground">生成设计方案</span>
+              {schemeCreation.source ? (
+                <span
+                  className="min-w-0 truncate text-[11px] text-muted-foreground"
+                  data-testid="composer-scheme-creation-source"
+                >
+                  {schemeCreation.source.kind === 'prompt'
+                    ? `来源:${schemeCreation.source.title}`
+                    : `来源:历史内容 ${schemeCreation.source.selection.items.length} 项`}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="退出方案创建"
+                title="退出方案创建"
+                data-testid="composer-scheme-creation-remove"
+                onClick={scheme.onClearCreation}
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {promptReferences.length > 0 && (
+          <div
+            className="px-1 pb-1.5"
+            role="group"
+            aria-label="上下文"
+            data-testid="workbench-context-tray"
+          >
+            <p className="pb-1 text-[11px] text-muted-foreground">上下文</p>
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {promptReferences.map((reference) => (
+                <div
+                  key={reference.key}
+                  className={cn(
+                    'w-52 shrink-0 rounded-lg border p-2',
+                    reference.status === 'unavailable'
+                      ? 'border-destructive/40 bg-destructive/5'
+                      : 'border-border bg-muted/40',
+                  )}
+                  data-testid="prompt-reference-card"
+                  data-status={reference.status}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    <span
+                      className="min-w-0 flex-1 truncate font-medium text-foreground text-xs"
+                      title={reference.title}
+                    >
+                      {reference.title}
+                    </span>
+                    <button
+                      type="button"
+                      className="-m-2.5 flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-(--dur-fast) hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/45 md:m-0 md:size-6"
+                      aria-label={`移除来源：${reference.title}`}
+                      title="移除来源"
+                      data-testid="prompt-reference-remove"
+                      onClick={() => onRemovePromptReference?.(reference.key)}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                  <p className="pt-0.5 text-[11px] text-muted-foreground">
+                    {reference.scopeLabel}
+                    {reference.status === 'stale' && ' · 源已更新'}
+                    {reference.status === 'loading' && ' · 解析中'}
+                  </p>
+                  {reference.preview && (
+                    <p
+                      className="line-clamp-2 whitespace-pre-wrap break-words pt-0.5 text-[11px] text-muted-foreground"
+                      data-testid="prompt-reference-preview"
+                    >
+                      {reference.preview}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -382,7 +655,7 @@ export function Composer({
         <Textarea
           ref={promptRef}
           value={value.prompt}
-          placeholder={composerPlaceholder(hasTurns)}
+          placeholder={composerPlaceholder(hasTurns, scheme)}
           rows={3}
           maxLength={PROMPT_MAX}
           data-testid="composer-prompt"
@@ -396,12 +669,30 @@ export function Composer({
               if (canSubmit) onSubmit();
               return;
             }
-            // 输入为空时 Backspace 弹出最后一张参考图(chip 解剖,ui-parity 03-C2)。
-            if (event.key === 'Backspace' && value.prompt.length === 0 && references.length > 0) {
+            // 输入为空时 Backspace 逐个弹出附件(chip 解剖,ui-parity 03-C2),顺序确定:
+            // 先弹最后一张就绪参考图,没有可弹参考图时弹最新一条提示词引用卡,
+            // 再弹方案创建上下文(承旧空文 Backspace 清 draftCommand),最后弹方案附件。
+            if (event.key === 'Backspace' && value.prompt.length === 0) {
               const last = references[references.length - 1];
               if (last && last.status === 'ready') {
                 event.preventDefault();
                 onRemoveReference?.(last.key);
+                return;
+              }
+              const lastPromptReference = promptReferences[promptReferences.length - 1];
+              if (lastPromptReference) {
+                event.preventDefault();
+                onRemovePromptReference?.(lastPromptReference.key);
+                return;
+              }
+              if (schemeCreation) {
+                event.preventDefault();
+                scheme?.onClearCreation();
+                return;
+              }
+              if (schemeAttachment) {
+                event.preventDefault();
+                scheme?.onClearAttachment();
               }
             }
           }}
@@ -418,6 +709,18 @@ export function Composer({
             }
           }}
         />
+
+        {(promptTooLong || negativeTooLong) && (
+          <p
+            role="alert"
+            className="px-1.5 pt-1 text-destructive text-xs"
+            data-testid="composer-length-error"
+          >
+            {promptTooLong
+              ? `提示词超过 ${PROMPT_MAX} 字限制,请缩短后再生成`
+              : `反向提示词超过 ${NEGATIVE_MAX} 字限制,请缩短后再生成`}
+          </p>
+        )}
 
         {noProvider && (
           <p
@@ -450,42 +753,132 @@ export function Composer({
               event.target.value = '';
             }}
           />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 rounded-[7px] text-muted-foreground"
-                disabled={!canAddImages}
-                title="添加内容"
-                aria-label="添加内容"
-                data-testid="composer-attach"
+          <div className="contents" data-testid="workbench-context-menu">
+            <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  ref={contextMenuTriggerRef}
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 rounded-[7px] text-muted-foreground"
+                  disabled={disabled || (!canAddImages && !onOpenPromptReferences && !scheme)}
+                  title="添加上下文"
+                  aria-label="添加上下文"
+                  data-testid="composer-attach"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                aria-label="添加上下文菜单"
+                onCloseAutoFocus={(event) => {
+                  const action = pendingContextMenuActionRef.current;
+                  if (!action) return;
+                  event.preventDefault();
+                  pendingContextMenuActionRef.current = null;
+                  action();
+                }}
               >
-                <Plus className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem
-                onSelect={() => fileInputRef.current?.click()}
-                data-testid="composer-attach-image"
-              >
-                <ImagePlus className="size-4" /> 添加图片
-                <span className="ml-auto pl-3 text-[11px] text-muted-foreground">可拖入或粘贴</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem
+                  disabled={!canAddImages}
+                  onSelect={() => fileInputRef.current?.click()}
+                  data-testid="workbench-image-picker"
+                >
+                  <ImagePlus className="size-4" /> 添加图片
+                  <span className="ml-auto pl-3 text-[11px] text-muted-foreground">
+                    可拖入或粘贴
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!onOpenPromptReferences}
+                  onSelect={() => {
+                    pendingContextMenuActionRef.current = onOpenPromptReferences ?? null;
+                    setContextMenuOpen(false);
+                  }}
+                  data-testid="workbench-context-ref-prompt"
+                >
+                  <FileText className="size-4" /> 提示词
+                  <span className="ml-auto pl-3 text-[11px] text-muted-foreground">从库中引用</span>
+                </DropdownMenuItem>
+                {scheme ? (
+                  <DropdownMenuItem
+                    disabled={!scheme.onOpenPicker}
+                    title={scheme.onOpenPicker ? undefined : '当前环境暂未接入该入口'}
+                    onSelect={() => {
+                      pendingContextMenuActionRef.current = scheme.onOpenPicker ?? null;
+                      setContextMenuOpen(false);
+                    }}
+                    data-testid="workbench-context-ref-scheme"
+                  >
+                    <Blocks className="size-4" /> 设计方案
+                    <span className="ml-auto pl-3 text-[11px] text-muted-foreground">
+                      套用视觉方向
+                    </span>
+                  </DropdownMenuItem>
+                ) : null}
+                {scheme ? <DropdownMenuSeparator /> : null}
+                {scheme ? (
+                  <DropdownMenuItem
+                    disabled={!scheme.onStartCreation}
+                    title={scheme.onStartCreation ? undefined : '当前环境暂未接入该入口'}
+                    onSelect={() => {
+                      setContextMenuOpen(false);
+                      scheme.onStartCreation?.();
+                    }}
+                    data-testid="composer-menu-design-plan"
+                  >
+                    <Wand2 className="size-4" /> 生成设计方案
+                    <span className="ml-auto pl-3 text-[11px] text-muted-foreground">先出草稿</span>
+                  </DropdownMenuItem>
+                ) : null}
+                {scheme ? (
+                  <DropdownMenuItem
+                    disabled={!scheme.onOpenHistorySource}
+                    title={scheme.onOpenHistorySource ? undefined : '当前环境暂未接入该入口'}
+                    onSelect={() => {
+                      pendingContextMenuActionRef.current = scheme.onOpenHistorySource ?? null;
+                      setContextMenuOpen(false);
+                    }}
+                    data-testid="workbench-context-history-source"
+                  >
+                    <History className="size-4" /> 从历史内容创建
+                    <span className="ml-auto pl-3 text-[11px] text-muted-foreground">
+                      自行选择来源
+                    </span>
+                  </DropdownMenuItem>
+                ) : null}
+                {scheme ? (
+                  <DropdownMenuItem
+                    disabled={!scheme.onOpenDesignSchemes}
+                    title={scheme.onOpenDesignSchemes ? undefined : '当前环境暂未接入该入口'}
+                    onSelect={() => {
+                      setContextMenuOpen(false);
+                      scheme.onOpenDesignSchemes?.();
+                    }}
+                    data-testid="workbench-context-find-scheme"
+                  >
+                    <Search className="size-4" /> 寻找设计方案
+                    <span className="ml-auto pl-3 text-[11px] text-muted-foreground">
+                      打开方案库
+                    </span>
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-          <Popover open={ratioOpen} onOpenChange={setRatioOpen}>
+          <Popover open={ratioOpen} onOpenChange={handleRatioOpenChange}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 className={cn(TOOLBAR_TRIGGER_CLASS, 'min-w-[90px] border-border/55 bg-card/50')}
                 title="图片比例"
-                aria-label={`图片比例:${selectedRatio.id} ${selectedRatio.label}`}
+                aria-label={`图片比例:${value.aspectRatio} ${selectedRatio?.label ?? '自定义'}`}
                 data-testid="composer-ratio"
               >
-                <RatioPreview option={selectedRatio} />
-                <span className="min-w-0 truncate font-medium font-mono">{selectedRatio.id}</span>
+                <RatioPreview ratio={selectedRatio?.id ?? value.aspectRatio} />
+                <span className="min-w-0 truncate font-medium font-mono">{value.aspectRatio}</span>
                 <ChevronDown
                   className="ml-auto size-3 shrink-0 text-muted-foreground"
                   aria-hidden="true"
@@ -507,7 +900,11 @@ export function Composer({
               <div className="flex h-7 items-center justify-between gap-3 px-1.5">
                 <strong className="font-semibold text-[11px] text-foreground">图片比例</strong>
                 <span className="truncate font-mono text-[11px] text-muted-foreground/80">
-                  {'detail' in selectedRatio ? selectedRatio.detail : selectedRatio.label}
+                  {selectedRatio === null
+                    ? `${value.aspectRatio} / 自定义`
+                    : 'detail' in selectedRatio
+                      ? selectedRatio.detail
+                      : selectedRatio.label}
                 </span>
               </div>
               <div
@@ -517,7 +914,7 @@ export function Composer({
                 data-testid="composer-ratio-grid"
               >
                 {RATIO_CATALOG.map((option, index) => {
-                  const active = option.id === selectedRatio.id;
+                  const active = option.id === value.aspectRatio;
                   return (
                     <button
                       key={option.id}
@@ -528,7 +925,7 @@ export function Composer({
                       role="option"
                       aria-selected={active}
                       aria-label={`${option.id},${option.label}`}
-                      tabIndex={active ? 0 : -1}
+                      tabIndex={index === selectedRatioIndex ? 0 : -1}
                       data-testid={`composer-ratio-${option.id.replace(':', 'x')}`}
                       className={cn(
                         'relative flex h-[84px] min-w-0 flex-col items-center justify-between rounded-lg border border-border/55 p-2 font-mono text-[11px] text-muted-foreground transition-colors duration-(--dur-fast) ease-out',
@@ -541,7 +938,7 @@ export function Composer({
                       }}
                       onKeyDown={(event) => handleRatioOptionKeyDown(event, index)}
                     >
-                      <RatioPreview option={option} className="mt-1" />
+                      <RatioPreview ratio={option.id} className="mt-1" />
                       <span>{option.id}</span>
                       <small className="max-w-full truncate font-mono text-[11px] text-muted-foreground">
                         {option.label}
@@ -552,6 +949,62 @@ export function Composer({
                     </button>
                   );
                 })}
+              </div>
+              {/* 自定义比例行(承旧 RatioPicker):单一分隔带,W:H 整数输入 + 紧凑应用钮。 */}
+              <div className="mt-1.5 border-border/55 border-t pt-1.5">
+                <div className="flex items-center gap-2 px-1.5">
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    自定义{customSelected ? ' · 当前' : ''}
+                  </span>
+                  <div className="ml-auto flex items-center gap-1">
+                    <Input
+                      value={customWidth}
+                      inputMode="numeric"
+                      aria-label="自定义比例宽"
+                      placeholder="16"
+                      data-testid="composer-ratio-custom-w"
+                      className="h-9 w-11 shrink-0 px-1 text-center font-mono text-[16px] md:h-8 md:text-[11px]"
+                      onChange={(event) => setCustomWidth(sanitizeCustomInput(event.target.value))}
+                      onKeyDown={handleCustomInputKeyDown}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="font-mono text-[11px] text-muted-foreground"
+                    >
+                      :
+                    </span>
+                    <Input
+                      value={customHeight}
+                      inputMode="numeric"
+                      aria-label="自定义比例高"
+                      placeholder="9"
+                      data-testid="composer-ratio-custom-h"
+                      className="h-9 w-11 shrink-0 px-1 text-center font-mono text-[16px] md:h-8 md:text-[11px]"
+                      onChange={(event) => setCustomHeight(sanitizeCustomInput(event.target.value))}
+                      onKeyDown={handleCustomInputKeyDown}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-9 px-2.5 text-[11px] md:h-8"
+                      disabled={!customWidth || !customHeight}
+                      data-testid="composer-ratio-custom-apply"
+                      onClick={applyCustomRatio}
+                    >
+                      应用
+                    </Button>
+                  </div>
+                </div>
+                {showCustomError && (
+                  <p
+                    role="alert"
+                    className="px-1.5 pt-1 text-[11px] text-destructive"
+                    data-testid="composer-ratio-custom-error"
+                  >
+                    比例需在 1:4 与 4:1 之间
+                  </p>
+                )}
               </div>
             </PopoverContent>
           </Popover>
@@ -630,6 +1083,7 @@ export function Composer({
                   value={value.negative}
                   placeholder="不希望出现的元素…"
                   rows={2}
+                  maxLength={NEGATIVE_MAX}
                   data-testid="composer-negative"
                   className="max-h-24 min-h-14 border-border/55 bg-card text-[16px] leading-normal md:text-xs"
                   onChange={(event) => onChange({ ...value, negative: event.target.value })}
@@ -646,32 +1100,6 @@ export function Composer({
               >
                 {promptLength}/{PROMPT_MAX}
               </span>
-            )}
-
-            {providers.length > 0 && (
-              <Select
-                value={value.providerId ?? providers[0]?.id}
-                onValueChange={(next) => onChange({ ...value, providerId: next })}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 w-auto max-w-40 gap-1 rounded-lg border-border/55 text-[11px] text-muted-foreground shadow-none hover:text-foreground"
-                  data-testid="composer-provider"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((provider) => (
-                    <SelectItem
-                      key={provider.id}
-                      value={provider.id}
-                      disabled={!provider.available}
-                    >
-                      {provider.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             )}
 
             {running ? (
@@ -696,8 +1124,8 @@ export function Composer({
                 className="size-9 rounded-full shadow-sm transition-[transform,background-color,opacity] duration-(--dur-fast) ease-(--ease-spring) hover:-translate-y-px active:translate-y-px active:scale-[0.96]"
                 disabled={!canSubmit}
                 onClick={onSubmit}
-                aria-label="生成图像"
-                title={noProvider ? '请先连接服务商' : '生成图像(Enter)'}
+                aria-label={submitLabel}
+                title={submitTitle}
                 data-testid="composer-submit"
               >
                 {submitting ? <Spinner className="size-4" /> : <ArrowUp className="size-4" />}

@@ -4,6 +4,7 @@
 
 import type { AiProvider, AiProviderTestResult } from '@musefold/contracts';
 import {
+  aiProviderTestResultSchema,
   createAiProviderSchema,
   entityIdSchema,
   updateAiProviderSchema,
@@ -11,6 +12,7 @@ import {
 import { getDb } from '@musefold/core/db';
 import { ulid } from 'ulid';
 import { z } from 'zod';
+import { validateDoubaoWebSession } from '../../doubao-web/browser-service';
 import {
   deleteApiKey,
   getKeySuffix,
@@ -27,6 +29,7 @@ interface ProviderRow {
   base_url: string;
   model: string;
   is_active: number;
+  managed_by: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -45,6 +48,7 @@ function toAiProvider(row: ProviderRow): AiProvider {
     hasKey: hasApiKey(row.id),
     keySuffix: getKeySuffix(row.id),
     isActive: row.is_active === 1,
+    managedBy: row.managed_by === 'account' ? ('account' as const) : null,
     createdAt: epochMsToIso(row.created_at),
     updatedAt: epochMsToIso(row.updated_at),
   };
@@ -80,8 +84,35 @@ function removeKey(id: string): void {
 
 function setActiveRow(id: string): void {
   const db = getDb();
-  db.prepare('UPDATE providers SET is_active = 0 WHERE is_active = 1').run();
-  db.prepare('UPDATE providers SET is_active = 1 WHERE id = ?').run(id);
+  db.transaction((targetId: string) => {
+    db.prepare('UPDATE providers SET is_active = 0 WHERE is_active = 1').run();
+    const activated = db.prepare('UPDATE providers SET is_active = 1 WHERE id = ?').run(targetId);
+    if (activated.changes !== 1) throw new BridgeError('NOT_FOUND', 'AI 连接不存在');
+  })(id);
+}
+
+function removeProviderRow(id: string): ProviderRow {
+  const db = getDb();
+  return db.transaction((targetId: string) => {
+    const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(targetId) as
+      | ProviderRow
+      | undefined;
+    if (!row) throw new BridgeError('NOT_FOUND', 'AI 连接不存在');
+
+    const next =
+      row.is_active === 1
+        ? (db
+            .prepare('SELECT id FROM providers WHERE id <> ? ORDER BY updated_at DESC LIMIT 1')
+            .get(targetId) as { id: string } | undefined)
+        : undefined;
+    const removed = db.prepare('DELETE FROM providers WHERE id = ?').run(targetId);
+    if (removed.changes !== 1) throw new BridgeError('NOT_FOUND', 'AI 连接不存在');
+    if (next) {
+      const activated = db.prepare('UPDATE providers SET is_active = 1 WHERE id = ?').run(next.id);
+      if (activated.changes !== 1) throw new BridgeError('INTERNAL_ERROR', 'AI 连接接管失败');
+    }
+    return row;
+  })(id);
 }
 
 const updatePayloadSchema = z.object({ id: entityIdSchema, patch: updateAiProviderSchema });
@@ -183,16 +214,8 @@ export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
       input: z.object({ id: entityIdSchema }),
       handle: async (payload) => {
         const { id } = payload as { id: string };
-        const row = requireRow(id);
-        const db = getDb();
-        db.prepare('DELETE FROM providers WHERE id = ?').run(id);
+        removeProviderRow(id);
         deleteApiKey(id);
-        if (row.is_active === 1) {
-          const next = db
-            .prepare('SELECT id FROM providers ORDER BY updated_at DESC LIMIT 1')
-            .get() as { id: string } | undefined;
-          if (next) setActiveRow(next.id);
-        }
         return null;
       },
     },
@@ -210,6 +233,16 @@ export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
       handle: async (payload) => {
         const { id } = payload as { id: string };
         const row = requireRow(id);
+        // doubao-web 存量行没有 openai-compatible /models 端点,通用探测只会误报;
+        // 改用冻结面的会话校验(带登录态与当日用量的人话结果),密钥探测不适用。
+        if (row.type === 'doubao-web') {
+          const result = await validateDoubaoWebSession();
+          return aiProviderTestResultSchema.parse({
+            ok: result.ok,
+            message: result.message,
+            latencyMs: null,
+          });
+        }
         return probeProvider(row.base_url, loadApiKey(id));
       },
     },

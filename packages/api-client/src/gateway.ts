@@ -32,6 +32,7 @@ import {
 } from '@musefold/contracts';
 import type { MusefoldGateway } from '@musefold/platform';
 import { z } from 'zod';
+import { createCloudDesignSchemesGateway } from './design-schemes';
 import { type ApiClientConfig, ApiHttp } from './http';
 
 /**
@@ -211,12 +212,12 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
         }),
     },
     generation: {
-      create: (input: CreateGenerationInput) =>
+      create: (input: CreateGenerationInput, idempotencyKey) =>
         http.request({
           method: 'POST',
           path: '/generations',
           body: input,
-          headers: { 'idempotency-key': crypto.randomUUID() },
+          headers: { 'idempotency-key': idempotencyKey },
           response: generationJobSchema,
         }),
       list: (query: GenerationHistoryQuery) =>
@@ -234,11 +235,11 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           path: `/generations/${id}/cancel`,
           response: generationJobSchema,
         }),
-      retry: (id) =>
+      retry: (id, idempotencyKey) =>
         http.request({
           method: 'POST',
           path: `/generations/${id}/retry`,
-          headers: { 'idempotency-key': crypto.randomUUID() },
+          headers: { 'idempotency-key': idempotencyKey },
           response: generationJobSchema,
         }),
       remove: (id) =>
@@ -296,6 +297,7 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
         return 'saved' as const;
       },
     },
+    designSchemes: createCloudDesignSchemesGateway(http),
   };
 }
 

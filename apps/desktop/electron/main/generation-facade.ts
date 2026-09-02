@@ -7,7 +7,7 @@
 import { generate as coreGenerate } from '@musefold/core/services/generation';
 import { trackPetGeneration } from './pet';
 
-export { hasActiveImageJobs } from '@musefold/core/services/generation';
+export { hasActiveImageJobs, cancelGeneration } from '@musefold/core/services/generation';
 
 export function generate(
   ...args: Parameters<typeof coreGenerate>

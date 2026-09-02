@@ -11,7 +11,7 @@ import {
   workbenchSessionListQuerySchema,
 } from '@musefold/contracts';
 import { type MusefoldDatabase, prompts, workbenchSessions } from '@musefold/db';
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { AppError } from '../../lib/errors.js';
 import type { DbLike } from '../sync/change-log.js';
 
@@ -32,8 +32,13 @@ export class WorkbenchService {
   ): Promise<WorkbenchSessionPage> {
     const query = workbenchSessionListQuerySchema.parse(rawQuery);
     const conditions = [eq(workbenchSessions.userId, userId)];
-    if (!query.includeDeleted) conditions.push(isNull(workbenchSessions.deletedAt));
-    if (!query.includeArchived) conditions.push(isNull(workbenchSessions.archivedAt));
+    if (query.archivedOnly) {
+      conditions.push(isNotNull(workbenchSessions.archivedAt));
+      conditions.push(isNull(workbenchSessions.deletedAt));
+    } else {
+      if (!query.includeDeleted) conditions.push(isNull(workbenchSessions.deletedAt));
+      if (!query.includeArchived) conditions.push(isNull(workbenchSessions.archivedAt));
+    }
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
       const cursorDate = new Date(cursor.updatedAt);
@@ -77,9 +82,13 @@ export class WorkbenchService {
         prompt: input.draft.prompt ?? '',
         negative: input.draft.negative ?? '',
         params: input.draft.params ?? {},
+        promptReferenceSelections: input.draft.promptReferenceSelections ?? [],
         promptReferenceIds: input.draft.promptReferenceIds ?? [],
       };
-      await this.validatePromptReferences(tx, userId, draft.promptReferenceIds);
+      await this.validatePromptReferences(tx, userId, [
+        ...draft.promptReferenceIds,
+        ...draft.promptReferenceSelections.map((selection) => selection.promptId),
+      ]);
       const id = randomUUID();
       await tx.insert(workbenchSessions).values({
         id,
@@ -101,7 +110,10 @@ export class WorkbenchService {
       const current = await this.getTx(tx, userId, id);
       if (current.version !== input.expectedVersion) throw conflict(current);
       if (input.draft)
-        await this.validatePromptReferences(tx, userId, input.draft.promptReferenceIds);
+        await this.validatePromptReferences(tx, userId, [
+          ...input.draft.promptReferenceIds,
+          ...input.draft.promptReferenceSelections.map((selection) => selection.promptId),
+        ]);
       const set: Record<string, unknown> = {
         version: sql`${workbenchSessions.version} + 1`,
         updatedAt: new Date(),
@@ -112,7 +124,7 @@ export class WorkbenchService {
       if (Object.keys(set).length === 2) {
         throw new AppError('VALIDATION_FAILED', '没有可更新的工作台字段');
       }
-      await tx
+      const updated = await tx
         .update(workbenchSessions)
         .set(set)
         .where(
@@ -121,7 +133,13 @@ export class WorkbenchService {
             eq(workbenchSessions.id, id),
             eq(workbenchSessions.version, input.expectedVersion),
           ),
-        );
+        )
+        .returning({ id: workbenchSessions.id });
+      // 乐观锁以受影响行数裁决:0 行说明预检通过后、落库前有并发提交,输掉竞态。
+      // 抛稳定 CONFLICT,而不是把胜者状态当本次写入的成功结果返回。
+      if (updated.length === 0) {
+        throw conflict(await this.getTx(tx, userId, id));
+      }
       return this.getTx(tx, userId, id);
     });
   }
@@ -154,7 +172,7 @@ export class WorkbenchService {
       if (expectedVersion !== undefined && current.version !== expectedVersion) {
         throw conflict(current);
       }
-      await tx
+      const updated = await tx
         .update(workbenchSessions)
         .set({
           deletedAt: deleted ? new Date() : null,
@@ -165,9 +183,18 @@ export class WorkbenchService {
           and(
             eq(workbenchSessions.userId, userId),
             eq(workbenchSessions.id, id),
-            eq(workbenchSessions.version, current.version),
+            // 无条件路径不设版本谓词,靠 version = version + 1 原子自增,删除/恢复必然落库;
+            // 显式版本路径由谓词 + 受影响行数做乐观锁裁决。
+            expectedVersion !== undefined
+              ? eq(workbenchSessions.version, expectedVersion)
+              : undefined,
           ),
-        );
+        )
+        .returning({ id: workbenchSessions.id });
+      // 0 行 = 显式版本输给并发提交:抛稳定 CONFLICT,不把胜者状态当成功返回。
+      if (updated.length === 0) {
+        throw conflict(await this.getTx(tx, userId, id));
+      }
       return this.getTx(tx, userId, id);
     });
   }
@@ -237,6 +264,7 @@ function toWorkbenchSession(
       prompt: draft.prompt ?? '',
       negative: draft.negative ?? '',
       params: draft.params ?? {},
+      promptReferenceSelections: draft.promptReferenceSelections ?? [],
       promptReferenceIds: draft.promptReferenceIds ?? [],
     },
     version: row.version,

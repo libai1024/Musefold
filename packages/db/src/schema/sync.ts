@@ -62,6 +62,8 @@ export const syncChangeLog = pgTable(
 /**
  * push 幂等重放记录:按 (userId, deviceId, mutationId) 存储首次执行的完整结果
  * (含 conflict / rejected),重放原样返回,绝不重复执行。
+ * requestFingerprint 在 expand 阶段保持 nullable,以兼容迁移前的历史行。历史行无法
+ * 可靠地从结果反推出请求,因此服务对 NULL 指纹继续沿用旧的 duplicate 语义。
  */
 export const syncMutationResults = pgTable(
   'sync_mutation_results',
@@ -77,6 +79,7 @@ export const syncMutationResults = pgTable(
     resultVersion: bigint('result_version', { mode: 'number' }),
     resultSnapshot: jsonb('result_snapshot').$type<Record<string, unknown>>(),
     errorCode: varchar('error_code', { length: 80 }),
+    requestFingerprint: varchar('request_fingerprint', { length: 64 }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.deviceId, table.mutationId] })],

@@ -2,8 +2,8 @@
 //
 // 事实源边界(与 migrations/0000_baseline.sql 头部注释配套):
 // - baseline SQL 是 sqlite_master 的忠实导出(含 CHECK 约束与 prompts_fts 虚表);
-// - 本文件不表达 CHECK(drizzle introspect 缺陷,登记放弃),也不含 FTS 虚表
-//   (由 core repo 层显式维护);未来增量迁移 drizzle-kit generate 时人工审阅补齐。
+// - 本文件不含 FTS 虚表(由 core repo 层显式维护);增量重建既有表时,
+//   必须在 Drizzle schema 中复现该表的 baseline CHECK,避免约束降级;
 // - 一致性由 __tests__ 守护:legacy 链建库 与 baseline 建库 的对象集合必须一致。
 
 import { sql } from 'drizzle-orm';
@@ -17,23 +17,43 @@ import {
   text,
   unique,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/sqlite-core';
+
+export const localWorkspaces = sqliteTable(
+  'local_workspaces',
+  {
+    id: text().primaryKey(),
+    ownerId: text('owner_id'),
+    kind: text().notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_local_workspaces_owner').on(table.ownerId).where(sql`owner_id IS NOT NULL`),
+    index('idx_local_workspaces_kind').on(table.kind),
+  ],
+);
 
 export const folders = sqliteTable(
   'folders',
   {
-    id: text().primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
+    id: text().notNull(),
     name: text().notNull(),
     parentId: text('parent_id'),
     sortOrder: integer('sort_order').default(0),
     createdAt: integer('created_at').notNull(),
   },
   (table) => [
-    index('idx_folders_sort').on(table.sortOrder),
-    index('idx_folders_parent').on(table.parentId),
+    primaryKey({ columns: [table.workspaceId, table.id], name: 'folders_workspace_id_id_pk' }),
+    index('idx_folders_sort').on(table.workspaceId, table.sortOrder),
+    index('idx_folders_parent').on(table.workspaceId, table.parentId),
     foreignKey(() => ({
-      columns: [table.parentId],
-      foreignColumns: [table.id],
+      columns: [table.workspaceId, table.parentId],
+      foreignColumns: [table.workspaceId, table.id],
       name: 'folders_parent_id_folders_id_fk',
     })).onDelete('cascade'),
   ],
@@ -42,12 +62,15 @@ export const folders = sqliteTable(
 export const prompts = sqliteTable(
   'prompts',
   {
-    id: text().primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
+    id: text().notNull(),
     title: text().notNull(),
     description: text(),
     content: text().notNull(),
     contentNegative: text('content_negative'),
-    folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null' }),
+    folderId: text('folder_id'),
     modelId: text('model_id'),
     params: text(),
     previewImagePath: text('preview_image_path'),
@@ -63,40 +86,67 @@ export const prompts = sqliteTable(
     deletedAt: integer('deleted_at'),
   },
   (table) => [
-    index('idx_prompts_updated').on(table.updatedAt).where(sql`deleted_at IS NULL`),
+    primaryKey({ columns: [table.workspaceId, table.id], name: 'prompts_workspace_id_id_pk' }),
+    index('idx_prompts_updated')
+      .on(table.workspaceId, table.updatedAt)
+      .where(sql`deleted_at IS NULL`),
     index('idx_prompts_pinned')
-      .on(table.isPinned, table.pinOrder)
+      .on(table.workspaceId, table.isPinned, table.pinOrder)
       .where(sql`deleted_at IS NULL AND is_pinned = 1`),
-    index('idx_prompts_model').on(table.modelId).where(sql`deleted_at IS NULL`),
-    index('idx_prompts_folder').on(table.folderId).where(sql`deleted_at IS NULL`),
+    index('idx_prompts_model').on(table.workspaceId, table.modelId).where(sql`deleted_at IS NULL`),
+    index('idx_prompts_folder')
+      .on(table.workspaceId, table.folderId)
+      .where(sql`deleted_at IS NULL`),
+    foreignKey(() => ({
+      columns: [table.workspaceId, table.folderId],
+      foreignColumns: [folders.workspaceId, folders.id],
+      name: 'prompts_workspace_folder_fk',
+    })).onDelete('set null'),
   ],
 );
 
 export const tags = sqliteTable(
   'tags',
   {
-    id: text().primaryKey(),
-    name: text().notNull().unique(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
+    id: text().notNull(),
+    name: text().notNull(),
     tagGroup: text('tag_group'),
     color: text(),
     createdAt: integer('created_at').notNull(),
   },
-  (table) => [index('idx_tags_group').on(table.tagGroup)],
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.id], name: 'tags_workspace_id_id_pk' }),
+    unique('tags_workspace_id_name_unique').on(table.workspaceId, table.name),
+    index('idx_tags_group').on(table.workspaceId, table.tagGroup),
+  ],
 );
 
 export const promptTags = sqliteTable(
   'prompt_tags',
   {
-    promptId: text('prompt_id')
-      .notNull()
-      .references(() => prompts.id, { onDelete: 'cascade' }),
-    tagId: text('tag_id')
-      .notNull()
-      .references(() => tags.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').notNull(),
+    promptId: text('prompt_id').notNull(),
+    tagId: text('tag_id').notNull(),
   },
   (table) => [
-    index('idx_prompt_tags_tag').on(table.tagId),
-    primaryKey({ columns: [table.promptId, table.tagId], name: 'prompt_tags_prompt_id_tag_id_pk' }),
+    index('idx_prompt_tags_tag').on(table.workspaceId, table.tagId),
+    primaryKey({
+      columns: [table.workspaceId, table.promptId, table.tagId],
+      name: 'prompt_tags_workspace_id_prompt_id_tag_id_pk',
+    }),
+    foreignKey(() => ({
+      columns: [table.workspaceId, table.promptId],
+      foreignColumns: [prompts.workspaceId, prompts.id],
+      name: 'prompt_tags_prompt_fk',
+    })).onDelete('cascade'),
+    foreignKey(() => ({
+      columns: [table.workspaceId, table.tagId],
+      foreignColumns: [tags.workspaceId, tags.id],
+      name: 'prompt_tags_tag_fk',
+    })).onDelete('cascade'),
   ],
 );
 
@@ -298,6 +348,9 @@ export const cloudSyncAccounts = sqliteTable(
     clientVersion: text('client_version').notNull(),
     active: integer().default(0).notNull(),
     enabled: integer().default(0).notNull(),
+    consentState: text('consent_state').default('unset').notNull(),
+    consentDecidedAt: integer('consent_decided_at'),
+    consentVersion: integer('consent_version').default(1).notNull(),
     cursor: text().default('0').notNull(),
     bootstrapCompletedAt: integer('bootstrap_completed_at'),
     lastSyncAt: integer('last_sync_at'),
@@ -306,7 +359,20 @@ export const cloudSyncAccounts = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
   },
   (table) => [
+    unique('cloud_sync_accounts_owner_id_device_id_unique').on(table.ownerId, table.deviceId),
     uniqueIndex('idx_cloud_sync_one_active_account').on(table.active).where(sql`active = 1`),
+    check(
+      'cloud_sync_accounts_platform_check',
+      sql`${table.platform} IN ('macos', 'windows', 'linux')`,
+    ),
+    check('cloud_sync_accounts_active_check', sql`${table.active} IN (0, 1)`),
+    check('cloud_sync_accounts_enabled_check', sql`${table.enabled} IN (0, 1)`),
+    check('cloud_sync_accounts_cursor_check', sql`${table.cursor} GLOB '[0-9]*'`),
+    check(
+      'cloud_sync_accounts_consent_state_check',
+      sql`${table.consentState} IN ('unset', 'enabled', 'paused')`,
+    ),
+    check('cloud_sync_accounts_consent_version_check', sql`${table.consentVersion} > 0`),
   ],
 );
 
@@ -316,6 +382,9 @@ export const cloudEntityState = sqliteTable(
     ownerId: text('owner_id')
       .notNull()
       .references(() => cloudSyncAccounts.ownerId, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(),
     localId: text('local_id').notNull(),
     cloudId: text('cloud_id').notNull(),
@@ -326,11 +395,22 @@ export const cloudEntityState = sqliteTable(
     lastSyncedAt: integer('last_synced_at'),
   },
   (table) => [
-    index('idx_cloud_entity_state_status').on(table.ownerId, table.syncStatus, table.entityType),
+    index('idx_cloud_entity_state_status').on(
+      table.ownerId,
+      table.workspaceId,
+      table.syncStatus,
+      table.entityType,
+    ),
     primaryKey({
-      columns: [table.ownerId, table.entityType, table.localId],
-      name: 'cloud_entity_state_owner_id_entity_type_local_id_pk',
+      columns: [table.ownerId, table.workspaceId, table.entityType, table.localId],
+      name: 'cloud_entity_state_owner_id_workspace_id_entity_type_local_id_pk',
     }),
+    unique('cloud_entity_state_owner_id_workspace_id_entity_type_cloud_id_unique').on(
+      table.ownerId,
+      table.workspaceId,
+      table.entityType,
+      table.cloudId,
+    ),
   ],
 );
 
@@ -341,6 +421,9 @@ export const cloudSyncOutbox = sqliteTable(
     ownerId: text('owner_id')
       .notNull()
       .references(() => cloudSyncAccounts.ownerId, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
     operation: text().notNull(),
@@ -354,12 +437,14 @@ export const cloudSyncOutbox = sqliteTable(
   (table) => [
     index('idx_cloud_sync_outbox_entity').on(
       table.ownerId,
+      table.workspaceId,
       table.entityType,
       table.entityId,
       table.createdAt,
     ),
     index('idx_cloud_sync_outbox_ready').on(
       table.ownerId,
+      table.workspaceId,
       table.nextAttemptAt,
       table.createdAt,
       table.mutationId,
@@ -374,6 +459,9 @@ export const cloudSyncConflicts = sqliteTable(
     ownerId: text('owner_id')
       .notNull()
       .references(() => cloudSyncAccounts.ownerId, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
     mutationId: text('mutation_id').notNull(),
@@ -387,11 +475,12 @@ export const cloudSyncConflicts = sqliteTable(
   (table) => [
     index('idx_cloud_sync_conflicts_owner_detected').on(
       table.ownerId,
+      table.workspaceId,
       table.resolvedAt,
       table.detectedAt,
     ),
     uniqueIndex('idx_cloud_sync_conflicts_active_entity')
-      .on(table.ownerId, table.entityType, table.entityId)
+      .on(table.ownerId, table.workspaceId, table.entityType, table.entityId)
       .where(sql`resolved_at IS NULL`),
   ],
 );
@@ -403,6 +492,9 @@ export const cloudSyncUsageOutbox = sqliteTable(
     ownerId: text('owner_id')
       .notNull()
       .references(() => cloudSyncAccounts.ownerId, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => localWorkspaces.id, { onDelete: 'cascade' }),
     promptId: text('prompt_id').notNull(),
     action: text().notNull(),
     createdAt: integer('created_at').notNull(),
@@ -413,6 +505,7 @@ export const cloudSyncUsageOutbox = sqliteTable(
   (table) => [
     index('idx_cloud_sync_usage_outbox_ready').on(
       table.ownerId,
+      table.workspaceId,
       table.nextAttemptAt,
       table.createdAt,
       table.eventId,

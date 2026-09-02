@@ -15,7 +15,7 @@
 | [03-workbench.md](./03-workbench.md) | 新设计(工作台) | 主干齐;参考图、空态动效、结果卡动作(存为提示词/保存图片)已收口 |
 | [04-prompt-library.md](./04-prompt-library.md) | 提示词库 | 列表齐且有恢复能力;「使用」动作已收口;详情/封面缺 |
 | [05-history.md](./05-history.md) | 历史记录 | 完成度最高;存为提示词/保存图片/Lightbox 已收口;批量清理缺 |
-| [06-design-schemes.md](./06-design-schemes.md) | 设计方案 | 暂缓域,0% 迁入;全量存档 + 迁移蓝图 |
+| [06-design-schemes.md](./06-design-schemes.md) | 设计方案 | P01 迁移中:共享层与双端确定性 CRUD 已接入,入口未开;全量存档 + 迁移蓝图 |
 | [07-settings-00-nav.md](./07-settings-00-nav.md) | 设置壳(分组导航) | 卡片流(D10);≥6 分区时切分组导航 |
 | [07-settings-01-account.md](./07-settings-01-account.md) | 设置 · 账号 | 最完整;确认密码、同步冲突 UI 缺 |
 | [07-settings-02-relay.md](./07-settings-02-relay.md) | 设置 · 中转站(AI 连接) | 生图通道主干齐;拉模型、dirty 守卫缺;Agent 通道暂缓 |
@@ -24,7 +24,7 @@
 | [07-settings-05-usage.md](./07-settings-05-usage.md) | 设置 · 使用统计 | 0%;数据在积累,无可视化 |
 | [07-settings-06-data.md](./07-settings-06-data.md) | 设置 · 数据存储 | 回收站入口新增;备份/路径/日志/危险区缺 |
 | [07-settings-07-about.md](./07-settings-07-about.md) | 设置 · 关于 App | 0%;热更新暂缓,版本/支持/快捷键表待迁 |
-| [07-settings-08-archived.md](./07-settings-08-archived.md) | 设置 · 已归档聊天 | 0%;归档入口已开而列表缺 = 单向阀(P1) |
+| [07-settings-08-archived.md](./07-settings-08-archived.md) | 设置 · 已归档聊天 | 共享设置面板与 Web/Electron 三端闭环已落地;SQLite retention 已直接验证 |
 
 ## 跨屏 P0 汇总(状态截至 2026-08-29)
 
@@ -50,5 +50,5 @@
 
 1. 每完成一项任务,回对应篇把该行从任务表移到「已收口」备注(或直接删行),并在 V25-UI-SPEC 相应章节销账;规格性变化(如三态动效)同步进 SPEC。
 2. 新发现的差距**先登记进对应篇**再动手,与 SPEC §9 的差异登记互补:有意保留的差异去 §9,待修的差距留在这里。
-3. 暂缓域挂点(设计方案/Skill/豆包/分享导入/热更新/笺匣)在各篇末尾登记,禁止顺手实现或删除(CLAUDE.md 红线)。
+3. 暂缓域挂点(Skill/豆包/热更新/笺匣,及仍暂缓的通用分享/导入)在各篇末尾登记,禁止顺手实现或删除(CLAUDE.md 红线);设计方案已转入 P01 迁移,进度按 [V25-MIGRATION-CARDS](../V25-MIGRATION-CARDS.md) P01 记账,入口开启前同样禁止死入口。
 4. C 系列(增益)与 P 系列同口径销账:跨屏 C 任务登记在 00 §6,屏内 C 任务登记在各篇「Codex 增益」节;改变旧版行为的 C 任务(如侧栏宽度过渡)落地前必须过 SPEC §9 差异登记。

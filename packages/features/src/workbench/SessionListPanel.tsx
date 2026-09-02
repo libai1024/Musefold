@@ -45,13 +45,7 @@ import { cn } from '@musefold/ui/lib/utils';
 import { Fragment, useEffect, useState } from 'react';
 import { usePreferences, useUpdatePreferences } from '../settings/hooks';
 import { isMacPlatform, shortcutDisplay } from '../shell/shortcuts';
-import {
-  sessionHasActiveJob,
-  useCreateSession,
-  useRemoveSession,
-  useSessionList,
-  useUpdateSession,
-} from './hooks';
+import { sessionHasActiveJob, useRemoveSession, useSessionList, useUpdateSession } from './hooks';
 import { isSessionUnread, useActiveSession } from './session-store';
 
 /**
@@ -117,45 +111,42 @@ export function groupWorkbenchSessions(
     .filter((group) => group.items.length > 0);
 }
 
-/** 「新设计」:建会话并进入工作台(承旧侧栏首要动作,含 ⌘N 快捷键,V25-UI-SPEC §8-I7)。 */
+/**
+ * 「新设计」:进入空白草稿态并切到工作台(含 ⌘N 快捷键,V25-UI-SPEC §8-I7)。
+ * 不立即建会话——首次发送才真正落行(WorkbenchScreen 提交时按首句派生标题),
+ * 避免侧栏堆积「未命名创作」空行。
+ */
 export function NewSessionAction({ onOpen }: SessionPanelProps) {
-  const createSession = useCreateSession();
-  const setActiveSessionId = useActiveSession((s) => s.setActiveSessionId);
-  const pending = createSession.isPending;
+  const startDraftSession = useActiveSession((s) => s.startDraftSession);
   // 平台键位依赖 navigator,SSR 首帧不可知;挂载后再显示,避免 hydration 不一致。
   const [shortcut, setShortcut] = useState<string | null>(null);
   useEffect(() => {
     setShortcut(shortcutDisplay('new-session', isMacPlatform()));
   }, []);
 
-  async function handleCreate() {
-    if (createSession.isPending) return;
-    const created = await createSession.mutateAsync({});
-    setActiveSessionId(created.id);
-    onOpen();
-  }
-
   // 浏览器可能保留 ⌘N(新窗口);Electron 渲染层可正常接管。
-  // biome-ignore lint/correctness/useExhaustiveDependencies: handleCreate 每渲染都新建,以 pending 为等效依赖
   useEffect(() => {
     function onKeydown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n' && !event.shiftKey) {
         event.preventDefault();
-        void handleCreate();
+        startDraftSession();
+        onOpen();
       }
     }
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
-  }, [pending]);
+  }, [startDraftSession, onOpen]);
 
   // 行样式与导航轨同构(承 ZCode「新建任务 ⌘N」行语法),Kbd 右列。
   return (
     <button
       type="button"
-      className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] text-muted-foreground transition-colors duration-(--dur-fast) hover:bg-sidebar-accent/60 hover:text-sidebar-foreground disabled:opacity-60"
-      disabled={pending}
+      className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] text-muted-foreground transition-colors duration-(--dur-fast) hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
       title={shortcut ? `新设计(${shortcut})` : '新设计'}
-      onClick={() => void handleCreate()}
+      onClick={() => {
+        startDraftSession();
+        onOpen();
+      }}
       data-testid="session-create"
     >
       <SquarePen className="size-4 text-muted-foreground/80" aria-hidden /> 新设计

@@ -1,0 +1,1 @@
+ALTER TABLE "object_cleanup_queue" ADD COLUMN "abandoned_at" timestamp with time zone;

@@ -7,9 +7,14 @@ import type {
   CreateAiProvider,
   CreateGenerationInput,
   CreateWorkbenchSession,
+  DesktopSyncConsent,
   DesktopSyncStatus,
+  DoubaoAccountStatus,
+  SyncConflictResolution,
+  SyncConflictSummary,
   GenerationHistoryPage,
   GenerationHistoryQuery,
+  GenerationIdempotencyKey,
   GenerationJob,
   GenerationReferenceImage,
   LoginRequest,
@@ -37,6 +42,43 @@ import type {
   WorkbenchSession,
   WorkbenchSessionListQuery,
   WorkbenchSessionPage,
+  DesignSchemeDetail,
+  DesignSchemeDetailRevisionSelector,
+  DesignSchemePage,
+  MarketSearchResult,
+  CreateDesignSchemeInput,
+  CreateDesignSchemeResult,
+  ConfirmDesignSchemeInstallInput,
+  ConfirmDesignSchemeInstallResult,
+  UpdateDesignSchemeInput,
+  UpdateDesignSchemeResult,
+  ModifyDesignSchemeInput,
+  ModifyDesignSchemeResult,
+  CancelDesignSchemeInput,
+  CancelDesignSchemeResult,
+  SelectCoverInput,
+  SelectCoverResult,
+  FormalizeDesignSchemeInput,
+  FormalizeDesignSchemeResult,
+  PromoteWorkingDraftInput,
+  PromoteWorkingDraftResult,
+  RenameDesignSchemeInput,
+  RenameDesignSchemeResult,
+  RemoveDesignSchemeInput,
+  RemoveDesignSchemeResult,
+  CheckDesignSchemeUpdateInput,
+  CheckDesignSchemeUpdateResult,
+  PrepareDesignSchemeImportPackageInput,
+  PrepareDesignSchemeImportPackageResult,
+  ImportDesignSchemeInput,
+  ImportDesignSchemeResult,
+  ExportDesignSchemeInput,
+  ExportDesignSchemeResult,
+  DesignSchemeRunInput,
+  RunResult,
+  DesignSchemeEvent,
+  DesignSchemeListQuery,
+  MarketSearchQuery,
 } from '@musefold/contracts';
 
 /**
@@ -57,10 +99,60 @@ export interface MusefoldGateway {
    */
   aiProviders?: AiProvidersGateway;
   /**
+   * Design-scheme domain. Optional until the host has a real local/cloud adapter;
+   * callers must also require capabilities.hasDesignSchemes before rendering entry points.
+   */
+  designSchemes?: DesignSchemesGateway;
+  /**
    * 桌面专属:提示词库云同步(登录 ≠ 同步,开关由用户显式打开)。
    * Web 宿主不提供(数据天然在云端),UI 以 capabilities.hasCloudSync 判断。
    */
   sync?: SyncGateway;
+  /**
+   * 桌面专属:豆包网页登录(冻结 browser-service 的薄适配,QR 登录 + 状态/刷新/登出)。
+   * Web 宿主不提供,UI 以 capabilities.hasDoubaoWebLogin 判断,不渲染豆包登录入口。
+   */
+  doubao?: DoubaoGateway;
+}
+
+export interface DoubaoGateway {
+  /** 只读账号摘要;不主动弹出登录窗口。 */
+  getStatus(): Promise<DoubaoAccountStatus>;
+  /** 启动 QR 登录流;返回含二维码 data URL 的状态快照,随后轮询 getStatus 跟进。 */
+  startLogin(): Promise<DoubaoAccountStatus>;
+  /** 作废当前二维码并重新走登录流(等价 stop + start)。 */
+  refreshLogin(): Promise<DoubaoAccountStatus>;
+  /** 清空豆包分区存储并回到未登录态。 */
+  logout(): Promise<DoubaoAccountStatus>;
+}
+
+export interface DesignSchemesGateway {
+  list(query: DesignSchemeListQuery): Promise<DesignSchemePage>;
+  /** Omitting the selector requests the current revision. */
+  get(id: string, revision?: DesignSchemeDetailRevisionSelector): Promise<DesignSchemeDetail>;
+  searchMarket(query: MarketSearchQuery): Promise<MarketSearchResult>;
+  create(input: CreateDesignSchemeInput): Promise<CreateDesignSchemeResult>;
+  /** Optional until a host implements the active Agent-session confirmation lifecycle. */
+  confirmInstall?(
+    input: ConfirmDesignSchemeInstallInput,
+  ): Promise<ConfirmDesignSchemeInstallResult>;
+  update(input: UpdateDesignSchemeInput): Promise<UpdateDesignSchemeResult>;
+  modify(input: ModifyDesignSchemeInput): Promise<ModifyDesignSchemeResult>;
+  cancel(input: CancelDesignSchemeInput): Promise<CancelDesignSchemeResult>;
+  selectCover(input: SelectCoverInput): Promise<SelectCoverResult>;
+  formalize(input: FormalizeDesignSchemeInput): Promise<FormalizeDesignSchemeResult>;
+  promoteWorkingDraft(input: PromoteWorkingDraftInput): Promise<PromoteWorkingDraftResult>;
+  rename(input: RenameDesignSchemeInput): Promise<RenameDesignSchemeResult>;
+  remove(input: RemoveDesignSchemeInput): Promise<RemoveDesignSchemeResult>;
+  checkUpdate(input: CheckDesignSchemeUpdateInput): Promise<CheckDesignSchemeUpdateResult>;
+  /** Optional until a host can validate and stage a picked/uploaded package without exposing paths. */
+  prepareImportPackage?(
+    input: PrepareDesignSchemeImportPackageInput,
+  ): Promise<PrepareDesignSchemeImportPackageResult>;
+  importPackage(input: ImportDesignSchemeInput): Promise<ImportDesignSchemeResult>;
+  exportPackage(input: ExportDesignSchemeInput): Promise<ExportDesignSchemeResult>;
+  run(input: DesignSchemeRunInput): Promise<RunResult>;
+  subscribeEvents(listener: (event: DesignSchemeEvent) => void): () => void;
 }
 
 export interface SettingsGateway {
@@ -79,7 +171,16 @@ export interface AccountGateway {
 
 export interface SyncGateway {
   getStatus(): Promise<DesktopSyncStatus>;
-  /** 打开时立即跑一轮全量同步;关闭只停调度,本地数据不动。 */
+  /** Durable 用户决定与 runtime 状态分离;写入 consent 后由宿主决定是否启用调度。 */
+  setConsent(consent: DesktopSyncConsent): Promise<DesktopSyncStatus>;
+  /** 返回当前 owner 的未解决冲突摘要,不暴露 owner/workspace。 */
+  listConflicts(): Promise<SyncConflictSummary[]>;
+  /** Renderer 只提交冲突 id 和三选一决议。 */
+  resolveConflict(
+    conflictId: string,
+    resolution: SyncConflictResolution,
+  ): Promise<DesktopSyncStatus>;
+  /** 兼容旧宿主;新调用方应使用 setConsent。 */
   setEnabled(enabled: boolean): Promise<DesktopSyncStatus>;
   syncNow(): Promise<DesktopSyncStatus>;
 }
@@ -124,11 +225,14 @@ export interface WorkbenchGateway {
 }
 
 export interface GenerationGateway {
-  create(input: CreateGenerationInput): Promise<GenerationJob>;
+  create(
+    input: CreateGenerationInput,
+    idempotencyKey: GenerationIdempotencyKey,
+  ): Promise<GenerationJob>;
   list(query: GenerationHistoryQuery): Promise<GenerationHistoryPage>;
   get(id: string): Promise<GenerationJob>;
   cancel(id: string): Promise<GenerationJob>;
-  retry(id: string): Promise<GenerationJob>;
+  retry(id: string, idempotencyKey: GenerationIdempotencyKey): Promise<GenerationJob>;
   remove(id: string): Promise<GenerationJob>;
   restore(id: string): Promise<GenerationJob>;
   /** 回收站内永久删除(仅已软删行合法);桌面同时清理磁盘资产,云端清理对象存储。 */

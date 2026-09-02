@@ -1,5 +1,8 @@
 import type {
+  DesignSchemeDetailRevisionSelector,
+  DesignSchemeListQuery,
   GenerationHistoryQuery,
+  MarketSearchQuery,
   PromptListQuery,
   WorkbenchSessionListQuery,
 } from '@musefold/contracts';
@@ -19,6 +22,17 @@ export const queryKeys = {
   },
   sync: {
     status: () => ['sync', 'status'] as const,
+    conflicts: () => ['sync', 'conflicts'] as const,
+  },
+  doubao: {
+    status: () => ['doubao', 'status'] as const,
+  },
+  designSchemes: {
+    all: () => ['design-schemes'] as const,
+    list: (query: DesignSchemeListQuery) => ['design-schemes', 'list', query] as const,
+    detail: (id: string, revision: DesignSchemeDetailRevisionSelector = { kind: 'current' }) =>
+      ['design-schemes', 'detail', id, revision] as const,
+    marketSearch: (query: MarketSearchQuery) => ['design-schemes', 'market-search', query] as const,
   },
   prompts: {
     all: () => ['prompts'] as const,

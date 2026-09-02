@@ -35,6 +35,8 @@ export default defineConfig({
       'src/**/*.test.tsx',
       'electron/**/*.test.ts',
       'packages/**/*.test.ts',
+      // platform 没有独立 Vitest workspace;其 React context 合同由根任务收集。
+      'packages/platform/**/*.test.tsx',
       'tests/repo/**/*.test.ts',
     ],
   },

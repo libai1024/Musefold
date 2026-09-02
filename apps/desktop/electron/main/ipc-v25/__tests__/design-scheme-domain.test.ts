@@ -1,0 +1,1244 @@
+/**
+ * v2.5 design-scheme 域 adapter 单测(P01-4 成功切片 + P01-2 详情元数据)。
+ *
+ * 用真实内存 SQLite 仓库驱动全部 16 个 canonical 方法;网络 seam(市场搜索、
+ * 上游更新检查)注入假实现。重点:
+ * - 方法表与 canonical 方法集逐名一致(不落回 fail-closed);
+ * - canonical ↔ legacy 文档映射的有损字段按声明收敛;
+ * - get 返回 canonical 详情:legacy 资产经真实探测懒回填,缺失资产省略;
+ * - 无法映射的操作返回结构化 blocker(BridgeError),绝不伪造成功;
+ * - 本地路径/凭据不进入任何返回值或错误消息。
+ */
+import Database from 'better-sqlite3';
+import { createHash } from 'crypto';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  checkDesignSchemeUpdateResultSchema,
+  createDesignSchemeResultSchema,
+  designSchemeDetailSchema,
+  DESIGN_SCHEME_METHOD_NAMES,
+  DESIGN_SCHEME_WIRE_METHODS,
+  formalizeDesignSchemeResultSchema,
+  marketSearchResultSchema,
+  promoteWorkingDraftResultSchema,
+  type DesignSchemeRevisionDocument,
+} from '@musefold/contracts';
+import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
+import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import { appError, fail, ok } from '@musefold/domain/app-result';
+import type {
+  DesignSchemeRevisionDocument as LegacyDocument,
+  SourceBinding as LegacySourceBinding,
+} from '@musefold/desktop-contracts/design-scheme/schema';
+
+// 域文件经 update-check/source-ingestion 间接引用 electron(system/paths);按
+// share.test.ts 的做法给最小 app mock,阻断真实 electron 解析。
+vi.mock('electron', () => ({ app: { getPath: () => '/tmp/musefold-ds-domain-test' } }));
+
+import {
+  buildDesignSchemesDomainMethods,
+  DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
+  DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
+  DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
+  DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED,
+  DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE,
+  designSchemeEventChannel,
+  parseDesignSchemeEvent,
+  type DesignSchemeDomainDeps,
+} from '../design-scheme-domain';
+import { BridgeError } from '../envelope';
+
+// ---------------------------------------------------------------------------
+// 固定件
+// ---------------------------------------------------------------------------
+
+const CONTENT_HASH = 'a'.repeat(64);
+const COMMIT = 'b'.repeat(40);
+const NOW_ISO = '2026-01-15T08:00:00.000Z';
+const GITHUB_URI = 'https://github.com/acme/zine-kit';
+
+/** 真实 PNG 字节(合法签名 + IHDR):懒回填的真实探测对象。 */
+function realPngBuffer(width: number, height: number): Buffer {
+  const buffer = Buffer.alloc(33);
+  buffer.writeUInt32BE(0x89504e47, 0);
+  buffer.writeUInt32BE(0x0d0a1a0a, 4);
+  buffer.writeUInt32BE(13, 8);
+  buffer.write('IHDR', 12);
+  buffer.writeUInt32BE(width, 16);
+  buffer.writeUInt32BE(height, 20);
+  return buffer;
+}
+
+// 返回类型交给推断:defaults 字段(sourceSnapshotIds 等)由各调用点的 zod parse 补齐。
+function canonicalDocument(
+  revisionId: string,
+  schemeId: string,
+  overrides: Partial<DesignSchemeRevisionDocument> = {},
+) {
+  return {
+    schemaVersion: 1,
+    revisionId,
+    schemeId,
+    name: 'zine 封面方案',
+    summary: '杂志风封面版式',
+    fidelity: 'adapted',
+    sources: [
+      {
+        id: 'srcb_main',
+        kind: 'github-skill',
+        role: 'normative',
+        repositoryUrl: GITHUB_URI,
+        resolvedRef: 'main',
+        commitHash: COMMIT,
+        contentHash: CONTENT_HASH,
+      },
+    ],
+    inputs: [{ id: 'slot_topic', label: '主题', kind: 'text', required: true }],
+    parameters: [],
+    constraints: [],
+    promptProgram: [
+      {
+        id: 'pm_open',
+        order: 0,
+        kind: 'input-template',
+        template: '{{topic}} 的杂志封面',
+        variables: ['topic'],
+        sourceIds: [],
+      },
+    ],
+    compilation: {
+      compiledAt: NOW_ISO,
+      model: { model: 'test-model' },
+      adopted: [],
+      omitted: [],
+      warnings: [],
+      briefExcerpt: '做一张 zine 封面',
+      trace: [
+        { id: 'trace_ok', kind: 'system', title: '编译完成', status: 'success', durationMs: 5 },
+      ],
+    },
+    parentRevisionId: null,
+    ...overrides,
+  };
+}
+
+function canonicalSnapshot(suffix: string) {
+  return {
+    id: `dssnap_${suffix}`,
+    packageId: `dspkg_${suffix}`,
+    kind: 'github' as const,
+    repositoryUrl: GITHUB_URI,
+    resolvedRef: 'main',
+    commitHash: COMMIT,
+    totalBytes: 120,
+    files: [
+      {
+        relativePath: 'SKILL.md',
+        kind: 'text' as const,
+        mimeType: 'text/markdown',
+        sizeBytes: 120,
+        contentHash: CONTENT_HASH,
+        evidencePath: null,
+        textExcerpt: '# zine kit',
+      },
+    ],
+    createdAt: NOW_ISO,
+  };
+}
+
+function createInputFixture(schemeId: string, revisionId: string, overrides = {}) {
+  return {
+    executionId: 'exec_create_1',
+    brief: '做一张 zine 封面',
+    sourceUris: [GITHUB_URI],
+    sourceBindings: [
+      {
+        id: `srcb_snap_${schemeId}`,
+        kind: 'github-skill' as const,
+        role: 'normative' as const,
+        snapshotId: `dssnap_${schemeId}`,
+      },
+    ],
+    sourcePackages: [
+      {
+        id: `dspkg_${schemeId}`,
+        kind: 'github' as const,
+        repositoryUrl: GITHUB_URI,
+        license: 'MIT',
+        createdAt: NOW_ISO,
+      },
+    ],
+    sourceSnapshots: [canonicalSnapshot(schemeId)],
+    sourceAssetIds: [],
+    document: canonicalDocument(revisionId, schemeId),
+    ...overrides,
+  };
+}
+
+/** 仓库层种子用的 legacy 文档(promoteWorkingDraft 前置:applyAgentRevision)。 */
+function legacyDocument(revisionId: string, schemeId: string): LegacyDocument {
+  const binding: LegacySourceBinding = {
+    id: 'srcb_main',
+    kind: 'github-skill',
+    role: 'normative',
+    uri: GITHUB_URI,
+    ref: 'main',
+    commit: COMMIT,
+    contentHash: CONTENT_HASH,
+  };
+  return {
+    schemaVersion: 1,
+    revisionId,
+    schemeId,
+    name: 'zine 封面方案',
+    summary: '杂志风封面版式 v2',
+    fidelity: 'adapted',
+    sources: [binding],
+    inputs: [{ id: 'slot_topic', label: '主题', kind: 'text', required: true }],
+    parameters: [],
+    constraints: [],
+    promptProgram: [
+      {
+        id: 'pm_open',
+        order: 0,
+        kind: 'input-template',
+        template: '{{topic}} 的杂志封面',
+        variables: ['topic'],
+        sourceIds: [],
+      },
+    ],
+    compilation: {
+      compiledAt: Date.parse(NOW_ISO),
+      model: { model: 'test-model' },
+      adopted: [],
+      omitted: [],
+      warnings: [],
+      trace: [],
+    },
+  };
+}
+
+function legacyCandidate(overrides: Record<string, unknown> = {}) {
+  return {
+    candidateId: 'mc_101',
+    repositoryUrl: GITHUB_URI,
+    fullName: 'acme/zine-kit',
+    description: 'zine 排版 skill',
+    license: 'MIT',
+    ref: 'main',
+    updatedAt: 1_750_000_000_000,
+    stars: 12,
+    topics: ['zine'],
+    matchReason: '仓库描述包含 zine',
+    riskSummary: null,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 驱动工具
+// ---------------------------------------------------------------------------
+
+type MethodName = keyof typeof DESIGN_SCHEME_WIRE_METHODS;
+
+let db: Database.Database;
+let repo: DesignSchemeRepository;
+let methods: ReturnType<typeof buildDesignSchemesDomainMethods>;
+let searchMarket: ReturnType<typeof vi.fn>;
+let checkUpdate: ReturnType<typeof vi.fn>;
+let consumeStagedPackage: ReturnType<typeof vi.fn>;
+let importPackage: ReturnType<typeof vi.fn>;
+let exportPackage: ReturnType<typeof vi.fn>;
+let showSaveDialog: ReturnType<typeof vi.fn>;
+let userDataDir: string;
+let picturesDir: string;
+let outsideManagedDir: string;
+
+function wire() {
+  searchMarket = vi.fn();
+  checkUpdate = vi.fn();
+  consumeStagedPackage = vi.fn(async (_ownerId, _input, consume) => consume('/verified/package'));
+  importPackage = vi.fn();
+  exportPackage = vi.fn();
+  showSaveDialog = vi.fn();
+  const deps: DesignSchemeDomainDeps = {
+    db,
+    searchMarket: searchMarket as unknown as NonNullable<DesignSchemeDomainDeps['searchMarket']>,
+    checkUpdate: checkUpdate as unknown as NonNullable<DesignSchemeDomainDeps['checkUpdate']>,
+    consumeStagedPackage: consumeStagedPackage as unknown as NonNullable<
+      DesignSchemeDomainDeps['consumeStagedPackage']
+    >,
+    importPackage: importPackage as unknown as NonNullable<DesignSchemeDomainDeps['importPackage']>,
+    exportPackage: exportPackage as unknown as NonNullable<DesignSchemeDomainDeps['exportPackage']>,
+    showSaveDialog: showSaveDialog as unknown as NonNullable<
+      DesignSchemeDomainDeps['showSaveDialog']
+    >,
+    downloadsDir: userDataDir,
+    userDataDir,
+    picturesDir,
+  };
+  methods = buildDesignSchemesDomainMethods(deps);
+}
+
+// noExplicitAny 在 biome.json 中关闭;测试驱动层用 any 保持断言简洁。
+async function invoke<T = any>(name: MethodName, payload: unknown, senderId?: number): Promise<T> {
+  const def = methods[DESIGN_SCHEME_WIRE_METHODS[name]];
+  return (await def.handle(def.input.parse(payload), senderId ? { senderId } : undefined)) as T;
+}
+
+/** 期待 BridgeError 的调用:返回错误对象并断言类型与消息非空。 */
+async function invokeError(
+  name: MethodName,
+  payload: unknown,
+  senderId?: number,
+): Promise<BridgeError> {
+  const def = methods[DESIGN_SCHEME_WIRE_METHODS[name]];
+  try {
+    await def.handle(def.input.parse(payload), senderId ? { senderId } : undefined);
+  } catch (error) {
+    expect(error, `designSchemes.${name} 应抛 BridgeError`).toBeInstanceOf(BridgeError);
+    const bridgeError = error as BridgeError;
+    expect(bridgeError.message.length).toBeGreaterThan(0);
+    return bridgeError;
+  }
+  throw new Error(`designSchemes.${name} 应当失败,但成功返回`);
+}
+
+/** 与 invokeError 同,但跳过入参解析(供与入参无关的 blocker 用)。 */
+async function invokeErrorRaw(name: MethodName): Promise<BridgeError> {
+  const def = methods[DESIGN_SCHEME_WIRE_METHODS[name]];
+  try {
+    await def.handle({});
+  } catch (error) {
+    expect(error, `designSchemes.${name} 应抛 BridgeError`).toBeInstanceOf(BridgeError);
+    return error as BridgeError;
+  }
+  throw new Error(`designSchemes.${name} 应当失败,但成功返回`);
+}
+
+function seedSuccessfulTrial(revisionId: string): void {
+  const runId = `dsrun_${revisionId}`;
+  repo.insertRun({ runId, revisionId, mode: 'trial', policy: {} });
+  repo.updateRunStatus(runId, 'completed');
+}
+
+/** 走完整生命周期得到一个 formal 方案;返回封面资产与 formalize 后的版本号。 */
+async function createFormalScheme(schemeId: string, revisionId: string) {
+  await invoke('create', createInputFixture(schemeId, revisionId));
+  seedSuccessfulTrial(revisionId);
+  const assetId = repo.insertLocalRunAsset(revisionId, 'previews/cover.png');
+  await invoke('selectCover', { schemeId, assetId, expectedVersion: 1 }); // version 1 → 2
+  const formalized = await invoke('formalize', {
+    schemeId,
+    revisionId,
+    coverAssetId: assetId,
+    expectedVersion: 2,
+    confirmed: true,
+  }); // version 2 → 3
+  return { assetId, formalized };
+}
+
+beforeEach(() => {
+  userDataDir = mkdtempSync(join(tmpdir(), 'musefold-ds-get-'));
+  picturesDir = join(userDataDir, 'Pictures');
+  outsideManagedDir = mkdtempSync(join(tmpdir(), 'musefold-ds-outside-'));
+  mkdirSync(picturesDir, { recursive: true });
+  db = new Database(':memory:');
+  runDesignSchemeDbMigrations(db);
+  repo = new DesignSchemeRepository(db);
+  wire();
+});
+
+afterEach(() => {
+  db.close();
+  rmSync(userDataDir, { recursive: true, force: true });
+  rmSync(outsideManagedDir, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 方法表与输入校验
+// ---------------------------------------------------------------------------
+
+describe('方法表', () => {
+  it('逐名锁定为 canonical 方法集(16 个,无旧通道残留)', () => {
+    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(16);
+    expect(Object.keys(methods).sort()).toEqual([...DESIGN_SCHEME_METHOD_NAMES].sort());
+  });
+
+  it('拒绝携带本地路径或凭据的入参(信封前的第一道闸)', () => {
+    const create = methods[DESIGN_SCHEME_WIRE_METHODS.create];
+    expect(() =>
+      create.input.parse(
+        createInputFixture('dsch_s', 'dsrv_s1', { sourceUris: ['file:///etc/passwd'] }),
+      ),
+    ).toThrow();
+    expect(() =>
+      create.input.parse(
+        createInputFixture('dsch_s', 'dsrv_s1', {
+          sourceUris: ['https://user:pass@github.com/acme/zine-kit'],
+        }),
+      ),
+    ).toThrow();
+    // rename.name 在 canonical 契约里是普通字符串(非 safeText),此处不设路径断言。
+    expect(() => methods[DESIGN_SCHEME_WIRE_METHODS.get].input.parse({ id: '../etc' })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// list / get
+// ---------------------------------------------------------------------------
+
+describe('list', () => {
+  it('空库返回空页', async () => {
+    await expect(invoke('list', {})).resolves.toEqual({ items: [], nextCursor: null });
+  });
+
+  it('按状态/关键词过滤并做 offset 分页', async () => {
+    await invoke('create', createInputFixture('dsch_a', 'dsrv_a1'));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await invoke(
+      'create',
+      createInputFixture('dsch_b', 'dsrv_b1', {
+        document: canonicalDocument('dsrv_b1', 'dsch_b', {
+          name: '海报排版方案',
+          summary: '展览海报版式',
+        }),
+      }),
+    );
+
+    const all = await invoke<{ items: Array<{ id: string }>; nextCursor: string | null }>(
+      'list',
+      {},
+    );
+    expect(all.items.map((item) => item.id).sort()).toEqual(['dsch_a', 'dsch_b']);
+    expect(all.nextCursor).toBeNull();
+
+    const formalOnly = await invoke<{ items: unknown[] }>('list', { status: 'formal' });
+    expect(formalOnly.items).toEqual([]);
+
+    // 「封面」只命中 dsch_a 的名称;sourceLabel(acme/zine-kit)不含该词。
+    const zine = await invoke<{ items: Array<{ id: string }> }>('list', { query: '封面' });
+    expect(zine.items.map((item) => item.id)).toEqual(['dsch_a']);
+
+    const none = await invoke<{ items: unknown[] }>('list', { query: '不存在的词' });
+    expect(none.items).toEqual([]);
+
+    const page1 = await invoke<{ items: Array<{ id: string }>; nextCursor: string | null }>(
+      'list',
+      { limit: 1 },
+    );
+    expect(page1.items).toHaveLength(1);
+    expect(page1.nextCursor).toBe('1');
+    const page2 = await invoke<{ items: Array<{ id: string }>; nextCursor: string | null }>(
+      'list',
+      { limit: 1, cursor: '1' },
+    );
+    expect(page2.items).toHaveLength(1);
+    expect(page2.nextCursor).toBeNull();
+    expect([...page1.items, ...page2.items].map((item) => item.id).sort()).toEqual([
+      'dsch_a',
+      'dsch_b',
+    ]);
+  });
+});
+
+describe('get', () => {
+  it('未知方案 → NOT_FOUND', async () => {
+    expect((await invokeError('get', { id: 'dsch_ghost' })).code).toBe('NOT_FOUND');
+  });
+
+  it('详情过 canonical 契约:legacy 资产真实 PNG 懒回填,缺失资产省略,无路径泄漏', async () => {
+    await invoke('create', createInputFixture('dsch_get', 'dsrv_g1'));
+    // 四种 legacy 资产形态:受管绝对生图路径、managed 相对 storeKey、已缺失文件、根外文件。
+    const png = realPngBuffer(320, 240);
+    const storeKey = join('design-scheme-sources', 'snap_get', 'run.png');
+    mkdirSync(join(userDataDir, 'design-scheme-sources', 'snap_get'), { recursive: true });
+    writeFileSync(join(userDataDir, storeKey), png);
+    const generatedPath = join(picturesDir, 'generated.png');
+    writeFileSync(generatedPath, png);
+    const outsidePath = join(outsideManagedDir, 'outside.png');
+    writeFileSync(outsidePath, png);
+    const absoluteId = repo.insertLocalRunAsset('dsrv_g1', generatedPath);
+    const managedId = repo.insertLocalRunAsset('dsrv_g1', storeKey);
+    const outsideId = repo.insertLocalRunAsset('dsrv_g1', outsidePath);
+    const missingId = repo.insertLocalRunAsset(
+      'dsrv_g1',
+      join(userDataDir, 'design-scheme-sources', 'snap_get', 'gone.png'),
+    );
+
+    const detail = await invoke<{
+      summary: { id: string };
+      document: { revisionId: string };
+      assets: Array<Record<string, unknown>>;
+      sourceSnapshots: Array<{ files: Array<Record<string, unknown>> }>;
+    }>('get', { id: 'dsch_get' });
+
+    expect(() => designSchemeDetailSchema.parse(detail)).not.toThrow();
+    expect(detail.summary.id).toBe('dsch_get');
+    expect(detail.document.revisionId).toBe('dsrv_g1');
+    // canonical 创建持久化的来源 mime/evidence 读回(mime 列,evidence 缺省 null)。
+    const file = detail.sourceSnapshots[0].files[0];
+    expect(file.mimeType).toBe('text/markdown');
+    expect(file.evidencePath).toBeNull();
+    // 真实探测回填的元数据;缺失文件资产被省略而不是伪造。
+    expect(detail.assets.map((asset) => asset.id).sort()).toEqual([absoluteId, managedId].sort());
+    for (const asset of detail.assets) {
+      expect(asset).toMatchObject({
+        mimeType: 'image/png',
+        width: 320,
+        height: 240,
+        byteSize: png.byteLength,
+        contentHash: createHash('sha256').update(png).digest('hex'),
+        origin: 'local-run',
+        role: 'example',
+      });
+    }
+    expect(detail.assets.some((asset) => asset.id === missingId)).toBe(false);
+    expect(detail.assets.some((asset) => asset.id === outsideId)).toBe(false);
+    // 回填已持久化:DB 行从 NULL 变为探测值,下次读取无需再探测。
+    expect(
+      db
+        .prepare('SELECT mime_type, width, height FROM design_scheme_assets WHERE id = ?')
+        .get(managedId),
+    ).toEqual({ mime_type: 'image/png', width: 320, height: 240 });
+    // 出参 path-free:无 storeKey/本机路径泄漏。
+    const serialized = JSON.stringify(detail);
+    expect(serialized).not.toContain('storeKey');
+    expect(serialized).not.toContain(userDataDir);
+    expect(serialized).not.toContain('coverImagePath');
+  });
+
+  it('正式方案详情按 selector 区分 current 与 exact working draft', async () => {
+    await createFormalScheme('dsch_detail_rev', 'dsrv_detail_1');
+    repo.applyAgentRevision(
+      'dsch_detail_rev',
+      'dsrv_detail_1',
+      legacyDocument('dsrv_detail_2', 'dsch_detail_rev'),
+      [],
+      3,
+    );
+
+    const current = await invoke<{ document: { revisionId: string } }>('get', {
+      id: 'dsch_detail_rev',
+      revision: { kind: 'current' },
+    });
+    expect(current.document.revisionId).toBe('dsrv_detail_1');
+
+    const workingDraft = await invoke<{ document: { revisionId: string } }>('get', {
+      id: 'dsch_detail_rev',
+      revision: { kind: 'working-draft', revisionId: 'dsrv_detail_2' },
+    });
+    expect(workingDraft.document.revisionId).toBe('dsrv_detail_2');
+
+    const mismatch = await invokeError('get', {
+      id: 'dsch_detail_rev',
+      revision: { kind: 'working-draft', revisionId: 'dsrv_detail_ghost' },
+    });
+    expect(mismatch.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+  });
+
+  it('v6 新写入资产(已带元数据)直接映射,不再探测文件系统', async () => {
+    await invoke('create', createInputFixture('dsch_get2', 'dsrv_g2'));
+    const png = realPngBuffer(64, 64);
+    repo.insertLocalRunAsset('dsrv_g2', '/definitely/not/probed.png', {
+      mimeType: 'image/png',
+      width: 64,
+      height: 64,
+      byteSize: png.byteLength,
+      contentHash: createHash('sha256').update(png).digest('hex'),
+    });
+    const detail = await invoke<{ assets: Array<Record<string, unknown>> }>('get', {
+      id: 'dsch_get2',
+    });
+    expect(detail.assets).toHaveLength(1);
+    expect(detail.assets[0]).toMatchObject({ width: 64, height: 64, mimeType: 'image/png' });
+  });
+
+  it('不安全文本节选 → null 而不是毒化详情;非法 hash 的文件被省略', async () => {
+    await invoke('create', createInputFixture('dsch_get3', 'dsrv_g3'));
+    const saved = repo.saveSourceSnapshot({
+      package: { id: 'pkg_excerpt', kind: 'github' },
+      snapshot: { id: 'snap_excerpt', ref: 'main', commitHash: null, totalBytes: 2, scan: {} },
+      files: [
+        {
+          path: 'notes.txt',
+          kind: 'text',
+          contentHash: CONTENT_HASH,
+          sizeBytes: 18,
+          textContent: '/Users/leak/secret', // 形似本地路径:canonical 安全校验拒绝
+          mimeType: 'text/plain',
+        },
+        {
+          path: 'broken.bin',
+          kind: 'other',
+          contentHash: 'not-a-hash', // 过不了 designSchemeHashSchema → 整条省略
+          sizeBytes: 1,
+        },
+      ],
+    });
+    db.prepare(
+      `INSERT INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+       VALUES ('dsrv_g3', ?, 'context')`,
+    ).run(saved.snapshotId);
+
+    const detail = await invoke<{
+      sourceSnapshots: Array<{
+        files: Array<{
+          relativePath: string;
+          textExcerpt: string | null;
+          mimeType: string | null;
+        }>;
+      }>;
+    }>('get', { id: 'dsch_get3' });
+    expect(() => designSchemeDetailSchema.parse(detail)).not.toThrow();
+    const excerptSnapshot = detail.sourceSnapshots.find((snapshot) =>
+      snapshot.files.some((file) => file.relativePath === 'notes.txt'),
+    );
+    expect(excerptSnapshot).toBeDefined();
+    const files = excerptSnapshot!.files;
+    expect(files.map((item) => item.relativePath)).toEqual(['notes.txt']);
+    expect(files[0].textExcerpt).toBeNull();
+    expect(files[0].mimeType).toBe('text/plain');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// create / update
+// ---------------------------------------------------------------------------
+
+describe('create', () => {
+  it('落草稿并持久化来源元数据(出参满足 canonical 结果契约)', async () => {
+    const def = methods[DESIGN_SCHEME_WIRE_METHODS.create];
+    const parsed = def.input.parse(createInputFixture('dsch_ok', 'dsrv_ok1')) as any;
+    const result = (await def.handle(parsed)) as any;
+
+    expect(() => createDesignSchemeResultSchema.parse(result)).not.toThrow();
+    expect(result.scheme).toMatchObject({
+      id: 'dsch_ok',
+      status: 'draft',
+      version: 1,
+      currentRevisionId: 'dsrv_ok1',
+      sourcePresentation: 'skill',
+      sourceLabel: 'acme/zine-kit',
+      hasSuccessfulTrial: false,
+      coverAssetId: null,
+      workingDraftRevisionId: null,
+    });
+    expect(result.document).toEqual(parsed.document);
+    expect(result.revisionId).toBe('dsrv_ok1');
+    expect(result.trace).toEqual([]);
+
+    // 来源快照/文件/绑定真的入库(相对路径形态,无本机绝对路径)。
+    expect(db.prepare('SELECT count(*) AS n FROM source_snapshots').get()).toEqual({ n: 1 });
+    expect(db.prepare('SELECT count(*) AS n FROM source_files').get()).toEqual({ n: 1 });
+    expect(
+      db
+        .prepare(
+          'SELECT source_snapshot_id AS sid, role FROM design_scheme_source_bindings WHERE revision_id = ?',
+        )
+        .get('dsrv_ok1'),
+    ).toEqual({ sid: 'dssnap_dsch_ok', role: 'normative' });
+  });
+
+  it('无 GitHub 来源时来源展示记为 Musefold 创建', async () => {
+    const document = canonicalDocument('dsrv_m1', 'dsch_muse', {
+      sources: [{ id: 'srcb_brief', kind: 'user-brief', role: 'context' }],
+    });
+    const result = await invoke(
+      'create',
+      createInputFixture('dsch_muse', 'dsrv_m1', {
+        document,
+        sourceUris: [],
+        sourceBindings: [],
+        sourcePackages: [],
+        sourceSnapshots: [],
+      }),
+    );
+    expect(result.scheme.sourcePresentation).toBe('musefold-created');
+    expect(result.scheme.sourceLabel).toBe('Musefold 创建');
+  });
+
+  it('重复 id → DESIGN_SCHEME_ALREADY_EXISTS', async () => {
+    await invoke('create', createInputFixture('dsch_dup', 'dsrv_d1'));
+    const error = await invokeError('create', createInputFixture('dsch_dup', 'dsrv_d2'));
+    expect(error.code).toBe('DESIGN_SCHEME_ALREADY_EXISTS');
+  });
+
+  it('缺少已编译 document → Agent 创建管线 blocker,不伪造成功', async () => {
+    const error = await invokeError(
+      'create',
+      createInputFixture('dsch_agent', 'dsrv_a1', { document: undefined }),
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED);
+    expect(error.code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
+  });
+
+  it('share-import 来源包 → 结构化拒绝且不留半成品方案', async () => {
+    const base = createInputFixture('dsch_share', 'dsrv_sh1');
+    const error = await invokeError('create', {
+      ...base,
+      sourcePackages: [{ ...base.sourcePackages[0], kind: 'share-import' as const }],
+      sourceSnapshots: [{ ...canonicalSnapshot('dsch_share'), kind: 'share-import' as const }],
+    });
+    expect(error.code).toBe('DESIGN_SCHEME_CREATE_SOURCE_UNSUPPORTED');
+    expect(
+      db.prepare("SELECT count(*) AS n FROM design_schemes WHERE id = 'dsch_share'").get(),
+    ).toEqual({ n: 0 });
+  });
+
+  it('historySources(稳定 runId/assetId/includePrompt)→ 结构化拒绝,绝不静默丢弃', async () => {
+    const error = await invokeError(
+      'create',
+      createInputFixture('dsch_hist', 'dsrv_h1', {
+        historySources: [{ runId: 'run_1', assetId: 'asset_1', includePrompt: true }],
+      }),
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED);
+    // fail-closed 而非静默丢弃:方案行不落库,渲染层不会误以为历史来源已并入。
+    expect(
+      db.prepare("SELECT count(*) AS n FROM design_schemes WHERE id = 'dsch_hist'").get(),
+    ).toEqual({ n: 0 });
+  });
+});
+
+describe('update', () => {
+  async function createForUpdate() {
+    await invoke('create', createInputFixture('dsch_upd', 'dsrv_v1'));
+  }
+
+  it('提交新版本文档:草稿当前版本前移,来源别名无损读回', async () => {
+    await createForUpdate();
+    const result = await invoke<{
+      scheme: Record<string, unknown>;
+      document: DesignSchemeRevisionDocument;
+    }>('update', {
+      schemeId: 'dsch_upd',
+      baseRevisionId: 'dsrv_v1',
+      expectedVersion: 1,
+      document: canonicalDocument('dsrv_v2', 'dsch_upd', {
+        summary: '杂志风封面版式 v2',
+        parentRevisionId: 'dsrv_v1',
+      }),
+    });
+
+    expect(result.scheme).toMatchObject({
+      version: 2,
+      currentRevisionId: 'dsrv_v2',
+      status: 'draft',
+    });
+    expect(result.document.revisionId).toBe('dsrv_v2');
+    // legacy 往返:canonical 写入别名(repositoryUrl/resolvedRef/commitHash)以 legacy
+    // 读回形态(uri/resolvedRef/commitHash)呈现,同为 canonical 合法别名。
+    expect(result.document.sources[0]).toMatchObject({
+      uri: GITHUB_URI,
+      resolvedRef: 'main',
+      commitHash: COMMIT,
+      contentHash: CONTENT_HASH,
+    });
+    expect(typeof result.document.compilation.compiledAt).toBe('number');
+    expect(result.document.compilation.trace[0]).toMatchObject({
+      title: '编译完成',
+      status: 'success',
+    });
+  });
+
+  it('过期版本号 → DESIGN_SCHEME_VERSION_CONFLICT', async () => {
+    await createForUpdate();
+    await invoke('update', {
+      schemeId: 'dsch_upd',
+      baseRevisionId: 'dsrv_v1',
+      expectedVersion: 1,
+      document: canonicalDocument('dsrv_v2', 'dsch_upd', { parentRevisionId: 'dsrv_v1' }),
+    });
+    const error = await invokeError('update', {
+      schemeId: 'dsch_upd',
+      baseRevisionId: 'dsrv_v2',
+      expectedVersion: 1,
+      document: canonicalDocument('dsrv_v3', 'dsch_upd', { parentRevisionId: 'dsrv_v2' }),
+    });
+    expect(error.code).toBe('DESIGN_SCHEME_VERSION_CONFLICT');
+  });
+
+  it('过期基线 → INVALID_STATE;未知方案 → NOT_FOUND', async () => {
+    await createForUpdate();
+    expect(
+      (
+        await invokeError('update', {
+          schemeId: 'dsch_upd',
+          baseRevisionId: 'dsrv_stale',
+          expectedVersion: 1,
+          document: canonicalDocument('dsrv_v2', 'dsch_upd', { parentRevisionId: 'dsrv_stale' }),
+        })
+      ).code,
+    ).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(
+      (
+        await invokeError('update', {
+          schemeId: 'dsch_ghost',
+          baseRevisionId: 'dsrv_v1',
+          expectedVersion: 1,
+          document: canonicalDocument('dsrv_v2', 'dsch_ghost', { parentRevisionId: 'dsrv_v1' }),
+        })
+      ).code,
+    ).toBe('NOT_FOUND');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rename / remove / selectCover / formalize / promoteWorkingDraft
+// ---------------------------------------------------------------------------
+
+describe('rename', () => {
+  it('改名成功并递增版本;超 80 字符给结构化 NAME_TOO_LONG', async () => {
+    await invoke('create', createInputFixture('dsch_rn', 'dsrv_r1'));
+    const result = await invoke('rename', {
+      schemeId: 'dsch_rn',
+      name: '新名字',
+      expectedVersion: 1,
+    });
+    expect(result.scheme.name).toBe('新名字');
+    expect(result.scheme.version).toBe(2);
+
+    const tooLong = await invokeError('rename', {
+      schemeId: 'dsch_rn',
+      name: '长'.repeat(81),
+      expectedVersion: 2,
+    });
+    expect(tooLong.code).toBe('DESIGN_SCHEME_NAME_TOO_LONG');
+    expect(tooLong.message).toContain('80');
+  });
+
+  it('未知方案 → NOT_FOUND;过期版本 → VERSION_CONFLICT', async () => {
+    await invoke('create', createInputFixture('dsch_rn2', 'dsrv_r2'));
+    expect(
+      (await invokeError('rename', { schemeId: 'dsch_ghost', name: 'x', expectedVersion: 1 })).code,
+    ).toBe('NOT_FOUND');
+    expect(
+      (await invokeError('rename', { schemeId: 'dsch_rn2', name: 'y', expectedVersion: 99 })).code,
+    ).toBe('DESIGN_SCHEME_VERSION_CONFLICT');
+  });
+});
+
+describe('remove', () => {
+  it('软删除后列表消失,重复删除 → NOT_FOUND', async () => {
+    await invoke('create', createInputFixture('dsch_rm', 'dsrv_rm1'));
+    await expect(invoke('remove', { schemeId: 'dsch_rm', expectedVersion: 1 })).resolves.toEqual({
+      schemeId: 'dsch_rm',
+      removed: true,
+    });
+    expect((await invoke('list', {})).items).toEqual([]);
+    expect((await invokeError('remove', { schemeId: 'dsch_rm', expectedVersion: 2 })).code).toBe(
+      'NOT_FOUND',
+    );
+  });
+});
+
+describe('selectCover', () => {
+  it('资产必须属于本方案;合法资产可设为封面', async () => {
+    await invoke('create', createInputFixture('dsch_cv', 'dsrv_cv1'));
+    const foreign = await invokeError('selectCover', {
+      schemeId: 'dsch_cv',
+      assetId: 'dsa_ghost',
+      expectedVersion: 1,
+    });
+    expect(foreign.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(foreign.message).toContain('封面必须选择本方案的试运行结果');
+
+    const assetId = repo.insertLocalRunAsset('dsrv_cv1', 'previews/run.png');
+    const result = await invoke('selectCover', {
+      schemeId: 'dsch_cv',
+      assetId,
+      expectedVersion: 1,
+    });
+    expect(result.scheme.coverAssetId).toBe(assetId);
+    expect(result.selectedAssetId).toBe(assetId);
+  });
+});
+
+describe('formalize', () => {
+  it('断言不满足给结构化 INVALID_STATE;满足后转正(结果过 canonical 契约)', async () => {
+    await invoke('create', createInputFixture('dsch_fm', 'dsrv_fm1'));
+    seedSuccessfulTrial('dsrv_fm1');
+    const assetId = repo.insertLocalRunAsset('dsrv_fm1', 'previews/fm.png');
+    await invoke('selectCover', { schemeId: 'dsch_fm', assetId, expectedVersion: 1 });
+
+    const staleRevision = await invokeError('formalize', {
+      schemeId: 'dsch_fm',
+      revisionId: 'dsrv_other',
+      coverAssetId: assetId,
+      expectedVersion: 2,
+      confirmed: true,
+    });
+    expect(staleRevision.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(staleRevision.message).toContain('转正基线与当前版本不一致');
+
+    const staleCover = await invokeError('formalize', {
+      schemeId: 'dsch_fm',
+      revisionId: 'dsrv_fm1',
+      coverAssetId: 'dsa_ghost',
+      expectedVersion: 2,
+      confirmed: true,
+    });
+    expect(staleCover.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(staleCover.message).toContain('封面断言与已选封面不一致');
+
+    const result = await invoke('formalize', {
+      schemeId: 'dsch_fm',
+      revisionId: 'dsrv_fm1',
+      coverAssetId: assetId,
+      expectedVersion: 2,
+      confirmed: true,
+    });
+    expect(() => formalizeDesignSchemeResultSchema.parse(result)).not.toThrow();
+    expect(result.scheme.status).toBe('formal');
+    expect(result.revisionId).toBe('dsrv_fm1');
+
+    const again = await invokeError('formalize', {
+      schemeId: 'dsch_fm',
+      revisionId: 'dsrv_fm1',
+      coverAssetId: assetId,
+      expectedVersion: 3,
+      confirmed: true,
+    });
+    expect(again.message).toContain('方案已是正式状态');
+  });
+
+  it('缺成功试运行时转正被仓库拒绝(INVALID_STATE)', async () => {
+    await invoke('create', createInputFixture('dsch_fm2', 'dsrv_fm2'));
+    const assetId = repo.insertLocalRunAsset('dsrv_fm2', 'previews/fm2.png');
+    await invoke('selectCover', { schemeId: 'dsch_fm2', assetId, expectedVersion: 1 });
+    const error = await invokeError('formalize', {
+      schemeId: 'dsch_fm2',
+      revisionId: 'dsrv_fm2',
+      coverAssetId: assetId,
+      expectedVersion: 2,
+      confirmed: true,
+    });
+    expect(error.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(error.message).toContain('试运行');
+  });
+});
+
+describe('promoteWorkingDraft', () => {
+  it('断言一致 + 草稿试运行成功 → 替换正式版本并清空草稿指针', async () => {
+    await createFormalScheme('dsch_pr', 'dsrv_pr1');
+    repo.applyAgentRevision('dsch_pr', 'dsrv_pr1', legacyDocument('dsrv_pr2', 'dsch_pr'), [], 3);
+    seedSuccessfulTrial('dsrv_pr2');
+
+    const mismatch = await invokeError('promoteWorkingDraft', {
+      schemeId: 'dsch_pr',
+      workingDraftRevisionId: 'dsrv_other',
+      expectedVersion: 4,
+      confirmed: true,
+    });
+    expect(mismatch.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(mismatch.message).toContain('待验证草稿与当前状态不一致');
+
+    const result = await invoke('promoteWorkingDraft', {
+      schemeId: 'dsch_pr',
+      workingDraftRevisionId: 'dsrv_pr2',
+      expectedVersion: 4,
+      confirmed: true,
+    });
+    expect(() => promoteWorkingDraftResultSchema.parse(result)).not.toThrow();
+    expect(result.promotedRevisionId).toBe('dsrv_pr2');
+    expect(result.scheme).toMatchObject({
+      status: 'formal',
+      currentRevisionId: 'dsrv_pr2',
+      workingDraftRevisionId: null,
+    });
+  });
+
+  it('草稿未试运行 → 仓库拒绝(INVALID_STATE)', async () => {
+    await createFormalScheme('dsch_pr2', 'dsrv_pr3');
+    repo.applyAgentRevision('dsch_pr2', 'dsrv_pr3', legacyDocument('dsrv_pr4', 'dsch_pr2'), [], 3);
+    const error = await invokeError('promoteWorkingDraft', {
+      schemeId: 'dsch_pr2',
+      workingDraftRevisionId: 'dsrv_pr4',
+      expectedVersion: 4,
+      confirmed: true,
+    });
+    expect(error.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(error.message).toContain('试运行');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchMarket / checkUpdate(注入假网络 seam)
+// ---------------------------------------------------------------------------
+
+describe('searchMarket', () => {
+  it('候选过 canonical 安全校验:路径形描述/非法全名被丢弃,commit 补 null', async () => {
+    searchMarket.mockResolvedValue(
+      ok({
+        query: 'zine',
+        fromCache: false,
+        fetchedAt: 1_000,
+        candidates: [
+          legacyCandidate(),
+          legacyCandidate({
+            candidateId: 'mc_102',
+            description: '/etc/hosts 主题', // 整串即本地路径 → 拒
+          }),
+          legacyCandidate({ candidateId: 'mc_103', fullName: 'not-a-full-name' }),
+        ],
+      }),
+    );
+    const result = await invoke<{
+      candidates: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+    }>('searchMarket', { query: 'zine' });
+    expect(() => marketSearchResultSchema.parse(result)).not.toThrow();
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      candidateId: 'mc_101',
+      repositoryUrl: GITHUB_URI,
+      ref: 'main',
+      commit: null,
+    });
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('limit 截断保留前 N 条', async () => {
+    searchMarket.mockResolvedValue(
+      ok({
+        query: 'zine',
+        fromCache: true,
+        fetchedAt: 2_000,
+        candidates: [
+          legacyCandidate(),
+          legacyCandidate({ candidateId: 'mc_202', fullName: 'acme/zine-kit-2' }),
+        ],
+      }),
+    );
+    const result = await invoke<{ candidates: Array<{ candidateId: string }> }>('searchMarket', {
+      query: 'zine',
+      limit: 1,
+    });
+    expect(result.candidates.map((candidate) => candidate.candidateId)).toEqual(['mc_101']);
+  });
+
+  it('搜索失败 → MARKET_SEARCH_FAILED,消息中的本地路径被脱敏', async () => {
+    searchMarket.mockResolvedValue(
+      fail(appError('NETWORK_ERROR', 'GitHub 搜索返回 403 /Users/leak/secret')),
+    );
+    const error = await invokeError('searchMarket', { query: 'zine' });
+    expect(error.code).toBe('DESIGN_SCHEME_MARKET_SEARCH_FAILED');
+    expect(error.message).not.toContain('/Users');
+    expect(error.message).toContain('[路径已脱敏]');
+  });
+});
+
+describe('checkUpdate', () => {
+  it('确定性结果过 canonical 契约,且绝不解析 Agent 适配器', async () => {
+    let adapterFromDeps: unknown = 'unset';
+    checkUpdate.mockImplementationOnce(
+      async (_schemeId: string, deps: { resolveAdapter: () => unknown }) => {
+        adapterFromDeps = deps.resolveAdapter();
+        return ok({ status: 'no-source', detail: '这个方案没有 GitHub 来源，不需要检查更新。' });
+      },
+    );
+    const result = await invoke('checkUpdate', { schemeId: 'dsch_ck' });
+    expect(adapterFromDeps).toBeNull();
+    expect(() => checkDesignSchemeUpdateResultSchema.parse(result)).not.toThrow();
+    expect(result).toEqual({
+      status: 'no-source',
+      detail: '这个方案没有 GitHub 来源，不需要检查更新。',
+      scheme: null,
+      revisionId: null,
+    });
+  });
+
+  it('up-to-date 直通;AUTH_REQUIRED → 重编译 blocker;MISSING_REFERENCE → NOT_FOUND', async () => {
+    checkUpdate.mockResolvedValueOnce(ok({ status: 'up-to-date', detail: '已是最新。' }));
+    const upToDate = await invoke('checkUpdate', { schemeId: 'dsch_ck' });
+    expect(upToDate.status).toBe('up-to-date');
+
+    checkUpdate.mockResolvedValueOnce(
+      fail(
+        appError('AUTH_REQUIRED', '发现上游更新，但需要 Agent 重新编译。', {
+          recoveryAction: 'configure-ai',
+        }),
+      ),
+    );
+    expect((await invokeError('checkUpdate', { schemeId: 'dsch_ck' })).code).toBe(
+      DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
+    );
+
+    checkUpdate.mockResolvedValueOnce(
+      fail(appError('MISSING_REFERENCE', '方案不存在', { recoveryAction: 'retry' })),
+    );
+    expect((await invokeError('checkUpdate', { schemeId: 'dsch_ck' })).code).toBe('NOT_FOUND');
+  });
+
+  it('其余失败 → UPDATE_CHECK_FAILED 且消息脱敏', async () => {
+    checkUpdate.mockResolvedValueOnce(
+      fail(appError('NETWORK_ERROR', '下载失败 /tmp/gh-cache', { retryable: true })),
+    );
+    const error = await invokeError('checkUpdate', { schemeId: 'dsch_ck' });
+    expect(error.code).toBe('DESIGN_SCHEME_UPDATE_CHECK_FAILED');
+    expect(error.message).toContain('[路径已脱敏]');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 仍未映射的运行时操作返回结构化 blocker
+// ---------------------------------------------------------------------------
+
+describe('无法映射的运行时操作返回结构化 blocker', () => {
+  const cases: Array<[MethodName, unknown, string]> = [
+    [
+      'modify',
+      {
+        executionId: 'exec_1',
+        schemeId: 'dsch_x',
+        baseRevisionId: 'dsrv_1',
+        instruction: '改一下',
+      },
+      DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
+    ],
+    ['cancel', { executionId: 'exec_2' }, 'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED'],
+  ];
+
+  it.each(cases)('designSchemes.%s 返回结构化 blocker', async (name, payload, code) => {
+    const error = await invokeError(name, payload);
+    expect(error.code).toBe(code);
+    expect(error.code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
+  });
+
+  it('designSchemes.run 要求可信 renderer 所有者', async () => {
+    const error = await invokeErrorRaw('run');
+    expect(error.code).toBe('DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED');
+    expect(error.code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
+  });
+
+  it('blocker 不再是旧的 fail-closed 语义:码与消息一一登记', () => {
+    for (const message of [
+      DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
+      DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
+      DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
+      DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE,
+    ]) {
+      expect(message).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
+    }
+  });
+});
+
+describe('分享包导入导出', () => {
+  const importInput = {
+    stagedPackageId: 'stage_1',
+    packageHash: CONTENT_HASH,
+    formatVersion: 2 as const,
+  };
+
+  it('按 sender 消费 verified copy 并返回 path-free draft 结果', async () => {
+    await invoke('create', createInputFixture('dsch_imported', 'dsrv_imported'));
+    const importedSummary = repo.requireSummary('dsch_imported');
+    importPackage.mockResolvedValueOnce(
+      ok({ scheme: importedSummary, revisionId: 'dsrv_imported' }),
+    );
+
+    const result = await invoke('importPackage', importInput, 73);
+
+    expect(consumeStagedPackage).toHaveBeenCalledWith(73, importInput, expect.any(Function));
+    expect(importPackage).toHaveBeenCalledWith('/verified/package', {
+      db,
+      userDataDir,
+      picturesDir,
+    });
+    expect(result).toMatchObject({
+      scheme: { id: 'dsch_imported', status: 'draft' },
+      revisionId: 'dsrv_imported',
+      status: 'draft',
+    });
+    expect(JSON.stringify(result)).not.toMatch(/verified|Users|storeKey|filePath/);
+  });
+
+  it('导入要求 sender ownership 且 staging/import 错误映射为脱敏 BridgeError', async () => {
+    expect((await invokeError('importPackage', importInput)).code).toBe(
+      'DESIGN_SCHEME_PACKAGE_OWNER_REQUIRED',
+    );
+    consumeStagedPackage.mockRejectedValueOnce(new Error('tampered /Users/private/package'));
+    const error = await invokeError('importPackage', importInput, 73);
+    expect(error.code).toBe('DESIGN_SCHEME_PACKAGE_IMPORT_FAILED');
+    expect(error.message).toContain('[路径已脱敏]');
+  });
+
+  it('保存对话框取消返回 canonical cancelled', async () => {
+    showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: undefined });
+    await expect(
+      invoke('exportPackage', { schemeId: 'dsch_x', formatVersion: 2 }),
+    ).resolves.toEqual({ schemeId: 'dsch_x', status: 'cancelled' });
+    expect(exportPackage).not.toHaveBeenCalled();
+  });
+
+  it('导出只返回 canonical 元数据并使用安全默认文件名', async () => {
+    const targetPath = join(userDataDir, 'picked.musefold.design');
+    showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: targetPath });
+    exportPackage.mockResolvedValueOnce(
+      ok({
+        path: '/Users/private/leak.musefold.design',
+        fileName: 'leak.musefold.design',
+        sizeBytes: 42,
+        packageId: 'share_1',
+        contentHash: CONTENT_HASH,
+        createdAt: Date.parse(NOW_ISO),
+      }),
+    );
+
+    const result = await invoke('exportPackage', {
+      schemeId: 'dsch_export',
+      revisionId: 'dsrv_export',
+      formatVersion: 2,
+    });
+
+    expect(showSaveDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: join(userDataDir, 'dsch_export.musefold.design'),
+      }),
+    );
+    expect(exportPackage).toHaveBeenCalledWith(
+      'dsch_export',
+      targetPath,
+      { db, userDataDir, picturesDir },
+      'dsrv_export',
+    );
+    expect(result).toEqual({
+      package: {
+        id: 'share_1',
+        format: 'musefold.design',
+        formatVersion: 2,
+        contentHash: CONTENT_HASH,
+        sizeBytes: 42,
+        createdAt: NOW_ISO,
+      },
+      schemeId: 'dsch_export',
+      status: 'delivered',
+    });
+    expect(JSON.stringify(result)).not.toMatch(/Users|fileName|filePath|path/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 事件 seam
+// ---------------------------------------------------------------------------
+
+describe('designSchemes:event 事件 seam', () => {
+  it('canonical 事件可解析;携带本地路径的事件被拒绝', () => {
+    expect(designSchemeEventChannel).toBe('designSchemes:event');
+    expect(parseDesignSchemeEvent({ kind: 'cancelled', executionId: 'exec_1' })).toEqual({
+      kind: 'cancelled',
+      executionId: 'exec_1',
+    });
+    expect(() =>
+      parseDesignSchemeEvent({
+        kind: 'trace',
+        executionId: 'exec_1',
+        item: { id: 't1', title: '步骤', status: 'success', detail: '/Users/leak' },
+      }),
+    ).toThrow();
+  });
+});

@@ -11,7 +11,7 @@ import type {
   SyncUsagePushRequest,
   SyncUsagePushResult,
 } from '@musefold/contracts';
-import type { DesktopSyncRepository, DesktopSyncSummary } from './repository';
+import type { DesktopSyncAccount, DesktopSyncRepository, DesktopSyncSummary } from './repository';
 
 export interface DesktopSyncTransport {
   registerDevice(input: SyncDeviceRegistration): Promise<SyncDevice>;
@@ -31,44 +31,104 @@ const BOOTSTRAP_ORDER: SyncEntityType[] = ['folder', 'tag', 'prompt'];
 
 export class DesktopSyncEngine {
   private inflight: Promise<DesktopSyncSummary> | null = null;
+  private currentRunCancelled = false;
 
   constructor(
     private readonly repository: DesktopSyncRepository,
-    private readonly transport: DesktopSyncTransport,
+    private readonly transport?: DesktopSyncTransport,
     private readonly options: DesktopSyncEngineOptions = {},
   ) {}
 
-  run(): Promise<DesktopSyncSummary> {
-    this.inflight ??= this.runOnce().finally(() => {
+  isRunning(): boolean {
+    return this.inflight !== null;
+  }
+
+  run(transport: DesktopSyncTransport | undefined = this.transport): Promise<DesktopSyncSummary> {
+    if (this.inflight) return this.inflight;
+    if (!transport) throw new Error('Cloud sync transport is required');
+    this.currentRunCancelled = false;
+    this.inflight = this.runOnce(transport).finally(() => {
       this.inflight = null;
     });
     return this.inflight;
   }
 
-  private async runOnce(): Promise<DesktopSyncSummary> {
-    let account = this.repository.getActiveAccount();
-    if (!account?.enabled) return this.repository.getSummary();
+  cancelCurrent(): void {
+    if (this.inflight) this.currentRunCancelled = true;
+  }
+
+  async awaitIdle(): Promise<void> {
     try {
-      await this.transport.registerDevice({
+      await this.inflight;
+    } catch {
+      // Quiescing waits for settlement; the run caller owns error reporting.
+    }
+  }
+
+  private async runOnce(transport: DesktopSyncTransport): Promise<DesktopSyncSummary> {
+    const account = this.repository.getActiveAccount();
+    if (account?.consent !== 'enabled') return this.repository.getSummary();
+    const workspaceId = this.repository.getAccountWorkspace(account.ownerId);
+    if (!workspaceId) return this.repository.getSummary();
+    const identity = { ownerId: account.ownerId, deviceId: account.deviceId };
+    const needsBootstrap = account.bootstrapCompletedAt === null;
+    try {
+      await transport.registerDevice({
         deviceId: account.deviceId,
         name: account.deviceName,
         platform: account.platform,
         clientVersion: account.clientVersion,
       });
-      if (!account.bootstrapCompletedAt) {
-        const snapshotCursor = await this.bootstrap(account.ownerId);
+      this.requireIdentity(identity);
+      let cursor = account.cursor;
+      if (needsBootstrap) {
+        const snapshotCursor = await this.bootstrap(
+          account.ownerId,
+          workspaceId,
+          identity,
+          transport,
+        );
+        this.requireIdentity(identity);
         this.repository.markBootstrapCompleted(account.ownerId, snapshotCursor);
-        this.repository.seedUnsyncedEntities(account.ownerId);
-        account = this.repository.getActiveAccount()!;
+        cursor = snapshotCursor;
       }
-      await this.pullAll(account.ownerId, account.cursor, true);
-      await this.pushAll(account.ownerId, account.deviceId);
-      await this.pushUsageAll(account.ownerId, account.deviceId);
-      account = this.repository.getActiveAccount()!;
-      await this.pullAll(account.ownerId, account.cursor, false);
+      await this.pullAll(
+        account.ownerId,
+        workspaceId,
+        account.deviceId,
+        cursor,
+        true,
+        identity,
+        transport,
+      );
+      if (needsBootstrap) {
+        this.requireIdentity(identity);
+        this.repository.seedUnsyncedEntities(account.ownerId, workspaceId);
+      }
+      await this.pushAll(account.ownerId, workspaceId, account.deviceId, identity, transport);
+      await this.pushUsageAll(account.ownerId, workspaceId, account.deviceId, identity, transport);
+      const current = this.requireIdentity(identity);
+      await this.pullAll(
+        account.ownerId,
+        workspaceId,
+        account.deviceId,
+        current.cursor,
+        false,
+        identity,
+        transport,
+      );
+      this.requireIdentity(identity);
       this.repository.markSyncCompleted(account.ownerId);
       return this.repository.getSummary();
     } catch (error) {
+      if (this.currentRunCancelled || error instanceof SyncIdentityChangedError) {
+        return this.repository.getSummary();
+      }
+      try {
+        this.requireIdentity(identity);
+      } catch {
+        return this.repository.getSummary();
+      }
       if (isCursorExpired(error)) {
         this.repository.resetBootstrap(account.ownerId);
       }
@@ -77,18 +137,37 @@ export class DesktopSyncEngine {
     }
   }
 
-  private async bootstrap(ownerId: string): Promise<string> {
+  private requireIdentity(identity: { ownerId: string; deviceId: string }): DesktopSyncAccount {
+    if (this.currentRunCancelled) throw new SyncIdentityChangedError();
+    const active = this.repository.getActiveAccount();
+    if (
+      active?.consent !== 'enabled' ||
+      active.ownerId !== identity.ownerId ||
+      active.deviceId !== identity.deviceId
+    ) {
+      throw new SyncIdentityChangedError();
+    }
+    return active;
+  }
+
+  private async bootstrap(
+    ownerId: string,
+    workspaceId: string,
+    identity: { ownerId: string; deviceId: string },
+    transport: DesktopSyncTransport,
+  ): Promise<string> {
     let firstSnapshotCursor: string | null = null;
     for (const entity of BOOTSTRAP_ORDER) {
       let after: string | undefined;
       do {
-        const page = await this.transport.bootstrap({
+        const page = await transport.bootstrap({
           entity,
           after,
           limit: this.options.bootstrapLimit ?? 200,
         });
+        this.requireIdentity(identity);
         firstSnapshotCursor ??= page.snapshotCursor;
-        this.repository.applyBootstrapPage(ownerId, entity, page.items);
+        this.repository.applyBootstrapPage(ownerId, workspaceId, entity, page.items);
         after = page.nextPage ?? undefined;
       } while (after);
     }
@@ -97,58 +176,88 @@ export class DesktopSyncEngine {
 
   private async pullAll(
     ownerId: string,
+    workspaceId: string,
+    deviceId: string,
     initialCursor: string,
     stopOnConflict: boolean,
+    identity: { ownerId: string; deviceId: string },
+    transport: DesktopSyncTransport,
   ): Promise<void> {
     let cursor = initialCursor;
     let hasMore = true;
     while (hasMore) {
-      const page = await this.transport.pull({
+      const page = await transport.pull({
         cursor,
         limit: this.options.pullLimit ?? 200,
-        deviceId: this.repository.getActiveAccount()?.deviceId,
+        deviceId,
       });
-      this.repository.applyPullPage(ownerId, page.changes, page.nextCursor);
+      this.requireIdentity(identity);
+      this.repository.applyPullPage(ownerId, workspaceId, page.changes, page.nextCursor);
       cursor = page.nextCursor;
       hasMore = page.hasMore;
       if (stopOnConflict && this.repository.getSummary().conflicts > 0) break;
     }
   }
 
-  private async pushAll(ownerId: string, deviceId: string): Promise<void> {
+  private async pushAll(
+    ownerId: string,
+    workspaceId: string,
+    deviceId: string,
+    identity: { ownerId: string; deviceId: string },
+    transport: DesktopSyncTransport,
+  ): Promise<void> {
     const maxBatches = this.options.maxPushBatches ?? 100;
     for (let batch = 0; batch < maxBatches; batch += 1) {
-      const mutations = this.repository.listReadyMutations(ownerId, 100);
+      this.requireIdentity(identity);
+      const mutations = this.repository.listReadyMutations(ownerId, workspaceId, 100);
       if (mutations.length === 0) return;
       try {
-        const response = await this.transport.push({ deviceId, mutations });
-        this.repository.applyPushBatch(ownerId, mutations, response.results);
+        const response = await transport.push({ deviceId, mutations });
+        this.requireIdentity(identity);
+        this.repository.applyPushBatch(ownerId, workspaceId, mutations, response.results);
       } catch (error) {
+        if (this.currentRunCancelled || error instanceof SyncIdentityChangedError) throw error;
         const message = safeErrorMessage(error);
         for (const mutation of mutations)
-          this.repository.markMutationAttempt(ownerId, mutation.mutationId, message);
+          this.repository.markMutationAttempt(ownerId, workspaceId, mutation.mutationId, message);
         throw error;
       }
     }
     throw new Error('Cloud sync exceeded the per-run push batch limit');
   }
 
-  private async pushUsageAll(ownerId: string, deviceId: string): Promise<void> {
+  private async pushUsageAll(
+    ownerId: string,
+    workspaceId: string,
+    deviceId: string,
+    identity: { ownerId: string; deviceId: string },
+    transport: DesktopSyncTransport,
+  ): Promise<void> {
     const maxBatches = this.options.maxPushBatches ?? 100;
     for (let batch = 0; batch < maxBatches; batch += 1) {
-      const events = this.repository.listReadyUsageEvents(ownerId, 100);
+      this.requireIdentity(identity);
+      const events = this.repository.listReadyUsageEvents(ownerId, workspaceId, 100);
       if (events.length === 0) return;
       try {
-        const response = await this.transport.pushUsage({ deviceId, events });
-        this.repository.applyUsagePushBatch(ownerId, events, response.results);
+        const response = await transport.pushUsage({ deviceId, events });
+        this.requireIdentity(identity);
+        this.repository.applyUsagePushBatch(ownerId, workspaceId, events, response.results);
       } catch (error) {
+        if (this.currentRunCancelled || error instanceof SyncIdentityChangedError) throw error;
         const message = safeErrorMessage(error);
         for (const event of events)
-          this.repository.markUsageEventAttempt(ownerId, event.eventId, message);
+          this.repository.markUsageEventAttempt(ownerId, workspaceId, event.eventId, message);
         throw error;
       }
     }
     throw new Error('Cloud sync exceeded the per-run usage push batch limit');
+  }
+}
+
+class SyncIdentityChangedError extends Error {
+  constructor() {
+    super('Cloud sync identity changed');
+    this.name = 'SyncIdentityChangedError';
   }
 }
 

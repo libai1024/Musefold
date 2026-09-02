@@ -3,7 +3,7 @@
  * 复用 skill-import 的 github-reader（归档下载 + 预算 + 许可证识别）。
  */
 import { createHash, randomUUID } from 'crypto';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { dirname, extname, join } from 'path';
 import type Database from 'better-sqlite3';
 import { readPublicGithubAgentSkillRuntimeSource } from '../skill-import/github-reader';
@@ -14,6 +14,8 @@ import type {
   DesignSchemeSourceConfirmation,
 } from '@musefold/desktop-contracts/design-scheme';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import { resolveManagedMediaFile } from './asset-store';
+import { probeImageSize } from './evaluation';
 import { getPaths } from '../../system/paths';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.avif']);
@@ -41,6 +43,77 @@ function extensionOf(path: string): string {
 export function repositoryLabelOf(repositoryUrl: string): string {
   const match = repositoryUrl.match(/github\.com\/([^/]+\/[^/#?]+)/i);
   return (match?.[1] ?? repositoryUrl).replace(/\.git$/, '');
+}
+
+// ---------------------------------------------------------------------------
+// v6 真实文件元数据探测（主进程专用）：stat / sha256 / 魔数 / 尺寸。
+// 全部基于真实读取，任何一步失败返回 null —— 读模型据此省略该资产，绝不伪造。
+// ---------------------------------------------------------------------------
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+export interface ProbedAssetMetadata {
+  mimeType: string;
+  width: number;
+  height: number;
+  byteSize: number;
+  contentHash: string;
+}
+
+/** 魔数嗅探图片 MIME；无法识别返回 null（扩展名不可信）。接受 Buffer/Uint8Array。 */
+export function sniffImageMimeType(bytes: Uint8Array): string | null {
+  const buffer = Buffer.isBuffer(bytes)
+    ? bytes
+    : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (buffer.length < 12) return null;
+  if (buffer.subarray(0, 8).equals(PNG_SIGNATURE)) return 'image/png';
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
+  if (
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  const gifHeader = buffer.subarray(0, 6).toString('ascii');
+  if (gifHeader === 'GIF87a' || gifHeader === 'GIF89a') return 'image/gif';
+  if (buffer.subarray(0, 2).toString('ascii') === 'BM') return 'image/bmp';
+  if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') return 'image/avif';
+  return null;
+}
+
+/** 文本类来源文件按扩展名给 MIME（内容已被固化为 UTF-8 文本）。 */
+export function textMimeTypeForPath(path: string): string {
+  const extension = extensionOf(path);
+  if (extension === '.md' || extension === '.markdown') return 'text/markdown';
+  if (extension === '.json') return 'application/json';
+  if (extension === '.csv') return 'text/csv';
+  if (extension === '.html' || extension === '.htm') return 'text/html';
+  return 'text/plain';
+}
+
+/**
+ * 探测本地图片文件的完整 canonical 元数据（尺寸解析复用质量门的 probeImageSize，
+ * 只支持生图产物格式 PNG/JPEG/WebP；其余格式缺尺寸 → null → 详情省略该资产）。
+ */
+export function probeImageAssetMetadata(absolutePath: string): ProbedAssetMetadata | null {
+  try {
+    const stat = statSync(absolutePath);
+    if (!stat.isFile() || stat.size <= 0) return null;
+    const buffer = readFileSync(absolutePath);
+    const mimeType = sniffImageMimeType(buffer);
+    if (!mimeType) return null;
+    const size = probeImageSize(absolutePath);
+    if (!size || size.width <= 0 || size.height <= 0) return null;
+    return {
+      mimeType,
+      width: size.width,
+      height: size.height,
+      byteSize: buffer.byteLength,
+      contentHash: createHash('sha256').update(buffer).digest('hex'),
+    };
+  } catch {
+    return null; // 缺失 / 不可读 / 非常规文件：交由调用方省略，不伪造。
+  }
 }
 
 /** 下载并整理仓库内容；不写库，先供安装确认层展示。 */
@@ -136,6 +209,8 @@ export function persistGithubSnapshot(
       contentHash: file.contentHash,
       sizeBytes: file.bytes.byteLength,
       storeKey: join('design-scheme-sources', snapshotId, file.relativePath),
+      // v6：真实字节魔数嗅探，识别不了记 null（不按扩展名伪造）。
+      mimeType: sniffImageMimeType(file.bytes),
     };
   });
 
@@ -145,6 +220,7 @@ export function persistGithubSnapshot(
     contentHash: file.contentHash,
     sizeBytes: file.sizeBytes,
     textContent: file.text,
+    mimeType: textMimeTypeForPath(file.path),
   }));
 
   const totalBytes =
@@ -187,11 +263,16 @@ export interface PersistedHistorySnapshot {
 /**
  * 历史来源快照：把用户挑选的历史作品复制进快照目录固化（快照不可变；
  * 原历史记录之后被删除也不影响方案来源）。本地内容不需要安装确认。
+ *
+ * 条目路径是不可信输入（历史调用方来自渲染层）：只接受受管根
+ * （userData/pictures）内的常规文件；越根路径、symlink 与已消失文件同样
+ * 跳过该条，不阻塞创建，也绝不读盘外文件。
  */
 export function persistHistorySnapshot(
   db: Database.Database,
   items: DesignSchemeHistorySourceItem[],
   userData = getPaths().userData,
+  picturesDir = getPaths().pictures,
 ): PersistedHistorySnapshot {
   const repository = new DesignSchemeRepository(db);
   const snapshotId = `snap_${randomUUID()}`;
@@ -206,26 +287,32 @@ export function persistHistorySnapshot(
     sizeBytes: number;
     storeKey?: string;
     textContent?: string;
+    mimeType?: string | null;
   }> = [];
 
   for (const item of items) {
+    const managed = resolveManagedMediaFile(item.imagePath, userData, picturesDir);
+    if (!managed) {
+      continue; // 越根/symlink/已不存在：与旧「文件已不存在」同语义，跳过不阻塞。
+    }
     let bytes: Buffer;
     try {
-      bytes = readFileSync(item.imagePath);
+      bytes = readFileSync(managed.path);
     } catch {
       continue; // 历史图片文件已不存在：跳过该条，不阻塞创建。
     }
-    const extension = extname(item.imagePath) || '.png';
+    const extension = extname(managed.path) || '.png';
     const relativePath = `history/${item.historyId}${extension}`;
     const absolutePath = join(snapshotDir, relativePath);
     mkdirSync(dirname(absolutePath), { recursive: true });
-    copyFileSync(item.imagePath, absolutePath);
+    copyFileSync(managed.path, absolutePath);
     fileRows.push({
       path: relativePath,
       kind: 'image',
       contentHash: createHash('sha256').update(bytes).digest('hex'),
       sizeBytes: bytes.byteLength,
       storeKey: join('design-scheme-sources', snapshotId, relativePath),
+      mimeType: sniffImageMimeType(bytes),
     });
     if (item.promptText?.trim()) {
       const text = item.promptText.trim();
@@ -235,6 +322,7 @@ export function persistHistorySnapshot(
         contentHash: createHash('sha256').update(text).digest('hex'),
         sizeBytes: Buffer.byteLength(text),
         textContent: text,
+        mimeType: 'text/plain',
       });
     }
     persistedItems.push({ ...item, snapshotImagePath: absolutePath });

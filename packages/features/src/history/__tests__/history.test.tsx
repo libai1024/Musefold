@@ -25,6 +25,7 @@ function makeJob(partial: Partial<GenerationJob> & { id: string }): GenerationJo
     sessionId: null,
     parentRunId: null,
     promptId: null,
+    promptReferences: [],
     actorType: 'web',
     approvalStatus: 'not_required',
     status: 'succeeded',

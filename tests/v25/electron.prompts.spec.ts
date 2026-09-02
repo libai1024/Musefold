@@ -38,6 +38,28 @@ test('编辑修改标题', async () => {
   await expect(page.getByText('胶片质感人像 v2')).toBeVisible();
 });
 
+test('编辑器脏表单在 Escape 后要求确认,放弃不会更新已保存提示词', async () => {
+  const originalTitle = '可保留的原始标题';
+  const updatedTitle = '不应保存的标题';
+  await createPrompt(page, originalTitle, 'original content');
+
+  await clickRowAction(page, originalTitle, 'prompt-row-edit');
+  await page.getByTestId('prompt-editor-title').fill(updatedTitle);
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByTestId('prompt-editor')).toBeVisible();
+  await expect(page.getByTestId('prompt-editor-discard-dialog')).toBeVisible();
+  await page.getByTestId('prompt-editor-continue').click();
+  await expect(page.getByTestId('prompt-editor-discard-dialog')).toBeHidden();
+  await expect(page.getByTestId('prompt-editor-title')).toHaveValue(updatedTitle);
+
+  await page.getByTestId('prompt-editor-cancel').click();
+  await page.getByTestId('prompt-editor-discard').click();
+  await expect(page.getByTestId('prompt-editor')).toBeHidden();
+  await expect(page.getByText(originalTitle)).toBeVisible();
+  await expect(page.getByText(updatedTitle)).toBeHidden();
+});
+
 test('置顶经主进程 togglePin 持久化并进置顶节', async () => {
   await clickRowAction(page, '胶片质感人像 v2', 'prompt-row-pin');
 

@@ -10,6 +10,7 @@
     "./prompts": "./src/prompts/index.ts",
     "./workbench": "./src/workbench/index.ts",
     "./history": "./src/history/index.ts",
+    "./design-schemes": "./src/design-schemes/index.ts",
     "./account": "./src/account/index.ts",
     "./shell": "./src/shell/index.ts"
   },

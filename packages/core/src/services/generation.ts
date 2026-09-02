@@ -3,8 +3,12 @@
 // 取消句柄都在此收口；IPC 与控制面（API-03）都是它的薄壳。
 // 所有生成(工作台/自由生成/automation/Skill)一律落 generation_runs——旧 history 双账本已随迁移 0002/0003 退役。
 
-import { resolve } from 'path';
+import { rmSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import { ulid } from 'ulid';
+import { composeGenerationPrompt } from '@musefold/domain/generation-prompt';
+import type { ResolvedPromptReferenceSnapshot } from '@musefold/contracts';
+import { resolvedPromptReferenceSnapshotSchema } from '@musefold/contracts';
 import { MAX_REFERENCE_IMAGES } from '@musefold/desktop-contracts/providers';
 import type {
   GenerateImageRequest,
@@ -13,19 +17,124 @@ import type {
   LocalImageReference,
 } from '@musefold/desktop-contracts/providers';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
-import type { GenerationParamsSnapshot } from '@musefold/desktop-contracts/workbench';
+import type {
+  GenerationParamsSnapshot,
+  GenerationRun,
+  PromptSnapshot,
+} from '@musefold/desktop-contracts/workbench';
+import type Database from 'better-sqlite3';
 import { getDb } from '../db/index';
 import { createWorkbenchRepositories } from '../db/repositories/workbench';
-import { parseJsonColumn } from '../db/json';
 import { createProvider } from '../providers/registry';
 import { isManagedUploadPath } from '../providers/local-image';
-import { createLogger } from '../runtime';
+import { sanitizeProviderErrorMessage } from '../providers/sanitize-error';
+import { createLogger, getPaths } from '../runtime';
 
 const logger = createLogger('image');
 const abortControllers = new Map<string, AbortController>();
+const RETRYABLE_SOURCE_STATUSES = new Set(['failed', 'cancelled']);
 
 export function hasActiveImageJobs(): boolean {
   return abortControllers.size > 0;
+}
+
+function cleanupUncommittedImages(
+  images: Array<{ imagePath: string }>,
+  db: Database.Database,
+): void {
+  const picturesRoot = resolve(getPaths().pictures);
+  const referencedPaths = new Set(
+    (
+      db
+        .prepare('SELECT media_path FROM generated_assets WHERE media_path IS NOT NULL')
+        .all() as Array<{ media_path: string }>
+    ).map((asset) => resolve(asset.media_path)),
+  );
+  for (const image of images) {
+    const target = resolve(image.imagePath);
+    if (target !== picturesRoot && !target.startsWith(`${picturesRoot}${sep}`)) continue;
+    if (referencedPaths.has(target)) continue;
+    try {
+      rmSync(target, { force: true });
+    } catch (error) {
+      logger.warn('清理未入账生成文件失败', error instanceof Error ? error.message : String(error));
+    }
+  }
+}
+
+interface GenerationOptions {
+  /** Main-process callers may bind generation to an explicit primary database. */
+  db?: Database.Database;
+  retryOfRunId?: string;
+  /** Host already resolved and composed the immutable prompt request. */
+  promptAlreadyComposed?: boolean;
+  /** Raw user text captured before host composition. */
+  userPrompt?: string;
+  /** Caller-owned cancellation signal, linked before the provider request starts. */
+  signal?: AbortSignal;
+}
+
+function immutableReferences(
+  references: GenerateImageRequest['promptReferences'] | undefined,
+): ResolvedPromptReferenceSnapshot[] {
+  if (!references?.length) return [];
+  return references.map((reference) => {
+    const candidate = reference as unknown as Record<string, unknown>;
+    const parsed = resolvedPromptReferenceSnapshotSchema.safeParse({
+      promptId: candidate.promptId || null,
+      title: candidate.title,
+      text: candidate.text ?? candidate.excerpt,
+      scope: candidate.scope,
+      sourceVersion:
+        typeof candidate.sourceVersion === 'number' && candidate.sourceVersion > 0
+          ? candidate.sourceVersion
+          : 1,
+    });
+    if (!parsed.success) throw new Error('提示词引用快照无效');
+    return parsed.data;
+  });
+}
+
+type LegacyPromptReference = NonNullable<PromptSnapshot['promptReferences']>[number];
+type PromptReferenceWithSnapshot = LegacyPromptReference & {
+  text?: string;
+  sourceVersion?: number;
+};
+
+type ImmutablePromptSnapshot = Omit<PromptSnapshot, 'promptReferences'> & {
+  promptReferences?: ResolvedPromptReferenceSnapshot[];
+};
+
+function toImmutablePromptSnapshot(snapshot: PromptSnapshot): ImmutablePromptSnapshot {
+  const references = snapshot.promptReferences ?? [];
+  const normalized = references.map((reference) => {
+    const value = reference as PromptReferenceWithSnapshot;
+    return resolvedPromptReferenceSnapshotSchema.parse({
+      promptId: value.promptId || null,
+      title: value.title,
+      text: value.text ?? value.excerpt,
+      scope: value.scope,
+      sourceVersion: value.sourceVersion ?? 1,
+    });
+  });
+  return {
+    ...snapshot,
+    ...(normalized.length > 0 ? { promptReferences: normalized } : {}),
+  } as ImmutablePromptSnapshot;
+}
+
+function immutableReferencesFromSnapshot(
+  snapshot: PromptSnapshot,
+): ResolvedPromptReferenceSnapshot[] {
+  return toImmutablePromptSnapshot(snapshot).promptReferences ?? [];
+}
+
+function requireComposedPrompt(result: ReturnType<typeof composeGenerationPrompt>): {
+  finalPrompt: string;
+  promptReferences: ResolvedPromptReferenceSnapshot[];
+} {
+  if (result.ok) return result.data;
+  throw new Error(result.error.message);
 }
 
 interface RunContext {
@@ -38,12 +147,18 @@ function createRunContext(
   createdAt: number,
   params: GenerationParamsSnapshot,
   retryOfRunId?: string,
+  originalPrompt = req.prompt,
+  options: GenerationOptions = {},
 ): RunContext {
-  const db = getDb();
+  const db = options.db ?? getDb();
   const repositories = createWorkbenchRepositories(db);
   return db.transaction(() => {
     const retrySource = retryOfRunId ? repositories.runs.get(retryOfRunId) : null;
-    const workbench = req.workbench;
+    if (retryOfRunId && !retrySource) throw new Error('重试来源运行不存在');
+    if (retrySource && !RETRYABLE_SOURCE_STATUSES.has(retrySource.status)) {
+      throw new Error('只有失败或取消的运行可以重试');
+    }
+    const workbench = retrySource ? undefined : req.workbench;
     if (workbench) {
       if (
         !workbench.sessionId.trim() ||
@@ -61,45 +176,61 @@ function createRunContext(
         createdAt,
       });
     }
-    const workbenchSessionId = workbench?.sessionId ?? retrySource?.workbenchSessionId ?? null;
-    const workbenchTurnId = workbench?.turnId ?? retrySource?.workbenchTurnId ?? null;
-    const turnIndex = workbench?.turnIndex ?? retrySource?.turnIndex ?? null;
-    const resultIndex = workbench?.resultIndex ?? retrySource?.resultIndex ?? null;
-    const sourceAsset = req.sourceAssetId ? repositories.runs.getAsset(req.sourceAssetId) : null;
+    const workbenchSessionId = retrySource?.workbenchSessionId ?? workbench?.sessionId ?? null;
+    const workbenchTurnId = retrySource?.workbenchTurnId ?? workbench?.turnId ?? null;
+    const turnIndex = retrySource?.turnIndex ?? workbench?.turnIndex ?? null;
+    const resultIndex = retrySource?.resultIndex ?? workbench?.resultIndex ?? null;
+    const sourceAsset = retrySource
+      ? retrySource.sourceAssetId
+        ? repositories.runs.getAsset(retrySource.sourceAssetId)
+        : null
+      : req.sourceAssetId
+        ? repositories.runs.getAsset(req.sourceAssetId)
+        : null;
     const retryOf = retrySource?.id ?? null;
-    const sourceAssetId = sourceAsset?.id ?? null;
-    const refinementInstruction = req.refinementInstruction?.trim() || null;
+    const sourceAssetId = retrySource?.sourceAssetId ?? sourceAsset?.id ?? null;
+    const refinementInstruction = retrySource
+      ? retrySource.refinementInstruction
+      : req.refinementInstruction?.trim() || null;
     const refinementParent =
       !retryOf && req.parentHistoryId ? repositories.runs.get(req.parentHistoryId) : null;
     const basePrompt =
       retrySource?.basePrompt ??
       (refinementInstruction ? refinementParent?.finalPrompt : null) ??
       req.prompt;
-    // 来源提示词与引用快照:只保留仍存在的提示词 id,避免落库即悬挂(prompt_id 无外键)。
-    const promptExists = db.prepare('SELECT 1 FROM prompts WHERE id = ?');
-    const requestedPromptId = req.promptId ?? retrySource?.promptId ?? null;
-    const promptId =
-      requestedPromptId && promptExists.get(requestedPromptId) ? requestedPromptId : null;
-    const promptReferences = (req.promptReferences ?? []).map((reference) => ({
-      promptId:
-        reference.promptId && promptExists.get(reference.promptId) ? reference.promptId : null,
-      title: reference.title,
-      excerpt: reference.text,
-      scope: reference.scope,
-    }));
-    const snapshotReferences =
-      promptReferences.length > 0
-        ? promptReferences
-        : (retrySource?.promptSnapshot.promptReferences ?? []);
-    const promptSnapshot = {
-      schemaVersion: 1 as const,
-      userPrompt: workbench?.userPrompt ?? retrySource?.userPrompt ?? '',
-      basePrompt,
-      refinementInstruction,
-      finalPrompt: req.prompt,
-      negativePrompt: req.negative ?? null,
-      ...(snapshotReferences.length > 0 ? { promptReferences: snapshotReferences } : {}),
-    };
+    const userPrompt =
+      retrySource?.userPrompt ?? options.userPrompt ?? workbench?.userPrompt ?? originalPrompt;
+    // Retry lineage must retain the original source even if that source was
+    // itself a retry. Refinements keep their parent; free generations use the
+    // first source run as the lineage root.
+    const parentRunId = retrySource
+      ? (retrySource.parentRunId ?? retrySource.id)
+      : req.parentHistoryId
+        ? (refinementParent?.id ?? null)
+        : null;
+    const requestedPromptId = req.promptId ?? null;
+    const promptId = retrySource ? retrySource.promptId : requestedPromptId;
+    const promptReferences = retrySource
+      ? immutableReferencesFromSnapshot(retrySource.promptSnapshot)
+      : immutableReferences(req.promptReferences);
+    const snapshotReferences = promptReferences;
+
+    const promptSnapshot = retrySource
+      ? (toImmutablePromptSnapshot(retrySource.promptSnapshot) as unknown as PromptSnapshot)
+      : ({
+          schemaVersion: 1 as const,
+          userPrompt,
+          basePrompt,
+          refinementInstruction,
+          finalPrompt: req.prompt,
+          negativePrompt: req.negative ?? null,
+          ...(snapshotReferences.length > 0 ? { promptReferences: snapshotReferences } : {}),
+        } as unknown as PromptSnapshot);
+    const runParams = retrySource?.params ?? params;
+    const providerId = retrySource?.providerId ?? req.providerId;
+    const model = retrySource?.model ?? req.model ?? 'unknown';
+    const finalPrompt = retrySource?.finalPrompt ?? req.prompt;
+    const negativePrompt = retrySource?.negativePrompt ?? req.negative ?? null;
 
     // Refinement runs must be created through the repository aggregate so the
     // parent terminal state and source Asset ownership/availability are checked
@@ -108,11 +239,7 @@ function createRunContext(
       if (!req.parentHistoryId || !req.sourceAssetId || !refinementInstruction) {
         throw new Error('微调请求缺少父运行、来源图片或微调说明');
       }
-      if (
-        !sourceAsset ||
-        sourceAsset.status !== 'available' ||
-        sourceAsset.runId !== req.parentHistoryId
-      ) {
+      if (sourceAsset?.status !== 'available' || sourceAsset.runId !== req.parentHistoryId) {
         throw new Error('微调来源图片不存在或不可用');
       }
       const run = repositories.runs.create({
@@ -122,13 +249,13 @@ function createRunContext(
         sourceAssetId: req.sourceAssetId,
         promptId,
         refinementInstruction,
-        finalPrompt: req.prompt,
+        finalPrompt,
         basePrompt,
-        userPrompt: workbench?.userPrompt ?? refinementInstruction,
-        negativePrompt: req.negative ?? null,
-        providerId: req.providerId,
-        model: req.model ?? 'unknown',
-        params,
+        userPrompt,
+        negativePrompt,
+        providerId,
+        model,
+        params: retrySource?.params ?? params,
         promptSnapshot,
         workbenchSessionId,
         workbenchTurnId,
@@ -140,7 +267,6 @@ function createRunContext(
       return { runId: run.id, repositories };
     }
 
-    const parentRunId = retrySource ? (retrySource.parentRunId ?? retrySource.id) : null;
     const run = repositories.runs.create({
       id: req.jobId,
       runKind: retryOf ? 'retry' : 'free_generation',
@@ -152,14 +278,14 @@ function createRunContext(
       retryOfRunId: retryOf,
       sourceAssetId,
       promptId,
-      providerId: req.providerId,
-      model: req.model ?? 'unknown',
-      userPrompt: workbench?.userPrompt ?? req.prompt,
+      providerId,
+      model,
+      userPrompt,
       basePrompt,
       refinementInstruction,
-      finalPrompt: req.prompt,
-      negativePrompt: req.negative ?? null,
-      params,
+      finalPrompt,
+      negativePrompt,
+      params: runParams,
       promptSnapshot,
       createdAt,
     });
@@ -253,29 +379,95 @@ function authorizeReferenceImages(
   });
 }
 
+function composeFinalPrompt(
+  prompt: string,
+  aspectRatio: string | undefined,
+  referenceImageCount: number,
+  promptReferences: readonly ResolvedPromptReferenceSnapshot[] = [],
+): string {
+  return requireComposedPrompt(
+    composeGenerationPrompt({
+      userPrompt: prompt,
+      promptReferences,
+      imageCount: referenceImageCount,
+      ratioId: aspectRatio,
+    }),
+  ).finalPrompt;
+}
+
+function snapshotReferenceImages(
+  params: GenerationParamsSnapshot | undefined,
+): LocalImageReference[] | undefined {
+  const references = params?.referenceImages;
+  return Array.isArray(references) ? (references as LocalImageReference[]) : undefined;
+}
+
+function requestFromRetrySnapshot(
+  req: GenerateImageRequest,
+  retrySource: GenerationRun | null,
+): GenerateImageRequest {
+  if (!retrySource) return req;
+  const params = retrySource.params;
+  return {
+    ...req,
+    providerId: retrySource.providerId,
+    model: retrySource.model,
+    prompt: retrySource.finalPrompt,
+    negative: retrySource.negativePrompt ?? undefined,
+    size: (params.size as GenerateImageRequest['size']) ?? 'auto',
+    aspectRatio: params.aspectRatio,
+    quality: (params.quality as GenerateImageRequest['quality']) ?? 'auto',
+    n: params.n ?? 1,
+    background: params.background,
+    moderation: params.moderation,
+    referenceImages: snapshotReferenceImages(params),
+  };
+}
+
 /** 实际生图 + 写历史（成功/失败都写）。Skill Agent 的 generate_image 工具也直接调用它。 */
 export async function generate(
   req: GenerateImageRequest,
   sendProgress?: (progress: ImageGenerationProgress) => void,
-  options: { retryOfRunId?: string } = {},
+  options: GenerationOptions = {},
 ): Promise<GenerateImageResult> {
-  const db = getDb();
+  const db = options.db ?? getDb();
   // 取消句柄：优先用渲染进程传入的 jobId（渲染进程据此在出图前即可取消），否则自生成
   const jobId = req.jobId ?? ulid();
   const historyId = jobId;
   const startTs = Date.now();
+  const retrySource = options.retryOfRunId
+    ? createWorkbenchRepositories(db).runs.get(options.retryOfRunId)
+    : null;
   // Provider 负责把结果落盘，因此也必须收到主进程最终采用的 id。
   // 否则未传 jobId（例如重试兼容路径）时，历史行与图片文件名会各用一套 ULID。
   let effectiveReq: GenerateImageRequest;
   try {
+    const sourceReq = requestFromRetrySnapshot(req, retrySource);
+    const aspectRatio = sourceReq.aspectRatio;
+    const referenceImages = authorizeReferenceImages(db, sourceReq.referenceImages);
     effectiveReq = {
-      ...req,
+      ...sourceReq,
       jobId,
-      referenceImages: authorizeReferenceImages(db, req.referenceImages),
+      // Retries replay the frozen final prompt. Fresh requests compose once at
+      // the local core boundary so every provider receives the same constraints.
+      prompt: retrySource
+        ? sourceReq.prompt
+        : options.promptAlreadyComposed
+          ? sourceReq.prompt
+          : composeFinalPrompt(
+              sourceReq.prompt,
+              aspectRatio,
+              referenceImages?.length ?? 0,
+              immutableReferences(sourceReq.promptReferences),
+            ),
+      referenceImages,
     };
   } catch (error) {
     const code = (error as { code?: string }).code ?? 'IMAGE_READ_FAILED';
-    const message = error instanceof Error ? error.message : '图片读取失败，请重新选择';
+    const message = sanitizeProviderErrorMessage(
+      error instanceof Error ? error.message : '',
+      '图片读取失败，请重新选择',
+    );
     return {
       historyId,
       status: 'failed',
@@ -287,16 +479,23 @@ export async function generate(
   const costUnit = 'point' as const;
 
   // 读 Provider 配置(可能已删除;此时仍要在账本留下失败运行)。
-  const providerRow = db.prepare('SELECT * FROM providers WHERE id = ?').get(req.providerId) as
-    | Record<string, unknown>
-    | undefined;
+  const providerRow = db
+    .prepare('SELECT * FROM providers WHERE id = ?')
+    .get(effectiveReq.providerId) as Record<string, unknown> | undefined;
 
-  const params = buildParamsSnapshot(effectiveReq, providerRow);
+  const params = retrySource?.params ?? buildParamsSnapshot(effectiveReq, providerRow);
 
   // 单账本:任何被受理的生成请求先落 generation_runs,成功/失败/取消都在同一行收敛。
   let runContext: RunContext;
   try {
-    runContext = createRunContext(effectiveReq, startTs, params, options.retryOfRunId);
+    runContext = createRunContext(
+      effectiveReq,
+      startTs,
+      params,
+      options.retryOfRunId,
+      req.prompt,
+      options,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('generation run 创建失败', `run=${historyId}`, message);
@@ -312,22 +511,33 @@ export async function generate(
     };
   }
 
-  /** 把失败/取消收敛进账本并返回结构化结果（见下方"为什么不 throw"） */
+  /**
+   * 把失败/取消收敛进账本并返回结构化结果（见下方"为什么不 throw"）。
+   * message 在此统一脱敏：Provider 已脱敏一层，这里对账本 error_message 与
+   * 渲染层 GenerateImageResult.error.message 做幂等兜底（sanitize 本身幂等）。
+   */
   const fail = (
     status: 'failed' | 'cancelled',
     code: string,
     message: string,
   ): GenerateImageResult => {
+    const safeMessage = sanitizeProviderErrorMessage(message);
     const finishedAt = Date.now();
-    if (status === 'cancelled') {
-      runContext.repositories.runs.cancel(runContext.runId, finishedAt);
-    } else {
-      runContext.repositories.runs.fail(runContext.runId, code, message, finishedAt);
-    }
+    const terminalRun =
+      status === 'cancelled'
+        ? runContext.repositories.runs.cancel(runContext.runId, finishedAt)
+        : runContext.repositories.runs.fail(runContext.runId, code, safeMessage, finishedAt);
+    const finalStatus = terminalRun.status === 'cancelled' ? 'cancelled' : 'failed';
     return {
       historyId,
-      status,
-      error: { code, message },
+      status: finalStatus,
+      error:
+        finalStatus === 'cancelled'
+          ? { code: 'CANCELLED', message: '已取消' }
+          : {
+              code: terminalRun.errorCode ?? code,
+              message: sanitizeProviderErrorMessage(terminalRun.errorMessage ?? '', safeMessage),
+            },
       durationMs: Date.now() - startTs,
       costUnit,
     };
@@ -349,22 +559,51 @@ export async function generate(
   );
 
   const controller = new AbortController();
+  const externalSignal = options.signal;
+  const abortFromCaller = () => controller.abort();
+  let detachExternalAbort: () => void = () => undefined;
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else {
+      externalSignal.addEventListener('abort', abortFromCaller, { once: true });
+      detachExternalAbort = () => externalSignal.removeEventListener('abort', abortFromCaller);
+    }
+  }
   abortControllers.set(jobId, controller);
 
   logger.info(
     'generate 请求',
     `provider=${providerRow.name}(${providerRow.type})`,
-    `model=${req.model ?? providerRow.model}`,
-    `size=${req.size}`,
-    req.aspectRatio ? `ratio=${req.aspectRatio}` : '',
-    `quality=${req.quality}`,
+    `model=${effectiveReq.model ?? providerRow.model}`,
+    `size=${effectiveReq.size}`,
+    effectiveReq.aspectRatio ? `ratio=${effectiveReq.aspectRatio}` : '',
+    `quality=${effectiveReq.quality}`,
     effectiveReq.referenceImages?.length
       ? `mode=image-edit(${effectiveReq.referenceImages.length})`
       : 'mode=image-generation',
   );
 
   try {
-    runContext.repositories.runs.start(runContext.runId, jobId, startTs);
+    if (controller.signal.aborted) {
+      return fail('cancelled', 'CANCELLED', '已取消');
+    }
+    const startedRun = runContext.repositories.runs.start(runContext.runId, jobId, startTs);
+    if (startedRun.status !== 'running') {
+      return {
+        historyId,
+        status: startedRun.status === 'cancelled' ? 'cancelled' : 'failed',
+        error: {
+          code:
+            startedRun.errorCode ?? (startedRun.status === 'cancelled' ? 'CANCELLED' : 'UNKNOWN'),
+          message: sanitizeProviderErrorMessage(
+            startedRun.errorMessage ?? '',
+            startedRun.status === 'cancelled' ? '已取消' : '生成未启动',
+          ),
+        },
+        durationMs: Date.now() - startTs,
+        costUnit,
+      };
+    }
     const result: GenerateImageResult = await provider.generateImage(
       effectiveReq,
       controller.signal,
@@ -379,6 +618,12 @@ export async function generate(
         : result.imagePath
           ? [{ imagePath: result.imagePath, actualSize: result.actualSize }]
           : [];
+    // Cancellation wins over a provider response that races with the abort.
+    // Clean up any managed files returned by the late response before returning.
+    if (controller.signal.aborted) {
+      cleanupUncommittedImages(providerImages, db);
+      return fail('cancelled', 'CANCELLED', '已取消');
+    }
     const assetIdBase = runContext.runId;
     const images = providerImages.map((image, index) => ({
       ...image,
@@ -390,48 +635,83 @@ export async function generate(
       ...(images.length > 0 ? { images } : {}),
     };
     const finishedAt = Date.now();
-    if (normalizedResult.status === 'cancelled') {
-      runContext.repositories.runs.cancel(runContext.runId, finishedAt);
-    } else if (normalizedResult.status === 'failed') {
-      runContext.repositories.runs.fail(
-        runContext.runId,
-        normalizedResult.error?.code ?? 'UNKNOWN',
-        normalizedResult.error?.message ?? '生成失败',
-        finishedAt,
-      );
-    } else {
-      runContext.repositories.runs.complete(runContext.runId, {
-        actualCost: normalizedResult.cost ?? null,
-        durationMs: normalizedResult.durationMs ?? null,
-        finishedAt,
-        // providerResponse 追加进参数快照(旧 history.params 的等价信息面)。
-        params: normalizedResult.providerResponse
-          ? { ...params, providerResponse: normalizedResult.providerResponse }
-          : undefined,
-        assets: images.map((image, position) => ({
-          id: image.assetId,
-          position,
-          status: 'available',
-          mediaPath: image.imagePath,
-          width: image.actualSize?.width ?? null,
-          height: image.actualSize?.height ?? null,
-          createdAt: finishedAt,
-        })),
-      });
-    }
-    logger.info(
-      'generate 成功',
-      `run=${historyId}`,
-      `status=${normalizedResult.status}`,
-      images.length > 1 ? `images=${images.length}` : '',
-      normalizedResult.durationMs ? `${normalizedResult.durationMs}ms` : '',
+    // Provider 以「返回 failed 结果」而非 throw 表达失败时，同样要在入账前脱敏。
+    const providerFailureMessage = sanitizeProviderErrorMessage(
+      normalizedResult.error?.message ?? '',
+      '生成失败',
     );
-    return {
-      ...normalizedResult,
-      historyId,
-      costUnit,
-      costPoints: normalizedResult.cost,
-    };
+    const terminalRun =
+      normalizedResult.status === 'cancelled'
+        ? runContext.repositories.runs.cancel(runContext.runId, finishedAt)
+        : normalizedResult.status === 'failed'
+          ? runContext.repositories.runs.fail(
+              runContext.runId,
+              normalizedResult.error?.code ?? 'UNKNOWN',
+              providerFailureMessage,
+              finishedAt,
+            )
+          : runContext.repositories.runs.complete(runContext.runId, {
+              actualCost: normalizedResult.cost ?? null,
+              durationMs: normalizedResult.durationMs ?? null,
+              finishedAt,
+              // providerResponse 追加进参数快照(旧 history.params 的等价信息面)。
+              params: normalizedResult.providerResponse
+                ? { ...params, providerResponse: normalizedResult.providerResponse }
+                : undefined,
+              assets: images.map((image, position) => ({
+                id: image.assetId,
+                position,
+                status: 'available',
+                mediaPath: image.imagePath,
+                width: image.actualSize?.width ?? null,
+                height: image.actualSize?.height ?? null,
+                createdAt: finishedAt,
+              })),
+            });
+    if (terminalRun.status !== 'success') {
+      cleanupUncommittedImages(images, db);
+    }
+    const terminalResult: GenerateImageResult =
+      terminalRun.status === 'cancelled'
+        ? {
+            historyId,
+            status: 'cancelled',
+            error: { code: 'CANCELLED', message: '已取消' },
+            durationMs: Date.now() - startTs,
+            costUnit,
+          }
+        : terminalRun.status === 'failed'
+          ? {
+              ...normalizedResult,
+              historyId,
+              status: 'failed',
+              error: {
+                code: terminalRun.errorCode ?? normalizedResult.error?.code ?? 'UNKNOWN',
+                message: sanitizeProviderErrorMessage(
+                  terminalRun.errorMessage ?? '',
+                  providerFailureMessage,
+                ),
+              },
+              costUnit,
+              costPoints: normalizedResult.cost,
+            }
+          : {
+              ...normalizedResult,
+              historyId,
+              status: 'success',
+              costUnit,
+              costPoints: normalizedResult.cost,
+            };
+    if (terminalResult.status === 'success') {
+      logger.info(
+        'generate 成功',
+        `run=${historyId}`,
+        `status=${terminalResult.status}`,
+        images.length > 1 ? `images=${images.length}` : '',
+        normalizedResult.durationMs ? `${normalizedResult.durationMs}ms` : '',
+      );
+    }
+    return terminalResult;
   } catch (err) {
     const upstreamCode = (err as { code?: string })?.code ?? 'UNKNOWN';
     const code =
@@ -444,7 +724,9 @@ export async function generate(
               ? 'ACCOUNT/MODEL_NOT_FOUND'
               : upstreamCode
         : upstreamCode;
-    const message = (err as Error).message || 'Unknown error';
+    // 上游异常消息可能携带凭据/签名 URL/路径：日志与账本都不允许落入原文，
+    // 在进入日志与 fail()（写账本 + 返回渲染层）之前统一脱敏。
+    const message = sanitizeProviderErrorMessage((err as Error)?.message, 'Unknown error');
     // 取消不算失败：运行状态记 cancelled，日志降级为 info
     const cancelled = code === 'CANCELLED';
     const runStatus = cancelled ? 'cancelled' : 'failed';
@@ -462,16 +744,21 @@ export async function generate(
     // 这套形状，渲染层的 applyResult 也早已按它分流 —— 走返回值才是这份契约的原意。
     return fail(runStatus, code, message);
   } finally {
+    detachExternalAbort();
     abortControllers.delete(jobId);
   }
 }
 
-/** 取消生图（幂等）：中止对应任务的 AbortController。 */
-export function cancelGeneration(jobId: string): boolean {
+/** 取消生图（幂等）：先原子收敛账本，再中止已存在的 Provider 请求。 */
+export function cancelGeneration(jobId: string, db: Database.Database = getDb()): boolean {
+  const run = createWorkbenchRepositories(db).runs.get(jobId);
+  const wasCancellable = run?.status === 'queued' || run?.status === 'running';
+  if (wasCancellable) createWorkbenchRepositories(db).runs.cancel(jobId);
   const controller = abortControllers.get(jobId);
-  if (!controller) return false;
-  controller.abort();
-  abortControllers.delete(jobId);
-  logger.info('generate 取消', `job=${jobId}`);
-  return true;
+  if (controller) {
+    controller.abort();
+    abortControllers.delete(jobId);
+  }
+  if (wasCancellable || controller) logger.info('generate 取消', `job=${jobId}`);
+  return Boolean(wasCancellable || controller);
 }

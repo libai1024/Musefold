@@ -143,8 +143,23 @@ test('空态与视觉基线', async ({ page }) => {
   await expect(page).toHaveScreenshot('prompts-empty.png');
 });
 
-test('新建提示词出现在网格', async ({ page }) => {
-  await createPrompt(page, '赛博朋克街景', 'cyberpunk street, neon rain');
+test('编辑器脏表单在 Escape 后要求确认,放弃不会保存', async ({ page }) => {
+  await page.getByTestId('prompt-create').click();
+  await page.getByTestId('prompt-editor-title').fill('待放弃的提示词');
+  await page.getByTestId('prompt-editor-content').fill('draft content');
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByTestId('prompt-editor')).toBeVisible();
+  await expect(page.getByTestId('prompt-editor-discard-dialog')).toBeVisible();
+  await page.getByTestId('prompt-editor-continue').click();
+  await expect(page.getByTestId('prompt-editor-discard-dialog')).toBeHidden();
+  await expect(page.getByTestId('prompt-editor-title')).toHaveValue('待放弃的提示词');
+
+  await page.getByTestId('prompt-editor-cancel').click();
+  await page.getByTestId('prompt-editor-discard').click();
+  await expect(page.getByTestId('prompt-editor')).toBeHidden();
+  await expect(page.getByText('待放弃的提示词')).toBeHidden();
+  await expect(page.getByTestId('prompt-empty')).toBeVisible();
 });
 
 test('置顶、软删与回收站恢复闭环', async ({ page }) => {

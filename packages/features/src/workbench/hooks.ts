@@ -5,14 +5,16 @@ import type {
   CreateWorkbenchSession,
   GenerationAsset,
   GenerationJob,
+  PromptReferenceSelection,
   SaveAssetInput,
   UpdateWorkbenchSession,
   UploadReferenceImageInput,
   WorkbenchSession,
   WorkbenchSessionListQuery,
 } from '@musefold/contracts';
-import { queryKeys, usePlatform } from '@musefold/platform';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type GenerationGateway, queryKeys, usePlatform } from '@musefold/platform';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type PromptReferenceResolution, resolvePromptReferenceDisplay } from './prompt-references';
 
 /** 生成任务的非终态集合:时间线含这些状态时切短轮询。 */
 const ACTIVE_STATUSES = new Set<GenerationJob['status']>([
@@ -45,31 +47,58 @@ export function useSessionList(query: WorkbenchSessionListQuery = {}) {
   });
 }
 
+/** 归档会话列表:查询语义由宿主过滤,不在客户端从 includeArchived 结果中二次筛选。 */
+export function useArchivedSessions(query: WorkbenchSessionListQuery = {}) {
+  return useSessionList({ ...query, archivedOnly: true });
+}
+
+function useInvalidateWorkbench() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+}
+
 export function useCreateSession() {
   const { gateway } = usePlatform();
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench();
   return useMutation({
     mutationFn: (input: CreateWorkbenchSession) => gateway.workbench.createSession(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() }),
+    onSuccess: invalidate,
   });
 }
 
 export function useUpdateSession() {
   const { gateway } = usePlatform();
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench();
   return useMutation({
     mutationFn: (vars: { id: string; patch: UpdateWorkbenchSession }) =>
       gateway.workbench.updateSession(vars.id, vars.patch),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() }),
+    onSuccess: invalidate,
+  });
+}
+
+/** 恢复归档会话:带当前版本乐观锁,通过 updateSession 清除 archivedAt。 */
+export function useRestoreSession() {
+  const { gateway } = usePlatform();
+  const invalidate = useInvalidateWorkbench();
+  return useMutation({
+    mutationFn: (vars: {
+      id: WorkbenchSession['id'];
+      expectedVersion: UpdateWorkbenchSession['expectedVersion'];
+    }) =>
+      gateway.workbench.updateSession(vars.id, {
+        expectedVersion: vars.expectedVersion,
+        archived: false,
+      }),
+    onSuccess: invalidate,
   });
 }
 
 export function useRemoveSession() {
   const { gateway } = usePlatform();
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateWorkbench();
   return useMutation({
     mutationFn: (id: string) => gateway.workbench.removeSession(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() }),
+    onSuccess: invalidate,
   });
 }
 
@@ -103,9 +132,17 @@ export function useCreateGeneration() {
   const { gateway } = usePlatform();
   const invalidate = useInvalidateGeneration();
   return useMutation({
-    mutationFn: (input: CreateGenerationInput) => gateway.generation.create(input),
+    mutationFn: (intent: Parameters<GenerationGateway['create']>) =>
+      gateway.generation.create(...intent),
     onSuccess: invalidate,
   });
+}
+
+/** 调用方在用户动作边界创建一次;mutation/transport 重放复用同一组变量。 */
+export function createGenerationMutationIntent(
+  input: CreateGenerationInput,
+): Parameters<GenerationGateway['create']> {
+  return [input, crypto.randomUUID()];
 }
 
 export function useCancelGeneration() {
@@ -121,9 +158,17 @@ export function useRetryGeneration() {
   const { gateway } = usePlatform();
   const invalidate = useInvalidateGeneration();
   return useMutation({
-    mutationFn: (id: string) => gateway.generation.retry(id),
+    mutationFn: (intent: Parameters<GenerationGateway['retry']>) =>
+      gateway.generation.retry(...intent),
     onSuccess: invalidate,
   });
+}
+
+/** 每次用户点击重试都是新意图;同一 mutation 的网络重放保持键不变。 */
+export function createRetryGenerationMutationIntent(
+  id: GenerationJob['id'],
+): Parameters<GenerationGateway['retry']> {
+  return [id, crypto.randomUUID()];
 }
 
 /** 删除回合(软删,进历史回收站;时间线与历史列表同步失效)。 */
@@ -170,5 +215,30 @@ export function useProviders() {
     queryKey: queryKeys.generation.providers(),
     queryFn: () => gateway.generation.listProviders(),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * 草稿引用意图 → 展示解析(托盘卡):逐 promptId 走 owner-safe 的 prompts.get
+ * (同 id 多意图经 queryKey 去重);失败不伪造内容,由视图层呈现 unavailable 且可移除。
+ */
+export function usePromptReferenceResolutions(
+  selections: readonly PromptReferenceSelection[],
+): PromptReferenceResolution[] {
+  const { gateway } = usePlatform();
+  const promptIds = [...new Set(selections.map((selection) => selection.promptId))];
+  const queries = useQueries({
+    queries: promptIds.map((promptId) => ({
+      queryKey: queryKeys.prompts.detail(promptId),
+      queryFn: () => gateway.prompts.get(promptId),
+      retry: false,
+    })),
+  });
+  const queryIndexByPromptId = new Map(promptIds.map((promptId, index) => [promptId, index]));
+  return selections.map((selection) => {
+    const queryIndex = queryIndexByPromptId.get(selection.promptId);
+    const query = queryIndex === undefined ? undefined : queries[queryIndex];
+    const state = query?.isError ? 'error' : query?.isSuccess ? 'ready' : 'loading';
+    return resolvePromptReferenceDisplay(selection, query?.data, state);
   });
 }

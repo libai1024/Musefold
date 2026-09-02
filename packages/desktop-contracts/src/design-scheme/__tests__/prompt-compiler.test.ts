@@ -1,10 +1,21 @@
+import {
+  compileSchemePrompt as compileDomainSchemePrompt,
+  describePriorityMode as describeDomainPriorityMode,
+  missingRequiredSlots as missingDomainRequiredSlots,
+  PRIORITY_MODE_LABEL as DOMAIN_PRIORITY_MODE_LABEL,
+} from '@musefold/domain/design-scheme/prompt-compiler';
 import { describe, expect, it } from 'vitest';
 import {
   MULTI_IMAGE_INDEX_HINT,
   RATIO_CONSTRAINT_PREFIX,
 } from '@musefold/domain/generation-prompt';
 import { DESIGN_SCHEME_DOCUMENT_VERSION, type DesignSchemeRevisionDocument } from '../schema';
-import { compileSchemePrompt, missingRequiredSlots } from '../prompt-compiler';
+import {
+  compileSchemePrompt,
+  describePriorityMode,
+  missingRequiredSlots,
+  PRIORITY_MODE_LABEL,
+} from '../prompt-compiler';
 
 function documentFixture(
   overrides: Partial<DesignSchemeRevisionDocument> = {},
@@ -60,6 +71,15 @@ function documentFixture(
     ...overrides,
   };
 }
+
+describe('prompt compiler compatibility exports', () => {
+  it('re-exports domain compiler values without wrapping them', () => {
+    expect(compileSchemePrompt).toBe(compileDomainSchemePrompt);
+    expect(missingRequiredSlots).toBe(missingDomainRequiredSlots);
+    expect(describePriorityMode).toBe(describeDomainPriorityMode);
+    expect(PRIORITY_MODE_LABEL).toBe(DOMAIN_PRIORITY_MODE_LABEL);
+  });
+});
 
 describe('compileSchemePrompt', () => {
   it('按 order 拼接模块并代入变量值', () => {

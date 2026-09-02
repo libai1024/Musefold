@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { type Dirent, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { REPO_ROOT } from '../../tooling/aliases.mjs';
@@ -34,7 +34,7 @@ function collectPackageSrcRoots(): string[] {
 }
 
 function* walk(dir: string): Generator<string> {
-  let entries: ReturnType<typeof readdirSync<{ withFileTypes: true }>>;
+  let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {

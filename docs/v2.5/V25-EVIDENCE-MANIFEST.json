@@ -1,0 +1,869 @@
+{
+  "manifestVersion": 1,
+  "sourceOfTruth": "docs/v2.5/V25-MIGRATION-CARDS.md",
+  "claims": [
+    {
+      "id": "B00-current-tree",
+      "card": "B00",
+      "status": "verify",
+      "result": "blocked",
+      "level": "blocked",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "not-applicable"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": "B00 没有 Desktop Agent 产品语义"
+      },
+      "sourcePaths": [
+        "docs/v2.5/V25-MIGRATION-CARDS.md",
+        "package.json",
+        "turbo.json"
+      ],
+      "testPaths": [
+        "tests/repo/migration-evidence-manifest.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm run check && pnpm run test:e2e && pnpm exec playwright test -c tests/v25 --project electron",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": "当前树 `pnpm run check` 已通过；完整 v25 E2E 为 94 passed、3 failed、5 skipped，其中原生 macOS fullscreen 因 runner 无法让 Electron BrowserWindow 获得前台焦点而阻塞；本轮未提交且没有 machine-readable report/artifact，不能登记为 pass",
+      "unregisteredReason": null,
+      "failureReason": null,
+      "rerun": "在当前 HEAD 生成 Web/Electron 并完成全部 B00 门禁后，以持久 report/artifact 重新登记"
+    },
+    {
+      "id": "B01-cross-host-contract",
+      "card": "B01",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "unit",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "apps/desktop/electron/main/ipc-v25/gateway-bridge.ts",
+        "apps/desktop/src/v25/desktop-gateway.ts",
+        "packages/api-client/src/__tests__/gateway.test.ts",
+        "packages/platform/src/gateway.ts"
+      ],
+      "testPaths": [
+        "apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts",
+        "apps/desktop/electron/preload/__tests__/v25.test.ts",
+        "apps/desktop/src/v25/__tests__/desktop-gateway.test.ts",
+        "packages/api-client/src/__tests__/gateway.test.ts",
+        "packages/platform/src/__tests__/platform.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/electron/preload/__tests__/v25.test.ts apps/desktop/src/v25/__tests__/desktop-gateway.test.ts packages/api-client/src/__tests__/gateway.test.ts packages/platform/src/__tests__/platform.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "canonical method set 已由 contracts 单源派生并带双向断言,bridge/preload/desktop-gateway/api-client/platform 定向测试在当前树可复现通过,但历史运行无 machine-readable report/commit;Web api-client design-scheme adapter(归 P01-5)、真实 Electron runtime 与全量门禁 evidence 均未登记",
+      "failureReason": null,
+      "rerun": "在当前 HEAD 重跑定向命令并保存 report;真实 Electron 与全量门禁 evidence 由 B02/Q02 统一登记后才能升级 result"
+    },
+    {
+      "id": "D01-ledger-sync",
+      "card": "D01",
+      "status": "partial",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/core/src/services/generation.ts",
+        "packages/core/src/sync/engine.ts",
+        "apps/api/src/modules/generation/service.ts",
+        "apps/api/src/modules/sync/service.ts",
+        "apps/worker/src/tasks.ts"
+      ],
+      "testPaths": [
+        "packages/core/src/services/__tests__/generation-reference-assets.test.ts",
+        "packages/core/src/sync/__tests__/engine.test.ts",
+        "apps/api/src/__tests__/integration/api.integration.test.ts",
+        "apps/worker/src/__tests__/tasks.test.ts",
+        "tests/v25/electron.sync.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/core/src/services/__tests__/generation-reference-assets.test.ts packages/core/src/sync/__tests__/engine.test.ts apps/api/src/__tests__/integration/api.integration.test.ts apps/worker/src/__tests__/tasks.test.ts && pnpm exec playwright test -c tests/v25 --project electron tests/v25/electron.sync.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "已有源码和定向测试，但历史运行无 machine-readable report/commit；真 PG、Graphile Worker、两设备和生产 transport 未被本条证明",
+      "failureReason": null,
+      "rerun": "分别登记 unit、runtime-e2e、真 PG/worker 和跨设备结果，禁止用 fake dependency 结果替代"
+    },
+    {
+      "id": "U01-shell",
+      "card": "U01",
+      "status": "partial",
+      "result": "unregistered",
+      "level": "mock-e2e",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "not-applicable"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": "U01 不包含 Desktop Agent 语义"
+      },
+      "sourcePaths": [
+        "packages/features/src/shell/AppShell.tsx",
+        "apps/web-next/src/components/app-shell.tsx",
+        "apps/desktop/src/v25/main.tsx",
+        "apps/desktop/electron/main/window.ts"
+      ],
+      "testPaths": [
+        "packages/features/src/shell/__tests__/app-shell.test.tsx",
+        "packages/features/src/shell/__tests__/sidebar-layout.test.ts",
+        "tests/v25/web.shell.spec.ts",
+        "tests/v25/electron.shell.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/features/src/shell/__tests__/app-shell.test.tsx packages/features/src/shell/__tests__/sidebar-layout.test.ts && pnpm exec playwright test -c tests/v25 tests/v25/web.shell.spec.ts tests/v25/electron.shell.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "历史 shell 运行计数没有绑定 report/commit；真实 macOS fullscreen evidence 另受前台焦点环境阻断",
+      "failureReason": null,
+      "rerun": "在当前 HEAD 分别保存 Web desktop/mobile、Electron 和 macOS fullscreen 结果；环境不具备前台资格时登记 blocked"
+    },
+    {
+      "id": "U02-prompt-library",
+      "card": "U02",
+      "status": "partial",
+      "result": "unregistered",
+      "level": "mock-e2e",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/features/src/prompts/PromptEditorDialog.tsx",
+        "packages/features/src/prompts/hooks.ts",
+        "apps/desktop/electron/main/ipc-v25/prompts-domain.ts",
+        "apps/web-next/src/app/prompts/page.tsx"
+      ],
+      "testPaths": [
+        "packages/features/src/prompts/__tests__/prompts.test.tsx",
+        "tests/v25/web.prompts.spec.ts",
+        "tests/v25/electron.prompts.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/features/src/prompts/__tests__/prompts.test.tsx && pnpm exec playwright test -c tests/v25 tests/v25/web.prompts.spec.ts tests/v25/electron.prompts.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "已有 CRUD、搜索、回收站和 dirty guard 线索，但历史运行无 report/commit；Web 为 route mock，真 PG、大库和封面证据缺失",
+      "failureReason": null,
+      "rerun": "在当前 HEAD 重新执行 features、Web desktop/mobile、Electron，并单独登记真 API/PG 与性能范围"
+    },
+    {
+      "id": "U03-workbench-generation",
+      "card": "U03",
+      "status": "partial",
+      "result": "unregistered",
+      "level": "mock-e2e",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/features/src/workbench/WorkbenchScreen.tsx",
+        "packages/features/src/workbench/Composer.tsx",
+        "packages/domain/src/generation-prompt.ts",
+        "apps/desktop/electron/main/ipc-v25/workbench-domain.ts",
+        "apps/web-next/src/app/workbench/page.tsx"
+      ],
+      "testPaths": [
+        "packages/features/src/workbench/__tests__/workbench.test.tsx",
+        "packages/features/src/workbench/__tests__/composer-ratio.test.tsx",
+        "packages/features/src/workbench/__tests__/prompt-references.test.ts",
+        "packages/domain/src/__tests__/generation-prompt.test.ts",
+        "tests/v25/web.workbench.spec.ts",
+        "tests/v25/electron.workbench.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/features/src/workbench packages/domain/src/__tests__/generation-prompt.test.ts && pnpm exec playwright test -c tests/v25 tests/v25/web.workbench.spec.ts tests/v25/electron.workbench.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "会话、比例、参考图和 Prompt 引用有当前树测试，但历史数字无 report/commit；真实成功 Provider、多图、费用审批和移动键盘 evidence 未闭合",
+      "failureReason": null,
+      "rerun": "按 Web desktop/mobile、Electron、worker/PG、费用审批和视觉状态拆分登记，不能把 route mock 当生产 runtime"
+    },
+    {
+      "id": "U04-history-assets",
+      "card": "U04",
+      "status": "partial",
+      "result": "unregistered",
+      "level": "mock-e2e",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/features/src/history/__tests__/history.test.tsx",
+        "apps/web-next/src/app/history/page.tsx",
+        "packages/core/src/db/repositories/workbench.ts"
+      ],
+      "testPaths": [
+        "packages/features/src/history/__tests__/history.test.tsx",
+        "tests/v25/web.history.spec.ts",
+        "tests/v25/electron.history.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/features/src/history/__tests__/history.test.tsx && pnpm exec playwright test -c tests/v25 tests/v25/web.history.spec.ts tests/v25/electron.history.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "列表、筛选、详情、回收站和 Lightbox 有源码/测试线索，但历史运行无 report/commit；清理、统计、谱系和对象存储未被本条证明",
+      "failureReason": null,
+      "rerun": "重新登记 Web desktop/mobile route mock、Electron disposable SQLite，并另行登记 D02 生命周期和真实对象存储"
+    },
+    {
+      "id": "U05-settings-account",
+      "card": "U05",
+      "status": "partial",
+      "result": "unregistered",
+      "level": "mock-e2e",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/features/src/settings/SettingsScreen.tsx",
+        "packages/features/src/account/AccountPanel.tsx",
+        "apps/desktop/electron/main/ipc-v25/account-domain.ts",
+        "apps/web-next/src/app/settings/page.tsx"
+      ],
+      "testPaths": [
+        "packages/features/src/settings/__tests__/settings.test.tsx",
+        "packages/features/src/account/__tests__/account.test.tsx",
+        "tests/v25/web.settings.spec.ts",
+        "tests/v25/electron.settings.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/features/src/settings/__tests__/settings.test.tsx packages/features/src/account/__tests__/account.test.tsx && pnpm exec playwright test -c tests/v25 tests/v25/web.settings.spec.ts tests/v25/electron.settings.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "账号、同步、Provider 和归档已有当前树测试线索，但历史计数无 report/commit；Agent connection、真云端和完整设置 parity 仍缺",
+      "failureReason": null,
+      "rerun": "分别登记 Web desktop/mobile、Electron disposable SQLite、真 API/PG 和凭据边界扫描"
+    },
+    {
+      "id": "P01-design-schemes",
+      "card": "P01",
+      "status": "doing",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/contracts/src/design-scheme.ts",
+        "packages/platform/src/gateway.ts",
+        "apps/desktop/electron/main/ipc-v25/design-scheme-domain.ts",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "packages/contracts/src/__tests__/design-scheme.test.ts",
+        "packages/platform/src/__tests__/platform.test.ts",
+        "apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "当前仅有 contracts、持久化 scaffold、disabled capability 和 fail-closed transport seam；无 Web consumer、成功 Desktop adapter、features 或入口的当前 report",
+      "failureReason": null,
+      "rerun": "按 P01-1..P01-13 分卡登记合同、数据、adapter、UI、入口、Agent 和安全证据，禁止以 source seam 声称完成"
+    },
+    {
+      "id": "Q01-reverse-audit",
+      "card": "Q01",
+      "status": "todo",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "docs/v2.5/V25-MIGRATION-CARDS.md",
+        "tests/repo/migration-evidence.ts",
+        "tests/v25/web.shell.spec.ts",
+        "tests/v25/electron.shell.spec.ts"
+      ],
+      "testPaths": [
+        "tests/repo/migration-evidence-manifest.test.ts",
+        "tests/repo/alias-consistency.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run tests/repo/migration-evidence-manifest.test.ts tests/repo/alias-consistency.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "反向枚举、旧用户意图到 claim 的完整映射和 skip/fixture/视觉审计尚未形成当前 report",
+      "failureReason": null,
+      "rerun": "枚举 baseline 与当前树后为每个用户意图补 claim id、覆盖层级、遗漏/冻结/环境阻断理由和 report"
+    },
+    {
+      "id": "Q02-local-gate",
+      "card": "Q02",
+      "status": "todo",
+      "result": "blocked",
+      "level": "blocked",
+      "platforms": {
+        "mobileWeb": "blocked",
+        "pcWeb": "blocked",
+        "desktop": "blocked",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": "全量门禁未登记，不能用历史截图或 route mock 代替",
+        "pcWeb": "全量门禁未登记，不能用历史截图或 route mock 代替",
+        "desktop": "全量门禁未登记，真实产物和 Electron project 尚未绑定 report/artifact",
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "docs/v2.5/V25-MIGRATION-CARDS.md",
+        "package.json",
+        "tests/v25/package.smoke.spec.ts"
+      ],
+      "testPaths": [
+        "tests/repo/migration-evidence-manifest.test.ts",
+        "tests/v25/package.smoke.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml",
+        ".github/workflows/release.yml"
+      ],
+      "command": "pnpm run check && pnpm --filter @musefold/api run test:integration && pnpm run test:e2e && pnpm exec playwright test -c tests/v25 --project electron",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": "台账明确全量 check、integration、migration replay、真实 package-smoke 当前没有可追溯 report/artifact；缺产物不得以 skip 伪造通过",
+      "unregisteredReason": null,
+      "failureReason": null,
+      "rerun": "准备当前 HEAD 的全量构建、数据库 replay、Web/Electron E2E 和对应平台 package-smoke 后分别登记"
+    },
+    {
+      "id": "Q03-ci-equivalence",
+      "card": "Q03",
+      "status": "todo",
+      "result": "blocked",
+      "level": "blocked",
+      "platforms": {
+        "mobileWeb": "blocked",
+        "pcWeb": "blocked",
+        "desktop": "blocked",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": "CI 仍主要使用 Next dev-server，production runtime evidence 未登记",
+        "pcWeb": "CI affected/full gate 与 production runtime evidence 未登记",
+        "desktop": "package-smoke 缺产物时仍可 skip，平台矩阵和 artifact scan 未闭合",
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml",
+        ".github/workflows/release.yml",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "tests/repo/deploy-pipeline.test.ts",
+        "tests/v25/package.smoke.spec.ts",
+        "tests/repo/migration-evidence-manifest.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml",
+        ".github/workflows/release.yml"
+      ],
+      "command": "pnpm exec turbo run lint typecheck test build check:boundaries && pnpm run build:web && pnpm run test:e2e",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": "Q03 子卡 pg-replay/db-bundle/package-smoke/e2e-runtime/security/full-gate 均仍为 todo，当前 workflow 的 skip/产物/安全扫描缺口不能称为等价门禁",
+      "unregisteredReason": null,
+      "failureReason": null,
+      "rerun": "完成 Q03 各子卡 workflow 与失败阻断语义后，在 PR/Main/Release 对应 runner 生成 report/artifact"
+    },
+    {
+      "id": "P01-0-host-model-evidence",
+      "card": "P01-0",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "tests/repo/migration-evidence-manifest.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec vitest run tests/repo/migration-evidence-manifest.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "P01-0 只有文档边界记录；没有独立 machine-readable report/artifact，不能把 source 记录当作 renderer 或实现完成",
+      "failureReason": null,
+      "rerun": "完成 P01-0 只读裁决门禁后，在当前 HEAD 绑定 report/artifact；在此之前保持 unregistered"
+    },
+    {
+      "id": "P01-1-contracts-evidence",
+      "card": "P01-1",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/contracts/src/design-scheme.ts",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "packages/contracts/src/__tests__/design-scheme.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "只有 contracts source 和定向测试线索；没有当前独立 report/artifact，不能扩张为授权、PG、IPC 或 renderer evidence",
+      "failureReason": null,
+      "rerun": "在当前 HEAD 重新执行 P01-1 定向命令并保存 report；未绑定前保持 unregistered"
+    },
+    {
+      "id": "P01-2-persistence-evidence",
+      "card": "P01-2",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/core/src/db/design-scheme/migrations.ts",
+        "packages/db/src/schema/design-schemes.ts",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "packages/core/src/db/design-scheme/__tests__/migrations.test.ts",
+        "packages/db/src/__tests__/schema.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec vitest run packages/core/src/db/design-scheme/__tests__/migrations.test.ts packages/db/src/__tests__/schema.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "SQLite/PG scaffold 与定向测试存在，但没有当前 report/artifact，也没有真实 PG、匿名语料或备份恢复 evidence",
+      "failureReason": null,
+      "rerun": "完成 P01-2 migration replay、真 PG 和备份恢复范围后，在当前 HEAD 分别绑定 report；未绑定前保持 unregistered"
+    },
+    {
+      "id": "P01-3-platform-seam-evidence",
+      "card": "P01-3",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "packages/platform/src/capabilities.ts",
+        "packages/platform/src/gateway.ts",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "packages/platform/src/__tests__/platform.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec vitest run packages/platform/src/__tests__/platform.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "只有 disabled capability、optional gateway 和 fallback 测试线索；没有当前 report/artifact，不能声称 design-scheme capability 已可用",
+      "rerun": "在当前 HEAD 重新执行 P01-3 定向命令并保存 report；未绑定前保持 unregistered"
+    },
+    {
+      "id": "U01-fullscreen-inset-blocked",
+      "card": "U01-fullscreen-inset",
+      "status": "blocked",
+      "result": "blocked",
+      "level": "blocked",
+      "platforms": {
+        "mobileWeb": "not-applicable",
+        "pcWeb": "not-applicable",
+        "desktop": "blocked",
+        "desktopAgent": "not-applicable"
+      },
+      "platformNotes": {
+        "mobileWeb": "本卡只验证 Electron 原生窗口 inset",
+        "pcWeb": "本卡只验证 Electron 原生窗口 inset",
+        "desktop": "当前 runner 无法让 Electron 获得 macOS 前台焦点",
+        "desktopAgent": "本卡不包含 Desktop Agent 语义"
+      },
+      "sourcePaths": [
+        "apps/desktop/electron/main/window.ts",
+        "apps/desktop/electron/preload/v25.ts",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "apps/desktop/electron/main/__tests__/window.test.ts",
+        "tests/v25/electron.shell.spec.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec playwright test -c tests/v25 tests/v25/electron.shell.spec.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": "真实 macOS fullscreen runtime evidence 被当前 runner 的 Electron 前台焦点环境阻断；不能用 skip 或历史截图替代",
+      "unregisteredReason": null,
+      "failureReason": null,
+      "rerun": "在具备 WindowServer 前台激活资格的 macOS runner 重跑 tests/v25/electron.shell.spec.ts，并保存 78px → 12px → 78px evidence"
+    },
+    {
+      "id": "U02-prompt-dirty-guard-evidence",
+      "card": "U02-prompt-dirty-guard",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "not-applicable"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": "该子卡只覆盖 renderer dirty guard"
+      },
+      "sourcePaths": [
+        "packages/features/src/prompts/PromptEditorDialog.tsx",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "packages/features/src/prompts/__tests__/prompts.test.tsx"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec vitest run packages/features/src/prompts/__tests__/prompts.test.tsx",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "dirty guard 定向源码/测试存在，但没有当前 report/artifact，完整提示词库 parity 与视觉 baseline 仍未证明",
+      "rerun": "在当前 HEAD 重新执行 dirty guard 定向命令并保存 report；未绑定前保持 unregistered"
+    },
+    {
+      "id": "U05-account-confirm-password-evidence",
+      "card": "U05-account-confirm-password",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "not-applicable"
+      },
+      "platformNotes": {
+        "mobileWeb": "账号确认密码行为由共享 features 覆盖",
+        "pcWeb": "账号确认密码行为由共享 features 覆盖",
+        "desktop": "账号确认密码行为由共享 features 覆盖",
+        "desktopAgent": "该子卡不覆盖 Desktop Agent"
+      },
+      "sourcePaths": [
+        "packages/features/src/account/AccountPanel.tsx",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "packages/features/src/account/__tests__/account.test.tsx"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "testCases": [],
+      "command": "pnpm exec vitest run packages/features/src/account/__tests__/account.test.tsx",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "确认密码定向源码/测试存在，但没有当前 report/artifact，完整账号/连接/设置 parity 仍未证明",
+      "rerun": "在当前 HEAD 重新执行账号定向命令并保存 report；未绑定前保持 unregistered"
+    },
+    {
+      "id": "B02-evidence-manifest",
+      "card": "B02",
+      "status": "todo",
+      "result": "unregistered",
+      "level": "source",
+      "platforms": {
+        "mobileWeb": "unregistered",
+        "pcWeb": "unregistered",
+        "desktop": "unregistered",
+        "desktopAgent": "unregistered"
+      },
+      "platformNotes": {
+        "mobileWeb": null,
+        "pcWeb": null,
+        "desktop": null,
+        "desktopAgent": null
+      },
+      "sourcePaths": [
+        "docs/v2.5/V25-EVIDENCE-MANIFEST.json",
+        "tests/repo/migration-evidence.ts",
+        "docs/v2.5/V25-MIGRATION-CARDS.md"
+      ],
+      "testPaths": [
+        "tests/repo/migration-evidence-manifest.test.ts"
+      ],
+      "workflowPaths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "command": "pnpm exec vitest run tests/repo/migration-evidence-manifest.test.ts && pnpm exec biome check tests/repo/migration-evidence.ts tests/repo/migration-evidence-manifest.test.ts",
+      "commit": null,
+      "date": null,
+      "report": null,
+      "artifact": null,
+      "skipReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "本 manifest 与守卫正在当前 working tree 实施；未提交、未生成独立 report/artifact，因此不能伪造本卡已通过",
+      "failureReason": null,
+      "rerun": "执行新增 repo test、相关 Biome/typecheck 和 git diff --check 后，以当前提交绑定 report；本地未提交阶段保持 unregistered"
+    }
+  ]
+}

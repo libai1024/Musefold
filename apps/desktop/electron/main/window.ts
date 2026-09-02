@@ -22,6 +22,27 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+/**
+ * Send a renderer event only while both the window and its webContents are
+ * alive. Either object can be destroyed between the checks and send().
+ */
+export function safeSendWindowEvent(
+  win: BrowserWindow,
+  channel: string,
+  payload: unknown,
+): boolean {
+  try {
+    if (win.isDestroyed()) return false;
+    const contents = win.webContents;
+    if (contents.isDestroyed()) return false;
+    contents.send(channel, payload);
+    return true;
+  } catch {
+    // A renderer may disappear between the checks and send().
+    return false;
+  }
+}
+
 export function createWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
   const isWin = process.platform === 'win32';
@@ -108,14 +129,17 @@ export function createWindow(): BrowserWindow {
 
   // 最大化状态变化 → 通知渲染层切换"还原/最大化"图标
   const emitMaxState = () => {
-    if (!win.isDestroyed()) {
-      win.webContents.send('window:maximizeChanged', win.isMaximized());
+    try {
+      if (win.isDestroyed()) return;
+      safeSendWindowEvent(win, 'window:maximizeChanged', win.isMaximized());
+    } catch {
+      // The window may be destroyed while reading its state.
     }
   };
   win.on('maximize', emitMaxState);
   win.on('unmaximize', emitMaxState);
-  win.on('enter-full-screen', () => win.webContents.send('window:fullscreenChanged', true));
-  win.on('leave-full-screen', () => win.webContents.send('window:fullscreenChanged', false));
+  win.on('enter-full-screen', () => safeSendWindowEvent(win, 'window:fullscreenChanged', true));
+  win.on('leave-full-screen', () => safeSendWindowEvent(win, 'window:fullscreenChanged', false));
 
   // 开发环境加载 dev server，生产环境加载固定 origin 下的构建产物。
   // MUSEFOLD_E2E=1 时附加 ?musefold_e2e=1 —— 渲染层据此安装 window.__musefold_test 测试钩子
@@ -186,6 +210,23 @@ export function registerWindowHandlers(): void {
     'window:close',
     withWin((w) => w.close()),
   );
-  ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
+  ipcMain.handle('window:isMaximized', () => {
+    const w = mainWindow;
+    if (!w) return false;
+    try {
+      return !w.isDestroyed() && w.isMaximized();
+    } catch {
+      return false;
+    }
+  });
+  ipcMain.handle('window:isFullscreen', () => {
+    const w = mainWindow;
+    if (!w) return false;
+    try {
+      return !w.isDestroyed() && w.isFullScreen();
+    } catch {
+      return false;
+    }
+  });
   ipcMain.handle('window:platform', () => process.platform);
 }

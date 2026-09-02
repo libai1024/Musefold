@@ -55,10 +55,15 @@ describe('desktop installer publish', () => {
     );
     expect(next.currentVersion).toBe('0.5.0-dev.70');
     expect(
-      next.downloads.find((row) => row.platform === 'macos' && row.version === 'latest')?.path,
+      next.downloads.find(
+        (row: { platform: string; version: string; path: string }) =>
+          row.platform === 'macos' && row.version === 'latest',
+      )?.path,
     ).toContain('0.5.0-dev.70');
-    expect(next.downloads.some((row) => row.version === '0.3.2')).toBe(true);
-    expect(next.downloads.filter((row) => row.version === 'latest')).toHaveLength(2);
+    expect(next.downloads.some((row: { version: string }) => row.version === '0.3.2')).toBe(true);
+    expect(
+      next.downloads.filter((row: { version: string }) => row.version === 'latest'),
+    ).toHaveLength(2);
   });
 
   it('copies installers and writes catalog without docker', () => {

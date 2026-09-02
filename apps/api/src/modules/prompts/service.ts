@@ -210,7 +210,7 @@ export class PromptService {
       if (Object.keys(set).length === 2 && input.tagIds === undefined) {
         throw new AppError('VALIDATION_FAILED', '没有可更新的字段');
       }
-      await tx
+      const updated = await tx
         .update(prompts)
         .set(set)
         .where(
@@ -219,7 +219,14 @@ export class PromptService {
             eq(prompts.id, id),
             eq(prompts.version, input.expectedVersion),
           ),
-        );
+        )
+        .returning({ id: prompts.id });
+      // 乐观锁以受影响行数裁决:0 行说明预检通过后、落库前有并发提交,输掉竞态。
+      // 必须在替换标签/写变更日志之前抛稳定 CONFLICT,败者事务不得产生任何副作用
+      // (行被并发硬删时,重读会抛 PROMPT_NOT_FOUND,同样是准确的稳定错误)。
+      if (updated.length === 0) {
+        throw promptVersionConflict(await this.getPromptTx(tx, userId, id));
+      }
       if (input.tagIds !== undefined) {
         await this.replacePromptTags(tx, userId, id, input.tagIds);
       }
@@ -382,7 +389,7 @@ export class PromptService {
       if (Object.keys(set).length === 2) {
         throw new AppError('VALIDATION_FAILED', '没有可更新的字段');
       }
-      await tx
+      const updated = await tx
         .update(promptFolders)
         .set(set)
         .where(
@@ -391,7 +398,12 @@ export class PromptService {
             eq(promptFolders.id, id),
             eq(promptFolders.version, input.expectedVersion),
           ),
-        );
+        )
+        .returning({ id: promptFolders.id });
+      // 同一裁决:0 行即输掉竞态,重读事实状态后抛稳定 CONFLICT,不追加变更日志。
+      if (updated.length === 0) {
+        throw promptVersionConflict(await this.getFolderTx(tx, userId, id));
+      }
       const folder = await this.getFolderTx(tx, userId, id);
       await appendSyncChange(
         tx,
@@ -480,7 +492,7 @@ export class PromptService {
       if (Object.keys(set).length === 2) {
         throw new AppError('VALIDATION_FAILED', '没有可更新的字段');
       }
-      await tx
+      const updated = await tx
         .update(promptTags)
         .set(set)
         .where(
@@ -489,7 +501,12 @@ export class PromptService {
             eq(promptTags.id, id),
             eq(promptTags.version, input.expectedVersion),
           ),
-        );
+        )
+        .returning({ id: promptTags.id });
+      // 同一裁决:0 行即输掉竞态,重读事实状态后抛稳定 CONFLICT,不追加变更日志。
+      if (updated.length === 0) {
+        throw promptVersionConflict(await this.getTagTx(tx, userId, id));
+      }
       const tag = await this.getTagTx(tx, userId, id);
       await appendSyncChange(tx, userId, 'tag', id, 'upsert', tag.version, tag, context?.source);
       return tag;
@@ -527,7 +544,7 @@ export class PromptService {
       if (expectedVersion !== undefined && current.version !== expectedVersion) {
         throw promptVersionConflict(current);
       }
-      await tx
+      const updated = await tx
         .update(prompts)
         .set({
           deletedAt: deleted ? new Date() : null,
@@ -535,8 +552,19 @@ export class PromptService {
           updatedAt: new Date(),
         })
         .where(
-          and(eq(prompts.userId, userId), eq(prompts.id, id), eq(prompts.version, current.version)),
-        );
+          and(
+            eq(prompts.userId, userId),
+            eq(prompts.id, id),
+            // 无条件路径不设版本谓词,靠 version = version + 1 原子自增,删除/恢复必然落库;
+            // 显式版本路径由谓词 + 受影响行数做乐观锁裁决。
+            expectedVersion !== undefined ? eq(prompts.version, expectedVersion) : undefined,
+          ),
+        )
+        .returning({ id: prompts.id });
+      // 0 行 = 显式版本输给并发提交(或行被并发硬删):在写变更日志之前以稳定错误终止。
+      if (updated.length === 0) {
+        throw promptVersionConflict(await this.getPromptTx(tx, userId, id));
+      }
       const prompt = await this.getPromptTx(tx, userId, id);
       await appendSyncChange(
         tx,
@@ -565,10 +593,7 @@ export class PromptService {
         throw promptVersionConflict(current);
       }
       if (!deleted && current.parentId) await this.requireFolder(tx, userId, current.parentId);
-      if (deleted && !current.deletedAt) {
-        await this.detachFolderRelations(tx, userId, id, context?.source);
-      }
-      await tx
+      const updated = await tx
         .update(promptFolders)
         .set({
           deletedAt: deleted ? new Date() : null,
@@ -579,9 +604,19 @@ export class PromptService {
           and(
             eq(promptFolders.userId, userId),
             eq(promptFolders.id, id),
-            eq(promptFolders.version, current.version),
+            // 无条件路径不设版本谓词(必然落库);显式版本路径由谓词 + 受影响行数裁决。
+            expectedVersion !== undefined ? eq(promptFolders.version, expectedVersion) : undefined,
           ),
-        );
+        )
+        .returning({ id: promptFolders.id });
+      // 裁决必须先于关联摘除:0 行即输掉竞态,败者事务不得改动子文件夹/提示词,
+      // 也不得追加任何变更日志;重读后抛稳定 CONFLICT。
+      if (updated.length === 0) {
+        throw promptVersionConflict(await this.getFolderTx(tx, userId, id));
+      }
+      if (deleted && !current.deletedAt) {
+        await this.detachFolderRelations(tx, userId, id, context?.source);
+      }
       const folder = await this.getFolderTx(tx, userId, id);
       await appendSyncChange(
         tx,
@@ -609,10 +644,7 @@ export class PromptService {
       if (expectedVersion !== undefined && current.version !== expectedVersion) {
         throw promptVersionConflict(current);
       }
-      if (deleted && !current.deletedAt) {
-        await this.detachTagRelations(tx, userId, id, context?.source);
-      }
-      await tx
+      const updated = await tx
         .update(promptTags)
         .set({
           deletedAt: deleted ? new Date() : null,
@@ -623,9 +655,19 @@ export class PromptService {
           and(
             eq(promptTags.userId, userId),
             eq(promptTags.id, id),
-            eq(promptTags.version, current.version),
+            // 无条件路径不设版本谓词(必然落库);显式版本路径由谓词 + 受影响行数裁决。
+            expectedVersion !== undefined ? eq(promptTags.version, expectedVersion) : undefined,
           ),
-        );
+        )
+        .returning({ id: promptTags.id });
+      // 裁决必须先于标签关联摘除:0 行即输掉竞态,败者事务不得删链接、
+      // 递增提示词版本或追加变更日志;重读后抛稳定 CONFLICT。
+      if (updated.length === 0) {
+        throw promptVersionConflict(await this.getTagTx(tx, userId, id));
+      }
+      if (deleted && !current.deletedAt) {
+        await this.detachTagRelations(tx, userId, id, context?.source);
+      }
       const tag = await this.getTagTx(tx, userId, id);
       await appendSyncChange(
         tx,

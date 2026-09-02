@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   type PromptDocument,
   type PromptFolder,
@@ -17,6 +18,10 @@ import {
   newPromptTagSchema,
   syncChangeOperationSchema,
   syncEntityTypeSchema,
+  syncMutationSchema,
+  updatePromptDocumentSchema,
+  updatePromptFolderSchema,
+  updatePromptTagSchema,
 } from '@musefold/contracts';
 import {
   type MusefoldDatabase,
@@ -268,70 +273,89 @@ export class SyncService {
     deviceId: string,
     mutation: SyncMutation,
   ): Promise<SyncMutationResult> {
-    return this.db.transaction(async (tx) => {
-      await this.assertActiveDeviceTx(tx, userId, deviceId);
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${deviceId}:${mutation.mutationId}`}, 0))`,
-      );
-      const stored = await tx
-        .select()
-        .from(syncMutationResults)
-        .where(
-          and(
-            eq(syncMutationResults.userId, userId),
-            eq(syncMutationResults.deviceId, deviceId),
-            eq(syncMutationResults.mutationId, mutation.mutationId),
-          ),
+    const requestFingerprint = fingerprintSyncMutation(mutation);
+    try {
+      return await this.db.transaction(async (tx) => {
+        await this.assertActiveDeviceTx(tx, userId, deviceId);
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${userId}:${deviceId}:${mutation.mutationId}`}, 0))`,
         );
-      if (stored[0]) {
-        return {
-          mutationId: mutation.mutationId,
-          status: 'duplicate',
-          version: stored[0].resultVersion,
-          snapshot: stored[0].resultSnapshot as SyncMutationResult['snapshot'],
-          errorCode: stored[0].errorCode,
-        };
-      }
-
-      let result: SyncMutationResult;
-      try {
-        result = await this.executeMutation(userId, deviceId, mutation, tx);
-      } catch (error) {
-        if (error instanceof AppError && error.code === 'PROMPT_VERSION_CONFLICT') {
-          const current = error.details.current as SyncMutationResult['snapshot'];
-          result = {
-            mutationId: mutation.mutationId,
-            status: 'conflict',
-            version: current && 'version' in current ? current.version : null,
-            snapshot: current,
-            errorCode: 'SYNC_MUTATION_CONFLICT',
-          };
-        } else if (error instanceof AppError || error instanceof ZodError) {
-          result = {
-            mutationId: mutation.mutationId,
-            status: 'rejected',
-            version: null,
-            snapshot: null,
-            errorCode: error instanceof AppError ? error.code : 'VALIDATION_FAILED',
-          };
-        } else {
-          throw error;
+        const stored = await tx
+          .select()
+          .from(syncMutationResults)
+          .where(
+            and(
+              eq(syncMutationResults.userId, userId),
+              eq(syncMutationResults.deviceId, deviceId),
+              eq(syncMutationResults.mutationId, mutation.mutationId),
+            ),
+          );
+        if (stored[0]) {
+          return replayMutationResult(mutation.mutationId, stored[0], requestFingerprint);
         }
-      }
 
-      await tx.insert(syncMutationResults).values({
-        userId,
-        deviceId,
-        mutationId: mutation.mutationId,
-        entityType: mutation.entityType,
-        entityId: mutation.entityId,
-        resultStatus: result.status,
-        resultVersion: result.version,
-        resultSnapshot: result.snapshot as Record<string, unknown> | null,
-        errorCode: result.errorCode,
+        let result: SyncMutationResult;
+        try {
+          result = await this.executeMutation(userId, deviceId, mutation, tx);
+        } catch (error) {
+          if (error instanceof AppError && error.code === 'PROMPT_VERSION_CONFLICT') {
+            const current = error.details.current as SyncMutationResult['snapshot'];
+            result = {
+              mutationId: mutation.mutationId,
+              status: 'conflict',
+              version: current && 'version' in current ? current.version : null,
+              snapshot: current,
+              errorCode: 'SYNC_MUTATION_CONFLICT',
+            };
+          } else if (error instanceof AppError || error instanceof ZodError) {
+            result = {
+              mutationId: mutation.mutationId,
+              status: 'rejected',
+              version: null,
+              snapshot: null,
+              errorCode: error instanceof AppError ? error.code : 'VALIDATION_FAILED',
+            };
+          } else {
+            throw error;
+          }
+        }
+
+        await tx.insert(syncMutationResults).values({
+          userId,
+          deviceId,
+          mutationId: mutation.mutationId,
+          entityType: mutation.entityType,
+          entityId: mutation.entityId,
+          resultStatus: result.status,
+          resultVersion: result.version,
+          resultSnapshot: result.snapshot as Record<string, unknown> | null,
+          errorCode: result.errorCode,
+          requestFingerprint,
+        });
+        return result;
       });
-      return result;
-    });
+    } catch (error) {
+      // The advisory lock covers all service writers. This fallback also handles a
+      // legacy writer that wins the unique key without taking that lock: the failed
+      // transaction is rolled back before the persisted result is inspected.
+      if (!isUniqueViolation(error)) throw error;
+      const stored = await this.db.transaction(async (tx) =>
+        tx
+          .select()
+          .from(syncMutationResults)
+          .where(
+            and(
+              eq(syncMutationResults.userId, userId),
+              eq(syncMutationResults.deviceId, deviceId),
+              eq(syncMutationResults.mutationId, mutation.mutationId),
+            ),
+          ),
+      );
+      if (stored[0]) {
+        return replayMutationResult(mutation.mutationId, stored[0], requestFingerprint);
+      }
+      throw error;
+    }
   }
 
   private async executeMutation(
@@ -475,4 +499,142 @@ function parseCursor(cursor: string): number {
   const value = Number(cursor);
   if (!Number.isSafeInteger(value)) throw new AppError('VALIDATION_FAILED', '同步游标无效');
   return value;
+}
+
+const SYNC_MUTATION_PAYLOAD_MISMATCH = 'SYNC_MUTATION_PAYLOAD_MISMATCH';
+
+/**
+ * 计算 push 请求的稳定指纹。只接收 sync contract 已解析的 mutation；业务 payload
+ * 再按实际执行所用的 prompt contract 做默认值/字段规范化。
+ */
+export function fingerprintSyncMutation(mutation: SyncMutation): string {
+  const parsed = syncMutationSchema.parse(mutation);
+  const request = {
+    entityType: parsed.entityType,
+    entityId: parsed.entityId,
+    operation: parsed.operation,
+    baseVersion: parsed.baseVersion,
+    payload: normalizeMutationPayload(parsed),
+  };
+  return createHash('sha256').update(canonicalJson(request)).digest('hex');
+}
+
+function normalizeMutationPayload(mutation: SyncMutation): Record<string, unknown> {
+  try {
+    if (mutation.entityType === 'prompt') {
+      if (mutation.operation === 'create') {
+        const parsed = newPromptDocumentSchema.parse(mutation.payload);
+        return {
+          ...parsed,
+          pinOrder: parsed.pinOrder ?? null,
+          tagIds: normalizeTagIds(parsed.tagIds),
+        };
+      }
+      if (mutation.operation === 'update') {
+        const parsed = updatePromptDocumentSchema.parse({
+          ...mutation.payload,
+          expectedVersion: mutation.baseVersion,
+        });
+        const { expectedVersion: _expectedVersion, ...payload } = parsed;
+        return payload.tagIds === undefined
+          ? payload
+          : { ...payload, tagIds: normalizeTagIds(payload.tagIds) };
+      }
+    } else if (mutation.entityType === 'folder') {
+      if (mutation.operation === 'create') return newPromptFolderSchema.parse(mutation.payload);
+      if (mutation.operation === 'update') {
+        const parsed = updatePromptFolderSchema.parse({
+          ...mutation.payload,
+          expectedVersion: mutation.baseVersion,
+        });
+        const { expectedVersion: _expectedVersion, ...payload } = parsed;
+        return payload;
+      }
+    } else if (mutation.entityType === 'tag') {
+      if (mutation.operation === 'create') return newPromptTagSchema.parse(mutation.payload);
+      if (mutation.operation === 'update') {
+        const parsed = updatePromptTagSchema.parse({
+          ...mutation.payload,
+          expectedVersion: mutation.baseVersion,
+        });
+        const { expectedVersion: _expectedVersion, ...payload } = parsed;
+        return payload;
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof ZodError)) throw error;
+  }
+
+  // Delete/restore ignore payload, and invalid create/update payloads still need a
+  // fingerprint so their first rejected result can be replayed safely.
+  return mutation.payload;
+}
+
+function normalizeTagIds(tagIds: string[]): string[] {
+  return [...new Set(tagIds)].sort();
+}
+
+function canonicalJson(value: unknown, seen = new WeakSet<object>()): string {
+  if (value === null) return 'null';
+  if (value === undefined) throw new Error('undefined is not a JSON value');
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('non-finite numbers are not allowed');
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
+  if (typeof value !== 'object') throw new Error('value is not JSON');
+
+  if (seen.has(value)) throw new Error('cyclic value is not allowed');
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const result = `[${value.map((item) => canonicalJson(item, seen)).join(',')}]`;
+    seen.delete(value);
+    return result;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) throw new Error('value is not JSON');
+  const record = value as Record<string, unknown>;
+  const result = `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key], seen)}`)
+    .join(',')}}`;
+  seen.delete(value);
+  return result;
+}
+
+function replayMutationResult(
+  mutationId: string,
+  stored: typeof syncMutationResults.$inferSelect,
+  requestFingerprint: string,
+): SyncMutationResult {
+  // Same mutation id with a different payload is NOT a replay of the stored
+  // result: acknowledging it as `duplicate` invites clients to clear their
+  // outbox and silently drop the diverging payload. Reject the request instead
+  // so clients retain and re-issue it. Legacy rows without a fingerprint stay
+  // on the compatibility duplicate path.
+  if (stored.requestFingerprint && stored.requestFingerprint !== requestFingerprint) {
+    return {
+      mutationId,
+      status: 'rejected',
+      version: null,
+      snapshot: null,
+      errorCode: SYNC_MUTATION_PAYLOAD_MISMATCH,
+    };
+  }
+  return {
+    mutationId,
+    status: 'duplicate',
+    version: stored.resultVersion,
+    snapshot: stored.resultSnapshot as SyncMutationResult['snapshot'],
+    errorCode: stored.errorCode,
+  };
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === '23505'
+  );
 }

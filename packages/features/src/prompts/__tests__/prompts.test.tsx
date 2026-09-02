@@ -6,6 +6,7 @@ import type {
 } from '@musefold/contracts';
 import type { MusefoldGateway, PromptsGateway } from '@musefold/platform';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
+import { TooltipProvider } from '@musefold/ui/components/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -142,7 +143,8 @@ function renderLibrary(prompts: PromptsGateway, props?: PromptLibraryScreenProps
     return (
       <QueryClientProvider client={queryClient}>
         <PlatformProvider runtime={{ gateway, capabilities: WEB_CAPABILITIES }}>
-          {children}
+          {/* 壳级 TooltipProvider 是生产唯一 provider(AppShell);独立渲染屏幕时测试壳补齐。 */}
+          <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
         </PlatformProvider>
       </QueryClientProvider>
     );
@@ -223,6 +225,7 @@ describe('PromptLibraryScreen', () => {
       prompt: 'film street photo',
       negative: 'blurry',
       params: { aspectRatio: '16:9', quality: 'high' },
+      promptReferenceSelections: [],
       promptReferenceIds: [],
     });
     expect(onOpenWorkbench).toHaveBeenCalledTimes(1);
@@ -293,6 +296,193 @@ describe('PromptLibraryScreen', () => {
   });
 });
 
+describe('PromptEditorDialog dirty guard(未保存修改保护)', () => {
+  function openCreateEditor() {
+    fireEvent.click(screen.getByTestId('prompt-create'));
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+  }
+
+  function dirtyTitle() {
+    fireEvent.change(screen.getByTestId('prompt-editor-title'), {
+      target: { value: '改过的标题' },
+    });
+  }
+
+  /**
+   * 模拟遮罩层外点。Radix DismissableLayer 的 document 级 pointerdown 监听在
+   * setTimeout(0) 后才挂上;modal Dialog 走 deferPointerDownOutside,外点 dispatch
+   * 推迟到 click,且目标必须落在 overlay(dismissable surface)上才生效。
+   */
+  async function clickEditorOverlay() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(overlay).toBeTruthy();
+    fireEvent.pointerDown(overlay as Element);
+    fireEvent.click(overlay as Element);
+  }
+
+  it('clean 状态下取消 / Escape / 外点直接关闭,不出现确认层', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    openCreateEditor();
+    fireEvent.click(screen.getByTestId('prompt-editor-cancel'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
+    expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+
+    openCreateEditor();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
+    expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+
+    openCreateEditor();
+    await clickEditorOverlay();
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
+    expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+  });
+
+  it('dirty 状态下 Escape 被拦截,「继续编辑」关闭确认层并保留全部修改', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    openCreateEditor();
+    dirtyTitle();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    // 编辑器不被关闭,确认层出现。
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+    expect(screen.getByTestId('prompt-editor-discard-dialog')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('prompt-editor-continue'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+    });
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+    expect((screen.getByTestId('prompt-editor-title') as HTMLInputElement).value).toBe(
+      '改过的标题',
+    );
+  });
+
+  it('dirty 状态下外部点击被拦截,「放弃修改」关闭编辑器且不保存', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    openCreateEditor();
+    dirtyTitle();
+    await clickEditorOverlay();
+
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+    expect(screen.getByTestId('prompt-editor-discard-dialog')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('prompt-editor-discard'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
+    expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+    // 不调用保存:库内仍是空的。
+    expect((await prompts.list({})).items).toHaveLength(0);
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-empty')).toBeTruthy();
+    });
+  });
+
+  it('dirty 状态下 X 关闭被拦截,继续编辑后保留修改', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const created = await prompts.create({
+      ...BASE_INPUT,
+      title: '编辑前标题',
+      content: 'original',
+    });
+    renderLibrary(prompts);
+
+    await waitFor(() => {
+      expect(screen.getByText('编辑前标题')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId('prompt-row-edit'));
+    fireEvent.change(screen.getByTestId('prompt-editor-title'), {
+      target: { value: '编辑中标题' },
+    });
+    const closeButton = screen
+      .getByTestId('prompt-editor')
+      .querySelector('[data-slot="dialog-close"]');
+    expect(closeButton).toBeTruthy();
+    fireEvent.click(closeButton as HTMLElement);
+
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+    expect(screen.getByTestId('prompt-editor-discard-dialog')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('prompt-editor-continue'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+    });
+    expect((screen.getByTestId('prompt-editor-title') as HTMLInputElement).value).toBe(
+      '编辑中标题',
+    );
+
+    fireEvent.click(screen.getByTestId('prompt-editor-cancel'));
+    fireEvent.click(screen.getByTestId('prompt-editor-discard'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
+    expect(screen.getByText('编辑前标题')).toBeTruthy();
+    expect(screen.queryByText('编辑中标题')).toBeNull();
+    expect(await prompts.get(created.id)).toMatchObject({ title: '编辑前标题' });
+  });
+
+  it('字段改回原值后恢复 clean,取消直接关闭不再弹确认层', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    openCreateEditor();
+    dirtyTitle();
+    fireEvent.change(screen.getByTestId('prompt-editor-title'), { target: { value: '' } });
+
+    fireEvent.click(screen.getByTestId('prompt-editor-cancel'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
+    expect(screen.queryByTestId('prompt-editor-discard-dialog')).toBeNull();
+  });
+
+  it('保存失败时保留当前表单值,编辑器保持打开', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const failing: PromptsGateway = {
+      ...prompts,
+      create: async () => {
+        throw new Error('NETWORK_DOWN');
+      },
+    };
+    renderLibrary(failing);
+
+    openCreateEditor();
+    fireEvent.change(screen.getByTestId('prompt-editor-title'), {
+      target: { value: '失败也要留住' },
+    });
+    fireEvent.change(screen.getByTestId('prompt-editor-content'), {
+      target: { value: 'prompt that fails to save' },
+    });
+    fireEvent.click(screen.getByTestId('prompt-editor-submit'));
+
+    // 等 mutation 落定(提交按钮恢复可用),表单值未被重置、编辑器仍打开。
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-editor-submit')).toHaveProperty('disabled', false);
+    });
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+    expect((screen.getByTestId('prompt-editor-title') as HTMLInputElement).value).toBe(
+      '失败也要留住',
+    );
+    expect((screen.getByTestId('prompt-editor-content') as HTMLTextAreaElement).value).toBe(
+      'prompt that fails to save',
+    );
+    expect((await prompts.list({})).items).toHaveLength(0);
+  });
+});
+
 describe('promptToWorkbenchDraft(参数收编与降级)', () => {
   const doc = {
     content: 'poster study',
@@ -307,6 +497,7 @@ describe('promptToWorkbenchDraft(参数收编与降级)', () => {
       prompt: 'poster study',
       negative: '',
       params: { aspectRatio: '3:4', quality: 'medium' },
+      promptReferenceSelections: [],
       promptReferenceIds: [],
     });
   });

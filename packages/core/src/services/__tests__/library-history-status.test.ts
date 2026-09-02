@@ -1,6 +1,6 @@
 // 服务面单测（V04-CORE-04）：Library / History / Status —— 共用主库临时实例。
 
-import { rmSync } from 'fs';
+import { rmSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { configureTestCoreRuntime } from '../../testing';
 
@@ -8,6 +8,7 @@ const root = `/tmp/musefold-core-services-${process.pid}`;
 configureTestCoreRuntime(root);
 
 import { getDb, initDb, closeDb } from '../../db/index';
+import { resolveActiveWorkspace } from '../../db/workspaces';
 import { initDesignSchemeDb, closeDesignSchemeDb, getDesignSchemeDb } from '../../db/design-scheme';
 import { createLibraryService } from '../library';
 import { createHistoryService, buildHistoryListSql } from '../history';
@@ -109,11 +110,12 @@ describe('LibraryService', () => {
 
   it('search 支持 folderId 过滤', () => {
     const folderId = 'svc-folder-filter';
+    const workspaceId = resolveActiveWorkspace(getDb());
     getDb()
       .prepare(
-        'INSERT INTO folders (id, name, parent_id, sort_order, created_at) VALUES (?, ?, NULL, 0, ?)',
+        'INSERT INTO folders (workspace_id, id, name, parent_id, sort_order, created_at) VALUES (?, ?, ?, NULL, 0, ?)',
       )
-      .run(folderId, '服务测试夹', Date.now());
+      .run(workspaceId, folderId, '服务测试夹', Date.now());
     const inFolder = library.create({
       title: '夹内提示词',
       content: 'in folder',

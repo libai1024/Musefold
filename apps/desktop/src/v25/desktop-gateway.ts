@@ -7,7 +7,27 @@ import {
   aiProviderSchema,
   aiProviderTestResultSchema,
   appPreferencesSchema,
+  cancelDesignSchemeResultSchema,
+  checkDesignSchemeUpdateResultSchema,
+  createDesignSchemeResultSchema,
+  designSchemeDetailSchema,
+  designSchemeEventSchema,
+  designSchemePageSchema,
+  designSchemeRunResultSchema,
+  DESIGN_SCHEME_WIRE_METHODS,
+  exportDesignSchemeResultSchema,
+  formalizeDesignSchemeResultSchema,
+  promoteWorkingDraftResultSchema,
+  prepareDesignSchemeImportPackageResultSchema,
+  importDesignSchemeResultSchema,
+  marketSearchResultSchema,
+  modifyDesignSchemeResultSchema,
+  renameDesignSchemeResultSchema,
+  removeDesignSchemeResultSchema,
+  selectCoverResultSchema,
+  updateDesignSchemeResultSchema,
   desktopSyncStatusSchema,
+  doubaoAccountStatusSchema,
   generationHistoryPageSchema,
   generationReferenceImageSchema,
   redeemResultSchema,
@@ -19,6 +39,7 @@ import {
   promptUseResultSchema,
   providerOptionSchema,
   saveAssetResultSchema,
+  syncConflictListSchema,
   workbenchSessionPageSchema,
   workbenchSessionSchema,
 } from '@musefold/contracts';
@@ -32,12 +53,35 @@ interface BridgeEnvelope {
   message?: string;
 }
 
+type ParsedBridgeEnvelope =
+  | { ok: true; data: unknown }
+  | { ok: false; code: string; message: string };
+
 declare global {
   interface Window {
     musefoldV25?: {
       invoke(method: string, payload?: unknown): Promise<unknown>;
+      prepareDesignSchemeImportPackage?(payload: unknown): Promise<unknown>;
+      onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void;
+      onDesignSchemeEvent(callback: (payload: unknown) => void): () => void;
+      isFullscreen(): Promise<boolean>;
+      /** 窗口生命周期 chrome(Win/Linux 自绘控件);与数据域 invoke 通道分离。 */
+      minimize(): void;
+      maximizeToggle(): void;
+      close(): void;
+      isMaximized(): Promise<boolean>;
+      onMaximizeChange(callback: (isMaximized: boolean) => void): () => void;
     };
   }
+}
+
+const DESIGN_SCHEME_ASSET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/** Renderer-visible scheme media URLs contain only canonical opaque ids; main resolves storage. */
+export function resolveDesktopDesignSchemeAssetUrl(assetId: string): string | null {
+  return DESIGN_SCHEME_ASSET_ID_PATTERN.test(assetId)
+    ? `media://scheme-asset/${encodeURIComponent(assetId)}`
+    : null;
 }
 
 export class DesktopGatewayError extends Error {
@@ -54,7 +98,99 @@ const promptFolderListSchema = z.array(promptFolderSchema);
 const promptTagListSchema = z.array(promptTagSchema);
 const providerOptionListSchema = z.array(providerOptionSchema);
 const aiProviderListSchema = z.array(aiProviderSchema);
+const MALFORMED_ENVELOPE_CODE = 'MALFORMED_ENVELOPE';
+const MALFORMED_ENVELOPE_MESSAGE = '桌面桥返回格式无效';
 const voidSchema = z.unknown().transform(() => undefined);
+
+function malformedEnvelope(): DesktopGatewayError {
+  return new DesktopGatewayError(MALFORMED_ENVELOPE_CODE, MALFORMED_ENVELOPE_MESSAGE);
+}
+
+function parseBridgeEnvelope(value: unknown): ParsedBridgeEnvelope {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw malformedEnvelope();
+  }
+  const envelope = value as BridgeEnvelope;
+  if (!Object.hasOwn(envelope, 'ok') || typeof envelope.ok !== 'boolean') {
+    throw malformedEnvelope();
+  }
+  if (envelope.ok) {
+    if (!Object.hasOwn(envelope, 'data')) throw malformedEnvelope();
+    return { ok: true, data: envelope.data };
+  }
+  if (
+    !Object.hasOwn(envelope, 'code') ||
+    typeof envelope.code !== 'string' ||
+    !Object.hasOwn(envelope, 'message') ||
+    typeof envelope.message !== 'string'
+  ) {
+    throw malformedEnvelope();
+  }
+  return { ok: false, code: envelope.code, message: envelope.message };
+}
+
+function subscribeDesignSchemeEvents(
+  listener: Parameters<NonNullable<MusefoldGateway['designSchemes']>['subscribeEvents']>[0],
+): () => void {
+  const bridge = window.musefoldV25;
+  if (!bridge) {
+    throw new DesktopGatewayError('BRIDGE_MISSING', 'v2.5 preload 桥未注入');
+  }
+  if (!bridge.onDesignSchemeEvent) {
+    throw new DesktopGatewayError('DESIGN_SCHEME_UNAVAILABLE', '设计方案事件暂不可用');
+  }
+  return bridge.onDesignSchemeEvent((payload) => {
+    const parsed = designSchemeEventSchema.safeParse(payload);
+    if (parsed.success) listener(parsed.data);
+  });
+}
+
+const designSchemesGateway: NonNullable<MusefoldGateway['designSchemes']> = {
+  list: (query) => invoke(DESIGN_SCHEME_WIRE_METHODS.list, query, designSchemePageSchema),
+  get: (id, revision = { kind: 'current' }) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.get, { id, revision }, designSchemeDetailSchema),
+  searchMarket: (query) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.searchMarket, query, marketSearchResultSchema),
+  create: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.create, input, createDesignSchemeResultSchema),
+  update: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.update, input, updateDesignSchemeResultSchema),
+  modify: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.modify, input, modifyDesignSchemeResultSchema),
+  cancel: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.cancel, input, cancelDesignSchemeResultSchema),
+  selectCover: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.selectCover, input, selectCoverResultSchema),
+  formalize: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.formalize, input, formalizeDesignSchemeResultSchema),
+  promoteWorkingDraft: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.promoteWorkingDraft, input, promoteWorkingDraftResultSchema),
+  rename: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.rename, input, renameDesignSchemeResultSchema),
+  remove: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.remove, input, removeDesignSchemeResultSchema),
+  checkUpdate: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.checkUpdate, input, checkDesignSchemeUpdateResultSchema),
+  prepareImportPackage: async (input) => {
+    const bridge = window.musefoldV25;
+    if (!bridge) throw new DesktopGatewayError('BRIDGE_MISSING', 'v2.5 preload 桥未注入');
+    if (!bridge.prepareDesignSchemeImportPackage) {
+      throw new DesktopGatewayError(
+        'DESIGN_SCHEME_PACKAGE_HOST_UNAVAILABLE',
+        '设计方案文件选择暂不可用',
+      );
+    }
+    const envelope = parseBridgeEnvelope(await bridge.prepareDesignSchemeImportPackage(input));
+    if (!envelope.ok) throw new DesktopGatewayError(envelope.code, envelope.message);
+    return prepareDesignSchemeImportPackageResultSchema.parse(envelope.data);
+  },
+  importPackage: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.importPackage, input, importDesignSchemeResultSchema),
+  exportPackage: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.exportPackage, input, exportDesignSchemeResultSchema),
+  run: (input) => invoke(DESIGN_SCHEME_WIRE_METHODS.run, input, designSchemeRunResultSchema),
+  subscribeEvents: subscribeDesignSchemeEvents,
+};
 
 async function invoke<S extends z.ZodType>(
   method: string,
@@ -65,12 +201,9 @@ async function invoke<S extends z.ZodType>(
   if (!bridge) {
     throw new DesktopGatewayError('BRIDGE_MISSING', 'v2.5 preload 桥未注入');
   }
-  const envelope = (await bridge.invoke(method, payload)) as BridgeEnvelope;
+  const envelope = parseBridgeEnvelope(await bridge.invoke(method, payload));
   if (!envelope.ok) {
-    throw new DesktopGatewayError(
-      envelope.code ?? 'INTERNAL_ERROR',
-      envelope.message ?? '调用失败',
-    );
+    throw new DesktopGatewayError(envelope.code, envelope.message);
   }
   return response.parse(envelope.data);
 }
@@ -96,6 +229,10 @@ export function createDesktopGateway(): MusefoldGateway {
     },
     sync: {
       getStatus: () => invoke('sync.getStatus', undefined, desktopSyncStatusSchema),
+      setConsent: (consent) => invoke('sync.setConsent', { consent }, desktopSyncStatusSchema),
+      listConflicts: () => invoke('sync.listConflicts', undefined, syncConflictListSchema),
+      resolveConflict: (conflictId, resolution) =>
+        invoke('sync.resolveConflict', { conflictId, resolution }, desktopSyncStatusSchema),
       setEnabled: (enabled) => invoke('sync.setEnabled', { enabled }, desktopSyncStatusSchema),
       syncNow: () => invoke('sync.syncNow', undefined, desktopSyncStatusSchema),
     },
@@ -107,6 +244,14 @@ export function createDesktopGateway(): MusefoldGateway {
       setActive: (id) => invoke('aiProviders.setActive', { id }, aiProviderSchema),
       test: (id) => invoke('aiProviders.test', { id }, aiProviderTestResultSchema),
     },
+    // 豆包网页登录:单通道桥直达冻结 browser-service;QR 以 data URL 随状态快照返回。
+    doubao: {
+      getStatus: () => invoke('doubao.getStatus', undefined, doubaoAccountStatusSchema),
+      startLogin: () => invoke('doubao.startLogin', undefined, doubaoAccountStatusSchema),
+      refreshLogin: () => invoke('doubao.refreshLogin', undefined, doubaoAccountStatusSchema),
+      logout: () => invoke('doubao.logout', undefined, doubaoAccountStatusSchema),
+    },
+    designSchemes: designSchemesGateway,
     prompts: {
       list: (query) => invoke('prompts.list', query, promptPageSchema),
       get: (id) => invoke('prompts.get', { id }, promptDocumentSchema),
@@ -136,11 +281,11 @@ export function createDesktopGateway(): MusefoldGateway {
       restoreSession: (id) => invoke('workbench.restoreSession', id, workbenchSessionSchema),
     },
     generation: {
-      create: (input) => invoke('generation.create', input, generationJobSchema),
+      create: (input, _idempotencyKey) => invoke('generation.create', input, generationJobSchema),
       list: (query) => invoke('generation.list', query, generationHistoryPageSchema),
       get: (id) => invoke('generation.get', id, generationJobSchema),
       cancel: (id) => invoke('generation.cancel', id, generationJobSchema),
-      retry: (id) => invoke('generation.retry', id, generationJobSchema),
+      retry: (id, _idempotencyKey) => invoke('generation.retry', id, generationJobSchema),
       remove: (id) => invoke('generation.remove', id, generationJobSchema),
       restore: (id) => invoke('generation.restore', id, generationJobSchema),
       purge: (id) => invoke('generation.purge', id, voidSchema),

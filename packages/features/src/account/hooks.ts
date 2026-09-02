@@ -1,8 +1,11 @@
 import type {
   CreateAiProvider,
+  DesktopSyncConsent,
   DesktopSyncStatus,
+  DoubaoAccountStatus,
   LoginRequest,
   RedeemResult,
+  SyncConflictResolution,
   UpdateAiProvider,
 } from '@musefold/contracts';
 import { ACCOUNT_QUOTA_PER_POINT } from '@musefold/contracts';
@@ -110,12 +113,52 @@ export function useSetSyncEnabled() {
   });
 }
 
+/** 写入 durable consent(unset→enabled 首次同意 / enabled⇄paused);runtime phase 由宿主派生。 */
+export function useSetSyncConsent() {
+  const sync = useSyncGateway();
+  const apply = useApplySyncResult();
+  return useMutation({
+    mutationFn: (consent: DesktopSyncConsent) => sync.setConsent(consent),
+    onSuccess: apply,
+  });
+}
+
 export function useSyncNow() {
   const sync = useSyncGateway();
   const apply = useApplySyncResult();
   return useMutation({
     mutationFn: () => sync.syncNow(),
     onSuccess: apply,
+  });
+}
+
+/** 冲突列表按需查询:调用方仅在状态提示存在未解决冲突时传 enabled=true。 */
+export function useSyncConflicts(enabled: boolean) {
+  const sync = useSyncGateway();
+  return useQuery({
+    queryKey: queryKeys.sync.conflicts(),
+    queryFn: () => sync.listConflicts(),
+    enabled,
+  });
+}
+
+export function useResolveSyncConflict() {
+  const sync = useSyncGateway();
+  const apply = useApplySyncResult();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      conflictId,
+      resolution,
+    }: {
+      conflictId: string;
+      resolution: SyncConflictResolution;
+    }) => sync.resolveConflict(conflictId, resolution),
+    onSuccess: (status) => {
+      // apply 已失效 prompts;冲突列表随状态一起刷新,行级错误由调用方就地呈现。
+      apply(status);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sync.conflicts() });
+    },
   });
 }
 
@@ -187,5 +230,69 @@ export function useTestAiProvider() {
   const aiProviders = useAiProvidersGateway();
   return useMutation({
     mutationFn: (id: string) => aiProviders.test(id),
+  });
+}
+
+// ── 豆包网页登录(gateway.doubao,仅桌面宿主提供;冻结 browser-service 薄适配)──
+
+function useDoubaoGateway() {
+  const gateway = useGateway();
+  if (!gateway.doubao) {
+    throw new Error('当前宿主不提供豆包网页登录(hasDoubaoWebLogin=false)');
+  }
+  return gateway.doubao;
+}
+
+/**
+ * 豆包账号状态。登录流进行中(qr-ready/scanned/loading)按 2s 轮询跟随主进程内部
+ * 登录 poller 的状态推进;静止状态不轮询。
+ */
+export function useDoubaoAccountStatus() {
+  const doubao = useDoubaoGateway();
+  return useQuery({
+    queryKey: queryKeys.doubao.status(),
+    queryFn: () => doubao.getStatus(),
+    retry: false,
+    refetchInterval: (query) => {
+      const state = query.state.data?.loginState;
+      return state === 'qr-ready' || state === 'scanned' || state === 'loading' ? 2_000 : false;
+    },
+  });
+}
+
+/** 登录态变化会经主进程 doubao-login-sync 回写 providers.has_key,连接选项一并失效。 */
+function useApplyDoubaoStatus() {
+  const queryClient = useQueryClient();
+  return (status: DoubaoAccountStatus) => {
+    queryClient.setQueryData(queryKeys.doubao.status(), status);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.aiProviders.list() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.generation.providers() });
+  };
+}
+
+export function useStartDoubaoLogin() {
+  const doubao = useDoubaoGateway();
+  const apply = useApplyDoubaoStatus();
+  return useMutation({
+    mutationFn: () => doubao.startLogin(),
+    onSuccess: apply,
+  });
+}
+
+export function useRefreshDoubaoLogin() {
+  const doubao = useDoubaoGateway();
+  const apply = useApplyDoubaoStatus();
+  return useMutation({
+    mutationFn: () => doubao.refreshLogin(),
+    onSuccess: apply,
+  });
+}
+
+export function useLogoutDoubao() {
+  const doubao = useDoubaoGateway();
+  const apply = useApplyDoubaoStatus();
+  return useMutation({
+    mutationFn: () => doubao.logout(),
+    onSuccess: apply,
   });
 }

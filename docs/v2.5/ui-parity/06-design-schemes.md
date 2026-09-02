@@ -1,7 +1,7 @@
-# 06 设计方案 — 旧版全量记录 vs v2.5(暂缓域迁移蓝图)
+# 06 设计方案 — 旧版全量记录 vs v2.5(P01 迁移蓝图)
 
-> **用途**:设计方案是 V25-UI-SPEC §0.2 登记的暂缓域——主进程语义完整保留(`apps/desktop/electron/main/design-scheme/`,automation/CLI/MCP 直连),渲染层在 v2.5 新壳中**尚无任何入口**。本文的性质与其他篇不同:不是「差距清单」,而是**旧版 UI/UX 的全量存档 + 未来迁入 v2.5 面时的蓝图基准**。排卡前禁止顺手实现或删除(CLAUDE.md 暂缓域红线)。
-> **旧版源码**:`apps/desktop/src/features/design-schemes/*`(19 文件,4,124 行):`DesignSchemesPage`(600 行)/ `SchemeControlDeck` / `SchemeListPrimitives` / `SchemeListActions` / `SchemeInspector` / `SchemeRuntimeDetail` / `SchemeRuntimeDetailSections` / `SchemeRuntimeAlbum` / `SchemeRuntimeDialogs` / `SchemeCreationConversation` / `SchemeRunConversation` / `SchemeRunComposer` / `SchemeRunPicker` / `HistorySourcePicker` / `creation-store` / `run-store`。
+> **用途**:设计方案已从暂缓域转入 P01 迁移(`doing`)——共享 contracts/features、双端确定性 CRUD 与 Desktop `.musefold.design` 安全 staging/archive/domain 导入导出已有源码与定向单测,但 v2.5 三端**尚无导航/路由入口**,双宿主 `hasDesignSchemes=false`;run/Agent 编译/modify/事件与 Web run/assets/package 未完成。本文的性质仍是**旧版 UI/UX 的全量存档 + 迁入 v2.5 面时的蓝图基准**,当前事实以 [V25-UI-SPEC §8A](../V25-UI-SPEC.md) 为准;入口开启前禁止顺手实现 UI 或删除主进程语义(暂缓域红线)。
+> **实施状态来源**:本文是旧版 UI/UX 全量存档与迁入蓝图,不表示当前 v2.5 已有入口或已完成;实施进度(`todo/doing/partial/verify/done`)、Mobile Web/PC Web/Desktop/Desktop Agent 状态、依赖和证据以 [`V25-MIGRATION-CARDS.md`](../V25-MIGRATION-CARDS.md) 的 P01 平台矩阵为准。
 
 ---
 
@@ -64,15 +64,15 @@
 
 前置依赖(按序):
 
-1. **契约先行**:`packages/contracts` 新增 designScheme 域 schema(summary/detail/inputs/revision/market candidate),从旧 `desktop-contracts/design-scheme` 翻译,云端语义(是否入 PG)由架构卡决定——v2.5 首阶段建议**桌面 only + 能力开关 `hasDesignSchemes`**,Web 隐藏入口。
+1. **契约先行**:`packages/contracts` 新增 designScheme 域 schema(summary/detail/inputs/revision/market candidate),从旧 `desktop-contracts/design-scheme` 翻译,云端语义(是否入 PG)由 P01-0/P01-2 裁决——最终目标仍是 Web/Desktop parity;契约与 PG cloud 副本已建立(P01-1/P01-2/P01-5),Web 与 v25 renderer 在 capability 开启前隐藏入口,不得伪造可用。
 2. **导航**:`SHELL_NAV_ITEMS` 恢复 `design-schemes` 项(旧 ProductViewIcon 用 Blocks 图标),桌面宿主目录先行。
 3. **屏骨架**:`packages/features/src/schemes/`,复用现有组件系:scope tabs=shadcn Tabs,行=参照 `PromptListRow` 结构(56px 封面 + 主动作 + hover 组),Inspector=参照 `HistoryInspector`(lg+ aside / 窄屏 Sheet),市场安装确认=AlertDialog。
 4. **详情页**:v2.5 壳内以整屏视图承载(宿主 view 切换),分节结构承旧 `DetailSection`;槽位编辑的 staged 语义保留。
 5. **工作台挂点回填**:03 登记的 preface(创建/运行对话)、Composer「+」菜单项、模式 tab、变量表单——与本域同卡交付。
 6. **跨屏意图**:`useScreenIntent` 扩展 `schemes-surface` payload(承旧 `intent.surface` 深链)。
-7. **工艺基线**:迁入时 UI 工艺直接按 [00-codex-craft.md](./00-codex-craft.md) 执行(六态/动效 token/行解剖/kbd),不再为本域单独发明;保真度徽标、生命周期状态卡等新组件按 00 §2 法则 1(状态色只在状态处)与法则 3(圆角 ≤3 种)设计。本域暂缓期间不排 C 卡。
+7. **工艺基线**:迁入时 UI 工艺直接按 [00-codex-craft.md](./00-codex-craft.md) 执行(六态/动效 token/行解剖/kbd),不再为本域单独发明;保真度徽标、生命周期状态卡等新组件按 00 §2 法则 1(状态色只在状态处)与法则 3(圆角 ≤3 种)设计。本域 P 卡收口前不排 C 卡。
 
-迁移验收口径:§3 的 8 条交互全部可走通;automation 直连行为与渲染层操作产生的数据一致;三形态视觉快照 + 00 §8 评审检查单;V25-UI-SPEC 增补 §「设计方案」章节并把本文降级为历史存档。
+迁移验收口径:§3 的 8 条交互全部可走通;automation 直连行为与渲染层操作产生的数据一致;三形态视觉快照 + 00 §8 评审检查单;V25-UI-SPEC §8A 已登记为迁移中基准,域收口后把本文降级为历史存档。
 
 ## 5.1 状态矩阵存档(迁移验收基准)
 
@@ -88,6 +88,6 @@
 
 ## 6. 差距声明
 
-当前 v2.5 面:**0% 迁入,0 个入口,主进程能力 100% 保留**。在排卡前唯一允许的动作:
+当前 v2.5 面:**P01 迁移中**——共享 contracts/features 与双端确定性 CRUD 已接入,Desktop `.musefold.design` 安全 staging/archive/domain 导入导出已接线(定向单测/typecheck/build 通过,E2E/capability 未验收);run/Agent 编译/modify/事件、Web run/assets/package 未完成;**三端 0 个导航/路由入口,双宿主 `hasDesignSchemes=false`**;主进程能力 100% 保留。迁移期间的动作边界:
 - 保持 `electron/main/design-scheme/` 与 automation 通路不回归(现有集成测试守护);
-- 新壳/新屏实现时为上述挂点留槽(03/04 已登记),不做死入口(D2)。
+- 入口只在 P01-7 挂载、capability 开启后出现,不做死入口(D2);通用分享/导入与 Skill 运行对话仍按暂缓域处理。

@@ -25,7 +25,8 @@ packages/       共享包:features(页面模块)、ui(shadcn 原语)、contracts
   → MusefoldGateway(packages/platform 接口)
   → Web:    packages/api-client → HTTPS → apps/api → PostgreSQL
   → 桌面:  v25 desktop-gateway → 单通道 IPC(musefold:invoke)→ 主进程 ipc-v25/* → SQLite(desktop-db 受管)
-```
+
+窗口全屏/最大化等只读宿主信号属于窗口生命周期接缝,由主进程受控查询/事件经 v25 preload 提供给壳宿主;它们不进入业务 `MusefoldGateway` 或 `musefold:invoke` 数据方法表。
 
 ## 权威顺序(冲突时以此裁决)
 
@@ -69,7 +70,7 @@ packages/       共享包:features(页面模块)、ui(shadcn 原语)、contracts
 
 以下旧域「主进程语义保留、渲染层暂缓」,后续各自排卡接入 v25 面,遇到时不要顺手补 UI 也不要删服务代码:
 
-- 设计方案(design-scheme)、Skill 运行时对话、分享/导入、豆包网页登录管理、热更新控制面(设置「关于」卡)。
+- Skill 运行时对话、通用分享/导入、豆包网页登录管理、热更新控制面(设置「关于」卡)。设计方案已纳入 v2.1→v2.5 迁移,其专用 `.musefold.design` 导入/导出属于设计方案功能闭环。
 - 服务函数分别在 `apps/desktop/electron/main/{design-scheme/,ipc/skill-runtime.ts,generation-facade.ts}`,由 automation(CLI / MCP / Automation API)直连,是 Agent 对外能力的一部分。
 
 ## 文档地图

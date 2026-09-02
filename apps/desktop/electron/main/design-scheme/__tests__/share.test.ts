@@ -1,9 +1,15 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import {
+  createWriteStream,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import archiver from 'archiver';
-import { createWriteStream } from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
@@ -11,6 +17,13 @@ import {
 } from '@musefold/desktop-contracts/design-scheme/schema';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import {
+  contentEntriesHash,
+  readValidatedDesignSchemePackage,
+  sha256,
+  type CanonicalShareManifest,
+  type ValidatedDesignSchemePackage,
+} from '../package-archive';
 import {
   exportDesignScheme,
   importDesignScheme,
@@ -35,6 +48,8 @@ afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+const COMMIT = 'a'.repeat(40);
+
 function documentFixture(): DesignSchemeRevisionDocument {
   return {
     schemaVersion: DESIGN_SCHEME_DOCUMENT_VERSION,
@@ -49,7 +64,7 @@ function documentFixture(): DesignSchemeRevisionDocument {
         kind: 'github-skill',
         role: 'normative',
         uri: 'https://github.com/acme/illust',
-        commit: 'abcd1234',
+        commit: COMMIT,
       },
     ],
     inputs: [{ id: 'topic', label: '插画主题', kind: 'text', required: true }],
@@ -111,7 +126,7 @@ function seedFormalScheme(db: Database.Database, userData: string): void {
     snapshot: {
       id: 'snap_share',
       ref: 'main',
-      commitHash: 'abcd1234',
+      commitHash: COMMIT,
       totalBytes: 128,
       scan: { fileCount: 2 },
     },
@@ -211,9 +226,18 @@ describe('exportDesignScheme / importDesignScheme', () => {
     const text = sources[0]?.files.find((file) => file.path === 'SKILL.md');
     expect(text?.textExcerpt).toBe('# 小黑插画 skill');
     const image = sources[0]?.files.find((file) => file.path === 'reference.png');
-    expect(image?.storeKey).toBeTruthy();
-    expect(readFileSync(join(otherUserData, image!.storeKey!)).equals(fakePngBuffer(64, 64))).toBe(
+    if (!image?.storeKey) throw new Error('expected imported source image');
+    expect(readFileSync(join(otherUserData, image.storeKey)).equals(fakePngBuffer(64, 64))).toBe(
       true,
+    );
+
+    // v6：导入的来源文件固化真实 MIME（文本按扩展名，图片按魔数）。
+    const importedFiles = otherDb
+      .prepare('SELECT path, kind, mime_type FROM source_files ORDER BY path')
+      .all() as Array<{ path: string; kind: string; mime_type: string | null }>;
+    expect(importedFiles.find((file) => file.path === 'SKILL.md')?.mime_type).toBe('text/markdown');
+    expect(importedFiles.find((file) => file.path === 'reference.png')?.mime_type).toBe(
+      'image/png',
     );
   });
 
@@ -225,37 +249,33 @@ describe('exportDesignScheme / importDesignScheme', () => {
     });
     expect(exported.ok).toBe(true);
 
-    // 借导入通道解包验证（不落库）：直接读 manifest。
-    const manifestRecord = db
-      .prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1')
-      .get() as { manifest_json: string };
-    const manifest = JSON.parse(manifestRecord.manifest_json) as {
-      format: string;
-      formatVersion: number;
-      files: Record<string, string>;
-      snapshots: Array<{ kind: string; role: string; license: string | null }>;
-    };
+    const validated = await readValidatedDesignSchemePackage(packagePath, [SHARE_FORMAT_VERSION]);
+    expect(validated.formatVersion).toBe(SHARE_FORMAT_VERSION);
+    if (validated.formatVersion !== SHARE_FORMAT_VERSION) return;
+    const { manifest } = validated;
     expect(manifest.format).toBe(SHARE_FORMAT);
     expect(manifest.formatVersion).toBe(SHARE_FORMAT_VERSION);
-    expect(Object.keys(manifest.files).sort()).toEqual([
-      'assets/snap_1/reference.png',
-      'evaluations/latest.json',
-      'previews/cover.png',
+    expect(manifest.content.entries.map((entry) => entry.relativePath).sort()).toEqual([
+      expect.stringMatching(/^assets\/dsa_.+\.png$/),
       'scheme.json',
-      'sources/snap_1/SKILL.md',
+      'sources/snap_share/SKILL.md',
+      'sources/snap_share/reference.png',
     ]);
-    expect(manifest.snapshots).toEqual([
-      {
-        dir: 'snap_1',
-        kind: 'github',
-        role: 'normative',
-        repositoryUrl: 'https://github.com/acme/illust',
-        ref: 'main',
-        commitHash: 'abcd1234',
-        license: 'MIT',
-        scan: { fileCount: 2 },
-      },
-    ]);
+    expect(manifest.sourceSnapshots).toHaveLength(1);
+    expect(manifest.sourceSnapshots[0]).toMatchObject({
+      id: 'snap_share',
+      kind: 'github',
+      repositoryUrl: 'https://github.com/acme/illust',
+      resolvedRef: 'main',
+      commitHash: COMMIT,
+    });
+    expect(manifest.document.sources[0]).toMatchObject({
+      role: 'normative',
+      packageId: 'pkg_share',
+      snapshotId: 'snap_share',
+      license: 'MIT',
+    });
+    expect(JSON.stringify(manifest)).not.toContain(userData);
   });
 
   it('导出限制：草稿方案不可导出', async () => {
@@ -285,15 +305,13 @@ describe('exportDesignScheme / importDesignScheme', () => {
     });
     expect(exported.ok).toBe(true);
 
-    // 重打包：篡改 scheme.json 内容但保留旧 manifest。
-    const manifestRecord = db
-      .prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1')
-      .get() as { manifest_json: string };
+    const validated = await readValidatedDesignSchemePackage(packagePath, [SHARE_FORMAT_VERSION]);
+    if (validated.formatVersion !== SHARE_FORMAT_VERSION) throw new Error('expected v2 package');
+
     const tamperedPath = join(tempRoot(), 'tampered2.musefold.design');
-    await writeZipFixture(tamperedPath, [
-      { name: 'manifest.json', content: manifestRecord.manifest_json },
-      { name: 'scheme.json', content: JSON.stringify({ hacked: true }) },
-    ]);
+    await writeCanonicalZipFixture(tamperedPath, validated, {
+      'scheme.json': Buffer.from(JSON.stringify({ hacked: true }), 'utf8'),
+    });
     const tampered = await importDesignScheme(tamperedPath, {
       db: makeDb(),
       userDataDir: tempRoot(),
@@ -302,10 +320,8 @@ describe('exportDesignScheme / importDesignScheme', () => {
     if (tampered.ok) return;
     expect(tampered.error.message).toContain('哈希不匹配');
 
-    // 未声明文件：manifest.files 里没有 extra.txt。
     const sneakyPath = join(tempRoot(), 'sneaky.musefold.design');
-    await writeZipFixture(sneakyPath, [
-      { name: 'manifest.json', content: manifestRecord.manifest_json },
+    await writeCanonicalZipFixture(sneakyPath, validated, {}, [
       { name: 'extra.txt', content: 'smuggled' },
     ]);
     const sneaky = await importDesignScheme(sneakyPath, { db: makeDb(), userDataDir: tempRoot() });
@@ -359,29 +375,256 @@ describe('exportDesignScheme / importDesignScheme', () => {
     expect(manifestResult.error.message).toContain('manifest');
   });
 
+  it('导出回滚：已有目标在索引失败时保持原文件', async () => {
+    const packagePath = join(tempRoot(), 'rollback.musefold.design');
+    const original = Buffer.from('existing package', 'utf8');
+    writeFileSync(packagePath, original);
+    const failingDb = makeDb();
+    failingDb.exec(
+      `CREATE TRIGGER reject_share_package BEFORE INSERT ON share_packages
+       BEGIN SELECT RAISE(ABORT, 'reject share package'); END;`,
+    );
+    const result = await exportDesignScheme('dsch_share', packagePath, {
+      db: failingDb,
+      userDataDir: userData,
+    });
+    expect(result.ok).toBe(false);
+    expect(readFileSync(packagePath)).toEqual(original);
+  });
+
+  it('导入校验：canonical 引用图拒绝悬空文档引用、错绑来源和不完整内容', async () => {
+    const packagePath = join(tempRoot(), 'graph-base.musefold.design');
+    await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
+    const validated = await readValidatedDesignSchemePackage(packagePath, [SHARE_FORMAT_VERSION]);
+    if (validated.formatVersion !== SHARE_FORMAT_VERSION) throw new Error('expected v2 package');
+
+    const cases: Array<{
+      name: string;
+      mutate: (manifest: CanonicalShareManifest, files: Map<string, Buffer>) => void;
+      expected: RegExp;
+    }> = [
+      {
+        name: 'dangling-snapshot',
+        mutate: (manifest) => {
+          manifest.document.sourceSnapshotIds = ['snap_missing'];
+        },
+        expected: /来源快照引用.*不一致/,
+      },
+      {
+        name: 'dangling-asset',
+        mutate: (manifest) => {
+          manifest.document.assetIds = ['dsa_missing'];
+        },
+        expected: /资产引用.*不一致/,
+      },
+      {
+        name: 'unknown-source-snapshot',
+        mutate: (manifest) => {
+          const source = manifest.document.sources[0];
+          if (!source) throw new Error('expected source');
+          source.snapshotId = 'snap_missing';
+        },
+        expected: /未知来源快照/,
+      },
+      {
+        name: 'mismatched-source-package',
+        mutate: (manifest) => {
+          const source = manifest.document.sources[0];
+          if (!source) throw new Error('expected source');
+          source.packageId = 'pkg_other';
+        },
+        expected: /packageId.*不一致/,
+      },
+      {
+        name: 'missing-asset-content',
+        mutate: (manifest) => {
+          manifest.content.entries = manifest.content.entries.filter(
+            (entry) => entry.kind !== 'asset',
+          );
+        },
+        expected: /资产没有完整内容条目/,
+      },
+      {
+        name: 'unreferenced-declared-source-file',
+        mutate: (manifest, files) => {
+          const sourceEntry = manifest.content.entries.find(
+            (entry) => entry.kind === 'source-file',
+          );
+          if (!sourceEntry) throw new Error('expected source content');
+          const originalPath = sourceEntry.relativePath;
+          const bytes = files.get(originalPath);
+          if (!bytes) throw new Error('expected source file bytes');
+          sourceEntry.relativePath = 'sources/snap_share/undeclared.txt';
+          files.delete(originalPath);
+          files.set(sourceEntry.relativePath, bytes);
+        },
+        expected: /未声明的来源文件|来源文件内容条目与快照不一致/,
+      },
+      {
+        name: 'unreferenced-source-content',
+        mutate: (manifest) => {
+          const sourceEntry = manifest.content.entries.find(
+            (entry) => entry.kind === 'source-file',
+          );
+          if (!sourceEntry) throw new Error('expected source content');
+          sourceEntry.sourceId = 'snap_missing';
+        },
+        expected: /未声明的来源文件/,
+      },
+    ];
+
+    for (const testCase of cases) {
+      const target = join(tempRoot(), `${testCase.name}.musefold.design`);
+      await writeCanonicalManifestFixture(target, validated, testCase.mutate);
+      await expect(readValidatedDesignSchemePackage(target)).rejects.toThrow(testCase.expected);
+    }
+  });
+
+  it('导入校验：同角色来源重排后仍按显式 snapshotId 绑定', async () => {
+    const packagePath = join(tempRoot(), 'reordered-base.musefold.design');
+    await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
+    const validated = await readValidatedDesignSchemePackage(packagePath, [SHARE_FORMAT_VERSION]);
+    if (validated.formatVersion !== SHARE_FORMAT_VERSION) throw new Error('expected v2 package');
+    const reorderedPath = join(tempRoot(), 'reordered-sources.musefold.design');
+
+    await writeCanonicalManifestFixture(reorderedPath, validated, (manifest, files) => {
+      const originalSnapshot = manifest.sourceSnapshots[0];
+      const originalSource = manifest.document.sources[0];
+      if (!originalSnapshot || !originalSource) throw new Error('expected canonical source');
+      const secondSnapshot = {
+        ...structuredClone(originalSnapshot),
+        id: 'snap_share_2',
+        files: originalSnapshot.files.map((file) => ({ ...file })),
+      };
+      manifest.sourceSnapshots.push(secondSnapshot);
+      manifest.document.sourceSnapshotIds.push(secondSnapshot.id);
+      manifest.document.sources.push({
+        ...structuredClone(originalSource),
+        id: 'src_repo_2',
+        snapshotId: secondSnapshot.id,
+        packageId: secondSnapshot.packageId,
+      });
+      for (const file of secondSnapshot.files) {
+        const originalPath = `sources/${originalSnapshot.id}/${file.relativePath}`;
+        const relativePath = `sources/${secondSnapshot.id}/${file.relativePath}`;
+        const bytes = files.get(originalPath);
+        if (!bytes) throw new Error('expected source file');
+        files.set(relativePath, bytes);
+        manifest.content.entries.push({
+          relativePath,
+          kind: 'source-file',
+          contentHash: sha256(bytes),
+          sizeBytes: bytes.byteLength,
+          mimeType: file.mimeType,
+          sourceId: secondSnapshot.id,
+          assetId: null,
+        });
+      }
+      manifest.document.sources.reverse();
+    });
+
+    const importedDb = makeDb();
+    const imported = await importDesignScheme(reorderedPath, {
+      db: importedDb,
+      userDataDir: tempRoot(),
+    });
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    const sources = new DesignSchemeRepository(importedDb).listSourceFiles(imported.data.scheme.id);
+    expect(sources).toHaveLength(2);
+    const packageRows = importedDb
+      .prepare('SELECT package_id FROM source_snapshots ORDER BY id')
+      .all() as Array<{ package_id: string }>;
+    expect(packageRows).toHaveLength(2);
+    expect(new Set(packageRows.map((row) => row.package_id)).size).toBe(1);
+  });
+
   it('导入校验：伪装成图片的资产（魔数不符）被拒绝', async () => {
     const packagePath = join(tempRoot(), 'base.musefold.design');
     await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData });
-    const manifestRecord = db
-      .prepare('SELECT manifest_json FROM share_packages ORDER BY created_at DESC LIMIT 1')
-      .get() as { manifest_json: string };
-    const manifest = JSON.parse(manifestRecord.manifest_json) as { files: Record<string, string> };
+    const validated = await readValidatedDesignSchemePackage(packagePath, [SHARE_FORMAT_VERSION]);
+    if (validated.formatVersion !== SHARE_FORMAT_VERSION) throw new Error('expected v2 package');
+    const assetPath = validated.manifest.content.entries.find(
+      (entry) => entry.kind === 'asset',
+    )?.relativePath;
+    if (!assetPath) throw new Error('expected package asset');
 
-    // 构造一个声明了正确 hash 但内容不是图片的资产。
     const evil = Buffer.from('#!/bin/sh\necho pwned', 'utf8');
-    const { createHash } = await import('crypto');
-    manifest.files['assets/snap_1/reference.png'] = createHash('sha256').update(evil).digest('hex');
     const evilPath = join(tempRoot(), 'evil.musefold.design');
-    await writeZipFixture(evilPath, [
-      { name: 'manifest.json', content: JSON.stringify(manifest) },
-      { name: 'assets/snap_1/reference.png', content: evil },
-    ]);
+    await writeCanonicalZipFixture(evilPath, validated, { [assetPath]: evil }, [], true);
     const result = await importDesignScheme(evilPath, { db: makeDb(), userDataDir: tempRoot() });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error.message).toContain('不是有效图片');
+    expect(result.error.message).toContain('MIME 不匹配');
   });
 });
+
+async function writeCanonicalManifestFixture(
+  path: string,
+  validated: Extract<ValidatedDesignSchemePackage, { formatVersion: 2 }>,
+  mutate: (manifest: CanonicalShareManifest, files: Map<string, Buffer>) => void,
+): Promise<void> {
+  const manifest = structuredClone(validated.manifest);
+  const files = new Map(validated.entries);
+  mutate(manifest, files);
+  const documentEntry = manifest.content.entries.find(
+    (entry) => entry.kind === 'revision-document',
+  );
+  if (!documentEntry) throw new Error('expected revision document entry');
+  const documentBytes = Buffer.from(JSON.stringify(manifest.document), 'utf8');
+  files.set(documentEntry.relativePath, documentBytes);
+  documentEntry.contentHash = sha256(documentBytes);
+  documentEntry.sizeBytes = documentBytes.byteLength;
+  for (const entry of manifest.content.entries) {
+    const bytes = files.get(entry.relativePath);
+    if (!bytes) throw new Error(`missing package fixture entry: ${entry.relativePath}`);
+    entry.contentHash = sha256(bytes);
+    entry.sizeBytes = bytes.byteLength;
+  }
+  manifest.content.sizeBytes = manifest.content.entries.reduce(
+    (sum, entry) => sum + entry.sizeBytes,
+    0,
+  );
+  manifest.content.contentHash = contentEntriesHash(manifest.content.entries);
+  await writeZipFixture(path, [
+    { name: 'manifest.json', content: JSON.stringify(manifest) },
+    ...manifest.content.entries.map((entry) => ({
+      name: entry.relativePath,
+      content: files.get(entry.relativePath) as Buffer,
+    })),
+  ]);
+}
+
+async function writeCanonicalZipFixture(
+  path: string,
+  validated: Extract<ValidatedDesignSchemePackage, { formatVersion: 2 }>,
+  overrides: Record<string, Buffer> = {},
+  extras: Array<{ name: string; content: string | Buffer }> = [],
+  updateManifest = false,
+): Promise<void> {
+  const manifest = structuredClone(validated.manifest);
+  const contentFiles = manifest.content.entries.map((entry) => {
+    const bytes = overrides[entry.relativePath] ?? validated.entries.get(entry.relativePath);
+    if (!bytes) throw new Error(`missing package fixture entry: ${entry.relativePath}`);
+    if (updateManifest && overrides[entry.relativePath]) {
+      entry.contentHash = sha256(bytes);
+      entry.sizeBytes = bytes.byteLength;
+    }
+    return { name: entry.relativePath, content: bytes };
+  });
+  if (updateManifest) {
+    manifest.content.sizeBytes = manifest.content.entries.reduce(
+      (sum, entry) => sum + entry.sizeBytes,
+      0,
+    );
+    manifest.content.contentHash = contentEntriesHash(manifest.content.entries);
+  }
+  await writeZipFixture(path, [
+    { name: 'manifest.json', content: JSON.stringify(manifest) },
+    ...contentFiles,
+    ...extras,
+  ]);
+}
 
 function writeZipFixture(
   path: string,

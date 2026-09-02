@@ -1,5 +1,7 @@
 export * from './auth.js';
 export * from './credentials.js';
+export * from './design-schemes.js';
+export * from './object-storage.js';
 export * from './ops.js';
 export * from './prompts.js';
 export * from './skills.js';

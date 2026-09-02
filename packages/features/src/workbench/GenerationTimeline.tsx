@@ -1,6 +1,6 @@
 'use client';
 
-import type { GenerationAsset, GenerationJob } from '@musefold/contracts';
+import type { GenerationAsset, GenerationJob, PromptReferenceSnapshot } from '@musefold/contracts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +24,7 @@ import {
   BookmarkPlus,
   Copy,
   Download,
+  FileText,
   ImageOff,
   Pencil,
   RotateCcw,
@@ -84,6 +85,32 @@ function JobStatusBadge({ status }: { status: GenerationJob['status'] }) {
   );
 }
 
+/**
+ * 用户原始文本:新任务一律以 `job.userPrompt`(宿主合成前的原文)为准,
+ * 可能为空串(纯引用任务);旧任务没有该字段,回落 `job.request.prompt`(当时未合成,即原文)。
+ * 绝不把宿主合成后的 provider prompt 当用户文本展示。
+ */
+export function jobUserPromptText(job: GenerationJob): string {
+  return job.userPrompt ?? job.request.prompt;
+}
+
+/** 复制语义:优先原文;纯引用任务原文为空时,复制冻结引用正文(参考感知回落,不取合成稿)。 */
+export function jobCopyablePromptText(job: GenerationJob): string {
+  const raw = jobUserPromptText(job);
+  if (raw.trim().length > 0) return raw;
+  return job.promptReferences.map((reference) => reference.text).join('\n\n');
+}
+
+/** 图片 alt / 灯箱提示行:原文优先;纯引用任务用中性的参考感知回落(引用标题,非合成稿)。 */
+export function jobPromptFallback(job: GenerationJob): string {
+  const raw = jobUserPromptText(job).trim();
+  if (raw) return jobUserPromptText(job);
+  if (job.promptReferences.length > 0) {
+    return `引用提示词：${job.promptReferences.map((reference) => reference.title).join('、')}`;
+  }
+  return job.request.prompt;
+}
+
 async function copyPrompt(prompt: string) {
   try {
     await navigator.clipboard.writeText(prompt);
@@ -91,6 +118,54 @@ async function copyPrompt(prompt: string) {
   } catch {
     toast.error('复制失败,剪贴板不可用');
   }
+}
+
+/**
+ * 时间线引用卡(不可变快照):title/text 是生成发生时的冻结内容,不随源记录编辑漂移;
+ * promptId 为 null 仅表示源已被历史硬删除。点击展开/收起全文(可检视)。
+ */
+function JobPromptReference({ reference }: { reference: PromptReferenceSnapshot }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div
+      className="rounded-lg border border-border bg-muted/30 p-2.5"
+      data-testid="job-prompt-reference"
+      data-scope={reference.scope}
+    >
+      <div className="flex items-center gap-1.5">
+        <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0 truncate font-medium text-foreground text-xs">
+          {reference.title}
+        </span>
+        <Badge variant="secondary" className="ml-auto shrink-0 px-1.5 text-[11px]">
+          {reference.scope === 'full' ? '整条' : '选中片段'}
+        </Badge>
+      </div>
+      <button
+        type="button"
+        className="mt-1 block w-full rounded-sm text-left focus-visible:outline-2 focus-visible:outline-ring/45"
+        aria-expanded={expanded}
+        aria-label={
+          expanded ? `收起引用全文:${reference.title}` : `查看引用全文:${reference.title}`
+        }
+        data-testid="job-prompt-reference-toggle"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span
+          className={cn(
+            'block whitespace-pre-wrap break-words text-muted-foreground text-xs',
+            !expanded && 'line-clamp-2',
+          )}
+          data-testid="job-prompt-reference-text"
+        >
+          {reference.text}
+        </span>
+      </button>
+      {reference.promptId === null && (
+        <p className="pt-0.5 text-[11px] text-muted-foreground/80">源提示词已删除</p>
+      )}
+    </div>
+  );
 }
 
 function JobTurn({
@@ -120,6 +195,8 @@ function JobTurn({
   const sawActiveRef = useRef(ACTIVE.has(job.status));
   if (ACTIVE.has(job.status)) sawActiveRef.current = true;
   const reveal = sawActiveRef.current && job.status === 'succeeded' && job.assets.length > 0;
+  // 用户原文(新任务可为空串 = 纯引用);旧任务回落 request.prompt。
+  const userText = jobUserPromptText(job);
 
   return (
     <article
@@ -143,11 +220,24 @@ function JobTurn({
           ))}
         </div>
       )}
-      {/* 用户消息 + 动作组(03 §4):旧版「点击激活」升级为 hover/focus 渐显常驻组(§8-I2 口径,与助手动作行同构)。 */}
+      {/* 用户消息 + 动作组(03 §4):旧版「点击激活」升级为 hover/focus 渐显常驻组(§8-I2 口径,与助手动作行同构)。
+          不可变引用快照随用户消息展示(冻结原文,可检视);纯引用任务无气泡。 */}
       <div className="group/user ml-auto flex max-w-[85%] flex-col items-end gap-1">
-        <div className="rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground text-sm">
-          <p className="whitespace-pre-wrap break-words">{job.request.prompt}</p>
-        </div>
+        {job.promptReferences.length > 0 && (
+          <div className="flex w-full flex-col gap-1.5" data-testid="job-prompt-references">
+            {job.promptReferences.map((reference, index) => (
+              <JobPromptReference
+                key={`${reference.promptId ?? 'deleted'}-${index}`}
+                reference={reference}
+              />
+            ))}
+          </div>
+        )}
+        {userText.trim().length > 0 && (
+          <div className="rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground text-sm">
+            <p className="whitespace-pre-wrap break-words">{userText}</p>
+          </div>
+        )}
         <div className="flex items-center gap-0.5 transition-opacity md:opacity-0 md:group-focus-within/user:opacity-100 md:group-hover/user:opacity-100">
           <Button
             variant="ghost"
@@ -155,7 +245,7 @@ function JobTurn({
             className="size-7 text-muted-foreground hover:text-foreground"
             aria-label="复制消息"
             data-testid="job-copy-message"
-            onClick={() => void copyPrompt(job.request.prompt)}
+            onClick={() => void copyPrompt(jobCopyablePromptText(job))}
           >
             <Copy className="size-3.5" />
           </Button>
@@ -236,7 +326,7 @@ function JobTurn({
               >
                 <FadeImage
                   src={asset.url}
-                  alt={job.request.prompt.slice(0, 60)}
+                  alt={jobPromptFallback(job).slice(0, 60)}
                   loading="lazy"
                   className="max-h-96 w-full object-contain"
                 />
@@ -259,7 +349,7 @@ function JobTurn({
               className="size-7 text-muted-foreground hover:text-foreground"
               aria-label="复制提示词"
               data-testid="job-copy-prompt"
-              onClick={() => void copyPrompt(job.request.prompt)}
+              onClick={() => void copyPrompt(jobCopyablePromptText(job))}
             >
               <Copy className="size-3.5" />
             </Button>
@@ -504,12 +594,12 @@ export function GenerationTimeline({
             <>
               <FadeImage
                 src={preview.asset.url}
-                alt={preview.job.request.prompt.slice(0, 60)}
+                alt={jobPromptFallback(preview.job).slice(0, 60)}
                 className="max-h-[80vh] w-full rounded-xl object-contain"
               />
               <div className="flex items-center justify-between gap-3 px-1 pb-1">
                 <p className="line-clamp-1 min-w-0 text-muted-foreground text-xs">
-                  {preview.job.request.prompt}
+                  {jobPromptFallback(preview.job)}
                 </p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Button
@@ -517,7 +607,7 @@ export function GenerationTimeline({
                     size="sm"
                     className="h-7 gap-1.5 text-xs"
                     data-testid="lightbox-copy-prompt"
-                    onClick={() => void copyPrompt(preview.job.request.prompt)}
+                    onClick={() => void copyPrompt(jobCopyablePromptText(preview.job))}
                   >
                     <Copy className="size-3.5" /> 复制提示词
                   </Button>

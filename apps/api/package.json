@@ -26,6 +26,7 @@
     "@modelcontextprotocol/server": "^2.0.0",
     "@musefold/contracts": "workspace:*",
     "@musefold/db": "workspace:*",
+    "@musefold/domain": "workspace:*",
     "@musefold/new-api-client": "workspace:*",
     "@musefold/server-crypto": "workspace:*",
     "better-auth": "^1.7.2",

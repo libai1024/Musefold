@@ -1,78 +1,178 @@
 // electron/main/media-protocol.ts
 // 自定义 media:// 协议 —— 让渲染进程能安全加载本地生成的图片。
 //
-// 背景：dev 下渲染进程由 http://localhost:5173 提供，Chromium 会拒绝从 http
-// 源加载 file:// 资源（安全策略，与 CSP 无关），所以「生成成功但图不显示」。
-// prod 下页面走 file://，直接用 file:// 亦不稳妥。统一改走 media:// 自定义协议：
-// 主进程读盘 → 校验路径 → 回 Response(bytes)，两种环境一致可用。
-//
-// URL 形态：media://local/?p=<encodeURIComponent(绝对路径)>
+// URL 形态:
+// - media://local/?p=<encodeURIComponent(绝对路径)>（既有生成资产）
+// - media://scheme-asset/<opaqueAssetId>（设计方案资产，不暴露本地路径）
 
+import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import { protocol } from 'electron';
-import { readFile } from 'fs/promises';
-import { resolve, sep, extname } from 'path';
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
 import { getPaths } from '../system/paths';
+import {
+  isSchemeAssetId,
+  resolveSchemeAssetMediaDescriptor,
+  SCHEME_ASSET_MEDIA_HOST,
+  type SchemeAssetMediaDescriptor,
+} from './design-scheme/asset-store';
+import { sniffImageMimeType } from './design-scheme/source-ingestion';
 import { resolveResourcePath } from './app-paths';
 import { registerPrivilegedSchemes } from './privileged-schemes';
 
-/** 允许被 media:// 读取的根目录（防目录穿越） */
-function allowedRoots(): string[] {
-  const p = getPaths();
-  // 桌宠 sprite 是随包分发的只读资源，和用户图片走同一条读盘通道
-  const petRoot = resolveResourcePath(['pet']);
-  return [p.pictures, p.previews, p.backups, p.userData, petRoot].map((r) => resolve(r));
+const IMMUTABLE_IMAGE_CACHE = 'private, max-age=31536000, immutable';
+export const LOCAL_MEDIA_HOST = 'local' as const;
+
+const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
+
+interface OpenManagedBytesOptions {
+  identity?: { dev: bigint; ino: bigint };
 }
 
-const MIME: Record<string, string> = {
-  '.png': 'image/png',
-  '.apng': 'image/apng',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.bmp': 'image/bmp',
-  '.svg': 'image/svg+xml',
-  '.avif': 'image/avif',
-};
+async function readManagedBytes(
+  target: string,
+  options: OpenManagedBytesOptions = {},
+): Promise<Uint8Array> {
+  const handle = await open(target, constants.O_RDONLY | NOFOLLOW);
+  try {
+    const metadata = await handle.stat({ bigint: true });
+    if (!metadata.isFile()) throw new Error('Not a regular file');
+    if (
+      options.identity &&
+      (metadata.dev !== options.identity.dev || metadata.ino !== options.identity.ino)
+    ) {
+      const error = new Error('Managed file changed before read') as NodeJS.ErrnoException;
+      error.code = 'EAGAIN';
+      throw error;
+    }
+    return new Uint8Array(await handle.readFile());
+  } finally {
+    await handle.close();
+  }
+}
 
-/**
- * 顶层调用（app.whenReady 之前）：把 media 声明为标准 + 安全协议。
- * standard → 解析 host/path；secure → 可在安全上下文加载；supportFetchAPI → 兼容 fetch。
- */
+/** 允许被 media://local 读取的根目录（防目录穿越）。 */
+function allowedRoots(): string[] {
+  const paths = getPaths();
+  const petRoot = resolveResourcePath(['pet']);
+  // Generated images use pictures; imports and staged uploads use the dedicated previews tree.
+  // Do not expose backups, logs, databases, or the whole userData directory.
+  return [paths.pictures, paths.previews, petRoot].map((root) => resolve(root));
+}
+
+export interface MediaProtocolDependencies {
+  localRoots?: () => string[];
+  resolveSchemeAsset?: (assetId: string) => SchemeAssetMediaDescriptor | null;
+  readBytes?: (path: string) => Promise<Uint8Array>;
+}
+
+function defaultResolveSchemeAsset(assetId: string): SchemeAssetMediaDescriptor | null {
+  const paths = getPaths();
+  return resolveSchemeAssetMediaDescriptor(
+    getDesignSchemeDb(),
+    assetId,
+    paths.userData,
+    paths.pictures,
+  );
+}
+
+function imageResponse(bytes: Uint8Array, mimeType: string): Response {
+  return new Response(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      'Content-Type': mimeType,
+      'Cache-Control': IMMUTABLE_IMAGE_CACHE,
+    },
+  });
+}
+
+async function handleSchemeAssetRequest(
+  url: URL,
+  dependencies: MediaProtocolDependencies,
+): Promise<Response> {
+  let assetId: string;
+  try {
+    assetId = decodeURIComponent(url.pathname.slice(1));
+  } catch {
+    return new Response('Bad request', { status: 400 });
+  }
+  if (!isSchemeAssetId(assetId)) return new Response('Bad request', { status: 400 });
+
+  let resolved: SchemeAssetMediaDescriptor | null;
+  try {
+    resolved = (dependencies.resolveSchemeAsset ?? defaultResolveSchemeAsset)(assetId);
+  } catch {
+    return new Response('Read error', { status: 500 });
+  }
+  if (!resolved) return new Response('Not found', { status: 404 });
+  const target = resolved.path;
+  const identity = resolved.identity;
+
+  try {
+    const bytes = await (
+      dependencies.readBytes ?? ((path: string) => readManagedBytes(path, { identity }))
+    )(target);
+    const mimeType = sniffImageMimeType(bytes);
+    if (!mimeType) return new Response('Not found', { status: 404 });
+    return imageResponse(bytes, mimeType);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    return new Response(code === 'ENOENT' ? 'Not found' : 'Read error', {
+      status: code === 'ENOENT' ? 404 : 500,
+    });
+  }
+}
+
+async function handleLocalMediaRequest(
+  url: URL,
+  dependencies: MediaProtocolDependencies,
+): Promise<Response> {
+  const raw = url.searchParams.get('p');
+  if (!raw) return new Response('Bad request', { status: 400 });
+
+  const target = resolve(raw);
+  const roots = (dependencies.localRoots ?? allowedRoots)().map((root) => resolve(root));
+  const allowed = roots.some((root) => target === root || target.startsWith(root + sep));
+  if (!allowed) return new Response('Forbidden', { status: 403 });
+
+  try {
+    const bytes = await (dependencies.readBytes ?? readManagedBytes)(target);
+    const mimeType = sniffImageMimeType(bytes);
+    if (!mimeType) return new Response('Not found', { status: 404 });
+    return imageResponse(bytes, mimeType);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    return new Response(code === 'ENOENT' ? 'Not found' : 'Read error', {
+      status: code === 'ENOENT' ? 404 : 500,
+    });
+  }
+}
+
+export async function handleMediaRequest(
+  requestUrl: string,
+  dependencies: MediaProtocolDependencies = {},
+): Promise<Response> {
+  try {
+    const url = new URL(requestUrl);
+    if (url.host === SCHEME_ASSET_MEDIA_HOST) {
+      return handleSchemeAssetRequest(url, dependencies);
+    }
+    if (url.host === LOCAL_MEDIA_HOST) {
+      return handleLocalMediaRequest(url, dependencies);
+    }
+    return new Response('Bad request', { status: 400 });
+  } catch {
+    return new Response('Bad request', { status: 400 });
+  }
+}
+
+/** 顶层调用（app.whenReady 之前）：把 media 声明为标准 + 安全协议。 */
 export function registerMediaScheme(): void {
-  // Electron 只允许一次 registerSchemesAsPrivileged；与 app:// 一并声明。
   registerPrivilegedSchemes();
 }
 
 /** app.whenReady 之后调用：注册实际的读盘处理器。 */
 export function registerMediaProtocolHandler(): void {
-  protocol.handle('media', async (request) => {
-    try {
-      const url = new URL(request.url);
-      const raw = url.searchParams.get('p');
-      if (!raw) return new Response('Bad request', { status: 400 });
-
-      const target = resolve(raw);
-
-      // 目录穿越校验：必须落在允许的根目录之内
-      const ok = allowedRoots().some((root) => target === root || target.startsWith(root + sep));
-      if (!ok) return new Response('Forbidden', { status: 403 });
-
-      const buf = await readFile(target);
-      const type = MIME[extname(target).toLowerCase()] ?? 'application/octet-stream';
-      return new Response(new Uint8Array(buf), {
-        status: 200,
-        headers: {
-          'Content-Type': type,
-          // 生成的图片按 historyId 命名，内容不变，可长缓存
-          'Cache-Control': 'private, max-age=31536000, immutable',
-        },
-      });
-    } catch (err) {
-      // 文件不存在 / 读失败 → 404，触发渲染端 <img onError> 的美观兜底
-      const code = (err as NodeJS.ErrnoException)?.code;
-      const status = code === 'ENOENT' ? 404 : 500;
-      return new Response(status === 404 ? 'Not found' : 'Read error', { status });
-    }
-  });
+  protocol.handle('media', (request) => handleMediaRequest(request.url));
 }

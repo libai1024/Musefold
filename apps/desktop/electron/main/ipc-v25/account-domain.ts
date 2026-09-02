@@ -2,15 +2,17 @@
 // token 密文(safeStorage)落 userData 文件;明文只在主进程内存,永不过渲染层。
 // 云端不可达时统一转 ACCOUNT_SERVICE_UNAVAILABLE,渲染层可提示重试。
 
+import { randomUUID } from 'node:crypto';
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
+  type AccountSummary,
   accountSummarySchema,
   loginRequestSchema,
   redeemRequestSchema,
   redeemResultSchema,
 } from '@musefold/contracts';
 import { app } from 'electron';
-import { readFile, unlink, writeFile } from 'fs/promises';
-import { join } from 'path';
 import { z } from 'zod';
 import { resolveSafeStorage } from '../../security/e2e-safe-storage';
 import { createLogger } from '../../system/logger';
@@ -19,7 +21,15 @@ import { BridgeError, type MethodDef } from './envelope';
 const logger = createLogger('ipc-v25:account');
 
 const TOKEN_FILE = 'v25-account-session.json';
-const tokenFileSchema = z.object({ encrypted: z.string().min(1) });
+const tokenFileSchema = z.object({
+  encrypted: z.string().min(1),
+  ownerId: z.string().min(1).nullable().default(null),
+});
+
+export interface SessionCredentials {
+  token: string;
+  ownerId: string | null;
+}
 
 const DEFAULT_API_BASE = 'https://api.musefold.app';
 
@@ -32,22 +42,40 @@ function tokenPath(): string {
 }
 
 /** 供 sync 域等主进程内其他 v25 桥读取当前登录凭据(明文不出主进程)。 */
-export async function readSessionToken(): Promise<string | null> {
+export async function readSessionCredentials(): Promise<SessionCredentials | null> {
   try {
     const raw = tokenFileSchema.parse(JSON.parse(await readFile(tokenPath(), 'utf8')));
-    return resolveSafeStorage().decryptString(Buffer.from(raw.encrypted, 'base64'));
+    return {
+      token: resolveSafeStorage().decryptString(Buffer.from(raw.encrypted, 'base64')),
+      ownerId: raw.ownerId,
+    };
   } catch {
     return null;
   }
 }
 
-async function writeSessionToken(token: string): Promise<void> {
+export async function readSessionToken(): Promise<string | null> {
+  return (await readSessionCredentials())?.token ?? null;
+}
+
+export async function bindSessionOwner(token: string, ownerId: string): Promise<void> {
+  await writeSessionToken(token, ownerId);
+}
+
+async function writeSessionToken(token: string, ownerId: string): Promise<void> {
   const storage = resolveSafeStorage();
   if (!storage.isEncryptionAvailable()) {
     throw new BridgeError('INTERNAL_ERROR', '系统安全存储不可用,无法保存登录状态');
   }
   const encrypted = storage.encryptString(token).toString('base64');
-  await writeFile(tokenPath(), JSON.stringify({ encrypted }), 'utf8');
+  const path = tokenPath();
+  const temporaryPath = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporaryPath, JSON.stringify({ encrypted, ownerId }), 'utf8');
+    await rename(temporaryPath, path);
+  } finally {
+    await unlink(temporaryPath).catch(() => undefined);
+  }
 }
 
 async function clearSessionToken(): Promise<void> {
@@ -87,13 +115,19 @@ async function cloudFetch(
 }
 
 export async function fetchAccountStatus(token: string) {
-  return fetchStatus(token);
+  return fetchStatus(token, true);
 }
 
-async function fetchStatus(token: string) {
+async function invalidateCurrentSession(): Promise<void> {
+  await emitBeforeAccountChange();
+  await clearSessionToken();
+  await emitAccountChanged(null);
+}
+
+async function fetchStatus(token: string, invalidateOnUnauthorized = true) {
   const response = await cloudFetch('/api/v1/account/status', { method: 'GET', token });
   if (response.status === 401) {
-    await clearSessionToken();
+    if (invalidateOnUnauthorized) await invalidateCurrentSession();
     throw new BridgeError('AUTH_REQUIRED', '登录状态已失效,请重新登录');
   }
   if (!response.ok) {
@@ -104,21 +138,47 @@ async function fetchStatus(token: string) {
 }
 
 /**
- * 账号身份变化(登录成功/登出)监听。sync 域据此停调度并关同步开关——
- * 登录 ≠ 同步,换账号后必须由用户重新显式开启。
+ * 账号身份变化(登录成功/登出)监听。sync 域据此停止旧身份传输并切换本地账号容器;
+ * durable sync consent 按 owner 保留,同账号重登可恢复,新账号仍为 unset。
  */
-const accountChangedListeners: Array<() => void> = [];
+const beforeAccountChangeListeners: Array<() => Promise<void> | void> = [];
+const accountChangedListeners: Array<(status: AccountSummary | null) => Promise<void> | void> = [];
+const accountChangeCancelledListeners: Array<() => Promise<void> | void> = [];
 
-export function onAccountChanged(listener: () => void): void {
+export function onBeforeAccountChange(listener: () => Promise<void> | void): void {
+  beforeAccountChangeListeners.push(listener);
+}
+
+export function onAccountChanged(
+  listener: (status: AccountSummary | null) => Promise<void> | void,
+): void {
   accountChangedListeners.push(listener);
 }
 
-function emitAccountChanged(): void {
+export function onAccountChangeCancelled(listener: () => Promise<void> | void): void {
+  accountChangeCancelledListeners.push(listener);
+}
+
+async function emitBeforeAccountChange(): Promise<void> {
+  for (const listener of beforeAccountChangeListeners) await listener();
+}
+
+async function emitAccountChanged(status: AccountSummary | null): Promise<void> {
   for (const listener of accountChangedListeners) {
     try {
-      listener();
+      await listener(status);
     } catch (error) {
       logger.warn('账号变化监听失败', error instanceof Error ? error.message : String(error));
+    }
+  }
+}
+
+async function emitAccountChangeCancelled(): Promise<void> {
+  for (const listener of accountChangeCancelledListeners) {
+    try {
+      await listener();
+    } catch (error) {
+      logger.warn('账号变化回滚监听失败', error instanceof Error ? error.message : String(error));
     }
   }
 }
@@ -138,9 +198,15 @@ async function signIn(
     throw new BridgeError(code, message);
   }
   const session = signInResponseSchema.parse(await response.json());
-  await writeSessionToken(session.token);
-  const status = await fetchStatus(session.token);
-  emitAccountChanged();
+  const status = await fetchStatus(session.token, false);
+  await emitBeforeAccountChange();
+  try {
+    await writeSessionToken(session.token, status.id);
+  } catch (error) {
+    await emitAccountChangeCancelled();
+    throw error;
+  }
+  await emitAccountChanged(status);
   return status;
 }
 
@@ -172,8 +238,7 @@ export function buildAccountDomainMethods(): Record<string, MethodDef> {
             () => undefined,
           );
         }
-        await clearSessionToken();
-        emitAccountChanged();
+        await invalidateCurrentSession();
         return null;
       },
     },
@@ -189,7 +254,7 @@ export function buildAccountDomainMethods(): Record<string, MethodDef> {
           body: { code },
         });
         if (response.status === 401) {
-          await clearSessionToken();
+          await invalidateCurrentSession();
           throw new BridgeError('AUTH_REQUIRED', '登录状态已失效,请重新登录');
         }
         if (!response.ok) {

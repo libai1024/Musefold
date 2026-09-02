@@ -7,7 +7,7 @@
 
 export const DESIGN_SCHEME_DB_FILENAME = 'musefold-design-scheme-v0.3.2.db';
 export const DESIGN_SCHEME_DB_NAMESPACE = 'v0.3.2-design-scheme';
-export const DESIGN_SCHEME_DB_SCHEMA_VERSION = 4;
+export const DESIGN_SCHEME_DB_SCHEMA_VERSION = 6;
 
 export const DESIGN_SCHEME_DB_BOOTSTRAP_SQL = `
 CREATE TABLE design_scheme_meta (
@@ -168,6 +168,30 @@ CREATE TABLE share_packages (
 
 CREATE INDEX idx_share_packages_scheme
   ON share_packages(scheme_id, created_at DESC);
+`;
+
+/** P01-2：本地方案 optimistic locking；不改变 revision 不可变语义。 */
+export const DESIGN_SCHEME_VERSION_TABLES_SQL = `
+ALTER TABLE design_schemes ADD COLUMN version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0);
+`;
+
+/**
+ * v6（P01-2 canonical 详情元数据）：资产与来源文件补充可空元数据列。
+ *
+ * - design_scheme_assets：mime_type / width / height / byte_size / content_hash，
+ *   供 canonical 详情映射（designSchemeAssetSchema 全部必填）。
+ * - source_files：mime_type / evidence_path，供 path-free 来源快照读模型。
+ * - 全部可空：旧库迁移不重写既有行；缺失元数据由主进程读路径懒回填
+ *   （真实 stat/hash/魔数探测），读模型不伪造。
+ */
+export const DESIGN_SCHEME_METADATA_COLUMNS_SQL = `
+ALTER TABLE design_scheme_assets ADD COLUMN mime_type TEXT;
+ALTER TABLE design_scheme_assets ADD COLUMN width INTEGER;
+ALTER TABLE design_scheme_assets ADD COLUMN height INTEGER;
+ALTER TABLE design_scheme_assets ADD COLUMN byte_size INTEGER;
+ALTER TABLE design_scheme_assets ADD COLUMN content_hash TEXT;
+ALTER TABLE source_files ADD COLUMN mime_type TEXT;
+ALTER TABLE source_files ADD COLUMN evidence_path TEXT;
 `;
 
 /** 质量门证据（开发规范 §10：design_scheme_evaluations）。 */

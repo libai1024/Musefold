@@ -8,14 +8,37 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 import { Toaster as Sonner, type ToasterProps, toast } from 'sonner';
 
-const Toaster = ({ ...props }: ToasterProps) => {
+const MOBILE_TOAST_QUERY = '(max-width: 767px)';
+
+export function defaultToastPosition(isMobile: boolean): ToasterProps['position'] {
+  return isMobile ? 'top-center' : 'top-right';
+}
+
+function useDefaultToastPosition(): ToasterProps['position'] {
+  const [position, setPosition] = useState<ToasterProps['position']>(defaultToastPosition(false));
+
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_TOAST_QUERY);
+    const sync = () => setPosition(defaultToastPosition(media.matches));
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  return position;
+}
+
+const Toaster = ({ position, ...props }: ToasterProps) => {
   const { theme = 'system' } = useTheme();
+  const defaultPosition = useDefaultToastPosition();
 
   return (
     <Sonner
       theme={theme as ToasterProps['theme']}
+      position={position ?? defaultPosition}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

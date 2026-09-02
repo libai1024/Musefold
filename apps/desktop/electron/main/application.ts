@@ -4,9 +4,19 @@
 import { app, type BrowserWindow, dialog, session } from 'electron';
 import { createWindow, getMainWindow, registerWindowHandlers } from './window';
 import { initDb, closeDb } from '@musefold/core/db';
+import { closeDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import { registerAllHandlers } from './ipc';
 import { registerV25GatewayBridge } from './ipc-v25/gateway-bridge';
+import {
+  cleanupDesignSchemePackageStaging,
+  registerDesignSchemePackageHostActions,
+} from './design-scheme/package-host';
 import { stopV25CloudSync } from './ipc-v25/sync-domain';
+import {
+  cleanupDesignSchemeExecutionsForSender,
+  drainDesignSchemeExecutions,
+} from './design-scheme/execution-registry';
+import { closeApplicationAdmission, waitForApplicationRequests } from './lifecycle-admission';
 import { registerAppProtocolHandler } from './app-protocol';
 import { registerMediaProtocolHandler } from './media-protocol';
 import { initializeUpdater } from '../update';
@@ -103,6 +113,7 @@ app.whenReady().then(async () => {
   registerAppProtocolHandler(rendererRoot.root);
   registerAllHandlers();
   registerV25GatewayBridge();
+  registerDesignSchemePackageHostActions();
   registerWindowHandlers();
   await ensureCliInstalledAtStartup();
   void checkSkillUpdatesAtStartup();
@@ -126,6 +137,9 @@ app.whenReady().then(async () => {
 
 function createMainWindow(): BrowserWindow {
   const win = createWindow();
+  win.webContents.once('destroyed', () => {
+    cleanupDesignSchemeExecutionsForSender(win.webContents.id);
+  });
   let closePromptOpen = false;
 
   attachPetWindowLifecycle(win, {
@@ -253,15 +267,35 @@ async function prepareForUpdateInstall(): Promise<void> {
 }
 
 async function shutdownApplication(): Promise<void> {
-  stopV25CloudSync();
-  await stopAutomationServer();
-  disposeDoubaoWebBrowser();
-  destroyAppTray();
-  disablePet();
-  closeDb();
-  disposeMusefoldCore();
-  ownerLockRelease?.();
-  ownerLockRelease = null;
+  closeApplicationAdmission();
+  await Promise.allSettled([drainDesignSchemeExecutions(), waitForApplicationRequests()]);
+  await settleShutdownStep('design-scheme package staging', cleanupDesignSchemePackageStaging);
+  await Promise.allSettled([
+    settleShutdownStep('cloud sync', stopV25CloudSync),
+    settleShutdownStep('automation server', stopAutomationServer),
+  ]);
+  await settleShutdownStep('Doubao browser', disposeDoubaoWebBrowser);
+  await settleShutdownStep('app tray', destroyAppTray);
+  await settleShutdownStep('pet', disablePet);
+  await settleShutdownStep('design-scheme database', closeDesignSchemeDb);
+  await settleShutdownStep('primary database', closeDb);
+  await settleShutdownStep('core runtime', disposeMusefoldCore);
+  if (ownerLockRelease) {
+    const release = ownerLockRelease;
+    ownerLockRelease = null;
+    await settleShutdownStep('desktop owner lock', release);
+  }
+}
+
+async function settleShutdownStep(label: string, step: () => void | Promise<void>): Promise<void> {
+  try {
+    await step();
+  } catch (error) {
+    reportMainDiagnostic(error, {
+      source: 'main-process',
+      operation: `application.shutdown.${label}`,
+    });
+  }
 }
 
 /**

@@ -65,11 +65,16 @@ export class S3AssetUrlSigner implements AssetUrlSigner {
 
   async removeObjects(objectKeys: string[]): Promise<void> {
     if (objectKeys.length === 0) return;
-    await this.client.send(
+    const result = await this.client.send(
       new DeleteObjectsCommand({
         Bucket: this.env.S3_BUCKET,
         Delete: { Objects: objectKeys.map((key) => ({ Key: key })), Quiet: true },
       }),
     );
+    if (result.Errors && result.Errors.length > 0) {
+      throw Object.assign(new Error('S3 reported object deletion failures'), {
+        name: 'S3DeleteObjectsError',
+      });
+    }
   }
 }

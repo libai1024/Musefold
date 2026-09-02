@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import Database from 'better-sqlite3';
@@ -306,6 +306,8 @@ describe('DesignSchemeCreationSession', () => {
   it('历史来源路径：固化快照、写入 example 绑定并跳过安装确认', async () => {
     const db = makeDb();
     const tmp = mkdtempSync(join(tmpdir(), 'musefold-hist-'));
+    const pictures = join(tmp, 'Pictures');
+    mkdirSync(pictures, { recursive: true });
     const imagePath = join(tmp, 'work1.png');
     writeFileSync(imagePath, Buffer.from('fake-png-bytes'));
     const session = new DesignSchemeCreationSession(
@@ -316,7 +318,13 @@ describe('DesignSchemeCreationSession', () => {
           items: [{ historyId: 'hist_1', imagePath, promptText: '深蓝配暖橙的极简海报' }],
         },
       },
-      { db, resolveAdapter: () => makeAdapter({}), emit: collect, userDataDir: tmp },
+      {
+        db,
+        resolveAdapter: () => makeAdapter({}),
+        emit: collect,
+        userDataDir: tmp,
+        picturesDir: pictures,
+      },
     );
     const result = await session.run();
     expect(result.ok).toBe(true);
@@ -360,13 +368,21 @@ describe('DesignSchemeCreationSession', () => {
   it('历史图片文件缺失：跳过缺失项但创建仍完成', async () => {
     const db = makeDb();
     const tmp = mkdtempSync(join(tmpdir(), 'musefold-hist-miss-'));
+    const pictures = join(tmp, 'Pictures');
+    mkdirSync(pictures, { recursive: true });
     const session = new DesignSchemeCreationSession(
       {
         executionId: 'exec-history-miss',
         brief: '从历史整理方案',
         history: { items: [{ historyId: 'hist_gone', imagePath: join(tmp, 'gone.png') }] },
       },
-      { db, resolveAdapter: () => makeAdapter({}), emit: collect, userDataDir: tmp },
+      {
+        db,
+        resolveAdapter: () => makeAdapter({}),
+        emit: collect,
+        userDataDir: tmp,
+        picturesDir: pictures,
+      },
     );
     const result = await session.run();
     expect(result.ok).toBe(true);

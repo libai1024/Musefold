@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, rmSync } from 'fs';
-import { dirname, join } from 'path';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { getPaths } from '../../runtime';
 import {
   DESIGN_SCHEME_DB_FILENAME,
@@ -71,11 +71,23 @@ function verifyDb(db: Database.Database): void {
 
 /** 启动恢复：进程退出时仍未终态的方案运行统一落为 failed（不可能继续存在）。 */
 function recoverInterruptedRuns(db: Database.Database): void {
-  db.prepare(
-    `UPDATE design_scheme_runs
-        SET status = 'failed', completed_at = ?
-      WHERE status IN ('planning', 'executing', 'evaluating')`,
-  ).run(Date.now());
+  const recoveredAt = Date.now();
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE design_scheme_run_steps
+          SET status = 'failed', completed_at = COALESCE(completed_at, ?)
+        WHERE status IN ('pending', 'running')
+          AND run_id IN (
+            SELECT run_id FROM design_scheme_runs
+             WHERE status IN ('planning', 'executing', 'evaluating')
+          )`,
+    ).run(recoveredAt);
+    db.prepare(
+      `UPDATE design_scheme_runs
+          SET status = 'failed', completed_at = ?
+        WHERE status IN ('planning', 'executing', 'evaluating')`,
+    ).run(recoveredAt);
+  })();
 }
 
 export function initDesignSchemeDb(options: InitDesignSchemeDbOptions = {}): Database.Database {

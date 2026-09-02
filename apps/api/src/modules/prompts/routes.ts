@@ -9,6 +9,7 @@ import {
   promptTagSchema,
   promptUseInputSchema,
   promptUseResultSchema,
+  queryBooleanSchema,
   updatePromptDocumentSchema,
   updatePromptFolderSchema,
   updatePromptTagSchema,
@@ -26,7 +27,7 @@ const expectedVersionBody = z
   .object({ expectedVersion: z.number().int().positive().optional() })
   .optional()
   .default({});
-const includeDeletedQuery = z.object({ includeDeleted: z.coerce.boolean().default(false) });
+const includeDeletedQuery = z.object({ includeDeleted: queryBooleanSchema.default(false) });
 
 /** HTTP 查询串里 tagIds 是逗号分隔字符串,进契约前先拆分。 */
 const promptListHttpQuery = promptListQuerySchema.extend({

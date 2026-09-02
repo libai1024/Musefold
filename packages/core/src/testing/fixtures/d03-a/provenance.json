@@ -1,0 +1,76 @@
+{
+  "fixtureCorpus": "D03-A",
+  "fixtureVersion": 1,
+  "provenance": "synthetic",
+  "policy": {
+    "promptBody": "redacted",
+    "credentials": "excluded",
+    "userIdentity": "synthetic-only",
+    "absolutePaths": "excluded",
+    "realGeneration": false,
+    "realSpend": false,
+    "forbiddenSources": ["userData", "release", ".drizzle-pull", "active App database"]
+  },
+  "generator": {
+    "path": "packages/core/src/testing/fixtures/d03-a/index.ts",
+    "command": "pnpm vitest run packages/core/src/testing/fixtures/d03-a/__tests__/fixtures.test.ts",
+    "fixedTime": 1700000000000,
+    "databaseMaterialization": "test runtime only; disposable /tmp database"
+  },
+  "fixtures": [
+    {
+      "fixtureId": "d03-a-legacy-v2.1-synthetic",
+      "kind": "legacy-v2.1",
+      "schema": "core-legacy-v2.1-final",
+      "userVersion": 20,
+      "canonicalHash": "e4d69922f8ea1ebf587ceea24d25270a9bd2330aaa43878047126f11478b82cf",
+      "fileHash": "9d03bc46e93fa3db73da4725cbf8dadd54261ed6eb210a04f5249c55bb5c7d96",
+      "coverage": {
+        "nonAsciiMetadata": true,
+        "longPathMetadata": true,
+        "ftsDrift": true,
+        "syncConsent": ["unset", "paused", "enabled"],
+        "outbox": true,
+        "conflict": true,
+        "tombstone": true,
+        "historicalAssets": true,
+        "archivedSessions": true
+      },
+      "unimplementedFields": []
+    },
+    {
+      "fixtureId": "d03-a-design-scheme-v4-synthetic",
+      "kind": "design-scheme-v4",
+      "schema": "design-scheme-local-v4",
+      "userVersion": 4,
+      "canonicalHash": "612a27224d617b8c8d391dcfe03cb56953b1fce1201424b7e39f99735dce1660",
+      "fileHash": "ab3828ade64337487e79da8bd62afbc015498e6718410d37bf2710afe364f8d1",
+      "coverage": {
+        "nonAsciiMetadata": true,
+        "longPathMetadata": true,
+        "ftsDrift": false,
+        "syncConsent": [],
+        "outbox": false,
+        "conflict": false,
+        "tombstone": false,
+        "historicalAssets": false,
+        "archivedSessions": false
+      },
+      "unimplementedFields": [
+        "v5 optimistic-lock version column",
+        "full design document fields and prompt program",
+        "provider execution provenance",
+        "real generated assets",
+        "cloud owner/workspace mapping"
+      ]
+    }
+  ],
+  "sourceReferences": [
+    "docs/v2.5/V25-MIGRATION-CARDS.md#d03-匿名真实-v21-sqlite-语料与备份恢复演练",
+    "docs/v2.5/V25-MIGRATION-CARDS.md#q03-pg-replay",
+    "docs/v2.5/V25-MIGRATION-CARDS.md#s01-凭据-token-与导出生命周期",
+    "docs/v2.1/V21-DESKTOP-SYNC-AND-DATA-MIGRATION.md",
+    "v2.5-baseline:packages/core/src/db/schema.ts",
+    "v2.5-baseline:packages/core/src/db/run-migrations.ts"
+  ]
+}

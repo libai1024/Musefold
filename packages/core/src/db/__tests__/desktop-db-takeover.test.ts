@@ -4,14 +4,16 @@
 // 测试住在 core 而非 desktop-db:依赖方向是 core → desktop-db(initDb 内嵌接管),
 // desktop-db 保持零 workspace 依赖,而本测试需要 core 的 legacy 链建旧库。
 
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   LEGACY_FINAL_USER_VERSION,
   REQUIRED_TABLES,
   takeoverDesktopDatabase,
+  verifyDesktopDatabase,
 } from '@musefold/desktop-db';
+import { DESKTOP_MIGRATIONS } from '@musefold/desktop-db/migrations.generated';
 import Database from 'better-sqlite3';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { configureCoreRuntime } from '../../runtime';
@@ -101,6 +103,137 @@ function introspect(db: Database.Database): DbShape {
       .sort();
   }
   return { tables, columnsByTable, indexesByTable };
+}
+
+function applyBundledMigrations(db: Database.Database, count: number): void {
+  db.exec(
+    'CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)',
+  );
+  const apply = db.transaction(() => {
+    for (const migration of DESKTOP_MIGRATIONS.slice(0, count)) {
+      for (const statement of migration.sql) db.exec(statement);
+      db.prepare('INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)').run(
+        migration.hash,
+        migration.folderMillis,
+      );
+    }
+  });
+
+  const foreignKeysWereEnabled = Number(db.pragma('foreign_keys', { simple: true })) === 1;
+  if (foreignKeysWereEnabled) db.pragma('foreign_keys = OFF');
+  try {
+    apply();
+  } finally {
+    if (foreignKeysWereEnabled) db.pragma('foreign_keys = ON');
+  }
+}
+
+function buildManaged0004Db(name: string): Database.Database {
+  const db = openDb(name);
+  applyBundledMigrations(db, 5);
+  return db;
+}
+
+function seedLegacySyncConsentCases(db: Database.Database): void {
+  const cases = [
+    { ownerId: 'enabled', enabled: 1, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'bootstrap', enabled: 0, bootstrapAt: 201, lastSyncAt: null },
+    { ownerId: 'last-sync', enabled: 0, bootstrapAt: null, lastSyncAt: 301 },
+    { ownerId: 'entity-state', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'mutation-outbox', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'usage-outbox', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'unresolved-conflict', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'no-evidence', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'device-only', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+    { ownerId: 'resolved-conflict', enabled: 0, bootstrapAt: null, lastSyncAt: null },
+  ] as const;
+  const insertAccount = db.prepare(
+    `INSERT INTO cloud_sync_accounts (
+       owner_id, username, device_id, device_name, platform, client_version,
+       active, enabled, cursor, bootstrap_completed_at, last_sync_at, last_error,
+       created_at, updated_at
+     ) VALUES (?, ?, ?, 'Test device', 'macos', '2.5.0', 0, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const insertWorkspace = db.prepare(
+    `INSERT INTO local_workspaces (id, owner_id, kind, created_at, updated_at)
+     VALUES (?, ?, 'account', ?, ?)`,
+  );
+
+  cases.forEach((item, index) => {
+    const updatedAt = 1_000 + index;
+    insertAccount.run(
+      item.ownerId,
+      `user-${item.ownerId}`,
+      `device-${item.ownerId}`,
+      item.enabled,
+      String(100 + index),
+      item.bootstrapAt,
+      item.lastSyncAt,
+      `retained-${item.ownerId}`,
+      900 + index,
+      updatedAt,
+    );
+    if (
+      [
+        'entity-state',
+        'mutation-outbox',
+        'usage-outbox',
+        'unresolved-conflict',
+        'resolved-conflict',
+      ].includes(item.ownerId)
+    ) {
+      insertWorkspace.run(`account:${item.ownerId}`, item.ownerId, updatedAt, updatedAt);
+    }
+  });
+
+  db.prepare(
+    `INSERT INTO cloud_entity_state (
+       owner_id, workspace_id, entity_type, local_id, cloud_id, cloud_version,
+       last_synced_hash, remote_snapshot_json, sync_status, last_synced_at
+     ) VALUES ('entity-state', 'account:entity-state', 'prompt', 'local-1', 'cloud-1', 4,
+       'hash-1', '{"title":"retained"}', 'clean', 401)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO cloud_sync_outbox (
+       mutation_id, owner_id, workspace_id, entity_type, entity_id, operation,
+       base_version, payload_json, created_at, attempt_count, next_attempt_at, last_error
+     ) VALUES ('mutation-1', 'mutation-outbox', 'account:mutation-outbox', 'prompt',
+       'prompt-1', 'update', 3, '{"content":"retained"}', 501, 2, 601, 'retry')`,
+  ).run();
+  db.prepare(
+    `INSERT INTO cloud_sync_usage_outbox (
+       event_id, owner_id, workspace_id, prompt_id, action, created_at,
+       attempt_count, next_attempt_at, last_error
+     ) VALUES ('usage-1', 'usage-outbox', 'account:usage-outbox', 'prompt-2', 'copy',
+       701, 1, 801, 'retry')`,
+  ).run();
+  const insertConflict = db.prepare(
+    `INSERT INTO cloud_sync_conflicts (
+       id, owner_id, workspace_id, entity_type, entity_id, mutation_id, base_version,
+       local_snapshot_json, remote_snapshot_json, detected_at, resolved_at, resolution
+     ) VALUES (?, ?, ?, 'prompt', ?, ?, 2, '{"content":"local"}',
+       '{"content":"remote"}', ?, ?, ?)`,
+  );
+  insertConflict.run(
+    'conflict-unresolved',
+    'unresolved-conflict',
+    'account:unresolved-conflict',
+    'prompt-3',
+    'mutation-3',
+    901,
+    null,
+    null,
+  );
+  insertConflict.run(
+    'conflict-resolved',
+    'resolved-conflict',
+    'account:resolved-conflict',
+    'prompt-4',
+    'mutation-4',
+    902,
+    903,
+    'remote',
+  );
 }
 
 function seedLegacyData(db: Database.Database): void {
@@ -232,6 +365,179 @@ describe('takeoverDesktopDatabase', () => {
     expect((backup.prepare('SELECT COUNT(*) AS n FROM prompts').get() as { n: number }).n).toBe(
       counts('prompts'),
     );
+  });
+
+  it('0004 受管库升级:分类 legacy consent 且完整保留四张同步账本', () => {
+    const db = buildManaged0004Db('managed-0004-sync.db');
+    seedLegacySyncConsentCases(db);
+
+    expect(takeoverDesktopDatabase(db).mode).toBe('noop');
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM __drizzle_migrations').get()).toEqual({
+      count: DESKTOP_MIGRATIONS.length,
+    });
+
+    const consentRows = db
+      .prepare(
+        `SELECT owner_id, consent_state, consent_decided_at, consent_version, cursor, last_error
+         FROM cloud_sync_accounts ORDER BY owner_id`,
+      )
+      .all() as Array<{
+      owner_id: string;
+      consent_state: string;
+      consent_decided_at: number | null;
+      consent_version: number;
+      cursor: string;
+      last_error: string;
+    }>;
+    const byOwner = new Map(consentRows.map((row) => [row.owner_id, row]));
+    expect(byOwner.get('enabled')).toMatchObject({
+      consent_state: 'enabled',
+      consent_decided_at: 1_000,
+      consent_version: 1,
+      cursor: '100',
+      last_error: 'retained-enabled',
+    });
+    for (const ownerId of [
+      'bootstrap',
+      'last-sync',
+      'entity-state',
+      'mutation-outbox',
+      'usage-outbox',
+      'unresolved-conflict',
+    ]) {
+      expect(byOwner.get(ownerId), ownerId).toMatchObject({
+        consent_state: 'paused',
+        consent_version: 1,
+      });
+      expect(byOwner.get(ownerId)?.consent_decided_at, ownerId).not.toBeNull();
+    }
+    for (const ownerId of ['no-evidence', 'device-only', 'resolved-conflict']) {
+      expect(byOwner.get(ownerId), ownerId).toMatchObject({
+        consent_state: 'unset',
+        consent_decided_at: null,
+        consent_version: 1,
+      });
+    }
+
+    expect(
+      db
+        .prepare(
+          `SELECT owner_id, workspace_id, entity_type, local_id, cloud_id, cloud_version,
+                  last_synced_hash, remote_snapshot_json, sync_status, last_synced_at
+           FROM cloud_entity_state`,
+        )
+        .get(),
+    ).toEqual({
+      owner_id: 'entity-state',
+      workspace_id: 'account:entity-state',
+      entity_type: 'prompt',
+      local_id: 'local-1',
+      cloud_id: 'cloud-1',
+      cloud_version: 4,
+      last_synced_hash: 'hash-1',
+      remote_snapshot_json: '{"title":"retained"}',
+      sync_status: 'clean',
+      last_synced_at: 401,
+    });
+    expect(db.prepare('SELECT * FROM cloud_sync_outbox').get()).toMatchObject({
+      mutation_id: 'mutation-1',
+      owner_id: 'mutation-outbox',
+      workspace_id: 'account:mutation-outbox',
+      payload_json: '{"content":"retained"}',
+      attempt_count: 2,
+      next_attempt_at: 601,
+      last_error: 'retry',
+    });
+    expect(db.prepare('SELECT * FROM cloud_sync_usage_outbox').get()).toMatchObject({
+      event_id: 'usage-1',
+      owner_id: 'usage-outbox',
+      workspace_id: 'account:usage-outbox',
+      attempt_count: 1,
+      next_attempt_at: 801,
+      last_error: 'retry',
+    });
+    expect(
+      db
+        .prepare(
+          `SELECT id, owner_id, workspace_id, resolved_at, resolution
+           FROM cloud_sync_conflicts ORDER BY id`,
+        )
+        .all(),
+    ).toEqual([
+      {
+        id: 'conflict-resolved',
+        owner_id: 'resolved-conflict',
+        workspace_id: 'account:resolved-conflict',
+        resolved_at: 903,
+        resolution: 'remote',
+      },
+      {
+        id: 'conflict-unresolved',
+        owner_id: 'unresolved-conflict',
+        workspace_id: 'account:unresolved-conflict',
+        resolved_at: null,
+        resolution: null,
+      },
+    ]);
+
+    const accountSql = (
+      db
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'cloud_sync_accounts'",
+        )
+        .get() as { sql: string }
+    ).sql;
+    for (const constraint of [
+      'cloud_sync_accounts_platform_check',
+      'cloud_sync_accounts_active_check',
+      'cloud_sync_accounts_enabled_check',
+      'cloud_sync_accounts_cursor_check',
+      'cloud_sync_accounts_consent_state_check',
+      'cloud_sync_accounts_consent_version_check',
+    ]) {
+      expect(accountSql).toContain(constraint);
+    }
+    for (const [column, value] of [
+      ['platform', 'other'],
+      ['active', 2],
+      ['enabled', 2],
+      ['cursor', 'not-a-cursor'],
+      ['consent_state', 'invalid'],
+      ['consent_version', 0],
+    ] as const) {
+      expect(() =>
+        db
+          .prepare(`UPDATE cloud_sync_accounts SET ${column} = ? WHERE owner_id = 'enabled'`)
+          .run(value),
+      ).toThrow(/CHECK constraint failed/);
+    }
+  });
+
+  it('迁移拒绝事务内调用并恢复调用前的 foreign_keys 状态', () => {
+    const db = openDb('migration-transaction-guard.db');
+    expect(() => db.transaction(() => takeoverDesktopDatabase(db))()).toThrow(/事务外/);
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+
+    db.pragma('foreign_keys = OFF');
+    expect(takeoverDesktopDatabase(db).mode).toBe('fresh');
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(0);
+  });
+
+  it('数据库验收拒绝外键孤儿', () => {
+    const db = openDb('foreign-key-check.db');
+    takeoverDesktopDatabase(db);
+    db.pragma('foreign_keys = OFF');
+    db.prepare(
+      `INSERT INTO cloud_sync_usage_outbox (
+         event_id, owner_id, workspace_id, prompt_id, action, created_at,
+         attempt_count, next_attempt_at
+       ) VALUES ('orphan', 'missing-owner', 'missing-workspace', 'prompt-1', 'copy', 1, 0, 0)`,
+    ).run();
+    db.pragma('foreign_keys = ON');
+
+    expect(() => verifyDesktopDatabase(db)).toThrow(/外键校验失败/);
   });
 
   it('全新空库走 baseline,必需表齐备且 FTS 可写', () => {

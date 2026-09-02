@@ -10,6 +10,8 @@ import type {
   GenerationJob,
   GenerationReferenceImage,
   GenerationStatus,
+  PromptReferenceSelection,
+  ResolvedPromptReferenceSnapshot,
   ProviderOption,
   WorkbenchDraft,
   WorkbenchSession,
@@ -19,15 +21,22 @@ import {
   createWorkbenchSessionSchema,
   entityIdSchema,
   generationHistoryQuerySchema,
+  resolvedPromptReferenceSnapshotSchema,
   saveAssetInputSchema,
   updateWorkbenchSessionSchema,
   uploadReferenceImageInputSchema,
   workbenchDraftSchema,
   workbenchSessionListQuerySchema,
 } from '@musefold/contracts';
+import {
+  composeGenerationPrompt,
+  isValidUtf16SliceRange,
+} from '@musefold/domain/generation-prompt';
 import { getDb } from '@musefold/core/db';
+import { resolveLocalContentWorkspace } from '@musefold/core/db/workspaces';
 import { LocalImageError, stageLocalImageBytes } from '@musefold/core/providers/local-image';
 import { getPaths } from '@musefold/core/runtime';
+import type Database from 'better-sqlite3';
 import type { GenerationParamsSnapshot } from '@musefold/desktop-contracts/workbench';
 import type {
   GenerateImageRequest,
@@ -37,7 +46,7 @@ import { cancelGeneration, generate } from '@musefold/core/services/generation';
 import { app, dialog } from 'electron';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
-import { basename, extname, join, resolve, sep } from 'path';
+import { basename, extname, join, resolve, sep } from 'node:path';
 import { ulid } from 'ulid';
 import { z } from 'zod';
 import { createLogger } from '../../system/logger';
@@ -73,6 +82,7 @@ const EMPTY_DRAFT: WorkbenchDraft = {
   prompt: '',
   negative: '',
   params: {},
+  promptReferenceSelections: [],
   promptReferenceIds: [],
 };
 
@@ -220,11 +230,15 @@ interface RunRow {
   run_kind: string;
   workbench_session_id: string | null;
   parent_run_id: string | null;
+  prompt_id: string | null;
   provider_id: string;
   model: string;
+  user_prompt: string | null;
+  base_prompt: string;
   final_prompt: string;
   negative_prompt: string | null;
   params_json: string;
+  prompt_snapshot_json: string;
   status: 'queued' | 'running' | 'success' | 'failed' | 'cancelled';
   error_code: string | null;
   error_message: string | null;
@@ -293,14 +307,56 @@ function assetRowToContract(row: AssetRow): GenerationAsset | null {
   };
 }
 
+function parseStoredPromptSnapshot(raw: string | null | undefined): {
+  userPrompt?: string;
+  promptReferences: ResolvedPromptReferenceSnapshot[];
+} {
+  if (!raw) return { promptReferences: [] };
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const userPrompt = typeof parsed.userPrompt === 'string' ? parsed.userPrompt : undefined;
+    const promptReferences = Array.isArray(parsed.promptReferences)
+      ? parsed.promptReferences.flatMap((reference) => {
+          if (reference && typeof reference === 'object') {
+            const value = reference as Record<string, unknown>;
+            const normalized = {
+              ...value,
+              text: value.text ?? value.excerpt,
+              sourceVersion:
+                typeof value.sourceVersion === 'number' && value.sourceVersion > 0
+                  ? value.sourceVersion
+                  : 1,
+            };
+            const result = resolvedPromptReferenceSnapshotSchema.safeParse(normalized);
+            return result.success ? [result.data] : [];
+          }
+          return [];
+        })
+      : [];
+    return { userPrompt, promptReferences };
+  } catch {
+    return { promptReferences: [] };
+  }
+}
+
+function userPromptForJob(
+  row: RunRow,
+  snapshot: ReturnType<typeof parseStoredPromptSnapshot>,
+): string {
+  return snapshot.userPrompt ?? (row.user_prompt?.trim() ? row.user_prompt : row.final_prompt);
+}
+
 function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
   const params = JSON.parse(row.params_json) as GenerationParamsSnapshot;
   const status = RUN_STATUS_TO_JOB[row.status];
+  const snapshot = parseStoredPromptSnapshot(row.prompt_snapshot_json);
   return {
     id: row.id,
     sessionId: row.workbench_session_id,
     parentRunId: row.parent_run_id,
-    promptId: null,
+    promptId: row.prompt_id,
+    userPrompt: userPromptForJob(row, snapshot),
+    promptReferences: snapshot.promptReferences,
     actorType: 'desktop_local',
     approvalStatus: 'not_required',
     status,
@@ -308,6 +364,7 @@ function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
     request: {
       prompt: row.final_prompt,
       negative: row.negative_prompt ?? undefined,
+      promptId: row.prompt_id ?? undefined,
       size: (params.size as GenerationJob['request']['size']) ?? 'auto',
       aspectRatio: params.aspectRatio,
       quality: (params.quality as GenerationJob['request']['quality']) ?? 'auto',
@@ -409,6 +466,106 @@ function contractReferenceToLocal(reference: GenerationReferenceImage): LocalIma
 
 // ---------- 生成提交 ----------
 
+interface PromptSourceRow {
+  id: string;
+  title: string;
+  content: string;
+  source_version: number;
+}
+
+export function resolvePromptReference(
+  selection: PromptReferenceSelection,
+  index: number,
+  db: Database.Database = getDb(),
+): ResolvedPromptReferenceSnapshot {
+  let workspaceId: string;
+  try {
+    workspaceId = resolveLocalContentWorkspace(db);
+  } catch {
+    throw new BridgeError('VALIDATION_FAILED', '当前账号工作区尚未建立,无法读取提示词');
+  }
+  const row = db
+    .prepare(
+      `SELECT id, title, content FROM prompts
+       WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL
+       LIMIT 1`,
+    )
+    .get(workspaceId, selection.promptId) as PromptSourceRow | undefined;
+  if (!row) throw new BridgeError('NOT_FOUND', '引用的提示词不存在');
+  if (selection.expectedVersion !== SYNTHETIC_VERSION) {
+    throw new BridgeError('CONFLICT', '引用的提示词已更新,请重新选择');
+  }
+
+  const rawText =
+    selection.scope === 'full'
+      ? row.content
+      : (() => {
+          const { start, end } = selection.range;
+          if (!isValidUtf16SliceRange(row.content, selection.range)) {
+            throw new BridgeError('VALIDATION_FAILED', `第 ${index + 1} 条引用片段范围无效`);
+          }
+          return row.content.slice(start, end);
+        })();
+  const text = rawText.trim();
+  if (!text) throw new BridgeError('VALIDATION_FAILED', `第 ${index + 1} 条引用片段不能为空`);
+  try {
+    return resolvedPromptReferenceSnapshotSchema.parse({
+      promptId: row.id,
+      title: row.title,
+      text,
+      scope: selection.scope,
+      sourceVersion: SYNTHETIC_VERSION,
+    });
+  } catch {
+    throw new BridgeError('VALIDATION_FAILED', `第 ${index + 1} 条引用片段无效`);
+  }
+}
+
+export function resolvePromptReferences(
+  selections: readonly PromptReferenceSelection[],
+  db: Database.Database = getDb(),
+): ResolvedPromptReferenceSnapshot[] {
+  return selections.map((selection, index) => resolvePromptReference(selection, index, db));
+}
+
+function requireComposedPrompt(result: ReturnType<typeof composeGenerationPrompt>): {
+  finalPrompt: string;
+  promptReferences: ResolvedPromptReferenceSnapshot[];
+} {
+  if (result.ok) return result.data;
+  throw new BridgeError('VALIDATION_FAILED', result.error.message);
+}
+
+function resolvedReferenceToCoreReference(
+  reference: ResolvedPromptReferenceSnapshot,
+): NonNullable<GenerateImageRequest['promptReferences']>[number] {
+  return {
+    promptId: reference.promptId ?? '',
+    title: reference.title,
+    text: reference.text,
+    scope: reference.scope,
+    sourceVersion: reference.sourceVersion,
+  } as NonNullable<GenerateImageRequest['promptReferences']>[number];
+}
+
+function assertPromptAvailable(id: string | undefined): void {
+  if (!id) return;
+  let workspaceId: string;
+  try {
+    workspaceId = resolveLocalContentWorkspace(getDb());
+  } catch {
+    throw new BridgeError('VALIDATION_FAILED', '当前账号工作区尚未建立,无法读取提示词');
+  }
+  const row = getDb()
+    .prepare(
+      `SELECT id FROM prompts
+       WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL
+       LIMIT 1`,
+    )
+    .get(workspaceId, id);
+  if (!row) throw new BridgeError('NOT_FOUND', '提示词不存在');
+}
+
 function resolveProviderId(requested: string | undefined): string {
   const db = getDb();
   if (requested) {
@@ -416,9 +573,10 @@ function resolveProviderId(requested: string | undefined): string {
     if (!row) throw new BridgeError('VALIDATION_FAILED', '所选 AI 连接不存在,请重新选择');
     return requested;
   }
-  const first = db.prepare('SELECT id FROM providers ORDER BY created_at LIMIT 1').get() as
-    | { id: string }
-    | undefined;
+  // 未显式指定时跟随活跃连接(左下角账号区切换的落点),再按创建序兜底。
+  const first = db
+    .prepare('SELECT id FROM providers ORDER BY is_active DESC, created_at LIMIT 1')
+    .get() as { id: string } | undefined;
   if (!first) {
     throw new BridgeError('VALIDATION_FAILED', '尚未配置 AI 连接,请先在设置中添加');
   }
@@ -435,8 +593,15 @@ function nextTurnIndex(sessionId: string): number {
 }
 
 /** 发起本地生图(不 await 完成),失败静默留给 run 状态呈现。 */
-function fireGeneration(req: GenerateImageRequest, retryOfRunId?: string): void {
-  generate(req, undefined, retryOfRunId ? { retryOfRunId } : {}).catch((error) => {
+function fireGeneration(
+  req: GenerateImageRequest,
+  retryOfRunId?: string,
+  options: Parameters<typeof generate>[2] = {},
+): void {
+  generate(req, undefined, {
+    ...options,
+    ...(retryOfRunId ? { retryOfRunId } : {}),
+  }).catch((error) => {
     logger.error('v25 生成异常', error instanceof Error ? error.message : String(error));
   });
 }
@@ -466,8 +631,13 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
         const query = input as z.output<typeof workbenchSessionListQuerySchema>;
         const offset = parseOffsetCursor(query.cursor);
         const conditions: string[] = [];
-        if (!query.includeDeleted) conditions.push('deleted_at IS NULL');
-        if (!query.includeArchived) conditions.push('archived_at IS NULL');
+        if (query.archivedOnly) {
+          conditions.push('archived_at IS NOT NULL');
+          conditions.push('deleted_at IS NULL');
+        } else {
+          if (!query.includeDeleted) conditions.push('deleted_at IS NULL');
+          if (!query.includeArchived) conditions.push('archived_at IS NULL');
+        }
         const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
         const rows = db()
           .prepare(
@@ -557,11 +727,21 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
     },
 
     'generation.create': {
-      input: createGenerationInputSchema,
+      input: createGenerationInputSchema.strict(),
       handle: async (input) => {
         const parsed = input as z.output<typeof createGenerationInputSchema>;
-        const providerId = resolveProviderId(parsed.providerId);
+        assertPromptAvailable(parsed.promptId);
+        const promptReferences = resolvePromptReferences(parsed.promptReferenceSelections ?? []);
         const referenceImages = parsed.referenceImages.map(contractReferenceToLocal);
+        const composed = requireComposedPrompt(
+          composeGenerationPrompt({
+            userPrompt: parsed.prompt,
+            promptReferences,
+            imageCount: referenceImages.length,
+            ratioId: parsed.aspectRatio,
+          }),
+        );
+        const providerId = resolveProviderId(parsed.providerId);
         const jobId = ulid();
         let workbench: GenerateImageRequest['workbench'];
         if (parsed.sessionId) {
@@ -578,19 +758,26 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
             userPrompt: parsed.prompt,
           };
         }
-        fireGeneration({
-          providerId,
-          jobId,
-          prompt: parsed.prompt,
-          negative: parsed.negative,
-          size: parsed.size === 'auto' ? 'auto' : parsed.size,
-          aspectRatio: parsed.aspectRatio,
-          quality: parsed.quality,
-          n: 1,
-          promptId: parsed.promptId,
-          workbench,
-          ...(referenceImages.length > 0 ? { referenceImages } : {}),
-        });
+        fireGeneration(
+          {
+            providerId,
+            jobId,
+            // The bridge owns the only live composition. Core receives the immutable
+            // final prompt plus resolved snapshots and must not query Prompt rows.
+            prompt: composed.finalPrompt,
+            negative: parsed.negative,
+            size: parsed.size === 'auto' ? 'auto' : parsed.size,
+            aspectRatio: parsed.aspectRatio,
+            quality: parsed.quality,
+            n: 1,
+            promptId: parsed.promptId,
+            promptReferences: composed.promptReferences.map(resolvedReferenceToCoreReference),
+            workbench,
+            ...(referenceImages.length > 0 ? { referenceImages } : {}),
+          },
+          undefined,
+          { promptAlreadyComposed: true, userPrompt: parsed.prompt },
+        );
         return waitForRun(jobId);
       },
     },
@@ -697,8 +884,11 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
     'generation.cancel': {
       input: entityIdSchema,
       handle: async (id) => {
-        // 幂等:in-flight 时 abort 生效,generate 会把 run 写成 cancelled;
-        // 已终态时无 controller,原样返回当前状态。
+        const current = getRunRow(id as string);
+        if (current.status === 'cancelled') return getJob(id as string);
+        if (current.status !== 'queued' && current.status !== 'running') {
+          throw new BridgeError('CONFLICT', '生成任务已经结束');
+        }
         cancelGeneration(id as string);
         return getJob(id as string);
       },
@@ -707,6 +897,9 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
       input: entityIdSchema,
       handle: async (id) => {
         const source = getRunRow(id as string);
+        if (source.status !== 'failed' && source.status !== 'cancelled') {
+          throw new BridgeError('CONFLICT', '只有失败或取消的任务可以重试');
+        }
         const params = JSON.parse(source.params_json) as GenerationParamsSnapshot;
         const jobId = ulid();
         fireGeneration(
@@ -777,8 +970,12 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
     'generation.listProviders': {
       input: z.undefined().or(z.object({}).strict()),
       handle: async () => {
+        // 活跃连接置首:Composer 未显式选择时预选 providers[0],
+        // 侧栏「更多连接」的切换(aiProviders.setActive)由此真正生效。
         const rows = db()
-          .prepare('SELECT id, name, model, type FROM providers ORDER BY created_at')
+          .prepare(
+            'SELECT id, name, model, type FROM providers ORDER BY is_active DESC, created_at',
+          )
           .all() as Array<{ id: string; name: string; model: string | null; type: string }>;
         return rows.map(
           (row): ProviderOption => ({

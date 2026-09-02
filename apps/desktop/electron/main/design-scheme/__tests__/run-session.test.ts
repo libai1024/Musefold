@@ -2,6 +2,7 @@
  * 方案运行管线（run-session）单测：mock 掉真实生图（generation-facade.generate），
  * 用内存 SQLite 验证输入校验、编译、逐张生图、试运行资产与运行记录落库。
  */
+import { createHash } from 'crypto';
 import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -23,12 +24,31 @@ import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/mig
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { fakePngBuffer } from './evaluation.test';
 
+interface CapturedGenerationOptions {
+  promptAlreadyComposed?: boolean;
+  userPrompt?: string;
+  signal?: AbortSignal;
+}
+
 const generateMock = vi.hoisted(() =>
-  vi.fn<(req: GenerateImageRequest) => Promise<GenerateImageResult>>(),
+  vi.fn<
+    (
+      req: GenerateImageRequest,
+      sendProgress?: unknown,
+      options?: CapturedGenerationOptions,
+    ) => Promise<GenerateImageResult>
+  >(),
 );
 vi.mock('../../generation-facade', () => ({
-  generate: (req: GenerateImageRequest) => generateMock(req),
+  generate: (
+    req: GenerateImageRequest,
+    sendProgress?: unknown,
+    options?: CapturedGenerationOptions,
+  ) => generateMock(req, sendProgress, options),
 }));
+
+// run-session 经 source-ingestion(探测 helper)间接引用 electron(system/paths)。
+vi.mock('electron', () => ({ app: { getPath: () => tmpdir() } }));
 
 import { runDesignScheme } from '../run-session';
 
@@ -154,11 +174,34 @@ describe('runDesignScheme', () => {
     for (const call of generateMock.mock.calls) {
       expect(call[0].prompt).toBe(result.data.compiledPrompt);
       expect(call[0].n).toBe(1);
+      expect(call[2]).toMatchObject({ promptAlreadyComposed: true, userPrompt: '' });
+      expect(call[2]?.signal).toBe(controller.signal);
     }
     expect(result.data.generations.map((item) => item.assetId).every(Boolean)).toBe(true);
 
     const repository = new DesignSchemeRepository(db);
     expect(repository.hasSuccessfulTrial('dsrv_rs')).toBe(true);
+    // v6：成功结果入库即带真实元数据（魔数 MIME/尺寸/字节数/sha256）。
+    const assetRow = db
+      .prepare(
+        'SELECT store_key, mime_type, width, height, byte_size, content_hash FROM design_scheme_assets WHERE id = ?',
+      )
+      .get(result.data.generations[0]!.assetId) as {
+      store_key: string;
+      mime_type: string;
+      width: number;
+      height: number;
+      byte_size: number;
+      content_hash: string;
+    };
+    expect(assetRow).toEqual({
+      store_key: join(imagesDir, 'job-a-1024x1024.png'),
+      mime_type: 'image/png',
+      width: 1024,
+      height: 1024,
+      byte_size: fakePngBuffer(1024, 1024).byteLength,
+      content_hash: createHash('sha256').update(fakePngBuffer(1024, 1024)).digest('hex'),
+    });
     const runRow = db
       .prepare('SELECT mode, status, policy_json FROM design_scheme_runs WHERE run_id = ?')
       .get(result.data.runId) as { mode: string; status: string; policy_json: string };

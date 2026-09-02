@@ -3,8 +3,8 @@
 // 详见 docs/05-image-generation.md §2.1、§3
 
 import OpenAI from 'openai';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { ulid } from 'ulid';
 import type {
   GenerateImageRequest,
@@ -19,12 +19,18 @@ import { getPaths } from '../runtime';
 import { createLogger, estimateProviderCost } from '../runtime';
 import { BaseProvider } from './base';
 import { parseRetryAfter, withRetry } from './retry';
+import { sanitizeProviderErrorMessage } from './sanitize-error';
 import { LocalImageError, readLocalImage } from './local-image';
 import { parseExpectedSize, readImagePixelSize } from './image-dimensions';
 
 const logger = createLogger('provider:openai-compatible');
 
-/** 把错误归一化成带 code + status 的对象，便于上层 IPC 分类 */
+/**
+ * 把错误归一化成带 code + status 的对象，便于上层 IPC 分类。
+ * 分类一律基于原始 message（保持 AUTH/NO_BALANCE/NETWORK 判定稳定），
+ * 对外返回的 message 走脱敏：上游可能回显 Authorization / 签名 URL /
+ * 本地路径 / 原始 JSON body，这些不允许进入渲染层、账本与日志。
+ */
 function normalizeError(err: unknown): { code: string; message: string; status?: number } {
   const e = err as {
     status?: number;
@@ -60,7 +66,7 @@ function normalizeError(err: unknown): { code: string; message: string; status?:
   ) {
     code = 'NETWORK';
   }
-  return { code, message, status };
+  return { code, message: sanitizeProviderErrorMessage(message, 'Unknown error'), status };
 }
 
 export class OpenAICompatibleProvider extends BaseProvider {

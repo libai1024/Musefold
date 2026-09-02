@@ -19,6 +19,7 @@ export class ApiRequestError extends Error {
     readonly status: number,
     readonly retryable: boolean,
     readonly requestId?: string,
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -89,8 +90,8 @@ export class ApiHttp {
     const body = await response.json().catch(() => undefined);
     const parsed = apiErrorResponseSchema.safeParse(body);
     if (parsed.success) {
-      const { code, message, retryable, requestId } = parsed.data.error;
-      return new ApiRequestError(code, message, response.status, retryable, requestId);
+      const { code, message, retryable, requestId, details } = parsed.data.error;
+      return new ApiRequestError(code, message, response.status, retryable, requestId, details);
     }
     // Better Auth 端点(/api/auth)的错误是顶层 { code, message },不走契约信封。
     const authError = betterAuthErrorSchema.safeParse(body);

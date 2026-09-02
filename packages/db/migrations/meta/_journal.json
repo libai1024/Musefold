@@ -15,6 +15,34 @@
       "when": 1788011711147,
       "tag": "0001_high_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788030919516,
+      "tag": "0002_long_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788137620654,
+      "tag": "0003_design_scheme_cloud_copy",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788211821840,
+      "tag": "0004_cloud_object_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788216438542,
+      "tag": "0005_cleanup_abandonment_metadata",
+      "breakpoints": true
     }
   ]
 }

@@ -17,7 +17,7 @@ import type {
 } from '@musefold/platform';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -28,12 +28,13 @@ import {
 } from '../SessionListPanel';
 import { isSessionUnread, useActiveSession } from '../session-store';
 import { emptyStateGreeting } from '../WorkbenchEmptyState';
-import { WorkbenchScreen } from '../WorkbenchScreen';
+import { deriveSessionTitle, WorkbenchScreen } from '../WorkbenchScreen';
 
 const EMPTY_DRAFT: WorkbenchDraft = {
   prompt: '',
   negative: '',
   params: {},
+  promptReferenceSelections: [],
   promptReferenceIds: [],
 };
 
@@ -48,6 +49,7 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
   const jobs = new Map<string, GenerationJob>();
   // 「保存图片」链路:记录入参供断言,固定返回 saved。
   const assetSaves: SaveAssetInput[] = [];
+  const draftWriteVersions: number[] = [];
 
   function requireSession(id: string): WorkbenchSession {
     const session = sessions.get(id);
@@ -82,8 +84,9 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
         title: input.title ?? '未命名创作',
         draft: { ...EMPTY_DRAFT, ...input.draft },
         version: 1,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
+        // 每行错开 1ms:同批种子会话的 updatedAt 序确定(新者在前)。
+        createdAt: nowIso(seq),
+        updatedAt: nowIso(seq),
         archivedAt: null,
         deletedAt: null,
         latestJobStatus: null,
@@ -95,6 +98,8 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
     getSession: async (id) => requireSession(id),
     updateSession: async (id, patch) => {
       const session = requireSession(id);
+      if (patch.expectedVersion !== session.version) throw new Error('WORKBENCH_VERSION_CONFLICT');
+      if (patch.draft !== undefined) draftWriteVersions.push(patch.expectedVersion);
       const next: WorkbenchSession = {
         ...session,
         ...(patch.title !== undefined ? { title: patch.title } : {}),
@@ -126,6 +131,8 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
         sessionId: input.sessionId ?? null,
         parentRunId: null,
         promptId: null,
+        userPrompt: input.prompt,
+        promptReferences: [],
         actorType: 'web',
         approvalStatus: 'not_required',
         status: 'queued',
@@ -189,10 +196,13 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
     },
     retry: async (id) => {
       const source = await generation.get(id);
-      return generation.create({
-        prompt: source.request.prompt,
-        sessionId: source.sessionId ?? undefined,
-      });
+      return generation.create(
+        {
+          prompt: source.request.prompt,
+          sessionId: source.sessionId ?? undefined,
+        },
+        'memory-retry-intent',
+      );
     },
     remove: async (id) => {
       const job = { ...(await generation.get(id)), deletedAt: nowIso() };
@@ -264,7 +274,15 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
     },
   };
 
-  return { workbench, generation, settings, prompts, promptCreates, assetSaves };
+  return {
+    workbench,
+    generation,
+    settings,
+    prompts,
+    promptCreates,
+    assetSaves,
+    draftWriteVersions,
+  };
 }
 
 /** 组合渲染:壳侧栏会话区 + 工作台屏(与宿主同构),经共享 store 协作。 */
@@ -272,8 +290,14 @@ function renderWorkbench(options?: {
   noProviders?: boolean;
   holdQueued?: boolean;
   onOpenSettings?: () => void;
+  /** 预置会话行(「新设计」已不直接建行,行级测试用种子行作靶)。 */
+  seedSessions?: string[];
 }) {
   const memory = createMemoryWorkbench(options);
+  // memory 网关无 await 点,种子会话同步落 Map。
+  for (const title of options?.seedSessions ?? []) {
+    void memory.workbench.createSession({ title });
+  }
   const gateway = memory as unknown as MusefoldGateway;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Providers({ children }: { children: ReactNode }) {
@@ -298,7 +322,13 @@ function renderWorkbench(options?: {
 
 describe('Workbench(壳会话区 + 屏)', () => {
   beforeEach(() => {
-    useActiveSession.setState({ activeSessionId: null, pendingDraft: null });
+    useActiveSession.setState({
+      activeSessionId: null,
+      draftSession: false,
+      pendingDraft: null,
+      seenAt: {},
+      unreadMarks: {},
+    });
   });
 
   it('库「使用」送来的草稿装进 Composer,消费一次即清,不被会话草稿装载覆盖', async () => {
@@ -307,16 +337,12 @@ describe('Workbench(壳会话区 + 屏)', () => {
         prompt: 'film street photo',
         negative: 'blurry',
         params: { aspectRatio: '16:9', quality: 'high' },
+        promptReferenceSelections: [],
         promptReferenceIds: [],
       },
     });
-    renderWorkbench();
-
-    // 先建一个会话(空草稿),验证送稿优先级:装载不覆盖送来的稿。
-    await waitFor(() => {
-      expect(screen.getByTestId('session-create')).toBeTruthy();
-    });
-    fireEvent.click(screen.getByTestId('session-create'));
+    // 预置一个会话(空草稿),验证送稿优先级:会话草稿装载不覆盖送来的稿。
+    renderWorkbench({ seedSessions: ['未命名创作'] });
 
     await waitFor(() => {
       const textarea = screen.getByTestId('composer-prompt') as HTMLTextAreaElement;
@@ -327,8 +353,42 @@ describe('Workbench(壳会话区 + 屏)', () => {
     expect(screen.getByTestId('composer-ratio').textContent).toContain('16:9');
   });
 
-  it('「新设计」建会话并进入品牌空态(标语 + 内联 Composer + 快捷建议)', async () => {
-    renderWorkbench();
+  it('引用-only 草稿写入与提交后清空按返回版本串行,不会在重载后复活', async () => {
+    const memory = renderWorkbench({ seedSessions: ['引用创作'] });
+    await waitFor(() => {
+      expect(useActiveSession.getState().activeSessionId).toBe('session-1');
+    });
+
+    act(() => {
+      useActiveSession.setState({
+        pendingDraft: {
+          prompt: '',
+          negative: '',
+          params: {},
+          promptReferenceSelections: [
+            { promptId: 'prompt-reference-1', scope: 'full', expectedVersion: 1 },
+          ],
+          promptReferenceIds: [],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect((screen.getByTestId('composer-submit') as HTMLButtonElement).disabled).toBe(false);
+    });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+
+    await waitFor(async () => {
+      const session = await memory.workbench.getSession('session-1');
+      expect(session.draft.promptReferenceSelections).toEqual([]);
+      expect(session.version).toBe(3);
+    });
+    expect(memory.draftWriteVersions).toEqual([1, 2]);
+  });
+
+  it('「新设计」进入草稿空态:不建会话行,品牌空态呈现(标语 + 内联 Composer + 快捷建议)', async () => {
+    // 预置一行:验证草稿态不回落最近会话、也不新增行。
+    const memory = renderWorkbench({ seedSessions: ['旧创作'] });
     await waitFor(() => {
       expect(screen.getByTestId('session-create')).toBeTruthy();
     });
@@ -339,14 +399,20 @@ describe('Workbench(壳会话区 + 屏)', () => {
       expect(kbd?.textContent).toBe('Ctrl+N');
       expect(kbd?.getAttribute('data-slot')).toBe('kbd');
     });
+    // 初始自动定位到最近会话。
+    await waitFor(() => {
+      expect(useActiveSession.getState().activeSessionId).toBe('session-1');
+    });
 
     fireEvent.click(screen.getByTestId('session-create'));
     await waitFor(() => {
-      expect(within(screen.getByTestId('session-panel')).getByText('未命名创作')).toBeTruthy();
-    });
-    await waitFor(() => {
       expect(screen.getByTestId('workbench-empty')).toBeTruthy();
     });
+    // 草稿态:无新行、不回落既有会话、面板只剩种子行。
+    expect(useActiveSession.getState().activeSessionId).toBeNull();
+    expect(useActiveSession.getState().draftSession).toBe(true);
+    expect(within(screen.getByTestId('session-panel')).queryByText('未命名创作')).toBeNull();
+    expect((await memory.workbench.listSessions({})).items).toHaveLength(1);
     expect(screen.getByTestId('workbench-empty-slogan').textContent).toBe('把想法变成可生成的视觉');
     // 时段问候语(01 §3 承 ZCode):挂载后按本地时间落一条,tagline 降为副标。
     await waitFor(() => {
@@ -378,6 +444,36 @@ describe('Workbench(壳会话区 + 屏)', () => {
     const prompt = screen.getByTestId('composer-prompt') as HTMLTextAreaElement;
     expect(prompt.selectionStart).toBe(prompt.value.length);
     expect(screen.queryByTestId('job-status')).toBeNull();
+  });
+
+  it('草稿态首次发送才建会话,标题由首句派生', async () => {
+    const memory = renderWorkbench({ seedSessions: ['旧创作'] });
+    await waitFor(() => {
+      expect(screen.getByTestId('session-create')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId('session-create'));
+    await waitFor(() => {
+      expect(screen.getByTestId('workbench-empty')).toBeTruthy();
+    });
+    expect((await memory.workbench.listSessions({})).items).toHaveLength(1);
+
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: '霓虹雨夜的城市街景' },
+    });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+
+    // 发送时建会话:标题=首句派生,新行入列并成为活动会话。
+    await waitFor(async () => {
+      const sessions = await memory.workbench.listSessions({});
+      expect(sessions.items).toHaveLength(2);
+      expect(sessions.items.map((s) => s.title)).toContain('霓虹雨夜的城市街景');
+    });
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId('session-panel')).getByText('霓虹雨夜的城市街景'),
+      ).toBeTruthy();
+    });
+    expect(useActiveSession.getState().draftSession).toBe(false);
   });
 
   it('提交生成:渲染完成回合与资产,输入清空', async () => {
@@ -633,11 +729,7 @@ describe('Workbench(壳会话区 + 屏)', () => {
   });
 
   it('行内重命名会话', async () => {
-    const memory = renderWorkbench();
-    await waitFor(() => {
-      expect(screen.getByTestId('session-create')).toBeTruthy();
-    });
-    fireEvent.click(screen.getByTestId('session-create'));
+    const memory = renderWorkbench({ seedSessions: ['未命名创作'] });
     await waitFor(() => {
       expect(screen.getByTestId('session-rename')).toBeTruthy();
     });
@@ -656,11 +748,7 @@ describe('Workbench(壳会话区 + 屏)', () => {
   });
 
   it('删除会话需经确认对话框', async () => {
-    const memory = renderWorkbench();
-    await waitFor(() => {
-      expect(screen.getByTestId('session-create')).toBeTruthy();
-    });
-    fireEvent.click(screen.getByTestId('session-create'));
+    const memory = renderWorkbench({ seedSessions: ['未命名创作'] });
     await waitFor(() => {
       expect(screen.getByTestId('session-remove')).toBeTruthy();
     });
@@ -679,17 +767,10 @@ describe('Workbench(壳会话区 + 屏)', () => {
   });
 
   it('置顶会话排到列表首并写入偏好,取消后复原', async () => {
-    const memory = renderWorkbench();
-    await waitFor(() => {
-      expect(screen.getByTestId('session-create')).toBeTruthy();
-    });
-    // 先后建两个会话:较新的 session-2 默认排前。
-    fireEvent.click(screen.getByTestId('session-create'));
+    // 预置两行:较新的 session-2 默认排前。
+    const memory = renderWorkbench({ seedSessions: ['未命名创作', '未命名创作'] });
     await waitFor(() => {
       expect(screen.getByTestId('session-session-1')).toBeTruthy();
-    });
-    fireEvent.click(screen.getByTestId('session-create'));
-    await waitFor(() => {
       expect(screen.getByTestId('session-session-2')).toBeTruthy();
     });
 
@@ -724,17 +805,10 @@ describe('Workbench(壳会话区 + 屏)', () => {
   });
 
   it('右键菜单五项;「标记为未读」点亮行首点,打开会话即清(02 §7)', async () => {
-    renderWorkbench();
-    await waitFor(() => {
-      expect(screen.getByTestId('session-create')).toBeTruthy();
-    });
-    fireEvent.click(screen.getByTestId('session-create'));
+    // 预置两行:活动会话落较新的 session-2,session-1 非活动(活动会话不显未读点)。
+    renderWorkbench({ seedSessions: ['未命名创作', '未命名创作'] });
     await waitFor(() => {
       expect(screen.getByTestId('session-session-1')).toBeTruthy();
-    });
-    // 建第二个会话使 session-1 退为非活动(活动会话不显未读点)。
-    fireEvent.click(screen.getByTestId('session-create'));
-    await waitFor(() => {
       expect(screen.getByTestId('session-session-2')).toBeTruthy();
     });
 
@@ -977,5 +1051,14 @@ describe('emptyStateGreeting(01 §3 时段问候语)', () => {
     expect(emptyStateGreeting(new Date('2026-08-29T15:00:00'))).toBe('下午好，继续你的创作');
     expect(emptyStateGreeting(new Date('2026-08-29T20:00:00'))).toBe('晚上好，灵感正好');
     expect(emptyStateGreeting(new Date('2026-08-29T03:00:00'))).toBe('晚上好，灵感正好');
+  });
+});
+
+describe('deriveSessionTitle(草稿态首发建会话的标题派生)', () => {
+  it('压缩空白取首句;超 24 字截断加省略号;空白兜底默认名', () => {
+    expect(deriveSessionTitle('霓虹雨夜的城市街景')).toBe('霓虹雨夜的城市街景');
+    expect(deriveSessionTitle('  多行\n提示词\t带空白  ')).toBe('多行 提示词 带空白');
+    expect(deriveSessionTitle('一'.repeat(30))).toBe(`${'一'.repeat(24)}…`);
+    expect(deriveSessionTitle('   \n\t ')).toBe('未命名创作');
   });
 });

@@ -35,7 +35,20 @@ export interface SourceSnapshotWriteInput {
     sizeBytes: number;
     storeKey?: string;
     textContent?: string;
+    /** v6：来源文件 MIME（canonical 创建/导入持久化；未知为 null）。 */
+    mimeType?: string | null;
+    /** v6：canonical 证据相对路径；无证据为 null。 */
+    evidencePath?: string | null;
   }>;
+}
+
+/** v6：资产的完整 canonical 元数据（designSchemeAssetSchema 全部必填项）。 */
+export interface AssetMetadataWrite {
+  mimeType: string;
+  width: number;
+  height: number;
+  byteSize: number;
+  contentHash: string;
 }
 
 export interface SchemeDraftWriteInput {
@@ -57,6 +70,7 @@ interface SchemeRow {
   working_draft_revision_id: string | null;
   cover_asset_id: string | null;
   fidelity: Fidelity;
+  version: number;
   created_at: number;
   updated_at: number;
 }
@@ -69,8 +83,69 @@ export interface SchemeRunWriteInput {
   provider?: unknown;
 }
 
+/**
+ * v6 canonical 资产读模型：跨 revision 的相册资产行（新结果在前）。
+ * storeKey 仅供主进程解析 managed 存储做懒回填，绝不进入 canonical 出参。
+ */
+export interface AssetMetadataRow {
+  id: string;
+  revisionId: string;
+  storeKey: string;
+  role: 'cover' | 'example' | 'reference';
+  origin: 'repository' | 'local-run';
+  license: string | null;
+  createdAt: number;
+  mimeType: string | null;
+  width: number | null;
+  height: number | null;
+  byteSize: number | null;
+  contentHash: string | null;
+}
+
+/** v6 canonical 来源文件读模型：path-free（相对路径 + 元数据，无 storeKey）。 */
+export interface SourceFileMetadataRow {
+  path: string;
+  kind: 'text' | 'image' | 'other';
+  sizeBytes: number;
+  contentHash: string;
+  mimeType: string | null;
+  evidencePath: string | null;
+  textExcerpt: string | null;
+}
+
+export interface SourceSnapshotMetadataRow {
+  snapshotId: string;
+  packageId: string;
+  packageKind: 'github' | 'history' | 'user-brief';
+  repositoryUrl: string | null;
+  ref: string;
+  commitHash: string | null;
+  contentHash: string | null;
+  totalBytes: number;
+  createdAt: number;
+  files: SourceFileMetadataRow[];
+}
+
 const SCHEME_SUMMARY_COLUMNS = `id, name, summary, status, source_presentation, source_label,
-              current_revision_id, working_draft_revision_id, cover_asset_id, fidelity, created_at, updated_at`;
+              current_revision_id, working_draft_revision_id, cover_asset_id, fidelity, version, created_at, updated_at`;
+
+export class DesignSchemeVersionConflictError extends Error {
+  readonly code = 'DESIGN_SCHEME_VERSION_CONFLICT';
+
+  constructor(schemeId: string, expectedVersion: number) {
+    super(`设计方案 ${schemeId} 版本已变化，期望版本 ${expectedVersion}`);
+    this.name = 'DesignSchemeVersionConflictError';
+  }
+}
+
+export class DesignSchemeRunStatusConflictError extends Error {
+  readonly code = 'DESIGN_SCHEME_RUN_STATUS_CONFLICT';
+
+  constructor(runId: string, expectedStatus: string, actualStatus: string) {
+    super(`设计方案运行 ${runId} 状态冲突：期望 ${expectedStatus}，实际 ${actualStatus}`);
+    this.name = 'DesignSchemeRunStatusConflictError';
+  }
+}
 
 function assertValidDocument(document: DesignSchemeRevisionDocument): DesignSchemeRevisionDocument {
   const parsed = parseDesignSchemeRevisionDocument(document);
@@ -79,6 +154,60 @@ function assertValidDocument(document: DesignSchemeRevisionDocument): DesignSche
     throw new Error(`设计方案文档校验失败：${issues}`);
   }
   return parsed.value;
+}
+
+/** 镜像 contracts designSchemeMimeSchema：type/subtype 形状（不限定 image/*）。 */
+const ASSET_MIME_PATTERN =
+  /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$/;
+/** 镜像 contracts designSchemeHashSchema：可选 sha256: 前缀 + 64 位 hex。 */
+const ASSET_SHA256_PATTERN = /^(?:sha256:)?[0-9a-f]{64}$/i;
+
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
+/**
+ * v6 资产元数据写入校验（镜像 contracts designSchemeAssetSchema 字段约束）。
+ * 仓储层不做文件 IO；探测与文件的一致性由主进程 probe 保证，这里保证入库元数据
+ * 自身完整、形状与 canonical 契约一致——半截或伪造的元数据不允许落库/回填。
+ */
+function assertAssetMetadataWrite(metadata: AssetMetadataWrite): void {
+  if (typeof metadata.mimeType !== 'string' || !ASSET_MIME_PATTERN.test(metadata.mimeType)) {
+    throw new Error('资产元数据 mimeType 不合法（应为 type/subtype 形状）');
+  }
+  for (const field of ['width', 'height'] as const) {
+    const value = metadata[field];
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`资产元数据 ${field} 必须是正整数`);
+    }
+  }
+  if (!Number.isSafeInteger(metadata.byteSize) || metadata.byteSize < 0) {
+    throw new Error('资产元数据 byteSize 必须是非负整数');
+  }
+  if (
+    typeof metadata.contentHash !== 'string' ||
+    !ASSET_SHA256_PATTERN.test(metadata.contentHash)
+  ) {
+    throw new Error('资产元数据 contentHash 必须是 SHA-256（64 位 hex，可选 sha256: 前缀）');
+  }
+}
+
+/**
+ * 仓储层 storeKey 写入校验：非空、无控制字符。
+ * managed 根 containment（userData/Pictures）由主进程 resolveManagedStoreKey 负责——
+ * core 包没有宿主路径知识，不在此重复判定。
+ */
+function assertManagedStoreKey(storeKey: string): void {
+  if (typeof storeKey !== 'string' || storeKey.trim().length === 0) {
+    throw new Error('资产 storeKey 不能为空');
+  }
+  if (hasControlCharacter(storeKey)) {
+    throw new Error('资产 storeKey 含非法控制字符');
+  }
 }
 
 export class DesignSchemeRepository {
@@ -115,8 +244,9 @@ export class DesignSchemeRepository {
           now,
         );
       const insertFile = this.db.prepare(
-        `INSERT INTO source_files (snapshot_id, path, kind, content_hash, size_bytes, store_key, text_content)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO source_files
+           (snapshot_id, path, kind, content_hash, size_bytes, store_key, text_content, mime_type, evidence_path)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const file of input.files) {
         insertFile.run(
@@ -127,6 +257,8 @@ export class DesignSchemeRepository {
           file.sizeBytes,
           file.storeKey ?? null,
           file.textContent ?? null,
+          file.mimeType ?? null,
+          file.evidencePath ?? null,
         );
       }
     })();
@@ -201,7 +333,7 @@ export class DesignSchemeRepository {
          FROM design_scheme_assets a
          JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
         WHERE r.scheme_id = ?
-        ORDER BY a.created_at DESC
+        ORDER BY a.created_at DESC, a.id DESC
         LIMIT 200`,
       )
       .all(schemeId) as Array<{
@@ -217,8 +349,53 @@ export class DesignSchemeRepository {
       revisionId: row.revision_id,
       path: row.store_key,
       role: row.role === 'cover' ? 'cover' : 'example',
-      origin: row.origin === 'repo-example' ? 'repo-example' : 'local-run',
+      origin: row.origin === 'repository' ? 'repo-example' : 'local-run',
       createdAt: row.created_at,
+    }));
+  }
+
+  /**
+   * v6 canonical 资产读模型（详情用）：跨 revision 全量资产 + 元数据列。
+   * storeKey 只回给主进程做懒回填定位；映射层负责剔除元数据不完整的行。
+   */
+  listAssetMetadataRows(schemeId: string): AssetMetadataRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, a.revision_id, a.store_key, a.role, a.origin, a.license, a.created_at,
+                a.mime_type, a.width, a.height, a.byte_size, a.content_hash
+         FROM design_scheme_assets a
+         JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
+        WHERE r.scheme_id = ?
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT 200`,
+      )
+      .all(schemeId) as Array<{
+      id: string;
+      revision_id: string;
+      store_key: string;
+      role: string;
+      origin: string;
+      license: string | null;
+      created_at: number;
+      mime_type: string | null;
+      width: number | null;
+      height: number | null;
+      byte_size: number | null;
+      content_hash: string | null;
+    }>;
+    return rows.map((row) => ({
+      id: row.id,
+      revisionId: row.revision_id,
+      storeKey: row.store_key,
+      role: row.role === 'cover' ? 'cover' : row.role === 'reference' ? 'reference' : 'example',
+      origin: row.origin === 'repository' ? 'repository' : 'local-run',
+      license: row.license,
+      createdAt: row.created_at,
+      mimeType: row.mime_type,
+      width: row.width,
+      height: row.height,
+      byteSize: row.byte_size,
+      contentHash: row.content_hash,
     }));
   }
 
@@ -235,16 +412,20 @@ export class DesignSchemeRepository {
   }
 
   /** 重命名只改展示名（编译文档是不可变产物，保留编译时名称）。 */
-  rename(schemeId: string, name: string): DesignSchemeSummary {
+  rename(schemeId: string, name: string, expectedVersion?: number): DesignSchemeSummary {
     const trimmed = name.trim();
     if (!trimmed) throw new Error('方案名称不能为空');
     if (trimmed.length > 80) throw new Error('方案名称不能超过 80 个字符');
-    this.requireSummary(schemeId);
-    this.db
+    const summary = this.requireSummary(schemeId);
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
+    const result = this.db
       .prepare(
-        `UPDATE design_schemes SET name = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+        `UPDATE design_schemes
+            SET name = ?, version = version + 1, updated_at = ?
+          WHERE id = ? AND deleted_at IS NULL AND version = ?`,
       )
-      .run(trimmed, Date.now(), schemeId);
+      .run(trimmed, Date.now(), schemeId, summary.version);
+    this.assertUpdated(schemeId, summary.version, result.changes);
     return this.requireSummary(schemeId);
   }
 
@@ -252,13 +433,18 @@ export class DesignSchemeRepository {
    * 删除草稿 / 移除正式方案：软删除（运行记录与来源快照保留，保证历史可追溯；
    * schema 中 runs → revisions 也没有级联删除）。
    */
-  softDelete(schemeId: string): void {
-    this.requireSummary(schemeId);
-    this.db
+  softDelete(schemeId: string, expectedVersion?: number): void {
+    const summary = this.requireSummary(schemeId);
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
+    const now = Date.now();
+    const result = this.db
       .prepare(
-        `UPDATE design_schemes SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+        `UPDATE design_schemes
+            SET deleted_at = ?, version = version + 1, updated_at = ?
+          WHERE id = ? AND deleted_at IS NULL AND version = ?`,
       )
-      .run(Date.now(), Date.now(), schemeId);
+      .run(now, now, schemeId, summary.version);
+    this.assertUpdated(schemeId, summary.version, result.changes);
   }
 
   /**
@@ -315,6 +501,71 @@ export class DesignSchemeRepository {
     }));
   }
 
+  /**
+   * v6 canonical 来源读模型（详情用）：指定 revision 绑定的快照与固化文件，
+   * 只含相对路径与元数据（无 storeKey）；文本节选截断到 2000 字符。
+   */
+  listSourceSnapshotMetadata(schemeId: string, revisionId?: string): SourceSnapshotMetadataRow[] {
+    const summary = this.requireSummary(schemeId);
+    const selectedRevisionId = revisionId ?? summary.currentRevisionId;
+    const snapshots = this.db
+      .prepare(
+        `SELECT s.id, s.package_id, p.kind, p.repository_url, s.ref, s.commit_hash,
+                s.content_hash, s.total_bytes, s.created_at
+         FROM design_scheme_source_bindings b
+         JOIN design_scheme_revisions r ON r.revision_id = b.revision_id
+         JOIN source_snapshots s ON s.id = b.source_snapshot_id
+         JOIN source_packages p ON p.id = s.package_id
+        WHERE b.revision_id = ? AND r.scheme_id = ?
+        ORDER BY s.created_at`,
+      )
+      .all(selectedRevisionId, schemeId) as Array<{
+      id: string;
+      package_id: string;
+      kind: 'github' | 'history' | 'user-brief';
+      repository_url: string | null;
+      ref: string;
+      commit_hash: string | null;
+      content_hash: string | null;
+      total_bytes: number;
+      created_at: number;
+    }>;
+    const fileQuery = this.db.prepare(
+      `SELECT path, kind, size_bytes, content_hash, mime_type, evidence_path, text_content
+         FROM source_files WHERE snapshot_id = ? ORDER BY path LIMIT 500`,
+    );
+    return snapshots.map((snapshot) => ({
+      snapshotId: snapshot.id,
+      packageId: snapshot.package_id,
+      packageKind: snapshot.kind,
+      repositoryUrl: snapshot.repository_url,
+      ref: snapshot.ref,
+      commitHash: snapshot.commit_hash,
+      contentHash: snapshot.content_hash,
+      totalBytes: snapshot.total_bytes,
+      createdAt: snapshot.created_at,
+      files: (
+        fileQuery.all(snapshot.id) as Array<{
+          path: string;
+          kind: 'text' | 'image' | 'other';
+          size_bytes: number;
+          content_hash: string;
+          mime_type: string | null;
+          evidence_path: string | null;
+          text_content: string | null;
+        }>
+      ).map((file) => ({
+        path: file.path,
+        kind: file.kind,
+        sizeBytes: file.size_bytes,
+        contentHash: file.content_hash,
+        mimeType: file.mime_type,
+        evidencePath: file.evidence_path,
+        textExcerpt: file.text_content ? file.text_content.slice(0, 2000) : null,
+      })),
+    }));
+  }
+
   // -------------------------------------------------------------------------
   // 运行切片：试运行 / 正式使用的运行记录、相册资产、封面与转正
   // -------------------------------------------------------------------------
@@ -335,6 +586,42 @@ export class DesignSchemeRepository {
       );
   }
 
+  finalizeRunStatus(runId: string, status: 'completed' | 'blocked' | 'failed' | 'cancelled'): void {
+    const terminalStatuses = new Set(['completed', 'blocked', 'failed', 'cancelled']);
+    const current = this.db
+      .prepare('SELECT status FROM design_scheme_runs WHERE run_id = ?')
+      .get(runId) as { status: string } | undefined;
+    if (!current) throw new Error('设计方案运行不存在');
+    if (current.status === status) return;
+    if (terminalStatuses.has(current.status)) {
+      throw new DesignSchemeRunStatusConflictError(
+        runId,
+        'planning|executing|evaluating',
+        current.status,
+      );
+    }
+    if (!terminalStatuses.has(status)) throw new Error('设计方案运行终态无效');
+    const result = this.db
+      .prepare(
+        `UPDATE design_scheme_runs
+            SET status = ?, completed_at = COALESCE(completed_at, ?)
+          WHERE run_id = ? AND status IN ('planning', 'executing', 'evaluating')`,
+      )
+      .run(status, Date.now(), runId);
+    if (result.changes !== 1) {
+      const next = this.db
+        .prepare('SELECT status FROM design_scheme_runs WHERE run_id = ?')
+        .get(runId) as { status: string } | undefined;
+      if (!next || next.status !== status) {
+        throw new DesignSchemeRunStatusConflictError(
+          runId,
+          'planning|executing|evaluating',
+          next?.status ?? 'missing',
+        );
+      }
+    }
+  }
+
   updateRunStatus(
     runId: string,
     status:
@@ -347,9 +634,23 @@ export class DesignSchemeRepository {
       | 'cancelled',
   ): void {
     const terminal = ['completed', 'blocked', 'failed', 'cancelled'].includes(status);
+    if (terminal) {
+      this.db
+        .prepare(
+          `UPDATE design_scheme_runs
+              SET status = ?, completed_at = COALESCE(completed_at, ?)
+            WHERE run_id = ? AND status NOT IN ('completed', 'blocked', 'failed', 'cancelled')`,
+        )
+        .run(status, Date.now(), runId);
+      return;
+    }
     this.db
-      .prepare(`UPDATE design_scheme_runs SET status = ?, completed_at = ? WHERE run_id = ?`)
-      .run(status, terminal ? Date.now() : null, runId);
+      .prepare(
+        `UPDATE design_scheme_runs
+            SET status = ?
+          WHERE run_id = ? AND status NOT IN ('completed', 'blocked', 'failed', 'cancelled')`,
+      )
+      .run(status, runId);
   }
 
   upsertRunStep(
@@ -440,33 +741,96 @@ export class DesignSchemeRepository {
     };
   }
 
-  /** 试运行成功结果自动进入草稿相册（UI 规范 §5.2），返回资产 id。 */
-  insertLocalRunAsset(revisionId: string, storeKey: string): string {
+  /**
+   * 试运行成功结果自动进入草稿相册（UI 规范 §5.2），返回资产 id。
+   * v6：调用方（主进程）应传入真实探测到的文件元数据；legacy 行不传，
+   * 由 canonical 读路径懒回填，不在此伪造。入库前校验 storeKey 形状与元数据
+   * 完整性（镜像 canonical 契约），拒绝半截/伪造元数据落库。
+   */
+  insertLocalRunAsset(revisionId: string, storeKey: string, metadata?: AssetMetadataWrite): string {
+    assertManagedStoreKey(storeKey);
+    if (metadata !== undefined) assertAssetMetadataWrite(metadata);
     const assetId = `dsa_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
     this.db
       .prepare(
-        `INSERT INTO design_scheme_assets (id, revision_id, store_key, role, origin, created_at)
-       VALUES (?, ?, ?, 'example', 'local-run', ?)`,
+        `INSERT INTO design_scheme_assets
+           (id, revision_id, store_key, role, origin, mime_type, width, height, byte_size, content_hash, created_at)
+       VALUES (?, ?, ?, 'example', 'local-run', ?, ?, ?, ?, ?, ?)`,
       )
-      .run(assetId, revisionId, storeKey, Date.now());
+      .run(
+        assetId,
+        revisionId,
+        storeKey,
+        metadata?.mimeType ?? null,
+        metadata?.width ?? null,
+        metadata?.height ?? null,
+        metadata?.byteSize ?? null,
+        metadata?.contentHash ?? null,
+        Date.now(),
+      );
     return assetId;
   }
 
-  /** 封面必须是本方案某个 revision 的资产；普通上传图片不能直接设为封面。 */
-  selectCover(schemeId: string, assetId: string): DesignSchemeSummary {
+  /**
+   * v6 懒回填：把主进程真实探测到的元数据写回不完整的资产行。
+   * - 全 NULL 的 legacy 行：一次性全量补齐；
+   * - 部分字段已写的行：视为过期残片，不信任既有字段，整体以探测结果覆盖
+   *   （避免新旧字段拼接出互相矛盾的元数据）；
+   * - 五字段齐全的行：canonical 写入即权威，回填是 no-op，不覆盖。
+   */
+  backfillAssetMetadata(assetId: string, metadata: AssetMetadataWrite): void {
+    assertAssetMetadataWrite(metadata);
+    this.db
+      .prepare(
+        `UPDATE design_scheme_assets
+            SET mime_type = ?, width = ?, height = ?, byte_size = ?, content_hash = ?
+          WHERE id = ? AND (mime_type IS NULL OR width IS NULL OR height IS NULL
+                            OR byte_size IS NULL OR content_hash IS NULL)`,
+      )
+      .run(
+        metadata.mimeType,
+        metadata.width,
+        metadata.height,
+        metadata.byteSize,
+        metadata.contentHash,
+        assetId,
+      );
+  }
+
+  /**
+   * 封面来源不变量（provenance）：只接受「当前选中 revision」上的本机试运行产物，
+   * 即 origin = 'local-run' 且 role ∈ {'example', 'cover'} 的资产。
+   * 仓库示例图（origin = 'repository'）、参考图（role = 'reference'）与其他 revision
+   * 的历史资产一律拒绝；拒绝时不改封面、不递增版本。
+   * 「成功试运行」资格本身由转正链路（formalize / promoteWorkingDraft）裁决，此处不重复。
+   */
+  selectCover(schemeId: string, assetId: string, expectedVersion?: number): DesignSchemeSummary {
+    const summary = this.requireSummary(schemeId);
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
     const asset = this.db
       .prepare(
-        `SELECT a.id FROM design_scheme_assets a
+        `SELECT a.revision_id, a.role, a.origin FROM design_scheme_assets a
         JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
        WHERE a.id = ? AND r.scheme_id = ?`,
       )
-      .get(assetId, schemeId) as { id: string } | undefined;
+      .get(assetId, schemeId) as { revision_id: string; role: string; origin: string } | undefined;
     if (!asset) throw new Error('封面必须选择本方案的试运行结果');
-    this.db
+    if (asset.origin !== 'local-run') {
+      throw new Error('封面必须来自本机试运行结果，不能使用仓库示例图');
+    }
+    if (asset.role === 'reference') throw new Error('封面不能使用参考图资产');
+    if (asset.revision_id !== summary.currentRevisionId) {
+      throw new Error('封面必须来自当前选中版本的试运行结果，请刷新后再选择');
+    }
+    const now = Date.now();
+    const result = this.db
       .prepare(
-        `UPDATE design_schemes SET cover_asset_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+        `UPDATE design_schemes
+            SET cover_asset_id = ?, version = version + 1, updated_at = ?
+          WHERE id = ? AND deleted_at IS NULL AND version = ?`,
       )
-      .run(assetId, Date.now(), schemeId);
+      .run(assetId, now, schemeId, summary.version);
+    this.assertUpdated(schemeId, summary.version, result.changes);
     return this.requireSummary(schemeId);
   }
 
@@ -482,11 +846,13 @@ export class DesignSchemeRepository {
     schemeId: string,
     baseRevisionId: string,
     nextInputs: Array<{ id: string; required: boolean }>,
+    expectedVersion?: number,
   ): { summary: DesignSchemeSummary; document: DesignSchemeRevisionDocument } {
     const summary = this.requireSummary(schemeId);
     if (summary.status !== 'draft') {
       throw new Error('正式方案暂不支持结构化编辑输入，请通过修改再版调整');
     }
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
     if (summary.currentRevisionId !== baseRevisionId) {
       throw new Error('方案已有更新版本，请刷新后再编辑');
     }
@@ -529,11 +895,16 @@ export class DesignSchemeRepository {
          SELECT ?, source_snapshot_id, role FROM design_scheme_source_bindings WHERE revision_id = ?`,
         )
         .run(revisionId, baseRevisionId);
-      this.db
+      const result = this.db
         .prepare(
-          `UPDATE design_schemes SET current_revision_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+          `UPDATE design_schemes
+              SET current_revision_id = ?, version = version + 1, updated_at = ?
+            WHERE id = ? AND deleted_at IS NULL AND version = ?`,
         )
-        .run(revisionId, now, schemeId);
+        .run(revisionId, now, schemeId, summary.version);
+      if (result.changes !== 1) {
+        throw new DesignSchemeVersionConflictError(schemeId, summary.version);
+      }
     })();
     return { summary: this.requireSummary(schemeId), document: nextDocument };
   }
@@ -550,6 +921,7 @@ export class DesignSchemeRepository {
     baseRevisionId: string,
     document: DesignSchemeRevisionDocument,
     extraBindings: Array<{ snapshotId: string; role: SourceRole }> = [],
+    expectedVersion?: number,
   ): { summary: DesignSchemeSummary; document: DesignSchemeRevisionDocument } {
     const summary = this.requireSummary(schemeId);
     const validBase =
@@ -558,6 +930,7 @@ export class DesignSchemeRepository {
         : baseRevisionId === summary.currentRevisionId ||
           baseRevisionId === summary.workingDraftRevisionId;
     if (!validBase) throw new Error('方案已有更新版本，请刷新后再修改');
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
     if (document.schemeId !== schemeId) throw new Error('修改结果与方案不匹配');
     const validated = assertValidDocument(document);
     const now = Date.now();
@@ -589,11 +962,12 @@ export class DesignSchemeRepository {
         insertBinding.run(validated.revisionId, binding.snapshotId, binding.role);
       }
       if (summary.status === 'draft') {
-        this.db
+        const result = this.db
           .prepare(
             `UPDATE design_schemes
-              SET current_revision_id = ?, name = ?, summary = ?, fidelity = ?, updated_at = ?
-            WHERE id = ? AND deleted_at IS NULL`,
+                SET current_revision_id = ?, name = ?, summary = ?, fidelity = ?,
+                    version = version + 1, updated_at = ?
+              WHERE id = ? AND deleted_at IS NULL AND version = ?`,
           )
           .run(
             validated.revisionId,
@@ -602,14 +976,23 @@ export class DesignSchemeRepository {
             validated.fidelity,
             now,
             schemeId,
+            summary.version,
           );
+        if (result.changes !== 1) {
+          throw new DesignSchemeVersionConflictError(schemeId, summary.version);
+        }
       } else {
         // 正式方案：名称/简介保持正式版本的展示；新内容只挂在待验证草稿上。
-        this.db
+        const result = this.db
           .prepare(
-            `UPDATE design_schemes SET working_draft_revision_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+            `UPDATE design_schemes
+                SET working_draft_revision_id = ?, version = version + 1, updated_at = ?
+              WHERE id = ? AND deleted_at IS NULL AND version = ?`,
           )
-          .run(validated.revisionId, now, schemeId);
+          .run(validated.revisionId, now, schemeId, summary.version);
+        if (result.changes !== 1) {
+          throw new DesignSchemeVersionConflictError(schemeId, summary.version);
+        }
       }
     })();
     return { summary: this.requireSummary(schemeId), document: validated };
@@ -619,8 +1002,9 @@ export class DesignSchemeRepository {
    * 待验证草稿替换正式版本（规范 §2.2）：要求该草稿 revision 已有成功本机试运行，
    * 且由用户明确确认（调用方即确认动作）。
    */
-  promoteWorkingDraft(schemeId: string): DesignSchemeSummary {
+  promoteWorkingDraft(schemeId: string, expectedVersion?: number): DesignSchemeSummary {
     const summary = this.requireSummary(schemeId);
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
     if (summary.status !== 'formal') throw new Error('只有正式方案存在待验证草稿');
     const workingDraft = summary.workingDraftRevisionId;
     if (!workingDraft) throw new Error('这个方案没有待验证的新版本');
@@ -629,14 +1013,24 @@ export class DesignSchemeRepository {
     }
     const document = this.getRevisionDocument(workingDraft);
     if (!document) throw new Error('待验证版本不存在');
-    this.db
+    const now = Date.now();
+    const result = this.db
       .prepare(
         `UPDATE design_schemes
-          SET current_revision_id = ?, working_draft_revision_id = NULL,
-              name = ?, summary = ?, fidelity = ?, updated_at = ?
-        WHERE id = ? AND deleted_at IS NULL`,
+            SET current_revision_id = ?, working_draft_revision_id = NULL,
+                name = ?, summary = ?, fidelity = ?, version = version + 1, updated_at = ?
+          WHERE id = ? AND deleted_at IS NULL AND version = ?`,
       )
-      .run(workingDraft, document.name, document.summary, document.fidelity, Date.now(), schemeId);
+      .run(
+        workingDraft,
+        document.name,
+        document.summary,
+        document.fidelity,
+        now,
+        schemeId,
+        summary.version,
+      );
+    this.assertUpdated(schemeId, summary.version, result.changes);
     return this.requireSummary(schemeId);
   }
 
@@ -655,17 +1049,37 @@ export class DesignSchemeRepository {
    * 草稿转正式（规范 §2.2/§15.1）：至少一次成功本机试运行 + 有效封面。
    * 试运行成功不会自动调用这里；必须由用户明确执行。
    */
-  formalize(schemeId: string): DesignSchemeSummary {
+  formalize(schemeId: string, expectedVersion?: number): DesignSchemeSummary {
     const summary = this.requireSummary(schemeId);
+    this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
     if (summary.status === 'formal') throw new Error('方案已是正式状态');
     if (!summary.hasSuccessfulTrial) throw new Error('转为正式前需要至少一次成功的本机试运行');
     if (!summary.coverAssetId) throw new Error('请先从试运行结果中选择封面');
-    this.db
+    const result = this.db
       .prepare(
-        `UPDATE design_schemes SET status = 'formal', updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+        `UPDATE design_schemes
+            SET status = 'formal', version = version + 1, updated_at = ?
+          WHERE id = ? AND deleted_at IS NULL AND version = ?`,
       )
-      .run(Date.now(), schemeId);
+      .run(Date.now(), schemeId, summary.version);
+    this.assertUpdated(schemeId, summary.version, result.changes);
     return this.requireSummary(schemeId);
+  }
+
+  private assertExpectedVersion(
+    schemeId: string,
+    actualVersion: number,
+    expectedVersion: number | undefined,
+  ): void {
+    if (expectedVersion !== undefined && expectedVersion !== actualVersion) {
+      throw new DesignSchemeVersionConflictError(schemeId, expectedVersion);
+    }
+  }
+
+  private assertUpdated(schemeId: string, expectedVersion: number, changes: number): void {
+    if (changes !== 1) {
+      throw new DesignSchemeVersionConflictError(schemeId, expectedVersion);
+    }
   }
 
   private coverImagePath(coverAssetId: string | null): string | null {
@@ -696,6 +1110,7 @@ export class DesignSchemeRepository {
       sourcePresentation: row.source_presentation,
       sourceLabel: row.source_label,
       currentRevisionId: row.current_revision_id,
+      version: row.version,
       workingDraftRevisionId: row.working_draft_revision_id,
       inputLabels: this.inputLabels(row.current_revision_id),
       coverAssetId: row.cover_asset_id,

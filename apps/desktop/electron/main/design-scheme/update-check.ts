@@ -4,21 +4,42 @@
  * 固化快照 → Analyst → Compiler，产出待验证草稿（正式方案写 workingDraft，
  * 草稿方案直接更新当前版本）。当前正式版本始终保持可用。
  */
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
+import type { ZodType } from 'zod';
+import {
+  designSchemeHashSchema,
+  designSchemeRevisionDocumentSchema as canonicalDocumentSchema,
+  httpsRepositoryUriSchema,
+  httpsUriSchema,
+  opaqueIdSchema,
+  relativePathSchema,
+  sourceConfirmationSchema,
+} from '@musefold/contracts';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
+import type { AnalystReport } from '@musefold/desktop-contracts/design-scheme/agents';
 import type {
   CompilationTraceItem,
   DesignSchemeRevisionDocument,
   SourceBinding,
 } from '@musefold/desktop-contracts/design-scheme/schema';
-import type { DesignSchemeCheckUpdateResult } from '@musefold/desktop-contracts/design-scheme';
+import type {
+  DesignSchemeCheckUpdateResult,
+  DesignSchemeSummary,
+} from '@musefold/desktop-contracts/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
-import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import {
+  DesignSchemeRepository,
+  DesignSchemeVersionConflictError,
+} from '@musefold/core/db/design-scheme/repositories';
 import { buildInputSlots } from './orchestrator';
 import { runRepositoryAnalyst } from './roles/analyst';
 import { runSchemeCompiler } from './roles/compiler';
-import { persistGithubSnapshot, resolveGithubSource } from './source-ingestion';
+import {
+  persistGithubSnapshot,
+  resolveGithubSource,
+  type ResolvedGithubSource,
+} from './source-ingestion';
 import type { OpenAiCompatibleTextAdapter } from './text-adapter';
 
 export interface UpdateCheckDeps {
@@ -28,12 +49,209 @@ export interface UpdateCheckDeps {
   userDataDir?: string;
 }
 
+interface ResolvedBinding {
+  binding: SourceBinding & { uri: string };
+  source: ResolvedGithubSource;
+  changed: boolean;
+}
+
+class CanonicalValidationError extends Error {
+  constructor(label: string, issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>) {
+    const detail = issues
+      .slice(0, 3)
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('; ');
+    super(`${label}未通过共享契约校验${detail ? `: ${detail}` : ''}`);
+    this.name = 'TypeValidationError';
+  }
+}
+
+function parseCanonical<T>(schema: ZodType<T>, candidate: unknown, label: string): T {
+  const parsed = schema.safeParse(candidate);
+  if (!parsed.success) throw new CanonicalValidationError(label, parsed.error.issues);
+  return parsed.data;
+}
+
+function throwIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
+}
+
+function repositoryLabel(repositoryUrl: string): string {
+  const parsed = new URL(repositoryUrl);
+  return parsed.pathname.replace(/^\/+|\/+$/g, '').replace(/\.git$/i, '');
+}
+
+/** GitHub 下载结果是网络输入；只把共享契约接受的 path-free 字段交给 AI/持久化。 */
+function validateResolvedSource(
+  source: ResolvedGithubSource,
+  expectedRepositoryUrl: string,
+): ResolvedGithubSource {
+  const expectedUrl = parseCanonical(
+    httpsRepositoryUriSchema,
+    expectedRepositoryUrl,
+    '方案 GitHub 来源',
+  );
+  const confirmation = parseCanonical(
+    sourceConfirmationSchema,
+    {
+      repositoryUrl: source.repositoryUrl,
+      name: source.name,
+      description: source.description,
+      resolvedRef: source.resolvedRef,
+      commitHash: source.commitHash,
+      textFileCount: source.textFiles.length,
+      textNames: source.textFiles.slice(0, 100).map((file) => file.path),
+      imageFileCount: source.imageFiles.length,
+      license: source.license,
+    },
+    'GitHub 来源',
+  );
+  if (confirmation.repositoryUrl !== expectedUrl) {
+    throw new CanonicalValidationError('GitHub 来源', [
+      { path: ['repositoryUrl'], message: '解析结果与方案绑定的仓库不一致' },
+    ]);
+  }
+
+  const textFiles = source.textFiles.map((file) => ({
+    ...file,
+    path: parseCanonical(relativePathSchema, file.path, 'GitHub 文本路径'),
+    contentHash: parseCanonical(designSchemeHashSchema, file.contentHash, 'GitHub 文本哈希'),
+  }));
+  const imageFiles = source.imageFiles.map((file) => ({
+    ...file,
+    relativePath: parseCanonical(relativePathSchema, file.relativePath, 'GitHub 图片路径'),
+    contentHash: parseCanonical(designSchemeHashSchema, file.contentHash, 'GitHub 图片哈希'),
+  }));
+  return {
+    ...source,
+    repositoryUrl: confirmation.repositoryUrl,
+    repositoryLabel: repositoryLabel(confirmation.repositoryUrl),
+    name: confirmation.name,
+    description: confirmation.description,
+    resolvedRef: confirmation.resolvedRef,
+    commitHash: confirmation.commitHash,
+    license: confirmation.license,
+    textFiles,
+    imageFiles,
+  };
+}
+
+function canonicalSource(binding: SourceBinding): Record<string, unknown> {
+  const semanticHistoryUri =
+    (binding.kind === 'history-image' || binding.kind === 'conversation-turn') &&
+    binding.uri?.startsWith('history:');
+  if (binding.uri && !semanticHistoryUri) {
+    parseCanonical(
+      binding.kind.startsWith('github') ? httpsRepositoryUriSchema : httpsUriSchema,
+      binding.uri,
+      `来源 ${binding.id}`,
+    );
+  }
+  return {
+    id: binding.id,
+    kind: binding.kind,
+    role: binding.role,
+    ...(binding.uri && !semanticHistoryUri
+      ? binding.kind.startsWith('github')
+        ? { repositoryUrl: binding.uri }
+        : { uri: binding.uri }
+      : {}),
+    ...(binding.ref ? { resolvedRef: binding.ref } : {}),
+    ...(binding.commit ? { commitHash: binding.commit } : {}),
+    ...(binding.filePath ? { relativePath: binding.filePath } : {}),
+    ...(binding.contentHash ? { contentHash: binding.contentHash } : {}),
+    ...(binding.license ? { license: binding.license } : {}),
+  };
+}
+
+/** Validate the AI-derived write candidate with the path-free canonical document schema. */
+function validateDocument(document: DesignSchemeRevisionDocument): void {
+  parseCanonical(
+    canonicalDocumentSchema,
+    {
+      schemaVersion: document.schemaVersion,
+      revisionId: document.revisionId,
+      schemeId: document.schemeId,
+      name: document.name,
+      summary: document.summary,
+      fidelity: document.fidelity,
+      sources: document.sources.map(canonicalSource),
+      inputs: document.inputs,
+      parameters: document.parameters,
+      constraints: document.constraints,
+      promptProgram: document.promptProgram,
+      compilation: document.compilation,
+    },
+    '更新后的设计方案文档',
+  );
+}
+
+/** Missing commit metadata is not enough evidence by itself to trigger an Agent recompile. */
+function hasUpstreamChange(binding: SourceBinding, source: ResolvedGithubSource): boolean {
+  if (binding.commit && source.commitHash) return binding.commit !== source.commitHash;
+  return Boolean(binding.ref && source.resolvedRef && binding.ref !== source.resolvedRef);
+}
+
+function refreshedSources(
+  base: DesignSchemeRevisionDocument,
+  resolved: ResolvedBinding[],
+): SourceBinding[] {
+  const changedById = new Map(
+    resolved.filter((item) => item.changed).map((item) => [item.binding.id, item.source]),
+  );
+  return base.sources.map((binding) => {
+    const source = changedById.get(binding.id);
+    if (!source) return { ...binding };
+    const { ref: _ref, commit: _commit, license: previousLicense, ...preserved } = binding;
+    const license = source.license ?? previousLicense;
+    return {
+      ...preserved,
+      uri: source.repositoryUrl,
+      ref: source.resolvedRef,
+      ...(source.commitHash ? { commit: source.commitHash } : {}),
+      ...(license ? { license } : {}),
+    };
+  });
+}
+
+function updateTrace(changed: ResolvedBinding[]): CompilationTraceItem[] {
+  return changed.map(({ binding, source }, index) => ({
+    id: `update-check-${index + 1}-${randomUUID().slice(0, 8)}`,
+    title: '上游 Skill 更新',
+    detail: `commit ${binding.commit?.slice(0, 10) ?? '未知'} → ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}`,
+    status: 'success',
+  }));
+}
+
+function replaceChangedSnapshotBindings(
+  db: Database.Database,
+  revisionId: string,
+  changed: Array<ResolvedBinding & { snapshotId: string }>,
+): void {
+  const removeSuperseded = db.prepare(
+    `DELETE FROM design_scheme_source_bindings
+      WHERE revision_id = ?
+        AND source_snapshot_id IN (
+          SELECT snapshot.id
+            FROM source_snapshots snapshot
+            JOIN source_packages package ON package.id = snapshot.package_id
+           WHERE package.kind = 'github'
+             AND package.repository_url = ?
+             AND snapshot.id <> ?
+        )`,
+  );
+  for (const item of changed) {
+    removeSuperseded.run(revisionId, item.source.repositoryUrl, item.snapshotId);
+  }
+}
+
 export async function checkSchemeUpdate(
   schemeId: string,
   deps: UpdateCheckDeps,
+  requestedRevisionId?: string,
 ): Promise<AppResult<DesignSchemeCheckUpdateResult>> {
   const repository = new DesignSchemeRepository(deps.db);
-  let summary;
+  let summary: DesignSchemeSummary;
   try {
     summary = repository.requireSummary(schemeId);
   } catch (error) {
@@ -43,33 +261,62 @@ export async function checkSchemeUpdate(
       }),
     );
   }
-  const base = repository.getRevisionDocument(summary.currentRevisionId);
-  if (!base)
-    return fail(appError('MISSING_REFERENCE', '方案版本不存在', { recoveryAction: 'retry' }));
 
-  const repoBinding = base.sources.find(
-    (binding) => binding.kind.startsWith('github') && binding.uri,
+  const authoritativeRevisionId =
+    summary.status === 'formal' && summary.workingDraftRevisionId
+      ? summary.workingDraftRevisionId
+      : summary.currentRevisionId;
+  if (requestedRevisionId !== undefined && requestedRevisionId !== authoritativeRevisionId) {
+    return fail(
+      appError('INVALID_STATE', '指定版本不是方案当前可更新的版本，请刷新后重试', {
+        recoveryAction: 'retry',
+      }),
+    );
+  }
+
+  const base = repository.getRevisionDocument(authoritativeRevisionId);
+  if (!base || base.schemeId !== schemeId) {
+    return fail(appError('MISSING_REFERENCE', '方案版本不存在', { recoveryAction: 'retry' }));
+  }
+
+  const repoBindings = base.sources.filter(
+    (binding): binding is SourceBinding & { uri: string } =>
+      binding.kind.startsWith('github') && Boolean(binding.uri),
   );
-  if (!repoBinding?.uri) {
+  if (repoBindings.length === 0) {
     return ok({ status: 'no-source', detail: '这个方案没有 GitHub 来源，不需要检查更新。' });
   }
 
   try {
-    const resolved = await resolveGithubSource(repoBinding.uri);
-    if (deps.signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
-    if (!resolved.ok) {
-      return fail(
-        appError('NETWORK_ERROR', resolved.error.message, {
-          retryable: true,
-          recoveryAction: 'retry',
-        }),
-      );
+    const resolved: ResolvedBinding[] = [];
+    for (const binding of repoBindings) {
+      const result = await resolveGithubSource(binding.uri);
+      throwIfCancelled(deps.signal);
+      if (!result.ok) {
+        return fail(
+          appError('NETWORK_ERROR', result.error.message, {
+            retryable: true,
+            recoveryAction: 'retry',
+          }),
+        );
+      }
+      const source = validateResolvedSource(result.data, binding.uri);
+      resolved.push({
+        binding,
+        source,
+        changed: hasUpstreamChange(binding, source),
+      });
     }
-    const source = resolved.data;
-    if (source.commitHash && repoBinding.commit && source.commitHash === repoBinding.commit) {
+
+    const changed = resolved.filter((item) => item.changed);
+    if (changed.length === 0) {
+      const [only] = resolved;
       return ok({
         status: 'up-to-date',
-        detail: `已是最新（commit ${source.commitHash.slice(0, 10)}）。`,
+        detail:
+          resolved.length === 1 && only?.source.commitHash
+            ? `已是最新（commit ${only.source.commitHash.slice(0, 10)}）。`
+            : `${resolved.length} 个 GitHub 来源均已是最新。`,
       });
     }
 
@@ -86,57 +333,47 @@ export async function checkSchemeUpdate(
       );
     }
 
-    const persisted = persistGithubSnapshot(deps.db, source, deps.userDataDir);
-    const { report } = await runRepositoryAnalyst(
-      adapter,
-      {
-        brief: base.compilation.briefExcerpt ?? '',
-        repositoryLabel: source.repositoryLabel,
-        textFiles: source.textFiles.map((file) => ({ path: file.path, text: file.text })),
-        imagePaths: source.imageFiles.map((file) => file.relativePath),
-        license: source.license,
-      },
-      deps.signal,
-    );
-    if (deps.signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
+    const brief = base.compilation.briefExcerpt ?? '';
+    const analyzed: Array<ResolvedBinding & { report: AnalystReport }> = [];
+    for (const item of changed) {
+      const { report } = await runRepositoryAnalyst(
+        adapter,
+        {
+          brief,
+          repositoryLabel: item.source.repositoryLabel,
+          textFiles: item.source.textFiles.map((file) => ({ path: file.path, text: file.text })),
+          imagePaths: item.source.imageFiles.map((file) => file.relativePath),
+          license: item.source.license,
+        },
+        deps.signal,
+      );
+      throwIfCancelled(deps.signal);
+      analyzed.push({ ...item, report });
+    }
+
+    const [primary, ...additional] = analyzed;
+    if (!primary) throw new Error('GitHub 来源解析结果为空');
     const { output } = await runSchemeCompiler(
       adapter,
       {
-        brief: base.compilation.briefExcerpt ?? '',
-        repositoryLabel: source.repositoryLabel,
-        analystReport: report,
+        brief,
+        repositoryLabel: primary.source.repositoryLabel,
+        analystReport: primary.report,
+        ...(additional.length > 0
+          ? {
+              additionalRepositories: additional.map((item) => ({
+                repositoryLabel: item.source.repositoryLabel,
+                analystReport: item.report,
+              })),
+            }
+          : {}),
       },
       deps.signal,
     );
-    if (deps.signal?.aborted) throw Object.assign(new Error('已取消'), { name: 'AbortError' });
+    throwIfCancelled(deps.signal);
 
-    // 基线是修改校验的锚点：正式方案已有待验证草稿时，在草稿之上继续更新。
-    const baseRevisionId =
-      summary.status === 'formal' && summary.workingDraftRevisionId
-        ? summary.workingDraftRevisionId
-        : summary.currentRevisionId;
-
-    const sources: SourceBinding[] = [];
-    const briefBinding = base.sources.find((binding) => binding.kind === 'user-brief');
-    if (briefBinding) sources.push({ ...briefBinding });
-    const repoBindingId = 'src_repo';
-    sources.push({
-      id: repoBindingId,
-      kind: 'github-skill',
-      role: 'normative',
-      uri: source.repositoryUrl,
-      ref: source.resolvedRef,
-      ...(source.commitHash ? { commit: source.commitHash } : {}),
-      ...(source.license ? { license: source.license } : {}),
-    });
-    const trace: CompilationTraceItem[] = [
-      {
-        id: 'update-check',
-        title: '上游 Skill 更新',
-        detail: `commit ${repoBinding.commit?.slice(0, 10) ?? '未知'} → ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}`,
-        status: 'success',
-      },
-    ];
+    const githubSourceIds = resolved.map((item) => item.binding.id).slice(0, 16);
+    const trace = updateTrace(changed);
     const document: DesignSchemeRevisionDocument = {
       schemaVersion: base.schemaVersion,
       revisionId: `dsrv_${randomUUID()}`,
@@ -144,16 +381,16 @@ export async function checkSchemeUpdate(
       name: output.name,
       summary: output.summary,
       fidelity: output.fidelity,
-      sources,
+      sources: refreshedSources(base, resolved),
       inputs: buildInputSlots(output),
-      parameters: [],
+      parameters: base.parameters.map((parameter) => ({ ...parameter })),
       constraints: output.constraints.map((constraint, index) => ({
         id: `con_${index + 1}`,
         domain: constraint.domain,
         statement: constraint.statement,
         mode: constraint.mode,
         userOverridable: constraint.userOverridable,
-        sourceIds: [repoBindingId],
+        sourceIds: githubSourceIds,
       })),
       promptProgram: output.promptProgram.map((module, index) => ({
         id: `pm_${index + 1}`,
@@ -161,7 +398,7 @@ export async function checkSchemeUpdate(
         kind: module.kind,
         template: module.template,
         variables: module.variables,
-        sourceIds: [repoBindingId],
+        sourceIds: githubSourceIds,
       })),
       compilation: {
         compiledAt: Date.now(),
@@ -169,24 +406,57 @@ export async function checkSchemeUpdate(
         adopted: output.adopted,
         omitted: output.omitted,
         warnings: output.warnings,
-        ...(base.compilation.briefExcerpt ? { briefExcerpt: base.compilation.briefExcerpt } : {}),
-        trace,
+        ...(base.compilation.briefExcerpt !== undefined
+          ? { briefExcerpt: base.compilation.briefExcerpt }
+          : {}),
+        trace: [...base.compilation.trace, ...trace].slice(-60),
       },
     };
+    validateDocument(document);
 
-    const saved = repository.applyAgentRevision(schemeId, baseRevisionId, document, [
-      { snapshotId: persisted.snapshotId, role: 'normative' },
-    ]);
+    const saved = deps.db.transaction(() => {
+      const persisted = changed.map((item) => {
+        const snapshot = persistGithubSnapshot(deps.db, item.source, deps.userDataDir);
+        parseCanonical(opaqueIdSchema, snapshot.packageId, 'GitHub 来源包 ID');
+        const snapshotId = parseCanonical(opaqueIdSchema, snapshot.snapshotId, 'GitHub 快照 ID');
+        return { ...item, snapshotId };
+      });
+      const result = repository.applyAgentRevision(
+        schemeId,
+        authoritativeRevisionId,
+        document,
+        persisted.map((item) => ({ snapshotId: item.snapshotId, role: item.binding.role })),
+        summary.version,
+      );
+      replaceChangedSnapshotBindings(deps.db, result.document.revisionId, persisted);
+      return result;
+    })();
+
+    const updatedLabel =
+      changed.length === 1
+        ? `commit ${changed[0]?.source.commitHash?.slice(0, 10) ?? changed[0]?.source.resolvedRef}`
+        : `${changed.length} 个上游来源`;
     return ok({
       status: 'draft-created',
       detail:
         summary.status === 'formal'
-          ? `上游已更新到 commit ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}；新版本已保存为待验证草稿，正式版本保持可用。`
-          : `上游已更新到 commit ${source.commitHash?.slice(0, 10) ?? source.resolvedRef}；草稿已更新，请重新试运行。`,
+          ? `上游已更新到${updatedLabel}；新版本已保存为待验证草稿，正式版本保持可用。`
+          : `上游已更新到${updatedLabel}；草稿已更新，请重新试运行。`,
       scheme: saved.summary,
       revisionId: saved.document.revisionId,
     });
   } catch (error) {
+    if (
+      error instanceof DesignSchemeVersionConflictError ||
+      (error instanceof Error && error.message.includes('方案已有更新版本'))
+    ) {
+      return fail(
+        appError('INVALID_STATE', '方案在检查更新期间已发生变化，请刷新后重试', {
+          retryable: true,
+          recoveryAction: 'retry',
+        }),
+      );
+    }
     return fail(classifyAiError(error, deps.signal));
   }
 }

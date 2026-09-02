@@ -28,6 +28,7 @@ import type {
 } from '@musefold/desktop-contracts/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import { getPaths } from '../../system/paths';
 import { runRepositoryAnalyst } from './roles/analyst';
 import { runSchemeCompiler } from './roles/compiler';
 import {
@@ -46,6 +47,8 @@ export interface CreationSessionDeps {
   resolveAdapter: () => OpenAiCompatibleTextAdapter | null;
   emit: (event: DesignSchemeCreationEvent) => void;
   userDataDir?: string;
+  /** 历史来源固化受管图片根(pictures);缺省主进程运行时解析。 */
+  picturesDir?: string;
 }
 
 function shortHash(commit: string | null): string {
@@ -325,7 +328,12 @@ export class DesignSchemeCreationSession {
   ): PersistedHistorySnapshot {
     this.emitState('source_snapshotting');
     this.beginStep('history-snapshot', '固化历史来源', `${items.length} 项历史内容`);
-    const persisted = persistHistorySnapshot(this.deps.db, items, this.deps.userDataDir);
+    const persisted = persistHistorySnapshot(
+      this.deps.db,
+      items,
+      this.deps.userDataDir,
+      this.deps.picturesDir ?? getPaths().pictures,
+    );
     const promptCount = persisted.items.filter((item) => item.promptText?.trim()).length;
     this.endStep(
       'history-snapshot',

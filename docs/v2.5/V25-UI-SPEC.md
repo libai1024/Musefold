@@ -22,6 +22,7 @@
 | 工作台(生成) | 时间线 + Composer + 空态 | M4b | 部分交付,按 §3 校准 |
 | 提示词库 | 列表 / 编辑器 / 标签管理 / 回收站 | M4a ✅ | 已交付,§4 记录基准 |
 | 生成历史 | 列表 + 筛选 + 详情 + 回收站 | M4c ✅ | 已交付,§5 记录基准 |
+| 设计方案 | 我的方案 / 发现 / Inspector / 详情 / 试运行 | P01 | 迁移中;入口已挂载(P01-7,§8A),按 §8A 与 ui-parity/06 校准 |
 | 设置 | 卡片流(分组导航后置) | M4d ✅ | 已交付,§6 记录基准 |
 | 账号 / AI 连接 | 账号面板 / 连接管理 / 余额兑换 | M4d ✅ | 已交付,§7 记录基准 |
 
@@ -31,12 +32,12 @@
 |---|---|---|
 | **桌宠(pet)** | 冻结,不迁移不确认 | 独立 renderer 入口按 D1 保留在旧栈,v2.5 渲染层不出现 |
 | **EmberMark 朱点(右上角橙色小点)** | 冻结,不迁移不确认 | 外部任务活动指示,待后续版本重新设计 |
-| 设计方案域(design-schemes) | 暂缓 | M4 未排卡;侧栏导航不出现该入口,Composer 相关菜单项不迁 |
-| 豆包网页模式(doubao-web) | 主进程语义保留,渲染层暂缓 | Composer 的豆包专属文案/限制提示随该域后续排卡 |
+| 豆包网页模式(doubao-web) | 主进程语义保留,渲染层暂缓 | 保留账号/连接区可达入口;豆包专属渲染与限制提示后续排卡 |
 | Skill runtime 会话 / GitHub Skill 导入 | 暂缓 | Composer「+」菜单相关项不迁 |
+| 通用分享/导入 | 暂缓 | 设计方案专用 `.musefold.design` 导入/导出随设计方案域迁移(P01 进行中:Desktop 安全 staging/archive 与 domain 导入/导出已接线未验收;通用分享/导入本体仍暂缓) |
 | 命令面板(⌘K) | 暂缓,壳预留入口 | 顶栏搜索按钮先跳提示词库搜索,后续接命令面板 |
 | 微调(refinement)链 | 暂缓至 M4c 后评估 | 历史屏先展示 parentRunId 线索,不提供发起微调入口 |
-| 归档会话浏览 | 暂缓 | 会话「归档」动作保留,归档列表入口在设置(§6)占位 |
+| 归档会话浏览 | 已实现(设置·数据卡) | 会话「归档」动作与设置内归档列表、刷新、恢复、软删闭环;生成记录保留,永久清理留 D02 |
 
 ---
 
@@ -82,7 +83,7 @@
 │ ┌─────────┐ │ ┌──────────────────────────────────┐ │
 │ │品牌 + 收起│ │ │ 主区(工作面 bg-background)        │ │
 │ │[新设计 ⌘N]│ │ │  各域屏幕组件(features 包)        │ │
-│ │功能导航   │ │ │                                  │ │
+│ │主导航     │ │ │                                  │ │
 │ │ 工作台    │ │ │                                  │ │
 │ │ 提示词库  │ │ │                                  │ │
 │ │ 生成历史  │ │ │                                  │ │
@@ -101,20 +102,30 @@
 |---|---|---|---|
 | 桌面窗口(Electron) | 常驻,可收起(收起后主区左上出现展开钮) | 侧栏导航 | 侧栏「对话」区 |
 | Web ≥ md | 同桌面 | 同桌面 | 同桌面 |
-| Web < md(移动) | 无侧栏 | **底部标签栏**(工作台/库/历史/设置) | 工作台屏顶部会话选择器(§3.4) |
+| Web < md(移动) | **overlay 抽屉**(同一五段式侧栏,<768px;`sidebar-drawer-open`) | 底部标签栏 + 抽屉主导航 | 抽屉「对话」区 + 工作台顶部会话选择器 |
 
-### 2.2 侧栏构成(自上而下,承旧 `ProductSidebar`)
+### 2.2 侧栏构成(自上而下,承旧 `ProductSidebar`,2026-08-29 随 ZCode/Codex/Cursor 布局语法收口)
 
-1. **品牌行**:Musefold 标记 + 字标;右侧「收起侧栏」图标钮(`sidebar-collapse`)。macOS 未全屏时头部左侧让位红绿灯(inset 86px,宿主注入)。
-2. **新设计按钮**:图标 SquarePen + 「新设计」 + kbd `⌘N`;点击 = 建新会话并切到工作台(`sidebar-new-design`)。
-3. **「功能」分节标签 + 主导航**:工作台(生成)、提示词库、生成历史。活动项 `aria-current="page"` + 强调底色;每项可带 count 角标。testid `nav-<id>`。
-4. **「对话」分节 + 会话列表**(滚动区,详见 §3.3)。
-5. **底部账号/设置区**:头像 + 名称 + 额度/状态一行;点击开菜单(账号设置/退出登录/设置入口)。桌面另有访问模式切换器(本地/云端)语义,M4d 收口。
+1. **品牌行**:Musefold 标记 + 字标;右侧「收起侧栏」图标钮(`sidebar-collapse`)。macOS 非全屏时头部左侧让位红绿灯(inset 78px,宿主注入);原生全屏时交通灯隐藏,回落为 12px;非 macOS 为 0px。窗口状态由 v25 preload 的只读宿主信号提供,不进入业务 gateway。
+2. **「新设计」行**:与导航行同构的轨道行样式(SquarePen + 文案 + 右列 kbd `⌘N`),不再用描边按钮(`session-create`)。
+3. **主导航**(无分节标签):工作台、提示词库、设计方案(§8A,P01-7 起随 `hasDesignSchemes` capability 注册)、生成历史。**设置不占导航轨**,入口在底部账号区齿轮;活动项 `aria-current="page"` + 强调底色,行高 32px / 13px 字号。testid `nav-<id>`。
+4. **「对话」分节 + 会话列表**(滚动区,详见 §3.3)。行尾静息态显示相对时间(刚刚/n 分钟/n 小时/n 天/M月D日,`session-updated-at`),hover/focus 让位给行动作组(display 切换,触屏常显动作)。
+5. **底部账号区**(`AccountFooter`,承旧 `SidebarAccessSwitcher` 语义收敛):
+   - **通道定位**:官方账号 = 生图推荐主通道;豆包 = 免费试用通道;中转站 = 第三方自备通道。
+   - **触发钮显示当前生效通道**(`data-channel` 三态,由活跃本地连接解析):
+     - `account`(无活跃本地连接、活跃行是账号托管行 `managedBy='account'`、或 Web):官方黑白标记(`MusefoldMark`,朱点降为单色 `[--primary:currentColor]`)+ 登录状态点(绿=已登录)+ 名称/积分(未登录=「登录账号 / 同步与云生图」);
+     - `doubao`(活跃行 type=doubao-web):`DoubaoMark` + 「豆包 / 免费试用通道」;
+     - `relay`(其余活跃行):Waypoints + 连接名 + 「中转站通道」。
+     切换后即时更新(setActive 失效并刷新 aiProviders.list)。testid `account-footer` / `account-footer-signed-out`。
+   - **菜单**:默认动作是登入/登出——未登录首项「登录 Musefold 账号」深链设置账户卡;已登录 = 名称/积分头 + 「账户与额度」+ 「登出」(AlertDialog 确认)。
+   - **「更多连接」子菜单**(仅桌面 `hasLocalAiProviders`):官方账号(`MusefoldMark`)/中转站(Waypoints)/豆包(`DoubaoMark`)三行,**点击即切换活跃连接**(`aiProviders.setActive`,左下角显示与 Composer 预选跟随,toast 反馈);当前通道行显示勾选。官方账号行的切换落点是账号托管行(契约 `AiProvider.managedBy='account'`,V05 FR-GW-01 迁移库存在;无托管行且非当前时深链账户卡);中转站/豆包未配置时深链设置连接卡;尾行「连接设置」深链同卡。testid `account-menu-more/-official/-relay/-doubao/-connections`。
+   - **齿轮钮**:直达设置,承 e2e `nav-settings` 契约。
+   - 深链机制:`ScreenIntent`(`settings-account` / `settings-connections`)→ 设置屏滚动至目标卡 + 1.8s ring 高亮。
 
 ### 2.3 顶栏
 
 - **Web ≥ md**:仅侧栏收起时在主区左上显示展开钮;不设常驻顶栏(承桌面口径,最大化内容区)。
-- **Web < md(移动)**:常驻顶栏 = 当前域图标+标题(工作台显示会话名+会话菜单)+ 搜索钮 + 额度 readout(Sparkles 图标 + 数字,`tabular-nums`)。
+- **Web < md(移动)**:常驻顶栏 = 抽屉触发钮 + 当前域图标/标题 + 搜索钮 + 额度 readout(Sparkles 图标 + 数字,`tabular-nums`)。抽屉使用 `Sheet` 左滑,宽 `min(320px,max(220px,100vw - 28px))`;打开时主工作面与底栏 `inert`,焦点圈闭,Escape/导航/新设计/会话打开均关闭,关闭后焦点归还触发前元素。
 - **Electron**:系统标题栏区域为拖拽区(`drag-region`);Windows/Linux 渲染自绘窗口控制钮。主区不再叠加产品顶栏。
 
 ### 2.4 全局反馈设施(壳级 Provider)
@@ -135,6 +146,8 @@
 - [x] 移动顶栏:品牌标记 + 当前域标题 + 搜索钮(跳提示词库)+ 额度 readout(`MobileQuotaReadout`,宿主经 `mobileExtra` 插槽注入;未登录不占位)。
 - [x] 会话置顶:偏好通道承接(`AppPreferences.pinnedSessionIds`,D6 同机制);置顶组排前、行首 Pin 标记、离场自动清偏好。
 - [x] 会话行运行/未读状态点:契约会话实体补派生字段 `latestJobStatus`/`latestJobFinishedAt`(default null 兼容);running 动画点(queued/running/cancelling)、unread 实心点(本次运行期内完成且未查看,`useActiveSession.seenAt` 内存追踪);列表有活动生成时 3s 短轮询驱动翻终态。
+- [x] 布局语法收口(2026-08-29,承 ZCode/Codex/Cursor 参照):设置移出导航轨(入口=footer 齿轮)、「新设计」改轨道行样式、「功能」分节标签取消、会话行尾相对时间戳;底部账号区升级身份菜单(官方黑白标触发钮、登入/登出默认动作、「更多连接」切换子菜单、ScreenIntent 设置深链),形态见 §2.2-5。
+- [x] U01 壳几何收口(2026-08-29):侧栏默认 248px、220–360px/32vw 夹取,指针拖拽 + 键盘 ±16/Home/End + 双击复位,沿用 `musefold:sidebar-width`;桌面工作面四边 4px inset + 12px 圆角 + 阴影;`<768px` 使用同源模态抽屉,无 761–767px 不可达区。
 
 ---
 
@@ -152,27 +165,27 @@
 │ ┌─────────────────────────────────────┐   │
 │ │ Composer 悬浮卡(728px 居中,浮起阴影)    │   │
 │ │ 提示词多行输入(自动增高,Enter 发送)      │   │
-│ │ [＋] [比例▾] [设置⚙▾]      [发送/停止] │   │
+│ │ [＋] [比例▾] [设置⚙▾]      [发送/停止] │ [参考素材 304px] │
 │ └─────────────────────────────────────┘   │
 └───────────────────────────────────────────┘
 ```
 
 - **悬浮贴底(承旧 floating 布局)**:Composer 绝对定位贴底,轨道透明不截获事件;卡片 728px 居中、浮起阴影 + 轻透底毛玻璃,时间线内容列(同 728px 中轴)以底部留白从卡片背后滚过。运行中卡片边框转品牌色 30%。
-- **空态(无回合)**:品牌锁定区(标记+一句欢迎语)+ 内联 Composer 居中(承旧 v2.0 §11 形态,20px 品牌焦点外框);垂直定位用 `clamp(72px,16vh,140px)` 顶距随窗口高度呼吸;首次发送后 Composer 落底。
-- 会话列表不在本屏(住壳侧栏,§2.2);移动端在本屏顶部放会话选择器(§3.4)。
+- **空态(无回合)**:品牌锁定区(标记 + **时段问候语**(`workbench-empty-greeting`,早上/中午/下午/晚上四档,挂载后按本地时间计算防水合错位;矮视口隐藏)+ tagline 副标)+ 内联 Composer 居中(承旧 v2.0 §11 形态,20px 品牌焦点外框);垂直定位用 `clamp(72px,16vh,140px)` 顶距随窗口高度呼吸;首次发送后 Composer 落底。E2E 视觉基线用 `page.clock.setFixedTime` 钉问候档位。
+- 会话列表不在本屏(住壳侧栏,§2.2);桌面可在工作区右侧展开 304px `PromptReferenceDock`;移动端在本屏顶部放会话选择器(§3.4),引用选择器改为底部 Dialog。
 
 ### 3.2 Composer 规格
 
 | 控件 | 形态 | 契约字段 | 约定 |
 |---|---|---|---|
 | 提示词输入 | 多行 textarea,自动增高(76–180px) | `prompt` | Enter 或 ⌘/Ctrl+Enter 发送 / Shift+Enter 换行;IME 组合期(含 keyCode 229)不截获;占位语分支承旧:空会话「描述你想生成的图片…」/有回合「描述下一步调整…」;≥90% 限长时工具条尾部显示 `字数/上限` 计数 |
-| 比例选择 | 形状预览触发钮(mono 值 + 几何色板)+ 368px 网格菜单 | `aspectRatio` | 目录承旧 v2.1 全集 11 档(1:1/2:3/3:4/3:2/4:3/4:5/5:4/9:16/16:9/21:9/auto 殿后);3 列卡片含形状预览 + 勾选,打开即聚焦当前项,方向键 ±1 环绕 + Home/End;自定义比例暂缓(§9-D7) |
+| 比例选择 | 形状预览触发钮(mono 值 + 几何色板)+ 368px 网格菜单 | `aspectRatio` | 目录承旧 v2.1 全集 11 档(1:1/2:3/3:4/3:2/4:3/4:5/5:4/9:16/16:9/21:9/auto 殿后);3 列卡片含形状预览 + 勾选,打开即聚焦当前项,方向键 ±1 环绕 + Home/End;**自定义比例已恢复(承旧 RatioPicker,D7 作废)**:网格下单一分隔带自定义行(W:H 整数输入 1–99,比例限 1:4–4:1,Enter/「应用」提交,非法非空值 `role=alert`「比例需在 1:4 与 4:1 之间」且弹层不关);自定义当前态 trigger/预览按实际 `W:H` 呈现,标题右侧显示「`W:H` / 自定义」,不回落 auto;数据流只传规范 `W:H`(domain 旧 `custom:W:H` 前缀不进 v2.5) |
 | 生成设置 | 值摘要触发钮(显示当前质量档,反向词非空追加「· 反向词」)+ 304px 弹层 | `quality`、`negative` | 质量档 radio 组承旧命名:自动/标准/高清/超清(枚举值 auto/low/medium/high 不变);反向提示词 textarea 收进弹层(不常驻);数量锁 1(§9-D3) |
 | Provider 选择 | 下拉(桌面显示本地连接;云端固定「Musefold 云生图」) | `providerId` | 无可用连接时禁用发送并给引导文案 |
-| 「+」菜单 | 触发钮 + 菜单 | — | v2.5 首版仅「添加图片」(参考图三路入图);设计方案/Skill/历史来源项不迁(§0.2) |
-| 发送/停止 | 36px 圆形主按钮(承旧),状态互斥 | — | 空提示词或无 Provider 时禁用;hover 上浮/按压下沉微动效;运行中变「停止生成」(Square 图标,Esc 亦可停止),取消中 spinner 禁用 |
+| 「+」菜单 | 触发钮 + 菜单 | — | 「添加图片」+「提示词 / 从库中引用」;选择提示词时先完成菜单退出再打开素材面板,不得叠两层浮层;设计方案/Skill/历史来源项随各域后续卡恢复 |
+| 发送/停止 | 36px 圆形主按钮(承旧),状态互斥 | — | 正文与 Prompt 引用均为空或无 Provider 时禁用;纯引用可显式发送;hover 上浮/按压下沉微动效;运行中变「停止生成」(Square 图标,Esc 亦可停止),取消中 spinner 禁用 |
 
-testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、`composer-cancel`、`composer-ratio`、`composer-ratio-grid`、`composer-ratio-{w}x{h}`、`composer-settings`、`composer-quality`(radio 组,选项 `composer-quality-{id}`)、`composer-negative`、`composer-provider`、`composer-no-provider`(无连接引导行,含「前往设置」)。
+testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、`composer-cancel`、`composer-attach`、`workbench-context-ref-prompt`、`workbench-context-tray`、`prompt-reference-card`、`composer-ratio`、`composer-ratio-grid`、`composer-ratio-{w}x{h}`、`composer-ratio-custom-w/-h/-apply/-error`(自定义比例行)、`composer-settings`、`composer-quality`(radio 组,选项 `composer-quality-{id}`)、`composer-negative`、`composer-provider`、`composer-no-provider`(无连接引导行,含「前往设置」)。
 
 ### 3.3 会话列表(壳侧栏「对话」区)——`SessionListPanel`
 
@@ -183,7 +196,7 @@ testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、
 | 打开 | 点击行 | 切到工作台并载入会话;清未读 |
 | 重命名 | 行内操作钮 / 右键菜单 | 行内变输入框,Enter 提交、Esc 取消 |
 | 置顶/取消置顶 | 操作钮 / 右键 | 置顶组排前;本地偏好存储 |
-| 归档 | 右键菜单 | 移出列表(归档列表入口暂缓,§0.2) |
+| 归档 | 右键菜单 | 移出列表;设置「数据」卡内的归档列表可刷新、恢复或软删 |
 | 删除 | 右键菜单 → AlertDialog 确认 | 软删,可从回收站恢复(回收站入口:设置-数据,M4d) |
 | 状态指示 | 行首点 | `running` 动画点(该会话有进行中生成)/`unread` 实心点/`idle` 无 |
 
@@ -195,6 +208,7 @@ testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、
 
 - 屏顶会话选择器(`session-picker`):当前会话名 + 下拉(会话列表复用同一数据 hook);旁置「新建」钮(`session-create-mobile`)。
 - 时间线与 Composer 同桌面,Composer 贴底并处理软键盘 inset。
+- Prompt 引用选择器使用焦点圈闭的底部 Dialog(`82dvh`,含安全区),面板内部独立滚动;背景主区与常驻底栏均 inert/遮罩,不得压住列表内容。打开时聚焦搜索;Esc/关闭钮收起并把焦点归还 `composer-attach`。桌面对应 304px 非模态内联 Dock,Esc 同样收起和归还焦点。
 
 ### 3.5 时间线回合(承旧 `WorkbenchGenerationTurn` 装配)
 
@@ -210,6 +224,7 @@ testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、
 | `pending_approval` / `rejected`(云) | 审批提示卡(文案承 API 语义),桌面不出现 |
 
 - 删除回合走 AlertDialog;删除后时间线即时移除(乐观更新)。
+- Prompt 引用随用户消息显示不可变快照卡(`job-prompt-reference`):标题、整条/片段徽标、可展开正文均取生成时快照,不回查当前 Prompt。纯引用任务不渲染空用户气泡;复制/编辑优先使用原始 `userPrompt`,不得把宿主合成后的 provider prompt 当作用户输入。源 Prompt 后续编辑/删除不改写旧回合。
 - 新回合出现或状态推进时自动贴底滚动;用户手动上滚后暂停自动贴底(阈值 80px,回底恢复)。
 - 时间线空态(有会话无回合):居中品牌空态(§3.1)。
 - 时间线 loading:居中 Spinner;error:错误卡 + 重试。
@@ -308,11 +323,11 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 |---|---|---|---|
 | 访问 | 账号 | 登录(账密表单)/身份积分卡/兑换/退出(§7.1) | M4d ✅ |
 | 访问 | 云同步 | 开关(登录 ≠ 同步)/状态/立即同步(§7.3,桌面 only) | M4e ✅ |
-| 访问 | AI 连接 | 本地 Provider 列表 + 新建/编辑/删除/设默认(§7.2) | M4d ✅ |
+| 访问 | AI 连接 | 本地 Provider 列表 + 新建/编辑/删除/设默认(§7.2) | M4d ✅；当前仅覆盖生图 image Provider，Agent connection/model UI 仍是后续缺口 |
 | 通用 | 偏好 | 主题(浅/深/跟随系统)、语言占位、减少动效 | 已交付(M3 打样)|
-| 应用 | 数据 | 回收站入口(提示词/生成历史,经 `useScreenIntent` 跨屏直达 trash tab)✅;导出/导入、清理缓存 | 入口已交付;其余后续卡 |
+| 应用 | 数据 | 回收站入口(提示词/生成历史,经 `useScreenIntent` 跨屏直达 trash tab)✅;设置内已归档对话列表(刷新/恢复/软删)✅;导出/导入、清理缓存 | 归档闭环已交付;其余后续卡 |
 | 应用 | 关于 | 版本号、更新检查、开源许可 | M5b |
-| 应用 | 归档会话 | 占位「即将推出」 | 暂缓 |
+| 应用 | 归档会话 | 设置「数据」卡内已归档对话列表(刷新/恢复/软删) | U05-archive-closure done |
 
 ### 6.3 控件约定
 
@@ -332,7 +347,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - 积分显示:`quota ÷ ACCOUNT_QUOTA_PER_POINT`(50000),最多一位小数(`formatPoints`)。
 - 登录/退出后全量 invalidate/reset 查询缓存:登录前失败的会话/数据查询自动重取,退出不残留上个会话数据。
 - 已连接应用列表(MCP 授权撤销):**推迟**——云端尚无连接列表端点,随云 MCP 管理卡交付。
-- 壳侧栏底部 `AccountFooter`:未登录=登录入口行;已登录=头像/名称/积分;点击进设置账号分区。
+- 壳侧栏底部 `AccountFooter`:官方黑白标触发钮 + 向上身份菜单(登入/登出为默认动作,桌面含「更多连接」切换子菜单),形态详见 §2.2-5;「账户与额度」「登录」深链本分区(滚动 + 高亮)。
 
 ### 7.2 AI 连接管理(`AiConnectionsPanel`,桌面专属,`hasLocalAiProviders` 开关)
 
@@ -342,6 +357,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - Key 只经主进程 safeStorage(keychain),SQLite 只存 has_key/key_suffix 展示位;渲染层不落任何密钥(红线承 v2.1)。
 - 删除:AlertDialog(密钥一并删除,历史保留);删除默认连接时最近更新的一条自动接管默认。
 - 数据面与工作台 Composer 的 Provider 下拉同源(SQLite providers 表),增删改后两处同时失效刷新。
+- **范围缺口**:v2.5 `AiConnectionsPanel` 仅提供生图 image Provider 的列表、CRUD、默认切换和连接测试。当前没有可达的 Agent connection/model UI，因此 separate Agent key 与 `gpt-5.5` 没有配置或模型选择入口；不得将 image Provider UI 计为 Agent 连接 UI。
 
 ### 7.3 云同步卡(`CloudSyncPanel`,桌面专属,`hasCloudSyncControls` 开关;M4e ✅)
 
@@ -352,7 +368,8 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - 开启即全量同步一轮(bootstrap→pull→push);此后写路径防抖 2s 触发 + 60s 兜底轮 + 启动恢复。
 - 关闭只停调度,本地数据与账号记录不动(重开免重新 bootstrap)。
 - 同步动作成功后失效提示词缓存(pull 可能带回远端变更)。
-- 冲突处理 UI(逐条 local/remote/duplicate):**推迟**——主进程 repository 能力已备,随后续卡交付;当前冲突仅计数呈现。
+- **状态与 Electron E2E**:同步同意明确分为 `unset`、`enabled`、`paused`;Electron sync E2E 已验证 `unset`/`enabled`/`paused`/`conflict` 四态。`unset` 或 `paused` 时 transport 为 0，不发生同步传输。首次显式开启顺序固定为 `bootstrap → pull → push`;暂停期间本地 mutation 与 usage 继续累计，恢复后可继续同步。冲突必须逐条处理，逐条提供 `local`、`remote`、`duplicate` 解决动作，全部处理后状态回到 `idle`。登出再登录不丢失本地账本、待同步 mutation、usage 累计或冲突记录，且不会为新会话静默开启同步。
+- **安全与视觉证据**:secret plaintext scan 通过;API key/bearer token 不出现在渲染层、SQLite、日志或导出文件。`sync-unset`、`sync-enabled`、`sync-paused`、`sync-conflict` 四张视觉截图已人工检查。
 
 ---
 
@@ -368,6 +385,16 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - **I8 testid**:`<域>-<对象>-<动作>` 蛇形连字;列表行 `<域>-row-<id>`;E2E 只允许用 testid/role 定位。
 - **I9 可访问性**:图标钮必须 `aria-label`;活动导航 `aria-current`;浮层焦点圈闭 + Esc 关闭 + 焦点归还触发器。
 
+### 8A. 设计方案(P01 迁移中,尚未开入口)
+
+> **状态**:`doing`(P01)。共享层与挂载已有源码与定向单测——`packages/contracts` 方案合同、`packages/features/src/design-schemes` 共享屏、Desktop v25 IPC 确定性 CRUD 与 `.musefold.design` 安全 staging/archive/domain 导入导出、Web API/client 确定性 CRUD;**P01-7 入口挂载已落地**:双宿主 `hasDesignSchemes=true`,侧栏主导航注册「设计方案」,Web `/design-schemes` 路由(含 `?scheme=<id>` 详情深链)与 Desktop 视图挂载,工作台 `designSchemes` prop 接导航缝(`onOpenDesignSchemes`),桌面接入宿主导入(staging → importPackage)与 `media://` 封面解析。**仍未完成**:方案 run/Agent 编译/modify/事件管线(两端 `designSchemes.onSubmit` 运行缝保持缺省,Composer 提交钮禁用并解释,不伪造方案运行)、Web run/assets/package 面(资产占位渲染)、真实 E2E/视觉证据。本节是**迁移中基准**:未落地部分以 [ui-parity/06-design-schemes.md](./ui-parity/06-design-schemes.md) §2–§5.1 旧版存档为验收基准,完成前不得出现死入口。
+
+- **入口与导航**:侧栏主导航(§2.2)已注册设计方案项(随 `hasDesignSchemes` capability);Composer「+」菜单的「寻找设计方案」与附件「查看详情」已通(详情深链 = `scheme-detail` screen intent / Web `?scheme=` 查询参数);历史来源项随本域恢复(§9-D2)。`/design-schemes` Web 路由与 Desktop 视图挂载即 P01-7。
+- **屏幕结构**(共享 features 已有,承旧版布局):顶部控制台(scope tabs「我的方案/发现」+ 搜索 + 刷新 + 新建)→ 分节列表(正式/草稿两区,行 = 56px 封面 + 名称/保真度徽标 + 摘要/来源 + 主动作 + hover 删除)→ 右栏 Inspector(lg+ aside,窄屏 Sheet,参照历史 Inspector 模式);详情为整屏视图(文档分节 + 试运行相册);市场安装确认 = AlertDialog。
+- **状态矩阵**(承 ui-parity/06 §5.1,当前唯一验收基准,不另发明状态):我的方案/发现/Inspector/详情/试运行相册各覆盖 loading/error/empty/ready;生命周期另覆盖 approval/pending、blocked、cancelled、failed、conflict/version mismatch。
+- **交互约定**:遵守 §8 I1–I9(常驻动作组、破坏性动作 AlertDialog、就地错误 + 重试、空态给 CTA、testid `<域>-<对象>-<动作>`);组件只用 `packages/ui` 原语、Lucide 出口与语义 token。
+- **差异登记**:本节不引入与旧版的有意差异;已批准差异见 §9(D2 入口恢复)。通用分享/导入与 Skill runtime 会话仍按 §0.2 暂缓。
+
 ---
 
 ## 9. 与旧版差异登记表(有意变化,已批准)
@@ -375,22 +402,24 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | # | 差异 | 旧版 | 新版 | 理由 |
 |---|---|---|---|---|
 | D1 | 列表行动作形态 | 部分屏用下拉菜单收纳 | 常驻操作组(hover 渐显) | 触屏可达性 + E2E 稳定性(M4a 教训);信息架构不变 |
-| D2 | 设计方案/Skill/豆包入口 | Composer「+」菜单与侧栏入口 | 本轮不出现 | 域暂缓(§0.2),避免死入口 |
+| D2 | 设计方案/Skill/豆包入口 | Composer「+」菜单与侧栏入口 | 设计方案随 P01 恢复；Skill runtime 入口继续暂缓；豆包保留账号/连接区可达薄入口 | 用户已将设计方案纳入本轮迁移；Skill 与豆包专属 renderer 仍按 §0.2 冻结/暂缓，禁止死入口 |
 | D3 | 单次生成张数 | 桌面可选 1/2/4 | 锁 1 张 | 契约 `count: literal(1)`(云端成本闸);多张随后续契约版本恢复 |
 | D4 | 反向提示词位置 | 设置弹层内 | 同旧(弹层内) | M4b 首版曾常驻,按本规范收回弹层 |
 | D5 | 顶栏(Web 大屏) | 常驻 ProductTopbar | 取消常驻,仅侧栏收起时给展开钮 | 与桌面口径统一,最大化内容区;额度 readout 移侧栏账号区 |
 | D6 | 会话未读/置顶存储 | localStorage 偏好 | 同机制承接(platform 偏好接口) | 跨端同步待后续版本 |
-| D7 | 自定义比例输入 | RatioPicker 支持 | 暂缓,固定预设 | 契约 `aspectRatio` 正则先收窄;需求回访后放开 |
+| D7 | 自定义比例传输形态 | RatioPicker 支持,domain 内部用 `custom:W:H` 前缀 | UI 已恢复(§3.2 自定义行);v2.5 数据流只传 canonical `W:H`(每边 1–99 无前导零,比例限 1:4–4:1),`custom:` 前缀不落草稿/请求 | 契约与 UI 共用相同比例边界;是否自定义由「值不在预设目录」推导,无需前缀通道,同一比例不会产生多个幂等指纹 |
 | D8 | 桌宠/朱点 | 常驻 | 冻结不迁 | 用户指示(2026-08-28) |
 | D9 | 登录形态 | 独立登录屏(桌面)/登录页(Web 设想) | 设置页账号卡内联账密表单,双端同一份 | 凭据委托 New API(账密),无第三方 IdP;内联表单少一跳,四端一致 |
 | D10 | 设置布局 | 分组导航工作区 | 暂为单列卡片流 | 已交付分区仅 3-4 个,导航反增导航成本;分区 ≥5 时按 §6.1 目标形态切换 |
 | D11 | AI 连接类型选择 | 新建时可选类型 | 固定 openai-compatible | v2.5 唯一受支持协议;豆包网页等随各自域后续排卡 |
 | D12 | Web↔API 部署形态 | 分域(CORS) | 同源(宿主反代 /api/*) | 会话 cookie 同站直用,免 CORS/第三方 cookie 一整类问题;API 刻意不开 CORS |
 | D13 | 工作台空态快捷建议 | 三行逐字横滚动画 + 英文水印背景(大段自定义 CSS) | 静态三条低权重文本行,点击回填草稿 | 信息架构与文案承旧;动画实现臃肿且不可主题化,简化为 token 化静态行 |
+| D14 | Prompt 引用传输与快照 | renderer 可携带展示文本/标题参与后续编排 | renderer 只传 `promptId/scope/expectedVersion/range`;Web 服务端或 Desktop 主进程按 owner/workspace 解析,生成账本存不可变 title/text/version 快照 | 客户端文本不是权威数据;阻断越权/伪造,同时保证源编辑或删除后历史不漂移;功能结果与入口不变 |
+| D15 | compact 抽屉账号区 | 点击账号区即关闭抽屉 | 点击账号区保持抽屉,完成身份/连接菜单动作后由动作自身导航或关闭 | 当前账号菜单以抽屉内触发器为锚,提前卸载会使登录/切换入口不可操作;导航、新设计和会话仍按旧语义自动关闭 |
+| D16 | macOS brandInset 几何 | 展开/收起顶栏使用不同 inset,原生全屏回落 12px | v2.5 统一由单一 `brandInset` prop 承载:非全屏 78px、原生全屏 12px,非 macOS 0px | 保留交通灯让位和全屏回落结果,减少共享 AppShell 的平台分支;窗口状态走只读宿主信号,不进入业务数据通道 |
+| D17 | 归档删除语义 | 旧版归档列表删除为永久删除 | v2.5 归档列表删除沿 `removeSession` 软删,生成 run/history 保留,真正 purge 延后 D02 | 与当前会话生命周期和数据保留策略一致,避免归档入口直接造成不可逆清理 |
 
----
-
-## 10. 组件复用矩阵
+--- 组件复用矩阵
 
 ### 10.1 `packages/ui`(shadcn 原语,全端共用)
 
@@ -404,8 +433,9 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 |---|---|---|
 | `app-shell` | `AppShell` `SidebarNav` `SessionListPanel` `MobileTabBar` | 两宿主 |
 | `prompts` | `PromptLibraryScreen` `PromptListRow` `PromptEditorDialog` `TaxonomyManager` + hooks | 两宿主 |
-| `workbench` | `WorkbenchScreen` `GenerationTimeline` `Composer` `SessionPicker` + hooks | 两宿主 |
+| `workbench` | `WorkbenchScreen` `GenerationTimeline` `Composer` `SessionPicker` `PromptReferencePanel` `PromptReferenceDock` + hooks | 两宿主 |
 | `history`(M4c) | `HistoryScreen` `HistoryFilterBar` `HistoryRow` `HistoryInspector` + hooks | 两宿主 |
+| `design-schemes`(P01 迁移中,§8A) | `SchemesScreen` `SchemeControlDeck` `SchemeInspector` `SchemeDetailView` + hooks | 两宿主(入口已挂载 P01-7,`hasDesignSchemes=true`;运行缝 `onSubmit` 与 Web 资产/包面待后续卡) |
 | `settings` | `SettingsScreen` + 分区组件 | 两宿主 |
 | `account`(M4d/M4e) | `AccountPanel` `AiConnectionsPanel` `CloudSyncPanel` `AccountFooter` + hooks | 两宿主(连接/同步面桌面 only,能力开关控制) |
 
@@ -425,3 +455,5 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 2. 状态矩阵全覆盖(loading/empty/error/ready 至少四态有 UI,不允许白屏或悬空 Spinner)。
 3. Playwright E2E 覆盖主路径 + 视觉快照(web-desktop / web-mobile / electron 三形态)。
 4. `pnpm run check` 全绿;组件无硬编码色值(抽查)。
+5. Electron sync E2E 覆盖 `unset`/`enabled`/`paused`/`conflict`、`unset`/`paused` zero transport、首次同步顺序、暂停期间 mutation/usage 累计、逐条 `local`/`remote`/`duplicate` 冲突解决、登出再登录保留语义。
+6. secret plaintext scan 通过;四张同步视觉截图已人工检查。

@@ -27,6 +27,7 @@ import {
 import { useScreenIntent } from '../shell/screen-intent-store';
 import {
   assetSaveName,
+  createRetryGenerationMutationIntent,
   useCancelGeneration,
   useRetryGeneration,
   useSaveAsset,
@@ -151,7 +152,7 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     return {
       onOpen: () => setSelectedId(job.id),
       onCancel: () => cancelGeneration.mutate(job.id),
-      onRetry: () => retryGeneration.mutate(job.id),
+      onRetry: () => retryGeneration.mutate(createRetryGenerationMutationIntent(job.id)),
       onRemove: () => {
         if (selectedId === job.id) setSelectedId(null);
         removeGeneration.mutate(job.id);
@@ -168,7 +169,7 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
       job={selectedJob}
       onClose={() => setSelectedId(null)}
       onCancel={() => cancelGeneration.mutate(selectedJob.id)}
-      onRetry={() => retryGeneration.mutate(selectedJob.id)}
+      onRetry={() => retryGeneration.mutate(createRetryGenerationMutationIntent(selectedJob.id))}
       onRemove={() => {
         removeGeneration.mutate(selectedJob.id);
         setSelectedId(null);

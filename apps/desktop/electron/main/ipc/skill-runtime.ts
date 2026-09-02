@@ -8,10 +8,7 @@ import { stepCountIs, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { ulid } from 'ulid';
 import { MAX_SKILL_AI_INPUT_LENGTH } from '@musefold/domain/constants';
-import {
-  composePromptWithImageIndexHint,
-  composePromptWithRatioConstraint,
-} from '@musefold/domain/generation-prompt';
+import { composeGenerationPrompt } from '@musefold/domain/generation-prompt';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import type {
   AiConnectionProfile,
@@ -242,16 +239,20 @@ interface ExecutionContext {
   signal: AbortSignal;
 }
 
-/** 按渲染进程预组装的计划逐张生图；提示词在此统一追加图片编号与比例约束。 */
+/** 按渲染进程预组装的计划逐张生图；提示词在此完成唯一一次规范化组合。 */
 async function runPlannedGenerations(
   ctx: ExecutionContext,
   prompt: string,
   executionMode: 'agent' | 'file-fallback' | 'direct-forward',
 ): Promise<{ finalPrompt: string; outcomes: SkillRuntimeGenerationOutcome[] }> {
-  const finalPrompt = composePromptWithRatioConstraint(
-    composePromptWithImageIndexHint(prompt, ctx.referenceImages.length),
-    ctx.plan.ratioId,
-  );
+  const composed = composeGenerationPrompt({
+    userPrompt: prompt,
+    promptReferences: [],
+    imageCount: ctx.referenceImages.length,
+    ratioId: ctx.plan.ratioId,
+  });
+  if (!composed.ok) throw new Error(composed.error.message);
+  const finalPrompt = composed.data.finalPrompt;
   const startedAt = Date.now();
   ctx.trace.upsert({
     id: 'image-generation',
@@ -292,7 +293,10 @@ async function runPlannedGenerations(
         trace: ctx.trace.snapshot(),
       },
     };
-    const result = await runProviderGeneration(request, ctx.sendProgress);
+    const result = await runProviderGeneration(request, ctx.sendProgress, {
+      promptAlreadyComposed: true,
+      userPrompt: ctx.request.userPrompt,
+    });
     const outcome: SkillRuntimeGenerationOutcome = { jobId, resultIndex, result };
     outcomes.push(outcome);
     ctx.emit({ kind: 'generation-result', executionId: ctx.executionId, outcome });

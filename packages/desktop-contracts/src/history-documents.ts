@@ -22,7 +22,7 @@ export interface PromptHistoryRelation {
  * 基类字段按云契约语义（status 用 'succeeded' 词表、createdAt 为 ISO 串、model→providerModel、
  * promptText→request.prompt、parentHistoryId→parentRunId）。
  */
-export interface DesktopGenerationEntry extends GenerationJob {
+export interface DesktopGenerationEntry extends Omit<GenerationJob, 'promptReferences'> {
   /** 本地 Provider id（云契约无槽位） */
   providerId: string;
   /** 本地图片文件路径（云为资产 URL） */

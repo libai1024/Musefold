@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { cloudGenerationRequestSchema, generationJobSchema } from './generation';
+import {
+  cloudGenerationRequestSchema,
+  generationAspectRatioSchema,
+  generationJobSchema,
+  persistedGenerationAspectRatioSchema,
+  promptReferenceSelectionsSchema,
+} from './generation';
 import {
   entityIdSchema,
   isoDateTimeSchema,
@@ -8,13 +14,31 @@ import {
   queryIntegerSchema,
 } from './common';
 
-export const workbenchDraftSchema = z.object({
+const workbenchDraftBaseSchema = z.object({
+  /** Legacy persisted drafts retain their historical 12,000-code-unit prompt limit. */
   prompt: z.string().max(12_000),
   negative: z.string().max(4_000),
   params: cloudGenerationRequestSchema
     .pick({ size: true, aspectRatio: true, quality: true })
     .partial(),
-  promptReferenceIds: z.array(entityIdSchema).max(20),
+  /** New selection intents are authoritative; host resolves them into immutable snapshots. */
+  promptReferenceSelections: promptReferenceSelectionsSchema.default([]),
+  /** Legacy id-only references retained for old drafts and migration compatibility. */
+  promptReferenceIds: z.array(entityIdSchema).max(20).default([]),
+});
+
+/** Persisted/response draft shape: old ratio grammar remains readable without rewriting stored rows. */
+export const workbenchDraftSchema = workbenchDraftBaseSchema.extend({
+  params: workbenchDraftBaseSchema.shape.params.extend({
+    aspectRatio: persistedGenerationAspectRatioSchema.optional(),
+  }),
+});
+
+/** New create/update writes require a canonical ratio and normalize equivalent ratios. */
+export const writableWorkbenchDraftSchema = workbenchDraftBaseSchema.extend({
+  params: workbenchDraftBaseSchema.shape.params.extend({
+    aspectRatio: generationAspectRatioSchema.optional(),
+  }),
 });
 
 export const workbenchSessionSchema = z.object({
@@ -36,13 +60,13 @@ export const workbenchSessionSchema = z.object({
 
 export const createWorkbenchSessionSchema = z.object({
   title: z.string().trim().min(1).max(120).default('未命名创作'),
-  draft: workbenchDraftSchema.partial().default({}),
+  draft: writableWorkbenchDraftSchema.partial().default({}),
 });
 
 export const updateWorkbenchSessionSchema = z.object({
   expectedVersion: z.number().int().positive(),
   title: z.string().trim().min(1).max(120).optional(),
-  draft: workbenchDraftSchema.optional(),
+  draft: writableWorkbenchDraftSchema.optional(),
   archived: z.boolean().optional(),
 });
 
@@ -56,6 +80,8 @@ export const workbenchSessionListQuerySchema = z.object({
   limit: queryIntegerSchema.pipe(z.number().int().min(1).max(100)).default(20),
   includeArchived: queryBooleanSchema.default(false),
   includeDeleted: queryBooleanSchema.default(false),
+  /** 已归档聊天视图:只返回已归档且未软删的会话,优先于其他包含开关。 */
+  archivedOnly: queryBooleanSchema.default(false),
 });
 
 export const generationHistoryQuerySchema = z.object({
@@ -79,6 +105,7 @@ export const generationHistoryPageSchema = z.object({
 });
 
 export type WorkbenchDraft = z.infer<typeof workbenchDraftSchema>;
+export type WritableWorkbenchDraft = z.infer<typeof writableWorkbenchDraftSchema>;
 export type WorkbenchSession = z.infer<typeof workbenchSessionSchema>;
 export type CreateWorkbenchSession = z.input<typeof createWorkbenchSessionSchema>;
 export type UpdateWorkbenchSession = z.infer<typeof updateWorkbenchSessionSchema>;

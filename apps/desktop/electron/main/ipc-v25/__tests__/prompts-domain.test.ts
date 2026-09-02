@@ -75,3 +75,49 @@ describe('prompts 域桥:永久删除', () => {
     await expect(methods['prompts.get'].handle({ id: created.id })).rejects.toThrow('不存在');
   });
 });
+
+describe('prompts 域桥:目录 workspace 作用域', () => {
+  let methods: Methods;
+
+  beforeAll(() => {
+    methods = buildPromptsDomainMethods() as Methods;
+  });
+
+  it('文件夹与标签 CRUD 使用当前 workspace,删除后不再出现在列表', async () => {
+    const folder = (await methods['prompts.createFolder'].handle({
+      name: '作用域文件夹',
+      parentId: null,
+      sortOrder: 0,
+    })) as { id: string; name: string };
+    const tag = (await methods['prompts.createTag'].handle({
+      name: '作用域标签',
+      group: null,
+      color: null,
+    })) as { id: string; name: string };
+
+    const folders = (await methods['prompts.listFolders'].handle(undefined)) as Array<{
+      id: string;
+      name: string;
+    }>;
+    expect(folders.some((item) => item.id === folder.id && item.name === folder.name)).toBe(true);
+
+    const tags = (await methods['prompts.listTags'].handle(undefined)) as Array<{
+      id: string;
+      name: string;
+    }>;
+    expect(tags.some((item) => item.id === tag.id && item.name === tag.name)).toBe(true);
+
+    await methods['prompts.removeFolder'].handle({ id: folder.id });
+    await methods['prompts.removeTag'].handle({ id: tag.id });
+
+    const foldersAfterDelete = (await methods['prompts.listFolders'].handle(undefined)) as Array<{
+      id: string;
+    }>;
+    expect(foldersAfterDelete.some((item) => item.id === folder.id)).toBe(false);
+
+    const tagsAfterDelete = (await methods['prompts.listTags'].handle(undefined)) as Array<{
+      id: string;
+    }>;
+    expect(tagsAfterDelete.some((item) => item.id === tag.id)).toBe(false);
+  });
+});

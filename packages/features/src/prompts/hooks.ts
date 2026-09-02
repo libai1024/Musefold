@@ -165,6 +165,7 @@ export function promptToWorkbenchDraft(prompt: PromptDocument): WorkbenchDraft {
       ...(params.aspectRatio ? { aspectRatio: params.aspectRatio } : {}),
       ...(params.quality && params.quality !== 'auto' ? { quality: params.quality } : {}),
     },
+    promptReferenceSelections: [],
     promptReferenceIds: [],
   };
 }
