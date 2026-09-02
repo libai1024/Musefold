@@ -32,6 +32,7 @@ import {
   formalizeDesignSchemeInputSchema,
   importDesignSchemeInputSchema,
   importDesignSchemeResultSchema,
+  isForbiddenLocalPath,
   marketCandidateSchema,
   marketSearchQuerySchema,
   marketSearchResultSchema,
@@ -44,6 +45,7 @@ import {
   sourceSnapshotSchema,
   updateDesignSchemeInputSchema,
   type CreateDesignSchemeInput,
+  type DesignSchemeHistorySourceSelection,
   type DesignSchemeRevisionDocument,
   type ParsedDesignSchemeListQuery,
   type SourcePackage,
@@ -51,6 +53,7 @@ import {
 } from '@musefold/contracts';
 import { getDb } from '@musefold/core/db';
 import { getDesignSchemeDb } from '@musefold/core/db/design-scheme';
+import { GenerationRunRepository } from '@musefold/core/db/repositories/workbench';
 import {
   DesignSchemeRepository,
   DesignSchemeVersionConflictError,
@@ -77,7 +80,7 @@ import {
   type SaveDialogReturnValue,
 } from 'electron';
 import { join } from 'node:path';
-import { resolveManagedStoreKey } from '../design-scheme/asset-store';
+import { resolveManagedMediaFile, resolveManagedStoreKey } from '../design-scheme/asset-store';
 import { consumeStagedDesignSchemePackage } from '../design-scheme/package-host';
 import {
   exportDesignScheme,
@@ -87,18 +90,17 @@ import {
   type ShareDeps,
 } from '../design-scheme/share';
 import { searchMarketCandidates } from '../design-scheme/market-search';
-import { probeImageAssetMetadata, repositoryLabelOf } from '../design-scheme/source-ingestion';
+import {
+  persistHistorySnapshot,
+  probeImageAssetMetadata,
+  removePersistedHistorySnapshot,
+  repositoryLabelOf,
+} from '../design-scheme/source-ingestion';
 import { checkSchemeUpdate } from '../design-scheme/update-check';
 import { getPaths } from '../../system/paths';
 import { BridgeError, type MethodDef } from './envelope';
 import { runCanonicalDesignScheme } from './design-scheme-run-adapter';
-import {
-  designSchemeExecutionRegistry,
-  cleanupDesignSchemeExecutions,
-  drainDesignSchemeExecutions,
-  cleanupDesignSchemeExecutionsForSender,
-  type DesignSchemeExecutionKind,
-} from '../design-scheme/execution-registry';
+import { designSchemeExecutionRegistry } from '../design-scheme/execution-registry';
 
 /** 保留的市场搜索函数签名(可注入以便测试,默认真实网络)。 */
 type SearchMarketFn = typeof searchMarketCandidates;
@@ -293,9 +295,13 @@ function toLegacyDocument(document: DesignSchemeRevisionDocument): LegacyDocumen
         // 仓库内相对路径;canonical evidencePath 别名归一到 filePath。
         ...(filePath ? { filePath } : {}),
         ...(contentHash ? { contentHash } : {}),
+        ...(source.packageId ? { packageId: source.packageId } : {}),
+        ...(source.snapshotId ? { snapshotId: source.snapshotId } : {}),
         ...(source.license != null ? { license: source.license } : {}),
       } satisfies LegacySourceBinding;
     }),
+    ...(document.sourceSnapshotIds ? { sourceSnapshotIds: document.sourceSnapshotIds } : {}),
+    ...(document.assetIds ? { assetIds: document.assetIds } : {}),
     inputs: document.inputs,
     parameters: document.parameters,
     // legacy 约束没有 evidencePath:有损,证据来源以 sourceIds 保留。
@@ -353,8 +359,12 @@ function toCanonicalDocument(document: LegacyDocument): DesignSchemeRevisionDocu
       ...(source.commit ? { commitHash: source.commit } : {}),
       ...(source.filePath ? { relativePath: source.filePath } : {}),
       ...(source.contentHash ? { contentHash: source.contentHash } : {}),
+      ...(source.packageId ? { packageId: source.packageId } : {}),
+      ...(source.snapshotId ? { snapshotId: source.snapshotId } : {}),
       ...(source.license != null ? { license: source.license } : {}),
     })),
+    ...(document.sourceSnapshotIds ? { sourceSnapshotIds: document.sourceSnapshotIds } : {}),
+    ...(document.assetIds ? { assetIds: document.assetIds } : {}),
     inputs: document.inputs,
     parameters: document.parameters,
     constraints: document.constraints,
@@ -540,6 +550,98 @@ function persistCanonicalSources(
   return input.sourceBindings
     .filter((binding) => binding.snapshotId)
     .map((binding) => ({ snapshotId: binding.snapshotId as string, role: binding.role }));
+}
+
+export const DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE =
+  'DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE' as const;
+
+type ResolvedHistorySource = {
+  selection: DesignSchemeHistorySourceSelection;
+  historyId: string;
+  imagePath: string;
+  promptText?: string;
+};
+
+function resolveHistorySources(
+  selections: DesignSchemeHistorySourceSelection[],
+  coreDb: Database.Database,
+  userDataDir: string,
+  picturesDir: string,
+): ResolvedHistorySource[] {
+  if (selections.length === 0) return [];
+  const runs = new GenerationRunRepository(coreDb);
+  return selections.map((selection) => {
+    const run = runs.get(selection.runId);
+    if (run?.status !== 'success' || run.deletedAt !== null) {
+      throw new BridgeError(
+        DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
+        '所选历史作品对应的生成运行不可用，请刷新后重新选择',
+      );
+    }
+    const asset = runs.getAsset(selection.assetId);
+    if (
+      !asset ||
+      asset.runId !== selection.runId ||
+      asset.status !== 'available' ||
+      typeof asset.mediaPath !== 'string' ||
+      asset.mediaPath.trim().length === 0
+    ) {
+      throw new BridgeError(
+        DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
+        '所选历史作品不属于指定的成功生成运行或资产已不可用，请刷新后重新选择',
+      );
+    }
+    const managed = resolveManagedMediaFile(asset.mediaPath, userDataDir, picturesDir);
+    if (!managed) {
+      throw new BridgeError(
+        DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
+        '所选历史作品文件已不可用，请刷新后重新选择',
+      );
+    }
+    const promptText = selection.includePrompt
+      ? run.promptSnapshot.finalPrompt.trim() || run.finalPrompt.trim() || undefined
+      : undefined;
+    if (promptText && (promptText.length > 12_000 || isForbiddenLocalPath(promptText))) {
+      throw new BridgeError(
+        DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
+        '所选历史作品的提示词快照无法安全保存，请刷新后重新选择',
+      );
+    }
+    return {
+      selection,
+      historyId: asset.id,
+      imagePath: managed.path,
+      ...(promptText ? { promptText } : {}),
+    };
+  });
+}
+
+function historySourcesForDocument(
+  resolved: ResolvedHistorySource[],
+  snapshotId: string,
+  packageId: string,
+): DesignSchemeRevisionDocument['sources'] {
+  const sources: DesignSchemeRevisionDocument['sources'] = [];
+  for (const [index, item] of resolved.entries()) {
+    const sourceId = `src_hist_${index + 1}`;
+    sources.push({
+      id: sourceId,
+      kind: 'history-image',
+      role: 'example',
+      packageId,
+      snapshotId,
+    });
+    if (item.promptText) {
+      sources.push({
+        id: `${sourceId}_prompt`,
+        kind: 'conversation-turn',
+        role: 'context',
+        packageId,
+        snapshotId,
+      });
+    }
+  }
+  return sources;
 }
 
 /** 来源展示:有 GitHub 来源记 skill(owner/repo),否则记 Musefold 创建。 */
@@ -728,28 +830,71 @@ export function buildDesignSchemesDomainMethods(
         if (!input.document) {
           throwUnsupported(DESIGN_SCHEME_METHOD_UNSUPPORTED_MESSAGES.agentCreation);
         }
-        // 历史来源选择是渲染层输入:在宿主侧账本解析(owner 校验 + 提示词快照)接入前
-        // fail-closed,绝不静默丢弃,也绝不退回接收绝对本机路径的旧历史入参。
-        if (input.historySources.length > 0) {
-          throw new BridgeError(
-            DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED,
-            '设计方案创建尚未接入历史来源解析(按 runId/assetId 从成功生成账本读取,P02)。请先不带 historySources 创建。',
-          );
-        }
-        const document = input.document;
+        const paths = getPaths();
+        const userDataDir = deps.userDataDir ?? paths.userData;
+        const picturesDir = deps.picturesDir ?? paths.pictures;
+        let persistedHistory: ReturnType<typeof persistHistorySnapshot> | null = null;
         try {
           const repo = repository();
           // canonical id 由调用方生成:重复创建给出结构化错误而非裸 SQLite 约束失败。
           try {
-            repo.requireSummary(document.schemeId);
+            repo.requireSummary(input.document.schemeId);
             throw new BridgeError(
               'DESIGN_SCHEME_ALREADY_EXISTS',
-              `设计方案已存在:${document.schemeId}`,
+              `设计方案已存在:${input.document.schemeId}`,
             );
           } catch (error) {
             if (!(error instanceof Error) || error.message !== '设计方案不存在') throw error;
           }
+
+          // 历史来源只从主进程的生成账本解析，renderer 不得提交路径或提示词覆盖。
+          const resolvedHistory =
+            input.historySources.length > 0
+              ? resolveHistorySources(
+                  input.historySources,
+                  deps.coreDb ?? getDb(),
+                  userDataDir,
+                  picturesDir,
+                )
+              : [];
+          let document = input.document;
+          if (resolvedHistory.length > 0) {
+            persistedHistory = persistHistorySnapshot(
+              resolveDb(),
+              resolvedHistory.map(({ historyId, imagePath, promptText }) => ({
+                historyId,
+                imagePath,
+                ...(promptText ? { promptText } : {}),
+              })),
+              userDataDir,
+              picturesDir,
+            );
+            if (persistedHistory.items.length !== resolvedHistory.length) {
+              throw new BridgeError(
+                DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
+                '所选历史作品未能完整固化，请刷新后重新选择',
+              );
+            }
+            document = designSchemeRevisionDocumentSchema.parse({
+              ...document,
+              sources: [
+                ...document.sources,
+                ...historySourcesForDocument(
+                  resolvedHistory,
+                  persistedHistory.snapshotId,
+                  persistedHistory.packageId,
+                ),
+              ],
+              sourceSnapshotIds: [
+                ...new Set([...(document.sourceSnapshotIds ?? []), persistedHistory.snapshotId]),
+              ],
+            });
+          }
+
           const bindings = persistCanonicalSources(repo, input);
+          if (persistedHistory) {
+            bindings.push({ snapshotId: persistedHistory.snapshotId, role: 'example' });
+          }
           const { sourcePresentation, sourceLabel } = derivePresentation(input);
           const created = repo.insertSchemeDraft({
             document: toLegacyDocument(document),
@@ -766,6 +911,18 @@ export function buildDesignSchemesDomainMethods(
             trace: [],
           });
         } catch (error) {
+          if (persistedHistory) {
+            try {
+              removePersistedHistorySnapshot(
+                resolveDb(),
+                persistedHistory.snapshotId,
+                persistedHistory.packageId,
+                userDataDir,
+              );
+            } catch {
+              // Do not replace the original structured creation error with cleanup noise.
+            }
+          }
           mapDomainError(error, '创建设计方案失败');
         }
       },

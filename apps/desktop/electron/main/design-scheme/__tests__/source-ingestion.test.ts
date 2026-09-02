@@ -4,18 +4,19 @@
  * 另覆盖 persistHistorySnapshot 的历史来源固化安全边界：条目路径是不可信输入，
  * 只接受受管根（userData/pictures）内常规文件，越根/symlink 与缺失同语义跳过。
  */
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
-} from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -208,6 +209,39 @@ describe('persistHistorySnapshot', () => {
     );
 
     expect(persisted.items).toEqual([]);
+    db.close();
+  });
+
+  it('快照入库失败时清理已复制文件与事务残留', () => {
+    const userData = tempRoot();
+    const pictures = join(userData, 'Pictures');
+    mkdirSync(pictures, { recursive: true });
+    const source = join(pictures, 'generated-run.png');
+    writeFileSync(source, fakePngBuffer(320, 240));
+    const db = historyDb();
+    db.exec(`
+      CREATE TRIGGER reject_history_source_file
+      BEFORE INSERT ON source_files
+      BEGIN
+        SELECT RAISE(ABORT, 'source file rejected');
+      END;
+    `);
+
+    expect(() =>
+      persistHistorySnapshot(
+        db,
+        [{ historyId: '01JXFAIL01', imagePath: source, promptText: '不会残留' }],
+        userData,
+        pictures,
+      ),
+    ).toThrow('source file rejected');
+
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_packages').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_snapshots').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_files').get()).toEqual({ n: 0 });
+    expect(existsSync(join(userData, 'design-scheme-sources', ''))).toBe(true);
+    const snapshotRoots = readdirSync(join(userData, 'design-scheme-sources'));
+    expect(snapshotRoots).toEqual([]);
     db.close();
   });
 

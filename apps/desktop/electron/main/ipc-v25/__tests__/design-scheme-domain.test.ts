@@ -10,10 +10,10 @@
  * - 本地路径/凭据不进入任何返回值或错误消息。
  */
 import Database from 'better-sqlite3';
-import { createHash } from 'crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkDesignSchemeUpdateResultSchema,
@@ -26,8 +26,12 @@ import {
   promoteWorkingDraftResultSchema,
   type DesignSchemeRevisionDocument,
 } from '@musefold/contracts';
+import { takeoverDesktopDatabase } from '@musefold/desktop-db';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import { configureCoreRuntime } from '@musefold/core/runtime';
+import { runMigrations } from '@musefold/core/db/run-migrations';
+import { GenerationRunRepository } from '@musefold/core/db/repositories/workbench';
 import { appError, fail, ok } from '@musefold/domain/app-result';
 import type {
   DesignSchemeRevisionDocument as LegacyDocument,
@@ -43,7 +47,7 @@ import {
   DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
   DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
   DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
-  DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED,
+  DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
   DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE,
   designSchemeEventChannel,
   parseDesignSchemeEvent,
@@ -245,6 +249,7 @@ function legacyCandidate(overrides: Record<string, unknown> = {}) {
 type MethodName = keyof typeof DESIGN_SCHEME_WIRE_METHODS;
 
 let db: Database.Database;
+let coreDb: Database.Database;
 let repo: DesignSchemeRepository;
 let methods: ReturnType<typeof buildDesignSchemesDomainMethods>;
 let searchMarket: ReturnType<typeof vi.fn>;
@@ -266,6 +271,7 @@ function wire() {
   showSaveDialog = vi.fn();
   const deps: DesignSchemeDomainDeps = {
     db,
+    coreDb,
     searchMarket: searchMarket as unknown as NonNullable<DesignSchemeDomainDeps['searchMarket']>,
     checkUpdate: checkUpdate as unknown as NonNullable<DesignSchemeDomainDeps['checkUpdate']>,
     consumeStagedPackage: consumeStagedPackage as unknown as NonNullable<
@@ -347,13 +353,37 @@ beforeEach(() => {
   outsideManagedDir = mkdtempSync(join(tmpdir(), 'musefold-ds-outside-'));
   mkdirSync(picturesDir, { recursive: true });
   db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
   runDesignSchemeDbMigrations(db);
   repo = new DesignSchemeRepository(db);
+  configureCoreRuntime({
+    getPaths: () => ({
+      userData: userDataDir,
+      db: join(userDataDir, 'core.db'),
+      backups: userDataDir,
+      previews: userDataDir,
+      pictures: picturesDir,
+      logs: userDataDir,
+    }),
+    loadApiKey: () => null,
+    createLogger: () => ({
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+    }),
+    estimateProviderCost: () => null,
+  });
+  coreDb = new Database(':memory:');
+  coreDb.pragma('foreign_keys = ON');
+  runMigrations(coreDb);
+  takeoverDesktopDatabase(coreDb);
   wire();
 });
 
 afterEach(() => {
   db.close();
+  coreDb.close();
   rmSync(userDataDir, { recursive: true, force: true });
   rmSync(outsideManagedDir, { recursive: true, force: true });
 });
@@ -598,7 +628,7 @@ describe('get', () => {
       snapshot.files.some((file) => file.relativePath === 'notes.txt'),
     );
     expect(excerptSnapshot).toBeDefined();
-    const files = excerptSnapshot!.files;
+    const files = excerptSnapshot?.files ?? [];
     expect(files.map((item) => item.relativePath)).toEqual(['notes.txt']);
     expect(files[0].textExcerpt).toBeNull();
     expect(files[0].mimeType).toBe('text/plain');
@@ -689,18 +719,195 @@ describe('create', () => {
     ).toEqual({ n: 0 });
   });
 
-  it('historySources(稳定 runId/assetId/includePrompt)→ 结构化拒绝,绝不静默丢弃', async () => {
-    const error = await invokeError(
+  it('historySources 按成功 run/available asset 从账本固化，并只读取账本提示词快照', async () => {
+    const png = realPngBuffer(320, 240);
+    const sourcePath = join(picturesDir, 'ledger-source.png');
+    writeFileSync(sourcePath, png);
+    const runs = new GenerationRunRepository(coreDb);
+    runs.create({
+      id: 'run_history_ok',
+      providerId: 'provider-test',
+      model: 'test-model',
+      basePrompt: 'base prompt',
+      finalPrompt: 'ledger final prompt',
+      userPrompt: 'user prompt',
+      params: { schemaVersion: 1 },
+      promptSnapshot: {
+        schemaVersion: 1,
+        userPrompt: 'user prompt',
+        basePrompt: 'base prompt',
+        refinementInstruction: null,
+        finalPrompt: 'ledger snapshot prompt',
+        negativePrompt: null,
+      },
+    });
+    runs.start('run_history_ok');
+    runs.complete('run_history_ok', {
+      assets: [{ id: 'asset_history_ok', mediaPath: sourcePath, mimeType: 'image/png' }],
+    });
+    expect(runs.getAsset('asset_history_ok')).toMatchObject({
+      runId: 'run_history_ok',
+      status: 'available',
+      mediaPath: sourcePath,
+    });
+
+    const result = await invoke<{ document: DesignSchemeRevisionDocument }>(
       'create',
-      createInputFixture('dsch_hist', 'dsrv_h1', {
-        historySources: [{ runId: 'run_1', assetId: 'asset_1', includePrompt: true }],
+      createInputFixture('dsch_hist_ok', 'dsrv_hist_ok', {
+        historySources: [
+          { runId: 'run_history_ok', assetId: 'asset_history_ok', includePrompt: true },
+        ],
+        document: canonicalDocument('dsrv_hist_ok', 'dsch_hist_ok', {
+          sources: [],
+          sourceSnapshotIds: [],
+        }),
       }),
     );
-    expect(error.code).toBe(DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED);
-    // fail-closed 而非静默丢弃:方案行不落库,渲染层不会误以为历史来源已并入。
-    expect(
-      db.prepare("SELECT count(*) AS n FROM design_schemes WHERE id = 'dsch_hist'").get(),
-    ).toEqual({ n: 0 });
+
+    expect(result.document.sourceSnapshotIds).toHaveLength(1);
+    expect(result.document.sources).toEqual([
+      expect.objectContaining({
+        kind: 'history-image',
+        role: 'example',
+        packageId: expect.stringMatching(/^pkg_hist_/),
+        snapshotId: expect.stringMatching(/^snap_/),
+      }),
+      expect.objectContaining({ kind: 'conversation-turn', role: 'context' }),
+    ]);
+    expect(result.document.sources[1]).not.toHaveProperty('promptText');
+    const detail = await invoke<{
+      sourceSnapshots: Array<{
+        kind: string;
+        files: Array<{ textExcerpt: string | null }>;
+      }>;
+    }>('get', { id: 'dsch_hist_ok' });
+    const historySnapshot = detail.sourceSnapshots.find((snapshot) => snapshot.kind === 'history');
+    expect(historySnapshot?.files).toEqual(
+      expect.arrayContaining([expect.objectContaining({ textExcerpt: 'ledger snapshot prompt' })]),
+    );
+    expect(JSON.stringify(result)).not.toContain(sourcePath);
+  });
+
+  it('历史快照已固化但后续来源校验失败时清理全部半成品', async () => {
+    const sourcePath = join(picturesDir, 'ledger-cleanup.png');
+    writeFileSync(sourcePath, realPngBuffer(320, 240));
+    const runs = new GenerationRunRepository(coreDb);
+    runs.create({
+      id: 'run_history_cleanup',
+      providerId: 'provider-test',
+      model: 'test-model',
+      basePrompt: 'base prompt',
+      finalPrompt: 'final prompt',
+      params: { schemaVersion: 1 },
+    });
+    runs.start('run_history_cleanup');
+    runs.complete('run_history_cleanup', {
+      assets: [{ id: 'asset_history_cleanup', mediaPath: sourcePath, mimeType: 'image/png' }],
+    });
+    const base = createInputFixture('dsch_hist_cleanup', 'dsrv_hist_cleanup', {
+      historySources: [
+        { runId: 'run_history_cleanup', assetId: 'asset_history_cleanup', includePrompt: false },
+      ],
+      document: canonicalDocument('dsrv_hist_cleanup', 'dsch_hist_cleanup', {
+        sources: [],
+        sourceSnapshotIds: [],
+      }),
+    });
+
+    const error = await invokeError('create', {
+      ...base,
+      sourcePackages: [{ ...base.sourcePackages[0], kind: 'share-import' as const }],
+      sourceSnapshots: [
+        { ...canonicalSnapshot('dsch_hist_cleanup'), kind: 'share-import' as const },
+      ],
+    });
+
+    expect(error.code).toBe('DESIGN_SCHEME_CREATE_SOURCE_UNSUPPORTED');
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_packages').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_snapshots').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_files').get()).toEqual({ n: 0 });
+    expect(readdirSync(join(userDataDir, 'design-scheme-sources'))).toEqual([]);
+  });
+
+  it.each([
+    ['missing run', 'run_history_missing', 'asset_history_ok'],
+    ['cross-run asset', 'run_history_ok', 'asset_history_foreign'],
+  ])('%s → fail closed without scheme or snapshot', async (_label, runId, assetId) => {
+    const error = await invokeError(
+      'create',
+      createInputFixture(`dsch_hist_${runId}`, `dsrv_hist_${runId}`, {
+        historySources: [{ runId, assetId, includePrompt: true }],
+      }),
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_snapshots').get()).toEqual({ n: 0 });
+  });
+
+  it('失败 run、软删除 run、不可用 asset 和盘外路径全部拒绝', async () => {
+    const runs = new GenerationRunRepository(coreDb);
+    const seed = (
+      runId: string,
+      status: 'failed' | 'success',
+      deletedAt: number | null,
+      assetId: string,
+      mediaPath: string,
+      assetStatus = 'available',
+    ) => {
+      runs.create({
+        id: runId,
+        providerId: 'p',
+        model: 'm',
+        basePrompt: 'b',
+        finalPrompt: 'f',
+        params: { schemaVersion: 1 },
+      });
+      runs.start(runId);
+      if (status === 'failed') runs.fail(runId, 'FAILED', 'failed');
+      else
+        runs.complete(runId, {
+          assets: [{ id: assetId, mediaPath, status: assetStatus as 'available' }],
+        });
+      if (deletedAt !== null)
+        coreDb
+          .prepare('UPDATE generation_runs SET deleted_at = ? WHERE id = ?')
+          .run(deletedAt, runId);
+    };
+    seed('run_history_failed', 'failed', null, 'asset_failed', join(picturesDir, 'missing.png'));
+    seed(
+      'run_history_deleted',
+      'success',
+      Date.now(),
+      'asset_deleted',
+      join(picturesDir, 'missing.png'),
+    );
+    seed(
+      'run_history_unavailable',
+      'success',
+      null,
+      'asset_unavailable',
+      join(picturesDir, 'missing.png'),
+      'missing',
+    );
+    const outside = join(outsideManagedDir, 'outside.png');
+    writeFileSync(outside, realPngBuffer(32, 32));
+    seed('run_history_outside', 'success', null, 'asset_outside', outside);
+
+    for (const [runId, assetId] of [
+      ['run_history_failed', 'asset_failed'],
+      ['run_history_deleted', 'asset_deleted'],
+      ['run_history_unavailable', 'asset_unavailable'],
+      ['run_history_outside', 'asset_outside'],
+    ]) {
+      const error = await invokeError(
+        'create',
+        createInputFixture(`dsch_${runId}`, `dsrv_${runId}`, {
+          historySources: [{ runId, assetId, includePrompt: false }],
+        }),
+      );
+      expect(error.code).toBe(DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE);
+    }
   });
 });
 

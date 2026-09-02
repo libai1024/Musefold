@@ -85,6 +85,9 @@ export const sourceBindingSchema = z.object({
   filePath: z.string().max(1024).optional(),
   contentHash: z.string().max(128).optional(),
   license: z.string().max(256).optional(),
+  /** Canonical source snapshot identities retained across the legacy document bridge. */
+  packageId: z.string().min(1).max(128).optional(),
+  snapshotId: z.string().min(1).max(128).optional(),
 });
 export type SourceBinding = z.infer<typeof sourceBindingSchema>;
 
@@ -168,6 +171,8 @@ export const designSchemeRevisionDocumentSchema = z.object({
   summary: z.string().min(1).max(500),
   fidelity: fidelitySchema,
   sources: z.array(sourceBindingSchema).max(32),
+  sourceSnapshotIds: z.array(z.string().min(1).max(128)).max(32).optional(),
+  assetIds: z.array(z.string().min(1).max(128)).max(128).optional(),
   inputs: z.array(inputSlotSchema).max(24),
   parameters: z.array(parameterDefinitionSchema).max(24),
   constraints: z.array(designConstraintSchema).max(60),

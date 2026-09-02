@@ -35,7 +35,23 @@ export function resolveManagedStoreKey(
 ): string | null {
   const target = resolve(isAbsolute(storeKey) ? storeKey : resolve(userDataDir, storeKey));
   const roots = [userDataDir, picturesDir].map((root) => resolve(root));
-  return roots.some((root) => isWithin(root, target)) ? target : null;
+  if (roots.some((root) => isWithin(root, target))) return target;
+
+  // macOS may expose the same temporary/user-data directory through aliases such
+  // as /var and /private/var. Resolve existing targets before rejecting them.
+  try {
+    const realTarget = realpathSync(target);
+    const realRoots = roots.flatMap((root) => {
+      try {
+        return [realpathSync(root)];
+      } catch {
+        return [];
+      }
+    });
+    return realRoots.some((root) => isWithin(root, realTarget)) ? target : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

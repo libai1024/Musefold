@@ -226,6 +226,16 @@ export function SchemesScreen({
                     icon={<Search className="size-5" aria-hidden />}
                     title="没有找到匹配的方案"
                     hint="换一个名称、作者或仓库地址试试"
+                    cta={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuery('')}
+                        data-testid="scheme-clear-filter"
+                      >
+                        清除筛选
+                      </Button>
+                    }
                     testId="scheme-list-empty-search"
                   />
                 ) : (

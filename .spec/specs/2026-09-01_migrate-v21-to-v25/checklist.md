@@ -19,7 +19,7 @@
 - [x] 错误处理符合预期：结构化 BridgeError/API 错误、用户可重试、生成/同步状态机可收敛
 
 ## 测试与验证
-- [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出
+- [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出。Design Scheme 本地历史来源闭环由 contracts、source-ingestion、domain 3 个定向文件覆盖，共 87 tests passed；真实 Web/cloud/Agent/Electron 成功路径仍未宣称完成
 - [x] Web 桌面/移动与 Electron 已验证 shell/workbench/prompts/settings/sync 关键路径；原生 macOS fullscreen 被 runner 前台焦点阻塞
 
 ## 文档同步

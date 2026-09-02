@@ -2,9 +2,9 @@
  * 来源治理切片：把 GitHub 仓库固化为「固定 commit 快照」写入 design-scheme 库。
  * 复用 skill-import 的 github-reader（归档下载 + 预算 + 许可证识别）。
  */
-import { createHash, randomUUID } from 'crypto';
-import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { dirname, extname, join } from 'path';
+import { createHash, randomUUID } from 'node:crypto';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, extname, join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { readPublicGithubAgentSkillRuntimeSource } from '../skill-import/github-reader';
 import type { AgentSkillRuntimeFile } from '../skill-import/zip-reader';
@@ -290,61 +290,90 @@ export function persistHistorySnapshot(
     mimeType?: string | null;
   }> = [];
 
-  for (const item of items) {
-    const managed = resolveManagedMediaFile(item.imagePath, userData, picturesDir);
-    if (!managed) {
-      continue; // 越根/symlink/已不存在：与旧「文件已不存在」同语义，跳过不阻塞。
-    }
-    let bytes: Buffer;
-    try {
-      bytes = readFileSync(managed.path);
-    } catch {
-      continue; // 历史图片文件已不存在：跳过该条，不阻塞创建。
-    }
-    const extension = extname(managed.path) || '.png';
-    const relativePath = `history/${item.historyId}${extension}`;
-    const absolutePath = join(snapshotDir, relativePath);
-    mkdirSync(dirname(absolutePath), { recursive: true });
-    copyFileSync(managed.path, absolutePath);
-    fileRows.push({
-      path: relativePath,
-      kind: 'image',
-      contentHash: createHash('sha256').update(bytes).digest('hex'),
-      sizeBytes: bytes.byteLength,
-      storeKey: join('design-scheme-sources', snapshotId, relativePath),
-      mimeType: sniffImageMimeType(bytes),
-    });
-    if (item.promptText?.trim()) {
-      const text = item.promptText.trim();
+  try {
+    for (const item of items) {
+      const managed = resolveManagedMediaFile(item.imagePath, userData, picturesDir);
+      if (!managed) {
+        continue; // 越根/symlink/已不存在：与旧「文件已不存在」同语义，跳过不阻塞。
+      }
+      let bytes: Buffer;
+      try {
+        bytes = readFileSync(managed.path);
+      } catch {
+        continue; // 历史图片文件已不存在：跳过该条，不阻塞创建。
+      }
+      const extension = extname(managed.path) || '.png';
+      const relativePath = `history/${item.historyId}${extension}`;
+      const absolutePath = join(snapshotDir, relativePath);
+      mkdirSync(dirname(absolutePath), { recursive: true });
+      copyFileSync(managed.path, absolutePath);
       fileRows.push({
-        path: `history/${item.historyId}.prompt.txt`,
-        kind: 'text',
-        contentHash: createHash('sha256').update(text).digest('hex'),
-        sizeBytes: Buffer.byteLength(text),
-        textContent: text,
-        mimeType: 'text/plain',
+        path: relativePath,
+        kind: 'image',
+        contentHash: createHash('sha256').update(bytes).digest('hex'),
+        sizeBytes: bytes.byteLength,
+        storeKey: join('design-scheme-sources', snapshotId, relativePath),
+        mimeType: sniffImageMimeType(bytes),
       });
+      if (item.promptText?.trim()) {
+        const text = item.promptText.trim();
+        fileRows.push({
+          path: `history/${item.historyId}.prompt.txt`,
+          kind: 'text',
+          contentHash: createHash('sha256').update(text).digest('hex'),
+          sizeBytes: Buffer.byteLength(text),
+          textContent: text,
+          mimeType: 'text/plain',
+        });
+      }
+      persistedItems.push({ ...item, snapshotImagePath: absolutePath });
     }
-    persistedItems.push({ ...item, snapshotImagePath: absolutePath });
-  }
 
-  repository.saveSourceSnapshot({
-    package: { id: packageId, kind: 'history' },
-    snapshot: {
-      id: snapshotId,
-      ref: 'history',
-      commitHash: null,
-      totalBytes: fileRows.reduce((sum, row) => sum + row.sizeBytes, 0),
-      scan: {
-        name: '历史内容',
-        description: '用户挑选的历史作品与提示词',
-        textFileCount: fileRows.filter((row) => row.kind === 'text').length,
-        imageFileCount: fileRows.filter((row) => row.kind === 'image').length,
-        otherCount: 0,
+    const totalBytes = fileRows.reduce((sum, row) => sum + row.sizeBytes, 0);
+
+    repository.saveSourceSnapshot({
+      package: { id: packageId, kind: 'history' },
+      snapshot: {
+        id: snapshotId,
+        ref: 'history',
+        commitHash: null,
+        totalBytes,
+        scan: {
+          name: '历史内容',
+          description: '用户挑选的历史作品与提示词',
+          textFileCount: fileRows.filter((row) => row.kind === 'text').length,
+          imageFileCount: fileRows.filter((row) => row.kind === 'image').length,
+          otherCount: 0,
+        },
       },
-    },
-    files: fileRows,
-  });
+      files: fileRows,
+    });
 
-  return { packageId, snapshotId, items: persistedItems };
+    return { packageId, snapshotId, items: persistedItems };
+  } catch (error) {
+    rmSync(snapshotDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/** Remove a just-created source snapshot and its package when scheme creation aborts. */
+export function removePersistedHistorySnapshot(
+  db: Database.Database,
+  snapshotId: string,
+  packageId: string,
+  userData = getPaths().userData,
+): void {
+  db.transaction(() => {
+    db.prepare('DELETE FROM source_files WHERE snapshot_id = ?').run(snapshotId);
+    db.prepare('DELETE FROM source_snapshots WHERE id = ? AND package_id = ?').run(
+      snapshotId,
+      packageId,
+    );
+    db.prepare(
+      `DELETE FROM source_packages
+       WHERE id = ?
+         AND NOT EXISTS (SELECT 1 FROM source_snapshots WHERE package_id = ?)`,
+    ).run(packageId, packageId);
+  })();
+  rmSync(join(userData, 'design-scheme-sources', snapshotId), { recursive: true, force: true });
 }

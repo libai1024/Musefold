@@ -456,13 +456,19 @@ describe('SchemesScreen 我的方案(列表)', () => {
     );
   });
 
-  it('客户端搜索过滤(名称/摘要/来源),无结果给承旧提示', async () => {
+  it('客户端搜索过滤(名称/摘要/来源),无结果给承旧提示并可清除筛选', async () => {
     renderScreen({ schemes: [makeSummary({ name: '水彩海报' })] }, { actions: ALL_ACTIONS });
     await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
-    await user.type(screen.getByTestId('scheme-search'), '不存在的东西');
+    const search = screen.getByTestId('scheme-search');
+    await user.type(search, '不存在的东西');
     await waitFor(() => expect(screen.getByTestId('scheme-list-empty-search')).toBeTruthy());
     expect(screen.getByText('没有找到匹配的方案')).toBeTruthy();
+    expect(screen.getByTestId('scheme-clear-filter')).toBeTruthy();
     expect(screen.queryByTestId('runtime-scheme-row-scheme-1')).toBeNull();
+
+    await user.click(screen.getByTestId('scheme-clear-filter'));
+    await waitFor(() => expect(screen.getByTestId('runtime-scheme-row-scheme-1')).toBeTruthy());
+    expect((search as HTMLInputElement).value).toBe('');
   });
 
   it('选中行 → Inspector(生命周期/输入/来源);关闭后收起', async () => {
