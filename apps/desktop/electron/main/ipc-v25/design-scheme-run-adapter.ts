@@ -374,6 +374,19 @@ function emitChecked(
   deps.emit(senderId, designSchemeEventSchema.parse(event));
 }
 
+function isCancellationRequested(
+  deps: DesktopDesignSchemeRunAdapterDeps,
+  senderId: number,
+  executionId: string,
+  signal: AbortSignal,
+): boolean {
+  if (signal.aborted) return true;
+  const execution = deps.executionRegistry.get(senderId, executionId);
+  return (
+    execution.status === 'already-terminal' && execution.execution.terminalStatus === 'cancelled'
+  );
+}
+
 function runRecord(
   input: ParsedDesignSchemeRunInput,
   provider: ProviderSnapshot,
@@ -567,12 +580,20 @@ export async function runCanonicalDesignScheme(
     });
 
     if (!retained.ok) {
-      const error = appErrorToCanonical(retained.error);
+      const cancellationRequested = isCancellationRequested(
+        deps,
+        senderId,
+        input.executionId,
+        controller.signal,
+      );
+      const error = cancellationRequested
+        ? errorFor('CANCELLED', '已取消', { recoveryAction: 'none' })
+        : appErrorToCanonical(retained.error);
       const status: RunResult['status'] =
-        retained.error.code === 'REQUIRED'
-          ? 'blocked'
-          : retained.error.code === 'CANCELLED' || controller.signal.aborted
-            ? 'cancelled'
+        cancellationRequested || retained.error.code === 'CANCELLED'
+          ? 'cancelled'
+          : retained.error.code === 'REQUIRED'
+            ? 'blocked'
             : 'failed';
       terminalStatus = status === 'cancelled' ? 'cancelled' : 'failed';
       const canonicalResult = runResultSchema.parse({
@@ -603,6 +624,39 @@ export async function runCanonicalDesignScheme(
     }
 
     const outputData = outputEntries(retained.data, runId);
+    const generationCancelled = retained.data.generations.some(
+      (generation) => generation.result.status === 'cancelled',
+    );
+    const cancellationRequested =
+      generationCancelled ||
+      isCancellationRequested(deps, senderId, input.executionId, controller.signal);
+    const cancelWithOutputs = (): RunResult => {
+      const cancelledError = errorFor('CANCELLED', '已取消', { recoveryAction: 'none' });
+      const cancelledResult = runResultSchema.parse({
+        runId,
+        schemeId: input.schemeId,
+        revisionId: input.revisionId,
+        mode: input.mode,
+        status: 'cancelled',
+        compiledPrompt: retained.data.compiledPrompt,
+        outputs: outputData.outputs,
+        steps: finalSteps(input.plan, 'cancelled', null, cancelledError),
+        evaluation: null,
+        repair: input.repair,
+        error: cancelledError,
+        createdAt,
+        completedAt: Date.now(),
+      } satisfies RunResult);
+      terminalStatus = 'cancelled';
+      finalizeExistingDesignSchemeRun(deps.db, runId, 'cancelled');
+      emitChecked(deps, senderId, {
+        kind: 'cancelled',
+        executionId: input.executionId,
+        runId,
+      });
+      return cancelledResult;
+    };
+    if (cancellationRequested) return cancelWithOutputs();
     const evaluation = evaluationResult(
       retained.data.evaluation,
       input,
@@ -646,6 +700,10 @@ export async function runCanonicalDesignScheme(
       createdAt,
       completedAt: Date.now(),
     };
+    const cancellationResult = (): RunResult | null =>
+      isCancellationRequested(deps, senderId, input.executionId, controller.signal)
+        ? cancelWithOutputs()
+        : null;
     if (runGenerationStarted.value) {
       emitChecked(deps, senderId, {
         kind: 'step-completed',
@@ -654,6 +712,8 @@ export async function runCanonicalDesignScheme(
         stepId: generateStepId,
         outputIds: outputData.outputs.map((output) => output.id),
       });
+      const cancelledAfterGeneration = cancellationResult();
+      if (cancelledAfterGeneration) return cancelledAfterGeneration;
     }
     if (evaluation) {
       emitChecked(deps, senderId, {
@@ -662,6 +722,8 @@ export async function runCanonicalDesignScheme(
         runId,
         stepId: evaluateStepId,
       });
+      const cancelledAfterEvaluationStarted = cancellationResult();
+      if (cancelledAfterEvaluationStarted) return cancelledAfterEvaluationStarted;
       emitChecked(deps, senderId, {
         kind: 'step-completed',
         executionId: input.executionId,
@@ -669,16 +731,22 @@ export async function runCanonicalDesignScheme(
         stepId: evaluateStepId,
         outputIds: outputData.outputs.map((output) => output.id),
       });
-    }
-    if (evaluation)
+      const cancelledAfterEvaluationCompleted = cancellationResult();
+      if (cancelledAfterEvaluationCompleted) return cancelledAfterEvaluationCompleted;
       emitChecked(deps, senderId, {
         kind: 'evaluation-completed',
         executionId: input.executionId,
         evaluation,
       });
+      const cancelledAfterEvaluationEvent = cancellationResult();
+      if (cancelledAfterEvaluationEvent) return cancelledAfterEvaluationEvent;
+    }
+    const cancelledBeforeTerminalCommit = cancellationResult();
+    if (cancelledBeforeTerminalCommit) return cancelledBeforeTerminalCommit;
     if (status === 'completed') {
       const canonicalResult = runResultSchema.parse(result);
       finalizeExistingDesignSchemeRun(deps.db, runId, 'completed');
+      deps.executionRegistry.markTerminal(senderId, input.executionId, 'completed');
       emitChecked(deps, senderId, {
         kind: 'completed',
         executionId: input.executionId,

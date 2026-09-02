@@ -7,6 +7,7 @@ import {
   designSchemeEventSchema,
   designSchemeRunInputSchema,
   runResultSchema,
+  type DesignSchemeEvent,
   type ParsedDesignSchemeRunInput,
 } from '@musefold/contracts';
 import { takeoverDesktopDatabase } from '@musefold/desktop-db';
@@ -196,7 +197,7 @@ describe('desktop design-scheme run adapter', () => {
   let schemeDb: Database.Database;
   let coreDb: Database.Database;
   let root: string;
-  let events: unknown[];
+  let events: DesignSchemeEvent[];
   let registry: DesignSchemeExecutionRegistry;
 
   beforeEach(() => {
@@ -361,6 +362,116 @@ describe('desktop design-scheme run adapter', () => {
     expect(new DesignSchemeRepository(schemeDb).hasSuccessfulTrial('rev_adapter')).toBe(true);
   });
 
+  it('rechecks cancellation after evaluation step events before terminal completion', async () => {
+    const imagePath = join(root, 'reentrant-cancel.png');
+    writeFileSync(imagePath, fakePngBuffer(1024, 1024));
+    mockRetainedRun({
+      compiledPrompt: 'compiled prompt',
+      generations: [
+        {
+          jobId: 'job_reentrant_cancel',
+          resultIndex: 0,
+          assetId: 'asset_reentrant_cancel',
+          result: { historyId: 'job_reentrant_cancel', status: 'success', imagePath },
+        },
+      ],
+      trace: [],
+      evaluation: {
+        evaluationId: 'evaluation_reentrant_cancel',
+        runId: 'ignored-by-adapter',
+        passed: true,
+        checks: [
+          { id: 'output-count', label: 'Output count', status: 'pass' },
+          { id: 'file-valid', label: 'File valid', status: 'pass' },
+          { id: 'aspect-ratio', label: 'Aspect ratio', status: 'pass' },
+        ],
+        repairHint: null,
+        createdAt: 1,
+      },
+    });
+
+    const result = await runCanonicalDesignScheme(
+      inputFixture({ executionId: 'exec_reentrant_cancel' }),
+      79,
+      {
+        db: schemeDb,
+        coreDb,
+        userDataDir: root,
+        picturesDir: join(root, 'Pictures'),
+        executionRegistry: registry,
+        emit: (_senderId, event) => {
+          events.push(event);
+          if (event.kind === 'step-completed' && event.stepId === 'step_evaluate') {
+            expect(registry.cancel(79, 'exec_reentrant_cancel')).toMatchObject({
+              status: 'cancelled',
+            });
+          }
+        },
+      },
+    );
+
+    expect(result.status).toBe('cancelled');
+    expect(result.evaluation).toBeNull();
+    expect(runStatus(result.runId)).toBe('cancelled');
+    expect(events.some((event) => event.kind === 'evaluation-completed')).toBe(false);
+    expect(events.some((event) => event.kind === 'completed')).toBe(false);
+    expect(events.filter((event) => event.kind === 'cancelled')).toHaveLength(1);
+    expect(registry.get(79, 'exec_reentrant_cancel')).toMatchObject({
+      status: 'already-terminal',
+      execution: { terminalStatus: 'cancelled' },
+    });
+    expect(events.every((event) => designSchemeEventSchema.safeParse(event).success)).toBe(true);
+    expect(runResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('wins the completed terminal commit over a reentrant late cancellation', async () => {
+    const imagePath = join(root, 'late-cancel.png');
+    writeFileSync(imagePath, fakePngBuffer(1024, 1024));
+    mockRetainedRun({
+      compiledPrompt: 'compiled prompt',
+      generations: [
+        {
+          jobId: 'job_late_cancel',
+          resultIndex: 0,
+          assetId: 'asset_late_cancel',
+          result: { historyId: 'job_late_cancel', status: 'success', imagePath },
+        },
+      ],
+      trace: [],
+    });
+    let lateCancelOutcome: string | null = null;
+
+    const result = await runCanonicalDesignScheme(
+      inputFixture({ executionId: 'exec_late_cancel' }),
+      80,
+      {
+        db: schemeDb,
+        coreDb,
+        userDataDir: root,
+        picturesDir: join(root, 'Pictures'),
+        executionRegistry: registry,
+        emit: (_senderId, event) => {
+          events.push(event);
+          if (event.kind === 'completed') {
+            lateCancelOutcome = registry.cancel(80, 'exec_late_cancel').status;
+          }
+        },
+      },
+    );
+
+    expect(result.status).toBe('completed');
+    expect(runStatus(result.runId)).toBe('completed');
+    expect(lateCancelOutcome).toBe('already-terminal');
+    expect(registry.get(80, 'exec_late_cancel')).toMatchObject({
+      status: 'already-terminal',
+      execution: { terminalStatus: 'completed' },
+    });
+    expect(events.filter((event) => event.kind === 'completed')).toHaveLength(1);
+    expect(events.some((event) => event.kind === 'cancelled')).toBe(false);
+    expect(events.every((event) => designSchemeEventSchema.safeParse(event).success)).toBe(true);
+    expect(runResultSchema.safeParse(result).success).toBe(true);
+  });
+
   it('preserves blocked status in the scheme run ledger', async () => {
     mockRetainedFailure({ code: 'REQUIRED', message: 'Topic is required' });
 
@@ -513,5 +624,103 @@ describe('desktop design-scheme run adapter', () => {
       status: 'already-terminal',
       execution: { terminalStatus: 'failed' },
     });
+  });
+
+  it('cancellation wins over partial success before the adapter terminal commit', async () => {
+    const firstImagePath = join(root, 'cancelled-partial-success.png');
+    writeFileSync(firstImagePath, fakePngBuffer(1024, 1024));
+    const base = inputFixture();
+    const input = inputFixture({
+      executionId: 'exec_cancelled_partial',
+      executionSettings: {
+        ...base.executionSettings,
+        outputCount: 2,
+      },
+      plan: {
+        ...base.plan,
+        budget: { ...base.plan.budget, maxOutputs: 2 },
+      },
+    });
+    let statusAtCancelledEvent: string | null = null;
+    runDesignSchemeMock.mockImplementationOnce(
+      async (request: { runId?: string; revisionId: string; mode: 'trial' | 'formal' }) => {
+        new DesignSchemeRepository(schemeDb).insertRun({
+          runId: request.runId ?? 'dsr_mock',
+          revisionId: request.revisionId,
+          mode: request.mode,
+          policy: {},
+        });
+        expect(registry.cancel(78, 'exec_cancelled_partial')).toMatchObject({
+          status: 'cancelled',
+        });
+        return {
+          ok: true,
+          data: {
+            compiledPrompt: 'compiled prompt',
+            generations: [
+              {
+                jobId: 'job_partial_success',
+                resultIndex: 0,
+                assetId: 'asset_partial_success',
+                result: {
+                  historyId: 'job_partial_success',
+                  status: 'success',
+                  imagePath: firstImagePath,
+                },
+              },
+              {
+                jobId: 'job_cancelled_after_success',
+                resultIndex: 1,
+                result: {
+                  historyId: 'job_cancelled_after_success',
+                  status: 'cancelled',
+                  error: { code: 'CANCELLED', message: '已取消生成' },
+                },
+              },
+            ],
+            trace: [],
+          },
+        };
+      },
+    );
+
+    const result = await runCanonicalDesignScheme(input, 78, {
+      db: schemeDb,
+      coreDb,
+      userDataDir: root,
+      picturesDir: join(root, 'Pictures'),
+      executionRegistry: registry,
+      emit: (_senderId, event) => {
+        events.push(event);
+        if (event.kind === 'cancelled' && 'runId' in event) {
+          statusAtCancelledEvent = runStatus(event.runId);
+        }
+      },
+    });
+
+    expect(result.status).toBe('cancelled');
+    expect(result.outputs).toHaveLength(1);
+    expect(result.evaluation).toBeNull();
+    expect(runStatus(result.runId)).toBe('cancelled');
+    expect(statusAtCancelledEvent).toBe('cancelled');
+    expect(events.some((event) => (event as { kind?: string }).kind === 'completed')).toBe(false);
+    const terminalEvents = events.filter((event) =>
+      ['completed', 'failed', 'cancelled'].includes((event as { kind?: string }).kind ?? ''),
+    );
+    expect(terminalEvents).toHaveLength(1);
+    expect(terminalEvents[0]).toMatchObject({
+      kind: 'cancelled',
+      runId: result.runId,
+    });
+    expect(cancelGenerationMock).toHaveBeenCalledTimes(2);
+    expect(cancelGenerationMock.mock.calls.every(([jobId]) => typeof jobId === 'string')).toBe(
+      true,
+    );
+    expect(registry.get(78, 'exec_cancelled_partial')).toMatchObject({
+      status: 'already-terminal',
+      execution: { terminalStatus: 'cancelled' },
+    });
+    expect(events.every((event) => designSchemeEventSchema.safeParse(event).success)).toBe(true);
+    expect(runResultSchema.safeParse(result).success).toBe(true);
   });
 });

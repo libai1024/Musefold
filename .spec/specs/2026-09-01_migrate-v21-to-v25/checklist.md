@@ -19,7 +19,7 @@
 - [x] 错误处理符合预期：结构化 BridgeError/API 错误、用户可重试、生成/同步状态机可收敛
 
 ## 测试与验证
-- [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出。Design Scheme 本地历史来源闭环由 contracts、source-ingestion、domain 3 个定向文件覆盖，共 87 tests passed；真实 Web/cloud/Agent/Electron 成功路径仍未宣称完成
+- [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出。Design Scheme 本地历史来源闭环由 contracts、source-ingestion、domain 3 个定向文件覆盖，共 87 tests passed；Desktop run adapter 当前工作树新增 cancellation-wins、active generation job fan-out 与 terminal event 重入仲裁回归，定向 suite 16 tests passed；真实 Web/cloud/Agent/Electron 成功路径仍未宣称完成
 - [x] Web 桌面/移动与 Electron 已验证 shell/workbench/prompts/settings/sync 关键路径；Design Scheme Web deep-link 的打开、返回、删除 query 生命周期和非法参数清理已有 22 个 Web host tests；本轮 `@musefold/features` 共 23 个文件、286 个测试通过，覆盖 Design Scheme 正式详情常驻修改入口、相册键盘与横向触控导航、History 成本展示、时间线内容尺寸变化贴底与用户离底不抢位；移动 Workbench 完成态视觉基线已刷新并连续复核通过；原生 macOS fullscreen 被 runner 前台焦点阻塞
 
 ## 文档同步
@@ -51,7 +51,7 @@
 - [x] verification gate 明确以主线程 `pnpm run check`、双端 E2E 和 Spec 校验为准
 
 ## 行为成效
-- [x] 统一门禁结果：`pnpm run check` 通过，179 个测试文件、1282 个测试、35 个 Turbo task 成功
+- [x] 统一门禁结果：`pnpm run check` 通过，179 个测试文件、1285 个测试、35 个 Turbo task 成功
 - [x] 已回填关键路径验证：Web session URL、Web mobile Settings/Workbench 视觉、Electron Workbench、Electron sync 定向 E2E 通过；移动 Workbench 完成态视觉基线已刷新，时间线尺寸变化贴底回归通过
 - [x] 本轮返工原因已记录：工作台会话列表竞态、孤立 draft/sync fixture、Settings 归档行视觉基线；fullscreen runner 保留为外部 blocked
 
@@ -62,7 +62,7 @@
 - 差异边界：桌宠不迁移；Doubao 内部不迁移但入口保留；macOS fullscreen `D16` 为环境 blocked；云端 Design Scheme capability 保持关闭
 - 行为成效：共享 features 已覆盖主要 Web desktop/mobile 与 Electron shell/workbench/prompts/settings/sync 路径
 - 构建：`pnpm run check` 内含 Electron/Web build、typecheck、Biome、unit/integration、dependency-cruiser，全部成功
-- 测试：`pnpm run check` 为 179 个测试文件/1282 个测试；最新完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败为 fullscreen runner 无法让 Electron 窗口获得前台焦点；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均通过；Web server 同时记录 `127.0.0.1:8787` 未启动的 proxy 连接拒绝日志，未影响通过用例
+- 测试：`pnpm run check` 为 179 个测试文件/1285 个测试；本轮 Desktop run adapter 定向 suite 为 16 tests passed，根目录 `pnpm run typecheck` 与 `pnpm run build` 通过；本轮完整 Electron project 为 32 passed、1 skipped、1 failed，唯一失败为 fullscreen runner 无法让 Electron 窗口获得前台焦点，跳过项为真实 key 场景；此前完整 v25 E2E 为 97 passed、1 failed、5 skipped；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均通过；Web server 同时记录 `127.0.0.1:8787` 未启动的 proxy 连接拒绝日志，未影响通过用例
 - 手工验证：已检查同步暂停/恢复、冲突动作、同账号重登和 userData secret scan；真实 fullscreen 需具备 WindowServer 前台激活资格的 macOS runner
 
 ---
