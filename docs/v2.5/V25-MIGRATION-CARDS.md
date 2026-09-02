@@ -76,7 +76,7 @@
 | 新设计、会话、草稿、参数、提交/取消/重试 | baseline generation/workbench | features/workbench、Web/Electron workbench specs、API/IPC/core tests | `partial`;多图、审批、费用、移动键盘及 working-tree-only 修复未闭合 | U03、U03-spend |
 | 参考图、比例、结果消费 | baseline image input/RatioPicker/result card | current contracts/domain/IPC 和 working-tree E2E | `partial`;多图保存/复制和稳定产物回归未闭合 | U03、Q01 |
 | 微调、父子谱系、错误建议 | baseline refinement/history lineage | 当前只保留部分 `parentRunId`/lineage 展示 | `todo/partial`;不得以线索展示冒充微调完成 | P02、U04 |
-| 历史列表、筛选、详情、Lightbox、清理、统计 | baseline history components | features/history、Web/Electron history specs | `partial`;批量清理、磁盘用量、成本/种子/谱系跳转缺 | U04、D02-a/d |
+| 历史列表、筛选、详情、Lightbox、清理、统计 | baseline history components | features/history、Web/Electron history specs | `partial`;列表行已显示已有 `costPoints`, `null` 成本不伪造成 0；批量清理、磁盘用量、种子/谱系跳转及完整历史成本/统计闭环仍缺 | U04、D02-a/d |
 | 设计方案全生命周期 | baseline `features/design-schemes/*` 与 main runtime | canonical contracts、SQLite/PG schema、Desktop/API/client adapter、shared features | `partial`;确定性 CRUD、working-draft 读取、Desktop `.musefold.design` 安全 staging/archive/domain 导入导出、owner-safe 历史来源链路与失败回滚已接线；共享屏详情生命周期回调与 Web `/design-schemes?scheme=<id>` deep-link 的打开/返回/删除 query 同步、非法参数清理已接线并有定向 Web/features 测试，但 Desktop Agent 编译/modify/run/event 与真实 E2E、Web runtime、云端 run/assets/package 尚未闭环，双宿主 capability 保持关闭 | P01-1..P01-13 |
 | Skill runtime、GitHub 固定版本读取 | baseline Skill conversation/skill-import/local MCP | 主进程 skill runtime/import 保留,新壳无入口 | `partial`;兼容面不等于 renderer parity | P02、P01-12 |
 | 分享、导入、导出、`.musefold.design` | baseline share surfaces、scheme share runtime | Desktop 主进程 share/staging/archive 已接入 v25 domain 导入导出;无 shared screen,Web package 仍 fail-closed | `partial`;方案专用 Desktop staging/指纹/落盘已接线未验收(E2E/capability),Web 导入导出与确认未闭合,通用分享/导入仍暂缓(P03) | P01-9、P03 |
@@ -113,7 +113,7 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
 
 - **状态**:`verify`
 - **目标**:在独立迁移分支保护现有未提交 UI/Workbench 改动,取得当前树真实门禁结果。
-- **当前证据边界**:当前分支 `spec/2026-09-01_migrate-v21-to-v25`;已有阶段成果提交至 checkpoint `b85aa1b` 与 `9f7a860`。当前树复现 `pnpm run check`（179 个测试文件、1282 个测试、35 个 Turbo task，退出码 0）；完整 `pnpm run test:e2e` 为 97 passed、1 failed、5 skipped，唯一失败是 macOS runner 无法让 Electron BrowserWindow 获得前台焦点的原生 fullscreen 阻塞，Web 测试同时记录后端 `127.0.0.1:8787` 未启动的 proxy 日志。由于尚未绑定 durable machine-readable report/artifact，数字只能作为当前工作树验证记录，不能把 B00 升为 `done`。同步四态截图若位于 gitignored `.results`，仍不能替代持久 visual baseline。
+- **当前证据边界**:当前分支 `spec/2026-09-01_migrate-v21-to-v25`;已有阶段成果提交至 checkpoint `b85aa1b` 与 `9f7a860`。当前树复现 `pnpm run check`（179 个测试文件、1282 个测试、35 个 Turbo task，退出码 0）；本轮 History 成本切片的 `@musefold/features` 定向测试为 23 个文件、279 个测试，覆盖已知成本展示与未知成本隐藏；时间线内容尺寸变化后的贴底修复使 `@musefold/features` Workbench 定向测试达到 23 个文件、281 个测试，移动 Workbench 完成态视觉基线已连续复核通过；最新完整 `pnpm run test:e2e` 为 97 passed、1 failed、5 skipped，唯一失败是 macOS runner 无法让 Electron BrowserWindow 获得前台焦点的原生 fullscreen 阻塞，Web 测试同时记录后端 `127.0.0.1:8787` 未启动的 proxy 日志。由于尚未绑定 durable machine-readable report/artifact，数字只能作为当前工作树验证记录，不能把 B00 升为 `done`。同步四态截图若位于 gitignored `.results`，仍不能替代持久 visual baseline。
 - **动作**:
   - 审查现有 dirty diff,不回滚用户改动。
   - 用当前源码重建 Web/Electron;清理或拒绝复用 3399 的旧服务。
@@ -250,7 +250,7 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
 
 - **状态**:`partial`
 - **已迁**:列表/筛选/详情/线程、回收站、恢复/永久删除、Lightbox、保存资产/提示词、查看会话。
-- **待迁**:成本/用时/种子;自定义日期;错误建议;谱系跳转;Desktop 打开目录/复制图片;批量清理;磁盘用量;大列表虚拟化;孤儿微调标识。
+- **待迁**:自定义日期;错误建议;谱系跳转;Desktop 打开目录/复制图片;批量清理;磁盘用量;大列表虚拟化;孤儿微调标识。列表行成本已接入现有 `GenerationJob.costPoints`：已知值显示 `N 积分`, `null` 保持隐藏；成本字段的完整跨端/统计闭环仍待 U04/D02/Q03 证据。
 - **平台矩阵**:
   - Mobile Web:`partial`;列表、筛选、Sheet/Lightbox 与 route-mock E2E 存在;自定义日期、清理、谱系和大列表 evidence 缺。
   - PC Web:`partial`;宽屏 Inspector/列表 route-mock E2E 存在,真 API/PG/object storage 未由它证明。
@@ -548,7 +548,7 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
 
 | 卡 | Owner | Reviewer | Mobile Web | PC Web | Desktop | Desktop Agent | 总状态 | 当前证据 |
 |---|---|---|---|---|---|---|---|---|
-| B00 | 主代理 | — | verify | verify | verify | N/A | verify | 当前树 `pnpm run check` 已通过（179 个测试文件、1282 个测试、35 个 Turbo task）;完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败是原生 macOS fullscreen 的 runner 前台焦点阻断；无 durable report/artifact 绑定,仍不能登记为 done/pass;同步截图中 gitignored 临时附件也不替代 durable baseline |
+| B00 | 主代理 | — | verify | verify | verify | N/A | verify | 当前树 `pnpm run check` 已通过（179 个测试文件、1282 个测试、35 个 Turbo task）;最新完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败是原生 macOS fullscreen 的 runner 前台焦点阻断；Prompt 9 个用例与移动 Workbench 完成态视觉基线均通过;无 durable report/artifact 绑定,仍不能登记为 done/pass;同步截图中 gitignored 临时附件也不替代 durable baseline |
 | B01 | GPT | GLM | partial | partial | verify | partial | verify | 既有公共域 gateway/IPC mapping 与 canonical method set 有当前定向测试;B01-R 的 15 项 designSchemes fail-closed、全域异常脱敏、malformed envelope 和 preload event lifecycle 已通过定向验证;Web/真实 Electron/全量门禁仍由 B02/Q02 登记 |
 | D01-generation | GPT | GLM | N/A | partial | partial | partial | partial | generation ledger、API 幂等/取消和 worker lease/epoch 有定向证据;worker 主要为 fake dependency,真 PG/Graphile Worker、外部 Provider、重启/reconcile 与跨端成功路径仍待 |
 | D01-sync | GPT | GLM | partial | partial | partial | partial | partial | consent 四态、显式 workspace/adopt、zero transport、首轮顺序、paused mutation/usage、逐条 local/remote/duplicate、logout/relogin preservation、secret scan 已有定向证据;Prompt/Folder/Tag 目录 CRUD 已修复 workspace 作用域;跨 owner seed、usage/version/max merge、两设备/revoke/cursor expiry 与真云端仍待 |

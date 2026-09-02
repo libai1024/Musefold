@@ -38,7 +38,7 @@
       "report": null,
       "artifact": null,
       "skipReason": null,
-      "blockedReason": "当前树 `pnpm run check` 已通过；完整 v25 E2E 为 94 passed、3 failed、5 skipped，其中原生 macOS fullscreen 因 runner 无法让 Electron BrowserWindow 获得前台焦点而阻塞；本轮未提交且没有 machine-readable report/artifact，不能登记为 pass",
+      "blockedReason": "当前树 `pnpm run check` 已通过；最新完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败为原生 macOS fullscreen 因 runner 无法让 Electron BrowserWindow 获得前台焦点而阻塞；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均已通过；本轮验证没有 machine-readable report/artifact，不能登记为 pass",
       "unregisteredReason": null,
       "failureReason": null,
       "rerun": "在当前 HEAD 生成 Web/Electron 并完成全部 B00 门禁后，以持久 report/artifact 重新登记"
@@ -312,7 +312,7 @@
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "列表、筛选、详情、回收站和 Lightbox 有源码/测试线索，但历史运行无 report/commit；清理、统计、谱系和对象存储未被本条证明",
+      "unregisteredReason": "列表、筛选、详情、回收站和 Lightbox 有源码/测试线索；HistoryRow 现已消费 GenerationJob.costPoints，已知值显示积分且 null 不显示，但历史运行无 report/commit；清理、统计、谱系和对象存储未被本条证明",
       "failureReason": null,
       "rerun": "重新登记 Web desktop/mobile route mock、Electron disposable SQLite，并另行登记 D02 生命周期和真实对象存储"
     },

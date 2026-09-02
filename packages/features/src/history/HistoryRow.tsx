@@ -126,6 +126,7 @@ export function HistoryRow({
             </Badge>
             {job.providerModel && <span className="truncate">{job.providerModel}</span>}
             {duration && <span>{duration}</span>}
+            {job.costPoints != null && <span>{job.costPoints} 积分</span>}
             <span data-testid="history-row-time">{formatDateTime(job.createdAt)}</span>
           </span>
         </button>

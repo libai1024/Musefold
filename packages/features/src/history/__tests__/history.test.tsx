@@ -215,6 +215,20 @@ describe('HistoryScreen', () => {
     expect(statuses).toContain('failed');
   });
 
+  it('列表行显示已知成本,未知成本不伪造为零', async () => {
+    renderHistory([
+      makeJob({ id: 'priced', costPoints: 12 }),
+      makeJob({ id: 'unknown', costPoints: null }),
+    ]);
+    await waitFor(() => expect(screen.getAllByTestId('history-row')).toHaveLength(2));
+
+    const rows = screen.getAllByTestId('history-row');
+    const pricedRow = rows.find((row) => row.textContent?.includes('prompt priced'));
+    const unknownRow = rows.find((row) => row.textContent?.includes('prompt unknown'));
+    expect(pricedRow?.textContent).toContain('12 积分');
+    expect(unknownRow?.textContent).not.toContain('积分');
+  });
+
   it('空态与筛选空态', async () => {
     renderHistory([makeJob({ id: 'j1' })]);
     await waitFor(() => {

@@ -75,7 +75,7 @@
 
 ### 6.1 行为成效指标
 - 仓库统一门禁在当前工作树可复现通过 -> verify: `pnpm run check` 退出码为 0，并报告 179 个测试文件、1282 个测试和 35 个 Turbo task 成功
-- Web 桌面/移动与 Electron 关键迁移路径可复现通过 -> verify: session URL、设置视觉基线、成图视觉基线、Electron Workbench 和 Electron sync 定向 E2E 均通过；完整 v25 E2E 另记录 macOS fullscreen 环境阻塞
+- Web 桌面/移动与 Electron 关键迁移路径可复现通过 -> verify: session URL、设置视觉基线、成图视觉基线、Electron Workbench 和 Electron sync 定向 E2E 均通过；完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败是 macOS fullscreen 环境阻塞
 - 本轮本地同步路径不泄漏密钥或凭据 -> verify: `tests/v25/electron.sync.spec.ts` 通过并完成 disposable userData secret scan；Design Scheme canonical event/result 保持 path-free、credential-free
 
 ## 7. 风险与约束

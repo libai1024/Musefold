@@ -37,7 +37,7 @@
   - verify: v2.1 设计方案导航、列表/详情、创建/编辑/复制/删除、AI 生成/运行、版本与工作台联动按历史实现逐项验证；Web 与 Electron E2E、contracts/repository/API/IPC/features tests 通过。当前本地历史来源 owner-safe 链路、确定性 adapter、固定计划校验、取消和 `.musefold.design` 安全 staging/archive 已接线；共享屏已增加可选详情生命周期回调，Web `/design-schemes` 已同步 `?scheme=<id>` deep-link、返回/删除清理 query，并拒绝非法 scheme 参数，相关 Web/features 定向测试通过。共享 UI、Web runtime、云端 run/assets/package、Desktop Agent event 和真实成功 E2E 尚未闭合
 - [ ] 完成共享 AppShell、工作台、提示词库、历史、设置、账号/连接和归档会话 parity
   - boundary: `packages/features`、必要的 `packages/ui`；共享组件不得 import electron/next，桌宠代码不触碰
-  - verify: features unit tests、`V25-UI-SPEC.md` 状态矩阵和 testid 对照通过；主要 v2.1 动作均有可发现入口。当前主路径和定向 Web/Electron E2E 已通过，但首次启动引导、部分历史/生成 parity、费用审批、移动键盘和若干详情/批量动作仍缺
+  - verify: features unit tests、`V25-UI-SPEC.md` 状态矩阵和 testid 对照通过；主要 v2.1 动作均有可发现入口。当前主路径和定向 Web/Electron E2E 已通过，History 列表行已补已知 `costPoints` 展示且未知成本保持隐藏，Workbench 时间线已恢复内容尺寸变化后的贴底跟随且用户离底不抢位；但首次启动引导、部分历史/生成 parity、费用审批、移动键盘和若干详情/批量动作仍缺
 - [ ] 保留豆包入口并验证冻结边界
   - boundary: 只改共享壳/账号连接入口和对应测试；不迁移豆包网页 renderer、登录内部或桌宠
   - verify: Web/桌面均能从账号/连接入口到达豆包通道或配置路径；冻结面文件无业务改动。入口与冻结实现已保留，独立 fresh evidence 尚未完成登记
@@ -51,7 +51,7 @@
   - verify: `pnpm run build` 后 Electron v25 E2E 覆盖 shell/workbench/prompts/settings/sync，窗口全屏/侧栏状态不回归。除原生 macOS fullscreen 外关键路径已通过；当前 runner 无法让 Electron 获得前台焦点，fullscreen 用例保留断言并记为 blocked
 - [ ] 运行统一门禁并修复本包发现的可执行问题
   - boundary: 只修复本包任务覆盖的真实失败，必要时同步 v2.5 evidence/docs；不删测试、不引入未请求抽象
-  - verify: `pnpm run check`、`pnpm run test:e2e`、桌面 Electron E2E 和 `check_spec_package.py` 结果真实记录。当前 `pnpm run check` 为 179 个测试文件、1282 个测试、35 个 Turbo task 全绿；完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败是原生 macOS fullscreen 的 runner 前台焦点环境阻塞；Spec 校验仍因未完成 parity/证据门禁失败
+  - verify: `pnpm run check`、`pnpm run test:e2e`、桌面 Electron E2E 和 `check_spec_package.py` 结果真实记录。当前 `pnpm run check` 为 179 个测试文件、1282 个测试、35 个 Turbo task 全绿；最新完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败是原生 macOS fullscreen 的 runner 前台焦点环境阻塞；Prompt Electron 套件 9 个用例、移动 Workbench 完成态视觉基线及时间线尺寸变化贴底回归均已通过；Spec 校验仍因未完成 parity/证据门禁失败
 - [ ] 完成 parity 复核、验收清单和迁移知识沉淀
   - boundary: 只更新本包 `checklist.md`、相关 v2.5 证据文档和 `.spec/docs`，不改业务逻辑
   - verify: checklist 全部勾选且 `**验收结果**：通过`，每个任务有 boundary/verify 证据，变更边界和非目标可追溯。当前已回写实际验证与阻塞，但不能在 Design Scheme/全量 parity 未闭合前标记通过

@@ -534,6 +534,115 @@ describe('Workbench(壳会话区 + 屏)', () => {
     expect(screen.queryByTestId('timeline-back-to-latest')).toBeNull();
   });
 
+  it('贴底时内容尺寸变化会继续贴底', async () => {
+    const callbacks: ResizeObserverCallback[] = [];
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class MockResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          callbacks.push(callback);
+        }
+
+        observe = observe;
+        disconnect = disconnect;
+      },
+    );
+    try {
+      renderWorkbench();
+      await waitFor(() => {
+        expect(screen.getByTestId('composer-prompt')).toBeTruthy();
+      });
+      fireEvent.change(screen.getByTestId('composer-prompt'), {
+        target: { value: 'resize while pinned' },
+      });
+      fireEvent.click(screen.getByTestId('composer-submit'));
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('job-status').getAttribute('data-status')).toBe('succeeded');
+        },
+        { timeout: 4_000 },
+      );
+      await waitFor(() => expect(callbacks.length).toBeGreaterThan(0));
+
+      const timeline = screen.getByTestId('timeline');
+      let scrollHeight = 600;
+      Object.defineProperty(timeline, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight,
+      });
+      Object.defineProperty(timeline, 'clientHeight', {
+        configurable: true,
+        value: 400,
+      });
+      timeline.scrollTop = 200;
+      scrollHeight = 1_000;
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver));
+      expect(timeline.scrollTop).toBe(1_000);
+      expect(observe).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('用户离底后内容尺寸变化不会抢回滚动位置', async () => {
+    const callbacks: ResizeObserverCallback[] = [];
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class MockResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          callbacks.push(callback);
+        }
+
+        observe = observe;
+        disconnect = disconnect;
+      },
+    );
+    try {
+      renderWorkbench();
+      await waitFor(() => {
+        expect(screen.getByTestId('composer-prompt')).toBeTruthy();
+      });
+      fireEvent.change(screen.getByTestId('composer-prompt'), {
+        target: { value: 'resize while reading' },
+      });
+      fireEvent.click(screen.getByTestId('composer-submit'));
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('job-status').getAttribute('data-status')).toBe('succeeded');
+        },
+        { timeout: 4_000 },
+      );
+      await waitFor(() => expect(callbacks.length).toBeGreaterThan(0));
+
+      const timeline = screen.getByTestId('timeline');
+      let scrollHeight = 1_000;
+      Object.defineProperty(timeline, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight,
+      });
+      Object.defineProperty(timeline, 'clientHeight', {
+        configurable: true,
+        value: 400,
+      });
+      timeline.scrollTop = 100;
+      fireEvent.scroll(timeline);
+      await waitFor(() => {
+        expect(screen.getByTestId('timeline-back-to-latest')).toBeTruthy();
+      });
+
+      scrollHeight = 1_400;
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver));
+      expect(timeline.scrollTop).toBe(100);
+      expect(screen.getByTestId('timeline-back-to-latest')).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('用户消息「编辑」回填请求参数并聚焦置尾;「复制」写剪贴板(03 §4)', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {

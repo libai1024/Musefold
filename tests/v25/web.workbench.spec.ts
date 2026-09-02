@@ -649,5 +649,17 @@ test('生成完成后的视觉基线', async ({ page }) => {
   await expect(page.getByTestId('job-status')).toHaveAttribute('data-status', 'succeeded', {
     timeout: 15_000,
   });
+  await expect(page.getByTestId('job-asset').locator('img')).toHaveAttribute('data-loaded', 'true');
+  const timeline = page.getByTestId('timeline');
+  await expect
+    .poll(
+      () =>
+        timeline.evaluate((element) => {
+          const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+          return distance <= 80;
+        }),
+      { timeout: 5_000 },
+    )
+    .toBe(true);
   await expect(page).toHaveScreenshot('workbench-finished.png');
 });

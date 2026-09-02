@@ -34,6 +34,7 @@ test('编辑修改标题', async () => {
   await clickRowAction(page, '胶片质感人像', 'prompt-row-edit');
   await page.getByTestId('prompt-editor-title').fill('胶片质感人像 v2');
   await page.getByTestId('prompt-editor-submit').click();
+  await expect(page.getByTestId('prompt-editor')).toBeHidden();
 
   await expect(page.getByText('胶片质感人像 v2')).toBeVisible();
 });

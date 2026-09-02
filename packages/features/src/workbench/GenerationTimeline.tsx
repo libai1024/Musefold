@@ -33,7 +33,7 @@ import {
 } from '@musefold/ui/icons';
 import { skipMotion } from '@musefold/ui/lib/motion';
 import { cn } from '@musefold/ui/lib/utils';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   jobToSavePromptSource,
   SavePromptDialog,
@@ -437,6 +437,7 @@ export function GenerationTimeline({
   onOpenPrompts,
 }: GenerationTimelineProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const lastJobKeyRef = useRef('');
   // pill 显隐走 state(ref 不触发渲染);滚动意图仍以 ref 为准,避免渲染期读写竞态。
@@ -470,10 +471,23 @@ export function GenerationTimeline({
     if (pinnedRef.current) {
       requestAnimationFrame(() => {
         const viewport = viewportRef.current;
-        if (viewport) viewport.scrollTop = viewport.scrollHeight;
+        if (viewport && pinnedRef.current) viewport.scrollTop = viewport.scrollHeight;
       });
     }
   }
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (jobs.length === 0 || !viewport || !content || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      if (pinnedRef.current) viewport.scrollTop = viewport.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [jobs.length]);
 
   function handleScroll() {
     const viewport = viewportRef.current;
@@ -512,7 +526,7 @@ export function GenerationTimeline({
         className="flex-1 overflow-y-auto p-4 pb-[172px] md:pb-[220px]"
         data-testid="timeline"
       >
-        <div className="mx-auto flex w-full max-w-[728px] flex-col gap-6">
+        <div ref={contentRef} className="mx-auto flex w-full max-w-[728px] flex-col gap-6">
           {jobs.map((job) => (
             <JobTurn
               key={job.id}
