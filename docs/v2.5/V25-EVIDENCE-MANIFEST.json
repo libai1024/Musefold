@@ -383,6 +383,7 @@
         "packages/contracts/src/design-scheme.ts",
         "packages/platform/src/gateway.ts",
         "packages/features/src/design-schemes/SchemeDetailView.tsx",
+        "packages/features/src/design-schemes/SchemeAlbum.tsx",
         "packages/features/src/design-schemes/SchemesScreen.tsx",
         "apps/web-next/src/app/design-schemes/page.tsx",
         "apps/desktop/electron/main/ipc-v25/design-scheme-domain.ts",

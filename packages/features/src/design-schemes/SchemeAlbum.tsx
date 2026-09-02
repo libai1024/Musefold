@@ -6,13 +6,14 @@ import { Dialog, DialogContent, DialogTitle } from '@musefold/ui/components/dial
 import { FadeImage } from '@musefold/ui/components/fade-image';
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { ChevronLeft, ChevronRight, Images } from '@musefold/ui/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, MouseEvent, TouchEvent } from 'react';
 import { ASSET_ORIGIN_LABEL } from './scheme-labels';
 import type { ResolveSchemeAssetUrl } from './types';
 
 /**
  * 试运行产物相册(承旧 RuntimeAlbum):封面在前,后面叠放 ≤3 张(7px/层偏移),
- * 点击后层切换查看,前层点开全屏;空态引导承旧文案。
+ * 点击后层切换查看,前层点开全屏;支持左右方向键与横向触控滑动;空态引导承旧文案。
  * 资产是 path-free 元数据,展示地址经宿主注入的 resolveAssetUrl 解析。
  */
 export function SchemeAlbum({
@@ -30,6 +31,8 @@ export function SchemeAlbum({
 }) {
   const [activeId, setActiveId] = useState(coverAssetId ?? assets[0]?.id ?? '');
   const [lightbox, setLightbox] = useState<DesignSchemeAsset | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
   useEffect(() => setActiveId(coverAssetId ?? assets[0]?.id ?? ''), [coverAssetId, assets]);
 
   if (assets.length === 0) {
@@ -55,13 +58,55 @@ export function SchemeAlbum({
   );
   const previous = () => setActiveId(assets[(activeIndex - 1 + assets.length) % assets.length].id);
   const next = () => setActiveId(assets[(activeIndex + 1) % assets.length].id);
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      previous();
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      next();
+    }
+  }
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    suppressClickRef.current = false;
+  }
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    const start = touchStartRef.current;
+    const touch = event.changedTouches[0];
+    touchStartRef.current = null;
+    if (!start || !touch) return;
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    suppressClickRef.current = true;
+    if (deltaX > 0) previous();
+    else next();
+  }
+  function handleSwipeClickCapture(event: MouseEvent<HTMLDivElement>) {
+    if (!suppressClickRef.current) return;
+    suppressClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
   const activeUrl = resolveAssetUrl?.(active.id) ?? null;
   const lightboxUrl = lightbox ? (resolveAssetUrl?.(lightbox.id) ?? null) : null;
 
   return (
     <>
       <div className="mx-auto w-full max-w-[660px]" data-testid="runtime-scheme-album">
-        <div className="relative mr-6 mb-6 min-h-[300px] max-[720px]:mr-3 max-[720px]:mb-3">
+        <div
+          className="relative mr-6 mb-6 min-h-[300px] touch-pan-y max-[720px]:mr-3 max-[720px]:mb-3"
+          tabIndex={0}
+          role="region"
+          aria-label="方案示例相册"
+          onKeyDown={handleKeyDown}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onClickCapture={handleSwipeClickCapture}
+        >
           {[...behind].reverse().map((asset, reverseIndex) => {
             const depth = behind.length - reverseIndex;
             const url = resolveAssetUrl?.(asset.id) ?? null;

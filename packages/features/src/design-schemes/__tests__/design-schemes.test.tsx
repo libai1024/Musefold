@@ -13,7 +13,7 @@ import type {
 } from '@musefold/platform';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -882,6 +882,92 @@ describe('SchemesScreen 详情页', () => {
         expectedVersion: 1,
       }),
     );
+  });
+
+  it('相册支持左右方向键环绕且不打开全屏预览', async () => {
+    renderScreen(detailSeed, { actions: ALL_ACTIONS });
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await openDetailFromList('scheme-1');
+
+    const album = screen.getByRole('region', { name: '方案示例相册' });
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+
+    fireEvent.keyDown(album, { key: 'ArrowRight' });
+    expect(screen.getByText('2 / 2')).toBeTruthy();
+    fireEvent.keyDown(album, { key: 'ArrowRight' });
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+    fireEvent.keyDown(album, { key: 'ArrowLeft' });
+    expect(screen.getByText('2 / 2')).toBeTruthy();
+    expect(screen.queryByTestId('scheme-asset-lightbox')).toBeNull();
+  });
+
+  it('相册横向触控滑动切换,短滑和纵向滑动忽略,滑动后不误开全屏', async () => {
+    renderScreen(detailSeed, { actions: ALL_ACTIONS });
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await openDetailFromList('scheme-1');
+
+    const album = screen.getByRole('region', { name: '方案示例相册' });
+    const activeButton = screen.getByLabelText('全屏查看当前示例');
+
+    fireEvent.touchStart(album, {
+      changedTouches: [{ clientX: 160, clientY: 120 }],
+    });
+    fireEvent.touchEnd(album, {
+      changedTouches: [{ clientX: 80, clientY: 120 }],
+    });
+    expect(screen.getByText('2 / 2')).toBeTruthy();
+    fireEvent.click(activeButton);
+    expect(screen.queryByTestId('scheme-asset-lightbox')).toBeNull();
+
+    fireEvent.touchStart(album, {
+      changedTouches: [{ clientX: 80, clientY: 120 }],
+    });
+    fireEvent.touchEnd(album, {
+      changedTouches: [{ clientX: 160, clientY: 120 }],
+    });
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+
+    fireEvent.touchStart(album, {
+      changedTouches: [{ clientX: 160, clientY: 120 }],
+    });
+    fireEvent.touchEnd(album, {
+      changedTouches: [{ clientX: 130, clientY: 120 }],
+    });
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+
+    fireEvent.touchStart(album, {
+      changedTouches: [{ clientX: 160, clientY: 120 }],
+    });
+    fireEvent.touchEnd(album, {
+      changedTouches: [{ clientX: 80, clientY: 200 }],
+    });
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+  });
+
+  it('单资产相册的键盘与滑动操作保持稳定', async () => {
+    renderScreen(
+      {
+        schemes: [makeSummary({ hasSuccessfulTrial: true, coverAssetId: 'asset-1' })],
+        documents: { 'rev-1': makeDocument() },
+        assets: { 'scheme-1': [makeAsset({ id: 'asset-1' })] },
+      },
+      { actions: ALL_ACTIONS },
+    );
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await openDetailFromList('scheme-1');
+
+    const album = screen.getByRole('region', { name: '方案示例相册' });
+    fireEvent.keyDown(album, { key: 'ArrowLeft' });
+    fireEvent.keyDown(album, { key: 'ArrowRight' });
+    fireEvent.touchStart(album, {
+      changedTouches: [{ clientX: 160, clientY: 120 }],
+    });
+    fireEvent.touchEnd(album, {
+      changedTouches: [{ clientX: 80, clientY: 120 }],
+    });
+
+    expect(screen.getByText('1 / 1')).toBeTruthy();
+    expect(screen.queryByTestId('runtime-scheme-detail-error')).toBeNull();
   });
 
   it('详情错误:错误卡 + 返回可用', async () => {
