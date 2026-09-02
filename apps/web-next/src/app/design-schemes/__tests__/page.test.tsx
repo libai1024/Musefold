@@ -23,9 +23,10 @@ const NOW = '2026-09-01T00:00:00.000Z';
 const user = userEvent.setup({ pointerEventsCheck: 0 });
 
 const routerPush = vi.fn();
+const routerReplace = vi.fn();
 let searchParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: routerPush }),
+  useRouter: () => ({ push: routerPush, replace: routerReplace }),
   usePathname: () => '/design-schemes',
   useSearchParams: () => searchParams,
 }));
@@ -92,6 +93,7 @@ function makeHarness(options: { capabilities?: typeof WEB_CAPABILITIES } = {}) {
   const designSchemes = {
     list: vi.fn(async () => ({ items: [summary], nextCursor: null })),
     get: vi.fn(async () => detail),
+    remove: vi.fn(async () => ({ schemeId: summary.id, removed: true as const })),
   };
   const gateway = { designSchemes } as unknown as MusefoldGateway;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -115,6 +117,7 @@ function makeHarness(options: { capabilities?: typeof WEB_CAPABILITIES } = {}) {
 
 beforeEach(() => {
   routerPush.mockClear();
+  routerReplace.mockClear();
   searchParams = new URLSearchParams();
   useSchemeIntegration.getState().consumeWorkbenchIntent();
 });
@@ -143,6 +146,51 @@ describe('Web /design-schemes 路由挂载', () => {
     );
   });
 
+  it('详情返回清理 query 且回到列表', async () => {
+    searchParams = new URLSearchParams('scheme=scheme-1');
+    const { Providers } = makeHarness();
+    render(<DesignSchemesPage />, { wrapper: Providers });
+
+    await waitFor(() => expect(screen.getByTestId('runtime-scheme-detail')).toBeTruthy());
+    await user.click(screen.getByTestId('runtime-scheme-detail-back'));
+
+    await waitFor(() => expect(screen.getByTestId('scheme-list-workspace')).toBeTruthy());
+    expect(routerReplace).toHaveBeenCalledWith('/design-schemes');
+  });
+
+  it('详情删除成功清理 query 并回到列表', async () => {
+    searchParams = new URLSearchParams('scheme=scheme-1');
+    const { designSchemes, Providers } = makeHarness();
+    designSchemes.get.mockResolvedValueOnce({
+      summary: makeSummary(),
+      document: makeDocument(),
+      assets: [],
+      sourceSnapshots: [],
+    });
+    render(<DesignSchemesPage />, { wrapper: Providers });
+
+    await waitFor(() => expect(screen.getByTestId('runtime-scheme-detail')).toBeTruthy());
+    await user.click(screen.getByTestId('runtime-scheme-menu'));
+    await user.click(screen.getByTestId('runtime-scheme-menu-remove'));
+    await user.click(screen.getByTestId('scheme-list-remove-confirm'));
+
+    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/design-schemes'));
+    expect(designSchemes.remove).toHaveBeenCalledWith({
+      schemeId: 'scheme-1',
+      expectedVersion: 1,
+    });
+  });
+
+  it('非法 scheme query 不请求详情并清理地址', async () => {
+    searchParams = new URLSearchParams('scheme=%20');
+    const { designSchemes, Providers } = makeHarness();
+    render(<DesignSchemesPage />, { wrapper: Providers });
+
+    await waitFor(() => expect(screen.getByTestId('scheme-list-workspace')).toBeTruthy());
+    expect(designSchemes.get).not.toHaveBeenCalled();
+    expect(routerReplace).toHaveBeenCalledWith('/design-schemes');
+  });
+
   it('能力关闭时屏整体不渲染(防御:路由直达也不出死页面)', () => {
     const { designSchemes, Providers } = makeHarness({
       capabilities: { ...WEB_CAPABILITIES, hasDesignSchemes: false },
@@ -151,6 +199,19 @@ describe('Web /design-schemes 路由挂载', () => {
 
     expect(screen.queryByTestId('design-schemes-page')).toBeNull();
     expect(designSchemes.list).not.toHaveBeenCalled();
+  });
+
+  it('列表打开详情写入 scheme query', async () => {
+    const { Providers } = makeHarness();
+    render(<DesignSchemesPage />, { wrapper: Providers });
+
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await user.click(screen.getByTestId('runtime-scheme-open-scheme-1'));
+    await waitFor(() => expect(screen.getByTestId('scheme-inspector')).toBeTruthy());
+    await user.click(screen.getByTestId('scheme-inspector-open-detail'));
+
+    await waitFor(() => expect(screen.getByTestId('runtime-scheme-detail')).toBeTruthy());
+    expect(routerPush).toHaveBeenCalledWith('/design-schemes?scheme=scheme-1');
   });
 
   it('行主动作「使用」经集成层写 attach 意图并路由回工作台', async () => {

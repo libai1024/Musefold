@@ -39,6 +39,10 @@ export interface SchemesScreenProps {
   /** 深链初始态(承旧 consumeSchemeCenterIntent):由集成层从 screen-intent 翻译传入。 */
   initialSurface?: SchemeSurface;
   initialDetailId?: string;
+  /** 详情生命周期通知宿主;Web 用于同步 URL,Desktop 可省略。 */
+  onDetailOpen?(id: string): void;
+  onDetailBack?(): void;
+  onDetailRemoved?(): void;
 }
 
 /**
@@ -52,6 +56,9 @@ export function SchemesScreen({
   resolveAssetUrl,
   initialSurface = 'mine',
   initialDetailId,
+  onDetailOpen,
+  onDetailBack,
+  onDetailRemoved,
 }: SchemesScreenProps) {
   const capabilities = useCapabilities();
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -113,6 +120,11 @@ export function SchemesScreen({
     actions.onCreateScheme?.(kind);
   }
 
+  function openDetail(id: string) {
+    setDetailId(id);
+    onDetailOpen?.(id);
+  }
+
   async function runMarketSearch(term?: string) {
     const keyword = (term ?? query).trim();
     if (!keyword) {
@@ -163,8 +175,14 @@ export function SchemesScreen({
           schemeId={detailId}
           resolveAssetUrl={resolveAssetUrl}
           actions={actions}
-          onBack={() => setDetailId(null)}
-          onRemoved={() => setDetailId(null)}
+          onBack={() => {
+            setDetailId(null);
+            onDetailBack?.();
+          }}
+          onRemoved={() => {
+            setDetailId(null);
+            onDetailRemoved?.();
+          }}
         />
       </div>
     );
@@ -176,7 +194,7 @@ export function SchemesScreen({
       resolveAssetUrl={resolveAssetUrl}
       runDisabledReason={runDisabledReason}
       onClose={() => setSelectedSchemeId(null)}
-      onOpenDetail={() => setDetailId(selectedScheme.id)}
+      onOpenDetail={() => openDetail(selectedScheme.id)}
       onRun={() => runScheme(selectedScheme)}
     />
   ) : null;

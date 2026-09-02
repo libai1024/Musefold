@@ -626,12 +626,17 @@ describe('SchemesScreen 详情页', () => {
   };
 
   it('打开详情:头部/分节/相册;返回回列表', async () => {
+    const onDetailOpen = vi.fn();
+    const onDetailBack = vi.fn();
     renderScreen(detailSeed, {
       actions: ALL_ACTIONS,
       resolveAssetUrl: (assetId) => `media://scheme/${assetId}.png`,
+      onDetailOpen,
+      onDetailBack,
     });
     await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
     await openDetailFromList('scheme-1');
+    expect(onDetailOpen).toHaveBeenCalledWith('scheme-1');
     await waitFor(() => expect(screen.getByTestId('runtime-scheme-detail')).toBeTruthy());
     expect(screen.getByText('方案规则')).toBeTruthy();
     expect(screen.getByText('以暖色系为主')).toBeTruthy();
@@ -639,6 +644,26 @@ describe('SchemesScreen 详情页', () => {
     expect(screen.getByText('1 / 2')).toBeTruthy();
     await user.click(screen.getByTestId('runtime-scheme-detail-back'));
     await waitFor(() => expect(screen.getByTestId('scheme-list-workspace')).toBeTruthy());
+    expect(onDetailBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('详情删除成功通知宿主并回列表', async () => {
+    const onDetailRemoved = vi.fn();
+    const { designSchemes } = renderScreen(detailSeed, {
+      actions: ALL_ACTIONS,
+      onDetailRemoved,
+    });
+    await waitFor(() => expect(screen.getByText('水彩海报')).toBeTruthy());
+    await openDetailFromList('scheme-1');
+    await user.click(screen.getByTestId('runtime-scheme-menu'));
+    await user.click(screen.getByTestId('runtime-scheme-menu-remove'));
+    await user.click(screen.getByTestId('scheme-list-remove-confirm'));
+    await waitFor(() => expect(screen.getByTestId('scheme-list-empty')).toBeTruthy());
+    expect(designSchemes.remove).toHaveBeenCalledWith({
+      schemeId: 'scheme-1',
+      expectedVersion: 1,
+    });
+    expect(onDetailRemoved).toHaveBeenCalledTimes(1);
   });
 
   it('重命名:菜单 → 对话框 → 保存后名称更新', async () => {
