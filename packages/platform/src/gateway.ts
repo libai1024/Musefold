@@ -70,6 +70,8 @@ import type {
   CheckDesignSchemeUpdateResult,
   PrepareDesignSchemeImportPackageInput,
   PrepareDesignSchemeImportPackageResult,
+  PrepareDesignSchemeRunInput,
+  PrepareDesignSchemeRunResult,
   ImportDesignSchemeInput,
   ImportDesignSchemeResult,
   ExportDesignSchemeInput,
@@ -151,6 +153,8 @@ export interface DesignSchemesGateway {
   ): Promise<PrepareDesignSchemeImportPackageResult>;
   importPackage(input: ImportDesignSchemeInput): Promise<ImportDesignSchemeResult>;
   exportPackage(input: ExportDesignSchemeInput): Promise<ExportDesignSchemeResult>;
+  /** Optional until a host can author and validate a run plan from trusted persistence. */
+  prepareRun?(input: PrepareDesignSchemeRunInput): Promise<PrepareDesignSchemeRunResult>;
   run(input: DesignSchemeRunInput): Promise<RunResult>;
   subscribeEvents(listener: (event: DesignSchemeEvent) => void): () => void;
 }

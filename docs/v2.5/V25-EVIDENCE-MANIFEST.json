@@ -38,7 +38,7 @@
       "report": null,
       "artifact": null,
       "skipReason": null,
-      "blockedReason": "当前树 `pnpm run check` 已通过；最新完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败为原生 macOS fullscreen 因 runner 无法让 Electron BrowserWindow 获得前台焦点而阻塞；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均已通过；本轮验证没有 machine-readable report/artifact，不能登记为 pass",
+      "blockedReason": "当前树 `pnpm run check` 已通过；最新完整 v25 E2E 为 97 passed、1 failed、5 skipped；本轮 Electron project 单独复跑为 32 passed、1 skipped、1 failed。两次唯一失败均为原生 macOS fullscreen 因 runner 无法让 Electron BrowserWindow 获得前台焦点而阻塞；本轮验证没有 machine-readable report/artifact，不能登记为 pass",
       "unregisteredReason": null,
       "failureReason": null,
       "rerun": "在当前 HEAD 生成 Web/Electron 并完成全部 B00 门禁后，以持久 report/artifact 重新登记"
@@ -389,6 +389,8 @@
         "apps/desktop/electron/main/ipc-v25/design-scheme-domain.ts",
         "apps/desktop/electron/main/ipc-v25/design-scheme-run-adapter.ts",
         "apps/desktop/electron/main/design-scheme/execution-registry.ts",
+        "apps/desktop/electron/main/design-scheme/fixed-run-plan-builder.ts",
+        "apps/desktop/electron/main/design-scheme/provider-snapshot.ts",
         "docs/v2.5/V25-MIGRATION-CARDS.md"
       ],
       "testPaths": [
@@ -397,20 +399,24 @@
         "packages/features/src/design-schemes/__tests__/design-schemes.test.tsx",
         "apps/web-next/src/app/design-schemes/__tests__/page.test.tsx",
         "apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts",
-        "apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts"
+        "apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts",
+        "apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts",
+        "apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts",
+        "apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts",
+        "packages/api-client/src/__tests__/design-schemes.test.ts"
       ],
       "workflowPaths": [
         ".github/workflows/pr.yml",
         ".github/workflows/main.yml"
       ],
-      "command": "pnpm exec vitest run packages/features/src/design-schemes/__tests__/design-schemes.test.tsx apps/web-next/src/app/design-schemes/__tests__/page.test.tsx packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts",
+      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts packages/api-client/src/__tests__/design-schemes.test.ts",
       "commit": null,
       "date": null,
       "report": null,
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop adapter、共享 features 与双端入口源码和定向测试；本轮 working-tree-only adapter 回归覆盖 partial-success cancellation-wins、所有 active generation job IDs fan-out cancel、terminal event 重入取消仲裁，定向 suite 16 tests passed；既有 run-session 已产生的 evaluation 证据按现有语义保留，未引入删除策略。完整云端 runtime、成功 Desktop execution、Agent 事件管线、真实 E2E 与 durable report/artifact 仍未登记，不能把 source/定向测试扩大解释为 P01 完成",
+      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop 17 项 adapter、共享 features 与双端代码挂载；Desktop capability 为 true、Web 为 false。checkpoint 607e7b5 已固化 cancellation-wins；本轮新增主进程权威 text-only prepareRun、四步固定计划、formal/fidelity/source/Provider fail-closed、legacy 来源归一化、完整快照执行前复核与 prepare-to-run 回归，受影响组合 8 文件/151 tests、根 check 180 文件/1301 tests 通过。Electron project 单独复跑为 32 passed、1 skipped、1 failed，唯一失败是既有 macOS fullscreen 前台焦点环境阻塞；Desktop Workbench onSubmit、图片 prepare、Agent create/modify/recompile、Web runtime/assets/package、完整成功 E2E 与 durable report/artifact 仍未登记，不能把源码和本地测试扩大解释为 P01 完成",
       "failureReason": null,
       "rerun": "按 P01-1..P01-13 分卡登记合同、数据、adapter、UI、入口、Agent 和安全证据，禁止以 source seam 声称完成"
     },
@@ -472,7 +478,7 @@
       "platformNotes": {
         "mobileWeb": "全量门禁未登记，不能用历史截图或 route mock 代替",
         "pcWeb": "全量门禁未登记，不能用历史截图或 route mock 代替",
-        "desktop": "全量门禁未登记，真实产物和 Electron project 尚未绑定 report/artifact",
+        "desktop": "Electron project 已实跑，但原生 fullscreen 被当前 runner 前台焦点环境阻断，且结果未绑定 durable report/artifact",
         "desktopAgent": null
       },
       "sourcePaths": [
@@ -495,7 +501,7 @@
       "report": null,
       "artifact": null,
       "skipReason": null,
-      "blockedReason": "台账明确全量 check、integration、migration replay、真实 package-smoke 当前没有可追溯 report/artifact；缺产物不得以 skip 伪造通过",
+      "blockedReason": "根 `pnpm run check` 已通过；Electron project 为 32 passed、1 skipped、1 failed，失败为既有 macOS fullscreen 前台焦点环境阻塞。integration、migration replay、真实 package-smoke 及上述本地运行仍没有可追溯 report/artifact；缺产物不得以 skip 伪造通过",
       "unregisteredReason": null,
       "failureReason": null,
       "rerun": "准备当前 HEAD 的全量构建、数据库 replay、Web/Electron E2E 和对应平台 package-smoke 后分别登记"

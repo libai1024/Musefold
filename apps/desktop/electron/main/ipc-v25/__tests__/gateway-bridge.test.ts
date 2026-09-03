@@ -140,6 +140,22 @@ const DESIGN_SCHEME_INPUTS: Record<string, unknown> = {
     schemeId: 'scheme_1',
     formatVersion: 1,
   },
+  'designSchemes.prepareRun': {
+    executionId: 'exec_1',
+    schemeId: 'scheme_1',
+    revisionId: 'rev_1',
+    mode: 'trial',
+    brief: 'Run the scheme',
+    inputValues: {},
+    executionSettings: {
+      providerId: 'provider_1',
+      size: '1024x1024',
+      quality: 'high',
+      outputCount: 1,
+      referenceAssetIds: [],
+      promptReferenceSelections: [],
+    },
+  },
   'designSchemes.run': {
     executionId: 'exec_1',
     schemeId: 'scheme_1',
@@ -335,7 +351,7 @@ describe('v25 gateway bridge transport contract', () => {
     }
   });
 
-  it('locks all 16 design scheme names to the canonical set and validates strictly', async () => {
+  it('locks all 17 design scheme names to the canonical set and validates strictly', async () => {
     const methods = buildMethods();
     expect(Object.keys(DESIGN_SCHEME_INPUTS).sort()).toEqual(DESIGN_SCHEME_METHODS);
     expect(

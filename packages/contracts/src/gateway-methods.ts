@@ -1,4 +1,4 @@
-/** Deployed v2.5 host baseline retained for adapters that implement the original 16 methods. */
+/** Methods deployed through the v2.5 host data channel. */
 export const DESIGN_SCHEME_METHOD_NAMES = [
   'designSchemes.cancel',
   'designSchemes.checkUpdate',
@@ -10,6 +10,7 @@ export const DESIGN_SCHEME_METHOD_NAMES = [
   'designSchemes.importPackage',
   'designSchemes.list',
   'designSchemes.modify',
+  'designSchemes.prepareRun',
   'designSchemes.remove',
   'designSchemes.rename',
   'designSchemes.run',

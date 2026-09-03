@@ -1002,6 +1002,29 @@ export const designSchemeRunExecutionSettingsSchema = z
     }
   });
 
+export const designSchemeRunInputValuesSchema = z
+  .record(opaqueIdSchema, safeTextSchema.max(8_000))
+  .default({})
+  .superRefine((value, ctx) => {
+    inspectSecureTree(value, [], (path, message) =>
+      ctx.addIssue({ code: 'custom', path, message }),
+    );
+  });
+
+/** Renderer choices accepted before the host freezes a canonical run plan. */
+export const prepareDesignSchemeRunInputSchema = z
+  .object({
+    executionId: opaqueIdSchema,
+    schemeId: opaqueIdSchema,
+    revisionId: opaqueIdSchema,
+    mode: runModeSchema,
+    priorityMode: priorityModeSchema.default('scheme_first'),
+    brief: safeTextSchema.max(8_000),
+    inputValues: designSchemeRunInputValuesSchema,
+    executionSettings: designSchemeRunExecutionSettingsSchema,
+  })
+  .strict();
+
 export const plannedInputSchema = z
   .object({
     slotId: opaqueIdSchema,
@@ -1228,14 +1251,7 @@ export const designSchemeRunInputSchema = z
     mode: runModeSchema,
     priorityMode: priorityModeSchema.default('scheme_first'),
     brief: safeTextSchema.max(8_000),
-    inputValues: z
-      .record(opaqueIdSchema, safeTextSchema.max(8_000))
-      .default({})
-      .superRefine((value, ctx) => {
-        inspectSecureTree(value, [], (path, message) =>
-          ctx.addIssue({ code: 'custom', path, message }),
-        );
-      }),
+    inputValues: designSchemeRunInputValuesSchema,
     executionSettings: designSchemeRunExecutionSettingsSchema,
     plan: designSchemeRunPlanSchema,
     repair: repairLineageSchema.nullable().default(null),
@@ -1299,6 +1315,8 @@ export const designSchemeRunInputSchema = z
     }
   });
 export const startDesignSchemeRunInputSchema = designSchemeRunInputSchema;
+/** The preparation result is the complete, host-authored canonical run input. */
+export const prepareDesignSchemeRunResultSchema = designSchemeRunInputSchema;
 
 export const runResultSchema = z
   .object({
@@ -2010,6 +2028,8 @@ export type DesignSchemeRunExecutionSettings = z.input<
 export type ParsedDesignSchemeRunExecutionSettings = z.output<
   typeof designSchemeRunExecutionSettingsSchema
 >;
+export type PrepareDesignSchemeRunInput = z.input<typeof prepareDesignSchemeRunInputSchema>;
+export type ParsedPrepareDesignSchemeRunInput = z.output<typeof prepareDesignSchemeRunInputSchema>;
 export type PlannedInput = z.infer<typeof plannedInputSchema>;
 export type WorkflowStepKind = z.infer<typeof workflowStepKindSchema>;
 export type RunStep = z.infer<typeof runStepSchema>;
@@ -2023,6 +2043,7 @@ export type RunEvaluation = z.infer<typeof runEvaluationSchema>;
 export type RunRecord = z.infer<typeof runRecordSchema>;
 export type DesignSchemeRunInput = z.input<typeof designSchemeRunInputSchema>;
 export type ParsedDesignSchemeRunInput = z.output<typeof designSchemeRunInputSchema>;
+export type PrepareDesignSchemeRunResult = z.output<typeof prepareDesignSchemeRunResultSchema>;
 export type RunResult = z.infer<typeof runResultSchema>;
 export type DesignSchemeRunResult = z.infer<typeof designSchemeRunResultSchema>;
 export type DesignSchemeListQuery = z.input<typeof designSchemeListQuerySchema>;

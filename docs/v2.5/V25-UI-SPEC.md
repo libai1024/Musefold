@@ -385,9 +385,9 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - **I8 testid**:`<域>-<对象>-<动作>` 蛇形连字;列表行 `<域>-row-<id>`;E2E 只允许用 testid/role 定位。
 - **I9 可访问性**:图标钮必须 `aria-label`;活动导航 `aria-current`;浮层焦点圈闭 + Esc 关闭 + 焦点归还触发器。
 
-### 8A. 设计方案(P01 迁移中,尚未开入口)
+### 8A. 设计方案(P01 迁移中，Desktop 入口已开)
 
-> **状态**:`doing`(P01)。共享层与挂载已有源码与定向单测——`packages/contracts` 方案合同、`packages/features/src/design-schemes` 共享屏、Desktop v25 IPC 确定性 CRUD 与 `.musefold.design` 安全 staging/archive/domain 导入导出、Web API/client 确定性 CRUD;**P01-7 入口挂载已落地**:双宿主 `hasDesignSchemes=true`,侧栏主导航注册「设计方案」,Web `/design-schemes` 路由(含 `?scheme=<id>` 详情深链)与 Desktop 视图挂载,工作台 `designSchemes` prop 接导航缝(`onOpenDesignSchemes`),桌面接入宿主导入(staging → importPackage)与 `media://` 封面解析。**仍未完成**:方案 run/Agent 编译/modify/事件管线(两端 `designSchemes.onSubmit` 运行缝保持缺省,Composer 提交钮禁用并解释,不伪造方案运行)、Web run/assets/package 面(资产占位渲染)、真实 E2E/视觉证据。本节是**迁移中基准**:未落地部分以 [ui-parity/06-design-schemes.md](./ui-parity/06-design-schemes.md) §2–§5.1 旧版存档为验收基准,完成前不得出现死入口。
+> **状态**:`doing`(P01)。共享层与挂载已有源码与定向单测——`packages/contracts` 方案合同、`packages/features/src/design-schemes` 共享屏、Desktop v25 IPC/SQLite、`.musefold.design` 安全 staging/archive/domain 导入导出、Web API/client 确定性 CRUD。**P01-7 入口挂载已落地但 capability 按宿主分流**：Desktop `hasDesignSchemes=true`，侧栏注册「设计方案」并挂载详情、导入与 `media://` 封面解析；Web `/design-schemes` 与 `?scheme=<id>` 路由代码存在，但 `WEB_CAPABILITIES.hasDesignSchemes=false`，不向用户注册入口。Desktop canonical run/cancel/event transport 已部署；本轮新增 text-only `prepareRun`，由主进程从 exact revision、来源绑定和 Provider 事实生成 `desktop-fixed-v1` 四步计划并在执行前复核。**仍未完成**：Desktop Workbench `designSchemes.onSubmit`、图片 prepare、Agent create/modify/recompile、Web run/assets/package 与真实 E2E/视觉证据；缺省 Composer 提交钮继续禁用并解释，不把 transport 扩大解释为用户运行闭环。
 
 - **入口与导航**:侧栏主导航(§2.2)已注册设计方案项(随 `hasDesignSchemes` capability);Composer「+」菜单的「寻找设计方案」与附件「查看详情」已通(详情深链 = `scheme-detail` screen intent / Web `?scheme=` 查询参数);历史来源项随本域恢复(§9-D2)。`/design-schemes` Web 路由与 Desktop 视图挂载即 P01-7。
 - **屏幕结构**(共享 features 已有,承旧版布局):顶部控制台(scope tabs「我的方案/发现」+ 搜索 + 刷新 + 新建)→ 分节列表(正式/草稿两区,行 = 56px 封面 + 名称/保真度徽标 + 摘要/来源 + 主动作 + hover 删除)→ 右栏 Inspector(lg+ aside,窄屏 Sheet,参照历史 Inspector 模式);详情为整屏视图(文档分节 + 试运行相册);市场安装确认 = AlertDialog。
@@ -435,7 +435,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | `prompts` | `PromptLibraryScreen` `PromptListRow` `PromptEditorDialog` `TaxonomyManager` + hooks | 两宿主 |
 | `workbench` | `WorkbenchScreen` `GenerationTimeline` `Composer` `SessionPicker` `PromptReferencePanel` `PromptReferenceDock` + hooks | 两宿主 |
 | `history`(M4c) | `HistoryScreen` `HistoryFilterBar` `HistoryRow` `HistoryInspector` + hooks | 两宿主 |
-| `design-schemes`(P01 迁移中,§8A) | `SchemesScreen` `SchemeControlDeck` `SchemeInspector` `SchemeDetailView` + hooks | 两宿主(入口已挂载 P01-7,`hasDesignSchemes=true`;运行缝 `onSubmit` 与 Web 资产/包面待后续卡) |
+| `design-schemes`(P01 迁移中,§8A) | `SchemesScreen` `SchemeControlDeck` `SchemeInspector` `SchemeDetailView` + hooks | 两宿主代码挂载；Desktop 入口开启(`hasDesignSchemes=true`)，Web capability 关闭；运行缝 `onSubmit` 与 Web 资产/包面待后续卡 |
 | `settings` | `SettingsScreen` + 分区组件 | 两宿主 |
 | `account`(M4d/M4e) | `AccountPanel` `AiConnectionsPanel` `CloudSyncPanel` `AccountFooter` + hooks | 两宿主(连接/同步面桌面 only,能力开关控制) |
 

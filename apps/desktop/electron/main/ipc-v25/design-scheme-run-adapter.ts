@@ -28,6 +28,11 @@ import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/reposito
 import { probeImageAssetMetadata } from '../design-scheme/source-ingestion';
 import { resolveManagedStoreKey } from '../design-scheme/asset-store';
 import { validateDesktopFixedRunPlan } from '../design-scheme/fixed-run-plan';
+import { assertDesktopPreparedRunAuthority } from '../design-scheme/fixed-run-plan-builder';
+import {
+  readDesktopDesignSchemeProvider,
+  toDesktopProviderSnapshot,
+} from '../design-scheme/provider-snapshot';
 import type {
   DesignSchemeExecutionRegistry,
   DesignSchemeExecutionKind,
@@ -43,14 +48,6 @@ export interface DesktopDesignSchemeRunAdapterDeps {
   executionRegistry: DesignSchemeExecutionRegistry;
   emit: (senderId: number, event: DesignSchemeEvent) => void;
   stageReferenceAsset?: (path: string) => Promise<LocalImageReference>;
-}
-
-interface ProviderRow {
-  id: string;
-  name: string;
-  type: string;
-  base_url: string;
-  model: string;
 }
 
 interface SchemeAssetRow {
@@ -119,54 +116,20 @@ function appErrorToCanonical(error: {
   });
 }
 
-function providerCapabilities(type: string): ProviderSnapshot['capabilities'] {
-  if (type === 'openai' || type === 'openai-compatible') {
-    return { text: true, vision: true, image: true, multiImage: true, editing: true };
-  }
-  if (type === 'doubao-web') {
-    return { text: false, vision: false, image: true, multiImage: false, editing: false };
-  }
-  throw new BridgeError('DESIGN_SCHEME_PROVIDER_UNSUPPORTED', '当前 AI 连接类型不支持设计方案运行');
-}
-
-function providerSnapshot(row: ProviderRow): ProviderSnapshot {
-  return {
-    providerId: row.id,
-    providerName: row.name,
-    model: row.model,
-    providerVersion: null,
-    capabilities: providerCapabilities(row.type),
-  };
-}
-
-function sameCapabilities(
-  left: ProviderSnapshot['capabilities'],
-  right: ProviderSnapshot['capabilities'],
-): boolean {
-  return (
-    left.text === right.text &&
-    left.vision === right.vision &&
-    left.image === right.image &&
-    left.multiImage === right.multiImage &&
-    left.editing === right.editing
-  );
-}
-
-function resolveProvider(input: ParsedDesignSchemeRunInput, db: Database.Database): ProviderRow {
-  const row = db
-    .prepare('SELECT id, name, type, base_url, model FROM providers WHERE id = ?')
-    .get(input.executionSettings.providerId) as ProviderRow | undefined;
-  if (!row)
-    throw new BridgeError('DESIGN_SCHEME_PROVIDER_MISSING', '所选 AI 连接不存在，请重新选择');
-
-  const actual = providerSnapshot(row);
+function resolveProvider(input: ParsedDesignSchemeRunInput, db: Database.Database) {
+  const row = readDesktopDesignSchemeProvider(db, input.executionSettings.providerId);
+  const actual = toDesktopProviderSnapshot(row);
   const planned = input.plan.provider;
   if (
     planned.providerId !== actual.providerId ||
     planned.providerName !== actual.providerName ||
     planned.model !== actual.model ||
     planned.providerVersion !== actual.providerVersion ||
-    !sameCapabilities(planned.capabilities, actual.capabilities)
+    planned.capabilities.text !== actual.capabilities.text ||
+    planned.capabilities.vision !== actual.capabilities.vision ||
+    planned.capabilities.image !== actual.capabilities.image ||
+    planned.capabilities.multiImage !== actual.capabilities.multiImage ||
+    planned.capabilities.editing !== actual.capabilities.editing
   ) {
     throw new BridgeError(
       'DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH',
@@ -423,13 +386,13 @@ export async function runCanonicalDesignScheme(
     throw new BridgeError(compatibility.code, `${compatibility.path}: ${compatibility.message}`);
   }
 
+  const coreDb = deps.coreDb ?? getDb();
   const runId = `dsr_${ulid()}`;
   const controller = new AbortController();
   let resolveCompletion!: () => void;
   const completion = new Promise<void>((resolve) => {
     resolveCompletion = resolve;
   });
-  const coreDb = deps.coreDb ?? getDb();
   const registration = deps.executionRegistry.register({
     executionId: input.executionId,
     senderId,
@@ -455,6 +418,10 @@ export async function runCanonicalDesignScheme(
   let terminalStatus: 'completed' | 'failed' | 'cancelled' = 'failed';
   try {
     const provider = resolveProvider(input, coreDb);
+    assertDesktopPreparedRunAuthority(input, {
+      designSchemeDb: deps.db,
+      coreDb,
+    });
     const repository = new DesignSchemeRepository(deps.db);
     const document = repository.getRevisionDocument(input.revisionId);
     if (!document) throw new BridgeError('NOT_FOUND', '设计方案版本不存在');
@@ -475,7 +442,14 @@ export async function runCanonicalDesignScheme(
     emitChecked(deps, senderId, {
       kind: 'run-created',
       executionId: input.executionId,
-      run: runRecord(input, providerSnapshot(provider), runId, 'planning', createdAt, null),
+      run: runRecord(
+        input,
+        toDesktopProviderSnapshot(provider),
+        runId,
+        'planning',
+        createdAt,
+        null,
+      ),
     });
     emitChecked(deps, senderId, {
       kind: 'run-planned',

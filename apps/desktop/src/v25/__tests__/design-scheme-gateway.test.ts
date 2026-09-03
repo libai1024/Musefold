@@ -12,6 +12,7 @@ import {
   designSchemeRunResultSchema,
   exportDesignSchemeResultSchema,
   formalizeDesignSchemeResultSchema,
+  prepareDesignSchemeRunResultSchema,
   promoteWorkingDraftResultSchema,
   importDesignSchemeResultSchema,
   marketSearchResultSchema,
@@ -218,6 +219,88 @@ const responses: Record<string, unknown> = {
     schemeId: 'scheme_1',
     status: 'delivered',
   }),
+  [DESIGN_SCHEME_WIRE_METHODS.prepareRun]: prepareDesignSchemeRunResultSchema.parse({
+    executionId: 'exec_1',
+    schemeId: 'scheme_1',
+    revisionId: 'rev_1',
+    schemeStatus: 'draft',
+    schemeFidelity: 'faithful',
+    mode: 'trial',
+    brief: 'Run the scheme',
+    inputValues: {},
+    executionSettings: {
+      providerId: 'provider_1',
+      size: '1024x1024',
+      quality: 'high',
+      outputCount: 1,
+      referenceAssetIds: [],
+      promptReferenceSelections: [],
+    },
+    plan: {
+      id: 'plan_1',
+      schemaVersion: DESIGN_SCHEME_DOCUMENT_VERSION,
+      schemeRevisionId: 'rev_1',
+      sourceSnapshotIds: [],
+      inputs: [],
+      steps: [
+        {
+          id: 'step_inspect',
+          kind: 'inspect-input',
+          dependsOn: [],
+          inputRefs: [],
+          outputRefs: [],
+          timeoutMs: 1_000,
+          maxAttempts: 1,
+        },
+        {
+          id: 'step_compile',
+          kind: 'compile-prompt',
+          dependsOn: ['step_inspect'],
+          inputRefs: [],
+          outputRefs: [],
+          timeoutMs: 1_000,
+          maxAttempts: 1,
+        },
+        {
+          id: 'step_generate',
+          kind: 'generate-image',
+          dependsOn: ['step_compile'],
+          inputRefs: [],
+          outputRefs: [],
+          timeoutMs: 1_000,
+          maxAttempts: 1,
+        },
+        {
+          id: 'step_evaluate',
+          kind: 'evaluate-image',
+          dependsOn: ['step_generate'],
+          inputRefs: [],
+          outputRefs: [],
+          timeoutMs: 1_000,
+          maxAttempts: 1,
+        },
+      ],
+      provider: {
+        providerId: 'provider_1',
+        providerName: 'Provider',
+        model: 'model-1',
+        providerVersion: null,
+        capabilities: { text: true, vision: true, image: true, multiImage: true, editing: true },
+      },
+      policy: {
+        priorityMode: 'scheme_first',
+        schemeRevisionId: 'rev_1',
+        policyVersion: 'desktop-fixed-v1',
+        appliedAt: NOW,
+      },
+      budget: { maxSteps: 4, maxOutputs: 1, maxRepairRuns: 1 },
+      evaluation: {
+        ratio: null,
+        requiredChecks: ['output-count', 'file-valid', 'aspect-ratio'],
+      },
+    },
+    repair: null,
+  }),
   [DESIGN_SCHEME_WIRE_METHODS.run]: designSchemeRunResultSchema.parse({
     runId: 'run_1',
     schemeId: 'scheme_1',
@@ -293,6 +376,22 @@ const inputs: Record<string, unknown> = {
     schemeId: 'scheme_1',
     revisionId: 'rev_1',
     formatVersion: DESIGN_SCHEME_PACKAGE_FORMAT_VERSION,
+  },
+  [DESIGN_SCHEME_WIRE_METHODS.prepareRun]: {
+    executionId: 'exec_1',
+    schemeId: 'scheme_1',
+    revisionId: 'rev_1',
+    mode: 'trial',
+    brief: 'Run the scheme',
+    inputValues: {},
+    executionSettings: {
+      providerId: 'provider_1',
+      size: '1024x1024',
+      quality: 'high',
+      outputCount: 1,
+      referenceAssetIds: [],
+      promptReferenceSelections: [],
+    },
   },
   [DESIGN_SCHEME_WIRE_METHODS.run]: {
     executionId: 'exec_1',
@@ -398,6 +497,9 @@ async function callMethod(
       return gateway.importPackage(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.exportPackage:
       return gateway.exportPackage(input as never);
+    case DESIGN_SCHEME_WIRE_METHODS.prepareRun:
+      if (!gateway.prepareRun) throw new Error('prepare run method is missing');
+      return gateway.prepareRun(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.run:
       return gateway.run(input as never);
   }
@@ -422,7 +524,7 @@ describe('desktop design scheme gateway transport contract', () => {
     invokeMock.mockImplementation(async (method) => ({ ok: true, data: responses[method] }));
   });
 
-  it('maps all 16 deployed methods to exact payloads and parses each response', async () => {
+  it('maps all 17 deployed methods to exact payloads and parses each response', async () => {
     const gateway = createDesktopGateway().designSchemes;
     if (!gateway) throw new Error('design scheme gateway is missing');
 

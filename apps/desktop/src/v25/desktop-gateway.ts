@@ -19,6 +19,7 @@ import {
   formalizeDesignSchemeResultSchema,
   promoteWorkingDraftResultSchema,
   prepareDesignSchemeImportPackageResultSchema,
+  prepareDesignSchemeRunResultSchema,
   importDesignSchemeResultSchema,
   marketSearchResultSchema,
   modifyDesignSchemeResultSchema,
@@ -188,6 +189,8 @@ const designSchemesGateway: NonNullable<MusefoldGateway['designSchemes']> = {
     invoke(DESIGN_SCHEME_WIRE_METHODS.importPackage, input, importDesignSchemeResultSchema),
   exportPackage: (input) =>
     invoke(DESIGN_SCHEME_WIRE_METHODS.exportPackage, input, exportDesignSchemeResultSchema),
+  prepareRun: (input) =>
+    invoke(DESIGN_SCHEME_WIRE_METHODS.prepareRun, input, prepareDesignSchemeRunResultSchema),
   run: (input) => invoke(DESIGN_SCHEME_WIRE_METHODS.run, input, designSchemeRunResultSchema),
   subscribeEvents: subscribeDesignSchemeEvents,
 };

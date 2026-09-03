@@ -1,6 +1,6 @@
 # 06 设计方案 — 旧版全量记录 vs v2.5(P01 迁移蓝图)
 
-> **用途**:设计方案已从暂缓域转入 P01 迁移(`doing`)——共享 contracts/features、双端确定性 CRUD 与 Desktop `.musefold.design` 安全 staging/archive/domain 导入导出已有源码与定向单测,但 v2.5 三端**尚无导航/路由入口**,双宿主 `hasDesignSchemes=false`;run/Agent 编译/modify/事件与 Web run/assets/package 未完成。本文的性质仍是**旧版 UI/UX 的全量存档 + 迁入 v2.5 面时的蓝图基准**,当前事实以 [V25-UI-SPEC §8A](../V25-UI-SPEC.md) 为准;入口开启前禁止顺手实现 UI 或删除主进程语义(暂缓域红线)。
+> **用途**:设计方案已从暂缓域转入 P01 迁移(`doing`)——共享 contracts/features、双端确定性 CRUD 与 Desktop `.musefold.design` 安全 staging/archive/domain 导入导出已有源码与定向单测；Desktop `hasDesignSchemes=true` 且导航/详情入口已开启，Web `hasDesignSchemes=false`。Desktop canonical run/cancel/event transport 已存在，本轮新增主进程权威的 text-only `prepareRun`，但 Workbench `onSubmit` 尚未接入；图片 prepare、Agent create/modify/recompile 与 Web run/assets/package 仍未完成。本文的性质仍是**旧版 UI/UX 的全量存档 + 迁入 v2.5 面时的蓝图基准**，当前事实以 [V25-UI-SPEC §8A](../V25-UI-SPEC.md) 为准。
 > **实施状态来源**:本文是旧版 UI/UX 全量存档与迁入蓝图,不表示当前 v2.5 已有入口或已完成;实施进度(`todo/doing/partial/verify/done`)、Mobile Web/PC Web/Desktop/Desktop Agent 状态、依赖和证据以 [`V25-MIGRATION-CARDS.md`](../V25-MIGRATION-CARDS.md) 的 P01 平台矩阵为准。
 
 ---
@@ -88,6 +88,6 @@
 
 ## 6. 差距声明
 
-当前 v2.5 面:**P01 迁移中**——共享 contracts/features 与双端确定性 CRUD 已接入,Desktop `.musefold.design` 安全 staging/archive/domain 导入导出已接线(定向单测/typecheck/build 通过,E2E/capability 未验收);run/Agent 编译/modify/事件、Web run/assets/package 未完成;**三端 0 个导航/路由入口,双宿主 `hasDesignSchemes=false`**;主进程能力 100% 保留。迁移期间的动作边界:
+当前 v2.5 面:**P01 迁移中**——共享 contracts/features 与双端确定性 CRUD 已接入；Desktop `.musefold.design` 安全 staging/archive/domain 导入导出、导航/详情入口及 canonical run/cancel/event transport 已接线，`hasDesignSchemes=true`。本轮新增 text-only `prepareRun`：renderer 只提交选择、文本值与执行设置，主进程读取 exact revision、方案状态/保真度、来源快照绑定与 Provider metadata/capabilities，生成并双重校验固定四步计划。Desktop Workbench `onSubmit`、图片 prepare、Agent create/modify/recompile 和真实 Electron 成功 E2E 仍未完成；Web route 源码已挂载但 `hasDesignSchemes=false`，run/assets/package 仍 fail-closed。迁移期间的动作边界:
 - 保持 `electron/main/design-scheme/` 与 automation 通路不回归(现有集成测试守护);
 - 入口只在 P01-7 挂载、capability 开启后出现,不做死入口(D2);通用分享/导入与 Skill 运行对话仍按暂缓域处理。

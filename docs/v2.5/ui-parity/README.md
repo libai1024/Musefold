@@ -15,7 +15,7 @@
 | [03-workbench.md](./03-workbench.md) | 新设计(工作台) | 主干齐;参考图、空态动效、结果卡动作(存为提示词/保存图片)已收口 |
 | [04-prompt-library.md](./04-prompt-library.md) | 提示词库 | 列表齐且有恢复能力;「使用」动作已收口;详情/封面缺 |
 | [05-history.md](./05-history.md) | 历史记录 | 完成度最高;存为提示词/保存图片/Lightbox 已收口;批量清理缺 |
-| [06-design-schemes.md](./06-design-schemes.md) | 设计方案 | P01 迁移中:共享层与双端确定性 CRUD 已接入,入口未开;全量存档 + 迁移蓝图 |
+| [06-design-schemes.md](./06-design-schemes.md) | 设计方案 | P01 迁移中:共享层与双端确定性 CRUD 已接入,Desktop 入口开启、Web capability 关闭;全量存档 + 迁移蓝图 |
 | [07-settings-00-nav.md](./07-settings-00-nav.md) | 设置壳(分组导航) | 卡片流(D10);≥6 分区时切分组导航 |
 | [07-settings-01-account.md](./07-settings-01-account.md) | 设置 · 账号 | 最完整;确认密码、同步冲突 UI 缺 |
 | [07-settings-02-relay.md](./07-settings-02-relay.md) | 设置 · 中转站(AI 连接) | 生图通道主干齐;拉模型、dirty 守卫缺;Agent 通道暂缓 |

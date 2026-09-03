@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   designSchemeEventSchema,
   designSchemeRunInputSchema,
+  prepareDesignSchemeRunInputSchema,
   runResultSchema,
   type DesignSchemeEvent,
   type ParsedDesignSchemeRunInput,
@@ -16,6 +17,7 @@ import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/reposito
 import { ensureAccountWorkspace } from '@musefold/core/db/workspaces';
 import { fakePngBuffer } from '../../design-scheme/__tests__/evaluation.test';
 import { DesignSchemeExecutionRegistry } from '../../design-scheme/execution-registry';
+import { prepareDesktopDesignSchemeRun } from '../../design-scheme/fixed-run-plan-builder';
 import { DESIGN_SCHEME_DOCUMENT_VERSION } from '@musefold/desktop-contracts/design-scheme/schema';
 import type { DesignSchemeRevisionDocument } from '@musefold/desktop-contracts/design-scheme/schema';
 
@@ -41,7 +43,16 @@ function documentFixture(): DesignSchemeRevisionDocument {
     summary: 'Adapter test scheme',
     fidelity: 'adapted',
     sources: [{ id: 'source_brief', kind: 'user-brief', role: 'context' }],
-    inputs: [{ id: 'topic', label: 'Topic', kind: 'text', required: true }],
+    inputs: [
+      { id: 'topic', label: 'Topic', kind: 'text', required: true },
+      {
+        id: 'reference',
+        label: 'Reference',
+        kind: 'image',
+        required: false,
+        imageRole: 'subject-reference',
+      },
+    ],
     parameters: [],
     constraints: [],
     promptProgram: [
@@ -112,8 +123,11 @@ function inputFixture(overrides: Record<string, unknown> = {}): ParsedDesignSche
       id: 'plan_adapter',
       schemaVersion: 1,
       schemeRevisionId: 'rev_adapter',
-      sourceSnapshotIds: ['snapshot_adapter'],
-      inputs: [{ slotId: 'topic', kind: 'text', valueIds: [], text: 'night market' }],
+      sourceSnapshotIds: [],
+      inputs: [
+        { slotId: 'topic', kind: 'text', valueIds: [], text: 'night market' },
+        { slotId: 'reference', kind: 'image', valueIds: [], text: null },
+      ],
       steps: [
         step('step_inspect', 'inspect-input', []),
         step('step_compile', 'compile-prompt', ['step_inspect']),
@@ -578,6 +592,97 @@ describe('desktop design-scheme run adapter', () => {
     expect(registry.get(72, 'exec_adapter')).toMatchObject({
       status: 'already-terminal',
       execution: { terminalStatus: 'failed' },
+    });
+  });
+
+  it('returns a canonical authority mismatch and closes the execution', async () => {
+    schemeDb
+      .prepare("UPDATE design_schemes SET status = 'formal' WHERE id = ?")
+      .run('scheme_adapter');
+
+    const result = await runCanonicalDesignScheme(inputFixture({ executionId: 'exec_drift' }), 79, {
+      db: schemeDb,
+      coreDb,
+      userDataDir: root,
+      picturesDir: join(root, 'Pictures'),
+      executionRegistry: registry,
+      emit: (_senderId, event) => events.push(event),
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('DESIGN_SCHEME_RUN_SNAPSHOT_MISMATCH');
+    expect(runDesignSchemeMock).not.toHaveBeenCalled();
+    expect(registry.get(79, 'exec_drift')).toMatchObject({
+      status: 'already-terminal',
+      execution: { terminalStatus: 'failed' },
+    });
+  });
+
+  it('executes an authoritative text-only prepared input without renderer plan changes', async () => {
+    const textOnlyDocument = {
+      ...documentFixture(),
+      schemeId: 'scheme_prepared_roundtrip',
+      revisionId: 'rev_prepared_roundtrip',
+      inputs: [{ id: 'topic', label: 'Topic', kind: 'text' as const, required: true }],
+    };
+    new DesignSchemeRepository(schemeDb).insertSchemeDraft({
+      document: textOnlyDocument,
+      sourceLabel: 'Prepared round trip',
+      sourcePresentation: 'musefold-created',
+      createdBy: 'user',
+      bindings: [],
+    });
+    const prepared = prepareDesktopDesignSchemeRun(
+      prepareDesignSchemeRunInputSchema.parse({
+        executionId: 'exec_prepared_roundtrip',
+        schemeId: 'scheme_prepared_roundtrip',
+        revisionId: 'rev_prepared_roundtrip',
+        mode: 'trial',
+        brief: 'A prepared poster',
+        inputValues: { topic: 'night market' },
+        executionSettings: {
+          providerId: 'provider_adapter',
+          size: '1024x1024',
+          aspectRatio: '1:1',
+          quality: 'high',
+          outputCount: 1,
+          referenceAssetIds: [],
+          promptReferenceSelections: [],
+        },
+      }),
+      { designSchemeDb: schemeDb, coreDb },
+    );
+    const imagePath = join(root, 'prepared-roundtrip.png');
+    writeFileSync(imagePath, fakePngBuffer(1024, 1024));
+    mockRetainedRun({
+      runId: 'ignored-by-adapter',
+      compiledPrompt: 'compiled prepared prompt',
+      generations: [
+        {
+          jobId: 'job_prepared_roundtrip',
+          resultIndex: 0,
+          assetId: 'asset_prepared_roundtrip',
+          result: { historyId: 'job_prepared_roundtrip', status: 'success', imagePath },
+        },
+      ],
+      trace: [],
+    });
+
+    const result = await runCanonicalDesignScheme(prepared, 80, {
+      db: schemeDb,
+      coreDb,
+      userDataDir: root,
+      picturesDir: join(root, 'Pictures'),
+      executionRegistry: registry,
+      emit: (_senderId, event) => events.push(event),
+    });
+
+    expect(result.status).toBe('completed');
+    expect(runDesignSchemeMock).toHaveBeenCalledTimes(1);
+    expect(runDesignSchemeMock.mock.calls[0]?.[0]).toMatchObject({
+      schemeId: 'scheme_prepared_roundtrip',
+      revisionId: 'rev_prepared_roundtrip',
+      inputValues: { topic: 'night market' },
     });
   });
 

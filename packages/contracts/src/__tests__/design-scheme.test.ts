@@ -36,6 +36,8 @@ import {
   parameterDefinitionSchema,
   prepareDesignSchemeImportPackageInputSchema,
   prepareDesignSchemeImportPackageResultSchema,
+  prepareDesignSchemeRunInputSchema,
+  prepareDesignSchemeRunResultSchema,
   promoteWorkingDraftInputSchema,
   promoteWorkingDraftResultSchema,
   relativePathSchema,
@@ -558,6 +560,42 @@ describe('shared design-scheme contracts', () => {
     );
   });
 
+  it('separates host-authored run preparation from the complete frozen run input', () => {
+    const preparation = prepareDesignSchemeRunInputSchema.parse({
+      executionId: 'exec_prepare',
+      schemeId: 'scheme_1',
+      revisionId: 'rev_1',
+      mode: 'trial',
+      brief: 'run this scheme',
+      inputValues: { topic: 'night market' },
+      executionSettings: validExecutionSettings(),
+    });
+    expect(preparation).toMatchObject({ priorityMode: 'scheme_first' });
+    expect(preparation).not.toHaveProperty('schemeStatus');
+    expect(preparation).not.toHaveProperty('plan');
+    expect(
+      prepareDesignSchemeRunInputSchema.safeParse({
+        ...preparation,
+        plan: validPlan(),
+      }).success,
+    ).toBe(false);
+    expect(
+      prepareDesignSchemeRunInputSchema.safeParse({
+        ...preparation,
+        inputValues: { topic: '/Users/creator/private.txt' },
+      }).success,
+    ).toBe(false);
+
+    const preparedResult = prepareDesignSchemeRunResultSchema.parse({
+      ...preparation,
+      schemeStatus: 'draft',
+      schemeFidelity: 'faithful',
+      plan: validPlan(),
+      repair: null,
+    });
+    expect(preparedResult.plan.provider.providerName).toBe('Image Provider');
+  });
+
   it('keeps run plans path-free and rejects local request templates', () => {
     const plan = validPlan();
     expect(designSchemeRunPlanSchema.parse(plan)).toEqual(plan);
@@ -765,12 +803,13 @@ describe('shared design-scheme contracts', () => {
         decision: 'accept',
       }).success,
     ).toBe(false);
-    expect(DESIGN_SCHEME_METHOD_NAMES).toHaveLength(16);
+    expect(DESIGN_SCHEME_METHOD_NAMES).toHaveLength(17);
     expect(DESIGN_SCHEME_LIFECYCLE_METHOD_NAMES).toEqual([
       'designSchemes.confirmInstall',
       'designSchemes.prepareImportPackage',
     ]);
-    expect(DESIGN_SCHEME_CANONICAL_METHOD_NAMES).toHaveLength(18);
+    expect(DESIGN_SCHEME_CANONICAL_METHOD_NAMES).toHaveLength(19);
+    expect(DESIGN_SCHEME_WIRE_METHODS.prepareRun).toBe('designSchemes.prepareRun');
     expect(DESIGN_SCHEME_WIRE_METHODS.confirmInstall).toBe('designSchemes.confirmInstall');
   });
 

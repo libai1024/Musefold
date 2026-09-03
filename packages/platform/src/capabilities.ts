@@ -16,9 +16,8 @@ export interface PlatformCapabilities {
   hasLocalAiProviders: boolean;
   /**
    * 是否已接入设计方案共享域；未接入时 UI 不注册方案入口。
-   * 只在「gateway 适配器存在且有真实后端语义」的宿主置真:
-   * 桌面 = v25 单通道桥 16 方法 + staging/导入导出;Web = 云端确定性 CRUD
-   * (run/市场/导入导出等未部署操作由客户端映射为可读不可用错误,入口禁用并解释)。
+   * 只在「gateway 适配器存在且有真实后端语义」的宿主置真。
+   * Desktop 已部署 v25 单通道桥 17 个方法；Web runtime 尚未闭合，保持关闭。
    */
   hasDesignSchemes: boolean;
   /** 是否有豆包网页登录面(桌面专属浏览器分区;Web 不展示豆包登录 UI)。 */

@@ -1,7 +1,7 @@
 /**
  * v2.5 design-scheme 域 adapter 单测(P01-4 成功切片 + P01-2 详情元数据)。
  *
- * 用真实内存 SQLite 仓库驱动全部 16 个 canonical 方法;网络 seam(市场搜索、
+ * 用真实内存 SQLite 仓库驱动全部 17 个 deployed canonical 方法;网络 seam(市场搜索、
  * 上游更新检查)注入假实现。重点:
  * - 方法表与 canonical 方法集逐名一致(不落回 fail-closed);
  * - canonical ↔ legacy 文档映射的有损字段按声明收敛;
@@ -48,7 +48,6 @@ import {
   DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
   DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
   DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
-  DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE,
   designSchemeEventChannel,
   parseDesignSchemeEvent,
   type DesignSchemeDomainDeps,
@@ -100,6 +99,7 @@ function canonicalDocument(
         contentHash: CONTENT_HASH,
       },
     ],
+    sourceSnapshotIds: [`dssnap_${schemeId}`],
     inputs: [{ id: 'slot_topic', label: '主题', kind: 'text', required: true }],
     parameters: [],
     constraints: [],
@@ -393,8 +393,8 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('方法表', () => {
-  it('逐名锁定为 canonical 方法集(16 个,无旧通道残留)', () => {
-    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(16);
+  it('逐名锁定为 deployed canonical 方法集(17 个,无旧通道残留)', () => {
+    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(17);
     expect(Object.keys(methods).sort()).toEqual([...DESIGN_SCHEME_METHOD_NAMES].sort());
   });
 
@@ -1291,6 +1291,116 @@ describe('checkUpdate', () => {
   });
 });
 
+describe('主进程权威 text-only run plan', () => {
+  function seedProvider(type = 'openai-compatible'): void {
+    coreDb
+      .prepare(
+        `INSERT INTO providers (id, name, type, base_url, model, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'provider_prepare',
+        '本地生图连接',
+        type,
+        'https://provider.example/v1',
+        'image-model',
+        1,
+        1,
+      );
+  }
+
+  function prepareInput(overrides: Record<string, unknown> = {}) {
+    return {
+      executionId: 'exec_prepare',
+      schemeId: 'dsch_prepare',
+      revisionId: 'dsrv_prepare',
+      mode: 'trial',
+      brief: '保持留白',
+      inputValues: { slot_topic: '城市夜景' },
+      executionSettings: {
+        providerId: 'provider_prepare',
+        size: '1024x1024',
+        aspectRatio: '1:1',
+        quality: 'high',
+        outputCount: 1,
+        referenceAssetIds: [],
+        promptReferenceSelections: [],
+      },
+      ...overrides,
+    };
+  }
+
+  it('从 exact revision、来源绑定和 Provider 行生成 canonical 四步计划', async () => {
+    await invoke('create', createInputFixture('dsch_prepare', 'dsrv_prepare'));
+    seedProvider();
+
+    const prepared = await invoke('prepareRun', prepareInput());
+
+    expect(prepared).toMatchObject({
+      schemeId: 'dsch_prepare',
+      revisionId: 'dsrv_prepare',
+      schemeStatus: 'draft',
+      schemeFidelity: 'adapted',
+      inputValues: { slot_topic: '城市夜景' },
+      plan: {
+        schemeRevisionId: 'dsrv_prepare',
+        sourceSnapshotIds: ['dssnap_dsch_prepare'],
+        inputs: [{ slotId: 'slot_topic', kind: 'text', valueIds: [], text: '城市夜景' }],
+        provider: {
+          providerId: 'provider_prepare',
+          providerName: '本地生图连接',
+          model: 'image-model',
+          capabilities: { image: true, multiImage: true, editing: true },
+        },
+        policy: { policyVersion: 'desktop-fixed-v1' },
+        budget: { maxSteps: 4, maxOutputs: 1, maxRepairRuns: 1 },
+        evaluation: {
+          ratio: '1:1',
+          requiredChecks: ['output-count', 'file-valid', 'aspect-ratio'],
+        },
+      },
+    });
+    expect(prepared.plan.steps.map((step: { kind: string }) => step.kind)).toEqual([
+      'inspect-input',
+      'compile-prompt',
+      'generate-image',
+      'evaluate-image',
+    ]);
+    expect(JSON.stringify(prepared)).not.toMatch(
+      /provider\.example|base_url|storeKey|filePath|apiKey/,
+    );
+  });
+
+  it('对缺必填文本、图片输入与未知 Provider 稳定 fail-closed', async () => {
+    await invoke('create', createInputFixture('dsch_prepare', 'dsrv_prepare'));
+    seedProvider();
+    expect((await invokeError('prepareRun', prepareInput({ inputValues: {} }))).code).toBe(
+      'DESIGN_SCHEME_INPUT_REQUIRED',
+    );
+
+    expect(
+      (
+        await invokeError(
+          'prepareRun',
+          prepareInput({
+            executionSettings: {
+              ...prepareInput().executionSettings,
+              referenceAssetIds: ['asset_reference'],
+            },
+          }),
+        )
+      ).code,
+    ).toBe('DESIGN_SCHEME_TEXT_ONLY_UNSUPPORTED');
+
+    coreDb
+      .prepare("UPDATE providers SET type = 'future-provider' WHERE id = ?")
+      .run('provider_prepare');
+    expect((await invokeError('prepareRun', prepareInput())).code).toBe(
+      'DESIGN_SCHEME_PROVIDER_UNSUPPORTED',
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 仍未映射的运行时操作返回结构化 blocker
 // ---------------------------------------------------------------------------
@@ -1327,7 +1437,6 @@ describe('无法映射的运行时操作返回结构化 blocker', () => {
       DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
       DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
       DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
-      DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE,
     ]) {
       expect(message).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
     }

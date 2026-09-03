@@ -1,6 +1,6 @@
 // v2.5 design-scheme IPC seam(P01-4 成功 adapter 切片 + P01-2 详情元数据)。
 //
-// 本文件把已部署的 16 个 `designSchemes.*` 方法接到保留的本地 runtime:
+// 本文件把已部署的 17 个 `designSchemes.*` 方法接到保留的本地 runtime:
 // - 直连 `packages/core` 独立 design-scheme SQLite(machine-local policy:
 //   不接受 renderer 的 owner/workspace,不挂账号,不走 resolveActiveWorkspace)。
 // - 确定性读写(list / get / create[携带 document] / update / selectCover /
@@ -38,6 +38,8 @@ import {
   marketSearchResultSchema,
   modifyDesignSchemeInputSchema,
   promoteWorkingDraftInputSchema,
+  prepareDesignSchemeRunInputSchema,
+  prepareDesignSchemeRunResultSchema,
   removeDesignSchemeInputSchema,
   renameDesignSchemeInputSchema,
   selectCoverInputSchema,
@@ -47,6 +49,7 @@ import {
   type CreateDesignSchemeInput,
   type DesignSchemeHistorySourceSelection,
   type DesignSchemeRevisionDocument,
+  type ParsedPrepareDesignSchemeRunInput,
   type ParsedDesignSchemeListQuery,
   type SourcePackage,
   type SourceSnapshot,
@@ -100,6 +103,7 @@ import { checkSchemeUpdate } from '../design-scheme/update-check';
 import { getPaths } from '../../system/paths';
 import { BridgeError, type MethodDef } from './envelope';
 import { runCanonicalDesignScheme } from './design-scheme-run-adapter';
+import { prepareDesktopDesignSchemeRun } from '../design-scheme/fixed-run-plan-builder';
 import { designSchemeExecutionRegistry } from '../design-scheme/execution-registry';
 
 /** 保留的市场搜索函数签名(可注入以便测试,默认真实网络)。 */
@@ -158,9 +162,6 @@ export const DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED =
 /** checkUpdate:上游有变化,但重编译需要 Agent 管线。 */
 export const DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED =
   'DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED' as const;
-/** run / cancel:RunPlan 有意不含本地 requestTemplate/逐张取消句柄,无法重建生图请求。 */
-export const DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE =
-  'DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE' as const;
 /**
  * create + historySources:契约已收敛为「渲染层只交稳定身份(runId/assetId/includePrompt),
  * 宿主按成功生成账本做 owner 校验后解析字节与提示词快照」;本地解析管线随 P02 落地前,
@@ -177,10 +178,6 @@ export const DESIGN_SCHEME_METHOD_UNSUPPORTED_MESSAGES = {
   agentModify: [
     DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
     '修改方案需要 Agent 编译会话与事件流,尚未纳入共享契约(P01-10)。当前可用 update 提交完整新版本文档。',
-  ],
-  runPipeline: [
-    DESIGN_SCHEME_RUN_PIPELINE_UNAVAILABLE,
-    '方案运行管线尚未接入:共享 RunPlan 有意不含本地 requestTemplate 与逐张取消句柄,主进程无法安全重建生图请求(P01-10)。因此当前也不存在可取消的 v25 执行。',
   ],
 } as const;
 
@@ -1200,6 +1197,18 @@ export function buildDesignSchemesDomainMethods(
           schemeId: input.schemeId,
           status: 'delivered',
         });
+      },
+    },
+    [DESIGN_SCHEME_WIRE_METHODS.prepareRun]: {
+      input: prepareDesignSchemeRunInputSchema,
+      async handle(raw) {
+        const input = raw as ParsedPrepareDesignSchemeRunInput;
+        return prepareDesignSchemeRunResultSchema.parse(
+          prepareDesktopDesignSchemeRun(input, {
+            designSchemeDb: resolveDb(),
+            coreDb: deps.coreDb ?? getDb(),
+          }),
+        );
       },
     },
     [DESIGN_SCHEME_WIRE_METHODS.run]: {
