@@ -1040,11 +1040,13 @@ describe('SchemesScreen 新建入口与历史来源', () => {
     await user.click(screen.getByTestId('history-source-confirm'));
     await waitFor(() => expect(actions.onCreateFromHistory).toHaveBeenCalledTimes(1));
     const selection = actions.onCreateFromHistory.mock.calls[0]?.[0] as {
-      items: Array<{ jobId: string; prompt: string | null }>;
+      items: Array<{ jobId: string; assetId: string; prompt: string | null }>;
       note: string;
     };
     expect(selection.items).toHaveLength(2);
     expect(selection.items[0]?.prompt).toBeNull();
+    // 宿主按 runId/assetId 身份解析历史来源,不传路径。
+    expect(selection.items.every((item) => item.assetId.length > 0)).toBe(true);
     expect(selection.note).toContain('补充:保留人物特征。');
   });
 });

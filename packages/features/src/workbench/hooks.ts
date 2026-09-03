@@ -102,9 +102,17 @@ export function useRemoveSession() {
   });
 }
 
-/** 会话时间线:按创建时间升序;存在进行中任务时 1.5s 轮询直至终态。 */
-export function useSessionJobs(sessionId: string | null) {
+/**
+ * 会话时间线:按创建时间升序;存在进行中任务时 1.5s 轮询直至终态。
+ * `pollWhileExternalRun`:宿主侧有进行中的方案运行时(生成回合由主进程稍后才落进本会话账本,
+ * 列表里尚无活动任务可触发轮询),同样短轮询,让新回合与进度及时出现在时间线。
+ */
+export function useSessionJobs(
+  sessionId: string | null,
+  options: { pollWhileExternalRun?: boolean } = {},
+) {
   const { gateway } = usePlatform();
+  const externalRun = options.pollWhileExternalRun === true;
   return useQuery({
     queryKey: queryKeys.generation.list({ sessionId: sessionId ?? undefined, limit: 100 }),
     enabled: sessionId != null,
@@ -115,7 +123,7 @@ export function useSessionJobs(sessionId: string | null) {
       });
       return [...page.items].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 1_500 : false),
+    refetchInterval: (query) => (externalRun || hasActiveJob(query.state.data) ? 1_500 : false),
   });
 }
 

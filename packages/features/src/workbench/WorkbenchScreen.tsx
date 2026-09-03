@@ -6,7 +6,9 @@ import {
   MAX_REFERENCE_IMAGE_BYTES,
   MAX_REFERENCE_IMAGES,
   type PromptReferenceSelection,
+  type WorkbenchSession,
 } from '@musefold/contracts';
+import { queryKeys } from '@musefold/platform';
 import { Button } from '@musefold/ui/components/button';
 import {
   Select,
@@ -18,6 +20,7 @@ import {
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { toast } from '@musefold/ui/components/sonner';
 import { Plus } from '@musefold/ui/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HistorySourcePicker } from '../design-schemes/HistorySourcePicker';
 import { useDesignSchemesGateway } from '../design-schemes/hooks';
@@ -25,8 +28,9 @@ import {
   buildSchemeHistorySeed,
   resolveSchemeAttachment,
   type SchemeComposerAttachment,
-  type SchemeComposerSubmission,
+  type SchemeComposerHandlers,
   type SchemeCreationContext,
+  schemeSubmitDisabledReason,
   useSchemeIntegration,
 } from '../design-schemes/integration-store';
 import { SchemeRunPicker } from '../design-schemes/SchemeRunPicker';
@@ -111,13 +115,15 @@ export interface WorkbenchScreenProps {
   /**
    * 设计方案域集成(宿主注入;域恢复卡):
    * - onOpenDesignSchemes:切屏方案中心(「寻找设计方案」/附件「查看详情」,可携详情深链);
-   * - onSubmit:方案运行/创建/修改提交缝,接宿主运行管线。缺省时挂载/创建照常,
-   *   提交钮禁用并解释(I4),绝不回落普通生成伪造方案运行。
-   * 整个 prop 缺省 = 宿主未接入该域,Composer 方案菜单项不出现(D2)。
+   * - onRun/onCancelRun:已挂载方案的运行与取消提交缝,由宿主负责 prepare/run/cancel,
+   *   本屏 await 终态结果后才复位 Composer;运行中提交钮转停止钮;
+   * - onCreate/onModify:独立生命周期接缝,缺省时对应入口禁用并解释(I4);
+   * - runInputSupport:宿主运行输入边界,text-only 时含图片的提交在本屏禁用并解释。
+   * 任何缺省接缝都不回落普通生成伪造方案运行;整个 prop 缺省 = 宿主未接入该域,
+   * Composer 方案菜单项不出现(D2)。
    */
-  designSchemes?: {
+  designSchemes?: SchemeComposerHandlers & {
     onOpenDesignSchemes(detailId?: string): void;
-    onSubmit?(submission: SchemeComposerSubmission): void;
   };
 }
 
@@ -148,6 +154,15 @@ export function WorkbenchScreen({
   const [schemeCreation, setSchemeCreation] = useState<SchemeCreationContext | null>(null);
   const [schemePickerOpen, setSchemePickerOpen] = useState(false);
   const [schemeHistoryOpen, setSchemeHistoryOpen] = useState(false);
+  // 方案提交执行态:一次只允许一个进行中的方案生命周期(运行/创建/修改),
+  // 运行可经 onCancelRun 取消;终态(成功/失败/取消)后清空。
+  const schemeCancelRequested = useRef(new Set<string>());
+  const [schemeExecution, setSchemeExecution] = useState<{
+    id: string;
+    kind: 'run' | 'create' | 'modify';
+  } | null>(null);
+  const [schemeCancelling, setSchemeCancelling] = useState(false);
+  const [schemeSubmitError, setSchemeSubmitError] = useState<string | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   // 「添加上下文」触发钮:面板关闭后焦点归还(§8-I9)。
   const attachTriggerRef = useRef<HTMLButtonElement>(null);
@@ -170,7 +185,9 @@ export function WorkbenchScreen({
   const providers = useProviders();
   const createSession = useCreateSession();
   const updateSession = useUpdateSession();
-  const jobs = useSessionJobs(activeId);
+  const schemeRunning = schemeExecution?.kind === 'run';
+  const jobs = useSessionJobs(activeId, { pollWhileExternalRun: schemeRunning });
+  const queryClient = useQueryClient();
   const createGeneration = useCreateGeneration();
   const cancelGeneration = useCancelGeneration();
   const retryGeneration = useRetryGeneration();
@@ -231,6 +248,7 @@ export function WorkbenchScreen({
     setSchemeAttachment(null);
     setSchemeInputValues({});
     setSchemeCreation(null);
+    setSchemeSubmitError(null);
   }, []);
 
   // 卸载时回收 objectURL。
@@ -489,8 +507,8 @@ export function WorkbenchScreen({
     }
   }
 
-  /** 方案提交后的 Composer 复位:清正文/引用槽位(运行已接管参考图),附件保留支持多轮(承旧)。 */
-  function clearAfterSchemeSubmit(clearInputs: boolean) {
+  /** 方案终态成功后的 Composer 复位:附件保留支持多轮,正文/槽位/引用清空。 */
+  function clearAfterSchemeSubmit(clearInputs: boolean, session: WorkbenchSession | null) {
     if (clearInputs) setSchemeInputValues({});
     clearReferences();
     const cleared = {
@@ -500,56 +518,132 @@ export function WorkbenchScreen({
       promptReferenceSelections: [],
     };
     setComposer(cleared);
-    if (activeSession) {
-      void queueDraftWrite(
-        activeSession.id,
-        activeSession.version,
-        composerValueToDraft(cleared),
-      ).catch(reportDraftWriteError);
+    if (session) {
+      void queueDraftWrite(session.id, session.version, composerValueToDraft(cleared)).catch(
+        reportDraftWriteError,
+      );
+    }
+  }
+
+  /** 方案运行落在活动会话;草稿态/无会话时首次运行才建会话(与普通生成同语义)。 */
+  async function ensureSchemeSession(userPrompt: string): Promise<WorkbenchSession> {
+    if (activeSession) return activeSession;
+    const created = await createSession.mutateAsync({
+      title: deriveSessionTitle(userPrompt || schemeAttachment?.name || '方案运行'),
+      draft: composerValueToDraft(composer),
+    });
+    sessionVersions.current.set(created.id, created.version);
+    loadedDraftFor.current = created.id;
+    setActiveId(created.id);
+    return created;
+  }
+
+  /** 方案运行的生成回合由宿主写入本会话账本:开始/终态各刷一次时间线与会话列表。 */
+  function refreshSchemeRunLedger() {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.generation.all() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.designSchemes.all() });
+  }
+
+  /** 创建/修改走宿主 Agent 管线:成功复位 Composer(创建态清除),失败就地解释并保留输入。 */
+  async function runSchemeLifecycle(
+    kind: 'create' | 'modify',
+    execute: (executionId: string) => Promise<void>,
+    onSuccess: () => void,
+  ): Promise<void> {
+    const executionId = crypto.randomUUID();
+    setSchemeSubmitError(null);
+    setSchemeExecution({ id: executionId, kind });
+    try {
+      await execute(executionId);
+      onSuccess();
+    } catch (error) {
+      const fallback = kind === 'create' ? '方案创建失败' : '方案修改失败';
+      const message = error instanceof Error && error.message ? error.message : fallback;
+      setSchemeSubmitError(message);
+      toast.error(fallback, { description: message });
+    } finally {
+      setSchemeExecution(null);
     }
   }
 
   /**
-   * 方案域提交路由(在任何普通生成分支之前):
-   * 创建/运行/修改一律交给宿主运行管线接缝(designSchemes.onSubmit)——
-   * 接缝缺失时 Composer 已禁用提交并解释,这里的 return 是双保险:
+   * 方案域提交路由(在任何普通生成分支之前):每种生命周期独立接缝,await 到宿主终态再复位。
+   * 宿主未实现的 create/modify/run 在 Composer 已禁用并解释,这里的 return true 是双保险:
    * 绝不回落 createGeneration 伪造方案运行/创建。
    */
-  function submitSchemeContext(userPrompt: string): boolean {
-    const submitScheme = designSchemes?.onSubmit;
+  async function submitSchemeContext(userPrompt: string): Promise<boolean> {
     if (schemeCreation) {
-      if (!submitScheme || !userPrompt) return true;
-      submitScheme({
-        kind: 'create',
-        createKind: schemeCreation.createKind,
-        brief: userPrompt,
-        source: schemeCreation.source,
-      });
-      setSchemeCreation(null);
-      clearAfterSchemeSubmit(false);
-      toast.success('已提交方案创建', { description: '草稿会由创建管线编译,稍后在方案中心查看。' });
+      const submitCreate = designSchemes?.onCreate;
+      if (!submitCreate || !userPrompt) return true;
+      const creation = schemeCreation;
+      await runSchemeLifecycle(
+        'create',
+        async (executionId) => {
+          await submitCreate({
+            kind: 'create',
+            executionId,
+            createKind: creation.createKind,
+            brief: userPrompt,
+            source: creation.source,
+          });
+        },
+        () => {
+          setSchemeCreation(null);
+          clearAfterSchemeSubmit(false, activeSession);
+          refreshSchemeRunLedger();
+          toast.success('方案草稿已创建', { description: '稍后可在方案中心试运行并转正。' });
+        },
+      );
       return true;
     }
-    if (schemeAttachment) {
-      if (!submitScheme) return true;
-      if (schemeAttachment.mode === 'modify') {
-        if (!userPrompt) return true;
-        submitScheme({ kind: 'modify', attachment: schemeAttachment, brief: userPrompt });
-        clearAfterSchemeSubmit(false);
-        toast.success('已发送修改要求', { description: schemeAttachment.name });
-        return true;
-      }
-      const inputValues = Object.fromEntries(
-        Object.entries(schemeInputValues)
-          .map(([slotId, value]) => [slotId, value.trim()] as const)
-          .filter(([, value]) => value.length > 0),
+    if (!schemeAttachment) return false;
+    const attachment = schemeAttachment;
+    if (attachment.mode === 'modify') {
+      const submitModify = designSchemes?.onModify;
+      if (!submitModify || !userPrompt) return true;
+      await runSchemeLifecycle(
+        'modify',
+        async (executionId) => {
+          await submitModify({
+            kind: 'modify',
+            executionId,
+            attachment,
+            brief: userPrompt,
+          });
+        },
+        () => {
+          clearAfterSchemeSubmit(false, activeSession);
+          refreshSchemeRunLedger();
+          toast.success('修改要求已处理', {
+            description: `「${attachment.name}」的新版本待验证,可在方案中心查看。`,
+          });
+        },
       );
-      const referenceImages = references
-        .map((reference) => reference.image)
-        .filter((image): image is NonNullable<typeof image> => image !== undefined);
-      submitScheme({
+      return true;
+    }
+    const submitRun = designSchemes?.onRun;
+    if (!submitRun) return true;
+    const executionId = crypto.randomUUID();
+    const inputValues = Object.fromEntries(
+      Object.entries(schemeInputValues)
+        .map(([slotId, value]) => [slotId, value.trim()] as const)
+        .filter(([, value]) => value.length > 0),
+    );
+    const referenceImages = references
+      .map((reference) => reference.image)
+      .filter((image): image is NonNullable<typeof image> => image !== undefined);
+    setSchemeSubmitError(null);
+    setSchemeExecution({ id: executionId, kind: 'run' });
+    try {
+      const session = await ensureSchemeSession(userPrompt);
+      if (schemeCancelRequested.current.has(executionId)) return true;
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      const result = await submitRun({
         kind: 'run',
-        attachment: schemeAttachment,
+        executionId,
+        workbenchSessionId: session.id,
+        attachment,
         brief: userPrompt,
         inputValues,
         referenceImages,
@@ -562,20 +656,43 @@ export function WorkbenchScreen({
         // 生图通道跟随活跃连接(与普通生成同口径)。
         providerId: providers.data?.[0]?.id,
       });
-      clearAfterSchemeSubmit(true);
-      toast.success(schemeAttachment.mode === 'trial' ? '已提交试运行' : '已提交按方案生成', {
-        description: schemeAttachment.name,
+      refreshSchemeRunLedger();
+      if (result.status === 'cancelled') {
+        toast('方案运行已取消', { description: attachment.name });
+        return true;
+      }
+      if (result.status !== 'completed') {
+        const message = result.error?.message ?? '方案运行未完成';
+        setSchemeSubmitError(message);
+        toast.error(result.status === 'blocked' ? '方案运行被阻止' : '方案运行失败', {
+          description: message,
+        });
+        return true;
+      }
+      clearAfterSchemeSubmit(true, session);
+      toast.success(attachment.mode === 'trial' ? '试运行已完成' : '按方案生成已完成', {
+        description: attachment.name,
       });
-      return true;
+    } catch (error) {
+      refreshSchemeRunLedger();
+      if (schemeCancelRequested.current.has(executionId)) return true;
+      const message = error instanceof Error && error.message ? error.message : '方案运行失败';
+      setSchemeSubmitError(message);
+      toast.error('方案运行失败', { description: message });
+    } finally {
+      schemeCancelRequested.current.delete(executionId);
+      setSchemeExecution(null);
+      setSchemeCancelling(false);
     }
-    return false;
+    return true;
   }
 
   async function handleSubmit() {
     const userPrompt = composer.prompt.trim();
     const promptReferenceSelections = composer.promptReferenceSelections;
     if (schemeAttachment || schemeCreation) {
-      submitSchemeContext(userPrompt);
+      if (schemeExecution) return;
+      await submitSchemeContext(userPrompt);
       return;
     }
     if (!userPrompt && promptReferenceSelections.length === 0) return;
@@ -632,45 +749,86 @@ export function WorkbenchScreen({
   }
 
   const jobItems = jobs.data ?? [];
-  const running = hasActiveJob(jobItems);
+  // 进行中 = 会话账本有活动任务,或方案运行正在宿主管线里(回合可能尚未落账)。
+  const running = hasActiveJob(jobItems) || schemeRunning;
   const cancelling =
-    cancelGeneration.isPending || jobItems.some((job) => job.status === 'cancelling');
+    cancelGeneration.isPending ||
+    schemeCancelling ||
+    jobItems.some((job) => job.status === 'cancelling');
   // 空态 = 没有会话,或当前会话还没有任何回合(V25-UI-SPEC §3.1:品牌锁定区 + 内联 Composer 居中)。
   const showEmptyState = activeId === null || (jobs.isSuccess && jobItems.length === 0);
 
-  function handleCancelActive() {
+  /** 方案运行取消走宿主 executionId 接缝(主进程 fan-out 到全部生成任务);普通生成取消最近活动任务。 */
+  async function handleCancelActive() {
+    if (schemeExecution?.kind === 'run') {
+      const executionId = schemeExecution.id;
+      const cancelRun = designSchemes?.onCancelRun;
+      if (!cancelRun || schemeCancelling) return;
+      schemeCancelRequested.current.add(executionId);
+      setSchemeCancelling(true);
+      try {
+        await cancelRun(executionId);
+      } catch (error) {
+        const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+        if (code === 'DESIGN_SCHEME_EXECUTION_NOT_FOUND') return;
+        schemeCancelRequested.current.delete(executionId);
+        setSchemeCancelling(false);
+        setSchemeSubmitError(error instanceof Error ? error.message : '方案取消失败');
+        toast.error('取消方案运行失败', {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
+      return;
+    }
     const target = [...jobItems]
       .reverse()
       .find((job) => job.status === 'queued' || job.status === 'running');
     if (target) cancelGeneration.mutate(target.id);
   }
+  // 方案运行中而宿主无取消缝:停止钮不可用(禁用而非假装能停)。
+  const cancelHandler =
+    schemeRunning && !designSchemes?.onCancelRun ? undefined : handleCancelActive;
 
   // 方案域 Composer 接缝:域适配器 + 宿主集成 prop 齐备才出现方案菜单项(D2);
-  // 提交缝(onSubmit)缺失时挂载/创建照常,提交禁用并解释(I4),不伪造方案运行。
-  const schemeSubmit = designSchemes?.onSubmit;
+  // 各生命周期接缝缺失时挂载/创建照常,提交禁用并解释(I4),不伪造方案运行。
+  const schemeCreateSeam = Boolean(designSchemes?.onCreate);
+  const baseSchemeSubmitReason = schemeSubmitDisabledReason(designSchemes, {
+    attachment: schemeAttachment,
+    creation: schemeCreation,
+    referenceImageCount: references.length,
+  });
+  const schemeRunNeedsProvider =
+    baseSchemeSubmitReason == null &&
+    schemeAttachment != null &&
+    schemeAttachment.mode !== 'modify';
+  const schemeSubmitReason = schemeRunNeedsProvider
+    ? providers.isPending
+      ? '正在读取 AI 连接'
+      : providers.isError
+        ? 'AI 连接列表读取失败，请重试'
+        : baseSchemeSubmitReason
+    : baseSchemeSubmitReason;
   const schemeProp =
     schemeGateway && designSchemes
       ? {
           attachment: schemeAttachment,
           creation: schemeCreation,
           inputValues: schemeInputValues,
-          submitDisabledReason: schemeSubmit
-            ? null
-            : schemeAttachment
-              ? '当前环境暂未接入方案运行'
-              : schemeCreation
-                ? '当前环境暂未接入方案创建'
-                : null,
+          submitDisabledReason: schemeSubmitReason,
           onChangeInput: (slotId: string, value: string) =>
             setSchemeInputValues((prev) => ({ ...prev, [slotId]: value })),
           onClearAttachment: () => {
+            setSchemeSubmitError(null);
             setSchemeAttachment(null);
             setSchemeInputValues({});
           },
-          onClearCreation: () => setSchemeCreation(null),
+          onClearCreation: () => {
+            setSchemeSubmitError(null);
+            setSchemeCreation(null);
+          },
           onOpenPicker: () => setSchemePickerOpen(true),
-          onStartCreation: schemeSubmit ? handleStartSchemeCreation : undefined,
-          onOpenHistorySource: schemeSubmit ? () => setSchemeHistoryOpen(true) : undefined,
+          onStartCreation: schemeCreateSeam ? handleStartSchemeCreation : undefined,
+          onOpenHistorySource: schemeCreateSeam ? () => setSchemeHistoryOpen(true) : undefined,
           onOpenDesignSchemes: designSchemes.onOpenDesignSchemes,
         }
       : undefined;
@@ -678,7 +836,10 @@ export function WorkbenchScreen({
   const composerNode = (
     <Composer
       value={composer}
-      submitting={createGeneration.isPending}
+      // 创建/修改无取消缝:提交钮转 spinner 直到宿主返回;运行走 running(停止钮)。
+      submitting={
+        createGeneration.isPending || (schemeExecution !== null && schemeExecution.kind !== 'run')
+      }
       variant={showEmptyState ? 'inline' : 'docked'}
       hasTurns={jobItems.length > 0}
       running={running}
@@ -690,7 +851,7 @@ export function WorkbenchScreen({
       contextMenuTriggerRef={attachTriggerRef}
       onChange={handleComposerChange}
       onSubmit={handleSubmit}
-      onCancel={handleCancelActive}
+      onCancel={cancelHandler}
       onAddImages={handleAddImages}
       onRemoveReference={handleRemoveReference}
       onRemovePromptReference={handleRemovePromptReference}
@@ -706,6 +867,13 @@ export function WorkbenchScreen({
       data-testid="generation-error"
     >
       {createGeneration.error instanceof Error ? createGeneration.error.message : '生成提交失败'}
+    </p>
+  ) : schemeSubmitError ? (
+    <p
+      className="pointer-events-auto mx-auto my-2 w-full max-w-[728px] px-1.5 text-destructive text-xs"
+      data-testid="scheme-submit-error"
+    >
+      {schemeSubmitError}
     </p>
   ) : null;
 
@@ -777,7 +945,13 @@ export function WorkbenchScreen({
               <GenerationTimeline
                 jobs={jobItems}
                 editDisabled={running}
-                onCancel={(job) => cancelGeneration.mutate(job.id)}
+                onCancel={(job) => {
+                  if (schemeRunning) {
+                    void handleCancelActive();
+                    return;
+                  }
+                  cancelGeneration.mutate(job.id);
+                }}
                 onRetry={(job) =>
                   retryGeneration.mutate(createRetryGenerationMutationIntent(job.id))
                 }

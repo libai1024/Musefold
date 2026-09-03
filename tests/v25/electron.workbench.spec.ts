@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import Database from 'better-sqlite3';
-import { desktopDbPath, launchV25App, v25ShellPage } from './electron-helpers';
+import { designSchemeDbPath, desktopDbPath, launchV25App, v25ShellPage } from './electron-helpers';
 
 // 桌面工作台全链路:features 屏 → IPC 桥 → core SQLite + generate() 编排。
 // 生成用「受控失败」链路(provider 无 API key):提交→run 落库→异步失败→
@@ -9,6 +11,162 @@ import { desktopDbPath, launchV25App, v25ShellPage } from './electron-helpers';
 let app: ElectronApplication;
 let page: Page;
 let userDataDir: string;
+
+interface HangingImageServer {
+  baseUrl: string;
+  requestReceived: Promise<void>;
+  close(): Promise<void>;
+}
+
+async function closeServer(server: Server, responses: Set<ServerResponse>): Promise<void> {
+  for (const response of responses) response.destroy();
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+async function startHangingImageServer(): Promise<HangingImageServer> {
+  let resolveRequest!: () => void;
+  const requestReceived = new Promise<void>((resolve) => {
+    resolveRequest = resolve;
+  });
+  const responses = new Set<ServerResponse>();
+  const server = createServer((request, response) => {
+    if (request.method === 'POST' && request.url?.endsWith('/images/generations')) {
+      responses.add(response);
+      response.on('close', () => responses.delete(response));
+      request.resume();
+      resolveRequest();
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    await closeServer(server, responses);
+    throw new Error('回环生图服务未取得 TCP 端口');
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requestReceived,
+    close: () => closeServer(server, responses),
+  };
+}
+
+function seedFormalTextScheme(userData: string): void {
+  const schemeDb = new Database(designSchemeDbPath(userData));
+  const now = Date.now();
+  const document = {
+    schemaVersion: 1,
+    revisionId: 'revision_e2e_scheme',
+    schemeId: 'scheme_e2e_formal',
+    name: 'E2E 文本海报方案',
+    summary: '用于工作台运行取消测试',
+    fidelity: 'adapted',
+    sources: [
+      {
+        id: 'source_brief',
+        kind: 'user-brief',
+        role: 'context',
+        packageId: 'package_e2e_scheme',
+        snapshotId: 'snapshot_e2e_scheme',
+      },
+    ],
+    sourceSnapshotIds: ['snapshot_e2e_scheme'],
+    inputs: [
+      {
+        id: 'topic',
+        label: '主题',
+        kind: 'text',
+        required: true,
+        description: '输入海报主题',
+      },
+    ],
+    parameters: [],
+    constraints: [],
+    promptProgram: [
+      {
+        id: 'module_1',
+        order: 0,
+        kind: 'input-template',
+        template: 'Create a restrained poster about {{topic}}',
+        variables: ['topic'],
+        sourceIds: ['source_brief'],
+      },
+    ],
+    compilation: {
+      compiledAt: 1,
+      model: { model: 'e2e-fixture', connectionName: 'E2E fixture' },
+      adopted: [],
+      omitted: [],
+      warnings: [],
+      trace: [],
+    },
+  };
+  schemeDb.transaction(() => {
+    schemeDb
+      .prepare(
+        `INSERT INTO source_packages (id, kind, repository_url, license, created_at)
+         VALUES ('package_e2e_scheme', 'user-brief', NULL, NULL, ?)`,
+      )
+      .run(now);
+    schemeDb
+      .prepare(
+        `INSERT INTO source_snapshots
+           (id, package_id, ref, commit_hash, content_hash, total_bytes, scan_json, created_at)
+         VALUES ('snapshot_e2e_scheme', 'package_e2e_scheme', 'e2e-seed', NULL, NULL, 0, '{}', ?)`,
+      )
+      .run(now);
+    schemeDb
+      .prepare(
+        `INSERT INTO design_schemes
+           (id, name, summary, status, source_presentation, source_label, current_revision_id,
+            working_draft_revision_id, cover_asset_id, fidelity, version, created_at, updated_at,
+            deleted_at)
+         VALUES ('scheme_e2e_formal', 'E2E 文本海报方案', '用于工作台运行取消测试',
+           'formal', 'musefold-created', 'E2E 本地种子', 'revision_e2e_scheme', NULL,
+           'asset_e2e_cover', 'adapted', 1, ?, ?, NULL)`,
+      )
+      .run(now, now);
+    schemeDb
+      .prepare(
+        `INSERT INTO design_scheme_revisions
+           (revision_id, scheme_id, schema_version, document_json, created_by, created_at)
+         VALUES ('revision_e2e_scheme', 'scheme_e2e_formal', 1, ?, 'user', ?)`,
+      )
+      .run(JSON.stringify(document), now);
+    schemeDb
+      .prepare(
+        `INSERT INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
+         VALUES ('revision_e2e_scheme', 'snapshot_e2e_scheme', 'context')`,
+      )
+      .run();
+    schemeDb
+      .prepare(
+        `INSERT INTO design_scheme_runs
+           (run_id, revision_id, mode, status, policy_json, provider_json, created_at, completed_at)
+         VALUES ('run_e2e_seed', 'revision_e2e_scheme', 'trial', 'completed', '{}', NULL, ?, ?)`,
+      )
+      .run(now, now);
+    schemeDb
+      .prepare(
+        `INSERT INTO design_scheme_assets
+           (id, revision_id, store_key, role, origin, license, mime_type, width, height,
+            byte_size, content_hash, created_at)
+         VALUES ('asset_e2e_cover', 'revision_e2e_scheme', 'e2e-fixture-cover', 'cover',
+           'local-run', NULL, 'image/png', 1, 1, 0, ?, ?)`,
+      )
+      .run('0'.repeat(64), now);
+  })();
+  schemeDb.close();
+}
 
 test.beforeAll(async () => {
   ({ app, userDataDir } = await launchV25App('musefold-v25-workbench-'));
@@ -165,6 +323,104 @@ test('提示词引用经真实 IPC/SQLite 生成,源编辑后历史快照不漂�
     'new desktop source content that must not rewrite history',
   );
   await page.getByTestId('workbench-materials-close').click();
+});
+
+test('正式纯文本方案经真实 IPC 运行后可取消,双账本收敛且 Composer 输入保留', async () => {
+  const imageServer = await startHangingImageServer();
+  const userPrompt = '保留安静留白与清晰标题';
+  const topic = '夜间城市书展';
+  try {
+    const apiKey = `e2e-${randomUUID()}`;
+    await page.evaluate(
+      async ({ baseUrl, apiKey: key }) => {
+        const bridge = (
+          window as unknown as {
+            musefoldV25: {
+              invoke(method: string, payload?: unknown): Promise<unknown>;
+            };
+          }
+        ).musefoldV25;
+        const envelope = (await bridge.invoke('aiProviders.create', {
+          name: 'E2E 回环连接',
+          baseUrl,
+          model: 'e2e-image-model',
+          apiKey: key,
+          activate: true,
+        })) as { ok?: boolean; error?: { message?: string } };
+        if (!envelope.ok) throw new Error(envelope.error?.message ?? 'E2E Provider 创建失败');
+      },
+      { baseUrl: imageServer.baseUrl, apiKey },
+    );
+
+    await app.close();
+    seedFormalTextScheme(userDataDir);
+    ({ app } = await launchV25App('musefold-v25-workbench-', userDataDir));
+    page = await v25ShellPage(app);
+    await expect(page.getByTestId('workbench')).toBeVisible();
+
+    await page.getByTestId('session-create').click();
+    await page.getByTestId('composer-attach').click();
+    await page.getByTestId('workbench-context-ref-scheme').click();
+    await expect(page.getByTestId('scheme-run-picker')).toBeVisible();
+    await page.getByTestId('scheme-run-pick-scheme_e2e_formal').click();
+    await expect(page.getByTestId('scheme-run-chip')).toContainText('E2E 文本海报方案');
+    await page.getByTestId('scheme-run-variable-topic').fill(topic);
+    await page.getByTestId('composer-prompt').fill(userPrompt);
+    await expect(page.getByTestId('composer-submit')).toBeEnabled();
+    await page.getByTestId('composer-submit').click();
+
+    await imageServer.requestReceived;
+    const stop = page.getByTestId('composer-cancel');
+    await expect(stop).toBeVisible();
+    await stop.click();
+    await expect(page.getByTestId('job-status').last()).toHaveAttribute(
+      'data-status',
+      'cancelled',
+      { timeout: 15_000 },
+    );
+    await expect(page.getByTestId('scheme-submit-error')).toHaveCount(0);
+    await expect(page.getByTestId('scheme-run-attachment')).toBeVisible();
+    await expect(page.getByTestId('scheme-run-variable-topic')).toHaveValue(topic);
+    await expect(page.getByTestId('composer-prompt')).toHaveValue(userPrompt);
+
+    const coreDb = new Database(desktopDbPath(userDataDir), { readonly: true });
+    const generation = coreDb
+      .prepare(
+        `SELECT status, workbench_session_id, user_prompt, provider_id
+           FROM generation_runs ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get() as {
+      status: string;
+      workbench_session_id: string | null;
+      user_prompt: string;
+      provider_id: string;
+    };
+    coreDb.close();
+    expect(generation).toMatchObject({
+      status: 'cancelled',
+      user_prompt: userPrompt,
+    });
+    expect(generation.workbench_session_id).toBeTruthy();
+
+    const schemeDb = new Database(designSchemeDbPath(userDataDir), { readonly: true });
+    const schemeRun = schemeDb
+      .prepare(
+        `SELECT status, mode FROM design_scheme_runs
+          WHERE run_id <> 'run_e2e_seed' ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get() as { status: string; mode: string };
+    const generatedAssetCount = schemeDb
+      .prepare(
+        `SELECT COUNT(*) AS count FROM design_scheme_assets
+          WHERE id <> 'asset_e2e_cover'`,
+      )
+      .get() as { count: number };
+    schemeDb.close();
+    expect(schemeRun).toEqual({ status: 'cancelled', mode: 'formal' });
+    expect(generatedAssetCount.count).toBe(0);
+  } finally {
+    await imageServer.close();
+  }
 });
 
 test('草稿输入防抖落盘,重启后仍在(置尾:输入会改变视觉基线)', async () => {

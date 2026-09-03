@@ -16,7 +16,7 @@ import type { DesignSchemesActions } from './types';
  * 可用的 DesignSchemesActions(试运行/使用/修改/创建/历史来源创建)。
  * 实现 = 解析附件/组装种子 → 写一次性意图(integration-store)→ 回调切屏,
  * 工作台屏消费意图落 Composer。方案运行/创建/修改的真正执行仍是宿主运行
- * 管线(经 WorkbenchScreen 的 designSchemes.onSubmit 接缝),此处不伪造。
+ * 管线(经 WorkbenchScreen 的 designSchemes.onRun/onCancelRun/onCreate/onModify 接缝),此处不伪造。
  *
  * onImportScheme / onInstallMarketCandidate 不在此提供:导入文件对话框与
  * 市场快照下载 staging 是宿主/运行管线职责,缺省时对应入口禁用并解释(I4)。

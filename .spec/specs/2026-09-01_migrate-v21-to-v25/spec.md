@@ -74,8 +74,8 @@
 - 仓库达到可交付状态 -> verify: `pnpm run check`、`pnpm run test:e2e` 及桌面 Electron E2E（按环境可用性记录真实结果）。
 
 ### 6.1 行为成效指标
-- 仓库统一门禁在当前工作树可复现通过 -> verify: `pnpm run check` 退出码为 0，并报告 180 个测试文件、1301 个测试和 35 个 Turbo task 成功
-- Web 桌面/移动与 Electron 关键迁移路径可复现通过 -> verify: session URL、设置视觉基线、成图视觉基线、Electron Workbench 和 Electron sync 定向 E2E 均通过；完整 v25 E2E 为 97 passed、1 failed、5 skipped，唯一失败是 macOS fullscreen 环境阻塞
+- 仓库统一门禁在当前工作树可复现通过 -> verify: `pnpm run check` 退出码为 0，并报告 181 个测试文件、1332 个测试和 35 个 Turbo task 成功
+- Web 桌面/移动与 Electron 关键迁移路径可复现通过 -> verify: session URL、设置视觉基线、成图视觉基线、Electron Workbench 和 Electron sync 定向 E2E 均通过；最近完整 v25 E2E 复跑为 98 passed、1 failed、5 skipped，唯一失败为 macOS 原生全屏前的 Electron shell focus 前置；Electron project 单独复跑为 33 passed、1 failed、1 skipped，同一焦点阻塞；Design Scheme Workbench 文件仍为 9/9 通过。此前一次完整复跑曾得到 99 passed、5 skipped 与 34 passed、1 skipped，但没有 durable report/artifact，不能替代当前结果
 - 本轮本地同步路径不泄漏密钥或凭据 -> verify: `tests/v25/electron.sync.spec.ts` 通过并完成 disposable userData secret scan；Design Scheme canonical event/result 保持 path-free、credential-free
 
 ## 7. 风险与约束

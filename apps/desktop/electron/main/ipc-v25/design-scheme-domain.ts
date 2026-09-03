@@ -1,14 +1,15 @@
-// v2.5 design-scheme IPC seam(P01-4 成功 adapter 切片 + P01-2 详情元数据)。
+// v2.5 design-scheme IPC seam(P01-4 成功 adapter 切片 + P01-2 详情元数据 + P01-10 Agent 切片)。
 //
 // 本文件把已部署的 17 个 `designSchemes.*` 方法接到保留的本地 runtime:
 // - 直连 `packages/core` 独立 design-scheme SQLite(machine-local policy:
 //   不接受 renderer 的 owner/workspace,不挂账号,不走 resolveActiveWorkspace)。
 // - 确定性读写(list / get / create[携带 document] / update / selectCover /
 //   formalize / rename / remove)、市场搜索与上游比对复用仓库与保留服务函数。
+// - Agent 管线(create[无 document] / modify / checkUpdate 重编译)经 design-scheme-agent-adapter
+//   驾驭保留的创建/修改会话;GitHub 来源在安装确认通道(confirmInstall)部署前显式拒绝。
 // - get 走 v6 元数据读模型:完整资产映射 + legacy 资产懒回填(主进程真实
 //   stat/hash/魔数/尺寸探测),缺失或不可读的 legacy 资产直接省略,不伪造。
-// - 无法安全映射的操作返回结构化 BridgeError(见 DESIGN_SCHEME_METHOD_UNSUPPORTED_MESSAGES,
-//   登记 P01-9/P01-10),不伪造成功、不偷渡平行 DTO。
+// - 无法安全映射的操作返回结构化 BridgeError(登记 P01-9/P01-10/P01-11),不伪造成功、不偷渡平行 DTO。
 // - 出参只允许 canonical path-free schema:legacy 的 coverImagePath / storeKey /
 //   filePath 绝不进入返回值;意外异常由 gateway-bridge 统一脱敏为 INTERNAL_ERROR。
 
@@ -103,8 +104,18 @@ import { checkSchemeUpdate } from '../design-scheme/update-check';
 import { getPaths } from '../../system/paths';
 import { BridgeError, type MethodDef } from './envelope';
 import { runCanonicalDesignScheme } from './design-scheme-run-adapter';
+import {
+  DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
+  runCanonicalDesignSchemeCreation,
+  runCanonicalDesignSchemeModify,
+  type DesktopDesignSchemeAgentAdapterDeps,
+} from './design-scheme-agent-adapter';
 import { prepareDesktopDesignSchemeRun } from '../design-scheme/fixed-run-plan-builder';
 import { designSchemeExecutionRegistry } from '../design-scheme/execution-registry';
+import {
+  resolveDesktopAgentTextAdapter,
+  type ResolveAgentTextAdapter,
+} from '../design-scheme/agent-adapter';
 
 /** 保留的市场搜索函数签名(可注入以便测试,默认真实网络)。 */
 type SearchMarketFn = typeof searchMarketCandidates;
@@ -146,22 +157,27 @@ export interface DesignSchemeDomainDeps {
   exportPackage?: ExportPackageFn;
   showSaveDialog?: ShowSaveDialogFn;
   downloadsDir?: string;
+  /** Agent 文本模型适配器 seam;缺省读取 v2.1 保留的 AiConnectionStore,测试注入。 */
+  resolveAgentAdapter?: ResolveAgentTextAdapter;
 }
 
 // ---------------------------------------------------------------------------
 // 结构化 blocker:语义缺口登记在 docs/v2.5/V25-MIGRATION-CARDS.md 的
-// P01-4/P01-9/P01-10,在对应生命周期卡补齐契约与数据模型前显式失败。
+// P01-9/P01-10/P01-11,在对应生命周期卡补齐契约与数据模型前显式失败。
 // ---------------------------------------------------------------------------
 
-/** create(无 document):Agent 创建管线(来源解析/安装确认/分析/编译)不在共享契约。 */
-export const DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED =
-  'DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED' as const;
-/** modify / 上游重编译:Agent 会话(LLM 角色 + 事件产出)不在共享契约。 */
-export const DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED =
-  'DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED' as const;
-/** checkUpdate:上游有变化,但重编译需要 Agent 管线。 */
-export const DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED =
-  'DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED' as const;
+export { DESIGN_SCHEME_AGENT_AI_UNAVAILABLE };
+/**
+ * create + sourceUris(GitHub Skill):远程来源必须经用户安装确认(UI 规范 §11.2),
+ * 而 `confirmInstall` 尚未进入部署方法表(P01-9/P01-11);部署前显式拒绝,不静默安装。
+ */
+export const DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE =
+  'DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE' as const;
+/** create(无 document)夹带预解析来源快照/资产:那是确定性建库的入参,Agent 路径不接受。 */
+export const DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED =
+  'DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED' as const;
+/** create(无 document)既无 brief 也无来源:Agent 无从编译。 */
+export const DESIGN_SCHEME_CREATE_INPUT_REQUIRED = 'DESIGN_SCHEME_CREATE_INPUT_REQUIRED' as const;
 /**
  * create + historySources:契约已收敛为「渲染层只交稳定身份(runId/assetId/includePrompt),
  * 宿主按成功生成账本做 owner 校验后解析字节与提示词快照」;本地解析管线随 P02 落地前,
@@ -169,21 +185,6 @@ export const DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED =
  */
 export const DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED =
   'DESIGN_SCHEME_HISTORY_SOURCES_UNSUPPORTED' as const;
-
-export const DESIGN_SCHEME_METHOD_UNSUPPORTED_MESSAGES = {
-  agentCreation: [
-    DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
-    '设计方案的 Agent 创建管线(GitHub 来源解析、安装确认、分析、编译)尚未纳入共享契约(P01-9/P01-10)。请传入已编译的 document 走确定性建库路径。',
-  ],
-  agentModify: [
-    DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
-    '修改方案需要 Agent 编译会话与事件流,尚未纳入共享契约(P01-10)。当前可用 update 提交完整新版本文档。',
-  ],
-} as const;
-
-function throwUnsupported([code, message]: readonly [string, string]): never {
-  throw new BridgeError(code, message);
-}
 
 // ---------------------------------------------------------------------------
 // legacy ↔ canonical 映射(有损字段逐条声明;本地路径/凭据字段一律丢弃)。
@@ -338,6 +339,14 @@ function toLegacyDocument(document: DesignSchemeRevisionDocument): LegacyDocumen
   };
 }
 
+/**
+ * legacy 来源 uri → canonical:共享契约只接受 HTTPS;v2.1 历史来源写过 `history:<id>` 伪 URI,
+ * 其身份已由 revision 的快照绑定表达,这里降级丢弃而不是让整份文档不可读。
+ */
+function canonicalSourceUri(uri: string | undefined): { uri: string } | Record<string, never> {
+  return uri && /^https:\/\//i.test(uri) ? { uri } : {};
+}
+
 /** legacy document → canonical document(读路径);不可表示时结构化失败。 */
 function toCanonicalDocument(document: LegacyDocument): DesignSchemeRevisionDocument {
   const candidate = {
@@ -351,7 +360,7 @@ function toCanonicalDocument(document: LegacyDocument): DesignSchemeRevisionDocu
       id: source.id,
       kind: source.kind,
       role: source.role,
-      ...(source.uri ? { uri: source.uri } : {}),
+      ...canonicalSourceUri(source.uri),
       ...(source.ref ? { resolvedRef: source.ref } : {}),
       ...(source.commit ? { commitHash: source.commit } : {}),
       ...(source.filePath ? { relativePath: source.filePath } : {}),
@@ -685,6 +694,31 @@ export function buildDesignSchemesDomainMethods(
       emit: emitDesignSchemeEvent,
     };
   };
+  const resolveAgentAdapter: ResolveAgentTextAdapter =
+    deps.resolveAgentAdapter ?? resolveDesktopAgentTextAdapter;
+  const agentDeps = (): DesktopDesignSchemeAgentAdapterDeps => {
+    const paths = getPaths();
+    return {
+      db: resolveDb(),
+      userDataDir: deps.userDataDir ?? paths.userData,
+      picturesDir: deps.picturesDir ?? paths.pictures,
+      executionRegistry: designSchemeExecutionRegistry,
+      emit: emitDesignSchemeEvent,
+      resolveAgentAdapter,
+      toCanonicalSummary,
+      toCanonicalDocument,
+    };
+  };
+  const requireSenderId = (
+    context: { senderId?: unknown } | undefined,
+    code: string,
+    message: string,
+  ): number => {
+    if (!context || !Number.isSafeInteger(context.senderId) || (context.senderId as number) <= 0) {
+      throw new BridgeError(code, message);
+    }
+    return context.senderId as number;
+  };
 
   const shareDeps = (): ShareDeps => {
     const paths = getPaths();
@@ -822,14 +856,58 @@ export function buildDesignSchemesDomainMethods(
     },
     [DESIGN_SCHEME_WIRE_METHODS.create]: {
       input: createDesignSchemeInputSchema,
-      async handle(raw) {
+      async handle(raw, context) {
         const input = raw as CreateDesignSchemeInput;
-        if (!input.document) {
-          throwUnsupported(DESIGN_SCHEME_METHOD_UNSUPPORTED_MESSAGES.agentCreation);
-        }
         const paths = getPaths();
         const userDataDir = deps.userDataDir ?? paths.userData;
         const picturesDir = deps.picturesDir ?? paths.pictures;
+        if (!input.document) {
+          // Agent 创建:renderer 只交 brief / GitHub 地址 / 历史来源身份,编译由主进程 Agent 完成。
+          const senderId = requireSenderId(
+            context,
+            'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
+            'Agent 创建需要有效的 renderer 所有者',
+          );
+          if (
+            input.sourceBindings.length > 0 ||
+            input.sourcePackages.length > 0 ||
+            input.sourceSnapshots.length > 0 ||
+            input.sourceAssetIds.length > 0 ||
+            input.sourceAssets.length > 0
+          ) {
+            throw new BridgeError(
+              DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED,
+              'Agent 创建只接受方案描述、GitHub 地址或历史来源;预解析的来源快照与资产必须随已编译 document 走确定性建库。',
+            );
+          }
+          if (input.sourceUris.length > 0) {
+            throw new BridgeError(
+              DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE,
+              '从 GitHub 地址创建方案需要安装确认,当前桌面尚未部署该确认通道(P01-9/P01-11);请先描述方案想法或选择历史内容。',
+            );
+          }
+          if (!input.brief.trim() && input.historySources.length === 0) {
+            throw new BridgeError(
+              DESIGN_SCHEME_CREATE_INPUT_REQUIRED,
+              '请描述你的方案想法,或选择历史内容作为来源。',
+            );
+          }
+          const history = resolveHistorySources(
+            input.historySources,
+            deps.coreDb ?? getDb(),
+            userDataDir,
+            picturesDir,
+          ).map(({ historyId, imagePath, promptText }) => ({
+            historyId,
+            imagePath,
+            ...(promptText ? { promptText } : {}),
+          }));
+          return runCanonicalDesignSchemeCreation(
+            { executionId: input.executionId, brief: input.brief, history },
+            senderId,
+            agentDeps(),
+          );
+        }
         let persistedHistory: ReturnType<typeof persistHistorySnapshot> | null = null;
         try {
           const repo = repository();
@@ -947,21 +1025,36 @@ export function buildDesignSchemesDomainMethods(
     },
     [DESIGN_SCHEME_WIRE_METHODS.modify]: {
       input: modifyDesignSchemeInputSchema,
-      async handle() {
-        throwUnsupported(DESIGN_SCHEME_METHOD_UNSUPPORTED_MESSAGES.agentModify);
+      async handle(raw, context) {
+        const input = raw as z.output<typeof modifyDesignSchemeInputSchema>;
+        const senderId = requireSenderId(
+          context,
+          'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
+          'Agent 修改需要有效的 renderer 所有者',
+        );
+        // baseDocument 只是 renderer 侧的展示快照;基线校验以主进程仓库为权威(adapter 内核对)。
+        return runCanonicalDesignSchemeModify(
+          {
+            executionId: input.executionId,
+            schemeId: input.schemeId,
+            baseRevisionId: input.baseRevisionId,
+            instruction: input.instruction,
+          },
+          senderId,
+          agentDeps(),
+        );
       },
     },
     [DESIGN_SCHEME_WIRE_METHODS.cancel]: {
       input: cancelDesignSchemeInputSchema,
       async handle(raw, context) {
         const input = raw as z.output<typeof cancelDesignSchemeInputSchema>;
-        if (!context || !Number.isSafeInteger(context.senderId) || context.senderId <= 0) {
-          throw new BridgeError(
-            'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
-            '执行取消需要有效的 renderer 所有者',
-          );
-        }
-        const outcome = designSchemeExecutionRegistry.cancel(context.senderId, input.executionId);
+        const senderId = requireSenderId(
+          context,
+          'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
+          '执行取消需要有效的 renderer 所有者',
+        );
+        const outcome = designSchemeExecutionRegistry.cancel(senderId, input.executionId);
         if (outcome.status === 'not-found') {
           throw new BridgeError('DESIGN_SCHEME_EXECUTION_NOT_FOUND', '执行不存在或不属于当前窗口');
         }
@@ -1059,18 +1152,22 @@ export function buildDesignSchemesDomainMethods(
       input: checkDesignSchemeUpdateInputSchema,
       async handle(raw) {
         const input = raw as z.output<typeof checkDesignSchemeUpdateInputSchema>;
-        // 复用保留的更新检查,resolveAdapter 恒 null:上游有变化时不触发
-        // Agent 重编译,而是返回 AUTH_REQUIRED,由下面映射为明确 blocker。
-        const result = await checkUpdateFn(input.schemeId, {
-          db: resolveDb(),
-          resolveAdapter: () => null,
-          ...(input.revisionId ? { requestedRevisionId: input.revisionId } : {}),
-        });
+        // 复用保留的更新检查:上游有变化时以 Agent 文本连接重新固化快照 → 分析 → 编译,
+        // 产出待验证草稿;无可用文本连接时 AUTH_REQUIRED 映射为明确的 Agent 不可用 blocker。
+        const result = await checkUpdateFn(
+          input.schemeId,
+          {
+            db: resolveDb(),
+            resolveAdapter: resolveAgentAdapter,
+            userDataDir: deps.userDataDir ?? getPaths().userData,
+          },
+          input.revisionId,
+        );
         if (!result.ok) {
           if (result.error.code === 'AUTH_REQUIRED') {
             throw new BridgeError(
-              DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
-              '上游已有更新,但重新编译需要 Agent 管线,尚未纳入共享契约(P01-10)。',
+              DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
+              scrubText(result.error.message || '重新编译需要可用的 Agent 文本模型连接'),
             );
           }
           if (result.error.code === 'MISSING_REFERENCE') {

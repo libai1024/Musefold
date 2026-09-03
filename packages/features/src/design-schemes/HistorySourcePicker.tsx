@@ -85,6 +85,7 @@ export function HistorySourcePicker({
   function confirm() {
     const items = selectedRecords.map((record: GenerationJob) => ({
       jobId: record.id,
+      assetId: record.assets[0]?.id ?? '',
       assetUrl: record.assets[0]?.url ?? '',
       prompt: includePrompts ? (record.userPrompt ?? record.request.prompt) : null,
     }));

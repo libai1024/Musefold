@@ -191,7 +191,14 @@ describe('useDesignSchemesIntegration 意图流', () => {
       wrapper,
     });
     const selection = {
-      items: [{ jobId: 'job-1', assetUrl: 'media://a.png', prompt: '一只水彩风格的猫' }],
+      items: [
+        {
+          jobId: 'job-1',
+          assetId: 'asset-1',
+          assetUrl: 'media://a.png',
+          prompt: '一只水彩风格的猫',
+        },
+      ],
       note: '保留构图，不保留主体。',
     };
     result.current.onCreateFromHistory?.(selection);

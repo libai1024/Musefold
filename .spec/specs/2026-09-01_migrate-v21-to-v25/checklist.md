@@ -14,13 +14,13 @@
 - [x] 没有为本轮引入无关重构或顺手清理；桌宠冻结面和 Doubao 内部未被迁移
 
 ## 功能完整性
-- [ ] MVP 功能全部实现：壳、工作台、生图、提示词、历史、设计方案、设置、账号/连接、同步和归档会话；Design Scheme Desktop Workbench 提交、图片 prepare、Agent create/modify/recompile/event、Web runtime/cloud assets/package 及若干 parity 仍未闭合
+- [ ] MVP 功能全部实现：壳、工作台、生图、提示词、历史、设计方案、设置、账号/连接、同步和归档会话；Design Scheme Desktop Workbench run/cancel 接缝已于 2026-09-01 接通，并有真实 Electron 取消路径证据；图片 prepare、Agent create/modify/recompile/event（onCreate/onModify）、Web runtime/cloud assets/package、成功出图 E2E 及若干 parity 仍未闭合
 - [x] 已实现范围内的边界条件已处理：无 Provider、加载/错误/空态、取消/重试/删除、移动抽屉和主要窗口状态
 - [x] 错误处理符合预期：结构化 BridgeError/API 错误、用户可重试、生成/同步状态机可收敛
 
 ## 测试与验证
-- [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出。Design Scheme 本轮受影响套件 8 个文件、151 个测试通过，覆盖主进程权威 text-only `prepareRun`、strict renderer 输入、四步计划、formal/fidelity/source/Provider blocker、legacy 来源归一化、完整槽位/来源/Provider 执行前复核与 prepare→run 原样往返；Desktop cancellation-wins 已进入 checkpoint `607e7b5`。Desktop Workbench 提交、图片 prepare、Web/cloud/Agent/Electron 成功路径仍未宣称完成
-- [x] Web 桌面/移动与 Electron 已验证 shell/workbench/prompts/settings/sync 关键路径；Design Scheme Web deep-link 的打开、返回、删除 query 生命周期和非法参数清理已有 22 个 Web host tests；本轮 `@musefold/features` 共 23 个文件、286 个测试通过，覆盖 Design Scheme 正式详情常驻修改入口、相册键盘与横向触控导航、History 成本展示、时间线内容尺寸变化贴底与用户离底不抢位；移动 Workbench 完成态视觉基线已刷新并连续复核通过；原生 macOS fullscreen 被 runner 前台焦点阻塞
+- [x] 核心逻辑有就地单测、集成测试或等价 runtime 证据；未覆盖的真实 PG/Worker/跨设备能力已单独列出。Design Scheme 本轮受影响套件 8 个文件、151 个测试通过，覆盖主进程权威 text-only `prepareRun`、strict renderer 输入、四步计划、formal/fidelity/source/Provider blocker、legacy 来源归一化、完整槽位/来源/Provider 执行前复核与 prepare→run 原样往返；Desktop cancellation-wins 已进入 checkpoint `607e7b5`。2026-09-01 Desktop Workbench Composer run/cancel 接缝有 desktop-shell 17 个用例与 features 297 个测试（workbench-schemes 14、integration-store 15）证据；Electron Workbench 9/9 并以回环 Provider 覆盖真实 IPC、同一 executionId、活动 Workbench 会话、运行中轮询、停止取消、双账本 `cancelled`、输入保留和零方案资产提交。图片 prepare、Web/cloud/Agent 与成功出图路径仍未宣称完成
+- [x] Web 桌面/移动与 Electron 已验证 shell/workbench/prompts/settings/sync 关键路径；Design Scheme Web deep-link 的打开、返回、删除 query 生命周期和非法参数清理已有 22 个 Web host tests；本轮 `@musefold/features` 共 23 个文件、297 个测试通过，覆盖 Design Scheme 正式详情常驻修改入口、相册键盘与横向触控导航、History 成本展示、时间线内容尺寸变化贴底与用户离底不抢位；移动 Workbench 完成态视觉基线已刷新并连续复核通过；最近完整 Electron project 为 33 passed、1 failed、1 skipped，唯一失败是 macOS 原生全屏前的 shell focus 前置，Design Scheme Workbench 仍 9/9 通过
 
 ## 文档同步
 - [x] 受影响的 v2.5 台账、UI 规范差异和证据边界已更新；未登记的历史数字未被冒充当前通过
@@ -28,7 +28,7 @@
 
 ## 部署验证（如适用）
 - [x] 本地源码构建与测试门禁正常；受影响的 `@musefold/features` 与 `@musefold/web-next` typecheck 通过，4 个 deep-link 变更文件 Biome 通过；生产 package-smoke、migration replay 和安全产物扫描仍由 Q03 记录为未闭合
-- [x] Electron/Web 构建成功；真实 macOS fullscreen runner 资格不具备，保留原用例断言并记录 blocked
+- [x] Electron/Web 构建成功；最近 Electron project 为 33 passed、1 failed、1 skipped，原生 macOS fullscreen 用例因 runner 无法取得 shell 前台焦点而阻塞，未将失败改写为产品通过
 
 ## 跨载体一致性
 - [x] 共享 contracts、platform gateway、Desktop bridge/preload/desktop gateway 的方法集合和错误边界保持一致
@@ -42,7 +42,7 @@
 
 ## 分支与多代理治理
 - [x] 当前位于 `spec/2026-09-01_migrate-v21-to-v25` integration branch
-- [x] 本包执行与验收均在该分支进行，已建立不推送 checkpoint，未覆盖既有 dirty worktree
+- [x] 本包执行与验收均在该分支进行，已保留既有不推送 checkpoint `607e7b5`，最终收口 checkpoint 待本轮门禁复核后创建，未覆盖既有 dirty worktree
 - [x] sidecar ownership、non-targets、verify 和主线程合流门禁已记录在 `spec.md` 编排策略
 
 ## 编排治理
@@ -51,19 +51,19 @@
 - [x] verification gate 明确以主线程 `pnpm run check`、双端 E2E 和 Spec 校验为准
 
 ## 行为成效
-- [x] 统一门禁结果：`pnpm run check` 通过，180 个测试文件、1301 个测试、35 个 Turbo task 成功
-- [x] 已回填关键路径验证：Web session URL、Web mobile Settings/Workbench 视觉、Electron Workbench、Electron sync 定向 E2E 通过；移动 Workbench 完成态视觉基线已刷新，时间线尺寸变化贴底回归通过
-- [x] 本轮返工原因已记录：工作台会话列表竞态、孤立 draft/sync fixture、Settings 归档行视觉基线；fullscreen runner 保留为外部 blocked
+- [x] 统一门禁结果：`pnpm run check` 通过，2026-09-01 为 181 个测试文件、1332 个测试、35 个 Turbo task 成功（此前基线 1301）
+- [x] 已回填关键路径验证：Web session URL、Web mobile Settings/Workbench 视觉、Electron Workbench、Electron sync 定向 E2E 通过；2026-09-01 Workbench 接缝重构后复跑 `electron.workbench.spec.ts` 9/9，新增正式纯文本方案经真实 IPC 进入回环 Provider 并由停止钮取消的双账本证据；`web.workbench.spec.ts`（web-desktop + web-mobile）17 passed/1 skipped（移动端无侧栏的既有跳过）。普通生成、运行中取消与视觉基线不回归；移动 Workbench 完成态视觉基线已刷新，时间线尺寸变化贴底回归通过；最近完整 `pnpm run test:e2e` 为 98 passed、1 failed、5 skipped，唯一失败是 macOS 原生全屏前的 shell focus 前置，不影响上述 Design Scheme/Workbench 断言
+- [x] 本轮返工原因已记录：工作台会话列表竞态、孤立 draft/sync fixture、Settings 归档行视觉基线，以及 bare Escape 在串行 Radix dismiss layer 后的时序不稳定；Electron 方案 E2E 改用同语义的可见停止钮，Escape 继续由共享 Workbench 测试覆盖
 
 ## 验收证据
 - 外部对标：以 task package 状态机和 `V25-MIGRATION-CARDS.md` 当前状态为真；Design Scheme、真实 PG/Worker/跨设备、完整 CI/package-smoke 仍未宣称完成
 - 脚本验证：`pnpm run check` 通过；`check_spec_package.py` 已运行，当前因未完成 parity/全量证据与验收结果而不通过
 - 旧新对比：已按 `docs/v2.5/V25-UI-SPEC.md` 与迁移台账反向覆盖表核对主要入口、状态和有意差异；完整 v2.1 parity 仍有明确待迁子卡
-- 差异边界：桌宠不迁移；Doubao 内部不迁移但入口保留；macOS fullscreen `D16` 为环境 blocked；云端 Design Scheme capability 保持关闭
+- 差异边界：桌宠不迁移；Doubao 内部不迁移但入口保留；云端 Design Scheme capability 保持关闭
 - 行为成效：共享 features 已覆盖主要 Web desktop/mobile 与 Electron shell/workbench/prompts/settings/sync 路径
 - 构建：`pnpm run check` 内含 Electron/Web build、typecheck、Biome、unit/integration、dependency-cruiser，全部成功
-- 测试：`pnpm run check` 为 180 个测试文件/1301 个测试；本轮受影响 Design Scheme 套件为 8 个文件/151 个测试，根目录 `pnpm run typecheck` 通过；本轮完整 Electron project 为 32 passed、1 skipped、1 failed，唯一失败为 fullscreen runner 无法让 Electron 窗口获得前台焦点，跳过项为真实 key 场景；此前完整 v25 E2E 为 97 passed、1 failed、5 skipped；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均通过；Web server 同时记录 `127.0.0.1:8787` 未启动的 proxy 连接拒绝日志，未影响通过用例
-- 手工验证：已检查同步暂停/恢复、冲突动作、同账号重登和 userData secret scan；真实 fullscreen 需具备 WindowServer 前台激活资格的 macOS runner
+- 测试：`pnpm run check` 2026-09-01 为 181 个测试文件/1332 个测试（此前 1301）；Design Scheme 主进程套件为 8 个文件/151 个测试，Desktop Workbench 接缝有 desktop-shell 17 个用例、workbench-schemes 14 个、integration-store 15 个，根目录 `pnpm run typecheck` 通过；最新完整 Electron project 为 33 passed、1 failed、1 skipped，唯一失败是 macOS 原生 fullscreen 前 runner 无法让 Electron shell 获得前台焦点，skip 为真实 key 场景；`electron.workbench.spec.ts` 9/9，包含 Design Scheme run/cancel 双账本收敛；最新完整 v25 E2E 为 98 passed、1 failed、5 skipped，同一 fullscreen shell focus 前置失败；此前一次完整复跑的 99 passed、5 skipped 与 34 passed、1 skipped 没有 durable report/artifact，只能作为历史记录；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均通过；Web server 同时记录 `127.0.0.1:8787` 未启动的 proxy 连接拒绝日志，未影响通过用例
+- 手工验证：已检查同步暂停/恢复、冲突动作、同账号重登和 userData secret scan；本轮未使用真实账号凭据，也未发起云端或付费生图
 
 ---
 

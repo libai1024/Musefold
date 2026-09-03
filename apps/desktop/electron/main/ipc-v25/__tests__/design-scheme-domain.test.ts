@@ -40,18 +40,29 @@ import type {
 
 // 域文件经 update-check/source-ingestion 间接引用 electron(system/paths);按
 // share.test.ts 的做法给最小 app mock,阻断真实 electron 解析。
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp/musefold-ds-domain-test' } }));
+// webContents.fromId 是 Agent 事件出口:各用例按 senderId 注入替身捕获 canonical 事件。
+const { webContentsFromId } = vi.hoisted(() => ({ webContentsFromId: vi.fn() }));
+vi.mock('electron', () => ({
+  app: { getPath: () => '/tmp/musefold-ds-domain-test' },
+  webContents: { fromId: webContentsFromId },
+}));
 
 import {
   buildDesignSchemesDomainMethods,
-  DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
-  DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
-  DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
+  DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
+  DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED,
+  DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE,
+  DESIGN_SCHEME_CREATE_INPUT_REQUIRED,
   DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
   designSchemeEventChannel,
   parseDesignSchemeEvent,
   type DesignSchemeDomainDeps,
 } from '../design-scheme-domain';
+import { designSchemeExecutionRegistry } from '../../design-scheme/execution-registry';
+import type {
+  OpenAiCompatibleTextAdapter,
+  TextCompletionRequest,
+} from '../../design-scheme/text-adapter';
 import { BridgeError } from '../envelope';
 
 // ---------------------------------------------------------------------------
@@ -182,6 +193,19 @@ function createInputFixture(schemeId: string, revisionId: string, overrides = {}
   };
 }
 
+/** Agent 创建的 renderer 严格入参:只有 brief / 历史来源身份,没有 document 与预解析来源。 */
+function agentCreateInput(overrides: Record<string, unknown> = {}) {
+  return {
+    executionId: 'exec_agent_create_1',
+    brief: '做一套柔和水彩质感的活动海报方案',
+    sourceUris: [],
+    sourceBindings: [],
+    sourceAssetIds: [],
+    historySources: [],
+    ...overrides,
+  };
+}
+
 /** 仓库层种子用的 legacy 文档(promoteWorkingDraft 前置:applyAgentRevision)。 */
 function legacyDocument(revisionId: string, schemeId: string): LegacyDocument {
   const binding: LegacySourceBinding = {
@@ -258,9 +282,57 @@ let consumeStagedPackage: ReturnType<typeof vi.fn>;
 let importPackage: ReturnType<typeof vi.fn>;
 let exportPackage: ReturnType<typeof vi.fn>;
 let showSaveDialog: ReturnType<typeof vi.fn>;
+let resolveAgentAdapter: ReturnType<typeof vi.fn>;
 let userDataDir: string;
 let picturesDir: string;
 let outsideManagedDir: string;
+
+/** Compiler/Reviser 角色的结构化 JSON 替身(满足 desktop-contracts agents schema)。 */
+const AGENT_COMPILED_JSON = JSON.stringify({
+  name: 'Agent 水彩海报',
+  summary: '柔和水彩质感的活动海报配方',
+  fidelity: 'adapted',
+  inputs: [
+    { label: '主题', kind: 'text', required: true, variable: 'topic', description: '一句话主题' },
+  ],
+  constraints: [
+    {
+      domain: 'output',
+      statement: '默认 3:4 竖版',
+      mode: 'required',
+      userOverridable: true,
+      evidencePaths: [],
+    },
+  ],
+  promptProgram: [
+    { kind: 'input-template', template: '为「{{topic}}」画一幅水彩海报', variables: ['topic'] },
+    { kind: 'style-rule', template: '柔和水彩,留白克制', variables: [] },
+  ],
+  adopted: ['水彩质感'],
+  omitted: [],
+  warnings: [],
+  creationSummary: '已根据描述整理出可复用的水彩海报方案,请试运行验证。',
+});
+
+/** 假文本适配器:按系统提示词角色返回固定 JSON;`fail` 时抛 401 模拟密钥失效。 */
+function makeAgentAdapter(options: { fail?: boolean; onComplete?: () => void } = {}) {
+  const complete = vi.fn(async (request: TextCompletionRequest) => {
+    options.onComplete?.();
+    if (request.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    if (options.fail) {
+      throw Object.assign(new Error('AI 请求失败(401):invalid key'), { statusCode: 401 });
+    }
+    return { text: AGENT_COMPILED_JSON, model: 'test-text-model' };
+  });
+  return {
+    adapter: {
+      modelId: 'test-text-model',
+      connectionName: 'test-text-conn',
+      complete,
+    } as unknown as OpenAiCompatibleTextAdapter,
+    complete,
+  };
+}
 
 function wire() {
   searchMarket = vi.fn();
@@ -269,11 +341,15 @@ function wire() {
   importPackage = vi.fn();
   exportPackage = vi.fn();
   showSaveDialog = vi.fn();
+  resolveAgentAdapter = vi.fn(() => makeAgentAdapter().adapter);
   const deps: DesignSchemeDomainDeps = {
     db,
     coreDb,
     searchMarket: searchMarket as unknown as NonNullable<DesignSchemeDomainDeps['searchMarket']>,
     checkUpdate: checkUpdate as unknown as NonNullable<DesignSchemeDomainDeps['checkUpdate']>,
+    resolveAgentAdapter: resolveAgentAdapter as unknown as NonNullable<
+      DesignSchemeDomainDeps['resolveAgentAdapter']
+    >,
     consumeStagedPackage: consumeStagedPackage as unknown as NonNullable<
       DesignSchemeDomainDeps['consumeStagedPackage']
     >,
@@ -478,6 +554,36 @@ describe('list', () => {
 describe('get', () => {
   it('未知方案 → NOT_FOUND', async () => {
     expect((await invokeError('get', { id: 'dsch_ghost' })).code).toBe('NOT_FOUND');
+  });
+
+  it('v2.1 历史来源写过的 `history:<id>` 伪 URI 不阻断详情读取:降级丢弃,来源身份保留', async () => {
+    const legacy = legacyDocument('dsrv_legacy_hist', 'dsch_legacy_hist');
+    legacy.sources = [
+      { id: 'src_brief', kind: 'user-brief', role: 'context' },
+      { id: 'src_hist_1', kind: 'history-image', role: 'example', uri: 'history:hist_001' },
+      {
+        id: 'src_hist_1_prompt',
+        kind: 'conversation-turn',
+        role: 'context',
+        uri: 'history:hist_001',
+      },
+    ];
+    repo.insertSchemeDraft({
+      document: legacy,
+      sourceLabel: '历史 · 1 张图片',
+      sourcePresentation: 'musefold-created',
+      createdBy: 'agent',
+      bindings: [],
+    });
+
+    const detail = await invoke('get', { id: 'dsch_legacy_hist' });
+    expect(() => designSchemeDetailSchema.parse(detail)).not.toThrow();
+    expect(detail.document.sources).toEqual([
+      { id: 'src_brief', kind: 'user-brief', role: 'context' },
+      { id: 'src_hist_1', kind: 'history-image', role: 'example' },
+      { id: 'src_hist_1_prompt', kind: 'conversation-turn', role: 'context' },
+    ]);
+    expect(JSON.stringify(detail)).not.toContain('history:');
   });
 
   it('详情过 canonical 契约:legacy 资产真实 PNG 懒回填,缺失资产省略,无路径泄漏', async () => {
@@ -697,12 +803,9 @@ describe('create', () => {
     expect(error.code).toBe('DESIGN_SCHEME_ALREADY_EXISTS');
   });
 
-  it('缺少已编译 document → Agent 创建管线 blocker,不伪造成功', async () => {
-    const error = await invokeError(
-      'create',
-      createInputFixture('dsch_agent', 'dsrv_a1', { document: undefined }),
-    );
-    expect(error.code).toBe(DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED);
+  it('缺少已编译 document 且无 renderer 所有者 → 拒绝进入 Agent 管线', async () => {
+    const error = await invokeError('create', agentCreateInput());
+    expect(error.code).toBe('DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED');
     expect(error.code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
   });
 
@@ -908,6 +1011,327 @@ describe('create', () => {
       );
       expect(error.code).toBe(DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agent 创建 / 修改(P01-10):保留的 v2.1 会话经 canonical adapter 驾驭
+// ---------------------------------------------------------------------------
+
+const AGENT_SENDER = 41;
+
+/** 订阅域向 renderer 发出的 canonical 事件(webContents.fromId 替身)。 */
+function captureEvents(senderId: number) {
+  const events: unknown[] = [];
+  const send = vi.fn((_channel: string, payload: unknown) => {
+    events.push(payload);
+  });
+  webContentsFromId.mockImplementation((id: number) =>
+    id === senderId ? { isDestroyed: () => false, send } : undefined,
+  );
+  return { events, send };
+}
+
+describe('create(Agent 管线,无 document)', () => {
+  beforeEach(() => {
+    designSchemeExecutionRegistry.cleanupAll();
+  });
+
+  it('brief → Compiler 编译 → 落草稿;返回 canonical 结果并按序发出 creation 事件', async () => {
+    const { events } = captureEvents(AGENT_SENDER);
+    const result = await invoke('create', agentCreateInput(), AGENT_SENDER);
+
+    expect(() => createDesignSchemeResultSchema.parse(result)).not.toThrow();
+    expect(result.scheme).toMatchObject({
+      status: 'draft',
+      name: 'Agent 水彩海报',
+      sourcePresentation: 'musefold-created',
+      sourceLabel: 'Musefold 创建',
+    });
+    expect(result.document.revisionId).toBe(result.revisionId);
+    expect(result.document.inputs).toEqual([
+      expect.objectContaining({ id: 'topic', label: '主题', kind: 'text', required: true }),
+    ]);
+    expect(result.document.sources).toEqual([
+      expect.objectContaining({ id: 'src_brief', kind: 'user-brief', role: 'context' }),
+    ]);
+    expect(result.creationSummary).toContain('水彩海报方案');
+    expect(result.trace.map((item: { id: string }) => item.id)).toEqual(
+      expect.arrayContaining(['compiler', 'save-draft', 'creation-summary']),
+    );
+    // 方案确实落库且可经 get 读回。
+    expect(repo.requireSummary(result.scheme.id).status).toBe('draft');
+
+    const kinds = events.map((event) => parseDesignSchemeEvent(event).kind);
+    expect(kinds[0]).toBe('state');
+    expect(kinds).toContain('trace');
+    expect(kinds.at(-1)).toBe('draft-ready');
+    const states = events
+      .map((event) => parseDesignSchemeEvent(event))
+      .flatMap((event) => (event.kind === 'state' ? [event.state] : []));
+    expect(states).toEqual(['created', 'compiling_scheme', 'draft_ready']);
+    const draftReady = events.map((event) => parseDesignSchemeEvent(event)).at(-1);
+    expect(draftReady?.kind === 'draft-ready' && draftReady.result.revisionId).toBe(
+      result.revisionId,
+    );
+    // 事件与返回值绝不含本地路径。
+    expect(JSON.stringify(events)).not.toContain(userDataDir);
+    expect(JSON.stringify(result)).not.toContain(userDataDir);
+  });
+
+  it('历史来源随 Agent 创建固化为 example 来源,提示词只取账本快照', async () => {
+    const sourcePath = join(picturesDir, 'agent-history.png');
+    writeFileSync(sourcePath, realPngBuffer(320, 240));
+    const runs = new GenerationRunRepository(coreDb);
+    runs.create({
+      id: 'run_agent_history',
+      providerId: 'provider-test',
+      model: 'test-model',
+      basePrompt: 'base prompt',
+      finalPrompt: 'ledger final prompt',
+      params: { schemaVersion: 1 },
+      promptSnapshot: {
+        schemaVersion: 1,
+        userPrompt: 'user prompt',
+        basePrompt: 'base prompt',
+        refinementInstruction: null,
+        finalPrompt: 'agent snapshot prompt',
+        negativePrompt: null,
+      },
+    });
+    runs.start('run_agent_history');
+    runs.complete('run_agent_history', {
+      assets: [{ id: 'asset_agent_history', mediaPath: sourcePath, mimeType: 'image/png' }],
+    });
+    captureEvents(AGENT_SENDER);
+
+    const result = await invoke(
+      'create',
+      agentCreateInput({
+        historySources: [
+          { runId: 'run_agent_history', assetId: 'asset_agent_history', includePrompt: true },
+        ],
+      }),
+      AGENT_SENDER,
+    );
+
+    expect(result.scheme.sourceLabel).toBe('历史 · 1 张图片');
+    expect(result.document.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'user-brief', role: 'context' }),
+        expect.objectContaining({ kind: 'history-image', role: 'example' }),
+        expect.objectContaining({ kind: 'conversation-turn', role: 'context' }),
+      ]),
+    );
+    const detail = await invoke('get', { id: result.scheme.id });
+    const historySnapshot = detail.sourceSnapshots.find(
+      (snapshot: { kind: string }) => snapshot.kind === 'history',
+    );
+    expect(historySnapshot?.files).toEqual(
+      expect.arrayContaining([expect.objectContaining({ textExcerpt: 'agent snapshot prompt' })]),
+    );
+    expect(JSON.stringify(result)).not.toContain(sourcePath);
+  });
+
+  it('历史来源不可用时在启动 Agent 前拒绝(不消耗模型调用)', async () => {
+    captureEvents(AGENT_SENDER);
+    const { adapter, complete } = makeAgentAdapter();
+    resolveAgentAdapter.mockReturnValue(adapter);
+    const error = await invokeError(
+      'create',
+      agentCreateInput({
+        historySources: [{ runId: 'run_missing', assetId: 'asset_missing', includePrompt: false }],
+      }),
+      AGENT_SENDER,
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE);
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('无可用 Agent 文本连接 → 结构化 blocker + canonical failed 事件(configure-ai)', async () => {
+    const { events } = captureEvents(AGENT_SENDER);
+    resolveAgentAdapter.mockReturnValue(null);
+    const error = await invokeError('create', agentCreateInput(), AGENT_SENDER);
+    expect(error.code).toBe(DESIGN_SCHEME_AGENT_AI_UNAVAILABLE);
+    expect(error.message).toContain('文本模型');
+    const failed = events.map((event) => parseDesignSchemeEvent(event)).at(-1);
+    expect(failed).toMatchObject({
+      kind: 'failed',
+      executionId: 'exec_agent_create_1',
+      error: { code: DESIGN_SCHEME_AGENT_AI_UNAVAILABLE, recoveryAction: 'configure-ai' },
+    });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
+  });
+
+  it('模型 401 → 会话失败:failed 事件与 BridgeError 同码(AUTH_REQUIRED),不留半成品', async () => {
+    const { events } = captureEvents(AGENT_SENDER);
+    resolveAgentAdapter.mockReturnValue(makeAgentAdapter({ fail: true }).adapter);
+    const error = await invokeError('create', agentCreateInput(), AGENT_SENDER);
+    expect(error.code).toBe('AUTH_REQUIRED');
+    const failed = events.map((event) => parseDesignSchemeEvent(event)).at(-1);
+    expect(failed).toMatchObject({
+      kind: 'failed',
+      error: { code: 'AUTH_REQUIRED', recoveryAction: 'configure-ai' },
+    });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
+  });
+
+  it('GitHub 来源(sourceUris)在安装确认通道部署前显式拒绝,不静默安装', async () => {
+    const { complete, adapter } = makeAgentAdapter();
+    resolveAgentAdapter.mockReturnValue(adapter);
+    const error = await invokeError(
+      'create',
+      agentCreateInput({ sourceUris: [GITHUB_URI] }),
+      AGENT_SENDER,
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE);
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('无 document 却夹带预解析来源快照/资产 → 拒绝(那是确定性建库入参)', async () => {
+    const base = createInputFixture('dsch_mixed', 'dsrv_mixed', { document: undefined });
+    const error = await invokeError('create', { ...base, sourceUris: [] }, AGENT_SENDER);
+    expect(error.code).toBe(DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED);
+  });
+
+  it('既无 brief 也无来源 → 拒绝', async () => {
+    const error = await invokeError('create', agentCreateInput({ brief: '   ' }), AGENT_SENDER);
+    expect(error.code).toBe(DESIGN_SCHEME_CREATE_INPUT_REQUIRED);
+  });
+
+  it('同一 executionId 的执行进行中时重复提交 → DUPLICATE;取消经 cancel 生效并发 cancelled 事件', async () => {
+    const { events } = captureEvents(AGENT_SENDER);
+    let releaseModel!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseModel = resolve;
+    });
+    const adapter = {
+      modelId: 'slow-model',
+      connectionName: 'slow',
+      complete: async (request: TextCompletionRequest) => {
+        await gate;
+        if (request.signal?.aborted) {
+          throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        }
+        return { text: AGENT_COMPILED_JSON, model: 'slow-model' };
+      },
+    } as unknown as OpenAiCompatibleTextAdapter;
+    resolveAgentAdapter.mockReturnValue(adapter);
+
+    const running = invoke('create', agentCreateInput(), AGENT_SENDER).catch(
+      (error: unknown) => error,
+    );
+    await vi.waitFor(() =>
+      expect(events.map((event) => parseDesignSchemeEvent(event).kind)).toContain('trace'),
+    );
+    const duplicate = await invokeError('create', agentCreateInput(), AGENT_SENDER);
+    expect(duplicate.code).toBe('DESIGN_SCHEME_EXECUTION_DUPLICATE');
+
+    const cancelled = await invoke('cancel', { executionId: 'exec_agent_create_1' }, AGENT_SENDER);
+    expect(cancelled).toEqual({ executionId: 'exec_agent_create_1', status: 'cancelled' });
+    releaseModel();
+    const outcome = (await running) as BridgeError;
+    expect(outcome).toBeInstanceOf(BridgeError);
+    expect(outcome.code).toBe('CANCELLED');
+    expect(events.map((event) => parseDesignSchemeEvent(event)).at(-1)).toMatchObject({
+      kind: 'cancelled',
+      executionId: 'exec_agent_create_1',
+    });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
+  });
+});
+
+describe('modify(Agent 管线)', () => {
+  beforeEach(() => {
+    designSchemeExecutionRegistry.cleanupAll();
+  });
+
+  it('草稿方案:Reviser 产出直接替换当前版本;返回 canonical 结果并发 draft-ready', async () => {
+    await invoke('create', createInputFixture('dsch_mod_draft', 'dsrv_md1'));
+    const { events } = captureEvents(AGENT_SENDER);
+
+    const result = await invoke(
+      'modify',
+      {
+        executionId: 'exec_agent_modify_1',
+        schemeId: 'dsch_mod_draft',
+        baseRevisionId: 'dsrv_md1',
+        instruction: '把默认比例改成 3:4',
+      },
+      AGENT_SENDER,
+    );
+
+    expect(() => createDesignSchemeResultSchema.parse(result)).not.toThrow();
+    expect(result.scheme.id).toBe('dsch_mod_draft');
+    expect(result.scheme.status).toBe('draft');
+    expect(result.scheme.currentRevisionId).toBe(result.revisionId);
+    expect(result.revisionId).not.toBe('dsrv_md1');
+    expect(result.document.name).toBe('Agent 水彩海报');
+    expect(result.document.parentRevisionId ?? null).toBeNull();
+    expect(result.creationSummary).toContain('水彩海报方案');
+    expect(events.map((event) => parseDesignSchemeEvent(event).kind).at(-1)).toBe('draft-ready');
+  });
+
+  it('正式方案:新版本作为待验证草稿保存,正式版本保持可用', async () => {
+    await createFormalScheme('dsch_mod_formal', 'dsrv_mf1');
+    captureEvents(AGENT_SENDER);
+
+    const result = await invoke(
+      'modify',
+      {
+        executionId: 'exec_agent_modify_2',
+        schemeId: 'dsch_mod_formal',
+        baseRevisionId: 'dsrv_mf1',
+        instruction: '加宽标题区域',
+      },
+      AGENT_SENDER,
+    );
+
+    expect(result.scheme.status).toBe('formal');
+    expect(result.scheme.currentRevisionId).toBe('dsrv_mf1');
+    expect(result.scheme.workingDraftRevisionId).toBe(result.revisionId);
+    expect(result.document.revisionId).toBe(result.revisionId);
+  });
+
+  it('基线不是当前版本/待验证草稿 → INVALID_STATE,不调用模型', async () => {
+    await invoke('create', createInputFixture('dsch_mod_stale', 'dsrv_ms1'));
+    const { adapter, complete } = makeAgentAdapter();
+    resolveAgentAdapter.mockReturnValue(adapter);
+    const error = await invokeError(
+      'modify',
+      {
+        executionId: 'exec_agent_modify_3',
+        schemeId: 'dsch_mod_stale',
+        baseRevisionId: 'dsrv_someone_else',
+        instruction: '改一下',
+      },
+      AGENT_SENDER,
+    );
+    expect(error.code).toBe('DESIGN_SCHEME_INVALID_STATE');
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('方案不存在 → NOT_FOUND;无所有者 → OWNER_REQUIRED;无文本连接 → AGENT_AI_UNAVAILABLE', async () => {
+    const payload = {
+      executionId: 'exec_agent_modify_4',
+      schemeId: 'dsch_nope',
+      baseRevisionId: 'dsrv_nope',
+      instruction: '改一下',
+    };
+    expect((await invokeError('modify', payload, AGENT_SENDER)).code).toBe('NOT_FOUND');
+    expect((await invokeError('modify', payload)).code).toBe(
+      'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
+    );
+
+    await invoke('create', createInputFixture('dsch_mod_noai', 'dsrv_mn1'));
+    captureEvents(AGENT_SENDER);
+    resolveAgentAdapter.mockReturnValue(null);
+    const error = await invokeError(
+      'modify',
+      { ...payload, schemeId: 'dsch_mod_noai', baseRevisionId: 'dsrv_mn1' },
+      AGENT_SENDER,
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_AGENT_AI_UNAVAILABLE);
   });
 });
 
@@ -1240,16 +1664,25 @@ describe('searchMarket', () => {
 });
 
 describe('checkUpdate', () => {
-  it('确定性结果过 canonical 契约,且绝不解析 Agent 适配器', async () => {
+  it('确定性结果过 canonical 契约;Agent 适配器 seam 与 requestedRevisionId 原样交给更新检查', async () => {
     let adapterFromDeps: unknown = 'unset';
+    let requestedRevision: unknown = 'unset';
+    const { adapter } = makeAgentAdapter();
+    resolveAgentAdapter.mockReturnValue(adapter);
     checkUpdate.mockImplementationOnce(
-      async (_schemeId: string, deps: { resolveAdapter: () => unknown }) => {
+      async (
+        _schemeId: string,
+        deps: { resolveAdapter: () => unknown },
+        requestedRevisionId?: string,
+      ) => {
         adapterFromDeps = deps.resolveAdapter();
+        requestedRevision = requestedRevisionId;
         return ok({ status: 'no-source', detail: '这个方案没有 GitHub 来源，不需要检查更新。' });
       },
     );
-    const result = await invoke('checkUpdate', { schemeId: 'dsch_ck' });
-    expect(adapterFromDeps).toBeNull();
+    const result = await invoke('checkUpdate', { schemeId: 'dsch_ck', revisionId: 'dsrv_pin' });
+    expect(adapterFromDeps).toBe(adapter);
+    expect(requestedRevision).toBe('dsrv_pin');
     expect(() => checkDesignSchemeUpdateResultSchema.parse(result)).not.toThrow();
     expect(result).toEqual({
       status: 'no-source',
@@ -1259,21 +1692,21 @@ describe('checkUpdate', () => {
     });
   });
 
-  it('up-to-date 直通;AUTH_REQUIRED → 重编译 blocker;MISSING_REFERENCE → NOT_FOUND', async () => {
+  it('up-to-date 直通;AUTH_REQUIRED → Agent 文本连接不可用 blocker;MISSING_REFERENCE → NOT_FOUND', async () => {
     checkUpdate.mockResolvedValueOnce(ok({ status: 'up-to-date', detail: '已是最新。' }));
     const upToDate = await invoke('checkUpdate', { schemeId: 'dsch_ck' });
     expect(upToDate.status).toBe('up-to-date');
 
     checkUpdate.mockResolvedValueOnce(
       fail(
-        appError('AUTH_REQUIRED', '发现上游更新，但需要 Agent 重新编译。', {
+        appError('AUTH_REQUIRED', '重新编译需要可用的文本模型 /Users/leak', {
           recoveryAction: 'configure-ai',
         }),
       ),
     );
-    expect((await invokeError('checkUpdate', { schemeId: 'dsch_ck' })).code).toBe(
-      DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
-    );
+    const unavailable = await invokeError('checkUpdate', { schemeId: 'dsch_ck' });
+    expect(unavailable.code).toBe(DESIGN_SCHEME_AGENT_AI_UNAVAILABLE);
+    expect(unavailable.message).toContain('[路径已脱敏]');
 
     checkUpdate.mockResolvedValueOnce(
       fail(appError('MISSING_REFERENCE', '方案不存在', { recoveryAction: 'retry' })),
@@ -1402,10 +1835,10 @@ describe('主进程权威 text-only run plan', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 仍未映射的运行时操作返回结构化 blocker
+// 执行类操作的所有者门与结构化 blocker
 // ---------------------------------------------------------------------------
 
-describe('无法映射的运行时操作返回结构化 blocker', () => {
+describe('执行类操作要求可信 renderer 所有者,并只返回结构化 blocker', () => {
   const cases: Array<[MethodName, unknown, string]> = [
     [
       'modify',
@@ -1415,12 +1848,12 @@ describe('无法映射的运行时操作返回结构化 blocker', () => {
         baseRevisionId: 'dsrv_1',
         instruction: '改一下',
       },
-      DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
+      'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
     ],
     ['cancel', { executionId: 'exec_2' }, 'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED'],
   ];
 
-  it.each(cases)('designSchemes.%s 返回结构化 blocker', async (name, payload, code) => {
+  it.each(cases)('designSchemes.%s 无所有者时拒绝', async (name, payload, code) => {
     const error = await invokeError(name, payload);
     expect(error.code).toBe(code);
     expect(error.code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
@@ -1432,13 +1865,15 @@ describe('无法映射的运行时操作返回结构化 blocker', () => {
     expect(error.code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
   });
 
-  it('blocker 不再是旧的 fail-closed 语义:码与消息一一登记', () => {
-    for (const message of [
-      DESIGN_SCHEME_AGENT_CREATION_UNSUPPORTED,
-      DESIGN_SCHEME_AGENT_MODIFY_UNSUPPORTED,
-      DESIGN_SCHEME_AGENT_RECOMPILE_REQUIRED,
+  it('剩余 Agent blocker 码与旧的 fail-closed 语义区分,逐一登记', () => {
+    for (const code of [
+      DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
+      DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE,
+      DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED,
+      DESIGN_SCHEME_CREATE_INPUT_REQUIRED,
     ]) {
-      expect(message).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
+      expect(code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
+      expect(code).toMatch(/^[A-Z][A-Z0-9_.-]{1,79}$/);
     }
   });
 });

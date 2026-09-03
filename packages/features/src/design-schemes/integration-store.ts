@@ -5,6 +5,7 @@ import type {
   GenerationReferenceImage,
   InputSlot,
   PromptReferenceSelection,
+  RunResult,
 } from '@musefold/contracts';
 import type { DesignSchemesGateway } from '@musefold/platform';
 import { create } from 'zustand';
@@ -187,6 +188,8 @@ export async function resolveSchemeAttachment(
 export type SchemeComposerSubmission =
   | {
       kind: 'run';
+      executionId: string;
+      workbenchSessionId: string;
       attachment: SchemeComposerAttachment;
       brief: string;
       inputValues: Record<string, string>;
@@ -198,8 +201,75 @@ export type SchemeComposerSubmission =
     }
   | {
       kind: 'create';
+      executionId: string;
       createKind: SchemeComposerCreateKind;
       brief: string;
       source: SchemeCreationSource | null;
     }
-  | { kind: 'modify'; attachment: SchemeComposerAttachment; brief: string };
+  | {
+      kind: 'modify';
+      executionId: string;
+      attachment: SchemeComposerAttachment;
+      brief: string;
+    };
+
+export type SchemeRunSubmission = Extract<SchemeComposerSubmission, { kind: 'run' }>;
+export type SchemeCreateSubmission = Extract<SchemeComposerSubmission, { kind: 'create' }>;
+export type SchemeModifySubmission = Extract<SchemeComposerSubmission, { kind: 'modify' }>;
+
+/**
+ * 宿主提交接缝(每种生命周期独立;缺省 = 该宿主尚未接入,Composer 对应入口禁用并解释):
+ * - onRun:试运行/使用。宿主负责 prepare(主进程/云端权威组装计划)→ run,await 到终态结果;
+ * - onCancelRun:取消进行中的运行(按 executionId);缺省时运行中不出现停止钮;
+ * - onCreate / onModify:方案创建 / 修改要求,交给宿主 Agent 管线;
+ * - runInputSupport:宿主声明的运行输入边界。`text-only` 时含图片槽位的方案或带参考图的
+ *   提交在 Composer 侧就禁用并解释,不把注定失败的请求发给宿主,也不静默丢弃用户输入。
+ */
+export interface SchemeComposerHandlers {
+  runInputSupport?: 'text-only' | 'text-and-images';
+  onRun?(submission: SchemeRunSubmission): Promise<RunResult>;
+  onCancelRun?(executionId: string): Promise<void>;
+  onCreate?(submission: SchemeCreateSubmission): Promise<void>;
+  onModify?(submission: SchemeModifySubmission): Promise<void>;
+}
+
+export const SCHEME_SUBMIT_DISABLED_REASONS = {
+  runUnavailable: '当前环境暂未接入方案运行',
+  createUnavailable: '当前环境暂未接入方案创建',
+  modifyUnavailable: '当前环境暂未接入方案修改',
+  imagesUnsupported: '当前环境的方案运行暂不支持图片输入',
+} as const;
+
+function isImageSlot(slot: Pick<InputSlot, 'kind'>): boolean {
+  return slot.kind === 'image' || slot.kind === 'image-set';
+}
+
+/**
+ * Composer 方案提交禁用理由(I4:禁用必须解释);null = 该生命周期的宿主接缝就位。
+ * 只看接缝存在性与输入边界,必需槽位是否集齐由 schemeAttachmentReadiness 另行把关。
+ */
+export function schemeSubmitDisabledReason(
+  handlers: SchemeComposerHandlers | undefined,
+  context: {
+    attachment: Pick<SchemeComposerAttachment, 'mode' | 'inputs'> | null;
+    creation: SchemeCreationContext | null;
+    referenceImageCount: number;
+  },
+): string | null {
+  const { attachment, creation, referenceImageCount } = context;
+  if (attachment) {
+    if (attachment.mode === 'modify') {
+      return handlers?.onModify ? null : SCHEME_SUBMIT_DISABLED_REASONS.modifyUnavailable;
+    }
+    if (!handlers?.onRun) return SCHEME_SUBMIT_DISABLED_REASONS.runUnavailable;
+    const needsImages = attachment.inputs.some(isImageSlot) || referenceImageCount > 0;
+    if (handlers.runInputSupport === 'text-only' && needsImages) {
+      return SCHEME_SUBMIT_DISABLED_REASONS.imagesUnsupported;
+    }
+    return null;
+  }
+  if (creation) {
+    return handlers?.onCreate ? null : SCHEME_SUBMIT_DISABLED_REASONS.createUnavailable;
+  }
+  return null;
+}

@@ -24,7 +24,7 @@ import { Toaster } from '@musefold/ui/components/sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { createDesktopGateway, resolveDesktopDesignSchemeAssetUrl } from './desktop-gateway';
-import { useImportDesignScheme } from './design-scheme-actions';
+import { useDesignSchemeComposerHandlers, useImportDesignScheme } from './design-scheme-actions';
 import { resolveBrandInset, useWindowFullscreen } from './use-window-fullscreen';
 import { WindowControls } from './window-controls';
 
@@ -82,9 +82,9 @@ function DesignSchemesView({ onOpenView }: { onOpenView: (id: DesktopViewId) => 
 export function DesktopView({ view, onOpenView }: DesktopViewProps) {
   const setActiveSessionId = useActiveSession((s) => s.setActiveSessionId);
   /**
-   * 方案域集成 prop(§8A):只接导航缝(onOpenDesignSchemes),不接运行缝(onSubmit)——
-   * 方案运行/创建/修改的宿主管线(固定 plan 组装)未落地,Composer 提交钮禁用并解释,
-   * 绝不回落普通生成伪造方案运行。
+   * 方案域集成 prop(§8A):导航缝(onOpenDesignSchemes)+ 运行缝(onRun / onCancelRun,
+   * 主进程权威 prepareRun → run → cancel,text-only)。Agent 创建/修改缝(onCreate / onModify)
+   * 主进程仍 fail-closed,故缺省——Composer 对应入口禁用并解释,绝不回落普通生成伪造方案运行。
    */
   const openDesignSchemes = useCallback(
     (detailId?: string) => {
@@ -95,13 +95,14 @@ export function DesktopView({ view, onOpenView }: DesktopViewProps) {
     },
     [onOpenView],
   );
+  const schemeComposerHandlers = useDesignSchemeComposerHandlers();
   if (view === 'workbench') {
     return (
       <div className="h-[calc(100dvh-7rem)] md:h-full">
         <WorkbenchScreen
           onOpenSettings={() => onOpenView('settings')}
           onOpenPrompts={() => onOpenView('prompts')}
-          designSchemes={{ onOpenDesignSchemes: openDesignSchemes }}
+          designSchemes={{ ...schemeComposerHandlers, onOpenDesignSchemes: openDesignSchemes }}
         />
       </div>
     );

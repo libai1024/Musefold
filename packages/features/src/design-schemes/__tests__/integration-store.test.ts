@@ -10,7 +10,9 @@ import {
   buildSchemeCreateSeedFromPrompt,
   buildSchemeHistorySeed,
   resolveSchemeAttachment,
+  SCHEME_SUBMIT_DISABLED_REASONS,
   schemeAttachmentReadiness,
+  schemeSubmitDisabledReason,
   useSchemeIntegration,
 } from '../integration-store';
 
@@ -125,7 +127,7 @@ describe('buildSchemeCreateSeedFromPrompt(逐字承 v2.1)', () => {
 describe('buildSchemeHistorySeed', () => {
   it('种子 = 选取层编辑的提取说明(trim);选择集不进正文', () => {
     const seed = buildSchemeHistorySeed({
-      items: [{ jobId: 'job-1', assetUrl: 'media://a.png', prompt: '一只猫' }],
+      items: [{ jobId: 'job-1', assetId: 'asset-1', assetUrl: 'media://a.png', prompt: '一只猫' }],
       note: '  保留构图，不保留主体。\n',
     });
     expect(seed).toBe('保留构图，不保留主体。');
@@ -169,6 +171,94 @@ describe('schemeAttachmentReadiness 必需输入收集', () => {
   it('modify 模式不收集运行输入(规范 §8.3),直接就绪', () => {
     const attachment = { mode: 'modify' as const, inputs: [textSlot('subject', true)] };
     expect(schemeAttachmentReadiness(attachment, {}, 0)).toEqual({ ready: true, missing: [] });
+  });
+});
+
+describe('schemeSubmitDisabledReason 宿主接缝与输入边界(I4 禁用必须解释)', () => {
+  const noop = async () => undefined;
+  const run = async () => ({}) as never;
+  const textAttachment = { mode: 'formal' as const, inputs: [textSlot('subject', true)] };
+  const imageAttachment = {
+    mode: 'trial' as const,
+    inputs: [{ id: 'main', label: '主图', kind: 'image' as const, required: false }],
+  };
+  const creation = { createKind: 'idea' as const, source: null };
+
+  it('无附件无创建态:不禁用', () => {
+    expect(
+      schemeSubmitDisabledReason(undefined, {
+        attachment: null,
+        creation: null,
+        referenceImageCount: 0,
+      }),
+    ).toBeNull();
+  });
+
+  it('各生命周期只看各自接缝:run/modify/create 缺失分别解释', () => {
+    const ctx = { creation: null, referenceImageCount: 0 };
+    expect(
+      schemeSubmitDisabledReason({ onCreate: noop }, { ...ctx, attachment: textAttachment }),
+    ).toBe(SCHEME_SUBMIT_DISABLED_REASONS.runUnavailable);
+    expect(
+      schemeSubmitDisabledReason(
+        { onRun: run },
+        { ...ctx, attachment: { ...textAttachment, mode: 'modify' } },
+      ),
+    ).toBe(SCHEME_SUBMIT_DISABLED_REASONS.modifyUnavailable);
+    expect(schemeSubmitDisabledReason({ onRun: run }, { ...ctx, attachment: null, creation })).toBe(
+      SCHEME_SUBMIT_DISABLED_REASONS.createUnavailable,
+    );
+    expect(
+      schemeSubmitDisabledReason({ onRun: run }, { ...ctx, attachment: textAttachment }),
+    ).toBeNull();
+    expect(
+      schemeSubmitDisabledReason(
+        { onModify: noop },
+        { ...ctx, attachment: { ...textAttachment, mode: 'modify' } },
+      ),
+    ).toBeNull();
+    expect(
+      schemeSubmitDisabledReason({ onCreate: noop }, { ...ctx, attachment: null, creation }),
+    ).toBeNull();
+  });
+
+  it('text-only 宿主:图片槽位或已附参考图 → 禁用并解释;纯文本不受影响;modify 不看输入边界', () => {
+    const textOnly = { runInputSupport: 'text-only' as const, onRun: run, onModify: noop };
+    expect(
+      schemeSubmitDisabledReason(textOnly, {
+        attachment: imageAttachment,
+        creation: null,
+        referenceImageCount: 0,
+      }),
+    ).toBe(SCHEME_SUBMIT_DISABLED_REASONS.imagesUnsupported);
+    expect(
+      schemeSubmitDisabledReason(textOnly, {
+        attachment: textAttachment,
+        creation: null,
+        referenceImageCount: 1,
+      }),
+    ).toBe(SCHEME_SUBMIT_DISABLED_REASONS.imagesUnsupported);
+    expect(
+      schemeSubmitDisabledReason(textOnly, {
+        attachment: textAttachment,
+        creation: null,
+        referenceImageCount: 0,
+      }),
+    ).toBeNull();
+    expect(
+      schemeSubmitDisabledReason(textOnly, {
+        attachment: { ...imageAttachment, mode: 'modify' },
+        creation: null,
+        referenceImageCount: 2,
+      }),
+    ).toBeNull();
+    // 宿主声明支持图片:同样的附件不再禁用(必需槽位是否集齐另由 readiness 把关)。
+    expect(
+      schemeSubmitDisabledReason(
+        { ...textOnly, runInputSupport: 'text-and-images' },
+        { attachment: imageAttachment, creation: null, referenceImageCount: 0 },
+      ),
+    ).toBeNull();
   });
 });
 

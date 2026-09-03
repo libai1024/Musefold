@@ -15,8 +15,8 @@ export default function WorkbenchPage() {
           <WorkbenchScreen
             onOpenSettings={() => router.push('/settings')}
             onOpenPrompts={() => router.push('/prompts')}
-            // 方案域只接导航缝:云端 run/创建/修改管线未部署,提交缝(onSubmit)缺省,
-            // Composer 提交钮禁用并解释(I4),不回落普通生成伪造方案运行。
+            // 方案域只接导航缝:云端 run/创建/修改管线未部署,onRun/onCancelRun/
+            // onCreate/onModify 均缺省;Composer 按生命周期禁用并解释,不伪造方案执行。
             designSchemes={{
               onOpenDesignSchemes: (detailId) =>
                 router.push(

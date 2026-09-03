@@ -18,6 +18,8 @@ export interface SchemeHistorySourceSelection {
   items: Array<{
     /** 生成历史 job id(契约实体 id)。 */
     jobId: string;
+    /** 首资产 id(契约实体 id):宿主据此按成功生成账本 owner-safe 解析字节,不传路径。 */
+    assetId: string;
     /** 首资产稳定展示地址(cloud 302 / 桌面 media://)。 */
     assetUrl: string;
     /** 携带提示词时为原始用户文本;否则 null。 */

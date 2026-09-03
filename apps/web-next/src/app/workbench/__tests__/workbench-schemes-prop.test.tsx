@@ -1,6 +1,6 @@
 // Web 工作台方案域集成 prop wiring 证据(P01-7):
 // - WorkbenchScreen 收到 designSchemes prop,只含导航缝 onOpenDesignSchemes;
-// - 运行缝 onSubmit 缺省(云端 run/创建/修改管线未部署,提交禁用并解释,不伪造);
+// - 提交缝 onRun/onCancelRun/onCreate/onModify 缺省(云端 run/创建/修改管线未部署,提交禁用并解释,不伪造);
 // - 深链路由:带 detailId → /design-schemes?scheme=<id>,不带 → /design-schemes。
 
 import type { MusefoldGateway } from '@musefold/platform';
@@ -59,16 +59,25 @@ beforeEach(() => {
 });
 
 describe('Web 工作台 designSchemes 集成 prop', () => {
-  it('只接导航缝:prop 存在、onSubmit 缺省(不伪造方案运行)', async () => {
+  it('只接导航缝:prop 存在,onRun/onCancelRun/onCreate/onModify 均缺省(不伪造方案执行)', async () => {
     renderPage();
     await waitFor(() => expect(workbenchPropsSpy).toHaveBeenCalled());
 
     const props = workbenchPropsSpy.mock.calls.at(-1)?.[0] as {
-      designSchemes?: { onOpenDesignSchemes(detailId?: string): void; onSubmit?: unknown };
+      designSchemes?: {
+        onOpenDesignSchemes(detailId?: string): void;
+        onRun?: unknown;
+        onCancelRun?: unknown;
+        onCreate?: unknown;
+        onModify?: unknown;
+      };
     };
     expect(props.designSchemes).toBeDefined();
     expect(typeof props.designSchemes?.onOpenDesignSchemes).toBe('function');
-    expect(props.designSchemes?.onSubmit).toBeUndefined();
+    expect(props.designSchemes?.onRun).toBeUndefined();
+    expect(props.designSchemes?.onCancelRun).toBeUndefined();
+    expect(props.designSchemes?.onCreate).toBeUndefined();
+    expect(props.designSchemes?.onModify).toBeUndefined();
   });
 
   it('onOpenDesignSchemes 深链路由:带 detailId 携 ?scheme= 参数,不带则纯路由', async () => {

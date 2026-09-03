@@ -295,8 +295,8 @@ describe('Composer 方案创建态(design-plan,承旧 draftCommand)', () => {
               kind: 'history',
               selection: {
                 items: [
-                  { jobId: 'j1', assetUrl: 'media://a.png', prompt: '甲' },
-                  { jobId: 'j2', assetUrl: 'media://b.png', prompt: null },
+                  { jobId: 'j1', assetId: 'asset-j1', assetUrl: 'media://a.png', prompt: '甲' },
+                  { jobId: 'j2', assetId: 'asset-j2', assetUrl: 'media://b.png', prompt: null },
                 ],
                 note: '从这些内容创建一个可复用方案。',
               },

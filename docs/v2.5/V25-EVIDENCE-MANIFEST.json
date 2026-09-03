@@ -6,8 +6,8 @@
       "id": "B00-current-tree",
       "card": "B00",
       "status": "verify",
-      "result": "blocked",
-      "level": "blocked",
+      "result": "unregistered",
+      "level": "source",
       "platforms": {
         "mobileWeb": "unregistered",
         "pcWeb": "unregistered",
@@ -38,8 +38,8 @@
       "report": null,
       "artifact": null,
       "skipReason": null,
-      "blockedReason": "当前树 `pnpm run check` 已通过；最新完整 v25 E2E 为 97 passed、1 failed、5 skipped；本轮 Electron project 单独复跑为 32 passed、1 skipped、1 failed。两次唯一失败均为原生 macOS fullscreen 因 runner 无法让 Electron BrowserWindow 获得前台焦点而阻塞；本轮验证没有 machine-readable report/artifact，不能登记为 pass",
-      "unregisteredReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "当前树 `pnpm run check` 已通过；最新完整 v25 E2E 为 98 passed、1 failed、5 skipped，唯一失败是 macOS 原生 fullscreen 前 Electron shell 无法取得前台焦点；完整 Electron project 为 33 passed、1 failed、1 skipped，同一 shell focus 前置失败。运行结果仍未绑定 current commit 和 machine-readable report/artifact，不能登记为 pass",
       "failureReason": null,
       "rerun": "在当前 HEAD 生成 Web/Electron 并完成全部 B00 门禁后，以持久 report/artifact 重新登记"
     },
@@ -177,9 +177,9 @@
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "历史 shell 运行计数没有绑定 report/commit；真实 macOS fullscreen evidence 另受前台焦点环境阻断",
+      "unregisteredReason": "最新完整 v25 E2E 为 98 passed、1 failed、5 skipped；Electron project 为 33 passed、1 failed、1 skipped，唯一失败是 macOS 原生 fullscreen 前 Electron shell 无法取得前台焦点；运行计数没有绑定 report/commit，仍需在当前 HEAD 保存 machine-readable report/artifact",
       "failureReason": null,
-      "rerun": "在当前 HEAD 分别保存 Web desktop/mobile、Electron 和 macOS fullscreen 结果；环境不具备前台资格时登记 blocked"
+      "rerun": "在当前 HEAD 分别保存 Web desktop/mobile、Electron 和 macOS fullscreen 结果；偶发前台焦点失败需保留诊断而非改写产品断言"
     },
     {
       "id": "U02-prompt-library",
@@ -391,32 +391,40 @@
         "apps/desktop/electron/main/design-scheme/execution-registry.ts",
         "apps/desktop/electron/main/design-scheme/fixed-run-plan-builder.ts",
         "apps/desktop/electron/main/design-scheme/provider-snapshot.ts",
+        "apps/desktop/src/v25/design-scheme-actions.ts",
+        "apps/desktop/src/v25/desktop-shell.tsx",
+        "packages/features/src/workbench/WorkbenchScreen.tsx",
+        "packages/features/src/design-schemes/integration-store.ts",
         "docs/v2.5/V25-MIGRATION-CARDS.md"
       ],
       "testPaths": [
         "packages/contracts/src/__tests__/design-scheme.test.ts",
         "packages/platform/src/__tests__/platform.test.ts",
         "packages/features/src/design-schemes/__tests__/design-schemes.test.tsx",
+        "packages/features/src/design-schemes/__tests__/integration-store.test.ts",
+        "packages/features/src/workbench/__tests__/workbench-schemes.test.tsx",
         "apps/web-next/src/app/design-schemes/__tests__/page.test.tsx",
         "apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts",
         "apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts",
         "apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts",
         "apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts",
         "apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts",
+        "apps/desktop/src/v25/__tests__/desktop-shell.test.tsx",
+        "tests/v25/electron.workbench.spec.ts",
         "packages/api-client/src/__tests__/design-schemes.test.ts"
       ],
       "workflowPaths": [
         ".github/workflows/pr.yml",
         ".github/workflows/main.yml"
       ],
-      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts packages/api-client/src/__tests__/design-schemes.test.ts",
+      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts packages/features/src/design-schemes/__tests__/design-schemes.test.tsx packages/features/src/design-schemes/__tests__/integration-store.test.ts packages/features/src/workbench/__tests__/workbench-schemes.test.tsx apps/web-next/src/app/design-schemes/__tests__/page.test.tsx apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts apps/desktop/src/v25/__tests__/desktop-shell.test.tsx packages/api-client/src/__tests__/design-schemes.test.ts && pnpm run build && pnpm exec playwright test -c tests/v25 --project=electron electron.workbench.spec.ts",
       "commit": null,
       "date": null,
       "report": null,
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop 17 项 adapter、共享 features 与双端代码挂载；Desktop capability 为 true、Web 为 false。checkpoint 607e7b5 已固化 cancellation-wins；本轮新增主进程权威 text-only prepareRun、四步固定计划、formal/fidelity/source/Provider fail-closed、legacy 来源归一化、完整快照执行前复核与 prepare-to-run 回归，受影响组合 8 文件/151 tests、根 check 180 文件/1301 tests 通过。Electron project 单独复跑为 32 passed、1 skipped、1 failed，唯一失败是既有 macOS fullscreen 前台焦点环境阻塞；Desktop Workbench onSubmit、图片 prepare、Agent create/modify/recompile、Web runtime/assets/package、完整成功 E2E 与 durable report/artifact 仍未登记，不能把源码和本地测试扩大解释为 P01 完成",
+      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop 17 项 adapter、共享 features 与双端代码挂载；Desktop capability 为 true、Web 为 false。checkpoint 607e7b5 已固化 cancellation-wins；本轮新增主进程权威 text-only prepareRun、四步固定计划、formal/fidelity/source/Provider fail-closed、legacy 来源归一化、完整快照执行前复核与 prepare-to-run 回归，受影响组合 8 文件/151 tests、根 check 181 文件/1332 tests 通过。2026-09-01 Desktop Workbench run/cancel 接缝已接通：designSchemes.onRun/onCancelRun 经 prepareRun → run → cancel（await 终态、停止钮、错误行、text-only 边界、取消先于登记仲裁），desktop-shell 17 tests、features 297 tests 通过；主进程 Agent create/modify adapter 已实现并有定向测试，但 Workbench onCreate/onModify、GitHub confirmation/install、renderer recompile/event、图片 prepare、Web runtime/assets/package、成功出图 E2E 与 durable report/artifact 仍未登记，不能把当前切片扩大解释为 P01 完成",
       "failureReason": null,
       "rerun": "按 P01-1..P01-13 分卡登记合同、数据、adapter、UI、入口、Agent 和安全证据，禁止以 source seam 声称完成"
     },
@@ -478,7 +486,7 @@
       "platformNotes": {
         "mobileWeb": "全量门禁未登记，不能用历史截图或 route mock 代替",
         "pcWeb": "全量门禁未登记，不能用历史截图或 route mock 代替",
-        "desktop": "Electron project 已实跑，但原生 fullscreen 被当前 runner 前台焦点环境阻断，且结果未绑定 durable report/artifact",
+        "desktop": "Electron project 最新为 33 passed、1 failed、1 skipped；macOS 原生 fullscreen 前 shell focus 前置失败，结果未绑定 durable report/artifact，真实 package-smoke 仍未完成",
         "desktopAgent": null
       },
       "sourcePaths": [
@@ -501,7 +509,7 @@
       "report": null,
       "artifact": null,
       "skipReason": null,
-      "blockedReason": "根 `pnpm run check` 已通过；Electron project 为 32 passed、1 skipped、1 failed，失败为既有 macOS fullscreen 前台焦点环境阻塞。integration、migration replay、真实 package-smoke 及上述本地运行仍没有可追溯 report/artifact；缺产物不得以 skip 伪造通过",
+      "blockedReason": "根 `pnpm run check` 已通过；最新完整 v25 E2E 为 98 passed、1 failed、5 skipped，唯一失败是 macOS 原生 fullscreen 前 Electron shell 无法取得前台焦点；Electron project 为 33 passed、1 failed、1 skipped，同一 shell focus 前置失败；skip 为真实 key 场景。integration、migration replay、真实 package-smoke 及上述本地运行均没有绑定可追溯 report/artifact。Q02 继续因这些全量门禁与产物证据缺口 blocked",
       "unregisteredReason": null,
       "failureReason": null,
       "rerun": "准备当前 HEAD 的全量构建、数据库 replay、Web/Electron E2E 和对应平台 package-smoke 后分别登记"
@@ -717,21 +725,21 @@
       "rerun": "在当前 HEAD 重新执行 P01-3 定向命令并保存 report；未绑定前保持 unregistered"
     },
     {
-      "id": "U01-fullscreen-inset-blocked",
+      "id": "U01-fullscreen-inset-evidence",
       "card": "U01-fullscreen-inset",
-      "status": "blocked",
-      "result": "blocked",
-      "level": "blocked",
+      "status": "verify",
+      "result": "unregistered",
+      "level": "runtime-e2e",
       "platforms": {
         "mobileWeb": "not-applicable",
         "pcWeb": "not-applicable",
-        "desktop": "blocked",
+        "desktop": "unregistered",
         "desktopAgent": "not-applicable"
       },
       "platformNotes": {
         "mobileWeb": "本卡只验证 Electron 原生窗口 inset",
         "pcWeb": "本卡只验证 Electron 原生窗口 inset",
-        "desktop": "当前 runner 无法让 Electron 获得 macOS 前台焦点",
+        "desktop": null,
         "desktopAgent": "本卡不包含 Desktop Agent 语义"
       },
       "sourcePaths": [
@@ -748,16 +756,16 @@
         ".github/workflows/main.yml"
       ],
       "testCases": [],
-      "command": "pnpm exec playwright test -c tests/v25 tests/v25/electron.shell.spec.ts",
+      "command": "pnpm run build && pnpm exec playwright test -c tests/v25 --project=electron electron.shell.spec.ts",
       "commit": null,
       "date": null,
       "report": null,
       "artifact": null,
       "skipReason": null,
-      "blockedReason": "真实 macOS fullscreen runtime evidence 被当前 runner 的 Electron 前台焦点环境阻断；不能用 skip 或历史截图替代",
-      "unregisteredReason": null,
+      "blockedReason": null,
+      "unregisteredReason": "最新完整 Electron project 为 33 passed、1 failed、1 skipped；真实 macOS fullscreen `78px → 12px → 78px` 用例因 runner 无法让 Electron shell 在原生 fullscreen 前取得前台焦点而未完成。当前结果没有绑定 current commit 与 durable report/artifact，按 manifest 规则仍保持 unregistered",
       "failureReason": null,
-      "rerun": "在具备 WindowServer 前台激活资格的 macOS runner 重跑 tests/v25/electron.shell.spec.ts，并保存 78px → 12px → 78px evidence"
+      "rerun": "在当前 HEAD 重跑 tests/v25/electron.shell.spec.ts，并保存 machine-readable report/artifact 后登记 pass"
     },
     {
       "id": "U02-prompt-dirty-guard-evidence",

@@ -49,6 +49,11 @@ export function desktopDbPath(userDataDir: string): string {
   return join(userDataDir, 'musefold-data-v0.3.0.db');
 }
 
+/** 设计方案独立本地库(electron/main/design-scheme runtime)。 */
+export function designSchemeDbPath(userDataDir: string): string {
+  return join(userDataDir, 'musefold-design-scheme-v0.3.2.db');
+}
+
 /**
  * 等待 v2.5 壳窗口。不能用 firstWindow():主进程启动时可能先开
  * prefs-origin-migration 的一次性 storage-export.html 窗口,它自关后

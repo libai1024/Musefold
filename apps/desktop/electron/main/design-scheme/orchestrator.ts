@@ -523,18 +523,23 @@ export class DesignSchemeCreationSession {
     }
     for (const [index, item] of (history?.items ?? []).entries()) {
       // 历史图片是样例（example：帮助抽取变量），提示词是背景（context）；见规范 §5.2。
+      // 来源身份用固化快照的 packageId/snapshotId 表达（与确定性建库一致，可映射为
+      // path-free 共享契约）；旧的 `history:<id>` 伪 URI 不再写入。
+      const historyBinding = history
+        ? { packageId: history.packageId, snapshotId: history.snapshotId }
+        : {};
       sources.push({
         id: `src_hist_${index + 1}`,
         kind: 'history-image',
         role: 'example',
-        uri: `history:${item.historyId}`,
+        ...historyBinding,
       });
       if (item.promptText?.trim()) {
         sources.push({
           id: `src_hist_${index + 1}_prompt`,
           kind: 'conversation-turn',
           role: 'context',
-          uri: `history:${item.historyId}`,
+          ...historyBinding,
         });
       }
     }
