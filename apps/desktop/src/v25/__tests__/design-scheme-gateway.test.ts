@@ -6,6 +6,7 @@ import {
   DESIGN_SCHEME_WIRE_METHODS,
   cancelDesignSchemeResultSchema,
   checkDesignSchemeUpdateResultSchema,
+  confirmDesignSchemeInstallResultSchema,
   createDesignSchemeResultSchema,
   designSchemeDetailSchema,
   designSchemePageSchema,
@@ -163,6 +164,10 @@ const responses: Record<string, unknown> = {
   [DESIGN_SCHEME_WIRE_METHODS.cancel]: cancelDesignSchemeResultSchema.parse({
     executionId: 'exec_1',
     status: 'cancelled',
+  }),
+  [DESIGN_SCHEME_WIRE_METHODS.confirmInstall]: confirmDesignSchemeInstallResultSchema.parse({
+    executionId: 'exec_1',
+    status: 'accepted',
   }),
   [DESIGN_SCHEME_WIRE_METHODS.selectCover]: selectCoverResultSchema.parse({
     scheme: { ...summary, coverAssetId: 'asset_1' },
@@ -342,6 +347,7 @@ const inputs: Record<string, unknown> = {
     instruction: 'Make the layout quieter',
   },
   [DESIGN_SCHEME_WIRE_METHODS.cancel]: { executionId: 'exec_1', runId: 'run_1' },
+  [DESIGN_SCHEME_WIRE_METHODS.confirmInstall]: { executionId: 'exec_1', decision: 'install' },
   [DESIGN_SCHEME_WIRE_METHODS.selectCover]: {
     schemeId: 'scheme_1',
     assetId: 'asset_1',
@@ -481,6 +487,9 @@ async function callMethod(
       return gateway.modify(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.cancel:
       return gateway.cancel(input as never);
+    case DESIGN_SCHEME_WIRE_METHODS.confirmInstall:
+      if (!gateway.confirmInstall) throw new Error('confirm install method is missing');
+      return gateway.confirmInstall(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.selectCover:
       return gateway.selectCover(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.formalize:
@@ -524,7 +533,7 @@ describe('desktop design scheme gateway transport contract', () => {
     invokeMock.mockImplementation(async (method) => ({ ok: true, data: responses[method] }));
   });
 
-  it('maps all 17 deployed methods to exact payloads and parses each response', async () => {
+  it('maps all 18 deployed methods to exact payloads and parses each response', async () => {
     const gateway = createDesktopGateway().designSchemes;
     if (!gateway) throw new Error('design scheme gateway is missing');
 

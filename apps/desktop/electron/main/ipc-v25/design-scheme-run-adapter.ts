@@ -23,7 +23,7 @@ import type { DesignSchemeRunResult as RetainedDesignSchemeRunResult } from '@mu
 import { getDb } from '@musefold/core/db';
 import { cancelGeneration } from '../generation-facade';
 import { stageLocalImage } from '@musefold/core/providers/local-image';
-import { resolvePromptReferences } from './workbench-domain';
+import { resolvePromptReferences, resolveUploadedReferenceById } from './workbench-domain';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { probeImageAssetMetadata } from '../design-scheme/source-ingestion';
 import { resolveManagedStoreKey } from '../design-scheme/asset-store';
@@ -48,6 +48,8 @@ export interface DesktopDesignSchemeRunAdapterDeps {
   executionRegistry: DesignSchemeExecutionRegistry;
   emit: (senderId: number, event: DesignSchemeEvent) => void;
   stageReferenceAsset?: (path: string) => Promise<LocalImageReference>;
+  /** Composer 上传暂存 id → 受管本地参考图;缺省读 workbench 上传目录,测试注入。 */
+  resolveUploadedReference?: (assetId: string) => LocalImageReference | null;
 }
 
 interface SchemeAssetRow {
@@ -186,10 +188,12 @@ async function resolveReferenceAssets(
     return { references: [], stagedPaths: [] };
   }
   const stage = deps.stageReferenceAsset ?? stageLocalImage;
+  const resolveUploaded = deps.resolveUploadedReference ?? resolveUploadedReferenceById;
   const references: LocalImageReference[] = [];
   const stagedPaths: string[] = [];
   try {
     for (const assetId of input.executionSettings.referenceAssetIds) {
+      // 先认当前方案版本的资产(相册/来源图),再认 Composer 本次上传的暂存参考图;两者都在受管根内。
       const row = deps.db
         .prepare(
           `SELECT a.id, a.store_key
@@ -199,13 +203,19 @@ async function resolveReferenceAssets(
             LIMIT 1`,
         )
         .get(assetId, input.schemeId, input.revisionId) as SchemeAssetRow | undefined;
-      if (!row)
-        throw new BridgeError('DESIGN_SCHEME_REFERENCE_MISSING', '参考图不属于当前方案版本');
-      const target = resolveManagedStoreKey(row.store_key, deps.userDataDir, deps.picturesDir);
+      let target: string | null = null;
+      if (row) {
+        target = resolveManagedStoreKey(row.store_key, deps.userDataDir, deps.picturesDir);
+      } else {
+        target = resolveUploaded(assetId)?.path ?? null;
+      }
       if (!target)
-        throw new BridgeError('DESIGN_SCHEME_REFERENCE_MISSING', '参考图已不可用，请重新选择');
+        throw new BridgeError(
+          'DESIGN_SCHEME_REFERENCE_MISSING',
+          '参考图已不可用，请重新添加后再运行',
+        );
       const staged = await stage(target);
-      references.push({ ...staged, assetId: row.id, source: 'upload' });
+      references.push({ ...staged, assetId, source: 'upload' });
       stagedPaths.push(staged.path);
     }
     return { references, stagedPaths };

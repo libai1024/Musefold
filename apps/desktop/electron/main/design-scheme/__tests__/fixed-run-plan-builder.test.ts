@@ -203,7 +203,7 @@ describe('desktop fixed design-scheme run plan builder', () => {
       'DESIGN_SCHEME_INPUT_MISMATCH',
     ],
     [
-      'renderer reference asset',
+      'unknown reference asset (neither scheme asset nor uploaded staging)',
       {
         executionSettings: {
           providerId: 'provider_prepare',
@@ -214,7 +214,7 @@ describe('desktop fixed design-scheme run plan builder', () => {
           promptReferenceSelections: [],
         },
       },
-      'DESIGN_SCHEME_TEXT_ONLY_UNSUPPORTED',
+      'DESIGN_SCHEME_REFERENCE_MISSING',
     ],
     ['wrong scheme revision', { revisionId: 'rev_missing' }, 'NOT_FOUND'],
     [
@@ -242,18 +242,39 @@ describe('desktop fixed design-scheme run plan builder', () => {
     ).toBe(code);
   });
 
-  it('rejects image slots and unsupported provider types without guessing capability', () => {
+  function settingsWith(referenceAssetIds: string[]) {
+    return {
+      providerId: 'provider_prepare',
+      size: '1024x1024',
+      quality: 'high',
+      outputCount: 1,
+      referenceAssetIds,
+      promptReferenceSelections: [],
+    };
+  }
+
+  /** 含图片槽位的方案:必需单图 + 图组(2..3 张,必需与否由参数决定)+ 一个文本槽位。 */
+  function seedImageScheme(moodboardRequired = false) {
     repository.insertSchemeDraft({
       document: document({
         schemeId: 'scheme_image',
         revisionId: 'rev_image',
         inputs: [
+          { id: 'topic', label: 'Topic', kind: 'text', required: true },
           {
-            id: 'reference',
-            label: 'Reference',
+            id: 'subject',
+            label: 'Subject',
             kind: 'image',
-            required: false,
+            required: true,
             imageRole: 'subject-reference',
+          },
+          {
+            id: 'moodboard',
+            label: 'Moodboard',
+            kind: 'image-set',
+            required: moodboardRequired,
+            minItems: 2,
+            maxItems: 3,
           },
         ],
       }),
@@ -262,15 +283,108 @@ describe('desktop fixed design-scheme run plan builder', () => {
       createdBy: 'user',
       bindings: [{ snapshotId: 'snapshot_prepare', role: 'normative' }],
     });
+  }
+
+  it('assigns host-resolvable reference assets to image slots in declaration order', () => {
+    seedImageScheme();
+    const uploaded = new Set(['UPLOAD_A', 'UPLOAD_B', 'UPLOAD_C', 'UPLOAD_D']);
+    const prepared = prepareDesktopDesignSchemeRun(
+      input({
+        schemeId: 'scheme_image',
+        revisionId: 'rev_image',
+        executionSettings: settingsWith(['UPLOAD_A', 'UPLOAD_B', 'UPLOAD_C', 'UPLOAD_D']),
+      }),
+      { designSchemeDb: schemeDb, coreDb, hasReferenceAsset: (id) => uploaded.has(id) },
+    );
+    expect(prepared.plan.inputs).toEqual([
+      { slotId: 'topic', kind: 'text', valueIds: [], text: 'night market' },
+      { slotId: 'subject', kind: 'image', valueIds: ['UPLOAD_A'], text: null },
+      {
+        slotId: 'moodboard',
+        kind: 'image-set',
+        valueIds: ['UPLOAD_B', 'UPLOAD_C', 'UPLOAD_D'],
+        text: null,
+      },
+    ]);
+    // inputValues 只对账文本槽位;参考图顺序与图片槽位快照一致(校验器对账通过)。
+    expect(prepared.inputValues).toEqual({ topic: 'night market' });
+    expect(prepared.executionSettings.referenceAssetIds).toEqual([
+      'UPLOAD_A',
+      'UPLOAD_B',
+      'UPLOAD_C',
+      'UPLOAD_D',
+    ]);
+    expect(validateDesktopFixedRunPlan(prepared)).toEqual({ ok: true });
+
+    // 只带必需单图:可选图组留空;可选图组给 1 张(低于其 minItems)也照收,与 Composer 就绪判断一致。
+    const single = prepareDesktopDesignSchemeRun(
+      input({
+        schemeId: 'scheme_image',
+        revisionId: 'rev_image',
+        executionSettings: settingsWith(['UPLOAD_A']),
+      }),
+      { designSchemeDb: schemeDb, coreDb, hasReferenceAsset: (id) => uploaded.has(id) },
+    );
+    expect(single.plan.inputs.map((planned) => planned.valueIds)).toEqual([[], ['UPLOAD_A'], []]);
+    const partial = prepareDesktopDesignSchemeRun(
+      input({
+        schemeId: 'scheme_image',
+        revisionId: 'rev_image',
+        executionSettings: settingsWith(['UPLOAD_A', 'UPLOAD_B']),
+      }),
+      { designSchemeDb: schemeDb, coreDb, hasReferenceAsset: (id) => uploaded.has(id) },
+    );
+    expect(partial.plan.inputs.map((planned) => planned.valueIds)).toEqual([
+      [],
+      ['UPLOAD_A'],
+      ['UPLOAD_B'],
+    ]);
+  });
+
+  it('fails closed when image slots are under- or over-supplied, or the scheme has no image slot', () => {
+    seedImageScheme(true);
+    const uploaded = new Set(['UPLOAD_A', 'UPLOAD_B', 'UPLOAD_C', 'UPLOAD_D', 'UPLOAD_E']);
+    const deps = {
+      designSchemeDb: schemeDb,
+      coreDb,
+      hasReferenceAsset: (id: string) => uploaded.has(id),
+    };
+    const imageInput = (ids: string[]) =>
+      input({
+        schemeId: 'scheme_image',
+        revisionId: 'rev_image',
+        executionSettings: settingsWith(ids),
+      });
+
+    // 必需单图缺失。
+    expect(errorCode(() => prepareDesktopDesignSchemeRun(imageInput([]), deps))).toBe(
+      'DESIGN_SCHEME_INPUT_REQUIRED',
+    );
+    // 必需图组 minItems=2:只剩 1 张 → 不足即 blocked,而不是静默塞入。
+    expect(
+      errorCode(() => prepareDesktopDesignSchemeRun(imageInput(['UPLOAD_A', 'UPLOAD_B']), deps)),
+    ).toBe('DESIGN_SCHEME_INPUT_REQUIRED');
+    // 超过全部槽位上限(1 + 3)。
     expect(
       errorCode(() =>
         prepareDesktopDesignSchemeRun(
-          input({ schemeId: 'scheme_image', revisionId: 'rev_image', inputValues: {} }),
-          { designSchemeDb: schemeDb, coreDb },
+          imageInput(['UPLOAD_A', 'UPLOAD_B', 'UPLOAD_C', 'UPLOAD_D', 'UPLOAD_E']),
+          deps,
         ),
       ),
-    ).toBe('DESIGN_SCHEME_TEXT_ONLY_UNSUPPORTED');
+    ).toBe('DESIGN_SCHEME_INPUT_MISMATCH');
+    // 纯文本方案带参考图:没有槽位可放。
+    expect(
+      errorCode(() =>
+        prepareDesktopDesignSchemeRun(
+          input({ executionSettings: settingsWith(['UPLOAD_A']) }),
+          deps,
+        ),
+      ),
+    ).toBe('DESIGN_SCHEME_INPUT_MISMATCH');
+  });
 
+  it('rejects unsupported provider types without guessing capability', () => {
     coreDb
       .prepare("UPDATE providers SET type = 'future-provider' WHERE id = ?")
       .run('provider_prepare');

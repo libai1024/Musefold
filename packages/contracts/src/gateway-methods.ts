@@ -2,6 +2,7 @@
 export const DESIGN_SCHEME_METHOD_NAMES = [
   'designSchemes.cancel',
   'designSchemes.checkUpdate',
+  'designSchemes.confirmInstall',
   'designSchemes.create',
   'designSchemes.exportPackage',
   'designSchemes.formalize',
@@ -19,11 +20,11 @@ export const DESIGN_SCHEME_METHOD_NAMES = [
   'designSchemes.update',
 ] as const;
 
-/** New lifecycle methods are canonical contract entries, not declarations of host support. */
-export const DESIGN_SCHEME_LIFECYCLE_METHOD_NAMES = [
-  'designSchemes.confirmInstall',
-  'designSchemes.prepareImportPackage',
-] as const;
+/**
+ * Lifecycle methods that stay canonical contract entries without a data-channel deployment:
+ * the package picker needs a host-native file dialog and travels a dedicated preload seam.
+ */
+export const DESIGN_SCHEME_LIFECYCLE_METHOD_NAMES = ['designSchemes.prepareImportPackage'] as const;
 
 export const DESIGN_SCHEME_CANONICAL_METHOD_NAMES = [
   ...DESIGN_SCHEME_METHOD_NAMES,
@@ -54,6 +55,15 @@ export const V25_METHODS_BY_DOMAIN = {
     'aiProviders.remove',
     'aiProviders.setActive',
     'aiProviders.test',
+  ],
+  // Agent 文本模型连接(桌面专属可选域):设计方案 Agent / Skill runtime 的 chat/completions 连接。
+  agentConnections: [
+    'agentConnections.list',
+    'agentConnections.create',
+    'agentConnections.update',
+    'agentConnections.remove',
+    'agentConnections.setActive',
+    'agentConnections.test',
   ],
   designSchemes: DESIGN_SCHEME_METHOD_NAMES,
   // 豆包网页登录(桌面专属可选域):冻结 browser-service 的薄适配,无入参。

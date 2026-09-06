@@ -42,6 +42,12 @@ function seedArchivedSessions(dbPath: string): void {
   db.close();
 }
 
+/** 进入设置分区(V25-UI-SPEC §6.1):桌面左导航常驻,直接点导航项。 */
+async function openSettingsSection(id: string): Promise<void> {
+  await page.getByTestId(`settings-nav-${id}`).click();
+  await expect(page.getByTestId(`settings-section-${id}`)).toBeVisible();
+}
+
 test.beforeAll(async () => {
   ({ app, userDataDir } = await launchV25App('musefold-v25-e2e-'));
   page = await v25ShellPage(app);
@@ -57,15 +63,22 @@ test('v2.5 新渲染壳加载 features 设置屏', async () => {
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   await expect(page.getByTestId('settings-host-badge')).toHaveText('桌面版');
+  // 桌面注册全部五个分区:外观 / 账号 / 云同步 / AI 连接 / 数据;默认停在外观。
+  for (const id of ['appearance', 'account', 'sync', 'connections', 'data']) {
+    await expect(page.getByTestId(`settings-nav-${id}`)).toBeVisible();
+  }
+  await expect(page.getByTestId('settings-section-appearance')).toBeVisible();
 });
 
 test('账号卡经 IPC 桥返回未登录态,展示登录表单与侧栏登录入口', async () => {
+  await openSettingsSection('account');
   await expect(page.getByTestId('settings-account-signed-out')).toBeVisible();
   await expect(page.getByTestId('account-auth-form')).toBeVisible();
   await expect(page.getByTestId('account-footer-signed-out')).toBeVisible();
 });
 
 test('AI 连接:新建 → 密钥落安全存储 → 设为默认 → 删除,全程落 SQLite', async () => {
+  await openSettingsSection('connections');
   const card = page.getByTestId('settings-ai-connections-card');
   await expect(card).toBeVisible();
   await expect(page.getByTestId('ai-providers-empty')).toBeVisible();
@@ -135,7 +148,78 @@ test('AI 连接:新建 → 密钥落安全存储 → 设为默认 → 删除,全
   expect(rows).toEqual([{ name: '测试网关', is_active: 1 }]);
 });
 
+test('Agent 连接:新建 → 密钥落安全存储 → 设为默认 → 删除,经 IPC 落主进程 AiConnectionStore 且与生图连接隔离', async () => {
+  await openSettingsSection('connections');
+  const card = page.getByTestId('settings-agent-connections-card');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card).toBeVisible();
+  await expect(page.getByTestId('agent-connections-empty')).toBeVisible();
+
+  // 新建(带密钥)
+  await page.getByTestId('agent-connection-new').click();
+  await page.getByTestId('agent-connection-name').fill('文本网关');
+  await page.getByTestId('agent-connection-base-url').fill('https://text.example.com/v1/');
+  await page.getByTestId('agent-connection-model').fill('gpt-5.4-mini');
+  await page.getByTestId('agent-connection-key').fill('sk-e2e-agent-c3d4');
+  await page.getByTestId('agent-connection-save').click();
+
+  const list = page.getByTestId('agent-connections-list');
+  await expect(list).toBeVisible();
+  await expect(list.getByText('文本网关')).toBeVisible();
+  await expect(list.getByTestId('agent-connection-active-badge')).toBeVisible();
+  await expect(list.getByText(/密钥 …c3d4/)).toBeVisible();
+
+  // 主进程事实源:经 IPC 读回(Base URL 已归一化去尾斜杠),密钥明文不回渲染层;生图 providers 表不受影响。
+  const listed = await page.evaluate(async () => {
+    const bridge = (
+      window as unknown as {
+        musefoldV25: { invoke(method: string, payload?: unknown): Promise<unknown> };
+      }
+    ).musefoldV25;
+    return bridge.invoke('agentConnections.list');
+  });
+  expect(listed).toMatchObject({
+    ok: true,
+    data: [
+      {
+        name: '文本网关',
+        type: 'openai-compatible',
+        baseUrl: 'https://text.example.com/v1',
+        model: 'gpt-5.4-mini',
+        hasKey: true,
+        keySuffix: 'c3d4',
+        isActive: true,
+      },
+    ],
+  });
+  expect(JSON.stringify(listed)).not.toContain('sk-e2e-agent');
+  const db = new Database(desktopDbPath(userDataDir));
+  const imageRows = db.prepare('SELECT name FROM providers').all() as Array<{ name: string }>;
+  db.close();
+  expect(imageRows.map((row) => row.name)).not.toContain('文本网关');
+
+  // 第二个连接不带密钥 → 设为默认 → 删除默认 → 另一条接管
+  await page.getByTestId('agent-connection-new').click();
+  await page.getByTestId('agent-connection-name').fill('备用文本');
+  await page.getByTestId('agent-connection-base-url').fill('https://api.deepseek.com/v1');
+  await page.getByTestId('agent-connection-model').fill('deepseek-chat');
+  await page.getByTestId('agent-connection-save').click();
+  await expect(list.getByText('备用文本')).toBeVisible();
+  await expect(list.getByText('未配置密钥')).toBeVisible();
+
+  await list.getByTestId('agent-connection-set-active').click();
+  const backupRow = list.locator('li').filter({ hasText: '备用文本' });
+  await expect(backupRow.getByTestId('agent-connection-active-badge')).toBeVisible();
+
+  await backupRow.getByTestId('agent-connection-delete').click();
+  await page.getByTestId('agent-connection-delete-confirm').click();
+  await expect(list.getByText('备用文本')).toBeHidden();
+  await expect(list.getByTestId('agent-connection-active-badge')).toBeVisible();
+  await expect(list.getByText('文本网关')).toBeVisible();
+});
+
 test('云同步卡:未登录时仅提示登录,不提供同步动作', async () => {
+  await openSettingsSection('sync');
   const card = page.getByTestId('settings-sync-card');
   await card.scrollIntoViewIfNeeded();
   await expect(card).toBeVisible();
@@ -145,6 +229,7 @@ test('云同步卡:未登录时仅提示登录,不提供同步动作', async () 
 });
 
 test('主题切换经主进程持久化并生效', async () => {
+  await openSettingsSection('appearance');
   await page.getByTestId('settings-theme-trigger').click();
   await page.getByTestId('settings-theme-dark').click();
   await expect(page.locator('html')).toHaveClass(/dark/);
@@ -155,6 +240,7 @@ test('主题切换经主进程持久化并生效', async () => {
 });
 
 test('动效三档经主进程持久化并真实作用到根节点', async () => {
+  await openSettingsSection('appearance');
   const trigger = page.getByTestId('settings-motion-trigger');
   await expect(trigger).toHaveText(/跟随系统/);
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'system');
@@ -178,7 +264,11 @@ test('动效三档经主进程持久化并真实作用到根节点', async () =>
 });
 
 test('桌面设置页视觉基线(浅色)', async () => {
-  await expect(page.getByTestId('settings-account-signed-out')).toBeVisible();
+  // 自含导航:不依赖前序用例停在设置屏(允许单跑/过滤跑);基线固定为「外观」分区。
+  await page.getByTestId('nav-settings').click();
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await openSettingsSection('appearance');
+  await expect(page.getByTestId('settings-theme-trigger')).toBeVisible();
   await expect(page).toHaveScreenshot('desktop-settings-light.png');
 });
 
@@ -187,6 +277,7 @@ test('归档闭环:恢复清 archived_at,删除写 deleted_at 且 generation run
   await page.reload();
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await openSettingsSection('data');
 
   await page.getByTestId('archived-toggle').click();
   await expect(page.getByTestId('archived-session-e2e-archive-restore')).toBeVisible();
@@ -232,7 +323,7 @@ test('桌面设置页视觉基线(深色)', async () => {
   // 自含导航:不依赖前序用例停在设置屏(允许单跑/过滤跑)。
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
-  await page.getByTestId('settings-theme-trigger').scrollIntoViewIfNeeded();
+  await openSettingsSection('appearance');
   await page.getByTestId('settings-theme-trigger').click();
   await page.getByTestId('settings-theme-dark').click();
   await expect(page.locator('html')).toHaveClass(/dark/);

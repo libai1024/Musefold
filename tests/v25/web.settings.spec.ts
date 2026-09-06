@@ -163,29 +163,69 @@ async function installArchiveApiMock(page: Page, mode: 'restore' | 'delete'): Pr
   });
 }
 
+/**
+ * 进入设置分区(V25-UI-SPEC §6.1):md+ 左导航常驻直接点;移动端若已在二级面板先返回一级列表。
+ */
+async function openSettingsSection(page: Page, id: string): Promise<void> {
+  const back = page.getByTestId('settings-section-back');
+  if (await back.isVisible().catch(() => false)) await back.click();
+  await page.getByTestId(`settings-nav-${id}`).click();
+  await expect(page.getByTestId(`settings-section-${id}`)).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByTestId('settings-screen')).toBeVisible();
 });
 
-test('设置页在两种视口渲染同一 features 屏幕', async ({ page, isMobile }) => {
+test('设置页在两种视口渲染同一 features 屏幕:桌面左导航 + 右面板,移动一级列表 → 二级面板', async ({
+  page,
+  isMobile,
+}) => {
   await expect(page.getByTestId('settings-host-badge')).toHaveText('Web 版');
-  await expect(page.getByTestId('settings-appearance-card')).toBeVisible();
+  // Web 只注册外观 / 账号(云同步与连接是桌面能力)。
+  await expect(page.getByTestId('settings-nav-appearance')).toBeVisible();
+  await expect(page.getByTestId('settings-nav-account')).toBeVisible();
+  await expect(page.getByTestId('settings-nav-sync')).toHaveCount(0);
+  await expect(page.getByTestId('settings-nav-connections')).toHaveCount(0);
 
   if (isMobile) {
     await expect(page.getByTestId('app-bottom-nav')).toBeVisible();
     await expect(page.getByTestId('app-sidebar')).toBeHidden();
+    // 移动端先见一级列表,面板隐藏;点进去后列表让位,返回再回列表。
+    await expect(page.getByTestId('settings-appearance-card')).toBeHidden();
+    await page.getByTestId('settings-nav-appearance').click();
+    await expect(page.getByTestId('settings-appearance-card')).toBeVisible();
+    await expect(page.getByTestId('settings-nav')).toBeHidden();
+    await page.getByTestId('settings-section-back').click();
+    await expect(page.getByTestId('settings-nav')).toBeVisible();
+    await expect(page.getByTestId('settings-appearance-card')).toBeHidden();
   } else {
     await expect(page.getByTestId('app-sidebar')).toBeVisible();
     await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+    // 桌面:默认停在「外观」,导航与面板同屏。
+    await expect(page.getByTestId('settings-appearance-card')).toBeVisible();
+    await expect(page.getByTestId('settings-section-back')).toBeHidden();
   }
 });
 
-test('账号卡在未登录(无 API)时显示登录提示', async ({ page }) => {
+test('账号分区在未登录(无 API)时显示登录提示', async ({ page }) => {
+  await openSettingsSection(page, 'account');
   await expect(page.getByTestId('settings-account-signed-out')).toBeVisible();
 });
 
+test('搜索按标题/描述/关键词过滤分区', async ({ page }) => {
+  await page.getByTestId('settings-search').fill('积分');
+  await expect(page.getByTestId('settings-nav-account')).toBeVisible();
+  await expect(page.getByTestId('settings-nav-appearance')).toHaveCount(0);
+  await page.getByTestId('settings-search').fill('zzz-none');
+  await expect(page.getByTestId('settings-search-empty')).toBeVisible();
+  await page.getByTestId('settings-search').fill('');
+  await expect(page.getByTestId('settings-nav-appearance')).toBeVisible();
+});
+
 test('主题切换写入偏好并在刷新后保持', async ({ page }) => {
+  await openSettingsSection(page, 'appearance');
   await page.getByTestId('settings-theme-trigger').click();
   await page.getByTestId('settings-theme-dark').click();
 
@@ -196,21 +236,24 @@ test('主题切换写入偏好并在刷新后保持', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/dark/);
 
   // 还原浅色,避免污染后续快照用例
+  await openSettingsSection(page, 'appearance');
   await page.getByTestId('settings-theme-trigger').click();
   await page.getByTestId('settings-theme-light').click();
   await expect(page.locator('html')).not.toHaveClass(/dark/);
 });
 
 test('设置页视觉基线(浅色)', async ({ page }) => {
-  await expect(page.getByTestId('settings-account-signed-out')).toBeVisible();
+  // 基线固定为「外观」分区(桌面默认落点;移动端进入二级面板)。
+  await openSettingsSection(page, 'appearance');
+  await expect(page.getByTestId('settings-theme-trigger')).toBeVisible();
   await expect(page).toHaveScreenshot('settings-light.png', { fullPage: true });
 });
 
 test('设置页视觉基线(深色)', async ({ page }) => {
+  await openSettingsSection(page, 'appearance');
   await page.getByTestId('settings-theme-trigger').click();
   await page.getByTestId('settings-theme-dark').click();
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await expect(page.getByTestId('settings-account-signed-out')).toBeVisible();
   await expect(page).toHaveScreenshot('settings-dark.png', { fullPage: true });
 
   await page.getByTestId('settings-theme-trigger').click();
@@ -234,6 +277,7 @@ test('归档闭环:设置中恢复会话,移动端经抽屉回到侧栏', async 
 
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await openSettingsSection(page, 'data');
   await page.getByTestId('archived-toggle').click();
   const archivedRow = page.getByTestId('archived-session-archive-restore');
   await expect(archivedRow).toBeVisible();
@@ -264,6 +308,7 @@ test('归档闭环:删除确认软删,生成记录仍可查询', async ({ page }
   await expect(sessionRow).toBeHidden();
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await openSettingsSection(page, 'data');
   await page.getByTestId('archived-toggle').click();
   await expect(page.getByTestId('archived-session-archive-delete')).toBeVisible();
   await page.getByTestId('archived-remove-archive-delete').click();

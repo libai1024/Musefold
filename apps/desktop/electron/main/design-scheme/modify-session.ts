@@ -227,6 +227,8 @@ export class DesignSchemeModifySession {
       summary: output.summary,
       fidelity: output.fidelity,
       sources: base.sources.map((binding) => ({ ...binding })),
+      // 修订不引入新来源:快照声明沿基线(applyAgentRevision 也会复制基线绑定)。
+      ...(base.sourceSnapshotIds ? { sourceSnapshotIds: [...base.sourceSnapshotIds] } : {}),
       inputs: buildInputSlots(output),
       parameters: base.parameters.map((parameter) => ({ ...parameter })),
       constraints: output.constraints.map((constraint, index) => ({

@@ -20,6 +20,9 @@ export const queryKeys = {
   aiProviders: {
     list: () => ['ai-providers', 'list'] as const,
   },
+  agentConnections: {
+    list: () => ['agent-connections', 'list'] as const,
+  },
   sync: {
     status: () => ['sync', 'status'] as const,
     conflicts: () => ['sync', 'conflicts'] as const,

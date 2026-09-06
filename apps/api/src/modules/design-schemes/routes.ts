@@ -1,6 +1,8 @@
 import {
   cancelDesignSchemeInputSchema,
+  confirmDesignSchemeInstallInputSchema,
   cancelDesignSchemeResultSchema,
+  confirmDesignSchemeInstallResultSchema,
   checkDesignSchemeUpdateInputSchema,
   checkDesignSchemeUpdateResultSchema,
   createDesignSchemeInputSchema,
@@ -166,6 +168,18 @@ export function designSchemeRoutes(service: DesignSchemeService) {
       response: cancelDesignSchemeResultSchema,
     },
     async (c, input) => c.json(service.cancel(c.get('userId'), input.body)),
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/design-schemes/confirm-install',
+      tags,
+      body: confirmDesignSchemeInstallInputSchema,
+      response: confirmDesignSchemeInstallResultSchema,
+    },
+    async (c, input) => c.json(service.confirmInstall(c.get('userId'), input.body)),
   );
 
   route(

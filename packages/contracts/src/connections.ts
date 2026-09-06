@@ -87,3 +87,20 @@ export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type CreateAiProvider = z.infer<typeof createAiProviderSchema>;
 export type UpdateAiProvider = z.infer<typeof updateAiProviderSchema>;
 export type AiProviderTestResult = z.infer<typeof aiProviderTestResultSchema>;
+
+// ── 桌面 Agent 连接(文本模型,chat/completions)────────────────────
+// 设计方案 Agent(Analyst / Compiler / Reviser)与 Skill runtime 用的文本模型连接,
+// 与生图 Provider 是两套并列的本地连接;实体形状与生图连接一致(name / baseUrl / model /
+// write-only 密钥 / 默认标记),`type` 恒为 openai-compatible。宿主是否提供由
+// `hasAgentConnections` capability 表达。
+
+export const agentConnectionSchema = aiProviderSchema;
+export const agentConnectionListSchema = z.array(agentConnectionSchema);
+export const createAgentConnectionSchema = createAiProviderSchema;
+export const updateAgentConnectionSchema = updateAiProviderSchema;
+export const agentConnectionTestResultSchema = aiProviderTestResultSchema;
+
+export type AgentConnection = z.infer<typeof agentConnectionSchema>;
+export type CreateAgentConnection = z.infer<typeof createAgentConnectionSchema>;
+export type UpdateAgentConnection = z.infer<typeof updateAgentConnectionSchema>;
+export type AgentConnectionTestResult = z.infer<typeof agentConnectionTestResultSchema>;

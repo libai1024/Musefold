@@ -450,6 +450,24 @@ render(<WorkbenchScreen />, {
 5. 宿主挂载:web-next 加 `app/<路由>/page.tsx`;导航项进 `features/shell/nav.ts` 的 `SHELL_NAV_ITEMS`(双宿主自动获得);桌面 `main.tsx` 的 `DesktopView` 加分支。
 6. E2E:`tests/v25/web.<域>.spec.ts` + `electron.<域>.spec.ts` + 三形态视觉基线。
 
+### C. 新增一个设置项/设置分区(规范流程,UI-SPEC §6.4 的实施细则)
+
+设置页由**分区注册表**驱动(`packages/features/src/settings/sections.tsx` 的 `SETTINGS_SECTIONS`);
+导航、搜索、深链、分区记忆、移动端一级列表 → 二级面板都由 `SettingsScreen` 统一承载,新分区自动获得,宿主不需要改动。
+
+1. **数据面先行**(需要新数据时):按走线 A 打通 契约 → gateway → 域实现;设置控件的 hooks 放在所属域(如 `settings/hooks.ts`、`account/hooks.ts`),**不在 sections 注册表里做数据编排**。
+2. **归属判定**:
+   - 加到已有分区:在该分区对应的卡组件里加一行控件(§6.3 行式:左标签+描述,右控件),或在分区 `render` 里加一张新卡;
+   - 需要新分区:在 `SETTINGS_SECTIONS` 追加一条 `SettingsSectionDefinition` —— `id`(进 `SettingsSectionId` 联合)、`group`(通用/访问/应用)、标题、描述、图标、**搜索关键词**(用户会搜的口语词)、**capability 门**(`isAvailable`,宿主不具备即整个分区不注册,承 D2 无死入口)、**深链意图**(`intents`,如需从侧栏/其他屏直达)、`render`。
+3. **宿主差异纪律**:只允许经 `isAvailable` 的 `PlatformCapabilities` flag 表达;禁止在分区/卡组件里探测 UA 或 import 宿主模块(depcruise 拦截)。
+4. **文档同步**:更新 UI-SPEC §6.2 分区表;与旧版有意不同处登记 §9。
+5. **测试**:
+   - 注册表:`settings.test.tsx` 的 registry describe 断言可用性(desktop/web 各自的分区集合)、意图映射、搜索命中;
+   - 控件:所在卡的就地单测(fake gateway,§7.1 范式);
+   - 行为跨端:`tests/v25/web.settings.spec.ts` / `electron.settings.spec.ts` 用 `openSettingsSection(id)` 先进分区再断言;
+   - 布局变化:按 §7.3 快照纪律重收设置视觉基线(注意:设置页大面积留白,2% 像素容差可能吞掉整页级布局变化——凡动布局必须人工核对新基线图,不能只看用例变绿)。
+6. **门禁**:`pnpm run check`;碰双端行为加跑设置相关 E2E。
+
 ---
 
 ## 9. 效率手册

@@ -47,12 +47,75 @@ vi.mock('electron', () => ({
   webContents: { fromId: webContentsFromId },
 }));
 
+// GitHub 来源不走真实网络:只替换解析与固化两步(内存快照写入真实仓库表),历史来源等其余路径保持真实。
+vi.mock('../../design-scheme/source-ingestion', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../design-scheme/source-ingestion')>();
+  let snapshotSeq = 0;
+  return {
+    ...original,
+    resolveGithubSource: vi.fn(async (repositoryUrl: string) => ({
+      ok: true as const,
+      data: {
+        repositoryUrl,
+        repositoryLabel: original.repositoryLabelOf(repositoryUrl),
+        name: repositoryUrl.split('/').filter(Boolean).at(-1) ?? 'repo',
+        description: '极简 zine 海报 Skill',
+        resolvedRef: 'main',
+        commitHash: 'b'.repeat(40),
+        license: 'MIT',
+        textFiles: [
+          {
+            path: 'SKILL.md',
+            contentHash: 'sha256:1',
+            sizeBytes: 20,
+            text: '# 海报规则\n双色印刷',
+          },
+        ],
+        imageFiles: [],
+        otherCount: 0,
+      },
+    })),
+    persistGithubSnapshot: vi.fn((db: Database.Database, source: { repositoryUrl: string }) => {
+      const repository = new DesignSchemeRepository(db);
+      snapshotSeq += 1;
+      return {
+        packageId: `pkg_gh_${snapshotSeq}`,
+        snapshotId: repository.saveSourceSnapshot({
+          package: {
+            id: `pkg_gh_${snapshotSeq}`,
+            kind: 'github',
+            repositoryUrl: source.repositoryUrl,
+          },
+          snapshot: {
+            id: `snap_gh_${snapshotSeq}`,
+            ref: 'main',
+            commitHash: 'b'.repeat(40),
+            totalBytes: 20,
+            scan: {},
+          },
+          files: [
+            {
+              path: 'SKILL.md',
+              kind: 'text',
+              contentHash: 'sha256:1',
+              sizeBytes: 20,
+              textContent: '# 海报规则',
+            },
+          ],
+        }).snapshotId,
+        imagePaths: [],
+      };
+    }),
+  };
+});
+
 import {
   buildDesignSchemesDomainMethods,
   DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
   DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED,
-  DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE,
   DESIGN_SCHEME_CREATE_INPUT_REQUIRED,
+  DESIGN_SCHEME_EXECUTION_NOT_CONFIRMABLE,
+  DESIGN_SCHEME_EXECUTION_NOT_FOUND,
   DESIGN_SCHEME_HISTORY_SOURCE_UNAVAILABLE,
   designSchemeEventChannel,
   parseDesignSchemeEvent,
@@ -283,6 +346,7 @@ let importPackage: ReturnType<typeof vi.fn>;
 let exportPackage: ReturnType<typeof vi.fn>;
 let showSaveDialog: ReturnType<typeof vi.fn>;
 let resolveAgentAdapter: ReturnType<typeof vi.fn>;
+let resolveUploadedReference: ReturnType<typeof vi.fn>;
 let userDataDir: string;
 let picturesDir: string;
 let outsideManagedDir: string;
@@ -314,6 +378,19 @@ const AGENT_COMPILED_JSON = JSON.stringify({
   creationSummary: '已根据描述整理出可复用的水彩海报方案,请试运行验证。',
 });
 
+/** Repository Analyst 角色的结构化 JSON 替身(GitHub 来源路径)。 */
+const AGENT_ANALYST_JSON = JSON.stringify({
+  repoKind: 'agent-skill',
+  capabilitySummary: '极简双色 zine 海报',
+  rules: [
+    { domain: 'color', statement: '只用两种油墨色', mode: 'required', evidencePaths: ['SKILL.md'] },
+  ],
+  variables: [{ label: '主题', kind: 'text', required: true }],
+  referenceImages: [],
+  unsupported: [],
+  license: 'MIT',
+});
+
 /** 假文本适配器:按系统提示词角色返回固定 JSON;`fail` 时抛 401 模拟密钥失效。 */
 function makeAgentAdapter(options: { fail?: boolean; onComplete?: () => void } = {}) {
   const complete = vi.fn(async (request: TextCompletionRequest) => {
@@ -321,6 +398,9 @@ function makeAgentAdapter(options: { fail?: boolean; onComplete?: () => void } =
     if (request.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
     if (options.fail) {
       throw Object.assign(new Error('AI 请求失败(401):invalid key'), { statusCode: 401 });
+    }
+    if (request.system.includes('仓库分析师')) {
+      return { text: AGENT_ANALYST_JSON, model: 'test-text-model' };
     }
     return { text: AGENT_COMPILED_JSON, model: 'test-text-model' };
   });
@@ -342,6 +422,7 @@ function wire() {
   exportPackage = vi.fn();
   showSaveDialog = vi.fn();
   resolveAgentAdapter = vi.fn(() => makeAgentAdapter().adapter);
+  resolveUploadedReference = vi.fn(() => null);
   const deps: DesignSchemeDomainDeps = {
     db,
     coreDb,
@@ -349,6 +430,9 @@ function wire() {
     checkUpdate: checkUpdate as unknown as NonNullable<DesignSchemeDomainDeps['checkUpdate']>,
     resolveAgentAdapter: resolveAgentAdapter as unknown as NonNullable<
       DesignSchemeDomainDeps['resolveAgentAdapter']
+    >,
+    resolveUploadedReference: resolveUploadedReference as unknown as NonNullable<
+      DesignSchemeDomainDeps['resolveUploadedReference']
     >,
     consumeStagedPackage: consumeStagedPackage as unknown as NonNullable<
       DesignSchemeDomainDeps['consumeStagedPackage']
@@ -469,8 +553,8 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('方法表', () => {
-  it('逐名锁定为 deployed canonical 方法集(17 个,无旧通道残留)', () => {
-    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(17);
+  it('逐名锁定为 deployed canonical 方法集(18 个,无旧通道残留)', () => {
+    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(18);
     expect(Object.keys(methods).sort()).toEqual([...DESIGN_SCHEME_METHOD_NAMES].sort());
   });
 
@@ -1176,16 +1260,156 @@ describe('create(Agent 管线,无 document)', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
   });
 
-  it('GitHub 来源(sourceUris)在安装确认通道部署前显式拒绝,不静默安装', async () => {
-    const { complete, adapter } = makeAgentAdapter();
+  it('GitHub 来源:解析后发 confirmation-required 并停住;confirmInstall(install) 后 Analyst → Compiler 落 skill 草稿', async () => {
+    const { events } = captureEvents(AGENT_SENDER);
+    const { adapter, complete } = makeAgentAdapter();
     resolveAgentAdapter.mockReturnValue(adapter);
-    const error = await invokeError(
+    const parsed = () => events.map((event) => parseDesignSchemeEvent(event));
+
+    const running = invoke('create', agentCreateInput({ sourceUris: [GITHUB_URI] }), AGENT_SENDER);
+    await vi.waitFor(() =>
+      expect(parsed().map((event) => event.kind)).toContain('confirmation-required'),
+    );
+    // 用户未确认前不得调用任何模型,也不得固化快照。
+    expect(complete).not.toHaveBeenCalled();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_snapshots').get()).toEqual({ n: 0 });
+    const confirmation = parsed().find((event) => event.kind === 'confirmation-required');
+    expect(confirmation?.kind === 'confirmation-required' && confirmation.source).toMatchObject({
+      repositoryUrl: GITHUB_URI,
+      name: 'zine-kit',
+      resolvedRef: 'main',
+      commitHash: COMMIT,
+      textFileCount: 1,
+      textNames: ['SKILL.md'],
+      imageFileCount: 0,
+      license: 'MIT',
+    });
+    expect(parsed().flatMap((event) => (event.kind === 'state' ? [event.state] : []))).toEqual([
+      'created',
+      'source_resolving',
+      'awaiting_install_confirmation',
+    ]);
+
+    const accepted = await invoke(
+      'confirmInstall',
+      { executionId: 'exec_agent_create_1', decision: 'install' },
+      AGENT_SENDER,
+    );
+    expect(accepted).toEqual({ executionId: 'exec_agent_create_1', status: 'accepted' });
+
+    const result = await running;
+    expect(() => createDesignSchemeResultSchema.parse(result)).not.toThrow();
+    expect(result.scheme).toMatchObject({
+      status: 'draft',
+      sourcePresentation: 'skill',
+      sourceLabel: 'acme/zine-kit',
+    });
+    expect(result.document.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'src_repo',
+          kind: 'github-skill',
+          role: 'normative',
+          uri: GITHUB_URI,
+          resolvedRef: 'main',
+          commitHash: COMMIT,
+          license: 'MIT',
+        }),
+      ]),
+    );
+    expect(result.document.sourceSnapshotIds).toHaveLength(1);
+    expect(complete.mock.calls.map(([request]) => request.system.includes('仓库分析师'))).toEqual([
+      true,
+      false,
+    ]);
+    expect(parsed().flatMap((event) => (event.kind === 'state' ? [event.state] : []))).toEqual([
+      'created',
+      'source_resolving',
+      'awaiting_install_confirmation',
+      'source_snapshotting',
+      'analyzing',
+      'compiling_scheme',
+      'draft_ready',
+    ]);
+    // 后续对已终态执行再确认 → already-terminal,不报错。
+    await expect(
+      invoke(
+        'confirmInstall',
+        { executionId: 'exec_agent_create_1', decision: 'install' },
+        AGENT_SENDER,
+      ),
+    ).resolves.toEqual({ executionId: 'exec_agent_create_1', status: 'already-terminal' });
+  });
+
+  it('GitHub 来源:confirmInstall(cancel) → 会话取消、cancelled 事件,不固化快照也不留方案', async () => {
+    const { events } = captureEvents(AGENT_SENDER);
+    const { adapter, complete } = makeAgentAdapter();
+    resolveAgentAdapter.mockReturnValue(adapter);
+
+    const running = invoke(
       'create',
       agentCreateInput({ sourceUris: [GITHUB_URI] }),
       AGENT_SENDER,
+    ).catch((error: unknown) => error);
+    await vi.waitFor(() =>
+      expect(events.map((event) => parseDesignSchemeEvent(event).kind)).toContain(
+        'confirmation-required',
+      ),
     );
-    expect(error.code).toBe(DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE);
+    const declined = await invoke(
+      'confirmInstall',
+      { executionId: 'exec_agent_create_1', decision: 'cancel' },
+      AGENT_SENDER,
+    );
+    expect(declined).toEqual({ executionId: 'exec_agent_create_1', status: 'cancelled' });
+
+    const outcome = (await running) as BridgeError;
+    expect(outcome).toBeInstanceOf(BridgeError);
+    expect(outcome.code).toBe('CANCELLED');
+    expect(events.map((event) => parseDesignSchemeEvent(event)).at(-1)).toMatchObject({
+      kind: 'cancelled',
+      executionId: 'exec_agent_create_1',
+    });
     expect(complete).not.toHaveBeenCalled();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM source_snapshots').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual({ n: 0 });
+  });
+
+  it('confirmInstall:未知执行 → NOT_FOUND;无所有者 → OWNER_REQUIRED;其他窗口的执行不可见', async () => {
+    expect(
+      (
+        await invokeError(
+          'confirmInstall',
+          { executionId: 'exec_ghost', decision: 'install' },
+          AGENT_SENDER,
+        )
+      ).code,
+    ).toBe(DESIGN_SCHEME_EXECUTION_NOT_FOUND);
+    expect(
+      (await invokeError('confirmInstall', { executionId: 'exec_ghost', decision: 'install' }))
+        .code,
+    ).toBe('DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED');
+
+    captureEvents(AGENT_SENDER);
+    resolveAgentAdapter.mockReturnValue(makeAgentAdapter().adapter);
+    const running = invoke(
+      'create',
+      agentCreateInput({ sourceUris: [GITHUB_URI] }),
+      AGENT_SENDER,
+    ).catch((error: unknown) => error);
+    await vi.waitFor(() =>
+      expect(designSchemeExecutionRegistry.get(AGENT_SENDER, 'exec_agent_create_1').status).toBe(
+        'active',
+      ),
+    );
+    const foreign = await invokeError(
+      'confirmInstall',
+      { executionId: 'exec_agent_create_1', decision: 'install' },
+      AGENT_SENDER + 1,
+    );
+    expect(foreign.code).toBe(DESIGN_SCHEME_EXECUTION_NOT_FOUND);
+    await invoke('cancel', { executionId: 'exec_agent_create_1' }, AGENT_SENDER);
+    await running;
   });
 
   it('无 document 却夹带预解析来源快照/资产 → 拒绝(那是确定性建库入参)', async () => {
@@ -1291,6 +1515,47 @@ describe('modify(Agent 管线)', () => {
     expect(result.scheme.currentRevisionId).toBe('dsrv_mf1');
     expect(result.scheme.workingDraftRevisionId).toBe(result.revisionId);
     expect(result.document.revisionId).toBe(result.revisionId);
+  });
+
+  it('修改执行没有安装确认步骤:进行中对其 confirmInstall → NOT_CONFIRMABLE,执行不受影响', async () => {
+    await invoke('create', createInputFixture('dsch_mod_confirm', 'dsrv_mc1'));
+    captureEvents(AGENT_SENDER);
+    let releaseModel!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseModel = resolve;
+    });
+    resolveAgentAdapter.mockReturnValue({
+      modelId: 'slow-model',
+      connectionName: 'slow',
+      complete: async () => {
+        await gate;
+        return { text: AGENT_COMPILED_JSON, model: 'slow-model' };
+      },
+    } as unknown as OpenAiCompatibleTextAdapter);
+
+    const running = invoke(
+      'modify',
+      {
+        executionId: 'exec_agent_modify_confirm',
+        schemeId: 'dsch_mod_confirm',
+        baseRevisionId: 'dsrv_mc1',
+        instruction: '改一下',
+      },
+      AGENT_SENDER,
+    );
+    await vi.waitFor(() =>
+      expect(
+        designSchemeExecutionRegistry.get(AGENT_SENDER, 'exec_agent_modify_confirm').status,
+      ).toBe('active'),
+    );
+    const error = await invokeError(
+      'confirmInstall',
+      { executionId: 'exec_agent_modify_confirm', decision: 'install' },
+      AGENT_SENDER,
+    );
+    expect(error.code).toBe(DESIGN_SCHEME_EXECUTION_NOT_CONFIRMABLE);
+    releaseModel();
+    expect((await running).scheme.id).toBe('dsch_mod_confirm');
   });
 
   it('基线不是当前版本/待验证草稿 → INVALID_STATE,不调用模型', async () => {
@@ -1724,7 +1989,7 @@ describe('checkUpdate', () => {
   });
 });
 
-describe('主进程权威 text-only run plan', () => {
+describe('主进程权威 run plan(文本 + 图片输入)', () => {
   function seedProvider(type = 'openai-compatible'): void {
     coreDb
       .prepare(
@@ -1804,13 +2069,30 @@ describe('主进程权威 text-only run plan', () => {
     );
   });
 
-  it('对缺必填文本、图片输入与未知 Provider 稳定 fail-closed', async () => {
+  it('对缺必填文本、无图片槽位却带参考图、未知参考图与未知 Provider 稳定 fail-closed', async () => {
     await invoke('create', createInputFixture('dsch_prepare', 'dsrv_prepare'));
     seedProvider();
     expect((await invokeError('prepareRun', prepareInput({ inputValues: {} }))).code).toBe(
       'DESIGN_SCHEME_INPUT_REQUIRED',
     );
 
+    // 纯文本方案没有图片槽位:参考图无处可放 → 明确拒绝而不是静默丢弃。
+    resolveUploadedReference.mockReturnValue({ path: '/managed/upload.png', source: 'upload' });
+    expect(
+      (
+        await invokeError(
+          'prepareRun',
+          prepareInput({
+            executionSettings: {
+              ...prepareInput().executionSettings,
+              referenceAssetIds: ['UPLOAD_REF'],
+            },
+          }),
+        )
+      ).code,
+    ).toBe('DESIGN_SCHEME_INPUT_MISMATCH');
+    // 既不是方案资产也不是本次上传暂存。
+    resolveUploadedReference.mockReturnValue(null);
     expect(
       (
         await invokeError(
@@ -1823,7 +2105,7 @@ describe('主进程权威 text-only run plan', () => {
           }),
         )
       ).code,
-    ).toBe('DESIGN_SCHEME_TEXT_ONLY_UNSUPPORTED');
+    ).toBe('DESIGN_SCHEME_REFERENCE_MISSING');
 
     coreDb
       .prepare("UPDATE providers SET type = 'future-provider' WHERE id = ?")
@@ -1831,6 +2113,59 @@ describe('主进程权威 text-only run plan', () => {
     expect((await invokeError('prepareRun', prepareInput())).code).toBe(
       'DESIGN_SCHEME_PROVIDER_UNSUPPORTED',
     );
+  });
+
+  it('含图片槽位的方案:Composer 上传暂存 id 经宿主解析落入图片槽位快照,run 前复核通过', async () => {
+    await invoke(
+      'create',
+      createInputFixture('dsch_prepare_img', 'dsrv_prepare_img', {
+        document: canonicalDocument('dsrv_prepare_img', 'dsch_prepare_img', {
+          inputs: [
+            { id: 'slot_topic', label: '主题', kind: 'text', required: true },
+            {
+              id: 'slot_subject',
+              label: '主体参考',
+              kind: 'image',
+              required: true,
+              imageRole: 'subject-reference',
+            },
+          ],
+        }),
+      }),
+    );
+    seedProvider();
+    resolveUploadedReference.mockImplementation((assetId: string) =>
+      assetId === 'UPLOAD_SUBJECT' ? { path: '/managed/upload.png', source: 'upload' } : null,
+    );
+
+    const prepared = await invoke(
+      'prepareRun',
+      prepareInput({
+        schemeId: 'dsch_prepare_img',
+        revisionId: 'dsrv_prepare_img',
+        executionSettings: {
+          ...prepareInput().executionSettings,
+          referenceAssetIds: ['UPLOAD_SUBJECT'],
+        },
+      }),
+    );
+    expect(prepared.plan.inputs).toEqual([
+      { slotId: 'slot_topic', kind: 'text', valueIds: [], text: '城市夜景' },
+      { slotId: 'slot_subject', kind: 'image', valueIds: ['UPLOAD_SUBJECT'], text: null },
+    ]);
+    expect(prepared.inputValues).toEqual({ slot_topic: '城市夜景' });
+    expect(prepared.executionSettings.referenceAssetIds).toEqual(['UPLOAD_SUBJECT']);
+    expect(JSON.stringify(prepared)).not.toContain('/managed/');
+
+    // 必需图片槽位缺参考图 → blocked。
+    expect(
+      (
+        await invokeError(
+          'prepareRun',
+          prepareInput({ schemeId: 'dsch_prepare_img', revisionId: 'dsrv_prepare_img' }),
+        )
+      ).code,
+    ).toBe('DESIGN_SCHEME_INPUT_REQUIRED');
   });
 });
 
@@ -1868,9 +2203,10 @@ describe('执行类操作要求可信 renderer 所有者,并只返回结构化 b
   it('剩余 Agent blocker 码与旧的 fail-closed 语义区分,逐一登记', () => {
     for (const code of [
       DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
-      DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE,
       DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED,
       DESIGN_SCHEME_CREATE_INPUT_REQUIRED,
+      DESIGN_SCHEME_EXECUTION_NOT_FOUND,
+      DESIGN_SCHEME_EXECUTION_NOT_CONFIRMABLE,
     ]) {
       expect(code).not.toBe('DESIGN_SCHEME_UNAVAILABLE');
       expect(code).toMatch(/^[A-Z][A-Z0-9_.-]{1,79}$/);

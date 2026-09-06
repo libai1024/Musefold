@@ -1,11 +1,13 @@
 'use client';
 
 import {
+  type CreationState,
   type DesignSchemeSummary,
   type GenerationJob,
   MAX_REFERENCE_IMAGE_BYTES,
   MAX_REFERENCE_IMAGES,
   type PromptReferenceSelection,
+  type SourceConfirmation,
   type WorkbenchSession,
 } from '@musefold/contracts';
 import { queryKeys } from '@musefold/platform';
@@ -18,6 +20,7 @@ import {
   SelectValue,
 } from '@musefold/ui/components/select';
 import { Skeleton } from '@musefold/ui/components/skeleton';
+import { Spinner } from '@musefold/ui/components/spinner';
 import { toast } from '@musefold/ui/components/sonner';
 import { Plus } from '@musefold/ui/icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,6 +36,7 @@ import {
   schemeSubmitDisabledReason,
   useSchemeIntegration,
 } from '../design-schemes/integration-store';
+import { SourceInstallConfirmDialog } from '../design-schemes/SchemeDialogs';
 import { SchemeRunPicker } from '../design-schemes/SchemeRunPicker';
 import type { SchemeHistorySourceSelection } from '../design-schemes/types';
 import {
@@ -107,6 +111,26 @@ function revokePreviewUrl(url: string): void {
   if (url && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
 }
 
+/** Agent 创建/修改状态 → Composer 进度文案(承旧创建状态机文案);终态不显示。 */
+const AGENT_STATE_LABELS: Partial<Record<CreationState, string>> = {
+  created: '正在准备 Agent…',
+  source_resolving: '正在读取 GitHub 仓库…',
+  awaiting_install_confirmation: '等待确认引入来源',
+  source_snapshotting: '正在固化来源快照…',
+  analyzing: 'Repository Analyst 正在分析仓库…',
+  compiling_scheme: 'Scheme Compiler 正在编译方案…',
+};
+
+/** 宿主以结构化 CANCELLED 收尾的 Agent 执行(如用户在安装确认层取消)。 */
+function isCancelledError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'CANCELLED'
+  );
+}
+
 export interface WorkbenchScreenProps {
   /** Composer 无连接引导「前往设置」的切屏回调(宿主注入)。 */
   onOpenSettings?(): void;
@@ -163,6 +187,14 @@ export function WorkbenchScreen({
   } | null>(null);
   const [schemeCancelling, setSchemeCancelling] = useState(false);
   const [schemeSubmitError, setSchemeSubmitError] = useState<string | null>(null);
+  // Agent 创建的来源安装确认层(confirmation-required → 用户决定 → confirmInstall)。
+  const [installConfirmation, setInstallConfirmation] = useState<{
+    executionId: string;
+    source: SourceConfirmation;
+  } | null>(null);
+  const [installDecisionPending, setInstallDecisionPending] = useState(false);
+  // Agent 创建/修改进行中的一行进度(state / 运行中 trace 标题)。
+  const [agentProgress, setAgentProgress] = useState<string | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   // 「添加上下文」触发钮:面板关闭后焦点归还(§8-I9)。
   const attachTriggerRef = useRef<HTMLButtonElement>(null);
@@ -545,7 +577,10 @@ export function WorkbenchScreen({
     void queryClient.invalidateQueries({ queryKey: queryKeys.designSchemes.all() });
   }
 
-  /** 创建/修改走宿主 Agent 管线:成功复位 Composer(创建态清除),失败就地解释并保留输入。 */
+  /**
+   * 创建/修改走宿主 Agent 管线:成功复位 Composer(创建态清除),失败就地解释并保留输入;
+   * 用户在安装确认层取消(宿主以 CANCELLED 收尾)按中性取消处理,不算失败。
+   */
   async function runSchemeLifecycle(
     kind: 'create' | 'modify',
     execute: (executionId: string) => Promise<void>,
@@ -558,12 +593,70 @@ export function WorkbenchScreen({
       await execute(executionId);
       onSuccess();
     } catch (error) {
+      if (isCancelledError(error)) {
+        toast(kind === 'create' ? '已取消创建方案' : '已取消修改方案');
+        return;
+      }
       const fallback = kind === 'create' ? '方案创建失败' : '方案修改失败';
       const message = error instanceof Error && error.message ? error.message : fallback;
       setSchemeSubmitError(message);
       toast.error(fallback, { description: message });
     } finally {
       setSchemeExecution(null);
+    }
+  }
+
+  /**
+   * Agent 创建/修改期间订阅宿主事件(承旧创建轨迹展示的精简形态):
+   * - state / 运行中的 trace → Composer 上方一行进度(「Repository Analyst 分析仓库」等),
+   *   让 30–120s 的 Agent 等待有反馈;
+   * - confirmation-required → 弹安装确认层(§11.2 不静默引入),决定经 gateway.confirmInstall 送回;
+   *   宿主没有确认通道时不处理该事件——此时宿主 onCreate 也不会接受 GitHub 地址。
+   */
+  function subscribeAgentEvents(executionId: string): () => void {
+    const gateway = schemeGateway;
+    if (!gateway) return () => undefined;
+    const canConfirm = typeof gateway.confirmInstall === 'function';
+    try {
+      const unsubscribe = gateway.subscribeEvents((event) => {
+        if (event.executionId !== executionId) return;
+        if (event.kind === 'state') {
+          setAgentProgress(AGENT_STATE_LABELS[event.state] ?? null);
+        } else if (event.kind === 'trace') {
+          if (event.item.status === 'running') setAgentProgress(event.item.title);
+        } else if (event.kind === 'confirmation-required' && canConfirm) {
+          setInstallDecisionPending(false);
+          setInstallConfirmation({ executionId, source: event.source });
+        }
+      });
+      return () => {
+        unsubscribe();
+        setAgentProgress(null);
+        setInstallConfirmation(null);
+        setInstallDecisionPending(false);
+      };
+    } catch {
+      // 事件通道不可用(如云端 adapter):没有进度与确认层,请求本身仍由宿主裁决。
+      return () => undefined;
+    }
+  }
+
+  async function handleInstallDecision(decision: 'install' | 'cancel') {
+    const current = installConfirmation;
+    const confirmInstall = schemeGateway?.confirmInstall;
+    if (!current || !confirmInstall || installDecisionPending) return;
+    setInstallDecisionPending(true);
+    try {
+      await confirmInstall({ executionId: current.executionId, decision });
+      // 同一执行可能还有下一个来源要确认;新事件会重新打开确认层。
+      setInstallConfirmation((pending) =>
+        pending?.executionId === current.executionId ? null : pending,
+      );
+    } catch (error) {
+      setInstallDecisionPending(false);
+      toast.error('安装确认失败', {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   }
 
@@ -580,13 +673,19 @@ export function WorkbenchScreen({
       await runSchemeLifecycle(
         'create',
         async (executionId) => {
-          await submitCreate({
-            kind: 'create',
-            executionId,
-            createKind: creation.createKind,
-            brief: userPrompt,
-            source: creation.source,
-          });
+          // 先订阅再提交:进度/确认事件不可能早于订阅到达。
+          const unsubscribe = subscribeAgentEvents(executionId);
+          try {
+            await submitCreate({
+              kind: 'create',
+              executionId,
+              createKind: creation.createKind,
+              brief: userPrompt,
+              source: creation.source,
+            });
+          } finally {
+            unsubscribe();
+          }
         },
         () => {
           setSchemeCreation(null);
@@ -605,12 +704,17 @@ export function WorkbenchScreen({
       await runSchemeLifecycle(
         'modify',
         async (executionId) => {
-          await submitModify({
-            kind: 'modify',
-            executionId,
-            attachment,
-            brief: userPrompt,
-          });
+          const unsubscribe = subscribeAgentEvents(executionId);
+          try {
+            await submitModify({
+              kind: 'modify',
+              executionId,
+              attachment,
+              brief: userPrompt,
+            });
+          } finally {
+            unsubscribe();
+          }
         },
         () => {
           clearAfterSchemeSubmit(false, activeSession);
@@ -875,6 +979,15 @@ export function WorkbenchScreen({
     >
       {schemeSubmitError}
     </p>
+  ) : schemeExecution && schemeExecution.kind !== 'run' && agentProgress ? (
+    <p
+      className="pointer-events-auto mx-auto my-2 flex w-full max-w-[728px] items-center gap-1.5 px-1.5 text-muted-foreground text-xs"
+      data-testid="scheme-agent-progress"
+      aria-live="polite"
+    >
+      <Spinner className="size-3" />
+      {agentProgress}
+    </p>
   ) : null;
 
   /**
@@ -989,6 +1102,11 @@ export function WorkbenchScreen({
             open={schemeHistoryOpen}
             onCancel={() => setSchemeHistoryOpen(false)}
             onConfirm={handleSchemeHistoryConfirm}
+          />
+          <SourceInstallConfirmDialog
+            source={installConfirmation?.source ?? null}
+            pending={installDecisionPending}
+            onDecide={(decision) => void handleInstallDecision(decision)}
           />
         </>
       ) : null}

@@ -18,6 +18,7 @@ import {
   type SelectCoverInput,
   type UpdateDesignSchemeInput,
   cancelDesignSchemeInputSchema,
+  confirmDesignSchemeInstallInputSchema,
   createDesignSchemeInputSchema,
   createDesignSchemeResultSchema,
   designSchemeAssetSchema,
@@ -549,6 +550,16 @@ export class DesignSchemeService {
       'cancel',
       CLOUD_DESIGN_SCHEME_UNAVAILABLE.cancel,
       'Cloud Design Scheme execution cancellation is not available.',
+    );
+  }
+
+  /** Install confirmation belongs to the Agent creation session, which the cloud runtime does not host yet. */
+  confirmInstall(_userId: string, rawInput: unknown): never {
+    confirmDesignSchemeInstallInputSchema.parse(rawInput);
+    throwUnavailable(
+      'confirmInstall',
+      CLOUD_DESIGN_SCHEME_UNAVAILABLE.create,
+      'Cloud Design Scheme Agent creation is not available.',
     );
   }
 

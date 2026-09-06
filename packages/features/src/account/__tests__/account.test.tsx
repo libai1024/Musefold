@@ -22,6 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScreenIntent } from '../../shell/screen-intent-store';
 import { AccountFooter } from '../AccountFooter';
 import { AccountPanel } from '../AccountPanel';
+import { AgentConnectionsPanel } from '../AgentConnectionsPanel';
 import { AiConnectionsPanel } from '../AiConnectionsPanel';
 import { CloudSyncPanel } from '../CloudSyncPanel';
 import { formatPoints } from '../hooks';
@@ -64,6 +65,8 @@ type SyncGateway = NonNullable<MusefoldGateway['sync']>;
 interface GatewayOverrides {
   signedIn?: boolean;
   providers?: AiProvider[];
+  /** Agent 文本连接(与生图 Provider 同形状、独立域);undefined = 宿主不提供该域。 */
+  agentConnections?: AiProvider[];
   syncFixture?: SyncFixture;
 }
 
@@ -173,6 +176,7 @@ function createGateway(overrides: GatewayOverrides = {}) {
     creditedQuota: 500_000,
   }));
   const createProvider = vi.fn(async () => PROVIDER);
+  const createAgentConnection = vi.fn(async () => PROVIDER);
   const testProvider = vi.fn(async () => ({
     ok: true as const,
     message: '连接正常',
@@ -199,6 +203,18 @@ function createGateway(overrides: GatewayOverrides = {}) {
       setActive: setActiveProvider,
       test: testProvider,
     },
+    ...(overrides.agentConnections
+      ? {
+          agentConnections: {
+            list: async () => overrides.agentConnections ?? [],
+            create: createAgentConnection,
+            update: vi.fn(),
+            remove: vi.fn(),
+            setActive: vi.fn(),
+            test: testProvider,
+          },
+        }
+      : {}),
     ...(syncGateway ? { sync: syncGateway.sync } : {}),
   } as unknown as MusefoldGateway;
   return {
@@ -208,6 +224,7 @@ function createGateway(overrides: GatewayOverrides = {}) {
     logout,
     redeem,
     createProvider,
+    createAgentConnection,
     testProvider,
     setActiveProvider,
     syncGateway,
@@ -653,6 +670,75 @@ describe('AiConnectionsPanel', () => {
       expect(screen.getByTestId('ai-provider-test-result').textContent).toBe('连接正常 · 128ms');
     });
     expect(testProvider).toHaveBeenCalledWith(PROVIDER.id);
+  });
+});
+
+describe('AgentConnectionsPanel', () => {
+  it('lists agent connections from gateway.agentConnections with its own testid prefix', async () => {
+    const { gateway } = createGateway({
+      agentConnections: [
+        { ...PROVIDER, id: 'agent_1', name: 'TvT 文本', model: 'gpt-5.4-mini' },
+        {
+          ...PROVIDER,
+          id: 'agent_managed',
+          name: '账号 Agent',
+          isActive: false,
+          managedBy: 'account',
+        },
+      ],
+    });
+    renderWith(gateway, <AgentConnectionsPanel />, DESKTOP_CAPABILITIES);
+
+    await screen.findByTestId('agent-connections-list');
+    expect(screen.getByTestId('settings-agent-connections-card')).toBeTruthy();
+    expect(screen.getByText('Agent 连接')).toBeTruthy();
+    expect(screen.getByText('TvT 文本')).toBeTruthy();
+    expect(screen.getByText(/gpt-5\.4-mini/)).toBeTruthy();
+    expect(screen.getByTestId('agent-connection-active-badge')).toBeTruthy();
+    // 生图面板的 testid 不出现:两个面板各自可寻址。
+    expect(screen.queryByTestId('ai-providers-list')).toBeNull();
+    // 账号托管连接只读:编辑/删除禁用并标注。
+    expect(screen.getByTestId('agent-connection-managed-badge')).toBeTruthy();
+    const managedRow = screen.getByTestId('agent-connection-agent_managed');
+    expect(
+      (managedRow.querySelector('[data-testid="agent-connection-edit"]') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (managedRow.querySelector('[data-testid="agent-connection-delete"]') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it('creates an agent connection through gateway.agentConnections, not aiProviders', async () => {
+    const { gateway, createAgentConnection, createProvider } = createGateway({
+      agentConnections: [],
+    });
+    renderWith(gateway, <AgentConnectionsPanel />, DESKTOP_CAPABILITIES);
+
+    await screen.findByTestId('agent-connections-empty');
+    await userEvent.click(screen.getByTestId('agent-connection-new'));
+    await screen.findByTestId('agent-connection-editor');
+    expect(screen.getByText('新建 Agent 连接')).toBeTruthy();
+    await userEvent.type(screen.getByTestId('agent-connection-name'), 'DeepSeek');
+    await userEvent.type(
+      screen.getByTestId('agent-connection-base-url'),
+      'https://api.deepseek.com/v1',
+    );
+    await userEvent.type(screen.getByTestId('agent-connection-model'), 'deepseek-chat');
+    await userEvent.type(screen.getByTestId('agent-connection-key'), 'sk-agent-9999');
+    await userEvent.click(screen.getByTestId('agent-connection-save'));
+
+    await waitFor(() => {
+      expect(createAgentConnection).toHaveBeenCalledWith({
+        name: 'DeepSeek',
+        baseUrl: 'https://api.deepseek.com/v1',
+        model: 'deepseek-chat',
+        apiKey: 'sk-agent-9999',
+        activate: false,
+      });
+    });
+    expect(createProvider).not.toHaveBeenCalled();
   });
 });
 

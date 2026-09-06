@@ -70,9 +70,16 @@ async function installAccountApiMock(
   return { state, registrations };
 }
 
+/** 设置屏是分组导航(V25-UI-SPEC §6.1):账号表单在「账号」分区二级面板内。 */
+async function openAccountSection(page: Page): Promise<void> {
+  await page.getByTestId('settings-nav-account').click();
+  await expect(page.getByTestId('settings-section-account')).toBeVisible();
+}
+
 test('注册确认密码只在注册模式显示,失配拦截 Enter,匹配后只发送账号密码', async ({ page }) => {
   const { registrations } = await installAccountApiMock(page);
   await page.goto('/settings');
+  await openAccountSection(page);
 
   await page.getByRole('button', { name: '没有账号?注册' }).click();
   await expect(page.getByTestId('account-confirm-password')).toBeVisible();
@@ -93,6 +100,7 @@ test('注册确认密码只在注册模式显示,失配拦截 Enter,匹配后只
 test('账密登录 → 已登录视图与侧栏账号区 → 兑换 → 退出', async ({ page, isMobile }) => {
   await installAccountApiMock(page);
   await page.goto('/settings');
+  await openAccountSection(page);
 
   // 未登录:表单可见;桌面视口侧栏展示登录入口
   await expect(page.getByTestId('account-auth-form')).toBeVisible();
@@ -125,6 +133,7 @@ test('账密登录 → 已登录视图与侧栏账号区 → 兑换 → 退出',
 test('登录失败在表单内展示服务端错误', async ({ page }) => {
   await installAccountApiMock(page);
   await page.goto('/settings');
+  await openAccountSection(page);
 
   await page.getByTestId('account-username').fill('xiaomiao');
   await page.getByTestId('account-password').fill('wrong-pass');
@@ -137,6 +146,7 @@ test('登录失败在表单内展示服务端错误', async ({ page }) => {
 test('已登录设置页视觉基线', async ({ page }) => {
   await installAccountApiMock(page);
   await page.goto('/settings');
+  await openAccountSection(page);
   await page.getByTestId('account-username').fill('xiaomiao');
   await page.getByTestId('account-password').fill('12345678');
   await page.getByTestId('account-auth-submit').click();

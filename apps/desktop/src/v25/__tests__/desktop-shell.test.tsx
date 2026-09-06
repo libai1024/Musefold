@@ -5,19 +5,25 @@
 // - design-schemes 视图把 SchemesScreen 接到桌面 gateway(列表查询、media:// 封面解析);
 // - 能力关闭时视图整体不渲染(D2 无死入口);
 // - 工作台 designSchemes 集成 prop:导航缝(详情深链写 scheme-detail intent + 切屏)+
-//   运行缝 onRun(主进程权威 prepareRun → run 原样往返,text-only)/ onCancelRun(cancel by executionId);
-//   Agent 创建/修改缝(onCreate / onModify)缺省,不伪造。
+//   运行缝 onRun(主进程权威 prepareRun → run 原样往返,text-and-images:参考图以上传暂存 id 提交)/ onCancelRun(cancel by executionId)+
+//   Agent 缝 onCreate(brief / 历史来源身份 → create)/ onModify(exact revision → modify);
+//   GitHub 地址在安装确认通道部署前于 renderer 拒绝并解释,不伪造。
 
 import type {
   CancelDesignSchemeResult,
+  CreateDesignSchemeInput,
+  CreateDesignSchemeResult,
   DesignSchemeDetail,
   DesignSchemeRevisionDocument,
   DesignSchemeSummary,
+  ModifyDesignSchemeInput,
   PrepareDesignSchemeRunInput,
   RunResult,
 } from '@musefold/contracts';
 import type {
   SchemeComposerHandlers,
+  SchemeCreateSubmission,
+  SchemeModifySubmission,
   SchemeRunSubmission,
 } from '@musefold/features/design-schemes';
 import { getShellNavItems, useScreenIntent } from '@musefold/features/shell';
@@ -140,11 +146,25 @@ function makeRunResult(prepared: ReturnType<typeof makePreparedRun>): RunResult 
   };
 }
 
+/** 主进程 Agent create / modify 的替身结果(canonical createDesignSchemeResult 最小合法形状)。 */
+function makeAgentResult(executionId: string): CreateDesignSchemeResult {
+  const summary = makeSummary({ id: `scheme-${executionId}`, status: 'draft' });
+  return {
+    scheme: summary,
+    document: { ...makeDocument(), schemeId: summary.id },
+    revisionId: 'rev-1',
+    creationSummary: '已整理出可复用的方案草稿。',
+    trace: [],
+  };
+}
+
 function makeHarness(options: {
   schemes?: DesignSchemeSummary[];
   capabilities?: typeof DESKTOP_CAPABILITIES;
   /** false = 模拟旧桥缺 prepareRun:运行缝整组缺省。 */
   prepareRun?: boolean;
+  /** false = 模拟旧桥缺 confirmInstall:GitHub 来源在 renderer 拒绝。 */
+  confirmInstall?: boolean;
 }) {
   const summary = options.schemes?.[0];
   const detail: DesignSchemeDetail = {
@@ -169,6 +189,22 @@ function makeHarness(options: {
         status: 'cancelled',
       }),
     ),
+    create: vi.fn(
+      async (input: CreateDesignSchemeInput): Promise<CreateDesignSchemeResult> =>
+        makeAgentResult(input.executionId),
+    ),
+    modify: vi.fn(
+      async (input: ModifyDesignSchemeInput): Promise<CreateDesignSchemeResult> =>
+        makeAgentResult(input.executionId),
+    ),
+    ...(options.confirmInstall === false
+      ? {}
+      : {
+          confirmInstall: vi.fn(async (input: { executionId: string }) => ({
+            executionId: input.executionId,
+            status: 'accepted' as const,
+          })),
+        }),
     subscribeEvents: vi.fn(() => vi.fn()),
   };
   const gateway = { designSchemes } as unknown as MusefoldGateway;
@@ -286,17 +322,17 @@ function makeRunSubmission(overrides: Partial<SchemeRunSubmission> = {}): Scheme
 }
 
 describe('工作台 designSchemes 集成 prop(桌面)', () => {
-  it('导航缝:深链写 intent 并切屏;Agent 创建/修改缝缺省(主进程 fail-closed,不伪造)', () => {
+  it('导航缝:深链写 intent 并切屏;运行缝与 Agent 缝齐备,声明 text-and-images', () => {
     const { Providers } = makeHarness({});
     const onOpenView = vi.fn();
     render(<DesktopView view="workbench" onOpenView={onOpenView} />, { wrapper: Providers });
 
     const props = lastWorkbenchSchemeProps();
-    expect(props.onCreate).toBeUndefined();
-    expect(props.onModify).toBeUndefined();
-    expect(props.runInputSupport).toBe('text-only');
+    expect(props.runInputSupport).toBe('text-and-images');
     expect(typeof props.onRun).toBe('function');
     expect(typeof props.onCancelRun).toBe('function');
+    expect(typeof props.onCreate).toBe('function');
+    expect(typeof props.onModify).toBe('function');
 
     props.onOpenDesignSchemes('scheme-9');
     expect(onOpenView).toHaveBeenCalledWith('design-schemes');
@@ -367,7 +403,47 @@ describe('工作台 designSchemes 集成 prop(桌面)', () => {
     expect(settings).not.toHaveProperty('negativePrompt');
   });
 
-  it('onRun fail-closed:无 Provider / 带参考图 / modify 附件不进入 prepareRun,错误可读', async () => {
+  it('onRun:Composer 参考图只以上传暂存 id 进入 referenceAssetIds(去重保序),不夹带 URL / 名称 / 字节', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+
+    await lastWorkbenchSchemeProps().onRun?.(
+      makeRunSubmission({
+        referenceImages: [
+          {
+            id: 'ref_00000001',
+            url: 'media://local/?p=%2Fsecret%2Fa.png',
+            name: 'a.png',
+            mimeType: 'image/png',
+            byteSize: 1,
+          },
+          {
+            id: 'ref_00000002',
+            url: 'media://local/?p=%2Fsecret%2Fb.png',
+            name: 'b.png',
+            mimeType: 'image/webp',
+            byteSize: 2,
+          },
+          {
+            id: 'ref_00000001',
+            url: 'media://local/?p=%2Fsecret%2Fa.png',
+            name: 'a.png',
+            mimeType: 'image/png',
+            byteSize: 1,
+          },
+        ],
+      }),
+    );
+    const prepareInput = designSchemes.prepareRun?.mock
+      .calls[0]?.[0] as PrepareDesignSchemeRunInput;
+    expect(prepareInput.executionSettings.referenceAssetIds).toEqual([
+      'ref_00000001',
+      'ref_00000002',
+    ]);
+    expect(JSON.stringify(prepareInput)).not.toMatch(/media:\/\/|secret|a\.png|byteSize/);
+  });
+
+  it('onRun fail-closed:无 Provider / modify 附件不进入 prepareRun,错误可读', async () => {
     const { designSchemes, Providers } = makeHarness({});
     render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
     const props = lastWorkbenchSchemeProps();
@@ -375,21 +451,6 @@ describe('工作台 designSchemes 集成 prop(桌面)', () => {
     await expect(props.onRun?.(makeRunSubmission({ providerId: undefined }))).rejects.toThrow(
       '请先在设置中连接 AI 服务商',
     );
-    await expect(
-      props.onRun?.(
-        makeRunSubmission({
-          referenceImages: [
-            {
-              id: 'ref_00000001',
-              url: 'media://reference/ref_00000001',
-              name: 'a.png',
-              mimeType: 'image/png',
-              byteSize: 1,
-            },
-          ],
-        }),
-      ),
-    ).rejects.toThrow('当前环境的方案运行暂不支持参考图');
     await expect(
       props.onRun?.(
         makeRunSubmission({
@@ -505,13 +566,191 @@ describe('工作台 designSchemes 集成 prop(桌面)', () => {
     expect((await running)?.status).toBe('completed');
   });
 
-  it('旧桥缺 prepareRun:运行缝整组缺省(Composer 按 I4 禁用并解释),仍声明 text-only', () => {
+  it('旧桥缺 prepareRun:运行缝整组缺省(Composer 按 I4 禁用并解释),Agent 缝不受影响,仍声明 text-and-images', () => {
     const { Providers } = makeHarness({ prepareRun: false });
     render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
 
     const props = lastWorkbenchSchemeProps();
     expect(props.onRun).toBeUndefined();
     expect(props.onCancelRun).toBeUndefined();
-    expect(props.runInputSupport).toBe('text-only');
+    expect(typeof props.onCreate).toBe('function');
+    expect(typeof props.onModify).toBe('function');
+    expect(props.runInputSupport).toBe('text-and-images');
+  });
+
+  function makeCreateSubmission(
+    overrides: Partial<SchemeCreateSubmission> = {},
+  ): SchemeCreateSubmission {
+    return {
+      kind: 'create',
+      executionId: 'exec-create-1',
+      createKind: 'idea',
+      brief: '做一套柔和水彩质感的活动海报方案',
+      source: null,
+      ...overrides,
+    };
+  }
+
+  it('onCreate:brief 走严格 renderer 入参 → create;不夹带预解析来源;成功后失效方案缓存', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+
+    await lastWorkbenchSchemeProps().onCreate?.(makeCreateSubmission());
+    expect(designSchemes.create).toHaveBeenCalledTimes(1);
+    expect(designSchemes.create.mock.calls[0]?.[0]).toEqual({
+      executionId: 'exec-create-1',
+      brief: '做一套柔和水彩质感的活动海报方案',
+      sourceUris: [],
+      sourceBindings: [],
+      sourcePackages: [],
+      sourceSnapshots: [],
+      sourceAssetIds: [],
+      sourceAssets: [],
+      historySources: [],
+    });
+    expect(designSchemes.create.mock.calls[0]?.[0]).not.toHaveProperty('document');
+  });
+
+  it('onCreate:历史来源只交 runId / assetId / includePrompt 身份,不交 URL 或提示词正文', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+
+    await lastWorkbenchSchemeProps().onCreate?.(
+      makeCreateSubmission({
+        createKind: 'history',
+        source: {
+          kind: 'history',
+          selection: {
+            items: [
+              { jobId: 'job-1', assetId: 'asset-1', assetUrl: 'media://a.png', prompt: '一只猫' },
+              { jobId: 'job-2', assetId: 'asset-2', assetUrl: 'media://b.png', prompt: null },
+            ],
+            note: '保留构图',
+          },
+        },
+      }),
+    );
+    const input = designSchemes.create.mock.calls[0]?.[0] as CreateDesignSchemeInput;
+    expect(input.historySources).toEqual([
+      { runId: 'job-1', assetId: 'asset-1', includePrompt: true },
+      { runId: 'job-2', assetId: 'asset-2', includePrompt: false },
+    ]);
+    expect(JSON.stringify(input)).not.toContain('media://');
+    expect(JSON.stringify(input)).not.toContain('一只猫');
+  });
+
+  it('onCreate:brief 中的 GitHub 地址提取为 sourceUris(归一为仓库地址、去重),正文剔除地址', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+
+    await lastWorkbenchSchemeProps().onCreate?.(
+      makeCreateSubmission({
+        brief:
+          '按 https://github.com/acme/zine-kit/tree/main/skills/poster 和 https://github.com/acme/zine-kit.git 做一套方案，参考 https://github.com/other/palette/blob/v2/SKILL.md。',
+      }),
+    );
+    const input = designSchemes.create.mock.calls[0]?.[0] as CreateDesignSchemeInput;
+    expect(input.sourceUris).toEqual([
+      'https://github.com/acme/zine-kit',
+      'https://github.com/other/palette',
+    ]);
+    expect(input.brief).toBe('按 和 做一套方案，参考 。');
+  });
+
+  it('onCreate:只有 GitHub 地址没有正文也能创建;非法 github.com 地址(凭据/查询参数/非仓库路径)拒绝并解释', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+    const props = lastWorkbenchSchemeProps();
+
+    await props.onCreate?.(makeCreateSubmission({ brief: 'https://github.com/acme/zine-kit' }));
+    const urlOnly = designSchemes.create.mock.calls[0]?.[0] as CreateDesignSchemeInput | undefined;
+    expect(urlOnly?.brief).toBe('');
+    expect(urlOnly?.sourceUris).toEqual(['https://github.com/acme/zine-kit']);
+
+    for (const brief of [
+      'https://user:token@github.com/acme/zine-kit',
+      'https://github.com/acme/zine-kit?ref=main',
+      'https://github.com/acme/zine-kit/issues/1',
+      'https://github.com/acme',
+    ]) {
+      await expect(props.onCreate?.(makeCreateSubmission({ brief }))).rejects.toThrow(
+        /GitHub 地址/,
+      );
+    }
+    expect(designSchemes.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('旧桥缺 confirmInstall:brief 含 GitHub 地址在 renderer 即拒绝并解释,不进入 create', async () => {
+    const { designSchemes, Providers } = makeHarness({ confirmInstall: false });
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+
+    await expect(
+      lastWorkbenchSchemeProps().onCreate?.(
+        makeCreateSubmission({ brief: '按 https://github.com/acme/zine-kit 做一套方案' }),
+      ),
+    ).rejects.toThrow('安装确认通道');
+    expect(designSchemes.create).not.toHaveBeenCalled();
+  });
+
+  it('onCreate fail-closed:空输入 / 历史资产缺 id 都不进入 create,错误可读', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+    const props = lastWorkbenchSchemeProps();
+
+    await expect(props.onCreate?.(makeCreateSubmission({ brief: '   ' }))).rejects.toThrow(
+      '请描述你的方案想法',
+    );
+    await expect(
+      props.onCreate?.(
+        makeCreateSubmission({
+          createKind: 'history',
+          source: {
+            kind: 'history',
+            selection: {
+              items: [{ jobId: 'job-1', assetId: '', assetUrl: '', prompt: null }],
+              note: '',
+            },
+          },
+        }),
+      ),
+    ).rejects.toThrow('历史作品');
+    expect(designSchemes.create).not.toHaveBeenCalled();
+  });
+
+  it('onCreate:主进程结构化拒绝(如 AGENT_AI_UNAVAILABLE)原样上抛', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    designSchemes.create.mockRejectedValueOnce(
+      new Error('设计方案 Agent 需要可用的文本模型连接(chat/completions)。'),
+    );
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+
+    await expect(lastWorkbenchSchemeProps().onCreate?.(makeCreateSubmission())).rejects.toThrow(
+      '文本模型连接',
+    );
+  });
+
+  it('onModify:基线锁定挂载附件的 exact revision,指令取正文;空指令不进入 modify', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+    const props = lastWorkbenchSchemeProps();
+    const submission: SchemeModifySubmission = {
+      kind: 'modify',
+      executionId: 'exec-modify-1',
+      attachment: { ...makeRunSubmission().attachment, mode: 'modify', revisionId: 'rev-wd' },
+      brief: '  把默认比例改成 3:4  ',
+    };
+
+    await props.onModify?.(submission);
+    expect(designSchemes.modify).toHaveBeenCalledWith({
+      executionId: 'exec-modify-1',
+      schemeId: 'scheme-1',
+      baseRevisionId: 'rev-wd',
+      instruction: '把默认比例改成 3:4',
+    } satisfies ModifyDesignSchemeInput);
+
+    await expect(props.onModify?.({ ...submission, brief: '  ' })).rejects.toThrow(
+      '请描述要修改的内容',
+    );
+    expect(designSchemes.modify).toHaveBeenCalledTimes(1);
   });
 });

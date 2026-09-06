@@ -83,8 +83,9 @@ export function DesktopView({ view, onOpenView }: DesktopViewProps) {
   const setActiveSessionId = useActiveSession((s) => s.setActiveSessionId);
   /**
    * 方案域集成 prop(§8A):导航缝(onOpenDesignSchemes)+ 运行缝(onRun / onCancelRun,
-   * 主进程权威 prepareRun → run → cancel,text-only)。Agent 创建/修改缝(onCreate / onModify)
-   * 主进程仍 fail-closed,故缺省——Composer 对应入口禁用并解释,绝不回落普通生成伪造方案运行。
+   * 主进程权威 prepareRun → run → cancel,text-only)+ Agent 缝(onCreate / onModify,
+   * 主进程 Compiler / Reviser 编译落库;GitHub 地址在安装确认通道部署前拒绝并解释)。
+   * 任何接缝失败都在 Composer 就地解释,绝不回落普通生成伪造方案执行。
    */
   const openDesignSchemes = useCallback(
     (detailId?: string) => {

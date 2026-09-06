@@ -686,6 +686,108 @@ describe('desktop design-scheme run adapter', () => {
     });
   });
 
+  it('resolves Composer-uploaded references through the upload seam and feeds them to generation', async () => {
+    mkdirSync(join(root, 'uploads'), { recursive: true });
+    const uploadPath = join(root, 'uploads', 'UPLOAD_REF_1.png');
+    writeFileSync(uploadPath, fakePngBuffer(64, 64));
+    const imagePath = join(root, 'uploaded-ref-output.png');
+    writeFileSync(imagePath, fakePngBuffer(1024, 1024));
+    const base = inputFixture();
+    const input = inputFixture({
+      executionId: 'exec_uploaded_reference',
+      executionSettings: { ...base.executionSettings, referenceAssetIds: ['UPLOAD_REF_1'] },
+      plan: {
+        ...base.plan,
+        inputs: [
+          { slotId: 'topic', kind: 'text', valueIds: [], text: 'night market' },
+          { slotId: 'reference', kind: 'image', valueIds: ['UPLOAD_REF_1'], text: null },
+        ],
+      },
+    });
+    mockRetainedRun({
+      runId: 'ignored-by-adapter',
+      compiledPrompt: 'compiled with reference',
+      generations: [
+        {
+          jobId: 'job_uploaded_reference',
+          resultIndex: 0,
+          assetId: 'asset_uploaded_reference',
+          result: { historyId: 'job_uploaded_reference', status: 'success', imagePath },
+        },
+      ],
+      trace: [],
+    });
+    const resolveUploadedReference = vi.fn((assetId: string) =>
+      assetId === 'UPLOAD_REF_1'
+        ? { path: uploadPath, source: 'upload' as const, mimeType: 'image/png' as const }
+        : null,
+    );
+    const staged: string[] = [];
+
+    const result = await runCanonicalDesignScheme(input, 81, {
+      db: schemeDb,
+      coreDb,
+      userDataDir: root,
+      picturesDir: join(root, 'Pictures'),
+      executionRegistry: registry,
+      resolveUploadedReference,
+      stageReferenceAsset: async (path) => {
+        const stagedPath = join(root, `staged-${staged.length}.png`);
+        writeFileSync(stagedPath, Buffer.from(`staged:${path}`));
+        staged.push(stagedPath);
+        return { path: stagedPath, source: 'upload' };
+      },
+      emit: (_senderId, event) => events.push(event),
+    });
+
+    expect(result.status).toBe('completed');
+    expect(resolveUploadedReference).toHaveBeenCalledWith('UPLOAD_REF_1');
+    const request = runDesignSchemeMock.mock.calls[0]?.[0] as {
+      generation: {
+        requestTemplate: { referenceImages?: Array<{ path: string; assetId?: string }> };
+      };
+    };
+    expect(request.generation.requestTemplate.referenceImages).toEqual([
+      expect.objectContaining({ path: staged[0], assetId: 'UPLOAD_REF_1', source: 'upload' }),
+    ]);
+    // 运行结束后暂存副本清理;上传原件保留(仍归 Composer 参考图托盘管理)。
+    expect(existsSync(staged[0] as string)).toBe(false);
+    expect(existsSync(uploadPath)).toBe(true);
+    // 上传参考图不会被登记为方案资产。
+    expect(
+      schemeDb
+        .prepare("SELECT COUNT(*) AS n FROM design_scheme_assets WHERE id = 'UPLOAD_REF_1'")
+        .get(),
+    ).toEqual({ n: 0 });
+  });
+
+  it('fails closed when a reference is neither a scheme asset nor an uploaded staging file', async () => {
+    const base = inputFixture();
+    const input = inputFixture({
+      executionId: 'exec_missing_reference',
+      executionSettings: { ...base.executionSettings, referenceAssetIds: ['GHOST_REF'] },
+      plan: {
+        ...base.plan,
+        inputs: [
+          { slotId: 'topic', kind: 'text', valueIds: [], text: 'night market' },
+          { slotId: 'reference', kind: 'image', valueIds: ['GHOST_REF'], text: null },
+        ],
+      },
+    });
+    const result = await runCanonicalDesignScheme(input, 82, {
+      db: schemeDb,
+      coreDb,
+      userDataDir: root,
+      picturesDir: join(root, 'Pictures'),
+      executionRegistry: registry,
+      resolveUploadedReference: () => null,
+      emit: (_senderId, event) => events.push(event),
+    });
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('DESIGN_SCHEME_REFERENCE_MISSING');
+    expect(runDesignSchemeMock).not.toHaveBeenCalled();
+  });
+
   it('removes staged references when preparation fails after staging', async () => {
     const staged = join(root, 'staged.png');
     mkdirSync(join(root, 'Pictures'), { recursive: true });

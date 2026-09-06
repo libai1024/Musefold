@@ -18,6 +18,7 @@ describe('platform capabilities', () => {
       hasLocalAutomation: true,
       hasWindowChrome: true,
       hasLocalAiProviders: true,
+      hasAgentConnections: true,
       // 桌面桥 16 方法 + staging/导入导出已接线,能力真实。
       hasDesignSchemes: true,
       hasDoubaoWebLogin: true,
@@ -32,8 +33,10 @@ describe('platform capabilities', () => {
       hasLocalAutomation: false,
       hasWindowChrome: false,
       hasLocalAiProviders: false,
-      // 云端 run/取消、资产交付和包 staging 尚未闭环，生产入口保持关闭。
-      hasDesignSchemes: false,
+      hasAgentConnections: false,
+      // 云端确定性 CRUD/详情/working-draft 已可用,run/市场/导入导出/资产由
+      // 服务端结构化 501 fail-closed、UI 就地禁用并解释,生产入口开启。
+      hasDesignSchemes: true,
       hasDoubaoWebLogin: false,
     });
   });

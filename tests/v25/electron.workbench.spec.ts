@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import Database from 'better-sqlite3';
@@ -56,6 +57,58 @@ async function startHangingImageServer(): Promise<HangingImageServer> {
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     requestReceived,
+    close: () => closeServer(server, responses),
+  };
+}
+
+/** 1×1 不透明像素的完整合法 PNG(签名/IHDR/IDAT/IEND 俱全):评估器 stat + 头探测均可读。 */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+interface PngImageServer {
+  baseUrl: string;
+  requestCount(): number;
+  close(): Promise<void>;
+}
+
+/** 成功出图的回环生图服务:对 images/generations 返回 OpenAI 形状的 b64_json PNG。 */
+async function startPngImageServer(): Promise<PngImageServer> {
+  let requests = 0;
+  const responses = new Set<ServerResponse>();
+  const server = createServer((request, response) => {
+    responses.add(response);
+    response.on('close', () => responses.delete(response));
+    if (request.method === 'POST' && request.url?.endsWith('/images/generations')) {
+      requests += 1;
+      request.resume();
+      request.on('end', () => {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            created: Math.floor(Date.now() / 1000),
+            data: [{ b64_json: TINY_PNG_BASE64 }],
+          }),
+        );
+      });
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    await closeServer(server, responses);
+    throw new Error('回环生图服务未取得 TCP 端口');
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requestCount: () => requests,
     close: () => closeServer(server, responses),
   };
 }
@@ -418,6 +471,116 @@ test('正式纯文本方案经真实 IPC 运行后可取消,双账本收敛且 C
     schemeDb.close();
     expect(schemeRun).toEqual({ status: 'cancelled', mode: 'formal' });
     expect(generatedAssetCount.count).toBe(0);
+  } finally {
+    await imageServer.close();
+  }
+});
+
+test('正式纯文本方案经真实 IPC 运行成功出图:双账本落成功、评估落库、Composer 复位', async () => {
+  // 依赖上一用例的 seed 方案(scheme_e2e_formal);换成会真实出图的回环 Provider。
+  const imageServer = await startPngImageServer();
+  const userPrompt = '这次要跑到出图为止';
+  const topic = '清晨图书馆海报';
+  try {
+    const apiKey = `e2e-${randomUUID()}`;
+    await page.evaluate(
+      async ({ baseUrl, apiKey: key }) => {
+        const bridge = (
+          window as unknown as {
+            musefoldV25: {
+              invoke(method: string, payload?: unknown): Promise<unknown>;
+            };
+          }
+        ).musefoldV25;
+        const envelope = (await bridge.invoke('aiProviders.create', {
+          name: 'E2E 成功回环连接',
+          baseUrl,
+          model: 'e2e-image-model',
+          apiKey: key,
+          activate: true,
+        })) as { ok?: boolean; error?: { message?: string } };
+        if (!envelope.ok) throw new Error(envelope.error?.message ?? 'E2E Provider 创建失败');
+      },
+      { baseUrl: imageServer.baseUrl, apiKey },
+    );
+
+    // 重启让 Composer 的 provider 目录以新默认连接为首选。
+    await app.close();
+    ({ app } = await launchV25App('musefold-v25-workbench-', userDataDir));
+    page = await v25ShellPage(app);
+    await expect(page.getByTestId('workbench')).toBeVisible();
+
+    await page.getByTestId('session-create').click();
+    await page.getByTestId('composer-attach').click();
+    await page.getByTestId('workbench-context-ref-scheme').click();
+    await expect(page.getByTestId('scheme-run-picker')).toBeVisible();
+    await page.getByTestId('scheme-run-pick-scheme_e2e_formal').click();
+    await expect(page.getByTestId('scheme-run-chip')).toContainText('E2E 文本海报方案');
+    await page.getByTestId('scheme-run-variable-topic').fill(topic);
+    await page.getByTestId('composer-prompt').fill(userPrompt);
+    await expect(page.getByTestId('composer-submit')).toBeEnabled();
+    await page.getByTestId('composer-submit').click();
+
+    // 终态成功:时间线回合落成功并出图,toast 报「按方案生成已完成」。
+    await expect(page.getByTestId('job-status').last()).toHaveAttribute(
+      'data-status',
+      'succeeded',
+      { timeout: 30_000 },
+    );
+    await expect(page.getByTestId('job-asset').last()).toBeVisible();
+    await expect(page.getByText('按方案生成已完成')).toBeVisible();
+    expect(imageServer.requestCount()).toBe(1);
+
+    // Composer 复位:附件保留支持多轮,正文与槽位值清空,无错误行。
+    await expect(page.getByTestId('scheme-run-attachment')).toBeVisible();
+    await expect(page.getByTestId('composer-prompt')).toHaveValue('');
+    await expect(page.getByTestId('scheme-run-variable-topic')).toHaveValue('');
+    await expect(page.getByTestId('scheme-submit-error')).toHaveCount(0);
+
+    // 工作台账本:run 成功、资产可用且文件真实落盘。
+    const coreDb = new Database(desktopDbPath(userDataDir), { readonly: true });
+    const generation = coreDb
+      .prepare(
+        `SELECT id, status, workbench_session_id, user_prompt
+           FROM generation_runs ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get() as {
+      id: string;
+      status: string;
+      workbench_session_id: string | null;
+      user_prompt: string;
+    };
+    const generatedAsset = coreDb
+      .prepare(
+        `SELECT status, media_path FROM generated_assets WHERE run_id = ? ORDER BY position LIMIT 1`,
+      )
+      .get(generation.id) as { status: string; media_path: string | null } | undefined;
+    coreDb.close();
+    expect(generation).toMatchObject({ status: 'success', user_prompt: userPrompt });
+    expect(generation.workbench_session_id).toBeTruthy();
+    expect(generatedAsset?.status).toBe('available');
+    expect(generatedAsset?.media_path && existsSync(generatedAsset.media_path)).toBe(true);
+
+    // 方案账本:新 run completed(formal)且评估落库;正式运行的产物只进工作台账本,
+    // 不进方案相册(相册只收试运行首个成功结果,UI 规范 §5.2)。
+    const schemeDb = new Database(designSchemeDbPath(userDataDir), { readonly: true });
+    const schemeRun = schemeDb
+      .prepare(
+        `SELECT run_id, status, mode FROM design_scheme_runs
+          WHERE run_id <> 'run_e2e_seed' AND status = 'completed'
+          ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get() as { run_id: string; status: string; mode: string } | undefined;
+    const newAssetCount = schemeDb
+      .prepare(`SELECT COUNT(*) AS count FROM design_scheme_assets WHERE id <> 'asset_e2e_cover'`)
+      .get() as { count: number };
+    const evaluationCount = schemeDb
+      .prepare('SELECT COUNT(*) AS count FROM design_scheme_evaluations WHERE run_id = ?')
+      .get(schemeRun?.run_id ?? '') as { count: number };
+    schemeDb.close();
+    expect(schemeRun).toMatchObject({ status: 'completed', mode: 'formal' });
+    expect(newAssetCount.count).toBe(0);
+    expect(evaluationCount.count).toBeGreaterThan(0);
   } finally {
     await imageServer.close();
   }

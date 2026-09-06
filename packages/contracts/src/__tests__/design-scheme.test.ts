@@ -803,11 +803,9 @@ describe('shared design-scheme contracts', () => {
         decision: 'accept',
       }).success,
     ).toBe(false);
-    expect(DESIGN_SCHEME_METHOD_NAMES).toHaveLength(17);
-    expect(DESIGN_SCHEME_LIFECYCLE_METHOD_NAMES).toEqual([
-      'designSchemes.confirmInstall',
-      'designSchemes.prepareImportPackage',
-    ]);
+    expect(DESIGN_SCHEME_METHOD_NAMES).toHaveLength(18);
+    expect(DESIGN_SCHEME_METHOD_NAMES).toContain('designSchemes.confirmInstall');
+    expect(DESIGN_SCHEME_LIFECYCLE_METHOD_NAMES).toEqual(['designSchemes.prepareImportPackage']);
     expect(DESIGN_SCHEME_CANONICAL_METHOD_NAMES).toHaveLength(19);
     expect(DESIGN_SCHEME_WIRE_METHODS.prepareRun).toBe('designSchemes.prepareRun');
     expect(DESIGN_SCHEME_WIRE_METHODS.confirmInstall).toBe('designSchemes.confirmInstall');

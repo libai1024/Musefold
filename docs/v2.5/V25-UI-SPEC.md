@@ -310,30 +310,44 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 
 ---
 
-## 6. 设置(M4d 交付账号/连接分区;分组导航随分区增多再上)
+## 6. 设置(2026-09-03 分区注册表 + 分组导航交付;此前单列卡片流已退役)
 
-### 6.1 布局
+### 6.1 布局(已交付)
 
-- **当前形态(M4e 交付)**:单列卡片流(max-w-2xl 居中),自上而下:外观 → 账号 → 云同步(桌面 only)→ AI 连接(桌面 only)。
-- **目标形态(分区 ≥5 时切换,挂 M5b)**:左分组导航(220px)+ 右分区面板;移动一级列表 → 二级面板。承旧 `SettingsWorkspace` 的规格保留于此,实施时回读。
+- **md+**:左分组导航(220px,顶部搜索框)+ 右分区面板,容器 max-w-5xl;导航常驻,面板只渲染当前分区(其余分区不进 DOM)。
+- **移动**:一级分区列表(带右缘 chevron)→ 二级分区面板(顶部返回行 + 分区标题);侧栏账号菜单深链直接进二级。
+- **面板头**:仅移动端渲染(返回 + 标题定位);md+ 由分区内各卡片自述标题与描述,不重复面板头。
+- **分区记忆**:离开设置再回来停在上次分区(`useSettingsNav`,内存态);记忆分区在当前宿主不可用时兜底首个可用分区。
+- **搜索**:按分区标题 / 描述 / 关键词过滤导航(`filterSettingsSections`);无命中显示「没有匹配」;当前分区被过滤掉时面板保留不闪空。
+- **深链**:`settings-account` / `settings-connections` 意图落到对应分区并短暂点亮面板(ring);宿主无目标分区(如 Web 无连接分区)兜底账号分区。
 
-### 6.2 分组与分区(承旧目录,裁剪暂缓域)
+### 6.2 分区注册表(`packages/features/src/settings/sections.tsx`,唯一目录)
 
-| 分组 | 分区 | 内容 | 批次 |
-|---|---|---|---|
-| 访问 | 账号 | 登录(账密表单)/身份积分卡/兑换/退出(§7.1) | M4d ✅ |
-| 访问 | 云同步 | 开关(登录 ≠ 同步)/状态/立即同步(§7.3,桌面 only) | M4e ✅ |
-| 访问 | AI 连接 | 本地 Provider 列表 + 新建/编辑/删除/设默认(§7.2) | M4d ✅；当前仅覆盖生图 image Provider，Agent connection/model UI 仍是后续缺口 |
-| 通用 | 偏好 | 主题(浅/深/跟随系统)、语言占位、减少动效 | 已交付(M3 打样)|
-| 应用 | 数据 | 回收站入口(提示词/生成历史,经 `useScreenIntent` 跨屏直达 trash tab)✅;设置内已归档对话列表(刷新/恢复/软删)✅;导出/导入、清理缓存 | 归档闭环已交付;其余后续卡 |
-| 应用 | 关于 | 版本号、更新检查、开源许可 | M5b |
-| 应用 | 归档会话 | 设置「数据」卡内已归档对话列表(刷新/恢复/软删) | U05-archive-closure done |
+分区由 `SETTINGS_SECTIONS` 声明:分组 / 标题 / 描述 / 图标 / 搜索关键词 / capability 门(`isAvailable`,宿主不具备即整个分区不注册,D2 无死入口)/ 深链意图(`intents`)/ `render`。分组顺序 `SETTINGS_GROUPS`:通用 → 访问 → 应用。
+
+| 分组 | 分区 id | 内容 | capability 门 | 状态 |
+|---|---|---|---|---|
+| 通用 | `appearance` | 主题(浅/深/跟随系统)、动效三档、语言(§6.3 行式控件) | 恒真 | ✅ |
+| 访问 | `account` | 登录(账密表单)/身份积分卡/兑换/退出(§7.1) | 恒真 | ✅ |
+| 访问 | `sync` | 云同步开关(登录 ≠ 同步)/状态/立即同步(§7.3) | `hasCloudSyncControls` | ✅ |
+| 访问 | `connections` | 生图连接卡 + Agent 文本连接卡(§7.2)+ 豆包免费试用卡(§0.2) | 三能力任一 | ✅ |
+| 应用 | `data` | 回收站入口(提示词/生成历史)+ 已归档对话列表(刷新/恢复/软删) | 宿主接线 `onOpenScreen` | ✅ |
+| 应用 | `about`(未注册) | 版本号、更新检查、开源许可 | — | M5b 后续卡 |
 
 ### 6.3 控件约定
 
-- 每分区 = 标题 + 描述 + 控件卡(`Card`);行式控件:左标签+描述,右控件(Switch/Select/Button)。
+- 每分区 = 若干控件卡(`Card`:标题 + 描述 + 内容);行式控件:左标签+描述,右控件(Switch/Select/Button)。
 - 危险区(清数据等)红边卡 + AlertDialog。
 - 所有写偏好即时生效 + 乐观更新,失败回滚 + toast。
+
+### 6.4 新增设置项的开发流程(规范;走线细则见 V25-FEATURE-DEV-GUIDE §8-C)
+
+1. **归属判定**:属于已有分区 → 在该分区的卡里加一行控件,或在其 `render` 里加一张卡;需要新分区 → 走第 2 步。
+2. **注册分区**:在 `SETTINGS_SECTIONS` 追加一条定义(分组/标题/描述/图标/关键词/capability 门/深链意图/render)。宿主差异只允许经 `isAvailable` 的 capability 表达;禁止在分区内探测宿主。
+3. **数据面**:控件的数据走该域自己的 hooks(契约 → gateway → hooks),不在 sections 注册表里做数据编排。
+4. **同步本节**:更新 §6.2 表格;有意差异登记 §9。
+5. **测试**:sections 注册表测试(可用性/意图/搜索)+ 分区内控件的就地单测;涉及双端行为补 Web/Electron 设置 E2E;布局变化刷新设置视觉基线(§7.3 快照纪律)。
+6. **导航/搜索/深链/记忆无需改动**:由 SettingsScreen 统一承载,新分区自动获得。
 
 ---
 
@@ -357,7 +371,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - Key 只经主进程 safeStorage(keychain),SQLite 只存 has_key/key_suffix 展示位;渲染层不落任何密钥(红线承 v2.1)。
 - 删除:AlertDialog(密钥一并删除,历史保留);删除默认连接时最近更新的一条自动接管默认。
 - 数据面与工作台 Composer 的 Provider 下拉同源(SQLite providers 表),增删改后两处同时失效刷新。
-- **范围缺口**:v2.5 `AiConnectionsPanel` 仅提供生图 image Provider 的列表、CRUD、默认切换和连接测试。当前没有可达的 Agent connection/model UI，因此 separate Agent key 与 `gpt-5.5` 没有配置或模型选择入口；不得将 image Provider UI 计为 Agent 连接 UI。
+- **Agent 连接卡**（`AgentConnectionsPanel`，2026-09-03，`hasAgentConnections` 开关，桌面专属）：与生图连接卡并列于同一「连接」区，共用 `ConnectionsPanel` 泛化面板（列表行 / 新建·编辑 Dialog / 设为默认 / 测试 / 删除），文案与 testid 前缀独立（`settings-agent-connections-card`、`agent-connection-*`）。数据面 `gateway.agentConnections`（6 方法）接主进程 `AiConnectionStore`——与设计方案 Agent（Analyst / Compiler / Reviser）和 Skill runtime 同一事实源，v2.1 已配置的文本连接直接出现；「默认」即 Agent 实际使用的连接。账号托管连接显示「账号托管」Badge，编辑/删除禁用。Key 同样只经主进程 keychain，渲染层只见 hasKey/keySuffix。仍未覆盖：模型列表拉取/预设选择（沿 v2.1 `AI_CONNECTION_PRESETS` 的 combobox）与 Agent key 失效后的可解释引导（S01）。
 
 ### 7.3 云同步卡(`CloudSyncPanel`,桌面专属,`hasCloudSyncControls` 开关;M4e ✅)
 
@@ -387,7 +401,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 
 ### 8A. 设计方案(P01 迁移中，Desktop 入口已开)
 
-> **状态**:`doing`(P01)。共享层与挂载已有源码与定向单测——`packages/contracts` 方案合同、`packages/features/src/design-schemes` 共享屏、Desktop v25 IPC/SQLite、`.musefold.design` 安全 staging/archive/domain 导入导出、Web API/client 确定性 CRUD。**P01-7 入口挂载已落地但 capability 按宿主分流**：Desktop `hasDesignSchemes=true`，侧栏注册「设计方案」并挂载详情、导入与 `media://` 封面解析；Web `/design-schemes` 与 `?scheme=<id>` 路由代码存在，但 `WEB_CAPABILITIES.hasDesignSchemes=false`，不向用户注册入口。Desktop canonical run/cancel/event transport 已部署；本轮新增 text-only `prepareRun`，由主进程从 exact revision、来源绑定和 Provider 事实生成 `desktop-fixed-v1` 四步计划并在执行前复核。**Desktop Workbench run/cancel 接缝已接通**（2026-09-01）：`designSchemes` 集成 prop 由单一宿主提交处理拆为 `onRun / onCancelRun / onCreate / onModify` + `runInputSupport`；桌面注入 `onRun`（prepareRun → run，await 终态）与 `onCancelRun`（复用同一 executionId），`runInputSupport='text-only'`。Composer 行为：运行中提交钮转停止钮（Esc 同义），成功后正文/槽位/引用清空、附件保留多轮；`blocked/failed` 在 Composer 上方就地显示 `scheme-submit-error` 并保留输入；取消为中性提示；含图片槽位的方案或已附参考图在 text-only 宿主下提交禁用并解释「当前环境的方案运行暂不支持图片输入」。真实 Electron 取消用例已证明方案经 IPC 进入回环 generation runtime 后，停止动作可令 Workbench generation ledger 与 Design Scheme run ledger 同时收敛为 `cancelled`，并保留 Composer 输入、避免提交方案资产。**仍未完成**：`onCreate/onModify`（主进程 Agent create/modify adapter 已实现并有定向测试，但 Workbench 尚未暴露对应 lifecycle，创建/修改提交禁用并解释）、GitHub confirmation/install、renderer recompile/event、图片 prepare、Web run/assets/package、成功出图 E2E 与完整视觉证据；不把取消路径扩大解释为完整用户运行闭环。
+> **状态**:`doing`(P01)。共享层与挂载已有源码与定向单测——`packages/contracts` 方案合同、`packages/features/src/design-schemes` 共享屏、Desktop v25 IPC/SQLite、`.musefold.design` 安全 staging/archive/domain 导入导出、Web API/client 确定性 CRUD。**P01-7 入口挂载已落地但 capability 按宿主分流**：Desktop `hasDesignSchemes=true`，侧栏注册「设计方案」并挂载详情、导入与 `media://` 封面解析；Web `/design-schemes` 与 `?scheme=<id>` 路由代码存在，但 `WEB_CAPABILITIES.hasDesignSchemes=false`，不向用户注册入口。Desktop canonical run/cancel/event transport 已部署；本轮新增 text-only `prepareRun`，由主进程从 exact revision、来源绑定和 Provider 事实生成 `desktop-fixed-v1` 四步计划并在执行前复核。**Desktop Workbench run/cancel 接缝已接通**（2026-09-01）：`designSchemes` 集成 prop 由单一宿主提交处理拆为 `onRun / onCancelRun / onCreate / onModify` + `runInputSupport`；桌面注入 `onRun`（prepareRun → run，await 终态）与 `onCancelRun`（复用同一 executionId），`runInputSupport='text-only'`。Composer 行为：运行中提交钮转停止钮（Esc 同义），成功后正文/槽位/引用清空、附件保留多轮；`blocked/failed` 在 Composer 上方就地显示 `scheme-submit-error` 并保留输入；取消为中性提示；含图片槽位的方案或已附参考图在 text-only 宿主下提交禁用并解释「当前环境的方案运行暂不支持图片输入」。真实 Electron 取消用例已证明方案经 IPC 进入回环 generation runtime 后，停止动作可令 Workbench generation ledger 与 Design Scheme run ledger 同时收敛为 `cancelled`，并保留 Composer 输入、避免提交方案资产。**Desktop Workbench Agent 缝已接通**（2026-09-03）：桌面注入 `onCreate`（brief 与历史来源身份 → 主进程 Agent Compiler 落草稿；brief 含 GitHub 地址时在 Composer 就地拒绝并解释）与 `onModify`（挂载附件 exact revision + 修改要求 → Reviser 产出待验证草稿，正式版本保持可用）；提交期间提交钮转 spinner，成功后正文清空、创建态清除 / 附件保留，失败在 `scheme-submit-error` 就地解释并保留输入。无 Agent 文本连接时主进程返回 `DESIGN_SCHEME_AGENT_AI_UNAVAILABLE`（可在「设置 → Agent 连接」配置，与 v2.1 文本连接同源，见 §7.2）。**GitHub Skill 来源已闭环**（2026-09-03）：brief 中粘贴的仓库地址由桌面提取为来源，主进程解析后停在安装确认；共享 `SourceInstallConfirmDialog`（AlertDialog，展示仓库、固定 ref/commit、文本/图片文件数与前几个文件名、许可证、「只读取规则、提示词与参考图片，不会执行仓库脚本」）提供「确认引入」/「取消创建」，决定经 `confirmInstall` 送回；多来源逐个确认；取消按中性提示处理。Agent 创建/修改期间 Composer 上方显示一行进度（Spinner + 「Repository Analyst 正在分析仓库…」/「Scheme Compiler 正在编译方案…」等 state 文案或运行中 trace 标题，`aria-live=polite`），终态即消失。**参考图运行已接通**（2026-09-03）：桌面 `runInputSupport=text-and-images`，Composer 参考图托盘里的就绪图片随「试运行 / 按方案生成」以上传暂存 id 提交，主进程按方案图片槽位声明顺序分配（必需槽位不足、超出全部槽位或方案无图片槽位时在 `scheme-submit-error` 就地解释并保留输入）；含图片槽位的方案不再禁用提交。**仍未完成**：Web run/assets/package、成功出图 E2E 与完整视觉证据；不把取消路径扩大解释为完整用户运行闭环。
 
 - **入口与导航**:侧栏主导航(§2.2)已注册设计方案项(随 `hasDesignSchemes` capability);Composer「+」菜单的「寻找设计方案」与附件「查看详情」已通(详情深链 = `scheme-detail` screen intent / Web `?scheme=` 查询参数);历史来源项随本域恢复(§9-D2)。`/design-schemes` Web 路由与 Desktop 视图挂载即 P01-7。
 - **屏幕结构**(共享 features 已有,承旧版布局):顶部控制台(scope tabs「我的方案/发现」+ 搜索 + 刷新 + 新建)→ 分节列表(正式/草稿两区,行 = 56px 封面 + 名称/保真度徽标 + 摘要/来源 + 主动作 + hover 删除)→ 右栏 Inspector(lg+ aside,窄屏 Sheet,参照历史 Inspector 模式);详情为整屏视图(文档分节 + 试运行相册);市场安装确认 = AlertDialog。
@@ -435,7 +449,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | `prompts` | `PromptLibraryScreen` `PromptListRow` `PromptEditorDialog` `TaxonomyManager` + hooks | 两宿主 |
 | `workbench` | `WorkbenchScreen` `GenerationTimeline` `Composer` `SessionPicker` `PromptReferencePanel` `PromptReferenceDock` + hooks | 两宿主 |
 | `history`(M4c) | `HistoryScreen` `HistoryFilterBar` `HistoryRow` `HistoryInspector` + hooks | 两宿主 |
-| `design-schemes`(P01 迁移中,§8A) | `SchemesScreen` `SchemeControlDeck` `SchemeInspector` `SchemeDetailView` + hooks | 两宿主代码挂载；Desktop 入口开启(`hasDesignSchemes=true`)且 Workbench 运行缝 `onRun/onCancelRun` 已接通，Web capability 关闭；创建/修改缝 `onCreate/onModify`、图片 prepare 与 Web 资产/包面待后续卡 |
+| `design-schemes`(P01 迁移中,§8A) | `SchemesScreen` `SchemeControlDeck` `SchemeInspector` `SchemeDetailView` + hooks | 两宿主代码挂载；Desktop 入口开启(`hasDesignSchemes=true`)且 Workbench 运行缝 `onRun/onCancelRun`（含参考图）与 Agent 缝 `onCreate/onModify`（含 GitHub 安装确认）已接通，Web capability 关闭；Web 资产/包面与成功出图 E2E 待后续卡 |
 | `settings` | `SettingsScreen` + 分区组件 | 两宿主 |
 | `account`(M4d/M4e) | `AccountPanel` `AiConnectionsPanel` `CloudSyncPanel` `AccountFooter` + hooks | 两宿主(连接/同步面桌面 only,能力开关控制) |
 

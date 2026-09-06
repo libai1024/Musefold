@@ -20,6 +20,7 @@ const API_CLIENT_CODE_BY_OPERATION = {
   create: 'DESIGN_SCHEME_CLOUD_CREATE_UNAVAILABLE',
   modify: 'DESIGN_SCHEME_CLOUD_AGENT_MODIFY_UNAVAILABLE',
   cancel: 'DESIGN_SCHEME_CLOUD_RUN_CANCEL_UNAVAILABLE',
+  confirmInstall: 'DESIGN_SCHEME_CLOUD_CREATE_UNAVAILABLE',
   checkUpdate: 'DESIGN_SCHEME_CLOUD_CHECK_UPDATE_UNAVAILABLE',
   prepareImportPackage: 'DESIGN_SCHEME_CLOUD_IMPORT_STAGING_UNAVAILABLE',
   importPackage: 'DESIGN_SCHEME_CLOUD_IMPORT_STAGING_UNAVAILABLE',
@@ -195,6 +196,20 @@ describe('Design Scheme fail-closed future operations', () => {
       'cancel',
     );
     await expectInvalid(await post(app, '/design-schemes/cancel', {}));
+
+    await expectCloudBlocker(
+      await post(app, '/design-schemes/confirm-install', {
+        executionId: 'execution_confirm',
+        decision: 'install',
+      }),
+      'confirmInstall',
+    );
+    await expectInvalid(
+      await post(app, '/design-schemes/confirm-install', {
+        executionId: 'execution_confirm',
+        decision: 'accept',
+      }),
+    );
 
     await expectCloudBlocker(
       await post(app, '/design-schemes/check-update', { schemeId: 'scheme_unavailable' }),

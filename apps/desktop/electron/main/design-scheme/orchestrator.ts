@@ -564,6 +564,12 @@ export class DesignSchemeCreationSession {
         ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
       }));
 
+    // 文档自带来源快照声明,与绑定表一致;canonical 读路径与运行计划校验都以此为准。
+    const sourceSnapshotIds = [
+      ...repositories.map((repo) => repo.snapshotId),
+      ...(history && history.items.length > 0 ? [history.snapshotId] : []),
+    ];
+
     return {
       schemaVersion: 1,
       revisionId,
@@ -572,6 +578,7 @@ export class DesignSchemeCreationSession {
       summary: compiled.summary,
       fidelity: compiled.fidelity,
       sources,
+      ...(sourceSnapshotIds.length > 0 ? { sourceSnapshotIds } : {}),
       inputs: buildInputSlots(compiled),
       parameters: [],
       constraints: compiled.constraints.map((constraint, index) => ({

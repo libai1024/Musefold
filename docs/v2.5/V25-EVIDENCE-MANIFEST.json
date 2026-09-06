@@ -357,7 +357,7 @@
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "账号、同步、Provider 和归档已有当前树测试线索，但历史计数无 report/commit；Agent connection、真云端和完整设置 parity 仍缺",
+      "unregisteredReason": "账号、同步、Provider 和归档已有当前树测试线索，但历史计数无 report/commit；Agent connection UI 已补齐（AgentConnectionsPanel + agentConnections 域,domain 8、features 60 tests）;真云端和完整设置 parity 仍缺",
       "failureReason": null,
       "rerun": "分别登记 Web desktop/mobile、Electron disposable SQLite、真 API/PG 和凭据边界扫描"
     },
@@ -411,20 +411,21 @@
         "apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts",
         "apps/desktop/src/v25/__tests__/desktop-shell.test.tsx",
         "tests/v25/electron.workbench.spec.ts",
+        "tests/v25/web.design-schemes.spec.ts",
         "packages/api-client/src/__tests__/design-schemes.test.ts"
       ],
       "workflowPaths": [
         ".github/workflows/pr.yml",
         ".github/workflows/main.yml"
       ],
-      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts packages/features/src/design-schemes/__tests__/design-schemes.test.tsx packages/features/src/design-schemes/__tests__/integration-store.test.ts packages/features/src/workbench/__tests__/workbench-schemes.test.tsx apps/web-next/src/app/design-schemes/__tests__/page.test.tsx apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts apps/desktop/src/v25/__tests__/desktop-shell.test.tsx packages/api-client/src/__tests__/design-schemes.test.ts && pnpm run build && pnpm exec playwright test -c tests/v25 --project=electron electron.workbench.spec.ts",
+      "command": "pnpm exec vitest run packages/contracts/src/__tests__/design-scheme.test.ts packages/platform/src/__tests__/platform.test.ts packages/features/src/design-schemes/__tests__/design-schemes.test.tsx packages/features/src/design-schemes/__tests__/integration-store.test.ts packages/features/src/workbench/__tests__/workbench-schemes.test.tsx apps/web-next/src/app/design-schemes/__tests__/page.test.tsx apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan.test.ts apps/desktop/electron/main/design-scheme/__tests__/fixed-run-plan-builder.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-domain.test.ts apps/desktop/electron/main/ipc-v25/__tests__/design-scheme-run-adapter.test.ts apps/desktop/electron/main/ipc-v25/__tests__/gateway-bridge.test.ts apps/desktop/src/v25/__tests__/design-scheme-gateway.test.ts apps/desktop/src/v25/__tests__/desktop-shell.test.tsx packages/api-client/src/__tests__/design-schemes.test.ts && pnpm run build && pnpm exec playwright test -c tests/v25 --project=electron electron.workbench.spec.ts && pnpm exec playwright test -c tests/v25 --project=web-desktop --project=web-mobile web.design-schemes.spec.ts",
       "commit": null,
       "date": null,
       "report": null,
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop 17 项 adapter、共享 features 与双端代码挂载；Desktop capability 为 true、Web 为 false。checkpoint 607e7b5 已固化 cancellation-wins；本轮新增主进程权威 text-only prepareRun、四步固定计划、formal/fidelity/source/Provider fail-closed、legacy 来源归一化、完整快照执行前复核与 prepare-to-run 回归，受影响组合 8 文件/151 tests、根 check 181 文件/1332 tests 通过。2026-09-01 Desktop Workbench run/cancel 接缝已接通：designSchemes.onRun/onCancelRun 经 prepareRun → run → cancel（await 终态、停止钮、错误行、text-only 边界、取消先于登记仲裁），desktop-shell 17 tests、features 297 tests 通过；主进程 Agent create/modify adapter 已实现并有定向测试，但 Workbench onCreate/onModify、GitHub confirmation/install、renderer recompile/event、图片 prepare、Web runtime/assets/package、成功出图 E2E 与 durable report/artifact 仍未登记，不能把当前切片扩大解释为 P01 完成",
+      "unregisteredReason": "当前已有 contracts、持久化 scaffold、Web consumer、Desktop 18 项 adapter、共享 features 与双端代码挂载；Desktop capability 为 true、Web 为 false。checkpoint 607e7b5 已固化 cancellation-wins；本轮新增主进程权威 text-only prepareRun、四步固定计划、formal/fidelity/source/Provider fail-closed、legacy 来源归一化、完整快照执行前复核与 prepare-to-run 回归，受影响组合 8 文件/151 tests、根 check 182 文件/1357 tests 通过。2026-09-01 Desktop Workbench run/cancel 接缝已接通：designSchemes.onRun/onCancelRun 经 prepareRun → run → cancel（await 终态、停止钮、错误行、text-only 边界、取消先于登记仲裁），desktop-shell 17 tests、features 297 tests 通过；2026-09-03 Workbench onCreate/onModify 已接到主进程 Agent create/modify adapter（Agent 文本连接沿用 v2.1 AiConnectionStore；desktop-shell 22、domain 61、agent-adapter 4 tests），checkUpdate 以同一连接做上游重编译；GitHub 来源安装确认（confirmInstall 进部署方法表，2026-09-03；域 64 tests、desktop-shell 25 tests、features 301 tests）已闭环；Agent 过程进度已在 Composer 展示（features 305 tests）；参考图运行已接通（text-and-images，plan builder 35、run adapter 20、domain 65 tests）；成功出图 Electron E2E 已闭环（2026-09-03，workbench 10/10：回环 PNG Provider、双账本 success/completed、评估落库、Composer 复位）；生产 Web capability 已开启（2026-09-03：WEB_CAPABILITIES.hasDesignSchemes=true，web.design-schemes.spec.ts 双视口 8 条 + 视觉基线，确定性 CRUD/深链/rename 走云端 API，市场/导出/运行 501 诚实降级）；云端 runtime/assets/package 服务端仍 fail-closed，durable report/artifact 仍未登记，不能把当前切片扩大解释为 P01 完成",
       "failureReason": null,
       "rerun": "按 P01-1..P01-13 分卡登记合同、数据、adapter、UI、入口、Agent 和安全证据，禁止以 source seam 声称完成"
     },

@@ -101,6 +101,11 @@ export interface MusefoldGateway {
    */
   aiProviders?: AiProvidersGateway;
   /**
+   * 桌面专属:Agent 文本模型连接(设计方案 Agent / Skill runtime 的 chat/completions)。
+   * 与 aiProviders 同形状、不同事实源(v2.1 保留的 AiConnectionStore);UI 以 capabilities.hasAgentConnections 判断。
+   */
+  agentConnections?: AiProvidersGateway;
+  /**
    * Design-scheme domain. Optional until the host has a real local/cloud adapter;
    * callers must also require capabilities.hasDesignSchemes before rendering entry points.
    */

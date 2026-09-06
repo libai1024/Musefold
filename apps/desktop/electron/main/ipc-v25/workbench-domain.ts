@@ -464,6 +464,22 @@ function contractReferenceToLocal(reference: GenerationReferenceImage): LocalIma
   return { path, source: 'upload', name: reference.name };
 }
 
+/**
+ * 按 staging id 找回 Composer 上传的参考图(设计方案运行复用生成上传通道):
+ * 只在受管 uploads 目录内按已知扩展名探测,renderer 提交的是 id 不是路径;找不到返回 null。
+ */
+export function resolveUploadedReferenceById(id: string): LocalImageReference | null {
+  if (!/^[0-9A-Za-z_-]{8,64}$/.test(id)) return null;
+  const dir = referenceUploadsDir();
+  for (const [mimeType, ext] of Object.entries(REFERENCE_MIME_EXTENSION)) {
+    const path = join(dir, `${id}${ext}`);
+    if (existsSync(path)) {
+      return { path, source: 'upload', mimeType: mimeType as GenerationReferenceImage['mimeType'] };
+    }
+  }
+  return null;
+}
+
 // ---------- 生成提交 ----------
 
 interface PromptSourceRow {

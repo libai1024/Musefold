@@ -20,6 +20,14 @@ import { useScreenIntent } from '../../shell/screen-intent-store';
 import { formatArchivedAt } from '../ArchivedSessionsPanel';
 import { resolveThemeClass } from '../hooks';
 import { MotionSync } from '../MotionSync';
+import {
+  availableSettingsSections,
+  filterSettingsSections,
+  SETTINGS_GROUPS,
+  SETTINGS_SECTIONS,
+  sectionForIntent,
+} from '../sections';
+import { useSettingsNav } from '../settings-nav-store';
 import { SettingsScreen, type SettingsScreenProps } from '../SettingsScreen';
 
 // 归档面板失败提示走 sonner;统一 mock,断言 toast.error 被调即可。
@@ -212,6 +220,14 @@ function createTestGateway(overrides?: {
       setActive: vi.fn(),
       test: vi.fn(),
     },
+    agentConnections: {
+      list: async () => [],
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      setActive: vi.fn(),
+      test: vi.fn(),
+    },
     doubao: {
       getStatus: async () => ({
         loggedIn: false,
@@ -259,18 +275,97 @@ function renderSettings(
   return render(<SettingsScreen {...props} />, { wrapper: Providers });
 }
 
+/** 进入某个分区(点分组导航项);分区不存在时抛错,测试据此断言可达性。 */
+async function openSection(id: string) {
+  fireEvent.click(await screen.findByTestId(`settings-nav-${id}`));
+  await screen.findByTestId(`settings-section-${id}`);
+}
+
 describe('SettingsScreen', () => {
-  it('renders preferences and account summary after loading', async () => {
+  beforeEach(() => {
+    useSettingsNav.setState({ activeSectionId: null });
+    useScreenIntent.setState({ intent: null });
+  });
+
+  it('默认停在「外观」分区;导航按分组列出宿主可用分区(Web 无云同步/连接)', async () => {
+    const { gateway } = createTestGateway();
+    renderSettings(gateway, { onOpenScreen: vi.fn() });
+
+    await screen.findByTestId('settings-section-appearance');
+    expect((await screen.findByTestId('settings-theme-trigger')).textContent).toContain('跟随系统');
+    expect(screen.getByTestId('settings-host-badge').textContent).toBe('Web 版');
+    expect(screen.getByTestId('settings-nav-appearance').getAttribute('aria-current')).toBe('page');
+    expect(
+      Array.from(
+        screen.getByTestId('settings-nav').querySelectorAll('[data-testid^="settings-nav-"]'),
+      ).map((node) => node.getAttribute('data-testid')),
+    ).toEqual(['settings-nav-appearance', 'settings-nav-account', 'settings-nav-data']);
+    expect(screen.getByTestId('settings-group-general')).toBeTruthy();
+    expect(screen.getByTestId('settings-group-access')).toBeTruthy();
+    expect(screen.getByTestId('settings-group-app')).toBeTruthy();
+    // 其他分区的卡不在 DOM 里:分区面板只渲染当前分区。
+    expect(screen.queryByTestId('settings-account-card')).toBeNull();
+  });
+
+  it('renders account summary in the account section after loading', async () => {
     const { gateway } = createTestGateway();
     renderSettings(gateway);
 
+    await openSection('account');
     await waitFor(() => {
       expect(screen.getByTestId('account-signed-in')).toBeTruthy();
     });
-    expect(screen.getByTestId('settings-theme-trigger').textContent).toContain('跟随系统');
     expect(screen.getByText('测试者')).toBeTruthy();
     expect(screen.getByTestId('account-points').textContent).toBe('3 积分');
-    expect(screen.getByTestId('settings-host-badge').textContent).toBe('Web 版');
+    expect(screen.getByTestId('settings-nav-account').getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByTestId('settings-appearance-card')).toBeNull();
+  });
+
+  it('remembers the last section across remounts and falls back when it is no longer available', async () => {
+    const { gateway } = createTestGateway();
+    const first = renderSettings(gateway, undefined, DESKTOP_CAPABILITIES);
+    await openSection('sync');
+    first.unmount();
+
+    // 回到设置:停在上次的「云同步」。
+    const second = renderSettings(gateway, undefined, DESKTOP_CAPABILITIES);
+    await screen.findByTestId('settings-section-sync');
+    second.unmount();
+
+    // 宿主不再提供云同步(如 Web):兜底首个可用分区而不是空面板。
+    renderSettings(gateway);
+    await screen.findByTestId('settings-section-appearance');
+    expect(screen.queryByTestId('settings-nav-sync')).toBeNull();
+  });
+
+  it('search filters sections by title / description / keywords and reports no match', async () => {
+    const { gateway } = createTestGateway();
+    renderSettings(gateway, { onOpenScreen: vi.fn() }, DESKTOP_CAPABILITIES);
+    await screen.findByTestId('settings-section-appearance');
+
+    fireEvent.change(screen.getByTestId('settings-search'), { target: { value: '密钥' } });
+    expect(screen.getByTestId('settings-nav-connections')).toBeTruthy();
+    expect(screen.queryByTestId('settings-nav-appearance')).toBeNull();
+    expect(screen.queryByTestId('settings-group-general')).toBeNull();
+    // 当前分区被过滤掉时面板仍保留,不闪空。
+    expect(screen.getByTestId('settings-section-appearance')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('settings-search'), { target: { value: 'ZZZ' } });
+    expect(screen.getByTestId('settings-search-empty').textContent).toContain('ZZZ');
+
+    fireEvent.change(screen.getByTestId('settings-search'), { target: { value: '' } });
+    expect(screen.getByTestId('settings-nav-appearance')).toBeTruthy();
+  });
+
+  it('mobile flow: back button returns to the section list and the nav shows chevrons only below md', async () => {
+    const { gateway } = createTestGateway();
+    renderSettings(gateway);
+    await openSection('account');
+    // 二级面板打开后导航在移动端隐藏(md+ 仍常驻,由 class 表达)。
+    expect(screen.getByTestId('settings-nav').className).toContain('hidden md:flex');
+    fireEvent.click(screen.getByTestId('settings-section-back'));
+    expect(screen.getByTestId('settings-nav').className).not.toContain('hidden');
+    expect(screen.getByTestId('settings-section-account').className).toContain('hidden md:flex');
   });
 
   it('updates motion level through the three-option select', async () => {
@@ -297,66 +392,81 @@ describe('SettingsScreen', () => {
     const { gateway } = createTestGateway({ accountRejects: true });
     renderSettings(gateway);
 
+    await openSection('account');
     await waitFor(() => {
       expect(screen.getByTestId('settings-account-signed-out')).toBeTruthy();
     });
   });
 
-  it('consumes sidebar deep-link intents and scrolls to the target card', async () => {
-    const scrollSpy = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollSpy;
-    try {
-      useScreenIntent.setState({ intent: { kind: 'settings-account' } });
-      const { gateway } = createTestGateway();
-      const { unmount } = renderSettings(gateway);
+  it('consumes sidebar deep-link intents: opens the target section and highlights the panel', async () => {
+    useScreenIntent.setState({ intent: { kind: 'settings-account' } });
+    const { gateway } = createTestGateway();
+    const { unmount } = renderSettings(gateway);
 
-      await screen.findByTestId('settings-account-anchor');
-      await waitFor(() => {
-        expect(scrollSpy).toHaveBeenCalled();
-      });
-      expect(useScreenIntent.getState().intent).toBeNull();
-      unmount();
+    const panel = await screen.findByTestId('settings-section-account');
+    expect(panel.className).toContain('ring-2');
+    expect(screen.getByTestId('settings-account-anchor')).toBeTruthy();
+    expect(useScreenIntent.getState().intent).toBeNull();
+    // 深链直接进二级面板(移动端不停在列表)。
+    expect(panel.className).not.toContain('hidden');
+    unmount();
 
-      // Web 无中转站卡:connections 意图兜底滚到账户卡,不悬空。
-      scrollSpy.mockClear();
-      useScreenIntent.setState({ intent: { kind: 'settings-connections' } });
-      renderSettings(gateway);
-      await screen.findByTestId('settings-account-anchor');
-      await waitFor(() => {
-        expect(scrollSpy).toHaveBeenCalled();
-      });
-      expect(screen.queryByTestId('settings-connections-anchor')).toBeNull();
-      expect(useScreenIntent.getState().intent).toBeNull();
-    } finally {
-      Element.prototype.scrollIntoView = original;
-      useScreenIntent.setState({ intent: null });
-    }
+    // 桌面:connections 意图落到「AI 连接」分区。
+    useScreenIntent.setState({ intent: { kind: 'settings-connections' } });
+    const desktop = renderSettings(gateway, undefined, DESKTOP_CAPABILITIES);
+    await screen.findByTestId('settings-section-connections');
+    expect(screen.getByTestId('settings-connections-anchor')).toBeTruthy();
+    expect(useScreenIntent.getState().intent).toBeNull();
+    desktop.unmount();
+
+    // Web 无连接分区:connections 意图兜底到账号分区,不悬空。
+    useScreenIntent.setState({ intent: { kind: 'settings-connections' } });
+    renderSettings(gateway);
+    await screen.findByTestId('settings-section-account');
+    expect(screen.queryByTestId('settings-connections-anchor')).toBeNull();
+    expect(useScreenIntent.getState().intent).toBeNull();
   });
 
   it('shows the doubao login card only when the desktop capability is on', async () => {
     const { gateway } = createTestGateway();
     const desktop = renderSettings(gateway, undefined, DESKTOP_CAPABILITIES);
-    // 桌面:连接区锚点内含 AI 连接卡 + 豆包免费试用卡(未登录给扫码入口)。
+    // 桌面:「AI 连接」分区内含生图连接卡 + Agent 连接卡 + 豆包免费试用卡(未登录给扫码入口)。
+    await openSection('connections');
     await screen.findByTestId('settings-doubao-card');
     expect(screen.getByTestId('settings-connections-anchor')).toBeTruthy();
     expect(screen.getByTestId('settings-ai-connections-card')).toBeTruthy();
+    expect(screen.getByTestId('settings-agent-connections-card')).toBeTruthy();
     expect(await screen.findByTestId('doubao-login-start')).toBeTruthy();
     desktop.unmount();
 
-    // Web:能力关闭,豆包登录 UI 与连接区锚点都不出现。
+    // Web:能力关闭,连接分区整个不注册(导航无入口,深链兜底账号)。
     renderSettings(gateway);
     await screen.findByTestId('settings-screen');
+    expect(screen.queryByTestId('settings-nav-connections')).toBeNull();
+    expect(screen.queryByTestId('settings-nav-sync')).toBeNull();
     expect(screen.queryByTestId('settings-doubao-card')).toBeNull();
-    expect(screen.queryByTestId('settings-connections-anchor')).toBeNull();
+    expect(screen.queryByTestId('settings-agent-connections-card')).toBeNull();
   });
 
-  it('data card opens prompt trash via screen intent; hidden without onOpenScreen', async () => {
-    useScreenIntent.setState({ intent: null });
+  it('agent connections card follows hasAgentConnections independently of image providers', async () => {
+    const { gateway } = createTestGateway();
+    renderSettings(gateway, undefined, {
+      ...DESKTOP_CAPABILITIES,
+      hasLocalAiProviders: false,
+      hasDoubaoWebLogin: false,
+    });
+    await openSection('connections');
+    await screen.findByTestId('settings-agent-connections-card');
+    expect(screen.getByTestId('settings-connections-anchor')).toBeTruthy();
+    expect(screen.queryByTestId('settings-ai-connections-card')).toBeNull();
+  });
+
+  it('data section opens prompt trash via screen intent; not registered without onOpenScreen', async () => {
     const { gateway } = createTestGateway();
     const onOpenScreen = vi.fn();
     const { unmount } = renderSettings(gateway, { onOpenScreen });
 
+    await openSection('data');
     fireEvent.click(await screen.findByTestId('settings-open-prompt-trash'));
     expect(onOpenScreen).toHaveBeenCalledWith('prompts');
     expect(useScreenIntent.getState().intent).toEqual({ kind: 'prompts-trash' });
@@ -371,10 +481,42 @@ describe('SettingsScreen', () => {
 
     unmount();
     useScreenIntent.setState({ intent: null });
+    useSettingsNav.setState({ activeSectionId: null });
     renderSettings(gateway);
     await screen.findByTestId('settings-appearance-card');
+    expect(screen.queryByTestId('settings-nav-data')).toBeNull();
     expect(screen.queryByTestId('settings-data-card')).toBeNull();
-    expect(screen.queryByTestId('archived-panel')).toBeNull();
+  });
+});
+
+describe('settings section registry(sections.tsx)', () => {
+  it('every section has a group in SETTINGS_GROUPS and unique ids; intents map to registered sections', () => {
+    const groupIds = new Set(SETTINGS_GROUPS.map((group) => group.id));
+    const ids = SETTINGS_SECTIONS.map((section) => section.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const section of SETTINGS_SECTIONS) {
+      expect(groupIds.has(section.group)).toBe(true);
+      expect(section.title.length).toBeGreaterThan(0);
+      expect(section.description.length).toBeGreaterThan(0);
+    }
+    const desktop = availableSettingsSections({
+      capabilities: DESKTOP_CAPABILITIES,
+      onOpenScreen: vi.fn(),
+    });
+    expect(desktop.map((section) => section.id)).toEqual([
+      'appearance',
+      'account',
+      'sync',
+      'connections',
+      'data',
+    ]);
+    expect(sectionForIntent('settings-connections', desktop)).toBe('connections');
+    const web = availableSettingsSections({ capabilities: WEB_CAPABILITIES });
+    expect(web.map((section) => section.id)).toEqual(['appearance', 'account']);
+    expect(sectionForIntent('settings-connections', web)).toBe('account');
+    expect(filterSettingsSections(desktop, '豆包').map((section) => section.id)).toEqual([
+      'connections',
+    ]);
   });
 });
 
@@ -388,6 +530,8 @@ describe('ArchivedSessionsPanel(设置·数据卡内已归档对话)', () => {
 
   function renderWithArchived(options?: Parameters<typeof createTestGateway>[0]) {
     const utils = createTestGateway(options);
+    // 归档面板住「数据」分区:直接从记忆落到该分区,不经导航点击。
+    useSettingsNav.setState({ activeSectionId: 'data' });
     renderSettings(utils.gateway, { onOpenScreen: vi.fn() });
     return utils;
   }

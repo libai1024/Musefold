@@ -4,11 +4,15 @@
 import {
   type AppPreferences,
   accountSummarySchema,
+  agentConnectionListSchema,
+  agentConnectionSchema,
+  agentConnectionTestResultSchema,
   aiProviderSchema,
   aiProviderTestResultSchema,
   appPreferencesSchema,
   cancelDesignSchemeResultSchema,
   checkDesignSchemeUpdateResultSchema,
+  confirmDesignSchemeInstallResultSchema,
   createDesignSchemeResultSchema,
   designSchemeDetailSchema,
   designSchemeEventSchema,
@@ -160,6 +164,12 @@ const designSchemesGateway: NonNullable<MusefoldGateway['designSchemes']> = {
     invoke(DESIGN_SCHEME_WIRE_METHODS.modify, input, modifyDesignSchemeResultSchema),
   cancel: (input) =>
     invoke(DESIGN_SCHEME_WIRE_METHODS.cancel, input, cancelDesignSchemeResultSchema),
+  confirmInstall: (input) =>
+    invoke(
+      DESIGN_SCHEME_WIRE_METHODS.confirmInstall,
+      input,
+      confirmDesignSchemeInstallResultSchema,
+    ),
   selectCover: (input) =>
     invoke(DESIGN_SCHEME_WIRE_METHODS.selectCover, input, selectCoverResultSchema),
   formalize: (input) =>
@@ -246,6 +256,16 @@ export function createDesktopGateway(): MusefoldGateway {
       remove: (id) => invoke('aiProviders.remove', { id }, voidSchema),
       setActive: (id) => invoke('aiProviders.setActive', { id }, aiProviderSchema),
       test: (id) => invoke('aiProviders.test', { id }, aiProviderTestResultSchema),
+    },
+    // Agent 文本模型连接:与生图连接同形状,走独立方法名与独立事实源(主进程 AiConnectionStore)。
+    agentConnections: {
+      list: () => invoke('agentConnections.list', undefined, agentConnectionListSchema),
+      create: (input) => invoke('agentConnections.create', input, agentConnectionSchema),
+      update: (id, patch) =>
+        invoke('agentConnections.update', { id, patch }, agentConnectionSchema),
+      remove: (id) => invoke('agentConnections.remove', { id }, voidSchema),
+      setActive: (id) => invoke('agentConnections.setActive', { id }, agentConnectionSchema),
+      test: (id) => invoke('agentConnections.test', { id }, agentConnectionTestResultSchema),
     },
     // 豆包网页登录:单通道桥直达冻结 browser-service;QR 以 data URL 随状态快照返回。
     doubao: {

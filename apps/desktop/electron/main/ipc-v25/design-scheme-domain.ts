@@ -16,6 +16,8 @@
 import {
   cancelDesignSchemeInputSchema,
   checkDesignSchemeUpdateInputSchema,
+  confirmDesignSchemeInstallInputSchema,
+  confirmDesignSchemeInstallResultSchema,
   createDesignSchemeInputSchema,
   createDesignSchemeResultSchema,
   checkDesignSchemeUpdateResultSchema,
@@ -74,6 +76,7 @@ import type {
   DesignSchemeRevisionDocument as LegacyDocument,
   SourceBinding as LegacySourceBinding,
 } from '@musefold/desktop-contracts/design-scheme/schema';
+import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import {
@@ -104,6 +107,7 @@ import { checkSchemeUpdate } from '../design-scheme/update-check';
 import { getPaths } from '../../system/paths';
 import { BridgeError, type MethodDef } from './envelope';
 import { runCanonicalDesignScheme } from './design-scheme-run-adapter';
+import { resolveUploadedReferenceById } from './workbench-domain';
 import {
   DESIGN_SCHEME_AGENT_AI_UNAVAILABLE,
   runCanonicalDesignSchemeCreation,
@@ -159,6 +163,8 @@ export interface DesignSchemeDomainDeps {
   downloadsDir?: string;
   /** Agent 文本模型适配器 seam;缺省读取 v2.1 保留的 AiConnectionStore,测试注入。 */
   resolveAgentAdapter?: ResolveAgentTextAdapter;
+  /** Composer 上传参考图 staging id → 受管本地图;缺省读 workbench 上传目录,测试注入。 */
+  resolveUploadedReference?: (assetId: string) => LocalImageReference | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,12 +173,11 @@ export interface DesignSchemeDomainDeps {
 // ---------------------------------------------------------------------------
 
 export { DESIGN_SCHEME_AGENT_AI_UNAVAILABLE };
-/**
- * create + sourceUris(GitHub Skill):远程来源必须经用户安装确认(UI 规范 §11.2),
- * 而 `confirmInstall` 尚未进入部署方法表(P01-9/P01-11);部署前显式拒绝,不静默安装。
- */
-export const DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE =
-  'DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE' as const;
+/** confirmInstall 指向的执行不存在或不属于当前窗口。 */
+export const DESIGN_SCHEME_EXECUTION_NOT_FOUND = 'DESIGN_SCHEME_EXECUTION_NOT_FOUND' as const;
+/** confirmInstall 指向的执行当前没有待确认的来源(不是创建,或尚未走到安装确认)。 */
+export const DESIGN_SCHEME_EXECUTION_NOT_CONFIRMABLE =
+  'DESIGN_SCHEME_EXECUTION_NOT_CONFIRMABLE' as const;
 /** create(无 document)夹带预解析来源快照/资产:那是确定性建库的入参,Agent 路径不接受。 */
 export const DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED =
   'DESIGN_SCHEME_AGENT_CREATION_INPUT_UNSUPPORTED' as const;
@@ -880,16 +885,14 @@ export function buildDesignSchemesDomainMethods(
               'Agent 创建只接受方案描述、GitHub 地址或历史来源;预解析的来源快照与资产必须随已编译 document 走确定性建库。',
             );
           }
-          if (input.sourceUris.length > 0) {
-            throw new BridgeError(
-              DESIGN_SCHEME_AGENT_SOURCE_CONFIRMATION_UNAVAILABLE,
-              '从 GitHub 地址创建方案需要安装确认,当前桌面尚未部署该确认通道(P01-9/P01-11);请先描述方案想法或选择历史内容。',
-            );
-          }
-          if (!input.brief.trim() && input.historySources.length === 0) {
+          if (
+            !input.brief.trim() &&
+            input.sourceUris.length === 0 &&
+            input.historySources.length === 0
+          ) {
             throw new BridgeError(
               DESIGN_SCHEME_CREATE_INPUT_REQUIRED,
-              '请描述你的方案想法,或选择历史内容作为来源。',
+              '请描述你的方案想法,或提供 GitHub Skill 地址 / 选择历史内容作为来源。',
             );
           }
           const history = resolveHistorySources(
@@ -902,8 +905,14 @@ export function buildDesignSchemesDomainMethods(
             imagePath,
             ...(promptText ? { promptText } : {}),
           }));
+          // GitHub 来源逐个经 confirmation-required 事件 + confirmInstall 确认后才固化快照(§11.2 不静默安装)。
           return runCanonicalDesignSchemeCreation(
-            { executionId: input.executionId, brief: input.brief, history },
+            {
+              executionId: input.executionId,
+              brief: input.brief,
+              githubUrls: [...new Set(input.sourceUris)],
+              history,
+            },
             senderId,
             agentDeps(),
           );
@@ -1045,6 +1054,40 @@ export function buildDesignSchemesDomainMethods(
         );
       },
     },
+    [DESIGN_SCHEME_WIRE_METHODS.confirmInstall]: {
+      input: confirmDesignSchemeInstallInputSchema,
+      async handle(raw, context) {
+        const input = raw as z.output<typeof confirmDesignSchemeInstallInputSchema>;
+        const senderId = requireSenderId(
+          context,
+          'DESIGN_SCHEME_EXECUTION_OWNER_REQUIRED',
+          '安装确认需要有效的 renderer 所有者',
+        );
+        // 决定只作用于同一窗口登记、且正停在 awaiting_install_confirmation 的创建执行;
+        // 拒绝即整体取消(会话 abort + 登记表 tombstone),不会留下半固化的来源。
+        const outcome = designSchemeExecutionRegistry.confirm(
+          senderId,
+          input.executionId,
+          input.decision,
+        );
+        switch (outcome.status) {
+          case 'accepted':
+          case 'cancelled':
+          case 'already-terminal':
+            return confirmDesignSchemeInstallResultSchema.parse({
+              executionId: input.executionId,
+              status: outcome.status,
+            });
+          case 'not-confirmable':
+            throw new BridgeError(
+              DESIGN_SCHEME_EXECUTION_NOT_CONFIRMABLE,
+              '该执行当前没有等待确认的来源',
+            );
+          default:
+            throw new BridgeError(DESIGN_SCHEME_EXECUTION_NOT_FOUND, '执行不存在或不属于当前窗口');
+        }
+      },
+    },
     [DESIGN_SCHEME_WIRE_METHODS.cancel]: {
       input: cancelDesignSchemeInputSchema,
       async handle(raw, context) {
@@ -1056,7 +1099,7 @@ export function buildDesignSchemesDomainMethods(
         );
         const outcome = designSchemeExecutionRegistry.cancel(senderId, input.executionId);
         if (outcome.status === 'not-found') {
-          throw new BridgeError('DESIGN_SCHEME_EXECUTION_NOT_FOUND', '执行不存在或不属于当前窗口');
+          throw new BridgeError(DESIGN_SCHEME_EXECUTION_NOT_FOUND, '执行不存在或不属于当前窗口');
         }
         return {
           executionId: input.executionId,
@@ -1300,10 +1343,24 @@ export function buildDesignSchemesDomainMethods(
       input: prepareDesignSchemeRunInputSchema,
       async handle(raw) {
         const input = raw as ParsedPrepareDesignSchemeRunInput;
+        const schemeDb = resolveDb();
+        const resolveUploaded = deps.resolveUploadedReference ?? resolveUploadedReferenceById;
         return prepareDesignSchemeRunResultSchema.parse(
           prepareDesktopDesignSchemeRun(input, {
-            designSchemeDb: resolveDb(),
+            designSchemeDb: schemeDb,
             coreDb: deps.coreDb ?? getDb(),
+            // 参考图 = 当前方案版本的资产,或 Composer 本次上传的暂存(与 run 阶段同一解析规则)。
+            hasReferenceAsset: (assetId) =>
+              Boolean(
+                schemeDb
+                  .prepare(
+                    `SELECT 1 FROM design_scheme_assets a
+                       JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
+                      WHERE a.id = ? AND r.scheme_id = ? AND r.revision_id = ?
+                      LIMIT 1`,
+                  )
+                  .get(assetId, input.schemeId, input.revisionId),
+              ) || resolveUploaded(assetId) !== null,
           }),
         );
       },
@@ -1318,7 +1375,12 @@ export function buildDesignSchemesDomainMethods(
             '执行运行需要有效的 renderer 所有者',
           );
         }
-        return runCanonicalDesignScheme(input, context.senderId, runtimeDeps());
+        return runCanonicalDesignScheme(input, context.senderId, {
+          ...runtimeDeps(),
+          ...(deps.resolveUploadedReference
+            ? { resolveUploadedReference: deps.resolveUploadedReference }
+            : {}),
+        });
       },
     },
   };

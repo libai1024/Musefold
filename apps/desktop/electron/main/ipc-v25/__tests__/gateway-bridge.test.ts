@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   ipcMain: { handle: vi.fn() },
   account: vi.fn(),
   providers: vi.fn(),
+  agentConnections: vi.fn(),
   prompts: vi.fn(),
   sync: vi.fn(),
   workbench: vi.fn(),
@@ -40,6 +41,9 @@ vi.mock('../account-domain', () => ({
   onAccountChangeCancelled: mocks.accountChangeCancelled,
 }));
 vi.mock('../providers-domain', () => ({ buildAiProvidersDomainMethods: mocks.providers }));
+vi.mock('../agent-connections-domain', () => ({
+  buildAgentConnectionsDomainMethods: mocks.agentConnections,
+}));
 vi.mock('../prompts-domain', () => ({ buildPromptsDomainMethods: mocks.prompts }));
 vi.mock('../sync-domain', () => ({ buildSyncDomainMethods: mocks.sync }));
 vi.mock('../workbench-domain', () => ({ buildWorkbenchDomainMethods: mocks.workbench }));
@@ -114,6 +118,7 @@ const DESIGN_SCHEME_INPUTS: Record<string, unknown> = {
     instruction: 'Make the layout quieter',
   },
   'designSchemes.cancel': { executionId: 'exec_1' },
+  'designSchemes.confirmInstall': { executionId: 'exec_1', decision: 'install' },
   'designSchemes.selectCover': { schemeId: 'scheme_1', assetId: 'asset_1' },
   'designSchemes.formalize': {
     schemeId: 'scheme_1',
@@ -223,6 +228,9 @@ function configureDomainMocksCorrectly(): void {
   mocks.providers.mockReturnValue(
     makeMethods('aiProviders', ['list', 'create', 'update', 'remove', 'setActive', 'test']),
   );
+  mocks.agentConnections.mockReturnValue(
+    makeMethods('agentConnections', ['list', 'create', 'update', 'remove', 'setActive', 'test']),
+  );
   mocks.prompts.mockReturnValue(
     makeMethods('prompts', [
       'list',
@@ -314,6 +322,7 @@ describe('v25 gateway bridge transport contract', () => {
     }
     expect(mocks.account).toHaveBeenCalledOnce();
     expect(mocks.providers).toHaveBeenCalledOnce();
+    expect(mocks.agentConnections).toHaveBeenCalledOnce();
     expect(mocks.prompts).toHaveBeenCalledOnce();
     expect(mocks.sync).toHaveBeenCalledOnce();
     expect(mocks.workbench).toHaveBeenCalledOnce();
@@ -321,17 +330,22 @@ describe('v25 gateway bridge transport contract', () => {
   });
 
   it('matches real domain builders in both directions', async () => {
-    const [account, providers, prompts, sync, workbench, doubao] = await Promise.all([
-      vi.importActual<typeof import('../account-domain')>('../account-domain'),
-      vi.importActual<typeof import('../providers-domain')>('../providers-domain'),
-      vi.importActual<typeof import('../prompts-domain')>('../prompts-domain'),
-      vi.importActual<typeof import('../sync-domain')>('../sync-domain'),
-      vi.importActual<typeof import('../workbench-domain')>('../workbench-domain'),
-      vi.importActual<typeof import('../doubao-domain')>('../doubao-domain'),
-    ]);
+    const [account, providers, agentConnections, prompts, sync, workbench, doubao] =
+      await Promise.all([
+        vi.importActual<typeof import('../account-domain')>('../account-domain'),
+        vi.importActual<typeof import('../providers-domain')>('../providers-domain'),
+        vi.importActual<typeof import('../agent-connections-domain')>(
+          '../agent-connections-domain',
+        ),
+        vi.importActual<typeof import('../prompts-domain')>('../prompts-domain'),
+        vi.importActual<typeof import('../sync-domain')>('../sync-domain'),
+        vi.importActual<typeof import('../workbench-domain')>('../workbench-domain'),
+        vi.importActual<typeof import('../doubao-domain')>('../doubao-domain'),
+      ]);
     const realMethods = {
       account: account.buildAccountDomainMethods(),
       aiProviders: providers.buildAiProvidersDomainMethods(),
+      agentConnections: agentConnections.buildAgentConnectionsDomainMethods(),
       prompts: prompts.buildPromptsDomainMethods(),
       sync: sync.buildSyncDomainMethods(),
       workbench: workbench.buildWorkbenchDomainMethods(),
@@ -351,7 +365,7 @@ describe('v25 gateway bridge transport contract', () => {
     }
   });
 
-  it('locks all 17 design scheme names to the canonical set and validates strictly', async () => {
+  it('locks all 18 design scheme names to the canonical set and validates strictly', async () => {
     const methods = buildMethods();
     expect(Object.keys(DESIGN_SCHEME_INPUTS).sort()).toEqual(DESIGN_SCHEME_METHODS);
     expect(

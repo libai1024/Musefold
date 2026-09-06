@@ -1,4 +1,6 @@
 import type {
+  AiProvider,
+  AiProviderTestResult,
   CreateAiProvider,
   DesktopSyncConsent,
   DesktopSyncStatus,
@@ -9,7 +11,12 @@ import type {
   UpdateAiProvider,
 } from '@musefold/contracts';
 import { ACCOUNT_QUOTA_PER_POINT } from '@musefold/contracts';
-import { queryKeys, useGateway } from '@musefold/platform';
+import {
+  type AiProvidersGateway,
+  type MusefoldGateway,
+  queryKeys,
+  useGateway,
+} from '@musefold/platform';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useAccountStatus() {
@@ -162,76 +169,112 @@ export function useResolveSyncConflict() {
   });
 }
 
-// ── 桌面 AI 连接管理(gateway.aiProviders,仅桌面宿主提供)──────────
+// ── 桌面本地连接管理(gateway.aiProviders 生图 / gateway.agentConnections 文本,仅桌面宿主提供)──
+// 两个域同形状(AiProvidersGateway),差异只在事实源与缓存分区:用同一组 hook 工厂生成,
+// 面板按传入的 hooks 集实例化,不为两个入口复制两份数据面。
 
-function useAiProvidersGateway() {
-  const gateway = useGateway();
-  if (!gateway.aiProviders) {
-    throw new Error('当前宿主不提供本地 AI 连接管理(hasLocalAiProviders=false)');
+export interface ConnectionsHooks {
+  useList(): ReturnType<typeof useQuery<AiProvider[]>>;
+  useCreate(): ReturnType<typeof useMutation<AiProvider, Error, CreateAiProvider>>;
+  useUpdate(): ReturnType<
+    typeof useMutation<AiProvider, Error, { id: string; patch: UpdateAiProvider }>
+  >;
+  useRemove(): ReturnType<typeof useMutation<void, Error, string>>;
+  useSetActive(): ReturnType<typeof useMutation<AiProvider, Error, string>>;
+  useTest(): ReturnType<typeof useMutation<AiProviderTestResult, Error, string>>;
+}
+
+function createConnectionsHooks(options: {
+  select(gateway: MusefoldGateway): AiProvidersGateway | undefined;
+  missingMessage: string;
+  listKey(): readonly unknown[];
+  /** 连接变化时额外失效的缓存(如工作台 Composer 的 provider 选项)。 */
+  alsoInvalidate?(): readonly (readonly unknown[])[];
+}): ConnectionsHooks {
+  function useDomain(): AiProvidersGateway {
+    const domain = options.select(useGateway());
+    if (!domain) throw new Error(options.missingMessage);
+    return domain;
   }
-  return gateway.aiProviders;
-}
-
-export function useAiProviders() {
-  const aiProviders = useAiProvidersGateway();
-  return useQuery({
-    queryKey: queryKeys.aiProviders.list(),
-    queryFn: () => aiProviders.list(),
-  });
-}
-
-/** 连接变化同时失效工作台 Composer 的 provider 选项(同一份底层数据)。 */
-function useInvalidateProviders() {
-  const queryClient = useQueryClient();
-  return () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.aiProviders.list() });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.generation.providers() });
+  function useInvalidate() {
+    const queryClient = useQueryClient();
+    return () => {
+      void queryClient.invalidateQueries({ queryKey: options.listKey() });
+      for (const key of options.alsoInvalidate?.() ?? []) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+    };
+  }
+  return {
+    useList() {
+      const domain = useDomain();
+      return useQuery({ queryKey: options.listKey(), queryFn: () => domain.list() });
+    },
+    useCreate() {
+      const domain = useDomain();
+      const invalidate = useInvalidate();
+      return useMutation({
+        mutationFn: (input: CreateAiProvider) => domain.create(input),
+        onSuccess: invalidate,
+      });
+    },
+    useUpdate() {
+      const domain = useDomain();
+      const invalidate = useInvalidate();
+      return useMutation({
+        mutationFn: ({ id, patch }: { id: string; patch: UpdateAiProvider }) =>
+          domain.update(id, patch),
+        onSuccess: invalidate,
+      });
+    },
+    useRemove() {
+      const domain = useDomain();
+      const invalidate = useInvalidate();
+      return useMutation({ mutationFn: (id: string) => domain.remove(id), onSuccess: invalidate });
+    },
+    useSetActive() {
+      const domain = useDomain();
+      const invalidate = useInvalidate();
+      return useMutation({
+        mutationFn: (id: string) => domain.setActive(id),
+        onSuccess: invalidate,
+      });
+    },
+    useTest() {
+      const domain = useDomain();
+      return useMutation({ mutationFn: (id: string) => domain.test(id) });
+    },
   };
 }
 
-export function useCreateAiProvider() {
-  const aiProviders = useAiProvidersGateway();
-  const invalidate = useInvalidateProviders();
-  return useMutation({
-    mutationFn: (input: CreateAiProvider) => aiProviders.create(input),
-    onSuccess: invalidate,
-  });
-}
+/** 生图 Provider:连接变化同时失效工作台 Composer 的 provider 选项(同一份底层数据)。 */
+export const AI_PROVIDER_HOOKS = createConnectionsHooks({
+  select: (gateway) => gateway.aiProviders,
+  missingMessage: '当前宿主不提供本地 AI 连接管理(hasLocalAiProviders=false)',
+  listKey: () => queryKeys.aiProviders.list(),
+  alsoInvalidate: () => [queryKeys.generation.providers()],
+});
 
-export function useUpdateAiProvider() {
-  const aiProviders = useAiProvidersGateway();
-  const invalidate = useInvalidateProviders();
-  return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: UpdateAiProvider }) =>
-      aiProviders.update(id, patch),
-    onSuccess: invalidate,
-  });
-}
+/** Agent 文本模型连接:设计方案 Agent / Skill runtime 的 chat/completions 连接。 */
+export const AGENT_CONNECTION_HOOKS = createConnectionsHooks({
+  select: (gateway) => gateway.agentConnections,
+  missingMessage: '当前宿主不提供 Agent 连接管理(hasAgentConnections=false)',
+  listKey: () => queryKeys.agentConnections.list(),
+});
 
-export function useRemoveAiProvider() {
-  const aiProviders = useAiProvidersGateway();
-  const invalidate = useInvalidateProviders();
-  return useMutation({
-    mutationFn: (id: string) => aiProviders.remove(id),
-    onSuccess: invalidate,
-  });
-}
+export const useAiProviders = AI_PROVIDER_HOOKS.useList;
+export const useCreateAiProvider = AI_PROVIDER_HOOKS.useCreate;
+export const useUpdateAiProvider = AI_PROVIDER_HOOKS.useUpdate;
+export const useRemoveAiProvider = AI_PROVIDER_HOOKS.useRemove;
+export const useSetActiveAiProvider = AI_PROVIDER_HOOKS.useSetActive;
+export const useTestAiProvider = AI_PROVIDER_HOOKS.useTest;
 
-export function useSetActiveAiProvider() {
-  const aiProviders = useAiProvidersGateway();
-  const invalidate = useInvalidateProviders();
-  return useMutation({
-    mutationFn: (id: string) => aiProviders.setActive(id),
-    onSuccess: invalidate,
-  });
-}
-
-export function useTestAiProvider() {
-  const aiProviders = useAiProvidersGateway();
-  return useMutation({
-    mutationFn: (id: string) => aiProviders.test(id),
-  });
-}
+export const useAgentConnections = AGENT_CONNECTION_HOOKS.useList;
+export const useCreateAgentConnection = AGENT_CONNECTION_HOOKS.useCreate;
+export const useUpdateAgentConnection = AGENT_CONNECTION_HOOKS.useUpdate;
+export const useRemoveAgentConnection = AGENT_CONNECTION_HOOKS.useRemove;
+export const useSetActiveAgentConnection = AGENT_CONNECTION_HOOKS.useSetActive;
+export const useTestAgentConnection = AGENT_CONNECTION_HOOKS.useTest;
 
 // ── 豆包网页登录(gateway.doubao,仅桌面宿主提供;冻结 browser-service 薄适配)──
 

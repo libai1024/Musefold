@@ -301,6 +301,16 @@ const responseByMethod: Record<string, unknown> = {
     message: '连接正常',
     latencyMs: 1,
   }),
+  'agentConnections.list': [provider],
+  'agentConnections.create': provider,
+  'agentConnections.update': provider,
+  'agentConnections.remove': null,
+  'agentConnections.setActive': provider,
+  'agentConnections.test': aiProviderTestResultSchema.parse({
+    ok: true,
+    message: '连接正常',
+    latencyMs: 1,
+  }),
   'doubao.getStatus': doubaoStatus,
   'doubao.startLogin': doubaoStatus,
   'doubao.refreshLogin': doubaoStatus,
@@ -369,8 +379,9 @@ describe('desktop gateway transport contract', () => {
     const gateway = createDesktopGateway();
     const sync = gateway.sync;
     const aiProviders = gateway.aiProviders;
+    const agentConnections = gateway.agentConnections;
     const doubao = gateway.doubao;
-    if (!sync || !aiProviders || !doubao) {
+    if (!sync || !aiProviders || !agentConnections || !doubao) {
       throw new Error('desktop gateway optional domains are missing');
     }
 
@@ -393,6 +404,12 @@ describe('desktop gateway transport contract', () => {
     await aiProviders.remove(provider.id);
     await aiProviders.setActive(provider.id);
     await aiProviders.test(provider.id);
+    await agentConnections.list();
+    await agentConnections.create(createProvider);
+    await agentConnections.update(provider.id, updateProvider);
+    await agentConnections.remove(provider.id);
+    await agentConnections.setActive(provider.id);
+    await agentConnections.test(provider.id);
     await doubao.getStatus();
     await doubao.startLogin();
     await doubao.refreshLogin();
@@ -451,6 +468,12 @@ describe('desktop gateway transport contract', () => {
       ['aiProviders.remove', { id: provider.id }],
       ['aiProviders.setActive', { id: provider.id }],
       ['aiProviders.test', { id: provider.id }],
+      ['agentConnections.list', undefined],
+      ['agentConnections.create', createProvider],
+      ['agentConnections.update', { id: provider.id, patch: updateProvider }],
+      ['agentConnections.remove', { id: provider.id }],
+      ['agentConnections.setActive', { id: provider.id }],
+      ['agentConnections.test', { id: provider.id }],
       ['doubao.getStatus', undefined],
       ['doubao.startLogin', undefined],
       ['doubao.refreshLogin', undefined],
@@ -489,7 +512,7 @@ describe('desktop gateway transport contract', () => {
       ['generation.uploadReferenceImage', upload],
       ['generation.saveAsset', save],
     ]);
-    expect(invokeMock).toHaveBeenCalledTimes(56);
+    expect(invokeMock).toHaveBeenCalledTimes(62);
   });
 
   it('parses successful data with the method response schema and rejects mismatches', async () => {

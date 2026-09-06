@@ -20,6 +20,7 @@ import { BridgeError } from './envelope';
 import { buildDoubaoDomainMethods } from './doubao-domain';
 import { buildPromptsDomainMethods } from './prompts-domain';
 import { buildDesignSchemesDomainMethods } from './design-scheme-domain';
+import { buildAgentConnectionsDomainMethods } from './agent-connections-domain';
 import { buildAiProvidersDomainMethods } from './providers-domain';
 import { buildSyncDomainMethods } from './sync-domain';
 import { buildWorkbenchDomainMethods } from './workbench-domain';
@@ -92,6 +93,7 @@ export function buildMethods(): Record<string, MethodDef> {
   const account = buildAccountDomainMethods();
   const sync = buildSyncDomainMethods();
   const aiProviders = buildAiProvidersDomainMethods();
+  const agentConnections = buildAgentConnectionsDomainMethods();
   const doubao = buildDoubaoDomainMethods();
   const designSchemes = buildDesignSchemesDomainMethods();
   const prompts = buildPromptsDomainMethods();
@@ -105,6 +107,7 @@ export function buildMethods(): Record<string, MethodDef> {
   assertDomainMethods('account', account);
   assertDomainMethods('sync', sync);
   assertDomainMethods('aiProviders', aiProviders);
+  assertDomainMethods('agentConnections', agentConnections);
   assertDomainMethods('doubao', doubao);
   assertDomainMethods('designSchemes', designSchemes);
   assertDomainMethods('prompts', prompts);
@@ -115,6 +118,7 @@ export function buildMethods(): Record<string, MethodDef> {
     ...settings,
     ...account,
     ...aiProviders,
+    ...agentConnections,
     ...doubao,
     ...designSchemes,
     ...sync,

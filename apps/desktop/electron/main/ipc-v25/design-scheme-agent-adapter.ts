@@ -37,10 +37,10 @@ import { DesignSchemeModifySession } from '../design-scheme/modify-session';
 import { DesignSchemeCreationSession } from '../design-scheme/orchestrator';
 import { BridgeError } from './envelope';
 
-/** 无可用 Agent 文本连接:v2.5 尚无配置入口(U05),沿用 v2.1 已配置的文本连接。 */
+/** 无可用 Agent 文本连接:请在「设置 → Agent 连接」配置带密钥的文本模型(与 v2.1 文本连接同源)。 */
 export const DESIGN_SCHEME_AGENT_AI_UNAVAILABLE = 'DESIGN_SCHEME_AGENT_AI_UNAVAILABLE' as const;
 export const DESIGN_SCHEME_AGENT_AI_UNAVAILABLE_MESSAGE =
-  '设计方案 Agent 需要可用的文本模型连接(chat/completions)。当前版本暂未提供 Agent 连接配置入口,已配置的 v2.1 文本连接可直接使用。';
+  '设计方案 Agent 需要可用的文本模型连接。请先在「设置 → Agent 连接」新建连接并填入 API Key。';
 
 export interface DesktopDesignSchemeAgentAdapterDeps {
   /** 独立 design-scheme SQLite。 */
@@ -58,6 +58,8 @@ export interface DesktopDesignSchemeAgentAdapterDeps {
 export interface AgentCreationRequest {
   executionId: string;
   brief: string;
+  /** GitHub Skill 仓库地址(已过 canonical httpsRepositoryUri 校验);每个来源都要经用户安装确认。 */
+  githubUrls: string[];
   /** 已由 domain 按成功生成账本 owner-safe 解析的历史来源(主进程内部路径,不出 renderer)。 */
   history: DesignSchemeHistorySourceItem[];
 }
@@ -332,7 +334,11 @@ function requireAgentAdapter(
   throw new BridgeError(error.code, error.message);
 }
 
-/** Agent 创建(brief + 可选历史来源;GitHub 来源由 domain 在安装确认通道部署前拒绝)。 */
+/**
+ * Agent 创建(brief + 可选 GitHub 来源 + 可选历史来源)。
+ * GitHub 来源在会话内逐个「解析 → confirmation-required → 等 confirmInstall → 固化 → 分析」,
+ * 确认经执行登记表的 confirm 钩子送回会话;拒绝即整体取消。
+ */
 export async function runCanonicalDesignSchemeCreation(
   request: AgentCreationRequest,
   senderId: number,
@@ -349,6 +355,7 @@ export async function runCanonicalDesignSchemeCreation(
         {
           executionId: request.executionId,
           brief: request.brief,
+          ...(request.githubUrls.length > 0 ? { githubUrls: request.githubUrls } : {}),
           ...(request.history.length > 0 ? { history: { items: request.history } } : {}),
         },
         {

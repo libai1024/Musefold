@@ -10,6 +10,7 @@ export {
   SchemeRemoveDialog,
   SchemeRenameDialog,
   SchemeSourceDialog,
+  SourceInstallConfirmDialog,
 } from './SchemeDialogs';
 export { SchemeInspector } from './SchemeInspector';
 export {

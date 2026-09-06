@@ -1,5 +1,6 @@
 import {
   type CancelDesignSchemeInput,
+  type ConfirmDesignSchemeInstallInput,
   type CheckDesignSchemeUpdateInput,
   type CreateDesignSchemeInput,
   type DesignSchemeListQuery,
@@ -17,6 +18,7 @@ import {
   type SelectCoverInput,
   type UpdateDesignSchemeInput,
   cancelDesignSchemeResultSchema,
+  confirmDesignSchemeInstallResultSchema,
   checkDesignSchemeUpdateResultSchema,
   createDesignSchemeResultSchema,
   designSchemeDetailSchema,
@@ -42,6 +44,7 @@ type CloudUnavailableOperation =
   | 'create'
   | 'modify'
   | 'cancel'
+  | 'confirmInstall'
   | 'checkUpdate'
   | 'prepareImportPackage'
   | 'importPackage'
@@ -54,6 +57,7 @@ const unavailableCodeByOperation: Record<CloudUnavailableOperation, string> = {
   create: 'DESIGN_SCHEME_CLOUD_CREATE_UNAVAILABLE',
   modify: 'DESIGN_SCHEME_CLOUD_AGENT_MODIFY_UNAVAILABLE',
   cancel: 'DESIGN_SCHEME_CLOUD_RUN_CANCEL_UNAVAILABLE',
+  confirmInstall: 'DESIGN_SCHEME_CLOUD_CREATE_UNAVAILABLE',
   checkUpdate: 'DESIGN_SCHEME_CLOUD_CHECK_UPDATE_UNAVAILABLE',
   prepareImportPackage: 'DESIGN_SCHEME_CLOUD_IMPORT_STAGING_UNAVAILABLE',
   importPackage: 'DESIGN_SCHEME_CLOUD_IMPORT_STAGING_UNAVAILABLE',
@@ -166,6 +170,16 @@ export function createCloudDesignSchemesGateway(http: ApiHttp): DesignSchemesGat
           path: '/design-schemes/cancel',
           body: input,
           response: cancelDesignSchemeResultSchema,
+        }),
+      ),
+    confirmInstall: (input: ConfirmDesignSchemeInstallInput) =>
+      mapUnavailable(
+        'confirmInstall',
+        http.request({
+          method: 'POST',
+          path: '/design-schemes/confirm-install',
+          body: input,
+          response: confirmDesignSchemeInstallResultSchema,
         }),
       ),
     selectCover: (input: SelectCoverInput) =>

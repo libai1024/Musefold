@@ -1,6 +1,11 @@
 'use client';
 
-import type { DesignSchemeDetail, DesignSchemeSummary, MarketCandidate } from '@musefold/contracts';
+import type {
+  DesignSchemeDetail,
+  DesignSchemeSummary,
+  MarketCandidate,
+  SourceConfirmation,
+} from '@musefold/contracts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -350,6 +355,110 @@ export function MarketInstallDialog({
           >
             <Download className="size-3.5" aria-hidden />
             添加为草稿
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/**
+ * Agent 创建过程中的来源安装确认(UI 规范 §11.2:远程来源不得静默引入):
+ * 宿主 Agent 解析完 GitHub 仓库后停在 awaiting_install_confirmation,把只含元数据的
+ * SourceConfirmation 发回;这里展示仓库、固定 commit、文件规模与许可证,用户「确认引入」
+ * 才继续固化快照 → 分析 → 编译;「取消创建」即整体取消。多来源合并时逐个确认。
+ */
+export function SourceInstallConfirmDialog({
+  source,
+  pending = false,
+  onDecide,
+}: {
+  source: SourceConfirmation | null;
+  /** 决定已发出、等待宿主受理:两个按钮禁用,避免重复提交。 */
+  pending?: boolean;
+  onDecide(decision: 'install' | 'cancel'): void;
+}) {
+  const shownNames = source?.textNames.slice(0, 6) ?? [];
+  const hiddenCount = source ? Math.max(0, source.textFileCount - shownNames.length) : 0;
+  return (
+    <AlertDialog
+      open={source != null}
+      onOpenChange={(open) => !open && !pending && onDecide('cancel')}
+    >
+      <AlertDialogContent className="max-w-md" data-testid="source-install-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2.5">
+            <span
+              className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+              aria-hidden
+            >
+              <GitBranch className="size-3.5" />
+            </span>
+            确认引入来源
+          </AlertDialogTitle>
+          <AlertDialogDescription className="truncate" data-testid="source-install-repository">
+            {source?.repositoryUrl}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-1 text-foreground text-xs leading-6">
+          <p className="font-medium" data-testid="source-install-name">
+            {source?.name}
+          </p>
+          {source?.description ? (
+            <p className="line-clamp-3 text-muted-foreground">{source.description}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2 border-border border-y py-3 text-[11px] text-muted-foreground">
+          <p className="flex items-center gap-2">
+            <GitBranch className="size-3.5" aria-hidden />
+            固定到 {source?.resolvedRef}
+            {source?.commitHash ? ` · ${source.commitHash.slice(0, 10)}` : ''}
+          </p>
+          <p className="flex items-center gap-2">
+            <FileText className="size-3.5" aria-hidden />
+            {source?.textFileCount ?? 0} 个文本文件 · {source?.imageFileCount ?? 0} 张图片
+          </p>
+          {shownNames.length > 0 ? (
+            <p className="truncate pl-5.5" data-testid="source-install-files">
+              {shownNames.join(' · ')}
+              {hiddenCount > 0 ? ` · 等 ${hiddenCount} 个` : ''}
+            </p>
+          ) : null}
+          <p className="flex items-center gap-2">
+            <Scale className="size-3.5" aria-hidden />
+            许可证:{source?.license ?? '未声明'}
+          </p>
+          <p className="flex items-center gap-2">
+            <ShieldCheck className="size-3.5 text-success" aria-hidden />
+            只读取规则、提示词与参考图片,不会执行仓库脚本
+          </p>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            disabled={pending}
+            onClick={(event) => {
+              event.preventDefault();
+              onDecide('cancel');
+            }}
+            data-testid="source-install-cancel"
+          >
+            取消创建
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className="gap-1.5"
+            disabled={pending}
+            onClick={(event) => {
+              event.preventDefault();
+              onDecide('install');
+            }}
+            data-testid="source-install-confirm"
+          >
+            {pending ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <Download className="size-3.5" aria-hidden />
+            )}
+            确认引入
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

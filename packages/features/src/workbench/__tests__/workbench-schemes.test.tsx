@@ -1,5 +1,6 @@
 import type {
   DesignSchemeDetail,
+  DesignSchemeEvent,
   DesignSchemeRevisionDocument,
   DesignSchemeSummary,
   GenerationJob,
@@ -125,7 +126,7 @@ function makeDocument(
 }
 
 /** 内存 gateway:工作台/生图最小闭环 + 方案域适配器;generation.create 间谍用于「不伪造」断言。 */
-function createMemoryGateway(seed?: { schemes?: DesignSchemeSummary[] }) {
+function createMemoryGateway(seed?: { schemes?: DesignSchemeSummary[]; confirmInstall?: boolean }) {
   let seq = 0;
   const sessions = new Map<string, WorkbenchSession>();
   const generationCreate = vi.fn(async (input: { prompt: string }): Promise<GenerationJob> => {
@@ -159,6 +160,17 @@ function createMemoryGateway(seed?: { schemes?: DesignSchemeSummary[] }) {
     } as GenerationJob;
   });
   const schemes = seed?.schemes ?? [];
+  // 事件总线替身:宿主(测试)经 emitEvent 推送 canonical 事件,屏内订阅者按 executionId 过滤。
+  const listeners = new Set<(event: DesignSchemeEvent) => void>();
+  const emitEvent = (event: DesignSchemeEvent) => {
+    for (const listener of listeners) listener(event);
+  };
+  const confirmInstall = vi.fn(
+    async (input: { executionId: string; decision: 'install' | 'cancel' }) => ({
+      executionId: input.executionId,
+      status: input.decision === 'install' ? ('accepted' as const) : ('cancelled' as const),
+    }),
+  );
   const designSchemes = {
     list: vi.fn(async () => ({ items: schemes, nextCursor: null })),
     get: vi.fn(
@@ -169,6 +181,11 @@ function createMemoryGateway(seed?: { schemes?: DesignSchemeSummary[] }) {
         sourceSnapshots: [],
       }),
     ),
+    subscribeEvents: vi.fn((listener: (event: DesignSchemeEvent) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }),
+    ...(seed?.confirmInstall === false ? {} : { confirmInstall }),
   };
   const gateway = {
     workbench: {
@@ -242,7 +259,7 @@ function createMemoryGateway(seed?: { schemes?: DesignSchemeSummary[] }) {
     },
     designSchemes,
   } as unknown as MusefoldGateway;
-  return { gateway, designSchemes, generationCreate };
+  return { gateway, designSchemes, generationCreate, emitEvent, confirmInstall };
 }
 
 interface RenderOptions {
@@ -254,10 +271,15 @@ interface RenderOptions {
   integration?: 'full' | 'no-submit' | 'none';
   handlers?: Partial<SchemeComposerHandlers>;
   schemes?: DesignSchemeSummary[];
+  /** false = 宿主 gateway 无 confirmInstall(如云端):不弹安装确认层。 */
+  confirmInstall?: boolean;
 }
 
 function renderWorkbench(options: RenderOptions = {}) {
-  const memory = createMemoryGateway({ schemes: options.schemes });
+  const memory = createMemoryGateway({
+    schemes: options.schemes,
+    confirmInstall: options.confirmInstall,
+  });
   const submissions: SchemeComposerSubmission[] = options.submissions ?? [];
   const onOpenDesignSchemes = vi.fn();
   const fullHandlers: SchemeComposerHandlers = {
@@ -660,6 +682,256 @@ describe('WorkbenchScreen 跨屏方案意图消费', () => {
     expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
       '做一个夏日海报方案',
     );
+  });
+
+  const SOURCE_CONFIRMATION = {
+    repositoryUrl: 'https://github.com/acme/zine-kit',
+    name: 'zine-kit',
+    description: '极简 zine 海报 Skill',
+    resolvedRef: 'main',
+    commitHash: 'b'.repeat(40),
+    textFileCount: 2,
+    textNames: ['SKILL.md', 'rules/color.md'],
+    imageFileCount: 1,
+    license: 'MIT',
+  };
+
+  /** 进入创建态并提交,宿主在 onCreate 内推送 confirmation-required 后等待 settle。 */
+  async function submitCreationAwaitingConfirmation(
+    memory: ReturnType<typeof renderWorkbench>,
+    executionRef: { current: string | null },
+  ) {
+    useSchemeIntegration.getState().setWorkbenchIntent({
+      kind: 'create',
+      createKind: 'idea',
+      seed: '按这个 Skill 做一套 zine 海报方案',
+      source: null,
+    });
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toContain(
+        'zine',
+      ),
+    );
+    await user.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(executionRef.current).not.toBeNull());
+    memory.emitEvent({
+      kind: 'confirmation-required',
+      executionId: executionRef.current as string,
+      source: SOURCE_CONFIRMATION,
+    });
+    return screen.findByTestId('source-install-dialog');
+  }
+
+  it('Agent 创建的 confirmation-required:弹安装确认层展示来源元数据;「确认引入」调 confirmInstall(install) 后创建继续到成功', async () => {
+    const executionRef: { current: string | null } = { current: null };
+    const settle = deferred<void>();
+    const memory = renderWorkbench({
+      integration: 'full',
+      handlers: {
+        onCreate: async (submission) => {
+          executionRef.current = submission.executionId;
+          await settle.promise;
+        },
+      },
+    });
+    const dialog = await submitCreationAwaitingConfirmation(memory, executionRef);
+    expect(dialog).toBeTruthy();
+    expect(screen.getByTestId('source-install-repository').textContent).toBe(
+      'https://github.com/acme/zine-kit',
+    );
+    expect(screen.getByTestId('source-install-name').textContent).toBe('zine-kit');
+    expect(screen.getByTestId('source-install-files').textContent).toBe(
+      'SKILL.md · rules/color.md',
+    );
+    expect(dialog.textContent).toContain('2 个文本文件 · 1 张图片');
+    expect(dialog.textContent).toContain('许可证:MIT');
+    expect(dialog.textContent).toContain(`固定到 main · ${'b'.repeat(10)}`);
+
+    await user.click(screen.getByTestId('source-install-confirm'));
+    await waitFor(() =>
+      expect(memory.confirmInstall).toHaveBeenCalledWith({
+        executionId: executionRef.current,
+        decision: 'install',
+      }),
+    );
+    await waitFor(() => expect(screen.queryByTestId('source-install-dialog')).toBeNull());
+    // 宿主随后完成创建:创建态清除、正文清空。
+    settle.resolve();
+    await waitFor(() => expect(screen.queryByTestId('composer-scheme-creation')).toBeNull());
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe('');
+    expect(screen.queryByTestId('scheme-submit-error')).toBeNull();
+  });
+
+  it('「取消创建」调 confirmInstall(cancel);宿主以 CANCELLED 收尾时按中性取消处理,输入与创建态保留', async () => {
+    const executionRef: { current: string | null } = { current: null };
+    const settle = deferred<void>();
+    const memory = renderWorkbench({
+      integration: 'full',
+      handlers: {
+        onCreate: async (submission) => {
+          executionRef.current = submission.executionId;
+          await settle.promise;
+        },
+      },
+    });
+    await submitCreationAwaitingConfirmation(memory, executionRef);
+    await user.click(screen.getByTestId('source-install-cancel'));
+    await waitFor(() =>
+      expect(memory.confirmInstall).toHaveBeenCalledWith({
+        executionId: executionRef.current,
+        decision: 'cancel',
+      }),
+    );
+    settle.reject(Object.assign(new Error('创建设计方案已取消'), { code: 'CANCELLED' }));
+
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-submit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    expect(screen.queryByTestId('source-install-dialog')).toBeNull();
+    expect(screen.queryByTestId('scheme-submit-error')).toBeNull();
+    expect(screen.getByTestId('composer-scheme-creation')).toBeTruthy();
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toContain('zine');
+  });
+
+  it('多来源逐个确认:第一个确认后再次 confirmation-required 会重新弹层;执行结束即使仍有事件也不再弹', async () => {
+    const executionRef: { current: string | null } = { current: null };
+    const settle = deferred<void>();
+    const memory = renderWorkbench({
+      integration: 'full',
+      handlers: {
+        onCreate: async (submission) => {
+          executionRef.current = submission.executionId;
+          await settle.promise;
+        },
+      },
+    });
+    await submitCreationAwaitingConfirmation(memory, executionRef);
+    await user.click(screen.getByTestId('source-install-confirm'));
+    await waitFor(() => expect(screen.queryByTestId('source-install-dialog')).toBeNull());
+
+    memory.emitEvent({
+      kind: 'confirmation-required',
+      executionId: executionRef.current as string,
+      source: {
+        ...SOURCE_CONFIRMATION,
+        repositoryUrl: 'https://github.com/acme/second',
+        name: 'second',
+      },
+    });
+    expect((await screen.findByTestId('source-install-name')).textContent).toBe('second');
+    await user.click(screen.getByTestId('source-install-confirm'));
+    await waitFor(() => expect(memory.confirmInstall).toHaveBeenCalledTimes(2));
+
+    settle.resolve();
+    await waitFor(() => expect(screen.queryByTestId('composer-scheme-creation')).toBeNull());
+    // 执行已结束:订阅已退,迟到的事件不会再弹层。
+    memory.emitEvent({
+      kind: 'confirmation-required',
+      executionId: executionRef.current as string,
+      source: SOURCE_CONFIRMATION,
+    });
+    expect(screen.queryByTestId('source-install-dialog')).toBeNull();
+    // 其他执行的事件同样忽略。
+    expect(memory.designSchemes.subscribeEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it('Agent 创建期间 state / 运行中 trace 事件映射为 Composer 上方一行进度;终态后消失', async () => {
+    const executionRef: { current: string | null } = { current: null };
+    const settle = deferred<void>();
+    const memory = renderWorkbench({
+      integration: 'full',
+      handlers: {
+        onCreate: async (submission) => {
+          executionRef.current = submission.executionId;
+          await settle.promise;
+        },
+      },
+    });
+    useSchemeIntegration.getState().setWorkbenchIntent({
+      kind: 'create',
+      createKind: 'idea',
+      seed: '做一套方案',
+      source: null,
+    });
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+        '做一套方案',
+      ),
+    );
+    await user.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(executionRef.current).not.toBeNull());
+    const executionId = executionRef.current as string;
+
+    memory.emitEvent({ kind: 'state', executionId, state: 'analyzing' });
+    expect((await screen.findByTestId('scheme-agent-progress')).textContent).toContain(
+      'Repository Analyst 正在分析仓库',
+    );
+    memory.emitEvent({
+      kind: 'trace',
+      executionId,
+      item: { id: 'compiler', kind: 'tool', title: 'Scheme Compiler 编译方案', status: 'running' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('scheme-agent-progress').textContent).toContain(
+        'Scheme Compiler 编译方案',
+      ),
+    );
+    // 其他执行的事件与已结束的 trace 不改进度。
+    memory.emitEvent({ kind: 'state', executionId: 'someone-else', state: 'source_resolving' });
+    memory.emitEvent({
+      kind: 'trace',
+      executionId,
+      item: { id: 'compiler', kind: 'tool', title: 'Scheme Compiler 编译方案', status: 'success' },
+    });
+    expect(screen.getByTestId('scheme-agent-progress').textContent).toContain('Scheme Compiler');
+
+    settle.resolve();
+    await waitFor(() => expect(screen.queryByTestId('scheme-agent-progress')).toBeNull());
+    expect(screen.queryByTestId('composer-scheme-creation')).toBeNull();
+  });
+
+  it('宿主 gateway 无 confirmInstall(如云端):仍订阅进度事件,但不会弹安装确认层', async () => {
+    const executionRef: { current: string | null } = { current: null };
+    const settle = deferred<void>();
+    const memory = renderWorkbench({
+      integration: 'full',
+      confirmInstall: false,
+      handlers: {
+        onCreate: async (submission) => {
+          executionRef.current = submission.executionId;
+          await settle.promise;
+        },
+      },
+    });
+    useSchemeIntegration.getState().setWorkbenchIntent({
+      kind: 'create',
+      createKind: 'idea',
+      seed: '做一套方案',
+      source: null,
+    });
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+        '做一套方案',
+      ),
+    );
+    await user.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(executionRef.current).not.toBeNull());
+    memory.emitEvent({
+      kind: 'confirmation-required',
+      executionId: executionRef.current as string,
+      source: SOURCE_CONFIRMATION,
+    });
+    expect(screen.queryByTestId('source-install-dialog')).toBeNull();
+    memory.emitEvent({
+      kind: 'state',
+      executionId: executionRef.current as string,
+      state: 'compiling_scheme',
+    });
+    expect((await screen.findByTestId('scheme-agent-progress')).textContent).toContain(
+      'Scheme Compiler 正在编译方案',
+    );
+    settle.resolve();
+    await waitFor(() => expect(screen.queryByTestId('composer-scheme-creation')).toBeNull());
   });
 
   it('只接 onRun 不接 onCreate/onModify:创建入口禁用、修改附件提交禁用并各自解释', async () => {

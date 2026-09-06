@@ -12,6 +12,7 @@ const capabilities: PlatformCapabilities = {
   hasLocalAutomation: false,
   hasWindowChrome: false,
   hasLocalAiProviders: false,
+  hasAgentConnections: false,
   hasDesignSchemes: false,
   hasDoubaoWebLogin: false,
 };
