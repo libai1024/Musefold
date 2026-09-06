@@ -15,6 +15,7 @@ const capabilities: PlatformCapabilities = {
   hasAgentConnections: false,
   hasDesignSchemes: false,
   hasDoubaoWebLogin: false,
+  hasLocalDataManagement: false,
 };
 
 describe('platform context', () => {

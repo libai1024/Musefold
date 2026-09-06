@@ -255,6 +255,8 @@ function createMemoryHost(options?: { prompts?: PromptDocument[]; seedJobs?: Gen
       byteSize: input.bytes.byteLength,
     }),
     saveAsset: async () => 'saved',
+    // 批量清理走历史屏,工作台不用;桩到返回 0 满足网关形状即可。
+    cleanup: async () => ({ affected: 0 }),
   };
 
   const prompts: PromptsGateway = {
@@ -322,6 +324,7 @@ beforeEach(() => {
     activeSessionId: null,
     draftSession: false,
     pendingDraft: null,
+    draftParamOverrides: {},
     seenAt: {},
     unreadMarks: {},
   });

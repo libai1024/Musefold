@@ -69,7 +69,7 @@
 | 旧产品意图 | baseline 对位 | 当前 v2.5 证据 | 当前判定 | 归属卡 |
 |---|---|---|---|---|
 | 壳、导航、窗口控件、拖拽区 | `apps/desktop/src/components/layout/*`、`apps/web/src/layout/*` | `packages/features/src/shell/*`、Web/Electron shell specs | `partial`;最新完整 v25 E2E 的 macOS fullscreen 前置因 Electron shell 无法取得前台焦点而失败，Win/Linux 控件和内容拖拽仍缺 | U01、U01-fullscreen-environment |
-| 首次启动 onboarding | `v2.5-baseline` 的 desktop onboarding 与 Web BootScreens 历史实现 | 当前 features 无 onboarding module/route | `todo`;无 Provider inline guide 不等于完整首启三轨引导 | U01-onboarding |
+| 首次启动 onboarding | `v2.5-baseline` 的 desktop onboarding 与 Web BootScreens 历史实现 | `packages/features/src/onboarding` 四步流 + `onboardingCompletedAt` 哨兵,双宿主一行挂载 | `done`(2026-09-06);gate 矩阵与三轨见 UI-SPEC §2.6 | U01-onboarding |
 | 账号、注册、退出、额度、兑换 | baseline account/settings surfaces | `packages/features/src/account/*`、Web account/Electron settings specs | `partial`;Agent connection UI 已于 2026-09-03 补齐（Desktop `AgentConnectionsPanel` + `agentConnections.*` 域；Electron settings E2E 10/10 含真实 IPC 下 Agent 连接新建→密钥→设默认→删除，与生图 providers 表隔离）;同日以本地 apps/api + 官方 New API 网关（zhaozhaoyue.top）验证真实登录闭环——Electron 壳内官方测试账号登录显示身份/积分、登出清 token、`account-session` 文件删除;生产 api.musefold.app 未部署仍为发布门禁（Q03）,Web 宿主 UI 未单独驱动 | U05、S01 |
 | Desktop Provider/BYOK 与模型目录 | baseline Provider/AI connection surfaces | `providers-domain.ts`、`AiConnectionsPanel`、定向 tests | `partial`;safeStorage 主路径存在,Agent key 有了独立管理面（agentConnections 域,AiConnectionStore keychain）,失效/轮换的可解释引导未闭合 | U05、S01 |
 | Prompt/Folder/Tag CRUD、搜索、置顶、回收站、冲突 | baseline library/product-ui | features/prompts、API/IPC tests、Web/Electron prompt specs | `partial`;大库/封面/Inspector/真 PG/跨设备证据缺 | U02、D01-boundaries、D02-a |
@@ -208,9 +208,9 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
   - Desktop:`partial`;macOS 全屏 inset 子卡已完成代码接线、单测/构建与真实 Electron 复跑，最新完整 Electron project 的 macOS fullscreen 前置因 Electron shell 无法取得前台焦点而失败；Windows/Linux 保持 0 inset 与现有自绘窗口控件边界。
   - Desktop Agent:`N/A`。
 - **已迁**:共享侧栏/移动底栏、会话区、账号 footer、错误边界、动效闸门、基础 drag-region;U01 首批核心几何:默认 248px、220–360px/32vw 调宽,指针/键盘/Home/End/双击与旧 `musefold:sidebar-width` 持久化;普通屏四边 4px 浮岛(设置保持全出血);`<768px` 同源模态抽屉 + focus trap/Escape/inert/焦点归还/自动关闭;收起态占位展开轨。2026-08-29 的历史运行记录覆盖 features、Web shell desktop/mobile、Web/Electron build、renderer typecheck、Biome 与独立 review;原始计数未绑定 report/commit,由 B02 重新登记,不能作为当前通过数字。独立 review 找到并修复 761–767px 侧栏与抽屉同时缺席回归。
-- **待迁**:Win/Linux 控件;内容/设置拖拽带;`⌘K`;会话上下文/任务摘要;AutomationConfirmCard;TooltipProvider 统一 300ms;首启引导(未 onboarded 且无 Provider 时的账号/BYOK/豆包入口三轨道,豆包只深链既有冻结能力)。macOS 全屏 inset 已由 U01-fullscreen-inset 接入,其真实 E2E 与单测证据见该子卡。
+- **待迁**:Win/Linux 控件;内容/设置拖拽带;会话上下文/任务摘要;AutomationConfirmCard;TooltipProvider 统一 300ms;「需要重启应用」逃生门接 `useRelaunchApp()`。已收口:`⌘K`(2026-09-06 随 U02,全局切库并聚焦搜索)、首启引导(U01-onboarding 子卡 `done`)。macOS 全屏 inset 已由 U01-fullscreen-inset 接入,其真实 E2E 与单测证据见该子卡。
 - **U01-fullscreen-inset 子卡**:`verify`。旧版基线为 macOS 非全屏保留 traffic-light 空间、原生全屏回退约 12px；当前 v2.5 已由 `resolveBrandInset(IS_MAC, isFullscreen)` 驱动，macOS 非全屏 78px、原生全屏 12px，非 macOS 0px。触达链为 `electron/main/window.ts → electron/preload/v25.ts → window.musefoldV25 → apps/desktop/src/v25/main.tsx → AppShell.brandInset`；窗口状态不进入 contracts、platform data gateway 或 `musefold:invoke` 方法表。代码/单元证据通过；最新完整 Electron project 的真实窗口用例在原生 fullscreen 前因 runner 无法让 Electron shell 取得前台焦点而失败，因此 `78px → 12px → 78px` 尚无当前可追溯 runtime 通过证据。Difference:`D16`；不触碰 pet/Doubao。
-- **U01-onboarding 子卡**:`todo`。恢复首次启动且无可用 Provider 时的完整引导,不能用 Composer 一行无连接提示代替。三轨为官方账号、Desktop BYOK、豆包既有冻结入口;Web 仅展示真实可执行的官方账号路径,不伪造本地 Provider/豆包。验收 welcome/connect/validate/first-image/complete、跳过/返回/失败恢复、完成哨兵持久化和再次启动不重放;豆包只深链既有能力,不改 frozen internals;无授权不执行真实生图。
+- **U01-onboarding 子卡**:`done`(2026-09-06,B1-T5)。`packages/features/src/onboarding`(状态机 store + `OnboardingFlow` Dialog + 四步组件),哨兵 `AppPreferences.onboardingCompletedAt`;gate 矩阵与形态见 UI-SPEC §2.6。三轨为官方账号、Desktop BYOK、豆包既有冻结入口(只复用 `account/hooks` 的豆包状态/登录 hooks,冻结面零改动);Web 仅展示官方账号轨。已具备通道的存量用户静默补哨兵不回放;first-image 只送 `pendingDraft`,不发起真实生图。证据:onboarding 单测 16、契约 26、双宿主挂载 27+4、`web.onboarding.spec.ts` 双视口 10、`electron.onboarding.spec.ts` 3(fresh userData 弹三轨 / BYOK 轨经回环网关走完 → `providers` 行 `has_key=1` 且 `generation_runs` 为 0 / 复用 userData 不重放)随 2026-09-06 Electron project 55 passed 通过。全仓 E2E 夹具 `tests/v25/onboarding-helpers.ts`(Electron `launchV25App` 默认预置哨兵,Web 各 spec `seedOnboardingCompleted`)。
 - **U01-fullscreen-environment 子卡**:`partial`。当前完整 Electron project 在原生 fullscreen 前无法让 Electron shell 取得前台焦点，导致 fullscreen 用例失败；仍需把资格检查、前台应用诊断和 artifact 保留固化到 CI，使环境阻塞可稳定归类而不削弱产品断言。
 - **UI 约束**:几何和交互以旧 `ProductSidebarLayout/TitleBar/WindowControls` 为基线;移动底栏作为不删功能的改进保留。新增 UI 必须使用 `packages/ui` 的 ShadCN 原语、Lucide 出口和语义 token;本卡不新增组件。
 - **触达**:features/shell、两宿主挂载、桌面 window IPC/capability、ui tokens。
@@ -219,12 +219,12 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
 ### U02 提示词库完整迁移
 
 - **状态**:`partial`
-- **已迁**:CRUD、搜索、排序、置顶、Folder/Tag、使用动作、回收站、永久删除、存为提示词入口;PromptEditorDialog 使用 ShadCN Dialog/AlertDialog 实现 dirty guard,拦截取消、Escape、外点与 X,支持继续编辑/放弃修改,保存失败保留表单值。
-- **待迁**:封面资产;详情 Inspector/窄屏 Sheet;相关作品;跨屏高亮;更新时间;清除筛选 CTA;清空回收站;大库虚拟化;分享/导入与创建方案入口在对应域就绪后恢复。编辑器 `Cmd/Ctrl+S` 仍为独立快捷键任务。
+- **已迁**:CRUD、搜索、排序、置顶、Folder/Tag、使用动作、回收站、永久删除、存为提示词入口;PromptEditorDialog 使用 ShadCN Dialog/AlertDialog 实现 dirty guard,拦截取消、Escape、外点与 X,支持继续编辑/放弃修改,保存失败保留表单值。**2026-09-06(B1-T1)**:封面缩略(契约 path-free `coverImageUrl`,PG 迁移 `0006_prompt_cover_image`,SQLite 复用 `preview_image_path` 槽位 + IPC 层 `media://` 映射,不新增列)、详情 Inspector(384px)/窄屏 Sheet(头部/正文/相关作品/元数据,「使用」主动作)、行点击开详情、清除筛选 + 新建 CTA、清空回收站(`prompts.emptyTrash` 六层齐)、编辑器 `⌘/Ctrl+S`、行更新时间、复制 Check、`prompt-highlight` 接收端、`⌘K` / `/` 聚焦搜索、滚动哨兵自动分页;宿主注入 `onOpenHistory`,历史屏消费 `history-select`。证据:features 395、契约/平台/api-client/db/桌面 IPC 423、api prompts 6、repo 门禁 44、`web.prompts.spec.ts` 双视口 24、Electron prompts 13(含详情/清空回收站/⌘K/⌘S 四条新用例),桌面/Web 提示词视觉基线已重收。
+- **待迁**:大库虚拟化(`@tanstack/react-virtual` 已在 `apps/desktop` 3.14.9,features 声明同版本即可);「相关作品」`promptId` 过滤下推服务端(生成域,D22);分享/导入与创建方案入口在对应域就绪后恢复;Taxonomy 移动端 Sheet。
 - **平台矩阵**:
-  - Mobile Web:`partial`;同一 features 屏与移动布局存在,但 Prompt 详情 Inspector/Sheet、Taxonomy Sheet、大库 evidence 和部分清除筛选动作未闭合。
-  - PC Web:`partial`;列表/编辑/回收站 route-mock E2E 存在,不证明真 API/PG;详情 Inspector、封面和相关作品缺。
-  - Desktop:`partial`;IPC/SQLite CRUD 与 Electron E2E 存在,封面 path-free mapper、相关作品和大库性能缺。
+  - Mobile Web:`partial`;详情 Sheet、封面、清空回收站与清除筛选 CTA 已闭合并入 route-mock E2E;Taxonomy Sheet 与大库 evidence 未闭合。
+  - PC Web:`partial`;详情 Inspector、封面、相关作品、清空回收站 route-mock E2E 存在,不证明真 API/PG。
+  - Desktop:`partial`;IPC/SQLite CRUD、封面 path-free mapper、详情/清空回收站/快捷键 Electron E2E 存在;大库性能缺。
   - Desktop Agent:`partial`;local MCP/Automation 读取/写入兼容需单独回归,不能替代 renderer;Cloud MCP 仅 search/get 云 Prompt。
 - **Evidence 边界**:Web Playwright route mock=`mock-e2e`;Electron disposable SQLite=`runtime-e2e`;真 PG/跨设备 sync 由 D01/Q03 提供。
 
@@ -249,24 +249,28 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
 ### U04 历史、资产与统计字段
 
 - **状态**:`partial`
-- **已迁**:列表/筛选/详情/线程、回收站、恢复/永久删除、Lightbox、保存资产/提示词、查看会话。
-- **待迁**:自定义日期;错误建议;谱系跳转;Desktop 打开目录/复制图片;批量清理;磁盘用量;大列表虚拟化;孤儿微调标识。列表行成本已接入现有 `GenerationJob.costPoints`：已知值显示 `N 积分`, `null` 保持隐藏；成本字段的完整跨端/统计闭环仍待 U04/D02/Q03 证据。
+- **已迁**:列表/筛选/详情/线程、回收站、恢复/永久删除、Lightbox、保存资产/提示词、查看会话。**2026-09-06(B1-T2,ui-parity/05 §7 九项销账)**:行/检视元信息(契约新增 `durationMs` / `seed`,成功行才给成本/用时,「·」真实 DOM 分隔;SQLite 已有 `duration_ms`、seed 取 `params_json`,PG 上游不回报 seed 故 null,**无迁移**)、时间筛选自定义区间(`from`/`to` 全链)、批量清理 `generation.cleanup({ scope })` 六层齐(桌面新 `history-domain.ts`,workbench-domain 已 1027 行故另开)、桌面磁盘用量 `getStorageUsage`、桌面文件操作 `revealAsset` / `copyAssetToClipboard`(`canRevealLocalFile` 门控,云网关不实现)、检视微调链「来自/派生」与孤儿标注、错误码建议动作目录(`history/error.ts`,并修掉成功行也渲染重试钮的缺陷,现按 `canRetryGeneration`)、lg+ 检视 8px 右移淡入、滚动哨兵自动分页。证据:history 单测 35、contracts 92、platform 20、api-client 35、api generation 4、桌面桥/网关 39、`web.history.spec.ts` 双视口 28、Electron history 新增五组随 55 passed 通过;`history-list.png` 双视口与 `desktop-history-light.png` 基线已重收(视觉容差 2% 不会重写基线,须删文件再生)。
+- **待迁**:大列表虚拟化(需先给 features 声明 `@tanstack/react-virtual`,阈值 ~150 行;当前滚动哨兵兜底);`promptId` 服务端过滤(供提示词详情「相关作品」,D22)。成本字段的完整跨端/统计闭环仍待 D02/Q03 证据。
 - **平台矩阵**:
-  - Mobile Web:`partial`;列表、筛选、Sheet/Lightbox 与 route-mock E2E 存在;自定义日期、清理、谱系和大列表 evidence 缺。
-  - PC Web:`partial`;宽屏 Inspector/列表 route-mock E2E 存在,真 API/PG/object storage 未由它证明。
-  - Desktop:`partial`;Electron/SQLite 列表详情与保存证据存在;打开目录、复制本地图片、磁盘统计/清理缺。
+  - Mobile Web:`partial`;列表、筛选(含自定义区间)、Sheet/Lightbox、清理菜单 route-mock E2E 存在;大列表 evidence 缺。
+  - PC Web:`partial`;宽屏 Inspector/列表/清理 route-mock E2E 存在,真 API/PG/object storage 未由它证明。
+  - Desktop:`partial`;Electron/SQLite 列表详情、保存、元信息、自定义区间、文件操作、磁盘用量、批量清理证据存在;大列表缺。
   - Desktop Agent:`partial`;本地 history 读取/运行兼容另测,Cloud Agent 明确没有 history 扩读工具。
 - **Evidence 边界**:Web action/visual=`mock-e2e`;Electron disposable SQLite=`runtime-e2e`;资产 GC/retention 由 D02,真 PG/对象存储由 Q03。
 
 ### U05 设置、账号、连接与归档
 
 - **状态**:`partial`
-- **已迁**:主题/动效、账号登录注册、额度兑换、云同步基础卡/开关/立即同步、本地 Provider CRUD/test、回收站入口。
+- **已迁**:主题/动效、账号登录注册、额度兑换、云同步基础卡/开关/立即同步、本地 Provider CRUD/test、回收站入口;v2.5 连接区已有 image Provider 卡与 Agent 文本连接卡两套并列 CRUD/default/test(2026-09-03,`AgentConnectionsPanel` 复用 `ConnectionsPanel`,数据面 `agentConnections.*` → 主进程 AiConnectionStore)。**2026-09-06 批次 B1**:
+  - 连接(B1-T3):模型拉取 combobox(`aiProviders.listModels` / `agentConnections.listModels`,草稿凭 `{ baseUrl, apiKey }` 亦可拉取,Key 只在 IPC 往返里由主进程拼 Authorization)、脏表单守卫、设为默认(`aiProviders.list` / `generation.listProviders` 活跃置首,Composer 预选联动)、行首状态点、新建流程内草稿测试(`*.test` 接受 `{ id }` 或 `{ baseUrl, apiKey, model? }`)、接入预设(`connection-presets.ts`)、无 Key 前置提示、`role=status`、删除清钥匙链;两卡同享 `ConnectionsPanel`。证据:contracts connections + presets/status/discard 等 52、features account 49、ui combobox 12、Electron settings 用例随 55 passed 通过。
+  - 偏好(B1-T4):`AppPreferences` 新增 `defaultAspectRatio` / `defaultQuality` / `density`(全带 default,旧存档无损);`appearance` 分区加 `GenerationDefaultsCard`,新会话/空草稿继承、用户显式改过的字段不覆盖(`session-store.draftParamOverrides`);7 个 `--density-*` token + `DensitySync`(`data-density`)+ 两档 chips;主题/动效/密度统一带图标 `ToggleGroup`(<sm 铺满行宽收一档);system 档 hint 挂载后读 `matchMedia`;偏好失败态「重试」。证据:contracts 24、features settings/workbench 96、`web.preferences.spec.ts` 双视口 4。**密度消费接入点**(后续卡):`SettingsScreen` 根 `p-6` → `--density-page-padding`、导航钮 `py-2` → `--density-nav-y`;`AppearanceCard`/`GenerationDefaultsCard` 行距 → `--density-setting-row-y`;`ui/card` 内边距 → `--density-card-padding`;`PromptListRow` `px-3 py-2.5`/`gap-3` → `--density-row-padding`/`--density-list-gap`;`HistoryRow` `px-3 py-2`、缩略 `size-11` → `--density-history-thumb`;`SessionListPanel` 行 `h-8`/`px-2.5` → `--density-nav-y`;虚拟列表接入时联动 `virtualizer.measure()`。
+  - 数据存储 + 关于(B1-T6):新 `system` 桌面域(11 方法,契约 `packages/contracts/src/system.ts` 与 `V25_METHODS_BY_DOMAIN.system` 双向断言)→ `hasLocalDataManagement` 门控的备份(立即备份/列表/恢复 → `relaunch`)、存储位置(白名单 id,`displayPath` 唯一路径出参)、诊断日志(200KB 截断)、危险区(确认短语「清空全部数据」+ 清空前 `pre-reset` 快照);关于卡双端同一份(Web 显示「Web 版」,快捷键表消费 `PRODUCT_SHORTCUTS`,第三方声明 `settings/third-party-notices.ts` 经 `thirdPartyNoticeSchema` 约束;更新体系仍暂缓)。顺手修复 `resetBusinessData` 漏清 `workbench_sessions` / `workbench_drafts`(D19)。证据:features 396、桌面 v25/contracts/platform 383、`web.settings.spec.ts` 关于分区与 Web 无本机数据面双视口、`electron.settings-data.spec.ts` 6 条随 55 passed 通过。
+  - 契约修复(主代理):`appPreferencesPatchSchema` 改为剥 default 后 partial(zod 4 `.partial()` 会回填 default,桌面 bridge 先 parse 再 spread 会把置顶/密度/生成默认/引导哨兵一并重置),契约回归测试 27。`useClearAllData` 成功后只失效本机业务域且不 await(await 全量 refetch 会被离线账号查询挂住,让「清空已完成」无限期不可见)。
 - **待迁**:
   - 账号:注册确认密码已收口(ShadCN Input/Label,失配红字与 aria-invalid,按钮/Enter 均拦截,确认值不进 gateway payload);上次用户名;错误码文案。
-  - 连接:模型拉取/combobox、dirty guard、默认切换、预设、状态点、新建时测试;v2.5 连接区已有 image Provider 卡与 Agent 文本连接卡两套并列 CRUD/default/test（2026-09-03,`AgentConnectionsPanel` 复用 `ConnectionsPanel`,数据面 `agentConnections.*` → 主进程 AiConnectionStore）;模型拉取/combobox、预设与 dirty guard 仍缺。
-  - 偏好:默认比例/质量、密度 token 与当前草稿联动。
-  - 分区:使用统计;开放能力;已连接 Cloud MCP 应用;备份恢复;路径/日志;危险区;关于/支持/许可/快捷键;归档聊天。
+  - 连接:Agent/生图 Key 失效后的可解释引导(S01);「需要重启应用」逃生门接 `useRelaunchApp()`。
+  - 偏好:密度 token 在列表行/导航的消费与紧凑态快照(上表);背景/张数/方案优先级仍暂缓。
+  - 分区:使用统计;开放能力;已连接 Cloud MCP 应用;归档聊天分页。
   - 归档闭环:契约/API/IPC 增 `archivedOnly`(不能用 `includeArchived` 后客户端过滤);设置内四态列表、刷新、恢复与软删,生成记录保留。归档列表的「删除」沿当前会话软删语义,与旧版永久删差异登记 §9;真正 purge 留 D02。
   - 数据/关于接缝:新增可选 system/backup/automation/about gateway 与 `system-domain`;路径/日志/openExternal 必须主进程白名单;第三方许可数据源需重建。
   - 设置壳:已于 2026-09-03 交付——分区注册表(`sections.tsx` 单一目录:分组/标题/描述/图标/关键词/capability 门/深链意图)+ 左分组导航(220px,搜索框)+ 右分区面板,移动一级列表 → 二级面板(返回行);深链意图落分区并点亮,分区记忆跨屏保持,记忆分区不可用时兜底;面板只渲染当前分区。新增设置项走 UI-SPEC §6.4 / DEV-GUIDE §8-C 规范流程。
@@ -469,7 +473,7 @@ B02 + 全部实现卡 ─→ Q01 反向审计 ─→ Q02 本地门禁 ─→ Q03
 | P01-13 三形态与安全证据 | 主代理 | GLM | P01-7..P01-12 | todo | todo | todo | partial | Web desktop/mobile、Electron、Agent/MCP、视觉、source/asar/package secret/path scan 全量收口卡 |
 | B01-R bridge 方法表修复 | GPT | GLM | B01,P01-4 | N/A | N/A | doing | N/A | 修复手写 `ALL_METHODS` 与 `buildMethods()` 漂移,建立 method-name 单源/双向断言；当前 18 项 deployed 方法由 contracts 方法表统一驱动 gateway/preload/domain 校验（2026-09-03 `confirmInstall` 入表，bridge/gateway/domain/api-client/API 五处同步） |
 | U03-spend 费用与审批 | GPT+Kimi | GLM | U03,D01 | partial | partial | todo | partial | `pending_approval`/quota 402/兑换重试/确认/拒绝/超时/审计矩阵;Cloud Agent 不提供 spend tool |
-| U01-onboarding 首启引导 | Kimi | GLM | U01,U05 | todo | todo | todo | partial | baseline onboarding 有实现,当前 v25 无完整可达三轨引导;完成哨兵和重启语义待建 |
+| U01-onboarding 首启引导 | Kimi | GLM | U01,U05 | done | done | done | N/A | 2026-09-06 交付:四步流/三轨/哨兵/不重放,web.onboarding 双视口 10 + electron.onboarding 3 通过;Desktop Agent 无引导语义 |
 
 
 

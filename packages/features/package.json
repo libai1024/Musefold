@@ -12,6 +12,7 @@
     "./history": "./src/history/index.ts",
     "./design-schemes": "./src/design-schemes/index.ts",
     "./account": "./src/account/index.ts",
+    "./onboarding": "./src/onboarding/index.ts",
     "./shell": "./src/shell/index.ts"
   },
   "scripts": {

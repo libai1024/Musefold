@@ -12,6 +12,8 @@ export {
   useCreateAgentConnection,
   useCreateAiProvider,
   useDoubaoAccountStatus,
+  useListAgentConnectionModels,
+  useListAiProviderModels,
   useLogin,
   useLogout,
   useLogoutDoubao,

@@ -55,6 +55,7 @@ export const V25_METHODS_BY_DOMAIN = {
     'aiProviders.remove',
     'aiProviders.setActive',
     'aiProviders.test',
+    'aiProviders.listModels',
   ],
   // Agent 文本模型连接(桌面专属可选域):设计方案 Agent / Skill runtime 的 chat/completions 连接。
   agentConnections: [
@@ -64,10 +65,26 @@ export const V25_METHODS_BY_DOMAIN = {
     'agentConnections.remove',
     'agentConnections.setActive',
     'agentConnections.test',
+    'agentConnections.listModels',
   ],
   designSchemes: DESIGN_SCHEME_METHOD_NAMES,
   // 豆包网页登录(桌面专属可选域):冻结 browser-service 的薄适配,无入参。
   doubao: ['doubao.getStatus', 'doubao.startLogin', 'doubao.refreshLogin', 'doubao.logout'],
+  // 系统 / 本地数据管理(桌面专属可选域):设置「数据存储」与「关于」两张卡。
+  // 备份只按文件名寻址、存储位置只按白名单 id 打开;剪贴板复制在渲染层完成,不设 IPC。
+  system: [
+    'system.getAppInfo',
+    'system.listBackups',
+    'system.createBackup',
+    'system.restoreBackup',
+    'system.listStorageLocations',
+    'system.openStorageLocation',
+    'system.readDiagnosticLog',
+    'system.clearAllData',
+    'system.openExternal',
+    'system.openProductDocs',
+    'system.relaunch',
+  ],
   prompts: [
     'prompts.list',
     'prompts.get',
@@ -76,6 +93,7 @@ export const V25_METHODS_BY_DOMAIN = {
     'prompts.remove',
     'prompts.restore',
     'prompts.purge',
+    'prompts.emptyTrash',
     'prompts.use',
     'prompts.listFolders',
     'prompts.createFolder',
@@ -106,6 +124,10 @@ export const V25_METHODS_BY_DOMAIN = {
     'generation.listProviders',
     'generation.uploadReferenceImage',
     'generation.saveAsset',
+    'generation.cleanup',
+    'generation.getStorageUsage',
+    'generation.revealAsset',
+    'generation.copyAssetToClipboard',
   ],
 } as const;
 

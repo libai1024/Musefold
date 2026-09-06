@@ -1,6 +1,7 @@
 'use client';
 
 import { AccountFooter, MobileQuotaReadout } from '@musefold/features/account';
+import { OnboardingFlow } from '@musefold/features/onboarding';
 import { AppShell as SharedAppShell, getShellNavItems } from '@musefold/features/shell';
 import { NewSessionAction, SessionListPanel, useActiveSession } from '@musefold/features/workbench';
 import { useCapabilities } from '@musefold/platform';
@@ -29,16 +30,24 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SharedAppShell
-      activeId={activeId}
-      items={navItems}
-      onNavigate={(id) => (id === 'workbench' ? openWorkbench() : router.push(`/${id}`))}
-      action={<NewSessionAction onOpen={openWorkbench} />}
-      sessions={<SessionListPanel onOpen={openWorkbench} />}
-      footer={<AccountFooter onOpenSettings={() => router.push('/settings')} />}
-      mobileExtra={<MobileQuotaReadout />}
-    >
-      {children}
-    </SharedAppShell>
+    <>
+      <SharedAppShell
+        activeId={activeId}
+        items={navItems}
+        onNavigate={(id) => (id === 'workbench' ? openWorkbench() : router.push(`/${id}`))}
+        action={<NewSessionAction onOpen={openWorkbench} />}
+        sessions={<SessionListPanel onOpen={openWorkbench} />}
+        footer={<AccountFooter onOpenSettings={() => router.push('/settings')} />}
+        mobileExtra={<MobileQuotaReadout />}
+      >
+        {children}
+      </SharedAppShell>
+      {/* 首启引导(U01-onboarding):未登录且未完成哨兵时自行弹出,否则渲染 null。 */}
+      <OnboardingFlow
+        onOpenScreen={(screen) =>
+          screen === 'workbench' ? openWorkbench() : router.push(`/${screen}`)
+        }
+      />
+    </>
   );
 }

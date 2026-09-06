@@ -327,7 +327,12 @@ beforeEach(() => {
   useSchemeIntegration.getState().consumeWorkbenchIntent();
   // 运行提交会在草稿态首次建会话并置为活动会话;跨测试残留会让下一屏先按陈旧 id 拉账本再回落,
   // Composer 随之在骨架/空态分支间重挂载,打开中的菜单被销毁。每测从干净指针开始。
-  useActiveSession.setState({ activeSessionId: null, draftSession: false, pendingDraft: null });
+  useActiveSession.setState({
+    activeSessionId: null,
+    draftSession: false,
+    pendingDraft: null,
+    draftParamOverrides: {},
+  });
 });
 
 /**

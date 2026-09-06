@@ -182,6 +182,7 @@ function createGateway(overrides: GatewayOverrides = {}) {
     message: '连接正常',
     latencyMs: 128,
   }));
+  const listModels = vi.fn(async () => ({ models: [{ id: 'only-one', label: 'Only' }] }));
   const setActiveProvider = vi.fn(async (id: string) => ({ ...PROVIDER, id, isActive: true }));
   const syncGateway = overrides.syncFixture ? createSyncGateway(overrides.syncFixture) : null;
   const gateway = {
@@ -202,6 +203,7 @@ function createGateway(overrides: GatewayOverrides = {}) {
       remove: vi.fn(),
       setActive: setActiveProvider,
       test: testProvider,
+      listModels: listModels,
     },
     ...(overrides.agentConnections
       ? {
@@ -212,6 +214,7 @@ function createGateway(overrides: GatewayOverrides = {}) {
             remove: vi.fn(),
             setActive: vi.fn(),
             test: testProvider,
+            listModels,
           },
         }
       : {}),
@@ -226,6 +229,7 @@ function createGateway(overrides: GatewayOverrides = {}) {
     createProvider,
     createAgentConnection,
     testProvider,
+    listModels,
     setActiveProvider,
     syncGateway,
   };
@@ -633,6 +637,7 @@ describe('AiConnectionsPanel', () => {
     expect(screen.getByText('自建网关')).toBeTruthy();
     expect(screen.getByTestId('ai-provider-active-badge')).toBeTruthy();
     expect(screen.getByText(/密钥 …a1b2/)).toBeTruthy();
+    expect(screen.getByTestId('ai-provider-status').getAttribute('aria-label')).toBe('尚未测试');
   });
 
   it('creates a provider through the editor dialog', async () => {
@@ -669,7 +674,88 @@ describe('AiConnectionsPanel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('ai-provider-test-result').textContent).toBe('连接正常 · 128ms');
     });
-    expect(testProvider).toHaveBeenCalledWith(PROVIDER.id);
+    expect(testProvider).toHaveBeenCalledWith({ id: PROVIDER.id });
+    expect(screen.getByTestId('ai-provider-status').getAttribute('aria-label')).toBe(
+      '最近测试通过',
+    );
+  });
+
+  it('shows a status dot, applies a preset, lists models, and guards dirty close', async () => {
+    const { gateway, listModels } = createGateway();
+    renderWith(gateway, <AiConnectionsPanel />, DESKTOP_CAPABILITIES);
+
+    await screen.findByTestId('ai-providers-empty');
+    expect(screen.getByTestId('ai-provider-preset-tvt')).toBeTruthy();
+    await userEvent.click(screen.getByTestId('ai-provider-preset-custom'));
+    await screen.findByTestId('ai-provider-editor');
+    expect((screen.getByTestId('ai-provider-name') as HTMLInputElement).value).toBe('自定义');
+    expect((screen.getByTestId('ai-provider-base-url') as HTMLInputElement).value).toBe(
+      'https://example.com/v1',
+    );
+
+    await userEvent.click(screen.getByTestId('ai-provider-list-models'));
+    expect(screen.getByTestId('ai-provider-key-hint').textContent).toContain('先填写 API Key');
+    await userEvent.type(screen.getByTestId('ai-provider-key'), 'sk-test-1234');
+    await userEvent.click(screen.getByTestId('ai-provider-list-models'));
+    await waitFor(() => {
+      expect(listModels).toHaveBeenCalledWith({
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test-1234',
+      });
+      expect((screen.getByTestId('ai-provider-model') as HTMLInputElement).value).toBe('only-one');
+    });
+
+    await userEvent.click(screen.getByText('取消'));
+    await screen.findByTestId('ai-provider-discard-dialog');
+    await userEvent.click(screen.getByTestId('ai-provider-discard-continue'));
+    expect(screen.getByTestId('ai-provider-editor')).toBeTruthy();
+    await userEvent.click(screen.getByText('取消'));
+    await userEvent.click(screen.getByTestId('ai-provider-discard'));
+    expect(screen.queryByTestId('ai-provider-editor')).toBeNull();
+  });
+
+  it('tests a draft connection from the new editor and keeps values when save fails', async () => {
+    const { gateway, testProvider, createProvider } = createGateway();
+    createProvider.mockRejectedValueOnce(new Error('保存失败'));
+    renderWith(gateway, <AiConnectionsPanel />, DESKTOP_CAPABILITIES);
+
+    await userEvent.click(await screen.findByTestId('ai-provider-new'));
+    await userEvent.type(screen.getByTestId('ai-provider-name'), '草稿网关');
+    await userEvent.type(screen.getByTestId('ai-provider-base-url'), 'https://gw.local/v1');
+    await userEvent.type(screen.getByTestId('ai-provider-model'), 'flux-schnell');
+    await userEvent.type(screen.getByTestId('ai-provider-key'), 'sk-draft');
+    await userEvent.click(screen.getByTestId('ai-provider-editor-test'));
+    await waitFor(() => {
+      expect(testProvider).toHaveBeenCalledWith({
+        baseUrl: 'https://gw.local/v1',
+        apiKey: 'sk-draft',
+        model: 'flux-schnell',
+      });
+      expect(screen.getByTestId('ai-provider-editor-test-result').textContent).toContain(
+        '连接正常',
+      );
+    });
+
+    await userEvent.click(screen.getByTestId('ai-provider-save'));
+    await waitFor(() => {
+      expect(createProvider).toHaveBeenCalled();
+    });
+    expect((screen.getByTestId('ai-provider-name') as HTMLInputElement).value).toBe('草稿网关');
+  });
+
+  it('marks the default row and exposes a set-active action on others', async () => {
+    const { gateway, setActiveProvider } = createGateway({
+      providers: [PROVIDER, { ...PROVIDER, id: 'prov-2', name: '备用', isActive: false }],
+    });
+    renderWith(gateway, <AiConnectionsPanel />, DESKTOP_CAPABILITIES);
+    await screen.findByTestId('ai-providers-list');
+    const dots = screen.getAllByTestId('ai-provider-status');
+    expect(dots[0]?.getAttribute('aria-label')).toBe('尚未测试');
+    expect(screen.getByTestId('ai-provider-set-active')).toBeTruthy();
+    await userEvent.click(screen.getByTestId('ai-provider-set-active'));
+    await waitFor(() => {
+      expect(setActiveProvider).toHaveBeenCalledWith('prov-2');
+    });
   });
 });
 
@@ -739,6 +825,14 @@ describe('AgentConnectionsPanel', () => {
       });
     });
     expect(createProvider).not.toHaveBeenCalled();
+  });
+
+  it('shows agent-specific presets on the empty state', async () => {
+    const { gateway } = createGateway({ agentConnections: [] });
+    renderWith(gateway, <AgentConnectionsPanel />, DESKTOP_CAPABILITIES);
+    await screen.findByTestId('agent-connections-empty');
+    expect(screen.getByTestId('agent-connection-preset-deepseek')).toBeTruthy();
+    expect(screen.getByTestId('agent-connection-preset-custom')).toBeTruthy();
   });
 });
 

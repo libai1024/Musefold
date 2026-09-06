@@ -261,6 +261,40 @@ describe('workbench 域桥:生成记录永久删除', () => {
     expect(asset).toBeUndefined();
     expect(existsSync(mediaPath)).toBe(false);
   });
+
+  it('job 带终态用时与种子:duration_ms 优先,缺列退时间戳差值,缺源不伪造 0', async () => {
+    const now = Date.now();
+    insertRun('run-duration-column', 'success', null);
+    getDb()
+      .prepare(
+        `UPDATE generation_runs
+           SET duration_ms = 4200, started_at = ?, finished_at = ?, params_json = ?
+         WHERE id = 'run-duration-column'`,
+      )
+      .run(now - 9_000, now, JSON.stringify({ schemaVersion: 1, size: 'auto', seed: 987654 }));
+    insertRun('run-duration-derived', 'success', null);
+    getDb()
+      .prepare(
+        `UPDATE generation_runs SET started_at = ?, finished_at = ? WHERE id = 'run-duration-derived'`,
+      )
+      .run(now - 1_500, now);
+    insertRun('run-duration-unknown', 'failed', null);
+
+    // core 记录的 duration_ms 是权威口径(含上游耗时),不被时间戳差值覆盖。
+    await expect(methods['generation.get'].handle('run-duration-column')).resolves.toMatchObject({
+      durationMs: 4200,
+      seed: 987654,
+    });
+    await expect(methods['generation.get'].handle('run-duration-derived')).resolves.toMatchObject({
+      durationMs: 1500,
+      seed: null,
+    });
+    // 未开跑的失败行:用时未知给 null(渲染层据此不显示「用时」)。
+    await expect(methods['generation.get'].handle('run-duration-unknown')).resolves.toMatchObject({
+      durationMs: null,
+      seed: null,
+    });
+  });
 });
 
 /** 最小 PNG 魔数 + 填充(staging 只嗅前 12 字节)。 */

@@ -2,8 +2,17 @@
 // 密钥经 security/keychain(safeStorage)存取,渲染层只见 hasKey / keySuffix;
 // 表列 has_key / key_suffix 同步维护(core 旧读者仍在),事实源是 keychain。
 
-import type { AiProvider, AiProviderTestResult } from '@musefold/contracts';
+import type {
+  AiProvider,
+  AiProviderListModelsInput,
+  AiProviderModelList,
+  AiProviderTestInput,
+  AiProviderTestResult,
+} from '@musefold/contracts';
 import {
+  aiProviderListModelsInputSchema,
+  aiProviderModelListSchema,
+  aiProviderTestInputSchema,
   aiProviderTestResultSchema,
   createAiProviderSchema,
   entityIdSchema,
@@ -119,15 +128,24 @@ const updatePayloadSchema = z.object({ id: entityIdSchema, patch: updateAiProvid
 
 const TEST_TIMEOUT_MS = 8_000;
 
+export interface AiProvidersDomainDeps {
+  /** 探测通道;缺省走全局 fetch。单测注入以覆盖 401/超时/畸形响应。 */
+  fetchImpl?: typeof fetch;
+}
+
+type ProbeOutcome =
+  | { kind: 'ok'; latencyMs: number; body: unknown }
+  | { kind: 'fail'; message: string; latencyMs: number | null };
+
 /**
- * 「测试连接」探测(§7.2):GET {baseUrl}/models 带 bearer。
- * openai-compatible 网关的标准轻量端点,不产生任何生成费用。
+ * GET {baseUrl}/models 带可选 bearer。openai-compatible 网关的标准轻量端点,不产生生成费用。
+ * 草稿 Key 只用于本次请求头,调用方不得把 Key 写入存储或日志。
  */
-export async function probeProvider(
+export async function probeModelsEndpoint(
   baseUrl: string,
   apiKey: string | null,
   fetchImpl: typeof fetch = fetch,
-): Promise<AiProviderTestResult> {
+): Promise<ProbeOutcome> {
   const url = `${baseUrl.replace(/\/$/, '')}/models`;
   const startedAt = Date.now();
   try {
@@ -137,22 +155,85 @@ export async function probeProvider(
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - startedAt;
-    if (response.ok) return { ok: true, message: '连接正常', latencyMs };
-    if (response.status === 401 || response.status === 403) {
-      return { ok: false, message: 'API Key 无效或无权限', latencyMs };
+    if (response.ok) {
+      try {
+        return { kind: 'ok', latencyMs, body: await response.json() };
+      } catch {
+        return { kind: 'ok', latencyMs, body: null };
+      }
     }
-    return { ok: false, message: `服务返回 HTTP ${response.status}`, latencyMs };
+    if (response.status === 401 || response.status === 403) {
+      return { kind: 'fail', message: 'API Key 无效或无权限', latencyMs };
+    }
+    return { kind: 'fail', message: `服务返回 HTTP ${response.status}`, latencyMs };
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError';
     return {
-      ok: false,
+      kind: 'fail',
       message: timedOut ? '连接超时,请检查 Base URL 与网络' : '无法连接到服务,请检查 Base URL',
       latencyMs: null,
     };
   }
 }
 
-export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
+/**
+ * 「测试连接」探测(§7.2):复用 /models 通道,只看 HTTP 可达与鉴权,不解析模型列表。
+ */
+export async function probeProvider(
+  baseUrl: string,
+  apiKey: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AiProviderTestResult> {
+  const outcome = await probeModelsEndpoint(baseUrl, apiKey, fetchImpl);
+  if (outcome.kind === 'ok') return { ok: true, message: '连接正常', latencyMs: outcome.latencyMs };
+  return { ok: false, message: outcome.message, latencyMs: outcome.latencyMs };
+}
+
+/** 解析 OpenAI 兼容 `{ data: [{ id }] }` 或裸数组;非法形状抛 INVALID_RESPONSE。 */
+export function parseOpenAiModelList(body: unknown): AiProviderModelList {
+  if (body == null || typeof body !== 'object') {
+    throw new BridgeError('INVALID_RESPONSE', '网关返回的模型列表格式无效');
+  }
+  const raw = Array.isArray(body) ? body : (body as { data?: unknown }).data;
+  if (!Array.isArray(raw)) {
+    throw new BridgeError('INVALID_RESPONSE', '网关返回的模型列表格式无效');
+  }
+  const models: AiProviderModelList['models'] = [];
+  for (const item of raw) {
+    if (typeof item === 'string' && item.trim()) {
+      models.push({ id: item.trim() });
+      continue;
+    }
+    if (item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string') {
+      const id = (item as { id: string }).id.trim();
+      if (!id) continue;
+      const name = (item as { name?: unknown }).name;
+      models.push(typeof name === 'string' && name.trim() ? { id, label: name.trim() } : { id });
+    }
+  }
+  return aiProviderModelListSchema.parse({ models });
+}
+
+export async function listProviderModels(
+  baseUrl: string,
+  apiKey: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AiProviderModelList> {
+  const outcome = await probeModelsEndpoint(baseUrl, apiKey, fetchImpl);
+  if (outcome.kind === 'fail') throw new BridgeError('PROBE_FAILED', outcome.message);
+  return parseOpenAiModelList(outcome.body);
+}
+
+function isSavedRef(
+  input: AiProviderTestInput | AiProviderListModelsInput,
+): input is { id: string } {
+  return 'id' in input;
+}
+
+export function buildAiProvidersDomainMethods(
+  deps: AiProvidersDomainDeps = {},
+): Record<string, MethodDef> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
   return {
     'aiProviders.list': {
       input: z.undefined().or(z.object({}).strict()),
@@ -229,10 +310,14 @@ export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
       },
     },
     'aiProviders.test': {
-      input: z.object({ id: entityIdSchema }),
+      input: aiProviderTestInputSchema,
       handle: async (payload) => {
-        const { id } = payload as { id: string };
-        const row = requireRow(id);
+        const input = payload as AiProviderTestInput;
+        if (!isSavedRef(input)) {
+          // 草稿:Key 只拼请求头,不落库、不写 keychain。
+          return probeProvider(input.baseUrl, input.apiKey, fetchImpl);
+        }
+        const row = requireRow(input.id);
         // doubao-web 存量行没有 openai-compatible /models 端点,通用探测只会误报;
         // 改用冻结面的会话校验(带登录态与当日用量的人话结果),密钥探测不适用。
         if (row.type === 'doubao-web') {
@@ -243,7 +328,30 @@ export function buildAiProvidersDomainMethods(): Record<string, MethodDef> {
             latencyMs: null,
           });
         }
-        return probeProvider(row.base_url, loadApiKey(id));
+        return probeProvider(row.base_url, loadApiKey(input.id), fetchImpl);
+      },
+    },
+    'aiProviders.listModels': {
+      input: aiProviderListModelsInputSchema,
+      handle: async (payload) => {
+        const input = payload as AiProviderListModelsInput;
+        if (!isSavedRef(input)) {
+          return listProviderModels(input.baseUrl, input.apiKey ?? null, fetchImpl);
+        }
+        const row = requireRow(input.id);
+        if (row.type === 'doubao-web') {
+          const result = await validateDoubaoWebSession();
+          if (!result.ok) throw new BridgeError('PROBE_FAILED', result.message);
+          const models = (result.models ?? []).flatMap((model) => {
+            const id = typeof model.id === 'string' ? model.id.trim() : '';
+            if (!id) return [];
+            const label =
+              typeof model.name === 'string' && model.name.trim() ? model.name.trim() : undefined;
+            return [{ id, ...(label ? { label } : {}) }];
+          });
+          return aiProviderModelListSchema.parse({ models });
+        }
+        return listProviderModels(row.base_url, loadApiKey(input.id), fetchImpl);
       },
     },
   };

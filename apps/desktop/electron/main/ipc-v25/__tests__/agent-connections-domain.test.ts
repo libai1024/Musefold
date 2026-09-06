@@ -1,5 +1,5 @@
 /**
- * v2.5 Agent 文本连接域桥单测:内存 AiConnectionStore + 内存 keychain 驱动全部 6 个方法。
+ * v2.5 Agent 文本连接域桥单测:内存 AiConnectionStore + 内存 keychain 驱动全部方法。
  * 重点:实体形状与契约一致、密钥 write-only、默认切换/删除接管、托管连接只读、探测走 bearer。
  */
 import { V25_METHODS_BY_DOMAIN, agentConnectionSchema } from '@musefold/contracts';
@@ -232,6 +232,79 @@ describe('agentConnections 域方法表', () => {
       'AGENT_CONNECTION_MANAGED_READONLY',
     );
     expect((await invoke('list'))[0]).toMatchObject({ id: managed.id, managedBy: 'account' });
+  });
+
+  it('listModels:已存连接解析 data[].id;草稿带 bearer 且不写 keychain;401/超时/畸形失败', async () => {
+    await invoke('create', {
+      name: 'A',
+      baseUrl: 'https://a.example/v1',
+      model: 'm',
+      apiKey: 'sk-a-1111',
+    });
+    fetchImpl.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [{ id: 'gpt-5.4-mini', name: 'GPT' }] }), {
+        status: 200,
+      }),
+    );
+    await expect(invoke('listModels', { id: 'conn_1' })).resolves.toEqual({
+      models: [{ id: 'gpt-5.4-mini', label: 'GPT' }],
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://a.example/v1/models',
+      expect.objectContaining({ headers: { authorization: 'Bearer sk-a-1111' } }),
+    );
+
+    fetchImpl.mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    const draftListed = await invoke('listModels', {
+      baseUrl: 'https://draft.example/v1',
+      apiKey: 'sk-draft-only',
+    });
+    expect(draftListed).toEqual({ models: [] });
+    expect(secrets.has('conn_1')).toBe(true);
+    expect([...secrets.values.keys()]).toEqual(['conn_1']);
+
+    fetchImpl.mockResolvedValueOnce(new Response('', { status: 401 }));
+    await expect(invokeError('listModels', { id: 'conn_1' })).resolves.toMatchObject({
+      code: 'PROBE_FAILED',
+      message: 'API Key 无效或无权限',
+    });
+
+    const timeoutError = new Error('timed out');
+    timeoutError.name = 'TimeoutError';
+    fetchImpl.mockRejectedValueOnce(timeoutError);
+    await expect(
+      invokeError('listModels', { baseUrl: 'https://draft.example/v1', apiKey: 'sk-x' }),
+    ).resolves.toMatchObject({
+      message: '连接超时,请检查 Base URL 与网络',
+    });
+
+    fetchImpl.mockResolvedValueOnce(new Response('not-json', { status: 200 }));
+    await expect(
+      invokeError('listModels', { baseUrl: 'https://draft.example/v1', apiKey: 'sk-x' }),
+    ).resolves.toMatchObject({
+      message: '网关返回的模型列表格式无效',
+    });
+  });
+
+  it('草稿 test 不落库;remove 后钥匙链无残留', async () => {
+    fetchImpl.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const draft = await invoke('test', {
+      baseUrl: 'https://draft.example/v1',
+      apiKey: 'sk-never-store',
+    });
+    expect(draft).toMatchObject({ ok: true, message: '连接正常' });
+    expect(secrets.values.size).toBe(0);
+
+    await invoke('create', {
+      name: 'A',
+      baseUrl: 'https://a.example/v1',
+      model: 'm',
+      apiKey: 'sk-a-1111',
+    });
+    expect(secrets.has('conn_1')).toBe(true);
+    await invoke('remove', { id: 'conn_1' });
+    expect(secrets.has('conn_1')).toBe(false);
+    expect(secrets.values.size).toBe(0);
   });
 
   it('拒绝越界入参:空名称、缺模型、非 URL 的 Base URL', async () => {

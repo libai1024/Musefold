@@ -27,8 +27,14 @@ vi.mock('../../../doubao-web/browser-service', () => ({
 
 import { getDb } from '@musefold/core/db';
 import { configureCoreRuntime } from '@musefold/core/runtime';
-import { deleteApiKey } from '../../../security/keychain';
-import { buildAiProvidersDomainMethods, probeProvider } from '../providers-domain';
+import { deleteApiKey, saveApiKey } from '../../../security/keychain';
+import {
+  buildAiProvidersDomainMethods,
+  listProviderModels,
+  parseOpenAiModelList,
+  probeProvider,
+} from '../providers-domain';
+import { BridgeError } from '../envelope';
 
 configureCoreRuntime({
   getPaths: () => ({
@@ -218,5 +224,123 @@ describe('probeProvider(测试连接)', () => {
     };
     expect(failed.ok).toBe(false);
     expect(failed.message).toContain('重新登录');
+  });
+});
+
+describe('aiProviders.list 活跃置首', () => {
+  it('list 把 is_active 行排在最前(与 generation.listProviders 同口径)', async () => {
+    const methods = buildAiProvidersDomainMethods() as Methods;
+    const listed = (await methods['aiProviders.list'].handle(undefined)) as Array<{
+      id: string;
+      isActive: boolean;
+    }>;
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed[0]?.isActive).toBe(true);
+    const firstInactive = listed.findIndex((row) => !row.isActive);
+    if (firstInactive >= 0) {
+      expect(listed.slice(firstInactive).every((row) => !row.isActive)).toBe(true);
+    }
+  });
+});
+
+describe('aiProviders.remove 清除 keychain', () => {
+  it('删除成功后调用 deleteApiKey,失败接管路径仍不删钥匙链', async () => {
+    insertProvider('provider-remove-key', false, 9_000);
+    vi.mocked(deleteApiKey).mockClear();
+    const methods = buildAiProvidersDomainMethods() as Methods;
+    await methods['aiProviders.remove'].handle({ id: 'provider-remove-key' });
+    expect(deleteApiKey).toHaveBeenCalledWith('provider-remove-key');
+    expect(
+      getDb().prepare('SELECT id FROM providers WHERE id = ?').get('provider-remove-key'),
+    ).toBeUndefined();
+  });
+});
+
+describe('listProviderModels / parseOpenAiModelList', () => {
+  it('解析 OpenAI data[].id,单条带 name 时写入 label', () => {
+    expect(
+      parseOpenAiModelList({
+        data: [{ id: 'gpt-image-2', name: 'GPT Image 2' }, { id: 'flux-schnell' }],
+      }),
+    ).toEqual({
+      models: [{ id: 'gpt-image-2', label: 'GPT Image 2' }, { id: 'flux-schnell' }],
+    });
+  });
+
+  it('畸形响应抛 INVALID_RESPONSE', () => {
+    expect(() => parseOpenAiModelList(null)).toThrow(BridgeError);
+    expect(() => parseOpenAiModelList({ foo: 1 })).toThrow('模型列表格式无效');
+    expect(() => parseOpenAiModelList('not-json')).toThrow('模型列表格式无效');
+  });
+
+  it('200 成功返回模型;401 / 超时 / 畸形分别失败', async () => {
+    const okFetch = vi.fn(
+      async () => new Response(JSON.stringify({ data: [{ id: 'only-one' }] }), { status: 200 }),
+    ) as unknown as typeof fetch;
+    await expect(listProviderModels('https://gw.test/v1/', 'sk-test', okFetch)).resolves.toEqual({
+      models: [{ id: 'only-one' }],
+    });
+
+    const denied = vi.fn(
+      async () => new Response('{}', { status: 401 }),
+    ) as unknown as typeof fetch;
+    await expect(listProviderModels('https://gw.test/v1', 'sk-bad', denied)).rejects.toMatchObject({
+      name: 'BridgeError',
+      message: 'API Key 无效或无权限',
+    });
+
+    const timeoutError = new Error('timed out');
+    timeoutError.name = 'TimeoutError';
+    const timeoutFetch = vi.fn(async () => {
+      throw timeoutError;
+    }) as unknown as typeof fetch;
+    await expect(
+      listProviderModels('https://gw.test/v1', null, timeoutFetch),
+    ).rejects.toMatchObject({
+      message: '连接超时,请检查 Base URL 与网络',
+    });
+
+    const malformed = vi.fn(
+      async () => new Response('not-json', { status: 200 }),
+    ) as unknown as typeof fetch;
+    await expect(listProviderModels('https://gw.test/v1', 'sk', malformed)).rejects.toMatchObject({
+      message: '网关返回的模型列表格式无效',
+    });
+  });
+});
+
+describe('aiProviders.listModels / draft test', () => {
+  it('草稿 listModels 带 bearer 且不落 keychain;0 个模型返回空数组', async () => {
+    const impl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe('https://draft.test/v1/models');
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      expect(headers.authorization).toBe('Bearer sk-draft-only');
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const methods = buildAiProvidersDomainMethods({ fetchImpl: impl }) as Methods;
+    vi.mocked(saveApiKey).mockClear();
+    const listed = await methods['aiProviders.listModels'].handle({
+      baseUrl: 'https://draft.test/v1',
+      apiKey: 'sk-draft-only',
+    });
+    expect(listed).toEqual({ models: [] });
+    expect(saveApiKey).not.toHaveBeenCalled();
+  });
+
+  it('草稿 test 不落库;已存 id 走 /models', async () => {
+    const impl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    const methods = buildAiProvidersDomainMethods({ fetchImpl: impl }) as Methods;
+    vi.mocked(saveApiKey).mockClear();
+    const draft = (await methods['aiProviders.test'].handle({
+      baseUrl: 'https://draft.test/v1',
+      apiKey: 'sk-draft-only',
+    })) as { ok: boolean };
+    expect(draft.ok).toBe(true);
+    expect(saveApiKey).not.toHaveBeenCalled();
+
+    const saved = (await methods['aiProviders.test'].handle({ id: 'provider-active' })) as {
+      ok: boolean;
+    };
+    expect(saved.ok).toBe(true);
   });
 });

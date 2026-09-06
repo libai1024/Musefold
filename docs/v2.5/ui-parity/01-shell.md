@@ -103,6 +103,8 @@
 
 > **已收口(2026-08-29)**:全局 ErrorBoundary、`reducedMotion` 三态、侧栏 drag-region、U01 侧栏调宽/旧键持久化/四边浮岛/`<768px` 模态抽屉/占位式展开轨/a11y 与 Web desktop/mobile E2E;macOS 全屏 inset 的 preload/主进程/renderer 接线与单测已收口,真实原生全屏 E2E 待补。
 
+> **首启引导已收口(2026-09-06,U01-onboarding)**:`packages/features/src/onboarding` 四端同一份——welcome(品牌面板,reveal 过 `skipMotion()` 闸门)→ connect(三轨:官方账号 / 桌面 BYOK `hasLocalAiProviders` / 豆包免费试用 `hasDoubaoWebLogin`,Web 只显示账号轨)→ validate(账号 `getStatus` / Provider `test` / 豆包状态,失败可返回修正、重试、跳过)→ first-image(3 条示例 chips + 文本框,经 `pendingDraft` 送工作台,**不自动发起生成**)。完成哨兵是契约 `AppPreferences.onboardingCompletedAt`;gate = 无哨兵 **且** 无可用生图通道(桌面:本地 Provider 全不可用 + 账号未登录 + 豆包未登录;Web:账号未登录),已具备通道的存量用户静默补哨兵不弹,跳过/关闭写同一哨兵、不重放。形态:桌面 md+ 居中 640px 卡、移动全屏,`role=dialog aria-modal` + 步骤 `aria-current`;宿主各一行挂载(`apps/desktop/src/v25/desktop-shell.tsx`、`apps/web-next/src/components/app-shell.tsx`)。E2E:`tests/v25/web.onboarding.spec.ts`(双视口)+ `tests/v25/electron.onboarding.spec.ts`(BYOK 回环网关全链路),其余 spec 由 `tests/v25/onboarding-helpers.ts` 统一预置哨兵。
+
 | 优先级 | 剩余任务 | 验收要点 |
 |---|---|---|
 | P1 | Win/Linux 窗口控件 | Windows 打包冒烟可最小化/最大化/关闭 |

@@ -4,8 +4,14 @@
 // 本域只是给它一个 v25 单通道桥的管理面;实体形状与生图 Provider 一致,`type` 恒为
 // openai-compatible。密钥 write-only:渲染层只见 hasKey / keySuffix。
 
-import type { AgentConnection } from '@musefold/contracts';
+import type {
+  AgentConnection,
+  AiProviderListModelsInput,
+  AiProviderTestInput,
+} from '@musefold/contracts';
 import {
+  agentConnectionListModelsInputSchema,
+  agentConnectionTestInputSchema,
   agentConnectionTestResultSchema,
   createAgentConnectionSchema,
   entityIdSchema,
@@ -15,7 +21,7 @@ import type { AiConnectionProfile } from '@musefold/desktop-contracts/ai';
 import { z } from 'zod';
 import { type AiConnectionStore, getAiConnectionStore } from '../../ai/connection-store';
 import { BridgeError, type MethodDef } from './envelope';
-import { probeProvider } from './providers-domain';
+import { listProviderModels, probeProvider } from './providers-domain';
 
 export interface AgentConnectionsDomainDeps {
   /** 连接 store;缺省懒取正式 electron-store 实例,测试注入内存实现。 */
@@ -137,14 +143,19 @@ export function buildAgentConnectionsDomainMethods(
       },
     },
     'agentConnections.test': {
-      input: z.object({ id: entityIdSchema }),
+      input: agentConnectionTestInputSchema,
       handle: async (payload) => {
-        const { id } = payload as { id: string };
-        const profile = guarded(() => store().require(id));
+        const input = payload as AiProviderTestInput;
+        if (!('id' in input)) {
+          return agentConnectionTestResultSchema.parse(
+            await probeProvider(input.baseUrl, input.apiKey, deps.fetchImpl),
+          );
+        }
+        const profile = guarded(() => store().require(input.id));
         let apiKey: string | null = null;
         if (profile.hasKey) {
           try {
-            apiKey = store().loadKey(id);
+            apiKey = store().loadKey(input.id);
           } catch {
             apiKey = null;
           }
@@ -152,6 +163,25 @@ export function buildAgentConnectionsDomainMethods(
         return agentConnectionTestResultSchema.parse(
           await probeProvider(profile.baseUrl, apiKey, deps.fetchImpl),
         );
+      },
+    },
+    'agentConnections.listModels': {
+      input: agentConnectionListModelsInputSchema,
+      handle: async (payload) => {
+        const input = payload as AiProviderListModelsInput;
+        if (!('id' in input)) {
+          return listProviderModels(input.baseUrl, input.apiKey ?? null, deps.fetchImpl);
+        }
+        const profile = guarded(() => store().require(input.id));
+        let apiKey: string | null = null;
+        if (profile.hasKey) {
+          try {
+            apiKey = store().loadKey(input.id);
+          } catch {
+            apiKey = null;
+          }
+        }
+        return listProviderModels(profile.baseUrl, apiKey, deps.fetchImpl);
       },
     },
   };

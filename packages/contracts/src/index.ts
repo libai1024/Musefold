@@ -9,4 +9,5 @@ export * from './generation';
 export * from './preferences';
 export * from './prompt';
 export * from './sync';
+export * from './system';
 export * from './workbench';

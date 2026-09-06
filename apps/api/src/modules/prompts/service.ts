@@ -28,7 +28,7 @@ import {
   promptUsageEvents,
   prompts,
 } from '@musefold/db';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { AppError } from '../../lib/errors.js';
 import { type ChangeSource, type DbLike, appendSyncChange } from '../sync/change-log.js';
 
@@ -156,6 +156,7 @@ export class PromptService {
         pinOrder: input.pinOrder ?? null,
         source: input.source,
         sourceUrl: nullable(input.sourceUrl),
+        coverImageUrl: input.coverImageUrl ?? null,
       });
       await this.replacePromptTags(tx, userId, id, input.tagIds);
       const prompt = await this.getPromptTx(tx, userId, id);
@@ -207,6 +208,8 @@ export class PromptService {
       if (input.pinOrder !== undefined) set.pinOrder = input.pinOrder;
       if (input.source !== undefined) set.source = input.source;
       if (input.sourceUrl !== undefined) set.sourceUrl = nullable(input.sourceUrl);
+      // 显式 null = 清除封面;缺省 = 不改。
+      if (input.coverImageUrl !== undefined) set.coverImageUrl = input.coverImageUrl;
       if (Object.keys(set).length === 2 && input.tagIds === undefined) {
         throw new AppError('VALIDATION_FAILED', '没有可更新的字段');
       }
@@ -282,6 +285,38 @@ export class PromptService {
         current,
         context?.source,
       );
+    });
+  }
+
+  /**
+   * 清空回收站:一次性硬删该用户全部已软删提示词,逐行广播 delete 同步事件。
+   * 回收站为空时返回 0(幂等,不报错)——UI 的双重确认负责防误触。
+   */
+  async emptyTrash(userId: string, context?: PromptOperationContext): Promise<{ purged: number }> {
+    return this.withTx(context, async (tx) => {
+      const trashed = await tx
+        .select({ id: prompts.id })
+        .from(prompts)
+        .where(and(eq(prompts.userId, userId), isNotNull(prompts.deletedAt)));
+      if (trashed.length === 0) return { purged: 0 };
+      // 快照必须在硬删之前取:变更日志要带被删行的最后状态。
+      const snapshots = await Promise.all(
+        trashed.map((row) => this.getPromptTx(tx, userId, row.id)),
+      );
+      await tx.delete(prompts).where(and(eq(prompts.userId, userId), isNotNull(prompts.deletedAt)));
+      for (const snapshot of snapshots) {
+        await appendSyncChange(
+          tx,
+          userId,
+          'prompt',
+          snapshot.id,
+          'delete',
+          snapshot.version + 1,
+          snapshot,
+          context?.source,
+        );
+      }
+      return { purged: snapshots.length };
     });
   }
 
@@ -882,6 +917,7 @@ interface PromptRow {
   last_used_at: Date | string | null;
   source: PromptDocument['source'];
   source_url: string | null;
+  cover_image_url: string | null;
   version: number;
   created_at: Date | string;
   updated_at: Date | string;
@@ -894,7 +930,7 @@ function promptSelectFragment() {
     SELECT
       p.id, p.title, p.description, p.content, p.negative, p.folder_id,
       p.model_id, p.params, p.rating, p.is_pinned, p.pin_order,
-      p.usage_count, p.last_used_at, p.source, p.source_url, p.version,
+      p.usage_count, p.last_used_at, p.source, p.source_url, p.cover_image_url, p.version,
       p.created_at, p.updated_at, p.deleted_at,
       COALESCE(jsonb_agg(jsonb_build_object(
         'id', t.id, 'name', t.name, 'group', t.group_name, 'color', t.color,
@@ -911,7 +947,7 @@ function promptGroupByFragment() {
   return sql`
     GROUP BY p.id, p.title, p.description, p.content, p.negative,
       p.folder_id, p.model_id, p.params, p.rating, p.is_pinned, p.pin_order,
-      p.usage_count, p.last_used_at, p.source, p.source_url, p.version,
+      p.usage_count, p.last_used_at, p.source, p.source_url, p.cover_image_url, p.version,
       p.created_at, p.updated_at, p.deleted_at
   `;
 }
@@ -934,6 +970,7 @@ function toPromptDocument(row: PromptRow): PromptDocument {
     lastUsedAt: toIsoOrNull(row.last_used_at),
     source: row.source,
     sourceUrl: row.source_url,
+    coverImageUrl: row.cover_image_url,
     version: row.version,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),

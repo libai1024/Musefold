@@ -43,6 +43,13 @@
       "when": 1788216438542,
       "tag": "0005_cleanup_abandonment_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788684925212,
+      "tag": "0006_prompt_cover_image",
+      "breakpoints": true
     }
   ]
 }

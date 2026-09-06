@@ -243,6 +243,7 @@ interface RunRow {
   error_code: string | null;
   error_message: string | null;
   actual_cost: number | null;
+  duration_ms: number | null;
   created_at: number;
   started_at: number | null;
   finished_at: number | null;
@@ -346,6 +347,22 @@ function userPromptForJob(
   return snapshot.userPrompt ?? (row.user_prompt?.trim() ? row.user_prompt : row.final_prompt);
 }
 
+/**
+ * 终态用时:优先用 core 记录的 duration_ms(含上游耗时口径),
+ * 缺列的旧行退回 finished-started 差值;两者都不可用即 null,不伪造 0。
+ */
+function runDurationMs(row: RunRow): number | null {
+  if (row.duration_ms != null && row.duration_ms >= 0) return Math.round(row.duration_ms);
+  if (row.started_at == null || row.finished_at == null) return null;
+  const elapsed = row.finished_at - row.started_at;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.round(elapsed) : null;
+}
+
+/** Provider 回报的种子存在参数快照里(GenerationParamsSnapshot.seed);缺省即 null。 */
+function runSeed(params: GenerationParamsSnapshot): number | null {
+  return typeof params.seed === 'number' && Number.isInteger(params.seed) ? params.seed : null;
+}
+
 function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
   const params = JSON.parse(row.params_json) as GenerationParamsSnapshot;
   const status = RUN_STATUS_TO_JOB[row.status];
@@ -376,6 +393,8 @@ function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
     },
     providerModel: row.model,
     costPoints: row.actual_cost != null ? Math.round(row.actual_cost) : null,
+    durationMs: runDurationMs(row),
+    seed: runSeed(params),
     assets: assets
       .filter((asset) => asset.run_id === row.id)
       .sort((a, b) => a.position - b.position)

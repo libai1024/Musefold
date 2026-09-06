@@ -76,6 +76,101 @@ describe('prompts 域桥:永久删除', () => {
   });
 });
 
+describe('prompts 域桥:清空回收站', () => {
+  let methods: Methods;
+
+  beforeAll(() => {
+    methods = buildPromptsDomainMethods() as Methods;
+  });
+
+  it('只清软删行,活跃行原样保留;空回收站返回 0(幂等)', async () => {
+    await expect(methods['prompts.emptyTrash'].handle(undefined)).resolves.toEqual({ purged: 0 });
+
+    const keep = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '保留的活跃行',
+    })) as PromptDocument;
+    const trashedA = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '回收站 A',
+    })) as PromptDocument;
+    const trashedB = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '回收站 B',
+    })) as PromptDocument;
+    await methods['prompts.remove'].handle({ id: trashedA.id });
+    await methods['prompts.remove'].handle({ id: trashedB.id });
+
+    await expect(methods['prompts.emptyTrash'].handle(undefined)).resolves.toEqual({ purged: 2 });
+
+    await expect(methods['prompts.get'].handle({ id: trashedA.id })).rejects.toThrow('不存在');
+    await expect(methods['prompts.get'].handle({ id: trashedB.id })).rejects.toThrow('不存在');
+    await expect(methods['prompts.get'].handle({ id: keep.id })).resolves.toMatchObject({
+      title: '保留的活跃行',
+    });
+
+    await expect(methods['prompts.emptyTrash'].handle(undefined)).resolves.toEqual({ purged: 0 });
+  });
+});
+
+describe('prompts 域桥:封面 media:// 映射', () => {
+  let methods: Methods;
+
+  beforeAll(() => {
+    methods = buildPromptsDomainMethods() as Methods;
+  });
+
+  it('受管路径的封面回显为 media:// URL,绝对路径不出主进程', async () => {
+    const coverPath = join(tempDir, 'cover.png');
+    const created = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '带封面',
+      coverImageUrl: `media://local/?p=${encodeURIComponent(coverPath)}`,
+    })) as PromptDocument;
+
+    expect(created.coverImageUrl).toBe(`media://local/?p=${encodeURIComponent(coverPath)}`);
+    expect(created.coverImageUrl).not.toContain(tempDir.replaceAll('/', ''));
+    expect(created.coverImageUrl?.startsWith('media://local/?p=')).toBe(true);
+  });
+
+  it('受管根目录之外的封面不落盘(防目录穿越)', async () => {
+    const created = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '越界封面',
+      coverImageUrl: 'media://local/?p=%2Fetc%2Fhosts',
+    })) as PromptDocument;
+
+    expect(created.coverImageUrl).toBeNull();
+  });
+
+  it('远端 https 封面在桌面无槽位,回显为无封面', async () => {
+    const created = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '远端封面',
+      coverImageUrl: 'https://cdn.example/cover.png',
+    })) as PromptDocument;
+
+    expect(created.coverImageUrl).toBeNull();
+  });
+
+  it('更新显式 null 清除封面', async () => {
+    const coverPath = join(tempDir, 'cover-clear.png');
+    const created = (await methods['prompts.create'].handle({
+      ...NEW_DOC,
+      title: '待清除封面',
+      coverImageUrl: `media://local/?p=${encodeURIComponent(coverPath)}`,
+    })) as PromptDocument;
+    expect(created.coverImageUrl).not.toBeNull();
+
+    const updated = (await methods['prompts.update'].handle({
+      id: created.id,
+      patch: { coverImageUrl: null, expectedVersion: created.version },
+    })) as PromptDocument;
+
+    expect(updated.coverImageUrl).toBeNull();
+  });
+});
+
 describe('prompts 域桥:目录 workspace 作用域', () => {
   let methods: Methods;
 

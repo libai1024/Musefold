@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { seedOnboardingCompletedFile } from './onboarding-helpers';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const require = createRequire(import.meta.url);
@@ -17,6 +18,11 @@ export interface LaunchV25AppOptions {
   reuseUserDataDir?: string;
   /** 单个 E2E 可注入回环服务地址等测试环境;隔离开关与 userData 仍由 helper 强制设置。 */
   env?: Record<string, string | undefined>;
+  /**
+   * 首启引导(U01-onboarding)起点。默认 'completed':干净 userData 是「未登录 + 无 Provider」,
+   * 不预置完成哨兵的话每个屏都会被引导层盖住。引导自身的 spec 传 'pending' 走真实首启。
+   */
+  onboarding?: 'completed' | 'pending';
 }
 
 /** 启动 v2.5 壳。传 reuseUserDataDir 可复用上次目录(重启持久化类用例)。 */
@@ -31,6 +37,8 @@ export async function launchV25App(
   // electron 包的默认导出是可执行文件路径
   const electronPath = require('electron') as unknown as string;
   const userDataDir = options.reuseUserDataDir ?? mkdtempSync(join(tmpdir(), prefix));
+  // 偏好文件先落哨兵再启动:引导层是 gate 驱动的,启动后再写就已经弹出来了。
+  if (options.onboarding !== 'pending') seedOnboardingCompletedFile(userDataDir);
   const app = await electron.launch({
     executablePath: electronPath,
     args: [join(repoRoot, 'apps/desktop/out/main/index.js')],

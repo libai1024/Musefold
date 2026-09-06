@@ -1,5 +1,8 @@
 import type {
   AiProvider,
+  AiProviderListModelsInput,
+  AiProviderModelList,
+  AiProviderTestInput,
   AiProviderTestResult,
   CreateAiProvider,
   DesktopSyncConsent,
@@ -181,7 +184,10 @@ export interface ConnectionsHooks {
   >;
   useRemove(): ReturnType<typeof useMutation<void, Error, string>>;
   useSetActive(): ReturnType<typeof useMutation<AiProvider, Error, string>>;
-  useTest(): ReturnType<typeof useMutation<AiProviderTestResult, Error, string>>;
+  useTest(): ReturnType<typeof useMutation<AiProviderTestResult, Error, AiProviderTestInput>>;
+  useListModels(): ReturnType<
+    typeof useMutation<AiProviderModelList, Error, AiProviderListModelsInput>
+  >;
 }
 
 function createConnectionsHooks(options: {
@@ -242,7 +248,13 @@ function createConnectionsHooks(options: {
     },
     useTest() {
       const domain = useDomain();
-      return useMutation({ mutationFn: (id: string) => domain.test(id) });
+      return useMutation({ mutationFn: (input: AiProviderTestInput) => domain.test(input) });
+    },
+    useListModels() {
+      const domain = useDomain();
+      return useMutation({
+        mutationFn: (input: AiProviderListModelsInput) => domain.listModels(input),
+      });
     },
   };
 }
@@ -268,6 +280,7 @@ export const useUpdateAiProvider = AI_PROVIDER_HOOKS.useUpdate;
 export const useRemoveAiProvider = AI_PROVIDER_HOOKS.useRemove;
 export const useSetActiveAiProvider = AI_PROVIDER_HOOKS.useSetActive;
 export const useTestAiProvider = AI_PROVIDER_HOOKS.useTest;
+export const useListAiProviderModels = AI_PROVIDER_HOOKS.useListModels;
 
 export const useAgentConnections = AGENT_CONNECTION_HOOKS.useList;
 export const useCreateAgentConnection = AGENT_CONNECTION_HOOKS.useCreate;
@@ -275,6 +288,7 @@ export const useUpdateAgentConnection = AGENT_CONNECTION_HOOKS.useUpdate;
 export const useRemoveAgentConnection = AGENT_CONNECTION_HOOKS.useRemove;
 export const useSetActiveAgentConnection = AGENT_CONNECTION_HOOKS.useSetActive;
 export const useTestAgentConnection = AGENT_CONNECTION_HOOKS.useTest;
+export const useListAgentConnectionModels = AGENT_CONNECTION_HOOKS.useListModels;
 
 // ── 豆包网页登录(gateway.doubao,仅桌面宿主提供;冻结 browser-service 薄适配)──
 

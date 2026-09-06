@@ -1,16 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   accountSummarySchema,
+  aiProviderModelListSchema,
   aiProviderSchema,
   aiProviderTestResultSchema,
+  appInfoSchema,
   appPreferencesSchema,
+  backupInfoSchema,
+  clearAllDataResultSchema,
   createAiProviderSchema,
+  diagnosticLogSchema,
+  restoreBackupResultSchema,
+  storageLocationSchema,
   createGenerationInputSchema,
   createWorkbenchSessionSchema,
   desktopSyncStatusSchema,
   doubaoAccountStatusSchema,
+  generationCleanupResultSchema,
   generationHistoryPageSchema,
   generationHistoryQuerySchema,
+  generationStorageUsageSchema,
   generationJobSchema,
   generationReferenceImageSchema,
   newPromptDocumentSchema,
@@ -277,6 +286,25 @@ const doubaoStatus = doubaoAccountStatusSchema.parse({
   errorMessage: null,
 });
 
+const backup = backupInfoSchema.parse({
+  file: 'backup-20260901-101500-123-manual.db',
+  size: 8192,
+  createdAt: NOW,
+  kind: 'manual',
+});
+const storageLocation = storageLocationSchema.parse({
+  id: 'backups',
+  label: '备份目录',
+  displayPath: '/Users/creator/Library/Application Support/Musefold/musefold-backups-v0.3.0',
+});
+const appInfo = appInfoSchema.parse({
+  version: '2.5.0',
+  platform: 'darwin',
+  arch: 'arm64',
+  schemaVersion: 21,
+  channel: 'stable',
+});
+
 const responseByMethod: Record<string, unknown> = {
   'settings.getPreferences': preferences,
   'settings.updatePreferences': preferences,
@@ -301,6 +329,7 @@ const responseByMethod: Record<string, unknown> = {
     message: '连接正常',
     latencyMs: 1,
   }),
+  'aiProviders.listModels': aiProviderModelListSchema.parse({ models: [{ id: 'image-model' }] }),
   'agentConnections.list': [provider],
   'agentConnections.create': provider,
   'agentConnections.update': provider,
@@ -311,10 +340,29 @@ const responseByMethod: Record<string, unknown> = {
     message: '连接正常',
     latencyMs: 1,
   }),
+  'agentConnections.listModels': aiProviderModelListSchema.parse({
+    models: [{ id: 'image-model' }],
+  }),
   'doubao.getStatus': doubaoStatus,
   'doubao.startLogin': doubaoStatus,
   'doubao.refreshLogin': doubaoStatus,
   'doubao.logout': doubaoStatus,
+  'system.getAppInfo': appInfo,
+  'system.listBackups': [backup],
+  'system.createBackup': { backup },
+  'system.restoreBackup': restoreBackupResultSchema.parse({
+    safetyBackupFile: 'backup-20260901-101600-000-pre-restore.db',
+    needsRestart: true,
+  }),
+  'system.listStorageLocations': [storageLocation],
+  'system.openStorageLocation': null,
+  'system.readDiagnosticLog': diagnosticLogSchema.parse({ text: 'log tail', truncated: false }),
+  'system.clearAllData': clearAllDataResultSchema.parse({
+    safetyBackupFile: 'backup-20260901-101700-000-pre-reset.db',
+  }),
+  'system.openExternal': null,
+  'system.openProductDocs': null,
+  'system.relaunch': null,
   'prompts.list': promptPageSchema.parse({ items: [prompt], nextCursor: null }),
   'prompts.get': prompt,
   'prompts.create': prompt,
@@ -322,6 +370,7 @@ const responseByMethod: Record<string, unknown> = {
   'prompts.remove': prompt,
   'prompts.restore': prompt,
   'prompts.purge': undefined,
+  'prompts.emptyTrash': { purged: 2 },
   'prompts.use': promptUseResultSchema.parse({ prompt, recorded: true }),
   'prompts.listFolders': [folder],
   'prompts.createFolder': folder,
@@ -359,6 +408,13 @@ const responseByMethod: Record<string, unknown> = {
   ],
   'generation.uploadReferenceImage': referenceImage,
   'generation.saveAsset': saveAssetResultSchema.parse('saved'),
+  'generation.cleanup': generationCleanupResultSchema.parse({ affected: 3 }),
+  'generation.getStorageUsage': generationStorageUsageSchema.parse({
+    bytes: 4096,
+    fileCount: 2,
+  }),
+  'generation.revealAsset': undefined,
+  'generation.copyAssetToClipboard': undefined,
 };
 
 function setBridge(): void {
@@ -381,7 +437,8 @@ describe('desktop gateway transport contract', () => {
     const aiProviders = gateway.aiProviders;
     const agentConnections = gateway.agentConnections;
     const doubao = gateway.doubao;
-    if (!sync || !aiProviders || !agentConnections || !doubao) {
+    const system = gateway.system;
+    if (!sync || !aiProviders || !agentConnections || !doubao || !system) {
       throw new Error('desktop gateway optional domains are missing');
     }
 
@@ -403,17 +460,30 @@ describe('desktop gateway transport contract', () => {
     await aiProviders.update(provider.id, updateProvider);
     await aiProviders.remove(provider.id);
     await aiProviders.setActive(provider.id);
-    await aiProviders.test(provider.id);
+    await aiProviders.test({ id: provider.id });
+    await aiProviders.listModels({ id: provider.id });
     await agentConnections.list();
     await agentConnections.create(createProvider);
     await agentConnections.update(provider.id, updateProvider);
     await agentConnections.remove(provider.id);
     await agentConnections.setActive(provider.id);
-    await agentConnections.test(provider.id);
+    await agentConnections.test({ id: provider.id });
+    await agentConnections.listModels({ id: provider.id });
     await doubao.getStatus();
     await doubao.startLogin();
     await doubao.refreshLogin();
     await doubao.logout();
+    await system.getAppInfo();
+    await system.listBackups();
+    await system.createBackup();
+    await system.restoreBackup({ file: backup.file });
+    await system.listStorageLocations();
+    await system.openStorageLocation({ id: 'backups' });
+    await system.readDiagnosticLog();
+    await system.clearAllData({ confirmation: '清空全部数据' });
+    await system.openExternal({ url: 'https://ai.tvt.wiki/login/' });
+    await system.openProductDocs();
+    await system.relaunch();
     await gateway.prompts.list(promptQuery);
     await gateway.prompts.get(prompt.id);
     await gateway.prompts.create(createPrompt);
@@ -421,6 +491,7 @@ describe('desktop gateway transport contract', () => {
     await gateway.prompts.remove(prompt.id);
     await gateway.prompts.restore(prompt.id);
     await gateway.prompts.purge(prompt.id);
+    await gateway.prompts.emptyTrash();
     await gateway.prompts.use(prompt.id, promptUseInputSchema.parse({ action: 'copy' }));
     await gateway.prompts.listFolders();
     await gateway.prompts.createFolder(createFolder);
@@ -447,6 +518,10 @@ describe('desktop gateway transport contract', () => {
     await gateway.generation.listProviders();
     await gateway.generation.uploadReferenceImage(upload);
     await gateway.generation.saveAsset(save);
+    await gateway.generation.cleanup({ scope: 'older-than-30d' });
+    await gateway.generation.getStorageUsage?.();
+    await gateway.generation.revealAsset?.('asset-1');
+    await gateway.generation.copyAssetToClipboard?.('asset-1');
 
     expect(invokeMock.mock.calls.map(([method, payload]) => [method, payload])).toEqual([
       ['settings.getPreferences', undefined],
@@ -468,16 +543,29 @@ describe('desktop gateway transport contract', () => {
       ['aiProviders.remove', { id: provider.id }],
       ['aiProviders.setActive', { id: provider.id }],
       ['aiProviders.test', { id: provider.id }],
+      ['aiProviders.listModels', { id: provider.id }],
       ['agentConnections.list', undefined],
       ['agentConnections.create', createProvider],
       ['agentConnections.update', { id: provider.id, patch: updateProvider }],
       ['agentConnections.remove', { id: provider.id }],
       ['agentConnections.setActive', { id: provider.id }],
       ['agentConnections.test', { id: provider.id }],
+      ['agentConnections.listModels', { id: provider.id }],
       ['doubao.getStatus', undefined],
       ['doubao.startLogin', undefined],
       ['doubao.refreshLogin', undefined],
       ['doubao.logout', undefined],
+      ['system.getAppInfo', undefined],
+      ['system.listBackups', undefined],
+      ['system.createBackup', undefined],
+      ['system.restoreBackup', { file: backup.file }],
+      ['system.listStorageLocations', undefined],
+      ['system.openStorageLocation', { id: 'backups' }],
+      ['system.readDiagnosticLog', undefined],
+      ['system.clearAllData', { confirmation: '清空全部数据' }],
+      ['system.openExternal', { url: 'https://ai.tvt.wiki/login/' }],
+      ['system.openProductDocs', undefined],
+      ['system.relaunch', undefined],
       ['prompts.list', promptQuery],
       ['prompts.get', { id: prompt.id }],
       ['prompts.create', createPrompt],
@@ -485,6 +573,7 @@ describe('desktop gateway transport contract', () => {
       ['prompts.remove', { id: prompt.id }],
       ['prompts.restore', { id: prompt.id }],
       ['prompts.purge', { id: prompt.id }],
+      ['prompts.emptyTrash', undefined],
       ['prompts.use', { id: prompt.id, input: { action: 'copy' } }],
       ['prompts.listFolders', undefined],
       ['prompts.createFolder', createFolder],
@@ -511,8 +600,13 @@ describe('desktop gateway transport contract', () => {
       ['generation.listProviders', undefined],
       ['generation.uploadReferenceImage', upload],
       ['generation.saveAsset', save],
+      ['generation.cleanup', { scope: 'older-than-30d' }],
+      ['generation.getStorageUsage', undefined],
+      // 本机文件动作只送资产 id:渲染层不持有任何路径(ui-parity 05 §7)。
+      ['generation.revealAsset', 'asset-1'],
+      ['generation.copyAssetToClipboard', 'asset-1'],
     ]);
-    expect(invokeMock).toHaveBeenCalledTimes(62);
+    expect(invokeMock).toHaveBeenCalledTimes(80);
   });
 
   it('parses successful data with the method response schema and rejects mismatches', async () => {

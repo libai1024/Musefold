@@ -198,6 +198,37 @@ export const saveAssetInputSchema = z.object({
 /** 保存结果:cancelled = 用户取消系统对话框(桌面),不视为错误。 */
 export const saveAssetResultSchema = z.enum(['saved', 'cancelled']);
 
+/**
+ * 批量清理范围(ui-parity 05 §7 P2,承旧 HistoryCleanupMenu 三项):
+ * - older-than-30d / failed-and-cancelled = 软删入回收站,生成的图片资产保留;
+ * - empty-trash = 永久删除回收站全部记录,并按 purge 语义清理资产(桌面磁盘 / 云端对象存储)。
+ */
+export const generationCleanupScopeSchema = z.enum([
+  'older-than-30d',
+  'failed-and-cancelled',
+  'empty-trash',
+]);
+
+export const generationCleanupInputSchema = z
+  .object({ scope: generationCleanupScopeSchema })
+  .strict();
+
+/** affected = 本次被软删或永久删除的记录条数(0 合法,用于「已经很干净」提示)。 */
+export const generationCleanupResultSchema = z
+  .object({ affected: z.number().int().nonnegative() })
+  .strict();
+
+/**
+ * 生成资产磁盘占用(ui-parity 05 §7 P2,桌面 only):只报聚合数字,
+ * 绝不外露目录绝对路径(渲染层无路径概念,V25-ARCHITECTURE 主进程边界)。
+ */
+export const generationStorageUsageSchema = z
+  .object({
+    bytes: z.number().int().nonnegative(),
+    fileCount: z.number().int().nonnegative(),
+  })
+  .strict();
+
 export const cloudGenerationRequestSchema = z.object({
   prompt: z.string().trim().min(1).max(12_000),
   negative: z.string().trim().max(4_000).optional(),
@@ -269,6 +300,19 @@ export const generationJobSchema = z.object({
   request: cloudGenerationRequestSchema,
   providerModel: z.string().trim().min(1).max(128).nullable(),
   costPoints: z.number().int().nonnegative().nullable(),
+  /**
+   * 终态用时(毫秒):宿主按 run 的开始/结束时刻算,未进入终态或缺开始时刻为 null。
+   * 字段缺省 = 旧行/旧宿主未上报,与「已上报但无值(null)」区分,不由消费方伪造 0。
+   */
+  durationMs: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * Provider 回报的随机种子;数值或不透明字符串(不同 provider 语义不同,只作展示与复现线索)。
+   * provider 未回报即 null;字段缺省 = 宿主不记录该项。
+   */
+  seed: z
+    .union([z.number().int(), z.string().trim().min(1).max(64)])
+    .nullable()
+    .optional(),
   assets: z.array(generationAssetSchema),
   error: z
     .object({
@@ -304,3 +348,7 @@ export type GenerationReferenceImage = z.infer<typeof generationReferenceImageSc
 export type UploadReferenceImageInput = z.infer<typeof uploadReferenceImageInputSchema>;
 export type SaveAssetInput = z.infer<typeof saveAssetInputSchema>;
 export type SaveAssetResult = z.infer<typeof saveAssetResultSchema>;
+export type GenerationCleanupScope = z.infer<typeof generationCleanupScopeSchema>;
+export type GenerationCleanupInput = z.infer<typeof generationCleanupInputSchema>;
+export type GenerationCleanupResult = z.infer<typeof generationCleanupResultSchema>;
+export type GenerationStorageUsage = z.infer<typeof generationStorageUsageSchema>;

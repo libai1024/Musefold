@@ -1,6 +1,6 @@
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import { launchV25App, v25ShellPage } from './electron-helpers';
-import { clickRowAction, createPrompt } from './prompt-helpers';
+import { clickRowAction, createPrompt, openPromptDetail } from './prompt-helpers';
 
 // 桌面提示词库全链路:features 屏 → IPC 桥 → core SQLite(临时 userData,真实数据链)。
 
@@ -92,6 +92,76 @@ test('软删进回收站,恢复回列表', async () => {
   await expect(page.getByText('水墨山水')).toBeVisible();
 });
 
+test('行点击开详情 Inspector:正文/元数据/相关作品齐全,菜单可编辑', async () => {
+  const detail = await openPromptDetail(page, '水墨山水');
+  await expect(detail.getByTestId('prompt-detail-content')).toHaveText(
+    'chinese ink painting, mountains',
+  );
+  await expect(detail.getByTestId('prompt-detail-meta')).toContainText('本机创建');
+  await expect(detail.getByTestId('prompt-detail-facts')).toContainText('使用次数');
+  // 主进程 generation.list 走真实 SQLite:该提示词没生成过图,面板给空态。
+  await expect(detail.getByTestId('prompt-detail-works-empty')).toBeVisible();
+
+  await detail.getByTestId('prompt-detail-menu').click();
+  await page.getByTestId('prompt-detail-edit').click();
+  await expect(page.getByTestId('prompt-editor')).toBeVisible();
+  await page.getByTestId('prompt-editor-cancel').click();
+
+  await detail.getByTestId('prompt-detail-close').click();
+  await expect(detail).toBeHidden();
+});
+
+test('清空回收站经 prompts.emptyTrash 一次性硬删(双重确认)', async () => {
+  await createPrompt(page, '待清一', 'purge me a');
+  await createPrompt(page, '待清二', 'purge me b');
+  await clickRowAction(page, '待清一', 'prompt-row-remove');
+  await clickRowAction(page, '待清二', 'prompt-row-remove');
+
+  await page.getByTestId('prompt-tab-trash').click();
+  await expect(page.getByText('待清一')).toBeVisible();
+
+  await page.getByTestId('prompt-empty-trash').click();
+  const dialog = page.getByTestId('prompt-empty-trash-dialog');
+  await expect(dialog).toContainText('2 条');
+  await dialog.getByTestId('prompt-empty-trash-confirm').click();
+
+  await expect(page.getByTestId('prompt-empty')).toBeVisible();
+  await page.getByTestId('prompt-tab-all').click();
+  await expect(page.getByText('待清一')).toBeHidden();
+});
+
+test('快捷键:⌘/Ctrl+K 从别的屏跳库并聚焦搜索,「/」屏内聚焦', async () => {
+  await page.getByTestId('nav-workbench').click();
+  await expect(page.getByTestId('prompt-library')).toBeHidden();
+
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(page.getByTestId('prompt-library')).toBeVisible();
+  await expect(page.getByTestId('prompt-search')).toBeFocused();
+
+  await page.getByTestId('prompt-search').blur();
+  await page.keyboard.press('/');
+  await expect(page.getByTestId('prompt-search')).toBeFocused();
+  await expect(page.getByTestId('prompt-search')).toHaveValue('');
+});
+
+test('编辑器 ⌘/Ctrl+S 走提交路径落库', async () => {
+  await page.getByTestId('prompt-create').click();
+  await page.getByTestId('prompt-editor-title').fill('快捷保存');
+  await page.getByTestId('prompt-editor-content').fill('saved with cmd+s');
+  await page.keyboard.press('ControlOrMeta+s');
+
+  await expect(page.getByTestId('prompt-editor')).toBeHidden();
+  await expect(page.getByText('快捷保存')).toBeVisible();
+
+  // 收尾:不给后面的视觉基线留额外行。
+  await clickRowAction(page, '快捷保存', 'prompt-row-remove');
+  await page.getByTestId('prompt-tab-trash').click();
+  await page.getByTestId('prompt-empty-trash').click();
+  await page.getByTestId('prompt-empty-trash-confirm').click();
+  await expect(page.getByTestId('prompt-empty')).toBeVisible();
+  await page.getByTestId('prompt-tab-all').click();
+});
+
 test('文件夹与标签目录管理', async () => {
   await page.getByTestId('taxonomy-open').click();
   await page.getByTestId('taxonomy-folder-name').fill('人像合集');
@@ -109,6 +179,11 @@ test('文件夹与标签目录管理', async () => {
 
 test('桌面提示词库视觉基线(浅色)', async () => {
   await expect(page.getByTestId('prompt-grid')).toBeVisible();
+  // 前序用例(清空回收站等)的 toast 会晚几秒才消失,进快照就是伪差异。
+  await expect(page.locator('[data-sonner-toast][data-visible="true"]')).toHaveCount(0, {
+    timeout: 10_000,
+  });
+  await page.mouse.move(0, 0);
   await expect(page).toHaveScreenshot('desktop-prompts-light.png');
 });
 

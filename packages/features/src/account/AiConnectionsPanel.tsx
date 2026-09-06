@@ -1,5 +1,6 @@
 'use client';
 
+import { IMAGE_CONNECTION_PRESETS } from './connection-presets';
 import { ConnectionsPanel, type ConnectionsPanelCopy } from './ConnectionsPanel';
 import { AI_PROVIDER_HOOKS } from './hooks';
 
@@ -16,6 +17,7 @@ export const AI_PROVIDER_PANEL_COPY: ConnectionsPanelCopy = {
   editorTitleEdit: '编辑 AI 连接',
   modelPlaceholder: '如:gemini-2.5-flash-image',
   deleteDescription: '连接配置与其密钥将一并删除,不可恢复;已生成的图片不受影响。',
+  presets: IMAGE_CONNECTION_PRESETS,
 };
 
 /**

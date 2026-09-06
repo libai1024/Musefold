@@ -171,6 +171,14 @@
   --dur-slow: 260ms; /* 大面积布局重排(慎用,通常应拆成局部动效) */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* 界面密度(ui-parity 07-03 §4.1,承旧 tokens.css);紧凑档见 html[data-density=compact] */
+  --density-page-padding: 1.5rem;
+  --density-card-padding: 0.75rem;
+  --density-setting-row-y: 0.75rem;
+  --density-row-padding: 0.5rem;
+  --density-list-gap: 0.5rem;
+  --density-nav-y: 7px;
+  --density-history-thumb: 3rem;
 }
 
 @layer base {
@@ -216,6 +224,16 @@ html.reduce-motion *:not([data-motion-exempt])::after {
   }
 }
 /* biome-ignore-end lint/complexity/noImportantStyles: 压制块结束 */
+
+html[data-density='compact'] {
+  --density-page-padding: 1rem;
+  --density-card-padding: 0.5rem;
+  --density-setting-row-y: 0.5rem;
+  --density-row-padding: 0.375rem;
+  --density-list-gap: 0.375rem;
+  --density-nav-y: 5px;
+  --density-history-thumb: 2.5rem;
+}
 
 /*
  * 工作台空态品牌动效(ui-parity 03 §5 P1 恢复,值承旧 v2.5-baseline product-ui/styles.css)。

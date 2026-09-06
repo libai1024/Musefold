@@ -1,4 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
+import { seedOnboardingCompleted } from './onboarding-helpers';
+
+// 首启引导夹具(U01-onboarding):既有用例都是未登录环境,不预置完成哨兵会被引导层盖住。
+test.beforeEach(async ({ page }) => {
+  await seedOnboardingCompleted(page);
+});
 
 // Web 账号域 E2E:features/account + api-client 真代码,Better Auth 端点网络层 mock。
 // 覆盖:登录 → 已登录视图/侧栏账号区 → 兑换 → 退出;登录失败的表单内错误。

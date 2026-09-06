@@ -1,13 +1,14 @@
 # 07-06 设置 · 数据存储 — 旧版 vs v2.5 对照
 
 > **旧版源码**:`DataStorageSection`(装配)= `DataSection`(246 行)+ `BackupPanel`(326 行)+ `ExportDialog`(188 行)+ `ImportDialog`(343 行)+ `DangerZonePanel`(182 行)。
-> **新版源码**:`SettingsScreen` 内「数据」卡——仅两条回收站入口(提示词回收站/生成历史回收站,经 screen-intent 跳转)。
+> **新版源码**:`packages/features/src/settings/DataStorageCard.tsx`(回收站两行 + 已归档对话 + 备份 / 存储位置 / 诊断日志 / 危险区四块,后四块 `capabilities.hasLocalDataManagement` 门控),数据面走新 `system` 桌面域(`packages/contracts/src/system.ts` → `packages/platform` `SystemGateway` → `apps/desktop/electron/main/ipc-v25/system-domain.ts`)。
+> **状态(2026-09-06)**:P1 备份 / P2 路径+日志 / P2 危险区**已交付**;导出与导入仍是暂缓域挂点。
 
 ---
 
 ## 1. 结论与迁移状态
 
-新版「数据」卡是**新增的回收站聚合入口**(旧版没有,这是新版做得更好的点);但旧「数据存储」分区的五大能力——**导出/导入、数据库备份、存储路径、诊断日志、危险区(清空数据)**——全部缺失。其中导出/导入是登记暂缓域(分享/导入,CLAUDE.md),备份/路径/日志/危险区不是暂缓域,属**桌面数据安全底线能力**,建议随桌面装壳排 P1/P2。
+新版「数据」卡是**新增的回收站聚合入口**(旧版没有,这是新版做得更好的点)。旧「数据存储」分区五大能力中,**数据库备份、存储路径、诊断日志、危险区**已随 B1-T6 迁入(桌面门控,Web 整块不渲染);**导出/导入**仍是登记暂缓域(分享/导入,CLAUDE.md),恢复时按 §2.1/§5.3 复刻。
 
 ## 2. 旧版结构存档(恢复基准)
 
@@ -39,9 +40,9 @@
 |---|---|---|
 | 回收站入口 | 两行(提示词/历史),ChevronRight,screen-intent 跳转 | **新增保留**;后续回收站计数 Badge(P3) |
 | 导出/导入 | 无 | 暂缓域挂点(分享/导入排卡时恢复,含 Web 端形态设计:浏览器下载/上传) |
-| 数据库备份 | 无 | **P1(桌面)**:主进程备份通道在;UI 按 §2.2 复刻;云端不适用(服务端有自己的备份纪律) |
-| 路径/日志 | 无 | **P2(桌面)**:`hasLocalFileAccess` 门控;日志查看是支持请求的第一入口 |
-| 危险区 | 无 | **P2(桌面)**:确认短语交互原样保留;云端对位(清空云端数据)单独评估,默认不做 |
+| 数据库备份 | ✅ 状态行三态 + 立即备份(创建后自动展开)+ 逐份恢复(确认 → `system.relaunch`) | **已交付**(`system.listBackups/createBackup/restoreBackup`,列表 path-free 只给文件名) |
+| 路径/日志 | ✅ 五条白名单路径行(复制/打开)+ 诊断日志按需读取(200KB 截断) | **已交付**(`hasLocalDataManagement` 门控;`displayPath` 是本域唯一允许的路径出参) |
+| 危险区 | ✅ 确认短语精确匹配 + 清空前自动 `pre-reset` 快照回显 | **已交付**(`system.clearAllData`;云端对位仍不做) |
 
 ## 4. 交互与安全口径(恢复时不可降级)
 
@@ -80,17 +81,20 @@
 
 | 优先级 | 任务 | 验收要点 |
 |---|---|---|
-| P1 | 数据库备份卡(桌面):立即备份/列表/恢复(确认+重启语义)/状态行;主进程通道复用 | 创建后列表自动展开;恢复走确认;集成测试 |
-| P2 | 存储位置 + 诊断日志(桌面,`hasLocalFileAccess` 门控):路径行组(复制/打开)+ 日志查看 | 失败就地报错 |
-| P2 | 危险区(桌面):清空全部数据,确认短语交互,成功边界 toast | 短语不匹配不可执行;E2E 覆盖 |
+| ~~P1~~ | ~~数据库备份卡(桌面)~~ **已交付 2026-09-06**(B1-T6):状态行三态 / 立即备份 / 逐份恢复 | 创建后自动展开(单测);恢复确认 → relaunch(单测 + `electron.settings-data.spec.ts`) |
+| ~~P2~~ | ~~存储位置 + 诊断日志~~ **已交付 2026-09-06**:门控 flag 落为 `hasLocalDataManagement`(非 `hasLocalFileAccess`) | 路径读取/打开/日志读取失败均就地红字(单测覆盖三态) |
+| ~~P2~~ | ~~危险区(桌面)~~ **已交付 2026-09-06**:确认短语 + 边界 toast + 清空前快照回显 | 短语不匹配 disabled(单测);E2E 断言业务表清空而 providers 保留 |
 | P3 | 回收站入口行计数 Badge(需 gateway 暴露 trash count) | — |
+| P3 | 备份「大小」列已随 §5.2 机会点交付;剩余机会点:恢复失败后的一键回滚到 `pre-restore` 快照 | 主进程已落 safety 快照,渲染层暂只回显文件名 |
 
-> 暂缓域挂点:导出/导入整块(分享/导入域)。恢复本分区任一 P1/P2 后触发 07-00 分组导航评估。
+> 暂缓域挂点:导出/导入整块(分享/导入域)。本分区 P1/P2 已收口 → 07-00 分组导航评估已触发(「应用」组现有「数据」+「关于」两分区)。
+>
+> **清空边界的事实源**(2026-09-06 核对 `apps/desktop/electron/system/reset.ts`):单事务清 `prompt_tags / search_history / smart_sets / generated_assets / generation_runs / workbench_drafts / workbench_sessions / prompts / tags / folders` + `prompts_fts`(工作台两表随 v2.5 单账本一并清,否则会剩一串空对话);**不动** providers 与密钥、计费/偏好设置、云同步账号与 outbox、磁盘上的图片文件。UI 成功文案照此写:「数据已清空 · Provider、API 密钥和图片文件保持不变」。
 
 ## 7. Codex 增益(C 系列,语汇见 [00-codex-craft.md](./00-codex-craft.md))
 
 | 编号 | 级 | 增益 | 规格 |
 |---|---|---|---|
-| 0706-C1 | C1 | mono/tabular 排版(挂靠 00 C-4,随 §6 各卡同交付) | 路径行 mono(§5 已定,收编横切);备份行「大小 · 时间」tabular(size 字段有则显,§5.2 机会点);日志查看器 mono 只读 |
-| 0706-C2 | C1 | 复制反馈统一 | 路径复制 = 钮内 Check 1.2s + toast(与 0704-C2 同一封装) |
-| 0706-C3 | C2 | 危险区输入的防错工艺 | 确认短语输入框 mono + placeholder 显示目标短语;匹配成功时执行钮由 disabled 转 `--destructive` 填充(渐进解锁的视觉确认);粘贴允许承 §4-3 |
+| ~~0706-C1~~ | C1 | ✅ 已交付:路径行/备份文件名 mono,备份行「大小 · 时间」tabular,日志查看器 mono 只读 | — |
+| ~~0706-C2~~ | C1 | ✅ 已交付:路径复制 = 钮内 Check 1.2s + toast「路径已复制」(与 0704-C2 同形) | — |
+| ~~0706-C3~~ | C2 | ✅ 已交付:确认短语 mono + placeholder 显示目标短语,匹配即由 outline 转 `destructive` 填充,粘贴可用 | — |

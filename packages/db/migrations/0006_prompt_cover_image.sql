@@ -1,0 +1,1 @@
+ALTER TABLE "prompts" ADD COLUMN "cover_image_url" varchar(4096);

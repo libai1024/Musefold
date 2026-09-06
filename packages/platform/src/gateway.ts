@@ -1,9 +1,23 @@
 import type {
   AccountSummary,
   AiProvider,
+  AiProviderListModelsInput,
+  AiProviderModelList,
+  AiProviderTestInput,
   AiProviderTestResult,
+  AppInfo,
   AppPreferences,
   AppPreferencesPatch,
+  BackupInfo,
+  ClearAllDataInput,
+  ClearAllDataResult,
+  CreateBackupResult,
+  DiagnosticLog,
+  OpenExternalInput,
+  OpenStorageLocationInput,
+  RestoreBackupInput,
+  RestoreBackupResult,
+  StorageLocation,
   CreateAiProvider,
   CreateGenerationInput,
   CreateWorkbenchSession,
@@ -12,16 +26,20 @@ import type {
   DoubaoAccountStatus,
   SyncConflictResolution,
   SyncConflictSummary,
+  GenerationCleanupInput,
+  GenerationCleanupResult,
   GenerationHistoryPage,
   GenerationHistoryQuery,
   GenerationIdempotencyKey,
   GenerationJob,
   GenerationReferenceImage,
+  GenerationStorageUsage,
   LoginRequest,
   NewPromptDocument,
   NewPromptFolder,
   NewPromptTag,
   PromptDocument,
+  PromptEmptyTrashResult,
   PromptFolder,
   PromptListQuery,
   PromptPage,
@@ -120,6 +138,38 @@ export interface MusefoldGateway {
    * Web 宿主不提供,UI 以 capabilities.hasDoubaoWebLogin 判断,不渲染豆包登录入口。
    */
   doubao?: DoubaoGateway;
+  /**
+   * 桌面专属:本机数据管理与应用信息(数据库备份 / 存储位置 / 诊断日志 / 危险区 / 版本)。
+   * Web 宿主不提供(云端有自己的备份纪律,浏览器也没有本机路径概念),
+   * UI 以 capabilities.hasLocalDataManagement 判断;关于卡在 Web 上降级为「Web 版」展示。
+   */
+  system?: SystemGateway;
+}
+
+/**
+ * 桌面本机数据面。约定:备份只按备份目录内的**文件名**寻址、存储位置只按白名单 id 打开,
+ * 渲染层永远不构造路径;剪贴板复制由渲染层 navigator.clipboard 完成,不进本接口。
+ */
+export interface SystemGateway {
+  /** 版本 / 平台 / 库结构版本(报障粘贴用)。 */
+  getAppInfo(): Promise<AppInfo>;
+  listBackups(): Promise<BackupInfo[]>;
+  /** 用 SQLite 一致性快照创建一份手动备份,返回新备份条目(列表可直接展开可见)。 */
+  createBackup(): Promise<CreateBackupResult>;
+  /** 恢复前主进程自动保全当前库;返回后调用方必须调 relaunch。 */
+  restoreBackup(input: RestoreBackupInput): Promise<RestoreBackupResult>;
+  listStorageLocations(): Promise<StorageLocation[]>;
+  openStorageLocation(input: OpenStorageLocationInput): Promise<void>;
+  /** 已脱敏的日志尾部(主进程 logger 保证不含密钥)。 */
+  readDiagnosticLog(): Promise<DiagnosticLog>;
+  /** 危险区:清空业务内容与生成历史(Provider / 密钥 / 磁盘图片不在边界内)。 */
+  clearAllData(input: ClearAllDataInput): Promise<ClearAllDataResult>;
+  /** 外链:https + 宿主白名单,不满足即结构化拒绝。 */
+  openExternal(input: OpenExternalInput): Promise<void>;
+  /** 打开随应用分发的产品文档(主进程按白名单资源 id 解析,渲染层不传路径)。 */
+  openProductDocs(): Promise<void>;
+  /** 重启应用(恢复备份后生效)。 */
+  relaunch(): Promise<void>;
 }
 
 export interface DoubaoGateway {
@@ -200,8 +250,10 @@ export interface AiProvidersGateway {
   update(id: string, patch: UpdateAiProvider): Promise<AiProvider>;
   remove(id: string): Promise<void>;
   setActive(id: string): Promise<AiProvider>;
-  /** 主进程真发探测请求(GET /models),验证 Base URL 可达与密钥有效。 */
-  test(id: string): Promise<AiProviderTestResult>;
+  /** 主进程真发探测请求(GET /models),验证 Base URL 可达与密钥有效;支持已存 id 或草稿。 */
+  test(input: AiProviderTestInput): Promise<AiProviderTestResult>;
+  /** 解析 OpenAI 兼容 `/models` 的 data[].id;草稿 Key 只在本次往返使用、不落库。 */
+  listModels(input: AiProviderListModelsInput): Promise<AiProviderModelList>;
 }
 
 export interface PromptsGateway {
@@ -213,6 +265,11 @@ export interface PromptsGateway {
   restore(id: string): Promise<PromptDocument>;
   /** 回收站内永久删除(仅已软删行合法);桌面直删 SQLite,云端硬删 PG。 */
   purge(id: string): Promise<void>;
+  /**
+   * 清空回收站:一次性永久删除全部已软删提示词,返回本次条数(空回收站返回 0,幂等)。
+   * 破坏性动作,调用方必须先过双重确认(V25-UI-SPEC §8-I4)。
+   */
+  emptyTrash(): Promise<PromptEmptyTrashResult>;
   use(id: string, input: PromptUseInput): Promise<PromptUseResult>;
   listFolders(): Promise<PromptFolder[]>;
   createFolder(input: NewPromptFolder): Promise<PromptFolder>;
@@ -258,4 +315,21 @@ export interface GenerationGateway {
    * Web 触发浏览器下载(fetch → blob → a[download],跨域受限时降级新窗口打开)。
    */
   saveAsset(input: SaveAssetInput): Promise<SaveAssetResult>;
+  /**
+   * 批量清理(ui-parity 05 §7 P2):前两种范围软删入回收站并保留资产,
+   * empty-trash 按 purge 语义永久删除回收站全部记录与其资产。返回受影响条数。
+   */
+  cleanup(input: GenerationCleanupInput): Promise<GenerationCleanupResult>;
+  /**
+   * 桌面专属:生成图片目录的聚合占用(承旧 HistoryDiskUsage)。
+   * Web 宿主不提供(资产在云端对象存储),UI 以 capabilities.canRevealLocalFile 判断。
+   */
+  getStorageUsage?(): Promise<GenerationStorageUsage>;
+  /**
+   * 桌面专属:在系统文件管理器中定位受管资产。只收资产 id,
+   * 路径解析与受管根校验全在主进程;Web 宿主不提供。
+   */
+  revealAsset?(assetId: string): Promise<void>;
+  /** 桌面专属:把受管资产图片写入系统剪贴板;Web 宿主不提供。 */
+  copyAssetToClipboard?(assetId: string): Promise<void>;
 }

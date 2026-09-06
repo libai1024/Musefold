@@ -133,6 +133,34 @@ export function HistoryFilterBar({
         </SelectContent>
       </Select>
 
+      {/* 自定义区间(承旧 history-filter-custom-range):含首含尾,只填一头也生效。 */}
+      {filters.datePreset === 'custom' && (
+        <div
+          className="flex items-center gap-1.5 text-muted-foreground text-xs"
+          data-testid="history-filter-custom-range"
+        >
+          <Input
+            type="date"
+            value={filters.customFrom ?? ''}
+            max={filters.customTo ?? undefined}
+            aria-label="起始日期"
+            className="h-8 w-36 text-xs tabular-nums"
+            data-testid="history-filter-custom-from"
+            onChange={(event) => onFiltersChange({ customFrom: event.target.value || null })}
+          />
+          <span aria-hidden>至</span>
+          <Input
+            type="date"
+            value={filters.customTo ?? ''}
+            min={filters.customFrom ?? undefined}
+            aria-label="结束日期"
+            className="h-8 w-36 text-xs tabular-nums"
+            data-testid="history-filter-custom-to"
+            onChange={(event) => onFiltersChange({ customTo: event.target.value || null })}
+          />
+        </div>
+      )}
+
       {activeCount > 0 && (
         <Button
           variant="ghost"

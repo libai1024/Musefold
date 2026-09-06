@@ -59,7 +59,7 @@ import { SchemeAttachmentBlock } from './SchemeAttachment';
  * 契约只接受规范 `W:H`(contracts aspectRatio 正则),domain 旧 `custom:W:H` 前缀不进 v2.5 数据流;
  * detail 只对 auto 有意义:v2.5 统一发 size:'auto',预设不再承诺具体像素档。
  */
-const RATIO_CATALOG = [
+export const RATIO_CATALOG = [
   { id: '1:1', label: '方图' },
   { id: '2:3', label: '竖版' },
   { id: '3:4', label: '竖图' },
@@ -93,7 +93,7 @@ const NEGATIVE_MAX = 4_000;
 const PROMPT_COUNTER_THRESHOLD = PROMPT_MAX * 0.9;
 
 /** 质量档文案承旧 v2.1 WORKBENCH_QUALITY_OPTIONS(枚举值不变,只还原命名)。 */
-const QUALITY_OPTIONS: readonly { id: GenerationQuality; label: string; hint: string }[] = [
+export const QUALITY_OPTIONS: readonly { id: GenerationQuality; label: string; hint: string }[] = [
   { id: 'auto', label: '自动', hint: '模型默认' },
   { id: 'low', label: '标准', hint: '更快' },
   { id: 'medium', label: '高清', hint: '平衡' },

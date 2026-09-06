@@ -139,6 +139,12 @@ describe('Drizzle schema', () => {
     expect(linkForeignKeys).toContain('generation_reference_links_reference_owner_fk');
   });
 
+  it('prompts 封面列是可空的 path-free 展示地址(expand 纪律)', () => {
+    expect(schema.prompts.coverImageUrl.name).toBe('cover_image_url');
+    expect(schema.prompts.coverImageUrl.notNull).toBe(false);
+    expect(schema.prompts.coverImageUrl.hasDefault).toBe(false);
+  });
+
   it('sync mutation results persists a nullable request fingerprint', () => {
     expect(syncMutationResults.requestFingerprint).toBeDefined();
     expect(syncMutationResults.requestFingerprint.columnType).toBe('PgVarchar');
@@ -168,6 +174,7 @@ describe('Drizzle schema', () => {
       'utf8',
     );
     expect(cleanupMetadataSql).toContain('ADD COLUMN "abandoned_at" timestamp with time zone');
+    expect(sql).toContain('ADD COLUMN "cover_image_url" varchar(4096)');
     expect(storageSql.indexOf('"generation_runs_id_user_unique"')).toBeLessThan(
       storageSql.indexOf('"generation_reference_links_run_owner_fk"'),
     );

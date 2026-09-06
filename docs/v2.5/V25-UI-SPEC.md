@@ -149,6 +149,14 @@
 - [x] 布局语法收口(2026-08-29,承 ZCode/Codex/Cursor 参照):设置移出导航轨(入口=footer 齿轮)、「新设计」改轨道行样式、「功能」分节标签取消、会话行尾相对时间戳;底部账号区升级身份菜单(官方黑白标触发钮、登入/登出默认动作、「更多连接」切换子菜单、ScreenIntent 设置深链),形态见 §2.2-5。
 - [x] U01 壳几何收口(2026-08-29):侧栏默认 248px、220–360px/32vw 夹取,指针拖拽 + 键盘 ±16/Home/End + 双击复位,沿用 `musefold:sidebar-width`;桌面工作面四边 4px inset + 12px 圆角 + 阴影;`<768px` 使用同源模态抽屉,无 761–767px 不可达区。
 
+### 2.6 首启引导层(U01-onboarding,2026-09-06 ✅,`packages/features/src/onboarding`)
+
+- **挂载**:双宿主在 `PlatformProvider` 内、壳容器之后各挂一行 `<OnboardingFlow onOpenScreen>`(与 `Toaster` 同级);gate 未放行时返回 `null` 不占 DOM。切屏一律回调宿主既有导航,引导层不自建路由。
+- **gate 判定**(`useOnboardingGate`):哨兵 `AppPreferences.onboardingCompletedAt` 非 null → 不弹;无哨兵且账号未登录、无可用本地 Provider(桌面)、豆包未登录(桌面)→ 弹;无哨兵但已具备任一生图通道 → 不弹并**静默补哨兵**(存量用户不回放);偏好读取失败 fail-closed(不弹也不写)。流程中途拿到通道不撤走已放行的引导。宿主差异只经 capability(`hasLocalAiProviders` / `hasDoubaoWebLogin`)。
+- **形态**:`Dialog` `role=dialog aria-modal`,桌面 md+ 居中 640px 卡、移动全屏;步骤指示带 `aria-current`;关闭 = 跳过,经 AlertDialog 确认。
+- **四步**:welcome(品牌行 / 标语 / 副文 theater reveal,60ms 错相,`skipMotion()` 命中直接终态)→ connect(三轨:官方账号 / 桌面 BYOK / 豆包免费试用;Web 只官方账号)→ validate(进入即自动确认一次;失败只给「重新确认」不给「继续」,可返回或跳过)→ first-image(只写 `pendingDraft` 送工作台,**不发起真实生图**)→ complete 写哨兵。完成、跳过、关闭写同一哨兵。
+- **E2E 夹具**:`tests/v25/onboarding-helpers.ts` 单入口。Electron `launchV25App` 默认预置哨兵(`onboarding: 'pending'` 显式开启);Web 各 spec 顶层 `seedOnboardingCompleted`。
+
 ---
 
 ## 3. 工作台(生成)——`packages/features/src/workbench`
@@ -236,23 +244,26 @@ testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、
 
 ---
 
-## 4. 提示词库(M4a 已交付,记录为基准)
+## 4. 提示词库(M4a 已交付;2026-09-06 B1-T1 完整性收口,记录为基准)
 
 ### 4.1 布局
 
 顶部工具行(搜索框 + 标签筛选 + 「新建提示词」主钮)→ Tabs(全部 / 收藏 / 回收站)→ 行式列表(承旧 v2.0 `PromptListRow` 信息架构)。
 
+**详情(2026-09-06)**:md+ 为「列表 + 右侧详情 Inspector(384px,`w-96`)」双栏,详情开启时列表转单列(容器 `max-w-none`);<768px 详情装 `Sheet`,与生成历史 §5.1 同构。`PromptDetailInspector` = 头部(48px 封面 + 标题 + 置顶/评分)+ 正文(可复制,复制后图标转 Check)+ 「相关作品」面板(`PromptRelatedWorks`:该提示词产出的回合缩略,点击经 `history-select` 意图跳历史屏选中,宿主未注入 `onOpenHistory` 时退成只读画廊)+ 元数据(使用次数 / 创建 / 更新时间)。主动作「使用」(回填 Composer 并切工作台);更多菜单只含编辑 / 复制正文 / 置顶 / 移入回收站,「分享」属暂缓域(§0.2)。
+
 ### 4.2 列表行(`PromptListRow`)
 
-缩略图(FileText 占位)+ 主体(置顶针 + 标题 + 评分星 / 摘要行 / 元信息行:使用次数 + 标签 Badge ≤4 个 + 溢出计数)+ **常驻操作组**(复制/编辑/置顶/移入回收站;回收站行只留「恢复」)。
+封面缩略(44px;`coverImageUrl` 有图显图 + hover `scale-[1.06]`,无封面 FileText 占位;`PromptCover` 单源)+ 主体(置顶针 + 标题 + 评分星 / 摘要行 / 元信息行:使用次数 + 更新相对时间 + 标签 Badge ≤4 个 + 溢出计数)+ **常驻操作组**(使用/复制/编辑/置顶/移入回收站;回收站行只留「恢复」「永久删除」)。
 
 - 操作组:桌面 hover/键盘聚焦渐显(`md:opacity-0 group-hover:opacity-100`),触屏常显。
-- 点击行主体 = 编辑(回收站行 = 恢复)。
+- 点击行主体 = 打开详情(回收站行 = 恢复);编辑走操作组或详情菜单。
+- 封面来源:工作台「存为提示词」写入首图;契约 `coverImageUrl` 为 path-free URL(https / `media:` / `data:` / loopback http,拒绝裸绝对路径)。PG 迁移 `0006_prompt_cover_image`;SQLite 复用 `preview_image_path` 槽位,IPC 层做 `media://` ↔ 受管路径双向映射,不新增列。
 - **不使用下拉菜单藏动作**(§8-I2,E2E 稳定性教训)。
 
 ### 4.3 编辑器(`PromptEditorDialog`)
 
-Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创建)、评分、置顶开关;保存/取消。校验错误就地红字。
+Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创建)、评分、置顶开关;保存/取消。校验错误就地红字。有未保存修改时 `⌘/Ctrl+S` 保存(`PRODUCT_SHORTCUTS` 单源登记)。
 
 ### 4.4 状态矩阵
 
@@ -260,18 +271,22 @@ Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创�
 |---|---|
 | loading | 列表区 skeleton 行 ×5 |
 | 空(全部) | 空态卡:图标 + 「还没有提示词」 + 「新建提示词」CTA |
-| 空(搜索/筛选) | 「没有匹配的提示词」+ 清除筛选 |
+| 空(搜索/筛选) | 「没有匹配的提示词」+ 清除筛选 + 「新建提示词」CTA |
 | 空(回收站) | 「回收站是空的」 |
+| 回收站非空 | 工具行「清空回收站」(AlertDialog 红主钮;契约 `prompts.emptyTrash` → `{ purged }`,六层齐;成功 toast 报条数) |
 | error | 错误卡 + 重试 |
+
+分页:列表尾部滚动哨兵(`IntersectionObserver` 提前一屏取下一页;无 IO 的环境退化为「加载更多」钮)。大库虚拟化(`@tanstack/react-virtual`,features 尚未声明依赖)登记为后续卡。
 
 ### 4.5 遗留差值(随 M4d 抛光收口)
 
 - [ ] 标签管理器(TaxonomyManager)移动端切 Sheet。
 - [x] 回收站内永久删除:契约 `prompts.purge`(仅已软删行合法),行动作「永久删除」+ AlertDialog 红主钮;桌面直删 SQLite(FTS 同步清理),云端硬删 PG 并广播 delete 同步事件。移入回收站维持不确认(可恢复,承旧)。
+- [x] 2026-09-06(B1-T1):封面缩略、详情 Inspector/Sheet、行点击开详情、清除筛选/新建 CTA、清空回收站、⌘S、更新时间、复制 Check、`prompt-highlight` 接收端(存为提示词 → 跳库高亮)、⌘K / `/` 聚焦搜索。剩余:大库虚拟化;「相关作品」的 `promptId` 过滤下推到服务端(当前拉最近 100 回合客户端过滤,属生成域)。
 
 ---
 
-## 5. 生成历史(M4c,未动工)
+## 5. 生成历史(M4c ✅;2026-09-06 B1-T2 完整性收口,ui-parity/05 §7 九项全部销账)
 
 ### 5.1 布局(承旧 `GenerationHistoryWorkspace`)
 
@@ -285,14 +300,14 @@ Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创�
 分页:「加载更多」按钮(cursor 分页)
 ```
 
-详情:点击行 → 右侧 Inspector 抽屉(桌面 ≥lg 内嵌面板,<lg 及移动 Sheet):大图预览 + 完整提示词/反向词(可复制)+ 参数表(模型/比例/质量/耗时/成本)+ 动作(重试、删除、跳到所属会话)。
+详情:点击行 → 右侧 Inspector(桌面 ≥lg 内嵌面板,8px 右移淡入;<lg 及移动 Sheet):大图预览 + 完整提示词/反向词(可复制)+ 参数区(固定次序:模型 / 尺寸 / 比例 / 质量 / 种子 / 成本 / 用时 / 创建时间,值未知即不渲染该行;契约字段 `durationMs` / `seed`,云端 seed 上游不回报故为 null)+ 错误区(归一标题 + 说明 + 「建议:xxx」,`history-detail-error-action`;上游原文与标题不同时另给原始码 · 原文一行作诊断)+ 微调链区(「来自」父记录 + 「派生 n 条」子记录,均可点跳选中;父记录不在结果集时降级「微调(来源记录已删除)」)+ 动作(重试按错误码目录 `canRetryGeneration` 放开、删除、跳到所属会话;桌面另有「在文件夹中显示」「复制图片」,`canRevealLocalFile` 门控,Lightbox 同享)。
 
 ### 5.2 筛选栏(承旧 `HistoryFilterBar`)
 
 - 搜索:提示词/模型/错误信息,300ms 防抖,可清空。
 - 状态 select:全部/排队/生成中/成功/失败/已取消。
 - 模型 select:从结果集聚合的动态选项。
-- 时间预设:今天/7 天/30 天(默认)/全部。
+- 时间预设:今天/7 天/30 天(默认)/全部/**自定义区间**(起止日期,`from`/`to` ISO 全链下推)。
 - 「清除筛选」仅在有活动筛选时出现,带活动计数 Badge。
 - 契约映射:`GenerationHistoryQuery`(search/status/providerModel/from/to/cursor)。
 
@@ -300,13 +315,17 @@ Dialog(桌面)承载:标题、内容 textarea、描述、标签多选(内联创�
 
 - 行左缩略图:成功 = 首资产图(lazy);失败/无图 = ImageOff/History 图标;运行中 = Spinner。
 - StatusBadge 色调:成功绿/失败红/取消灰/运行中主色。
-- 操作组(hover 常驻,同 §4.2 模式):重试、删除(回收站),运行中行为「取消」。
-- 微调线程:`parentRunId` 归组缩进展示(只读,发起微调暂缓 §0.2)。
+- 行元信息(状态徽标之后,各项以淡「·」真实 DOM 节点相隔,数字 `tabular-nums`):模型 · 成本「x 积分」 · 用时「ys」 · 错误标题 · 「+n 微调」 · 创建时间。成本与用时**仅成功行**渲染;`costPoints` / `durationMs` 为 null 时整项不渲染(不伪造 0);失败行以归一错误标题占位。
+- 操作组(hover 常驻,同 §4.2 模式):重试(仅错误码目录允许,成功/拒绝/过期不给;取消一律可重试)、删除(回收站),运行中行为「取消」。
+- 微调线程:`parentRunId` 归组缩进展示(只读,发起微调暂缓 §0.2);父记录不在结果集的孤儿子回合标注来源已删除。
 - 列表状态矩阵:loading skeleton ×6 / 空「还没有生成记录,去工作台开始第一张图」+CTA / 筛选空「没有匹配的记录」+清除 / error+重试。
+- 分页:滚动哨兵(`history-load-sentinel`,IO 提前一屏取下一页,无 IO 退化为按钮);大列表虚拟化登记为后续卡(同 §4.4)。
 
-### 5.4 回收站
+### 5.4 回收站与维护
 
 Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除」(AlertDialog,红主钮)✅。永久删除契约 `generation.purge`(仅已软删终态行合法):桌面硬删 run 行(资产行级联)并清理磁盘资产文件;云端硬删 PG 行并尽力清理对象存储(失败留孤儿对象给保留策略,不阻塞操作)。
+
+回收站 tab 下另有维护工具行(`HistoryMaintenanceBar`):左侧磁盘用量(HardDrive + `formatBytes` + 文件数 + 刷新;`generation.getStorageUsage`,`canRevealLocalFile` 门控,Web 不渲染),右侧「清理」DropdownMenu 三项(清 30 天前 / 清失败与取消 / 清空回收站),各带 AlertDialog;前两项软删入回收站、图片文件仍保留,第三项永久删除并清理磁盘/对象存储。契约 `generation.cleanup({ scope })` → `{ affected }` 六层齐,成功 toast 报条数。桌面可选方法 `getStorageUsage` / `revealAsset` / `copyAssetToClipboard` 云网关不实现。
 
 ---
 
@@ -327,18 +346,22 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 
 | 分组 | 分区 id | 内容 | capability 门 | 状态 |
 |---|---|---|---|---|
-| 通用 | `appearance` | 主题(浅/深/跟随系统)、动效三档、语言(§6.3 行式控件) | 恒真 | ✅ |
+| 通用 | `appearance` | 外观卡:主题 / 动效三档 / 界面密度两档(带图标 `ToggleGroup`)+ 语言 Select;`ThemeSync` / `MotionSync` / `DensitySync` 宿主同处挂载;system 档 hint 挂载后读 `matchMedia` 动态显示当前解析值;偏好读取失败给「重试」钮。**生成参数卡**(`GenerationDefaultsCard`):默认比例(Composer 同一目录 + `auto`)/ 默认质量(自动/标准/高清/超清,与 Composer 文案一致);写入 `AppPreferences.defaultAspectRatio/defaultQuality`,新会话/空草稿继承,用户显式改过的草稿字段不被覆盖 | 恒真 | ✅(密度 token 已定义,列表行消费随后续卡) |
 | 访问 | `account` | 登录(账密表单)/身份积分卡/兑换/退出(§7.1) | 恒真 | ✅ |
 | 访问 | `sync` | 云同步开关(登录 ≠ 同步)/状态/立即同步(§7.3) | `hasCloudSyncControls` | ✅ |
 | 访问 | `connections` | 生图连接卡 + Agent 文本连接卡(§7.2)+ 豆包免费试用卡(§0.2) | 三能力任一 | ✅ |
-| 应用 | `data` | 回收站入口(提示词/生成历史)+ 已归档对话列表(刷新/恢复/软删) | 宿主接线 `onOpenScreen` | ✅ |
-| 应用 | `about`(未注册) | 版本号、更新检查、开源许可 | — | M5b 后续卡 |
+| 应用 | `data` | 回收站入口(提示词/生成历史)+ 已归档对话列表(刷新/恢复/软删)+ **本机数据面**(`DataStorageCard`):数据库备份(立即备份 / 列表 / 逐份恢复 → 确认覆盖并重启 `system.relaunch`)、存储位置(白名单 id,`displayPath` 是本域唯一路径出参;复制 / 打开)、诊断日志(按需读取,200KB 截断)、危险区(确认短语「清空全部数据」;清空前自动 `pre-reset` 快照并回显文件名) | 分区门:宿主接线 `onOpenScreen`;本机数据面:`hasLocalDataManagement` | ✅ |
+| 应用 | `about` | `AboutCard`:品牌面板 + 版本行(桌面:版本 / 库结构版本 / 平台;Web:「Web 版」)+ 复制版本信息 / 反馈信息 + 查看文档(桌面 `system.openProductDocs`,随包本地文档;Web 无 system 域不渲染该行)+ 第三方声明 Dialog(`settings/third-party-notices.ts`,形状由 `thirdPartyNoticeSchema` 约束)+ 快捷键表(`shell/shortcuts.ts` `PRODUCT_SHORTCUTS` 单源)。更新检查体系仍属暂缓域(§0.2) | 恒真(双端) | ✅ |
+
+数据面:桌面新 `system` 域(契约 `packages/contracts/src/system.ts`,`V25_METHODS_BY_DOMAIN.system` 11 方法:`getAppInfo · listBackups · createBackup · restoreBackup · listStorageLocations · openStorageLocation · readDiagnosticLog · clearAllData · openExternal · openProductDocs · relaunch`),出参除 `displayPath` 外 path-free,错误 message 经 `pathFreeMessage()` 过滤。`SystemGateway` 为可选(`gateway.system?`),Web 网关不实现。
 
 ### 6.3 控件约定
 
-- 每分区 = 若干控件卡(`Card`:标题 + 描述 + 内容);行式控件:左标签+描述,右控件(Switch/Select/Button)。
-- 危险区(清数据等)红边卡 + AlertDialog。
-- 所有写偏好即时生效 + 乐观更新,失败回滚 + toast。
+- 每分区 = 若干控件卡(`Card`:标题 + 描述 + 内容);行式控件:左标签+描述,右控件(Switch/Select/Button/`ToggleGroup` 段控件)。段控件在 <sm 铺满行宽、字号/内距收一档(`settings/segment-classes.ts`),sm+ 恢复 w-fit。
+- 危险区(清数据等)`border-destructive/30` 卡;不可逆动作用**确认短语输入**(强于 AlertDialog),短语匹配后按钮由 outline 转 destructive 填充;其余破坏性动作 AlertDialog。
+- 本机数据面只在 `hasLocalDataManagement` 宿主渲染。
+- 所有写偏好即时生效 + 乐观更新,失败回滚 + toast;偏好读取失败态必须给「重试」。
+- 偏好 patch 契约 `appPreferencesPatchSchema` 由完整 schema 剥掉 default 后 partial 派生:缺席字段保持缺席(zod 4 `.partial()` 会回填 default,桌面 bridge 先 parse 再 spread 时会把其它偏好打回默认)。
 
 ### 6.4 新增设置项的开发流程(规范;走线细则见 V25-FEATURE-DEV-GUIDE §8-C)
 
@@ -365,13 +388,13 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 
 ### 7.2 AI 连接管理(`AiConnectionsPanel`,桌面专属,`hasLocalAiProviders` 开关)
 
-- 列表行:名称 + 「默认」Badge(活动连接)+ 副行(模型 · Base URL · 密钥尾号/未配置)+ 常驻操作(设为默认/编辑/删除)。
-- 新建/编辑 Dialog:名称、Base URL、模型、API Key(密文输入,只写不回显;编辑留空=不动)。类型不设 select:v2.5 新建一律 openai-compatible,存量异型数据兼容展示。
-- 「测试连接」钮 ✅:行内 Plug 图标钮;主进程 `aiProviders.test` 真发探测(GET `{baseUrl}/models` 带 bearer,8s 超时),结果行内展示(成功「连接正常 · NNNms」绿字 / 失败可读引导红字),不产生生成费用。
+- 列表行:行首 6px 状态点(缺 Key=`--warning` / 近测通过=`--success` / 未测=`--muted-foreground`/40%)+ 名称 + 「默认」Badge(活动连接)+ 副行(模型 · Base URL · 密钥尾号/未配置)+ 常驻操作(设为默认/测试/编辑/删除)。列表 `ORDER BY is_active DESC`,`generation.listProviders` 同序,Composer 未显式选择时预选 `providers[0]` = 默认连接。
+- 新建/编辑 Dialog:名称、Base URL、模型(可输可选 `Combobox` + 「拉取模型列表」,`*.listModels`;草稿态凭 `{ baseUrl, apiKey }` 亦可拉取,Key 只在本次 IPC 往返里由主进程拼 Authorization,不落盘不入日志)、API Key(密文输入,只写不回显;编辑留空=不动)。未保存改动关闭需确认(`use-discard-guard`);新建 Dialog 内可草稿测试(不落库);无 Key 时拉模型/测试前置提示并聚焦密钥框。空态与 Dialog 顶部显示接入预设 chips(`connection-presets.ts`,承 v2.1 `AI_CONNECTION_PRESETS`)。类型不设 select:v2.5 新建一律 openai-compatible,存量异型数据兼容展示。
+- 「测试连接」钮 ✅:行内 Plug 图标钮;主进程 `aiProviders.test` 真发探测(GET `{baseUrl}/models` 带 bearer,8s 超时),结果 `role="status"` 行内展示(成功「连接正常 · NNNms」绿字 tabular / 失败可读引导红字),不产生生成费用。删除同时清钥匙链(单测断言)。
 - Key 只经主进程 safeStorage(keychain),SQLite 只存 has_key/key_suffix 展示位;渲染层不落任何密钥(红线承 v2.1)。
 - 删除:AlertDialog(密钥一并删除,历史保留);删除默认连接时最近更新的一条自动接管默认。
 - 数据面与工作台 Composer 的 Provider 下拉同源(SQLite providers 表),增删改后两处同时失效刷新。
-- **Agent 连接卡**（`AgentConnectionsPanel`，2026-09-03，`hasAgentConnections` 开关，桌面专属）：与生图连接卡并列于同一「连接」区，共用 `ConnectionsPanel` 泛化面板（列表行 / 新建·编辑 Dialog / 设为默认 / 测试 / 删除），文案与 testid 前缀独立（`settings-agent-connections-card`、`agent-connection-*`）。数据面 `gateway.agentConnections`（6 方法）接主进程 `AiConnectionStore`——与设计方案 Agent（Analyst / Compiler / Reviser）和 Skill runtime 同一事实源，v2.1 已配置的文本连接直接出现；「默认」即 Agent 实际使用的连接。账号托管连接显示「账号托管」Badge，编辑/删除禁用。Key 同样只经主进程 keychain，渲染层只见 hasKey/keySuffix。仍未覆盖：模型列表拉取/预设选择（沿 v2.1 `AI_CONNECTION_PRESETS` 的 combobox）与 Agent key 失效后的可解释引导（S01）。
+- **Agent 连接卡**（`AgentConnectionsPanel`，2026-09-03，`hasAgentConnections` 开关，桌面专属）：与生图连接卡并列于同一「连接」区，共用 `ConnectionsPanel` 泛化面板（列表行 / 新建·编辑 Dialog / 设为默认 / 测试 / 删除），文案与 testid 前缀独立（`settings-agent-connections-card`、`agent-connection-*`）。数据面 `gateway.agentConnections`（6 方法）接主进程 `AiConnectionStore`——与设计方案 Agent（Analyst / Compiler / Reviser）和 Skill runtime 同一事实源，v2.1 已配置的文本连接直接出现；「默认」即 Agent 实际使用的连接。账号托管连接显示「账号托管」Badge，编辑/删除禁用。Key 同样只经主进程 keychain，渲染层只见 hasKey/keySuffix。2026-09-06(B1-T3)两卡同享模型拉取 combobox / 脏表单守卫 / 设为默认 / 状态点 / 预设 / 草稿测试,`aiProviders` 与 `agentConnections` 现各 7 方法(含 `listModels`)。仍未覆盖:Agent/生图 key 失效后的可解释引导(S01);「需要重启应用」逃生门随壳收尾接 `useRelaunchApp()`。
 
 ### 7.3 云同步卡(`CloudSyncPanel`,桌面专属,`hasCloudSyncControls` 开关;M4e ✅)
 
@@ -395,7 +418,7 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 - **I4 错误**:查询错误就地错误卡(标题+消息+重试钮);变更错误 toast(保留用户输入);表单校验错误字段下红字。
 - **I5 空态**:图标 + 一句引导 + 主 CTA(能创建的场景必须给 CTA);筛选空态给「清除筛选」。
 - **I6 乐观更新**:列表内 CRUD 一律乐观 + 失败回滚;跨屏影响(如生成完成)靠 query invalidation。
-- **I7 快捷键(桌面/Web 物理键盘)**:⌘N 新设计、⌘K 搜索(暂缓期跳库搜索)、Enter 发送、Shift+Enter 换行、Esc 关浮层/取消行内编辑。
+- **I7 快捷键(桌面/Web 物理键盘)**:⌘N 新设计、⌘K 搜索提示词(全局:切到提示词库并聚焦搜索框,`shell/AppShell` 接线)、`/` 聚焦搜索框(提示词库非输入态)、⌘S 保存提示词(编辑器有未保存修改时)、Enter 发送、Shift+Enter 换行、Esc 关浮层/取消行内编辑。全部登记在 `packages/features/src/shell/shortcuts.ts` `PRODUCT_SHORTCUTS`(单源;关于卡快捷键表与 `shortcuts.test.ts` 接线镜像都读它)。
 - **I8 testid**:`<域>-<对象>-<动作>` 蛇形连字;列表行 `<域>-row-<id>`;E2E 只允许用 testid/role 定位。
 - **I9 可访问性**:图标钮必须 `aria-label`;活动导航 `aria-current`;浮层焦点圈闭 + Esc 关闭 + 焦点归还触发器。
 
@@ -424,14 +447,19 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | D7 | 自定义比例传输形态 | RatioPicker 支持,domain 内部用 `custom:W:H` 前缀 | UI 已恢复(§3.2 自定义行);v2.5 数据流只传 canonical `W:H`(每边 1–99 无前导零,比例限 1:4–4:1),`custom:` 前缀不落草稿/请求 | 契约与 UI 共用相同比例边界;是否自定义由「值不在预设目录」推导,无需前缀通道,同一比例不会产生多个幂等指纹 |
 | D8 | 桌宠/朱点 | 常驻 | 冻结不迁 | 用户指示(2026-08-28) |
 | D9 | 登录形态 | 独立登录屏(桌面)/登录页(Web 设想) | 设置页账号卡内联账密表单,双端同一份 | 凭据委托 New API(账密),无第三方 IdP;内联表单少一跳,四端一致 |
-| D10 | 设置布局 | 分组导航工作区 | 暂为单列卡片流 | 已交付分区仅 3-4 个,导航反增导航成本;分区 ≥5 时按 §6.1 目标形态切换 |
+| D10 | 设置布局 | 分组导航工作区 | 已按 §6.1 目标形态交付(分组导航 + 分区面板,现 6 分区;2026-09-03 切换,此前单列卡片流退役) | 分区达阈值后与旧版形态一致,不再是差异;保留行号供历史引用 |
 | D11 | AI 连接类型选择 | 新建时可选类型 | 固定 openai-compatible | v2.5 唯一受支持协议;豆包网页等随各自域后续排卡 |
 | D12 | Web↔API 部署形态 | 分域(CORS) | 同源(宿主反代 /api/*) | 会话 cookie 同站直用,免 CORS/第三方 cookie 一整类问题;API 刻意不开 CORS |
-| D13 | 工作台空态快捷建议 | 三行逐字横滚动画 + 英文水印背景(大段自定义 CSS) | 静态三条低权重文本行,点击回填草稿 | 信息架构与文案承旧;动画实现臃肿且不可主题化,简化为 token 化静态行 |
+| D13 | 工作台空态快捷建议 | 三行逐字横滚动画 + 英文水印背景(大段自定义 CSS) | **已撤销**(2026-08-29):水印 / 横滚 / mark 96px 按旧值恢复,减少动效双通道降级为静态三行(ui globals.css token 化) | 用户要求承旧;差异不再存在,行保留供历史引用 |
 | D14 | Prompt 引用传输与快照 | renderer 可携带展示文本/标题参与后续编排 | renderer 只传 `promptId/scope/expectedVersion/range`;Web 服务端或 Desktop 主进程按 owner/workspace 解析,生成账本存不可变 title/text/version 快照 | 客户端文本不是权威数据;阻断越权/伪造,同时保证源编辑或删除后历史不漂移;功能结果与入口不变 |
 | D15 | compact 抽屉账号区 | 点击账号区即关闭抽屉 | 点击账号区保持抽屉,完成身份/连接菜单动作后由动作自身导航或关闭 | 当前账号菜单以抽屉内触发器为锚,提前卸载会使登录/切换入口不可操作;导航、新设计和会话仍按旧语义自动关闭 |
 | D16 | macOS brandInset 几何 | 展开/收起顶栏使用不同 inset,原生全屏回落 12px | v2.5 统一由单一 `brandInset` prop 承载:非全屏 78px、原生全屏 12px,非 macOS 0px | 保留交通灯让位和全屏回落结果,减少共享 AppShell 的平台分支;窗口状态走只读宿主信号,不进入业务数据通道 |
 | D17 | 归档删除语义 | 旧版归档列表删除为永久删除 | v2.5 归档列表删除沿 `removeSession` 软删,生成 run/history 保留,真正 purge 延后 D02 | 与当前会话生命周期和数据保留策略一致,避免归档入口直接造成不可逆清理 |
+| D18 | 界面密度消费范围 | 密度 token 即时作用于全部列表行/导航 | 2026-09-06 恢复 7 个 `--density-*` token + `data-density` 同步 + 设置两档 chips;提示词/历史/设置行与会话列表的 token 消费及紧凑态快照随后续卡 | 分两步落地避免与并行改行的卡冲突;token 先定义,消费点表见 MIGRATION-CARDS U05 |
+| D19 | 「清空全部数据」边界 | 清七类业务表 + `prompts_fts` | 增清 `workbench_sessions` / `workbench_drafts`(十表 + fts) | v2.5 单账本下 runs 的 `workbench_session_id` 是 set null,只清 runs 会在工作台留下一串无轮次空对话;Provider / 密钥 / 图片文件仍不在边界内 |
+| D20 | 第三方许可清单数据源 | 桌面 renderer 内静态表(桌面 only) | `packages/features/src/settings/third-party-notices.ts`(双端同一份),形状由 contracts `thirdPartyNoticeSchema` 约束 | 纯静态许可数据,双端都需可达;走 IPC 只多一跳,合规要求 Web 也能看到 |
+| D21 | AI 连接编辑形态 | master-detail(左列表右表单) | 列表 + Dialog(新建/编辑),行首状态点 + 常驻操作 | 与提示词/历史屏的「列表 + 浮层」语法统一;信息与动作集合不变,D11 类型固定同时保留 |
+| D22 | 历史「相关作品」过滤位置 | — (旧版无此面板) | 提示词详情拉最近 100 回合客户端按 `promptId` 过滤 | `GenerationHistoryQuery` 尚无 `promptId`;历史很长会漏,下推服务端登记为生成域后续卡 |
 
 --- 组件复用矩阵
 
@@ -450,8 +478,9 @@ Tabs 或筛选切换进回收站视图:行只留「恢复」与「永久删除�
 | `workbench` | `WorkbenchScreen` `GenerationTimeline` `Composer` `SessionPicker` `PromptReferencePanel` `PromptReferenceDock` + hooks | 两宿主 |
 | `history`(M4c) | `HistoryScreen` `HistoryFilterBar` `HistoryRow` `HistoryInspector` + hooks | 两宿主 |
 | `design-schemes`(P01 迁移中,§8A) | `SchemesScreen` `SchemeControlDeck` `SchemeInspector` `SchemeDetailView` + hooks | 两宿主代码挂载；Desktop 入口开启(`hasDesignSchemes=true`)且 Workbench 运行缝 `onRun/onCancelRun`（含参考图）与 Agent 缝 `onCreate/onModify`（含 GitHub 安装确认）已接通，Web capability 关闭；Web 资产/包面与成功出图 E2E 待后续卡 |
-| `settings` | `SettingsScreen` + 分区组件 | 两宿主 |
-| `account`(M4d/M4e) | `AccountPanel` `AiConnectionsPanel` `CloudSyncPanel` `AccountFooter` + hooks | 两宿主(连接/同步面桌面 only,能力开关控制) |
+| `settings` | `SettingsScreen` + 分区注册表 `sections.tsx` + 分区卡(`AppearanceCard` `GenerationDefaultsCard` `DataStorageCard` `AboutCard` …)+ `DensitySync` + system hooks | 两宿主(本机数据面 `hasLocalDataManagement`) |
+| `account`(M4d/M4e) | `AccountPanel` `ConnectionsPanel`(泛化)→ `AiConnectionsPanel` / `AgentConnectionsPanel` `CloudSyncPanel` `AccountFooter` + hooks + `connection-presets` / `connection-status` | 两宿主(连接/同步面桌面 only,能力开关控制) |
+| `onboarding`(U01,§2.6) | `OnboardingFlow` + `useOnboardingGate` / `useCompleteOnboarding` | 两宿主各一行挂载 |
 
 宿主差异一律经 `MusefoldGateway` 能力开关(`PlatformCapabilities`)表达,禁止在 features 内写 `isElectron` 分支。
 

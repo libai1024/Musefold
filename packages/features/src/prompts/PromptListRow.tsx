@@ -3,9 +3,11 @@
 import type { PromptDocument } from '@musefold/contracts';
 import { Badge } from '@musefold/ui/components/badge';
 import { Button } from '@musefold/ui/components/button';
+import { FadeImage } from '@musefold/ui/components/fade-image';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@musefold/ui/components/tooltip';
 import {
   Blocks,
+  Check,
   Copy,
   FileText,
   Pencil,
@@ -16,12 +18,19 @@ import {
   Trash2,
 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
+import { skipMotion } from '@musefold/ui/lib/motion';
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
+import { promptRelativeTime } from './format';
 
 export interface PromptListRowProps {
   prompt: PromptDocument;
-  /** 跨屏定位高亮(「存为提示词 → 查看」落点):accent 底色 2s 渐隐并滚入视口。 */
+  /** 跨屏定位高亮(「存为提示词 → 查看」落点):accent 底色 2s 渐隐并平滑滚入视口居中。 */
   highlighted?: boolean;
+  /** 详情 Inspector 当前选中该行(md+ 右栏 / 窄屏 Sheet 共用)。 */
+  selected?: boolean;
+  /** 行点击 = 打开详情(承旧 PromptListRow → PromptDetailScreen)。 */
+  onOpen(prompt: PromptDocument): void;
   /** 「使用」= 送工作台草稿并切屏(承旧行尾主动作,ui-parity 04 P0)。 */
   onUse(prompt: PromptDocument): void;
   onEdit(prompt: PromptDocument): void;
@@ -69,14 +78,54 @@ function RowAction({
   );
 }
 
+/** 44px 行封面:有封面显图(overflow-hidden 内 hover 轻推 1.06 + onload 淡入),无封面 FileText 占位。 */
+export function PromptCover({
+  prompt,
+  className,
+  iconClassName,
+  testId = 'prompt-cover',
+}: {
+  prompt: PromptDocument;
+  className?: string;
+  iconClassName?: string;
+  testId?: string;
+}) {
+  const url = prompt.coverImageUrl ?? null;
+  return (
+    <span
+      className={cn(
+        'flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground',
+        className,
+      )}
+    >
+      {url ? (
+        <FadeImage
+          src={url}
+          alt=""
+          data-testid={testId}
+          className="size-full object-cover transition-transform duration-(--dur-fast) group-hover:scale-[1.06]"
+        />
+      ) : (
+        <FileText
+          className={cn('size-5', iconClassName)}
+          aria-hidden
+          data-testid={`${testId}-placeholder`}
+        />
+      )}
+    </span>
+  );
+}
+
 /**
  * 库列表行(信息架构承自 v2.0 PromptListRow):
- * 缩略图 + 标题/摘要/元信息 + 常驻操作组。操作不藏浮层——
+ * 封面缩略 + 标题/摘要/元信息 + 常驻操作组。操作不藏浮层——
  * 桌面 hover 渐显、触屏常显,回收站行留「恢复/永久删除」。
  */
 export function PromptListRow({
   prompt,
   highlighted = false,
+  selected = false,
+  onOpen,
   onUse,
   onEdit,
   onCopy,
@@ -88,59 +137,69 @@ export function PromptListRow({
 }: PromptListRowProps) {
   const deleted = prompt.deletedAt != null;
   const summary = prompt.description?.trim() || prompt.content;
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1_200);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   return (
     <article
       data-testid={`prompt-row-${prompt.id}`}
+      data-highlighted={highlighted ? 'true' : undefined}
+      data-selected={selected ? 'true' : undefined}
+      aria-current={selected || highlighted ? 'true' : undefined}
       ref={(node) => {
-        if (highlighted) node?.scrollIntoView?.({ block: 'nearest' });
+        if (!highlighted || !node) return;
+        // 平滑滚动居中;减少动效分级下退回瞬时定位(CSS 的 scroll-behavior 压制只管容器)。
+        node.scrollIntoView?.({ block: 'center', behavior: skipMotion() ? 'auto' : 'smooth' });
       }}
       className={cn(
         'group flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-card',
         deleted && 'opacity-70',
+        selected && 'border-border bg-card',
         highlighted && 'mf-row-highlight',
       )}
     >
-      <div
-        className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground"
-        aria-hidden
-      >
-        <FileText className="size-5" />
-      </div>
-
       <button
         type="button"
-        className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
-        onClick={() => (deleted ? onRestore(prompt) : onEdit(prompt))}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        onClick={() => onOpen(prompt)}
         data-testid="prompt-row-open"
       >
-        <span className="flex items-center gap-1.5 font-medium text-foreground text-sm">
-          {prompt.isPinned && !deleted && (
-            <Pin className="size-3.5 shrink-0 text-primary" aria-label="已置顶" />
-          )}
-          <span className="truncate" data-testid="prompt-row-title">
-            {prompt.title}
-          </span>
-          {prompt.rating > 0 && (
-            <span className="flex shrink-0 items-center gap-0.5 text-warning text-xs tabular-nums">
-              <Star className="size-3 fill-current" aria-hidden />
-              {prompt.rating}
+        <PromptCover prompt={prompt} testId="prompt-row-cover" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 font-medium text-foreground text-sm">
+            {prompt.isPinned && !deleted && (
+              <Pin className="size-3.5 shrink-0 text-primary" aria-label="已置顶" />
+            )}
+            <span className="truncate" data-testid="prompt-row-title">
+              {prompt.title}
             </span>
-          )}
-        </span>
-        <span className="truncate text-muted-foreground text-xs">{summary}</span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground/80 tabular-nums">
-          {prompt.usageCount > 0 && <span>使用 {prompt.usageCount} 次</span>}
-          {prompt.tags.slice(0, 4).map((tag) => (
-            <Badge
-              key={tag.id}
-              variant="secondary"
-              className="max-w-28 truncate px-1.5 py-0 text-[10px]"
-            >
-              {tag.name}
-            </Badge>
-          ))}
-          {prompt.tags.length > 4 && <span>+{prompt.tags.length - 4}</span>}
+            {prompt.rating > 0 && (
+              <span className="flex shrink-0 items-center gap-0.5 text-warning text-xs tabular-nums">
+                <Star className="size-3 fill-current" aria-hidden />
+                {prompt.rating}
+              </span>
+            )}
+          </span>
+          <span className="truncate text-muted-foreground text-xs">{summary}</span>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground/80 tabular-nums">
+            {prompt.usageCount > 0 && <span>使用 {prompt.usageCount} 次</span>}
+            <span data-testid="prompt-row-updated">{promptRelativeTime(prompt.updatedAt)}</span>
+            {prompt.tags.slice(0, 4).map((tag) => (
+              <Badge
+                key={tag.id}
+                variant="secondary"
+                className="max-w-28 truncate px-1.5 py-0 text-[10px]"
+              >
+                {tag.name}
+              </Badge>
+            ))}
+            {prompt.tags.length > 4 && <span>+{prompt.tags.length - 4}</span>}
+          </span>
         </span>
       </button>
 
@@ -171,8 +230,15 @@ export function PromptListRow({
             >
               使用
             </Button>
-            <RowAction label="复制内容" testId="prompt-row-copy" onClick={() => onCopy(prompt)}>
-              <Copy className="size-4" />
+            <RowAction
+              label="复制内容"
+              testId="prompt-row-copy"
+              onClick={() => {
+                onCopy(prompt);
+                setCopied(true);
+              }}
+            >
+              {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
             </RowAction>
             {onCreateScheme ? (
               <RowAction

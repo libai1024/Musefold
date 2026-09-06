@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { Combobox } from '../components/combobox';
 import { Badge } from '../components/badge';
 import { MusefoldMark } from '../components/brand-mark';
 import { Button } from '../components/button';
@@ -66,6 +67,20 @@ describe('@musefold/ui shadcn components', () => {
     ]) {
       expect(html).toContain(cls);
     }
+  });
+
+  it('renders a typeable combobox with a suggestion list', () => {
+    const html = renderToStaticMarkup(
+      <Combobox
+        value="gpt"
+        onValueChange={() => undefined}
+        options={[{ value: 'gpt-image-2', label: 'GPT Image' }]}
+        data-testid="model"
+      />,
+    );
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('data-testid="model"');
+    expect(html).toContain('gpt');
   });
 
   it('renders Kbd primitive per craft §5.4 anatomy (C-2)', () => {

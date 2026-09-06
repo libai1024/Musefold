@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   type CreateGenerationInput,
+  type GenerationCleanupInput,
+  type GenerationCleanupResult,
   type GenerationHistoryPage,
   type GenerationJob,
   type GenerationReferenceImage,
@@ -10,6 +12,7 @@ import {
   type UploadReferenceImageInput,
   cloudGenerationRequestSchema,
   createGenerationInputSchema,
+  generationCleanupInputSchema,
   generationHistoryQuerySchema,
   generationJobSchema,
   generationReferenceImageSchema,
@@ -89,6 +92,8 @@ export const PROVIDER_MODEL = 'musefold-image-pro';
 const TERMINAL_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
 /** Unlinked successful uploads expire after 24 hours; linked runs retain them until all links disappear. */
 export const REFERENCE_UPLOAD_TTL_MS = 24 * 60 * 60_000;
+/** 「清 30 天前」的窗口(承旧 HistoryCleanupMenu)。 */
+const CLEANUP_OLDER_THAN_MS = 30 * 24 * 60 * 60_000;
 
 /**
  * 生图运行编排(v2.5:云端 MCP 为只读白名单,审批/花费预留流程不迁移)。
@@ -280,6 +285,83 @@ export class GenerationService {
       // User purge already committed. Preserve retry intent and never surface an S3 outage.
       await markObjectCleanupAttemptFailed(this.db, objectKeys, error).catch(() => undefined);
     }
+  }
+
+  /**
+   * 批量清理(ui-parity 05 §7):前两种范围只软删入回收站(资产保留,可恢复);
+   * empty-trash 复用 purge 语义硬删回收站全部终态行并清理对象存储。
+   * 进行中的运行永不参与清理(避免把在跑的任务清掉)。
+   */
+  async cleanup(userId: string, input: GenerationCleanupInput): Promise<GenerationCleanupResult> {
+    const { scope } = generationCleanupInputSchema.parse(input);
+    const terminal = [...TERMINAL_STATUSES];
+    if (scope === 'empty-trash') return this.emptyTrash(userId);
+
+    const filter =
+      scope === 'older-than-30d'
+        ? sql`${generationRuns.createdAt} < ${new Date(Date.now() - CLEANUP_OLDER_THAN_MS)}`
+        : inArray(generationRuns.status, ['failed', 'cancelled']);
+    const affected = await this.db
+      .update(generationRuns)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(generationRuns.userId, userId),
+          isNull(generationRuns.deletedAt),
+          inArray(generationRuns.status, terminal),
+          filter,
+        ),
+      )
+      .returning({ id: generationRuns.id });
+    return { affected: affected.length };
+  }
+
+  /** 清空回收站:与单条 purge 同一保留策略(对象清理意图入表 → 尽力删除 → 确认)。 */
+  private async emptyTrash(userId: string): Promise<GenerationCleanupResult> {
+    const outcome = await this.db.transaction(async (tx) => {
+      const doomed = await tx
+        .select({ id: generationRuns.id })
+        .from(generationRuns)
+        .where(
+          and(
+            eq(generationRuns.userId, userId),
+            sql`${generationRuns.deletedAt} IS NOT NULL`,
+            inArray(generationRuns.status, [...TERMINAL_STATUSES]),
+          ),
+        );
+      const ids = doomed.map((row) => row.id);
+      if (ids.length === 0) return { affected: 0, objectKeys: [] as string[] };
+      const assets = await tx
+        .select({ objectKey: generationAssets.objectKey })
+        .from(generationAssets)
+        .where(inArray(generationAssets.runId, ids));
+      const objectKeys = assets.map((asset) => asset.objectKey);
+      await enqueueObjectCleanup(
+        tx,
+        objectKeys.map((objectKey) => ({
+          objectKey,
+          ownerId: userId,
+          objectType: 'generation_asset' as const,
+          reason: 'generation_purge' as const,
+        })),
+      );
+      await tx
+        .delete(generationRuns)
+        .where(and(eq(generationRuns.userId, userId), inArray(generationRuns.id, ids)));
+      return { affected: ids.length, objectKeys };
+    });
+    if (outcome.objectKeys.length > 0) {
+      try {
+        await this.signer.removeObjects(outcome.objectKeys);
+        await acknowledgeObjectCleanup(this.db, outcome.objectKeys);
+      } catch (error) {
+        // 清空已提交:保留重试意图,不把对象存储故障回传给用户(同单条 purge)。
+        await markObjectCleanupAttemptFailed(this.db, outcome.objectKeys, error).catch(
+          () => undefined,
+        );
+      }
+    }
+    return { affected: outcome.affected };
   }
 
   async assetSignedUrl(userId: string, assetId: string): Promise<SignedAssetUrl> {
@@ -800,6 +882,9 @@ export class GenerationService {
       request: cloudGenerationRequestSchema.parse(run.request),
       providerModel: run.providerModel,
       costPoints: run.costPoints,
+      durationMs: runDurationMs(run.startedAt, run.finishedAt),
+      // 云端上游当前不回报种子;保持 null 而不是伪造值(ui-parity 05 §7)。
+      seed: null,
       assets: assets.map((asset) => ({
         id: asset.id,
         url: `/api/v1/assets/${encodeURIComponent(asset.id)}/url`,
@@ -821,6 +906,13 @@ export class GenerationService {
       deletedAt: run.deletedAt?.toISOString() ?? null,
     });
   }
+}
+
+/** 终态用时:开始或结束时刻缺失(未开跑/时钟回拨)一律 null,不伪造 0。 */
+function runDurationMs(startedAt: Date | null, finishedAt: Date | null): number | null {
+  if (!startedAt || !finishedAt) return null;
+  const elapsed = finishedAt.getTime() - startedAt.getTime();
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.round(elapsed) : null;
 }
 
 function canonicalLogicalRequest(input: ParsedCreateGenerationInput): Record<string, unknown> {

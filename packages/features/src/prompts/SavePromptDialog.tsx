@@ -23,6 +23,8 @@ export interface SavePromptSource {
   negative: string | null;
   modelId: string | null;
   params: Record<string, unknown> | null;
+  /** 本次首张成功图,写成新条目的封面(ui-parity 04 §8-1);无成图则为 null。 */
+  coverImageUrl: string | null;
 }
 
 /** 从生成回合收编取材:参数只带契约认可的比例/质量,缺省不落键。 */
@@ -38,6 +40,8 @@ export function jobToSavePromptSource(job: GenerationJob): SavePromptSource {
     negative: job.request.negative ?? null,
     modelId: job.providerModel,
     params: Object.keys(params).length > 0 ? params : null,
+    // 封面是展示地址(桌面 media:// 受管 URL / 云端对象存储 URL),绝不是本地绝对路径。
+    coverImageUrl: job.assets[0]?.url ?? null,
   };
 }
 
@@ -76,6 +80,7 @@ export function SavePromptDialog({ source, onOpenChange, onOpenPrompts }: SavePr
         isPinned: false,
         source: 'generation',
         sourceUrl: null,
+        coverImageUrl: source.coverImageUrl,
       });
       onOpenChange(false);
       toast.success('已存为提示词', {

@@ -33,6 +33,8 @@ import {
 import { getDb } from '@musefold/core/db';
 import { promptsRepo } from '@musefold/core/db/repositories/prompts';
 import { resolveLocalContentWorkspace } from '@musefold/core/db/workspaces';
+import { getPaths } from '@musefold/core/runtime';
+import { resolve, sep } from 'node:path';
 import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { NewPrompt, Prompt, Tag } from '@musefold/desktop-contracts/models';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
@@ -58,6 +60,49 @@ function parseOffsetCursor(cursor: string | undefined): number {
   if (!cursor) return 0;
   const offset = Number.parseInt(cursor, 10);
   return Number.isFinite(offset) && offset >= 0 ? offset : 0;
+}
+
+// ---------- 封面:本地路径 ↔ media:// 受管 URL ----------
+
+/** 受管根目录(与 media-protocol.ts 读盘白名单同款约束,防目录穿越)。 */
+function managedRoots(): string[] {
+  const paths = getPaths();
+  return [paths.pictures, paths.previews].map((root) => resolve(root));
+}
+
+function isManagedPath(target: string): boolean {
+  return managedRoots().some((root) => target === root || target.startsWith(root + sep));
+}
+
+/**
+ * 本地封面路径 → 契约展示地址。**路径绝不出主进程**:渲染层只拿 media:// URL,
+ * 由 media-protocol.ts 在受管根目录内读盘。路径越界(旧库遗留的外部引用)当作无封面。
+ */
+function coverPathToMediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const target = resolve(path);
+  if (!isManagedPath(target)) return null;
+  return `media://local/?p=${encodeURIComponent(target)}`;
+}
+
+/**
+ * 契约展示地址 → 本地封面路径(「存为提示词」写首图时的回程)。
+ * 只认自家 media://local 且落在受管根目录内的地址;其余(含云端 https)不落盘,
+ * 桌面本地库没有远端封面的槽位。
+ */
+function mediaUrlToCoverPath(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'media:') return null;
+  const raw = parsed.searchParams.get('p');
+  if (!raw) return null;
+  const target = resolve(raw);
+  return isManagedPath(target) ? target : null;
 }
 
 // ---------- 行 → 文档 ----------
@@ -99,11 +144,14 @@ function promptRowToDocument(row: Prompt): PromptDocument {
     lastUsedAt: epochMsToIsoOrNull(row.lastUsedAt),
     source: row.source === 'shared' ? 'share' : row.source,
     sourceUrl: row.sourceUrl,
+    // 封面口径承旧 promptsRepo.coverImagePath:相关作品最新一张成功图,
+    // 无作品时兜底 preview_image_path(「存为提示词」写入的首图)。
+    coverImageUrl: coverPathToMediaUrl(row.coverImagePath),
     version: SYNTHETIC_VERSION,
     createdAt: epochMsToIso(row.createdAt),
     updatedAt: epochMsToIso(row.updatedAt),
     deletedAt: epochMsToIsoOrNull(row.deletedAt),
-    // 有损(桌面独有,文档侧无槽位):previewImagePath / coverImagePath。
+    // 有损(桌面独有,文档侧无槽位):previewImagePath 的原始路径形态。
   };
 }
 
@@ -135,6 +183,8 @@ function newDocumentToRow(input: NewPromptDocument): NewPrompt {
     rating: input.rating,
     source: cloudSourceToDesktop(input.source ?? 'manual'),
     sourceUrl: input.sourceUrl ?? undefined,
+    // 封面落 preview_image_path(承旧「存为提示词」槽位);越界/远端地址不落盘。
+    previewImagePath: mediaUrlToCoverPath(input.coverImageUrl) ?? undefined,
     tagIds: input.tagIds,
   };
 }
@@ -151,6 +201,10 @@ function updateDocumentToPatch(input: UpdatePromptDocument): UpdatePromptPatch {
   if (input.rating !== undefined) patch.rating = input.rating;
   if (input.tagIds !== undefined) patch.tagIds = input.tagIds;
   if (input.source !== undefined) patch.source = cloudSourceToDesktop(input.source);
+  // 显式 null 清除封面;缺省不改。远端/越界地址视同清除(本地无槽位存它)。
+  if (input.coverImageUrl !== undefined) {
+    patch.previewImagePath = mediaUrlToCoverPath(input.coverImageUrl);
+  }
   // 有损:expectedVersion(桌面无乐观锁)、pinOrder(置顶序走 togglePin 维护)。
   return patch;
 }
@@ -417,6 +471,16 @@ export function buildPromptsDomainMethods(): Record<string, MethodDef> {
         }
         promptsRepo.purge(id);
         return undefined;
+      },
+    },
+    'prompts.emptyTrash': {
+      input: z.undefined().or(z.object({}).strict()),
+      handle: async () => {
+        // 回收站为空返回 0(幂等);双重确认由渲染层负责。
+        const trashed = promptsRepo.listDeleted();
+        for (const row of trashed) promptsRepo.purge(row.id);
+        if (trashed.length > 0) scheduleCloudSync();
+        return { purged: trashed.length };
       },
     },
     'prompts.restore': {

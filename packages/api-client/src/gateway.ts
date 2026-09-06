@@ -3,6 +3,8 @@ import {
   type CreateGenerationInput,
   type LoginRequest,
   type CreateWorkbenchSession,
+  type GenerationCleanupInput,
+  generationCleanupResultSchema,
   type GenerationHistoryQuery,
   generationHistoryPageSchema,
   generationJobSchema,
@@ -12,6 +14,7 @@ import {
   type NewPromptTag,
   type PromptListQuery,
   promptDocumentSchema,
+  promptEmptyTrashResultSchema,
   promptFolderSchema,
   promptPageSchema,
   promptTagSchema,
@@ -131,6 +134,12 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           response: z.object({ ok: z.literal(true) }),
         });
       },
+      emptyTrash: () =>
+        http.request({
+          method: 'POST',
+          path: '/prompts/empty-trash',
+          response: promptEmptyTrashResultSchema,
+        }),
       use: (id, input: PromptUseInput) =>
         http.request({
           method: 'POST',
@@ -266,6 +275,13 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           method: 'GET',
           path: '/generations/providers',
           response: z.array(providerOptionSchema),
+        }),
+      cleanup: (input: GenerationCleanupInput) =>
+        http.request({
+          method: 'POST',
+          path: '/generations/cleanup',
+          body: input,
+          response: generationCleanupResultSchema,
         }),
       uploadReferenceImage: (input: UploadReferenceImageInput) => {
         const form = new FormData();

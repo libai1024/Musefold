@@ -2,12 +2,17 @@ import { getDb } from '@musefold/core/db/index';
 import { createBackup } from './backup';
 
 // 单账本:生成账本(generated_assets → generation_runs)取代旧 history 两表。
+// v2.5 增两张工作台表:清空后若留着 session 行,工作台会剩一串没有任何轮次的空对话
+// (runs 的 workbench_session_id 是 set null),与「清空全部数据」的承诺不符 —— 一并清。
+// 边界未变:providers / 密钥 / 计费设置 / 云同步账号状态 / 磁盘图片文件都不在此列。
 const RESET_ORDER = [
   'prompt_tags',
   'search_history',
   'smart_sets',
   'generated_assets',
   'generation_runs',
+  'workbench_drafts',
+  'workbench_sessions',
   'prompts',
   'tags',
   'folders',

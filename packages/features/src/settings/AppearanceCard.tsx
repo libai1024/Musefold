@@ -1,4 +1,5 @@
-import type { AppLanguage, AppTheme, MotionLevel } from '@musefold/contracts';
+import type { AppLanguage, AppTheme, InterfaceDensity, MotionLevel } from '@musefold/contracts';
+import { Button } from '@musefold/ui/components/button';
 import {
   Card,
   CardContent,
@@ -16,33 +17,92 @@ import {
 } from '@musefold/ui/components/select';
 import { Separator } from '@musefold/ui/components/separator';
 import { Skeleton } from '@musefold/ui/components/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@musefold/ui/components/toggle-group';
+import {
+  Minimize2,
+  Monitor,
+  Moon,
+  Sparkles,
+  StretchVertical,
+  Sun,
+  ZapOff,
+} from '@musefold/ui/icons';
+import { useEffect, useState } from 'react';
 import { usePreferences, useUpdatePreferences } from './hooks';
+import { SEGMENT_GROUP_CLASS, SEGMENT_ITEM_CLASS } from './segment-classes';
 
-const THEME_LABELS: Record<AppTheme, string> = {
-  light: '浅色',
-  dark: '深色',
-  system: '跟随系统',
-};
+const THEME_OPTIONS: readonly { value: AppTheme; label: string; icon: typeof Sun }[] = [
+  { value: 'system', label: '跟随系统', icon: Monitor },
+  { value: 'light', label: '浅色', icon: Sun },
+  { value: 'dark', label: '深色', icon: Moon },
+];
+
+const MOTION_OPTIONS: readonly { value: MotionLevel; label: string; icon: typeof Monitor }[] = [
+  { value: 'system', label: '跟随系统', icon: Monitor },
+  { value: 'on', label: '减少动效', icon: ZapOff },
+  { value: 'off', label: '完整动效', icon: Sparkles },
+];
+
+const DENSITY_OPTIONS: readonly {
+  value: InterfaceDensity;
+  label: string;
+  icon: typeof Minimize2;
+}[] = [
+  { value: 'comfortable', label: '舒适', icon: StretchVertical },
+  { value: 'compact', label: '紧凑', icon: Minimize2 },
+];
 
 const LANGUAGE_LABELS: Record<AppLanguage, string> = {
   'zh-CN': '简体中文',
   'en-US': 'English',
 };
 
-/** 三档动效(契约 motionLevelSchema,承旧 v2.1 语义):off 可覆盖系统减弱设置。 */
-const MOTION_LABELS: Record<MotionLevel, string> = {
-  system: '跟随系统',
-  on: '减少动效',
-  off: '完整动效',
-};
+/** 挂载后读 matchMedia,避免 SSR/首帧水合错位(0703-C1)。 */
+function useMountedMediaHints(): { dark: boolean; reduceMotion: boolean } | null {
+  const [hints, setHints] = useState<{ dark: boolean; reduceMotion: boolean } | null>(null);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const color = window.matchMedia('(prefers-color-scheme: dark)');
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setHints({ dark: color.matches, reduceMotion: motion.matches });
+    sync();
+    color.addEventListener('change', sync);
+    motion.addEventListener('change', sync);
+    return () => {
+      color.removeEventListener('change', sync);
+      motion.removeEventListener('change', sync);
+    };
+  }, []);
+
+  return hints;
+}
+
+function themeHint(theme: AppTheme, resolved: { dark: boolean } | null): string {
+  if (theme !== 'system') return '手动指定明暗';
+  if (!resolved) return '跟随系统';
+  return `跟随系统,当前为${resolved.dark ? '深色' : '浅色'}`;
+}
+
+function motionHint(level: MotionLevel, resolved: { reduceMotion: boolean } | null): string {
+  if (level === 'on') return '关闭过渡、入场和循环动画';
+  if (level === 'off') return '始终保留完整界面动效';
+  if (!resolved) return '跟随系统读取系统辅助功能设置';
+  return `跟随系统,当前:${resolved.reduceMotion ? '减少动效' : '完整动效'}`;
+}
+
+function densityHint(density: InterfaceDensity): string {
+  return density === 'compact' ? '缩短主要列表与卡片间距' : '保留更宽松的浏览间距';
+}
 
 /**
- * 「外观」分区卡(V25-UI-SPEC §6.2「通用 / 偏好」):主题 / 动效 / 语言,写偏好即时生效(乐观更新)。
- * 行式控件:左标签 + 描述,右 Select(§6.3)。
+ * 「外观」分区卡(V25-UI-SPEC §6.2「通用 / 偏好」):主题 / 动效 / 密度 / 语言。
+ * 主题/动效/密度统一 ToggleGroup(0703-C2);写偏好即时生效(乐观更新)。
  */
 export function AppearanceCard() {
   const preferences = usePreferences();
   const updatePreferences = useUpdatePreferences();
+  const media = useMountedMediaHints();
 
   return (
     <Card data-testid="settings-appearance-card">
@@ -54,60 +114,138 @@ export function AppearanceCard() {
         {preferences.isPending ? (
           <Skeleton className="h-9 w-full" data-testid="settings-loading" />
         ) : preferences.isError ? (
-          <p className="text-destructive text-sm">偏好读取失败,请重试</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-destructive text-sm">偏好读取失败,请重试</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void preferences.refetch()}
+              data-testid="settings-preferences-retry"
+            >
+              重试
+            </Button>
+          </div>
         ) : (
           <>
-            <div className="flex items-center justify-between gap-4">
-              <Label htmlFor="settings-theme">主题</Label>
-              <Select
-                value={preferences.data.theme}
-                onValueChange={(value) => updatePreferences.mutate({ theme: value as AppTheme })}
-              >
-                <SelectTrigger
-                  id="settings-theme"
-                  className="w-44"
-                  data-testid="settings-theme-trigger"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(THEME_LABELS) as AppTheme[]).map((theme) => (
-                    <SelectItem key={theme} value={theme} data-testid={`settings-theme-${theme}`}>
-                      {THEME_LABELS[theme]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <Label htmlFor="settings-motion">动效</Label>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  减少动效可降低视觉干扰与耗电;跟随系统读取系统辅助功能设置
+                <Label>主题</Label>
+                <p className="mt-1 text-muted-foreground text-xs" data-testid="settings-theme-hint">
+                  {themeHint(preferences.data.theme, media)}
                 </p>
               </div>
-              <Select
-                value={preferences.data.reducedMotion}
-                onValueChange={(value) =>
-                  updatePreferences.mutate({ reducedMotion: value as MotionLevel })
-                }
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={preferences.data.theme}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  updatePreferences.mutate({ theme: value as AppTheme });
+                }}
+                aria-label="主题"
+                data-testid="settings-theme-trigger"
+                className={SEGMENT_GROUP_CLASS}
               >
-                <SelectTrigger
-                  id="settings-motion"
-                  className="w-44 shrink-0"
-                  data-testid="settings-motion-trigger"
+                {THEME_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      aria-label={option.label}
+                      data-testid={`settings-theme-${option.value}`}
+                      className={SEGMENT_ITEM_CLASS}
+                    >
+                      <Icon />
+                      {option.label}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
+            <Separator />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Label>动效</Label>
+                <p
+                  className="mt-1 text-muted-foreground text-xs"
+                  data-testid="settings-motion-hint"
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(MOTION_LABELS) as MotionLevel[]).map((level) => (
-                    <SelectItem key={level} value={level} data-testid={`settings-motion-${level}`}>
-                      {MOTION_LABELS[level]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  {motionHint(preferences.data.reducedMotion, media)}
+                </p>
+              </div>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={preferences.data.reducedMotion}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  updatePreferences.mutate({ reducedMotion: value as MotionLevel });
+                }}
+                aria-label="动效"
+                data-testid="settings-motion-trigger"
+                className={SEGMENT_GROUP_CLASS}
+              >
+                {MOTION_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      aria-label={option.label}
+                      data-testid={`settings-motion-${option.value}`}
+                      className={SEGMENT_ITEM_CLASS}
+                    >
+                      <Icon />
+                      {option.label}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
+            <Separator />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Label>界面密度</Label>
+                <p
+                  className="mt-1 text-muted-foreground text-xs"
+                  data-testid="settings-density-hint"
+                >
+                  {densityHint(preferences.data.density)}
+                </p>
+              </div>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={preferences.data.density}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  updatePreferences.mutate({ density: value as InterfaceDensity });
+                }}
+                aria-label="界面密度"
+                data-testid="settings-density-trigger"
+                className={SEGMENT_GROUP_CLASS}
+              >
+                {DENSITY_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      aria-label={option.label}
+                      data-testid={`settings-density-${option.value}`}
+                      className={SEGMENT_ITEM_CLASS}
+                    >
+                      <Icon />
+                      {option.label}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
             </div>
             <Separator />
             <div className="flex items-center justify-between gap-4">

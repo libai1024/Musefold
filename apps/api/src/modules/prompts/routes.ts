@@ -3,6 +3,7 @@ import {
   newPromptFolderSchema,
   newPromptTagSchema,
   promptDocumentSchema,
+  promptEmptyTrashResultSchema,
   promptFolderSchema,
   promptListQuerySchema,
   promptPageSchema,
@@ -70,6 +71,18 @@ export function promptRoutes(prompts: PromptService) {
       response: promptDocumentSchema,
     },
     async (c, input) => c.json(await prompts.createPrompt(c.get('userId'), input.body), 201),
+  );
+
+  // 集合级动作放在 /prompts/{id} 之前登记,避免 empty-trash 被当作 id 吃掉。
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/prompts/empty-trash',
+      tags,
+      response: promptEmptyTrashResultSchema,
+    },
+    async (c) => c.json(await prompts.emptyTrash(c.get('userId'))),
   );
 
   route(

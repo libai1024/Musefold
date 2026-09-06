@@ -33,9 +33,33 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DESKTOP_NAV_ITEMS, DesktopView } from '../desktop-shell';
+import { DESKTOP_NAV_ITEMS, DesktopShellHost, DesktopView } from '../desktop-shell';
 
 const NOW = '2026-09-01T00:00:00.000Z';
+
+// 壳级渲染(DesktopShellHost)会挂 ThemeSync/动效闸门,它们读 matchMedia;jsdom 未提供,补最小实现。
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+}
+
+/** 首启引导层结构式替身:只捕获挂载与切屏回调,不跑 gate 查询(判定矩阵在 features 单测)。 */
+const onboardingPropsSpy = vi.fn();
+vi.mock('@musefold/features/onboarding', () => ({
+  OnboardingFlow: (props: Record<string, unknown>) => {
+    onboardingPropsSpy(props);
+    // 真身在 gate 未放行时同样渲染 null;这里保持同构,壳的默认视图不受影响。
+    return null;
+  },
+}));
 
 /** WorkbenchScreen 结构式替身:只捕获集成 prop,不跑工作台数据面。 */
 const workbenchPropsSpy = vi.fn();
@@ -222,6 +246,7 @@ function makeHarness(options: {
 
 beforeEach(() => {
   workbenchPropsSpy.mockClear();
+  onboardingPropsSpy.mockClear();
   useScreenIntent.setState({ intent: null });
 });
 
@@ -235,6 +260,21 @@ describe('桌面壳设计方案导航挂载', () => {
     expect(getShellNavItems({ hasDesignSchemes: false }).map((item) => item.id)).not.toContain(
       'design-schemes',
     );
+  });
+});
+
+describe('桌面壳首启引导挂载(U01-onboarding)', () => {
+  it('壳内挂载引导层并接宿主切屏;gate 未放行时不显示任何引导 UI', async () => {
+    render(<DesktopShellHost />);
+
+    await waitFor(() => expect(onboardingPropsSpy).toHaveBeenCalled());
+    const props = onboardingPropsSpy.mock.calls.at(-1)?.[0] as {
+      onOpenScreen?: (id: string) => void;
+    };
+    // 切屏回调复用壳自己的视图路由(setView),引导层不自建导航。
+    expect(typeof props.onOpenScreen).toBe('function');
+    expect(screen.queryByTestId('onboarding-flow')).toBeNull();
+    expect(screen.getByTestId('v25-shell')).toBeTruthy();
   });
 });
 

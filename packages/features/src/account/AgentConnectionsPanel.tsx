@@ -1,5 +1,6 @@
 'use client';
 
+import { AGENT_CONNECTION_PRESETS } from './connection-presets';
 import { ConnectionsPanel, type ConnectionsPanelCopy } from './ConnectionsPanel';
 import { AGENT_CONNECTION_HOOKS } from './hooks';
 
@@ -16,6 +17,7 @@ export const AGENT_CONNECTION_PANEL_COPY: ConnectionsPanelCopy = {
   editorTitleEdit: '编辑 Agent 连接',
   modelPlaceholder: '如:gpt-5.4-mini / deepseek-chat',
   deleteDescription: '连接配置与其密钥将一并删除,不可恢复;已创建的方案不受影响。',
+  presets: AGENT_CONNECTION_PRESETS,
 };
 
 /**

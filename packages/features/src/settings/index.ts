@@ -1,5 +1,15 @@
+export { AboutCard } from './AboutCard';
 export { AppearanceCard } from './AppearanceCard';
-export { resolveThemeClass, useAccountStatus, usePreferences, useUpdatePreferences } from './hooks';
+export { DataStorageCard } from './DataStorageCard';
+export { DensitySync } from './DensitySync';
+export { GenerationDefaultsCard } from './GenerationDefaultsCard';
+export {
+  resolveThemeClass,
+  useAccountStatus,
+  useAppInfo,
+  usePreferences,
+  useUpdatePreferences,
+} from './hooks';
 export { MotionSync } from './MotionSync';
 export {
   availableSettingsSections,

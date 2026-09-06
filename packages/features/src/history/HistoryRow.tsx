@@ -15,18 +15,37 @@ import {
   Undo2,
 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
-import { useState } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
+import { canRetryGeneration, historyErrorPresentation } from './error';
 import {
+  formatCostPoints,
   formatDateTime,
   formatDuration,
   isActiveStatus,
+  refinementLabel,
+  refinementTitle,
   STATUS_LABELS,
   statusBadgeVariant,
+  type ThreadedJob,
 } from './format';
+
+/**
+ * 元信息项之间的「·」(承旧 `.mf-history-meta-item::before`)。
+ * 旧版点色取 `--border-strong`,v2.5 无对应 token,用 muted-foreground/50 —— 双主题下都比正文淡一档又看得见;
+ * 纯装饰,读屏跳过。
+ */
+function MetaDot() {
+  return (
+    <span aria-hidden className="text-muted-foreground/50">
+      ·
+    </span>
+  );
+}
 
 export interface HistoryRowProps {
   job: GenerationJob;
-  depth: number;
+  /** 线程归组元信息(缩进层级、微调序号、线程规模、孤儿标记)。 */
+  thread: ThreadedJob;
   selected: boolean;
   deletedView: boolean;
   onOpen(): void;
@@ -43,7 +62,7 @@ export interface HistoryRowProps {
 /** 历史列表行(承旧 GenerationHistoryRow):缩略图 + 提示词/元信息 + 常驻操作组;线程缩进。 */
 export function HistoryRow({
   job,
-  depth,
+  thread,
   selected,
   deletedView,
   onOpen,
@@ -57,7 +76,45 @@ export function HistoryRow({
   const [imageBroken, setImageBroken] = useState(false);
   const asset = job.assets[0];
   const active = isActiveStatus(job.status);
-  const duration = formatDuration(job);
+  // 成本 · 用时只在成功行给(承旧行元信息);失败行那个位置留给错误标题。
+  const succeeded = job.status === 'succeeded';
+  const duration = succeeded ? formatDuration(job) : null;
+  const cost = succeeded ? formatCostPoints(job.costPoints) : null;
+  const error = historyErrorPresentation(job.error);
+  const canRetry = canRetryGeneration(job);
+  const depth = thread.depth;
+  const label = refinementLabel(thread);
+  // 根行的「+n 微调」计数(承旧 refinementCount = threadSize - 1)。
+  const refinementCount = depth === 0 ? thread.threadSize - 1 : 0;
+
+  // 元信息序列(承旧 metadata 数组次序):模型 · 成本 · 用时 · 错误 · 微调计数 · 时间。
+  const metaItems: Array<{ key: string; node: ReactNode }> = [
+    ...(job.providerModel
+      ? [{ key: 'model', node: <span className="truncate">{job.providerModel}</span> }]
+      : []),
+    ...(cost ? [{ key: 'cost', node: <span>{cost}</span> }] : []),
+    ...(duration ? [{ key: 'duration', node: <span>{duration}</span> }] : []),
+    ...(error
+      ? [
+          {
+            key: 'error',
+            node: <span className="truncate text-destructive">{error.title}</span>,
+          },
+        ]
+      : []),
+    ...(refinementCount > 0
+      ? [
+          {
+            key: 'refinements',
+            node: <span data-testid="history-thread-count">+{refinementCount} 微调</span>,
+          },
+        ]
+      : []),
+    {
+      key: 'time',
+      node: <span data-testid="history-row-time">{formatDateTime(job.createdAt)}</span>,
+    },
+  ];
 
   return (
     <div
@@ -75,6 +132,8 @@ export function HistoryRow({
       <article
         data-testid="history-row"
         data-status={job.status}
+        data-thread-root={thread.threadRootId}
+        data-orphan={thread.orphan ? 'true' : 'false'}
         className={cn(
           'group flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
           selected
@@ -113,10 +172,21 @@ export function HistoryRow({
           onClick={onOpen}
           data-testid="history-row-open"
         >
-          <span className="truncate font-medium text-foreground text-sm">
-            {job.request.prompt || '(无提示词)'}
+          <span className="flex min-w-0 items-center gap-1.5">
+            {label && (
+              <span
+                className="shrink-0 rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
+                title={refinementTitle(thread)}
+                data-testid="history-refinement-tag"
+              >
+                {label}
+              </span>
+            )}
+            <span className="truncate font-medium text-foreground text-sm">
+              {job.request.prompt || '(无提示词)'}
+            </span>
           </span>
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
             <Badge
               variant={statusBadgeVariant(job.status)}
               className="px-1.5 py-0 text-[10px]"
@@ -124,10 +194,12 @@ export function HistoryRow({
             >
               {STATUS_LABELS[job.status]}
             </Badge>
-            {job.providerModel && <span className="truncate">{job.providerModel}</span>}
-            {duration && <span>{duration}</span>}
-            {job.costPoints != null && <span>{job.costPoints} 积分</span>}
-            <span data-testid="history-row-time">{formatDateTime(job.createdAt)}</span>
+            {metaItems.map((item) => (
+              <Fragment key={item.key}>
+                <MetaDot />
+                {item.node}
+              </Fragment>
+            ))}
           </span>
         </button>
 
@@ -169,16 +241,19 @@ export function HistoryRow({
             </Button>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:text-foreground"
-                aria-label="重试生成"
-                data-testid="history-row-retry"
-                onClick={onRetry}
-              >
-                <RotateCcw className="size-4" />
-              </Button>
+              {/* 重试只在宿主真会受理的记录上出现(失败且错误码可重试 / 已取消)。 */}
+              {canRetry && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-muted-foreground hover:text-foreground"
+                  aria-label="重试生成"
+                  data-testid="history-row-retry"
+                  onClick={onRetry}
+                >
+                  <RotateCcw className="size-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

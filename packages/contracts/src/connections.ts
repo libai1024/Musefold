@@ -83,10 +83,61 @@ export const aiProviderTestResultSchema = z.object({
   latencyMs: z.number().int().nonnegative().nullable(),
 });
 
+/** 已落库连接:按 id 从主进程取 Base URL / 密钥,渲染层不经手明文。 */
+export const aiProviderSavedRefSchema = z
+  .object({
+    id: entityIdSchema,
+  })
+  .strict();
+
+/**
+ * 草稿探测(新建未落库 / 编辑框里尚未保存的 Key)。
+ * apiKey 只在本次 IPC 往返中由主进程拼请求头,不落存储、不进日志。
+ */
+export const aiProviderDraftTestSchema = z
+  .object({
+    baseUrl: aiProviderSchema.shape.baseUrl,
+    apiKey: z.string().trim().min(1).max(512),
+    model: z.string().trim().max(200).optional(),
+  })
+  .strict();
+
+export const aiProviderTestInputSchema = z.union([
+  aiProviderSavedRefSchema,
+  aiProviderDraftTestSchema,
+]);
+
+/** 拉取模型:已存连接,或草稿(Key 可选;缺 Key 时主进程不带 bearer)。 */
+export const aiProviderDraftListModelsSchema = z
+  .object({
+    baseUrl: aiProviderSchema.shape.baseUrl,
+    apiKey: z.string().trim().min(1).max(512).optional(),
+    protocol: z.string().min(1).max(40).optional(),
+  })
+  .strict();
+
+export const aiProviderListModelsInputSchema = z.union([
+  aiProviderSavedRefSchema,
+  aiProviderDraftListModelsSchema,
+]);
+
+export const aiProviderModelSchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  label: z.string().trim().min(1).max(200).optional(),
+});
+
+export const aiProviderModelListSchema = z.object({
+  models: z.array(aiProviderModelSchema),
+});
+
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type CreateAiProvider = z.infer<typeof createAiProviderSchema>;
 export type UpdateAiProvider = z.infer<typeof updateAiProviderSchema>;
 export type AiProviderTestResult = z.infer<typeof aiProviderTestResultSchema>;
+export type AiProviderTestInput = z.infer<typeof aiProviderTestInputSchema>;
+export type AiProviderListModelsInput = z.infer<typeof aiProviderListModelsInputSchema>;
+export type AiProviderModel = z.infer<typeof aiProviderModelSchema>;
+export type AiProviderModelList = z.infer<typeof aiProviderModelListSchema>;
 
 // ── 桌面 Agent 连接(文本模型,chat/completions)────────────────────
 // 设计方案 Agent(Analyst / Compiler / Reviser)与 Skill runtime 用的文本模型连接,
@@ -99,8 +150,14 @@ export const agentConnectionListSchema = z.array(agentConnectionSchema);
 export const createAgentConnectionSchema = createAiProviderSchema;
 export const updateAgentConnectionSchema = updateAiProviderSchema;
 export const agentConnectionTestResultSchema = aiProviderTestResultSchema;
+export const agentConnectionTestInputSchema = aiProviderTestInputSchema;
+export const agentConnectionListModelsInputSchema = aiProviderListModelsInputSchema;
+export const agentConnectionModelListSchema = aiProviderModelListSchema;
 
 export type AgentConnection = z.infer<typeof agentConnectionSchema>;
 export type CreateAgentConnection = z.infer<typeof createAgentConnectionSchema>;
 export type UpdateAgentConnection = z.infer<typeof updateAgentConnectionSchema>;
 export type AgentConnectionTestResult = z.infer<typeof agentConnectionTestResultSchema>;
+export type AgentConnectionTestInput = z.infer<typeof agentConnectionTestInputSchema>;
+export type AgentConnectionListModelsInput = z.infer<typeof agentConnectionListModelsInputSchema>;
+export type AgentConnectionModelList = z.infer<typeof agentConnectionModelListSchema>;

@@ -1,6 +1,8 @@
 import {
   MAX_REFERENCE_IMAGE_BYTES,
   createGenerationInputSchema,
+  generationCleanupInputSchema,
+  generationCleanupResultSchema,
   generationHistoryPageSchema,
   generationHistoryQuerySchema,
   generationJobSchema,
@@ -92,6 +94,19 @@ export function generationRoutes(service: GenerationService) {
           available: true,
         },
       ]),
+  );
+
+  // 批量清理(ui-parity 05 §7):声明在 /generations/{id} 之前,避免 cleanup 被吃成 id。
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/generations/cleanup',
+      tags,
+      body: generationCleanupInputSchema,
+      response: generationCleanupResultSchema,
+    },
+    async (c, input) => c.json(await service.cleanup(c.get('userId'), input.body)),
   );
 
   route(

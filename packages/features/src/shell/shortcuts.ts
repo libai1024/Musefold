@@ -8,7 +8,14 @@
  * 快捷键目录属产品语义,归 features shell。)
  */
 export interface ProductShortcut {
-  id: 'new-session' | 'composer-send' | 'composer-newline' | 'dismiss';
+  id:
+    | 'new-session'
+    | 'composer-send'
+    | 'composer-newline'
+    | 'prompts-search'
+    | 'prompts-focus-search'
+    | 'prompt-editor-save'
+    | 'dismiss';
   /** macOS 显示串(⌘ 系) */
   mac: string;
   /** Windows/Linux 显示串(Ctrl 系) */
@@ -45,6 +52,30 @@ export const PRODUCT_SHORTCUTS: readonly ProductShortcut[] = [
     label: '换行',
     scope: '聚焦工作台输入框',
     wiredAt: 'workbench/Composer Textarea onKeyDown',
+  },
+  {
+    id: 'prompts-search',
+    mac: '⌘K',
+    win: 'Ctrl+K',
+    label: '搜索提示词',
+    scope: '全局(切到提示词库并聚焦搜索框)',
+    wiredAt: 'shell/AppShell ⌘K keydown → screen-intent prompts-focus-search',
+  },
+  {
+    id: 'prompts-focus-search',
+    mac: '/',
+    win: '/',
+    label: '聚焦搜索框',
+    scope: '提示词库(非输入态)',
+    wiredAt: 'prompts/PromptLibraryScreen 非输入态 "/" keydown',
+  },
+  {
+    id: 'prompt-editor-save',
+    mac: '⌘S',
+    win: 'Ctrl+S',
+    label: '保存提示词',
+    scope: '提示词编辑器(有未保存修改时)',
+    wiredAt: 'prompts/PromptEditorDialog DialogContent onKeyDown',
   },
   {
     id: 'dismiss',

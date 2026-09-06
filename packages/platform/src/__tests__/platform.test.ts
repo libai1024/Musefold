@@ -22,6 +22,8 @@ describe('platform capabilities', () => {
       // 桌面桥 16 方法 + staging/导入导出已接线,能力真实。
       hasDesignSchemes: true,
       hasDoubaoWebLogin: true,
+      // 备份 / 存储位置 / 诊断日志 / 危险区都由 system 域承载。
+      hasLocalDataManagement: true,
     });
   });
 
@@ -38,6 +40,8 @@ describe('platform capabilities', () => {
       // 服务端结构化 501 fail-closed、UI 就地禁用并解释,生产入口开启。
       hasDesignSchemes: true,
       hasDoubaoWebLogin: false,
+      // 云端有自己的备份纪律,浏览器无本机路径/本地库:整块本机数据面不注册。
+      hasLocalDataManagement: false,
     });
   });
   it('returns the adapter only when capability and adapter are both available', () => {
@@ -95,6 +99,11 @@ describe('query keys', () => {
     expect(queryKeys.sync.status()).toEqual(['sync', 'status']);
     expect(queryKeys.sync.conflicts()).toEqual(['sync', 'conflicts']);
     expect(queryKeys.doubao.status()).toEqual(['doubao', 'status']);
+    expect(queryKeys.system.all()).toEqual(['system']);
+    expect(queryKeys.system.appInfo()).toEqual(['system', 'app-info']);
+    expect(queryKeys.system.backups()).toEqual(['system', 'backups']);
+    expect(queryKeys.system.storageLocations()).toEqual(['system', 'storage-locations']);
+    expect(queryKeys.system.diagnosticLog()).toEqual(['system', 'diagnostic-log']);
 
     const schemeQuery = { status: 'draft' as const, limit: 20 };
     const marketQuery = { query: 'poster', limit: 10 };
@@ -146,6 +155,7 @@ describe('query keys', () => {
     expect(queryKeys.generation.history({})).toEqual(['generation', 'history', {}]);
     expect(queryKeys.generation.detail('g1')).toEqual(['generation', 'detail', 'g1']);
     expect(queryKeys.generation.providers()).toEqual(['generation', 'providers']);
+    expect(queryKeys.generation.storageUsage()).toEqual(['generation', 'storage-usage']);
   });
 
   it('keeps the same query object in list keys and compares equivalent objects by value', () => {
@@ -236,12 +246,22 @@ describe('query keys', () => {
         ],
       },
       {
+        prefix: queryKeys.system.all(),
+        keys: [
+          queryKeys.system.appInfo(),
+          queryKeys.system.backups(),
+          queryKeys.system.storageLocations(),
+          queryKeys.system.diagnosticLog(),
+        ],
+      },
+      {
         prefix: queryKeys.generation.all(),
         keys: [
           queryKeys.generation.list({}),
           queryKeys.generation.history({}),
           queryKeys.generation.detail('g1'),
           queryKeys.generation.providers(),
+          queryKeys.generation.storageUsage(),
         ],
       },
     ] as const;

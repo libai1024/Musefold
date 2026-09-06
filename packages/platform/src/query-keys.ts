@@ -30,6 +30,13 @@ export const queryKeys = {
   doubao: {
     status: () => ['doubao', 'status'] as const,
   },
+  system: {
+    all: () => ['system'] as const,
+    appInfo: () => ['system', 'app-info'] as const,
+    backups: () => ['system', 'backups'] as const,
+    storageLocations: () => ['system', 'storage-locations'] as const,
+    diagnosticLog: () => ['system', 'diagnostic-log'] as const,
+  },
   designSchemes: {
     all: () => ['design-schemes'] as const,
     list: (query: DesignSchemeListQuery) => ['design-schemes', 'list', query] as const,
@@ -43,6 +50,8 @@ export const queryKeys = {
     detail: (id: string) => ['prompts', 'detail', id] as const,
     folders: () => ['prompts', 'folders'] as const,
     tags: () => ['prompts', 'tags'] as const,
+    /** 详情「相关作品」:该提示词生成过的历史回合(反向查询)。 */
+    relatedWorks: (id: string) => ['prompts', 'related-works', id] as const,
   },
   workbench: {
     all: () => ['workbench'] as const,
@@ -56,5 +65,7 @@ export const queryKeys = {
     history: (query: GenerationHistoryQuery) => ['generation', 'history', query] as const,
     detail: (id: string) => ['generation', 'detail', id] as const,
     providers: () => ['generation', 'providers'] as const,
+    /** 桌面磁盘占用 readout;与 all() 同前缀,清理/删除后随生成域 invalidate 一起重取。 */
+    storageUsage: () => ['generation', 'storage-usage'] as const,
   },
 } as const;

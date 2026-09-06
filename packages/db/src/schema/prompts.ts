@@ -85,6 +85,11 @@ export const prompts = pgTable(
     lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
     source: varchar('source', { length: 20 }).notNull().default('manual'),
     sourceUrl: varchar('source_url', { length: 2048 }),
+    /**
+     * 封面展示地址(契约 promptDocumentSchema.coverImageUrl,path-free):
+     * 云端存对象存储公开/签名 URL;NULL = 无封面。绝不存本地路径。
+     */
+    coverImageUrl: varchar('cover_image_url', { length: 4096 }),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),

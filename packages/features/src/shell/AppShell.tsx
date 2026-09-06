@@ -17,6 +17,7 @@ import {
   useState,
 } from 'react';
 import { SHELL_NAV_ITEMS, type ShellNavItem } from './nav';
+import { useScreenIntent } from './screen-intent-store';
 import {
   SHELL_SIDEBAR_COMPACT_BREAKPOINT,
   SHELL_SIDEBAR_DRAWER_WIDTH,
@@ -188,6 +189,20 @@ export function AppShell({
     prevActiveIdRef.current = activeId;
     setDrawerOpen(false);
   }, [activeId]);
+
+  // ⌘/Ctrl+K 全局唤起提示词搜索(shortcuts.ts 登记 prompts-search):
+  // 写一次性意图 + 走宿主导航切屏;提示词屏 mount/意图变化时消费并聚焦搜索框。
+  useEffect(() => {
+    const handler = (event: globalThis.KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k') return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      useScreenIntent.getState().setIntent({ kind: 'prompts-focus-search' });
+      onNavigate('prompts');
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onNavigate]);
 
   // 焦点归还准备(承旧):抽屉关闭期间持续记录抽屉外最后聚焦的元素。
   useEffect(() => {

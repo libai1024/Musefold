@@ -26,7 +26,11 @@ import {
   SessionListPanel,
   sessionRelativeTime,
 } from '../SessionListPanel';
-import { isSessionUnread, useActiveSession } from '../session-store';
+import {
+  isSessionUnread,
+  resolveInheritedGenerationParams,
+  useActiveSession,
+} from '../session-store';
 import { emptyStateGreeting } from '../WorkbenchEmptyState';
 import { deriveSessionTitle, WorkbenchScreen } from '../WorkbenchScreen';
 
@@ -43,7 +47,11 @@ function nowIso(offsetMs = 0): string {
 }
 
 /** 内存版 workbench + generation:提交即 queued,一次读取后翻成 succeeded。 */
-function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: boolean }) {
+function createMemoryWorkbench(options?: {
+  noProviders?: boolean;
+  holdQueued?: boolean;
+  preferences?: Partial<AppPreferences>;
+}) {
   let seq = 0;
   const sessions = new Map<string, WorkbenchSession>();
   const jobs = new Map<string, GenerationJob>();
@@ -231,10 +239,12 @@ function createMemoryWorkbench(options?: { noProviders?: boolean; holdQueued?: b
       assetSaves.push(input);
       return 'saved';
     },
+    // 批量清理走历史屏,工作台不用;桩到返回 0 满足网关形状即可。
+    cleanup: async () => ({ affected: 0 }),
   };
 
   // 会话置顶走偏好通道(SessionListPanel → usePreferences)。
-  let preferences: AppPreferences = { ...defaultAppPreferences };
+  let preferences: AppPreferences = { ...defaultAppPreferences, ...options?.preferences };
   const settings: SettingsGateway = {
     getPreferences: async () => preferences,
     updatePreferences: async (patch) => {
@@ -290,6 +300,7 @@ function renderWorkbench(options?: {
   noProviders?: boolean;
   holdQueued?: boolean;
   onOpenSettings?: () => void;
+  preferences?: Partial<AppPreferences>;
   /** 预置会话行(「新设计」已不直接建行,行级测试用种子行作靶)。 */
   seedSessions?: string[];
 }) {
@@ -326,6 +337,7 @@ describe('Workbench(壳会话区 + 屏)', () => {
       activeSessionId: null,
       draftSession: false,
       pendingDraft: null,
+      draftParamOverrides: {},
       seenAt: {},
       unreadMarks: {},
     });
@@ -444,6 +456,34 @@ describe('Workbench(壳会话区 + 屏)', () => {
     const prompt = screen.getByTestId('composer-prompt') as HTMLTextAreaElement;
     expect(prompt.selectionStart).toBe(prompt.value.length);
     expect(screen.queryByTestId('job-status')).toBeNull();
+  });
+
+  it('新会话草稿继承默认比例/质量;已改草稿不被覆盖', async () => {
+    renderWorkbench({
+      preferences: { defaultAspectRatio: '16:9', defaultQuality: 'high' },
+    });
+
+    fireEvent.click(await screen.findByTestId('session-create'));
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-ratio').textContent).toContain('16:9');
+    });
+    fireEvent.click(screen.getByTestId('composer-settings'));
+    expect(screen.getByTestId('composer-quality-high').getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('composer-ratio'));
+    fireEvent.click(await screen.findByTestId('composer-ratio-1x1'));
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-ratio').textContent).toContain('1:1');
+    });
+    expect(useActiveSession.getState().draftParamOverrides.aspectRatio).toBe('1:1');
+
+    // 默认值变更只覆盖未显式改过的字段(质量仍继承,比例保持用户选择)。
+    expect(
+      resolveInheritedGenerationParams(
+        { defaultAspectRatio: '21:9', defaultQuality: 'low' },
+        useActiveSession.getState().draftParamOverrides,
+      ),
+    ).toEqual({ aspectRatio: '1:1', quality: 'low' });
   });
 
   it('草稿态首次发送才建会话,标题由首句派生', async () => {

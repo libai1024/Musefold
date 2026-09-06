@@ -14,6 +14,14 @@ export async function clickRowAction(
   await promptRow(page, title).getByTestId(actionTestId).click();
 }
 
+/** 行点击打开详情 Inspector(md+ 右栏 / 窄屏 Sheet 同一 testid),返回面板定位器。 */
+export async function openPromptDetail(page: Page, title: string): Promise<Locator> {
+  await promptRow(page, title).getByTestId('prompt-row-open').click();
+  const detail = page.getByTestId('prompt-detail');
+  await expect(detail).toBeVisible();
+  return detail;
+}
+
 /** 通过编辑器新建一条提示词并等它出现在列表里。 */
 export async function createPrompt(page: Page, title: string, content: string): Promise<void> {
   await page.getByTestId('prompt-create').click();

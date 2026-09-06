@@ -1,6 +1,6 @@
 'use client';
 
-import type { WorkbenchDraft } from '@musefold/contracts';
+import type { GenerationQuality, WorkbenchDraft } from '@musefold/contracts';
 import { create } from 'zustand';
 
 /**
@@ -21,12 +21,19 @@ interface ActiveSessionState {
   /** 手动「标记为未读」集合(ui-parity 02 §7):轻量「稍后回看」,打开会话即清。 */
   unreadMarks: Record<string, true>;
   pendingDraft: WorkbenchDraft | null;
+  /**
+   * 新设计/空草稿里用户显式改过的比例/质量。
+   * 有覆盖的字段不再跟随设置默认值;未覆盖的字段继续继承。
+   */
+  draftParamOverrides: DraftParamOverrides;
   setActiveSessionId(id: string | null): void;
   startDraftSession(): void;
   markSeen(id: string): void;
   markUnread(id: string): void;
   setPendingDraft(draft: WorkbenchDraft): void;
   consumePendingDraft(): void;
+  setDraftParamOverride(patch: DraftParamOverrides): void;
+  clearDraftParamOverrides(): void;
 }
 
 function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
@@ -35,20 +42,44 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
   return rest;
 }
 
+export interface DraftParamOverrides {
+  aspectRatio?: string;
+  quality?: GenerationQuality;
+}
+
+export interface GenerationParamDefaults {
+  defaultAspectRatio: string;
+  defaultQuality: GenerationQuality;
+}
+
+/** 未显式改过的字段走全局默认;用户改过的字段保留覆盖。 */
+export function resolveInheritedGenerationParams(
+  defaults: GenerationParamDefaults,
+  overrides: DraftParamOverrides,
+): { aspectRatio: string; quality: GenerationQuality } {
+  return {
+    aspectRatio: overrides.aspectRatio ?? defaults.defaultAspectRatio,
+    quality: overrides.quality ?? defaults.defaultQuality,
+  };
+}
+
 export const useActiveSession = create<ActiveSessionState>((set) => ({
   activeSessionId: null,
   draftSession: false,
   seenAt: {},
   unreadMarks: {},
   pendingDraft: null,
+  draftParamOverrides: {},
   setActiveSessionId: (id) =>
     set((state) => ({
       activeSessionId: id,
       draftSession: false,
+      draftParamOverrides: {},
       seenAt: id ? { ...state.seenAt, [id]: Date.now() } : state.seenAt,
       unreadMarks: id ? withoutKey(state.unreadMarks, id) : state.unreadMarks,
     })),
-  startDraftSession: () => set({ activeSessionId: null, draftSession: true }),
+  startDraftSession: () =>
+    set({ activeSessionId: null, draftSession: true, draftParamOverrides: {} }),
   markSeen: (id) =>
     set((state) => ({
       seenAt: { ...state.seenAt, [id]: Date.now() },
@@ -57,6 +88,11 @@ export const useActiveSession = create<ActiveSessionState>((set) => ({
   markUnread: (id) => set((state) => ({ unreadMarks: { ...state.unreadMarks, [id]: true } })),
   setPendingDraft: (draft) => set({ pendingDraft: draft }),
   consumePendingDraft: () => set({ pendingDraft: null }),
+  setDraftParamOverride: (patch) =>
+    set((state) => ({
+      draftParamOverrides: { ...state.draftParamOverrides, ...patch },
+    })),
+  clearDraftParamOverrides: () => set({ draftParamOverrides: {} }),
 }));
 
 /** 未读基线:启动前完成的历史会话不标未读,只追踪本次运行期间的完成。 */

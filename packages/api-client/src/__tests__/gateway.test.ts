@@ -347,6 +347,17 @@ describe('prompts, folders, and tags gateway HTTP transport', () => {
     expect(jsonBody(calls[1]!)).toEqual({ action: 'generate', idempotencyKey: 'use-key-1' });
   });
 
+  it('emptyTrash posts to the collection endpoint and parses the purged count', async () => {
+    const { impl, calls } = fetchStub(() => jsonResponse({ purged: 3 }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(gateway.prompts.emptyTrash()).resolves.toEqual({ purged: 3 });
+
+    expect(calls[0]?.url.pathname).toBe('/api/v1/prompts/empty-trash');
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(calls[0]?.init?.body).toBeUndefined();
+  });
+
   it('list/create/update/remove folders map paths, queryless lists, and bodies', async () => {
     const responses = [
       jsonResponse([FOLDER]),
@@ -572,6 +583,36 @@ describe('generation gateway HTTP transport', () => {
     expect(calls[0]?.init?.body).toBeUndefined();
     expect(calls[1]?.url.pathname).toBe('/api/v1/generations/providers');
     expect(calls[1]?.init?.body).toBeUndefined();
+  });
+
+  it('cleanup posts the scope and parses the affected count (ui-parity 05 §7)', async () => {
+    const responses = [jsonResponse({ affected: 3 }), jsonResponse({ affected: 0 })];
+    const { impl, calls } = fetchStub(() => responses.shift()!);
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(gateway.generation.cleanup({ scope: 'older-than-30d' })).resolves.toEqual({
+      affected: 3,
+    });
+    await expect(gateway.generation.cleanup({ scope: 'empty-trash' })).resolves.toEqual({
+      affected: 0,
+    });
+
+    expect(calls.map((call) => `${call.init?.method} ${call.url.pathname}`)).toEqual([
+      'POST /api/v1/generations/cleanup',
+      'POST /api/v1/generations/cleanup',
+    ]);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ scope: 'older-than-30d' });
+    expect(JSON.parse(String(calls[1]?.init?.body))).toEqual({ scope: 'empty-trash' });
+  });
+
+  it('does not expose desktop-only generation methods on the cloud gateway', () => {
+    const { impl } = fetchStub(() => jsonResponse({ ok: true }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    // 磁盘占用与本机文件动作是桌面可选方法;Web 宿主不实现,UI 靠 capabilities 门控。
+    expect(gateway.generation.getStorageUsage).toBeUndefined();
+    expect(gateway.generation.revealAsset).toBeUndefined();
+    expect(gateway.generation.copyAssetToClipboard).toBeUndefined();
   });
 
   it('uploads a reference image as a FormData file without JSON content-type', async () => {

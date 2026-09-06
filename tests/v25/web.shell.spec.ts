@@ -1,4 +1,10 @@
 import { expect, test } from '@playwright/test';
+import { seedOnboardingCompleted } from './onboarding-helpers';
+
+// 首启引导夹具(U01-onboarding):既有用例都是未登录环境,不预置完成哨兵会被引导层盖住。
+test.beforeEach(async ({ page }) => {
+  await seedOnboardingCompleted(page);
+});
 
 const SIDEBAR_WIDTH_KEY = 'musefold:sidebar-width';
 

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '../AppShell';
 import type { ShellNavItem } from '../nav';
+import { useScreenIntent } from '../screen-intent-store';
 import {
   SHELL_SIDEBAR_DEFAULT_WIDTH,
   SHELL_SIDEBAR_MIN_WIDTH,
@@ -403,5 +404,43 @@ describe('AppShell compact 抽屉(<768px,承旧 overlay Drawer,ui-parity 01 §7 
     await screen.findByRole('dialog');
     rerender(<Harness activeId="prompts" />);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});
+
+describe('AppShell ⌘/Ctrl+K 全局搜索(shortcuts prompts-search)', () => {
+  beforeEach(() => {
+    stubMatchMedia(false);
+    setInnerWidth(1440);
+    stubLocalStorage();
+    useScreenIntent.setState({ intent: null });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useScreenIntent.setState({ intent: null });
+  });
+
+  it('⌘K 与 Ctrl+K 都切到提示词库并写 prompts-focus-search 意图', () => {
+    const onNavigate = vi.fn();
+    render(<Harness activeId="workbench" onNavigate={onNavigate} />);
+
+    fireEvent.keyDown(document, { key: 'k', metaKey: true });
+    expect(onNavigate).toHaveBeenCalledWith('prompts');
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'prompts-focus-search' });
+
+    useScreenIntent.setState({ intent: null });
+    fireEvent.keyDown(document, { key: 'K', ctrlKey: true });
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'prompts-focus-search' });
+  });
+
+  it('裸 K / ⌥⌘K 不触发(不抢系统与浏览器的组合键)', () => {
+    const onNavigate = vi.fn();
+    render(<Harness activeId="workbench" onNavigate={onNavigate} />);
+
+    fireEvent.keyDown(document, { key: 'k' });
+    fireEvent.keyDown(document, { key: 'k', metaKey: true, altKey: true });
+    fireEvent.keyDown(document, { key: 'k', metaKey: true, shiftKey: true });
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toBeNull();
   });
 });

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   sync: vi.fn(),
   workbench: vi.fn(),
   doubao: vi.fn(),
+  system: vi.fn(),
   accountBeforeChange: vi.fn(),
   accountChanged: vi.fn(),
   accountChangeCancelled: vi.fn(),
@@ -48,6 +49,9 @@ vi.mock('../prompts-domain', () => ({ buildPromptsDomainMethods: mocks.prompts }
 vi.mock('../sync-domain', () => ({ buildSyncDomainMethods: mocks.sync }));
 vi.mock('../workbench-domain', () => ({ buildWorkbenchDomainMethods: mocks.workbench }));
 vi.mock('../doubao-domain', () => ({ buildDoubaoDomainMethods: mocks.doubao }));
+// system 域的真实方法表与契约的双向比对在其就地测试里(system-domain.test.ts);
+// 这里只需保证 buildMethods 把它按域展开一次,避免备份/日志/electron-store 依赖进入本测。
+vi.mock('../system-domain', () => ({ buildSystemDomainMethods: mocks.system }));
 // 真实 doubao-domain 经 importActual 参与双向比对;其冻结面依赖在此 mock,
 // 避免 browser-service 的 electron 会话链进入单测进程。
 vi.mock('../../../doubao-web/browser-service', () => ({
@@ -226,10 +230,26 @@ function configureDomainMocksCorrectly(): void {
   accountMethods = makeMethods('account', ['getStatus', 'login', 'register', 'logout', 'redeem']);
   mocks.account.mockReturnValue(accountMethods);
   mocks.providers.mockReturnValue(
-    makeMethods('aiProviders', ['list', 'create', 'update', 'remove', 'setActive', 'test']),
+    makeMethods('aiProviders', [
+      'list',
+      'create',
+      'update',
+      'remove',
+      'setActive',
+      'test',
+      'listModels',
+    ]),
   );
   mocks.agentConnections.mockReturnValue(
-    makeMethods('agentConnections', ['list', 'create', 'update', 'remove', 'setActive', 'test']),
+    makeMethods('agentConnections', [
+      'list',
+      'create',
+      'update',
+      'remove',
+      'setActive',
+      'test',
+      'listModels',
+    ]),
   );
   mocks.prompts.mockReturnValue(
     makeMethods('prompts', [
@@ -240,6 +260,7 @@ function configureDomainMocksCorrectly(): void {
       'remove',
       'restore',
       'purge',
+      'emptyTrash',
       'use',
       'listFolders',
       'createFolder',
@@ -264,6 +285,21 @@ function configureDomainMocksCorrectly(): void {
   mocks.doubao.mockReturnValue(
     makeMethods('doubao', ['getStatus', 'startLogin', 'refreshLogin', 'logout']),
   );
+  mocks.system.mockReturnValue(
+    makeMethods('system', [
+      'getAppInfo',
+      'listBackups',
+      'createBackup',
+      'restoreBackup',
+      'listStorageLocations',
+      'openStorageLocation',
+      'readDiagnosticLog',
+      'clearAllData',
+      'openExternal',
+      'openProductDocs',
+      'relaunch',
+    ]),
+  );
   const workbench = makeMethods('workbench', [
     'listSessions',
     'createSession',
@@ -284,6 +320,10 @@ function configureDomainMocksCorrectly(): void {
     'listProviders',
     'uploadReferenceImage',
     'saveAsset',
+    'cleanup',
+    'getStorageUsage',
+    'revealAsset',
+    'copyAssetToClipboard',
   ]);
   mocks.workbench.mockReturnValue({ ...workbench, ...generation });
 }
@@ -327,6 +367,7 @@ describe('v25 gateway bridge transport contract', () => {
     expect(mocks.sync).toHaveBeenCalledOnce();
     expect(mocks.workbench).toHaveBeenCalledOnce();
     expect(mocks.doubao).toHaveBeenCalledOnce();
+    expect(mocks.system).toHaveBeenCalledOnce();
   });
 
   it('matches real domain builders in both directions', async () => {

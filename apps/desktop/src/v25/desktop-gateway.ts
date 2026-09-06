@@ -7,10 +7,18 @@ import {
   agentConnectionListSchema,
   agentConnectionSchema,
   agentConnectionTestResultSchema,
+  aiProviderModelListSchema,
   aiProviderSchema,
   aiProviderTestResultSchema,
+  appInfoSchema,
   appPreferencesSchema,
+  backupListSchema,
   cancelDesignSchemeResultSchema,
+  clearAllDataResultSchema,
+  createBackupResultSchema,
+  diagnosticLogSchema,
+  restoreBackupResultSchema,
+  storageLocationListSchema,
   checkDesignSchemeUpdateResultSchema,
   confirmDesignSchemeInstallResultSchema,
   createDesignSchemeResultSchema,
@@ -33,11 +41,14 @@ import {
   updateDesignSchemeResultSchema,
   desktopSyncStatusSchema,
   doubaoAccountStatusSchema,
+  generationCleanupResultSchema,
   generationHistoryPageSchema,
   generationReferenceImageSchema,
+  generationStorageUsageSchema,
   redeemResultSchema,
   generationJobSchema,
   promptDocumentSchema,
+  promptEmptyTrashResultSchema,
   promptFolderSchema,
   promptPageSchema,
   promptTagSchema,
@@ -255,7 +266,8 @@ export function createDesktopGateway(): MusefoldGateway {
       update: (id, patch) => invoke('aiProviders.update', { id, patch }, aiProviderSchema),
       remove: (id) => invoke('aiProviders.remove', { id }, voidSchema),
       setActive: (id) => invoke('aiProviders.setActive', { id }, aiProviderSchema),
-      test: (id) => invoke('aiProviders.test', { id }, aiProviderTestResultSchema),
+      test: (input) => invoke('aiProviders.test', input, aiProviderTestResultSchema),
+      listModels: (input) => invoke('aiProviders.listModels', input, aiProviderModelListSchema),
     },
     // Agent 文本模型连接:与生图连接同形状,走独立方法名与独立事实源(主进程 AiConnectionStore)。
     agentConnections: {
@@ -265,7 +277,9 @@ export function createDesktopGateway(): MusefoldGateway {
         invoke('agentConnections.update', { id, patch }, agentConnectionSchema),
       remove: (id) => invoke('agentConnections.remove', { id }, voidSchema),
       setActive: (id) => invoke('agentConnections.setActive', { id }, agentConnectionSchema),
-      test: (id) => invoke('agentConnections.test', { id }, agentConnectionTestResultSchema),
+      test: (input) => invoke('agentConnections.test', input, agentConnectionTestResultSchema),
+      listModels: (input) =>
+        invoke('agentConnections.listModels', input, aiProviderModelListSchema),
     },
     // 豆包网页登录:单通道桥直达冻结 browser-service;QR 以 data URL 随状态快照返回。
     doubao: {
@@ -273,6 +287,21 @@ export function createDesktopGateway(): MusefoldGateway {
       startLogin: () => invoke('doubao.startLogin', undefined, doubaoAccountStatusSchema),
       refreshLogin: () => invoke('doubao.refreshLogin', undefined, doubaoAccountStatusSchema),
       logout: () => invoke('doubao.logout', undefined, doubaoAccountStatusSchema),
+    },
+    // 本机数据面:备份按文件名寻址、存储位置按白名单 id 打开;出参一律过 path-free 契约。
+    system: {
+      getAppInfo: () => invoke('system.getAppInfo', undefined, appInfoSchema),
+      listBackups: () => invoke('system.listBackups', undefined, backupListSchema),
+      createBackup: () => invoke('system.createBackup', undefined, createBackupResultSchema),
+      restoreBackup: (input) => invoke('system.restoreBackup', input, restoreBackupResultSchema),
+      listStorageLocations: () =>
+        invoke('system.listStorageLocations', undefined, storageLocationListSchema),
+      openStorageLocation: (input) => invoke('system.openStorageLocation', input, voidSchema),
+      readDiagnosticLog: () => invoke('system.readDiagnosticLog', undefined, diagnosticLogSchema),
+      clearAllData: (input) => invoke('system.clearAllData', input, clearAllDataResultSchema),
+      openExternal: (input) => invoke('system.openExternal', input, voidSchema),
+      openProductDocs: () => invoke('system.openProductDocs', undefined, voidSchema),
+      relaunch: () => invoke('system.relaunch', undefined, voidSchema),
     },
     designSchemes: designSchemesGateway,
     prompts: {
@@ -283,6 +312,7 @@ export function createDesktopGateway(): MusefoldGateway {
       remove: (id) => invoke('prompts.remove', { id }, promptDocumentSchema),
       restore: (id) => invoke('prompts.restore', { id }, promptDocumentSchema),
       purge: (id) => invoke('prompts.purge', { id }, voidSchema),
+      emptyTrash: () => invoke('prompts.emptyTrash', undefined, promptEmptyTrashResultSchema),
       use: (id, input) => invoke('prompts.use', { id, input }, promptUseResultSchema),
       listFolders: () => invoke('prompts.listFolders', undefined, promptFolderListSchema),
       createFolder: (input) => invoke('prompts.createFolder', input, promptFolderSchema),
@@ -318,6 +348,13 @@ export function createDesktopGateway(): MusefoldGateway {
         invoke('generation.uploadReferenceImage', input, generationReferenceImageSchema),
       // 主进程解 media:// 路径 + 系统保存对话框;取消返回 'cancelled'。
       saveAsset: (input) => invoke('generation.saveAsset', input, saveAssetResultSchema),
+      cleanup: (input) => invoke('generation.cleanup', input, generationCleanupResultSchema),
+      getStorageUsage: () =>
+        invoke('generation.getStorageUsage', undefined, generationStorageUsageSchema),
+      // 只送资产 id:受管路径解析与越界拒绝都在主进程,渲染层不持有任何路径。
+      revealAsset: (assetId) => invoke('generation.revealAsset', assetId, voidSchema),
+      copyAssetToClipboard: (assetId) =>
+        invoke('generation.copyAssetToClipboard', assetId, voidSchema),
     },
   };
 }

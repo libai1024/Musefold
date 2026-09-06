@@ -4,8 +4,9 @@
 import { AccountFooter, MobileQuotaReadout } from '@musefold/features/account';
 import { SchemesScreen, useDesignSchemesIntegration } from '@musefold/features/design-schemes';
 import { HistoryScreen } from '@musefold/features/history';
+import { OnboardingFlow } from '@musefold/features/onboarding';
 import { PromptLibraryScreen } from '@musefold/features/prompts';
-import { MotionSync, SettingsScreen, ThemeSync } from '@musefold/features/settings';
+import { DensitySync, MotionSync, SettingsScreen, ThemeSync } from '@musefold/features/settings';
 import {
   AppShell,
   getShellNavItems,
@@ -109,7 +110,12 @@ export function DesktopView({ view, onOpenView }: DesktopViewProps) {
     );
   }
   if (view === 'prompts') {
-    return <PromptLibraryScreen onOpenWorkbench={() => onOpenView('workbench')} />;
+    return (
+      <PromptLibraryScreen
+        onOpenWorkbench={() => onOpenView('workbench')}
+        onOpenHistory={() => onOpenView('history')}
+      />
+    );
   }
   if (view === 'design-schemes') {
     return <DesignSchemesView onOpenView={onOpenView} />;
@@ -148,6 +154,7 @@ export function DesktopShellHost() {
         <PlatformProvider runtime={runtime}>
           <ThemeSync />
           <MotionSync />
+          <DensitySync />
           <div className="min-h-dvh bg-background" data-testid="v25-shell">
             <AppShell
               activeId={view}
@@ -164,6 +171,8 @@ export function DesktopShellHost() {
             {/* Win/Linux 右上角自绘窗口控件(mac 保留原生交通灯,恒 null)。 */}
             <WindowControls enabled={!IS_MAC} />
           </div>
+          {/* 首启引导(U01-onboarding):无可用生图通道且未完成哨兵时自行弹出,否则渲染 null。 */}
+          <OnboardingFlow onOpenScreen={setView} />
           <Toaster />
         </PlatformProvider>
       </QueryClientProvider>

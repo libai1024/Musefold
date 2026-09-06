@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appPreferencesPatchSchema,
   appPreferencesSchema,
   cloudGenerationRequestSchema,
+  defaultAppPreferences,
   createGenerationInputSchema,
   createWorkbenchSessionSchema,
   desktopSyncConsentSchema,
@@ -12,8 +14,11 @@ import {
   syncConflictResolutionSchema,
   syncConflictSummarySchema,
   generationAssetUrlSchema,
+  generationCleanupInputSchema,
+  generationCleanupResultSchema,
   generationIdempotencyKeySchema,
   generationJobSchema,
+  generationStorageUsageSchema,
   generationReferenceImageSchema,
   mcpConnectionSchema,
   promptDocumentSchema,
@@ -573,6 +578,55 @@ describe('cloud-safe contracts', () => {
       userPrompt: '',
       promptReferences: [{ promptId: 'prompt-1' }],
     });
+
+    // 用时/种子是后加的展示字段:旧行缺省即缺席,消费方不得伪造 0(ui-parity 05 §7)。
+    const legacyParsed = generationJobSchema.parse(legacyJob);
+    expect(legacyParsed.durationMs).toBeUndefined();
+    expect(legacyParsed.seed).toBeUndefined();
+    const reported = generationJobSchema.parse({ ...legacyJob, durationMs: 1_500, seed: 42 });
+    expect(reported).toMatchObject({ durationMs: 1_500, seed: 42 });
+    // provider 回报不透明串也合法;负用时与超长串拒绝。
+    expect(generationJobSchema.parse({ ...legacyJob, seed: 'abc-1' }).seed).toBe('abc-1');
+    expect(generationJobSchema.parse({ ...legacyJob, durationMs: null }).durationMs).toBeNull();
+    expect(generationJobSchema.safeParse({ ...legacyJob, durationMs: -1 }).success).toBe(false);
+    expect(generationJobSchema.safeParse({ ...legacyJob, durationMs: 1.5 }).success).toBe(false);
+    expect(generationJobSchema.safeParse({ ...legacyJob, seed: 'x'.repeat(65) }).success).toBe(
+      false,
+    );
+  });
+
+  it('locks the batch cleanup scopes and aggregate readouts (ui-parity 05 §7)', () => {
+    for (const scope of ['older-than-30d', 'failed-and-cancelled', 'empty-trash'] as const) {
+      expect(generationCleanupInputSchema.parse({ scope })).toEqual({ scope });
+    }
+    expect(generationCleanupInputSchema.safeParse({ scope: 'all' }).success).toBe(false);
+    // strict:多带字段拒绝,避免调用方偷偷扩大清理范围。
+    expect(
+      generationCleanupInputSchema.safeParse({ scope: 'empty-trash', sessionId: 's1' }).success,
+    ).toBe(false);
+
+    expect(generationCleanupResultSchema.parse({ affected: 0 })).toEqual({ affected: 0 });
+    expect(generationCleanupResultSchema.safeParse({ affected: -1 }).success).toBe(false);
+
+    expect(generationStorageUsageSchema.parse({ bytes: 1024, fileCount: 2 })).toEqual({
+      bytes: 1024,
+      fileCount: 2,
+    });
+    // 只报聚合数字:绝对路径一类字段不得混进来(渲染层无路径概念)。
+    expect(
+      generationStorageUsageSchema.safeParse({ bytes: 1, fileCount: 1, dir: '/Users/x/Pictures' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('accepts ISO bounds for the custom history range (ui-parity 05 §7)', () => {
+    const parsed = generationHistoryQuerySchema.parse({
+      from: '2026-03-02T00:00:00.000Z',
+      to: '2026-03-04T23:59:59.999Z',
+    });
+    expect(parsed.from).toBe('2026-03-02T00:00:00.000Z');
+    expect(parsed.to).toBe('2026-03-04T23:59:59.999Z');
+    expect(generationHistoryQuerySchema.safeParse({ from: '2026-03-02' }).success).toBe(false);
   });
 
   it('upgrades legacy boolean reducedMotion archives to three-level motion', () => {
@@ -585,6 +639,70 @@ describe('cloud-safe contracts', () => {
     expect(appPreferencesSchema.parse(base).reducedMotion).toBe('system');
     expect(appPreferencesSchema.parse({ ...base, reducedMotion: 'off' }).reducedMotion).toBe('off');
     expect(appPreferencesSchema.safeParse({ ...base, reducedMotion: 'fast' }).success).toBe(false);
+  });
+
+  it('defaults generation params and density on legacy preference archives', () => {
+    const base = { theme: 'system', language: 'zh-CN' } as const;
+    const upgraded = appPreferencesSchema.parse(base);
+    expect(upgraded.defaultAspectRatio).toBe('auto');
+    expect(upgraded.defaultQuality).toBe('auto');
+    expect(upgraded.density).toBe('comfortable');
+    expect(
+      appPreferencesSchema.parse({ ...base, defaultAspectRatio: '16:8' }).defaultAspectRatio,
+    ).toBe('2:1');
+    expect(
+      appPreferencesSchema.parse({ ...base, defaultQuality: 'high', density: 'compact' }),
+    ).toMatchObject({ defaultQuality: 'high', density: 'compact' });
+    expect(appPreferencesSchema.safeParse({ ...base, defaultAspectRatio: '99:1' }).success).toBe(
+      false,
+    );
+    expect(appPreferencesSchema.safeParse({ ...base, density: 'dense' }).success).toBe(false);
+    expect(appPreferencesSchema.safeParse({ ...base, defaultQuality: 'ultra' }).success).toBe(
+      false,
+    );
+  });
+
+  it('defaults the onboarding sentinel to null and only accepts offset ISO datetimes', () => {
+    const base = { theme: 'system', language: 'zh-CN' } as const;
+    // 存量存档缺字段 → null(未完成引导),首启 gate 因此仍可判定。
+    expect(appPreferencesSchema.parse(base).onboardingCompletedAt).toBeNull();
+    expect(defaultAppPreferences.onboardingCompletedAt).toBeNull();
+    expect(
+      appPreferencesSchema.parse({ ...base, onboardingCompletedAt: '2026-09-06T08:30:00+00:00' })
+        .onboardingCompletedAt,
+    ).toBe('2026-09-06T08:30:00+00:00');
+    expect(
+      appPreferencesSchema.safeParse({ ...base, onboardingCompletedAt: '2026-09-06' }).success,
+    ).toBe(false);
+    // patch 通道(gate 静默写哨兵 / 跳过写哨兵)接受单字段与 null 归零。
+    expect(
+      appPreferencesPatchSchema.parse({ onboardingCompletedAt: '2026-09-06T08:30:00+00:00' }),
+    ).toMatchObject({ onboardingCompletedAt: '2026-09-06T08:30:00+00:00' });
+    expect(appPreferencesPatchSchema.parse({ onboardingCompletedAt: null })).toMatchObject({
+      onboardingCompletedAt: null,
+    });
+    expect(appPreferencesPatchSchema.safeParse({ onboardingCompletedAt: 'never' }).success).toBe(
+      false,
+    );
+  });
+
+  it('keeps absent fields absent in preference patches (no default back-fill)', () => {
+    // 桌面 gateway-bridge 先用 patch 契约校验再 spread 到现存偏好;若 partial 回填默认值,
+    // 改一次主题就会把置顶会话/密度/生成默认/引导哨兵全部重置。
+    expect(appPreferencesPatchSchema.parse({ theme: 'dark' })).toEqual({ theme: 'dark' });
+    expect(appPreferencesPatchSchema.parse({ pinnedSessionIds: ['s1'] })).toEqual({
+      pinnedSessionIds: ['s1'],
+    });
+    expect(appPreferencesPatchSchema.parse({})).toEqual({});
+    // legacy 布尔 reducedMotion 预处理仍在 patch 通道生效。
+    expect(appPreferencesPatchSchema.parse({ reducedMotion: true })).toEqual({
+      reducedMotion: 'on',
+    });
+    // patch 键集合与完整偏好键集合一致(新增偏好字段自动进入 patch 契约)。
+    expect(Object.keys(appPreferencesPatchSchema.shape).sort()).toEqual(
+      Object.keys(appPreferencesSchema.shape).sort(),
+    );
+    expect(appPreferencesPatchSchema.safeParse({ density: 'dense' }).success).toBe(false);
   });
 
   it('defaults referenceImages and bounds reference uploads', () => {

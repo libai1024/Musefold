@@ -46,6 +46,7 @@ function createMemoryPromptsGateway(): PromptsGateway {
       lastUsedAt: null,
       source: input.source ?? 'manual',
       sourceUrl: input.sourceUrl ?? null,
+      coverImageUrl: input.coverImageUrl ?? null,
       version: 1,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -99,6 +100,11 @@ function createMemoryPromptsGateway(): PromptsGateway {
       if (doc.deletedAt == null) throw new Error('VALIDATION_FAILED: 仅回收站行可永久删除');
       documents.delete(id);
     },
+    emptyTrash: async () => {
+      const trashed = [...documents.values()].filter((row) => row.deletedAt != null);
+      for (const row of trashed) documents.delete(row.id);
+      return { purged: trashed.length };
+    },
     use: async (id) => ({ prompt: get(id), recorded: true }),
     listFolders: async () => [],
     createFolder: async () => {
@@ -134,6 +140,7 @@ const BASE_INPUT: Omit<NewPromptDocument, 'title' | 'content'> = {
   isPinned: false,
   source: 'manual',
   sourceUrl: null,
+  coverImageUrl: null,
 };
 
 function renderLibrary(prompts: PromptsGateway, props?: PromptLibraryScreenProps) {
@@ -290,9 +297,196 @@ describe('PromptLibraryScreen', () => {
     await waitFor(() => {
       expect(screen.getByTestId(`prompt-row-${created.id}`)).toBeTruthy();
     });
-    expect(screen.getByTestId(`prompt-row-${created.id}`).className).toContain('mf-row-highlight');
+    const row = screen.getByTestId(`prompt-row-${created.id}`);
+    expect(row.className).toContain('mf-row-highlight');
+    // 高亮接收端同时给出可编程/可访问标记(ui-parity 04 §8-5)。
+    expect(row.getAttribute('data-highlighted')).toBe('true');
+    expect(row.getAttribute('aria-current')).toBe('true');
     expect(useScreenIntent.getState().intent).toBeNull();
     useScreenIntent.setState({ intent: null });
+  });
+});
+
+describe('详情 Inspector 与封面(ui-parity 04 §8-1/§8-2)', () => {
+  it('行点击打开详情面板,呈现正文/元数据/相关作品,关闭钮收起', async () => {
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({
+      ...BASE_INPUT,
+      title: '青瓷静物',
+      content: 'celadon still life, soft light',
+      negative: 'text, watermark',
+      source: 'generation',
+    });
+    renderLibrary(prompts);
+
+    fireEvent.click(await screen.findByTestId('prompt-row-open'));
+
+    const detail = await screen.findByTestId('prompt-detail');
+    expect(detail.textContent).toContain('青瓷静物');
+    expect(screen.getByTestId('prompt-detail-content').textContent).toBe(
+      'celadon still life, soft light',
+    );
+    expect(screen.getByTestId('prompt-detail-negative').textContent).toBe('text, watermark');
+    // 来源枚举映射中文(承旧 sourceLabel)。
+    expect(screen.getByTestId('prompt-detail-meta').textContent).toContain('生成入库');
+    expect(screen.getByTestId('prompt-detail-facts').textContent).toContain('使用次数');
+    // 宿主未注入生成域时相关作品退成空态,不报错也不留死链接。
+    expect(screen.getByTestId('prompt-detail-works-empty')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('prompt-detail-close'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-detail')).toBeNull();
+    });
+  });
+
+  it('详情菜单「移入回收站」把行送进回收站', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const created = await prompts.create({ ...BASE_INPUT, title: '铜版蚀刻', content: 'etching' });
+    renderLibrary(prompts);
+
+    fireEvent.click(await screen.findByTestId('prompt-row-open'));
+    await user.click(await screen.findByTestId('prompt-detail-menu'));
+    await user.click(await screen.findByTestId('prompt-detail-remove'));
+
+    await waitFor(async () => {
+      expect((await prompts.get(created.id)).deletedAt).not.toBeNull();
+    });
+    // 目标离开当前视图后详情自动收起,不留悬空面板。
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-detail')).toBeNull();
+    });
+  });
+
+  it('封面缩略:有 coverImageUrl 显图,无封面走 FileText 占位', async () => {
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({
+      ...BASE_INPUT,
+      title: '有封面',
+      content: 'with cover',
+      coverImageUrl: 'https://cdn.test/cover.png',
+    });
+    await prompts.create({ ...BASE_INPUT, title: '无封面', content: 'no cover' });
+    renderLibrary(prompts);
+
+    await waitFor(() => {
+      expect(screen.getByText('有封面')).toBeTruthy();
+    });
+    const covers = screen.getAllByTestId('prompt-row-cover');
+    expect(covers).toHaveLength(1);
+    expect(covers[0]?.getAttribute('src')).toBe('https://cdn.test/cover.png');
+    expect(screen.getAllByTestId('prompt-row-cover-placeholder')).toHaveLength(1);
+  });
+});
+
+describe('状态 CTA 与回收站清空(ui-parity 04 §8-3)', () => {
+  it('搜索无匹配给「清除筛选」,清除后列表回来', async () => {
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({ ...BASE_INPUT, title: '雪山日照', content: 'alpenglow' });
+    renderLibrary(prompts);
+
+    await waitFor(() => {
+      expect(screen.getByText('雪山日照')).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByTestId('prompt-search'), { target: { value: '不存在的词' } });
+    const clear = await screen.findByTestId('prompt-clear-filters');
+    fireEvent.click(clear);
+
+    await waitFor(() => {
+      expect(screen.getByText('雪山日照')).toBeTruthy();
+    });
+    expect((screen.getByTestId('prompt-search') as HTMLInputElement).value).toBe('');
+  });
+
+  it('空库空态给「新建提示词」钮,点击直开编辑器', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    fireEvent.click(await screen.findByTestId('prompt-empty-create'));
+    expect(screen.getByTestId('prompt-editor')).toBeTruthy();
+  });
+
+  it('「清空回收站」双重确认后一次性永久删除全部软删条目', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const first = await prompts.create({ ...BASE_INPUT, title: '待清一', content: 'a' });
+    const second = await prompts.create({ ...BASE_INPUT, title: '待清二', content: 'b' });
+    const kept = await prompts.create({ ...BASE_INPUT, title: '保留的', content: 'c' });
+    await prompts.remove(first.id);
+    await prompts.remove(second.id);
+    renderLibrary(prompts);
+
+    await user.click(screen.getByTestId('prompt-tab-trash'));
+    await waitFor(() => {
+      expect(screen.getByText('待清一')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('prompt-empty-trash'));
+    const dialog = await screen.findByTestId('prompt-empty-trash-dialog');
+    // 破坏性动作必须说明条数(V25-UI-SPEC §8-I4)。
+    expect(dialog.textContent).toContain('2 条');
+    fireEvent.click(screen.getByTestId('prompt-empty-trash-confirm'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-empty')).toBeTruthy();
+    });
+    await expect(prompts.get(first.id)).rejects.toThrow('NOT_FOUND');
+    await expect(prompts.get(second.id)).rejects.toThrow('NOT_FOUND');
+    expect(await prompts.get(kept.id)).toMatchObject({ title: '保留的' });
+  });
+});
+
+describe('快捷键(ui-parity 04 §8-4)', () => {
+  it('「/」在非输入态聚焦搜索框,输入态不抢键', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    const search = await screen.findByTestId('prompt-search');
+    fireEvent.keyDown(document.body, { key: '/' });
+    expect(document.activeElement).toBe(search);
+
+    // 已在输入框里打「/」应正常输入,不再重复抢焦点。
+    search.blur();
+    const title = screen.getByTestId('prompt-create');
+    title.focus();
+    fireEvent.keyDown(search, { key: '/' });
+    expect(document.activeElement).toBe(title);
+  });
+
+  it('「prompts-focus-search」意图(⌘K 落点)聚焦搜索框并消费意图', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+    await screen.findByTestId('prompt-search');
+
+    useScreenIntent.setState({ intent: { kind: 'prompts-focus-search' } });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByTestId('prompt-search'));
+    });
+    expect(useScreenIntent.getState().intent).toBeNull();
+  });
+
+  it('编辑器 ⌘S 走提交路径,clean 时不提交', async () => {
+    const prompts = createMemoryPromptsGateway();
+    renderLibrary(prompts);
+
+    fireEvent.click(await screen.findByTestId('prompt-create'));
+    const editor = screen.getByTestId('prompt-editor');
+
+    // clean(空表单)时不提交。
+    fireEvent.keyDown(editor, { key: 's', metaKey: true });
+    expect((await prompts.list({})).items).toHaveLength(0);
+
+    fireEvent.change(screen.getByTestId('prompt-editor-title'), { target: { value: '快捷保存' } });
+    fireEvent.change(screen.getByTestId('prompt-editor-content'), {
+      target: { value: 'saved via cmd+s' },
+    });
+    fireEvent.keyDown(editor, { key: 's', metaKey: true });
+
+    await waitFor(async () => {
+      expect((await prompts.list({})).items).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-editor')).toBeNull();
+    });
   });
 });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  type GenerationJob,
   type NewPromptDocument,
   type NewPromptFolder,
   type NewPromptTag,
@@ -11,7 +12,7 @@ import {
   type WorkbenchDraft,
   workbenchDraftSchema,
 } from '@musefold/contracts';
-import { queryKeys, useGateway } from '@musefold/platform';
+import { type GenerationGateway, queryKeys, useGateway } from '@musefold/platform';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** 列表查询(cursor 无限分页)。query 不含 cursor,由分页器注入。 */
@@ -89,6 +90,41 @@ export function usePurgePrompt() {
   return useMutation({
     mutationFn: (id: string) => gateway.prompts.purge(id),
     onSuccess: invalidate,
+  });
+}
+
+/** 「清空回收站」:一次性硬删所有软删提示词(双重确认由屏幕层持有)。 */
+export function useEmptyPromptTrash() {
+  const gateway = useGateway();
+  const invalidate = useInvalidatePrompts();
+  return useMutation({
+    mutationFn: () => gateway.prompts.emptyTrash(),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * 详情「相关作品」扫描窗口:generation.list 目前没有 promptId 服务端过滤位
+ * (`generationHistoryQuerySchema` 无该字段),先在客户端按最近一页回合过滤。
+ * 服务端下推见报告「未完成项」。
+ */
+export const PROMPT_RELATED_WORKS_SCAN_LIMIT = 100;
+
+/** 该提示词生成过的成功回合(倒序,取最近扫描窗口内的匹配项)。 */
+export function usePromptRelatedWorks(promptId: string | null) {
+  const gateway = useGateway();
+  // 生成域在部分宿主/测试装配里可能缺席:缺席则查询不启用,面板退成「暂无相关作品」。
+  const generation: GenerationGateway | undefined = gateway.generation;
+  return useQuery({
+    queryKey: queryKeys.prompts.relatedWorks(promptId ?? ''),
+    enabled: promptId != null && generation != null,
+    queryFn: async (): Promise<GenerationJob[]> => {
+      if (!generation) return [];
+      const page = await generation.list({ limit: PROMPT_RELATED_WORKS_SCAN_LIMIT });
+      return page.items.filter(
+        (job) => job.promptId === promptId && job.status === 'succeeded' && job.assets.length > 0,
+      );
+    },
   });
 }
 

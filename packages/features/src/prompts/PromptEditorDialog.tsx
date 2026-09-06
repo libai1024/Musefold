@@ -188,6 +188,13 @@ export function PromptEditorDialog({
             event.preventDefault();
             requestClose();
           }}
+          onKeyDown={(event) => {
+            // ⌘/Ctrl+S 保存(shortcuts.ts 登记 prompt-editor-save):与提交钮同一路径。
+            // 无条件吞掉浏览器「保存网页」;只有 dirty 且表单可提交时才真的提交。
+            if (event.key.toLowerCase() !== 's' || !(event.metaKey || event.ctrlKey)) return;
+            event.preventDefault();
+            if (dirty && canSubmit) onSubmit(value);
+          }}
         >
           <DialogHeader>
             <DialogTitle>{prompt ? '编辑提示词' : '新建提示词'}</DialogTitle>

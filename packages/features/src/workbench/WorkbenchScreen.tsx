@@ -71,7 +71,13 @@ import {
   useUpdateSession,
   useUploadReferenceImage,
 } from './hooks';
-import { useActiveSession } from './session-store';
+import { usePreferences } from '../settings/hooks';
+import {
+  type DraftParamOverrides,
+  type GenerationParamDefaults,
+  resolveInheritedGenerationParams,
+  useActiveSession,
+} from './session-store';
 
 const EMPTY_COMPOSER: ComposerValue = {
   prompt: '',
@@ -80,6 +86,27 @@ const EMPTY_COMPOSER: ComposerValue = {
   quality: 'auto',
   promptReferenceSelections: [],
 };
+
+const FALLBACK_GENERATION_DEFAULTS: GenerationParamDefaults = {
+  defaultAspectRatio: 'auto',
+  defaultQuality: 'auto',
+};
+
+function composerWithInheritedParams(
+  composer: ComposerValue,
+  defaults: GenerationParamDefaults | undefined,
+  overrides: DraftParamOverrides,
+): ComposerValue {
+  const resolved = resolveInheritedGenerationParams(
+    defaults ?? FALLBACK_GENERATION_DEFAULTS,
+    overrides,
+  );
+  return {
+    ...composer,
+    aspectRatio: toComposerRatio(resolved.aspectRatio),
+    quality: resolved.quality,
+  };
+}
 
 /**
  * 首发消息派生会话标题(「新设计」草稿态首次发送建会话,承参照应用语义):
@@ -166,6 +193,9 @@ export function WorkbenchScreen({
   const setActiveId = useActiveSession((s) => s.setActiveSessionId);
   const draftSession = useActiveSession((s) => s.draftSession);
   const startDraftSession = useActiveSession((s) => s.startDraftSession);
+  const draftParamOverrides = useActiveSession((s) => s.draftParamOverrides);
+  const setDraftParamOverride = useActiveSession((s) => s.setDraftParamOverride);
+  const preferences = usePreferences();
   const [composer, setComposer] = useState<ComposerValue>(EMPTY_COMPOSER);
   // 草稿参考图(ui-parity 03 §7 P0):内存态,不进会话草稿;previewUrl 为本地 objectURL。
   const [references, setReferences] = useState<ComposerReference[]>([]);
@@ -318,15 +348,33 @@ export function WorkbenchScreen({
     }
   }, [activeSession, clearReferences, clearSchemeState]);
 
-  // 进入草稿态:清 Composer 与参考图,呈全新空白(再次装载会话草稿由上方切换效果负责)。
+  // 空草稿 / 新设计:未显式改过的参数跟随设置默认值;刚进入草稿态时同时清空正文。
+  const inheritDefaults = draftSession || !activeId;
+  const wasDraftSession = useRef(false);
   useEffect(() => {
-    if (draftSession) {
+    const enteredDraft = draftSession && !wasDraftSession.current;
+    wasDraftSession.current = draftSession;
+    if (enteredDraft) {
       loadedDraftFor.current = null;
       clearReferences();
       clearSchemeState();
-      setComposer(EMPTY_COMPOSER);
+      setComposer(
+        composerWithInheritedParams(EMPTY_COMPOSER, preferences.data, draftParamOverrides),
+      );
+      return;
     }
-  }, [draftSession, clearReferences, clearSchemeState]);
+    if (!inheritDefaults) return;
+    setComposer((current) =>
+      composerWithInheritedParams(current, preferences.data, draftParamOverrides),
+    );
+  }, [
+    draftSession,
+    inheritDefaults,
+    draftParamOverrides,
+    preferences.data,
+    clearReferences,
+    clearSchemeState,
+  ]);
 
   async function uploadReferenceFile(file: File, entry: ComposerReference) {
     try {
@@ -394,6 +442,14 @@ export function WorkbenchScreen({
       );
     }
     clearSchemeState();
+    if (pendingDraft.params.aspectRatio || pendingDraft.params.quality) {
+      setDraftParamOverride({
+        ...(pendingDraft.params.aspectRatio
+          ? { aspectRatio: pendingDraft.params.aspectRatio }
+          : {}),
+        ...(pendingDraft.params.quality ? { quality: pendingDraft.params.quality } : {}),
+      });
+    }
     setComposer(draftToComposerValue(pendingDraft));
     consumePendingDraft();
   }, [
@@ -403,6 +459,7 @@ export function WorkbenchScreen({
     queueDraftWrite,
     reportDraftWriteError,
     clearSchemeState,
+    setDraftParamOverride,
   ]);
 
   // 方案域一次性意图(承旧 run-store.attach / draftCommand design-plan):
@@ -448,6 +505,14 @@ export function WorkbenchScreen({
 
   // 草稿防抖回写(800ms);同屏写入按服务端返回版本串行,避免 autosave 与提交后清空互相冲突。
   function handleComposerChange(next: ComposerValue) {
+    if (inheritDefaults) {
+      if (next.aspectRatio !== composer.aspectRatio) {
+        setDraftParamOverride({ aspectRatio: next.aspectRatio });
+      }
+      if (next.quality !== composer.quality) {
+        setDraftParamOverride({ quality: next.quality });
+      }
+    }
     setComposer(next);
     if (!activeSession) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);

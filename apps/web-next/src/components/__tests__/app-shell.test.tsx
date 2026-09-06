@@ -3,6 +3,8 @@
 //   「设计方案」项,点击路由到 /design-schemes;
 // - 当前路由 /design-schemes 时该导航项为活动态(aria-current)。
 
+import type { AppPreferences } from '@musefold/contracts';
+import { defaultAppPreferences } from '@musefold/contracts';
 import type { MusefoldGateway } from '@musefold/platform';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -21,12 +23,19 @@ vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
 }));
 
-function makeGateway(): MusefoldGateway {
+/** 首启引导哨兵:既有壳用例默认「已完成引导」,引导层因此不该出现。 */
+const SEEDED_SENTINEL = '2026-08-01T00:00:00.000Z';
+
+function makeGateway(onboardingCompletedAt: string | null = SEEDED_SENTINEL): MusefoldGateway {
   return {
     account: {
       getStatus: vi.fn(async () => {
         throw new Error('UNAUTHENTICATED');
       }),
+    },
+    settings: {
+      getPreferences: vi.fn(async () => ({ ...defaultAppPreferences, onboardingCompletedAt })),
+      updatePreferences: vi.fn(async (next: AppPreferences) => next),
     },
     workbench: {
       listSessions: vi.fn(async () => ({ items: [], nextCursor: null })),
@@ -34,13 +43,13 @@ function makeGateway(): MusefoldGateway {
   } as unknown as MusefoldGateway;
 }
 
-function renderShell() {
+function renderShell(onboardingCompletedAt: string | null = SEEDED_SENTINEL) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const capabilities = { ...WEB_CAPABILITIES, hasDesignSchemes: true };
   function Providers({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <PlatformProvider runtime={{ gateway: makeGateway(), capabilities }}>
+        <PlatformProvider runtime={{ gateway: makeGateway(onboardingCompletedAt), capabilities }}>
           {children}
         </PlatformProvider>
       </QueryClientProvider>
@@ -77,5 +86,22 @@ describe('Web 壳导航 capability wiring', () => {
 
     const navItem = await screen.findByTestId('nav-design-schemes');
     await waitFor(() => expect(navItem.getAttribute('aria-current')).toBe('page'));
+  });
+});
+
+describe('Web 壳首启引导挂载(U01-onboarding)', () => {
+  it('哨兵已写:引导层挂载但不显示', async () => {
+    renderShell();
+
+    await screen.findByTestId('nav-design-schemes');
+    await waitFor(() => expect(screen.queryByTestId('onboarding-flow')).toBeNull());
+  });
+
+  it('未完成哨兵 + 未登录(Web 唯一通道):引导层从 welcome 步弹出', async () => {
+    renderShell(null);
+
+    expect(await screen.findByTestId('onboarding-step-welcome')).toBeTruthy();
+    const flow = await screen.findByTestId('onboarding-flow');
+    expect(flow.getAttribute('role')).toBe('dialog');
   });
 });

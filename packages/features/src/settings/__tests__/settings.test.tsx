@@ -1,8 +1,16 @@
 import type {
+  AppInfo,
   AppPreferences,
+  BackupInfo,
+  StorageLocation,
   UpdateWorkbenchSession,
   WorkbenchSession,
   WorkbenchSessionListQuery,
+} from '@musefold/contracts';
+import {
+  CLEAR_ALL_DATA_CONFIRMATION,
+  defaultAppPreferences,
+  thirdPartyNoticeSchema,
 } from '@musefold/contracts';
 import {
   DESKTOP_CAPABILITIES,
@@ -13,11 +21,13 @@ import {
 } from '@musefold/platform';
 import { toast } from '@musefold/ui/components/sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScreenIntent } from '../../shell/screen-intent-store';
+import { PRODUCT_SHORTCUTS } from '../../shell/shortcuts';
 import { formatArchivedAt } from '../ArchivedSessionsPanel';
+import { DensitySync } from '../DensitySync';
 import { resolveThemeClass } from '../hooks';
 import { MotionSync } from '../MotionSync';
 import {
@@ -29,6 +39,7 @@ import {
 } from '../sections';
 import { useSettingsNav } from '../settings-nav-store';
 import { SettingsScreen, type SettingsScreenProps } from '../SettingsScreen';
+import { THIRD_PARTY_NOTICES } from '../third-party-notices';
 
 // 归档面板失败提示走 sonner;统一 mock,断言 toast.error 被调即可。
 vi.mock('@musefold/ui/components/sonner', () => ({
@@ -71,31 +82,123 @@ function makeArchivedSession(
 
 type CallMode = 'ready' | 'pending' | 'error';
 
+const DESKTOP_APP_INFO: AppInfo = {
+  version: '2.5.0',
+  platform: 'darwin',
+  arch: 'arm64',
+  schemaVersion: 7,
+  channel: 'stable',
+};
+
+function makeBackup(file: string, createdAt: string, size = 2_097_152): BackupInfo {
+  return { file, size, createdAt, kind: 'manual' };
+}
+
+const STORAGE_LOCATIONS: StorageLocation[] = [
+  { id: 'database', label: '数据库', displayPath: '/Users/tester/Musefold/data.db' },
+  { id: 'backups', label: '备份目录', displayPath: '/Users/tester/Musefold/backups' },
+];
+
+interface SystemStubOptions {
+  appInfo?: AppInfo;
+  appInfoMode?: CallMode;
+  backups?: BackupInfo[];
+  backupsMode?: CallMode;
+  createMode?: CallMode;
+  restoreMode?: CallMode;
+  locationsMode?: CallMode;
+  openMode?: CallMode;
+  logText?: string;
+  logMode?: CallMode;
+  clearMode?: CallMode;
+}
+
+/** 桌面 system 域内存桩:备份列表随「立即备份」增长,方法模式可逐个切 pending/error。 */
+function createSystemStub(options: SystemStubOptions) {
+  const backups = [...(options.backups ?? [])];
+  const spies = {
+    getAppInfo: vi.fn(async () => {
+      if (options.appInfoMode === 'error') throw new Error('APP_INFO_FAILED');
+      return options.appInfo ?? DESKTOP_APP_INFO;
+    }),
+    listBackups: vi.fn(() => {
+      if (options.backupsMode === 'pending') return new Promise<BackupInfo[]>(() => {});
+      if (options.backupsMode === 'error') return Promise.reject(new Error('BACKUP_LIST_FAILED'));
+      return Promise.resolve([...backups]);
+    }),
+    createBackup: vi.fn(() => {
+      if (options.createMode === 'pending') return new Promise<never>(() => {});
+      if (options.createMode === 'error') return Promise.reject(new Error('磁盘空间不足'));
+      const backup = makeBackup('backup-20260906-120000-000-manual.db', '2026-09-06T12:00:00.000Z');
+      backups.unshift(backup);
+      return Promise.resolve({ backup });
+    }),
+    restoreBackup: vi.fn((input: { file: string }) => {
+      if (options.restoreMode === 'error') return Promise.reject(new Error('备份文件损坏'));
+      return Promise.resolve({
+        safetyBackupFile: `safety-${input.file}`,
+        needsRestart: true as const,
+      });
+    }),
+    listStorageLocations: vi.fn(() => {
+      if (options.locationsMode === 'pending') return new Promise<StorageLocation[]>(() => {});
+      if (options.locationsMode === 'error') return Promise.reject(new Error('目录不可读'));
+      return Promise.resolve(STORAGE_LOCATIONS);
+    }),
+    openStorageLocation: vi.fn(() =>
+      options.openMode === 'error'
+        ? Promise.reject(new Error('目录已不存在'))
+        : Promise.resolve(undefined),
+    ),
+    readDiagnosticLog: vi.fn(() => {
+      if (options.logMode === 'pending') return new Promise<never>(() => {});
+      if (options.logMode === 'error') return Promise.reject(new Error('LOG_FAILED'));
+      return Promise.resolve({ text: options.logText ?? '', truncated: false });
+    }),
+    clearAllData: vi.fn(() =>
+      options.clearMode === 'error'
+        ? Promise.reject(new Error('数据库被占用'))
+        : Promise.resolve({ safetyBackupFile: 'backup-20260906-115900-000-pre-reset.db' }),
+    ),
+    openExternal: vi.fn(async () => undefined),
+    openProductDocs: vi.fn(async () => undefined),
+    relaunch: vi.fn(async () => undefined),
+  };
+  return spies;
+}
+
 function createTestGateway(overrides?: {
   accountRejects?: boolean;
   preferences?: Partial<AppPreferences>;
+  preferencesMode?: CallMode;
   archived?: WorkbenchSession[];
   listMode?: CallMode;
   updateMode?: CallMode;
   removeMode?: CallMode;
+  /** 桌面本机数据域;缺省即宿主不提供(Web 形态)。 */
+  system?: SystemStubOptions;
 }): {
   gateway: MusefoldGateway;
   updateSpy: ReturnType<typeof vi.fn>;
+  getPreferencesSpy: ReturnType<typeof vi.fn>;
   listSessionsSpy: ReturnType<typeof vi.fn>;
   updateSessionSpy: ReturnType<typeof vi.fn>;
   removeSessionSpy: ReturnType<typeof vi.fn>;
+  system: ReturnType<typeof createSystemStub> | null;
   resolveHeldUpdate(): void;
   resolveHeldRemove(): void;
 } {
   let preferences: AppPreferences = {
-    theme: 'system',
-    language: 'zh-CN',
-    reducedMotion: 'system',
-    pinnedSessionIds: [],
+    ...defaultAppPreferences,
     ...overrides?.preferences,
   };
   const updateSpy = vi.fn(async (patch: Partial<AppPreferences>) => {
     preferences = { ...preferences, ...patch };
+    return preferences;
+  });
+  const getPreferencesSpy = vi.fn(async () => {
+    if (overrides?.preferencesMode === 'error') throw new Error('PREFERENCES_FAILED');
+    if (overrides?.preferencesMode === 'pending') return new Promise<AppPreferences>(() => {});
     return preferences;
   });
 
@@ -162,9 +265,11 @@ function createTestGateway(overrides?: {
     return Promise.resolve(remove());
   });
 
+  const system = overrides?.system ? createSystemStub(overrides.system) : null;
+
   const gateway = {
     settings: {
-      getPreferences: async () => preferences,
+      getPreferences: getPreferencesSpy,
       updatePreferences: updateSpy,
     },
     account: {
@@ -244,14 +349,17 @@ function createTestGateway(overrides?: {
       refreshLogin: vi.fn(),
       logout: vi.fn(),
     },
+    ...(system ? { system } : {}),
   } as unknown as MusefoldGateway;
 
   return {
     gateway,
     updateSpy,
+    getPreferencesSpy,
     listSessionsSpy,
     updateSessionSpy,
     removeSessionSpy,
+    system,
     resolveHeldUpdate: () => heldUpdate?.(),
     resolveHeldRemove: () => heldRemove?.(),
   };
@@ -299,7 +407,12 @@ describe('SettingsScreen', () => {
       Array.from(
         screen.getByTestId('settings-nav').querySelectorAll('[data-testid^="settings-nav-"]'),
       ).map((node) => node.getAttribute('data-testid')),
-    ).toEqual(['settings-nav-appearance', 'settings-nav-account', 'settings-nav-data']);
+    ).toEqual([
+      'settings-nav-appearance',
+      'settings-nav-account',
+      'settings-nav-data',
+      'settings-nav-about',
+    ]);
     expect(screen.getByTestId('settings-group-general')).toBeTruthy();
     expect(screen.getByTestId('settings-group-access')).toBeTruthy();
     expect(screen.getByTestId('settings-group-app')).toBeTruthy();
@@ -343,6 +456,10 @@ describe('SettingsScreen', () => {
     renderSettings(gateway, { onOpenScreen: vi.fn() }, DESKTOP_CAPABILITIES);
     await screen.findByTestId('settings-section-appearance');
 
+    fireEvent.change(screen.getByTestId('settings-search'), { target: { value: '比例' } });
+    expect(screen.getByTestId('settings-nav-appearance')).toBeTruthy();
+    expect(screen.queryByTestId('settings-nav-connections')).toBeNull();
+
     fireEvent.change(screen.getByTestId('settings-search'), { target: { value: '密钥' } });
     expect(screen.getByTestId('settings-nav-connections')).toBeTruthy();
     expect(screen.queryByTestId('settings-nav-appearance')).toBeNull();
@@ -368,23 +485,85 @@ describe('SettingsScreen', () => {
     expect(screen.getByTestId('settings-section-account').className).toContain('hidden md:flex');
   });
 
-  it('updates motion level through the three-option select', async () => {
+  it('updates motion level through the three-option toggle group', async () => {
     const { gateway, updateSpy } = createTestGateway();
     renderSettings(gateway);
 
     const trigger = await screen.findByTestId('settings-motion-trigger');
     expect(trigger.textContent).toContain('跟随系统');
 
-    // Radix Select:键盘展开;jsdom 无 pointer 事件流,click 走触摸分支提交选择。
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-    const option = await screen.findByTestId('settings-motion-on');
-    fireEvent.click(option);
+    fireEvent.click(await screen.findByTestId('settings-motion-on'));
 
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({ reducedMotion: 'on' });
     });
     await waitFor(() => {
-      expect(screen.getByTestId('settings-motion-trigger').textContent).toContain('减少动效');
+      expect(screen.getByTestId('settings-motion-on').getAttribute('data-state')).toBe('on');
+    });
+  });
+
+  it('renders generation defaults and writes ratio / quality', async () => {
+    const { gateway, updateSpy } = createTestGateway();
+    renderSettings(gateway);
+
+    await screen.findByTestId('settings-generation-defaults-card');
+    const ratioTrigger = await screen.findByTestId('settings-default-ratio-trigger');
+    expect(ratioTrigger.textContent).toContain('auto');
+
+    fireEvent.keyDown(screen.getByTestId('settings-default-ratio-trigger'), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByTestId('settings-default-ratio-16x9'));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ defaultAspectRatio: '16:9' });
+    });
+
+    fireEvent.click(screen.getByTestId('settings-default-quality-high'));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ defaultQuality: 'high' });
+    });
+  });
+
+  it('writes density preference from the two-option toggle group', async () => {
+    const { gateway, updateSpy } = createTestGateway();
+    renderSettings(gateway);
+
+    fireEvent.click(await screen.findByTestId('settings-density-compact'));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ density: 'compact' });
+    });
+  });
+
+  it('shows dynamic theme and motion hints after mount', async () => {
+    window.matchMedia = vi.fn((query: string) => ({
+      matches:
+        query.includes('prefers-color-scheme: dark') || query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      onchange: null,
+    })) as typeof window.matchMedia;
+
+    const { gateway } = createTestGateway();
+    renderSettings(gateway);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-theme-hint').textContent).toContain('当前为深色');
+    });
+    expect(screen.getByTestId('settings-motion-hint').textContent).toContain('当前:减少动效');
+  });
+
+  it('shows a retry button when preferences fail to load', async () => {
+    const { gateway, getPreferencesSpy } = createTestGateway({ preferencesMode: 'error' });
+    renderSettings(gateway);
+
+    expect(await screen.findByTestId('settings-preferences-retry')).toBeTruthy();
+    expect(screen.getAllByText('偏好读取失败,请重试').length).toBeGreaterThan(0);
+    const callsBefore = getPreferencesSpy.mock.calls.length;
+    fireEvent.click(screen.getByTestId('settings-preferences-retry'));
+    await waitFor(() => {
+      expect(getPreferencesSpy.mock.calls.length).toBeGreaterThan(callsBefore);
     });
   });
 
@@ -509,10 +688,12 @@ describe('settings section registry(sections.tsx)', () => {
       'sync',
       'connections',
       'data',
+      'about',
     ]);
     expect(sectionForIntent('settings-connections', desktop)).toBe('connections');
     const web = availableSettingsSections({ capabilities: WEB_CAPABILITIES });
-    expect(web.map((section) => section.id)).toEqual(['appearance', 'account']);
+    // 「关于」双端都注册(Web 版本行显示「Web 版」);「数据」要宿主接了切屏回调才注册。
+    expect(web.map((section) => section.id)).toEqual(['appearance', 'account', 'about']);
     expect(sectionForIntent('settings-connections', web)).toBe('account');
     expect(filterSettingsSections(desktop, '豆包').map((section) => section.id)).toEqual([
       'connections',
@@ -727,6 +908,356 @@ describe('ArchivedSessionsPanel(设置·数据卡内已归档对话)', () => {
   });
 });
 
+describe('DataStorageCard(设置·数据存储,桌面本机数据面)', () => {
+  const writeText = vi.fn(async (_text: string) => undefined);
+
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
+    writeText.mockClear();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  });
+
+  function renderData(system: SystemStubOptions = {}) {
+    const utils = createTestGateway({ system });
+    useSettingsNav.setState({ activeSectionId: 'data' });
+    renderSettings(utils.gateway, { onOpenScreen: vi.fn() }, DESKTOP_CAPABILITIES);
+    return utils;
+  }
+
+  it('Web 宿主(hasLocalDataManagement=false):只有回收站与归档,四块本机数据面不渲染', async () => {
+    const { gateway } = createTestGateway();
+    useSettingsNav.setState({ activeSectionId: 'data' });
+    renderSettings(gateway, { onOpenScreen: vi.fn() }, WEB_CAPABILITIES);
+
+    await screen.findByTestId('settings-data-card');
+    expect(screen.getByTestId('archived-toggle')).toBeTruthy();
+    expect(screen.queryByTestId('settings-backup-card')).toBeNull();
+    expect(screen.queryByTestId('settings-storage-card')).toBeNull();
+    expect(screen.queryByTestId('settings-danger-card')).toBeNull();
+  });
+
+  it('备份状态行三态:读取中 / 暂无备份 / 共 n 份 · 最近备份', async () => {
+    renderData({ backupsMode: 'pending' });
+    expect((await screen.findByTestId('settings-backup-status')).textContent).toBe('正在读取备份…');
+    cleanup();
+
+    renderData({ backups: [] });
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-backup-status').textContent).toBe('暂无备份');
+    });
+    expect(screen.queryByTestId('settings-backup-toggle')).toBeNull();
+    cleanup();
+
+    renderData({
+      backups: [
+        makeBackup('backup-20260906-101500-000-manual.db', '2026-09-06T10:15:00.000Z'),
+        makeBackup('backup-20260901-080000-000-manual.db', '2026-09-01T08:00:00.000Z'),
+      ],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-backup-status').textContent).toContain('共 2 份');
+    });
+    expect(screen.getByTestId('settings-backup-status').textContent).toContain('最近备份');
+  });
+
+  it('读取失败就地红字;创建失败单独报错', async () => {
+    renderData({ backupsMode: 'error' });
+    expect((await screen.findByTestId('settings-backup-error')).textContent).toContain(
+      'BACKUP_LIST_FAILED',
+    );
+    cleanup();
+
+    renderData({ backups: [], createMode: 'error' });
+    fireEvent.click(await screen.findByTestId('settings-backup-create'));
+    expect((await screen.findByTestId('settings-backup-create-error')).textContent).toContain(
+      '磁盘空间不足',
+    );
+  });
+
+  it('立即备份:toast 一致性快照文案,新备份直接展开可见', async () => {
+    const { system } = renderData({ backups: [] });
+    await screen.findByTestId('settings-backup-create');
+    // 列表默认收起(且此时无备份可展开)。
+    expect(screen.queryByTestId('settings-backup-list')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('settings-backup-create'));
+    await waitFor(() => {
+      expect(system?.createBackup).toHaveBeenCalledTimes(1);
+    });
+    expect(toast.success).toHaveBeenCalledWith('当前数据库已保存为一致性快照');
+    // 就近反馈:创建后自动展开,新备份行与「大小 · 时间」同行可见。
+    const row = await screen.findByTestId(
+      'settings-backup-row-backup-20260906-120000-000-manual.db',
+    );
+    expect(row.textContent).toContain('2.0 MB');
+    expect(screen.getByTestId('settings-backup-status').textContent).toContain('共 1 份');
+  });
+
+  it('恢复:确认对话框 → 成功后调 relaunch;取消不调用主进程', async () => {
+    const file = 'backup-20260906-101500-000-manual.db';
+    const { system } = renderData({ backups: [makeBackup(file, '2026-09-06T10:15:00.000Z')] });
+
+    fireEvent.click(await screen.findByTestId('settings-backup-toggle'));
+    fireEvent.click(await screen.findByTestId(`settings-backup-restore-${file}`));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('恢复此备份?')).toBeTruthy();
+    expect(dialog.textContent).toContain('当前数据将被该备份覆盖,应用将重启');
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    expect(system?.restoreBackup).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId(`settings-backup-restore-${file}`));
+    fireEvent.click(await screen.findByTestId('settings-backup-restore-confirm'));
+    await waitFor(() => {
+      expect(system?.restoreBackup).toHaveBeenCalledWith({ file });
+    });
+    await waitFor(() => {
+      expect(system?.relaunch).toHaveBeenCalledTimes(1);
+    });
+    expect(toast.success).toHaveBeenCalledWith('备份已恢复,应用即将重启');
+  });
+
+  it('恢复失败:就地红字,不重启,对话框保留可重试', async () => {
+    const file = 'backup-20260906-101500-000-manual.db';
+    const { system } = renderData({
+      backups: [makeBackup(file, '2026-09-06T10:15:00.000Z')],
+      restoreMode: 'error',
+    });
+
+    fireEvent.click(await screen.findByTestId('settings-backup-toggle'));
+    fireEvent.click(await screen.findByTestId(`settings-backup-restore-${file}`));
+    fireEvent.click(await screen.findByTestId('settings-backup-restore-confirm'));
+
+    expect((await screen.findByTestId('settings-backup-restore-error')).textContent).toContain(
+      '备份文件损坏',
+    );
+    expect(system?.relaunch).not.toHaveBeenCalled();
+    expect(screen.getByTestId('settings-backup-restore-confirm')).toBeTruthy();
+  });
+
+  it('存储位置:路径行 mono、复制路径与打开;读取失败就地报错', async () => {
+    const { system } = renderData({});
+    await screen.findByTestId('settings-storage-row-database');
+    expect(screen.getByTestId('settings-storage-path-database').textContent).toBe(
+      '/Users/tester/Musefold/data.db',
+    );
+    expect(screen.getByTestId('settings-storage-path-database').className).toContain('font-mono');
+
+    fireEvent.click(screen.getByTestId('settings-storage-copy-database'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('/Users/tester/Musefold/data.db');
+    });
+    expect(toast.success).toHaveBeenCalledWith('路径已复制');
+
+    fireEvent.click(screen.getByTestId('settings-storage-open-backups'));
+    await waitFor(() => {
+      expect(system?.openStorageLocation).toHaveBeenCalledWith({ id: 'backups' });
+    });
+    cleanup();
+
+    renderData({ locationsMode: 'error' });
+    expect((await screen.findByTestId('settings-storage-error')).textContent).toContain(
+      '目录不可读',
+    );
+  });
+
+  it('诊断日志:点「查看」才读取;空日志与失败各有文案', async () => {
+    const { system } = renderData({ logText: '2026-09-06 12:00:00 [info] 启动完成' });
+    await screen.findByTestId('settings-log-toggle');
+    expect(system?.readDiagnosticLog).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('settings-log-toggle'));
+    const text = (await screen.findByTestId('settings-log-text')) as HTMLTextAreaElement;
+    expect(text.value).toContain('启动完成');
+    expect(text.readOnly).toBe(true);
+    cleanup();
+
+    renderData({ logText: '' });
+    fireEvent.click(await screen.findByTestId('settings-log-toggle'));
+    expect(await screen.findByTestId('settings-log-empty')).toBeTruthy();
+    cleanup();
+
+    renderData({ logMode: 'error' });
+    fireEvent.click(await screen.findByTestId('settings-log-toggle'));
+    expect(await screen.findByTestId('settings-log-error')).toBeTruthy();
+  });
+
+  it('危险区:短语不匹配禁用,匹配后转 destructive 并执行;成功 toast 含边界文案', async () => {
+    const { system } = renderData({});
+    const button = (await screen.findByTestId('settings-danger-clear')) as HTMLButtonElement;
+    const input = screen.getByTestId('settings-danger-confirm-input') as HTMLInputElement;
+    expect(button.disabled).toBe(true);
+    expect(input.placeholder).toBe(CLEAR_ALL_DATA_CONFIRMATION);
+    expect(input.className).toContain('font-mono');
+
+    fireEvent.change(input, { target: { value: '清空数据' } });
+    expect((screen.getByTestId('settings-danger-clear') as HTMLButtonElement).disabled).toBe(true);
+
+    // 粘贴同形:整串写入即解锁,按钮转危险填充。
+    fireEvent.change(input, { target: { value: CLEAR_ALL_DATA_CONFIRMATION } });
+    expect((screen.getByTestId('settings-danger-clear') as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByTestId('settings-danger-clear').getAttribute('data-variant')).toBe(
+      'destructive',
+    );
+
+    fireEvent.click(screen.getByTestId('settings-danger-clear'));
+    await waitFor(() => {
+      expect(system?.clearAllData).toHaveBeenCalledWith({
+        confirmation: CLEAR_ALL_DATA_CONFIRMATION,
+      });
+    });
+    expect(toast.success).toHaveBeenCalledWith('数据已清空 · Provider、API 密钥和图片文件保持不变');
+    // 执行后短语清空(不留着一键再清一次),并显示清空前快照文件名。
+    await waitFor(() => {
+      expect((screen.getByTestId('settings-danger-confirm-input') as HTMLInputElement).value).toBe(
+        '',
+      );
+    });
+    expect(screen.getByTestId('settings-danger-backup').textContent).toContain('pre-reset');
+  });
+
+  it('危险区失败:就地红字「清空数据失败」', async () => {
+    renderData({ clearMode: 'error' });
+    const input = await screen.findByTestId('settings-danger-confirm-input');
+    fireEvent.change(input, { target: { value: CLEAR_ALL_DATA_CONFIRMATION } });
+    fireEvent.click(screen.getByTestId('settings-danger-clear'));
+
+    const error = await screen.findByTestId('settings-danger-error');
+    expect(error.textContent).toContain('清空数据失败');
+    expect(error.textContent).toContain('数据库被占用');
+  });
+});
+
+describe('AboutCard(设置·关于)', () => {
+  const writeText = vi.fn(async (_text: string) => undefined);
+
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
+    writeText.mockClear();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  });
+
+  function renderAbout(options?: { system?: SystemStubOptions }) {
+    const utils = createTestGateway(options);
+    useSettingsNav.setState({ activeSectionId: 'about' });
+    renderSettings(
+      utils.gateway,
+      { onOpenScreen: vi.fn() },
+      options?.system ? DESKTOP_CAPABILITIES : WEB_CAPABILITIES,
+    );
+    return utils;
+  }
+
+  it('桌面:版本行含版本 / 库结构 / 平台,复制版本信息聚合报障串', async () => {
+    renderAbout({ system: {} });
+    const version = await screen.findByTestId('settings-about-version');
+    await waitFor(() => {
+      expect(version.textContent).toContain('版本 2.5.0');
+    });
+    expect(version.textContent).toContain('库结构 v7');
+    expect(version.textContent).toContain('macOS');
+    expect(version.className).toContain('tabular-nums');
+
+    fireEvent.click(screen.getByTestId('settings-about-copy-version'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1);
+    });
+    const copied = writeText.mock.calls[0]?.[0] ?? '';
+    expect(copied).toContain('2.5.0');
+    expect(copied).toContain('darwin arm64');
+    expect(copied).toContain('数据库结构版本:7');
+    expect(copied).toContain('更新通道:stable');
+    expect(toast.success).toHaveBeenCalledWith('版本信息已复制');
+  });
+
+  it('Web:版本行显示「Web 版」,不渲染文档入口(无 system 域)', async () => {
+    renderAbout();
+    expect((await screen.findByTestId('settings-about-version')).textContent).toBe('Web 版');
+    expect(screen.queryByTestId('settings-about-docs')).toBeNull();
+    expect(screen.getByTestId('settings-about-product').textContent).toContain('Musefold');
+
+    fireEvent.click(screen.getByTestId('settings-about-copy-version'));
+    await waitFor(() => {
+      expect(writeText.mock.calls[0]?.[0] ?? '').toContain('Web 版');
+    });
+  });
+
+  it('支持资源:文档经主进程打开(失败 toast),复制反馈信息带日志指引', async () => {
+    const { system } = renderAbout({ system: {} });
+    fireEvent.click(await screen.findByTestId('settings-about-docs'));
+    await waitFor(() => {
+      expect(system?.openProductDocs).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByTestId('settings-about-copy-feedback'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1);
+    });
+    expect(writeText.mock.calls[0]?.[0] ?? '').toContain('诊断日志');
+    expect(toast.success).toHaveBeenCalledWith('可连同诊断日志一起发送给维护者');
+  });
+
+  it('文档打开失败提示「文档打开失败」', async () => {
+    const utils = createTestGateway({ system: {} });
+    utils.system?.openProductDocs.mockRejectedValueOnce(new Error('DOCS_OPEN_FAILED'));
+    useSettingsNav.setState({ activeSectionId: 'about' });
+    renderSettings(utils.gateway, { onOpenScreen: vi.fn() }, DESKTOP_CAPABILITIES);
+
+    fireEvent.click(await screen.findByTestId('settings-about-docs'));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('文档打开失败');
+    });
+  });
+
+  it('第三方声明:对话框可打开且逐条渲染许可', async () => {
+    renderAbout();
+    fireEvent.click(await screen.findByTestId('settings-about-notices'));
+    const dialog = await screen.findByTestId('settings-about-notices-dialog');
+    expect(THIRD_PARTY_NOTICES.length).toBeGreaterThan(0);
+    for (const notice of THIRD_PARTY_NOTICES) {
+      expect(within(dialog).getByTestId(`settings-about-notice-${notice.name}`)).toBeTruthy();
+    }
+  });
+
+  it('快捷键表:PRODUCT_SHORTCUTS 每条渲染,按平台切 ⌘/Ctrl 显示与作用域', async () => {
+    renderAbout({ system: {} });
+    await screen.findByTestId('settings-about-shortcuts-card');
+    for (const shortcut of PRODUCT_SHORTCUTS) {
+      const row = screen.getByTestId(`settings-about-shortcut-${shortcut.id}`);
+      expect(row.textContent).toContain(shortcut.label);
+      expect(row.textContent).toContain(shortcut.scope);
+    }
+    // 桌面 darwin:mac 串。
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-about-shortcut-new-session').textContent).toContain('⌘N');
+    });
+    cleanup();
+
+    renderAbout({ system: { appInfo: { ...DESKTOP_APP_INFO, platform: 'win32', arch: 'x64' } } });
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-about-shortcut-new-session').textContent).toContain(
+        'Ctrl+N',
+      );
+    });
+  });
+});
+
+describe('第三方声明清单(third-party-notices.ts)', () => {
+  it('逐条符合契约形状,名称唯一且按名排序', () => {
+    for (const notice of THIRD_PARTY_NOTICES) {
+      expect(thirdPartyNoticeSchema.parse(notice)).toEqual(notice);
+    }
+    const names = THIRD_PARTY_NOTICES.map((notice) => notice.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect([...names]).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  });
+});
+
 describe('formatArchivedAt(归档时间恒带年份)', () => {
   it('输出包含年份与时分', () => {
     const text = formatArchivedAt('2024-03-05T06:30:00.000Z');
@@ -784,5 +1315,33 @@ describe('MotionSync(动效分级投影到 <html>)', () => {
     });
     expect(document.documentElement.classList.contains('reduce-motion')).toBe(false);
     systemView.unmount();
+  });
+});
+
+describe('DensitySync(密度投影到 <html>)', () => {
+  function renderDensitySync(density: AppPreferences['density']) {
+    const { gateway } = createTestGateway({ preferences: { density } });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <PlatformProvider runtime={{ gateway, capabilities: WEB_CAPABILITIES }}>
+          <DensitySync />
+        </PlatformProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('compact / comfortable → data-density', async () => {
+    const compact = renderDensitySync('compact');
+    await waitFor(() => {
+      expect(document.documentElement.dataset.density).toBe('compact');
+    });
+    compact.unmount();
+
+    const comfortable = renderDensitySync('comfortable');
+    await waitFor(() => {
+      expect(document.documentElement.dataset.density).toBe('comfortable');
+    });
+    comfortable.unmount();
   });
 });

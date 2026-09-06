@@ -1,4 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedOnboardingCompleted } from './onboarding-helpers';
+
+// 首启引导夹具(U01-onboarding):既有用例都是未登录环境,不预置完成哨兵会被引导层盖住。
+test.beforeEach(async ({ page }) => {
+  await seedOnboardingCompleted(page);
+});
 
 function archiveNowIso(offsetMinutes: number): string {
   return new Date(Date.now() - offsetMinutes * 60_000).toISOString().replace(/Z$/, '+00:00');
@@ -321,4 +327,38 @@ test('归档闭环:删除确认软删,生成记录仍可查询', async ({ page }
     return (await response.json()) as { items: Array<{ id: string }> };
   });
   expect(retained.items.map((item) => item.id)).toContain('archive-retained-generation');
+});
+
+test('关于分区(双端同一张卡):Web 显示「Web 版」,快捷键表逐条渲染', async ({ page }) => {
+  await openSettingsSection(page, 'about');
+
+  // 版本信息:Web 宿主没有 system 域 → 版本行退化为形态标识,不假造版本号。
+  await expect(page.getByTestId('settings-about-product')).toContainText('Musefold');
+  await expect(page.getByTestId('settings-about-version')).toHaveText('Web 版');
+  await expect(page.getByTestId('settings-about-copy-version')).toBeVisible();
+  await expect(page.getByTestId('settings-about-copy-feedback')).toBeVisible();
+  // 文档随桌面安装包分发,Web 不渲染死入口。
+  await expect(page.getByTestId('settings-about-docs')).toHaveCount(0);
+
+  // 快捷键表从 features shell 的 PRODUCT_SHORTCUTS 单源渲染:至少含新建设计与发送。
+  await expect(page.getByTestId('settings-about-shortcuts-card')).toBeVisible();
+  await expect(page.getByTestId('settings-about-shortcut-new-session')).toContainText('新设计');
+  await expect(page.getByTestId('settings-about-shortcut-composer-send')).toContainText(
+    '聚焦工作台输入框',
+  );
+
+  // 第三方声明必须可达(许可合规),对话框内非空。
+  await page.getByTestId('settings-about-notices').click();
+  const notices = page.getByTestId('settings-about-notices-dialog');
+  await expect(notices).toBeVisible();
+  await expect(notices.getByTestId(/^settings-about-notice-/).first()).toBeVisible();
+});
+
+test('Web 数据分区不出现桌面本机数据面(备份/路径/日志/危险区)', async ({ page }) => {
+  await openSettingsSection(page, 'data');
+  await expect(page.getByTestId('settings-data-card')).toBeVisible();
+  await expect(page.getByTestId('archived-toggle')).toBeVisible();
+  await expect(page.getByTestId('settings-backup-card')).toHaveCount(0);
+  await expect(page.getByTestId('settings-storage-card')).toHaveCount(0);
+  await expect(page.getByTestId('settings-danger-card')).toHaveCount(0);
 });

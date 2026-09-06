@@ -201,9 +201,18 @@ async function startSyncApi(): Promise<SyncApiServer> {
   };
 }
 
-async function openSettings(page: Page): Promise<void> {
+type SettingsSection = 'account' | 'sync' | 'connections';
+
+/** 设置屏为分区导航(V25-UI-SPEC §6.1):账号 / 云同步 / AI 连接各在自己的分区面板里。 */
+async function openSettingsSection(page: Page, section: SettingsSection): Promise<void> {
+  await page.getByTestId(`settings-nav-${section}`).click();
+  await expect(page.getByTestId(`settings-section-${section}`)).toBeVisible();
+}
+
+async function openSettings(page: Page, section: SettingsSection): Promise<void> {
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await openSettingsSection(page, section);
 }
 
 async function login(page: Page): Promise<void> {
@@ -313,9 +322,10 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     userDataDir = launched.userDataDir;
     const page = await v25ShellPage(app);
     seedAccountWorkspace(userDataDir, 'owner-e2e-xiaomiao');
-    await openSettings(page);
+    await openSettings(page, 'account');
     await login(page);
 
+    await openSettingsSection(page, 'sync');
     await expect(page.getByTestId('sync-consent-enable')).toBeVisible();
     await expect(page.getByTestId('sync-subtitle')).toHaveText(
       '开启后提示词、文件夹与标签将同步到云端',
@@ -330,7 +340,7 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     expect(readSyncCounts(launched.userDataDir).mutations).toBe(0);
     expect(syncRequestCount(api)).toBe(0);
 
-    await openSettings(page);
+    await openSettings(page, 'sync');
     await page.getByTestId('sync-consent-enable').click();
     await expect(page.getByTestId('sync-phase')).toHaveText('已是最新', { timeout: 15_000 });
     await expect(page.getByTestId('sync-consent-pause')).toBeVisible();
@@ -361,7 +371,7 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     await page.waitForTimeout(2_500);
     expect(syncRequestCount(api)).toBe(pausedRequestCount);
 
-    await openSettings(page);
+    await openSettings(page, 'sync');
     await expect(page.getByTestId('sync-phase')).toHaveText('已暂停');
     await waitForToastsToDismiss(page);
     const pausedShot = testInfo.outputPath('sync-paused.png');
@@ -399,11 +409,15 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     ).toEqual({ count: 1 });
     db.close();
 
+    await openSettingsSection(page, 'account');
     await page.getByTestId('account-logout').click();
     await page.getByTestId('account-logout-confirm').click();
     await expect(page.getByTestId('account-auth-form')).toBeVisible();
+    await openSettingsSection(page, 'sync');
     await expect(page.getByTestId('sync-subtitle')).toHaveText('登录账号后可开启云同步');
+    await openSettingsSection(page, 'account');
     await login(page);
+    await openSettingsSection(page, 'sync');
     await expect(page.getByTestId('sync-phase')).toHaveText('已是最新', { timeout: 15_000 });
 
     const dbAfter = new Database(desktopDbPath(launched.userDataDir), { readonly: true });
@@ -441,7 +455,7 @@ test('Electron AI 连接使用真实 TvT 生图 key 且只展示尾号', async (
   try {
     ({ app, userDataDir } = await launchV25App('musefold-v25-tvt-provider-'));
     const page = await v25ShellPage(app);
-    await openSettings(page);
+    await openSettings(page, 'connections');
     await page.getByTestId('ai-provider-new').click();
     await page.getByTestId('ai-provider-name').fill('TvT 生图');
     await page.getByTestId('ai-provider-base-url').fill('https://ai.tvt.wiki/v1');

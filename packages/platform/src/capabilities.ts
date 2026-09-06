@@ -26,6 +26,12 @@ export interface PlatformCapabilities {
   hasDesignSchemes: boolean;
   /** 是否有豆包网页登录面(桌面专属浏览器分区;Web 不展示豆包登录 UI)。 */
   hasDoubaoWebLogin: boolean;
+  /**
+   * 是否有本机数据管理面:数据库备份 / 存储位置 / 诊断日志 / 危险区(清空全部数据)。
+   * 桌面 true;Web false —— 云端有自己的备份纪律,浏览器也没有本机路径与本地库可清。
+   * 「关于」卡不受此门控(双端都要能报版本),只是 Web 上没有 system 域可读版本。
+   */
+  hasLocalDataManagement: boolean;
 }
 
 export const DESKTOP_CAPABILITIES: PlatformCapabilities = {
@@ -38,6 +44,7 @@ export const DESKTOP_CAPABILITIES: PlatformCapabilities = {
   hasAgentConnections: true,
   hasDesignSchemes: true,
   hasDoubaoWebLogin: true,
+  hasLocalDataManagement: true,
 };
 
 export const WEB_CAPABILITIES: PlatformCapabilities = {
@@ -50,4 +57,5 @@ export const WEB_CAPABILITIES: PlatformCapabilities = {
   hasAgentConnections: false,
   hasDesignSchemes: true,
   hasDoubaoWebLogin: false,
+  hasLocalDataManagement: false,
 };

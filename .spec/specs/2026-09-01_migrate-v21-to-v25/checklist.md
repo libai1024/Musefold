@@ -51,7 +51,7 @@
 - [x] verification gate 明确以主线程 `pnpm run check`、双端 E2E 和 Spec 校验为准
 
 ## 行为成效
-- [x] 统一门禁结果：`pnpm run check` 通过，2026-09-03 为 182 个测试文件、1357 个测试、35 个 Turbo task 成功（此前基线 1301）
+- [x] 统一门禁结果：`pnpm run check` 通过，2026-09-06（批次 B1 收口）为 191 个测试文件、1460 个测试、35 个 Turbo task 成功（2026-09-03 为 182/1357，此前基线 1301）
 - [x] 已回填关键路径验证：Web session URL、Web mobile Settings/Workbench 视觉、Electron Workbench、Electron sync 定向 E2E 通过；2026-09-01 Workbench 接缝重构后复跑 `electron.workbench.spec.ts` 9/9，新增正式纯文本方案经真实 IPC 进入回环 Provider 并由停止钮取消的双账本证据；`web.workbench.spec.ts`（web-desktop + web-mobile）17 passed/1 skipped（移动端无侧栏的既有跳过）。普通生成、运行中取消与视觉基线不回归；移动 Workbench 完成态视觉基线已刷新，时间线尺寸变化贴底回归通过；最近完整 `pnpm run test:e2e` 为 98 passed、1 failed、5 skipped，唯一失败是 macOS 原生全屏前的 shell focus 前置，不影响上述 Design Scheme/Workbench 断言
 - [x] 本轮返工原因已记录：工作台会话列表竞态、孤立 draft/sync fixture、Settings 归档行视觉基线，以及 bare Escape 在串行 Radix dismiss layer 后的时序不稳定；Electron 方案 E2E 改用同语义的可见停止钮，Escape 继续由共享 Workbench 测试覆盖
 
@@ -62,7 +62,7 @@
 - 差异边界：桌宠不迁移；Doubao 内部不迁移但入口保留；云端 Design Scheme capability 保持关闭
 - 行为成效：共享 features 已覆盖主要 Web desktop/mobile 与 Electron shell/workbench/prompts/settings/sync 路径
 - 构建：`pnpm run check` 内含 Electron/Web build、typecheck、Biome、unit/integration、dependency-cruiser，全部成功
-- 测试：`pnpm run check` 2026-09-03 为 182 个测试文件/1357 个测试（此前 1301）；Design Scheme 主进程套件为 8 个文件/151 个测试，Desktop Workbench 接缝有 desktop-shell 17 个用例、workbench-schemes 14 个、integration-store 15 个，根目录 `pnpm run typecheck` 通过；最新完整 Electron project 为 33 passed、1 failed、1 skipped，唯一失败是 macOS 原生 fullscreen 前 runner 无法让 Electron shell 获得前台焦点，skip 为真实 key 场景；`electron.workbench.spec.ts` 9/9，包含 Design Scheme run/cancel 双账本收敛；最新完整 v25 E2E 为 98 passed、1 failed、5 skipped，同一 fullscreen shell focus 前置失败；此前一次完整复跑的 99 passed、5 skipped 与 34 passed、1 skipped 没有 durable report/artifact，只能作为历史记录；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均通过；Web server 同时记录 `127.0.0.1:8787` 未启动的 proxy 连接拒绝日志，未影响通过用例
+- 测试：**2026-09-06 批次 B1 收口**：`pnpm run check` 191 个测试文件/1460 个测试、features 396；Web E2E（web-desktop + web-mobile）122 passed/4 skipped；Electron project 55 passed/1 skipped（skip 为真实 key 场景），0 failed，含 onboarding 3、settings-data 6、history/prompts 新增用例与 sync 分区导航适配；视觉基线 web settings/prompts-detail/history-list 双视口与 electron prompts/history/settings 已重收并逐张目视核对。历史：`pnpm run check` 2026-09-03 为 182 个测试文件/1357 个测试（此前 1301）；Design Scheme 主进程套件为 8 个文件/151 个测试，Desktop Workbench 接缝有 desktop-shell 17 个用例、workbench-schemes 14 个、integration-store 15 个，根目录 `pnpm run typecheck` 通过；最新完整 Electron project 为 33 passed、1 failed、1 skipped，唯一失败是 macOS 原生 fullscreen 前 runner 无法让 Electron shell 获得前台焦点，skip 为真实 key 场景；`electron.workbench.spec.ts` 9/9，包含 Design Scheme run/cancel 双账本收敛；最新完整 v25 E2E 为 98 passed、1 failed、5 skipped，同一 fullscreen shell focus 前置失败；此前一次完整复跑的 99 passed、5 skipped 与 34 passed、1 skipped 没有 durable report/artifact，只能作为历史记录；Prompt Electron 套件 9 个用例及移动 Workbench 完成态视觉基线均通过；Web server 同时记录 `127.0.0.1:8787` 未启动的 proxy 连接拒绝日志，未影响通过用例
 - 手工验证：已检查同步暂停/恢复、冲突动作、同账号重登和 userData secret scan；本轮未使用真实账号凭据，也未发起云端或付费生图
 
 ---

@@ -5,7 +5,14 @@ import { Button } from '@musefold/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@musefold/ui/components/dialog';
 import { FadeImage } from '@musefold/ui/components/fade-image';
 import { toast } from '@musefold/ui/components/sonner';
-import { ChevronLeft, ChevronRight, Copy, Download } from '@musefold/ui/icons';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  FolderOpen,
+  ImageIcon,
+} from '@musefold/ui/icons';
 import { useEffect } from 'react';
 
 /** Lightbox 可翻集合的条目:成功且有资产的记录(顺序与列表可视顺序一致)。 */
@@ -24,6 +31,9 @@ export interface HistoryLightboxProps {
   onClose(): void;
   /** 保存图片(mutation 与 toast 由 Screen 层持有,与检视动作共用)。 */
   onSaveAsset(asset: GenerationAsset): void;
+  /** 桌面文件操作(05 §7):按 canRevealLocalFile 门控注入,Web 不渲染。 */
+  onRevealAsset?(asset: GenerationAsset): void;
+  onCopyAsset?(asset: GenerationAsset): void;
 }
 
 async function copyPrompt(prompt: string) {
@@ -47,6 +57,8 @@ export function HistoryLightbox({
   onNavigate,
   onClose,
   onSaveAsset,
+  onRevealAsset,
+  onCopyAsset,
 }: HistoryLightboxProps) {
   const index = activeId ? entries.findIndex((entry) => entry.job.id === activeId) : -1;
   const current = index >= 0 ? entries[index] : null;
@@ -151,6 +163,28 @@ export function HistoryLightbox({
                 >
                   <Download className="size-3.5" /> 保存图片
                 </Button>
+                {onCopyAsset && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    data-testid="lightbox-copy-asset"
+                    onClick={() => onCopyAsset(current.asset)}
+                  >
+                    <ImageIcon className="size-3.5" /> 复制图片
+                  </Button>
+                )}
+                {onRevealAsset && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    data-testid="lightbox-reveal-asset"
+                    onClick={() => onRevealAsset(current.asset)}
+                  >
+                    <FolderOpen className="size-3.5" /> 在文件夹中显示
+                  </Button>
+                )}
               </div>
             </div>
           </>

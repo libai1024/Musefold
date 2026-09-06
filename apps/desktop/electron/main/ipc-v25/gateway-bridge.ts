@@ -18,11 +18,13 @@ import { buildAccountDomainMethods } from './account-domain';
 import type { BridgeEnvelope, MethodDef } from './envelope';
 import { BridgeError } from './envelope';
 import { buildDoubaoDomainMethods } from './doubao-domain';
+import { buildHistoryDomainMethods } from './history-domain';
 import { buildPromptsDomainMethods } from './prompts-domain';
 import { buildDesignSchemesDomainMethods } from './design-scheme-domain';
 import { buildAgentConnectionsDomainMethods } from './agent-connections-domain';
 import { buildAiProvidersDomainMethods } from './providers-domain';
 import { buildSyncDomainMethods } from './sync-domain';
+import { buildSystemDomainMethods } from './system-domain';
 import { buildWorkbenchDomainMethods } from './workbench-domain';
 import { isApplicationAdmissionOpen, trackApplicationRequest } from '../lifecycle-admission';
 
@@ -95,20 +97,26 @@ export function buildMethods(): Record<string, MethodDef> {
   const aiProviders = buildAiProvidersDomainMethods();
   const agentConnections = buildAgentConnectionsDomainMethods();
   const doubao = buildDoubaoDomainMethods();
+  const system = buildSystemDomainMethods();
   const designSchemes = buildDesignSchemesDomainMethods();
   const prompts = buildPromptsDomainMethods();
   const combinedWorkbench = buildWorkbenchDomainMethods();
   const workbench = Object.fromEntries(
     Object.entries(combinedWorkbench).filter(([method]) => method.startsWith('workbench.')),
   );
-  const generation = Object.fromEntries(
-    Object.entries(combinedWorkbench).filter(([method]) => method.startsWith('generation.')),
-  );
+  const generation = {
+    ...Object.fromEntries(
+      Object.entries(combinedWorkbench).filter(([method]) => method.startsWith('generation.')),
+    ),
+    // 批量清理 / 磁盘占用 / 本机资产动作单独成域文件(ui-parity 05 §7),同属 generation 方法表。
+    ...buildHistoryDomainMethods(),
+  };
   assertDomainMethods('account', account);
   assertDomainMethods('sync', sync);
   assertDomainMethods('aiProviders', aiProviders);
   assertDomainMethods('agentConnections', agentConnections);
   assertDomainMethods('doubao', doubao);
+  assertDomainMethods('system', system);
   assertDomainMethods('designSchemes', designSchemes);
   assertDomainMethods('prompts', prompts);
   assertDomainMethods('workbench', workbench);
@@ -120,6 +128,7 @@ export function buildMethods(): Record<string, MethodDef> {
     ...aiProviders,
     ...agentConnections,
     ...doubao,
+    ...system,
     ...designSchemes,
     ...sync,
     ...prompts,

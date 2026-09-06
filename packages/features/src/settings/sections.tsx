@@ -1,18 +1,8 @@
 import type { PlatformCapabilities } from '@musefold/platform';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@musefold/ui/components/card';
-import { Separator } from '@musefold/ui/components/separator';
-import {
-  ChevronRight,
   CloudUpload,
   Database,
-  History,
-  Library,
+  Info,
   type LucideIcon,
   Palette,
   Plug,
@@ -25,9 +15,10 @@ import { AiConnectionsPanel } from '../account/AiConnectionsPanel';
 import { CloudSyncPanel } from '../account/CloudSyncPanel';
 import { DoubaoConnectionPanel } from '../account/DoubaoConnectionPanel';
 import type { ScreenIntent } from '../shell/screen-intent-store';
-import { useScreenIntent } from '../shell/screen-intent-store';
+import { AboutCard } from './AboutCard';
 import { AppearanceCard } from './AppearanceCard';
-import { ArchivedSessionsPanel } from './ArchivedSessionsPanel';
+import { DataStorageCard } from './DataStorageCard';
+import { GenerationDefaultsCard } from './GenerationDefaultsCard';
 
 /**
  * 设置分区注册表(V25-UI-SPEC §6.2)—— 设置页的唯一目录。
@@ -55,7 +46,13 @@ export const SETTINGS_GROUPS: readonly SettingsGroupDefinition[] = [
   { id: 'app', title: '应用' },
 ];
 
-export type SettingsSectionId = 'appearance' | 'account' | 'sync' | 'connections' | 'data';
+export type SettingsSectionId =
+  | 'appearance'
+  | 'account'
+  | 'sync'
+  | 'connections'
+  | 'data'
+  | 'about';
 
 export interface SettingsSectionContext {
   capabilities: PlatformCapabilities;
@@ -78,67 +75,35 @@ export interface SettingsSectionDefinition {
   render(context: SettingsSectionContext): ReactNode;
 }
 
-/**
- * 「数据」分区:回收站入口(经 useScreenIntent 跨屏直达 trash tab)+ 已归档对话列表。
- * 组件化以便在注册表 render 内使用 hook。
- */
-function DataSection({
-  onOpenScreen,
-}: {
-  onOpenScreen: NonNullable<SettingsSectionContext['onOpenScreen']>;
-}) {
-  const setIntent = useScreenIntent((s) => s.setIntent);
-  return (
-    <Card data-testid="settings-data-card">
-      <CardHeader>
-        <CardTitle>数据</CardTitle>
-        <CardDescription>已删除的内容进入回收站;已归档对话可就地恢复或删除</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-1 pt-0">
-        <button
-          type="button"
-          className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm transition-colors hover:bg-muted"
-          data-testid="settings-open-prompt-trash"
-          onClick={() => {
-            setIntent({ kind: 'prompts-trash' });
-            onOpenScreen('prompts');
-          }}
-        >
-          <Library className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="flex-1 text-foreground">提示词回收站</span>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm transition-colors hover:bg-muted"
-          data-testid="settings-open-history-trash"
-          onClick={() => {
-            setIntent({ kind: 'history-trash' });
-            onOpenScreen('history');
-          }}
-        >
-          <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="flex-1 text-foreground">生成历史回收站</span>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        </button>
-        <Separator className="my-1" />
-        <ArchivedSessionsPanel />
-      </CardContent>
-    </Card>
-  );
-}
-
 export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   {
     id: 'appearance',
     group: 'general',
     title: '外观',
-    description: '主题、动效与语言,仅保存在本机',
+    description: '主题、动效、语言、界面密度与生成默认参数,仅保存在本机',
     icon: Palette,
-    keywords: ['主题', '深色', '浅色', '动效', '语言', 'theme', 'motion'],
+    keywords: [
+      '主题',
+      '深色',
+      '浅色',
+      '动效',
+      '语言',
+      '密度',
+      '比例',
+      '质量',
+      '默认',
+      'theme',
+      'motion',
+      'density',
+    ],
     intents: [],
     isAvailable: () => true,
-    render: () => <AppearanceCard />,
+    render: () => (
+      <div className="flex flex-col gap-6">
+        <AppearanceCard />
+        <GenerationDefaultsCard />
+      </div>
+    ),
   },
   {
     id: 'account',
@@ -192,13 +157,52 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     id: 'data',
     group: 'app',
     title: '数据',
-    description: '回收站与已归档对话',
+    description: '回收站、已归档对话,以及本机备份、存储位置、诊断日志与清空数据',
     icon: Database,
-    keywords: ['回收站', '归档', '删除', '恢复', 'trash', 'archive'],
+    keywords: [
+      '回收站',
+      '归档',
+      '删除',
+      '恢复',
+      '备份',
+      '路径',
+      '位置',
+      '日志',
+      '诊断',
+      '清空',
+      'trash',
+      'archive',
+      'backup',
+      'log',
+    ],
     intents: [],
     isAvailable: ({ onOpenScreen }) => Boolean(onOpenScreen),
     render: ({ onOpenScreen }) =>
-      onOpenScreen ? <DataSection onOpenScreen={onOpenScreen} /> : null,
+      onOpenScreen ? <DataStorageCard onOpenScreen={onOpenScreen} /> : null,
+  },
+  {
+    id: 'about',
+    group: 'app',
+    title: '关于',
+    description: '版本信息、支持资源、第三方声明与快捷键',
+    icon: Info,
+    keywords: [
+      '版本',
+      '更新',
+      '文档',
+      '反馈',
+      '快捷键',
+      '许可',
+      '开源',
+      'about',
+      'version',
+      'shortcut',
+      'license',
+    ],
+    intents: [],
+    // 关于卡双端都有(Web 版本行显示「Web 版」),不设 capability 门。
+    isAvailable: () => true,
+    render: () => <AboutCard />,
   },
 ];
 

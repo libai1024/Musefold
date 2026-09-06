@@ -1,6 +1,7 @@
 'use client';
 
-import type { GenerationAsset, GenerationJob } from '@musefold/contracts';
+import type { GenerationAsset, GenerationCleanupScope, GenerationJob } from '@musefold/contracts';
+import { useCapabilities } from '@musefold/platform';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +19,7 @@ import { toast } from '@musefold/ui/components/sonner';
 import { Spinner } from '@musefold/ui/components/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@musefold/ui/components/tabs';
 import { History as HistoryIcon, Trash2 } from '@musefold/ui/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   jobToSavePromptSource,
   SavePromptDialog,
@@ -35,17 +36,23 @@ import {
 import { HistoryFilterBar } from './HistoryFilterBar';
 import { HistoryInspector } from './HistoryInspector';
 import { HistoryLightbox, type LightboxEntry } from './HistoryLightbox';
+import { CLEANUP_COPY, HistoryMaintenanceBar } from './HistoryMaintenanceBar';
 import { HistoryRow } from './HistoryRow';
-import { threadJobs } from './format';
+import { type ThreadedJob, threadJobs } from './format';
 import {
   buildHistoryQuery,
   DEFAULT_HISTORY_FILTERS,
   type HistoryFilters,
+  useAutoLoadMore,
+  useCleanupGeneration,
+  useCopyAssetToClipboard,
   useHistoryList,
   useMediaQuery,
   usePurgeGeneration,
   useRemoveGeneration,
   useRestoreGeneration,
+  useRevealAsset,
+  useStorageUsage,
 } from './hooks';
 
 export interface HistoryScreenProps {
@@ -57,7 +64,7 @@ export interface HistoryScreenProps {
 
 /**
  * 生成历史屏(V25-UI-SPEC §5):筛选栏 + 线程缩进列表 + 详情 Inspector + 回收站。
- * Inspector:lg+ 内嵌右栏;窄屏 Sheet。
+ * Inspector:lg+ 内嵌右栏(8px 右移淡入,过 CSS reduce-motion 闸门);窄屏 Sheet。
  */
 export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenProps) {
   const [tab, setTab] = useState<'all' | 'trash'>('all');
@@ -66,10 +73,21 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const capabilities = useCapabilities();
+  const canRevealLocalFile = capabilities.canRevealLocalFile;
 
   const consumeIntent = useScreenIntent((s) => s.consume);
+  /** 深链选中的记录 id:数据到位后滚到该行(可能在后面几页,拿不到就只选中)。 */
+  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null);
   useEffect(() => {
     if (consumeIntent('history-trash')) setTab('trash');
+    // 提示词详情「相关作品」→ 历史屏选中该回合(05 §7 / 03 联动)。
+    const select = consumeIntent('history-select');
+    if (select) {
+      setTab('all');
+      setSelectedId(select.jobId);
+      setPendingScrollId(select.jobId);
+    }
   }, [consumeIntent]);
 
   // 搜索 300ms 防抖(V25-UI-SPEC §5.2)。
@@ -88,6 +106,10 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
   const removeGeneration = useRemoveGeneration();
   const restoreGeneration = useRestoreGeneration();
   const purgeGeneration = usePurgeGeneration();
+  const cleanupGeneration = useCleanupGeneration();
+  const revealAsset = useRevealAsset();
+  const copyAsset = useCopyAssetToClipboard();
+  const storageUsage = useStorageUsage(canRevealLocalFile);
   const [purgeTarget, setPurgeTarget] = useState<GenerationJob | null>(null);
   const [savePromptSource, setSavePromptSource] = useState<SavePromptSource | null>(null);
   const [lightboxId, setLightboxId] = useState<string | null>(null);
@@ -108,6 +130,52 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     );
   }
 
+  /** 在文件夹中显示(桌面):只送受管资产 id,路径解析全在主进程。 */
+  const handleRevealAsset = useCallback(
+    (asset: GenerationAsset) => {
+      revealAsset.mutate(asset.id, {
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : '无法定位图片文件');
+        },
+      });
+    },
+    [revealAsset],
+  );
+
+  const handleCopyAsset = useCallback(
+    (asset: GenerationAsset) => {
+      copyAsset.mutate(asset.id, {
+        onSuccess: () => toast.success('图片已复制到剪贴板'),
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : '复制图片失败');
+        },
+      });
+    },
+    [copyAsset],
+  );
+
+  function handleCleanup(scope: GenerationCleanupScope) {
+    cleanupGeneration.mutate(
+      { scope },
+      {
+        onSuccess: ({ affected }) => {
+          if (affected === 0) {
+            toast.success('没有需要清理的记录');
+            return;
+          }
+          toast.success(
+            scope === 'empty-trash'
+              ? `已永久删除 ${affected} 条记录`
+              : `已将 ${affected} 条记录移入回收站`,
+          );
+        },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : `${CLEANUP_COPY[scope].item}失败`);
+        },
+      },
+    );
+  }
+
   const jobs = useMemo(() => (list.data?.pages ?? []).flatMap((page) => page.items), [list.data]);
   const threaded = useMemo(() => threadJobs(jobs), [jobs]);
   const modelOptions = useMemo(
@@ -115,6 +183,25 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     [jobs],
   );
   const selectedJob = jobs.find((job) => job.id === selectedId) ?? null;
+  const selectedThread = threaded.find((item) => item.job.id === selectedId) ?? null;
+  /** 谱系:父记录与直接子记录都从当前结果集解析(与列表缩进同一份索引)。 */
+  const parentJob = selectedJob?.parentRunId
+    ? (jobs.find((job) => job.id === selectedJob.parentRunId) ?? null)
+    : null;
+  const childJobs = useMemo(
+    () => (selectedId ? jobs.filter((job) => job.parentRunId === selectedId) : []),
+    [jobs, selectedId],
+  );
+
+  // 列表长度变化后重取磁盘占用(承旧 HistoryDiskUsage 的 runCount 依赖)。
+  const refetchStorage = storageUsage.refetch;
+  const jobCount = jobs.length;
+  const countedRef = useRef(-1);
+  useEffect(() => {
+    if (!canRevealLocalFile || countedRef.current === jobCount) return;
+    countedRef.current = jobCount;
+    void refetchStorage();
+  }, [canRevealLocalFile, jobCount, refetchStorage]);
 
   // Lightbox 可翻集合(05 §7):成功且有资产的记录,顺序与列表可视顺序(线程序)一致。
   const lightboxEntries = useMemo(
@@ -132,10 +219,26 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     setSelectedId(id);
   }
 
-  // 选中记录翻页/筛选后不在结果集时收起详情。
+  // 选中记录翻页/筛选后不在结果集时收起详情(深链等待数据期间不收)。
   useEffect(() => {
-    if (selectedId && !selectedJob) setSelectedId(null);
-  }, [selectedId, selectedJob]);
+    if (selectedId && !selectedJob && selectedId !== pendingScrollId) setSelectedId(null);
+  }, [selectedId, selectedJob, pendingScrollId]);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useAutoLoadMore(sentinelRef, list.hasNextPage && !list.isFetchingNextPage, () => {
+    void list.fetchNextPage();
+  });
+
+  // 深链落地:目标行渲染出来后滚到可视区并停止等待。
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    // 目标行还没进当前结果集(首屏未回或被筛掉)就继续等,别把意图丢掉。
+    if (!pendingScrollId || !threaded.some((item) => item.job.id === pendingScrollId)) return;
+    const row = listRef.current?.querySelector(`[data-job-row="${pendingScrollId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'auto' });
+    setPendingScrollId(null);
+  }, [pendingScrollId, threaded]);
 
   const hasActiveFilter = Boolean(
     filters.status || filters.providerModel || filters.datePreset !== '30d' || search.trim(),
@@ -164,6 +267,7 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     };
   }
 
+  const selectedAsset = selectedJob?.assets[0];
   const inspector = selectedJob && (
     <HistoryInspector
       job={selectedJob}
@@ -177,8 +281,7 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
       onRestore={() => restoreGeneration.mutate(selectedJob.id)}
       onSavePrompt={() => setSavePromptSource(jobToSavePromptSource(selectedJob))}
       onSaveAsset={() => {
-        const first = selectedJob.assets[0];
-        if (first) handleSaveAsset(first);
+        if (selectedAsset) handleSaveAsset(selectedAsset);
       }}
       onOpenLightbox={
         selectedJob.status === 'succeeded' && selectedJob.assets.length > 0
@@ -186,6 +289,17 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
           : undefined
       }
       onOpenSession={onOpenSession}
+      // 桌面文件操作:Web 宿主不注入 → Inspector 不渲染这两个动作。
+      {...(canRevealLocalFile && selectedAsset
+        ? {
+            onRevealAsset: () => handleRevealAsset(selectedAsset),
+            onCopyAsset: () => handleCopyAsset(selectedAsset),
+          }
+        : {})}
+      parentJob={parentJob}
+      childJobs={childJobs}
+      orphan={selectedThread?.orphan ?? false}
+      onSelectJob={setSelectedId}
     />
   );
 
@@ -220,7 +334,23 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
           />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3" role="list">
+        {/* 维护工具行只在回收站 tab 出现:清理三项 + 桌面磁盘占用 readout(05 §7)。 */}
+        {tab === 'trash' && (
+          <HistoryMaintenanceBar
+            storage={storageUsage.data ?? null}
+            showStorage={canRevealLocalFile}
+            storageLoading={storageUsage.isFetching}
+            onRefreshStorage={() => void storageUsage.refetch()}
+            cleanupPending={cleanupGeneration.isPending}
+            onCleanup={handleCleanup}
+          />
+        )}
+
+        <div
+          ref={listRef}
+          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3"
+          role="list"
+        >
           {list.isPending &&
             [0, 1, 2, 3, 4, 5].map((index) => (
               <Skeleton key={index} className="h-16 shrink-0 rounded-lg" />
@@ -267,35 +397,44 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
             </div>
           )}
 
-          {threaded.map(({ job, depth }) => (
-            <HistoryRow
-              key={job.id}
-              job={job}
-              depth={depth}
-              selected={selectedId === job.id}
-              deletedView={tab === 'trash'}
-              {...rowActions(job)}
-            />
+          {threaded.map((item: ThreadedJob) => (
+            <div key={item.job.id} data-job-row={item.job.id}>
+              <HistoryRow
+                job={item.job}
+                thread={item}
+                selected={selectedId === item.job.id}
+                deletedView={tab === 'trash'}
+                {...rowActions(item.job)}
+              />
+            </div>
           ))}
 
           {list.hasNextPage && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mx-auto mt-2 text-muted-foreground text-xs"
-              disabled={list.isFetchingNextPage}
-              onClick={() => void list.fetchNextPage()}
-              data-testid="history-load-more"
-            >
-              {list.isFetchingNextPage ? <Spinner className="size-3.5" /> : '加载更多'}
-            </Button>
+            <>
+              {/* 滚动哨兵:进视口自动取下一页;没有 IntersectionObserver 时按钮兜底。 */}
+              <div ref={sentinelRef} aria-hidden data-testid="history-load-sentinel" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mx-auto mt-2 text-muted-foreground text-xs"
+                disabled={list.isFetchingNextPage}
+                onClick={() => void list.fetchNextPage()}
+                data-testid="history-load-more"
+              >
+                {list.isFetchingNextPage ? <Spinner className="size-3.5" /> : '加载更多'}
+              </Button>
+            </>
           )}
         </div>
       </div>
 
       {isDesktop ? (
         selectedJob && (
-          <aside className="hidden w-96 shrink-0 border-border border-l lg:block">
+          <aside
+            // 05-C3:出现时 8px 右移淡入;reduce-motion 由 globals.css 统一压制。
+            className="hidden w-96 shrink-0 animate-in border-border border-l duration-200 ease-out fade-in slide-in-from-right-2 lg:block"
+            data-testid="history-inspector-aside"
+          >
             {inspector}
           </aside>
         )
@@ -322,6 +461,9 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
         onNavigate={openLightbox}
         onClose={() => setLightboxId(null)}
         onSaveAsset={handleSaveAsset}
+        {...(canRevealLocalFile
+          ? { onRevealAsset: handleRevealAsset, onCopyAsset: handleCopyAsset }
+          : {})}
       />
 
       <AlertDialog

@@ -13,6 +13,7 @@ export default function PromptsPage() {
         const { activeSessionId, draftSession } = useActiveSession.getState();
         router.push(createWorkbenchHref(draftSession ? null : activeSessionId));
       }}
+      onOpenHistory={() => router.push('/history')}
     />
   );
 }

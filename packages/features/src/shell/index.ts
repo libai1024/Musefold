@@ -10,6 +10,7 @@ export {
   SHELL_SIDEBAR_WIDTH_STORAGE_KEY,
 } from './sidebar-layout';
 export { type ScreenIntent, useScreenIntent } from './screen-intent-store';
+export { useDiscardGuard } from './use-discard-guard';
 export { ShellErrorBoundary, ShellErrorFallback } from './ShellErrorBoundary';
 export {
   isMacPlatform,

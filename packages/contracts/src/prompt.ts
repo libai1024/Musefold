@@ -36,6 +36,32 @@ export const promptFolderSchema = z.object({
   deletedAt: isoDateTimeSchema.nullable(),
 });
 
+/**
+ * 封面展示地址 —— **path-free**:桌面由主进程解析为 `media://` 受管 URL,
+ * 云端为对象存储签名/公开 URL。本地绝对路径不进契约(`z.url()` 天然拒绝裸路径),
+ * 渲染层拿到即可直接 `<img src>`。
+ */
+export const promptCoverImageUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    // zod 的 check 链不 abort:.url() 失败时本 refine 仍会执行,自己兜住解析异常。
+    try {
+      const url = new URL(value);
+      return (
+        url.protocol === 'https:' ||
+        // 桌面本地封面走主进程 media:// 读盘协议(media-protocol.ts);
+        // data: 允许内嵌小图(离线导出、测试替身)。
+        url.protocol === 'media:' ||
+        url.protocol === 'data:' ||
+        (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname))
+      );
+    } catch {
+      return false;
+    }
+  }, 'coverImageUrl must use https, media://, data: or a loopback origin')
+  .max(4_096);
+
 export const promptDocumentSchema = z.object({
   id: entityIdSchema,
   title: z.string().trim().min(1).max(80),
@@ -61,6 +87,11 @@ export const promptDocumentSchema = z.object({
     }, 'sourceUrl must use http or https')
     .max(2_048)
     .nullable(),
+  /**
+   * 封面缩略(列表行 44px + 详情头部):`null` = 明确无封面,渲染层落 FileText 占位。
+   * 宿主未实现封面解析时可整键缺省(与 null 等价)——避免旧宿主/旧快照被判为脏数据。
+   */
+  coverImageUrl: promptCoverImageUrlSchema.nullish(),
   version: z.number().int().positive(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
@@ -81,6 +112,8 @@ export const newPromptDocumentSchema = z.object({
   pinOrder: promptDocumentSchema.shape.pinOrder.optional(),
   source: promptSourceSchema.default('manual'),
   sourceUrl: promptDocumentSchema.shape.sourceUrl.default(null),
+  /** 「存为提示词」把本次首张成功图写成封面;手工新建不带。 */
+  coverImageUrl: promptCoverImageUrlSchema.nullish(),
 });
 
 export const updatePromptDocumentSchema = z.object({
@@ -97,6 +130,8 @@ export const updatePromptDocumentSchema = z.object({
   pinOrder: promptDocumentSchema.shape.pinOrder.optional(),
   source: promptSourceSchema.optional(),
   sourceUrl: promptDocumentSchema.shape.sourceUrl.optional(),
+  /** 缺省 = 不改封面;显式 null = 清除封面。 */
+  coverImageUrl: promptCoverImageUrlSchema.nullish(),
   expectedVersion: z.number().int().positive(),
 });
 
@@ -151,6 +186,11 @@ export const promptUseResultSchema = z.object({
   recorded: z.boolean(),
 });
 
+/** 「清空回收站」出参:本次永久删除条数(回收站已空时为 0,动作幂等)。 */
+export const promptEmptyTrashResultSchema = z.object({
+  purged: z.number().int().nonnegative(),
+});
+
 export type PromptDocument = z.infer<typeof promptDocumentSchema>;
 export type PromptFolder = z.infer<typeof promptFolderSchema>;
 export type PromptTag = z.infer<typeof promptTagSchema>;
@@ -165,3 +205,4 @@ export type ParsedPromptListQuery = z.output<typeof promptListQuerySchema>;
 export type PromptPage = z.infer<typeof promptPageSchema>;
 export type PromptUseInput = z.infer<typeof promptUseInputSchema>;
 export type PromptUseResult = z.infer<typeof promptUseResultSchema>;
+export type PromptEmptyTrashResult = z.infer<typeof promptEmptyTrashResultSchema>;

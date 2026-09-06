@@ -63,3 +63,57 @@ describe('reference image upload body limit', () => {
     expect(uploadReferenceImage).not.toHaveBeenCalled();
   });
 });
+
+describe('batch cleanup route', () => {
+  it('accepts each scope and returns the affected count (ui-parity 05 §7)', async () => {
+    const cleanup = vi.fn().mockResolvedValue({ affected: 4 });
+    const app = testApp({ cleanup } as unknown as GenerationService);
+
+    for (const scope of ['older-than-30d', 'failed-and-cancelled', 'empty-trash'] as const) {
+      const response = await app.request('http://localhost/generations/cleanup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scope }),
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ affected: 4 });
+    }
+
+    expect(cleanup.mock.calls.map(([, input]) => input)).toEqual([
+      { scope: 'older-than-30d' },
+      { scope: 'failed-and-cancelled' },
+      { scope: 'empty-trash' },
+    ]);
+    expect(cleanup.mock.calls.every(([userId]) => userId === 'generation-routes-user')).toBe(true);
+  });
+
+  it('rejects unknown scopes before touching the service', async () => {
+    const cleanup = vi.fn();
+    const app = testApp({ cleanup } as unknown as GenerationService);
+
+    const response = await app.request('http://localhost/generations/cleanup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scope: 'everything' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(cleanup).not.toHaveBeenCalled();
+  });
+
+  it('does not shadow the cleanup path with the /generations/{id} detail route', async () => {
+    const get = vi.fn();
+    const cleanup = vi.fn().mockResolvedValue({ affected: 0 });
+    const app = testApp({ get, cleanup } as unknown as GenerationService);
+
+    const response = await app.request('http://localhost/generations/cleanup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scope: 'empty-trash' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(get).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+});

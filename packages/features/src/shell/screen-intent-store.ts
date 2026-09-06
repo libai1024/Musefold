@@ -9,6 +9,10 @@ export type ScreenIntent =
   | { kind: 'prompts-trash' }
   | { kind: 'history-trash' }
   | { kind: 'prompt-highlight'; promptId: string }
+  /** ⌘/Ctrl+K 全局唤起搜索:切到提示词库后由该屏 mount/意图变化时聚焦搜索框。 */
+  | { kind: 'prompts-focus-search' }
+  /** 提示词详情「相关作品」缩略 → 跳历史屏并选中该回合(历史屏 mount 时消费)。 */
+  | { kind: 'history-select'; jobId: string }
   /** 侧栏账号区深链(01 §2 左下角账号/中转站/豆包):落设置对应卡并滚动高亮。 */
   | { kind: 'settings-account' }
   | { kind: 'settings-connections' }

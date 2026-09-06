@@ -63,8 +63,8 @@ test('v2.5 新渲染壳加载 features 设置屏', async () => {
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   await expect(page.getByTestId('settings-host-badge')).toHaveText('桌面版');
-  // 桌面注册全部五个分区:外观 / 账号 / 云同步 / AI 连接 / 数据;默认停在外观。
-  for (const id of ['appearance', 'account', 'sync', 'connections', 'data']) {
+  // 桌面注册全部六个分区:外观 / 账号 / 云同步 / AI 连接 / 数据 / 关于;默认停在外观。
+  for (const id of ['appearance', 'account', 'sync', 'connections', 'data', 'about']) {
     await expect(page.getByTestId(`settings-nav-${id}`)).toBeVisible();
   }
   await expect(page.getByTestId('settings-section-appearance')).toBeVisible();
@@ -216,6 +216,41 @@ test('Agent 连接:新建 → 密钥落安全存储 → 设为默认 → 删除,
   await expect(list.getByText('备用文本')).toBeHidden();
   await expect(list.getByTestId('agent-connection-active-badge')).toBeVisible();
   await expect(list.getByText('文本网关')).toBeVisible();
+});
+
+test('AI 连接:编辑器预设填充、脏关闭守卫、无 Key 前置提示与行首状态点', async () => {
+  await openSettingsSection('connections');
+  const card = page.getByTestId('settings-ai-connections-card');
+  await expect(card).toBeVisible();
+
+  await page.getByTestId('ai-provider-new').click();
+  await expect(page.getByTestId('ai-provider-editor')).toBeVisible();
+  await expect(page.getByTestId('ai-provider-editor-preset-tvt')).toBeVisible();
+  await page.getByTestId('ai-provider-editor-preset-tvt').click();
+  await expect(page.getByTestId('ai-provider-name')).toHaveValue('TvT AI 中转站');
+  await expect(page.getByTestId('ai-provider-base-url')).toHaveValue('https://ai.tvt.wiki/v1');
+
+  await page.getByTestId('ai-provider-list-models').click();
+  await expect(page.getByTestId('ai-provider-key-hint')).toContainText('先填写 API Key');
+  await expect(page.getByTestId('ai-provider-key')).toBeFocused();
+
+  await page.getByRole('button', { name: '取消' }).click();
+  await expect(page.getByTestId('ai-provider-discard-dialog')).toBeVisible();
+  await page.getByTestId('ai-provider-discard').click();
+  await expect(page.getByTestId('ai-provider-editor')).toBeHidden();
+
+  await page.getByTestId('ai-provider-new').click();
+  await page.getByTestId('ai-provider-name').fill('状态点网关');
+  await page.getByTestId('ai-provider-base-url').fill('https://status.example.com/v1');
+  await page.getByTestId('ai-provider-model').fill('gpt-image-2');
+  await page.getByTestId('ai-provider-save').click();
+  const list = page.getByTestId('ai-providers-list');
+  await expect(list.getByText('状态点网关')).toBeVisible();
+  const noKeyRow = list.locator('li').filter({ hasText: '状态点网关' });
+  await expect(noKeyRow.getByTestId('ai-provider-status')).toHaveAttribute(
+    'aria-label',
+    '未配置密钥',
+  );
 });
 
 test('云同步卡:未登录时仅提示登录,不提供同步动作', async () => {
