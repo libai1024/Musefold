@@ -16,7 +16,7 @@
         reverse_proxy musefold-v25-api:8787
     }
     handle /Musefold/v25 {
-        redir /Musefold/v25/ 308
+        reverse_proxy musefold-v25-web:3000
     }
     handle /Musefold/v25/api/* {
         reverse_proxy musefold-v25-api:8787
