@@ -21,7 +21,8 @@
         reverse_proxy musefold-v25-web:3000
     }
     # S3 signatures include the exact bucket path: never strip or rewrite it.
-    handle /musefold-v25/* {
+    @v25_objects path /musefold-v25 /musefold-v25/*
+    handle @v25_objects {
         reverse_proxy musefold-v25-objects:9000
     }
 }
