@@ -14,11 +14,13 @@ import {
   type PlatformCapabilities,
   WEB_CAPABILITIES,
 } from '@musefold/platform';
+import { toast } from '@musefold/ui/components/sonner';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { rememberQuotaRecovery, resetQuotaRecovery } from '../../history/spend-recovery-store';
 import { useScreenIntent } from '../../shell/screen-intent-store';
 import { AccountFooter } from '../AccountFooter';
 import { AccountPanel } from '../AccountPanel';
@@ -26,6 +28,11 @@ import { AgentConnectionsPanel } from '../AgentConnectionsPanel';
 import { AiConnectionsPanel } from '../AiConnectionsPanel';
 import { CloudSyncPanel } from '../CloudSyncPanel';
 import { formatPoints } from '../hooks';
+import { useRememberedUsername } from '../remembered-username';
+
+vi.mock('@musefold/ui/components/sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 const SIGNED_IN: AccountSummary = {
   id: 'u1',
@@ -50,11 +57,14 @@ const PROVIDER: AiProvider = {
   updatedAt: '2026-08-01T00:00:00+00:00',
 };
 
-/** 账号托管行(V05 FR-GW-01 迁移库形态):官方通道的本地生图落点。 */
+/** Explicit account transport; the legacy managedBy marker alone does not bind an identity. */
 const ACCOUNT_PROVIDER: AiProvider = {
   ...PROVIDER,
   id: 'prov-account',
   name: 'Musefold 账号',
+  type: 'musefold-cloud',
+  hasKey: false,
+  keySuffix: null,
   managedBy: 'account',
   isActive: false,
 };
@@ -177,11 +187,17 @@ function createGateway(overrides: GatewayOverrides = {}) {
   }));
   const createProvider = vi.fn(async () => PROVIDER);
   const createAgentConnection = vi.fn(async () => PROVIDER);
-  const testProvider = vi.fn(async () => ({
-    ok: true as const,
-    message: '连接正常',
-    latencyMs: 128,
-  }));
+  const testProvider = vi.fn(
+    async (): Promise<{
+      ok: boolean;
+      message: string;
+      latencyMs: number | null;
+    }> => ({
+      ok: true,
+      message: '连接正常',
+      latencyMs: 128,
+    }),
+  );
   const listModels = vi.fn(async () => ({ models: [{ id: 'only-one', label: 'Only' }] }));
   const setActiveProvider = vi.fn(async (id: string) => ({ ...PROVIDER, id, isActive: true }));
   const syncGateway = overrides.syncFixture ? createSyncGateway(overrides.syncFixture) : null;
@@ -257,6 +273,18 @@ describe('formatPoints', () => {
 });
 
 describe('AccountPanel', () => {
+  beforeEach(() => {
+    useRememberedUsername.setState({ lastUsername: null });
+    try {
+      sessionStorage.removeItem('musefold:last-username');
+    } catch {
+      // jsdom 无 storage 时忽略
+    }
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+    resetQuotaRecovery();
+  });
+
   it('signs in through the gateway and switches to the signed-in view', async () => {
     const { gateway, login } = createGateway();
     renderWith(gateway, <AccountPanel />);
@@ -276,7 +304,7 @@ describe('AccountPanel', () => {
   it('shows inline error when login fails', async () => {
     const { gateway } = createGateway();
     (gateway.account.login as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('用户名或密码不正确'),
+      Object.assign(new Error('raw-upstream'), { code: 'AUTH_CREDENTIALS_INVALID' }),
     );
     renderWith(gateway, <AccountPanel />);
 
@@ -287,6 +315,7 @@ describe('AccountPanel', () => {
 
     await screen.findByTestId('account-auth-error');
     expect(screen.getByTestId('account-auth-error').textContent).toContain('用户名或密码不正确');
+    expect(screen.getByTestId('account-auth-error').textContent).toContain('请检查后重试');
   });
 
   it('shows the confirm-password field only in register mode', async () => {
@@ -404,36 +433,59 @@ describe('AccountPanel', () => {
     });
   });
 
-  it('keeps the auth mode locked while a registration request is pending', async () => {
-    let resolveRegister: ((account: AccountSummary) => void) | undefined;
-    const { gateway } = createGateway();
-    (gateway.account.register as ReturnType<typeof vi.fn>).mockImplementation(
-      () =>
-        new Promise<AccountSummary>((resolve) => {
-          resolveRegister = resolve;
-        }),
-    );
-    renderWith(gateway, <AccountPanel />);
-
-    await screen.findByTestId('account-auth-form');
-    await userEvent.click(screen.getByRole('button', { name: '没有账号?注册' }));
-    await userEvent.type(screen.getByTestId('account-username'), 'xiaomiao');
-    await userEvent.type(screen.getByTestId('account-password'), 'secret');
-    await userEvent.type(screen.getByTestId('account-confirm-password'), 'secret');
-    await userEvent.click(screen.getByTestId('account-auth-submit'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '已有账号?登录' })).toHaveProperty(
-        'disabled',
-        true,
+  it.each(['success', 'failure'] as const)(
+    'keeps the auth mode locked until registration %s',
+    async (outcome) => {
+      let resolveRegister: ((account: AccountSummary) => void) | undefined;
+      let rejectRegister: ((error: Error) => void) | undefined;
+      const { gateway } = createGateway();
+      (gateway.account.register as ReturnType<typeof vi.fn>).mockImplementation(
+        () =>
+          new Promise<AccountSummary>((resolve, reject) => {
+            resolveRegister = resolve;
+            rejectRegister = reject;
+          }),
       );
-    });
-    expect(resolveRegister).toBeTypeOf('function');
-    resolveRegister?.(SIGNED_IN);
-    await waitFor(() => {
-      expect(screen.getByTestId('account-auth-submit')).toHaveProperty('disabled', false);
-    });
-  });
+      renderWith(gateway, <AccountPanel />);
+
+      await screen.findByTestId('account-auth-form');
+      await userEvent.click(screen.getByRole('button', { name: '没有账号?注册' }));
+      await userEvent.type(screen.getByTestId('account-username'), 'xiaomiao');
+      await userEvent.type(screen.getByTestId('account-password'), 'secret');
+      await userEvent.type(screen.getByTestId('account-confirm-password'), 'secret');
+      await userEvent.click(screen.getByTestId('account-auth-submit'));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '已有账号?登录' })).toHaveProperty(
+          'disabled',
+          true,
+        );
+      });
+      expect(resolveRegister).toBeTypeOf('function');
+      if (outcome === 'success') {
+        // Registration creates an authenticated session. Keep the subsequent status
+        // read consistent, and assert the durable UI outcome rather than a transient form.
+        gateway.account.getStatus = async () => SIGNED_IN;
+        resolveRegister?.(SIGNED_IN);
+        await screen.findByTestId('account-signed-in');
+        expect(screen.queryByTestId('account-auth-form')).toBeNull();
+      } else {
+        rejectRegister?.(new Error('registration rejected'));
+        await waitFor(() => {
+          // Submitted credentials are deliberately cleared even on failure.
+          expect(screen.getByTestId('account-auth-submit')).toHaveProperty('disabled', true);
+          expect(screen.getByTestId('account-password')).toHaveProperty('value', '');
+          expect(screen.getByRole('button', { name: '已有账号?登录' })).toHaveProperty(
+            'disabled',
+            false,
+          );
+        });
+        await userEvent.type(screen.getByTestId('account-password'), 'secret');
+        await userEvent.type(screen.getByTestId('account-confirm-password'), 'secret');
+        expect(screen.getByTestId('account-auth-submit')).toHaveProperty('disabled', false);
+      }
+    },
+  );
 
   it('redeems a code and refreshes the balance', async () => {
     const { gateway, redeem } = createGateway({ signedIn: true });
@@ -446,6 +498,48 @@ describe('AccountPanel', () => {
     await waitFor(() => {
       expect(redeem).toHaveBeenCalledWith('CODE-123');
       expect(screen.getByTestId('account-points').textContent).toBe('72.8 积分');
+    });
+    expect(toast.success).toHaveBeenCalledWith('兑换成功,到账 10 积分');
+  });
+
+  it('兑换成功后重试记下的额度失败 job', async () => {
+    const retry = vi.fn(async () => ({ id: 'job-retry' }));
+    const { gateway, redeem } = createGateway({ signedIn: true });
+    gateway.generation = {
+      retry,
+    } as unknown as MusefoldGateway['generation'];
+    rememberQuotaRecovery({ kind: 'retry-job', jobId: 'job-quota' });
+    renderWith(gateway, <AccountPanel />);
+
+    await screen.findByTestId('account-signed-in');
+    await userEvent.type(screen.getByTestId('account-redeem-input'), 'CODE-123');
+    await userEvent.click(screen.getByTestId('account-redeem-submit'));
+
+    await waitFor(() => {
+      expect(redeem).toHaveBeenCalledWith('CODE-123');
+      expect(retry).toHaveBeenCalledWith('job-quota', expect.any(String));
+    });
+    expect(toast.success).toHaveBeenCalledWith('兑换成功,到账 10 积分');
+    await waitFor(() =>
+      expect(screen.getByTestId('account-redeem-recovery').getAttribute('data-status')).toBe(
+        'submitted',
+      ),
+    );
+  });
+
+  it('maps redeem error codes to Chinese copy', async () => {
+    const { gateway } = createGateway({ signedIn: true });
+    (gateway.account.redeem as ReturnType<typeof vi.fn>).mockRejectedValue(
+      Object.assign(new Error('raw-upstream'), { code: 'ACCOUNT_REDEEM_INVALID' }),
+    );
+    renderWith(gateway, <AccountPanel />);
+
+    await screen.findByTestId('account-signed-in');
+    await userEvent.type(screen.getByTestId('account-redeem-input'), 'USED');
+    await userEvent.click(screen.getByTestId('account-redeem-submit'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('兑换码无效或已使用。请检查后重试');
     });
   });
 
@@ -461,6 +555,22 @@ describe('AccountPanel', () => {
       expect(logout).toHaveBeenCalled();
       expect(screen.getByTestId('account-auth-form')).toBeTruthy();
     });
+  });
+
+  it('prefills the last username after logout, clears password, and focuses it', async () => {
+    const { gateway } = createGateway({ signedIn: true });
+    renderWith(gateway, <AccountPanel />);
+
+    await screen.findByTestId('account-signed-in');
+    await userEvent.click(screen.getByTestId('account-logout'));
+    await userEvent.click(await screen.findByTestId('account-logout-confirm'));
+
+    await screen.findByTestId('account-auth-form');
+    const username = screen.getByTestId('account-username') as HTMLInputElement;
+    const password = screen.getByTestId('account-password') as HTMLInputElement;
+    expect(username.value).toBe('xiaomiao');
+    expect(password.value).toBe('');
+    expect(document.activeElement).toBe(password);
   });
 });
 
@@ -678,6 +788,27 @@ describe('AiConnectionsPanel', () => {
     expect(screen.getByTestId('ai-provider-status').getAttribute('aria-label')).toBe(
       '最近测试通过',
     );
+  });
+
+  it('测试失败若密钥无效则给出替换引导并打开编辑器', async () => {
+    const { gateway, testProvider } = createGateway({ providers: [PROVIDER] });
+    testProvider.mockResolvedValueOnce({
+      ok: false,
+      message: 'API Key 无效或无权限',
+      latencyMs: 12,
+    });
+    renderWith(gateway, <AiConnectionsPanel />, DESKTOP_CAPABILITIES);
+
+    await screen.findByTestId('ai-providers-list');
+    await userEvent.click(screen.getByTestId('ai-provider-test'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-provider-test-result').textContent).toContain(
+        '请编辑连接并替换密钥',
+      );
+    });
+    await userEvent.click(screen.getByTestId('ai-provider-test-result-key-invalid-hint'));
+    expect(await screen.findByTestId('ai-provider-editor')).toBeTruthy();
   });
 
   it('shows a status dot, applies a preset, lists models, and guards dirty close', async () => {
@@ -1109,6 +1240,41 @@ describe('CloudSyncPanel', () => {
     const tagRow = screen.getByTestId('sync-conflict-row-conflict-tag-1');
     expect(tagRow.textContent).toContain('tag-1');
   });
+
+  it.each([FOLDER_CONFLICT, TAG_CONFLICT])(
+    'disables local resurrection for a deleted $entityType and applies remote deletion explicitly',
+    async (fixture) => {
+      const deleted = {
+        ...fixture,
+        remoteSnapshot: { ...fixture.remoteSnapshot, deletedAt: '2026-08-22T00:00:00+00:00' },
+      };
+      const { gateway, syncGateway: handle } = createGateway({
+        signedIn: true,
+        syncFixture: {
+          status: syncStatus({ phase: 'conflict', state: 'conflict', conflicts: 1 }),
+          conflicts: [deleted],
+        },
+      });
+      const syncGateway = requireSyncGateway(handle);
+      renderWith(gateway, <CloudSyncPanel />, DESKTOP_CAPABILITIES);
+      const row = await screen.findByTestId(`sync-conflict-row-${deleted.id}`);
+      const local = within(row).getByRole('button', { name: '保留本地' });
+      expect((local as HTMLButtonElement).disabled).toBe(true);
+      expect(row.textContent).toContain(
+        '此分类已在云端永久删除，无法恢复。保留云端会移除本机分类，提示词内容会保留。',
+      );
+      await userEvent.click(local);
+      expect(syncGateway.resolveConflict).not.toHaveBeenCalled();
+      expect(within(row).queryByRole('button', { name: '另存本地副本' })).toBeNull();
+      await userEvent.click(within(row).getByRole('button', { name: '保留云端' }));
+      await waitFor(() =>
+        expect(syncGateway.resolveConflict).toHaveBeenCalledWith(deleted.id, 'remote'),
+      );
+      await waitFor(() =>
+        expect(screen.queryByTestId(`sync-conflict-row-${deleted.id}`)).toBeNull(),
+      );
+    },
+  );
 
   it('refreshes the conflicts query after a successful resolution', async () => {
     const { gateway, syncGateway: handle } = createGateway({

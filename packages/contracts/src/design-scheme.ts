@@ -1,6 +1,14 @@
+import { DESIGN_SCHEME_PACKAGE_LIMITS } from './design-scheme-package-limits';
 import { z } from 'zod';
+import { executionBindingSchema } from './account-identity';
 
-import { isoDateTimeSchema, paginationCursorSchema, queryIntegerSchema } from './common';
+import {
+  cloudModelIdSchema,
+  isoDateTimeSchema,
+  paginationCursorSchema,
+  queryBooleanSchema,
+  queryIntegerSchema,
+} from './common';
 import {
   generationAspectRatioSchema,
   generationQualitySchema,
@@ -24,8 +32,8 @@ export const canonicalDesignSchemePackageFormatVersionSchema = z.literal(
 );
 
 const MAX_TEXT_LENGTH = 12_000;
-const MAX_PACKAGE_BYTES = 256 * 1024 * 1024;
-const MAX_PACKAGE_ENTRY_BYTES = 64 * 1024 * 1024;
+const MAX_PACKAGE_BYTES = DESIGN_SCHEME_PACKAGE_LIMITS.archiveBytes;
+const MAX_PACKAGE_ENTRY_BYTES = DESIGN_SCHEME_PACKAGE_LIMITS.entryBytes;
 const MAX_SAFE_TIMESTAMP = 9_007_199_254_740_991;
 const MAX_SAFE_DEFAULT_DEPTH = 32;
 const MAX_SAFE_DEFAULT_NODES = 4_096;
@@ -484,6 +492,61 @@ export const sourceFileMetadataSchema = z
   .strict();
 export const designSchemeSourceFileSchema = sourceFileMetadataSchema;
 
+/** A renderer selects immutable history identities; the host resolves bytes and prompt snapshots. */
+export const designSchemeHistorySourceSelectionSchema = z
+  .object({
+    runId: opaqueIdSchema,
+    assetId: opaqueIdSchema,
+    includePrompt: z.boolean(),
+  })
+  .strict();
+export const designSchemeHistorySourceSelectionsSchema = z
+  .array(designSchemeHistorySourceSelectionSchema)
+  .max(64)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, item] of items.entries()) {
+      const key = `${item.runId}\0${item.assetId}`;
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index],
+          message: 'History source selections must be unique',
+        });
+      }
+      seen.add(key);
+    }
+  });
+
+export const MAX_DESIGN_SCHEME_HISTORY_PROMPTS = 8;
+export const MAX_DESIGN_SCHEME_HISTORY_PROMPT_LENGTH = 8_000;
+/** Full, explicitly selected history prompt, not a path. Kept with its immutable image provenance. */
+export const designSchemeHistoryItemSchema = z
+  .object({
+    selection: designSchemeHistorySourceSelectionSchema,
+    imageAssetId: opaqueIdSchema,
+    imagePath: relativePathSchema,
+    promptPath: relativePathSchema.nullable(),
+    prompt: z
+      .string()
+      .min(1)
+      .max(MAX_DESIGN_SCHEME_HISTORY_PROMPT_LENGTH)
+      .refine((value) => !value.includes('\0'))
+      .nullable(),
+  })
+  .strict()
+  .superRefine((item, ctx) => {
+    if (
+      (item.prompt !== null) !== (item.promptPath !== null) ||
+      (item.prompt !== null) !== item.selection.includePrompt
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Only explicitly selected history prompts may be preserved',
+      });
+  });
+export const MAX_DESIGN_SCHEME_HISTORY_PROMPT_CHARS = 32_000;
+
 export const sourceSnapshotSchema = z
   .object({
     id: opaqueIdSchema,
@@ -500,9 +563,34 @@ export const sourceSnapshotSchema = z
     totalBytes: nonNegativeIntegerSchema,
     files: z.array(sourceFileMetadataSchema).max(500),
     createdAt: designSchemeDateTimeSchema,
+    historyItems: z.array(designSchemeHistoryItemSchema).min(1).max(64).optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.historyItems) {
+      const items = value.historyItems;
+      if (
+        value.kind !== 'history' ||
+        new Set(items.map((item) => item.imageAssetId)).size !== items.length ||
+        new Set(items.map((item) => `${item.selection.runId}\0${item.selection.assetId}`)).size !==
+          items.length ||
+        items.filter((item) => item.prompt !== null).length > MAX_DESIGN_SCHEME_HISTORY_PROMPTS ||
+        items.reduce((sum, item) => sum + (item.prompt?.length ?? 0), 0) >
+          MAX_DESIGN_SCHEME_HISTORY_PROMPT_CHARS ||
+        items.some(
+          (item) =>
+            !value.files.some(
+              (file) => file.relativePath === item.imagePath && file.kind === 'image',
+            ) ||
+            (item.promptPath &&
+              !value.files.some(
+                (file) => file.relativePath === item.promptPath && file.kind === 'text',
+              )),
+        )
+      )
+        ctx.addIssue({ code: 'custom', message: 'Invalid history snapshot provenance' });
+    }
+
     const uris = [value.uri, value.repositoryUri, value.repositoryUrl].filter(
       (uri): uri is string | null => uri !== undefined,
     );
@@ -657,6 +745,28 @@ export const compilationRecordSchema = z
   })
   .strict();
 
+/** Verified image copy from one immutable, confirmed repository file. */
+export const designSchemeRepositoryImageSchema = z
+  .object({
+    snapshotId: opaqueIdSchema,
+    sourceContentHash: designSchemeHashSchema,
+    relativePath: relativePathSchema,
+    imageRole: imageRoleSchema,
+    assetId: opaqueIdSchema,
+    contentHash: designSchemeHashSchema,
+  })
+  .strict();
+export const designSchemeRepositoryImagesSchema = z
+  .array(designSchemeRepositoryImageSchema)
+  .max(64)
+  .superRefine((items, ctx) => {
+    if (
+      new Set(items.map((item) => item.assetId)).size !== items.length ||
+      new Set(items.map((item) => `${item.snapshotId}\0${item.relativePath}`)).size !== items.length
+    )
+      ctx.addIssue({ code: 'custom', message: 'Repository image provenance must be unique' });
+  });
+
 /** Immutable revision document. The optional additions default cleanly for old documents. */
 export const designSchemeRevisionDocumentSchema = z
   .object({
@@ -673,6 +783,7 @@ export const designSchemeRevisionDocumentSchema = z
     constraints: constraintsSchema,
     promptProgram: promptProgramSchema,
     assetIds: z.array(opaqueIdSchema).max(128).default([]),
+    repositoryImages: designSchemeRepositoryImagesSchema.optional(),
     compilation: compilationRecordSchema,
     /** Revision rows are append-only; a non-null parent records the revision it supersedes. */
     parentRevisionId: opaqueIdSchema.nullable().optional(),
@@ -691,7 +802,8 @@ export const designSchemeSummarySchema = z
     summary: safeTextSchema.max(500),
     status: schemeStatusSchema,
     sourcePresentation: z.enum(['skill', 'musefold-created']),
-    sourceLabel: z.string().trim().min(1).max(160).default(''),
+    /** Legacy/manual schemes may have no source label. The default must survive wire revalidation. */
+    sourceLabel: z.string().trim().max(160).default(''),
     currentRevisionId: opaqueIdSchema,
     version: designSchemeVersionSchema.default(1),
     workingDraftRevisionId: opaqueIdSchema.nullable().default(null),
@@ -717,7 +829,8 @@ export const designSchemeSummarySchema = z
 export const schemeSummarySchema = designSchemeSummarySchema;
 export const designSchemeSchema = designSchemeSummarySchema;
 
-export const assetOriginSchema = z.enum(['repository', 'local-run']);
+/** Uploaded assets are user-provided references, never successful trial outputs. */
+export const assetOriginSchema = z.enum(['repository', 'local-run', 'uploaded', 'cloud-run']);
 export const assetRoleSchema = z.enum(['cover', 'example', 'reference', 'output']);
 export const outputRoleSchema = z.enum(['primary', 'variant']);
 const assetMetadataFields = {
@@ -740,9 +853,9 @@ export const referenceAssetMetadataSchema = z.object(assetMetadataFields).strict
 export const runOutputMetadataSchema = z
   .object({ ...assetMetadataFields, role: outputRoleSchema, runId: opaqueIdSchema })
   .strict()
-  .refine((value) => value.origin === 'local-run', {
+  .refine((value) => value.origin === 'local-run' || value.origin === 'cloud-run', {
     path: ['origin'],
-    message: 'Run outputs must be local-run assets',
+    message: 'Run outputs must originate from local or cloud execution',
   });
 export const outputMetadataSchema = runOutputMetadataSchema;
 
@@ -825,7 +938,7 @@ export const sharePackageContentMetadataSchema = z
   .object({
     contentHash: designSchemeHashSchema,
     sizeBytes: positiveIntegerSchema,
-    entries: z.array(sharePackageContentEntrySchema).max(1_024),
+    entries: z.array(sharePackageContentEntrySchema).max(DESIGN_SCHEME_PACKAGE_LIMITS.entries - 1),
   })
   .strict();
 
@@ -958,6 +1071,10 @@ export const providerSnapshotSchema = z
 export const designSchemeRunExecutionSettingsSchema = z
   .object({
     providerId: opaqueIdSchema,
+    /** Explicit account image choice; omitted legacy requests retain the host default. */
+    model: cloudModelIdSchema.optional(),
+    /** Display-time expectation only. The host must independently authorize this identity/model. */
+    expectedBinding: executionBindingSchema.optional(),
     size: generationSizeSchema,
     aspectRatio: generationAspectRatioSchema.optional(),
     quality: generationQualitySchema,
@@ -980,6 +1097,13 @@ export const designSchemeRunExecutionSettingsSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.expectedBinding && value.model !== value.expectedBinding.model) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['model'],
+        message: 'Selected model must match the displayed execution expectation',
+      });
+    }
     const fixedSizeRatio: Partial<Record<z.infer<typeof generationSizeSchema>, string>> = {
       '1024x1024': '1:1',
       '1536x1024': '3:2',
@@ -1254,6 +1378,8 @@ export const designSchemeRunInputSchema = z
     inputValues: designSchemeRunInputValuesSchema,
     executionSettings: designSchemeRunExecutionSettingsSchema,
     plan: designSchemeRunPlanSchema,
+    /** Host-authored cloud execution identity; absent on legacy/local envelopes. */
+    executionBinding: executionBindingSchema.optional(),
     repair: repairLineageSchema.nullable().default(null),
   })
   .strict()
@@ -1284,6 +1410,17 @@ export const designSchemeRunInputSchema = z
         code: 'custom',
         path: ['executionSettings', 'providerId'],
         message: 'Execution provider must match the frozen run plan',
+      });
+    }
+    if (
+      value.executionSettings.model &&
+      (value.executionSettings.model !== value.plan.provider.model ||
+        (value.executionBinding && value.executionSettings.model !== value.executionBinding.model))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['executionSettings', 'model'],
+        message: 'Selected model must match the frozen plan and execution binding',
       });
     }
     const planBudget = value.plan.budget ?? value.plan.budgets;
@@ -1342,11 +1479,32 @@ export const designSchemeListQuerySchema = z
     query: z.string().trim().max(200).optional(),
     status: schemeStatusSchema.optional(),
     fidelity: fidelitySchema.optional(),
+    /** Only soft-deleted schemes; omitted/false lists the active library. */
+    deletedOnly: queryBooleanSchema.optional(),
     cursor: paginationCursorSchema.optional(),
     limit: queryIntegerSchema.pipe(z.number().int().min(1).max(100)).default(20),
   })
   .strict();
 export const listDesignSchemesQuerySchema = designSchemeListQuerySchema;
+/** Host codecs preserve database timestamp precision and bind cursors to the original filters. */
+export const designSchemeListCursorPayloadSchema = z
+  .object({
+    version: z.literal(1),
+    scope: z.string().regex(/^[a-f0-9]{64}$/),
+    updatedAt: isoDateTimeSchema,
+    id: opaqueIdSchema,
+  })
+  .strict();
+export function designSchemeListCursorScope(
+  query: z.output<typeof designSchemeListQuerySchema>,
+): string {
+  return JSON.stringify([
+    query.query ?? '',
+    query.status ?? '',
+    query.fidelity ?? '',
+    query.deletedOnly ?? false,
+  ]);
+}
 export const designSchemePageSchema = z
   .object({
     items: z.array(designSchemeSummarySchema).max(100),
@@ -1392,32 +1550,6 @@ export const marketSearchResultSchema = z
     nextCursor: paginationCursorSchema.nullable(),
   })
   .strict();
-
-/** A renderer selects immutable history identities; the host resolves bytes and prompt snapshots. */
-export const designSchemeHistorySourceSelectionSchema = z
-  .object({
-    runId: opaqueIdSchema,
-    assetId: opaqueIdSchema,
-    includePrompt: z.boolean(),
-  })
-  .strict();
-export const designSchemeHistorySourceSelectionsSchema = z
-  .array(designSchemeHistorySourceSelectionSchema)
-  .max(64)
-  .superRefine((items, ctx) => {
-    const seen = new Set<string>();
-    for (const [index, item] of items.entries()) {
-      const key = `${item.runId}\0${item.assetId}`;
-      if (seen.has(key)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [index],
-          message: 'History source selections must be unique',
-        });
-      }
-      seen.add(key);
-    }
-  });
 
 export const createDesignSchemeInputSchema = z
   .object({

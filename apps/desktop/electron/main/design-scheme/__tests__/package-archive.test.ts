@@ -16,10 +16,11 @@ function tempFile(name: string): string {
 async function writeZip(
   path: string,
   entries: Array<{ name: string; content: string | Buffer }>,
+  store = false,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const output = createWriteStream(path);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = archiver('zip', { store, zlib: { level: 9 } });
     output.on('close', resolve);
     output.on('error', reject);
     archive.on('error', reject);
@@ -92,7 +93,8 @@ describe('Design Scheme package archive limits', () => {
       name: index === 0 ? 'manifest.json' : `entries/${index}.txt`,
       content: '{}',
     }));
-    await writeZip(packagePath, entries);
+    // Entry-count validation does not need 1025 separate compression jobs in the shared pool.
+    await writeZip(packagePath, entries, true);
     await expect(readValidatedDesignSchemePackage(packagePath)).rejects.toThrow('条目超过上限');
   });
 });

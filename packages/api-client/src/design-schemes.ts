@@ -6,6 +6,10 @@ import {
   type DesignSchemeListQuery,
   type DesignSchemeDetailRevisionSelector,
   type DesignSchemeRunInput,
+  type PrepareDesignSchemeRunInput,
+  type DesignSchemeEvent,
+  designSchemeRunEventPageSchema,
+  prepareDesignSchemeRunResultSchema,
   type ExportDesignSchemeInput,
   type FormalizeDesignSchemeInput,
   type ImportDesignSchemeInput,
@@ -14,6 +18,8 @@ import {
   type PromoteWorkingDraftInput,
   type PrepareDesignSchemeImportPackageInput,
   type RemoveDesignSchemeInput,
+  type PurgeDesignSchemeInput,
+  purgeDesignSchemeResultSchema,
   type RenameDesignSchemeInput,
   type SelectCoverInput,
   type UpdateDesignSchemeInput,
@@ -37,6 +43,8 @@ import {
   updateDesignSchemeResultSchema,
 } from '@musefold/contracts';
 import type { DesignSchemesGateway } from '@musefold/platform';
+import { createCloudDesignSchemePackageClient } from './design-scheme-packages';
+import { createCloudDesignSchemeAgentClient } from './design-scheme-agent';
 import { type ApiHttp, ApiRequestError } from './http';
 
 type CloudUnavailableOperation =
@@ -107,7 +115,60 @@ function mapUnavailable<T>(operation: CloudUnavailableOperation, request: Promis
 
 /** Web adapter for the deployed Design Schemes surface and optional lifecycle seams. */
 export function createCloudDesignSchemesGateway(http: ApiHttp): DesignSchemesGateway {
+  const listeners = new Set<(event: DesignSchemeEvent) => void>();
+  const terminal = new Set(['completed', 'blocked', 'failed', 'cancelled']);
+  async function run(input: DesignSchemeRunInput) {
+    let result = await mapUnavailable(
+      'run',
+      http.request({
+        method: 'POST',
+        path: '/design-schemes/run',
+        body: input,
+        response: runResultSchema,
+      }),
+    );
+    let afterSeq = 0;
+    while (true) {
+      // The server retains events and execution identity: retrying this input resumes the same run.
+      if (listeners.size) {
+        while (true) {
+          const page = await http.request({
+            method: 'GET',
+            path: `/design-schemes/runs/${result.runId}/events`,
+            query: { afterSeq },
+            response: designSchemeRunEventPageSchema,
+          });
+          for (const item of page.events) {
+            for (const listener of listeners) {
+              try {
+                listener(item.event);
+              } catch {
+                // An observer cannot turn an already authorized run into a transport failure.
+              }
+            }
+          }
+          if (page.nextSeq <= afterSeq || page.events.length < 100) {
+            afterSeq = page.nextSeq;
+            break;
+          }
+          afterSeq = page.nextSeq;
+        }
+      }
+      if (terminal.has(result.status)) return result;
+      // Each cycle reads status and events through fresh account authorization.
+      // This is one part of the aggregate budget; ledger polls and event refreshes are batched
+      // by features. ApiHttp backs off limited reads without re-posting this execution.
+      await new Promise<void>((resolve) => setTimeout(resolve, 3_000));
+      result = await http.request({
+        method: 'GET',
+        path: `/design-schemes/runs/${result.runId}`,
+        response: runResultSchema,
+      });
+    }
+  }
   return {
+    agent: createCloudDesignSchemeAgentClient(http),
+    packageImport: createCloudDesignSchemePackageClient(http),
     list: (query: DesignSchemeListQuery) =>
       http.request({
         method: 'GET',
@@ -132,6 +193,7 @@ export function createCloudDesignSchemesGateway(http: ApiHttp): DesignSchemesGat
           method: 'GET',
           path: '/design-schemes/market',
           query: { ...query },
+          retryRateLimit: false,
           response: marketSearchResultSchema,
         }),
       ),
@@ -217,6 +279,13 @@ export function createCloudDesignSchemesGateway(http: ApiHttp): DesignSchemesGat
         body: input,
         response: removeDesignSchemeResultSchema,
       }),
+    purge: (input: PurgeDesignSchemeInput) =>
+      http.request({
+        method: 'POST',
+        path: '/design-schemes/purge',
+        body: input,
+        response: purgeDesignSchemeResultSchema,
+      }),
     checkUpdate: (input: CheckDesignSchemeUpdateInput) =>
       mapUnavailable(
         'checkUpdate',
@@ -257,21 +326,19 @@ export function createCloudDesignSchemesGateway(http: ApiHttp): DesignSchemesGat
           response: exportDesignSchemeResultSchema,
         }),
       ),
-    run: (input: DesignSchemeRunInput) =>
-      mapUnavailable(
-        'run',
-        http.request({
-          method: 'POST',
-          path: '/design-schemes/run',
-          body: input,
-          response: runResultSchema,
-        }),
-      ),
-    subscribeEvents: () => {
-      throw new CloudDesignSchemeUnavailableError(
-        'subscribeEvents',
-        'Cloud Design Scheme event streaming is not available.',
-      );
+    prepareRun: (input: PrepareDesignSchemeRunInput) =>
+      http.request({
+        method: 'POST',
+        path: '/design-schemes/prepare-run',
+        body: input,
+        response: prepareDesignSchemeRunResultSchema,
+      }),
+    run,
+    subscribeEvents: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

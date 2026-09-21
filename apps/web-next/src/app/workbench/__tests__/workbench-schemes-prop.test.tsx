@@ -1,6 +1,6 @@
 // Web 工作台方案域集成 prop wiring 证据(P01-7):
-// - WorkbenchScreen 收到 designSchemes prop,只含导航缝 onOpenDesignSchemes;
-// - 提交缝 onRun/onCancelRun/onCreate/onModify 缺省(云端 run/创建/修改管线未部署,提交禁用并解释,不伪造);
+// - 服务可用时接入 run/cancel;缺 prepareRun 时保留解释性禁用。
+// - create/modify 尚未部署,逐入口保持缺省。
 // - 深链路由:带 detailId → /design-schemes?scheme=<id>,不带 → /design-schemes。
 
 import type { MusefoldGateway } from '@musefold/platform';
@@ -30,21 +30,31 @@ vi.mock('@musefold/features/workbench', async (importActual) => {
   };
 });
 
-function makeGateway(): MusefoldGateway {
+function makeGateway(withRun = false): MusefoldGateway {
   return {
+    ...(withRun
+      ? {
+          designSchemes: {
+            prepareRun: vi.fn(),
+            run: vi.fn(),
+            cancel: vi.fn(),
+            subscribeEvents: vi.fn(),
+          },
+        }
+      : {}),
     workbench: {
       listSessions: vi.fn(async () => ({ items: [], nextCursor: null })),
     },
   } as unknown as MusefoldGateway;
 }
 
-function renderPage() {
+function renderPage(withRun = false) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const capabilities = { ...WEB_CAPABILITIES, hasDesignSchemes: true };
   function Providers({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <PlatformProvider runtime={{ gateway: makeGateway(), capabilities }}>
+        <PlatformProvider runtime={{ gateway: makeGateway(withRun), capabilities }}>
           {children}
         </PlatformProvider>
       </QueryClientProvider>
@@ -59,6 +69,18 @@ beforeEach(() => {
 });
 
 describe('Web 工作台 designSchemes 集成 prop', () => {
+  it('接通运行与取消,图片输入可用,未部署的创建修改仍独立禁用', async () => {
+    renderPage(true);
+    await waitFor(() => expect(workbenchPropsSpy).toHaveBeenCalled());
+    const props = workbenchPropsSpy.mock.calls.at(-1)?.[0] as {
+      designSchemes: Record<string, unknown>;
+    };
+    expect(typeof props.designSchemes.onRun).toBe('function');
+    expect(typeof props.designSchemes.onCancelRun).toBe('function');
+    expect(props.designSchemes.runInputSupport).toBe('text-and-images');
+    expect(props.designSchemes.onCreate).toBeUndefined();
+    expect(props.designSchemes.onModify).toBeUndefined();
+  });
   it('只接导航缝:prop 存在,onRun/onCancelRun/onCreate/onModify 均缺省(不伪造方案执行)', async () => {
     renderPage();
     await waitFor(() => expect(workbenchPropsSpy).toHaveBeenCalled());

@@ -1,11 +1,13 @@
 import type { PlatformCapabilities } from '@musefold/platform';
 import {
+  BarChart3,
   CloudUpload,
   Database,
   Info,
   type LucideIcon,
   Palette,
   Plug,
+  Terminal,
   UserRound,
 } from '@musefold/ui/icons';
 import type { ReactNode } from 'react';
@@ -19,6 +21,11 @@ import { AboutCard } from './AboutCard';
 import { AppearanceCard } from './AppearanceCard';
 import { DataStorageCard } from './DataStorageCard';
 import { GenerationDefaultsCard } from './GenerationDefaultsCard';
+import { OpenCapabilitiesCard } from './OpenCapabilitiesCard';
+import type { SettingsGroupId, SettingsSectionId } from './section-ids';
+import { UsageCard } from './UsageCard';
+
+export type { SettingsGroupId, SettingsSectionId };
 
 /**
  * 设置分区注册表(V25-UI-SPEC §6.2)—— 设置页的唯一目录。
@@ -32,8 +39,6 @@ import { GenerationDefaultsCard } from './GenerationDefaultsCard';
  * 纪律:分区只做编排(挑卡、排卡),数据面在各卡自己的 hooks 里;不在这里 import 宿主或探测 UA。
  */
 
-export type SettingsGroupId = 'general' | 'access' | 'app';
-
 export interface SettingsGroupDefinition {
   id: SettingsGroupId;
   title: string;
@@ -45,14 +50,6 @@ export const SETTINGS_GROUPS: readonly SettingsGroupDefinition[] = [
   { id: 'access', title: '访问' },
   { id: 'app', title: '应用' },
 ];
-
-export type SettingsSectionId =
-  | 'appearance'
-  | 'account'
-  | 'sync'
-  | 'connections'
-  | 'data'
-  | 'about';
 
 export interface SettingsSectionContext {
   capabilities: PlatformCapabilities;
@@ -114,9 +111,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     keywords: ['登录', '注册', '积分', '额度', '兑换', '退出', 'account'],
     intents: ['settings-account'],
     isAvailable: () => true,
-    render: () => (
+    render: ({ onOpenScreen }) => (
       <div data-testid="settings-account-anchor">
-        <AccountPanel />
+        <AccountPanel onOpenHistory={onOpenScreen ? () => onOpenScreen('history') : undefined} />
       </div>
     ),
   },
@@ -179,6 +176,42 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     isAvailable: ({ onOpenScreen }) => Boolean(onOpenScreen),
     render: ({ onOpenScreen }) =>
       onOpenScreen ? <DataStorageCard onOpenScreen={onOpenScreen} /> : null,
+  },
+  {
+    id: 'open',
+    group: 'app',
+    title: '开放能力',
+    description: '本机 Agent 与脚本的调用开关、访问令牌、月度预算与接入片段',
+    icon: Terminal,
+    keywords: [
+      '开放',
+      '自动化',
+      '令牌',
+      '预算',
+      '端口',
+      '接入',
+      '命令行',
+      'mcp',
+      'cli',
+      'agent',
+      'automation',
+      'token',
+    ],
+    intents: [],
+    isAvailable: ({ capabilities }) =>
+      capabilities.hasLocalAutomation || capabilities.hasCloudMcpControls,
+    render: () => <OpenCapabilitiesCard />,
+  },
+  {
+    id: 'usage',
+    group: 'app',
+    title: '使用统计',
+    description: '生成次数、成功率、成图数与积分消耗',
+    icon: BarChart3,
+    keywords: ['统计', '用量', '积分', '成本', 'usage', 'cost'],
+    intents: [],
+    isAvailable: () => true,
+    render: () => <UsageCard />,
   },
   {
     id: 'about',

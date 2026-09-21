@@ -9,11 +9,26 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    { "path": "../automation-server" },
-    { "path": "../client" },
-    { "path": "../contracts" },
-    { "path": "../core" },
-    { "path": "../desktop-contracts" },
-    { "path": "../domain" }
+    {
+      "path": "../automation-server"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../desktop-contracts"
+    },
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../managed-fs"
+    }
   ]
 }

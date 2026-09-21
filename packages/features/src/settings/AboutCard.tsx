@@ -1,7 +1,7 @@
 'use client';
 
 import type { AppInfo } from '@musefold/contracts';
-import { useGateway } from '@musefold/platform';
+import { type BuildInfo, useBuildInfo, useGateway } from '@musefold/platform';
 import { MusefoldMark } from '@musefold/ui/components/brand-mark';
 import { Button } from '@musefold/ui/components/button';
 import {
@@ -45,9 +45,24 @@ function platformLabel(platform: string): string {
   return platform;
 }
 
+/** Web 版本行:无构建信息时保持「Web 版」;有 version/commit 再追加。 */
+export function formatWebVersionLine(buildInfo?: BuildInfo): string {
+  if (!buildInfo?.version && !buildInfo?.commit) return 'Web 版';
+  const parts = ['Web 版'];
+  if (buildInfo.version) parts.push(buildInfo.version);
+  if (buildInfo.commit) parts.push(buildInfo.commit.slice(0, 7));
+  return parts.join(' · ');
+}
+
 /** 版本信息聚合串(报障粘贴用,07-07 §4-2):版本 / 平台 / schema / 通道。 */
-export function formatVersionInfo(appInfo: AppInfo | null): string {
-  if (!appInfo) return `${PRODUCT_NAME}\n形态:Web 版`;
+export function formatVersionInfo(appInfo: AppInfo | null, buildInfo?: BuildInfo): string {
+  if (!appInfo) {
+    const lines = [PRODUCT_NAME, '形态:Web 版'];
+    if (buildInfo?.version) lines.push(`版本:${buildInfo.version}`);
+    if (buildInfo?.commit) lines.push(`构建:${buildInfo.commit.slice(0, 7)}`);
+    if (buildInfo?.builtAt) lines.push(`构建时间:${buildInfo.builtAt}`);
+    return lines.join('\n');
+  }
   const lines = [
     PRODUCT_NAME,
     `版本:${appInfo.version}`,
@@ -60,8 +75,8 @@ export function formatVersionInfo(appInfo: AppInfo | null): string {
 }
 
 /** 反馈信息 = 版本信息 + 日志入口指引(与 07-06 诊断日志行呼应)。 */
-export function formatFeedbackInfo(appInfo: AppInfo | null): string {
-  return `${formatVersionInfo(appInfo)}\n诊断日志:设置 → 数据 → 诊断日志「查看」`;
+export function formatFeedbackInfo(appInfo: AppInfo | null, buildInfo?: BuildInfo): string {
+  return `${formatVersionInfo(appInfo, buildInfo)}\n诊断日志:设置 → 数据 → 诊断日志「查看」`;
 }
 
 /** 复制按钮:钮内 Check 1.2s + toast 双反馈(0707-C1 / 0704-C2 同一封装)。 */
@@ -114,7 +129,7 @@ function CopyActionButton({
  * 设置「关于」分区(07-settings-07):品牌 + 版本 + 支持资源 + 快捷键表,双端同一份。
  *
  * 双端差异只在数据源:桌面经 `gateway.system.getAppInfo()` 拿版本 / 平台 / 库结构版本,
- * Web 宿主没有 system 域 → 版本行显示「Web 版」。
+ * Web 宿主没有 system 域 → 版本行显示「Web 版」(有 buildInfo 再追加 version/commit)。
  * 应用更新 / 内容层 / 更新通道三行属暂缓域(热更新控制面),本卡不出现。
  */
 export function AboutCard() {
@@ -131,6 +146,7 @@ export function AboutCard() {
 }
 
 function AboutAppCard({ appInfo }: { appInfo: AppInfo | null }) {
+  const buildInfo = useBuildInfo();
   return (
     <Card data-testid="settings-about-card">
       <CardContent className="flex flex-col items-center gap-4 py-6 text-center">
@@ -155,10 +171,10 @@ function AboutAppCard({ appInfo }: { appInfo: AppInfo | null }) {
         >
           {appInfo
             ? `版本 ${appInfo.version} · 库结构 v${appInfo.schemaVersion} · ${platformLabel(appInfo.platform)}`
-            : 'Web 版'}
+            : formatWebVersionLine(buildInfo)}
         </p>
         <CopyActionButton
-          text={formatVersionInfo(appInfo)}
+          text={formatVersionInfo(appInfo, buildInfo)}
           label="复制版本信息"
           testId="settings-about-copy-version"
           toastMessage="版本信息已复制"
@@ -175,6 +191,7 @@ function AboutSupportCard({
   appInfo: AppInfo | null;
   hasSystemDomain: boolean;
 }) {
+  const buildInfo = useBuildInfo();
   return (
     <Card data-testid="settings-about-support-card">
       <CardHeader>
@@ -185,7 +202,7 @@ function AboutSupportCard({
         {/* 文档随桌面安装包分发(主进程按白名单资源 id 打开);Web 宿主暂无公开文档站,不渲染死入口。 */}
         {hasSystemDomain && <ProductDocsButton />}
         <CopyActionButton
-          text={formatFeedbackInfo(appInfo)}
+          text={formatFeedbackInfo(appInfo, buildInfo)}
           label="复制反馈信息"
           testId="settings-about-copy-feedback"
           toastMessage="可连同诊断日志一起发送给维护者"

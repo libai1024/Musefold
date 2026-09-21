@@ -266,6 +266,7 @@ describe('resolveSchemeAttachment(承旧 run-store.attach)', () => {
   function makeSelectorGateway(options: { workingDraftRevisionId?: string | null } = {}) {
     const current: DesignSchemeDetail = {
       summary: makeSummary({
+        version: 7,
         name: '新名字',
         hasSuccessfulTrial: true,
         workingDraftRevisionId: options.workingDraftRevisionId ?? null,
@@ -276,6 +277,7 @@ describe('resolveSchemeAttachment(承旧 run-store.attach)', () => {
     };
     const workingDraft: DesignSchemeDetail = {
       ...current,
+      summary: { ...current.summary, version: 8 },
       document: makeDocument({
         revisionId: 'rev-2',
         parentRevisionId: 'rev-1',
@@ -295,6 +297,7 @@ describe('resolveSchemeAttachment(承旧 run-store.attach)', () => {
     expect(get).toHaveBeenCalledTimes(1);
     expect(get).toHaveBeenCalledWith('scheme-1', { kind: 'current' });
     expect(attachment.revisionId).toBe('rev-1');
+    expect(attachment.expectedVersion).toBe(7);
   });
 
   it.each(['trial', 'modify'] as const)(
@@ -308,7 +311,7 @@ describe('resolveSchemeAttachment(承旧 run-store.attach)', () => {
         kind: 'working-draft',
         revisionId: 'rev-2',
       });
-      expect(attachment).toMatchObject({ mode, revisionId: 'rev-2' });
+      expect(attachment).toMatchObject({ mode, revisionId: 'rev-2', expectedVersion: 8 });
       expect(attachment.inputs[0]?.id).toBe('draft-subject');
     },
   );

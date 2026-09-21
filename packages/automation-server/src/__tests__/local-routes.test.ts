@@ -1,6 +1,6 @@
 // 本地专属通道测试（V04-SECURITY §4.3）：一次性文件质询协议 + 管理操作守卫。
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import { createLocalRoutes, type LocalAdminOps } from '../local-routes';
 
 const resources: Array<{ dir: string; stop: () => Promise<void> }> = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const resource of resources.splice(0)) {
     await resource.stop();
     rmSync(resource.dir, { recursive: true, force: true });
@@ -72,6 +73,158 @@ async function proofHeader(dir: string, info: AutomationServerInfo): Promise<str
 }
 
 describe('本地专属通道', () => {
+  it.each([
+    [
+      'POST',
+      '/v1/local/providers',
+      'createProvider',
+      { name: 'test', type: 'openai', baseUrl: 'http://127.0.0.1', model: 'synthetic' },
+    ],
+    ['POST', '/v1/local/providers/p1/key', 'setProviderKey', { key: 'synthetic-test-key' }],
+    ['DELETE', '/v1/local/providers/p1', 'deleteProvider', undefined],
+    ['POST', '/v1/local/providers/p1/activate', 'setActiveProvider', undefined],
+    ['POST', '/v1/local/providers/p1/validate', 'validateProvider', undefined],
+    ['POST', '/v1/local/backups', 'backupNow', undefined],
+    ['GET', '/v1/local/backups', 'listBackups', undefined],
+    ['POST', '/v1/local/backups/restore', 'restoreBackup', { file: 'synthetic-backup.db' }],
+    ['POST', '/v1/local/export', 'exportLibrary', { mode: 'db-only' }],
+    ['POST', '/v1/local/import', 'importLibrary', { mode: 'db-only' }],
+    ['DELETE', '/v1/local/prompts/p1', 'deletePrompt', undefined],
+  ] as const)(
+    '%s %s 每个本地入口均要求token及一次性质询',
+    async (method, path, operation, body) => {
+      const { dir, info, ops } = await fixture();
+      const init = { method, body: body === undefined ? undefined : JSON.stringify(body) };
+      const proof = await proofHeader(dir, info);
+      const noToken = await fetch(`http://127.0.0.1:${info.port}${path}`, {
+        ...init,
+        headers: { 'x-musefold-local-proof': proof },
+      });
+      expect(noToken.status).toBe(401);
+      const missing = await call(info, path, init);
+      expect(missing.status).toBe(403);
+      const unknown = await call(info, path, {
+        ...init,
+        headers: { 'x-musefold-local-proof': 'unissued:wrong' },
+      });
+      expect(unknown.status).toBe(403);
+      for (const op of Object.values(ops)) expect(op).not.toHaveBeenCalled();
+      const accepted = await call(info, path, {
+        ...init,
+        headers: { 'x-musefold-local-proof': proof },
+      });
+      expect(accepted.status).toBe(200);
+      const replay = await call(info, path, {
+        ...init,
+        headers: { 'x-musefold-local-proof': proof },
+      });
+      expect(replay.status).toBe(403);
+      for (const [name, op] of Object.entries(ops)) {
+        expect(op).toHaveBeenCalledTimes(name === operation ? 1 : 0);
+      }
+    },
+  );
+
+  it('错误内容只消耗对应质询，正确秘密不能重放且其他质询继续有效', async () => {
+    const { dir, info, ops } = await fixture();
+    const consumed = await proofHeader(dir, info);
+    const active = await proofHeader(dir, info);
+    const consumedFile = join(dir, '.local-challenges', consumed.split(':')[0]);
+    const wrong = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': `${consumed.split(':')[0]}:wrong` },
+    });
+    expect(wrong.status).toBe(403);
+    expect(existsSync(consumedFile)).toBe(false);
+    const replay = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': consumed },
+    });
+    expect(replay.status).toBe(403);
+    expect(ops.deletePrompt).not.toHaveBeenCalled();
+    const ok = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': active },
+    });
+    expect(ok.status).toBe(200);
+    expect(ops.deletePrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['../owned-marker.txt', 'owned-marker.txt'],
+    ['../.local-challenges/../owned-marker.txt', 'owned-marker.txt'],
+    ['./orphan', '.local-challenges/orphan'],
+    [
+      '00000000-0000-4000-8000-000000000000',
+      '.local-challenges/00000000-0000-4000-8000-000000000000',
+    ],
+  ])('未知质询 %s 拒绝且不删除任何文件或其他有效质询', async (id, marker) => {
+    const { dir, info, ops } = await fixture();
+    const validProof = await proofHeader(dir, info);
+    const markerPath = join(dir, marker);
+    writeFileSync(markerPath, 'owned synthetic marker');
+    const response = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': `${id}:wrong-proof` },
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: { code: 'LOCAL_PROOF_INVALID' } });
+    expect(ops.deletePrompt).not.toHaveBeenCalled();
+    expect(existsSync(markerPath)).toBe(true);
+    expect(readFileSync(markerPath, 'utf8')).toBe('owned synthetic marker');
+    const valid = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': validProof },
+    });
+    expect(valid.status).toBe(200);
+    expect(ops.deletePrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([59_999, 60_000, 60_001])('质询在签发后 %i 毫秒执行严格期限校验', async (elapsed) => {
+    const { dir, info, ops } = await fixture();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    const proof = await proofHeader(dir, info);
+    const challengeFile = join(dir, '.local-challenges', proof.split(':')[0]);
+    clock.mockReturnValue(now + elapsed);
+    const response = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': proof },
+    });
+    expect(response.status).toBe(elapsed < 60_000 ? 200 : 403);
+    expect(ops.deletePrompt).toHaveBeenCalledTimes(elapsed < 60_000 ? 1 : 0);
+    expect(existsSync(challengeFile)).toBe(false);
+  });
+
+  it('新质询清理刚好到期的文件但保留仍有效的文件及非质询文件', async () => {
+    const { dir, info, ops } = await fixture();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    const expired = await proofHeader(dir, info);
+    const expiredFile = join(dir, '.local-challenges', expired.split(':')[0]);
+    clock.mockReturnValue(now + 1);
+    const active = await proofHeader(dir, info);
+    const activeFile = join(dir, '.local-challenges', active.split(':')[0]);
+    const orphan = join(dir, '.local-challenges', 'unregistered-file');
+    writeFileSync(orphan, 'keep');
+    clock.mockReturnValue(now + 60_000);
+    await proofHeader(dir, info);
+    expect(existsSync(expiredFile)).toBe(false);
+    expect(existsSync(activeFile)).toBe(true);
+    expect(readFileSync(orphan, 'utf8')).toBe('keep');
+    const replay = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': expired },
+    });
+    expect(replay.status).toBe(403);
+    const ok = await call(info, '/v1/local/prompts/p1', {
+      method: 'DELETE',
+      headers: { 'x-musefold-local-proof': active },
+    });
+    expect(ok.status).toBe(200);
+    expect(ops.deletePrompt).toHaveBeenCalledTimes(1);
+  });
+
   it('无质询证明 → 403 LOCAL_PROOF_REQUIRED（token 有效也不行）', async () => {
     const { info, ops } = await fixture();
     const response = await call(info, '/v1/local/providers/p1/key', {

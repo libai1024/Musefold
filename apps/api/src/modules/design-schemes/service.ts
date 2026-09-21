@@ -1,3 +1,7 @@
+import { cloudAgentAssets } from '@musefold/domain/design-scheme/cloud-materials';
+import { decodeSchemeListCursor, encodeSchemeListCursor } from './list-cursor.js';
+import type { DesignSchemeAgentMaterials } from '@musefold/contracts';
+import { executionDigest } from '@musefold/db';
 import {
   type CheckDesignSchemeUpdateInput,
   type CreateDesignSchemeInput,
@@ -51,11 +55,19 @@ import {
   designSchemeSourceFiles,
   designSchemeSourcePackages,
   designSchemeSourceSnapshots,
+  designSchemeSourcePreparations,
   designSchemes,
 } from '@musefold/db';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { z } from 'zod';
 import { AppError } from '../../lib/errors.js';
+import type { DesignSchemeAssetService } from '../design-scheme-assets/service.js';
+import type { DesignSchemeRunService } from '../design-scheme-runs/service.js';
+import type { PrepareDesignSchemeRunInput } from '@musefold/contracts';
+import type { DesignSchemeMarketSearchService } from './market-search.js';
+import type { DesignSchemePackageImportService } from '../design-scheme-packages/import-service.js';
+import { purgeDesignScheme } from './purge-service.js';
+import type { PurgeDesignSchemeInput } from '@musefold/contracts';
 
 type Tx = MusefoldDatabase | Parameters<Parameters<MusefoldDatabase['transaction']>[0]>[0];
 
@@ -128,41 +140,54 @@ interface SummaryRecord {
 
 /** Owner-scoped cloud persistence for deterministic Design Schemes operations. */
 export class DesignSchemeService {
-  constructor(private readonly db: MusefoldDatabase) {}
+  constructor(
+    private readonly db: MusefoldDatabase,
+    private readonly assets?: DesignSchemeAssetService,
+    private readonly runs?: DesignSchemeRunService,
+    private readonly market?: DesignSchemeMarketSearchService,
+    private readonly packageImports?: DesignSchemePackageImportService,
+  ) {}
 
   async list(userId: string, query: ParsedDesignSchemeListQuery): Promise<DesignSchemePage> {
-    const conditions = [sql`ds.user_id = ${userId}`, sql`ds.deleted_at IS NULL`];
+    const conditions = [
+      sql`ds.user_id = ${userId}`,
+      query.deletedOnly ? sql`ds.deleted_at IS NOT NULL` : sql`ds.deleted_at IS NULL`,
+    ];
     if (query.status) conditions.push(sql`ds.status = ${query.status}`);
     if (query.fidelity) conditions.push(sql`ds.fidelity = ${query.fidelity}`);
     if (query.query) {
-      const pattern = `%${query.query}%`;
+      const pattern = `%${query.query.replace(/[\\%_]/g, '\\$&')}%`;
       conditions.push(
-        sql`(ds.name || ' ' || ds.summary || ' ' || ds.source_label) ILIKE ${pattern}`,
+        sql`(ds.name || ' ' || ds.summary || ' ' || ds.source_label || ' ' || ds.id) ILIKE ${pattern}`,
       );
     }
-    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const cursor = decodeSchemeListCursor(query);
     if (cursor) {
-      conditions.push(sql`(ds.updated_at, ds.id) < (${new Date(cursor.updatedAt)}, ${cursor.id})`);
+      conditions.push(
+        sql`(ds.updated_at, ds.id COLLATE "C") < (${cursor.updatedAt}::timestamptz, ${cursor.id} COLLATE "C")`,
+      );
     }
 
     const result = await this.db.execute(sql`
-      SELECT ${summaryProjection}
+      SELECT ${summaryProjection},
+        to_char(ds.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_updated_at
       FROM design_schemes ds
       JOIN design_scheme_revisions current_revision
         ON current_revision.revision_id = ds.current_revision_id
        AND current_revision.user_id = ds.user_id
       WHERE ${sql.join(conditions, sql` AND `)}
-      ORDER BY ds.updated_at DESC, ds.id DESC
+      ORDER BY ds.updated_at DESC, ds.id COLLATE "C" DESC
       LIMIT ${query.limit + 1}
     `);
-    const rows = result.rows as unknown as SummaryRow[];
+    const rows = result.rows as unknown as Array<SummaryRow & { cursor_updated_at: string }>;
     const hasMore = rows.length > query.limit;
     const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
     const items = pageRows.map((row) => toSummaryRecord(row).summary);
     const last = pageRows.at(-1);
     return designSchemePageSchema.parse({
       items,
-      nextCursor: hasMore && last ? encodeCursor(last.updated_at, last.id) : null,
+      nextCursor:
+        hasMore && last ? encodeSchemeListCursor(query, last.cursor_updated_at, last.id) : null,
     });
   }
 
@@ -196,10 +221,11 @@ export class DesignSchemeService {
       );
     }
     if (
-      input.sourceAssetIds.length > 0 ||
-      input.sourceAssets.length > 0 ||
       input.historySources.length > 0 ||
-      input.document.assetIds.length > 0
+      (!this.assets &&
+        (input.sourceAssetIds.length > 0 ||
+          input.sourceAssets.length > 0 ||
+          input.document.assetIds.length > 0))
     ) {
       throwUnavailable(
         'create',
@@ -207,53 +233,89 @@ export class DesignSchemeService {
         'Cloud asset staging is not available for Design Scheme creation.',
       );
     }
-    const document = designSchemeRevisionDocumentSchema.parse(input.document);
+    designSchemeRevisionDocumentSchema.parse(input.document);
 
     try {
-      return await this.db.transaction(async (tx) => {
-        const presentation = derivePresentation(input);
-        const insertedScheme = await tx
-          .insert(designSchemes)
-          .values({
-            id: document.schemeId,
-            userId,
-            name: document.name,
-            summary: document.summary,
-            status: 'draft',
-            sourcePresentation: presentation.sourcePresentation,
-            sourceLabel: presentation.sourceLabel,
-            currentRevisionId: document.revisionId,
-            fidelity: document.fidelity,
-          })
-          .onConflictDoNothing()
-          .returning({ id: designSchemes.id });
-        if (!insertedScheme[0]) throw identifierUnavailable('scheme');
-
-        await tx.insert(designSchemeRevisions).values({
-          revisionId: document.revisionId,
-          schemeId: document.schemeId,
-          userId,
-          schemaVersion: document.schemaVersion,
-          document: document as Record<string, unknown>,
-          createdBy: document.createdBy,
-          ...(document.createdAt === undefined ? {} : { createdAt: toDate(document.createdAt) }),
-        });
-        await this.persistSources(tx, userId, input, document.revisionId);
-        await this.requireDocumentSnapshots(tx, userId, document);
-
-        const created = await this.getSummaryRecord(tx, userId, document.schemeId);
-        return createDesignSchemeResultSchema.parse({
-          scheme: created.summary,
-          document: created.document,
-          revisionId: document.revisionId,
-          trace: document.compilation.trace,
-        });
-      });
+      return await this.db.transaction((tx) => this.createInTransaction(tx, userId, input));
     } catch (error) {
       if (error instanceof AppError) throw error;
       if (isUniqueViolation(error)) throw identifierUnavailable('revision or source');
       throw error;
     }
+  }
+
+  /** Shares the caller transaction so Agent result/event and draft commit atomically. */
+  async createInTransaction(
+    tx: Tx,
+    userId: string,
+    rawInput: CreateDesignSchemeInput,
+    trustedMaterials?: DesignSchemeAgentMaterials,
+  ) {
+    const input = createDesignSchemeInputSchema.parse(rawInput);
+    const document = designSchemeRevisionDocumentSchema.parse(input.document);
+
+    if (
+      input.sourceSnapshots.some(
+        (snapshot) =>
+          snapshot.historyItems &&
+          (!trustedMaterials?.history ||
+            executionDigest(snapshot) !== executionDigest(trustedMaterials.history.snapshot)),
+      )
+    )
+      throw invalidState('History source snapshots require server-authored material authority.');
+    const presentation = derivePresentation(input);
+    const insertedScheme = await tx
+      .insert(designSchemes)
+      .values({
+        id: document.schemeId,
+        userId,
+        name: document.name,
+        summary: document.summary,
+        status: 'draft',
+        sourcePresentation: presentation.sourcePresentation,
+        sourceLabel: presentation.sourceLabel,
+        currentRevisionId: document.revisionId,
+        fidelity: document.fidelity,
+      })
+      .onConflictDoNothing()
+      .returning({ id: designSchemes.id });
+    if (!insertedScheme[0]) throw identifierUnavailable('scheme');
+
+    await tx.insert(designSchemeRevisions).values({
+      revisionId: document.revisionId,
+      schemeId: document.schemeId,
+      userId,
+      schemaVersion: document.schemaVersion,
+      document: document as Record<string, unknown>,
+      createdBy: document.createdBy,
+      ...(document.createdAt === undefined ? {} : { createdAt: toDate(document.createdAt) }),
+    });
+    await this.persistSources(tx, userId, input, document.revisionId);
+    await this.requireDocumentSnapshots(tx, userId, document);
+    await this.addDocumentBindings(tx, userId, document.revisionId, document.sources);
+    await this.addDocumentBindings(
+      tx,
+      userId,
+      document.revisionId,
+      document.sourceSnapshotIds.map((snapshotId) => ({ snapshotId, role: 'context' })),
+    );
+    await this.assets?.attach(
+      tx,
+      userId,
+      document,
+      input.sourceAssetIds,
+      input.sourceAssets,
+      trustedMaterials,
+    );
+
+    await this.assets?.requireRepositoryImages(tx, userId, document);
+    const created = await this.getSummaryRecord(tx, userId, document.schemeId);
+    return createDesignSchemeResultSchema.parse({
+      scheme: created.summary,
+      document: created.document,
+      revisionId: document.revisionId,
+      trace: document.compilation.trace,
+    });
   }
 
   async update(userId: string, rawInput: UpdateDesignSchemeInput) {
@@ -267,71 +329,134 @@ export class DesignSchemeService {
     }
 
     try {
-      return await this.db.transaction(async (tx) => {
-        const current = await this.getSummaryRecord(tx, userId, input.schemeId);
-        assertVersion(current.summary, input.expectedVersion);
-        const validBase =
-          current.summary.status === 'draft'
-            ? input.baseRevisionId === current.summary.currentRevisionId
-            : input.baseRevisionId === current.summary.currentRevisionId ||
-              input.baseRevisionId === current.summary.workingDraftRevisionId;
-        if (!validBase) throw invalidState('The base revision is no longer current.');
-        await this.requireRevision(tx, userId, input.schemeId, input.baseRevisionId);
-        await this.requireDocumentSnapshots(tx, userId, document);
-
-        const inserted = await tx
-          .insert(designSchemeRevisions)
-          .values({
-            revisionId: document.revisionId,
-            schemeId: input.schemeId,
-            userId,
-            schemaVersion: document.schemaVersion,
-            document: document as Record<string, unknown>,
-            createdBy: document.createdBy,
-            ...(document.createdAt === undefined ? {} : { createdAt: toDate(document.createdAt) }),
-          })
-          .onConflictDoNothing()
-          .returning({ revisionId: designSchemeRevisions.revisionId });
-        if (!inserted[0]) throw identifierUnavailable('revision');
-        await this.copyRevisionBindings(tx, userId, input.baseRevisionId, document.revisionId);
-        await this.addDocumentBindings(tx, userId, document.revisionId, document.sources);
-
-        const set =
-          current.summary.status === 'draft'
-            ? {
-                currentRevisionId: document.revisionId,
-                name: document.name,
-                summary: document.summary,
-                fidelity: document.fidelity,
-                version: sql`${designSchemes.version} + 1`,
-                updatedAt: new Date(),
-              }
-            : {
-                workingDraftRevisionId: document.revisionId,
-                version: sql`${designSchemes.version} + 1`,
-                updatedAt: new Date(),
-              };
-        const updated = await tx
-          .update(designSchemes)
-          .set(set)
-          .where(
-            and(
-              eq(designSchemes.userId, userId),
-              eq(designSchemes.id, input.schemeId),
-              isNull(designSchemes.deletedAt),
-              eq(designSchemes.version, input.expectedVersion),
-            ),
-          )
-          .returning({ id: designSchemes.id });
-        if (!updated[0]) throw versionConflict(current.summary);
-        const next = await this.getSummaryRecord(tx, userId, input.schemeId);
-        return updateDesignSchemeResultSchema.parse({ scheme: next.summary, document });
-      });
+      return await this.db.transaction((tx) => this.updateInTransaction(tx, userId, input));
     } catch (error) {
       if (error instanceof AppError) throw error;
       if (isUniqueViolation(error)) throw identifierUnavailable('revision');
       throw error;
     }
+  }
+
+  /** Atomic caller transaction for Agent result/event plus deterministic revision CAS. */
+  async updateInTransaction(
+    tx: Tx,
+    userId: string,
+    rawInput: UpdateDesignSchemeInput,
+    trustedMaterials?: DesignSchemeAgentMaterials,
+  ) {
+    const input = updateDesignSchemeInputSchema.parse(rawInput);
+    const document = designSchemeRevisionDocumentSchema.parse(input.document);
+    if (document.revisionId === input.baseRevisionId) {
+      throw invalidState('Revision documents are immutable and require a new revision ID.');
+    }
+    if (document.parentRevisionId !== input.baseRevisionId) {
+      throw invalidState('The new revision must identify its base revision as parentRevisionId.');
+    }
+
+    await tx
+      .select({ id: designSchemes.id })
+      .from(designSchemes)
+      .where(
+        and(
+          eq(designSchemes.userId, userId),
+          eq(designSchemes.id, input.schemeId),
+          isNull(designSchemes.deletedAt),
+        ),
+      )
+      .for('update');
+    const current = await this.getSummaryRecord(tx, userId, input.schemeId);
+    assertVersion(current.summary, input.expectedVersion);
+    const validBase =
+      current.summary.status === 'draft'
+        ? input.baseRevisionId === current.summary.currentRevisionId
+        : input.baseRevisionId === current.summary.currentRevisionId ||
+          input.baseRevisionId === current.summary.workingDraftRevisionId;
+    if (!validBase) throw invalidState('The base revision is no longer current.');
+    await this.requireRevision(tx, userId, input.schemeId, input.baseRevisionId);
+    await this.requireDocumentSnapshots(tx, userId, document);
+    const staged = cloudAgentAssets(trustedMaterials);
+    const stagedIds = staged.map((asset) => asset.id);
+    if (stagedIds.some((id) => !document.assetIds.includes(id)))
+      throw invalidState('Staged revision images must be referenced.');
+    if (this.assets)
+      await this.assets.requireDocumentAssets(tx, userId, {
+        ...document,
+        assetIds: document.assetIds.filter((id) => !stagedIds.includes(id)),
+      });
+    else if (document.assetIds.length > 0) {
+      throwUnavailable(
+        'update',
+        CLOUD_DESIGN_SCHEME_UNAVAILABLE.assetStaging,
+        'Cloud asset validation is not available.',
+      );
+    }
+
+    const inserted = await tx
+      .insert(designSchemeRevisions)
+      .values({
+        revisionId: document.revisionId,
+        schemeId: input.schemeId,
+        userId,
+        schemaVersion: document.schemaVersion,
+        document: document as Record<string, unknown>,
+        createdBy: document.createdBy,
+        ...(document.createdAt === undefined ? {} : { createdAt: toDate(document.createdAt) }),
+      })
+      .onConflictDoNothing()
+      .returning({ revisionId: designSchemeRevisions.revisionId });
+    if (!inserted[0]) throw identifierUnavailable('revision');
+    if (staged.length) {
+      if (!this.assets) throw invalidState('Asset staging is unavailable.');
+      await this.assets.attach(
+        tx,
+        userId,
+        { ...document, assetIds: stagedIds },
+        stagedIds,
+        staged,
+        trustedMaterials,
+      );
+    }
+    await this.assets?.requireRepositoryImages(tx, userId, document);
+    // Bind exactly the new document. Copying every old binding makes replaced snapshots
+    // leak into the new run authority; the original revision keeps its own bindings.
+    await this.addDocumentBindings(tx, userId, document.revisionId, document.sources);
+    await this.addDocumentBindings(
+      tx,
+      userId,
+      document.revisionId,
+      document.sourceSnapshotIds.map((snapshotId) => ({ snapshotId, role: 'context' })),
+    );
+
+    const set =
+      current.summary.status === 'draft'
+        ? {
+            currentRevisionId: document.revisionId,
+            name: document.name,
+            summary: document.summary,
+            fidelity: document.fidelity,
+            version: sql`${designSchemes.version} + 1`,
+            updatedAt: new Date(),
+          }
+        : {
+            workingDraftRevisionId: document.revisionId,
+            version: sql`${designSchemes.version} + 1`,
+            updatedAt: new Date(),
+          };
+    const updated = await tx
+      .update(designSchemes)
+      .set(set)
+      .where(
+        and(
+          eq(designSchemes.userId, userId),
+          eq(designSchemes.id, input.schemeId),
+          isNull(designSchemes.deletedAt),
+          eq(designSchemes.version, input.expectedVersion),
+        ),
+      )
+      .returning({ id: designSchemes.id });
+    if (!updated[0]) throw versionConflict(current.summary);
+    const next = await this.getSummaryRecord(tx, userId, input.schemeId);
+    return updateDesignSchemeResultSchema.parse({ scheme: next.summary, document });
   }
 
   async selectCover(userId: string, rawInput: SelectCoverInput) {
@@ -528,12 +653,13 @@ export class DesignSchemeService {
     });
   }
 
-  searchMarket(_userId: string, _query: ParsedMarketSearchQuery): never {
-    throwUnavailable(
-      'searchMarket',
-      CLOUD_DESIGN_SCHEME_UNAVAILABLE.market,
-      'Cloud Design Scheme market search is not available.',
-    );
+  purge(userId: string, input: PurgeDesignSchemeInput, sessionId: string) {
+    return purgeDesignScheme(this.db, userId, sessionId, input);
+  }
+
+  async searchMarket(userId: string, query: ParsedMarketSearchQuery) {
+    if (!this.market) throw new AppError('INTERNAL_ERROR', '市场搜索服务暂时不可用', 503, true);
+    return this.market.search(userId, query);
   }
 
   modify(_userId: string, _input: ModifyDesignSchemeInput): never {
@@ -544,8 +670,9 @@ export class DesignSchemeService {
     );
   }
 
-  cancel(_userId: string, rawInput: unknown): never {
+  cancel(userId: string, rawInput: unknown) {
     cancelDesignSchemeInputSchema.parse(rawInput);
+    if (this.runs) return this.runs.cancel(userId, rawInput);
     throwUnavailable(
       'cancel',
       CLOUD_DESIGN_SCHEME_UNAVAILABLE.cancel,
@@ -580,7 +707,13 @@ export class DesignSchemeService {
     );
   }
 
-  importPackage(_userId: string, _input: ImportDesignSchemeInput): never {
+  importPackage(
+    userId: string,
+    input: ImportDesignSchemeInput,
+    sessionId: string,
+    signal?: AbortSignal,
+  ) {
+    if (this.packageImports) return this.packageImports.execute(userId, sessionId, input, signal);
     throwUnavailable(
       'importPackage',
       CLOUD_DESIGN_SCHEME_UNAVAILABLE.importPackage,
@@ -596,13 +729,47 @@ export class DesignSchemeService {
     );
   }
 
-  run(_userId: string, rawInput: unknown): never {
-    designSchemeRunInputSchema.parse(rawInput);
+  prepareRun(userId: string, input: PrepareDesignSchemeRunInput, authorizingSessionId: string) {
+    if (this.runs) return this.runs.prepare(userId, input, authorizingSessionId);
+    throwUnavailable(
+      'run',
+      CLOUD_DESIGN_SCHEME_UNAVAILABLE.run,
+      'Cloud run preparation is not available.',
+    );
+  }
+
+  getRun(userId: string, runId: string) {
+    if (this.runs) return this.runs.get(userId, runId);
+    throwUnavailable(
+      'run',
+      CLOUD_DESIGN_SCHEME_UNAVAILABLE.run,
+      'Cloud run lookup is not available.',
+    );
+  }
+
+  runEvents(userId: string, runId: string, afterSeq: number) {
+    if (this.runs) return this.runs.events(userId, runId, afterSeq);
+    throwUnavailable(
+      'run',
+      CLOUD_DESIGN_SCHEME_UNAVAILABLE.run,
+      'Cloud run events are not available.',
+    );
+  }
+
+  run(userId: string, rawInput: unknown, authorizingSessionId: string) {
+    const input = designSchemeRunInputSchema.parse(rawInput);
+    if (this.runs) return this.runs.run(userId, input, authorizingSessionId);
     throwUnavailable(
       'run',
       CLOUD_DESIGN_SCHEME_UNAVAILABLE.run,
       'Cloud Design Scheme execution is not available.',
     );
+  }
+
+  /** Server-only immutable revision read, sharing the export caller's authority transaction. */
+  async readRevisionSources(tx: Tx, userId: string, schemeId: string, revisionId: string) {
+    const document = await this.requireRevision(tx, userId, schemeId, revisionId);
+    return { document, sourceSnapshots: await this.listSourceSnapshots(tx, userId, document) };
   }
 
   private async getSummaryRecord(tx: Tx, userId: string, schemeId: string): Promise<SummaryRecord> {
@@ -752,6 +919,8 @@ export class DesignSchemeService {
     const byId = new Map(
       snapshots.map((row) => {
         const stored = sourceSnapshotSchema.safeParse(row.scan);
+        if (!stored.success && row.scan && Object.hasOwn(row.scan, 'historyItems'))
+          throw invalidState('History source metadata is invalid.');
         const value = stored.success
           ? stored.data
           : sourceSnapshotSchema.parse({
@@ -894,39 +1063,6 @@ export class DesignSchemeService {
     await this.addDocumentBindings(tx, userId, revisionId, input.sourceBindings);
   }
 
-  private async copyRevisionBindings(
-    tx: Tx,
-    userId: string,
-    baseRevisionId: string,
-    revisionId: string,
-  ): Promise<void> {
-    const rows = await tx
-      .select({
-        snapshotId: designSchemeSourceBindings.sourceSnapshotId,
-        role: designSchemeSourceBindings.role,
-      })
-      .from(designSchemeSourceBindings)
-      .where(
-        and(
-          eq(designSchemeSourceBindings.userId, userId),
-          eq(designSchemeSourceBindings.revisionId, baseRevisionId),
-        ),
-      );
-    if (rows.length > 0) {
-      await tx
-        .insert(designSchemeSourceBindings)
-        .values(
-          rows.map((row) => ({
-            revisionId,
-            sourceSnapshotId: row.snapshotId,
-            userId,
-            role: row.role,
-          })),
-        )
-        .onConflictDoNothing();
-    }
-  }
-
   private async addDocumentBindings(
     tx: Tx,
     userId: string,
@@ -937,13 +1073,15 @@ export class DesignSchemeService {
     for (const source of sources) {
       if (!source.snapshotId) continue;
       const previous = roles.get(source.snapshotId);
-      if (previous && previous !== source.role) {
-        throw invalidState('A source snapshot cannot have multiple roles in one revision.');
-      }
-      roles.set(source.snapshotId, source.role);
+      // The canonical document retains every semantic binding. PG stores one ownership/GC edge
+      // per snapshot; its role is the strongest declared role, not a second source of semantics.
+      const rank = ['context', 'example', 'reference', 'normative'];
+      if (!previous || rank.indexOf(source.role) > rank.indexOf(previous))
+        roles.set(source.snapshotId, source.role);
     }
     if (roles.size === 0) return;
     const ids = [...roles.keys()];
+    await this.assertPreparedSourcesBindable(tx, userId, ids);
     const owned = await tx
       .select({ id: designSchemeSourceSnapshots.id })
       .from(designSchemeSourceSnapshots)
@@ -979,6 +1117,7 @@ export class DesignSchemeService {
       ]),
     ];
     if (ids.length === 0) return;
+    await this.assertPreparedSourcesBindable(tx, userId, ids);
     const owned = await tx
       .select({ id: designSchemeSourceSnapshots.id })
       .from(designSchemeSourceSnapshots)
@@ -989,6 +1128,35 @@ export class DesignSchemeService {
         ),
       );
     if (owned.length !== ids.length) throw invalidState('A source snapshot is not available.');
+  }
+
+  private async assertPreparedSourcesBindable(tx: Tx, userId: string, ids: string[]) {
+    const rows = await tx
+      .select()
+      .from(designSchemeSourcePreparations)
+      .where(
+        and(
+          eq(designSchemeSourcePreparations.userId, userId),
+          inArray(designSchemeSourcePreparations.snapshotId, ids),
+        ),
+      )
+      .orderBy(designSchemeSourcePreparations.executionId)
+      .for('update');
+    for (const row of rows) {
+      const bound = await tx
+        .select({ id: designSchemeSourceBindings.revisionId })
+        .from(designSchemeSourceBindings)
+        .where(
+          and(
+            eq(designSchemeSourceBindings.userId, userId),
+            eq(designSchemeSourceBindings.sourceSnapshotId, row.snapshotId ?? ''),
+          ),
+        )
+        .limit(1);
+      if (bound.length) continue; // Existing revision ownership survives preparation expiry.
+      if (row.status !== 'confirmed' || row.expiresAt.getTime() <= Date.now() || row.retiredAt)
+        throw invalidState('The prepared source must be confirmed before binding.');
+    }
   }
 }
 
@@ -1102,32 +1270,6 @@ function assertVersion(current: DesignSchemeSummary, expectedVersion: number): v
 function assertPgInteger(value: number, field: string): void {
   if (value > MAX_PG_INTEGER) {
     throw new AppError('VALIDATION_FAILED', `${field} exceeds cloud storage limits.`, 400);
-  }
-}
-
-function encodeCursor(updatedAt: Date | string, id: string): string {
-  return Buffer.from(JSON.stringify({ updatedAt: toIso(updatedAt), id }), 'utf8').toString(
-    'base64url',
-  );
-}
-
-function decodeCursor(cursor: string): { updatedAt: string; id: string } {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Record<
-      string,
-      unknown
-    >;
-    if (
-      typeof parsed.updatedAt !== 'string' ||
-      Number.isNaN(Date.parse(parsed.updatedAt)) ||
-      typeof parsed.id !== 'string' ||
-      parsed.id.length === 0
-    ) {
-      throw new Error('invalid cursor');
-    }
-    return { updatedAt: parsed.updatedAt, id: parsed.id };
-  } catch {
-    throw new AppError('VALIDATION_FAILED', 'Invalid Design Scheme cursor.', 400);
   }
 }
 

@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createGenerationMutationIntent,
   createRetryGenerationMutationIntent,
+  sessionHasActiveJob,
   useArchivedSessions,
   useCreateGeneration,
   useRemoveSession,
@@ -134,6 +135,32 @@ describe('generation mutation intents', () => {
     expect(secondIntent).toEqual(['job-1', '00000000-0000-4000-8000-000000000004']);
     expect(randomUUID).toHaveBeenCalledTimes(2);
   });
+
+  it('create generation invalidates account status with workbench and usage', async () => {
+    const create = vi.fn().mockResolvedValue(job);
+    const gateway = { generation: { create } } as unknown as MusefoldGateway;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const accountKey = queryKeys.account.status();
+    queryClient.setQueryData(accountKey, { id: 'u1', canGenerate: true, quota: 1 });
+    const { result } = renderHook(() => useCreateGeneration(), {
+      wrapper: createWrapper(queryClient, gateway),
+    });
+
+    await act(() => result.current.mutateAsync(createGenerationMutationIntent(input)));
+
+    expect(queryClient.getQueryState(accountKey)?.isInvalidated).toBe(true);
+  });
+});
+
+describe('sessionHasActiveJob', () => {
+  it('treats pending_approval as an active session job', () => {
+    expect(sessionHasActiveJob({ ...SESSION, latestJobStatus: 'pending_approval' })).toBe(true);
+    expect(sessionHasActiveJob({ ...SESSION, latestJobStatus: 'queued' })).toBe(true);
+    expect(sessionHasActiveJob({ ...SESSION, latestJobStatus: 'succeeded' })).toBe(false);
+    expect(sessionHasActiveJob({ ...SESSION, latestJobStatus: null })).toBe(false);
+  });
 });
 
 describe('workbench session hooks', () => {
@@ -146,10 +173,13 @@ describe('workbench session hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(workbench.listSessions).toHaveBeenCalledWith({ archivedOnly: true });
-    expect(queryClient.getQueryData(queryKeys.workbench.sessions({ archivedOnly: true }))).toEqual({
-      items: [SESSION],
-      nextCursor: null,
+    expect(workbench.listSessions).toHaveBeenCalledWith({
+      archivedOnly: true,
+      cursor: undefined,
+    });
+    expect(queryClient.getQueryData(queryKeys.workbench.archived({ archivedOnly: true }))).toEqual({
+      pages: [{ items: [SESSION], nextCursor: null }],
+      pageParams: [undefined],
     });
   });
 
@@ -157,9 +187,12 @@ describe('workbench session hooks', () => {
     const { gateway, workbench } = createGateway();
     const queryClient = createQueryClient();
     const ordinaryKey = queryKeys.workbench.sessions({});
-    const archivedKey = queryKeys.workbench.sessions({ archivedOnly: true });
+    const archivedKey = queryKeys.workbench.archived({ archivedOnly: true });
     queryClient.setQueryData(ordinaryKey, { items: [], nextCursor: null });
-    queryClient.setQueryData(archivedKey, { items: [SESSION], nextCursor: null });
+    queryClient.setQueryData(archivedKey, {
+      pages: [{ items: [SESSION], nextCursor: null }],
+      pageParams: [undefined],
+    });
     const { result } = renderHook(() => useRestoreSession(), {
       wrapper: createWrapper(queryClient, gateway),
     });

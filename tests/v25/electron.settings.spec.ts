@@ -44,6 +44,8 @@ function seedArchivedSessions(dbPath: string): void {
 
 /** 进入设置分区(V25-UI-SPEC §6.1):桌面左导航常驻,直接点导航项。 */
 async function openSettingsSection(id: string): Promise<void> {
+  await page.getByTestId('nav-settings').click();
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
   await page.getByTestId(`settings-nav-${id}`).click();
   await expect(page.getByTestId(`settings-section-${id}`)).toBeVisible();
 }
@@ -63,8 +65,17 @@ test('v2.5 新渲染壳加载 features 设置屏', async () => {
   await page.getByTestId('nav-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   await expect(page.getByTestId('settings-host-badge')).toHaveText('桌面版');
-  // 桌面注册全部六个分区:外观 / 账号 / 云同步 / AI 连接 / 数据 / 关于;默认停在外观。
-  for (const id of ['appearance', 'account', 'sync', 'connections', 'data', 'about']) {
+  // 桌面注册全部分区:外观 / 账号 / 云同步 / AI 连接 / 数据 / 开放能力 / 使用统计 / 关于;默认停在外观。
+  for (const id of [
+    'appearance',
+    'account',
+    'sync',
+    'connections',
+    'data',
+    'open',
+    'usage',
+    'about',
+  ]) {
     await expect(page.getByTestId(`settings-nav-${id}`)).toBeVisible();
   }
   await expect(page.getByTestId('settings-section-appearance')).toBeVisible();
@@ -253,14 +264,18 @@ test('AI 连接:编辑器预设填充、脏关闭守卫、无 Key 前置提示�
   );
 });
 
-test('云同步卡:未登录时仅提示登录,不提供同步动作', async () => {
+test('云同步卡:未登录可只读查看本机旧库,不提供同步或复制动作', async () => {
   await openSettingsSection('sync');
   const card = page.getByTestId('settings-sync-card');
   await card.scrollIntoViewIfNeeded();
   await expect(card).toBeVisible();
   await expect(card.getByText('同步未开启')).toBeVisible();
   await expect(page.getByTestId('sync-subtitle')).toHaveText('登录账号后可开启云同步');
-  await expect(card.getByRole('button')).toHaveCount(0);
+  await expect(card.getByRole('button', { name: /查看 离线提示词库/ })).toBeVisible();
+  await expect(card.getByTestId('sync-consent-enable')).toHaveCount(0);
+  await expect(card.getByTestId('sync-consent-resume')).toHaveCount(0);
+  await expect(card.getByRole('button', { name: '建立空的提示词库' })).toHaveCount(0);
+  await expect(card.getByRole('button', { name: '复制这份库到当前账号' })).toHaveCount(0);
 });
 
 test('主题切换经主进程持久化并生效', async () => {

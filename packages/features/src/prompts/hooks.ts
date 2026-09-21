@@ -52,7 +52,10 @@ export function useCreatePrompt() {
   const invalidate = useInvalidatePrompts();
   return useMutation({
     mutationFn: (input: NewPromptDocument) => gateway.prompts.create(input),
-    onSuccess: invalidate,
+    // 不 await 失效:列表 refetch 挂住时编辑器不能一直开着(B1 同类)。
+    onSuccess: () => {
+      void invalidate();
+    },
   });
 }
 
@@ -62,7 +65,9 @@ export function useUpdatePrompt() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdatePromptDocument }) =>
       gateway.prompts.update(id, patch),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      void invalidate();
+    },
   });
 }
 
@@ -104,13 +109,12 @@ export function useEmptyPromptTrash() {
 }
 
 /**
- * 详情「相关作品」扫描窗口:generation.list 目前没有 promptId 服务端过滤位
- * (`generationHistoryQuerySchema` 无该字段),先在客户端按最近一页回合过滤。
- * 服务端下推见报告「未完成项」。
+ * 详情「相关作品」窗口:服务端按 promptId + succeeded 过滤;
+ * 客户端只再去掉无成图的成功回合。
  */
 export const PROMPT_RELATED_WORKS_SCAN_LIMIT = 100;
 
-/** 该提示词生成过的成功回合(倒序,取最近扫描窗口内的匹配项)。 */
+/** 该提示词生成过的成功成图回合(倒序,取最近一页匹配项)。 */
 export function usePromptRelatedWorks(promptId: string | null) {
   const gateway = useGateway();
   // 生成域在部分宿主/测试装配里可能缺席:缺席则查询不启用,面板退成「暂无相关作品」。
@@ -119,11 +123,13 @@ export function usePromptRelatedWorks(promptId: string | null) {
     queryKey: queryKeys.prompts.relatedWorks(promptId ?? ''),
     enabled: promptId != null && generation != null,
     queryFn: async (): Promise<GenerationJob[]> => {
-      if (!generation) return [];
-      const page = await generation.list({ limit: PROMPT_RELATED_WORKS_SCAN_LIMIT });
-      return page.items.filter(
-        (job) => job.promptId === promptId && job.status === 'succeeded' && job.assets.length > 0,
-      );
+      if (!generation || !promptId) return [];
+      const page = await generation.list({
+        promptId,
+        status: 'succeeded',
+        limit: PROMPT_RELATED_WORKS_SCAN_LIMIT,
+      });
+      return page.items.filter((job) => job.assets.length > 0);
     },
   });
 }
@@ -152,7 +158,10 @@ export function useRemoveFolder() {
   const invalidate = useInvalidatePrompts();
   return useMutation({
     mutationFn: (id: string) => gateway.prompts.removeFolder(id),
-    onSuccess: invalidate,
+    // 删除已经提交；后台刷新不应阻塞确认框关闭或被误当作删除失败。
+    onSuccess: () => {
+      void invalidate();
+    },
   });
 }
 
@@ -170,7 +179,9 @@ export function useRemoveTag() {
   const invalidate = useInvalidatePrompts();
   return useMutation({
     mutationFn: (id: string) => gateway.prompts.removeTag(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      void invalidate();
+    },
   });
 }
 

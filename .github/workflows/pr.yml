@@ -28,10 +28,62 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Source secret scan
+        run: node scripts/security/scan.mjs source --report tests/v25/.results/security/source.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-security-results
+          path: tests/v25/.results/security/source.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
       - name: Turbo affected checks
         run: pnpm exec turbo run lint typecheck test build check:boundaries --affected
       - name: Web production build
         run: pnpm run build:web
+
+  # disposable PG + Graphile Worker 集成(默认单测 skip;本 job 开 RUN_DATABASE_TESTS)。
+  database-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: API Testcontainers
+        run: pnpm --filter @musefold/api run test:integration --reporter=default --reporter=junit --outputFile=test-results/api-integration.xml
+      - name: Two independent sync clients with real HTTP PostgreSQL
+        env:
+          RUN_DATABASE_TESTS: '1'
+          TWO_DEVICE_RESULTS_DIR: apps/api/test-results/two-device-sync
+        run: pnpm exec vitest run tests/repo/v25-sync-two-devices.test.ts --reporter=default --reporter=junit --outputFile=apps/api/test-results/two-device-sync.xml
+      - name: Build official worker runtime image
+        run: docker build --file apps/worker/Dockerfile --tag musefold-worker-ci:local .
+      - name: Worker disposable runtime
+        env:
+          RUN_WORKER_CONTAINER_TESTS: 'true'
+          WORKER_CONTAINER_IMAGE: musefold-worker-ci:local
+        run: pnpm --filter @musefold/worker run test:integration --reporter=default --reporter=junit --outputFile=test-results/worker-integration.xml
+      - name: Desktop main runtime with Hono PostgreSQL and worker
+        env:
+          RUN_DATABASE_TESTS: 'true'
+        run: pnpm exec vitest run apps/desktop/electron/system/__tests__/managed-cloud-service.integration.test.ts --reporter=default --reporter=junit --outputFile=apps/desktop/test-results/cloud-service-integration.xml
+      - name: desktop-db bundle freshness
+        run: |
+          pnpm --filter @musefold/desktop-db run db:bundle
+          git diff --exit-code -- packages/desktop-db/src/migrations.generated.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: database-integration-results
+          path: apps/*/test-results/
+          if-no-files-found: error
+          retention-days: 14
 
   # 双端 E2E + 视觉快照(与 main.yml e2e job 同构;macOS 复用 darwin 基线,
   # Electron 真窗口无需 xvfb)。
@@ -51,11 +103,16 @@ jobs:
       - run: pnpm exec playwright install chromium
       - name: Playwright E2E(web + electron)
         run: pnpm run test:e2e
+      - name: Require E2E execution report
+        if: always()
+        run: test -s tests/v25/.results/report.json
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: e2e-results
+          include-hidden-files: true
+          if-no-files-found: error
           path: |
             tests/v25/.results/
             tests/v25/__screenshots__/
-          retention-days: 7
+          retention-days: 14

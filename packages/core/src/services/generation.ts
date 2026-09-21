@@ -1,9 +1,10 @@
+import { enqueueLocalAssetCleanup, drainLocalAssetCleanup } from './local-asset-cleanup';
+import { assertLocalAssetWriteOutputs, withLocalAssetWriteScope } from './local-asset-writes';
 // GenerationService（V04-CORE-05）：全 App 生图唯一汇聚点，自 electron/main/ipc/images.ts
 // 单账本（generation_runs + generated_assets）、进度回调、
 // 取消句柄都在此收口；IPC 与控制面（API-03）都是它的薄壳。
 // 所有生成(工作台/自由生成/automation/Skill)一律落 generation_runs——旧 history 双账本已随迁移 0002/0003 退役。
 
-import { rmSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { ulid } from 'ulid';
 import { composeGenerationPrompt } from '@musefold/domain/generation-prompt';
@@ -14,6 +15,7 @@ import type {
   GenerateImageRequest,
   GenerateImageResult,
   ImageGenerationProgress,
+  ImageProgressHandler,
   LocalImageReference,
 } from '@musefold/desktop-contracts/providers';
 import type { ProviderType } from '@musefold/desktop-contracts/enums';
@@ -26,9 +28,12 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db/index';
 import { createWorkbenchRepositories } from '../db/repositories/workbench';
 import { createProvider } from '../providers/registry';
+import { OpenAICompatibleProvider } from '../providers/openai-compatible';
+import type { GenerationExecution, GenerationTransportExecution } from '../providers/execution';
 import { isManagedUploadPath } from '../providers/local-image';
 import { sanitizeProviderErrorMessage } from '../providers/sanitize-error';
 import { createLogger, getPaths } from '../runtime';
+import { assertLocalRetryModel } from './generation-retry';
 
 const logger = createLogger('image');
 const abortControllers = new Map<string, AbortController>();
@@ -42,27 +47,21 @@ function cleanupUncommittedImages(
   images: Array<{ imagePath: string }>,
   db: Database.Database,
 ): void {
-  const picturesRoot = resolve(getPaths().pictures);
-  const referencedPaths = new Set(
-    (
-      db
-        .prepare('SELECT media_path FROM generated_assets WHERE media_path IS NOT NULL')
-        .all() as Array<{ media_path: string }>
-    ).map((asset) => resolve(asset.media_path)),
-  );
-  for (const image of images) {
-    const target = resolve(image.imagePath);
-    if (target !== picturesRoot && !target.startsWith(`${picturesRoot}${sep}`)) continue;
-    if (referencedPaths.has(target)) continue;
-    try {
-      rmSync(target, { force: true });
-    } catch (error) {
-      logger.warn('清理未入账生成文件失败', error instanceof Error ? error.message : String(error));
-    }
+  const root = resolve(getPaths().pictures);
+  const candidates = images
+    .map((image) => resolve(image.imagePath))
+    .filter((path) => path !== root && path.startsWith(`${root}${sep}`));
+  if (!candidates.length) return;
+  try {
+    enqueueLocalAssetCleanup(candidates, db);
+    const counts = drainLocalAssetCleanup(Date.now(), db);
+    if (counts.failed || counts.blocked) logger.warn('未入账图片清理待处理', counts);
+  } catch {
+    logger.warn('未入账图片清理暂未完成');
   }
 }
 
-interface GenerationOptions {
+export interface GenerationOptions {
   /** Main-process callers may bind generation to an explicit primary database. */
   db?: Database.Database;
   retryOfRunId?: string;
@@ -72,6 +71,10 @@ interface GenerationOptions {
   userPrompt?: string;
   /** Caller-owned cancellation signal, linked before the provider request starts. */
   signal?: AbortSignal;
+  /** Host-only durable dispatch port; never spread into the request or persisted metadata. */
+  execution?: GenerationExecution;
+  /** Host-only remote execution, exclusive with the local Provider dispatch port. */
+  transport?: GenerationTransportExecution;
 }
 
 function immutableReferences(
@@ -430,7 +433,35 @@ export async function generate(
   sendProgress?: (progress: ImageGenerationProgress) => void,
   options: GenerationOptions = {},
 ): Promise<GenerateImageResult> {
+  return withLocalAssetWriteScope(() => generateWithWrites(req, sendProgress, options), {
+    db: options.db,
+    assertCurrent: () => options.transport?.assertCurrent(),
+  });
+}
+
+async function generateWithWrites(
+  req: GenerateImageRequest,
+  sendProgress?: (progress: ImageGenerationProgress) => void,
+  options: GenerationOptions = {},
+): Promise<GenerateImageResult> {
   const db = options.db ?? getDb();
+  const transport = options.transport;
+  transport?.assertCurrent();
+  if (
+    transport &&
+    (options.execution ||
+      transport.providerId !== req.providerId ||
+      transport.retryOfRunId !== options.retryOfRunId)
+  ) {
+    return {
+      historyId: req.jobId ?? ulid(),
+      status: 'failed',
+      error: {
+        code: 'GENERATION_TRANSPORT_MISMATCH',
+        message: '托管执行与当前请求不匹配，请核对原任务',
+      },
+    };
+  }
   // 取消句柄：优先用渲染进程传入的 jobId（渲染进程据此在出图前即可取消），否则自生成
   const jobId = req.jobId ?? ulid();
   const historyId = jobId;
@@ -442,6 +473,9 @@ export async function generate(
   // 否则未传 jobId（例如重试兼容路径）时，历史行与图片文件名会各用一套 ULID。
   let effectiveReq: GenerateImageRequest;
   try {
+    // A host-owned remote transport independently freezes/authorizes its request.
+    // Local retries only have the original row, never a caller-supplied replacement model.
+    if (retrySource && !transport) assertLocalRetryModel(retrySource.model);
     const sourceReq = requestFromRetrySnapshot(req, retrySource);
     const aspectRatio = sourceReq.aspectRatio;
     const referenceImages = authorizeReferenceImages(db, sourceReq.referenceImages);
@@ -483,6 +517,12 @@ export async function generate(
     .prepare('SELECT * FROM providers WHERE id = ?')
     .get(effectiveReq.providerId) as Record<string, unknown> | undefined;
 
+  // Resolve the default before persisting the run, so retries replay the model
+  // actually sent upstream even after the connection's default model changes.
+  if (effectiveReq.model == null && typeof providerRow?.model === 'string') {
+    effectiveReq = { ...effectiveReq, model: providerRow.model };
+  }
+
   const params = retrySource?.params ?? buildParamsSnapshot(effectiveReq, providerRow);
 
   // 单账本:任何被受理的生成请求先落 generation_runs,成功/失败/取消都在同一行收敛。
@@ -521,6 +561,7 @@ export async function generate(
     code: string,
     message: string,
   ): GenerateImageResult => {
+    transport?.assertCurrent();
     const safeMessage = sanitizeProviderErrorMessage(message);
     const finishedAt = Date.now();
     const terminalRun =
@@ -550,13 +591,29 @@ export async function generate(
     return fail('failed', 'NO_PROVIDER', 'Provider 不存在或已被删除');
   }
 
-  const provider = createProvider(
-    providerRow.type as ProviderType,
-    providerRow.id as string,
-    providerRow.base_url as string,
-    providerRow.model as string,
-    providerRow.name as string,
-  );
+  if (providerRow.type === 'musefold-cloud' && !transport)
+    return fail('failed', 'MANAGED_TRANSPORT_REQUIRED', '请通过账号云图像连接重新准备请求');
+
+  // Old account-managed keys have no verified payer binding. Every local caller
+  // (workbench, retries, schemes and Skill) reaches this boundary, including those
+  // that do not use the Automation gate. Only the host-owned cloud transport may
+  // execute for an account; a retained key or interactive click cannot establish it.
+  if (providerRow.managed_by === 'account' && !transport)
+    return fail(
+      'failed',
+      'PAYMENT_IDENTITY_UNBOUND',
+      '旧账号连接尚未绑定可信付款身份，请在连接设置中检查账号云连接，或选择自备连接',
+    );
+
+  const provider = transport
+    ? null
+    : createProvider(
+        providerRow.type as ProviderType,
+        providerRow.id as string,
+        providerRow.base_url as string,
+        providerRow.model as string,
+        providerRow.name as string,
+      );
 
   const controller = new AbortController();
   const externalSignal = options.signal;
@@ -570,6 +627,7 @@ export async function generate(
     }
   }
   abortControllers.set(jobId, controller);
+  let returnedImages: Array<{ imagePath: string }> = [];
 
   logger.info(
     'generate 请求',
@@ -604,13 +662,39 @@ export async function generate(
         costUnit,
       };
     }
-    const result: GenerateImageResult = await provider.generateImage(
-      effectiveReq,
-      controller.signal,
-      (progress) => {
-        sendProgress?.({ ...progress, jobId });
-      },
-    );
+    const onProviderProgress: ImageProgressHandler = (progress) => {
+      transport?.assertCurrent();
+      sendProgress?.({ ...progress, jobId });
+    };
+    const execution = options.execution;
+    if (execution && !(provider instanceof OpenAICompatibleProvider)) {
+      // Frozen Doubao/browser automation and other provider adapters have no durable HTTP claim port.
+      return fail('failed', 'AUTOMATION_DURABLE_UNSUPPORTED', '此连接暂不支持持久费用登记');
+    }
+    if (execution && providerRow.type !== execution.binding.providerType) {
+      return fail('failed', 'AUTOMATION_BINDING_CHANGED', '生图连接已变化，请重新发起请求');
+    }
+    const result: GenerateImageResult = transport
+      ? await transport.generate(
+          structuredClone({ ...req, jobId }),
+          controller.signal,
+          onProviderProgress,
+        )
+      : execution && provider instanceof OpenAICompatibleProvider
+        ? await provider.generateImage(
+            effectiveReq,
+            controller.signal,
+            onProviderProgress,
+            execution,
+          )
+        : provider
+          ? await provider.generateImage(effectiveReq, controller.signal, onProviderProgress)
+          : {
+              historyId,
+              status: 'failed',
+              error: { code: 'NO_PROVIDER', message: '生图连接不可用' },
+            };
+    transport?.assertCurrent();
     const rawImages = result.images?.filter((image) => Boolean(image.imagePath)) ?? [];
     const providerImages =
       rawImages.length > 0
@@ -618,10 +702,13 @@ export async function generate(
         : result.imagePath
           ? [{ imagePath: result.imagePath, actualSize: result.actualSize }]
           : [];
+    assertLocalAssetWriteOutputs(providerImages);
+    returnedImages = providerImages;
     // Cancellation wins over a provider response that races with the abort.
     // Clean up any managed files returned by the late response before returning.
     if (controller.signal.aborted) {
       cleanupUncommittedImages(providerImages, db);
+      returnedImages = [];
       return fail('cancelled', 'CANCELLED', '已取消');
     }
     const assetIdBase = runContext.runId;
@@ -668,6 +755,7 @@ export async function generate(
                 createdAt: finishedAt,
               })),
             });
+    returnedImages = [];
     if (terminalRun.status !== 'success') {
       cleanupUncommittedImages(images, db);
     }
@@ -713,6 +801,8 @@ export async function generate(
     }
     return terminalResult;
   } catch (err) {
+    transport?.assertCurrent();
+    cleanupUncommittedImages(returnedImages, db);
     const upstreamCode = (err as { code?: string })?.code ?? 'UNKNOWN';
     const code =
       providerRow.managed_by === 'account'

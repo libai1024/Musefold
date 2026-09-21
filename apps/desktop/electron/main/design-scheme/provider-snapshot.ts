@@ -1,5 +1,9 @@
 import type Database from 'better-sqlite3';
-import { providerSnapshotSchema, type ProviderSnapshot } from '@musefold/contracts';
+import {
+  providerSnapshotSchema,
+  type ExecutionBinding,
+  type ProviderSnapshot,
+} from '@musefold/contracts';
 import { BridgeError } from '../ipc-v25/envelope';
 
 export interface DesktopDesignSchemeProviderRow {
@@ -9,7 +13,13 @@ export interface DesktopDesignSchemeProviderRow {
   model: string;
 }
 
-function capabilitiesForProviderType(type: string): ProviderSnapshot['capabilities'] {
+function capabilitiesForProviderType(
+  type: string,
+  cloudBinding?: ExecutionBinding,
+): ProviderSnapshot['capabilities'] {
+  if (type === 'musefold-cloud' && cloudBinding) {
+    return { text: false, vision: true, image: true, multiImage: true, editing: true };
+  }
   if (type === 'openai' || type === 'openai-compatible') {
     return { text: true, vision: true, image: true, multiImage: true, editing: true };
   }
@@ -32,13 +42,17 @@ export function readDesktopDesignSchemeProvider(
   return row;
 }
 
-export function toDesktopProviderSnapshot(row: DesktopDesignSchemeProviderRow): ProviderSnapshot {
+/** Projection only: cloudBinding must come from the authenticated main-process preparer. */
+export function toDesktopProviderSnapshot(
+  row: DesktopDesignSchemeProviderRow,
+  cloudBinding?: ExecutionBinding,
+): ProviderSnapshot {
   const parsed = providerSnapshotSchema.safeParse({
     providerId: row.id,
     providerName: row.name,
-    model: row.model,
+    model: row.type === 'musefold-cloud' ? cloudBinding?.model : row.model,
     providerVersion: null,
-    capabilities: capabilitiesForProviderType(row.type),
+    capabilities: capabilitiesForProviderType(row.type, cloudBinding),
   });
   if (!parsed.success) {
     throw new BridgeError('DESIGN_SCHEME_PROVIDER_INVALID', '所选 AI 连接配置无法用于方案运行');

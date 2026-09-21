@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="description" content="Musefold 未像标志的八种动态演绎。可离线打开的 SVG 动效画廊。">
+<title>Musefold Motion — 未像动效画廊</title>
+<style>
+:root{--paper:#f6f6f4;--white:#fff;--ink:#252629;--muted:#70716f;--line:#deded8;--accent:#c9552e;--soft-accent:#f2e5dd;--stage:#eeefec;--stage-line:#dedfd9;--stage-ink:#6b6e66;--sans:"Avenir Next","PingFang SC","Microsoft YaHei",system-ui,sans-serif;--mono:"SFMono-Regular",Consolas,monospace}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}button,input{font:inherit}button{cursor:pointer;color:inherit}button,a,input{-webkit-tap-highlight-color:transparent}button{border:0}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:5px}button:disabled{cursor:default}button svg{pointer-events:none}a{color:inherit}svg{display:block}::selection{background:var(--soft-accent)}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.wrap{max-width:1320px;margin:0 auto;padding:0 48px}.topbar{height:98px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);gap:24px}.brand{display:flex;gap:12px;align-items:center;text-decoration:none}.brand-symbol{width:31px;height:34px}.brand-name{font-size:23px;font-weight:600;letter-spacing:-1px}.brand-cn{font-size:13px;padding-left:13px;border-left:1px solid var(--line);margin-left:1px;letter-spacing:2px}.collection-name{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--muted)}.text-button{background:transparent;display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:0 4px;font-size:13px}.text-button:hover{color:var(--accent)}.icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.intro{display:flex;justify-content:space-between;align-items:flex-end;padding:49px 0 32px;gap:20px}.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:2.2px;color:var(--muted);text-transform:uppercase;margin:0 0 14px}h1{margin:0;font-weight:500;font-size:clamp(30px,3.2vw,45px);letter-spacing:-1.8px;line-height:1.28}.accent-dot{color:var(--accent)}.intro-copy{font-size:13px;line-height:1.9;color:var(--muted);margin:0 0 3px;max-width:330px}.player{scroll-margin-top:16px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--white)}.player-top{display:grid;grid-template-columns:minmax(0,1fr) 282px;min-height:405px}.stage{position:relative;display:grid;place-items:center;min-width:0;isolation:isolate;overflow:hidden;background:var(--stage);transition:background .25s;color:var(--stage-ink)}.stage.dark{--stage:#282d31;--stage-line:#3b4247;--stage-ink:#b3babd}.stage::before{content:"";position:absolute;width:376px;height:376px;border:1px solid var(--stage-line);border-radius:50%;z-index:-1;opacity:.75}.stage::after{content:"";position:absolute;width:460px;height:460px;border:1px solid var(--stage-line);border-radius:50%;z-index:-1;opacity:.35}.stage-toolbar{position:absolute;left:24px;right:21px;top:20px;display:flex;justify-content:space-between;align-items:center;z-index:2}.stage-label{display:flex;align-items:center;gap:7px;font:10px var(--mono);letter-spacing:1.1px}.status-dot{height:5px;width:5px;background:var(--accent);border-radius:50%}.stage-actions{display:flex;align-items:center;gap:8px}.background-switch{display:flex;gap:1px;border-radius:20px;padding:2px;background:color-mix(in srgb,var(--stage) 80%,var(--stage-ink) 8%)}.background-switch button{background:transparent;width:36px;min-height:36px;border-radius:50%;display:grid;place-items:center}.background-switch button[aria-pressed=true]{background:var(--white);color:var(--ink);box-shadow:0 1px 3px #00000010}.background-switch button .icon{width:15px;height:15px}.icon-button{display:grid;place-items:center;background:transparent;min-width:40px;height:40px;border-radius:50%}.icon-button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}.stage-art{width:358px;height:358px;display:grid;place-items:center;margin-top:11px;perspective:1000px}.stage-art>svg{width:100%;height:100%;overflow:visible}.stage-footer{position:absolute;left:25px;right:25px;bottom:20px;display:flex;justify-content:space-between;align-items:center;font:10px var(--mono);letter-spacing:.7px}.stage-footer .edition{opacity:.75}.details{padding:38px 29px 27px;border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.detail-index{font:11px var(--mono);color:var(--accent);letter-spacing:1.5px;display:flex;align-items:center;gap:9px}.detail-index::before{content:"";width:20px;height:1px;background:var(--accent)}.details h2{font-weight:500;font-size:27px;letter-spacing:-.8px;margin:25px 0 4px}.english-name{font-size:11px;color:var(--muted);letter-spacing:1px;margin:0}.detail-copy{font-size:13px;line-height:1.9;color:var(--muted);margin:20px 0 21px;min-height:75px}.use-case{display:flex;gap:6px;flex-wrap:wrap}.use-case span{font-size:10px;padding:6px 8px;border-radius:4px;background:var(--paper);color:var(--muted)}.rhythm{margin-top:auto;padding-top:28px;display:flex;align-items:center;justify-content:space-between;gap:20px}.rhythm-label{font-size:11px;color:var(--muted);line-height:1.7}.rhythm-label strong{font-weight:500;color:var(--ink);display:block}.rhythm-graph{width:83px;height:35px}.controls{border-top:1px solid var(--line);display:flex;align-items:center;gap:17px;padding:17px 22px;min-height:81px;background:var(--white)}.play-button{background:var(--ink);color:var(--white);height:44px;min-width:44px;display:grid;place-items:center;border-radius:50%}.play-button:hover{background:var(--accent)}.replay-button{display:flex;align-items:center;gap:7px;padding:0;background:none;height:44px;font-size:12px;white-space:nowrap}.replay-button:hover{color:var(--accent)}.timeline{display:flex;gap:14px;align-items:center;flex:1;padding:0 13px;min-width:0}.time{font:10px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:67px}input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;cursor:pointer;height:30px;min-width:40px;width:100%;margin:0}input[type=range]::-webkit-slider-runnable-track{height:3px;background:linear-gradient(to right,var(--accent) var(--progress,0%),var(--line) var(--progress,0%));border-radius:4px}input[type=range]::-moz-range-track{height:3px;background:var(--line);border-radius:4px}input[type=range]::-moz-range-progress{height:3px;background:var(--accent)}input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--accent);border:3px solid var(--white);box-shadow:0 0 0 1px var(--accent);margin-top:-4px}input[type=range]::-moz-range-thumb{width:8px;height:8px;border:2px solid var(--white);border-radius:50%;background:var(--accent)}.speed-control{display:flex;align-items:center;gap:10px;border-left:1px solid var(--line);padding-left:20px}.control-label{font-size:11px;color:var(--muted)}.speed-options{display:flex;gap:1px}.speed-options button{height:36px;min-width:37px;font:11px var(--mono);background:transparent;border-radius:5px;color:var(--muted)}.speed-options button[aria-pressed=true]{background:var(--paper);color:var(--ink);font-weight:600}.frame-stops{display:flex;gap:5px;flex-wrap:wrap;margin-top:17px}.frame-stops[hidden]{display:none}.frame-stops button{font-size:10px;min-height:36px;border:1px solid var(--line);padding:0 8px;border-radius:5px;background:var(--white)}.frame-stops button:hover{border-color:var(--accent);color:var(--accent)}.card-new{position:absolute;right:9px;bottom:9px;font-size:9px;font-style:normal;color:var(--accent);background:var(--soft-accent);padding:3px 5px;border-radius:3px}.gallery-heading{display:flex;align-items:center;justify-content:space-between;margin:32px 0 17px;gap:12px}.gallery-heading h2{font-size:13px;font-weight:500;margin:0}.gallery-heading p{font-size:11px;color:var(--muted);margin:0}.gallery{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:13px}.motion-card{padding:0;background:transparent;text-align:left;border-radius:10px;min-width:0}.thumbnail{height:133px;position:relative;display:grid;place-items:center;border-radius:9px;background:#ecece8;overflow:hidden;box-shadow:inset 0 0 0 1px #25262908;transition:background .2s,box-shadow .2s}.motion-card[aria-pressed=true] .thumbnail{box-shadow:inset 0 0 0 1.5px var(--accent);background:#efebe5}.motion-card:hover .thumbnail{background:#e7e7e1}.thumbnail>svg{width:114px;height:114px;transition:transform .35s cubic-bezier(.2,.7,.2,1)}.motion-card:hover .thumbnail>svg{transform:translateY(-4px)}.card-index{position:absolute;left:11px;top:10px;color:var(--muted);font:9px var(--mono)}.card-check{display:none;position:absolute;right:10px;top:10px;color:var(--accent)}.card-check .icon{height:12px;width:12px}.motion-card[aria-pressed=true] .card-check{display:block}.card-caption{padding:13px 1px 2px;display:flex;flex-direction:column;gap:5px}.card-caption strong{font-size:12px;font-weight:500}.card-caption small{font-size:10px;color:var(--muted);letter-spacing:.3px}.page-footer{border-top:1px solid var(--line);margin-top:35px;padding:20px 0 29px;display:flex;align-items:center;justify-content:space-between;gap:15px;color:var(--muted);font-size:10px}.footer-brand{font-family:var(--mono);letter-spacing:1px}.keyboard-hints{display:flex;gap:15px;align-items:center}.keyboard-hints span{display:flex;align-items:center;gap:5px}kbd{font:9px var(--mono);padding:3px 5px;border:1px solid var(--line);border-radius:3px;background:#ffffff55}.reduced-note{font-size:12px;color:var(--muted);margin:14px 0 0;line-height:1.7}.reduced-note[hidden]{display:none}.toast{position:fixed;bottom:25px;left:50%;transform:translate(-50%,15px);opacity:0;pointer-events:none;background:var(--ink);color:var(--white);font-size:12px;border-radius:8px;padding:12px 20px;transition:opacity .2s,transform .2s;z-index:5}.toast.visible{opacity:1;transform:translate(-50%,0)}.is-focused{overflow:hidden}.is-focused .topbar,.is-focused .intro,.is-focused .details,.is-focused .gallery-section,.is-focused .page-footer,.is-focused .reduced-note{display:none}.is-focused .player{position:fixed;inset:16px;z-index:4;display:flex;flex-direction:column}.is-focused .player-top{display:block;flex:1;min-height:0}.is-focused .stage{height:100%}.is-focused .stage-art{width:min(63vh,650px);height:min(63vh,650px)}.is-focused .stage::before{width:min(70vh,680px);height:min(70vh,680px)}.is-focused .stage::after{width:min(84vh,820px);height:min(84vh,820px)}.is-focused .controls{flex:none}.noscript{padding:24px;background:var(--soft-accent);color:var(--ink);line-height:1.7}
+@media(min-width:1600px){.wrap{max-width:1440px}.player-top{min-height:470px;grid-template-columns:minmax(0,1fr) 310px}.stage-art{width:414px;height:414px}.thumbnail{height:151px}.thumbnail>svg{width:130px;height:130px}}
+@media(max-width:1050px){.wrap{padding:0 28px}.player-top{grid-template-columns:minmax(0,1fr) 250px}.details{padding:33px 23px 23px}.gallery{gap:9px;grid-template-columns:repeat(4,minmax(0,1fr))}.thumbnail{height:116px}.thumbnail>svg{height:105px;width:105px}.collection-name{display:none}.controls{gap:12px}.timeline{padding:0 3px}.speed-control{padding-left:13px;gap:6px}.stage-art{width:335px;height:335px}.stage::after{width:400px;height:400px}.stage::before{width:320px;height:320px}}
+@media(max-width:760px){.wrap{padding:0 22px}.topbar{height:78px}.brand-name{font-size:21px}.brand-cn{display:none}.intro{padding:34px 0 26px;display:block}.intro-copy{margin-top:13px;max-width:none;font-size:12px}.intro-copy br{display:none}.eyebrow{font-size:9px;margin-bottom:11px}.player{border-radius:13px}.player-top{display:flex;flex-direction:column;min-height:0}.stage{min-height:342px}.stage-art{width:315px;height:315px;margin-top:4px}.stage-toolbar{left:17px;right:13px;top:13px}.stage-footer{left:18px;right:18px;bottom:15px}.stage::before{width:280px;height:280px}.stage::after{width:350px;height:350px}.frame-stops{grid-column:1/-1;margin-top:14px}.details{border-left:0;border-top:1px solid var(--line);padding:19px 21px 20px;display:grid;grid-template-columns:1fr auto;column-gap:20px}.detail-index{grid-column:1/-1;font-size:9px}.details h2{font-size:22px;margin:13px 0 3px}.english-name{grid-column:1;font-size:10px}.detail-copy{grid-column:1/-1;font-size:12px;margin:12px 0 0;min-height:0;max-width:450px}.use-case{grid-column:2;grid-row:2/4;align-items:center;align-self:center;flex-direction:column;gap:4px}.use-case span{font-size:9px;padding:4px 6px}.rhythm{display:none}.controls{padding:13px 16px;gap:14px;flex-wrap:wrap;min-height:0}.play-button{height:40px;min-width:40px}.replay-button{height:40px}.timeline{order:4;flex:1 0 100%;gap:15px;padding:0}.speed-control{border:0;margin-left:auto;padding:0;gap:5px}.control-label{display:none}.time{font-size:9px}.gallery-heading{margin:26px 0 14px}.gallery-heading p{font-size:10px}.gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 11px}.thumbnail{height:119px}.thumbnail>svg{width:110px;height:110px}.card-caption{padding-top:10px;gap:4px}.card-caption strong{font-size:11px}.card-caption small{font-size:9px}.page-footer{margin-top:28px;padding:20px 0;align-items:flex-start;line-height:1.8}.keyboard-hints{display:none}.is-focused .player{inset:7px}.is-focused .stage-art{width:min(83vw,60vh);height:min(83vw,60vh)}.is-focused .stage{min-height:0}}
+@media(max-width:370px){.wrap{padding:0 15px}.stage-art{width:290px;height:290px}.gallery{gap:18px 8px}.thumbnail{height:101px}.thumbnail>svg{width:95px;height:95px}.controls{gap:10px}.speed-options button{min-width:31px}.brand-name{font-size:19px}h1{font-size:30px}.intro-copy{font-size:11px}}
+@media(pointer:coarse){.background-switch button{width:44px;min-height:44px}.icon-button{min-width:44px;height:44px}.speed-options button{min-width:44px;height:44px}.play-button{height:44px;min-width:44px}.replay-button{height:44px}.frame-stops button{min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}.motion-card:hover .thumbnail>svg{transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topbar">
+  <a class="brand" href="#" aria-label="Musefold 未像动效画廊">
+    <svg class="brand-symbol" viewBox="395 360 470 485" aria-hidden="true"><path id="header-mark" fill="#252629" fill-rule="evenodd" d="       M427.8 364.69 H829.5       C850.191 364.69 855.84 383.329 855.84 392.5       L855.89 610.5 C855.89 619.518 849.049 628.518 844.22 633.5       L651.95 831.5 C651.803 831.652 644.137 838.45 631 838.45       H426.3 C407.274 838.45 400.73 819.912 400.73 811.5       L400.84 392.5 C400.84 383.173 407.052 364.69 427.8 364.69 Z       M497.5 424.87 L834.5 424.86       C848.439 424.86 849.96 436.274 849.96 441.5       L850.07 607.5 C850.07 615.378 840.853 623.86 831 623.86       L785.5 623.79 C746.729 623.79 725.868 651.85 715.807 672.5       L644.04 820.5 C641.234 826.259 635.171 832.65 625.5 832.65       H497.5 C485.819 832.65 479.99 824.973 479.99 818.5       L479.96 441.5 C479.96 436.308 481.566 424.87 497.5 424.87 Z"/><ellipse cx="783.108" cy="495.001" rx="28.518" ry="29.021" fill="#c9552e"/></svg>
+    <span class="brand-name">Musefold</span><span class="brand-cn">未像</span>
+  </a>
+  <span class="collection-name">AN EXPLORATION IN MOTION</span>
+  <button id="download" class="text-button" type="button">下载 SVG 原稿<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg></button>
+</header>
+<main>
+  <section class="intro" aria-labelledby="page-title">
+    <div><p class="eyebrow">Musefold · Motion collection</p><h1 id="page-title">让未像，动起来<span class="accent-dot">。</span></h1></div>
+    <p class="intro-copy">同一个形状，八种灵感的发生方式。<br>在纸页、朱点与光影之间，找到喜欢的节奏。</p>
+  </section>
+  <section class="player" aria-label="动效预览播放器">
+    <div class="player-top">
+      <div class="stage" id="stage">
+        <div class="stage-toolbar">
+          <span class="stage-label"><i class="status-dot" aria-hidden="true"></i><span id="play-state">PLAYING</span></span>
+          <div class="stage-actions">
+            <div class="background-switch" role="group" aria-label="预览背景">
+              <button type="button" data-background="light" aria-pressed="true" aria-label="浅色背景" title="浅色背景"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>
+              <button type="button" data-background="dark" aria-pressed="false" aria-label="深色背景" title="深色背景"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg></button>
+            </div>
+            <button id="focus" class="icon-button" type="button" aria-label="进入专注模式" aria-pressed="false" title="专注模式"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+          </div>
+        </div>
+        <div class="stage-art" id="stage-art" role="img" aria-label="轻盈呼吸动画预览"></div>
+        <div class="stage-footer"><span id="stage-count">01 / 08</span><span class="edition">MUSEFOLD — ORIGINAL FORM</span></div>
+      </div>
+      <aside class="details" aria-label="当前动效介绍">
+        <span class="detail-index" id="detail-index">MOTION 01</span>
+        <h2 id="motion-title">轻盈呼吸</h2><p id="motion-english" class="english-name">Quiet levitation</p>
+        <p id="motion-description" class="detail-copy">轻轻浮起，舒展，再回到原位。让一个静止的符号，也拥有安静的呼吸感。</p>
+        <div id="use-case" class="use-case"><span>待机状态</span><span>品牌展示</span></div>
+        <div id="frame-stops" class="frame-stops" role="group" aria-label="查看关键画面" hidden></div>
+        <div class="rhythm"><span class="rhythm-label">这一段节奏<strong id="rhythm-text">舒缓 · 连续</strong></span><svg class="rhythm-graph" viewBox="0 0 84 36" fill="none" aria-hidden="true"><path d="M0 31H84" stroke="#deded8"/><path id="rhythm-path" d="M2 25C16 25 19 6 32 6S48 25 61 25S77 6 82 6" stroke="#c9552e" stroke-width="1.6"/></svg></div>
+      </aside>
+    </div>
+    <div class="controls">
+      <button id="play" class="play-button" type="button" aria-label="暂停动画" title="暂停 / 播放（空格）"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path id="play-icon" d="M8 5v14M16 5v14" stroke-width="2.8"/></svg></button>
+      <button id="replay" class="replay-button" type="button" title="重新播放（R）"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 .5 6M4 4v6h6"/></svg><span>重播</span></button>
+      <div class="timeline"><label for="progress" class="sr-only">动画进度</label><input id="progress" type="range" min="0" max="1000" value="0" step="1" aria-valuetext="0.0 秒"><span id="time" class="time">0.0 / 5.8 s</span></div>
+      <div class="speed-control"><span class="control-label">播放速度</span><div class="speed-options" role="group" aria-label="播放速度"><button type="button" data-speed="0.5" aria-pressed="false" aria-label="0.5倍速">0.5×</button><button type="button" data-speed="1" aria-pressed="true" aria-label="1倍速">1×</button><button type="button" data-speed="1.5" aria-pressed="false" aria-label="1.5倍速">1.5×</button><button type="button" data-speed="2" aria-pressed="false" aria-label="2倍速">2×</button></div></div>
+    </div>
+  </section>
+  <p id="reduced-note" class="reduced-note" hidden>已遵循系统的「减少动态效果」设置，默认暂停动画。你仍可使用播放按钮主动欣赏动效。</p>
+  <section class="gallery-section" aria-labelledby="gallery-title">
+    <div class="gallery-heading"><h2 id="gallery-title">八种演绎，选择你的节奏</h2><p>点击切换 · 自由探索</p></div>
+    <div class="gallery" id="gallery" role="group" aria-label="选择动效"></div>
+  </section>
+</main>
+<footer class="page-footer"><span class="footer-brand">MUSEFOLD / 未像</span><div class="keyboard-hints"><span><kbd>Space</kbd> 暂停</span><span><kbd>R</kbd> 重播</span><span><kbd>1–8</kbd> 切换动效</span></div><span>一份文件，随时打开。</span></footer>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="announcement" class="sr-only" aria-live="polite"></div>
+<noscript><p class="noscript">请在 Safari、Chrome、Edge 或 Firefox 中启用 JavaScript，以播放和切换 SVG 动画。</p></noscript>
+<template id="logo-template">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1254" height="1254" viewBox="0 0 1254 1254" fill="none"
+     role="img" aria-labelledby="logo-title logo-description">
+  <title id="logo-title">Musefold / 未像</title>
+  <desc id="logo-description">Vector tracing of logo.png, preserving its original geometry,
+    rounded ivory tile, charcoal folded-page symbol and vermilion dot.
+    The canvas outside the tile is transparent. Texture is procedural SVG;
+    this file contains no embedded bitmap, external assets or fonts.</desc>
+  <defs>
+    <!-- Coordinates retain the source image's 1254 × 1254 canvas. -->
+    <path id="tile-shape" d="M438.613 241.47 H818.81
+      C913.467 241.47 973.78 308.278 973.78 401.913
+      V796.731 C973.78 882.676 924.256 960.56 815.797 960.56
+      H438.696 C345.664 960.56 281 898.283 281 795.567
+      V400.477 C281 307.348 343.005 241.47 438.613 241.47 Z"/>
+    <!-- The opening is a real cutout, not an overlaid white shape. -->
+    <path id="mark-shape" fill-rule="evenodd" clip-rule="evenodd" d="
+      M427.8 364.69 H829.5
+      C850.191 364.69 855.84 383.329 855.84 392.5
+      L855.89 610.5 C855.89 619.518 849.049 628.518 844.22 633.5
+      L651.95 831.5 C651.803 831.652 644.137 838.45 631 838.45
+      H426.3 C407.274 838.45 400.73 819.912 400.73 811.5
+      L400.84 392.5 C400.84 383.173 407.052 364.69 427.8 364.69 Z
+      M497.5 424.87 L834.5 424.86
+      C848.439 424.86 849.96 436.274 849.96 441.5
+      L850.07 607.5 C850.07 615.378 840.853 623.86 831 623.86
+      L785.5 623.79 C746.729 623.79 725.868 651.85 715.807 672.5
+      L644.04 820.5 C641.234 826.259 635.171 832.65 625.5 832.65
+      H497.5 C485.819 832.65 479.99 824.973 479.99 818.5
+      L479.96 441.5 C479.96 436.308 481.566 424.87 497.5 424.87 Z"/>
+    <clipPath id="tile-clip"><use xlink:href="#tile-shape"/></clipPath>
+    <clipPath id="mark-clip"><use xlink:href="#mark-shape"/></clipPath>
+    <linearGradient id="paper-color" x1="627" y1="242" x2="627" y2="961"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4f3f2"/>
+      <stop offset=".56" stop-color="#f3f2f1"/>
+      <stop offset="1" stop-color="#f4f3f1"/>
+    </linearGradient>
+    <linearGradient id="rim-color" x1="627" y1="241" x2="627" y2="961"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b8b8b7"/>
+      <stop offset=".48" stop-color="#959594"/>
+      <stop offset="1" stop-color="#888887"/>
+    </linearGradient>
+    <linearGradient id="ink-color" x1="628" y1="365" x2="570" y2="839"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#272727"/>
+      <stop offset=".45" stop-color="#282828"/>
+      <stop offset="1" stop-color="#282827"/>
+    </linearGradient>
+    <radialGradient id="dot-color" cx="770" cy="509" r="49"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d0612e"/>
+      <stop offset=".56" stop-color="#c95528"/>
+      <stop offset="1" stop-color="#c04922"/>
+    </radialGradient>
+    <linearGradient id="dot-rim" x1="755" y1="481" x2="812" y2="505"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#bd4924"/>
+      <stop offset="1" stop-color="#b53c19"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="-5%" y="-5%" width="110%" height="112%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.1"/>
+      <feOffset dy="3.2"/>
+      <feComponentTransfer><feFuncA type="linear" slope=".095"/></feComponentTransfer>
+    </filter>
+    <!-- Small-amplitude paper grain: remove this filter for a flat vector finish. -->
+    <filter id="paper-grain" x="0" y="0" width="100%" height="100%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".38" numOctaves="3"
+                    seed="24" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" result="gray-noise"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="SourceGraphic" in2="gray-noise" operator="arithmetic"
+                   k1="0" k2="1" k3=".063" k4="-.0315" result="paper"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="3"
+                    seed="17" stitchTiles="stitch" result="paper-cloud"/>
+      <feColorMatrix in="paper-cloud" type="matrix" result="paper-cloud-gray"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="paper" in2="paper-cloud-gray" operator="arithmetic"
+                   k1="0" k2="1" k3=".045" k4="-.0225" result="paper-finish"/>
+      <feComposite in="paper-finish" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="ink-grain" x="0" y="0" width="100%" height="100%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".10 .09" numOctaves="3"
+                    seed="12" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" result="gray-noise"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="SourceGraphic" in2="gray-noise" operator="arithmetic"
+                   k1="0" k2="1" k3=".032" k4="-.016" result="ink"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".022" numOctaves="3"
+                    seed="22" stitchTiles="stitch" result="ink-cloud"/>
+      <feColorMatrix in="ink-cloud" type="matrix" result="ink-cloud-gray"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="ink" in2="ink-cloud-gray" operator="arithmetic"
+                   k1="0" k2="1" k3=".05" k4="-.025" result="clouded-ink"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".4" numOctaves="2"
+                    seed="27" stitchTiles="stitch" result="ink-fine"/>
+      <feColorMatrix in="ink-fine" type="matrix" result="ink-fine-gray"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="clouded-ink" in2="ink-fine-gray" operator="arithmetic"
+                   k1="0" k2="1" k3=".022" k4="-.011" result="ink-finish"/>
+      <feComposite in="ink-finish" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="dot-grain" x="-5%" y="-5%" width="110%" height="110%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".085" numOctaves="2"
+                    seed="9" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" result="gray-noise"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="SourceGraphic" in2="gray-noise" operator="arithmetic"
+                   k1="0" k2="1" k3=".095" k4="-.0475" result="pigment"/>
+      <feComposite in="pigment" in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+  <g id="rounded-tile">
+    <use xlink:href="#tile-shape" fill="#000" filter="url(#tile-shadow)"/>
+    <use xlink:href="#tile-shape" fill="url(#paper-color)" filter="url(#paper-grain)"/>
+    <use xlink:href="#tile-shape" stroke="#fff" stroke-width="9" opacity=".64"
+         clip-path="url(#tile-clip)"/>
+    <use xlink:href="#tile-shape" stroke="url(#rim-color)" stroke-width="3.8"/>
+  </g>
+  <g id="folded-page" filter="url(#ink-grain)">
+    <use xlink:href="#mark-shape" fill="url(#ink-color)"/>
+    <use xlink:href="#mark-shape" stroke="#161716" stroke-width="1.65"
+         opacity=".72" clip-path="url(#mark-clip)"/>
+  </g>
+  <g id="vermilion-dot">
+    <ellipse cx="783.108" cy="495.001" rx="28.518" ry="29.021"
+             fill="url(#dot-color)" filter="url(#dot-grain)"/>
+    <ellipse cx="783.108" cy="495.001" rx="28.118" ry="28.621"
+             stroke="url(#dot-rim)" stroke-width=".8"/>
+  </g>
+</svg>
+
+</template>
+<script>
+'use strict';
+(() => {
+  const $ = (s, root = document) => root.querySelector(s);
+  const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+  const NS = 'http://www.w3.org/2000/svg';
+  const template = $('#logo-template');
+  const originalSvg = template.innerHTML.trim();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const presets = [
+    { id: 'breathe', title: '轻盈呼吸', english: 'Quiet levitation', short: '舒缓悬浮', duration: 5800, copy: '轻轻浮起，舒展，再回到原位。让一个静止的符号，也拥有安静的呼吸感。', tags: ['待机状态', '品牌展示'], rhythm: '舒缓 · 连续', graph: 'M2 25C16 25 19 6 32 6S48 25 61 25S77 6 82 6' },
+    { id: 'trace', title: '一笔成像', english: 'Drawn into being', short: '轮廓描摹', duration: 6000, copy: '线条沿着纸页徐徐生长，墨色随之落定。最后一枚朱点，点亮完整的未像。', tags: ['开场动画', '品牌落版'], rhythm: '渐入 · 定格', graph: 'M2 29C24 29 29 28 39 13S59 6 82 6' },
+    { id: 'unfold', title: '纸页展开', english: 'A little unfolding', short: '折角舒展', duration: 6200, copy: '从一道折痕开始，纸页缓缓展开。让灵感从未完成的形状，变成清晰的轮廓。', tags: ['启动画面', '内容揭幕'], rhythm: '舒展 · 停留', graph: 'M2 29C17 29 25 29 32 15S43 0 49 7S60 7 82 7' },
+    { id: 'orbit', title: '灵感游弋', english: 'Follow the spark', short: '朱点轨迹', duration: 7200, copy: '朱点离开熟悉的位置，在纸页间画出柔和的轨迹。兜转一圈，灵感恰好归位。', tags: ['生成等待', '趣味交互'], rhythm: '游走 · 归位', graph: 'M2 19C10 0 22 0 31 18S47 35 55 18S74 1 82 19' },
+    { id: 'sheen', title: '折面流光', english: 'Light on paper', short: '柔光掠过', duration: 5800, copy: '一束柔光滑过纸面，掠过墨色与折角。细微的明暗变化，让平面拥有触感。', tags: ['品牌展示', '质感细节'], rhythm: '掠过 · 渐隐', graph: 'M2 28H18C25 28 28 3 36 3S47 28 55 28H82' },
+    { id: 'stamp', title: '朱砂落印', english: 'A mark of delight', short: '弹性落点', duration: 5400, copy: '一枚朱点轻快落下，泛起细小涟漪。微微回弹之后，留下一个笃定的印记。', tags: ['完成反馈', '品牌落版'], rhythm: '落下 · 回弹', graph: 'M2 4C19 4 21 31 31 31S38 17 45 17S52 27 58 27S69 24 82 24' },
+    { id: 'paper-fold', title: '折纸成像', english: 'From a sheet to a symbol', short: '右下角向上翻折', duration: 9200, copy: '先是一张完整的纸。右下角轻轻抬起，向左上翻折，露出深色背面，最终贴合未像的弯曲折边。', tags: ['真实翻折', '品牌成形'], rhythm: '抬起 · 翻折 · 贴合', graph: 'M2 29H12C26 29 23 4 40 4S55 24 64 24H82', stops: [['平整', .065], ['抬起', .295], ['翻面', .38], ['成形', .79]], phases: [[0, '一张完整的纸'], [.12, '右下角轻轻抬起'], [.33, '向左上翻折 · 露出纸背'], [.53, '卷曲折边，缓缓贴合'], [.71, '未像，成形']] },
+    { id: 'brush', title: '执笔点朱', english: 'Paint the vermilion', short: '笔尖循迹落墨', duration: 9400, copy: '执笔落下，朱砂随着笔尖的圆弧慢慢铺开。从第一道细细的墨迹，到圆润的朱点，再轻轻收笔。', tags: ['笔尖描画', '朱砂成印'], rhythm: '落笔 · 描画 · 收笔', graph: 'M2 26C11 26 14 10 23 10S31 25 39 15S50 25 57 15S69 26 82 26', stops: [['落笔', .20], ['描画中', .40], ['完成', .80]], phases: [[0, '执笔入场'], [.18, '笔尖触纸'], [.24, '朱砂随笔尖，徐徐铺开'], [.65, '轻轻收笔'], [.79, '一枚朱点，落在纸上']] },
+  ];
+  const state = { index: 0, playing: !reducedMotion.matches, speed: 1, animations: [], duration: 5800, offscreen: false, raf: 0, focused: false, renderFrame: null };
+  const ease = 'cubic-bezier(.22,.68,.2,1)';
+  let serial = 0;
+  let scene;
+  let toastTimer;
+
+  function svgNode(tag, attrs = {}, parent) {
+    const node = document.createElementNS(NS, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function makeScene(thumbnail = false) {
+    const svg = template.content.querySelector('svg').cloneNode(true);
+    const prefix = `mf-${serial++}-`;
+    const ids = new Map($$('[id]', svg).map(el => [el.id, prefix + el.id]));
+    for (const el of [svg, ...$$('*', svg)]) {
+      for (const attr of [...el.attributes]) {
+        let value = attr.value;
+        if (attr.name === 'id' && ids.has(value)) value = ids.get(value);
+        else if (attr.name === 'aria-labelledby') value = value.split(' ').map(id => ids.get(id) || id).join(' ');
+        else {
+          if (value.startsWith('#') && ids.has(value.slice(1))) value = '#' + ids.get(value.slice(1));
+          value = value.replace(/url\(#([^)]+)\)/g, (_, id) => `url(#${ids.get(id) || id})`);
+        }
+        if (value !== attr.value) el.setAttributeNS(attr.namespaceURI, attr.name, value);
+      }
+    }
+    svg.setAttribute('viewBox', '120 95 1014 1014');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.removeAttribute('role');
+    svg.removeAttribute('aria-labelledby');
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    const defs = $('defs', svg);
+    const parts = {};
+    const find = id => $('[id="' + ids.get(id) + '"]', svg);
+    parts.tile = find('rounded-tile');
+    parts.mark = find('folded-page');
+    parts.dot = find('vermilion-dot');
+    parts.shadow = svgNode('ellipse', { cx: 627, cy: 994, rx: 200, ry: 17, fill: '#24282b', opacity: '.10' }, svg);
+    parts.assembly = svgNode('g', { 'data-part': 'assembly' }, svg);
+    parts.assembly.append(parts.tile, parts.mark, parts.dot);
+    if (thumbnail) {
+      for (const el of $$('[filter]', svg)) el.removeAttribute('filter');
+      parts.shadow.remove();
+    }
+    const use = (id, attrs, parent) => svgNode('use', { href: '#' + ids.get(id), ...attrs }, parent);
+    parts.trace = svgNode('path', { d: find('mark-shape').getAttribute('d'), fill: 'none', stroke: '#383a38', 'stroke-width': 5.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: 0, pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 0 }, parts.assembly);
+    parts.tileTrace = svgNode('path', { d: find('tile-shape').getAttribute('d'), fill: 'none', stroke: '#b0aea7', 'stroke-width': 3.5, opacity: 0, pathLength: 1, 'stroke-dasharray': 1 }, parts.assembly);
+    const revealClip = svgNode('clipPath', { id: prefix + 'reveal' }, defs);
+    parts.reveal = svgNode('rect', { x: 390, y: 350, width: 485, height: 505 }, revealClip);
+    parts.mark.setAttribute('clip-path', `url(#${prefix}reveal)`);
+    parts.flap = svgNode('path', { d: 'M644.04 820.5C641.234 826.259 635.171 832.65 625.5 832.65L651.95 831.5L844.22 633.5L851 622.5L785.5 623.79C746.729 623.79 725.868 651.85 715.807 672.5Z', fill: `url(#${ids.get('paper-color')})`, stroke: '#b8b6af', 'stroke-width': 1.1, opacity: 0 }, parts.assembly);
+    const grad = svgNode('linearGradient', { id: prefix + 'light', x1: '0%', y1: '0%', x2: '100%', y2: '0%' }, defs);
+    for (const [offset, opacity] of [['0%', 0], ['40%', .02], ['52%', .75], ['65%', .08], ['100%', 0]]) svgNode('stop', { offset, 'stop-color': '#fffaf0', 'stop-opacity': opacity }, grad);
+    const sheenClip = svgNode('g', { 'clip-path': `url(#${ids.get('tile-clip')})` }, parts.assembly);
+    parts.sheen = svgNode('path', { d: 'M-180 140H30L570 1060H360Z', fill: `url(#${prefix}light)`, opacity: 0 }, sheenClip);
+    parts.foldLight = svgNode('path', { d: 'M644 820L716 673C726 652 747 624 786 624', fill: 'none', stroke: '#f8e4bd', 'stroke-width': 2.2, opacity: 0 }, parts.assembly);
+    parts.orbitPath = svgNode('path', { d: 'M783.108 495.001C697 445 550 491 548 611C546 742 609 788 651 693C690 605 766 613 783.108 495.001', fill: 'none', stroke: '#c9552e', 'stroke-width': 1.6, 'stroke-dasharray': '4 9', opacity: 0 }, parts.assembly);
+    parts.ghosts = [1, 2].map(() => svgNode('ellipse', { cx: 783.108, cy: 495.001, rx: 28.518, ry: 29.021, fill: '#c9552e', opacity: 0 }, parts.assembly));
+    parts.rings = [1, 2].map(() => svgNode('ellipse', { cx: 783.108, cy: 495.001, rx: 29, ry: 29, fill: 'none', stroke: '#c9552e', 'stroke-width': 1.8, opacity: 0 }, parts.assembly));
+    parts.sparks = Array.from({ length: 7 }, (_, i) => svgNode('circle', { cx: 783.108, cy: 495.001, r: i % 2 ? 2 : 3, fill: '#c9552e', opacity: 0 }, parts.assembly));
+    parts.assembly.appendChild(parts.dot);
+    const origin = (el, value) => { el.style.transformBox = 'view-box'; el.style.transformOrigin = value; };
+    origin(parts.assembly, '627px 601px');
+    origin(parts.shadow, '627px 994px');
+    origin(parts.tile, '627px 601px');
+    origin(parts.mark, '627px 601px');
+    origin(parts.dot, '783.108px 495.001px');
+    origin(parts.reveal, '390px 600px');
+    origin(parts.flap, '785.5px 623.79px');
+    for (const el of [...parts.rings, ...parts.ghosts]) origin(el, '783.108px 495.001px');
+    return { svg, parts, use, prefix, ids };
+  }
+
+  const clamp01 = value => Math.max(0, Math.min(1, value));
+  const smooth = value => { const t = clamp01(value); return t * t * (3 - 2 * t); };
+
+  function setupPaperFold(target) {
+    const { svg, parts: p, prefix, ids } = target;
+    const defs = $('defs', svg);
+    const sourceMark = $('[id="' + ids.get('mark-shape') + '"]', svg).getAttribute('d');
+    const paperGradient = svgNode('linearGradient', { id: prefix + 'fold-front', x1: 401, y1: 365, x2: 856, y2: 838, gradientUnits: 'userSpaceOnUse' }, defs);
+    svgNode('stop', { offset: '0%', 'stop-color': '#fffefb' }, paperGradient);
+    svgNode('stop', { offset: '100%', 'stop-color': '#edeae3' }, paperGradient);
+    const reverseGradient = svgNode('linearGradient', { id: prefix + 'fold-back', x1: '100%', y1: '100%', x2: '0%', y2: '0%' }, defs);
+    svgNode('stop', { offset: '0%', 'stop-color': '#171819' }, reverseGradient);
+    svgNode('stop', { offset: '55%', 'stop-color': '#383a3b' }, reverseGradient);
+    svgNode('stop', { offset: '100%', 'stop-color': '#555654' }, reverseGradient);
+    const shadowFilter = svgNode('filter', { id: prefix + 'fold-shadow', x: '-40%', y: '-40%', width: '180%', height: '180%' }, defs);
+    p.foldBlur = svgNode('feGaussianBlur', { stdDeviation: 4 }, shadowFilter);
+    p.paperRoot = svgNode('g', { 'data-part': 'folding-paper' }, p.assembly);
+    p.paperBase = svgNode('path', { d: sourceMark.split('Z')[0] + 'Z', fill: `url(#${prefix}fold-front)` }, p.paperRoot);
+    p.paperEdge = svgNode('path', {
+      d: 'M844.22 633.5C849.049 628.518 855.89 619.518 855.89 610.5L855.84 392.5C855.84 383.329 850.191 364.69 829.5 364.69H427.8C407.052 364.69 400.84 383.173 400.84 392.5L400.73 811.5C400.73 819.912 407.274 838.45 426.3 838.45H631C644.137 838.45 651.803 831.652 651.95 831.5',
+      fill: 'none', stroke: '#a8a69f', 'stroke-width': 1.7, 'stroke-linejoin': 'round'
+    }, p.paperRoot);
+    p.cornerShadow = svgNode('path', { fill: '#262523', opacity: 0, filter: `url(#${prefix}fold-shadow)` }, p.paperRoot);
+    p.cornerFace = svgNode('path', { fill: `url(#${prefix}fold-front)`, 'data-part': 'turning-corner' }, p.paperRoot);
+    p.cornerEdge = svgNode('path', { fill: 'none', stroke: '#aeaaa1', 'stroke-width': 1.8, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, p.paperRoot);
+    p.hingeLight = svgNode('path', { d: 'M844.22 633.5L651.95 831.5', fill: 'none', stroke: '#fffdf7', 'stroke-width': 2, opacity: 0 }, p.paperRoot);
+    p.wholeSheet = svgNode('rect', { x: 400.8, y: 364.69, width: 455.09, height: 473.76, rx: 27, fill: `url(#${prefix}fold-front)`, stroke: '#a8a69f', 'stroke-width': 1.7, 'data-part': 'whole-paper' }, p.paperRoot);
+    const initialEdge = svgNode('path', { d: 'M844.22 633.5L855.89 633.5V811.5C855.89 829.5 847 838.45 829.5 838.45H651.95L651.95 831.5' }, defs);
+    const finalEdge = svgNode('path', { d: 'M844.22 633.5C849.049 628.518 851 623.86 831 623.86L785.5 623.79C746.729 623.79 725.868 651.85 715.807 672.5L644.04 820.5C641.234 826.259 641.5 831.5 651.95 831.5' }, defs);
+    const fromLength = initialEdge.getTotalLength();
+    const toLength = finalEdge.getTotalLength();
+    p.foldPoints = Array.from({ length: 65 }, (_, i) => ({
+      from: initialEdge.getPointAtLength(fromLength * i / 64),
+      to: finalEdge.getPointAtLength(toLength * i / 64)
+    }));
+    p.foldPrefix = prefix;
+    p.assembly.appendChild(p.dot);
+  }
+
+  function renderPaperFold(progress, p) {
+    const reset = progress >= .9;
+    const fold = reset ? 0 : smooth((progress - .10) / .49);
+    const reveal = reset ? 1 - smooth((progress - .9) / .1) : smooth((progress - .54) / .16);
+    const dotReveal = reset ? reveal : smooth((progress - .68) / .08);
+    const angle = Math.PI * .66 * smooth(fold / .78);
+    const settle = smooth((fold - .65) / .35);
+    const ax = 844.22, ay = 633.5, bx = 651.95, by = 831.5;
+    const length = Math.hypot(bx - ax, by - ay);
+    const ux = (bx - ax) / length, uy = (by - ay) / length;
+    const nx = uy, ny = -ux;
+    let maxHeight = 0;
+    const shadowPoints = [];
+    const points = p.foldPoints.map(({ from, to }) => {
+      const dx = from.x - ax, dy = from.y - ay;
+      const along = dx * ux + dy * uy;
+      const distance = dx * nx + dy * ny;
+      const footX = ax + along * ux, footY = ay + along * uy;
+      const z = distance * Math.sin(angle);
+      maxHeight = Math.max(maxHeight, z);
+      const perspective = 920 / (920 - z);
+      const x = footX + (nx * distance * Math.cos(angle) - z * .13) * perspective;
+      const y = footY + (ny * distance * Math.cos(angle) - z * .19) * perspective;
+      shadowPoints.push({ x: footX + nx * distance * Math.cos(angle) + z * .10, y: footY + ny * distance * Math.cos(angle) + z * .16 });
+      return { x: x + (to.x - x) * settle, y: y + (to.y - y) * settle };
+    });
+    const path = list => list.map((point, i) => `${i ? 'L' : 'M'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
+    p.cornerFace.setAttribute('d', path(points) + 'Z');
+    p.cornerEdge.setAttribute('d', path(points));
+    p.cornerFace.setAttribute('fill', `url(#${p.foldPrefix}${angle < Math.PI / 2 ? 'fold-front' : 'fold-back'})`);
+    p.cornerEdge.setAttribute('stroke', angle < Math.PI / 2 ? '#aaa79f' : '#686967');
+    p.cornerShadow.setAttribute('d', path(shadowPoints) + 'Z');
+    p.cornerShadow.setAttribute('opacity', String(Math.sin(angle) * .17 * (1 - settle)));
+    p.foldBlur.setAttribute('stdDeviation', String(1 + maxHeight * .042));
+    p.hingeLight.setAttribute('opacity', String(Math.sin(angle) * .7));
+    p.wholeSheet.setAttribute('opacity', String(reset ? 1 : 1 - smooth((progress - .115) / .065)));
+    p.paperRoot.setAttribute('opacity', String(1 - reveal));
+    p.mark.setAttribute('opacity', String(reveal));
+    p.dot.setAttribute('opacity', String(dotReveal));
+    p.cornerFace.dataset.fold = fold.toFixed(4);
+  }
+
+  function setupBrush(target) {
+    const { svg, parts: p, prefix, ids } = target;
+    const defs = $('defs', svg);
+    const pigmentClip = svgNode('clipPath', { id: prefix + 'pigment-clip' }, defs);
+    svgNode('ellipse', { cx: 783.108, cy: 495.001, rx: 28.518, ry: 29.021 }, pigmentClip);
+    // A continuous spiral fills the dot: the brush tip and wet stroke share this exact path.
+    const points = Array.from({ length: 421 }, (_, i) => {
+      const t = i / 420, angle = -Math.PI * .72 + Math.PI * 2 * 3.6 * t;
+      const radius = 23.5 * (1 - t) + .7;
+      return `${i ? 'L' : 'M'}${(783.108 + Math.cos(angle) * radius).toFixed(3)} ${(495.001 + Math.sin(angle) * radius * 1.018).toFixed(3)}`;
+    });
+    p.paint = svgNode('path', { d: points.join(' '), fill: 'none', stroke: `url(#${ids.get('dot-color')})`, 'stroke-width': 10.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1, opacity: 0, 'clip-path': `url(#${prefix}pigment-clip)`, 'data-part': 'painted-pigment' }, p.assembly);
+    const lacquer = svgNode('linearGradient', { id: prefix + 'brush-lacquer', x1: '0%', y1: '0%', x2: '100%', y2: '0%' }, defs);
+    for (const [offset, color] of [['0%', '#1b2022'], ['30%', '#42484b'], ['52%', '#586063'], ['70%', '#2d3234'], ['100%', '#171b1d']]) svgNode('stop', { offset, 'stop-color': color }, lacquer);
+    const gold = svgNode('linearGradient', { id: prefix + 'brush-gold', x1: '0%', y1: '0%', x2: '100%', y2: '0%' }, defs);
+    for (const [offset, color] of [['0%', '#89734b'], ['40%', '#dfc99a'], ['62%', '#f1dfb4'], ['100%', '#a38a59']]) svgNode('stop', { offset, 'stop-color': color }, gold);
+    const bristles = svgNode('linearGradient', { id: prefix + 'brush-bristles', x1: '0%', y1: '0%', x2: '0%', y2: '100%' }, defs);
+    for (const [offset, color] of [['0%', '#b3a18b'], ['47%', '#8d6650'], ['76%', '#9e4828'], ['100%', '#bf4922']]) svgNode('stop', { offset, 'stop-color': color }, bristles);
+    p.penCarrier = svgNode('g', { opacity: 0, 'data-part': 'brush-position' }, p.assembly);
+    p.penLift = svgNode('g', {}, p.penCarrier);
+    p.penAngle = svgNode('g', { transform: 'rotate(33)' }, p.penLift);
+    p.penShadow = svgNode('path', { d: 'M0 0C-5-16-13-34-9-51L-7-264Q0-278 7-264L9-51C13-34 5-16 0 0Z', fill: '#202323', opacity: '.12', transform: 'translate(9 12)' }, p.penAngle);
+    svgNode('path', { d: 'M-7-68L-6.4-261Q-6-269 0-269Q6-269 6.4-261L7-68Z', fill: `url(#${prefix}brush-lacquer)`, stroke: '#1c2021', 'stroke-width': '.7' }, p.penAngle);
+    svgNode('path', { d: 'M-3.5-248L-4-87', stroke: '#97a3a2', 'stroke-width': 1.1, opacity: '.46' }, p.penAngle);
+    svgNode('path', { d: 'M-6.5-250H6.5M-7-83H7', stroke: '#c7b086', 'stroke-width': 2.1 }, p.penAngle);
+    svgNode('rect', { x: -8.5, y: -75, width: 17, height: 27, rx: 2, fill: `url(#${prefix}brush-gold)` }, p.penAngle);
+    svgNode('path', { d: 'M-8-69H8M-8-54H8', stroke: '#826947', 'stroke-width': '.8', opacity: '.75' }, p.penAngle);
+    p.penBristles = svgNode('g', {}, p.penAngle);
+    svgNode('path', { d: 'M-8.5-48C-10-37-5-17 0 0C5-13 12-34 8.5-48Z', fill: `url(#${prefix}brush-bristles)`, stroke: '#70533f', 'stroke-width': '.6' }, p.penBristles);
+    svgNode('path', { d: 'M-4-45Q-5-24 0-2M1-45Q5-28 0-2M5-44Q8-29 1-7', stroke: '#e3c39e', 'stroke-width': '.55', opacity: '.5' }, p.penBristles);
+    svgNode('path', { d: 'M-2.7-9L0 0L3.4-11Q0-9-2.7-9Z', fill: '#bf4822' }, p.penBristles);
+    p.penBristles.style.transformOrigin = '0px 0px';
+    p.penBristles.style.transformBox = 'view-box';
+  }
+
+  function keyframes(property, values) {
+    return values.map(([offset, value, easing]) => ({ offset, [property]: String(value), ...(easing ? { easing } : {}) }));
+  }
+
+  function animate(el, property, values) {
+    const animation = el.animate(keyframes(property, values), { duration: state.duration, iterations: Infinity, easing: 'linear', fill: 'both' });
+    animation.pause();
+    animation.currentTime = 0;
+    animation.playbackRate = state.speed;
+    state.animations.push(animation);
+    return animation;
+  }
+
+  function buildAnimation(id, p) {
+    const a = (el, property, values) => animate(el, property, values);
+    if (id === 'breathe') {
+      a(p.assembly, 'transform', [[0, 'translateY(7px) rotate(-.7deg)', 'ease-in-out'], [.5, 'translateY(-23px) rotate(.7deg)', 'ease-in-out'], [1, 'translateY(7px) rotate(-.7deg)']]);
+      a(p.shadow, 'transform', [[0, 'scaleX(1)', 'ease-in-out'], [.5, 'scaleX(.82)', 'ease-in-out'], [1, 'scaleX(1)']]);
+      a(p.shadow, 'opacity', [[0, .10], [.5, .055], [1, .10]]);
+      a(p.dot, 'transform', [[0, 'scale(1)', 'ease-in-out'], [.5, 'scale(1.07)', 'ease-in-out'], [1, 'scale(1)']]);
+    } else if (id === 'trace') {
+      a(p.tile, 'opacity', [[0, .05], [.14, .05], [.33, 1], [.89, 1], [1, .05]]);
+      a(p.tileTrace, 'opacity', [[0, 0], [.025, .85], [.32, .85], [.45, 0], [1, 0]]);
+      a(p.tileTrace, 'strokeDashoffset', [[0, 1], [.04, 1, ease], [.32, 0], [1, 0]]);
+      a(p.trace, 'opacity', [[0, 0], [.13, 1], [.47, 1], [.61, 0], [1, 0]]);
+      a(p.trace, 'strokeDashoffset', [[0, 1], [.12, 1, 'cubic-bezier(.4,0,.3,1)'], [.53, 0], [1, 0]]);
+      a(p.mark, 'opacity', [[0, 0], [.44, 0], [.59, 1], [.89, 1], [1, 0]]);
+      a(p.dot, 'opacity', [[0, 0], [.52, 0], [.57, 1], [.89, 1], [1, 0]]);
+      a(p.dot, 'transform', [[0, 'scale(0)'], [.52, 'scale(0)', ease], [.60, 'scale(1.16)'], [.67, 'scale(1)'], [1, 'scale(1)']]);
+      a(p.shadow, 'opacity', [[0, .02], [.35, .08], [.9, .08], [1, .02]]);
+    } else if (id === 'unfold') {
+      a(p.assembly, 'transform', [[0, 'translateY(18px) rotate(-5deg)', ease], [.62, 'translateY(0) rotate(0deg)'], [.88, 'translateY(0) rotate(0deg)'], [1, 'translateY(18px) rotate(-5deg)']]);
+      a(p.reveal, 'transform', [[0, 'scaleX(0)'], [.07, 'scaleX(0)', ease], [.42, 'scaleX(1)'], [.89, 'scaleX(1)'], [1, 'scaleX(0)']]);
+      a(p.flap, 'opacity', [[0, 0], [.20, 0], [.25, 1], [.50, 1], [.63, 0], [1, 0]]);
+      a(p.flap, 'transform', [[0, 'rotate(0deg) scaleX(1)'], [.31, 'rotate(0deg) scaleX(1)', 'cubic-bezier(.4,0,.2,1)'], [.60, 'rotate(-13deg) scaleX(-.06)'], [1, 'rotate(-13deg) scaleX(-.06)']]);
+      a(p.dot, 'opacity', [[0, 0], [.44, 0], [.57, 1], [.9, 1], [1, 0]]);
+      a(p.dot, 'transform', [[0, 'translateY(12px) scale(.8)'], [.44, 'translateY(12px) scale(.8)', ease], [.59, 'translateY(0) scale(1)'], [1, 'translateY(0) scale(1)']]);
+    } else if (id === 'orbit') {
+      const length = p.orbitPath.getTotalLength();
+      const frames = [];
+      for (let i = 0; i <= 120; i++) {
+        const offset = i / 120;
+        const t = Math.max(0, Math.min(1, (offset - .08) / .68));
+        const eased = t * t * (3 - 2 * t);
+        const point = p.orbitPath.getPointAtLength(eased * length);
+        frames.push([offset, `translate(${(point.x - 783.108).toFixed(3)}px,${(point.y - 495.001).toFixed(3)}px)`]);
+      }
+      a(p.dot, 'transform', frames);
+      p.ghosts.forEach((ghost, index) => {
+        const delay = (index + 1) * .018;
+        const shifted = [[0, 'translate(0,0)'], ...frames.filter(([offset]) => offset + delay < 1).map(([offset, value]) => [offset + delay, value]), [1, 'translate(0,0)']];
+        a(ghost, 'transform', shifted);
+        a(ghost, 'opacity', [[0, 0], [.13, 0], [.2, index ? .08 : .17], [.7, index ? .08 : .17], [.8, 0], [1, 0]]);
+      });
+      a(p.orbitPath, 'opacity', [[0, 0], [.1, 0], [.23, .22], [.64, .22], [.8, 0], [1, 0]]);
+      a(p.assembly, 'transform', [[0, 'rotate(0deg)', 'ease-in-out'], [.35, 'rotate(-1.2deg)', 'ease-in-out'], [.76, 'rotate(0deg)'], [1, 'rotate(0deg)']]);
+    } else if (id === 'sheen') {
+      a(p.sheen, 'transform', [[0, 'translateX(-350px)'], [.09, 'translateX(-350px)', 'cubic-bezier(.4,0,.2,1)'], [.66, 'translateX(1350px)'], [1, 'translateX(1350px)']]);
+      a(p.sheen, 'opacity', [[0, 0], [.12, .75], [.56, .75], [.69, 0], [1, 0]]);
+      a(p.foldLight, 'opacity', [[0, 0], [.37, 0], [.46, .78], [.57, 0], [1, 0]]);
+      a(p.assembly, 'transform', [[0, 'perspective(1400px) rotateY(-5deg) rotateX(2deg)', 'ease-in-out'], [.52, 'perspective(1400px) rotateY(5deg) rotateX(-2deg)', 'ease-in-out'], [1, 'perspective(1400px) rotateY(-5deg) rotateX(2deg)']]);
+      a(p.rings[0], 'transform', [[0, 'scale(.9)'], [.4, 'scale(.9)'], [.61, 'scale(1.9)'], [1, 'scale(1.9)']]);
+      a(p.rings[0], 'opacity', [[0, 0], [.4, 0], [.45, .35], [.61, 0], [1, 0]]);
+    } else if (id === 'stamp') {
+      a(p.dot, 'opacity', [[0, 0], [.08, 0], [.12, 1], [.88, 1], [1, 0]]);
+      a(p.dot, 'transform', [[0, 'translateY(-180px) scale(.85)'], [.08, 'translateY(-180px) scale(.85)', 'cubic-bezier(.5,0,.9,.65)'], [.28, 'translateY(0) scale(1.18,.82)'], [.34, 'translateY(-28px) scale(.92,1.08)'], [.42, 'translateY(0) scale(1.07,.93)'], [.49, 'translateY(-5px) scale(.99,1.01)'], [.56, 'translateY(0) scale(1)'], [1, 'translateY(0) scale(1)']]);
+      a(p.assembly, 'transform', [[0, 'translateY(0)'], [.27, 'translateY(0)'], [.30, 'translateY(5px)', ease], [.45, 'translateY(0)'], [1, 'translateY(0)']]);
+      p.rings.forEach((ring, i) => {
+        const t = i * .055;
+        a(ring, 'transform', [[0, 'scale(.85)'], [.28 + t, 'scale(.85)', ease], [.53 + t, 'scale(3.05)'], [1, 'scale(3.05)']]);
+        a(ring, 'opacity', [[0, 0], [.28 + t, 0], [.3 + t, .45 - i * .15], [.53 + t, 0], [1, 0]]);
+      });
+      p.sparks.forEach((spark, i) => {
+        const angle = (i / p.sparks.length) * Math.PI * 2;
+        const x = Math.cos(angle) * (64 + (i % 2) * 18);
+        const y = Math.sin(angle) * (64 + (i % 2) * 18);
+        a(spark, 'transform', [[0, 'translate(0,0)'], [.28, 'translate(0,0)', ease], [.51, `translate(${x}px,${y}px)`], [1, `translate(${x}px,${y}px)`]]);
+        a(spark, 'opacity', [[0, 0], [.28, 0], [.30, .6], [.51, 0], [1, 0]]);
+      });
+    } else if (id === 'paper-fold') {
+      setupPaperFold(scene);
+      state.renderFrame = progress => renderPaperFold(progress, p);
+      a(p.shadow, 'opacity', [[0, .08], [.23, .11], [.61, .08], [1, .08]]);
+    } else if (id === 'brush') {
+      setupBrush(scene);
+      const length = p.paint.getTotalLength();
+      const positions = [], strokes = [];
+      for (let i = 0; i <= 180; i++) {
+        const offset = i / 180;
+        const drawn = smooth((offset - .20) / .45);
+        const point = p.paint.getPointAtLength(drawn * length);
+        positions.push([offset, `translate(${point.x.toFixed(3)}px,${point.y.toFixed(3)}px)`]);
+        strokes.push([offset, 1 - drawn]);
+      }
+      a(p.penCarrier, 'transform', positions);
+      a(p.paint, 'strokeDashoffset', strokes);
+      a(p.paint, 'opacity', [[0, 0], [.199, 0], [.20, 1], [.65, 1], [.73, 0], [1, 0]]);
+      a(p.dot, 'opacity', [[0, 0], [.64, 0], [.72, 1], [.91, 1], [1, 0]]);
+      a(p.penCarrier, 'opacity', [[0, 0], [.045, 0], [.12, 1], [.72, 1], [.80, 0], [1, 0]]);
+      a(p.penLift, 'transform', [[0, 'translate(100px,-145px) rotate(-9deg)'], [.05, 'translate(100px,-145px) rotate(-9deg)', ease], [.185, 'translate(0,0) rotate(0deg)'], [.65, 'translate(0,0) rotate(0deg)', ease], [.80, 'translate(78px,-135px) rotate(8deg)'], [1, 'translate(78px,-135px) rotate(8deg)']]);
+      a(p.penBristles, 'transform', [[0, 'scaleX(.9)'], [.18, 'scaleX(.9)'], [.24, 'scaleX(1.12)'], [.59, 'scaleX(1.12)'], [.67, 'scaleX(.86)'], [1, 'scaleX(.86)']]);
+      a(p.penShadow, 'opacity', [[0, .02], [.18, .12], [.65, .12], [.77, .02], [1, .02]]);
+    }
+    // A shared timing track keeps the progress control meaningful for every preset.
+    a(p.shadow, 'visibility', [[0, 'visible'], [1, 'visible']]);
+  }
+
+  function displayProgress(time) {
+    const progress = Math.max(0, Math.min(1, time / state.duration));
+    if (state.renderFrame) state.renderFrame(progress);
+    const phases = presets[state.index].phases;
+    $('.stage-footer .edition').textContent = phases ? [...phases].reverse().find(([at]) => progress >= at)[1] : 'MUSEFOLD — ORIGINAL FORM';
+    $('#progress').value = String(Math.round(progress * 1000));
+    $('#progress').style.setProperty('--progress', `${progress * 100}%`);
+    $('#progress').setAttribute('aria-valuetext', `${(time / 1000).toFixed(1)} 秒，共 ${(state.duration / 1000).toFixed(1)} 秒`);
+    $('#time').textContent = `${(time / 1000).toFixed(1)} / ${(state.duration / 1000).toFixed(1)} s`;
+  }
+
+  function tick() {
+    if (!state.playing || document.hidden || state.offscreen) { state.raf = 0; return; }
+    const time = Number(state.animations.at(-1)?.currentTime || 0) % state.duration;
+    displayProgress(time);
+    state.raf = requestAnimationFrame(tick);
+  }
+
+  function syncPlayback() {
+    cancelAnimationFrame(state.raf);
+    state.raf = 0;
+    const active = state.playing && !document.hidden && !state.offscreen;
+    // Start every layer from the same timeline position; this also avoids drift after visibility changes.
+    const time = Number(state.animations.at(-1)?.currentTime || 0);
+    const start = document.timeline.currentTime;
+    if (state.renderFrame) state.renderFrame((time % state.duration) / state.duration);
+    for (const animation of state.animations) {
+      animation.pause();
+      animation.currentTime = time;
+      if (active) {
+        animation.play();
+        animation.startTime = start - time / state.speed;
+      }
+    }
+    $('#play').setAttribute('aria-label', state.playing ? '暂停动画' : '播放动画');
+    $('#play-icon').setAttribute('d', state.playing ? 'M8 5v14M16 5v14' : 'M8 5l10 7-10 7Z');
+    $('#play-state').textContent = state.playing ? 'PLAYING' : 'PAUSED';
+    if (active) state.raf = requestAnimationFrame(tick);
+  }
+
+  function selectPreset(index, { announce = true } = {}) {
+    state.index = (index + presets.length) % presets.length;
+    const preset = presets[state.index];
+    state.duration = preset.duration;
+    for (const animation of state.animations) animation.cancel();
+    state.animations = [];
+    state.renderFrame = null;
+    scene = makeScene();
+    $('#stage-art').replaceChildren(scene.svg);
+    $('#stage-art').setAttribute('aria-label', preset.title + '动画预览');
+    buildAnimation(preset.id, scene.parts);
+    const n = String(state.index + 1).padStart(2, '0');
+    $('#detail-index').textContent = 'MOTION ' + n;
+    $('#stage-count').textContent = n + ' / ' + String(presets.length).padStart(2, '0');
+    history.replaceState(null, '', '#' + preset.id);
+    $('#motion-title').textContent = preset.title;
+    $('#motion-english').textContent = preset.english;
+    $('#motion-description').textContent = preset.copy;
+    $('#rhythm-text').textContent = preset.rhythm;
+    $('#rhythm-path').setAttribute('d', preset.graph);
+    $('#use-case').replaceChildren(...preset.tags.map(tag => { const span = document.createElement('span'); span.textContent = tag; return span; }));
+    $('#frame-stops').hidden = !preset.stops;
+    $('#frame-stops').replaceChildren(...(preset.stops || []).map(([label, position]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.addEventListener('click', () => seekTo(position));
+      return button;
+    }));
+    $$('.motion-card').forEach((card, i) => card.setAttribute('aria-pressed', String(i === state.index)));
+    // Selecting while paused shows a fully resolved logo rather than an empty first frame.
+    const time = state.playing ? 0 : state.duration * .84;
+    for (const animation of state.animations) animation.currentTime = time;
+    displayProgress(time);
+    if (announce) $('#announcement').textContent = `已切换至${preset.title}，${state.playing ? '正在播放' : '已暂停'}`;
+    syncPlayback();
+  }
+
+  function seekTo(position) {
+    state.playing = false;
+    const time = position * state.duration;
+    for (const animation of state.animations) { animation.pause(); animation.currentTime = time; }
+    displayProgress(time);
+    syncPlayback();
+  }
+
+  function replay() {
+    state.playing = true;
+    for (const animation of state.animations) animation.currentTime = 0;
+    displayProgress(0);
+    syncPlayback();
+  }
+
+  function setFocused(value) {
+    state.focused = value;
+    document.body.classList.toggle('is-focused', value);
+    $('#focus').setAttribute('aria-pressed', String(value));
+    $('#focus').setAttribute('aria-label', value ? '退出专注模式' : '进入专注模式');
+    $('#focus').title = value ? '退出专注模式（Esc）' : '专注模式';
+  }
+
+  function notify(message) {
+    clearTimeout(toastTimer);
+    $('#toast').textContent = message;
+    $('#toast').classList.add('visible');
+    toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 2200);
+  }
+
+  for (const [index, preset] of presets.entries()) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'motion-card';
+    button.dataset.preset = preset.id;
+    button.setAttribute('aria-pressed', String(index === 0));
+    button.setAttribute('aria-label', `${index + 1}，${preset.title}，${preset.short}`);
+    const thumb = makeScene(true);
+    const p = thumb.parts;
+    if (preset.id === 'trace') { p.mark.setAttribute('opacity', '.07'); p.trace.setAttribute('opacity', '1'); p.trace.setAttribute('stroke-dashoffset', '.22'); p.trace.setAttribute('stroke-width', '8'); }
+    if (preset.id === 'unfold') { p.flap.setAttribute('opacity', '1'); p.flap.style.transform = 'rotate(-10deg) scaleX(.55)'; p.assembly.style.transform = 'rotate(-6deg)'; }
+    if (preset.id === 'orbit') { p.orbitPath.setAttribute('opacity', '.55'); p.orbitPath.setAttribute('stroke-width', '4'); p.dot.style.transform = 'translate(-230px,75px)'; }
+    if (preset.id === 'sheen') { p.sheen.setAttribute('opacity', '.85'); p.sheen.style.transform = 'translateX(530px)'; p.assembly.style.transform = 'rotate(-4deg)'; }
+    if (preset.id === 'stamp') { p.rings[0].setAttribute('opacity', '.5'); p.rings[0].style.transform = 'scale(2.2)'; p.rings[0].setAttribute('stroke-width', '4'); }
+    button.innerHTML = `<span class="thumbnail"><span class="card-index">${String(index + 1).padStart(2, '0')}</span><span class="card-check"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span></span><span class="card-caption"><strong>${preset.title}</strong><small>${preset.short}</small></span>`;
+    if (preset.id === 'paper-fold') {
+      setupPaperFold(thumb);
+      renderPaperFold(.35, p);
+    }
+    if (preset.id === 'brush') {
+      setupBrush(thumb);
+      p.dot.setAttribute('opacity', '0');
+      p.paint.setAttribute('opacity', '1');
+      p.paint.setAttribute('stroke-dashoffset', '.57');
+      p.penCarrier.setAttribute('opacity', '1');
+      const point = p.paint.getPointAtLength(p.paint.getTotalLength() * .43);
+      p.penCarrier.setAttribute('transform', `translate(${point.x},${point.y})`);
+    }
+    if (preset.stops) {
+      const badge = document.createElement('em');
+      badge.className = 'card-new';
+      badge.textContent = '新增';
+      $('.thumbnail', button).appendChild(badge);
+    }
+    $('.thumbnail', button).appendChild(thumb.svg);
+    button.addEventListener('click', () => {
+      selectPreset(index);
+      const bounds = $('#stage').getBoundingClientRect();
+      if (bounds.bottom < 120 || bounds.top < 0) {
+        $('.player').scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'start' });
+      }
+    });
+    $('#gallery').appendChild(button);
+  }
+
+  $('#play').addEventListener('click', () => { state.playing = !state.playing; syncPlayback(); });
+  $('#replay').addEventListener('click', replay);
+  $('#focus').addEventListener('click', () => setFocused(!state.focused));
+  $('#progress').addEventListener('input', event => {
+    seekTo(Number(event.target.value) / 1000);
+  });
+  $$('[data-speed]').forEach(button => button.addEventListener('click', () => {
+    state.speed = Number(button.dataset.speed);
+    for (const animation of state.animations) animation.updatePlaybackRate(state.speed);
+    $$('[data-speed]').forEach(el => el.setAttribute('aria-pressed', String(el === button)));
+    syncPlayback();
+  }));
+  $$('[data-background]').forEach(button => button.addEventListener('click', () => {
+    $('#stage').classList.toggle('dark', button.dataset.background === 'dark');
+    $$('[data-background]').forEach(el => el.setAttribute('aria-pressed', String(el === button)));
+  }));
+  $('#download').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + originalSvg], { type: 'image/svg+xml' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'musefold-logo.svg';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    notify('SVG 原稿已准备下载');
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && state.focused) { setFocused(false); $('#focus').focus(); return; }
+    if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing || event.target.closest('input, select, textarea, [contenteditable]')) return;
+    const nativeControl = event.target.closest('button, a');
+    if (event.code === 'Space' && nativeControl) return;
+    if (event.code === 'Space') { event.preventDefault(); state.playing = !state.playing; syncPlayback(); }
+    else if (event.key.toLowerCase() === 'r') replay();
+    else if (/^[1-8]$/.test(event.key)) selectPreset(Number(event.key) - 1);
+    else if (!nativeControl && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) { event.preventDefault(); selectPreset(state.index + (event.key === 'ArrowRight' ? 1 : -1)); }
+  });
+  document.addEventListener('visibilitychange', syncPlayback);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(entries => { state.offscreen = !entries[0].isIntersecting; syncPlayback(); }, { threshold: 0 }).observe($('#stage'));
+  }
+  reducedMotion.addEventListener('change', event => {
+    $('#reduced-note').hidden = !event.matches;
+    if (event.matches) { state.playing = false; selectPreset(state.index, { announce: false }); }
+  });
+  $('#reduced-note').hidden = !reducedMotion.matches;
+  addEventListener('hashchange', () => {
+    const index = presets.findIndex(preset => '#' + preset.id === location.hash);
+    if (index >= 0 && index !== state.index) selectPreset(index);
+  });
+  const linkedPreset = presets.findIndex(preset => '#' + preset.id === location.hash);
+  selectPreset(linkedPreset >= 0 ? linkedPreset : 6, { announce: false });
+})();
+</script>
+</body>
+</html>

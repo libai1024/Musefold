@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type Database from 'better-sqlite3';
 import DatabaseConstructor from 'better-sqlite3';
@@ -674,9 +674,9 @@ export function scanD03AFixtureFile(artifact: D03AFixtureArtifact): D03AScanResu
 }
 
 export function createD03ATestRoot(prefix = 'musefold-d03-a-'): string {
-  const path = join('/tmp', `${prefix}${sha256(`${prefix}:${D03A_FIXED_TIME}`).slice(0, 12)}`);
-  mkdirSync(path, { recursive: true });
-  return path;
+  // A failed or interrupted run may leave its backup directory behind. Keep each
+  // invocation isolated while the corpus contents and logical hashes stay fixed.
+  return mkdtempSync(join('/tmp', prefix));
 }
 
 export function removeD03ATestRoot(path: string): void {

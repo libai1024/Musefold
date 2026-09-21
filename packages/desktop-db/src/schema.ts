@@ -20,6 +20,40 @@ import {
   check,
 } from 'drizzle-orm/sqlite-core';
 
+/** Derived JS-tokenized index repair marker; never user data or an execution identity. */
+export const promptFtsState = sqliteTable(
+  'prompt_fts_state',
+  { id: integer().primaryKey(), tokenizerVersion: integer('tokenizer_version').notNull() },
+  (table) => [
+    check('prompt_fts_state_singleton', sql`${table.id} = 1`),
+    check('prompt_fts_state_version', sql`${table.tokenizerVersion} >= 1`),
+  ],
+);
+
+/** Empty until explicit managed execution enablement; a migration never creates an identity. */
+export const managedExecutionCheckpoint = sqliteTable(
+  'managed_execution_checkpoint',
+  {
+    id: integer().primaryKey(),
+    lineageId: text('lineage_id').notNull(),
+    namespace: text().notNull(),
+    revision: integer().notNull(),
+    headHash: text('head_hash').notNull(),
+    lastOperationId: text('last_operation_id').notNull(),
+  },
+  (table) => [
+    check('managed_checkpoint_singleton', sql`${table.id} = 1`),
+    check(
+      'managed_checkpoint_revision',
+      sql`typeof(${table.revision}) = 'integer' AND ${table.revision} >= 0 AND ${table.revision} <= 9007199254740991`,
+    ),
+    check(
+      'managed_checkpoint_hash',
+      sql`length(${table.headHash}) = 64 AND ${table.headHash} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+  ],
+);
+
 export const localWorkspaces = sqliteTable(
   'local_workspaces',
   {
@@ -220,16 +254,249 @@ export const automationAudit = sqliteTable(
     approvedVia: text('approved_via').notNull(),
     status: text().notNull(),
     jobId: text('job_id'),
+    /** New local request journal correlation; legacy audit rows retain null. */
+    automationRequestId: text('automation_request_id'),
+    eventKey: text('event_key'),
   },
   // 列名 `at` 触发 drizzle builder 冲突,不能链 (真库索引带 DESC,以 baseline SQL 为准)。
-  (table) => [index('idx_automation_audit_at').on(table.at)],
+  (table) => [
+    index('idx_automation_audit_at').on(table.at),
+    uniqueIndex('idx_automation_audit_request_event')
+      .on(table.automationRequestId, table.eventKey)
+      .where(sql`automation_request_id IS NOT NULL AND event_key IS NOT NULL`),
+  ],
 );
+
+/** Local execution policy, never an upstream account balance. Not cloud synced. */
+export const automationSpendPolicies = sqliteTable('automation_spend_policies', {
+  scopeId: text('scope_id').primaryKey(),
+  monthlyLimitPoints: real('monthly_limit_points').notNull(),
+  revision: integer().notNull().default(1),
+  importedAt: integer('imported_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/** Legacy usage through entrypoint cutover; durable usage is derived from calls. */
+export const automationBudgetPeriods = sqliteTable(
+  'automation_budget_periods',
+  {
+    scopeId: text('scope_id')
+      .notNull()
+      .references(() => automationSpendPolicies.scopeId),
+    month: text().notNull(),
+    openingPoints: real('opening_points').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.scopeId, table.month] })],
+);
+
+/** Authorization survives independently of generated output, deleted providers or accounts. */
+export const automationSpendRequests = sqliteTable(
+  'automation_spend_requests',
+  {
+    id: text().primaryKey(),
+    scopeId: text('scope_id')
+      .notNull()
+      .references(() => automationSpendPolicies.scopeId),
+    idempotencyKey: text('idempotency_key'),
+    inputHash: text('input_hash').notNull(),
+    action: text().notNull(),
+    caller: text().notNull(),
+    frozenInputJson: text('frozen_input_json').notNull(),
+    bindingsJson: text('bindings_json').notNull(),
+    promptText: text('prompt_text'),
+    executionId: text('execution_id').notNull(),
+    maxImageCalls: integer('max_image_calls').notNull(),
+    maxTextCalls: integer('max_text_calls').notNull(),
+    state: text().notNull(),
+    outcome: text(),
+    errorCode: text('error_code'),
+    approvalSource: text('approval_source'),
+    confirmationId: text('confirmation_id'),
+    confirmationExpiresAt: integer('confirmation_expires_at'),
+    budgetMonth: text('budget_month').notNull(),
+    estimatedPoints: real('estimated_points'),
+    reservationState: text('reservation_state').notNull(),
+    reservationPoints: real('reservation_points'),
+    createdAt: integer('created_at').notNull(),
+    authorizedAt: integer('authorized_at'),
+    finishedAt: integer('finished_at'),
+    revision: integer().notNull().default(1),
+  },
+  (table) => [
+    uniqueIndex('idx_automation_spend_idempotency')
+      .on(table.scopeId, table.idempotencyKey)
+      .where(sql`idempotency_key IS NOT NULL`),
+    uniqueIndex('idx_automation_spend_confirmation')
+      .on(table.confirmationId)
+      .where(sql`confirmation_id IS NOT NULL`),
+    uniqueIndex('idx_automation_spend_execution').on(table.executionId),
+    index('idx_automation_spend_budget').on(
+      table.scopeId,
+      table.budgetMonth,
+      table.reservationState,
+    ),
+    check(
+      'automation_spend_request_state',
+      sql`${table.state} IN ('pending_confirmation', 'authorized', 'running', 'terminal')`,
+    ),
+    check(
+      'automation_spend_reservation_state',
+      sql`${table.reservationState} IN ('none', 'held', 'unknown', 'released')`,
+    ),
+  ],
+);
+
+/** A billable call (image or text), not an image asset or an upstream wallet entry. */
+export const automationSpendCalls = sqliteTable(
+  'automation_spend_calls',
+  {
+    id: text().primaryKey(),
+    requestId: text('request_id')
+      .notNull()
+      .references(() => automationSpendRequests.id),
+    ordinal: integer().notNull(),
+    kind: text().notNull(),
+    bindingJson: text('binding_json').notNull(),
+    inputHash: text('input_hash').notNull(),
+    generationRunId: text('generation_run_id'),
+    state: text().notNull().default('pending'),
+    claimId: text('claim_id'),
+    runtimeEpoch: text('runtime_epoch'),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+    reportedPoints: real('reported_points'),
+    policyPoints: real('policy_points'),
+    costSource: text('cost_source').notNull().default('unknown'),
+    evidenceRef: text('evidence_ref'),
+  },
+  (table) => [
+    uniqueIndex('idx_automation_spend_call_order').on(table.requestId, table.ordinal),
+    uniqueIndex('idx_automation_spend_call_run')
+      .on(table.generationRunId)
+      .where(sql`generation_run_id IS NOT NULL`),
+    index('idx_automation_spend_call_state').on(table.requestId, table.state),
+    check(
+      'automation_spend_call_state',
+      sql`${table.state} IN ('pending', 'started', 'completed', 'unknown', 'not_sent')`,
+    ),
+    check('automation_spend_call_kind', sql`${table.kind} IN ('image', 'text')`),
+  ],
+);
+
+/** Durable managed transport ownership; deliberately no FK to removable result/connection rows. */
+export const managedGenerationRequests = sqliteTable(
+  'managed_generation_requests',
+  {
+    requestId: text('request_id')
+      .primaryKey()
+      .references(() => automationSpendRequests.id),
+    callId: text('call_id').references(() => automationSpendCalls.id),
+    apiIssuer: text('api_issuer').notNull(),
+    principalId: text('principal_id').notNull(),
+    remoteKey: text('remote_key').notNull(),
+    recordJson: text('record_json').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_managed_generation_remote').on(
+      table.apiIssuer,
+      table.principalId,
+      table.remoteKey,
+    ),
+    uniqueIndex('idx_managed_generation_call').on(table.callId),
+    check('managed_generation_json', sql`json_valid(${table.recordJson})`),
+    check(
+      'managed_generation_identity',
+      sql`
+      json_extract(${table.recordJson}, '$.requestId') IS ${table.requestId}
+      AND json_extract(${table.recordJson}, '$.callId') IS ${table.callId}
+      AND json_extract(${table.recordJson}, '$.binding.apiIssuer') IS ${table.apiIssuer}
+      AND json_extract(${table.recordJson}, '$.binding.principalId') IS ${table.principalId}
+      AND json_extract(${table.recordJson}, '$.remoteKey') IS ${table.remoteKey}`,
+    ),
+  ],
+);
+
+/**
+ * R/S(run_scheme / run_github_skill)托管云运行的运行级归属:一行 = 一个 run 级
+ * automation_spend_request(单次预留 / 单次请求级确认 / maxImageCalls=n)。
+ * G 的 1:1 行为完整保留在 managed_generation_requests;本表不承载 G。
+ */
+export const managedRunRequests = sqliteTable(
+  'managed_run_requests',
+  {
+    requestId: text('request_id')
+      .primaryKey()
+      .references(() => automationSpendRequests.id),
+    apiIssuer: text('api_issuer').notNull(),
+    principalId: text('principal_id').notNull(),
+    callerKey: text('caller_key').notNull(),
+    runKind: text('run_kind').notNull(),
+    recordJson: text('record_json').notNull(),
+  },
+  (table) => [
+    check('managed_run_kind', sql`${table.runKind} IN ('run_scheme', 'run_github_skill')`),
+    check('managed_run_json', sql`json_valid(${table.recordJson})`),
+    check(
+      'managed_run_identity',
+      sql`
+      json_extract(${table.recordJson}, '$.requestId') IS ${table.requestId}
+      AND json_extract(${table.recordJson}, '$.callerKey') IS ${table.callerKey}
+      AND json_extract(${table.recordJson}, '$.binding.apiIssuer') IS ${table.apiIssuer}
+      AND json_extract(${table.recordJson}, '$.binding.principalId') IS ${table.principalId}
+      AND json_extract(${table.recordJson}, '$.run.runKind') IS ${table.runKind}`,
+    ),
+  ],
+);
+
+/** 每个 originalJobId 一个子行:ordinal → originalJobId / callId / 本地生成行 / remoteKey / 子回执。 */
+export const managedRunChildren = sqliteTable(
+  'managed_run_children',
+  {
+    requestId: text('request_id')
+      .notNull()
+      .references(() => managedRunRequests.requestId),
+    ordinal: integer().notNull(),
+    originalJobId: text('original_job_id').notNull(),
+    remoteKey: text('remote_key').notNull(),
+    callId: text('call_id').references(() => automationSpendCalls.id),
+    localGenerationId: text('local_generation_id'),
+    recordJson: text('record_json').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.requestId, table.ordinal] }),
+    uniqueIndex('idx_managed_run_child_job').on(table.requestId, table.originalJobId),
+    uniqueIndex('idx_managed_run_child_key').on(table.remoteKey),
+    uniqueIndex('idx_managed_run_child_call').on(table.callId).where(sql`call_id IS NOT NULL`),
+    uniqueIndex('idx_managed_run_child_local')
+      .on(table.localGenerationId)
+      .where(sql`local_generation_id IS NOT NULL`),
+    check('managed_run_child_json', sql`json_valid(${table.recordJson})`),
+    check(
+      'managed_run_child_identity',
+      sql`
+      json_extract(${table.recordJson}, '$.ordinal') IS ${table.ordinal}
+      AND json_extract(${table.recordJson}, '$.originalJobId') IS ${table.originalJobId}
+      AND json_extract(${table.recordJson}, '$.remoteKey') IS ${table.remoteKey}
+      AND json_extract(${table.recordJson}, '$.callId') IS ${table.callId}
+      AND json_extract(${table.recordJson}, '$.localGenerationId') IS ${table.localGenerationId}`,
+    ),
+  ],
+);
+
+/** Minimal permanent identities; no draft/content retained and no expiry that could allow resurrection. */
+export const workbenchSessionDeletions = sqliteTable('workbench_session_deletions', {
+  id: text('id').primaryKey().notNull(),
+  purgedAt: integer('purged_at').notNull(),
+});
 
 export const workbenchSessions = sqliteTable(
   'workbench_sessions',
   {
     id: text().primaryKey(),
     title: text().notNull(),
+    /** Draft/title/archive/deletion CAS version; activity-only touch does not change it. */
+    version: integer('version').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
     archivedAt: integer('archived_at'),
@@ -335,6 +602,22 @@ export const generatedAssets = sqliteTable(
     index('idx_generated_assets_run_position').on(table.runId, table.position),
     unique('generated_assets_run_id_position_unique').on(table.runId, table.position),
   ],
+);
+
+/** 本机生成资产永久清理意图；不随作品或账号级联删除。路径只供本机服务使用。 */
+export const localAssetCleanup = sqliteTable(
+  'local_asset_cleanup',
+  {
+    path: text().primaryKey(),
+    device: text(),
+    inode: text(),
+    state: text({ enum: ['pending', 'blocked'] }).notNull(),
+    createdAt: integer('created_at').notNull(),
+    nextAttemptAt: integer('next_attempt_at').notNull(),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    lastError: text('last_error'),
+  },
+  (table) => [index('idx_local_asset_cleanup_due').on(table.state, table.nextAttemptAt)],
 );
 
 export const cloudSyncAccounts = sqliteTable(

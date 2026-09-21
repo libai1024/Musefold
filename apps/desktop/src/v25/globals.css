@@ -28,10 +28,41 @@
 }
 
 /*
- * 自绘窗口控件(Win/Linux,window-controls.tsx):整层 no-drag——
- * 控件浮在内容区右上角之上,内容区将来接顶部拖拽带时按钮仍必须可点。
+ * 内容区顶部 12px 拖拽带 + 设置全出血 32px 拖拽条(B2-T6):
+ * features 只挂 data-* 钩子;app-region 只写在桌面宿主。
+ * 覆写 pointer-events:auto,否则 Tailwind pointer-events-none 会让 Electron 拖不到。
  */
-[data-testid='window-controls'],
+[data-window-drag-band],
+[data-settings-window-drag] {
+  -webkit-app-region: drag;
+  pointer-events: auto;
+}
+[data-window-drag-band] :is(button, a, input, [role='button']),
+[data-settings-window-drag] :is(button, a, input, [role='button']) {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * Win/Linux 自绘三钮安全区(32×138):主区内容顶让 32px,标题/问候/首行操作落到控件带下方。
+ * 钩子由 AppShell 在注入 windowControls 时挂到 mainview-surface(`data-window-controls-safe`);
+ * 再以 :has([data-window-controls-band]) 双闸,mac / Web 无控件带、无钩子,零新增 padding,
+ * 不恢复 44px 产品顶栏(D5)。设置屏沿用同一 32px 顶让位(承旧 titlebar-hidden);
+ * 搜索在左栏,「桌面版」徽标在 32px + 页垫之下,不再额外 padding-right。
+ */
+[data-testid='mainview-surface'][data-window-controls-safe]:has([data-window-controls-band])
+> main {
+  padding-top: 32px;
+}
+
+/*
+ * Win/Linux 窗口控件带本身可拖,三钮 no-drag。
+ * 保留 [data-testid='window-controls'] 选择器(既有单测按源契约断言)。
+ */
+[data-window-controls-band],
+[data-testid='window-controls'] {
+  -webkit-app-region: drag;
+}
+[data-window-controls-band] :is(button, a, [role='button']),
 [data-testid='window-controls'] button {
   -webkit-app-region: no-drag;
 }

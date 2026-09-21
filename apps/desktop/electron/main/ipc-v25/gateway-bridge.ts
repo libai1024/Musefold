@@ -14,7 +14,9 @@ import { app, ipcMain } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { buildAccountCloudDomainMethods } from './account-cloud-domain';
 import { buildAccountDomainMethods } from './account-domain';
+import { buildAutomationDomainMethods } from './automation-domain';
 import type { BridgeEnvelope, MethodDef } from './envelope';
 import { BridgeError } from './envelope';
 import { buildDoubaoDomainMethods } from './doubao-domain';
@@ -25,6 +27,8 @@ import { buildAgentConnectionsDomainMethods } from './agent-connections-domain';
 import { buildAiProvidersDomainMethods } from './providers-domain';
 import { buildSyncDomainMethods } from './sync-domain';
 import { buildSystemDomainMethods } from './system-domain';
+import { buildCloudMcpDomainMethods } from './cloud-mcp-domain';
+import { buildUsageDomainMethods } from './usage-domain';
 import { buildWorkbenchDomainMethods } from './workbench-domain';
 import { isApplicationAdmissionOpen, trackApplicationRequest } from '../lifecycle-admission';
 
@@ -93,11 +97,14 @@ export function buildMethods(): Record<string, MethodDef> {
   } satisfies Record<string, MethodDef>;
   assertDomainMethods('settings', settings);
   const account = buildAccountDomainMethods();
+  const accountCloud = buildAccountCloudDomainMethods();
+  assertDomainMethods('accountCloud', accountCloud);
   const sync = buildSyncDomainMethods();
   const aiProviders = buildAiProvidersDomainMethods();
   const agentConnections = buildAgentConnectionsDomainMethods();
   const doubao = buildDoubaoDomainMethods();
   const system = buildSystemDomainMethods();
+  const automation = buildAutomationDomainMethods();
   const designSchemes = buildDesignSchemesDomainMethods();
   const prompts = buildPromptsDomainMethods();
   const combinedWorkbench = buildWorkbenchDomainMethods();
@@ -117,23 +124,32 @@ export function buildMethods(): Record<string, MethodDef> {
   assertDomainMethods('agentConnections', agentConnections);
   assertDomainMethods('doubao', doubao);
   assertDomainMethods('system', system);
+  assertDomainMethods('automation', automation);
   assertDomainMethods('designSchemes', designSchemes);
   assertDomainMethods('prompts', prompts);
   assertDomainMethods('workbench', workbench);
   assertDomainMethods('generation', generation);
+  const usage = buildUsageDomainMethods();
+  assertDomainMethods('usage', usage);
+  const cloudMcp = buildCloudMcpDomainMethods();
+  assertDomainMethods('cloudMcp', cloudMcp);
 
   return {
     ...settings,
     ...account,
+    ...accountCloud,
     ...aiProviders,
     ...agentConnections,
     ...doubao,
     ...system,
+    ...automation,
     ...designSchemes,
     ...sync,
     ...prompts,
     ...workbench,
     ...generation,
+    ...usage,
+    ...cloudMcp,
   };
 }
 

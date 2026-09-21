@@ -186,6 +186,20 @@ afterEach(() => {
 });
 
 describe('account gateway HTTP transport', () => {
+  it('reads a bounded independent notice feed without sending account credentials or writes', async () => {
+    const feed = {
+      apiIssuer: 'https://api.example.test',
+      issuer: 'https://relay.example.test',
+      items: [{ id: 'n-a', content: 'notice', publishedAt: null }],
+    };
+    const { impl, calls } = fetchStub(() => jsonResponse(feed));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.example.test', fetch: impl });
+    expect(await gateway.account.getNotices?.()).toEqual(feed);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url.pathname).toBe('/api/v1/account/notices');
+    expect(calls[0]?.init?.method).toBe('GET');
+    expect(calls[0]?.init?.body).toBeUndefined();
+  });
   it('getStatus uses the account status path and parses the response', async () => {
     const { impl, calls } = fetchStub(() => jsonResponse(ACCOUNT));
     const gateway = createCloudDataGateway({ baseUrl: 'https://api.test/', fetch: impl });
@@ -262,6 +276,7 @@ describe('prompts, folders, and tags gateway HTTP transport', () => {
         tagIds: ['tag1', 'tag2'],
         pinnedOnly: true,
         includeDeleted: true,
+        deletedOnly: true,
         sort: 'title-asc',
       }),
     ).resolves.toEqual({ items: [PROMPT], nextCursor: 'next' });
@@ -275,6 +290,7 @@ describe('prompts, folders, and tags gateway HTTP transport', () => {
     expect(url?.searchParams.getAll('tagIds')).toEqual(['tag1', 'tag2']);
     expect(url?.searchParams.get('pinnedOnly')).toBe('true');
     expect(url?.searchParams.get('includeDeleted')).toBe('true');
+    expect(url?.searchParams.get('deletedOnly')).toBe('true');
     expect(url?.searchParams.get('sort')).toBe('title-asc');
   });
 
@@ -430,6 +446,7 @@ describe('workbench gateway HTTP transport', () => {
         includeArchived: true,
         includeDeleted: true,
         archivedOnly: true,
+        deletedOnly: true,
       }),
     ).resolves.toEqual(page);
 
@@ -440,9 +457,10 @@ describe('workbench gateway HTTP transport', () => {
     expect(url?.searchParams.get('includeArchived')).toBe('true');
     expect(url?.searchParams.get('includeDeleted')).toBe('true');
     expect(url?.searchParams.get('archivedOnly')).toBe('true');
+    expect(url?.searchParams.get('deletedOnly')).toBe('true');
   });
 
-  it('create/get/update/remove/restore map session paths, body, and empty optional payloads', async () => {
+  it('create/get/update/remove/restore/purge/empty map session paths, body, and empty optional payloads', async () => {
     const responses = [
       jsonResponse(SESSION, 201),
       jsonResponse(SESSION),
@@ -462,6 +480,9 @@ describe('workbench gateway HTTP transport', () => {
     );
     await expect(gateway.workbench.removeSession('session1')).resolves.toEqual(SESSION);
     await expect(gateway.workbench.restoreSession('session1')).resolves.toEqual(SESSION);
+    responses.push(jsonResponse({ purged: 1 }), jsonResponse({ purged: 501 }));
+    await expect(gateway.workbench.purgeSession('session1')).resolves.toEqual({ purged: 1 });
+    await expect(gateway.workbench.emptyTrash()).resolves.toEqual({ purged: 501 });
 
     expect(calls.map((call) => `${call.init?.method} ${call.url.pathname}`)).toEqual([
       'POST /api/v1/workbench/sessions',
@@ -469,6 +490,8 @@ describe('workbench gateway HTTP transport', () => {
       'PATCH /api/v1/workbench/sessions/session1',
       'DELETE /api/v1/workbench/sessions/session1',
       'POST /api/v1/workbench/sessions/session1/restore',
+      'POST /api/v1/workbench/sessions/session1/purge',
+      'POST /api/v1/workbench/sessions/empty-trash',
     ]);
     expect(jsonBody(calls[0]!)).toEqual(createInput);
     expect(jsonBody(calls[2]!)).toEqual(updateInput);
@@ -533,6 +556,7 @@ describe('generation gateway HTTP transport', () => {
         to: '2026-08-29T00:00:00.000Z',
         providerModel: 'gpt-image-1',
         search: 'cabin',
+        promptId: 'prompt-related-1',
         includeDeleted: true,
         deletedOnly: false,
       }),
@@ -548,6 +572,7 @@ describe('generation gateway HTTP transport', () => {
     expect(url?.searchParams.get('to')).toBe('2026-08-29T00:00:00.000Z');
     expect(url?.searchParams.get('providerModel')).toBe('gpt-image-1');
     expect(url?.searchParams.get('search')).toBe('cabin');
+    expect(url?.searchParams.get('promptId')).toBe('prompt-related-1');
     expect(url?.searchParams.get('includeDeleted')).toBe('true');
     expect(url?.searchParams.get('deletedOnly')).toBe('false');
   });
@@ -603,6 +628,77 @@ describe('generation gateway HTTP transport', () => {
     ]);
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ scope: 'older-than-30d' });
     expect(JSON.parse(String(calls[1]?.init?.body))).toEqual({ scope: 'empty-trash' });
+  });
+
+  it('usage.summary queries the range and parses the contract shape', async () => {
+    const summary = {
+      range: '30d',
+      from: '2026-08-08T12:00:00.000+00:00',
+      to: '2026-09-06T12:00:00.000+00:00',
+      generationCount: 2,
+      succeededCount: 1,
+      failedCount: 1,
+      cancelledCount: 0,
+      imageCount: 1,
+      costPoints: null,
+      successRate: 0.5,
+      byProvider: [
+        { providerId: null, label: 'Musefold 云生图', generationCount: 2, costPoints: null },
+      ],
+      byDay: [
+        {
+          date: '2026-09-06',
+          generationCount: 2,
+          succeededCount: 1,
+          failedCount: 1,
+          cancelledCount: 0,
+          costPoints: null,
+          successRate: 0.5,
+        },
+      ],
+      byModel: [{ model: 'musefold-image-pro', generationCount: 2, costPoints: null }],
+    };
+    const { impl, calls } = fetchStub(() => jsonResponse(summary));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+
+    await expect(gateway.usage.summary({ range: '30d' })).resolves.toEqual(summary);
+    expect(calls[0]?.url.pathname).toBe('/api/v1/usage/summary');
+    expect(calls[0]?.url.searchParams.get('range')).toBe('30d');
+    expect(calls[0]?.init?.method).toBe('GET');
+    expect(calls[0]?.init?.body).toBeUndefined();
+  });
+
+  it('cloudMcp.listAuthorizations / revokeAuthorization stay secret-free', async () => {
+    const list = {
+      items: [
+        {
+          clientId: 'cursor-mcp-client',
+          name: 'Cursor',
+          uri: null,
+          scopes: ['account:read'],
+          authorizedAt: '2026-08-01T12:00:00.000+00:00',
+          lastUsedAt: null,
+        },
+      ],
+    };
+    const { impl, calls } = fetchStub((url) => {
+      if (url.pathname.endsWith('/mcp/authorizations') && !url.pathname.includes('cursor')) {
+        return jsonResponse(list);
+      }
+      return jsonResponse({ revoked: true, clientId: 'cursor-mcp-client' });
+    });
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+    if (!gateway.cloudMcp) throw new Error('cloud gateway cloudMcp domain is missing');
+
+    await expect(gateway.cloudMcp.listAuthorizations()).resolves.toEqual(list);
+    await expect(
+      gateway.cloudMcp.revokeAuthorization({ clientId: 'cursor-mcp-client' }),
+    ).resolves.toEqual({ revoked: true, clientId: 'cursor-mcp-client' });
+    expect(calls.map((call) => `${call.init?.method} ${call.url.pathname}`)).toEqual([
+      'GET /api/v1/mcp/authorizations',
+      'DELETE /api/v1/mcp/authorizations/cursor-mcp-client',
+    ]);
+    expect(JSON.stringify(list)).not.toMatch(/access_token|refresh_token|client_secret/);
   });
 
   it('does not expose desktop-only generation methods on the cloud gateway', () => {
@@ -784,4 +880,45 @@ describe('ApiHttp error and response boundaries through the gateway', () => {
 
     await expect(gateway.account.getStatus()).rejects.toMatchObject({ name: 'ZodError' });
   });
+});
+
+describe('reference release transport', () => {
+  it('releases by strict id using DELETE without a body or arbitrary path', async () => {
+    const { impl, calls } = fetchStub(() => new Response(null, { status: 204 }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+    await expect(
+      gateway.generation.releaseReferenceImage({ id: 'reference-123' }),
+    ).resolves.toBeUndefined();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url.pathname).toBe('/api/v1/reference-images/reference-123');
+    expect(calls[0]?.url.search).toBe('');
+    expect(calls[0]?.init?.method).toBe('DELETE');
+    expect(calls[0]?.init?.body).toBeUndefined();
+  });
+  it.each([
+    { id: '../private' },
+    { id: 'reference-123', path: '/private' },
+    { id: 'reference-123', userId: 'other' },
+  ])('rejects invalid release input before transport: %j', async (input) => {
+    const { impl, calls } = fetchStub(() => new Response(null, { status: 204 }));
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+    await expect(gateway.generation.releaseReferenceImage(input)).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+  it('surfaces release failure without performing generation or retrying a failed release', async () => {
+    const { impl, calls } = fetchStub(() =>
+      jsonResponse({ error: { code: 'INTERNAL_ERROR', message: 'cleanup unavailable' } }, 500),
+    );
+    const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+    await expect(
+      gateway.generation.releaseReferenceImage({ id: 'reference-123' }),
+    ).rejects.toThrow();
+    expect(calls.map((call) => call.init?.method)).toEqual(['DELETE']);
+  });
+});
+
+it('an empty 204 is not accepted for a method requiring account data', async () => {
+  const { impl } = fetchStub(() => new Response(null, { status: 204 }));
+  const gateway = createCloudDataGateway({ baseUrl: 'https://api.test', fetch: impl });
+  await expect(gateway.account.getStatus()).rejects.toThrow();
 });

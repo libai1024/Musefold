@@ -1,5 +1,4 @@
 import { createWriteStream, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { randomBytes } from 'crypto';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import archiver from 'archiver';
@@ -23,7 +22,7 @@ Use a clear composition.
 `;
 
 async function createArchive(
-  entries: ReadonlyArray<{ name: string; content: string | Buffer }>,
+  entries: ReadonlyArray<{ name: string; content: string | Buffer; store?: boolean }>,
   symlinks: ReadonlyArray<{ name: string; target: string }> = [],
 ): Promise<string> {
   const root = mkdtempSync(join(tmpdir(), 'musefold-skill-zip-'));
@@ -37,7 +36,8 @@ async function createArchive(
     archive.once('error', reject);
   });
   archive.pipe(output);
-  for (const entry of entries) archive.append(entry.content, { name: entry.name });
+  for (const entry of entries)
+    archive.append(entry.content, { name: entry.name, store: entry.store });
   for (const symlink of symlinks) archive.symlink(symlink.name, symlink.target);
   await archive.finalize();
   await completed;
@@ -225,14 +225,23 @@ describe('ZIP Agent Skill reader', () => {
     if (!result.ok) expect(result.error.message).toContain('压缩比');
   });
 
-  it('rejects oversized and overpopulated archives', async () => {
+  it('rejects a file one byte beyond the expanded size limit', async () => {
     const oversized = await createArchive([
       { name: 'SKILL.md', content: skillMarkdown },
-      { name: 'assets/large.bin', content: randomBytes(16 * 1024 * 1024 + 1) },
+      // Store a deterministic payload: this case tests size, independently of compression ratio.
+      { name: 'assets/large.bin', content: Buffer.alloc(16 * 1024 * 1024 + 1), store: true },
     ]);
     const oversizedResult = await readZipAgentSkillSource(oversized);
-    expect(oversizedResult).toMatchObject({ ok: false, error: { code: 'INVALID_RANGE' } });
+    expect(oversizedResult).toMatchObject({
+      ok: false,
+      error: {
+        code: 'INVALID_RANGE',
+        details: { entryName: 'assets/large.bin', maxBytes: 16 * 1024 * 1024 },
+      },
+    });
+  });
 
+  it('rejects an archive beyond the entry count limit', async () => {
     const entries: Array<{ name: string; content: string | Buffer }> = [
       { name: 'SKILL.md', content: skillMarkdown },
     ];

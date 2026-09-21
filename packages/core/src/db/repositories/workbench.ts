@@ -256,29 +256,39 @@ export class WorkbenchRepository {
     const id = input.id.trim();
     const title = input.title.replace(/\s+/g, ' ').trim().slice(0, 80);
     if (!id || !title) throw new Error('对话 ID 和标题不能为空');
-    const existing = this.get(id, true);
-    if (existing) {
-      if (existing.deletedAt) throw new Error('已删除的对话不能继续生成');
-      return existing;
-    }
-    const now = input.createdAt ?? Date.now();
-    this.db
-      .prepare(
-        `INSERT INTO workbench_sessions (id, title, created_at, updated_at, archived_at, deleted_at)
-       VALUES (?, ?, ?, ?, NULL, NULL)`,
-      )
-      .run(id, title, now, now);
-    return this.get(id)!;
+    return this.db
+      .transaction(() => {
+        if (this.db.prepare('SELECT 1 FROM workbench_session_deletions WHERE id=?').get(id)) {
+          throw new Error('会话已永久删除，不能继续生成');
+        }
+        const existing = this.get(id, true);
+        if (existing) {
+          if (existing.deletedAt !== null) throw new Error('已删除的对话不能继续生成');
+          return existing;
+        }
+        const now = input.createdAt ?? Date.now();
+        this.db
+          .prepare(`INSERT INTO workbench_sessions (id, title, created_at, updated_at, archived_at, deleted_at)
+        VALUES (?, ?, ?, ?, NULL, NULL)`)
+          .run(id, title, now, now);
+        return this.get(id)!;
+      })
+      .immediate();
   }
 
   touch(id: string, updatedAt = Date.now()): WorkbenchSession {
-    if (!this.get(id)) throw new Error('对话不存在');
-    this.db
-      .prepare(
-        'UPDATE workbench_sessions SET updated_at = MAX(updated_at, ?) WHERE id = ? AND deleted_at IS NULL',
-      )
-      .run(updatedAt, id);
-    return this.get(id)!;
+    return this.db
+      .transaction(() => {
+        if (!this.get(id)) throw new Error('对话不存在');
+        // Activity affects ordering only; a generation finishing must not invalidate an unchanged draft.
+        this.db
+          .prepare(
+            'UPDATE workbench_sessions SET updated_at = MAX(updated_at, ?) WHERE id = ? AND deleted_at IS NULL',
+          )
+          .run(updatedAt, id);
+        return this.get(id)!;
+      })
+      .immediate();
   }
 
   get(id: string, includeDeleted = false): WorkbenchSession | null {
@@ -387,29 +397,47 @@ export class WorkbenchRepository {
 
   rename(id: string, title: string): WorkbenchSession {
     const normalized = title.replace(/\s+/g, ' ').trim().slice(0, 80);
-    if (!normalized || !this.get(id)) throw new Error('对话不存在或标题为空');
-    this.db
-      .prepare('UPDATE workbench_sessions SET title = ?, updated_at = ? WHERE id = ?')
-      .run(normalized, Date.now(), id);
-    return this.get(id)!;
+    return this.db
+      .transaction(() => {
+        if (!normalized || !this.get(id)) throw new Error('对话不存在或标题为空');
+        this.db
+          .prepare(
+            'UPDATE workbench_sessions SET title = ?, updated_at = MAX(updated_at, ?), version = version + 1 WHERE id = ?',
+          )
+          .run(normalized, Date.now(), id);
+        return this.get(id)!;
+      })
+      .immediate();
   }
 
   archive(id: string, archived = true): WorkbenchSession {
-    if (!this.get(id)) throw new Error('对话不存在');
-    const now = Date.now();
-    this.db
-      .prepare('UPDATE workbench_sessions SET archived_at = ?, updated_at = ? WHERE id = ?')
-      .run(archived ? now : null, now, id);
-    return this.get(id)!;
+    return this.db
+      .transaction(() => {
+        if (!this.get(id)) throw new Error('对话不存在');
+        const now = Date.now();
+        this.db
+          .prepare(
+            'UPDATE workbench_sessions SET archived_at = ?, updated_at = MAX(updated_at, ?), version = version + 1 WHERE id = ?',
+          )
+          .run(archived ? now : null, now, id);
+        return this.get(id)!;
+      })
+      .immediate();
   }
 
   softDelete(id: string): WorkbenchSession {
-    if (!this.get(id)) throw new Error('对话不存在');
-    const now = Date.now();
-    this.db
-      .prepare('UPDATE workbench_sessions SET deleted_at = ?, updated_at = ? WHERE id = ?')
-      .run(now, now, id);
-    return this.get(id, true)!;
+    return this.db
+      .transaction(() => {
+        if (!this.get(id)) throw new Error('对话不存在');
+        const now = Date.now();
+        this.db
+          .prepare(
+            'UPDATE workbench_sessions SET deleted_at = ?, updated_at = MAX(updated_at, ?), version = version + 1 WHERE id = ?',
+          )
+          .run(now, now, id);
+        return this.get(id, true)!;
+      })
+      .immediate();
   }
 }
 

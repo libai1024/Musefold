@@ -3,6 +3,8 @@
 import { IMAGE_CONNECTION_PRESETS } from './connection-presets';
 import { ConnectionsPanel, type ConnectionsPanelCopy } from './ConnectionsPanel';
 import { AI_PROVIDER_HOOKS } from './hooks';
+import { ACCOUNT_CLOUD_PROVIDER_TYPE } from '@musefold/contracts';
+import { AccountCloudConnectionCard } from './AccountCloudConnectionCard';
 
 /** 生图 Provider 面板文案;testid 前缀 `ai-provider` 承既有 E2E / 单测。 */
 export const AI_PROVIDER_PANEL_COPY: ConnectionsPanelCopy = {
@@ -25,5 +27,14 @@ export const AI_PROVIDER_PANEL_COPY: ConnectionsPanelCopy = {
  * 数据面走 gateway.aiProviders(SQLite providers 表 + 主进程 keychain)。
  */
 export function AiConnectionsPanel() {
-  return <ConnectionsPanel hooks={AI_PROVIDER_HOOKS} copy={AI_PROVIDER_PANEL_COPY} />;
+  return (
+    <>
+      <AccountCloudConnectionCard />
+      <ConnectionsPanel
+        hooks={AI_PROVIDER_HOOKS}
+        copy={AI_PROVIDER_PANEL_COPY}
+        filterProvider={(provider) => provider.type !== ACCOUNT_CLOUD_PROVIDER_TYPE}
+      />
+    </>
+  );
 }

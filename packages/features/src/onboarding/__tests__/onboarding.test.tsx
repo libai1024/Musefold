@@ -18,6 +18,7 @@ import {
   type MusefoldGateway,
   type PlatformCapabilities,
   PlatformProvider,
+  queryKeys,
   WEB_CAPABILITIES,
 } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -150,6 +151,7 @@ function makeHarness(options: HarnessOptions = {}) {
   }
   return {
     Providers,
+    queryClient,
     state,
     spies: {
       getPreferences,
@@ -259,6 +261,39 @@ describe('首启引导 gate 判定矩阵', () => {
     await waitFor(() => expect(spies.getPreferences).toHaveBeenCalled());
     expect(screen.queryByTestId('onboarding-flow')).toBeNull();
     expect(spies.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('已过 welcome 时即使 active 未置位,本地 Provider 出现也不撤引导、不静默写哨兵', async () => {
+    const harness = makeHarness({ providers: [] });
+    render(<OnboardingFlow />, { wrapper: harness.Providers });
+    await screen.findByTestId('onboarding-flow');
+    await user.click(screen.getByTestId('onboarding-next'));
+    expect(screen.getByTestId('onboarding-step-connect')).toBeTruthy();
+
+    // 模拟「放行 effect 还没跑」:用户已经进了 connect,通道却在这一拍变得可用。
+    useOnboardingFlow.setState({ active: false });
+    harness.spies.listProviders.mockResolvedValue([LOCAL_PROVIDER]);
+    await harness.queryClient.invalidateQueries();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('onboarding-flow')).toBeTruthy();
+      expect(screen.getByTestId('onboarding-step-connect')).toBeTruthy();
+    });
+    expect(sentinelWrites(harness.spies.updatePreferences)).toHaveLength(0);
+  });
+
+  it('引导已弹出后失效 error 态账号查询,不得拆掉引导层', async () => {
+    const harness = makeHarness();
+    render(<OnboardingFlow />, { wrapper: harness.Providers });
+    await screen.findByTestId('onboarding-flow');
+    await user.click(screen.getByTestId('onboarding-next'));
+    expect(screen.getByTestId('onboarding-step-connect')).toBeTruthy();
+
+    await harness.queryClient.invalidateQueries({ queryKey: queryKeys.account.status() });
+
+    expect(screen.getByTestId('onboarding-flow')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-step-connect')).toBeTruthy();
+    expect(sentinelWrites(harness.spies.updatePreferences)).toHaveLength(0);
   });
 });
 

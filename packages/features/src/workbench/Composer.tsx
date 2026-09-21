@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  type GenerationCount,
   type GenerationQuality,
   type GenerationReferenceImage,
   type PromptReferenceSelection,
@@ -41,6 +42,7 @@ import {
   type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type Ref,
+  type ReactNode,
   useEffect,
   useRef,
   useState,
@@ -50,6 +52,7 @@ import {
   type SchemeCreationContext,
   schemeAttachmentReadiness,
 } from '../design-schemes/integration-store';
+import { useScreenIntent } from '../shell/screen-intent-store';
 import type { PromptReferenceResolution } from './prompt-references';
 import { SchemeAttachmentBlock } from './SchemeAttachment';
 
@@ -104,11 +107,16 @@ function qualityLabel(quality: GenerationQuality): string {
   return QUALITY_OPTIONS.find((option) => option.id === quality)?.label ?? quality;
 }
 
+/** 张数目录承旧 v2.1 Composer(1/2/4 同序);§9-D3 解锁后由 `maxGenerationCount` 门控渲染。 */
+export const COUNT_OPTIONS: readonly GenerationCount[] = [1, 2, 4];
+
 export interface ComposerValue {
   prompt: string;
   negative: string;
   aspectRatio: ComposerRatio;
   quality: GenerationQuality;
+  /** 单次生成张数(§9-D3);宿主上限为 1 时恒为 1,控件不渲染。 */
+  count: GenerationCount;
   promptReferenceSelections: PromptReferenceSelection[];
 }
 
@@ -137,12 +145,17 @@ export function toComposerRatio(value: string | undefined): ComposerRatio {
   return parsed.data as ComposerRatio;
 }
 
+/**
+ * 张数不在持久草稿契约里(`WorkbenchDraft.params` 只有 size/比例/质量),
+ * 所以回读恒为 1;屏幕层按「显式覆盖 → 偏好默认张数」复原。
+ */
 export function draftToComposerValue(draft: WorkbenchDraft): ComposerValue {
   return {
     prompt: draft.prompt,
     negative: draft.negative,
     aspectRatio: toComposerRatio(draft.params.aspectRatio),
     quality: draft.params.quality ?? 'auto',
+    count: 1,
     promptReferenceSelections: draft.promptReferenceSelections,
   };
 }
@@ -230,6 +243,8 @@ export interface ComposerProps {
   value: ComposerValue;
   submitting: boolean;
   disabled?: boolean;
+  /** Prevent submission while leaving the local draft editable, e.g. a save conflict. */
+  submitDisabledReason?: string;
   /**
    * 布局形态(V25-UI-SPEC §3.1):docked 悬浮贴底(默认,由屏幕层绝对定位);
    * inline 用于空态内联,首次发送后由屏幕切回 docked。
@@ -243,6 +258,8 @@ export interface ComposerProps {
   cancelling?: boolean;
   /** Provider 目录已加载且为空:发送禁用 + 引导去设置(§3.2 无连接态)。 */
   noProvider?: boolean;
+  /** Shared account-model selector/price states; connection switching stays in the sidebar. */
+  modelSelector?: ReactNode;
   /** 草稿参考图(ui-parity 03 §7 P0):三路入图(选择/拖拽/粘贴)落这里,提交时随请求携带。 */
   references?: readonly ComposerReference[];
   /**
@@ -254,6 +271,11 @@ export interface ComposerProps {
   promptRef?: Ref<HTMLTextAreaElement>;
   /** 「添加上下文」触发钮引用:参考素材面板关闭后焦点归还(§8-I9)。 */
   contextMenuTriggerRef?: Ref<HTMLButtonElement>;
+  /**
+   * 单次生成张数上限(宿主 `capabilities.maxGenerationCount`,由屏幕层注入)。
+   * 缺省 1 = 张数控件不渲染(不留死控件,D2 口径)。
+   */
+  maxCount?: GenerationCount;
   onChange(value: ComposerValue): void;
   onSubmit(): void;
   onCancel?(): void;
@@ -279,6 +301,7 @@ export interface ComposerProps {
  */
 export function Composer({
   value,
+  submitDisabledReason,
   submitting,
   disabled = false,
   variant = 'docked',
@@ -286,10 +309,12 @@ export function Composer({
   running = false,
   cancelling = false,
   noProvider = false,
+  modelSelector,
   references = [],
   promptReferences = [],
   promptRef,
   contextMenuTriggerRef,
+  maxCount = 1,
   onChange,
   onSubmit,
   onCancel,
@@ -319,6 +344,8 @@ export function Composer({
   const ratioOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const uploadingReferences = references.some((reference) => reference.status === 'uploading');
   const readyImageCount = references.filter((reference) => reference.status === 'ready').length;
+  const countOptions = COUNT_OPTIONS.filter((option) => option <= maxCount);
+  const countControlVisible = countOptions.length > 1;
   const promptLength = value.prompt.length;
   const promptTooLong = promptLength > PROMPT_MAX;
   const negativeTooLong = value.negative.length > NEGATIVE_MAX;
@@ -337,6 +364,7 @@ export function Composer({
    */
   const canSubmit =
     !disabled &&
+    !submitDisabledReason &&
     !submitting &&
     !running &&
     (!noProvider || Boolean(schemeCreation)) &&
@@ -361,11 +389,12 @@ export function Composer({
           ? '按方案生成'
           : '生成图像';
   const submitTitle =
-    scheme?.submitDisabledReason != null && (schemeAttachment || schemeCreation)
+    submitDisabledReason ??
+    (scheme?.submitDisabledReason != null && (schemeAttachment || schemeCreation)
       ? scheme.submitDisabledReason
       : noProvider && !schemeCreation
         ? '请先连接服务商'
-        : `${submitLabel}(Enter)`;
+        : `${submitLabel}(Enter)`);
   const canAddImages = Boolean(onAddImages) && !disabled;
   // 目录外合法 `W:H` = 自定义当前态(承旧 RatioPicker):不回落 auto,目录项不标选中。
   const catalogRatio = RATIO_CATALOG.find((option) => option.id === value.aspectRatio);
@@ -731,13 +760,21 @@ export function Composer({
             <button
               type="button"
               className="text-primary underline-offset-2 hover:underline"
-              onClick={onOpenSettings}
+              onClick={() => {
+                useScreenIntent.getState().setIntent({
+                  kind: 'settings-section',
+                  section: 'connections',
+                });
+                onOpenSettings?.();
+              }}
               disabled={!onOpenSettings}
             >
               前往设置添加
             </button>
           </p>
         )}
+
+        {modelSelector}
 
         <div className="mt-1 flex min-h-10 flex-wrap items-center gap-1 border-border/55 border-t pt-1.5">
           <input
@@ -1024,6 +1061,7 @@ export function Composer({
                 />
                 <span className="min-w-0 truncate">
                   {qualityLabel(value.quality)}
+                  {countControlVisible && value.count > 1 ? ` · ${value.count} 张` : ''}
                   {negativeActive ? ' · 反向词' : ''}
                 </span>
               </button>
@@ -1074,6 +1112,37 @@ export function Composer({
                   })}
                 </div>
               </div>
+              {countControlVisible && (
+                <div className="px-1 pt-2">
+                  <p className="mb-1 text-[11px] text-muted-foreground">张数</p>
+                  <div
+                    className="grid grid-cols-3 gap-1 rounded-[7px] bg-muted p-1"
+                    role="radiogroup"
+                    aria-label="张数"
+                    data-testid="composer-count"
+                  >
+                    {countOptions.map((option) => {
+                      const active = option === value.count;
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          data-testid={`composer-count-${option}`}
+                          className={cn(
+                            'h-8 min-w-0 rounded-md text-[11px] text-muted-foreground tabular-nums transition-colors duration-(--dur-fast) ease-out hover:bg-card hover:text-primary',
+                            active && 'bg-card text-primary shadow-sm',
+                          )}
+                          onClick={() => onChange({ ...value, count: option })}
+                        >
+                          {option} 张
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="grid gap-1 px-1 pt-2 pb-1">
                 <Label className="text-[11px] text-muted-foreground" htmlFor="composer-negative">
                   反向提示词

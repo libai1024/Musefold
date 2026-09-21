@@ -19,6 +19,7 @@ export const DEFAULT_JSON_DEPTH_LIMIT = 32;
 export interface AuditRecord {
   at: string;
   method: string;
+  /** Registered route template, or a fixed unmatched marker; never request parameters. */
   path: string;
   status: number;
   durationMs: number;
@@ -205,9 +206,9 @@ function matchRoute(
   routes: Record<string, AutomationRouteHandler>,
   method: string,
   path: string,
-): { route: AutomationRouteHandler; params: Record<string, string> } | null {
+): { route: AutomationRouteHandler; params: Record<string, string>; pattern: string } | null {
   const exact = routes[`${method} ${path}`] ?? routes[path];
-  if (exact) return { route: exact, params: {} };
+  if (exact) return { route: exact, params: {}, pattern: path };
 
   const pathSegments = path.split('/').filter(Boolean);
   for (const [key, route] of Object.entries(routes)) {
@@ -230,7 +231,7 @@ function matchRoute(
         break;
       }
     }
-    if (matched) return { route, params };
+    if (matched) return { route, params, pattern: key.slice(spaceAt + 1) };
   }
   return null;
 }
@@ -294,8 +295,8 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
   const audit = async (record: AuditRecord) => {
     try {
       await options.onAudit?.(record);
-    } catch (error) {
-      logger.warn('automation audit failed', error);
+    } catch {
+      logger.warn('automation audit failed');
     }
   };
   const health = () => {
@@ -340,6 +341,7 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
     const method = request.method ?? 'GET';
     const requestUrl = new URL(request.url ?? '/', `http://${host}`);
     const path = requestUrl.pathname;
+    let auditPath = '/<unmatched>';
     let status = 200;
     let errorCode: string | undefined;
     try {
@@ -358,10 +360,12 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
       if (!generalLimiter.allow(source) || (isSpendSubmit && !generationLimiter.allow(source)))
         throw new AutomationError('RATE_LIMITED', '请求过于频繁，请稍后重试', 429);
       if (method === 'GET' && path === `/${AUTOMATION_API_VERSION}/health`) {
+        auditPath = `/${AUTOMATION_API_VERSION}/health`;
         writeJson(response, health());
         return;
       }
       if (method === 'GET' && path === `/${AUTOMATION_API_VERSION}/events`) {
+        auditPath = `/${AUTOMATION_API_VERSION}/events`;
         response.writeHead(200, {
           'content-type': 'text/event-stream; charset=utf-8',
           'cache-control': 'no-cache, no-transform',
@@ -404,6 +408,7 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
       if (!matched)
         throw new AutomationError('NOT_FOUND', '控制面端点不存在', 404, { method, path });
       const { route, params } = matched;
+      auditPath = matched.pattern;
       const body =
         method === 'GET' || method === 'HEAD'
           ? undefined
@@ -437,7 +442,7 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
       void audit({
         at: clock().toISOString(),
         method,
-        path,
+        path: auditPath,
         status: response.statusCode || status,
         durationMs: Date.now() - started,
         errorCode,
@@ -508,12 +513,18 @@ export function createAutomationServer(options: AutomationServerOptions): Automa
         generationLimiter.clear();
         const info = currentInfo;
         currentInfo = null;
-        if (info)
-          removeDiscoveryFileIfOwned(options.dataDir, {
-            pid: process.pid,
-            port: info.port,
-            token: info.token,
-          });
+        // Discovery is only a locator. Its cleanup failure must not leave the listener
+        // accepting work or prevent host-owned uploads and databases from finalizing.
+        try {
+          if (info)
+            removeDiscoveryFileIfOwned(options.dataDir, {
+              pid: process.pid,
+              port: info.port,
+              token: info.token,
+            });
+        } catch {
+          logger.warn('automation discovery cleanup failed');
+        }
         if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
         server = null;
         startedAt = null;

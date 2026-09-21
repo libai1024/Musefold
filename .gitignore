@@ -5,6 +5,7 @@ release/
 dist/
 .next/
 tests/v25/.results/
+.results/
 tests/v25/__screenshots__/**/*-actual.png
 test-results/
 test-output/
@@ -57,3 +58,7 @@ output/
 # 仅用于本地跑通流程；换成原创形象后删除此条并把资源纳入版本管理。
 resources/pet/furina/
 tmp/
+
+# Host-specific Node-API build products
+packages/managed-fs/build/
+packages/managed-fs/.native-build-lock/

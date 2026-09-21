@@ -1,8 +1,7 @@
 // v2.5 桌面 prompts 域桥:contracts 形状 ↔ core SQLite 仓库。
 // 映射语义移植自渲染层 runtime/mappers/prompt.ts(有损字段逐条声明);
 // M4e 主进程收口后渲染层旧 mapper 随旧壳删除,本文件成为唯一映射点。
-// folders/tags 目录 CRUD 旧 IPC 已退役、无仓库,这里直写两张小表;
-// 其变更暂不入云同步队列(旧行为亦无该入口),M4e 同步收口统一处理。
+// 分类变更复用core事务与同步outbox；宿主只做契约映射、错误信封和同步调度。
 
 import type {
   NewPromptDocument,
@@ -38,7 +37,10 @@ import { resolve, sep } from 'node:path';
 import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { NewPrompt, Prompt, Tag } from '@musefold/desktop-contracts/models';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
-import { ulid } from 'ulid';
+import {
+  promptTaxonomyRepo,
+  PromptTaxonomyError,
+} from '@musefold/core/db/repositories/prompt-taxonomy';
 import { z } from 'zod';
 import { scheduleV25CloudSync as scheduleCloudSync } from './sync-domain';
 import { BridgeError, type MethodDef } from './envelope';
@@ -58,8 +60,11 @@ function epochMsToIsoOrNull(ms: number | null | undefined): string | null {
 
 function parseOffsetCursor(cursor: string | undefined): number {
   if (!cursor) return 0;
-  const offset = Number.parseInt(cursor, 10);
-  return Number.isFinite(offset) && offset >= 0 ? offset : 0;
+  const offset = Number(cursor);
+  if (!/^\d+$/.test(cursor) || !Number.isSafeInteger(offset) || offset < 0) {
+    throw new BridgeError('VALIDATION_FAILED', '分页游标无效，请刷新列表');
+  }
+  return offset;
 }
 
 // ---------- 封面:本地路径 ↔ media:// 受管 URL ----------
@@ -241,14 +246,18 @@ function getDocument(id: string): PromptDocument {
 }
 
 function listPrompts(query: ParsedPromptListQuery): PromptPage {
-  const live = promptsRepo.list(listQueryToRowQuery(query));
-  const rows = query.includeDeleted ? [...live, ...promptsRepo.listDeleted()] : live;
   const offset = parseOffsetCursor(query.cursor);
-  const slice = rows.slice(offset, offset + query.limit);
-  const next = offset + slice.length;
+  const rows = promptsRepo.list(listQueryToRowQuery(query), undefined, {
+    offset,
+    limit: query.limit + 1,
+    includeDeleted: query.includeDeleted,
+    deletedOnly: query.deletedOnly,
+  });
+  const hasMore = rows.length > query.limit;
+  const slice = hasMore ? rows.slice(0, query.limit) : rows;
   return {
     items: slice.map(promptRowToDocument),
-    nextCursor: next < rows.length ? String(next) : null,
+    nextCursor: hasMore ? String(offset + slice.length) : null,
   };
 }
 
@@ -314,39 +323,33 @@ function listFolders(): PromptFolder[] {
   return rows.map(folderRowToDocument);
 }
 
+function mutateTaxonomy<T>(operation: () => T): T {
+  try {
+    const result = operation();
+    scheduleCloudSync();
+    return result;
+  } catch (error) {
+    if (error instanceof PromptTaxonomyError) throw new BridgeError(error.code, error.message);
+    throw error;
+  }
+}
 function createFolder(input: NewPromptFolder): PromptFolder {
-  const db = getDb();
-  const workspaceId = resolveLocalContentWorkspace(db);
-  const id = ulid();
-  db.prepare(
-    'INSERT INTO folders (workspace_id, id, name, parent_id, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(workspaceId, id, input.name, input.parentId, input.sortOrder, Date.now());
-  return folderRowToDocument(getFolderRow(id));
-}
-
-function updateFolder(id: string, patch: UpdatePromptFolder): PromptFolder {
-  const db = getDb();
-  const workspaceId = resolveLocalContentWorkspace(db);
-  const current = getFolderRow(id);
-  db.prepare(
-    'UPDATE folders SET name = ?, parent_id = ?, sort_order = ? WHERE workspace_id = ? AND id = ?',
-  ).run(
-    patch.name ?? current.name,
-    patch.parentId !== undefined ? patch.parentId : current.parent_id,
-    patch.sortOrder ?? current.sort_order,
-    workspaceId,
-    id,
+  return mutateTaxonomy(() =>
+    folderRowToDocument(getFolderRow(promptTaxonomyRepo.createFolder(input))),
   );
-  return folderRowToDocument(getFolderRow(id));
 }
-
+function updateFolder(id: string, patch: UpdatePromptFolder): PromptFolder {
+  return mutateTaxonomy(() => {
+    promptTaxonomyRepo.updateFolder(id, patch);
+    return folderRowToDocument(getFolderRow(id));
+  });
+}
 function removeFolder(id: string): PromptFolder {
-  const db = getDb();
-  const workspaceId = resolveLocalContentWorkspace(db);
-  const doc = folderRowToDocument(getFolderRow(id));
-  // 子文件夹随 FK CASCADE 删除;prompts.folder_id 置 NULL(归入未整理)。
-  db.prepare('DELETE FROM folders WHERE workspace_id = ? AND id = ?').run(workspaceId, id);
-  return { ...doc, deletedAt: epochMsToIso(Date.now()) };
+  return mutateTaxonomy(() => {
+    const document = folderRowToDocument(getFolderRow(id));
+    promptTaxonomyRepo.removeFolder(id);
+    return { ...document, deletedAt: epochMsToIso(Date.now()) };
+  });
 }
 
 // ---------- tags(直写 tags 表) ----------
@@ -388,38 +391,22 @@ function listTags(): PromptTag[] {
 }
 
 function createTag(input: NewPromptTag): PromptTag {
-  const db = getDb();
-  const workspaceId = resolveLocalContentWorkspace(db);
-  const id = ulid();
-  db.prepare(
-    'INSERT INTO tags (workspace_id, id, name, tag_group, color, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(workspaceId, id, input.name, input.group, input.color, Date.now());
-  return tagTableRowToDocument(getTagRow(id));
-}
-
-function updateTag(id: string, patch: UpdatePromptTag): PromptTag {
-  const db = getDb();
-  const workspaceId = resolveLocalContentWorkspace(db);
-  const current = getTagRow(id);
-  db.prepare(
-    'UPDATE tags SET name = ?, tag_group = ?, color = ? WHERE workspace_id = ? AND id = ?',
-  ).run(
-    patch.name ?? current.name,
-    patch.group !== undefined ? patch.group : current.tag_group,
-    patch.color !== undefined ? patch.color : current.color,
-    workspaceId,
-    id,
+  return mutateTaxonomy(() =>
+    tagTableRowToDocument(getTagRow(promptTaxonomyRepo.createTag(input))),
   );
-  return tagTableRowToDocument(getTagRow(id));
 }
-
+function updateTag(id: string, patch: UpdatePromptTag): PromptTag {
+  return mutateTaxonomy(() => {
+    promptTaxonomyRepo.updateTag(id, patch);
+    return tagTableRowToDocument(getTagRow(id));
+  });
+}
 function removeTag(id: string): PromptTag {
-  const db = getDb();
-  const workspaceId = resolveLocalContentWorkspace(db);
-  const doc = tagTableRowToDocument(getTagRow(id));
-  // prompt_tags 随 FK CASCADE 清理。
-  db.prepare('DELETE FROM tags WHERE workspace_id = ? AND id = ?').run(workspaceId, id);
-  return { ...doc, deletedAt: epochMsToIso(Date.now()) };
+  return mutateTaxonomy(() => {
+    const document = tagTableRowToDocument(getTagRow(id));
+    promptTaxonomyRepo.removeTag(id);
+    return { ...document, deletedAt: epochMsToIso(Date.now()) };
+  });
 }
 
 // ---------- 方法表 ----------
@@ -477,10 +464,9 @@ export function buildPromptsDomainMethods(): Record<string, MethodDef> {
       input: z.undefined().or(z.object({}).strict()),
       handle: async () => {
         // 回收站为空返回 0(幂等);双重确认由渲染层负责。
-        const trashed = promptsRepo.listDeleted();
-        for (const row of trashed) promptsRepo.purge(row.id);
-        if (trashed.length > 0) scheduleCloudSync();
-        return { purged: trashed.length };
+        const purged = promptsRepo.purgeAllDeleted();
+        if (purged > 0) scheduleCloudSync();
+        return { purged };
       },
     },
     'prompts.restore': {

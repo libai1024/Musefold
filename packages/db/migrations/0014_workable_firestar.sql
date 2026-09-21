@@ -1,0 +1,27 @@
+CREATE TABLE "design_scheme_agent_events" (
+	"user_id" text NOT NULL,
+	"execution_id" varchar(64) NOT NULL,
+	"seq" integer NOT NULL,
+	"session" jsonb NOT NULL,
+	CONSTRAINT "design_scheme_agent_events_user_id_execution_id_seq_pk" PRIMARY KEY("user_id","execution_id","seq"),
+	CONSTRAINT "scheme_agent_event_positive_seq" CHECK ("design_scheme_agent_events"."seq" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "design_scheme_agent_sessions" (
+	"user_id" text NOT NULL,
+	"execution_id" varchar(64) NOT NULL,
+	"request_hash" varchar(64),
+	"request" jsonb,
+	"source_execution_ids" jsonb NOT NULL,
+	"view" jsonb NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "design_scheme_agent_sessions_user_id_execution_id_pk" PRIMARY KEY("user_id","execution_id"),
+	CONSTRAINT "scheme_agent_request_check" CHECK (("design_scheme_agent_sessions"."request_hash" IS NULL AND "design_scheme_agent_sessions"."request" IS NULL AND "design_scheme_agent_sessions"."view"->>'status' = 'cancelled') OR ("design_scheme_agent_sessions"."request_hash" IS NOT NULL AND "design_scheme_agent_sessions"."request" IS NOT NULL))
+);
+--> statement-breakpoint
+ALTER TABLE "design_scheme_source_preparations" DROP CONSTRAINT "scheme_source_preparation_status_check";--> statement-breakpoint
+ALTER TABLE "design_scheme_agent_events" ADD CONSTRAINT "scheme_agent_event_owner_fk" FOREIGN KEY ("user_id","execution_id") REFERENCES "public"."design_scheme_agent_sessions"("user_id","execution_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "design_scheme_agent_sessions" ADD CONSTRAINT "design_scheme_agent_sessions_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "scheme_agent_reconcile_idx" ON "design_scheme_agent_sessions" USING btree ("expires_at","updated_at");--> statement-breakpoint
+ALTER TABLE "design_scheme_source_preparations" ADD CONSTRAINT "scheme_source_preparation_status_check" CHECK ("design_scheme_source_preparations"."status" IN ('queued','reading','ready','confirmed','rejected','cancelled','expired','failed'));

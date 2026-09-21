@@ -112,7 +112,7 @@ function makeHarness(options: { capabilities?: typeof WEB_CAPABILITIES } = {}) {
       </QueryClientProvider>
     );
   }
-  return { designSchemes, Providers };
+  return { designSchemes, Providers, summary };
 }
 
 beforeEach(() => {
@@ -125,6 +125,16 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Web /design-schemes 路由挂载', () => {
+  it('方案封面消费同源图片解析接缝', async () => {
+    const { Providers, summary } = makeHarness();
+    summary.coverAssetId = 'cover-1';
+    render(<DesignSchemesPage />, { wrapper: Providers });
+    const row = await screen.findByTestId('runtime-scheme-row-scheme-1');
+    expect(row.querySelector('img')?.getAttribute('src')).toBe(
+      '/api/v1/design-schemes/assets/cover-1/content',
+    );
+  });
+
   it('enabled fixture:页面经云端 gateway 拉取并渲染列表', async () => {
     const enabled = { ...WEB_CAPABILITIES, hasDesignSchemes: true };
     const { designSchemes, Providers } = makeHarness({ capabilities: enabled });

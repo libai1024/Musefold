@@ -1,9 +1,11 @@
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
+  type DesignSchemeRunInput,
+  runResultSchema,
   createDesignSchemeInputSchema,
   type DesignSchemeRevisionDocument,
 } from '@musefold/contracts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CloudDesignSchemeUnavailableError,
   createCloudDesignSchemesGateway,
@@ -106,8 +108,26 @@ const createInput = createDesignSchemeInputSchema.parse({
 });
 
 beforeEach(() => vi.restoreAllMocks());
+afterEach(() => vi.useRealTimers());
 
 describe('cloud Design Schemes HTTP adapter', () => {
+  it('forwards permanent deletion with its exact version and validates the persisted receipt', async () => {
+    const receipt = { schemeId: 'scheme_1', purged: true, retiredKeys: 2, deferredKeys: 1 };
+    const transport = fetchQueue([
+      jsonResponse(receipt),
+      jsonResponse({ ...receipt, retiredKeys: -1 }),
+    ]);
+    const gateway = createCloudDesignSchemesGateway(
+      new ApiHttp({ baseUrl: 'https://api.test', fetch: transport.fetch }),
+    );
+    const input = { schemeId: 'scheme_1', expectedVersion: 8 };
+    await expect(gateway.purge(input)).resolves.toEqual(receipt);
+    expect(transport.calls[0]?.url.pathname).toBe('/api/v1/design-schemes/purge');
+    expect(transport.calls[0]?.init?.method).toBe('POST');
+    expect(JSON.parse(String(transport.calls[0]?.init?.body))).toEqual(input);
+    await expect(gateway.purge(input)).rejects.toThrow();
+  });
+
   it('maps supported list/get/create/update/select/formalize/promote/rename/remove operations', async () => {
     const nextDocument = document({
       revisionId: 'revision_2',
@@ -339,12 +359,9 @@ describe('cloud Design Schemes HTTP adapter', () => {
       status: 501,
       retryable: false,
     });
-    expect(() => gateway.subscribeEvents(vi.fn())).toThrowError(
-      expect.objectContaining({
-        operation: 'subscribeEvents',
-        code: 'DESIGN_SCHEME_CLOUD_EVENTS_UNAVAILABLE',
-      }),
-    );
+    const unsubscribe = gateway.subscribeEvents(vi.fn());
+    expect(unsubscribe).toBeTypeOf('function');
+    unsubscribe();
   });
 
   it('rejects malformed successful list and detail responses', async () => {
@@ -362,5 +379,66 @@ describe('cloud Design Schemes HTTP adapter', () => {
 
     await expect(gateway.list({ limit: 20 })).rejects.toMatchObject({ name: 'ZodError' });
     await expect(gateway.get('scheme_1')).rejects.toMatchObject({ name: 'ZodError' });
+  });
+});
+
+describe('cloud scheme running and durable events', () => {
+  function result(status: 'planning' | 'cancelled') {
+    return runResultSchema.parse({
+      runId: 'run_1',
+      schemeId: 'scheme_1',
+      revisionId: 'revision_1',
+      mode: 'trial',
+      status,
+      compiledPrompt: 'Poster',
+      outputs: [],
+      steps: [],
+      evaluation: null,
+      repair: null,
+      error: null,
+      createdAt: NOW,
+      completedAt: status === 'cancelled' ? NOW : null,
+    });
+  }
+  const input = { executionId: 'execution_1' } as DesignSchemeRunInput;
+  it('waits for terminal status and emits cursor events without re-posting the paid operation', async () => {
+    vi.useFakeTimers();
+    const event = { kind: 'cancelled', executionId: 'execution_1', runId: 'run_1' };
+    const transport = fetchQueue([
+      jsonResponse(result('planning')),
+      jsonResponse({ events: [], nextSeq: 4 }),
+      jsonResponse(result('cancelled')),
+      jsonResponse({ events: [{ seq: 5, event }], nextSeq: 5 }),
+    ]);
+    const gateway = createCloudDesignSchemesGateway(
+      new ApiHttp({ baseUrl: 'https://api.test', fetch: transport.fetch }),
+    );
+    const listener = vi.fn();
+    const unsubscribe = gateway.subscribeEvents(listener);
+    gateway.subscribeEvents(() => {
+      throw new Error('Broken observer');
+    });
+    const pending = gateway.run(input);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(transport.calls).toHaveLength(2);
+    expect(listener).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await pending).toMatchObject({ status: 'cancelled' });
+    expect(listener).toHaveBeenCalledExactlyOnceWith(event);
+    expect(transport.calls.filter((call) => call.init?.method === 'POST')).toHaveLength(1);
+    expect(transport.calls.at(-1)?.url.searchParams.get('afterSeq')).toBe('4');
+    unsubscribe();
+  });
+  it('unsubscribes without leaving a background poll and surfaces transport failure for same-execution resumption', async () => {
+    const transport = fetchQueue([jsonResponse(result('cancelled'))]);
+    const gateway = createCloudDesignSchemesGateway(
+      new ApiHttp({ baseUrl: 'https://api.test', fetch: transport.fetch }),
+    );
+    const listener = vi.fn();
+    gateway.subscribeEvents(listener)();
+    expect((await gateway.run(input)).status).toBe('cancelled');
+    expect(listener).not.toHaveBeenCalled();
+    expect(transport.calls).toHaveLength(1);
+    await expect(gateway.run(input)).rejects.toThrow('Missing response');
   });
 });

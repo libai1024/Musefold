@@ -22,6 +22,8 @@ export default defineConfig({
       '@musefold/domain',
       '@musefold/contracts',
       '@musefold/new-api-client',
+      '@musefold/scheme-package',
+      '@musefold/managed-fs',
     ]),
   },
   test: {
@@ -38,6 +40,8 @@ export default defineConfig({
       // platform 没有独立 Vitest workspace;其 React context 合同由根任务收集。
       'packages/platform/**/*.test.tsx',
       'tests/repo/**/*.test.ts',
+      'tests/v25/__tests__/**/*.test.ts',
+      'scripts/**/__tests__/**/*.test.ts',
     ],
   },
 });

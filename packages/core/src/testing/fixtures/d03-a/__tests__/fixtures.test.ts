@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,7 @@ import {
   buildD03AFixtureCorpus,
   buildD03ADesignSchemeFixture,
   buildD03ALegacyFixture,
+  createD03ATestRoot,
   removeD03ATestRoot,
   scanD03AFixture,
   scanD03AFixtureFile,
@@ -41,6 +42,23 @@ function staticManifest(): {
 }
 
 describe('D03-A synthetic fixture corpus', () => {
+  it('isolates repeated runs with the same label from an earlier unfinished backup', () => {
+    const first = createD03ATestRoot('musefold-d03-isolation-');
+    roots.push(first);
+    writeFileSync(join(first, 'unfinished-backup.db'), 'owned previous-run marker');
+    const second = createD03ATestRoot('musefold-d03-isolation-');
+    roots.push(second);
+    expect(second).not.toBe(first);
+    expect(existsSync(join(second, 'unfinished-backup.db'))).toBe(false);
+    const firstCorpus = buildD03ALegacyFixture(first);
+    const secondCorpus = buildD03ALegacyFixture(second);
+    expect(secondCorpus.canonicalHash).toBe(firstCorpus.canonicalHash);
+    removeD03ATestRoot(second);
+    expect(readFileSync(join(first, 'unfinished-backup.db'), 'utf8')).toBe(
+      'owned previous-run marker',
+    );
+  });
+
   it('builds two independent disposable databases with provenance metadata', () => {
     const corpus = buildD03AFixtureCorpus(testRoot('d03-a-corpus'));
 

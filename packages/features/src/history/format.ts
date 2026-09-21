@@ -211,6 +211,25 @@ export function threadJobs(jobs: readonly GenerationJob[]): ThreadedJob[] {
   return items;
 }
 
+/**
+ * 虚拟项 = 线程(根 + 微调子回合),不是单回合。
+ * 入参已是 threadJobs 扁平序,按 threadRootId 连续归组即可。
+ */
+export function groupHistoryThreads(items: readonly ThreadedJob[]): ThreadedJob[][] {
+  const groups: ThreadedJob[][] = [];
+  const indexByRoot = new Map<string, ThreadedJob[]>();
+  for (const item of items) {
+    let group = indexByRoot.get(item.threadRootId);
+    if (!group) {
+      group = [];
+      indexByRoot.set(item.threadRootId, group);
+      groups.push(group);
+    }
+    group.push(item);
+  }
+  return groups;
+}
+
 /** 微调标签:根行不标;孤儿标「微调」,子行标「微调 n」(承旧 refinementLabel)。 */
 export function refinementLabel(item: ThreadedJob): string | null {
   if (item.depth > 0) return `微调 ${item.refinementIndex}`;

@@ -63,7 +63,7 @@ Agent 卡已与生图卡并列交付(2026-09-03),B1-T3 起共用 `listModels` / 
 | P2 | 接入预设目录 | **已收口** `connection-presets.ts` |
 | P3 | 无 Key 前置提示与聚焦;`role="status"` | **已收口**(0702-C2) |
 
-> 仍挂:「需要重启应用」逃生门随桌面装壳(02 §7 P2);Agent key 失效后的可解释引导(S01)。
+> 仍挂:「需要重启应用」逃生门已由 B2-T3 接 `useRelaunchApp()`。S01 产品面已于 2026-09-06 B4-T3 闭合(连接测试失败引导 + 工作台/历史 `check_key` 深链连接分区);safeStorage/asar 扫描仍属 S01 全卡。
 
 ## 7. Codex 增益(C 系列,语汇见 [00-codex-craft.md](./00-codex-craft.md))
 

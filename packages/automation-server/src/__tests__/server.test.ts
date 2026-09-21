@@ -1,4 +1,17 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import * as discovery from '../discovery';
+const sockets = vi.hoisted(() => [] as import('node:http').Server[]);
+vi.mock('node:http', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:http')>();
+  return {
+    ...actual,
+    createServer: (...args: Parameters<typeof actual.createServer>) => {
+      const server = actual.createServer(...args);
+      sockets.push(server);
+      return server;
+    },
+  };
+});
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,9 +22,19 @@ import { discoveryFileMode, readDiscoveryFile } from '../discovery';
 const resources: Array<{ dir: string; stop?: () => Promise<void> }> = [];
 afterEach(async () => {
   for (const resource of resources.splice(0)) {
-    await resource.stop?.();
+    try {
+      await resource.stop?.();
+    } catch {
+      /* Preserve test failure; close captured real servers below. */
+    }
+    chmodSync(resource.dir, 0o700);
     rmSync(resource.dir, { recursive: true, force: true });
   }
+  for (const server of sockets.splice(0)) {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  vi.restoreAllMocks();
 });
 
 function createFixture(overrides: Record<string, unknown> = {}) {
@@ -151,3 +174,42 @@ describe('automation server', () => {
     ).toThrowError(AutomationError);
   });
 });
+
+it.skipIf(process.platform === 'win32')(
+  'still closes the actual listener if removing owned discovery fails on disk',
+  async () => {
+    const { dir, server } = createFixture();
+    const info = await server.start();
+    const originalRemove = discovery.removeDiscoveryFileIfOwned;
+    let filesystemError: string | undefined;
+    vi.spyOn(discovery, 'removeDiscoveryFileIfOwned').mockImplementationOnce((...args) => {
+      const mode = statSync(dir).mode & 0o777;
+      chmodSync(dir, 0o500);
+      try {
+        return originalRemove(...args);
+      } catch (error) {
+        filesystemError = (error as NodeJS.ErrnoException).code;
+        throw error;
+      } finally {
+        chmodSync(dir, mode);
+      }
+    });
+    const outcome = await server.stop().then(
+      () => 'closed',
+      () => 'rejected',
+    );
+    const stillListening = server.listening;
+    const stale = readDiscoveryFile(dir);
+    expect(filesystemError).toBe('EACCES');
+    expect({ outcome, stillListening, info: server.info }).toEqual({
+      outcome: 'closed',
+      stillListening: false,
+      info: null,
+    });
+    expect(stale?.port).toBe(info.port);
+    await expect(
+      request(info, '/v1/health', { signal: AbortSignal.timeout(1000) }),
+    ).rejects.toThrow();
+    await expect(server.stop()).resolves.toBeUndefined();
+  },
+);

@@ -1,5 +1,6 @@
 'use client';
 
+import { canKeepLocalSyncConflict } from '@musefold/contracts';
 import type {
   DesktopSyncConsent,
   DesktopSyncPhase,
@@ -23,6 +24,8 @@ import { Spinner } from '@musefold/ui/components/spinner';
 import { toast } from '@musefold/ui/components/sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { LocalWorkspaceRecovery } from './LocalWorkspaceRecovery';
+import { useLocalWorkspaceRecovery } from './workspace-recovery-hooks';
 import {
   useResolveSyncConflict,
   useSetSyncConsent,
@@ -109,6 +112,12 @@ function summarizeSnapshot(
  */
 export function CloudSyncPanel() {
   const status = useSyncStatus();
+  const recovery = useLocalWorkspaceRecovery();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (recovery.supported && status.data?.reviewRef !== undefined)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sync.localWorkspaces() });
+  }, [queryClient, recovery.supported, status.data?.reviewRef]);
 
   return (
     <Card data-testid="settings-sync-card">
@@ -116,40 +125,73 @@ export function CloudSyncPanel() {
         <CardTitle>云同步</CardTitle>
         <CardDescription>提示词库跨设备同步;开关独立于登录,数据仅在开启后上云</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {recovery.supported &&
+          (recovery.status.isPending ? (
+            <Skeleton className="h-20 w-full" />
+          ) : recovery.status.isError ? (
+            <div role="alert" className="space-y-2 text-sm">
+              <p>本机提示词库读取失败</p>
+              <Button variant="outline" size="sm" onClick={() => void recovery.status.refetch()}>
+                重新读取本机数据
+              </Button>
+            </div>
+          ) : (
+            <LocalWorkspaceRecovery
+              data={recovery.status.data}
+              refresh={() => void recovery.status.refetch()}
+            />
+          ))}
         {status.isPending ? (
           <Skeleton className="h-9 w-full" />
         ) : status.isError ? (
-          <p className="text-destructive text-sm">同步状态读取失败,请重试</p>
+          <div className="space-y-2 text-destructive text-sm">
+            <p>同步状态读取失败,请重试</p>
+            <Button variant="outline" size="sm" onClick={() => void status.refetch()}>
+              刷新同步状态
+            </Button>
+          </div>
         ) : (
-          <SyncControls data={status.data} />
+          <SyncControls
+            data={status.data}
+            workspaceReady={!recovery.supported || recovery.status.data?.targetReady === true}
+          />
         )}
       </CardContent>
     </Card>
   );
 }
 
-function SyncControls({ data }: { data: DesktopSyncStatus }) {
+function SyncControls({
+  data,
+  workspaceReady,
+}: {
+  data: DesktopSyncStatus;
+  workspaceReady: boolean;
+}) {
   const setConsent = useSetSyncConsent();
   const syncNow = useSyncNow();
 
   const transportBusy = setConsent.isPending || syncNow.isPending;
   const runtimeBusy = data.phase === 'enabling' || data.phase === 'syncing';
-  const busy = transportBusy || runtimeBusy;
+  const busy = transportBusy || runtimeBusy || data.reviewRef === null;
 
   const runConsent = (next: DesktopSyncConsent) => {
-    setConsent.mutate(next, {
-      onSuccess: (status) => {
-        if (status.phase === 'error') {
-          toast.error(`操作已完成,但同步失败:${status.error ?? '未知错误'}`);
-        } else if (next === 'enabled') {
-          toast.success(data.consent === 'paused' ? '同步已继续' : '云同步已开启');
-        } else if (next === 'paused') {
-          toast.success('同步已暂停,本地变更会在继续后上传');
-        }
+    setConsent.mutate(
+      { consent: next, ...(data.reviewRef === undefined ? {} : { reviewRef: data.reviewRef }) },
+      {
+        onSuccess: (status) => {
+          if (status.phase === 'error') {
+            toast.error(`操作已完成,但同步失败:${status.error ?? '未知错误'}`);
+          } else if (next === 'enabled') {
+            toast.success(data.consent === 'paused' ? '同步已继续' : '云同步已开启');
+          } else if (next === 'paused') {
+            toast.success('同步已暂停,本地变更会在继续后上传');
+          }
+        },
+        onError: (error) => toast.error(errorMessage(error)),
       },
-      onError: (error) => toast.error(errorMessage(error)),
-    });
+    );
   };
 
   const runSyncNow = () => {
@@ -160,10 +202,28 @@ function SyncControls({ data }: { data: DesktopSyncStatus }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {data.phase === 'signed_out' ? (
+      {data.phase === 'auth_blocked' ? (
+        <div role="alert" className="text-destructive text-sm" data-testid="sync-error">
+          <Badge variant="destructive" data-testid="sync-phase">
+            登录失效
+          </Badge>
+          登录状态已失效或账号尚未验证，请在账号面板重新登录或完成恢复后再继续同步。
+          {data.error && <p>{data.error}</p>}
+        </div>
+      ) : data.phase === 'signed_out' ? (
         <SignedOutNotice />
       ) : data.consent === 'unset' ? (
-        <ConsentPrompt busy={busy} onEnable={() => runConsent('enabled')} />
+        workspaceReady ? (
+          <ConsentPrompt
+            accountName={data.account?.username}
+            busy={busy}
+            onEnable={() => runConsent('enabled')}
+          />
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            先在上方查看本机数据，选择复制提示词库或建立空库，再开启云同步。
+          </p>
+        )
       ) : (
         <>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -238,17 +298,13 @@ function SyncControls({ data }: { data: DesktopSyncStatus }) {
             </span>
           </div>
 
-          {(data.phase === 'error' || data.phase === 'auth_blocked') && (
+          {data.phase === 'error' && (
             <div
               className="flex flex-col gap-1 text-destructive text-xs"
               role="alert"
               data-testid="sync-error"
             >
-              <p>
-                {data.phase === 'auth_blocked'
-                  ? '登录状态失效,同步已暂停上传;请重新登录后重试'
-                  : '同步出错,可重试「立即同步」'}
-              </p>
+              <p>同步出错,可重试「立即同步」</p>
               {data.error && <p className="break-words">{data.error}</p>}
             </div>
           )}
@@ -277,11 +333,20 @@ function SignedOutNotice() {
 }
 
 /** 首次同意(unset / awaiting_consent):显式 CTA,不用 Switch 混淆 paused/unset。 */
-function ConsentPrompt({ busy, onEnable }: { busy: boolean; onEnable: () => void }) {
+function ConsentPrompt({
+  busy,
+  onEnable,
+  accountName,
+}: {
+  busy: boolean;
+  onEnable: () => void;
+  accountName?: string;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         <p className="font-medium text-foreground text-sm">同步未开启</p>
+        {accountName && <p className="text-muted-foreground text-xs">账号：{accountName}</p>}
         <p className="mt-0.5 text-muted-foreground text-xs" data-testid="sync-subtitle">
           开启后提示词、文件夹与标签将同步到云端
         </p>
@@ -365,6 +430,7 @@ function ConflictRow({ conflict }: { conflict: SyncConflictSummary }) {
 
   const local = summarizeSnapshot(conflict.localSnapshot, conflict.entityId);
   const remote = summarizeSnapshot(conflict.remoteSnapshot, conflict.entityId);
+  const canKeepLocal = canKeepLocalSyncConflict(conflict);
 
   const run = (resolution: SyncConflictResolution) => {
     resolve.mutate(
@@ -409,6 +475,11 @@ function ConflictRow({ conflict }: { conflict: SyncConflictSummary }) {
           </dd>
         </div>
       </dl>
+      {!canKeepLocal && (
+        <p className="text-muted-foreground text-xs">
+          此分类已在云端永久删除，无法恢复。保留云端会移除本机分类，提示词内容会保留。
+        </p>
+      )}
       {rowError && (
         <p className="break-words text-destructive text-xs" role="alert">
           处理失败:{errorMessage(rowError)},可重试
@@ -428,7 +499,7 @@ function ConflictRow({ conflict }: { conflict: SyncConflictSummary }) {
           variant="outline"
           size="sm"
           className="whitespace-nowrap"
-          disabled={rowBusy}
+          disabled={rowBusy || !canKeepLocal}
           onClick={() => run('local')}
         >
           保留本地

@@ -3,6 +3,7 @@
 // 详见 docs/05-image-generation.md §4、docs/01-architecture.md §3.1
 
 import Store from 'electron-store';
+import { createHash } from 'node:crypto';
 import { STORE_NAME } from '@musefold/core/constants';
 import { resolveSafeStorage } from './e2e-safe-storage';
 import { ensureOsCryptKeyPersisted } from './os-crypt-durability';
@@ -31,11 +32,20 @@ export function saveApiKey(providerId: string, apiKey: string): void {
 
 /** 读取并解密 API key（明文仅在主进程内存） */
 export function loadApiKey(providerId: string): string | null {
+  return loadApiKeySnapshot(providerId)?.key ?? null;
+}
+
+/** Same ciphertext read binds the in-memory key to an opaque revision; neither leaves main. */
+export function loadApiKeySnapshot(providerId: string): { key: string; epoch: string } | null {
   const b64 = store.get(`keys.${providerId}`);
   if (!b64) return null;
   try {
     const buf = Buffer.from(b64, 'base64');
-    return resolveSafeStorage().decryptString(buf);
+    return {
+      key: resolveSafeStorage().decryptString(buf),
+      // Hash ciphertext, never plaintext key material or a key suffix.
+      epoch: createHash('sha256').update(buf).digest('hex'),
+    };
   } catch {
     // 密文在但解不开 = 系统主密钥换了，界面只会显示「未配置」。留一行日志好定位。
     console.warn(`[security] provider ${providerId} 的密钥无法解密，系统主密钥可能已变更`);

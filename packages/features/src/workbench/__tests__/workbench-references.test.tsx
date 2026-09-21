@@ -185,9 +185,16 @@ function createMemoryHost(options?: { prompts?: PromptDocument[]; seedJobs?: Gen
       return session;
     },
     restoreSession: async (id) => requireSession(id),
+    purgeSession: async () => {
+      throw new Error('Session cleanup is not used by this reference fixture');
+    },
+    emptyTrash: async () => {
+      throw new Error('Session cleanup is not used by this reference fixture');
+    },
   };
 
   const generation: GenerationGateway = {
+    releaseReferenceImage: async () => {},
     create: async (input) => {
       generationCreates.push(input);
       return createJob(input);
@@ -305,7 +312,7 @@ function renderWorkbench(host: ReturnType<typeof createMemoryHost>) {
       </QueryClientProvider>
     );
   }
-  render(<WorkbenchScreen />, { wrapper: Providers });
+  return render(<WorkbenchScreen />, { wrapper: Providers });
 }
 
 /** 打开「添加上下文」菜单并进入参考素材面板(jsdom 默认移动形态:底部 Dialog)。 */
@@ -791,7 +798,7 @@ describe('工作台 × 提示词引用(端到端)', () => {
     };
     const host = createMemoryHost({ seedJobs: [referenceOnly] });
     void host.workbench.createSession({ title: '引用创作' });
-    renderWorkbench(host);
+    const view = renderWorkbench(host);
     await waitFor(() => {
       expect(screen.getByTestId('job-job-ref-only')).toBeTruthy();
     });
@@ -820,10 +827,18 @@ describe('工作台 × 提示词引用(端到端)', () => {
     await userEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
 
-    // 重试 = 精确快照动作:新回合保留同一 userPrompt 与不可变引用。
+    expect(screen.queryByTestId('job-retry')).toBeNull();
+    view.unmount();
+    const retryHost = createMemoryHost({
+      seedJobs: [{ ...referenceOnly, status: 'cancelled', assets: [] }],
+    });
+    await retryHost.workbench.createSession({ title: '引用创作' });
+    renderWorkbench(retryHost);
+    await waitFor(() => expect(screen.getByTestId('job-retry')).toBeTruthy());
+    // 合法已取消记录的重试 = 精确快照动作:新回合保留同一 userPrompt 与不可变引用。
     await userEvent.click(screen.getByTestId('job-retry'));
     await waitFor(async () => {
-      const retryJob = [...(await host.generation.list({})).items].find(
+      const retryJob = [...(await retryHost.generation.list({})).items].find(
         (job) => job.id !== 'job-ref-only',
       );
       expect(retryJob?.userPrompt).toBe('');

@@ -39,9 +39,9 @@
       "artifact": null,
       "skipReason": null,
       "blockedReason": null,
-      "unregisteredReason": "当前树 `pnpm run check` 已通过；最新完整 v25 E2E 为 98 passed、1 failed、5 skipped，唯一失败是 macOS 原生 fullscreen 前 Electron shell 无法取得前台焦点；完整 Electron project 为 33 passed、1 failed、1 skipped，同一 shell focus 前置失败。运行结果仍未绑定 current commit 和 machine-readable report/artifact，不能登记为 pass",
+      "unregisteredReason": "当前1850项bb580e98…的会话机制开发及本地联合验证完成：check38/38，API1153P且2条件另验，Worker320P+实际新镜像2P，根77条件项分别补验，完整三端552P/0F/13S/0flaky（60分钟、0重试），最终macOS arm64 ad-hoc包7P/三真实旧备份3P且原件未改。源码/包/49真实ZIP扫描0/0，23构建文件/7集成文件/原生字节匹配，首败保留。13S为3视口不适用、2真实镜像UI已另验、8独立实网入口未执行。New API账号扩展已按明确授权备份并生产部署，7.016秒健康；旧会话保留、真实新协议/释放通过、测试会话归零。事后仅验证账号last_login_at正常变化，积分/计费/其他用户不变，首败审计与字段级终态均保留。任务91/96；Musefold v1.1公共站点未切换，真实同步/收费方案、完整MVP及正式发布条件仍开放。Windows延期，未提交，不登记整包正式完成。最新证据见V25-LOGIN-SESSIONS.md§8.3–§10及new-api-deploy-20260920报告。",
       "failureReason": null,
-      "rerun": "在当前 HEAD 生成 Web/Electron 并完成全部 B00 门禁后，以持久 report/artifact 重新登记"
+      "rerun": "取得当前源码的完整报告及原定平台/实网验收证据，复核原任务清单与构建身份；提交后按manifest契约登记正式report/artifact，不删除未验条件，不用历史或局部报告代替。"
     },
     {
       "id": "B01-cross-host-contract",

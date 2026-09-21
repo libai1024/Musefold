@@ -143,7 +143,10 @@ export async function commandGenerate(
 
   let lastPhase = '';
   const noWait = flags['no-wait'] === true;
-  const submitted = await client.startGeneration(body);
+  // 幂等键 = 调用者自选的意图身份：跨重试复用同一键才可安全重放；不传保持无键行为
+  const idempotencyKey =
+    typeof flags['idempotency-key'] === 'string' ? flags['idempotency-key'] : undefined;
+  const submitted = await client.startGeneration(body, idempotencyKey);
 
   if (noWait) {
     if (context.json)

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -90,6 +91,8 @@ export const prompts = pgTable(
      * 云端存对象存储公开/签名 URL;NULL = 无封面。绝不存本地路径。
      */
     coverImageUrl: varchar('cover_image_url', { length: 4096 }),
+    /** Internal irreversible-retention marker; never a restorable partially cleaned document. */
+    purgeStartedAt: timestamp('purge_started_at', { withTimezone: true, mode: 'date' }),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -97,6 +100,10 @@ export const prompts = pgTable(
   },
   (table) => [
     index('prompts_user_updated_idx').on(table.userId, table.updatedAt),
+    check(
+      'prompts_purge_state_check',
+      sql`${table.purgeStartedAt} IS NULL OR ${table.deletedAt} IS NOT NULL`,
+    ),
     index('prompts_user_folder_idx').on(table.userId, table.folderId),
   ],
 );
@@ -133,5 +140,6 @@ export const promptUsageEvents = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.eventId] }),
     index('prompt_usage_events_prompt_idx').on(table.userId, table.promptId),
+    index('prompt_usage_events_retention_idx').on(table.promptId, table.userId, table.eventId),
   ],
 );

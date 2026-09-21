@@ -83,8 +83,12 @@ describe('v2.5 migration evidence manifest', () => {
 
   it('does not allow skip or unregistered evidence to masquerade as pass', () => {
     const manifest = readMigrationEvidenceManifest();
-    expect(manifest.claims.some((claim) => claim.result === 'pass')).toBe(false);
-    expect(manifest.claims.some((claim) => claim.result === 'unregistered')).toBe(true);
+    for (const claim of manifest.claims.filter((claim) => claim.result === 'pass')) {
+      expect(claim.commit).toMatch(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+      expect(claim.report || claim.artifact).toBeTruthy();
+      expect(claim.testCases.length).toBeGreaterThan(0);
+      expect(claim.testCases.every((testCase) => testCase.result === 'pass')).toBe(true);
+    }
 
     const invalidSkip = structuredClone(manifest);
     invalidSkip.claims[2] = {

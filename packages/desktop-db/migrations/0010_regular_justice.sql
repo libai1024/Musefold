@@ -1,0 +1,1 @@
+ALTER TABLE `workbench_sessions` ADD `version` integer DEFAULT 1 NOT NULL;

@@ -168,6 +168,7 @@ export const designSchemeSourceFiles = pgTable(
   (table) => [
     primaryKey({ columns: [table.snapshotId, table.relativePath] }),
     index('design_scheme_source_files_user_snapshot_idx').on(table.userId, table.snapshotId),
+    index('design_scheme_source_files_object_idx').on(table.objectKey),
     foreignKey({
       columns: [table.snapshotId, table.userId],
       foreignColumns: [designSchemeSourceSnapshots.id, designSchemeSourceSnapshots.userId],
@@ -249,7 +250,10 @@ export const designSchemeAssets = pgTable(
       'design_scheme_assets_role_check',
       sql`${table.role} IN ('cover', 'example', 'reference', 'output')`,
     ),
-    check('design_scheme_assets_origin_check', sql`${table.origin} IN ('repository', 'local-run')`),
+    check(
+      'design_scheme_assets_origin_check',
+      sql`${table.origin} IN ('repository', 'local-run', 'uploaded', 'cloud-run')`,
+    ),
     check('design_scheme_assets_dimensions_check', sql`${table.width} > 0 AND ${table.height} > 0`),
     check('design_scheme_assets_byte_size_check', sql`${table.byteSize} >= 0`),
   ],
@@ -262,8 +266,10 @@ export const designSchemeRuns = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    schemeId: varchar('scheme_id', { length: 64 }).notNull(),
-    revisionId: varchar('revision_id', { length: 64 }).notNull(),
+    schemeId: varchar('scheme_id', { length: 64 }),
+    revisionId: varchar('revision_id', { length: 64 }),
+    originSchemeId: varchar('origin_scheme_id', { length: 64 }),
+    originRevisionId: varchar('origin_revision_id', { length: 64 }),
     mode: varchar('mode', { length: 12 }).notNull(),
     status: varchar('status', { length: 20 }).notNull(),
     policy: jsonb('policy').$type<Record<string, unknown>>().notNull(),

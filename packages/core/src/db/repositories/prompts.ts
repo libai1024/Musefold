@@ -5,7 +5,7 @@ import { ulid } from 'ulid';
 import type { Prompt, NewPrompt, PromptParams } from '@musefold/desktop-contracts/models';
 import type { ListPromptsQuery, UpdatePromptPatch } from '@musefold/desktop-contracts/ipc';
 import type { PromptStats } from '@musefold/desktop-contracts/ipc';
-import type { SyncUsageAction } from '@musefold/contracts';
+import type { SyncUsageAction, ParsedPromptListQuery } from '@musefold/contracts';
 import { UNFILED_FOLDER_ID } from '@musefold/domain/constants';
 import { getDb } from '../index';
 import { parseJsonColumn } from '../json';
@@ -143,10 +143,34 @@ function buildOrderBy(sort: ListPromptsQuery['sort'], dir: ListPromptsQuery['sor
   return `p.is_pinned DESC, CASE WHEN p.is_pinned = 1 THEN p.pin_order END ASC, ${key} ${direction}, p.updated_at DESC, p.id DESC`;
 }
 
+type PromptListWindow = Pick<ParsedPromptListQuery, 'includeDeleted' | 'deletedOnly'> & {
+  offset: number;
+  limit: number;
+};
+
 export const promptsRepo = {
-  list(q: ListPromptsQuery = {}, workspaceId?: string): Prompt[] {
+  /** Rebuild after taxonomy changes; caller owns the surrounding write transaction. */
+  refreshSearchIndex(id: string, workspaceId?: string): void {
+    syncFts(id, workspaceId);
+  },
+  list(q: ListPromptsQuery = {}, workspaceId?: string, pageWindow?: PromptListWindow): Prompt[] {
     const db = getDb();
     const scope = workspaceId ?? resolveLocalContentWorkspace(db);
+    if (
+      pageWindow &&
+      (!Number.isSafeInteger(pageWindow.offset) ||
+        pageWindow.offset < 0 ||
+        !Number.isInteger(pageWindow.limit) ||
+        pageWindow.limit < 1 ||
+        pageWindow.limit > 101)
+    ) {
+      throw new RangeError('Invalid prompt page window');
+    }
+    const deletedPredicate = pageWindow?.deletedOnly
+      ? 'p.deleted_at IS NOT NULL'
+      : pageWindow?.includeDeleted
+        ? '1=1'
+        : 'p.deleted_at IS NULL';
 
     // 走 FTS5 搜索时，用 BM25 排序；否则走普通查询
     const match = q.search ? buildMatchQuery(q.search) : null;
@@ -155,7 +179,7 @@ export const promptsRepo = {
       let sql = `
         SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts_fts f
         JOIN prompts p ON p.rowid = f.rowid
-        WHERE prompts_fts MATCH ? AND p.workspace_id = ? AND p.deleted_at IS NULL
+        WHERE prompts_fts MATCH ? AND p.workspace_id = ? AND ${deletedPredicate}
       `;
       const values: unknown[] = [match, scope];
       if (q.folderId === UNFILED_FOLDER_ID) {
@@ -201,13 +225,14 @@ export const promptsRepo = {
       }
       // 搜索态按相关度排序（bm25），但收藏仍归到置顶区，与 UI 分区一致
       sql +=
-        ' ORDER BY p.is_pinned DESC, CASE WHEN p.is_pinned = 1 THEN p.pin_order END ASC, bm25(prompts_fts) LIMIT 500';
+        ' ORDER BY p.is_pinned DESC, CASE WHEN p.is_pinned = 1 THEN p.pin_order END ASC, bm25(prompts_fts), p.updated_at DESC, p.id DESC LIMIT ? OFFSET ?';
+      values.push(pageWindow?.limit ?? 500, pageWindow?.offset ?? 0);
       const rows = db.prepare(sql).all(...values);
       return rows.map(rowToPrompt).map((row) => attachTags(row, scope));
     }
 
     // 非搜索路径
-    let sql = `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.workspace_id = ? AND p.deleted_at IS NULL`;
+    let sql = `SELECT p.*, ${COVER_IMAGE_SELECT} FROM prompts p WHERE p.workspace_id = ? AND ${deletedPredicate}`;
     const values: unknown[] = [scope];
     if (q.folderId === UNFILED_FOLDER_ID) {
       sql += ' AND p.folder_id IS NULL';
@@ -249,7 +274,8 @@ export const promptsRepo = {
       values.push(scope, ...q.tagIds, q.tagIds.length);
     }
     // 收藏优先置顶
-    sql += ` ORDER BY ${buildOrderBy(q.sort, q.sortDir)} LIMIT 1000`;
+    sql += ` ORDER BY ${buildOrderBy(q.sort, q.sortDir)} LIMIT ? OFFSET ?`;
+    values.push(pageWindow?.limit ?? 1000, pageWindow?.offset ?? 0);
     const rows = db.prepare(sql).all(...values);
     return rows.map(rowToPrompt).map((row) => attachTags(row, scope));
   },
@@ -302,7 +328,7 @@ export const promptsRepo = {
       syncFts(id, scope);
       enqueueActiveAccountMutation(db, 'prompt', id, 'create', scope);
     })();
-    return requirePrompt(this.get(id));
+    return requirePrompt(this.get(id, scope));
   },
 
   update(id: string, patch: UpdatePromptPatch, workspaceId?: string): Prompt {
@@ -371,7 +397,7 @@ export const promptsRepo = {
       syncFts(id, scope);
       enqueueActiveAccountMutation(db, 'prompt', id, 'update', scope);
     })();
-    return requirePrompt(this.get(id));
+    return requirePrompt(this.get(id, scope));
   },
 
   softDelete(id: string, workspaceId?: string): void {
@@ -431,10 +457,11 @@ export const promptsRepo = {
   purgeAllDeleted(workspaceId?: string): number {
     const db = getDb();
     const scope = workspaceId ?? resolveLocalContentWorkspace(db);
-    const ids = db
-      .prepare('SELECT id FROM prompts WHERE workspace_id = ? AND deleted_at IS NOT NULL')
-      .all(scope) as { id: string }[];
-    db.transaction(() => {
+    return db.transaction(() => {
+      // Select and delete under the same transaction, including FTS and sync mutations.
+      const ids = db
+        .prepare('SELECT id FROM prompts WHERE workspace_id = ? AND deleted_at IS NOT NULL')
+        .all(scope) as { id: string }[];
       for (const { id } of ids) {
         removeFts(id, scope);
         db.prepare('DELETE FROM prompt_tags WHERE workspace_id = ? AND prompt_id = ?').run(
@@ -444,8 +471,8 @@ export const promptsRepo = {
         db.prepare('DELETE FROM prompts WHERE workspace_id = ? AND id = ?').run(scope, id);
         enqueueActiveAccountMutation(db, 'prompt', id, 'delete', scope);
       }
+      return ids.length;
     })();
-    return ids.length;
   },
 
   /**

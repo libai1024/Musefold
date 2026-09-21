@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
+  designSchemePageSchema,
   type DesignSchemeRevisionDocument,
 } from '@musefold/contracts';
 import { type MusefoldDatabase, createDatabase, migrateDatabase } from '@musefold/db';
@@ -262,6 +263,87 @@ describeDb('Design Scheme detail revision selector (real PostgreSQL)', () => {
     expect(errors[1]).toEqual(errors[0]);
     expect(errors[2]).toEqual(errors[0]);
   });
+
+  it('lists all removed schemes with exact microsecond cursors, literal filters and owner isolation', async () => {
+    const service = new DesignSchemeService(db);
+    for (let index = 0; index < 205; index++) {
+      const id = `paging_${String(index).padStart(3, '0')}`;
+      await service.create(
+        OWNER_ID,
+        createInput({ ...document(id, `revision_${id}`), name: `Paging 100%_ ÄBC ${index}` }),
+      );
+      await pool.query(
+        `UPDATE design_schemes SET deleted_at = now(), version = 2,
+        updated_at = '2026-09-19T00:00:00.000100Z'::timestamptz + ($2::int * interval '1 microsecond')
+        WHERE id = $1`,
+        [id, index % 3],
+      );
+    }
+    await service.create(
+      OWNER_ID,
+      createInput(document('paging_active', 'paging_active_revision')),
+    );
+    await service.create(
+      OTHER_OWNER_ID,
+      createInput(document('paging_other', 'paging_other_revision')),
+    );
+    await pool.query("UPDATE design_schemes SET deleted_at=now() WHERE id='paging_other'");
+    const expected = (
+      await pool.query(
+        `SELECT id FROM design_schemes WHERE user_id=$1
+      AND deleted_at IS NOT NULL AND id LIKE 'paging%'
+      ORDER BY updated_at DESC, id COLLATE "C" DESC`,
+        [OWNER_ID],
+      )
+    ).rows.map((row) => row.id);
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const query = new URLSearchParams({ deletedOnly: 'true', query: 'paging_', limit: '31' });
+      if (cursor) query.set('cursor', cursor);
+      const response = await ownerApp.request(`/design-schemes?${query}`);
+      expect(response.status).toBe(200);
+      const page = designSchemePageSchema.parse(await response.json());
+      expect(page.items.every((item) => item.version === 2)).toBe(true);
+      if (!cursor) {
+        expect(page.items).toHaveLength(31);
+        if (!page.nextCursor) throw new Error('Expected a second page');
+        const payload = JSON.parse(Buffer.from(page.nextCursor, 'base64url').toString());
+        expect(payload.updatedAt).toMatch(/\.000102Z$/);
+        const wrongScope = await ownerApp.request(
+          `/design-schemes?${new URLSearchParams({ cursor: page.nextCursor, deletedOnly: 'false', query: 'paging_' })}`,
+        );
+        expect(wrongScope.status).toBe(400);
+        const literal = await ownerApp.request(
+          `/design-schemes?${new URLSearchParams({ deletedOnly: 'true', query: '%_', limit: '100' })}`,
+        );
+        expect(designSchemePageSchema.parse(await literal.json()).items).toHaveLength(100);
+        const noWildcard = await ownerApp.request(
+          `/design-schemes?${new URLSearchParams({ deletedOnly: 'true', query: '%__' })}`,
+        );
+        expect(designSchemePageSchema.parse(await noWildcard.json()).items).toHaveLength(0);
+        const unicode = await ownerApp.request(
+          `/design-schemes?${new URLSearchParams({ deletedOnly: 'true', query: 'äbc', limit: '100' })}`,
+        );
+        expect(designSchemePageSchema.parse(await unicode.json()).items).toHaveLength(100);
+      }
+      seen.push(...page.items.map((item) => item.id));
+      // Removing earlier pages must not make offset-style skips on subsequent pages.
+      await pool.query('DELETE FROM design_schemes WHERE id=ANY($1::text[]) AND user_id=$2', [
+        page.items.map((item) => item.id),
+        OWNER_ID,
+      ]);
+      cursor = page.nextCursor;
+    } while (cursor);
+    expect(seen).toEqual(expected);
+    expect(new Set(seen).size).toBe(205);
+    const active = await ownerApp.request('/design-schemes?query=paging_&deletedOnly=false');
+    expect(designSchemePageSchema.parse(await active.json()).items.map((item) => item.id)).toEqual([
+      'paging_active',
+    ]);
+    expect((await ownerApp.request('/design-schemes?deletedOnly=yes')).status).toBe(400);
+    expect((await ownerApp.request('/design-schemes?cursor=1')).status).toBe(400);
+  }, 30_000);
 
   it('validates selector shape and preserves owner isolation', async () => {
     for (const query of [

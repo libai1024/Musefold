@@ -1,8 +1,15 @@
 'use client';
 
+import { useRetryAction } from './use-retry-action';
+import { useSessionDraftWriter } from './use-session-draft-writer';
+import { SessionDraftConflictDialog } from './SessionDraftConflictDialog';
+import { AccountModelSelector } from './AccountModelSelector';
+import { useAccountModelChoice } from './use-account-model-choice';
+
 import {
   type CreationState,
   type DesignSchemeSummary,
+  type GenerationCount,
   type GenerationJob,
   MAX_REFERENCE_IMAGE_BYTES,
   MAX_REFERENCE_IMAGES,
@@ -10,7 +17,13 @@ import {
   type SourceConfirmation,
   type WorkbenchSession,
 } from '@musefold/contracts';
-import { queryKeys } from '@musefold/platform';
+import {
+  type PlatformCapabilities,
+  queryKeys,
+  useCapabilities,
+  useGateway,
+} from '@musefold/platform';
+import { createReferenceUploadLifetime } from './reference-upload-lifetime';
 import { Button } from '@musefold/ui/components/button';
 import {
   Select,
@@ -24,7 +37,7 @@ import { Spinner } from '@musefold/ui/components/spinner';
 import { toast } from '@musefold/ui/components/sonner';
 import { Plus } from '@musefold/ui/icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { HistorySourcePicker } from '../design-schemes/HistorySourcePicker';
 import { useDesignSchemesGateway } from '../design-schemes/hooks';
 import {
@@ -38,6 +51,7 @@ import {
 } from '../design-schemes/integration-store';
 import { SourceInstallConfirmDialog } from '../design-schemes/SchemeDialogs';
 import { SchemeRunPicker } from '../design-schemes/SchemeRunPicker';
+import { useCloudSchemeCreate } from '../design-schemes/use-cloud-scheme-create';
 import type { SchemeHistorySourceSelection } from '../design-schemes/types';
 import {
   Composer,
@@ -47,6 +61,21 @@ import {
   draftToComposerValue,
   toComposerRatio,
 } from './Composer';
+import { useAccountStatus } from '../account/hooks';
+import { useScreenIntent } from '../shell/screen-intent-store';
+import {
+  accountEpoch,
+  isAccountRestricted,
+  subscribeAccountEpoch,
+  assertAccountEpoch,
+} from '../account/account-session';
+import { KeyGuidanceAction } from '../history/KeyGuidanceAction';
+import {
+  HISTORY_ERROR_GUIDANCE,
+  normalizeHistoryErrorCode,
+  thrownErrorPresentation,
+} from '../history/error';
+import { rememberQuotaRecovery } from '../history/spend-recovery-store';
 import { GenerationTimeline, jobUserPromptText } from './GenerationTimeline';
 import {
   addPromptReference,
@@ -57,18 +86,16 @@ import { PromptReferenceDock } from './PromptReferencePanel';
 import { WorkbenchEmptyState } from './WorkbenchEmptyState';
 import {
   createGenerationMutationIntent,
-  createRetryGenerationMutationIntent,
   hasActiveJob,
   useCancelGeneration,
   useCreateGeneration,
   useCreateSession,
+  useMissingSession,
   usePromptReferenceResolutions,
   useProviders,
   useRemoveGeneration,
-  useRetryGeneration,
   useSessionJobs,
   useSessionList,
-  useUpdateSession,
   useUploadReferenceImage,
 } from './hooks';
 import { usePreferences } from '../settings/hooks';
@@ -78,24 +105,28 @@ import {
   resolveInheritedGenerationParams,
   useActiveSession,
 } from './session-store';
+import { useVisualViewportInset } from './use-visual-viewport-inset';
 
 const EMPTY_COMPOSER: ComposerValue = {
   prompt: '',
   negative: '',
   aspectRatio: 'auto',
   quality: 'auto',
+  count: 1,
   promptReferenceSelections: [],
 };
 
 const FALLBACK_GENERATION_DEFAULTS: GenerationParamDefaults = {
   defaultAspectRatio: 'auto',
   defaultQuality: 'auto',
+  defaultCount: 1,
 };
 
 function composerWithInheritedParams(
   composer: ComposerValue,
   defaults: GenerationParamDefaults | undefined,
   overrides: DraftParamOverrides,
+  maxCount: PlatformCapabilities['maxGenerationCount'] = 1,
 ): ComposerValue {
   const resolved = resolveInheritedGenerationParams(
     defaults ?? FALLBACK_GENERATION_DEFAULTS,
@@ -105,7 +136,16 @@ function composerWithInheritedParams(
     ...composer,
     aspectRatio: toComposerRatio(resolved.aspectRatio),
     quality: resolved.quality,
+    count: clampGenerationCount(resolved.count, maxCount),
   };
+}
+
+/** 宿主上限收窄(或偏好残留了更大的档)时把张数夹回可用档,避免提交超出能力的请求。 */
+function clampGenerationCount(
+  count: GenerationCount,
+  maxCount: PlatformCapabilities['maxGenerationCount'],
+): GenerationCount {
+  return count <= maxCount ? count : maxCount;
 }
 
 /**
@@ -116,6 +156,35 @@ export function deriveSessionTitle(prompt: string): string {
   const collapsed = prompt.replace(/\s+/g, ' ').trim();
   if (!collapsed) return '未命名创作';
   return collapsed.length > 24 ? `${collapsed.slice(0, 24)}…` : collapsed;
+}
+
+/** 时间线头顶标题展示上限(承旧 TitleBar 16 字截断;按 Unicode code point,不是 UTF-16)。 */
+const SESSION_TITLE_DISPLAY_CHARS = 16;
+
+/**
+ * 工作台头顶会话标题:超 16 个 Unicode 字符截断并加省略号;完整名走 title 属性。
+ */
+export function formatSessionTitle(title: string): string {
+  const chars = [...title];
+  return chars.length > SESSION_TITLE_DISPLAY_CHARS
+    ? `${chars.slice(0, SESSION_TITLE_DISPLAY_CHARS).join('')}…`
+    : title;
+}
+
+/**
+ * 活动任务摘要(承旧 titlebar-task-summary 活动标签)。
+ * 优先级:待审批 > 排队中 > 生成中 > 方案运行中 > 取消中;无活动则不展示。
+ */
+export function workbenchTaskSummary(
+  jobs: ReadonlyArray<Pick<GenerationJob, 'status'>>,
+  schemeRunning = false,
+): string | null {
+  if (jobs.some((job) => job.status === 'pending_approval')) return '待审批';
+  if (jobs.some((job) => job.status === 'queued')) return '排队中';
+  if (jobs.some((job) => job.status === 'running')) return '生成中';
+  if (schemeRunning) return '方案运行中';
+  if (jobs.some((job) => job.status === 'cancelling')) return '取消中';
+  return null;
 }
 
 /** objectURL 即时预览;测试环境(jsdom)未实现时退化为空串,由上传完成后的契约 url 兜底。 */
@@ -187,8 +256,17 @@ export interface WorkbenchScreenProps {
 export function WorkbenchScreen({
   onOpenSettings,
   onOpenPrompts,
-  designSchemes,
+  designSchemes: hostDesignSchemes,
 }: WorkbenchScreenProps = {}) {
+  const cloudCreate = useCloudSchemeCreate(hostDesignSchemes?.onOpenDesignSchemes);
+  const designSchemes = hostDesignSchemes
+    ? {
+        ...hostDesignSchemes,
+        ...(cloudCreate.onCreate
+          ? { onCreate: cloudCreate.onCreate, onModify: cloudCreate.onModify }
+          : {}),
+      }
+    : undefined;
   const activeId = useActiveSession((s) => s.activeSessionId);
   const setActiveId = useActiveSession((s) => s.setActiveSessionId);
   const draftSession = useActiveSession((s) => s.draftSession);
@@ -196,9 +274,51 @@ export function WorkbenchScreen({
   const draftParamOverrides = useActiveSession((s) => s.draftParamOverrides);
   const setDraftParamOverride = useActiveSession((s) => s.setDraftParamOverride);
   const preferences = usePreferences();
+  // 张数上限是宿主能力(§9-D3):为 1 时 Composer 不渲染张数控件,提交恒为 1。
+  const capabilities = useCapabilities();
+  const gateway = useGateway();
+  const maxGenerationCount = capabilities.maxGenerationCount;
+  const account = useAccountStatus();
+  const accountRestricted = isAccountRestricted(account.data);
   const [composer, setComposer] = useState<ComposerValue>(EMPTY_COMPOSER);
+  const [quotaBlocked, setQuotaBlocked] = useState(false);
   // 草稿参考图(ui-parity 03 §7 P0):内存态,不进会话草稿;previewUrl 为本地 objectURL。
-  const [references, setReferences] = useState<ComposerReference[]>([]);
+  const [references, setReferenceState] = useState<ComposerReference[]>([]);
+  const currentReferences = useRef<ComposerReference[]>([]);
+  // Resource ownership changes synchronously; React state only renders its projection.
+  const setReferences = useCallback(
+    (update: (previous: ComposerReference[]) => ComposerReference[]) => {
+      const next = update(currentReferences.current);
+      currentReferences.current = next;
+      setReferenceState(next);
+    },
+    [],
+  );
+  // Only uploads still attached to this page may start IO or report completion.
+  const pendingReferenceUploads = useRef(new Set<string>());
+  const ownedReferences = useRef(
+    new Map<string, ReturnType<typeof createReferenceUploadLifetime>>(),
+  );
+
+  function captureReferenceInputs() {
+    const selected = currentReferences.current.filter((reference) => reference.image !== undefined);
+    const lifetimes = selected.flatMap((reference) => {
+      const lifetime = ownedReferences.current.get(reference.key);
+      return lifetime ? [lifetime] : [];
+    });
+    const retain = () => {
+      const holds = lifetimes.map((lifetime) => lifetime.retain());
+      return () => {
+        for (const release of holds) release();
+      };
+    };
+    return {
+      images: selected.flatMap((reference) => (reference.image ? [{ ...reference.image }] : [])),
+      keys: new Set(selected.map((reference) => reference.key)),
+      retain,
+      release: retain(),
+    };
+  }
   // 参考素材面板(提示词引用):面板态在屏幕层,Composer 经「添加上下文」菜单请求打开。
   const [referencePanelOpen, setReferencePanelOpen] = useState(false);
   // 方案域 Composer 态(内存态,随会话切换清空;承旧 draftSource/schemeInputValues):
@@ -229,8 +349,9 @@ export function WorkbenchScreen({
   // 「添加上下文」触发钮:面板关闭后焦点归还(§8-I9)。
   const attachTriggerRef = useRef<HTMLButtonElement>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftWriteChain = useRef<Promise<void>>(Promise.resolve());
-  const sessionVersions = useRef(new Map<string, number>());
+  const draftReviewTriggerRef = useRef<HTMLButtonElement>(null);
+  const draftWriter = useSessionDraftWriter(activeId);
+  const { observe: observeDraft, accept: acceptDraft, write: queueDraftWrite } = draftWriter;
 
   /** 回填路径统一聚焦置尾(03 §6):rAF 等 commit 落地后聚焦,光标置于文本末尾。 */
   const focusPromptEnd = useCallback(() => {
@@ -245,65 +366,90 @@ export function WorkbenchScreen({
 
   const sessions = useSessionList({ limit: 50 });
   const providers = useProviders();
+  // Image runs share the account choice; scheme create/modify keep independent text authorization.
+  const accountModels = useAccountModelChoice(
+    providers.data?.[0]?.kind === 'cloud' &&
+      Boolean(gateway.account.getModelCatalog) &&
+      schemeAttachment?.mode !== 'modify' &&
+      !schemeCreation,
+  );
+  const submittingIntent = useRef(false);
+  const [submissionPreparing, setSubmissionPreparing] = useState(false);
+  const [modelSelectorHeight, setModelSelectorHeight] = useState(0);
+  useEffect(() => {
+    if (
+      !accountRestricted &&
+      !capabilities.hasLocalAiProviders &&
+      account.data?.canGenerate === false
+    ) {
+      setQuotaBlocked(true);
+      return;
+    }
+    if (accountRestricted || account.data?.canGenerate) setQuotaBlocked(false);
+  }, [capabilities.hasLocalAiProviders, account.data?.canGenerate, accountRestricted]);
   const createSession = useCreateSession();
-  const updateSession = useUpdateSession();
   const schemeRunning = schemeExecution?.kind === 'run';
   const jobs = useSessionJobs(activeId, { pollWhileExternalRun: schemeRunning });
   const queryClient = useQueryClient();
   const createGeneration = useCreateGeneration();
   const cancelGeneration = useCancelGeneration();
-  const retryGeneration = useRetryGeneration();
+  const retryGeneration = useRetryAction(onOpenSettings);
   const removeGeneration = useRemoveGeneration();
   const uploadReference = useUploadReferenceImage();
   // 草稿引用意图 → 托盘展示解析(owner-safe prompts.get;不可用/已更新可见可移除)。
   const promptReferences = usePromptReferenceResolutions(composer.promptReferenceSelections);
   // 方案域适配器(能力关闭或宿主未注入时为 null,方案菜单整体不出现)。
   const schemeGateway = useDesignSchemesGateway();
+  // 移动 Web 软键盘 inset:仅 <md 启用;md+ / 无 visualViewport 为 0,桌面几何不变。
+  const keyboardInset = useVisualViewportInset();
+  const composerDockLiftStyle: CSSProperties | undefined =
+    keyboardInset > 0 ? { bottom: keyboardInset } : undefined;
+  const composerEmptyLiftStyle: CSSProperties | undefined =
+    keyboardInset > 0 ? { paddingBottom: keyboardInset } : undefined;
 
   const sessionItems = sessions.data?.items ?? [];
-  const activeSession = sessionItems.find((session) => session.id === activeId) ?? null;
+  const firstSessionId = sessionItems[0]?.id;
+  const listedSession = sessionItems.find((session) => session.id === activeId) ?? null;
+  const missingSession = useMissingSession(activeId, sessions.isSuccess && !listedSession);
+  const resolvedSession = listedSession ?? missingSession.data;
+  const activeSession =
+    resolvedSession && !resolvedSession.deletedAt && !resolvedSession.archivedAt
+      ? resolvedSession
+      : null;
+  const missingCode =
+    missingSession.error && 'code' in missingSession.error ? missingSession.error.code : null;
+  const selectedSessionGone =
+    activeId !== null &&
+    !listedSession &&
+    ((missingSession.isSuccess &&
+      Boolean(missingSession.data.deletedAt || missingSession.data.archivedAt)) ||
+      missingCode === 'NOT_FOUND' ||
+      missingCode === 'WORKBENCH_SESSION_NOT_FOUND');
 
   useEffect(() => {
-    if (!activeSession) return;
-    const knownVersion = sessionVersions.current.get(activeSession.id) ?? 0;
-    if (activeSession.version > knownVersion) {
-      sessionVersions.current.set(activeSession.id, activeSession.version);
-    }
-  }, [activeSession]);
-
-  const queueDraftWrite = useCallback(
-    (
-      sessionId: string,
-      fallbackVersion: number,
-      draft: ReturnType<typeof composerValueToDraft>,
-    ): Promise<void> => {
-      const write = async () => {
-        const updated = await updateSession.mutateAsync({
-          id: sessionId,
-          patch: {
-            expectedVersion: sessionVersions.current.get(sessionId) ?? fallbackVersion,
-            draft,
-          },
-        });
-        sessionVersions.current.set(sessionId, updated.version);
-      };
-      const queued = draftWriteChain.current.catch(() => undefined).then(write);
-      draftWriteChain.current = queued.catch(() => undefined);
-      return queued;
-    },
-    [updateSession.mutateAsync],
-  );
+    if (activeSession) observeDraft(activeSession);
+  }, [activeSession, observeDraft]);
 
   const reportDraftWriteError = useCallback((error: unknown): void => {
     toast.error(error instanceof Error ? error.message : '草稿保存失败,请重试');
   }, []);
 
-  const clearReferences = useCallback(() => {
-    setReferences((prev) => {
-      for (const reference of prev) revokePreviewUrl(reference.previewUrl);
-      return [];
-    });
-  }, []);
+  const clearReferences = useCallback(
+    (keys?: ReadonlySet<string>) => {
+      if (keys) for (const key of keys) pendingReferenceUploads.current.delete(key);
+      else pendingReferenceUploads.current.clear();
+      setReferences((prev) =>
+        prev.filter((reference) => {
+          if (keys && !keys.has(reference.key)) return true;
+          revokePreviewUrl(reference.previewUrl);
+          ownedReferences.current.get(reference.key)?.release();
+          ownedReferences.current.delete(reference.key);
+          return false;
+        }),
+      );
+    },
+    [setReferences],
+  );
 
   /** 方案态清空(附件 + 槽位值 + 创建上下文):随会话切换/草稿态/「送入制作」复位。 */
   const clearSchemeState = useCallback(() => {
@@ -315,15 +461,29 @@ export function WorkbenchScreen({
 
   // 卸载时回收 objectURL。
   useEffect(() => clearReferences, [clearReferences]);
+  useEffect(
+    () => subscribeAccountEpoch(queryClient, clearReferences),
+    [queryClient, clearReferences],
+  );
 
-  // 首次加载定位到最近会话;当前会话被删/归档后回退到列表头。
-  // 「新设计」草稿态例外:保持空白待发,不回落最近会话。
+  // 首次加载定位最近会话。分页遗漏先按id核对;确认离场后隔离旧草稿。
   useEffect(() => {
     if (draftSession) return;
-    if (sessions.isSuccess && (activeId === null || !activeSession)) {
-      setActiveId(sessionItems[0]?.id ?? null);
+    if (selectedSessionGone) {
+      if (firstSessionId) setActiveId(firstSessionId);
+      else startDraftSession();
+    } else if (sessions.isSuccess && activeId === null) {
+      setActiveId(firstSessionId ?? null);
     }
-  }, [draftSession, sessions.isSuccess, activeId, activeSession, sessionItems[0]?.id, setActiveId]);
+  }, [
+    draftSession,
+    sessions.isSuccess,
+    activeId,
+    selectedSessionGone,
+    firstSessionId,
+    setActiveId,
+    startDraftSession,
+  ]);
 
   // 切会话时装载该会话草稿(仅切换瞬间,不跟随后台 refetch 覆盖输入)。
   const loadedDraftFor = useRef<string | null>(null);
@@ -334,19 +494,41 @@ export function WorkbenchScreen({
   useEffect(() => {
     if (activeSession && loadedDraftFor.current !== activeSession.id) {
       loadedDraftFor.current = activeSession.id;
-      clearReferences();
+      acceptDraft(activeSession);
       if (schemeIntentApplied.current) {
         schemeIntentApplied.current = false;
-      } else {
-        clearSchemeState();
+        pendingApplied.current = false;
+        // A newly attached scheme owns the current input, including images uploaded
+        // while the initial session query was pending. Late hydration cannot replace it.
+        return;
       }
+      clearReferences();
+      clearSchemeState();
       if (pendingApplied.current) {
         pendingApplied.current = false;
         return;
       }
-      setComposer(draftToComposerValue(activeSession.draft));
+      // 张数不进持久草稿契约(draft.params 只有 size/比例/质量):
+      // 装载已有会话时按「显式覆盖 → 偏好默认」复原,不被会话正文重置。
+      setComposer({
+        ...draftToComposerValue(activeSession.draft),
+        count: clampGenerationCount(
+          draftParamOverrides.count ??
+            preferences.data?.defaultCount ??
+            FALLBACK_GENERATION_DEFAULTS.defaultCount,
+          maxGenerationCount,
+        ),
+      });
     }
-  }, [activeSession, clearReferences, clearSchemeState]);
+  }, [
+    activeSession,
+    acceptDraft,
+    clearReferences,
+    clearSchemeState,
+    draftParamOverrides.count,
+    preferences.data,
+    maxGenerationCount,
+  ]);
 
   // 空草稿 / 新设计:未显式改过的参数跟随设置默认值;刚进入草稿态时同时清空正文。
   const inheritDefaults = draftSession || !activeId;
@@ -355,43 +537,77 @@ export function WorkbenchScreen({
     const enteredDraft = draftSession && !wasDraftSession.current;
     wasDraftSession.current = draftSession;
     if (enteredDraft) {
+      if (draftTimer.current) clearTimeout(draftTimer.current);
       loadedDraftFor.current = null;
       clearReferences();
       clearSchemeState();
       setComposer(
-        composerWithInheritedParams(EMPTY_COMPOSER, preferences.data, draftParamOverrides),
+        composerWithInheritedParams(
+          EMPTY_COMPOSER,
+          preferences.data,
+          draftParamOverrides,
+          maxGenerationCount,
+        ),
       );
       return;
     }
     if (!inheritDefaults) return;
     setComposer((current) =>
-      composerWithInheritedParams(current, preferences.data, draftParamOverrides),
+      composerWithInheritedParams(
+        current,
+        preferences.data,
+        draftParamOverrides,
+        maxGenerationCount,
+      ),
     );
   }, [
     draftSession,
     inheritDefaults,
     draftParamOverrides,
     preferences.data,
+    maxGenerationCount,
     clearReferences,
     clearSchemeState,
   ]);
 
   async function uploadReferenceFile(file: File, entry: ComposerReference) {
+    const epoch = accountEpoch(queryClient);
+    const isCurrent = () =>
+      pendingReferenceUploads.current.has(entry.key) && accountEpoch(queryClient) === epoch;
     try {
       const bytes = await readFileBytes(file);
-      const image = await uploadReference.mutateAsync({ name: entry.name, bytes });
+      if (!isCurrent()) return;
+      const image = await uploadReference.mutateAsync({
+        input: { name: entry.name, bytes },
+        isCurrent,
+      });
+      const lifetime = createReferenceUploadLifetime(image.id, (input) =>
+        gateway.generation.releaseReferenceImage(input),
+      );
+      if (!isCurrent()) {
+        lifetime.release();
+        return;
+      }
+      ownedReferences.current.set(entry.key, lifetime);
       setReferences((prev) =>
         prev.map((item) => (item.key === entry.key ? { ...item, status: 'ready', image } : item)),
       );
     } catch (error) {
+      if (!isCurrent()) return;
       revokePreviewUrl(entry.previewUrl);
       setReferences((prev) => prev.filter((item) => item.key !== entry.key));
       toast.error(error instanceof Error ? error.message : '参考图上传失败');
+    } finally {
+      if (accountEpoch(queryClient) !== epoch && pendingReferenceUploads.current.has(entry.key)) {
+        revokePreviewUrl(entry.previewUrl);
+        setReferences((prev) => prev.filter((item) => item.key !== entry.key));
+      }
+      pendingReferenceUploads.current.delete(entry.key);
     }
   }
 
   function handleAddImages(files: File[]) {
-    const room = MAX_REFERENCE_IMAGES - references.length;
+    const room = MAX_REFERENCE_IMAGES - currentReferences.current.length;
     if (room <= 0) {
       toast.error(`参考图最多 ${MAX_REFERENCE_IMAGES} 张`);
       return;
@@ -417,15 +633,14 @@ export function WorkbenchScreen({
     }
     if (accepted.length === 0) return;
     setReferences((prev) => [...prev, ...accepted.map((item) => item.entry)]);
-    for (const { file, entry } of accepted) void uploadReferenceFile(file, entry);
+    for (const { file, entry } of accepted) {
+      pendingReferenceUploads.current.add(entry.key);
+      void uploadReferenceFile(file, entry);
+    }
   }
 
   function handleRemoveReference(key: string) {
-    setReferences((prev) => {
-      const target = prev.find((item) => item.key === key);
-      if (target) revokePreviewUrl(target.previewUrl);
-      return prev.filter((item) => item.key !== key);
-    });
+    clearReferences(new Set([key]));
   }
 
   // 库「使用」送稿(ui-parity 04 P0):消费一次即清;有活动会话则立即回写其草稿。
@@ -470,7 +685,8 @@ export function WorkbenchScreen({
   useEffect(() => {
     if (!schemeIntent) return;
     consumeSchemeIntent();
-    schemeIntentApplied.current = true;
+    schemeIntentApplied.current =
+      activeSession == null || loadedDraftFor.current !== activeSession.id;
     if (schemeIntent.kind === 'attach') {
       setSchemeAttachment(schemeIntent.attachment);
       setSchemeInputValues({});
@@ -512,16 +728,21 @@ export function WorkbenchScreen({
       if (next.quality !== composer.quality) {
         setDraftParamOverride({ quality: next.quality });
       }
+      if (next.count !== composer.count) {
+        setDraftParamOverride({ count: next.count });
+      }
     }
     setComposer(next);
     if (!activeSession) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
-    const sessionId = activeSession.id;
-    const version = activeSession.version;
+    // Bind before the debounce: switching away and back may load another writer's draft.
+    const saveDraft = draftWriter.prepareWrite(
+      activeSession.id,
+      activeSession.version,
+      composerValueToDraft(next),
+    );
     draftTimer.current = setTimeout(() => {
-      void queueDraftWrite(sessionId, version, composerValueToDraft(next)).catch(
-        reportDraftWriteError,
-      );
+      void saveDraft().catch(reportDraftWriteError);
     }, 800);
   }
 
@@ -605,9 +826,13 @@ export function WorkbenchScreen({
   }
 
   /** 方案终态成功后的 Composer 复位:附件保留支持多轮,正文/槽位/引用清空。 */
-  function clearAfterSchemeSubmit(clearInputs: boolean, session: WorkbenchSession | null) {
+  function clearAfterSchemeSubmit(
+    clearInputs: boolean,
+    session: WorkbenchSession | null,
+    referenceKeys?: ReadonlySet<string>,
+  ) {
     if (clearInputs) setSchemeInputValues({});
-    clearReferences();
+    clearReferences(referenceKeys);
     const cleared = {
       ...composer,
       prompt: '',
@@ -625,11 +850,13 @@ export function WorkbenchScreen({
   /** 方案运行落在活动会话;草稿态/无会话时首次运行才建会话(与普通生成同语义)。 */
   async function ensureSchemeSession(userPrompt: string): Promise<WorkbenchSession> {
     if (activeSession) return activeSession;
+    const epoch = accountEpoch(queryClient);
     const created = await createSession.mutateAsync({
       title: deriveSessionTitle(userPrompt || schemeAttachment?.name || '方案运行'),
       draft: composerValueToDraft(composer),
     });
-    sessionVersions.current.set(created.id, created.version);
+    assertAccountEpoch(queryClient, epoch);
+    acceptDraft(created);
     loadedDraftFor.current = created.id;
     setActiveId(created.id);
     return created;
@@ -799,16 +1026,21 @@ export function WorkbenchScreen({
         .map(([slotId, value]) => [slotId, value.trim()] as const)
         .filter(([, value]) => value.length > 0),
     );
-    const referenceImages = references
-      .map((reference) => reference.image)
-      .filter((image): image is NonNullable<typeof image> => image !== undefined);
+    const referenceInputs = captureReferenceInputs();
+    const referenceImages = referenceInputs.images;
+    const submissionEpoch = accountEpoch(queryClient);
     setSchemeSubmitError(null);
     setSchemeExecution({ id: executionId, kind: 'run' });
     try {
+      const modelInput = accountModels.enabled ? await accountModels.prepareSubmission() : {};
+      assertAccountEpoch(queryClient, submissionEpoch);
+      if (schemeCancelRequested.current.has(executionId)) return true;
       const session = await ensureSchemeSession(userPrompt);
+      assertAccountEpoch(queryClient, submissionEpoch);
       if (schemeCancelRequested.current.has(executionId)) return true;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       const result = await submitRun({
+        ...modelInput,
         kind: 'run',
         executionId,
         workbenchSessionId: session.id,
@@ -820,11 +1052,13 @@ export function WorkbenchScreen({
         params: {
           ...(composer.aspectRatio !== 'auto' ? { aspectRatio: composer.aspectRatio } : {}),
           quality: composer.quality,
+          count: composer.count,
           ...(composer.negative.trim() ? { negative: composer.negative.trim() } : {}),
         },
         // 生图通道跟随活跃连接(与普通生成同口径)。
         providerId: providers.data?.[0]?.id,
       });
+      if (accountEpoch(queryClient) !== submissionEpoch) return true;
       refreshSchemeRunLedger();
       if (result.status === 'cancelled') {
         toast('方案运行已取消', { description: attachment.name });
@@ -838,17 +1072,19 @@ export function WorkbenchScreen({
         });
         return true;
       }
-      clearAfterSchemeSubmit(true, session);
+      clearAfterSchemeSubmit(true, session, referenceInputs.keys);
       toast.success(attachment.mode === 'trial' ? '试运行已完成' : '按方案生成已完成', {
         description: attachment.name,
       });
     } catch (error) {
+      if (accountEpoch(queryClient) !== submissionEpoch) return true;
       refreshSchemeRunLedger();
       if (schemeCancelRequested.current.has(executionId)) return true;
       const message = error instanceof Error && error.message ? error.message : '方案运行失败';
       setSchemeSubmitError(message);
       toast.error('方案运行失败', { description: message });
     } finally {
+      referenceInputs.release();
       schemeCancelRequested.current.delete(executionId);
       setSchemeExecution(null);
       setSchemeCancelling(false);
@@ -857,32 +1093,60 @@ export function WorkbenchScreen({
   }
 
   async function handleSubmit() {
+    if (submittingIntent.current) return;
+    if (isAccountRestricted(queryClient.getQueryData(queryKeys.account.status()))) return;
+    if (draftWriter.issue || draftWriter.busy) {
+      toast.error('请先核对并处理草稿保存问题');
+      return;
+    }
+    if (activeId && !activeSession) {
+      toast.error('当前对话尚未核对，请刷新后重试');
+      return;
+    }
     const userPrompt = composer.prompt.trim();
     const promptReferenceSelections = composer.promptReferenceSelections;
     if (schemeAttachment || schemeCreation) {
       if (schemeExecution) return;
-      await submitSchemeContext(userPrompt);
+      // React state alone cannot exclude two submissions before the next render.
+      submittingIntent.current = true;
+      try {
+        await submitSchemeContext(userPrompt);
+      } finally {
+        submittingIntent.current = false;
+      }
       return;
     }
     if (!userPrompt && promptReferenceSelections.length === 0) return;
-    let sessionId = activeId;
-    if (!sessionId) {
-      // 草稿态首次发送才真正建会话:引用-only 不泄漏源内容,使用稳定中性标题。
-      const created = await createSession.mutateAsync({
-        title: userPrompt ? deriveSessionTitle(userPrompt) : '引用提示词创作',
-        draft: composerValueToDraft(composer),
-      });
-      sessionId = created.id;
-      sessionVersions.current.set(created.id, created.version);
-      loadedDraftFor.current = created.id;
-      setActiveId(created.id);
+    if (!capabilities.hasLocalAiProviders && account.data?.canGenerate === false) {
+      setQuotaBlocked(true);
+      createGeneration.reset();
+      return;
     }
-    if (draftTimer.current) clearTimeout(draftTimer.current);
-    const referenceImages = references
-      .map((reference) => reference.image)
-      .filter((image): image is NonNullable<typeof image> => image !== undefined);
-    createGeneration.mutate(
-      createGenerationMutationIntent({
+    setQuotaBlocked(false);
+    const referenceInputs = captureReferenceInputs();
+    const submissionEpoch = accountEpoch(queryClient);
+    submittingIntent.current = true;
+    setSubmissionPreparing(true);
+    try {
+      const modelInput = accountModels.enabled ? await accountModels.prepareSubmission() : {};
+      assertAccountEpoch(queryClient, submissionEpoch);
+      let sessionId = activeId;
+      if (!sessionId) {
+        // 草稿态首次发送才真正建会话:引用-only 不泄漏源内容,使用稳定中性标题。
+        const created = await createSession.mutateAsync({
+          title: userPrompt ? deriveSessionTitle(userPrompt) : '引用提示词创作',
+          draft: composerValueToDraft(composer),
+        });
+        if (accountEpoch(queryClient) !== submissionEpoch) return;
+        sessionId = created.id;
+        acceptDraft(created);
+        loadedDraftFor.current = created.id;
+        setActiveId(created.id);
+      }
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      const referenceImages = referenceInputs.images;
+      const intent = createGenerationMutationIntent({
+        ...modelInput,
         sessionId,
         prompt: userPrompt,
         promptReferenceSelections,
@@ -892,32 +1156,68 @@ export function WorkbenchScreen({
         quality: composer.quality,
         // 生图通道跟随活跃连接(目录活跃置首,左下角账号区切换)。
         providerId: providers.data?.[0]?.id,
-        count: 1,
+        count: clampGenerationCount(composer.count, maxGenerationCount),
         ...(referenceImages.length > 0 ? { referenceImages } : {}),
-      }),
-      {
-        onSuccess: () => {
-          const cleared = {
-            ...composer,
-            prompt: '',
-            negative: '',
-            promptReferenceSelections: [],
-          };
-          setComposer(cleared);
-          clearReferences();
-          if (sessionId) {
-            void queueDraftWrite(
-              sessionId,
-              activeSession?.version ?? 1,
-              composerValueToDraft(cleared),
-            ).catch(reportDraftWriteError);
-          }
-        },
-      },
-    );
+      });
+      await createGeneration
+        .mutateAsync(intent, {
+          onSuccess: () => {
+            if (
+              accountEpoch(queryClient) !== submissionEpoch ||
+              useActiveSession.getState().activeSessionId !== sessionId
+            )
+              return;
+            const cleared = {
+              ...composer,
+              prompt: '',
+              negative: '',
+              promptReferenceSelections: [],
+            };
+            setComposer(cleared);
+            clearReferences(referenceInputs.keys);
+            if (sessionId) {
+              void queueDraftWrite(
+                sessionId,
+                activeSession?.version ?? 1,
+                composerValueToDraft(cleared),
+              ).catch(reportDraftWriteError);
+            }
+          },
+          onError: (error) => {
+            const code =
+              error && typeof error === 'object' && 'code' in error
+                ? String((error as { code: unknown }).code)
+                : '';
+            if (normalizeHistoryErrorCode(code) === 'ACCOUNT_QUOTA_INSUFFICIENT') {
+              rememberQuotaRecovery({ kind: 'replay-create', intent }, referenceInputs.retain());
+            }
+          },
+        })
+        .catch(() => {
+          /* The mutation renders its error; finally still releases the submission hold. */
+        });
+    } catch (error) {
+      if (accountEpoch(queryClient) === submissionEpoch)
+        toast.error('生成未提交', {
+          description: error instanceof Error ? error.message : '请核对账号、模型与网络后重试',
+        });
+    } finally {
+      submittingIntent.current = false;
+      setSubmissionPreparing(false);
+      referenceInputs.release();
+    }
   }
 
   const jobItems = jobs.data ?? [];
+  const jobsWereActive = useRef(false);
+  useEffect(() => {
+    const active = hasActiveJob(jobItems);
+    if (jobsWereActive.current && !active) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.account.status() });
+    }
+    jobsWereActive.current = active;
+  }, [jobItems, queryClient]);
+  const taskSummary = workbenchTaskSummary(jobItems, schemeRunning);
   // 进行中 = 会话账本有活动任务,或方案运行正在宿主管线里(回合可能尚未落账)。
   const running = hasActiveJob(jobItems) || schemeRunning;
   const cancelling =
@@ -1005,19 +1305,35 @@ export function WorkbenchScreen({
   const composerNode = (
     <Composer
       value={composer}
+      disabled={accountRestricted || submissionPreparing}
+      submitDisabledReason={
+        draftWriter.issue || draftWriter.busy
+          ? '请先核对并处理草稿保存问题'
+          : (accountModels.reason ?? undefined)
+      }
       // 创建/修改无取消缝:提交钮转 spinner 直到宿主返回;运行走 running(停止钮)。
       submitting={
-        createGeneration.isPending || (schemeExecution !== null && schemeExecution.kind !== 'run')
+        submissionPreparing ||
+        createGeneration.isPending ||
+        (schemeExecution !== null && schemeExecution.kind !== 'run')
       }
       variant={showEmptyState ? 'inline' : 'docked'}
       hasTurns={jobItems.length > 0}
       running={running}
       cancelling={cancelling}
       noProvider={providers.isSuccess && providers.data.length === 0}
+      modelSelector={
+        <AccountModelSelector
+          choice={accountModels}
+          disabled={submissionPreparing || running}
+          onHeightChange={setModelSelectorHeight}
+        />
+      }
       references={references}
       promptReferences={promptReferences}
       promptRef={promptRef}
       contextMenuTriggerRef={attachTriggerRef}
+      maxCount={maxGenerationCount}
       onChange={handleComposerChange}
       onSubmit={handleSubmit}
       onCancel={cancelHandler}
@@ -1030,13 +1346,51 @@ export function WorkbenchScreen({
     />
   );
 
-  const errorNode = createGeneration.isError ? (
-    <p
-      className="pointer-events-auto mx-auto my-2 w-full max-w-[728px] px-1.5 text-destructive text-xs"
+  const submitGuidance = quotaBlocked
+    ? HISTORY_ERROR_GUIDANCE.ACCOUNT_QUOTA_INSUFFICIENT
+    : createGeneration.isError
+      ? thrownErrorPresentation(createGeneration.error)
+      : null;
+  const errorNode = accountRestricted ? (
+    <div
+      className="pointer-events-auto mx-auto my-2 flex w-full max-w-[728px] flex-col gap-1 px-1.5"
+      data-testid="generation-account-recovery"
+    >
+      <p className="text-muted-foreground text-sm">
+        账号归属尚未验证，完成恢复后可继续生图。当前输入会保留。
+      </p>
+      <Button
+        variant="link"
+        size="sm"
+        className="h-auto w-fit p-0"
+        disabled={!onOpenSettings}
+        onClick={() => {
+          useScreenIntent.getState().setIntent({ kind: 'settings-account' });
+          onOpenSettings?.();
+        }}
+      >
+        恢复账号
+      </Button>
+    </div>
+  ) : quotaBlocked || createGeneration.isError ? (
+    <div
+      className="pointer-events-auto mx-auto my-2 flex w-full max-w-[728px] flex-col gap-1 px-1.5"
       data-testid="generation-error"
     >
-      {createGeneration.error instanceof Error ? createGeneration.error.message : '生成提交失败'}
-    </p>
+      <p className="text-destructive text-xs">
+        {submitGuidance?.title ??
+          (createGeneration.error instanceof Error
+            ? createGeneration.error.message
+            : '生成提交失败')}
+      </p>
+      {submitGuidance ? (
+        <KeyGuidanceAction
+          guidance={submitGuidance}
+          onOpenSettings={onOpenSettings}
+          testId="generation-error-action"
+        />
+      ) : null}
+    </div>
   ) : schemeSubmitError ? (
     <p
       className="pointer-events-auto mx-auto my-2 w-full max-w-[728px] px-1.5 text-destructive text-xs"
@@ -1060,7 +1414,11 @@ export function WorkbenchScreen({
    * 卡片自身可交互;时间线在下方以底部留白让内容滚过卡片背后。
    */
   const composerDock = (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-3 pb-3 md:px-4 md:pb-3.5">
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-3 pb-3 md:px-4 md:pb-3.5"
+      data-testid="composer-dock"
+      style={composerDockLiftStyle}
+    >
       {errorNode}
       {composerNode}
     </div>
@@ -1097,6 +1455,48 @@ export function WorkbenchScreen({
       {/* 主区 + 参考素材面板(桌面右栏 304px / 移动底部 Dialog,面板内部按断点分叉)。 */}
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
+          {draftWriter.issue && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center gap-2 px-4 py-2"
+              data-testid="session-draft-save-error"
+            >
+              <div className="min-w-0 flex-1 text-sm">
+                <p>草稿尚未保存，本页输入已保留。</p>
+                <p className="break-words text-muted-foreground">{draftWriter.issue}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={draftWriter.busy}
+                data-testid="session-draft-review"
+                ref={draftReviewTriggerRef}
+                onClick={() => {
+                  if (draftTimer.current) clearTimeout(draftTimer.current);
+                  void draftWriter.openReview();
+                }}
+              >
+                {draftWriter.busy ? '核对中…' : '核对草稿'}
+              </Button>
+            </div>
+          )}
+          {activeId && !listedSession && missingSession.isError && !selectedSessionGone && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center gap-2 px-4 py-2"
+              data-testid="session-current-error"
+            >
+              <p className="text-muted-foreground text-sm">当前对话读取失败，输入已保留。</p>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={missingSession.isFetching}
+                onClick={() => void missingSession.refetch()}
+              >
+                重新核对
+              </Button>
+            </div>
+          )}
           {jobs.isPending && activeId ? (
             <div className="relative flex min-h-0 flex-1 flex-col">
               <div className="mx-auto flex w-full max-w-[728px] flex-1 flex-col gap-4 overflow-hidden p-4">
@@ -1108,10 +1508,10 @@ export function WorkbenchScreen({
           ) : showEmptyState ? (
             <WorkbenchEmptyState
               composer={
-                <>
+                <div data-testid="composer-empty-inset" style={composerEmptyLiftStyle}>
                   {composerNode}
                   {errorNode}
-                </>
+                </div>
               }
               onSelectSuggestion={(suggestion) => {
                 handleComposerChange({ ...composer, prompt: suggestion });
@@ -1120,8 +1520,32 @@ export function WorkbenchScreen({
             />
           ) : (
             <div className="relative flex min-h-0 flex-1 flex-col">
+              {activeSession ? (
+                <div className="hidden shrink-0 px-4 pt-3 md:flex">
+                  <div className="mx-auto flex w-full max-w-[728px] items-baseline gap-2 text-sm">
+                    <p
+                      className="min-w-0 font-medium text-foreground"
+                      data-testid="workbench-session-title"
+                      title={activeSession.title}
+                    >
+                      {formatSessionTitle(activeSession.title)}
+                    </p>
+                    {taskSummary ? (
+                      <p
+                        className="shrink-0 text-muted-foreground"
+                        data-testid="workbench-task-summary"
+                      >
+                        {taskSummary}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               <GenerationTimeline
                 jobs={jobItems}
+                isRetryPending={retryGeneration.isPending}
+                keyboardInset={keyboardInset}
+                composerExtraInset={accountModels.enabled ? modelSelectorHeight : 0}
                 editDisabled={running}
                 onCancel={(job) => {
                   if (schemeRunning) {
@@ -1130,17 +1554,17 @@ export function WorkbenchScreen({
                   }
                   cancelGeneration.mutate(job.id);
                 }}
-                onRetry={(job) =>
-                  retryGeneration.mutate(createRetryGenerationMutationIntent(job.id))
-                }
+                onRetry={(job) => retryGeneration.request(job)}
                 onRemove={(job) => removeGeneration.mutate(job.id)}
                 onEditMessage={handleEditMessage}
                 onOpenPrompts={onOpenPrompts}
+                onOpenSettings={onOpenSettings}
               />
               {/* 悬浮卡上缘渐隐(03-C1):内容滚过卡片背后时以渐变收边,替代生硬截断。 */}
               <div
                 className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-linear-to-t from-background to-transparent"
                 aria-hidden
+                style={composerDockLiftStyle}
               />
               {composerDock}
             </div>
@@ -1156,6 +1580,33 @@ export function WorkbenchScreen({
         />
       </div>
 
+      <SessionDraftConflictDialog
+        review={draftWriter.review}
+        localDraft={composerValueToDraft(composer)}
+        busy={draftWriter.busy}
+        error={draftWriter.reviewError}
+        onClose={draftWriter.closeReview}
+        onReturnFocus={() => {
+          (draftReviewTriggerRef.current ?? promptRef.current)?.focus();
+        }}
+        onRefresh={() => {
+          void draftWriter.openReview();
+        }}
+        onLoad={() => {
+          if (draftTimer.current) clearTimeout(draftTimer.current);
+          const latest = draftWriter.loadReviewed();
+          if (!latest) return;
+          clearReferences();
+          clearSchemeState();
+          setComposer({ ...draftToComposerValue(latest.draft), count: composer.count });
+          focusPromptEnd();
+        }}
+        onSave={() => {
+          if (draftTimer.current) clearTimeout(draftTimer.current);
+          void draftWriter.saveReviewed(composerValueToDraft(composer));
+        }}
+      />
+      {cloudCreate.dialog}
       {schemeGateway && designSchemes ? (
         <>
           <SchemeRunPicker

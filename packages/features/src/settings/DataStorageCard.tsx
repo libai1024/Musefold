@@ -45,6 +45,7 @@ import { useEffect, useState } from 'react';
 import type { ScreenIntent } from '../shell/screen-intent-store';
 import { useScreenIntent } from '../shell/screen-intent-store';
 import { ArchivedSessionsPanel, formatArchivedAt } from './ArchivedSessionsPanel';
+import { SessionTrashPanel } from './SessionTrashPanel';
 import {
   useBackups,
   useClearAllData,
@@ -137,6 +138,7 @@ function TrashCard({ onOpenScreen }: { onOpenScreen(id: 'prompts' | 'history'): 
         />
         <Separator className="my-1" />
         <ArchivedSessionsPanel />
+        <SessionTrashPanel />
       </CardContent>
     </Card>
   );
@@ -157,6 +159,15 @@ export function formatBackupSize(bytes: number): string {
  * 状态行三态 → 立即备份(新备份直接展开可见)→ 列表逐份恢复(确认 + 重启语义)。
  * 恢复期间整卡 busy:不允许并行创建或另一份恢复。
  */
+function restoreRequiresRestart(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error.code === 'RESTORE_FAILED' || error.code === 'DATABASE_RESTART_REQUIRED'),
+  );
+}
+
 function BackupCard() {
   const backups = useBackups();
   const createBackup = useCreateBackup();
@@ -167,7 +178,9 @@ function BackupCard() {
 
   const items = backups.data ?? [];
   const latest = items[0];
-  const busy = createBackup.isPending || restoreBackup.isPending || relaunch.isPending;
+  const needsRestart = restoreBackup.isError && restoreRequiresRestart(restoreBackup.error);
+  const busy =
+    needsRestart || createBackup.isPending || restoreBackup.isPending || relaunch.isPending;
 
   function statusText(): string {
     if (backups.isPending) return '正在读取备份…';
@@ -194,6 +207,9 @@ function BackupCard() {
         toast.success('备份已恢复,应用即将重启');
         relaunch.mutate();
       },
+      onError: (error) => {
+        if (restoreRequiresRestart(error)) setRestoreTarget(null);
+      },
     });
   }
 
@@ -202,7 +218,7 @@ function BackupCard() {
       <CardHeader>
         <CardTitle>数据库备份</CardTitle>
         <CardDescription>
-          备份是数据库的一致性快照,只保留最近 10 份;恢复会覆盖当前数据并重启应用
+          普通备份保留最近 10 份,恢复前的安全备份单独保留;恢复会覆盖当前数据并重启应用
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pt-0">
@@ -259,6 +275,17 @@ function BackupCard() {
           <p className="text-destructive text-xs" data-testid="settings-backup-restore-error">
             恢复备份失败:{errorMessage(restoreBackup.error, '未知原因')}
           </p>
+        )}
+        {needsRestart && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={relaunch.isPending}
+            onClick={() => relaunch.mutate()}
+            data-testid="settings-backup-restart"
+          >
+            重启应用
+          </Button>
         )}
 
         {expanded && items.length > 0 && (

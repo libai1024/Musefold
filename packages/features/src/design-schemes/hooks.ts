@@ -7,8 +7,6 @@ import type {
   FormalizeDesignSchemeInput,
   GenerationJob,
   PromoteWorkingDraftInput,
-  MarketSearchQuery,
-  MarketSearchResult,
   RemoveDesignSchemeInput,
   RenameDesignSchemeInput,
   SelectCoverInput,
@@ -20,12 +18,7 @@ import {
   useCapabilities,
   usePlatform,
 } from '@musefold/platform';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type UseMutationResult,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /**
  * 方案域数据 hooks:只经 MusefoldGateway.designSchemes(可选域)。
@@ -87,23 +80,20 @@ export function useSchemeDetail(id: string | null) {
     },
   });
 
-  return workingDraftRevisionId ? workingDraft : current;
+  // The current read owns the working-revision selector. A cached working draft
+  // must not hide a failed/pending refresh of that authority after promotion.
+  const selected =
+    current.isError || current.isPending || !workingDraftRevisionId ? current : workingDraft;
+  return { ...selected, isFetching: current.isFetching || selected.isFetching };
 }
 
-/** 市场搜索(承旧):只在用户显式发起时请求,不自动加载;结果不落 query 缓存。 */
-export function useMarketSearch(): UseMutationResult<MarketSearchResult, Error, MarketSearchQuery> {
-  const designSchemes = useDesignSchemesGateway();
-  return useMutation({
-    mutationFn: (query: MarketSearchQuery) => {
-      if (!designSchemes) throw new Error('当前宿主不提供设计方案能力');
-      return designSchemes.searchMarket(query);
-    },
-  });
-}
+export { useMarketSearch } from './use-market-search';
 
 function useInvalidateDesignSchemes() {
   const queryClient = useQueryClient();
-  return () => void queryClient.invalidateQueries({ queryKey: queryKeys.designSchemes.all() });
+  // Keep version-changing mutations pending through their authoritative refresh.
+  // Awaiting only the write permits the next action to freeze the old version.
+  return () => queryClient.invalidateQueries({ queryKey: queryKeys.designSchemes.all() });
 }
 
 export function useRenameScheme() {
@@ -208,7 +198,7 @@ export function useCheckSchemeUpdate() {
       return designSchemes.checkUpdate(input);
     },
     onSuccess: (result) => {
-      if (result.status === 'draft-created') invalidate();
+      if (result.status === 'draft-created') return invalidate();
     },
   });
 }

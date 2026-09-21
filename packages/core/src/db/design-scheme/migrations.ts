@@ -1,12 +1,16 @@
 import type Database from 'better-sqlite3';
+import { DESIGN_SCHEME_PURGE_CLEANUP_SQL, DESIGN_SCHEME_PURGE_TABLES_SQL } from './purge-schema';
 import {
+  DESIGN_SCHEME_CLOUD_RUN_ASSET_SQL,
   DESIGN_SCHEME_CORE_TABLES_SQL,
   DESIGN_SCHEME_DB_BOOTSTRAP_SQL,
   DESIGN_SCHEME_DB_NAMESPACE,
   DESIGN_SCHEME_EVALUATION_TABLES_SQL,
+  DESIGN_SCHEME_IMPORT_GC_TABLES_SQL,
   DESIGN_SCHEME_METADATA_COLUMNS_SQL,
   DESIGN_SCHEME_RUN_TABLES_SQL,
   DESIGN_SCHEME_SOURCE_TABLES_SQL,
+  DESIGN_SCHEME_UPLOADED_ASSET_ORIGIN_SQL,
   MARKET_CANDIDATE_TABLES_SQL,
   SHARE_PACKAGE_TABLES_SQL,
   DESIGN_SCHEME_VERSION_TABLES_SQL,
@@ -66,6 +70,45 @@ export const designSchemeDbMigrations: DesignSchemeDbMigration[] = [
     name: '0006_asset_and_source_file_metadata',
     up(db) {
       db.exec(DESIGN_SCHEME_METADATA_COLUMNS_SQL);
+    },
+  },
+  {
+    version: 7,
+    name: '0007_uploaded_asset_origin',
+    up(db) {
+      db.exec(DESIGN_SCHEME_UPLOADED_ASSET_ORIGIN_SQL);
+    },
+  },
+  {
+    version: 8,
+    name: '0008_cloud_run_assets',
+    up(db) {
+      db.exec(DESIGN_SCHEME_CLOUD_RUN_ASSET_SQL);
+    },
+  },
+  {
+    version: 9,
+    name: '0009_import_gc_intents',
+    up(db) {
+      db.exec(DESIGN_SCHEME_IMPORT_GC_TABLES_SQL);
+    },
+  },
+  {
+    version: 10,
+    name: '0010_scheme_purge_receipts',
+    up(db) {
+      db.exec(DESIGN_SCHEME_PURGE_TABLES_SQL);
+      const foreignKeyErrors = db.pragma('foreign_key_check');
+      if (!Array.isArray(foreignKeyErrors) || foreignKeyErrors.length > 0) {
+        throw new Error('Design scheme purge migration violated foreign keys');
+      }
+    },
+  },
+  {
+    version: 11,
+    name: '0011_scheme_asset_cleanup',
+    up(db) {
+      db.exec(DESIGN_SCHEME_PURGE_CLEANUP_SQL);
     },
   },
 ];

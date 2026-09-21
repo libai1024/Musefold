@@ -5,7 +5,7 @@ import { Combobox } from '../components/combobox';
 import { Badge } from '../components/badge';
 import { MusefoldMark } from '../components/brand-mark';
 import { Button } from '../components/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/card';
 import { FadeImage } from '../components/fade-image';
 import { Input } from '../components/input';
 import { Kbd } from '../components/kbd';
@@ -32,6 +32,20 @@ describe('@musefold/ui shadcn components', () => {
     ]) {
       expect(html).toContain(cls);
     }
+  });
+
+  it('keeps comfortable card padding at Tailwind 1.5rem and consumes density token when compact', () => {
+    const html = renderToStaticMarkup(
+      <Card>
+        <CardHeader />
+        <CardContent />
+        <CardFooter />
+      </Card>,
+    );
+    // 舒适态仍是 shadcn `py-6`/`px-6`(1.5rem);token 舒适值是 0.75rem,不能直接替换否则全端基线漂。
+    expect(html).toContain('py-6');
+    expect(html).toContain('px-6');
+    expect(html).toContain('--density-card-padding');
   });
 
   it('renders composed card structure', () => {

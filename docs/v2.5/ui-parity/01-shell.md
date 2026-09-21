@@ -9,7 +9,7 @@
 
 ## 1. 结论与迁移状态
 
-壳的信息架构与 U01 核心几何已经收口:侧栏恢复 220–360px/32vw 调宽与旧键持久化,普通产品屏恢复四边 4px 浮岛工作面,`<768px` 使用同源五段式模态抽屉并具备焦点圈闭/归还、`inert` 和自动关闭。剩余差值集中在桌面原生装壳(Win/Linux 窗口控件、内容顶拖拽带)、⌘K 暂缓期接线、Automation 确认面和顶栏任务摘要落点。macOS 全屏 inset 已由 U01-fullscreen-inset 接入,品牌行按 78px(非全屏) / 12px(原生全屏)切换。移动端底部标签栏是新增能力,旧版没有对位物。
+壳的信息架构与 U01 核心几何已经收口:侧栏恢复 220–360px/32vw 调宽与旧键持久化,普通产品屏恢复四边 4px 浮岛工作面,`<768px` 使用同源五段式模态抽屉并具备焦点圈闭/归还、`inert` 和自动关闭。剩余差值集中在 ⌘K 暂缓期接线、Automation 确认面和顶栏任务摘要落点。Win/Linux 窗口控件、内容顶拖拽带与 Tooltip 300ms 已随 B2-T6 收口。B3-T3 已在有自绘三钮时给主区预留 32×138 安全区(宿主 CSS `padding-top: 32px`,钩子 `data-window-controls-safe`);**Windows 真机像素重叠仍未目测**。macOS 全屏 inset 已由 U01-fullscreen-inset 接入,品牌行按 78px(非全屏) / 12px(原生全屏)切换。移动端底部标签栏是新增能力,旧版没有对位物。
 
 ## 2. 布局对照
 
@@ -43,6 +43,7 @@
 - 普通产品屏的 `mainview-frame` 四边 4px inset,内部 `mainview-surface` 为 12px 圆角 + `bg-card` + `shadow-sm`;设置屏按旧 `settings-product-shell` 语义保持全出血,不套 frame/圆角/阴影。
 - `<768px` 常驻侧栏转左侧模态 `Sheet`,主工作面与底栏 `inert`;焦点圈闭、Escape、焦点归还、导航/新设计/会话自动关闭齐全。移动 header 与底部标签栏继续保留。
 - 桌面宿主 `md+` 无顶栏(D5 有意差异:取消常驻顶栏换取内容区最大化);收起态使用布局流内 40px 窄轨展开钮,不覆盖屏幕内容。
+- Win/Linux 自绘三钮落在主区右上 32×138(`window-controls-band`)。`mainview-surface` 仅在注入 `windowControls` 时挂 `data-window-controls-safe`,桌面宿主 CSS 给 `main` 顶让 32px,避免普通屏标题/问候/首行操作与控件带相交;设置屏沿用同一 32px(承旧 titlebar-hidden)。搜索在左栏,「桌面版」徽标在 32px + 页垫之下,不再额外 `padding-right`。mac / Web 无控件带、无钩子,零新增 padding。**布局已预留 32×138 安全区;Windows 真机像素重叠仍未目测**。
 
 ### 2.3 布局差异表
 
@@ -63,22 +64,22 @@
 | `ProductSidebarLayout` | 侧栏容器/拖宽/断点/抽屉/焦点治理 | `AppShell` + `sidebar-layout` | ✅ U01 核心行为已迁;原生窗口增量见 §7 |
 | `ProductTopbar` | 44px 顶栏骨架(icon+title+suffix+actions) | 无 | D5 取消,组件不再需要 |
 | `TitleBar` | 视图标题、会话菜单、任务摘要、搜索钮、素材库钮、窗口控件 | 无 | **功能移交未完成**(见 §4) |
-| `WindowControls` / `MinimizeWindowButton` | Win/Linux 自绘窗口控件、mac 最小化 | 无 | **P1 缺口**(Windows 交付面装壳时必须有) |
+| `WindowControls` / `MinimizeWindowButton` | Win/Linux 自绘窗口控件、mac 最小化 | `features/shell/WindowControls` + 宿主 `AppShell.windowControls` | ✅ 已收口(B2-T6 三钮 + B3-T3 安全区):非 mac 主区右上 32×138 窄带三钮(不恢复整条顶栏,D5);`data-window-controls-safe` + 宿主 CSS `padding-top: 32px`;mac 原生红绿灯;Web 不渲染。Windows 真机像素重叠仍未目测 |
 | `CommandPalette`(⌘K) | 全局搜索与命令 | 无(§0.2 暂缓,壳预留入口) | 已登记暂缓 |
 | `EmberMark` 朱点 | 外部任务活动指示 + 笺匣 | 冻结不迁(D8) | 已登记 |
-| `AutomationConfirmCard` | 外部 Agent 花钱动作确认 | 无 | **P1 缺口**(automation 仍可直连主进程,渲染层无确认闸) |
+| `AutomationConfirmCard` | 外部 Agent 花钱动作确认 | `features/automation/AutomationConfirmCard`(经 `features/shell` 导出) | ✅ 已收口(B2-T2):desktop-shell 与 `Toaster` 同级挂一行;`hasLocalAutomation` 为假(Web)渲染 null |
 | `GlobalErrorBoundary` + `global-error-dialog` | 渲染异常兜底 + 恢复 | `ShellErrorBoundary`/`ShellErrorFallback` + web-next `error.tsx`/`global-error.tsx` | ✅ 已收口(2026-08-29):双宿主挂载,错误卡带「重试/重载」双路径 |
 | `ToastProvider/ToastHost`(Radix) | 全局 toast,右滑关闭,3500ms | sonner `Toaster`(bottom-right) | 已对位,行为细节见 §5 |
-| `TooltipProvider`(300ms delay) | 全局 tooltip 时序 | 各屏自带 `TooltipProvider`(400ms) | 已对位;时序 300→400ms,建议统一回 300 |
+| `TooltipProvider`(300ms delay) | 全局 tooltip 时序 | `AppShell` 壳级唯一 `TooltipProvider delayDuration={300}` | ✅ 已收口(B2-T6);屏组件不再重复包裹 |
 
 ## 4. 交互对照
 
-1. **窗口拖拽区**:旧版整个侧栏是 `drag-region`,顶栏可拖,交互元素逐个 `no-drag`;设置页有专用 `settings-window-drag-region`。(2026-08-29 更新)侧栏拖拽区**已收口**:桌面宿主 `src/v25/globals.css` 对 `app-sidebar` 声明 drag、交互元素 no-drag。**踩坑记录**:Radix portal 浮层(账号上拉菜单/会话右键菜单/Select)叠在拖拽区上方时,真实鼠标点击会被当成窗口拖拽吞掉——已对 `[data-radix-popper-content-wrapper]` 与 dialog/sheet 的 overlay/content 槽整层 no-drag;**合成事件(Playwright/CDP)绕过窗口拖拽层,e2e 测不出此类缺陷,浮层新增时人工过一遍真实鼠标**。剩余:内容区顶部 12px 拖拽带 + 设置页专区(P1,随桌面装壳组;窗口已可经侧栏拖动,不再是可用性 P0)。
+1. **窗口拖拽区**:旧版整个侧栏是 `drag-region`,顶栏可拖,交互元素逐个 `no-drag`;设置页有专用 `settings-window-drag-region`。(2026-08-29 更新)侧栏拖拽区**已收口**:桌面宿主 `src/v25/globals.css` 对 `app-sidebar` 声明 drag、交互元素 no-drag。**踩坑记录**:Radix portal 浮层(账号上拉菜单/会话右键菜单/Select)叠在拖拽区上方时,真实鼠标点击会被当成窗口拖拽吞掉——已对 `[data-radix-popper-content-wrapper]` 与 dialog/sheet 的 overlay/content 槽整层 no-drag;**合成事件(Playwright/CDP)绕过窗口拖拽层,e2e 测不出此类缺陷,浮层新增时人工过一遍真实鼠标**。剩余已收口(B2-T6):内容区顶部 12px 拖拽带 + 设置页 32px 拖拽条(`data-window-drag-band` / `data-settings-window-drag`,桌面宿主 CSS 写 app-region;Win/Linux 控件带 drag、三钮 no-drag)。真实鼠标拖窗口仍记为 verify(合成事件绕过拖拽层)。
 2. **红绿灯让位**:旧版双状态——侧栏展开时品牌行 `headerStartInset 86px`,收起时顶栏 leading `78px`,并跟随 `useWindowFullscreen()` 在全屏时退回 12px。新版宿主通过 `window:fullscreenChanged` 与 `window:isFullscreen` 感知原生状态,统一 `brandInset` 几何:macOS 非全屏 78px、原生全屏 12px,非 macOS 0px;收起态展开轨保持对应宿主让位。U01-fullscreen-inset 的 preload/主进程/renderer 接线与单测已通过;真实 macOS Electron E2E 尚未完成,当前 runner 无法让 shell BrowserWindow 获得前台焦点,需在允许 WindowServer 前台激活的 runner 复验。
 3. **侧栏收起/展开**:收起态已改为布局流内 40px `sidebar-expand-rail`,展开钮不再覆盖工作台/设置内容;macOS 的 `brandInset` 会随原生全屏在 78px 与 12px 间切换,非 macOS 保持 0px。
-4. **顶栏会话上下文**(旧 TitleBar 独有):当前会话标题(超 16 字截断)、任务摘要(`titlebar-task-summary`:活动标签 + 来源标签)、会话菜单触发器(置顶/重命名/归档/标记未读/删除,含 `WorkbenchSessionRenameDialog`)。D5 取消顶栏后,这组能力**部分**由侧栏行动作承接(置顶/重命名/归档/删除已有),但「标记未读」「任务摘要」无处安放。P1:在工作台屏内补会话标题行或将任务摘要并入时间线头部。
+4. **顶栏会话上下文**(旧 TitleBar 独有):当前会话标题(超 16 字截断)、任务摘要(`titlebar-task-summary`:活动标签 + 来源标签)、会话菜单触发器(置顶/重命名/归档/标记未读/删除,含 `WorkbenchSessionRenameDialog`)。D5 取消顶栏后,置顶/重命名/归档/删除由侧栏行动作承接。**2026-09-07(B5-T4)**:md+ 时间线头顶补 `workbench-session-title`(16 字截断)+ `workbench-task-summary`(排队中/生成中/方案运行中/取消中);空态不抢问候语;移动端已有会话选择器不重复。「标记未读」仍无独立落点,见 02-sidebar。
 5. **compact 抽屉的焦点治理**:已恢复。记录 opener → 关闭后 `requestAnimationFrame` 归还(失效时 fallback 到触发钮);抽屉开启时主视图与底栏 `inert`;点击导航/新设计/会话自动关。账号区因当前菜单锚在抽屉内而保持打开,已在 V25-UI-SPEC §9 D15 登记。
-6. **⌘K**:旧版顶栏搜索钮 + 快捷键开命令面板;新版移动 header 搜索钮跳提示词库,桌面 `md+` **没有任何搜索入口,⌘K 也未绑定**。P1:至少把「⌘K → 提示词库聚焦搜索框」的暂缓期约定(§0.2)接上。
+6. **⌘K**:旧版顶栏搜索钮 + 快捷键开命令面板;命令面板本体仍按 §0.2 暂缓。**暂缓期接线已收口**:`AppShell` ⌘K / Ctrl+K → 切提示词库并写 `prompts-focus-search` 意图(features `shortcuts.test.ts` / `app-shell.test.tsx`)。
 7. **素材库开关**(旧顶栏,generate 视图专属):`aria-pressed` 双态、微调中禁用并给禁用理由 title。随素材库域暂缓,登记勿失。
 
 ## 5. 动效对照
@@ -107,11 +108,12 @@
 
 | 优先级 | 剩余任务 | 验收要点 |
 |---|---|---|
-| P1 | Win/Linux 窗口控件 | Windows 打包冒烟可最小化/最大化/关闭 |
-| P1 | drag-region 收尾:内容区顶部 12px 拖拽带 + 设置页拖拽条(交互元素 no-drag) | Electron 真实鼠标验证内容区顶带可拖 |
-| P1 | ⌘K 暂缓期接线:跳提示词库并聚焦搜索框 | 双端快捷键单测 |
-| P1 | AutomationConfirmCard 迁入新壳 | automation 花钱动作弹确认卡 |
-| P2 | TooltipProvider 统一 300ms | 单一壳级 Provider,屏组件不重复包裹 |
+| ~~P1~~ | ~~Win/Linux 窗口控件~~ **已交付 2026-09-06**(B2-T6):`features/shell/WindowControls` 纯 UI + 宿主 `!IS_MAC` 注入 `window.musefoldV25`(preload 名 `onMaximizeChange`);mac/Web 不渲染 | 单测三钮回调/aria/还原态;`IS_MAC=false` 宿主注入 |
+| ~~P1~~ | ~~drag-region 收尾~~ **已交付 2026-09-06**(B2-T6):内容顶 12px + 设置 32px 拖拽条,宿主 CSS 作用域 | Electron E2E 断言 `webkitAppRegion`;真实鼠标拖窗口记为 verify |
+| ~~P1~~ | ~~⌘K 暂缓期接线:跳提示词库并聚焦搜索框~~ **已交付**:`AppShell` ⌘K/Ctrl+K → `prompts-focus-search`;命令面板本体仍暂缓 | features shortcuts / app-shell 单测 |
+| ~~P1~~ | ~~AutomationConfirmCard 迁入新壳~~ **已交付 2026-09-06**(B2-T2):`packages/features/src/automation`(卡 + `useAutomationConfirmations` 队列 hook),主进程 `automation:confirmationRequired/Resolved` 广播经 preload `onAutomationEvent` → `gateway.automation.subscribeConfirmations`;桌面固定右下 / 移动顶部,倒计时由契约 `AUTOMATION_CONFIRMATION_TIMEOUT_MS` 推导,到点即视为拒绝并撤卡;多条排队只显首条 + 「还有 n 个等待确认」 | 单测:允许/拒绝回执、超时撤卡不发回执、`resolved` 广播跟撤、同 id 幂等、卸载退订 |
+| ~~P2~~ | ~~TooltipProvider 统一 300ms~~ **已交付 2026-09-06**(B2-T6):`AppShell` 壳级唯一 300ms | 屏组件源码不再含 `TooltipProvider` |
+| ~~P1~~ | ~~Win/Linux 控件带盖住普通屏标题/问候~~ **已交付 2026-09-06**(B3-T3):布局已预留 32×138 安全区(`data-window-controls-safe` + 宿主 `padding-top: 32px`);设置保持原 32px 顶让位。**Windows 真机像素重叠仍未目测** | features 几何单测(jsdom)+ desktop-shell `IS_MAC` 分叉;Electron E2E 仅当控件带存在才断言 |
 
 > 会话菜单缺项(标记未读/任务摘要)在 [02-sidebar.md](./02-sidebar.md) §4 展开;顶栏取消本身维持 D5 不翻案。
 

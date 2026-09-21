@@ -1,14 +1,15 @@
 // 生图闭环路由（V04-API-03/04）：策略闸门 + 任务注册表 + 确认回执 + 上传转存。
 //
 // 策略闸门四分支（V04-ARCHITECTURE §5.4，服务端强制）：
-//   a. Idempotency-Key 命中已放行记录 → 直接执行
+//   a. Idempotency-Key 命中相同请求 → 返回原任务或等待同一次确认，不重复执行
 //   b. 预算覆盖估算 → 记账并执行
 //   c. 需确认 → 202 + confirmationId（App 确认卡 / MCP elicitation 回执到 /v1/confirmations）
 //   d. 超时未确认 → 409 CONFIRMATION_TIMEOUT
 // 宿主注入 GenerationHost：Electron 主进程与 headless 守护各自实现。
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { EventHub } from '@musefold/core';
+import type { AutomationSpendRequest } from '@musefold/desktop-contracts/automation-spend';
 import type {
   GenerateImageRequest,
   GenerateImageResult,
@@ -63,17 +64,22 @@ export interface GenerationBudget {
   /** 剩余额度（积分）；预算未配置视为 0（Q1 拍板：默认一切须确认） */
   remainingPoints(): number;
   /** 按实际成本冲销（估算只用于闸门） */
-  settle(actualPoints: number): void;
+  settle(actualPoints: number): void | Promise<void>;
+  /** 宿主可共享跨生图/方案/Skill 的预留；finish 必须幂等，null 保持费用待核对。 */
+  reserve?(estimatedPoints: number | null): (actualPoints: number | null) => void | Promise<void>;
 }
 
 export interface GenerationHost {
   run(
     req: GenerateImageRequest,
     onProgress: (progress: ImageGenerationProgress) => void,
+    spendRequest?: AutomationSpendRequest,
   ): Promise<GenerateImageResult>;
   cancel(jobId: string): boolean;
   estimate(req: GenerationRequestBody): GenerationEstimate;
   budget: GenerationBudget;
+  /** Desktop durable adapter; absent on legacy/frozen hosts until they are explicitly migrated. */
+  persistence?: GenerationPersistence;
   /**
    * 请求用户确认（App 确认卡）；headless/无人值守实现应直接返回 'denied'。
    * 实现负责自身的 UI 展示；网关只等待结论或超时。
@@ -85,6 +91,23 @@ export interface GenerationHost {
   stageUpload(bytes: Buffer, name: string, mimeType: string): Promise<LocalImageReference>;
   /** 历史 id → 产物路径（referenceHistoryIds 精修垫图） */
   resolveHistoryImage(historyId: string): { path: string } | null;
+}
+
+export interface GenerationPersistence {
+  /** Finished/in-flight requests can be read without re-opening inputs or current credentials. */
+  replay(body: GenerationRequestBody, key: string): AutomationSpendRequest | null;
+  register(
+    body: GenerationRequestBody,
+    estimate: GenerationEstimate,
+    references: LocalImageReference[],
+    key: string | null,
+    now: number,
+  ): AutomationSpendRequest | null;
+  get(jobId: string): AutomationSpendRequest | null;
+  result(request: AutomationSpendRequest): GenerateImageResult | undefined;
+  begin(requestId: string): boolean;
+  confirm(confirmationId: string, approved: boolean, now: number): boolean;
+  finish(requestId: string, result: GenerateImageResult, now: number): void;
 }
 
 export interface ConfirmationSummary {
@@ -129,7 +152,7 @@ interface PendingConfirmation {
   id: string;
   body: GenerationRequestBody;
   idempotencyKey: string | null;
-  resolve: (outcome: 'approved' | 'denied' | 'timeout') => void;
+  resolve: (outcome: 'approved' | 'denied' | 'timeout') => boolean;
   outcome: Promise<'approved' | 'denied' | 'timeout'>;
   summary: ConfirmationSummary;
   createdAt: number;
@@ -139,6 +162,27 @@ function generationAssets(result: GenerateImageResult): Array<{ path: string }> 
   const images = result.images?.filter((image) => Boolean(image.imagePath)) ?? [];
   if (images.length > 0) return images.map((image) => ({ path: image.imagePath }));
   return result.imagePath ? [{ path: result.imagePath }] : [];
+}
+
+function assertDurableOutcome(request: AutomationSpendRequest): void {
+  if (request.errorCode === 'PAYMENT_IDENTITY_UNBOUND')
+    throw new AutomationError(
+      'PAYMENT_IDENTITY_UNBOUND',
+      '所选连接缺少可验证的付款身份，请重新配置连接；不会猜测当前登录账号',
+      409,
+    );
+  if (request.outcome === 'denied')
+    throw new AutomationError(
+      'CONFIRMATION_DENIED',
+      '用户已拒绝本次请求；请使用新的请求键发起新的尝试',
+      403,
+    );
+  if (request.outcome === 'timeout')
+    throw new AutomationError(
+      'CONFIRMATION_TIMEOUT',
+      '本次确认已过期；请使用新的请求键发起新的尝试',
+      409,
+    );
 }
 
 export interface GenerationGate {
@@ -177,8 +221,20 @@ export function createGenerationGate(
   gateOptions: GenerationGateOptions = {},
 ): GenerationGate {
   const jobs = new Map<string, JobRecord>();
-  const approvedIdempotencyKeys = new Map<string, string>(); // key → jobId（重放返回原任务）
+  const submissions = new Map<string, { fingerprint: string; result: Promise<JobRecord> }>();
   const pending = new Map<string, PendingConfirmation>();
+  // 在同一 gate 生命周期内保留飞行中成本，避免并发请求重复消费同一份预算。
+  // 持久化与跨方案/Skill 的全局预留由宿主负责，不能把本 Map 当作重启保障。
+  const reservations = new Map<string, number | null>();
+  let unresolvedManagedSpend = false;
+  const remainingPoints = () =>
+    [...reservations.values()].includes(null)
+      ? 0
+      : Math.max(
+          0,
+          host.budget.remainingPoints() -
+            [...reservations.values()].reduce((sum: number, points) => sum + (points ?? 0), 0),
+        );
   const clock = gateOptions.clock ?? (() => Date.now());
   const audit = (entry: SpendAuditDraft) => {
     try {
@@ -223,7 +279,17 @@ export function createGenerationGate(
         { n },
       );
     }
-    return parsed;
+    if (
+      parsed.declaredBudgetPoints != null &&
+      (!Number.isFinite(parsed.declaredBudgetPoints) || parsed.declaredBudgetPoints < 0)
+    ) {
+      throw new AutomationError('INVALID_PARAMS', 'declaredBudgetPoints 必须是非负有限数值', 400);
+    }
+    if (parsed.consent != null && parsed.consent !== 'interactive') {
+      throw new AutomationError('INVALID_PARAMS', 'consent 只接受 interactive', 400);
+    }
+    // 确认期间使用不可被调用方改写的快照；同幂等键随后绑定此快照。
+    return structuredClone(parsed);
   }
 
   function authorizeReferences(body: GenerationRequestBody): LocalImageReference[] {
@@ -270,21 +336,66 @@ export function createGenerationGate(
     estimate: GenerationEstimate,
     references: LocalImageReference[],
     approvedVia: 'budget' | 'confirmation' | 'consent',
+    spendRequest?: AutomationSpendRequest,
   ): JobRecord {
-    const jobId = randomUUID().replaceAll('-', '').slice(0, 26).toUpperCase();
+    const jobId =
+      spendRequest?.executionId ?? randomUUID().replaceAll('-', '').slice(0, 26).toUpperCase();
+    if (spendRequest && !host.persistence?.begin(spendRequest.id)) {
+      return restoreJob(host.persistence?.get(jobId) ?? spendRequest);
+    }
     const record: JobRecord = {
       jobId,
       status: 'running',
-      startedAt: Date.now(),
+      startedAt: clock(),
       estimatedPoints: estimate.points,
     };
     jobs.set(jobId, record);
+    const finishSpend =
+      !spendRequest && estimate.managedByAccount
+        ? host.budget.reserve?.(estimate.points)
+        : undefined;
+    if (!spendRequest && estimate.managedByAccount && !finishSpend) {
+      reservations.set(jobId, estimate.points);
+    }
     const request = toGenerateRequest(body, estimate, jobId, references);
-    void host
-      .run(request, (progress) => {
-        hub.sink.emit({ type: 'generation.progress', payload: { ...progress, jobId } });
-      })
-      .then((result) => {
+    void Promise.resolve()
+      .then(() =>
+        host.run(
+          request,
+          (progress) => {
+            hub.sink.emit({ type: 'generation.progress', payload: { ...progress, jobId } });
+          },
+          spendRequest,
+        ),
+      )
+      .then(async (result) => {
+        if (spendRequest && host.persistence) {
+          host.persistence.finish(spendRequest.id, result, clock());
+          const stored = host.persistence.get(jobId);
+          const evidence = stored ? host.persistence.result(stored) : undefined;
+          // The durable call ledger retains evidence even when a late cancel discards output.
+          result = { ...result, cost: evidence?.cost, costPoints: evidence?.costPoints };
+        }
+        const rawPoints = result.costPoints ?? result.cost ?? null;
+        const actualPoints =
+          rawPoints != null && Number.isFinite(rawPoints) && rawPoints >= 0 ? rawPoints : null;
+        try {
+          if (!spendRequest && estimate.managedByAccount) {
+            if (finishSpend) {
+              await finishSpend(actualPoints);
+            } else if (actualPoints == null) {
+              // 未知费用不能按 0 冲销并重新放出预算；后续请求仍可逐次明确确认。
+              unresolvedManagedSpend = true;
+            } else {
+              await host.budget.settle(actualPoints);
+              reservations.delete(jobId);
+            }
+          }
+        } catch (error) {
+          // A failed durable settlement cannot reopen automatic budget for another request.
+          unresolvedManagedSpend = true;
+          throw error;
+        }
         record.status =
           result.status === 'success'
             ? 'success'
@@ -292,26 +403,25 @@ export function createGenerationGate(
               ? 'cancelled'
               : 'failed';
         record.result = result;
-        const actualPoints = result.costPoints ?? result.cost ?? 0;
-        if (result.status === 'success') host.budget.settle(actualPoints);
         noteOutcome(record.status);
-        audit({
-          at: clock(),
-          action: 'generate_image',
-          promptText: request.prompt || null,
-          params: {
-            providerId: estimate.providerId,
-            model: request.model,
-            n: estimate.n,
-            aspectRatio: body.aspectRatio ?? null,
-            references: references.length,
-          },
-          estimatedPoints: estimate.points,
-          actualPoints: result.costPoints ?? result.cost ?? null,
-          approvedVia,
-          status: record.status,
-          jobId,
-        });
+        if (!spendRequest)
+          audit({
+            at: clock(),
+            action: 'generate_image',
+            promptText: request.prompt || null,
+            params: {
+              providerId: estimate.providerId,
+              model: request.model,
+              n: estimate.n,
+              aspectRatio: body.aspectRatio ?? null,
+              references: references.length,
+            },
+            estimatedPoints: estimate.points,
+            actualPoints,
+            approvedVia,
+            status: record.status,
+            jobId,
+          });
         hub.sink.emit({
           type: result.status === 'success' ? 'generation.completed' : 'generation.failed',
           payload: {
@@ -329,7 +439,15 @@ export function createGenerationGate(
           },
         });
       })
-      .catch((error) => {
+      .catch(async (error) => {
+        if (!spendRequest && estimate.managedByAccount) {
+          unresolvedManagedSpend = true;
+          try {
+            if (finishSpend) await finishSpend(null);
+          } catch {
+            // Settlement already failed; keep the original failure and unknown protection.
+          }
+        }
         record.status = 'failed';
         record.result = {
           historyId: jobId,
@@ -339,23 +457,58 @@ export function createGenerationGate(
             message: error instanceof Error ? error.message : String(error),
           },
         };
+        if (spendRequest) {
+          try {
+            host.persistence?.finish(spendRequest.id, record.result, clock());
+          } catch {
+            // Durable state/cost remain recoverable; never resend to repair an audit failure.
+          }
+        }
         noteOutcome('failed');
-        audit({
-          at: clock(),
-          action: 'generate_image',
-          promptText: body.prompt ?? null,
-          params: { providerId: estimate.providerId, n: estimate.n },
-          estimatedPoints: estimate.points,
-          actualPoints: null,
-          approvedVia,
-          status: 'failed',
-          jobId,
-        });
+        if (!spendRequest)
+          audit({
+            at: clock(),
+            action: 'generate_image',
+            promptText: body.prompt ?? null,
+            params: { providerId: estimate.providerId, n: estimate.n },
+            estimatedPoints: estimate.points,
+            actualPoints: null,
+            approvedVia,
+            status: 'failed',
+            jobId,
+          });
         hub.sink.emit({
           type: 'generation.failed',
           payload: { jobId, status: 'failed', error: record.result.error },
         });
       });
+    return record;
+  }
+
+  function restoreJob(request: AutomationSpendRequest): JobRecord {
+    const existing = jobs.get(request.executionId);
+    const result = host.persistence?.result(request);
+    if (existing) {
+      if (result) {
+        existing.status = result.status;
+        existing.result = {
+          ...result,
+          ...existing.result,
+          status: result.status,
+          cost: result.cost,
+          costPoints: result.costPoints,
+        };
+      }
+      return existing;
+    }
+    const record: JobRecord = {
+      jobId: request.executionId,
+      status: result?.status ?? 'running',
+      startedAt: request.authorizedAt ?? request.createdAt,
+      estimatedPoints: request.estimatedPoints,
+      ...(result ? { result } : {}),
+    };
+    jobs.set(record.jobId, record);
     return record;
   }
 
@@ -381,137 +534,180 @@ export function createGenerationGate(
     };
   }
 
+  async function submitGeneration(
+    body: GenerationRequestBody,
+    idempotencyKey: string | null,
+  ): Promise<JobRecord> {
+    const restored = idempotencyKey ? host.persistence?.replay(body, idempotencyKey) : null;
+    if (restored && (restored.state === 'running' || restored.state === 'terminal')) {
+      assertDurableOutcome(restored);
+      return restoreJob(restored);
+    }
+    // 熔断打开期间拒绝花钱提交（只读/轮询不受影响）
+    if (clock() < breakerOpenUntil) {
+      throw new AutomationError('BREAKER_OPEN', '连续失败过多，生成已临时熔断，请稍后再试', 429, {
+        retryAfterMs: breakerOpenUntil - clock(),
+      });
+    }
+    const references = authorizeReferences(body);
+    const estimate = host.estimate(body);
+    const durable =
+      host.persistence?.register(body, estimate, references, idempotencyKey, clock()) ?? undefined;
+    if (durable?.state === 'terminal') {
+      assertDurableOutcome(durable);
+      return restoreJob(durable);
+    }
+    if (durable?.state === 'running') return restoreJob(durable);
+    // b. 非托管 Provider 不计费，自动放行；托管 Provider 按预算覆盖估算；
+    //    托管价格未知时不可走预算，必须确认。调用方声明的一次性预算须同时 ≤ 剩余额度。
+    const remaining = remainingPoints();
+    const declared = body.declaredBudgetPoints;
+    const unmeteredProvider = !estimate.managedByAccount;
+    const budgetCovered =
+      !unresolvedManagedSpend &&
+      remaining > 0 &&
+      estimate.points != null &&
+      estimate.points <= remaining &&
+      (declared == null || (estimate.points <= declared && declared <= remaining));
+    // 交互同意：人已在本机确认（CLI TTY / --yes），等价 App 卡片放行
+    const covered = durable
+      ? durable.state === 'authorized'
+      : unmeteredProvider || budgetCovered || body.consent === 'interactive';
+
+    if (!covered) {
+      // c. 需确认：挂起 + 202
+      const confirmationId = durable?.confirmationId ?? randomUUID();
+      const summary: ConfirmationSummary = {
+        confirmationId,
+        providerName: estimate.providerName,
+        model: estimate.model,
+        n: estimate.n,
+        estimatedPoints: estimate.points,
+        promptPreview: (body.prompt ?? '').slice(0, 120),
+      };
+      let resolveOutcome!: (outcome: 'approved' | 'denied' | 'timeout') => void;
+      const outcome = new Promise<'approved' | 'denied' | 'timeout'>((resolve) => {
+        resolveOutcome = resolve;
+      });
+      // 一次性 settle：App 卡片、HTTP 回执、超时三路竞争，先到先得；
+      // 广播 resolved 事件让其他确认通道（如仍显示的卡片）同步关闭。
+      let settled = false;
+      const expiresAt = durable?.confirmationExpiresAt ?? clock() + CONFIRMATION_TIMEOUT_MS;
+      const settle = (verdict: 'approved' | 'denied' | 'timeout') => {
+        if (settled) return false;
+        if (clock() >= expiresAt) verdict = 'timeout';
+        if (durable && !host.persistence?.confirm(confirmationId, verdict === 'approved', clock()))
+          verdict = 'timeout';
+        settled = true;
+        pending.delete(confirmationId);
+        hub.sink.emit({
+          type: 'confirmation.resolved',
+          payload: { confirmationId, outcome: verdict },
+        });
+        resolveOutcome(verdict);
+        return verdict !== 'timeout';
+      };
+      const entry: PendingConfirmation = {
+        id: confirmationId,
+        body,
+        idempotencyKey: null,
+        resolve: settle,
+        outcome,
+        summary,
+        createdAt: clock(),
+      };
+      pending.set(confirmationId, entry);
+      const timeout = setTimeout(() => settle('timeout'), Math.max(0, expiresAt - clock()));
+      hub.sink.emit({ type: 'confirmation.required', payload: summary });
+      // 宿主的确认通道（App 卡片）与 HTTP 回执并行竞争，先到先得
+      void Promise.resolve()
+        .then(() => (settled ? null : host.requestConfirmation(summary)))
+        .then((verdict) => {
+          if (verdict) settle(verdict);
+        })
+        .catch(() => {});
+
+      const verdict = await outcome;
+      clearTimeout(timeout);
+      pending.delete(confirmationId);
+      if (!durable && verdict !== 'approved') {
+        audit({
+          at: clock(),
+          action: 'generate_image',
+          promptText: body.prompt ?? null,
+          params: { providerId: estimate.providerId, n: estimate.n },
+          estimatedPoints: estimate.points,
+          actualPoints: null,
+          approvedVia: verdict,
+          status: verdict,
+          jobId: null,
+        });
+      }
+      if (verdict === 'timeout') {
+        throw new AutomationError(
+          'CONFIRMATION_TIMEOUT',
+          '等待确认超时（120s），本次生成未执行',
+          409,
+          { confirmationId },
+        );
+      }
+      if (verdict === 'denied') {
+        throw new AutomationError('CONFIRMATION_DENIED', '用户拒绝了本次生成', 403, {
+          confirmationId,
+        });
+      }
+    }
+
+    const approvedVia =
+      body.consent === 'interactive'
+        ? 'consent'
+        : unmeteredProvider || budgetCovered
+          ? 'budget'
+          : 'confirmation';
+    const record = launch(body, estimate, references, approvedVia, durable);
+    return record;
+  }
+
   const routes: Record<string, AutomationRouteHandler> = {
     // 估算预览（🟢 零成本）：CLI TTY 确认前展示 Provider/模型/张数/预估费用
     'POST /v1/generations/estimate': (context) => {
       const body = validateBody(context);
       const estimate = host.estimate(body);
-      return { ...estimate, remainingBudgetPoints: host.budget.remainingPoints() };
+      return { ...estimate, remainingBudgetPoints: remainingPoints() };
     },
 
     'POST /v1/generations': async (context) => {
-      // 熔断打开期间拒绝花钱提交（只读/轮询不受影响）
-      if (clock() < breakerOpenUntil) {
-        throw new AutomationError('BREAKER_OPEN', '连续失败过多，生成已临时熔断，请稍后再试', 429, {
-          retryAfterMs: breakerOpenUntil - clock(),
-        });
-      }
       const body = validateBody(context);
-      const references = authorizeReferences(body);
-      const estimate = host.estimate(body);
       const idempotencyKey = firstHeader(context, 'idempotency-key');
-
-      // a. Idempotency-Key 命中已放行记录 → 返回原任务（不重复扣预算、不重复确认）
-      if (idempotencyKey) {
-        const existingJobId = approvedIdempotencyKeys.get(idempotencyKey);
-        const existing = existingJobId ? jobs.get(existingJobId) : undefined;
-        if (existing) {
-          context.json({ ...jobPayload(existing), idempotentReplay: true }, 200);
-          return;
-        }
-      }
-
-      // b. 非托管 Provider 不计费，自动放行；托管 Provider 按预算覆盖估算；
-      //    托管价格未知时不可走预算，必须确认。调用方声明的一次性预算须同时 ≤ 剩余额度。
-      const remaining = host.budget.remainingPoints();
-      const declared = body.declaredBudgetPoints;
-      const unmeteredProvider = !estimate.managedByAccount;
-      const budgetCovered =
-        estimate.points != null &&
-        estimate.points <= remaining &&
-        (declared == null || (estimate.points <= declared && declared <= remaining));
-      // 交互同意：人已在本机确认（CLI TTY / --yes），等价 App 卡片放行
-      const covered = unmeteredProvider || budgetCovered || body.consent === 'interactive';
-
-      if (!covered) {
-        // c. 需确认：挂起 + 202
-        const confirmationId = randomUUID();
-        const summary: ConfirmationSummary = {
-          confirmationId,
-          providerName: estimate.providerName,
-          model: estimate.model,
-          n: estimate.n,
-          estimatedPoints: estimate.points,
-          promptPreview: body.prompt!.slice(0, 120),
-        };
-        let resolveOutcome!: (outcome: 'approved' | 'denied' | 'timeout') => void;
-        const outcome = new Promise<'approved' | 'denied' | 'timeout'>((resolve) => {
-          resolveOutcome = resolve;
-        });
-        // 一次性 settle：App 卡片、HTTP 回执、超时三路竞争，先到先得；
-        // 广播 resolved 事件让其他确认通道（如仍显示的卡片）同步关闭。
-        let settled = false;
-        const settle = (verdict: 'approved' | 'denied' | 'timeout') => {
-          if (settled) return;
-          settled = true;
-          hub.sink.emit({
-            type: 'confirmation.resolved',
-            payload: { confirmationId, outcome: verdict },
-          });
-          resolveOutcome(verdict);
-        };
-        const entry: PendingConfirmation = {
-          id: confirmationId,
-          body,
-          idempotencyKey,
-          resolve: settle,
-          outcome,
-          summary,
-          createdAt: Date.now(),
-        };
-        pending.set(confirmationId, entry);
-        const timeout = setTimeout(() => settle('timeout'), CONFIRMATION_TIMEOUT_MS);
-        hub.sink.emit({ type: 'confirmation.required', payload: summary });
-        // 宿主的确认通道（App 卡片）与 HTTP 回执并行竞争，先到先得
-        void host
-          .requestConfirmation(summary)
-          .then((verdict) => settle(verdict))
-          .catch(() => {});
-
-        const verdict = await outcome;
-        clearTimeout(timeout);
-        pending.delete(confirmationId);
-        if (verdict !== 'approved') {
-          audit({
-            at: clock(),
-            action: 'generate_image',
-            promptText: body.prompt ?? null,
-            params: { providerId: estimate.providerId, n: estimate.n },
-            estimatedPoints: estimate.points,
-            actualPoints: null,
-            approvedVia: verdict,
-            status: verdict,
-            jobId: null,
-          });
-        }
-        if (verdict === 'timeout') {
+      const fingerprint = createHash('sha256')
+        .update(
+          JSON.stringify(
+            Object.fromEntries(Object.entries(body).sort(([a], [b]) => a.localeCompare(b))),
+          ),
+        )
+        .digest('hex');
+      const previous = idempotencyKey ? submissions.get(idempotencyKey) : undefined;
+      if (previous) {
+        if (previous.fingerprint !== fingerprint) {
           throw new AutomationError(
-            'CONFIRMATION_TIMEOUT',
-            '等待确认超时（120s），本次生成未执行',
+            'IDEMPOTENCY_CONFLICT',
+            '同一幂等键不能用于不同的生成请求',
             409,
-            { confirmationId },
           );
         }
-        if (verdict === 'denied') {
-          throw new AutomationError('CONFIRMATION_DENIED', '用户拒绝了本次生成', 403, {
-            confirmationId,
-          });
-        }
+        const record = await previous.result;
+        context.json({ ...jobPayload(record), idempotentReplay: true }, 200);
+        return;
       }
-
-      const approvedVia =
-        body.consent === 'interactive'
-          ? 'consent'
-          : unmeteredProvider || budgetCovered
-            ? 'budget'
-            : 'confirmation';
-      const record = launch(body, estimate, references, approvedVia);
-      if (idempotencyKey) approvedIdempotencyKeys.set(idempotencyKey, record.jobId);
-      context.json(jobPayload(record), 202);
+      // 先冻结幂等条目，再触发确认事件；事件监听器重入也不能二次发送。
+      const result = Promise.resolve().then(() => submitGeneration(body, idempotencyKey));
+      if (idempotencyKey) submissions.set(idempotencyKey, { fingerprint, result });
+      context.json(jobPayload(await result), 202);
     },
 
     'GET /v1/generations/:jobId': (context) => {
-      const record = jobs.get(context.params.jobId);
+      const persisted = host.persistence?.get(context.params.jobId);
+      const record = persisted ? restoreJob(persisted) : jobs.get(context.params.jobId);
       if (!record)
         throw new AutomationError('NOT_FOUND', '生成任务不存在（或已随重启失效）', 404, {
           jobId: context.params.jobId,
@@ -520,7 +716,8 @@ export function createGenerationGate(
     },
 
     'DELETE /v1/generations/:jobId': (context) => {
-      const record = jobs.get(context.params.jobId);
+      const persisted = host.persistence?.get(context.params.jobId);
+      const record = persisted ? restoreJob(persisted) : jobs.get(context.params.jobId);
       if (!record)
         throw new AutomationError('NOT_FOUND', '生成任务不存在', 404, {
           jobId: context.params.jobId,
@@ -530,8 +727,11 @@ export function createGenerationGate(
     },
 
     'POST /v1/confirmations/:id': (context) => {
-      const body = (context.body ?? {}) as { approved?: boolean };
-      const ok = gate.resolveConfirmation(context.params.id, body.approved !== false);
+      const body = context.body as { approved?: unknown } | null;
+      if (!body || typeof body.approved !== 'boolean') {
+        throw new AutomationError('INVALID_PARAMS', 'approved 必须是明确的布尔值', 400);
+      }
+      const ok = gate.resolveConfirmation(context.params.id, body.approved);
       if (!ok)
         throw new AutomationError('NOT_FOUND', '确认请求不存在或已处理', 404, {
           id: context.params.id,
@@ -574,8 +774,7 @@ export function createGenerationGate(
     resolveConfirmation(id, approved) {
       const entry = pending.get(id);
       if (!entry) return false;
-      entry.resolve(approved ? 'approved' : 'denied');
-      return true;
+      return entry.resolve(approved ? 'approved' : 'denied');
     },
     pendingConfirmations() {
       return [...pending.values()].map((entry) => entry.summary);

@@ -1,4 +1,8 @@
+import { beginAccountTransition } from '../../account/account-session';
+import { toast } from '@musefold/ui/components/sonner';
 import type {
+  AccountSummary,
+  AccountModelCatalog,
   AppPreferences,
   CreateGenerationInput,
   GenerationJob,
@@ -15,9 +19,23 @@ import type {
   SettingsGateway,
   WorkbenchGateway,
 } from '@musefold/platform';
-import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
+import {
+  DESKTOP_CAPABILITIES,
+  PlatformProvider,
+  queryKeys,
+  WEB_CAPABILITIES,
+} from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -31,8 +49,16 @@ import {
   resolveInheritedGenerationParams,
   useActiveSession,
 } from '../session-store';
+import { useScreenIntent } from '../../shell/screen-intent-store';
+import { resetQuotaRecovery, peekQuotaRecovery } from '../../history/spend-recovery-store';
+import { useRedeem } from '../../account/hooks';
 import { emptyStateGreeting } from '../WorkbenchEmptyState';
-import { deriveSessionTitle, WorkbenchScreen } from '../WorkbenchScreen';
+import {
+  deriveSessionTitle,
+  formatSessionTitle,
+  workbenchTaskSummary,
+  WorkbenchScreen,
+} from '../WorkbenchScreen';
 
 const EMPTY_DRAFT: WorkbenchDraft = {
   prompt: '',
@@ -46,15 +72,119 @@ function nowIso(offsetMs = 0): string {
   return new Date(Date.now() + offsetMs).toISOString().replace(/Z$/, '+00:00');
 }
 
+/** 可控软键盘视口:jsdom 无 visualViewport;支持中途切到 md+ 断言桌面不抬。 */
+function stubSoftKeyboardViewport(options: {
+  desktop: boolean;
+  innerHeight: number;
+  viewportHeight: number;
+  offsetTop?: number;
+}) {
+  const viewport = Object.assign(new EventTarget(), {
+    height: options.viewportHeight,
+    offsetTop: options.offsetTop ?? 0,
+  });
+  let desktop = options.desktop;
+  const mediaListeners = new Set<(event: MediaQueryListEvent) => void>();
+  const previousInnerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+  const previousMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+  const previousVisualViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+  Object.defineProperty(window, 'innerHeight', {
+    configurable: true,
+    value: options.innerHeight,
+  });
+  Object.defineProperty(window, 'visualViewport', {
+    configurable: true,
+    writable: true,
+    value: viewport,
+  });
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      get matches() {
+        if (query.includes('min-width: 768px')) return desktop;
+        if (query.includes('max-width: 767px')) return !desktop;
+        return false;
+      },
+      media: query,
+      onchange: null,
+      addEventListener: (_type: string, cb: (event: MediaQueryListEvent) => void) => {
+        mediaListeners.add(cb);
+      },
+      removeEventListener: (_type: string, cb: (event: MediaQueryListEvent) => void) => {
+        mediaListeners.delete(cb);
+      },
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+  return {
+    setDesktop(next: boolean) {
+      desktop = next;
+      act(() => {
+        for (const listener of mediaListeners) listener({ matches: next } as MediaQueryListEvent);
+      });
+    },
+    restore() {
+      if (previousInnerHeight) Object.defineProperty(window, 'innerHeight', previousInnerHeight);
+      if (previousMatchMedia) Object.defineProperty(window, 'matchMedia', previousMatchMedia);
+      else Reflect.deleteProperty(window, 'matchMedia');
+      if (previousVisualViewport) {
+        Object.defineProperty(window, 'visualViewport', previousVisualViewport);
+      } else {
+        Reflect.deleteProperty(window, 'visualViewport');
+      }
+    },
+  };
+}
+
+/** 时间线种子回合:只覆盖测试关心的 id / sessionId / status。 */
+function makeSeedJob(
+  partial: Partial<GenerationJob> & Pick<GenerationJob, 'id' | 'sessionId'>,
+): GenerationJob {
+  return {
+    parentRunId: null,
+    promptId: null,
+    userPrompt: 'seed prompt',
+    promptReferences: [],
+    actorType: 'web',
+    approvalStatus: 'not_required',
+    status: 'succeeded',
+    progress: 100,
+    request: {
+      prompt: 'seed prompt',
+      size: 'auto',
+      quality: 'auto',
+      count: 1,
+      referenceImages: [],
+    },
+    providerModel: 'test-model',
+    costPoints: null,
+    assets: [],
+    error: null,
+    createdAt: nowIso(),
+    startedAt: nowIso(),
+    finishedAt: nowIso(1_000),
+    deletedAt: null,
+    ...partial,
+  };
+}
+
 /** 内存版 workbench + generation:提交即 queued,一次读取后翻成 succeeded。 */
 function createMemoryWorkbench(options?: {
   noProviders?: boolean;
   holdQueued?: boolean;
+  createError?: Error & { code?: string };
+  seedJobs?: GenerationJob[];
   preferences?: Partial<AppPreferences>;
+  accountStatus?: AccountSummary;
+  readModelCatalog?: () => Promise<AccountModelCatalog>;
 }) {
   let seq = 0;
   const sessions = new Map<string, WorkbenchSession>();
   const jobs = new Map<string, GenerationJob>();
+  for (const job of options?.seedJobs ?? []) jobs.set(job.id, job);
   // 「保存图片」链路:记录入参供断言,固定返回 saved。
   const assetSaves: SaveAssetInput[] = [];
   const draftWriteVersions: number[] = [];
@@ -129,10 +259,18 @@ function createMemoryWorkbench(options?: {
       sessions.set(id, session);
       return session;
     },
+    purgeSession: async () => {
+      throw new Error('Session cleanup is not used by this workbench fixture');
+    },
+    emptyTrash: async () => {
+      throw new Error('Session cleanup is not used by this workbench fixture');
+    },
   };
 
   const generation: GenerationGateway = {
+    releaseReferenceImage: async () => {},
     create: async (input: CreateGenerationInput) => {
+      if (options?.createError) throw options.createError;
       seq += 1;
       const job: GenerationJob = {
         id: `job-${seq}`,
@@ -224,7 +362,15 @@ function createMemoryWorkbench(options?: {
     listProviders: async () =>
       options?.noProviders
         ? []
-        : [{ id: 'p1', label: '测试连接', model: 'test-model', kind: 'local', available: true }],
+        : [
+            {
+              id: 'p1',
+              label: '测试连接',
+              model: 'test-model',
+              kind: options?.readModelCatalog ? 'cloud' : 'local',
+              available: true,
+            },
+          ],
     uploadReferenceImage: async (input) => {
       seq += 1;
       return {
@@ -284,11 +430,30 @@ function createMemoryWorkbench(options?: {
     },
   };
 
+  const account = {
+    ...(options?.readModelCatalog ? { getModelCatalog: options.readModelCatalog } : {}),
+    getStatus: async () => {
+      if (!options?.accountStatus) throw new Error('桌面端尚未登录');
+      return options.accountStatus;
+    },
+    login: async () => {
+      throw new Error('not implemented');
+    },
+    register: async () => {
+      throw new Error('not implemented');
+    },
+    logout: async () => {},
+    redeem: async () => {
+      throw new Error('not implemented');
+    },
+  };
+
   return {
     workbench,
     generation,
     settings,
     prompts,
+    account,
     promptCreates,
     assetSaves,
     draftWriteVersions,
@@ -299,10 +464,15 @@ function createMemoryWorkbench(options?: {
 function renderWorkbench(options?: {
   noProviders?: boolean;
   holdQueued?: boolean;
+  createError?: Error & { code?: string };
+  seedJobs?: GenerationJob[];
   onOpenSettings?: () => void;
   preferences?: Partial<AppPreferences>;
   /** 预置会话行(「新设计」已不直接建行,行级测试用种子行作靶)。 */
   seedSessions?: string[];
+  accountStatus?: AccountSummary;
+  readModelCatalog?: () => Promise<AccountModelCatalog>;
+  desktop?: boolean;
 }) {
   const memory = createMemoryWorkbench(options);
   // memory 网关无 await 点,种子会话同步落 Map。
@@ -314,7 +484,12 @@ function renderWorkbench(options?: {
   function Providers({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <PlatformProvider runtime={{ gateway, capabilities: WEB_CAPABILITIES }}>
+        <PlatformProvider
+          runtime={{
+            gateway,
+            capabilities: options?.desktop ? DESKTOP_CAPABILITIES : WEB_CAPABILITIES,
+          }}
+        >
           {children}
         </PlatformProvider>
       </QueryClientProvider>
@@ -328,7 +503,7 @@ function renderWorkbench(options?: {
     </>,
     { wrapper: Providers },
   );
-  return memory;
+  return { ...memory, queryClient, Providers };
 }
 
 describe('Workbench(壳会话区 + 屏)', () => {
@@ -341,6 +516,603 @@ describe('Workbench(壳会话区 + 屏)', () => {
       seenAt: {},
       unreadMarks: {},
     });
+    useScreenIntent.setState({ intent: null });
+    resetQuotaRecovery();
+  });
+
+  it.each([false, true])(
+    'account model selector sends the displayed cloud choice (desktop=%s)',
+    async (desktop) => {
+      const identity = {
+        apiIssuer: 'https://api.test',
+        principalId: 'principal-model-test',
+        status: 'active' as const,
+        identityVersion: 1,
+      };
+      const catalog: AccountModelCatalog = {
+        identity: {
+          apiIssuer: identity.apiIssuer,
+          principalId: identity.principalId,
+          payer: { issuer: 'https://payer.test', ownerId: 'owner-model-test' },
+          credential: { ref: 'credential-model-test', version: 1 },
+        },
+        group: 'vip',
+        checkedAt: '2026-09-20T00:00:00.000Z',
+        models: ['image-a', 'image-b'].map((model, index) => ({
+          model,
+          imageGeneration: true,
+          supportedEndpointTypes: ['image-generation'],
+          pricing: {
+            kind: 'per_call',
+            baseUsd: 0.1,
+            groupRatio: 1,
+            quotaPerCall: 50000 * (index + 1),
+          },
+        })),
+      };
+      const readModelCatalog = vi.fn(async () => catalog);
+      const stored = new Map<string, string>();
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => stored.set(key, value),
+      });
+      const scroll = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+      Object.defineProperty(Element.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: () => {},
+      });
+      try {
+        const memory = renderWorkbench({
+          desktop,
+          readModelCatalog,
+          accountStatus: {
+            id: 'owner-model-test',
+            username: 'model-test',
+            displayName: null,
+            quota: 1_000_000,
+            quotaUnit: 'quota',
+            canGenerate: true,
+            identity,
+          },
+        });
+        const create = vi.spyOn(memory.generation, 'create');
+        await waitFor(() =>
+          expect(screen.getByTestId('composer-model-price').textContent).toContain('1 积分/计费次'),
+        );
+        const trigger = screen.getByRole('combobox', { name: '账号模型' });
+        fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+        const option = await screen.findByRole('option', { name: /image-b/ });
+        fireEvent.keyDown(option, { key: 'Enter' });
+        await waitFor(() =>
+          expect(screen.getByTestId('composer-model-price').textContent).toContain('2 积分/计费次'),
+        );
+        expect([...stored.values()]).toEqual(['image-b']);
+        fireEvent.change(screen.getByTestId('composer-prompt'), {
+          target: { value: 'selected model request' },
+        });
+        fireEvent.click(screen.getByTestId('composer-submit'));
+        await waitFor(() => expect(create).toHaveBeenCalledOnce());
+        expect(create.mock.calls[0]?.[0]).toMatchObject({
+          model: 'image-b',
+          expectedBinding: { model: 'image-b', principalId: identity.principalId },
+          prompt: 'selected model request',
+          providerId: 'p1',
+        });
+        expect(readModelCatalog).toHaveBeenCalledTimes(2);
+      } finally {
+        cleanup();
+        vi.unstubAllGlobals();
+        if (scroll) Object.defineProperty(Element.prototype, 'scrollIntoView', scroll);
+        else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+      }
+    },
+  );
+
+  async function addHeldImage(name = 'held.png') {
+    await screen.findByTestId('composer-prompt');
+    const file = new File([new Uint8Array([137, 80, 78, 71])], name, { type: 'image/png' });
+    fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByTestId('composer-reference')
+          .every((element) => element.getAttribute('data-status') === 'ready'),
+      ).toBe(true),
+    );
+  }
+  function pendingResult<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: Error) => void;
+    const promise = new Promise<T>((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it.each(['remove', 'unmount', 'account-change', 'session-change'] as const)(
+    'reference host release: unused ready image leaves through %s',
+    async (exit) => {
+      const memory = renderWorkbench({ seedSessions: ['older', 'newer'] });
+      await act(async () => {
+        await memory.queryClient.refetchQueries();
+      });
+      const release = vi.spyOn(memory.generation, 'releaseReferenceImage');
+      await addHeldImage();
+      expect(release).not.toHaveBeenCalled();
+      if (exit === 'remove')
+        fireEvent.click(screen.getByRole('button', { name: '移除参考图 held.png' }));
+      else if (exit === 'unmount') cleanup();
+      else if (exit === 'account-change')
+        act(() => {
+          beginAccountTransition(memory.queryClient);
+        });
+      else fireEvent.click(screen.getByTestId('session-session-1'));
+      await waitFor(() => expect(release).toHaveBeenCalledOnce());
+      expect(release.mock.calls[0]?.[0]).toEqual({ id: expect.stringMatching(/^REF/) });
+      expect(screen.queryByTestId('composer-reference')).toBeNull();
+      cleanup();
+      await act(async () => {});
+      expect(release).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('reference host release: a late successful upload returns its unused host hold', async () => {
+    const memory = renderWorkbench();
+    await screen.findByTestId('composer-prompt');
+    const release = vi.spyOn(memory.generation, 'releaseReferenceImage');
+    const gate = pendingResult<Awaited<ReturnType<GenerationGateway['uploadReferenceImage']>>>();
+    const upload = vi
+      .spyOn(memory.generation, 'uploadReferenceImage')
+      .mockReturnValue(gate.promise);
+    fireEvent.change(screen.getByTestId('composer-file-input'), {
+      target: {
+        files: [new File([new Uint8Array([137, 80, 78, 71])], 'late.png', { type: 'image/png' })],
+      },
+    });
+    await waitFor(() => expect(upload).toHaveBeenCalledOnce());
+    cleanup();
+    expect(release).not.toHaveBeenCalled();
+    await act(async () =>
+      gate.resolve({
+        id: 'late-reference',
+        url: 'https://example.test/late.png',
+        name: 'late.png',
+        mimeType: 'image/png',
+        byteSize: 4,
+      }),
+    );
+    await waitFor(() => expect(release).toHaveBeenCalledExactlyOnceWith({ id: 'late-reference' }));
+  });
+
+  it.each(['success', 'failure', 'account-change'] as const)(
+    'reference host release: leaving during generation retains images until %s settles',
+    async (exit) => {
+      const memory = renderWorkbench({ seedSessions: ['existing'] });
+      await act(async () => {
+        await memory.queryClient.refetchQueries();
+      });
+      const release = vi.spyOn(memory.generation, 'releaseReferenceImage');
+      await addHeldImage();
+      const gate = pendingResult<GenerationJob>();
+      const create = vi.spyOn(memory.generation, 'create').mockReturnValue(gate.promise);
+      fireEvent.change(screen.getByTestId('composer-prompt'), {
+        target: { value: 'with original image' },
+      });
+      fireEvent.click(screen.getByTestId('composer-submit'));
+      await waitFor(() => expect(create).toHaveBeenCalledOnce());
+      expect(create.mock.calls[0]?.[0].referenceImages?.[0]?.name).toBe('held.png');
+      cleanup();
+      if (exit === 'account-change') beginAccountTransition(memory.queryClient);
+      await act(async () => {});
+      expect(release).not.toHaveBeenCalled();
+      await act(async () => {
+        if (exit === 'success')
+          gate.resolve(makeSeedJob({ id: 'accepted', sessionId: 'session-1' }));
+        else gate.reject(new Error('generation unavailable'));
+      });
+      await waitFor(() => expect(release).toHaveBeenCalledOnce());
+      expect(create).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(['same-account', 'account-change'] as const)(
+    'reference host release: submission pins precede asynchronous first-session creation (%s)',
+    async (identity) => {
+      const memory = renderWorkbench();
+      const release = vi.spyOn(memory.generation, 'releaseReferenceImage');
+      await addHeldImage();
+      const gate = pendingResult<WorkbenchSession>();
+      const realCreateSession = memory.workbench.createSession;
+      const sessionCreate = vi
+        .spyOn(memory.workbench, 'createSession')
+        .mockReturnValue(gate.promise);
+      const create = vi.spyOn(memory.generation, 'create');
+      fireEvent.change(screen.getByTestId('composer-prompt'), {
+        target: { value: 'first submission' },
+      });
+      fireEvent.click(screen.getByTestId('composer-submit'));
+      await waitFor(() => expect(sessionCreate).toHaveBeenCalledOnce());
+      cleanup();
+      await act(async () => {});
+      expect(release).not.toHaveBeenCalled();
+      if (identity === 'account-change') beginAccountTransition(memory.queryClient);
+      await act(async () => gate.resolve(await realCreateSession(sessionCreate.mock.calls[0]![0])));
+      await waitFor(() => expect(release).toHaveBeenCalledOnce());
+      expect(create).toHaveBeenCalledTimes(identity === 'same-account' ? 1 : 0);
+      if (identity === 'same-account')
+        expect(create.mock.calls[0]?.[0].referenceImages?.[0]?.name).toBe('held.png');
+    },
+  );
+
+  it('reference host release: quota recovery keeps the uploaded input after leaving workbench and until replay finishes', async () => {
+    const memory = renderWorkbench({ seedSessions: ['existing'] });
+    await act(async () => {
+      await memory.queryClient.refetchQueries();
+    });
+    const release = vi.spyOn(memory.generation, 'releaseReferenceImage');
+    await addHeldImage();
+    const gate = pendingResult<GenerationJob>();
+    const create = vi
+      .spyOn(memory.generation, 'create')
+      .mockRejectedValueOnce(
+        Object.assign(new Error('quota insufficient'), { code: 'ACCOUNT_QUOTA_INSUFFICIENT' }),
+      )
+      .mockReturnValueOnce(gate.promise);
+    fireEvent.change(screen.getByTestId('composer-prompt'), { target: { value: 'frozen input' } });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(peekQuotaRecovery()?.kind).toBe('replay-create'));
+    cleanup();
+    await act(async () => {});
+    expect(release).not.toHaveBeenCalled();
+    const credited = {
+      id: 'owner-a',
+      username: 'owner-a',
+      displayName: null,
+      quota: 500000,
+      quotaUnit: '点',
+      canGenerate: true,
+    };
+    const redeem = vi.fn(async () => ({ account: credited, creditedQuota: 500000 }));
+    Object.assign(memory.account, { redeem });
+    const hook = renderHook(() => useRedeem(), { wrapper: memory.Providers });
+    act(() => hook.result.current.mutate('CODE'));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create.mock.calls[1]).toEqual(create.mock.calls[0]);
+    expect(release).not.toHaveBeenCalled();
+    await act(async () => gate.resolve(makeSeedJob({ id: 'accepted', sessionId: 'session-1' })));
+    await waitFor(() => expect(release).toHaveBeenCalledOnce());
+    expect(redeem).toHaveBeenCalledOnce();
+    hook.unmount();
+  });
+
+  it('参考图生命周期： unmount releases the actual preview URL', async () => {
+    const previousCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const previousRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    const revoke = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: () => 'blob:owned-preview',
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
+    try {
+      renderWorkbench();
+      await screen.findByTestId('composer-prompt');
+      fireEvent.change(screen.getByTestId('composer-file-input'), {
+        target: {
+          files: [
+            new File([new Uint8Array([137, 80, 78, 71])], 'owned.png', { type: 'image/png' }),
+          ],
+        },
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId('composer-reference').getAttribute('data-status')).toBe('ready'),
+      );
+      cleanup();
+      expect(revoke).toHaveBeenCalledWith('blob:owned-preview');
+    } finally {
+      cleanup();
+      if (previousCreate) Object.defineProperty(URL, 'createObjectURL', previousCreate);
+      else Reflect.deleteProperty(URL, 'createObjectURL');
+      if (previousRevoke) Object.defineProperty(URL, 'revokeObjectURL', previousRevoke);
+      else Reflect.deleteProperty(URL, 'revokeObjectURL');
+    }
+  });
+
+  it('参考图生命周期： cleared pending read never starts a host upload', async () => {
+    const memory = renderWorkbench({ seedSessions: ['first', 'second'] });
+    fireEvent.click(await screen.findByTestId('session-session-1'));
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+    let finishRead!: (value: ArrayBuffer) => void;
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'pending.png', {
+      type: 'image/png',
+    });
+    const arrayBuffer = vi.fn(
+      () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          finishRead = resolve;
+        }),
+    );
+    Object.defineProperty(file, 'arrayBuffer', { value: arrayBuffer });
+    const upload = vi.spyOn(memory.generation, 'uploadReferenceImage');
+    fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [file] } });
+    expect(arrayBuffer).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('session-session-2'));
+    await waitFor(() => expect(screen.queryByTestId('composer-reference')).toBeNull());
+    await act(async () => {
+      finishRead(new Uint8Array([137, 80, 78, 71]).buffer);
+    });
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it.each(['read', 'upload'] as const)(
+    '参考图生命周期： leaving a page silences its late %s error',
+    async (phase) => {
+      const memory = renderWorkbench({ seedSessions: ['first', 'second'] });
+      fireEvent.click(await screen.findByTestId('session-session-1'));
+      await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+      let rejectPending!: (error: Error) => void;
+      const file = new File([new Uint8Array([137, 80, 78, 71])], 'old.png', { type: 'image/png' });
+      const upload = vi.spyOn(memory.generation, 'uploadReferenceImage');
+      if (phase === 'read')
+        Object.defineProperty(file, 'arrayBuffer', {
+          value: () =>
+            new Promise<ArrayBuffer>((_resolve, reject) => {
+              rejectPending = reject;
+            }),
+        });
+      else
+        upload.mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectPending = reject;
+            }),
+        );
+      const errorToast = vi.spyOn(toast, 'error');
+      try {
+        fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [file] } });
+        await waitFor(() => expect(rejectPending).toBeTypeOf('function'));
+        fireEvent.click(screen.getByTestId('session-session-2'));
+        await waitFor(() => expect(screen.queryByTestId('composer-reference')).toBeNull());
+        await act(async () => {
+          rejectPending(new Error('old page upload failed'));
+        });
+        expect(errorToast).not.toHaveBeenCalledWith('old page upload failed');
+        expect(screen.queryByTestId('composer-reference')).toBeNull();
+      } finally {
+        errorToast.mockRestore();
+      }
+    },
+  );
+
+  it('参考图生命周期： unmounted pending read never uploads', async () => {
+    const memory = renderWorkbench();
+    await screen.findByTestId('composer-prompt');
+    let finishRead!: (value: ArrayBuffer) => void;
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'unmounted.png', {
+      type: 'image/png',
+    });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          finishRead = resolve;
+        }),
+    });
+    const upload = vi.spyOn(memory.generation, 'uploadReferenceImage');
+    fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [file] } });
+    cleanup();
+    await act(async () => {
+      finishRead(new Uint8Array([137, 80, 78, 71]).buffer);
+    });
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('参考图生命周期： current upload failures still explain the error', async () => {
+    const memory = renderWorkbench();
+    await screen.findByTestId('composer-prompt');
+    vi.spyOn(memory.generation, 'uploadReferenceImage').mockRejectedValueOnce(
+      new Error('current upload failed'),
+    );
+    const errorToast = vi.spyOn(toast, 'error');
+    try {
+      fireEvent.change(screen.getByTestId('composer-file-input'), {
+        target: {
+          files: [
+            new File([new Uint8Array([137, 80, 78, 71])], 'current.png', { type: 'image/png' }),
+          ],
+        },
+      });
+      await waitFor(() => expect(errorToast).toHaveBeenCalledWith('current upload failed'));
+      expect(screen.queryByTestId('composer-reference')).toBeNull();
+    } finally {
+      errorToast.mockRestore();
+    }
+  });
+
+  it.each(['read', 'upload'] as const)(
+    '参考图生命周期： account transition invalidates pending %s',
+    async (phase) => {
+      const memory = renderWorkbench();
+      await screen.findByTestId('composer-prompt');
+      let finishRead!: (bytes: ArrayBuffer) => void;
+      let finishUpload!: (
+        image: Awaited<ReturnType<GenerationGateway['uploadReferenceImage']>>,
+      ) => void;
+      const file = new File([new Uint8Array([137, 80, 78, 71])], 'old-account.png', {
+        type: 'image/png',
+      });
+      const upload = vi.spyOn(memory.generation, 'uploadReferenceImage');
+      if (phase === 'read')
+        Object.defineProperty(file, 'arrayBuffer', {
+          value: () =>
+            new Promise<ArrayBuffer>((resolve) => {
+              finishRead = resolve;
+            }),
+        });
+      else
+        upload.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishUpload = resolve;
+            }),
+        );
+      fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [file] } });
+      await waitFor(() =>
+        expect(phase === 'read' ? finishRead : finishUpload).toBeTypeOf('function'),
+      );
+      await act(async () => {
+        beginAccountTransition(memory.queryClient);
+        if (phase === 'read') finishRead(new Uint8Array([137, 80, 78, 71]).buffer);
+        else
+          finishUpload({
+            id: 'old-account-reference',
+            name: file.name,
+            mimeType: 'image/png',
+            byteSize: 4,
+            url: '/api/v1/reference-images/old-account-reference/url',
+          });
+      });
+      expect(screen.queryByTestId('composer-reference')).toBeNull();
+      expect(upload).toHaveBeenCalledTimes(phase === 'read' ? 0 : 1);
+    },
+  );
+
+  it.each(['unmount', 'account'] as const)(
+    '参考图生命周期： mutation admission rechecks %s after an asynchronous callback',
+    async (change) => {
+      const memory = renderWorkbench();
+      await screen.findByTestId('composer-prompt');
+      let resume!: () => void;
+      let admissionStarted = false;
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      memory.queryClient.getMutationCache().config.onMutate = async () => {
+        admissionStarted = true;
+        await gate;
+      };
+      const upload = vi.spyOn(memory.generation, 'uploadReferenceImage');
+      fireEvent.change(screen.getByTestId('composer-file-input'), {
+        target: {
+          files: [
+            new File([new Uint8Array([137, 80, 78, 71])], 'admission.png', { type: 'image/png' }),
+          ],
+        },
+      });
+      await waitFor(() => expect(admissionStarted).toBe(true));
+      await act(async () => {
+        if (change === 'account') beginAccountTransition(memory.queryClient);
+        else cleanup();
+        resume();
+      });
+      expect(upload).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('composer-reference')).toBeNull();
+    },
+  );
+
+  it('防抖尚未提交时切走再载入新草稿，旧定时器不得覆盖已载入内容', async () => {
+    const memory = renderWorkbench({ seedSessions: ['原会话', '另一会话'] });
+    fireEvent.click(await screen.findByTestId('session-session-1'));
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+    const original = await memory.workbench.getSession('session-1');
+    fireEvent.change(screen.getByTestId('composer-prompt'), { target: { value: '旧定时输入' } });
+    fireEvent.click(screen.getByTestId('session-session-2'));
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-2'));
+    const loaded = await memory.workbench.updateSession('session-1', {
+      expectedVersion: original.version,
+      draft: { ...original.draft, prompt: '重新载入的远端内容' },
+    });
+    await act(async () => {
+      await memory.queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    });
+    fireEvent.click(screen.getByTestId('session-session-1'));
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+        '重新载入的远端内容',
+      ),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    });
+    expect(await memory.workbench.getSession('session-1')).toEqual(loaded);
+    expect(screen.queryByTestId('session-draft-save-error')).toBeNull();
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: '载入后新的编辑' },
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    });
+    expect((await memory.workbench.getSession('session-1')).draft.prompt).toBe('载入后新的编辑');
+  });
+
+  it('后台刷新不得把远端草稿版本授予本页旧输入，冲突核对后显式保存', async () => {
+    const memory = renderWorkbench({ seedSessions: ['并发草稿'] });
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+    const original = await memory.workbench.getSession('session-1');
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: '本地未保存输入' },
+    });
+    await act(async () => {
+      await memory.workbench.updateSession('session-1', {
+        expectedVersion: original.version,
+        draft: { ...original.draft, prompt: '另一个窗口已提交的输入' },
+      });
+      await memory.queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    });
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+      '本地未保存输入',
+    );
+    // Give the real autosave debounce a chance to reach the versioned gateway.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    });
+    expect((await memory.workbench.getSession('session-1')).draft.prompt).toBe(
+      '另一个窗口已提交的输入',
+    );
+    await screen.findByTestId('session-draft-save-error');
+    expect((screen.getByTestId('composer-submit') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('session-draft-review'));
+    const dialog = await screen.findByTestId('session-draft-conflict-dialog');
+    expect(within(dialog).getByLabelText('最新保存的草稿').textContent).toContain(
+      '另一个窗口已提交的输入',
+    );
+    expect(within(dialog).getByLabelText('本页草稿').textContent).toContain('本地未保存输入');
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+    await waitFor(() => expect(screen.queryByTestId('session-draft-conflict-dialog')).toBeNull());
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+      '本地未保存输入',
+    );
+    fireEvent.click(screen.getByTestId('session-draft-review'));
+    await screen.findByTestId('session-draft-conflict-dialog');
+    const second = await memory.workbench.getSession('session-1');
+    await act(async () => {
+      await memory.workbench.updateSession('session-1', {
+        expectedVersion: second.version,
+        draft: { ...second.draft, prompt: '核对后再次修改' },
+      });
+      await memory.queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    });
+    fireEvent.click(screen.getByTestId('session-draft-save-local'));
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('session-draft-conflict-dialog')).getByRole('alert'),
+      ).toBeTruthy(),
+    );
+    expect((await memory.workbench.getSession('session-1')).draft.prompt).toBe('核对后再次修改');
+    expect((screen.getByTestId('session-draft-save-local') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    fireEvent.click(screen.getByTestId('session-draft-review-refresh'));
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('session-draft-conflict-dialog')).getByLabelText('最新保存的草稿')
+          .textContent,
+      ).toContain('核对后再次修改'),
+    );
+    fireEvent.click(screen.getByTestId('session-draft-save-local'));
+    await waitFor(() => expect(screen.queryByTestId('session-draft-conflict-dialog')).toBeNull());
+    expect((await memory.workbench.getSession('session-1')).draft.prompt).toBe('本地未保存输入');
+    expect(screen.queryByTestId('session-draft-save-error')).toBeNull();
   });
 
   it('库「使用」送来的草稿装进 Composer,消费一次即清,不被会话草稿装载覆盖', async () => {
@@ -430,6 +1202,9 @@ describe('Workbench(壳会话区 + 屏)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workbench-empty-greeting').textContent).toBe(emptyStateGreeting());
     });
+    // 空态问候不被时间线头顶标题行抢走(B5-T4)。
+    expect(screen.queryByTestId('workbench-session-title')).toBeNull();
+    expect(screen.queryByTestId('workbench-task-summary')).toBeNull();
     // 空态内联 Composer 与快捷建议共存;建议点击只回填草稿,不自动生成。
     const empty = screen.getByTestId('workbench-empty');
     expect(within(empty).getByTestId('composer-prompt')).toBeTruthy();
@@ -458,6 +1233,27 @@ describe('Workbench(壳会话区 + 屏)', () => {
     expect(screen.queryByTestId('job-status')).toBeNull();
   });
 
+  it('有回合的活动会话在时间线头顶显示标题与排队摘要', async () => {
+    const longTitle = `霓虹雨夜的城市街景${'一'.repeat(10)}`;
+    renderWorkbench({
+      seedSessions: [longTitle],
+      seedJobs: [
+        makeSeedJob({ id: 'job-seed', sessionId: 'session-1', status: 'queued', progress: 0 }),
+      ],
+      holdQueued: true,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('timeline')).toBeTruthy();
+    });
+    const title = screen.getByTestId('workbench-session-title');
+    expect(title.getAttribute('title')).toBe(longTitle);
+    expect(title.textContent).toBe(formatSessionTitle(longTitle));
+    expect(screen.getByTestId('workbench-task-summary').textContent).toBe('排队中');
+    // md+ 行,不替代移动端会话选择器。
+    expect(screen.getByTestId('session-picker')).toBeTruthy();
+  });
+
   it('新会话草稿继承默认比例/质量;已改草稿不被覆盖', async () => {
     renderWorkbench({
       preferences: { defaultAspectRatio: '16:9', defaultQuality: 'high' },
@@ -480,10 +1276,33 @@ describe('Workbench(壳会话区 + 屏)', () => {
     // 默认值变更只覆盖未显式改过的字段(质量仍继承,比例保持用户选择)。
     expect(
       resolveInheritedGenerationParams(
-        { defaultAspectRatio: '21:9', defaultQuality: 'low' },
+        { defaultAspectRatio: '21:9', defaultQuality: 'low', defaultCount: 1 },
         useActiveSession.getState().draftParamOverrides,
       ),
-    ).toEqual({ aspectRatio: '1:1', quality: 'low' });
+    ).toEqual({ aspectRatio: '1:1', quality: 'low', count: 1 });
+  });
+
+  it('新会话继承默认张数;显式改张数后按覆盖值提交(§9-D3)', async () => {
+    const memory = renderWorkbench({ preferences: { defaultCount: 4 } });
+    const createSpy = vi.spyOn(memory.generation, 'create');
+
+    fireEvent.click(await screen.findByTestId('session-create'));
+    fireEvent.click(await screen.findByTestId('composer-settings'));
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-count-4').getAttribute('aria-checked')).toBe('true');
+    });
+    expect(screen.getByTestId('composer-settings').textContent).toContain('4 张');
+
+    fireEvent.click(screen.getByTestId('composer-count-2'));
+    await waitFor(() => {
+      expect(useActiveSession.getState().draftParamOverrides.count).toBe(2);
+    });
+
+    fireEvent.change(screen.getByTestId('composer-prompt'), { target: { value: '两张试试' } });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalled());
+    expect(createSpy.mock.calls[0]?.[0]).toMatchObject({ count: 2 });
   });
 
   it('草稿态首次发送才建会话,标题由首句派生', async () => {
@@ -529,7 +1348,7 @@ describe('Workbench(壳会话区 + 屏)', () => {
 
     // 提交自动建会话,job 进时间线;内存 gateway 在下一次 list 读取翻成 succeeded。
     await waitFor(() => {
-      expect(screen.getByText('a cat in the rain')).toBeTruthy();
+      expect(within(screen.getByTestId('timeline')).getByText('a cat in the rain')).toBeTruthy();
     });
     await waitFor(
       () => {
@@ -537,8 +1356,8 @@ describe('Workbench(壳会话区 + 屏)', () => {
       },
       { timeout: 4_000 },
     );
-    // 03-C6 结果就位 reveal:本次会话内经历「生成中→成图」的回合带落定动画类。
-    expect(screen.getByTestId('job-asset').className).toContain('mf-workbench-result-reveal');
+    // 03-C6 结果就位 reveal:本次会话内经历「生成中→成图」的回合带落定动画类(落在图格上)。
+    expect(screen.getByTestId('job-asset-tile').className).toContain('mf-workbench-result-reveal');
     expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe('');
   });
 
@@ -915,6 +1734,110 @@ describe('Workbench(壳会话区 + 屏)', () => {
     expect(sessions.items).toHaveLength(0);
   });
 
+  it('删除失败保留当前输入和确认框，重试成功后隔离最后一条会话的未保存草稿', async () => {
+    const memory = renderWorkbench({ seedSessions: ['最后一条'] });
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+    const remove = vi
+      .spyOn(memory.workbench, 'removeSession')
+      .mockRejectedValueOnce(new Error('删除离线'));
+    const write = vi.spyOn(memory.workbench, 'updateSession');
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: '不能带到新会话的草稿' },
+    });
+    fireEvent.click(screen.getByTestId('session-remove'));
+    fireEvent.click(await screen.findByTestId('session-remove-confirm'));
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect((screen.getByTestId('session-remove-confirm') as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+      '不能带到新会话的草稿',
+    );
+    expect(useActiveSession.getState().activeSessionId).toBe('session-1');
+    fireEvent.click(screen.getByTestId('session-remove-confirm'));
+    await waitFor(() => expect(useActiveSession.getState().draftSession).toBe(true));
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(''),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 850));
+    });
+    expect(write).not.toHaveBeenCalled();
+    expect((await memory.workbench.getSession('session-1')).draft.prompt).toBe('');
+    remove.mockRestore();
+    write.mockRestore();
+  });
+
+  it('活动会话仅从分页消失时按id核对，保留未保存输入而不切到列表首', async () => {
+    const memory = renderWorkbench({ seedSessions: ['旧会话', '活动会话'] });
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-2'));
+    fireEvent.change(screen.getByTestId('composer-prompt'), { target: { value: '还在编辑' } });
+    const kept = await memory.workbench.getSession('session-1');
+    const list = vi
+      .spyOn(memory.workbench, 'listSessions')
+      .mockResolvedValue({ items: [kept], nextCursor: 'has-more' });
+    const get = vi.spyOn(memory.workbench, 'getSession');
+    await act(async () => {
+      await memory.queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledWith('session-2'));
+    expect(useActiveSession.getState().activeSessionId).toBe('session-2');
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe('还在编辑');
+    list.mockRestore();
+    get.mockRestore();
+  });
+
+  it('刷新确认其他页面已删除当前会话后清除旧输入，回退到剩余会话且草稿不串会话', async () => {
+    const memory = renderWorkbench({ seedSessions: ['保留会话', '远端删除目标'] });
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-2'));
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: '被删除会话的草稿' },
+    });
+    await act(async () => {
+      await memory.workbench.removeSession('session-2');
+      await memory.queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    });
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+    expect(useActiveSession.getState().draftSession).toBe(false);
+    await waitFor(() =>
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(''),
+    );
+    expect(screen.getByTestId('session-session-1')).toBeTruthy();
+  });
+
+  it('活动会话核对失败保留输入并阻止发送，显式重新核对后恢复', async () => {
+    const memory = renderWorkbench({ seedSessions: ['活动会话'] });
+    await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe('session-1'));
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: '网络失败不要丢' },
+    });
+    const list = vi
+      .spyOn(memory.workbench, 'listSessions')
+      .mockResolvedValue({ items: [], nextCursor: null });
+    const get = vi
+      .spyOn(memory.workbench, 'getSession')
+      .mockRejectedValueOnce(new Error('读取离线'));
+    const generate = vi.spyOn(memory.generation, 'create');
+    await act(async () => {
+      await memory.queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    });
+    await screen.findByTestId('session-current-error');
+    expect(useActiveSession.getState().activeSessionId).toBe('session-1');
+    fireEvent.click(screen.getByTestId('composer-submit'));
+    expect(generate).not.toHaveBeenCalled();
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+      '网络失败不要丢',
+    );
+    fireEvent.click(screen.getByRole('button', { name: '重新核对' }));
+    await waitFor(() => expect(screen.queryByTestId('session-current-error')).toBeNull());
+    expect(useActiveSession.getState().activeSessionId).toBe('session-1');
+    list.mockRestore();
+    get.mockRestore();
+    generate.mockRestore();
+  });
+
   it('置顶会话排到列表首并写入偏好,取消后复原', async () => {
     // 预置两行:较新的 session-2 默认排前。
     const memory = renderWorkbench({ seedSessions: ['未命名创作', '未命名创作'] });
@@ -1017,6 +1940,118 @@ describe('Workbench(壳会话区 + 屏)', () => {
 
     fireEvent.click(screen.getByText('前往设置添加'));
     expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({
+      kind: 'settings-section',
+      section: 'connections',
+    });
+  });
+
+  it('提交失败带 AUTH 码时 generation-error 可点检查密钥', async () => {
+    const onOpenSettings = vi.fn();
+    const createError = Object.assign(new Error('API Key 无效或无权限'), {
+      code: 'AUTH_CREDENTIALS_INVALID',
+    });
+    renderWorkbench({ onOpenSettings, createError });
+    await waitFor(() => expect(screen.getByTestId('composer-prompt')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: 'will fail auth' },
+    });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(screen.getByTestId('generation-error')).toBeTruthy());
+    expect(screen.getByTestId('generation-error').textContent).toContain('API Key 无效');
+    fireEvent.click(screen.getByTestId('generation-error-action'));
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({
+      kind: 'settings-section',
+      section: 'connections',
+    });
+  });
+
+  it('提交失败带额度码时 generation-error 可点去兑换', async () => {
+    const onOpenSettings = vi.fn();
+    const createError = Object.assign(new Error('账户额度不足'), {
+      code: 'ACCOUNT_QUOTA_INSUFFICIENT',
+    });
+    renderWorkbench({ onOpenSettings, createError });
+    await waitFor(() => expect(screen.getByTestId('composer-prompt')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: 'will fail quota' },
+    });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(screen.getByTestId('generation-error')).toBeTruthy());
+    expect(screen.getByTestId('generation-error').textContent).toContain('账户额度不足');
+    fireEvent.click(screen.getByTestId('generation-error-action'));
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({
+      kind: 'settings-section',
+      section: 'account',
+    });
+  });
+
+  it('Web 云端 canGenerate=false 时不打网关并展示去兑换', async () => {
+    const onOpenSettings = vi.fn();
+    const memory = renderWorkbench({
+      onOpenSettings,
+      accountStatus: {
+        id: 'u1',
+        username: 'xiaomiao',
+        displayName: null,
+        quota: 0,
+        quotaUnit: '点',
+        canGenerate: false,
+      },
+    });
+    const createSpy = vi.spyOn(memory.generation, 'create');
+    await waitFor(() => expect(screen.getByTestId('generation-error')).toBeTruthy());
+    expect(screen.getByTestId('generation-error').textContent).toContain('账户额度不足');
+    fireEvent.change(screen.getByTestId('composer-prompt'), {
+      target: { value: 'need quota' },
+    });
+    fireEvent.click(screen.getByTestId('composer-submit'));
+    expect(createSpy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('generation-error-action'));
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({
+      kind: 'settings-section',
+      section: 'account',
+    });
+  });
+
+  it('待审批回合显示只读审批卡,已拒绝显示拒绝卡', async () => {
+    renderWorkbench({
+      seedSessions: ['审批中'],
+      seedJobs: [
+        makeSeedJob({
+          id: 'job-approve',
+          sessionId: 'session-1',
+          status: 'pending_approval',
+          progress: 0,
+          finishedAt: null,
+        }),
+      ],
+      holdQueued: true,
+    });
+    await waitFor(() => expect(screen.getByTestId('job-approval-card')).toBeTruthy());
+    expect(screen.getByTestId('job-approval-card').textContent).toContain('等待批准');
+    expect(screen.getByTestId('workbench-task-summary').textContent).toBe('待审批');
+  });
+
+  it('已拒绝回合显示只读拒绝卡,不提供批准入口', async () => {
+    renderWorkbench({
+      seedSessions: ['已拒绝'],
+      seedJobs: [
+        makeSeedJob({
+          id: 'job-rejected',
+          sessionId: 'session-1',
+          status: 'rejected',
+          progress: 0,
+        }),
+      ],
+    });
+    await waitFor(() => expect(screen.getByTestId('job-approval-rejected')).toBeTruthy());
+    expect(screen.getByTestId('job-approval-rejected').textContent).toContain('未获批准');
+    expect(screen.queryByTestId('job-approve')).toBeNull();
+    expect(screen.queryByTestId('job-approval-card')).toBeNull();
   });
 
   it('比例与设置弹层写入 Composer 值(11 档目录 + 质量档承旧命名)', async () => {
@@ -1085,7 +2120,7 @@ describe('Workbench(壳会话区 + 屏)', () => {
     // 修饰键回车提交(⌘/Ctrl+Enter 别名,承旧)。
     fireEvent.keyDown(prompt, { key: 'Enter', ctrlKey: true });
     await waitFor(() => {
-      expect(screen.getByText('ime guarded prompt')).toBeTruthy();
+      expect(within(screen.getByTestId('timeline')).getByText('ime guarded prompt')).toBeTruthy();
     });
     await waitFor(() => {
       expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe('');
@@ -1111,6 +2146,82 @@ describe('Workbench(壳会话区 + 屏)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('job-status').getAttribute('data-status')).toBe('cancelled');
     });
+  });
+
+  it('移动端悬浮 Composer 按 visualViewport 抬离软键盘;md+ 不抬', async () => {
+    const keyboard = stubSoftKeyboardViewport({
+      desktop: false,
+      innerHeight: 800,
+      viewportHeight: 500,
+      offsetTop: 20,
+    });
+    try {
+      renderWorkbench({
+        seedSessions: ['已有创作'],
+        seedJobs: [makeSeedJob({ id: 'job-seed', sessionId: 'session-1' })],
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('composer-dock')).toBeTruthy();
+      });
+      expect(screen.getByTestId('composer-dock').style.bottom).toBe('280px');
+
+      keyboard.setDesktop(true);
+      await waitFor(() => {
+        expect(screen.getByTestId('composer-dock').style.bottom).toBe('');
+      });
+    } finally {
+      keyboard.restore();
+    }
+  });
+
+  it('空态内联 Composer 同步套用软键盘 paddingBottom', async () => {
+    const keyboard = stubSoftKeyboardViewport({
+      desktop: false,
+      innerHeight: 800,
+      viewportHeight: 500,
+      offsetTop: 20,
+    });
+    try {
+      renderWorkbench();
+      await waitFor(() => {
+        expect(screen.getByTestId('composer-empty-inset')).toBeTruthy();
+      });
+      expect(screen.getByTestId('composer-empty-inset').style.paddingBottom).toBe('280px');
+    } finally {
+      keyboard.restore();
+    }
+  });
+
+  it('移动端时间线底部 padding 叠加软键盘 inset;md+ 保持 172/220', async () => {
+    const keyboard = stubSoftKeyboardViewport({
+      desktop: false,
+      innerHeight: 800,
+      viewportHeight: 500,
+      offsetTop: 20,
+    });
+    try {
+      renderWorkbench({
+        seedSessions: ['已有创作'],
+        seedJobs: [makeSeedJob({ id: 'job-seed', sessionId: 'session-1' })],
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('timeline')).toBeTruthy();
+      });
+      const timeline = screen.getByTestId('timeline');
+      // 800 - 500 - 20 = 280; 172 + 280 = 452
+      expect(timeline.getAttribute('data-keyboard-inset')).toBe('280');
+      expect(timeline.style.paddingBottom).toBe('452px');
+
+      keyboard.setDesktop(true);
+      await waitFor(() => {
+        expect(timeline.getAttribute('data-keyboard-inset')).toBe('0');
+      });
+      expect(timeline.style.paddingBottom).toBe('');
+      expect(timeline.className).toContain('pb-[172px]');
+      expect(timeline.className).toContain('md:pb-[220px]');
+    } finally {
+      keyboard.restore();
+    }
   });
 });
 
@@ -1209,5 +2320,47 @@ describe('deriveSessionTitle(草稿态首发建会话的标题派生)', () => {
     expect(deriveSessionTitle('  多行\n提示词\t带空白  ')).toBe('多行 提示词 带空白');
     expect(deriveSessionTitle('一'.repeat(30))).toBe(`${'一'.repeat(24)}…`);
     expect(deriveSessionTitle('   \n\t ')).toBe('未命名创作');
+  });
+});
+
+describe('formatSessionTitle(时间线头顶 16 字截断)', () => {
+  it('不超过 16 个 Unicode 字符原样返回;超长截断加省略号', () => {
+    expect(formatSessionTitle('霓虹雨夜')).toBe('霓虹雨夜');
+    expect(formatSessionTitle('一'.repeat(16))).toBe('一'.repeat(16));
+    expect(formatSessionTitle('一'.repeat(17))).toBe(`${'一'.repeat(16)}…`);
+    // 代理对按 code point 计 1,不是 UTF-16 length。
+    expect(formatSessionTitle(`${'🌟'.repeat(16)}🌙`)).toBe(`${'🌟'.repeat(16)}…`);
+  });
+});
+
+describe('workbenchTaskSummary(活动任务摘要优先级)', () => {
+  it('待审批优先于排队中', () => {
+    expect(workbenchTaskSummary([{ status: 'pending_approval' }, { status: 'queued' }])).toBe(
+      '待审批',
+    );
+  });
+
+  it('排队中优先于生成中/方案运行/取消中', () => {
+    expect(
+      workbenchTaskSummary(
+        [{ status: 'queued' }, { status: 'running' }, { status: 'cancelling' }],
+        true,
+      ),
+    ).toBe('排队中');
+  });
+
+  it('有生成中任务时显示生成中,即使方案也在跑', () => {
+    expect(workbenchTaskSummary([{ status: 'running' }], true)).toBe('生成中');
+  });
+
+  it('仅方案运行且无排队/生成中任务时显示方案运行中', () => {
+    expect(workbenchTaskSummary([{ status: 'cancelling' }], true)).toBe('方案运行中');
+    expect(workbenchTaskSummary([], true)).toBe('方案运行中');
+  });
+
+  it('无排队/生成/方案时取消中显示;终态隐藏', () => {
+    expect(workbenchTaskSummary([{ status: 'cancelling' }])).toBe('取消中');
+    expect(workbenchTaskSummary([{ status: 'succeeded' }, { status: 'failed' }])).toBeNull();
+    expect(workbenchTaskSummary([])).toBeNull();
   });
 });

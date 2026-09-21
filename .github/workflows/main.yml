@@ -1,5 +1,5 @@
 # v2.5 主干工作流:全量检查。部署 job 在 M2-07 随新 api/worker 镜像接入
-# (旧 deploy.yml 已随 v2.5 M1 退役;过渡期用本地 pnpm run deploy:prod)。
+# 旧 deploy:prod 仍为 v1.1,不得用于 v2.5;部署/回滚由 G-RELEASE-04 单独验收。
 name: Main
 
 on:
@@ -16,6 +16,9 @@ env:
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
 jobs:
+  package-lifetime:
+    uses: ./.github/workflows/package-lifetime.yml
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -27,10 +30,74 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Source secret scan
+        run: node scripts/security/scan.mjs source --report tests/v25/.results/security/source.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-security-results
+          path: tests/v25/.results/security/source.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
       - name: Full checks
         run: pnpm exec turbo run lint typecheck test build check:boundaries
       - name: Web production build
         run: pnpm run build:web
+      # R01.6:同一构建身份的 manifest,成功与失败都要可追溯;web 构建未产出时
+      # 仅记录身份字段(webBuildId=null),产物哈希归打包 job。
+      - name: Generate build manifest
+        if: always()
+        run: node scripts/build/v25-build-manifest.mjs --out tests/v25/.results/build-manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-manifest
+          path: tests/v25/.results/build-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+  # disposable PG + Graphile Worker 集成(默认单测 skip;本 job 开 RUN_DATABASE_TESTS)。
+  database-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: API Testcontainers
+        run: pnpm --filter @musefold/api run test:integration --reporter=default --reporter=junit --outputFile=test-results/api-integration.xml
+      - name: Two independent sync clients with real HTTP PostgreSQL
+        env:
+          RUN_DATABASE_TESTS: '1'
+          TWO_DEVICE_RESULTS_DIR: apps/api/test-results/two-device-sync
+        run: pnpm exec vitest run tests/repo/v25-sync-two-devices.test.ts --reporter=default --reporter=junit --outputFile=apps/api/test-results/two-device-sync.xml
+      - name: Build official worker runtime image
+        run: docker build --file apps/worker/Dockerfile --tag musefold-worker-ci:local .
+      - name: Worker disposable runtime
+        env:
+          RUN_WORKER_CONTAINER_TESTS: 'true'
+          WORKER_CONTAINER_IMAGE: musefold-worker-ci:local
+        run: pnpm --filter @musefold/worker run test:integration --reporter=default --reporter=junit --outputFile=test-results/worker-integration.xml
+      - name: Desktop main runtime with Hono PostgreSQL and worker
+        env:
+          RUN_DATABASE_TESTS: 'true'
+        run: pnpm exec vitest run apps/desktop/electron/system/__tests__/managed-cloud-service.integration.test.ts --reporter=default --reporter=junit --outputFile=apps/desktop/test-results/cloud-service-integration.xml
+      - name: desktop-db bundle freshness
+        run: |
+          pnpm --filter @musefold/desktop-db run db:bundle
+          git diff --exit-code -- packages/desktop-db/src/migrations.generated.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: database-integration-results
+          path: apps/*/test-results/
+          if-no-files-found: error
+          retention-days: 14
 
   # 双端 E2E(M5-a):Playwright web(桌面/移动视口)+ Electron。
   # 跑在 macOS:视觉基线在 darwin 生成可直接复用,Electron 真窗口无需 xvfb。
@@ -50,14 +117,19 @@ jobs:
       - run: pnpm exec playwright install chromium
       - name: Playwright E2E(web + electron)
         run: pnpm run test:e2e
+      - name: Require E2E execution report
+        if: always()
+        run: test -s tests/v25/.results/report.json
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: e2e-results
+          include-hidden-files: true
+          if-no-files-found: error
           path: |
             tests/v25/.results/
             tests/v25/__screenshots__/
-          retention-days: 7
+          retention-days: 14
 
   # 服务端镜像构建验证(v2.5 api + worker);推送/部署在自托管环境执行:
   # docker compose -f infra/v2.5/compose.yaml up -d --build
@@ -66,7 +138,21 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Build api image
         run: docker build -f apps/api/Dockerfile -t musefold/api:v2.5 .
       - name: Build worker image
         run: docker build -f apps/worker/Dockerfile -t musefold/worker:v2.5 .
+      # R01.2:镜像携带当次构建身份;version 与发布矩阵同源(apps/desktop/package.json)。
+      - name: Build standalone Web image
+        run: |
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          docker build -f apps/web-next/Dockerfile -t musefold/web:v2.5 \
+            --build-arg NEXT_PUBLIC_GIT_COMMIT="${{ github.sha }}" \
+            --build-arg NEXT_PUBLIC_APP_VERSION="$VERSION" \
+            --build-arg NEXT_PUBLIC_BUILT_AT="$BUILT_AT" .
+      - name: Standalone Web container smoke
+        run: node scripts/verify-v25-web-image.mjs

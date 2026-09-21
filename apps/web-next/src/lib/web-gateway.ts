@@ -5,6 +5,7 @@ import {
 } from '@musefold/contracts';
 import { createCloudDataGateway } from '@musefold/api-client';
 import type { MusefoldGateway, SettingsGateway } from '@musefold/platform';
+import { createWebSchemePackageExport } from './scheme-package-export';
 
 const PREFERENCES_STORAGE_KEY = 'musefold.preferences.v1';
 
@@ -38,6 +39,10 @@ export function createWebGateway(apiBaseUrl: string): MusefoldGateway {
   return {
     settings: createWebSettingsGateway(),
     ...cloud,
+    designSchemes: cloud.designSchemes && {
+      ...cloud.designSchemes,
+      packageExport: createWebSchemePackageExport(apiBaseUrl),
+    },
   };
 }
 

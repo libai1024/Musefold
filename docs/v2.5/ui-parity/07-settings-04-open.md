@@ -1,13 +1,15 @@
 # 07-04 设置 · 开放能力(自动化 + 已连接应用) — 旧版 vs v2.5 对照
 
 > **旧版源码**:`OpenCapabilitiesSection`(装配)= `AutomationSection`(135 行)+ `LocalControlCard`(172 行)+ `IntegrationGuide`(接入向导)+ `SkillManagementBlock`(164 行)+ `AutomationAuditList`(106 行)+ `ConnectedAppsSection`(52 行)。
-> **新版**:**无对位实现**(0%)。本分区是「Agent 对外能力」的控制面,主进程语义(automation server / Cloud MCP)完整保留且持续被 CLI/MCP 使用——**只有控制 UI 消失了**。
+> **新版**(2026-09-06 B2-T2 交付):设置分区 `open`「开放能力」= `OpenCapabilitiesCard`(装配)+ `LocalControlCard`(开关/地址/掩码令牌/月度预算)+ `AutomationAuditCard`(请求日志 + 花钱记录折叠区)+ `IntegrationGuideCard`(MCP/Codex/Claude 片段 + CLI 状态),数据面走桌面 `automation` 域(`packages/contracts/src/automation.ts` → `gateway.automation` → `ipc-v25/automation-domain.ts`)。壳级 `AutomationConfirmCard` 同批交付。**未迁**:Cloud MCP「已连接应用」(apps/api 缺端点,见 §3)、Skill 管理条目(暂缓域)。
 
 ---
 
 ## 1. 结论与迁移状态
 
-这是设置域里「不可见但在运行」风险最高的分区:旧版在这里控制**本地控制面**(automation HTTP server 的开关/令牌/预算)与 **Cloud MCP 授权**。v2.5 渲染层没有任何入口,意味着:automation server 若默认开启,用户无法从 UI 关闭或轮换令牌;花钱动作的月度预算无法调整(01 §4 登记的 `AutomationConfirmCard` 缺失与本分区是同一条风险链)。**建议本分区在设置系列中优先级排第二(仅次于偏好的动效接线)**,因为它是安全边界控制面。
+这曾是设置域里「不可见但在运行」风险最高的分区:automation server 默认开启,而 v2.5 渲染层一度没有任何入口——用户无法关闭端口、无法轮换令牌、无法调整花钱预算(与 01 §4 的 `AutomationConfirmCard` 缺口是同一条风险链)。
+
+**该风险链已闭合**(B2-T2):`open` 分区由 `hasLocalAutomation` 门控(桌面注册 / Web 不注册),三张卡覆盖开关、令牌、预算、审计与接入片段;`AutomationConfirmCard` 挂在 desktop-shell 与 `Toaster` 同级。安全口径见 §4,落点:令牌只以掩码下发(契约层 `automationTokenMaskSchema` 结构化拦截完整 token)、复制由主进程 `clipboard.writeText` 完成、预算复用主进程既有存储(`electron/settings/automation.ts`),不另起一份。
 
 ## 2. 旧版结构存档(恢复基准)
 
@@ -61,11 +63,13 @@
 
 **开关行**:副文两态——开:「本机 Agent 与脚本可经 HTTP 端口调用 Musefold」;关:「端口已停止监听,发现文件已删除」。切换有主进程往返延迟,钮期间 disabled + spinner;失败回滚开关态 + toast 原因。
 
-**令牌行**:掩码格式沿旧 `maskToken`(前 4 后 4 中间省略);「显示」切换 5 秒后自动回掩码(旧版行为待核,若无则不加);「复制」永远复制完整令牌(与显示态无关);「轮换」二次确认文案:「轮换后现有接入立即失效,需要在 Agent 侧更新令牌」。
+**令牌行**:掩码格式沿旧 `maskToken`(前 4 后 4 中间省略,契约 `maskAutomationToken`);「轮换」二次确认文案:「轮换后旧令牌立即失效,已接入的 Agent 需要重新填写新令牌」。
+
+> **交付时有意差异(2026-09-06,不算降级)**:**不做「显示明文」入口**,「复制」也不再由渲染层持有明文。原因是 v2.5 的密钥红线——bearer 不进渲染层、不进 DOM、不进快照/日志:`automationStatusSchema.tokenMasked` 用正则把完整 token 挡在契约层外,`automation.copyToken` 在主进程用 `clipboard.writeText` 完成复制。用户拿令牌的路径仍是一步(点「复制」),只是明文不再经过渲染进程。
 
 **预算行**:输入为整数积分;placeholder「留空 = 每次动作都确认」;保存时 `parseBudgetDraft` 规则(空串→null 不落盘、非法→不落盘、负数→0);当前月已用额度 readout 与预算并排(旧版有,恢复时从审计聚合取)。
 
-**审计列表**:行 = 动作名(automation-format 翻译表:generate→「生成图像」等)+ 相对时间 + 实际积分(null 显示「-」);最多显示最近 20 条 + 「仅保留最近 90 天」说明;不分页(控制面不是审计终端,完整数据走导出)。
+**审计列表**:行 = 动作名(翻译表:`generate_image`→「生成图像」等)+ 时间 + 预估/实际积分(null 显示「-」)+ 结果 + 放行来源(预算内/确认卡/终端确认/幂等重放);不分页(控制面不是审计终端)。交付口径:两个列表各取最近 **50 条**(契约 `AUTOMATION_LOG_LIMIT`,上限即默认),并在同一折叠区里并列「请求日志」(时间/方法/路径/状态/耗时)与「花钱记录」;时间用绝对 `MM/DD HH:mm`(相对时间在只读审计面反而不易核对)。
 
 **接入向导**:Cursor 一键安装按钮走 deeplink(`cursor://`),失败(未装 Cursor)fallback 复制配置;MCP 配置片段 `<details>` 内代码块 + 复制钮;CLI 块显示二进制路径(随 App 打包)+ 复制;三块共用「配置中不含任何密钥」承诺行。
 
@@ -82,18 +86,18 @@
 
 ## 6. 任务清单
 
-| 优先级 | 任务 | 验收要点 |
-|---|---|---|
-| P1 | 「开放能力」卡(桌面):开关/令牌(掩码+显隐+复制+轮换二次确认)/月度预算三行,接主进程 automation 域;与 AutomationConfirmCard 同卡 | 关闭后端口停听(集成测试);预算防呆单测 |
-| P2 | 最近调用审计折叠区;接入向导(Cursor 安装/MCP 配置复制/CLI/Skill 管理条目) | Skill 版本状态三态文案对齐旧版 |
-| P2 | 已连接应用卡(Cloud MCP 授权列表 + 撤销,`hasCloudMcpControls` 门控) | 撤销后 401 集成断言;未登录/自定义服务器门控文案照搬 |
+| 优先级 | 任务 | 验收要点 | 状态 |
+|---|---|---|---|
+| P1 | 「开放能力」卡(桌面):开关/令牌(掩码+复制+轮换二次确认)/月度预算三行,接主进程 automation 域;与 AutomationConfirmCard 同批 | 关闭后端口停听;预算防呆单测 | ✅ 2026-09-06(`LocalControlCard`;`electron.settings-open.spec.ts` 断言关闭后端口拒连、轮换后旧令牌 401、预算重启仍在;`parseAutomationBudgetDraft` 单测)。**有意差异**:不做「显示明文令牌」入口——明文永不进渲染层,复制走主进程剪贴板 |
+| P2 | 最近调用审计折叠区;接入向导(MCP 配置复制/CLI) | 只读面不提供删除;片段不含密钥与用户绝对路径 | ✅ 2026-09-06(`AutomationAuditCard` 默认收起、展开才拉数据、请求日志 + 花钱记录双段 + 刷新;`IntegrationGuideCard` 三段片段 + CLI 三态)。**未做**:Cursor `cursor://` 一键安装(deeplink 未接,只给可复制片段)、Skill 管理条目(暂缓域,V25-UI-SPEC §0.2) |
+| P2 | 已连接应用卡(Cloud MCP 授权列表 + 撤销,`hasCloudMcpControls` 门控) | 撤销后 401 集成断言;未登录/自定义服务器门控文案照搬 | ✅ 2026-09-06(`ConnectedAppsCard`;`GET/DELETE /api/v1/mcp/authorizations`;撤销删 `oauth_consent` 并标记 access/refresh `revoked`,MCP handler 再查 consent,无行即 401。自定义服务器抛 `CLOUD_MCP_CUSTOM_SERVER`) |
 
 ## 7. Codex 增益(C 系列,语汇见 [00-codex-craft.md](./00-codex-craft.md))
 
 本分区是「终端级密度」的天然主场(Warp/Codex 同类面):机器可读的东西一律 mono,人读的保持常规字阶。
 
-| 编号 | 级 | 增益 | 规格 |
-|---|---|---|---|
-| 0704-C1 | C1 | mono/tabular 排版(挂靠 00 C-4,随 §6 P1 卡同交付) | 令牌掩码、MCP 配置片段、CLI 路径 = mono;审计行时间与积分、预算数字、月已用额度 = tabular;动作名保持常规字体(翻译表中文) |
-| 0704-C2 | C1 | 复制反馈统一 | 令牌/MCP 配置/CLI 路径三处复制:钮内 Copy→Check 1.2s + toast 双反馈(与 04 §8 P3 复制反馈同实现,一处封装) |
-| 0704-C3 | C2 | 轮换令牌的危险感分级 | 轮换确认走 AlertDialog 红主钮(I3 顶格),但**开关行不用红色**(关闭可逆);危险色只给不可逆动作,承 00 法则 1 |
+| 编号 | 级 | 增益 | 规格 | 状态 |
+|---|---|---|---|---|
+| 0704-C1 | C1 | mono/tabular 排版(挂靠 00 C-4,随 §6 P1 卡同交付) | 令牌掩码、MCP 配置片段、CLI 路径 = mono;审计行时间与积分、预算数字、月已用额度 = tabular;动作名保持常规字体(翻译表中文) | ✅ 2026-09-06 |
+| 0704-C2 | C1 | 复制反馈统一 | 令牌/MCP 配置/CLI 路径三处复制:钮内 Copy→Check 1.2s + toast 双反馈(与 04 §8 P3 复制反馈同实现,一处封装) | ✅ 2026-09-06(`settings/automation-ui.tsx` 的 `AutomationCopyButton`,三张卡共用) |
+| 0704-C3 | C2 | 轮换令牌的危险感分级 | 轮换确认走 AlertDialog 红主钮(I3 顶格),但**开关行不用红色**(关闭可逆);危险色只给不可逆动作,承 00 法则 1 | ✅ 2026-09-06 |

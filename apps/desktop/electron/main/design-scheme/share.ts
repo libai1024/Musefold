@@ -1,6 +1,7 @@
+import { readRevisionAssetIds } from '@musefold/core/db/design-scheme/revision-assets';
+import { retainDesignSchemeOperation } from '@musefold/core/services/design-scheme-lifetime';
 import { randomUUID } from 'node:crypto';
 import {
-  createWriteStream,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -13,8 +14,15 @@ import {
 } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
-import archiver from 'archiver';
+import { writeFile } from 'node:fs/promises';
 import {
+  writeDesignSchemePackageBytes,
+  prepareLegacyDesignSchemeImportContent,
+} from '@musefold/scheme-package';
+import {
+  DESIGN_SCHEME_PACKAGE_LIMITS,
+  legacyDesignSchemeDocumentToCanonical as toCanonicalDocument,
+  canonicalDesignSchemeDocumentToLegacy as toLegacyDocument,
   designSchemeAssetSchema,
   designSchemeHashSchema,
   designSchemeRevisionDocumentSchema,
@@ -22,23 +30,25 @@ import {
   resolvedRefSchema,
   sharePackageManifestSchema,
   sourceCommitSchema,
+  sourceSnapshotSchema,
   type DesignSchemeRevisionDocument,
 } from '@musefold/contracts';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
-import {
-  parseDesignSchemeRevisionDocument,
-  type DesignSchemeRevisionDocument as LegacyDocument,
-  type SourceBinding as LegacySourceBinding,
+import { retainDesignSchemeImportSession } from '@musefold/core/services/design-scheme-import-gc';
+import type {
+  DesignSchemeRevisionDocument as LegacyDocument,
+  SourceBinding as LegacySourceBinding,
 } from '@musefold/desktop-contracts/design-scheme/schema';
 import type { DesignSchemeSummary } from '@musefold/desktop-contracts/design-scheme';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import { getPaths } from '../../system/paths';
 import {
-  contentEntriesHash,
+  stableContentEntriesHash,
   DesignSchemePackageValidationError,
   isSafePackagePath,
   normalizedHash,
   readValidatedDesignSchemePackage,
+  readValidatedDesignSchemePackageBytes,
   sha256,
   SHARE_FORMAT,
   SHARE_FORMAT_VERSION,
@@ -53,8 +63,8 @@ import {
 
 export { LEGACY_SHARE_FORMAT_VERSION, SHARE_FORMAT, SHARE_FORMAT_VERSION } from './package-archive';
 
-const MAX_PACKAGE_BYTES = 256 * 1024 * 1024;
-const MAX_PACKAGE_ENTRIES = 1_024;
+const MAX_PACKAGE_BYTES = DESIGN_SCHEME_PACKAGE_LIMITS.archiveBytes;
+const MAX_PACKAGE_ENTRIES = DESIGN_SCHEME_PACKAGE_LIMITS.entries - 1;
 
 type SourceRole = 'normative' | 'reference' | 'example' | 'context';
 type SourceKind = 'github' | 'history' | 'user-brief';
@@ -80,6 +90,7 @@ interface ExportSnapshotRow {
   content_hash: string | null;
   created_at: number;
   role: SourceRole;
+  scan_json: string;
 }
 
 interface ExportSourceFileRow {
@@ -97,8 +108,8 @@ interface ExportAssetRow {
   id: string;
   revision_id: string;
   store_key: string;
-  role: 'cover' | 'example' | 'reference';
-  origin: 'repository' | 'local-run';
+  role: CanonicalAsset['role'];
+  origin: CanonicalAsset['origin'];
   license: string | null;
   created_at: number;
 }
@@ -166,108 +177,6 @@ function safeOptional<T>(
   return parsed.success ? parsed.data : undefined;
 }
 
-function toCanonicalDocument(document: LegacyDocument): DesignSchemeRevisionDocument {
-  const candidate = {
-    schemaVersion: document.schemaVersion,
-    revisionId: document.revisionId,
-    schemeId: document.schemeId,
-    name: document.name,
-    summary: document.summary,
-    fidelity: document.fidelity,
-    sources: document.sources.map((source) => {
-      const uri = source.uri?.startsWith('https://') ? source.uri : undefined;
-      const ref = safeOptional(resolvedRefSchema, source.ref);
-      const commit = safeOptional(sourceCommitSchema, source.commit);
-      const filePath = safeOptional(relativePathSchema, source.filePath);
-      const contentHash = safeOptional(designSchemeHashSchema, source.contentHash);
-      return {
-        id: source.id,
-        kind: source.kind,
-        role: source.role,
-        ...(uri ? { uri } : {}),
-        ...(ref ? { resolvedRef: ref } : {}),
-        ...(commit ? { commitHash: commit } : {}),
-        ...(filePath ? { relativePath: filePath } : {}),
-        ...(contentHash ? { contentHash } : {}),
-        ...(source.license != null ? { license: source.license } : {}),
-      };
-    }),
-    inputs: document.inputs,
-    parameters: document.parameters,
-    constraints: document.constraints,
-    promptProgram: document.promptProgram,
-    compilation: document.compilation,
-  };
-  const parsed = designSchemeRevisionDocumentSchema.safeParse(candidate);
-  if (!parsed.success) throw new Error('方案版本无法转换为 v2 分享格式');
-  return parsed.data;
-}
-
-function toLegacyDocument(document: DesignSchemeRevisionDocument): LegacyDocument {
-  const candidate: LegacyDocument = {
-    schemaVersion: document.schemaVersion,
-    revisionId: document.revisionId,
-    schemeId: document.schemeId,
-    name: document.name,
-    summary: document.summary,
-    fidelity: document.fidelity,
-    sources: document.sources.map((source) => {
-      const uri = source.repositoryUrl ?? source.uri;
-      const ref = source.resolvedRef ?? source.ref;
-      const commit = source.commitHash ?? source.commit;
-      const filePath = source.relativePath ?? source.evidencePath;
-      const contentHash = source.contentHash ?? source.hash;
-      return {
-        id: source.id,
-        kind: source.kind,
-        role: source.role,
-        ...(uri ? { uri } : {}),
-        ...(ref ? { ref } : {}),
-        ...(commit ? { commit } : {}),
-        ...(filePath ? { filePath } : {}),
-        ...(contentHash ? { contentHash } : {}),
-        ...(source.license != null ? { license: source.license } : {}),
-      } satisfies LegacySourceBinding;
-    }),
-    inputs: document.inputs,
-    parameters: document.parameters,
-    constraints: document.constraints.map((constraint) => ({
-      id: constraint.id,
-      domain: constraint.domain,
-      statement: constraint.statement,
-      mode: constraint.mode,
-      sourceIds: constraint.sourceIds,
-      userOverridable: constraint.userOverridable,
-    })),
-    promptProgram: document.promptProgram,
-    compilation: {
-      compiledAt:
-        typeof document.compilation.compiledAt === 'string'
-          ? Date.parse(document.compilation.compiledAt)
-          : document.compilation.compiledAt,
-      model: document.compilation.model,
-      adopted: document.compilation.adopted,
-      omitted: document.compilation.omitted,
-      warnings: document.compilation.warnings,
-      ...(document.compilation.briefExcerpt != null
-        ? { briefExcerpt: document.compilation.briefExcerpt }
-        : {}),
-      trace: document.compilation.trace
-        .filter((item) => item.status !== 'running')
-        .map((item) => ({
-          id: item.id,
-          title: item.title,
-          ...(item.detail != null ? { detail: item.detail } : {}),
-          status: item.status as 'success' | 'warning' | 'error',
-          ...(item.durationMs != null ? { durationMs: item.durationMs } : {}),
-        })),
-    },
-  };
-  const parsed = parseDesignSchemeRevisionDocument(candidate);
-  if (!parsed.ok) throw new Error('导入方案版本无法写入本地方案库');
-  return parsed.value;
-}
-
 function canonicalSourceKindToStorageKind(kind: CanonicalSnapshot['kind']): SourceKind {
   return kind === 'share-import' ? 'user-brief' : kind;
 }
@@ -285,8 +194,14 @@ function bindDocumentSnapshots(
   const sources = document.sources.map((source) => ({ ...source }));
   const used = new Set<number>();
   for (const { snapshot, role, license } of snapshots) {
+    const identified = sources.filter((source) => source.snapshotId === snapshot.id);
+    if (identified.length) {
+      for (const source of identified) source.packageId = snapshot.packageId;
+      continue;
+    }
     let index = sources.findIndex(
-      (source, candidateIndex) => !used.has(candidateIndex) && source.role === role,
+      (source, candidateIndex) =>
+        !source.snapshotId && !used.has(candidateIndex) && source.role === role,
     );
     if (index < 0)
       index = sources.findIndex((_source, candidateIndex) => !used.has(candidateIndex));
@@ -348,7 +263,7 @@ function collectSnapshots(
   const rows = db
     .prepare(
       `SELECT snap.id, snap.package_id, pkg.kind, pkg.repository_url, pkg.license,
-              snap.ref, snap.commit_hash, snap.content_hash, snap.created_at, binding.role
+              snap.ref, snap.commit_hash, snap.content_hash, snap.created_at, snap.scan_json, binding.role
          FROM design_scheme_source_bindings binding
          JOIN source_snapshots snap ON snap.id = binding.source_snapshot_id
          JOIN source_packages pkg ON pkg.id = snap.package_id
@@ -370,7 +285,8 @@ function collectSnapshots(
       let mimeType = file.mime_type;
       if (file.kind === 'text' && file.text_content != null) {
         bytes = Buffer.from(file.text_content, 'utf8');
-        mimeType = textMimeTypeForPath(relativePath);
+        // Imported text already has admitted metadata; infer only for legacy rows.
+        mimeType ??= textMimeTypeForPath(relativePath);
       } else if (file.store_key) {
         bytes = readManagedRegularFile(file.store_key, userDataDir, picturesDir).bytes;
         if (file.kind === 'image') {
@@ -404,11 +320,19 @@ function collectSnapshots(
     }
     const ref = safeOptional(resolvedRefSchema, row.ref) ?? 'import';
     const commit = safeOptional(sourceCommitSchema, row.commit_hash) ?? null;
-    const contentHash = contentEntriesHash(sourceContentEntries);
+    const contentHash =
+      safeOptional(designSchemeHashSchema, row.content_hash) ??
+      stableContentEntriesHash(sourceContentEntries);
+    const scan = JSON.parse(row.scan_json) as { importedSnapshot?: unknown };
+    const imported = scan.importedSnapshot
+      ? sourceSnapshotSchema.parse(scan.importedSnapshot)
+      : null;
+    if (imported && (imported.id !== row.id || imported.packageId !== row.package_id))
+      throw new Error('已导入来源身份与存储不一致');
     const snapshot = {
       id: row.id,
       packageId: row.package_id,
-      kind: row.kind,
+      kind: imported?.kind ?? row.kind,
       repositoryUrl: row.repository_url,
       resolvedRef: ref,
       commitHash: commit,
@@ -416,6 +340,7 @@ function collectSnapshots(
       totalBytes: files.reduce((sum, file) => sum + file.sizeBytes, 0),
       files,
       createdAt: row.created_at,
+      ...(imported?.historyItems ? { historyItems: imported.historyItems } : {}),
     };
     return {
       snapshot: sharePackageManifestSchema.shape.sourceSnapshots.element.parse(snapshot),
@@ -451,16 +376,17 @@ function collectAssets(
   userDataDir: string,
   picturesDir: string,
 ): CanonicalAsset[] {
+  const selectedIds = readRevisionAssetIds(db, schemeId, revisionId);
   const rows = db
     .prepare(
       `SELECT asset.id, asset.revision_id, asset.store_key, asset.role, asset.origin,
               asset.license, asset.created_at
          FROM design_scheme_assets asset
          JOIN design_scheme_revisions revision ON revision.revision_id = asset.revision_id
-        WHERE revision.scheme_id = ? AND asset.revision_id = ?
+        WHERE revision.scheme_id = ? AND asset.id IN (SELECT value FROM json_each(?))
         ORDER BY asset.created_at ASC, asset.id ASC`,
     )
-    .all(schemeId, revisionId) as ExportAssetRow[];
+    .all(schemeId, JSON.stringify(selectedIds)) as ExportAssetRow[];
 
   return rows.map((row) => {
     const managed = readManagedRegularFile(row.store_key, userDataDir, picturesDir);
@@ -494,27 +420,30 @@ function collectAssets(
   });
 }
 
-function writeZip(
+async function writeZip(
   targetPath: string,
   entries: Map<string, Buffer>,
   manifest: CanonicalShareManifest,
 ): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    const output = createWriteStream(targetPath, { flags: 'wx', mode: 0o600 });
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    output.on('close', resolvePromise);
-    output.on('error', reject);
-    archive.on('error', reject);
-    archive.pipe(output);
-    archive.append(Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'), {
-      name: 'manifest.json',
-    });
-    for (const [name, buffer] of entries) archive.append(buffer, { name });
-    void archive.finalize();
-  });
+  const bytes = await writeDesignSchemePackageBytes(manifest, entries);
+  await writeFile(targetPath, bytes, { flag: 'wx', mode: 0o600 });
 }
 
 export async function exportDesignScheme(
+  schemeId: string,
+  targetPath: string,
+  deps: ShareDeps,
+  revisionId?: string,
+): Promise<AppResult<ExportResult>> {
+  const release = retainDesignSchemeOperation(deps.db, schemeId);
+  try {
+    return await exportRetainedDesignScheme(schemeId, targetPath, deps, revisionId);
+  } finally {
+    release();
+  }
+}
+
+async function exportRetainedDesignScheme(
   schemeId: string,
   targetPath: string,
   deps: ShareDeps,
@@ -598,7 +527,7 @@ export async function exportDesignScheme(
       sourceSnapshots: snapshots.map(({ snapshot }) => snapshot),
       assets,
       content: {
-        contentHash: contentEntriesHash(contentEntries),
+        contentHash: stableContentEntriesHash(contentEntries),
         sizeBytes: contentSize,
         entries: contentEntries,
       },
@@ -699,8 +628,8 @@ interface PreparedSnapshot {
 interface PreparedAsset {
   id: string;
   storeKey: string;
-  role: 'cover' | 'example' | 'reference';
-  origin: 'repository' | 'local-run';
+  role: CanonicalAsset['role'];
+  origin: CanonicalAsset['origin'];
   license: string | null;
   createdAt: number;
   mimeType: string;
@@ -731,9 +660,9 @@ function safeWriteManagedFile(root: string, relativePath: string, bytes: Buffer)
 function prepareCanonicalImport(
   validated: Extract<ValidatedDesignSchemePackage, { formatVersion: 2 }>,
   userDataDir: string,
+  newSchemeId: string,
 ): PreparedImport {
   const { manifest, entries } = validated;
-  const newSchemeId = opaqueId('dsch');
   const newRevisionId = opaqueId('dsrv');
   const importRoot = join(userDataDir, 'design-scheme-imports', newSchemeId);
   mkdirSync(importRoot, { recursive: true, mode: 0o700 });
@@ -812,7 +741,24 @@ function prepareCanonicalImport(
           commitHash: snapshot.commitHash ?? snapshot.commit ?? null,
           contentHash: snapshot.contentHash ?? undefined,
           totalBytes: files.reduce((sum, file) => sum + file.sizeBytes, 0),
-          scan: { importedFromPackageId: manifest.packageId, formatVersion: SHARE_FORMAT_VERSION },
+          scan: {
+            importedFromPackageId: manifest.packageId,
+            formatVersion: SHARE_FORMAT_VERSION,
+            importedSnapshot: {
+              ...snapshot,
+              id: newSnapshotId,
+              packageId: newPackageId,
+              ...(snapshot.historyItems
+                ? {
+                    historyItems: snapshot.historyItems.map((item) => {
+                      const imageAssetId = assetIds.get(item.imageAssetId);
+                      if (!imageAssetId) throw new Error('历史图片资产标识映射失败');
+                      return { ...item, imageAssetId };
+                    }),
+                  }
+                : {}),
+            },
+          },
         },
         files,
         role: roleBySnapshot.get(snapshot.id) ?? 'context',
@@ -834,7 +780,8 @@ function prepareCanonicalImport(
         storeKey: join('design-scheme-imports', newSchemeId, storedRelative),
         createdAt:
           typeof asset.createdAt === 'number' ? asset.createdAt : Date.parse(asset.createdAt),
-        role: asset.role === 'reference' ? 'reference' : 'example',
+        // Imported schemes need their own successful trial; only the previous cover is demoted.
+        role: asset.role === 'cover' ? 'example' : asset.role,
       };
     });
 
@@ -844,6 +791,16 @@ function prepareCanonicalImport(
       revisionId: newRevisionId,
       parentRevisionId: null,
       createdBy: 'import',
+      ...(manifest.document.repositoryImages
+        ? {
+            repositoryImages: manifest.document.repositoryImages.map((image) => {
+              const snapshotId = snapshotIds.get(image.snapshotId);
+              const assetId = assetIds.get(image.assetId);
+              if (!snapshotId || !assetId) throw new Error('仓库图片来源或资产标识映射失败');
+              return { ...image, snapshotId, assetId };
+            }),
+          }
+        : {}),
       sourceSnapshotIds: manifest.document.sourceSnapshotIds.map((id) => {
         const mappedId = snapshotIds.get(id);
         if (!mappedId) throw new Error('方案文档来源快照标识映射失败');
@@ -860,8 +817,21 @@ function prepareCanonicalImport(
 
         if (source.packageId && !packageId) throw new Error('方案来源 packageId 映射失败');
         if (source.snapshotId && !snapshotId) throw new Error('方案来源快照标识映射失败');
+        const snapshot = manifest.sourceSnapshots.find((item) => item.id === source.snapshotId);
         return {
           ...source,
+          ...(snapshot?.repositoryUrl && !source.repositoryUrl
+            ? { repositoryUrl: snapshot.repositoryUrl }
+            : {}),
+          ...(snapshot?.resolvedRef && !source.resolvedRef
+            ? { resolvedRef: snapshot.resolvedRef }
+            : {}),
+          ...(snapshot?.commitHash && !source.commitHash
+            ? { commitHash: snapshot.commitHash }
+            : {}),
+          ...(snapshot?.contentHash && !source.contentHash
+            ? { contentHash: snapshot.contentHash }
+            : {}),
           ...(packageId ? { packageId } : {}),
           ...(snapshotId ? { snapshotId } : {}),
         };
@@ -888,83 +858,112 @@ function prepareCanonicalImport(
   }
 }
 
-function prepareLegacyImport(
+async function prepareLegacyImport(
   validated: Extract<ValidatedDesignSchemePackage, { formatVersion: 1 }>,
   userDataDir: string,
-): PreparedImport {
-  const { manifest, entries } = validated;
-  const schemeBytes = entries.get('scheme.json');
-  if (!schemeBytes) throw new Error('分享包缺少 scheme.json');
-  let candidate: unknown;
-  try {
-    candidate = JSON.parse(schemeBytes.toString('utf8')) as unknown;
-  } catch {
-    throw new Error('scheme.json 不是有效 JSON');
-  }
-  const parsed = parseDesignSchemeRevisionDocument(candidate);
-  if (!parsed.ok) throw new Error('legacy 方案版本文档无效');
-  const newSchemeId = opaqueId('dsch');
+  newSchemeId: string,
+): Promise<PreparedImport> {
   const newRevisionId = opaqueId('dsrv');
   const importRoot = join(userDataDir, 'design-scheme-imports', newSchemeId);
   mkdirSync(importRoot, { recursive: true, mode: 0o700 });
-
+  const ids = new Map<string, string>();
   try {
-    const snapshots: PreparedSnapshot[] = manifest.snapshots.map((snapshot) => {
-      const snapshotId = opaqueId('snap');
-      const packageId = opaqueId('pkg');
-      const files: PreparedSnapshot['files'] = [];
-      const textPrefix = `sources/${snapshot.dir}/`;
-      const assetPrefix = `assets/${snapshot.dir}/`;
-      for (const [name, bytes] of entries) {
-        if (name.startsWith(textPrefix)) {
-          const filePath = relativePathSchema.parse(name.slice(textPrefix.length));
-          files.push({
-            path: filePath,
-            kind: 'text',
-            contentHash: sha256(bytes),
-            sizeBytes: bytes.byteLength,
-            textContent: bytes.toString('utf8'),
-            mimeType: textMimeTypeForPath(filePath),
-          });
-        } else if (name.startsWith(assetPrefix)) {
-          const filePath = relativePathSchema.parse(name.slice(assetPrefix.length));
-          const storedRelative = join('sources', snapshotId, filePath).replaceAll('\\', '/');
-          safeWriteManagedFile(importRoot, storedRelative, bytes);
-          files.push({
-            path: filePath,
-            kind: 'image',
-            contentHash: sha256(bytes),
-            sizeBytes: bytes.byteLength,
-            storeKey: join('design-scheme-imports', newSchemeId, storedRelative),
-            mimeType: sniffImageMimeType(bytes),
-          });
+    const content = await prepareLegacyDesignSchemeImportContent(
+      validated,
+      (kind, original) => {
+        const key = `${kind}\0${original}`;
+        let value = ids.get(key);
+        if (!value) {
+          value = opaqueId('import');
+          ids.set(key, value);
         }
-      }
+        return value;
+      },
+      (bytes) => {
+        // Reuse the existing desktop image probe. Files stay in the isolated import root.
+        const path = safeWriteManagedFile(importRoot, `probe-${opaqueId('image')}`, bytes);
+        try {
+          const metadata = probeImageAssetMetadata(path);
+          if (!metadata) throw new Error('旧包图片无法读取');
+          return metadata;
+        } finally {
+          rmSync(path, { force: true });
+        }
+      },
+    );
+    const snapshots: PreparedSnapshot[] = content.sourceSnapshots.map((metadata) => {
+      const sourcePackage = content.sourcePackages.find((item) => item.id === metadata.packageId);
+      if (!sourcePackage) throw new Error('旧包来源所属包缺失');
+      const files = content.files
+        .filter((file) => file.snapshotId === metadata.id)
+        .map((file) => {
+          const common = {
+            path: file.metadata.relativePath,
+            kind: file.metadata.kind,
+            contentHash: file.metadata.contentHash,
+            sizeBytes: file.bytes.length,
+            mimeType: file.metadata.mimeType,
+            evidencePath: file.metadata.evidencePath,
+          };
+          if (file.metadata.kind === 'text')
+            return { ...common, textContent: file.bytes.toString('utf8') };
+          const stored = `sources/${metadata.id}/${file.metadata.relativePath}`;
+          safeWriteManagedFile(importRoot, stored, file.bytes);
+          return { ...common, storeKey: join('design-scheme-imports', newSchemeId, stored) };
+        });
       return {
         package: {
-          id: packageId,
-          kind: snapshot.kind,
-          ...(snapshot.repositoryUrl ? { repositoryUrl: snapshot.repositoryUrl } : {}),
-          ...(snapshot.license ? { license: snapshot.license } : {}),
+          id: metadata.packageId,
+          kind: canonicalSourceKindToStorageKind(metadata.kind),
+          repositoryUrl: sourcePackage.repositoryUrl ?? undefined,
+          license: sourcePackage.license ?? undefined,
         },
         snapshot: {
-          id: snapshotId,
-          ref: snapshot.ref || 'import',
-          commitHash: snapshot.commitHash,
-          totalBytes: files.reduce((sum, file) => sum + file.sizeBytes, 0),
-          scan: snapshot.scan ?? {},
+          id: metadata.id,
+          ref: resolvedRefSchema.parse(metadata.resolvedRef),
+          commitHash: metadata.commitHash ?? null,
+          contentHash: metadata.contentHash ?? undefined,
+          totalBytes: metadata.totalBytes,
+          scan: {
+            formatVersion: 1,
+            importedSnapshot: metadata,
+            legacyProvenance: content.provenance.legacySnapshots.find(
+              (item) => item.snapshotId === metadata.id,
+            ),
+          },
         },
         files,
-        role: snapshot.role,
+        role:
+          content.document.sources.find((source) => source.snapshotId === metadata.id)?.role ??
+          'context',
       };
     });
-
+    const assets: PreparedAsset[] = content.assets.map(({ metadata, bytes }) => {
+      const stored = `assets/${metadata.id}${mimeExtension(metadata.mimeType)}`;
+      safeWriteManagedFile(importRoot, stored, bytes);
+      return {
+        ...metadata,
+        storeKey: join('design-scheme-imports', newSchemeId, stored),
+        createdAt:
+          typeof metadata.createdAt === 'number'
+            ? metadata.createdAt
+            : Date.parse(metadata.createdAt),
+      };
+    });
     return {
-      document: { ...parsed.value, schemeId: newSchemeId, revisionId: newRevisionId },
-      sourceLabel: manifest.scheme.sourceLabel || manifest.scheme.name,
-      sourcePresentation: manifest.scheme.sourcePresentation,
+      document: toLegacyDocument(
+        designSchemeRevisionDocumentSchema.parse({
+          ...content.document,
+          schemeId: newSchemeId,
+          revisionId: newRevisionId,
+          createdBy: 'import',
+          parentRevisionId: null,
+        }),
+      ),
+      sourceLabel: content.sourceLabel,
+      sourcePresentation: content.sourcePresentation,
       snapshots,
-      assets: [],
+      assets,
       importRoot,
     };
   } catch (error) {
@@ -1016,35 +1015,60 @@ function persistPreparedImport(
   })();
 }
 
+function importFailure(error: unknown, code: 'INVALID_TYPE' | 'INVALID_STATE', message: string) {
+  const storageCode =
+    typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+  if (storageCode === 'ENOSPC' || storageCode === 'EDQUOT' || storageCode === 'SQLITE_FULL') {
+    return fail(
+      appError('INVALID_STATE', '磁盘空间不足，导入未完成。请释放空间后重试。', {
+        retryable: true,
+        recoveryAction: 'retry',
+      }),
+    );
+  }
+  return fail(appError(code, message, { recoveryAction: 'retry' }));
+}
+
 export async function importDesignScheme(
   filePath: string,
   deps: ShareDeps,
+  packageBytes?: Buffer,
 ): Promise<AppResult<ImportResult>> {
   const userDataDir = deps.userDataDir ?? getPaths().userData;
   let validated: ValidatedDesignSchemePackage;
   try {
-    validated = await readValidatedDesignSchemePackage(filePath);
+    validated = packageBytes
+      ? await readValidatedDesignSchemePackageBytes(packageBytes)
+      : await readValidatedDesignSchemePackage(filePath);
   } catch (error) {
     const message = error instanceof Error ? error.message : '分享包校验失败';
     const code = error instanceof DesignSchemePackageValidationError ? error.code : 'INVALID_TYPE';
     return fail(appError(code, `分享包校验失败：${message}`, { recoveryAction: 'retry' }));
   }
 
+  // 会话持有先于目录创建（hold 先行）：清扫把在途导入视为活跃属主，
+  // 即使此刻 DB 引用尚未提交；提交/回滚/抛错路径在 finally 统一释放。
+  const newSchemeId = opaqueId('dsch');
+  const releaseImportSession = retainDesignSchemeImportSession(newSchemeId);
   let prepared: PreparedImport;
   try {
-    prepared =
-      validated.formatVersion === SHARE_FORMAT_VERSION
-        ? prepareCanonicalImport(validated, userDataDir)
-        : prepareLegacyImport(validated, userDataDir);
-  } catch {
-    return fail(appError('INVALID_TYPE', '分享包内容无法安全导入', { recoveryAction: 'retry' }));
-  }
+    try {
+      prepared =
+        validated.formatVersion === SHARE_FORMAT_VERSION
+          ? prepareCanonicalImport(validated, userDataDir, newSchemeId)
+          : await prepareLegacyImport(validated, userDataDir, newSchemeId);
+    } catch (error) {
+      return importFailure(error, 'INVALID_TYPE', '分享包内容无法安全导入');
+    }
 
-  try {
-    return ok(persistPreparedImport(prepared, deps));
-  } catch {
-    rmSync(prepared.importRoot, { recursive: true, force: true });
-    return fail(appError('INVALID_STATE', '导入方案失败', { recoveryAction: 'retry' }));
+    try {
+      return ok(persistPreparedImport(prepared, deps));
+    } catch (error) {
+      rmSync(prepared.importRoot, { recursive: true, force: true });
+      return importFailure(error, 'INVALID_STATE', '导入方案失败');
+    }
+  } finally {
+    releaseImportSession();
   }
 }
 

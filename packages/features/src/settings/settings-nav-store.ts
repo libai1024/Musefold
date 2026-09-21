@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SettingsSectionId } from './sections';
+import type { SettingsSectionId } from './section-ids';
 
 /**
  * 设置分区记忆(V25-UI-SPEC §6.1「分区记忆」):离开设置再回来,停在上次的分区。

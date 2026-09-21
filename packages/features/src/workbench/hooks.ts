@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  AccountSummary,
   CreateGenerationInput,
   CreateWorkbenchSession,
   GenerationAsset,
@@ -13,8 +14,16 @@ import type {
   WorkbenchSessionListQuery,
 } from '@musefold/contracts';
 import { type GenerationGateway, queryKeys, usePlatform } from '@musefold/platform';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { useRef } from 'react';
 import { type PromptReferenceResolution, resolvePromptReferenceDisplay } from './prompt-references';
+import { accountEpoch, assertAccountEpoch, isAccountRestricted } from '../account/account-session';
 
 /** 生成任务的非终态集合:时间线含这些状态时切短轮询。 */
 const ACTIVE_STATUSES = new Set<GenerationJob['status']>([
@@ -31,6 +40,7 @@ export function hasActiveJob(jobs: readonly GenerationJob[] | undefined): boolea
 /** 会话行状态点:该会话最近一次生成仍在进行。 */
 export function sessionHasActiveJob(session: WorkbenchSession): boolean {
   return (
+    session.latestJobStatus === 'pending_approval' ||
     session.latestJobStatus === 'queued' ||
     session.latestJobStatus === 'running' ||
     session.latestJobStatus === 'cancelling'
@@ -43,13 +53,36 @@ export function useSessionList(query: WorkbenchSessionListQuery = {}) {
     queryKey: queryKeys.workbench.sessions(query),
     queryFn: () => gateway.workbench.listSessions(query),
     // 有会话在生成时短轮询,驱动侧栏状态点翻终态(推送机制随 M5 遗留卡收口)。
-    refetchInterval: (q) => (q.state.data?.items.some(sessionHasActiveJob) ? 3_000 : false),
+    refetchInterval: (q) => (q.state.data?.items.some(sessionHasActiveJob) ? 5_000 : false),
   });
 }
 
-/** 归档会话列表:查询语义由宿主过滤,不在客户端从 includeArchived 结果中二次筛选。 */
+/** A page omission is not evidence that the selected Session was deleted. */
+export function useMissingSession(id: string | null, enabled: boolean) {
+  const { gateway } = usePlatform();
+  return useQuery({
+    queryKey: queryKeys.workbench.session(id ?? ''),
+    queryFn: () => gateway.workbench.getSession(id as string),
+    enabled: id !== null && enabled,
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+/**
+ * 归档会话无限分页:独立 archived key,不覆盖 useSessionList 的单页缓存形状。
+ * 查询语义由宿主过滤,不在客户端从 includeArchived 结果中二次筛选。
+ */
 export function useArchivedSessions(query: WorkbenchSessionListQuery = {}) {
-  return useSessionList({ ...query, archivedOnly: true });
+  const { gateway } = usePlatform();
+  const archivedQuery = { ...query, archivedOnly: true };
+  return useInfiniteQuery({
+    queryKey: queryKeys.workbench.archived(archivedQuery),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      gateway.workbench.listSessions({ ...archivedQuery, cursor: pageParam }),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
 }
 
 function useInvalidateWorkbench() {
@@ -98,12 +131,17 @@ export function useRemoveSession() {
   const invalidate = useInvalidateWorkbench();
   return useMutation({
     mutationFn: (id: string) => gateway.workbench.removeSession(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      void invalidate();
+    },
+    onError: () => {
+      void invalidate();
+    },
   });
 }
 
 /**
- * 会话时间线:按创建时间升序;存在进行中任务时 1.5s 轮询直至终态。
+ * 会话时间线:按创建时间升序;存在进行中任务时 3s 轮询直至终态。
  * `pollWhileExternalRun`:宿主侧有进行中的方案运行时(生成回合由主进程稍后才落进本会话账本,
  * 列表里尚无活动任务可触发轮询),同样短轮询,让新回合与进度及时出现在时间线。
  */
@@ -123,7 +161,12 @@ export function useSessionJobs(
       });
       return [...page.items].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
-    refetchInterval: (query) => (externalRun || hasActiveJob(query.state.data) ? 1_500 : false),
+    refetchInterval: (query) =>
+      externalRun ||
+      hasActiveJob(query.state.data) ||
+      query.state.data?.some((job) => job.recovery?.result === 'download_pending')
+        ? 3_000
+        : false,
   });
 }
 
@@ -133,16 +176,45 @@ function useInvalidateGeneration() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.generation.all() });
     // 会话 updated_at 随生成推进,列表排序需刷新。
     void queryClient.invalidateQueries({ queryKey: queryKeys.workbench.all() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.usage.all() });
+    // 终态可能已扣点,账号积分/canGenerate 一起刷新。
+    void queryClient.invalidateQueries({ queryKey: queryKeys.account.status() });
   };
 }
 
 export function useCreateGeneration() {
   const { gateway } = usePlatform();
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateGeneration();
+  const intentEpochs = useRef(new WeakMap<object, number>());
   return useMutation({
-    mutationFn: (intent: Parameters<GenerationGateway['create']>) =>
-      gateway.generation.create(...intent),
-    onSuccess: invalidate,
+    onMutate: (intent: Parameters<GenerationGateway['create']>) => {
+      const epoch = accountEpoch(queryClient);
+      intentEpochs.current.set(intent, epoch);
+      return epoch;
+    },
+    mutationFn: async (intent: Parameters<GenerationGateway['create']>) => {
+      const epoch = intentEpochs.current.get(intent) ?? accountEpoch(queryClient);
+      assertAccountEpoch(queryClient, epoch);
+      if (
+        isAccountRestricted(queryClient.getQueryData<AccountSummary>(queryKeys.account.status()))
+      ) {
+        throw new Error('请先完成账号恢复，再开始生图');
+      }
+      try {
+        const result = await gateway.generation.create(...intent);
+        assertAccountEpoch(queryClient, epoch);
+        return result;
+      } catch (error) {
+        // 旧账号的迟到额度错误不能再次登记为新账号的自动兑换恢复意图。
+        assertAccountEpoch(queryClient, epoch);
+        throw error;
+      }
+    },
+    onSuccess: (_result, _intent, epoch) => {
+      assertAccountEpoch(queryClient, epoch);
+      invalidate();
+    },
   });
 }
 
@@ -162,13 +234,41 @@ export function useCancelGeneration() {
   });
 }
 
+export const retryGenerationMutationKey = ['generation', 'retry'] as const;
+
 export function useRetryGeneration() {
   const { gateway } = usePlatform();
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateGeneration();
+  const intentEpochs = useRef(new WeakMap<object, number>());
   return useMutation({
-    mutationFn: (intent: Parameters<GenerationGateway['retry']>) =>
-      gateway.generation.retry(...intent),
-    onSuccess: invalidate,
+    mutationKey: retryGenerationMutationKey,
+    onMutate: (intent: Parameters<GenerationGateway['retry']>) => {
+      const epoch = accountEpoch(queryClient);
+      intentEpochs.current.set(intent, epoch);
+      return epoch;
+    },
+    mutationFn: async (intent: Parameters<GenerationGateway['retry']>) => {
+      const epoch = intentEpochs.current.get(intent) ?? accountEpoch(queryClient);
+      assertAccountEpoch(queryClient, epoch);
+      if (
+        isAccountRestricted(queryClient.getQueryData<AccountSummary>(queryKeys.account.status()))
+      ) {
+        throw new Error('请先完成账号恢复，再重试生图');
+      }
+      try {
+        const result = await gateway.generation.retry(...intent);
+        assertAccountEpoch(queryClient, epoch);
+        return result;
+      } catch (error) {
+        assertAccountEpoch(queryClient, epoch);
+        throw error;
+      }
+    },
+    onSuccess: (_result, _intent, epoch) => {
+      assertAccountEpoch(queryClient, epoch);
+      invalidate();
+    },
   });
 }
 
@@ -193,8 +293,17 @@ export function useRemoveGeneration() {
 export function useUploadReferenceImage() {
   const { gateway } = usePlatform();
   return useMutation({
-    mutationFn: (input: UploadReferenceImageInput) =>
-      gateway.generation.uploadReferenceImage(input),
+    mutationFn: ({
+      input,
+      isCurrent,
+    }: {
+      input: UploadReferenceImageInput;
+      isCurrent: () => boolean;
+    }) => {
+      // Mutation callbacks/offline queues may yield after the Composer checked its owner.
+      if (!isCurrent()) throw new Error('参考图使用上下文已结束');
+      return gateway.generation.uploadReferenceImage(input);
+    },
   });
 }
 

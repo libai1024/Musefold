@@ -1,7 +1,12 @@
 'use client';
 
 import type { DesignSchemeRevisionDocument } from '@musefold/contracts';
-import { DESIGN_SCHEME_PACKAGE_FORMAT_VERSION } from '@musefold/contracts';
+import {
+  DESIGN_SCHEME_PACKAGE_FORMAT_VERSION,
+  cloudCheckDesignSchemeUpdateInputSchema,
+} from '@musefold/contracts';
+import { useGateway, queryKeys } from '@musefold/platform';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@musefold/ui/components/button';
 import {
   DropdownMenu,
@@ -10,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@musefold/ui/components/dropdown-menu';
-import { FadeImage } from '@musefold/ui/components/fade-image';
+import { SchemeAssetImage } from './SchemeAssetImage';
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { toast } from '@musefold/ui/components/sonner';
 import {
@@ -26,7 +31,10 @@ import {
   Sparkles,
   Trash2,
 } from '@musefold/ui/icons';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { SchemePackageExportDialog } from './SchemePackageExportDialog';
+import { SchemeAgentDialog } from './SchemeAgentDialog';
+import type { SchemeAgentIntent } from './agent-presentation';
 import {
   useCheckSchemeUpdate,
   useExportScheme,
@@ -73,6 +81,15 @@ export function SchemeDetailView({
   const updateDocument = useUpdateSchemeDocument();
   const checkUpdate = useCheckSchemeUpdate();
   const exportScheme = useExportScheme();
+  const packageExport = useGateway().designSchemes?.packageExport;
+  const agent = useGateway().designSchemes?.agent;
+  const client = useQueryClient();
+  const [updateIntent, setUpdateIntent] = useState<Extract<
+    SchemeAgentIntent,
+    { operation: 'check-update' }
+  > | null>(null);
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [inputEdits, setInputEdits] = useState<SchemeInputEdit[] | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -81,6 +98,16 @@ export function SchemeDetailView({
 
   const summary = detail.data?.summary ?? null;
   const document = detail.data?.document ?? null;
+  const versionPending = Boolean(
+    detail.isFetching ||
+      rename.isPending ||
+      remove.isPending ||
+      selectCover.isPending ||
+      formalize.isPending ||
+      promoteWorkingDraft.isPending ||
+      updateDocument.isPending ||
+      checkUpdate.isPending,
+  );
 
   // 封面固定排在最前,其余按时间倒序(承旧 §5.2)。
   const orderedAssets = useMemo(() => {
@@ -126,7 +153,7 @@ export function SchemeDetailView({
   }, [inputEdits, document]);
 
   function beginInputEdit() {
-    if (!document) return;
+    if (!document || versionPending) return;
     setInputEdits(
       document.inputs.map((slot) => ({ id: slot.id, required: slot.required, removed: false })),
     );
@@ -134,7 +161,7 @@ export function SchemeDetailView({
 
   /** 保存 staged 槽位:客户端构造新不可变 revision(新 id + parentRevisionId 指回基线),update 一次性提交。 */
   async function saveInputEdits() {
-    if (!document || !inputEdits || !summary || updateDocument.isPending) return;
+    if (!document || !inputEdits || !summary || versionPending) return;
     const keptIds = new Set(inputEdits.filter((edit) => !edit.removed).map((edit) => edit.id));
     const nextDocument: DesignSchemeRevisionDocument = {
       ...document,
@@ -166,7 +193,7 @@ export function SchemeDetailView({
   }
 
   async function handleRename(name: string) {
-    if (!summary) return;
+    if (!summary || versionPending) return;
     try {
       await rename.mutateAsync({
         schemeId: summary.id,
@@ -183,7 +210,7 @@ export function SchemeDetailView({
   }
 
   async function handleRemove() {
-    if (!summary) return;
+    if (!summary || versionPending) return;
     const isDraft = summary.status === 'draft';
     try {
       await remove.mutateAsync({ schemeId: summary.id, expectedVersion: summary.version });
@@ -200,7 +227,7 @@ export function SchemeDetailView({
   }
 
   async function handleFormalize() {
-    if (!summary?.coverAssetId || summary.status !== 'draft') return;
+    if (!summary?.coverAssetId || summary.status !== 'draft' || versionPending) return;
     try {
       await formalize.mutateAsync({
         schemeId: summary.id,
@@ -218,7 +245,7 @@ export function SchemeDetailView({
   }
 
   async function handlePromoteWorkingDraft() {
-    if (!summary?.workingDraftRevisionId || summary.status !== 'formal') return;
+    if (!summary?.workingDraftRevisionId || summary.status !== 'formal' || versionPending) return;
     try {
       await promoteWorkingDraft.mutateAsync({
         schemeId: summary.id,
@@ -235,7 +262,20 @@ export function SchemeDetailView({
   }
 
   async function handleCheckUpdate() {
-    if (!summary || checkUpdate.isPending) return;
+    if (!summary || versionPending) return;
+    if (agent) {
+      if (!document) return;
+      setUpdateIntent({
+        operation: 'check-update',
+        input: cloudCheckDesignSchemeUpdateInputSchema.parse({
+          executionId: crypto.randomUUID(),
+          schemeId: summary.id,
+          baseRevisionId: document.revisionId,
+          expectedVersion: summary.version,
+        }),
+      });
+      return;
+    }
     toast('正在检查上游更新…', { description: '需要下载仓库快照，可能要几十秒。' });
     try {
       const result = await checkUpdate.mutateAsync({ schemeId: summary.id });
@@ -254,7 +294,11 @@ export function SchemeDetailView({
   }
 
   async function handleExport() {
-    if (!summary || exportScheme.isPending) return;
+    if (!summary || versionPending || exportScheme.isPending) return;
+    if (packageExport) {
+      setExportOpen(true);
+      return;
+    }
     try {
       const result = await exportScheme.mutateAsync({
         schemeId: summary.id,
@@ -272,7 +316,7 @@ export function SchemeDetailView({
   }
 
   async function handleSetCover(assetId: string) {
-    if (!summary) return;
+    if (!summary || versionPending) return;
     try {
       await selectCover.mutateAsync({
         schemeId: summary.id,
@@ -286,6 +330,19 @@ export function SchemeDetailView({
       });
     }
   }
+
+  // Keep the observer mounted when a completed update starts loading its new revision.
+  // The dialog owns the original execution ID; a detail refresh must not reset it.
+  const updateDialog = updateIntent ? (
+    <SchemeAgentDialog
+      key={updateIntent.input.executionId}
+      intent={updateIntent}
+      onClose={() => setUpdateIntent(null)}
+      onRestoreFocus={() => menuRef.current?.focus()}
+      onCompleted={() => void client.invalidateQueries({ queryKey: queryKeys.designSchemes.all() })}
+      onOpenScheme={() => setUpdateIntent(null)}
+    />
+  ) : null;
 
   if (detail.isPending) {
     return (
@@ -303,6 +360,7 @@ export function SchemeDetailView({
           <Skeleton className="mt-8 h-[300px] rounded-md" />
           <Skeleton className="mt-8 h-32 rounded-md" />
         </div>
+        {updateDialog}
       </div>
     );
   }
@@ -330,6 +388,7 @@ export function SchemeDetailView({
             </Button>
           </div>
         </div>
+        {updateDialog}
       </div>
     );
   }
@@ -338,8 +397,11 @@ export function SchemeDetailView({
   const coverThumbUrl = summary.coverAssetId
     ? (resolveAssetUrl?.(summary.coverAssetId) ?? null)
     : null;
-  const runDisabledReason = actions.onRunScheme ? null : '当前环境暂未接入方案运行';
-  const modifyDisabledReason = actions.onModifyScheme ? null : '当前环境暂未接入方案修改';
+  const versionPendingReason = versionPending ? '正在确认方案最新版本，请稍候。' : null;
+  const runDisabledReason =
+    versionPendingReason ?? (actions.onRunScheme ? null : '当前环境暂未接入方案运行');
+  const modifyDisabledReason =
+    versionPendingReason ?? (actions.onModifyScheme ? null : '当前环境暂未接入方案修改');
 
   return (
     <div
@@ -347,6 +409,7 @@ export function SchemeDetailView({
       data-testid="runtime-scheme-detail"
       data-scheme-id={summary.id}
       data-status={summary.status}
+      aria-busy={versionPending}
     >
       <div className="mx-auto w-full max-w-[880px] px-6 pt-5 pb-16 max-[640px]:px-4">
         <button
@@ -359,10 +422,15 @@ export function SchemeDetailView({
           方案
         </button>
 
-        <div className="mt-5 flex items-start gap-4">
+        <div className="mt-5 grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-4 md:flex">
           {coverThumbUrl ? (
             <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
-              <FadeImage src={coverThumbUrl} alt="" className="h-full w-full object-cover" />
+              <SchemeAssetImage
+                compact
+                src={coverThumbUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             </span>
           ) : (
             <span
@@ -374,13 +442,15 @@ export function SchemeDetailView({
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-semibold text-xl text-foreground">{summary.name}</h1>
+              <h1 className="max-w-full break-words font-semibold text-xl text-foreground">
+                {summary.name}
+              </h1>
               <span className="text-[11px] text-muted-foreground">{isDraft ? '草稿' : '正式'}</span>
               <span className="rounded-full border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {FIDELITY_LABEL[summary.fidelity] ?? summary.fidelity}
               </span>
             </div>
-            <p className="mt-1.5 max-w-[62ch] text-xs text-muted-foreground leading-5">
+            <p className="mt-1.5 max-w-[62ch] break-words text-xs text-muted-foreground leading-5">
               {summary.summary}
             </p>
             <p className="mt-2 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground/80">
@@ -393,7 +463,7 @@ export function SchemeDetailView({
               {summary.sourceLabel}
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          <div className="col-span-2 flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -403,6 +473,8 @@ export function SchemeDetailView({
                   aria-label="更多方案操作"
                   title="更多操作"
                   data-testid="runtime-scheme-menu"
+                  ref={menuRef}
+                  disabled={versionPending}
                 >
                   <MoreHorizontal className="size-4" aria-hidden />
                 </Button>
@@ -426,6 +498,7 @@ export function SchemeDetailView({
                 ) : null}
                 {isDraft ? (
                   <DropdownMenuItem
+                    disabled={versionPending}
                     onSelect={() => setRenameOpen(true)}
                     data-testid="runtime-scheme-menu-rename"
                   >
@@ -440,9 +513,9 @@ export function SchemeDetailView({
                   <FolderOpen className="size-3.5" aria-hidden />
                   查看来源
                 </DropdownMenuItem>
-                {repoSource ? (
+                {repoSource || agent ? (
                   <DropdownMenuItem
-                    disabled={checkUpdate.isPending}
+                    disabled={versionPending}
                     onSelect={() => void handleCheckUpdate()}
                     data-testid="runtime-scheme-menu-check-update"
                   >
@@ -455,7 +528,7 @@ export function SchemeDetailView({
                 ) : null}
                 {!isDraft ? (
                   <DropdownMenuItem
-                    disabled={exportScheme.isPending}
+                    disabled={versionPending || exportScheme.isPending}
                     onSelect={() => void handleExport()}
                     data-testid="runtime-scheme-menu-export"
                   >
@@ -466,6 +539,7 @@ export function SchemeDetailView({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
+                  disabled={versionPending}
                   onSelect={() => setRemoveOpen(true)}
                   data-testid="runtime-scheme-menu-remove"
                 >
@@ -506,7 +580,7 @@ export function SchemeDetailView({
                 variant="outline"
                 size="sm"
                 className="min-h-8"
-                disabled={formalize.isPending}
+                disabled={versionPending}
                 onClick={() => void handleFormalize()}
                 data-testid="runtime-scheme-formalize"
               >
@@ -531,9 +605,20 @@ export function SchemeDetailView({
           </div>
         </div>
 
+        {versionPending ? (
+          <p
+            className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"
+            role="status"
+            data-testid="runtime-scheme-version-pending"
+          >
+            <RefreshCw className="size-3.5 animate-spin" aria-hidden />
+            正在确认方案最新版本，请稍候。
+          </p>
+        ) : null}
+
         {!isDraft && summary.workingDraftRevisionId ? (
           <div
-            className="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-3"
+            className="mt-6 grid grid-cols-[0.5rem_minmax(0,1fr)] items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 md:flex md:flex-wrap"
             data-testid="runtime-scheme-working-draft"
           >
             <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden />
@@ -545,7 +630,7 @@ export function SchemeDetailView({
                 当前正式版本继续可用；新版本完成一次成功试运行后可以替换它。
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="col-span-2 flex shrink-0 flex-wrap items-center justify-end gap-1.5">
               <Button
                 variant="outline"
                 size="sm"
@@ -561,7 +646,7 @@ export function SchemeDetailView({
               <Button
                 size="sm"
                 className="min-h-8"
-                disabled={promoteWorkingDraft.isPending}
+                disabled={versionPending}
                 onClick={() => void handlePromoteWorkingDraft()}
                 data-testid="runtime-scheme-promote-working-draft"
               >
@@ -577,7 +662,7 @@ export function SchemeDetailView({
             coverAssetId={summary.coverAssetId}
             resolveAssetUrl={resolveAssetUrl}
             onSetCover={(assetId) => void handleSetCover(assetId)}
-            coverBusy={selectCover.isPending}
+            coverBusy={versionPending}
           />
         </div>
 
@@ -587,7 +672,7 @@ export function SchemeDetailView({
             document={document}
             inputEdits={inputEdits}
             setInputEdits={setInputEdits}
-            inputSaveBusy={updateDocument.isPending}
+            inputSaveBusy={versionPending}
             inputEditsDirty={inputEditsDirty}
             templateBoundIds={templateBoundIds}
             beginInputEdit={beginInputEdit}
@@ -596,9 +681,21 @@ export function SchemeDetailView({
         ) : null}
       </div>
 
+      {updateDialog}
+      {exportOpen && summary.currentRevisionId ? (
+        <SchemePackageExportDialog
+          selection={{
+            schemeId: summary.id,
+            revisionId: summary.currentRevisionId,
+            expectedVersion: summary.version,
+          }}
+          onClose={() => setExportOpen(false)}
+          onRestoreFocus={() => menuRef.current?.focus()}
+        />
+      ) : null}
       <SchemeRenameDialog
         scheme={renameOpen ? summary : null}
-        busy={rename.isPending}
+        busy={versionPending}
         onClose={() => setRenameOpen(false)}
         onSubmit={(name) => void handleRename(name)}
       />
@@ -608,7 +705,7 @@ export function SchemeDetailView({
       />
       <SchemeRemoveDialog
         scheme={removeOpen ? summary : null}
-        busy={remove.isPending}
+        busy={versionPending}
         onCancel={() => setRemoveOpen(false)}
         onConfirm={() => void handleRemove()}
       />

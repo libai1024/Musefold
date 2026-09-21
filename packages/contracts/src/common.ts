@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
 export const entityIdSchema = z.string().trim().min(1).max(64);
+/** Opaque upstream model identifier. Validation does not grant model capability. */
+export const cloudModelIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[^\s\p{Cc}]+$/u);
 export const isoDateTimeSchema = z.string().datetime({ offset: true });
 export const paginationCursorSchema = z.string().min(1).max(1024);
 
@@ -25,11 +31,22 @@ export const apiErrorCodeSchema = z.enum([
   'AUTH_REQUIRED',
   'AUTH_SESSION_EXPIRED',
   'AUTH_CREDENTIALS_INVALID',
+  'AUTH_2FA_REQUIRED',
+  'AUTH_SESSION_LIMIT',
+  'AUTH_SESSION_ISSUANCE_LIMIT',
+  'AUTH_SESSION_REVIEW_CHANGED',
+  'AUTH_LOGIN_CHALLENGE_EXPIRED',
+  'AUTH_OPERATION_CONFLICT',
+  'AUTH_SESSION_MANAGEMENT_UNAVAILABLE',
   'AUTH_REGISTRATION_DISABLED',
   'OAUTH_INVALID_GRANT',
   'OAUTH_SCOPE_INSUFFICIENT',
   'ACCOUNT_QUOTA_INSUFFICIENT',
   'ACCOUNT_REDEEM_INVALID',
+  'ACCOUNT_IDENTITY_UNVERIFIED',
+  'ACCOUNT_RECOVERY_CONFLICT',
+  'ACCOUNT_RECOVERY_EXPIRED',
+  'ACCOUNT_IDENTITY_SOURCE_CHANGED',
   'PROMPT_NOT_FOUND',
   'PROMPT_VERSION_CONFLICT',
   'SYNC_CURSOR_EXPIRED',
@@ -39,6 +56,10 @@ export const apiErrorCodeSchema = z.enum([
   'GENERATION_NOT_FOUND',
   'GENERATION_ALREADY_TERMINAL',
   'GENERATION_IDEMPOTENCY_CONFLICT',
+  'GENERATION_RETRY_MODEL_MISSING',
+  'GENERATION_BINDING_CHANGED',
+  'GENERATION_RESULT_CLEANED',
+  'GENERATION_RECEIPT_NOT_FOUND',
   'GENERATION_UPSTREAM_REJECTED',
   'GENERATION_UPSTREAM_UNKNOWN',
   'GENERATION_STORAGE_FAILED',

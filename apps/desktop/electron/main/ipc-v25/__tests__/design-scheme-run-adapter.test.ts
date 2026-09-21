@@ -1,5 +1,10 @@
+import { realpathSync } from 'node:fs';
+import { configureTestCoreRuntime } from '@musefold/core/testing';
+import { stageLocalImage } from '@musefold/core/providers/local-image';
+import { drainLocalAssetCleanup } from '@musefold/core/services/local-asset-cleanup';
+import type { LocalUploadOwner } from '@musefold/core/services/local-upload-owner';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -243,6 +248,7 @@ describe('desktop design-scheme run adapter', () => {
     coreDb = new Database(':memory:');
     seedCoreDb(coreDb);
     root = mkdtempSync(join(tmpdir(), 'musefold-adapter-'));
+    configureTestCoreRuntime(root);
     events = [];
     registry = new DesignSchemeExecutionRegistry();
   });
@@ -731,11 +737,10 @@ describe('desktop design-scheme run adapter', () => {
       picturesDir: join(root, 'Pictures'),
       executionRegistry: registry,
       resolveUploadedReference,
-      stageReferenceAsset: async (path) => {
-        const stagedPath = join(root, `staged-${staged.length}.png`);
-        writeFileSync(stagedPath, Buffer.from(`staged:${path}`));
-        staged.push(stagedPath);
-        return { path: stagedPath, source: 'upload' };
+      stageReferenceAsset: async (path, owner) => {
+        const image = await stageLocalImage(path, owner);
+        staged.push(image.path);
+        return image;
       },
       emit: (_senderId, event) => events.push(event),
     });
@@ -760,6 +765,112 @@ describe('desktop design-scheme run adapter', () => {
         .get(),
     ).toEqual({ n: 0 });
   });
+
+  it.each(['unused', 'retained-run', 'retained-scheme-asset', 'retained-source'] as const)(
+    'uses an inherited image through actual owned staging: %s',
+    async (retention) => {
+      const repository = new DesignSchemeRepository(schemeDb);
+      const sourcePath = join(root, 'inherited-source.png');
+      writeFileSync(sourcePath, fakePngBuffer(64, 64));
+      const sourceId = repository.insertLocalRunAsset('rev_adapter', sourcePath);
+      repository.applyAgentRevision('scheme_adapter', 'rev_adapter', {
+        ...documentFixture(),
+        revisionId: 'rev_inherited',
+        assetIds: [sourceId],
+      });
+      const base = inputFixture();
+      const prepared = prepareDesktopDesignSchemeRun(
+        prepareDesignSchemeRunInputSchema.parse({
+          schemeId: base.schemeId,
+          mode: base.mode,
+          brief: base.brief,
+          inputValues: base.inputValues,
+          revisionId: 'rev_inherited',
+          executionId: 'exec_inherited',
+          executionSettings: { ...base.executionSettings, referenceAssetIds: [sourceId] },
+        }),
+        { designSchemeDb: schemeDb, coreDb },
+      );
+      const imagePath = join(root, 'inherited-output.png');
+      writeFileSync(imagePath, fakePngBuffer(1024, 1024));
+      mockRetainedRun({
+        runId: 'ignored',
+        compiledPrompt: 'compiled with inherited reference',
+        generations: [
+          {
+            jobId: 'job_inherited',
+            resultIndex: 0,
+            assetId: 'asset_inherited_output',
+            result: { historyId: 'job_inherited', status: 'success', imagePath },
+          },
+        ],
+        trace: [],
+      });
+      let stagedPath = '';
+      let retainedAssetId = '';
+      const resolver = vi.fn(() => null);
+      const stage = vi.fn(async (path: string, owner: LocalUploadOwner) => {
+        expect(path).toBe(sourcePath);
+        const image = await stageLocalImage(path, owner);
+        stagedPath = image.path;
+        if (retention === 'retained-run')
+          coreDb
+            .prepare(`INSERT INTO generation_runs(id,run_kind,provider_id,model,base_prompt,final_prompt,params_json,prompt_snapshot_json,status,created_at)
+        VALUES ('retained-reference','free_generation','owned','owned','Owned','Owned',?,'{}','failed',1)`)
+            .run(JSON.stringify({ referenceImages: [image] }));
+        if (retention === 'retained-scheme-asset')
+          retainedAssetId = repository.insertLocalRunAsset('rev_adapter', image.path);
+        if (retention === 'retained-source') {
+          schemeDb
+            .prepare(
+              "INSERT INTO source_packages(id,kind,created_at) VALUES ('owned_pkg','user-brief',1)",
+            )
+            .run();
+          schemeDb
+            .prepare(
+              "INSERT INTO source_snapshots(id,package_id,ref,content_hash,scan_json,created_at) VALUES ('owned_snap','owned_pkg','owned','owned','{}',1)",
+            )
+            .run();
+          schemeDb
+            .prepare(
+              "INSERT INTO source_files(snapshot_id,path,kind,content_hash,size_bytes,store_key) VALUES ('owned_snap','owned.png','image','owned',?,?)",
+            )
+            .run(image.sizeBytes, relative(root, image.path));
+        }
+        return image;
+      });
+      const result = await runCanonicalDesignScheme(prepared, 81, {
+        db: schemeDb,
+        coreDb,
+        userDataDir: root,
+        picturesDir: join(root, 'Pictures'),
+        executionRegistry: registry,
+        resolveUploadedReference: resolver,
+        stageReferenceAsset: stage,
+        emit: (_sender, event) => events.push(event),
+      });
+      expect(result.status).toBe('completed');
+      expect(stage).toHaveBeenCalledOnce();
+      expect(resolver).not.toHaveBeenCalled();
+      expect(existsSync(sourcePath)).toBe(true);
+      expect(existsSync(stagedPath)).toBe(retention !== 'unused');
+      if (retention !== 'unused') {
+        coreDb.prepare("DELETE FROM generation_runs WHERE id='retained-reference'").run();
+        if (retainedAssetId)
+          schemeDb.prepare('DELETE FROM design_scheme_assets WHERE id=?').run(retainedAssetId);
+        if (retention === 'retained-source')
+          schemeDb.prepare("DELETE FROM source_files WHERE snapshot_id='owned_snap'").run();
+        const due = coreDb
+          .prepare('SELECT next_attempt_at AS n FROM local_asset_cleanup WHERE path=?')
+          .get(realpathSync(stagedPath)) as { n: number };
+        expect(drainLocalAssetCleanup(due.n, coreDb, schemeDb).deleted).toBe(1);
+        expect(existsSync(stagedPath)).toBe(false);
+      }
+      expect(
+        schemeDb.prepare('SELECT revision_id FROM design_scheme_assets WHERE id = ?').get(sourceId),
+      ).toEqual({ revision_id: 'rev_adapter' });
+    },
+  );
 
   it('fails closed when a reference is neither a scheme asset nor an uploaded staging file', async () => {
     const base = inputFixture();
@@ -789,9 +900,9 @@ describe('desktop design-scheme run adapter', () => {
   });
 
   it('removes staged references when preparation fails after staging', async () => {
-    const staged = join(root, 'staged.png');
+    let staged = '';
     mkdirSync(join(root, 'Pictures'), { recursive: true });
-    writeFileSync(join(root, 'Pictures', 'source.png'), Buffer.from('source'));
+    writeFileSync(join(root, 'Pictures', 'source.png'), fakePngBuffer(64, 64));
     const repository = new DesignSchemeRepository(schemeDb);
     const assetId = repository.insertLocalRunAsset(
       'rev_adapter',
@@ -817,14 +928,16 @@ describe('desktop design-scheme run adapter', () => {
       userDataDir: root,
       picturesDir: join(root, 'Pictures'),
       executionRegistry: registry,
-      stageReferenceAsset: async () => {
-        writeFileSync(staged, Buffer.from('staged'));
-        return { path: staged, source: 'upload' };
+      stageReferenceAsset: async (path, owner) => {
+        const image = await stageLocalImage(path, owner);
+        staged = image.path;
+        return image;
       },
       emit: (_senderId, event) => events.push(event),
     });
     expect(result.status).toBe('failed');
     expect(result.error?.code).toBe('NOT_FOUND');
+    expect(staged).not.toBe('');
     expect(existsSync(staged)).toBe(false);
     expect(runDesignSchemeMock).not.toHaveBeenCalled();
     expect(registry.get(73, 'exec_adapter')).toMatchObject({

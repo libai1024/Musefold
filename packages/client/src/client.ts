@@ -215,6 +215,12 @@ export class MusefoldClient {
       remainingBudgetPoints: number;
     }>('/v1/generations/estimate', { method: 'POST', body: JSON.stringify(body) });
   }
+  /**
+   * 幂等键 = 调用者可重用的「意图身份」（G/R/S 三个写入口共用同一契约）：
+   * - 键由调用者显式选择并跨重试复用；相同键 + 相同输入 → 服务端重放原任务（不重复执行/扣费）；
+   * - 相同键 + 不同输入 → 409 IDEMPOTENCY_CONFLICT；
+   * - 不传键保持既有无键行为（本客户端不代生成、不持久化键）。
+   */
   startGeneration(body: Record<string, unknown>, idempotencyKey?: string) {
     return this.request<{
       jobId: string;
@@ -233,6 +239,37 @@ export class MusefoldClient {
       body: JSON.stringify(body),
       ...(idempotencyKey ? { headers: { 'idempotency-key': idempotencyKey } } : {}),
       // 确认挂起最长 120s，给足闸门等待预算
+      signal: AbortSignal.timeout(150_000),
+    });
+  }
+  /** 运行设计方案（R）。幂等键语义与 startGeneration 相同。 */
+  runScheme(schemeId: string, input: Record<string, unknown> = {}, idempotencyKey?: string) {
+    return this.request<{ jobId: string; status: string }>(
+      `/v1/schemes/${encodeURIComponent(schemeId)}/runs`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+        ...(idempotencyKey ? { headers: { 'idempotency-key': idempotencyKey } } : {}),
+        // 与生图提交一致：确认挂起最长 120s，给足闸门等待预算
+        signal: AbortSignal.timeout(150_000),
+      },
+    );
+  }
+  /** 运行 GitHub 视觉 Skill（S）。幂等键语义与 startGeneration 相同。 */
+  runGithubSkill(
+    input: {
+      url: string;
+      prompt: string;
+      ratioId?: string;
+      n?: number;
+      consent?: 'interactive';
+    },
+    idempotencyKey?: string,
+  ) {
+    return this.request<{ jobId: string; status: string }>('/v1/skills/github/run', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      ...(idempotencyKey ? { headers: { 'idempotency-key': idempotencyKey } } : {}),
       signal: AbortSignal.timeout(150_000),
     });
   }

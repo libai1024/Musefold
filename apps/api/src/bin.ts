@@ -21,20 +21,34 @@ const account = new AccountService({
   db,
   newApi,
   encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY,
+  apiIssuer: env.PUBLIC_BASE_URL,
+  upstreamIssuer: env.NEW_API_BASE_URL,
+  legacyTrustedIssuer: env.LEGACY_NEW_API_ISSUER,
 });
 const auth = createAuth({
   env,
   db,
   newApi,
   hooks: {
-    onSessionEstablished: (input) => account.persistSessionCredentials(input),
+    loginSessions: account.loginSessions,
+    prepareLogin: (input) => account.prepareLogin(input),
+    commitLogin: (input) => account.commitLogin(input),
+    assertSessionAuthorization: (...input) => account.assertSessionAuthorization(...input),
   },
 });
 
 const prompts = new PromptService(db);
 const sync = new SyncService(db, prompts);
 const workbench = new WorkbenchService(db);
-const generation = new GenerationService(db, new S3AssetUrlSigner(env));
+const generation = new GenerationService(
+  db,
+  new S3AssetUrlSigner(env),
+  {
+    apiIssuer: env.PUBLIC_BASE_URL,
+    upstreamIssuer: env.NEW_API_BASE_URL,
+  },
+  (sessionId) => account.getModelCatalog(sessionId),
+);
 const skills = new SkillService(db);
 const rateLimiter = new RateLimiter(db, env.BETTER_AUTH_SECRET);
 
@@ -45,6 +59,33 @@ const app = createApp({
   rateLimiter,
   services: { account, prompts, sync, workbench, generation, skills },
 });
+
+let cleaningSessions = false;
+let lastReleaseBacklogWarning = 0;
+const sweepLoginSessions = async () => {
+  if (cleaningSessions) return;
+  cleaningSessions = true;
+  try {
+    await account.loginSessions.sweep();
+    if (Date.now() - lastReleaseBacklogWarning >= 15 * 60_000) {
+      const backlog = await account.loginSessions.releases.backlog();
+      if (backlog > 0) {
+        console.warn(
+          `[api] login-session release backlog: ${backlog} obligations retried at least three times; inspect original issuer availability`,
+        );
+        lastReleaseBacklogWarning = Date.now();
+      }
+    }
+  } catch {
+    console.warn('[api] login-session cleanup deferred; durable retry retained');
+  } finally {
+    cleaningSessions = false;
+  }
+};
+void sweepLoginSessions();
+setInterval(() => {
+  void sweepLoginSessions();
+}, 5_000).unref();
 
 serve({ fetch: app.fetch, port: env.PORT, hostname: '0.0.0.0' }, (info) => {
   console.log(`[api] listening on http://0.0.0.0:${info.port}`);

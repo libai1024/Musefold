@@ -10,6 +10,7 @@ const BASE_VALUE: ComposerValue = {
   negative: '',
   aspectRatio: 'auto',
   quality: 'auto',
+  count: 1,
   promptReferenceSelections: [],
 };
 

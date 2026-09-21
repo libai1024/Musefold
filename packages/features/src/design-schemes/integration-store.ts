@@ -1,6 +1,8 @@
 import type {
+  DesignSchemeRunExecutionSettings,
   DesignSchemeRunMode,
   DesignSchemeSummary,
+  GenerationCount,
   GenerationQuality,
   GenerationReferenceImage,
   InputSlot,
@@ -38,6 +40,8 @@ export interface SchemeComposerAttachment {
   schemeId: string;
   /** 挂载的 revision；formal 固定 current，trial/modify 可锁定 exact working draft。 */
   revisionId: string;
+  /** 与所选 revision 同次读取的版本；提交时不可替换成最新版本。 */
+  expectedVersion: DesignSchemeSummary['version'];
   name: string;
   summary: string;
   mode: SchemeComposerMode;
@@ -167,6 +171,7 @@ export async function resolveSchemeAttachment(
   return {
     schemeId: summary.id,
     revisionId: document.revisionId,
+    expectedVersion: summary.version,
     name: document.name,
     summary: document.summary,
     mode,
@@ -196,8 +201,15 @@ export type SchemeComposerSubmission =
       referenceImages: GenerationReferenceImage[];
       /** 托盘里的提示词引用意图原样随行(不丢弃用户上下文,是否折入由宿主管线决定)。 */
       promptReferenceSelections: PromptReferenceSelection[];
-      params: { aspectRatio?: string; quality: GenerationQuality; negative?: string };
+      params: {
+        aspectRatio?: string;
+        quality: GenerationQuality;
+        negative?: string;
+        count?: GenerationCount;
+      };
       providerId?: string;
+      model?: DesignSchemeRunExecutionSettings['model'];
+      expectedBinding?: DesignSchemeRunExecutionSettings['expectedBinding'];
     }
   | {
       kind: 'create';

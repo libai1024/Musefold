@@ -1,6 +1,6 @@
 # 06 设计方案 — 旧版全量记录 vs v2.5(P01 迁移蓝图)
 
-> **用途**:设计方案已从暂缓域转入 P01 迁移(`doing`)——共享 contracts/features、双端确定性 CRUD 与 Desktop `.musefold.design` 安全 staging/archive/domain 导入导出已有源码与定向单测；Desktop `hasDesignSchemes=true` 且导航/详情入口已开启，Web `hasDesignSchemes=false`。Desktop canonical run/cancel/event transport 与主进程权威的 text-only `prepareRun` 已存在，Workbench Composer 的 `onRun/onCancelRun` 接缝已接通，并有回环 Provider 下真实 Electron 取消与双账本收敛证据；该证据不代表成功出图。Workbench `onCreate/onModify` 已接到主进程 Agent create/modify adapter（brief / GitHub 仓库地址 / 历史来源身份 → Analyst → Compiler；exact revision + 指令 → Reviser），GitHub 来源经 `confirmInstall` 安装确认层闭环，Agent 过程进度在 Composer 展示；参考图运行已接通；Web run/assets/package 仍未完成。本文的性质仍是**旧版 UI/UX 的全量存档 + 迁入 v2.5 面时的蓝图基准**，当前事实以 [V25-UI-SPEC §8A](../V25-UI-SPEC.md) 为准。
+> **用途**：旧版UI/UX存档与迁入蓝图。B55已接Web图片，B56补异步执行发现，B57已接共享创建授权与原任务恢复并通过协议页面验证；B58已验实际服务创建合流，B59共享修改与B60上游更新均已验；完整出图父卡仍待。当前状态见[UI规范](../V25-UI-SPEC.md)、[路线图§6.48](../V25-MIGRATION-ROADMAP.md)及[测试手册§5.54](../V25-MIGRATION-TESTING.md)。下面旧版语义和检查点保留历史，不作为当前已验收声明。
 > **实施状态来源**:本文是旧版 UI/UX 全量存档与迁入蓝图,不表示当前 v2.5 已有入口或已完成;实施进度(`todo/doing/partial/verify/done`)、Mobile Web/PC Web/Desktop/Desktop Agent 状态、依赖和证据以 [`V25-MIGRATION-CARDS.md`](../V25-MIGRATION-CARDS.md) 的 P01 平台矩阵为准。
 
 ---

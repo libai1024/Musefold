@@ -1,4 +1,9 @@
-import { rm } from 'node:fs/promises';
+import { readRevisionAssetIds } from '@musefold/core/db/design-scheme/revision-assets';
+import { retainDesignSchemeOperation } from '@musefold/core/services/design-scheme-lifetime';
+import {
+  createLocalUploadOwner,
+  type LocalUploadOwner,
+} from '@musefold/core/services/local-upload-owner';
 import type Database from 'better-sqlite3';
 import { ulid } from 'ulid';
 import {
@@ -12,6 +17,7 @@ import {
   type RunEvaluation,
   type RunResult,
   type RunStep,
+  type ExecutionBinding,
   type StructuredDesignSchemeError,
 } from '@musefold/contracts';
 import type {
@@ -47,7 +53,7 @@ export interface DesktopDesignSchemeRunAdapterDeps {
   coreDb?: Database.Database;
   executionRegistry: DesignSchemeExecutionRegistry;
   emit: (senderId: number, event: DesignSchemeEvent) => void;
-  stageReferenceAsset?: (path: string) => Promise<LocalImageReference>;
+  stageReferenceAsset?: (path: string, owner: LocalUploadOwner) => Promise<LocalImageReference>;
   /** Composer 上传暂存 id → 受管本地参考图;缺省读 workbench 上传目录,测试注入。 */
   resolveUploadedReference?: (assetId: string) => LocalImageReference | null;
 }
@@ -118,9 +124,13 @@ function appErrorToCanonical(error: {
   });
 }
 
-function resolveProvider(input: ParsedDesignSchemeRunInput, db: Database.Database) {
+function resolveProvider(
+  input: ParsedDesignSchemeRunInput,
+  db: Database.Database,
+  cloudBinding?: ExecutionBinding,
+) {
   const row = readDesktopDesignSchemeProvider(db, input.executionSettings.providerId);
-  const actual = toDesktopProviderSnapshot(row);
+  const actual = toDesktopProviderSnapshot(row, cloudBinding);
   const planned = input.plan.provider;
   if (
     planned.providerId !== actual.providerId ||
@@ -183,46 +193,41 @@ function toCorePromptReferences(
 async function resolveReferenceAssets(
   input: ParsedDesignSchemeRunInput,
   deps: DesktopDesignSchemeRunAdapterDeps,
-): Promise<{ references: LocalImageReference[]; stagedPaths: string[] }> {
+  owner: LocalUploadOwner,
+): Promise<LocalImageReference[]> {
   if (input.executionSettings.referenceAssetIds.length === 0) {
-    return { references: [], stagedPaths: [] };
+    return [];
   }
   const stage = deps.stageReferenceAsset ?? stageLocalImage;
   const resolveUploaded = deps.resolveUploadedReference ?? resolveUploadedReferenceById;
   const references: LocalImageReference[] = [];
-  const stagedPaths: string[] = [];
-  try {
-    for (const assetId of input.executionSettings.referenceAssetIds) {
-      // 先认当前方案版本的资产(相册/来源图),再认 Composer 本次上传的暂存参考图;两者都在受管根内。
-      const row = deps.db
-        .prepare(
-          `SELECT a.id, a.store_key
+  const allowed = new Set(readRevisionAssetIds(deps.db, input.schemeId, input.revisionId));
+  for (const assetId of input.executionSettings.referenceAssetIds) {
+    // 先认当前方案版本的资产(相册/来源图),再认 Composer 本次上传的暂存参考图;两者都在受管根内。
+    const row = deps.db
+      .prepare(
+        `SELECT a.id, a.store_key
              FROM design_scheme_assets a
              JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
-            WHERE a.id = ? AND r.scheme_id = ? AND r.revision_id = ?
+            WHERE a.id = ? AND r.scheme_id = ?
             LIMIT 1`,
-        )
-        .get(assetId, input.schemeId, input.revisionId) as SchemeAssetRow | undefined;
-      let target: string | null = null;
-      if (row) {
-        target = resolveManagedStoreKey(row.store_key, deps.userDataDir, deps.picturesDir);
-      } else {
-        target = resolveUploaded(assetId)?.path ?? null;
-      }
-      if (!target)
-        throw new BridgeError(
-          'DESIGN_SCHEME_REFERENCE_MISSING',
-          '参考图已不可用，请重新添加后再运行',
-        );
-      const staged = await stage(target);
-      references.push({ ...staged, assetId, source: 'upload' });
-      stagedPaths.push(staged.path);
+      )
+      .get(allowed.has(assetId) ? assetId : null, input.schemeId) as SchemeAssetRow | undefined;
+    let target: string | null = null;
+    if (row) {
+      target = resolveManagedStoreKey(row.store_key, deps.userDataDir, deps.picturesDir);
+    } else {
+      target = resolveUploaded(assetId)?.path ?? null;
     }
-    return { references, stagedPaths };
-  } catch (error) {
-    await Promise.all(stagedPaths.map((path) => rm(path, { force: true }).catch(() => undefined)));
-    throw error;
+    if (!target)
+      throw new BridgeError(
+        'DESIGN_SCHEME_REFERENCE_MISSING',
+        '参考图已不可用，请重新添加后再运行',
+      );
+    const staged = await stage(target, owner);
+    references.push({ ...staged, assetId, source: 'upload' });
   }
+  return references;
 }
 
 function outputEntries(
@@ -391,6 +396,19 @@ export async function runCanonicalDesignScheme(
   senderId: number,
   deps: DesktopDesignSchemeRunAdapterDeps,
 ): Promise<RunResult> {
+  const release = retainDesignSchemeOperation(deps.db, input.schemeId);
+  try {
+    return await runRetainedCanonicalDesignScheme(input, senderId, deps);
+  } finally {
+    release();
+  }
+}
+
+async function runRetainedCanonicalDesignScheme(
+  input: ParsedDesignSchemeRunInput,
+  senderId: number,
+  deps: DesktopDesignSchemeRunAdapterDeps,
+): Promise<RunResult> {
   const compatibility = validateDesktopFixedRunPlan(input);
   if (!compatibility.ok) {
     throw new BridgeError(compatibility.code, `${compatibility.path}: ${compatibility.message}`);
@@ -424,13 +442,29 @@ export async function runCanonicalDesignScheme(
   const createdAt = Date.now();
   const jobIds = [...registration.execution.activeJobIds];
   const activeJobIds = new Set(jobIds);
-  let stagedPaths: string[] = [];
+  const uploadOwner = createLocalUploadOwner({ db: coreDb, schemeDb: deps.db });
   let terminalStatus: 'completed' | 'failed' | 'cancelled' = 'failed';
   try {
-    const provider = resolveProvider(input, coreDb);
+    const providerRow = readDesktopDesignSchemeProvider(coreDb, input.executionSettings.providerId);
+    let cloudBinding: ExecutionBinding | undefined;
+    if (providerRow.type === 'musefold-cloud') {
+      if (!input.executionBinding)
+        throw new BridgeError(
+          'DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH',
+          '请先核对账号模型并重新准备运行',
+        );
+      const { prepareManagedRunBinding } = await import('../../system/managed-run-runtime');
+      cloudBinding = await prepareManagedRunBinding(
+        providerRow.id,
+        input.plan.provider.model,
+        input.executionBinding,
+      );
+    }
+    const provider = resolveProvider(input, coreDb, cloudBinding);
     assertDesktopPreparedRunAuthority(input, {
       designSchemeDb: deps.db,
       coreDb,
+      cloudBinding,
     });
     const repository = new DesignSchemeRepository(deps.db);
     const document = repository.getRevisionDocument(input.revisionId);
@@ -439,8 +473,7 @@ export async function runCanonicalDesignScheme(
       input.executionSettings.promptReferenceSelections,
       coreDb,
     );
-    const resolvedReferences = await resolveReferenceAssets(input, deps);
-    stagedPaths = resolvedReferences.stagedPaths;
+    const resolvedReferences = await resolveReferenceAssets(input, deps, uploadOwner);
     const workbench = resolveWorkbenchContext(
       input.executionSettings.workbenchSessionId,
       input.brief,
@@ -454,7 +487,7 @@ export async function runCanonicalDesignScheme(
       executionId: input.executionId,
       run: runRecord(
         input,
-        toDesktopProviderSnapshot(provider),
+        toDesktopProviderSnapshot(provider, cloudBinding),
         runId,
         'planning',
         createdAt,
@@ -496,16 +529,14 @@ export async function runCanonicalDesignScheme(
 
     const requestTemplate: GenerateImageRequest = {
       providerId: provider.id,
-      model: provider.model,
+      model: input.plan.provider.model,
       prompt: '',
       negative: input.executionSettings.negativePrompt,
       size: input.executionSettings.size,
       aspectRatio: input.executionSettings.aspectRatio,
       quality: input.executionSettings.quality,
       n: 1,
-      ...(resolvedReferences.references.length > 0
-        ? { referenceImages: resolvedReferences.references }
-        : {}),
+      ...(resolvedReferences.length > 0 ? { referenceImages: resolvedReferences } : {}),
       ...(promptReferences.length > 0
         ? { promptReferences: toCorePromptReferences(promptReferences) }
         : {}),
@@ -533,7 +564,7 @@ export async function runCanonicalDesignScheme(
     };
 
     const runGenerationStarted = { value: false };
-    const retained = await runDesignScheme(legacyRequest, {
+    const runDeps: Parameters<typeof runDesignScheme>[1] = {
       db: deps.db,
       coreDb,
       emit: (event) => {
@@ -561,7 +592,15 @@ export async function runCanonicalDesignScheme(
       sendProgress: () => undefined,
       deferTerminalStatus: true,
       signal: controller.signal,
-    });
+    };
+    const retained = cloudBinding
+      ? await (await import('../design-scheme/managed-run')).runManagedDesignScheme(
+          input,
+          cloudBinding,
+          legacyRequest,
+          runDeps,
+        )
+      : await runDesignScheme(legacyRequest, runDeps);
 
     if (!retained.ok) {
       const cancellationRequested = isCancellationRequested(
@@ -783,7 +822,7 @@ export async function runCanonicalDesignScheme(
     }
     return canonicalResult;
   } finally {
-    await Promise.all(stagedPaths.map((path) => rm(path, { force: true }).catch(() => undefined)));
+    uploadOwner.close();
     deps.executionRegistry.setActiveJobIds(senderId, input.executionId, []);
     if (terminalStatus === 'cancelled') {
       deps.executionRegistry.cancel(senderId, input.executionId);

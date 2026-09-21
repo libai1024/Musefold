@@ -33,12 +33,14 @@ import {
   syncDevices,
   syncMutationResults,
   syncRetentionState,
+  syncTaxonomyTombstones,
 } from '@musefold/db';
 import { and, asc, count, eq, gt, isNull, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import { AppError } from '../../lib/errors.js';
 import type { PromptService } from '../prompts/service.js';
 import type { DbLike } from './change-log.js';
+import { acquireSyncPublication } from './publication.js';
 
 type Tx = DbLike;
 
@@ -92,16 +94,38 @@ export class SyncService {
   ): Promise<SyncBootstrapPage> {
     return this.db.transaction(
       async (tx) => {
+        await acquireSyncPublication(tx, 'read');
         const snapshotCursor = await this.maxSeqTx(tx, userId);
         const afterValue = after ?? '';
         const table =
           entity === 'prompt' ? prompts : entity === 'folder' ? promptFolders : promptTags;
-        const ids = await tx
-          .select({ id: table.id })
-          .from(table)
-          .where(and(eq(table.userId, userId), gt(table.id, afterValue)))
-          .orderBy(asc(table.id))
-          .limit(limit + 1);
+        const ids =
+          entity === 'prompt'
+            ? await tx
+                .select({ id: prompts.id })
+                .from(prompts)
+                .where(
+                  and(
+                    eq(prompts.userId, userId),
+                    gt(prompts.id, afterValue),
+                    isNull(prompts.purgeStartedAt),
+                  ),
+                )
+                .orderBy(asc(prompts.id))
+                .limit(limit + 1)
+            : (
+                await tx.execute<{ id: string }>(sql`
+              SELECT id FROM (
+                SELECT ${table.id} AS id FROM ${table}
+                WHERE ${table.userId} = ${userId} AND ${table.id} > ${afterValue}
+                UNION
+                SELECT ${syncTaxonomyTombstones.entityId} AS id FROM ${syncTaxonomyTombstones}
+                WHERE ${syncTaxonomyTombstones.userId} = ${userId}
+                  AND ${syncTaxonomyTombstones.entityType} = ${entity}
+                  AND ${syncTaxonomyTombstones.entityId} > ${afterValue}
+              ) AS bootstrap_ids ORDER BY id LIMIT ${limit + 1}
+            `)
+              ).rows;
         const hasMore = ids.length > limit;
         const rows = hasMore ? ids.slice(0, limit) : ids;
         const context = { tx };
@@ -130,48 +154,52 @@ export class SyncService {
     deviceId?: string,
   ): Promise<{ changes: SyncChange[]; nextCursor: string; hasMore: boolean }> {
     const numericCursor = parseCursor(cursor);
-    return this.db.transaction(async (tx) => {
-      const retention = await tx.select().from(syncRetentionState);
-      const minAvailable = retention[0]?.minAvailableCursor ?? 0;
-      if (deviceId) await this.assertActiveDeviceTx(tx, userId, deviceId);
-      if (numericCursor < minAvailable) {
-        throw new AppError('SYNC_CURSOR_EXPIRED', '同步游标已过期，请重新执行全量同步');
-      }
-      const rows = await tx
-        .select()
-        .from(syncChangeLog)
-        .where(and(eq(syncChangeLog.userId, userId), gt(syncChangeLog.seq, numericCursor)))
-        .orderBy(asc(syncChangeLog.seq))
-        .limit(limit + 1);
-      const hasMore = rows.length > limit;
-      const page = hasMore ? rows.slice(0, limit) : rows;
-      const changes: SyncChange[] = page.map((row) => ({
-        seq: String(row.seq),
-        entityType: syncEntityTypeSchema.parse(row.entityType),
-        entityId: row.entityId,
-        operation: syncChangeOperationSchema.parse(row.operation),
-        version: row.version,
-        snapshot: row.snapshot as SyncChange['snapshot'],
-      }));
-      const nextCursor = changes.at(-1)?.seq ?? (await this.maxSeqTx(tx, userId));
-      if (deviceId) {
-        await tx
-          .update(syncDevices)
-          .set({
-            lastPullCursor: sql`GREATEST(${syncDevices.lastPullCursor}, ${Number(nextCursor)})`,
-            lastSeenAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(syncDevices.userId, userId),
-              eq(syncDevices.deviceId, deviceId),
-              isNull(syncDevices.revokedAt),
-            ),
-          );
-      }
-      return { changes, nextCursor, hasMore };
-    });
+    return this.db.transaction(
+      async (tx) => {
+        await acquireSyncPublication(tx, 'read');
+        const retention = await tx.select().from(syncRetentionState);
+        const minAvailable = retention[0]?.minAvailableCursor ?? 0;
+        if (deviceId) await this.assertActiveDeviceTx(tx, userId, deviceId);
+        if (numericCursor < minAvailable) {
+          throw new AppError('SYNC_CURSOR_EXPIRED', '同步游标已过期，请重新执行全量同步');
+        }
+        const rows = await tx
+          .select()
+          .from(syncChangeLog)
+          .where(and(eq(syncChangeLog.userId, userId), gt(syncChangeLog.seq, numericCursor)))
+          .orderBy(asc(syncChangeLog.seq))
+          .limit(limit + 1);
+        const hasMore = rows.length > limit;
+        const page = hasMore ? rows.slice(0, limit) : rows;
+        const changes: SyncChange[] = page.map((row) => ({
+          seq: String(row.seq),
+          entityType: syncEntityTypeSchema.parse(row.entityType),
+          entityId: row.entityId,
+          operation: syncChangeOperationSchema.parse(row.operation),
+          version: row.version,
+          snapshot: row.snapshot as SyncChange['snapshot'],
+        }));
+        const nextCursor = changes.at(-1)?.seq ?? (await this.maxSeqTx(tx, userId));
+        if (deviceId) {
+          await tx
+            .update(syncDevices)
+            .set({
+              lastPullCursor: sql`GREATEST(${syncDevices.lastPullCursor}, ${Number(nextCursor)})`,
+              lastSeenAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(syncDevices.userId, userId),
+                eq(syncDevices.deviceId, deviceId),
+                isNull(syncDevices.revokedAt),
+              ),
+            );
+        }
+        return { changes, nextCursor, hasMore };
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   }
 
   async push(userId: string, deviceId: string, mutations: SyncMutation[]): Promise<SyncPushResult> {
@@ -198,7 +226,14 @@ export class SyncService {
           const prompt = await tx
             .select({ id: prompts.id })
             .from(prompts)
-            .where(and(eq(prompts.userId, userId), eq(prompts.id, event.promptId)));
+            .where(
+              and(
+                eq(prompts.userId, userId),
+                eq(prompts.id, event.promptId),
+                isNull(prompts.purgeStartedAt),
+              ),
+            )
+            .for('key share');
           if (!prompt[0]) {
             return {
               eventId: event.eventId,
@@ -231,7 +266,13 @@ export class SyncService {
               lastUsedAt: new Date(),
               updatedAt: new Date(),
             })
-            .where(and(eq(prompts.userId, userId), eq(prompts.id, event.promptId)));
+            .where(
+              and(
+                eq(prompts.userId, userId),
+                eq(prompts.id, event.promptId),
+                isNull(prompts.purgeStartedAt),
+              ),
+            );
           return {
             eventId: event.eventId,
             status: 'applied',
@@ -247,25 +288,29 @@ export class SyncService {
     userId: string,
     deviceId: string,
   ): Promise<{ device: SyncDevice; serverCursor: string; pendingConflicts: number }> {
-    return this.db.transaction(async (tx) => {
-      const device = await this.getDeviceTx(tx, userId, deviceId);
-      const serverCursor = await this.maxSeqTx(tx, userId);
-      const conflicts = await tx
-        .select({ value: count() })
-        .from(syncMutationResults)
-        .where(
-          and(
-            eq(syncMutationResults.userId, userId),
-            eq(syncMutationResults.deviceId, deviceId),
-            eq(syncMutationResults.resultStatus, 'conflict'),
-          ),
-        );
-      return {
-        device,
-        serverCursor,
-        pendingConflicts: conflicts[0]?.value ?? 0,
-      };
-    });
+    return this.db.transaction(
+      async (tx) => {
+        await acquireSyncPublication(tx, 'read');
+        const device = await this.getDeviceTx(tx, userId, deviceId);
+        const serverCursor = await this.maxSeqTx(tx, userId);
+        const conflicts = await tx
+          .select({ value: count() })
+          .from(syncMutationResults)
+          .where(
+            and(
+              eq(syncMutationResults.userId, userId),
+              eq(syncMutationResults.deviceId, deviceId),
+              eq(syncMutationResults.resultStatus, 'conflict'),
+            ),
+          );
+        return {
+          device,
+          serverCursor,
+          pendingConflicts: conflicts[0]?.value ?? 0,
+        };
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   }
 
   private async applyMutation(
@@ -276,6 +321,9 @@ export class SyncService {
     const requestFingerprint = fingerprintSyncMutation(mutation);
     try {
       return await this.db.transaction(async (tx) => {
+        // Acquire before the device row or per-mutation advisory lock; read
+        // snapshots take the same boundary before updating a device cursor.
+        await acquireSyncPublication(tx, 'write');
         await this.assertActiveDeviceTx(tx, userId, deviceId);
         await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${userId}:${deviceId}:${mutation.mutationId}`}, 0))`,
@@ -459,7 +507,13 @@ export class SyncService {
 
   private async maxSeqTx(tx: Tx, userId: string): Promise<string> {
     const result = await tx
-      .select({ cursor: sql<string>`COALESCE(max(${syncChangeLog.seq}), 0)::text` })
+      // After retention, an owner may have no remaining log rows. Bootstrap
+      // must still return a cursor accepted by pull instead of looping on 410.
+      .select({
+        cursor: sql<string>`GREATEST(COALESCE(max(${syncChangeLog.seq}), 0),
+        COALESCE((SELECT ${syncRetentionState.minAvailableCursor} FROM ${syncRetentionState}
+          WHERE ${syncRetentionState.id} = 'singleton'), 0))::text`,
+      })
       .from(syncChangeLog)
       .where(eq(syncChangeLog.userId, userId));
     return result[0]?.cursor ?? '0';

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { ulid } from 'ulid';
+import { canKeepLocalSyncConflict } from '@musefold/contracts';
 import type {
   DesktopSyncConsent,
   PromptDocument,
@@ -20,6 +21,13 @@ import { tokenizeForFts } from '../db/fts';
 import { accountWorkspaceId, resolveAccountWorkspace } from '../db/workspaces';
 
 export type DesktopSyncStatus = 'disabled' | 'idle' | 'syncing' | 'conflict' | 'error';
+
+export class PermanentTaxonomyConflictError extends Error {
+  constructor() {
+    super('分类已永久删除，不能保留本地版本');
+    this.name = 'PermanentTaxonomyConflictError';
+  }
+}
 
 export interface DesktopSyncAccountInput {
   ownerId: string;
@@ -518,6 +526,10 @@ export class DesktopSyncRepository {
 
   listReadyMutations(ownerId: string, workspaceId: string, limit = 100): SyncMutation[] {
     assertAccountWorkspace(this.db, ownerId, workspaceId);
+    // 云端删除分类会摘除关联并递增相关实体版本。先等本机相关变更被确认，
+    // 再发分类墓碑，避免同一客户端的两项意图互相制造版本冲突。
+    // 检查全部相关 outbox（含退避、拒绝和冲突），不只检查本次 ready/limit 切片；
+    // 用已知云快照判断引用，不让无关实体的失败阻塞分类删除。
     const rows = this.db
       .prepare(
         `SELECT o.mutation_id, o.entity_type, o.entity_id, o.operation,
@@ -529,6 +541,29 @@ export class DesktopSyncRepository {
           AND s.entity_type = o.entity_type
           AND s.local_id = o.entity_id
          WHERE o.owner_id = ? AND o.workspace_id = ? AND o.next_attempt_at <= ? AND s.sync_status = 'pending'
+           AND NOT (
+             o.operation = 'delete' AND o.entity_type IN ('folder', 'tag') AND EXISTS (
+               SELECT 1 FROM cloud_sync_outbox dependent
+               JOIN cloud_entity_state known
+                 ON known.owner_id = dependent.owner_id
+                AND known.workspace_id = dependent.workspace_id
+                AND known.entity_type = dependent.entity_type
+                AND known.local_id = dependent.entity_id
+               WHERE dependent.owner_id = o.owner_id
+                 AND dependent.workspace_id = o.workspace_id
+                 AND dependent.mutation_id <> o.mutation_id
+                 AND (
+                   (o.entity_type = 'folder' AND (
+                     (dependent.entity_type = 'folder' AND json_extract(known.remote_snapshot_json, '$.parentId') = o.entity_id)
+                     OR (dependent.entity_type = 'prompt' AND json_extract(known.remote_snapshot_json, '$.folderId') = o.entity_id)
+                   ))
+                   OR (o.entity_type = 'tag' AND dependent.entity_type = 'prompt' AND EXISTS (
+                     SELECT 1 FROM json_each(known.remote_snapshot_json, '$.tags') known_tag
+                     WHERE json_extract(known_tag.value, '$.id') = o.entity_id
+                   ))
+                 )
+             )
+           )
          ORDER BY
            CASE
              WHEN o.entity_type = 'folder' AND json_extract(o.payload_json, '$.parentId') IS NULL THEN 0
@@ -781,6 +816,32 @@ export class DesktopSyncRepository {
         )
         .get(ownerId, workspaceId, change.entityType, change.entityId) as OutboxRow | undefined;
       if (mutation) {
+        const payload = JSON.parse(mutation.payload_json) as Record<string, unknown>;
+        // A committed push can lose its response. The next pull/bootstrap may
+        // already contain the exact pending value; treating that echo as a
+        // conflict would strand the outbox behind an unnecessary user decision.
+        // Require both the durable intent and current local content to match.
+        // A tombstone never acknowledges an upsert (or vice versa), and an
+        // existing explicit conflict remains under the user's control.
+        const remoteHash = hashSnapshot(change.entityType, change.snapshot);
+        const converged =
+          mutation.operation === 'delete'
+            ? change.snapshot.deletedAt !== null
+            : change.snapshot.deletedAt === null &&
+              local !== null &&
+              hashPayload(payload) === remoteHash &&
+              hashPayload(local) === remoteHash;
+        if (state?.sync_status === 'pending' && converged) {
+          this.db.transaction(() => {
+            this.applySnapshot(ownerId, workspaceId, change.entityType, change.snapshot);
+            this.db
+              .prepare(
+                'DELETE FROM cloud_sync_outbox WHERE owner_id = ? AND workspace_id = ? AND mutation_id = ?',
+              )
+              .run(ownerId, workspaceId, mutation.mutation_id);
+          })();
+          return;
+        }
         this.recordConflict(
           ownerId,
           workspaceId,
@@ -790,7 +851,7 @@ export class DesktopSyncRepository {
             entityId: mutation.entity_id,
             operation: mutation.operation,
             baseVersion: mutation.base_version,
-            payload: JSON.parse(mutation.payload_json) as Record<string, unknown>,
+            payload,
           },
           change.snapshot,
         );
@@ -859,6 +920,12 @@ export class DesktopSyncRepository {
       if (!conflict) throw new Error('Cloud sync conflict not found');
       const localSnapshot = JSON.parse(conflict.local_snapshot_json) as Record<string, unknown>;
       const remoteSnapshot = JSON.parse(conflict.remote_snapshot_json) as SyncSnapshot;
+      if (
+        resolution === 'local' &&
+        !canKeepLocalSyncConflict({ entityType: conflict.entity_type, remoteSnapshot })
+      ) {
+        throw new PermanentTaxonomyConflictError();
+      }
       this.db
         .prepare(
           `DELETE FROM cloud_sync_outbox

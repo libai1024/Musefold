@@ -6,6 +6,8 @@ node_modules
 **/.tsout
 **/dist
 **/out
+**/.next
+**/.results
 release
 coverage
 **/coverage
@@ -17,6 +19,17 @@ docs
 *.log
 .env
 .env.*
+**/.env
+**/.env.*
+*.db
+*.db-wal
+*.db-shm
+backups
+artifacts
+output
+generated
+sandbox
+tmp
 **/__screenshots__
 **/test-results
 **/playwright-report

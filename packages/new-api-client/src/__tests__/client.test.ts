@@ -55,6 +55,21 @@ describe('shared new-api client', () => {
     await expect(client.redeem('jwt', 'bad-code')).rejects.toMatchObject({ code: 'redeem' });
   });
 
+  it('maps 429 login responses to a retryable network error', async () => {
+    const client = createNewApiClient('https://api.example.com', {
+      fetchImpl: async () =>
+        new Response('too many requests', {
+          status: 429,
+          headers: { 'content-type': 'text/plain' },
+        }),
+    });
+    await expect(client.login({ username: 'a', password: 'b' })).rejects.toMatchObject({
+      code: 'network',
+      message: '账号服务器请求过于频繁，请稍后再试',
+      httpStatus: 429,
+    });
+  });
+
   it('rewrites 2FA login failures without changing the credentials code', async () => {
     const client = createNewApiClient('https://api.example.com', {
       fetchImpl: async () =>
@@ -66,6 +81,24 @@ describe('shared new-api client', () => {
     await expect(client.login({ username: 'a', password: 'b' })).rejects.toMatchObject({
       code: 'credentials',
       message: '该账号开启了两步验证，请使用网页控制台登录后关闭，再在 App 内登录',
+    });
+  });
+
+  it('does not misreport an upstream HTTP 409 login conflict as a bad password', async () => {
+    const client = createNewApiClient('https://api.example.com', {
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({ success: false, message: 'Conflict secret-upstream-detail' }),
+          {
+            status: 409,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+    });
+    await expect(client.login({ username: 'a', password: 'secret' })).rejects.toMatchObject({
+      code: 'server',
+      message: '账号服务器登录冲突，请稍后重试',
+      httpStatus: 409,
     });
   });
 

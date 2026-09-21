@@ -2,7 +2,15 @@
 // 清空回收站连磁盘资产一起删;磁盘占用只回聚合数字;
 // 本机文件动作只按受管资产 id 解析路径,越界路径与缺文件一律拒绝。
 
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -32,8 +40,10 @@ import { getDb } from '@musefold/core/db';
 import { configureCoreRuntime } from '@musefold/core/runtime';
 import { BridgeError } from '../envelope';
 import { buildHistoryDomainMethods } from '../history-domain';
+import { filesystem } from '../../design-scheme/__tests__/managed-fs-fixture';
 
 configureCoreRuntime({
+  managedFilesystem: () => filesystem,
   getPaths: () => ({
     userData: tempDir,
     db: join(tempDir, 'test.db'),
@@ -178,6 +188,36 @@ describe('history 域桥:批量清理', () => {
     expect(runIds()).toEqual(['alive', 'trashed-running']);
     expect(existsSync(trashedImage)).toBe(false);
     expect(existsSync(keptImage)).toBe(true);
+  });
+
+  it('empty-trash never follows a directory symlink to an outside original', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'musefold-trash-outside-'));
+    const original = join(outside, 'original.png');
+    const linkedDirectory = join(picturesDir, 'linked-directory');
+    writeFileSync(original, 'owned-original');
+    symlinkSync(outside, linkedDirectory, 'junction');
+    insertRun('symlink-run', 'success', { deletedAt: Date.now() });
+    insertAsset('symlink-asset', 'symlink-run', join(linkedDirectory, 'original.png'));
+    try {
+      await methods['generation.cleanup']!.handle({ scope: 'empty-trash' });
+      expect(existsSync(original)).toBe(true);
+      expect(readFileSync(original, 'utf8')).toBe('owned-original');
+    } finally {
+      rmSync(linkedDirectory, { force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('empty-trash preserves the canonical image of a surviving asset', async () => {
+    const shared = writeManagedImage('shared-trash.png');
+    insertRun('trashed-shared', 'success', { deletedAt: Date.now() });
+    insertRun('alive-shared', 'success');
+    insertAsset('trashed-shared-asset', 'trashed-shared', shared);
+    insertAsset('alive-shared-asset', 'alive-shared', shared);
+    await methods['generation.cleanup']!.handle({ scope: 'empty-trash' });
+    expect(existsSync(shared)).toBe(true);
+    expect(readFileSync(shared, 'utf8')).toBe('fake-image-bytes');
+    expect(runIds()).toEqual(['alive-shared']);
   });
 
   it('空回收站清理返回 0 而不是报错', async () => {

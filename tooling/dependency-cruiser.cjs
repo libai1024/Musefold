@@ -4,6 +4,46 @@ const { resolve } = require('node:path');
 module.exports = {
   forbidden: [
     {
+      name: 'managed-fs-node-hosts-only',
+      comment:
+        'Directory-handle native IO is internal to desktop main/core and the CLI serve host; never renderer or cloud.',
+      severity: 'error',
+      from: {
+        pathNot: [
+          '^packages/managed-fs/',
+          '^packages/core/',
+          '^packages/cli/',
+          '^apps/desktop/electron/',
+        ],
+      },
+      to: { path: '^packages/managed-fs/' },
+    },
+    {
+      name: 'managed-fs-leaf',
+      comment: 'Native IO owns no product, database, account or host state.',
+      severity: 'error',
+      from: { path: '^packages/managed-fs/' },
+      to: { path: ['^apps/', '^packages/(?!managed-fs)[^/]+/'] },
+    },
+    {
+      name: 'scheme-package-node-hosts-only',
+      comment:
+        'Node archive codec is only consumed by API/worker and desktop main process, never renderer or domain.',
+      severity: 'error',
+      from: {
+        pathNot: ['^packages/scheme-package/', '^apps/(api|worker)/', '^apps/desktop/electron/'],
+      },
+      to: { path: '^packages/scheme-package/' },
+    },
+    {
+      name: 'scheme-package-contracts-only',
+      comment:
+        'Archive codec owns no host, database or account state; only contracts is a workspace dependency.',
+      severity: 'error',
+      from: { path: '^packages/scheme-package/' },
+      to: { path: ['^apps/', '^packages/(?!scheme-package|contracts)[^/]+/'] },
+    },
+    {
       // 动态 import 是刻意打破初始化顺序环的手段；把它算违规会逼人改写法绕过规则。
       name: 'no-circular',
       comment:
@@ -242,8 +282,12 @@ module.exports = {
       path: ['node_modules', '(^|/)(dist|out|coverage|\\.turbo|\\.tsout|\\.next)(/|$)'],
     },
     exclude: {
-      // .next 必须排除:turbo 并发下 next build 的临时产物会让 depcruise 扫描 ENOENT。
-      path: ['(^|/)(dist|out|coverage|\\.turbo|\\.tsout|\\.next)(/|$)'],
+      // Parallel builds delete generated config modules and .next files while this scan runs.
+      // Keep the real electron.vite.config.ts in the graph; exclude only timestamped output.
+      path: [
+        '(^|/)(dist|out|coverage|\\.turbo|\\.tsout|\\.next)(/|$)',
+        '^apps/desktop/electron\\.vite\\.config\\.[0-9]+\\.mjs$',
+      ],
     },
     moduleSystems: ['es6', 'cjs'],
     tsPreCompilationDeps: true,

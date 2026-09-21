@@ -1,6 +1,6 @@
 'use client';
 
-import type { GenerationQuality, WorkbenchDraft } from '@musefold/contracts';
+import type { GenerationCount, GenerationQuality, WorkbenchDraft } from '@musefold/contracts';
 import { create } from 'zustand';
 
 /**
@@ -22,7 +22,7 @@ interface ActiveSessionState {
   unreadMarks: Record<string, true>;
   pendingDraft: WorkbenchDraft | null;
   /**
-   * 新设计/空草稿里用户显式改过的比例/质量。
+   * 新设计/空草稿里用户显式改过的比例/质量/张数。
    * 有覆盖的字段不再跟随设置默认值;未覆盖的字段继续继承。
    */
   draftParamOverrides: DraftParamOverrides;
@@ -45,21 +45,25 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
 export interface DraftParamOverrides {
   aspectRatio?: string;
   quality?: GenerationQuality;
+  /** 张数(§9-D3);与比例/质量同一套覆盖语义。 */
+  count?: GenerationCount;
 }
 
 export interface GenerationParamDefaults {
   defaultAspectRatio: string;
   defaultQuality: GenerationQuality;
+  defaultCount: GenerationCount;
 }
 
 /** 未显式改过的字段走全局默认;用户改过的字段保留覆盖。 */
 export function resolveInheritedGenerationParams(
   defaults: GenerationParamDefaults,
   overrides: DraftParamOverrides,
-): { aspectRatio: string; quality: GenerationQuality } {
+): { aspectRatio: string; quality: GenerationQuality; count: GenerationCount } {
   return {
     aspectRatio: overrides.aspectRatio ?? defaults.defaultAspectRatio,
     quality: overrides.quality ?? defaults.defaultQuality,
+    count: overrides.count ?? defaults.defaultCount,
   };
 }
 

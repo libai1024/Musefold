@@ -86,20 +86,28 @@ export function OnboardingStepValidate({
       };
     },
     onSuccess: () => {
-      // 通道确认会改变工作台可用连接与账号状态的可见性,一并失效。
+      // 只失效本轨改过的缓存。账号未登录时 account.status 是 error 态,
+      // 一并 invalidate 会让 gate 在 refetch pending 期间拆掉引导层。
       void queryClient.invalidateQueries({ queryKey: queryKeys.generation.providers() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.account.status() });
+      if (track === 'account') {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.account.status() });
+      }
+      if (track === 'doubao') {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.doubao.status() });
+      }
     },
   });
 
   // 进入本步自动确认一次(承 v2.1:connect 成功即 validate),StrictMode 双跑只发一次。
+  // BYOK 必须等 providerId:先到 validate 再落到 id 时补跑,避免空跑后 autoRan 锁死。
   const autoRan = useRef(false);
   const run = check.mutate;
   useEffect(() => {
     if (autoRan.current) return;
+    if (track === 'byok' && !providerId) return;
     autoRan.current = true;
     run();
-  }, [run]);
+  }, [run, track, providerId]);
 
   const result = check.data ?? null;
   const failure = check.isError ? errorMessage(check.error) : null;

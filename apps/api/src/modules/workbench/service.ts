@@ -6,12 +6,15 @@ import {
   type WorkbenchDraft,
   type WorkbenchSession,
   type WorkbenchSessionPage,
+  type WorkbenchSessionCleanupResult,
   createWorkbenchSessionSchema,
   updateWorkbenchSessionSchema,
   workbenchSessionListQuerySchema,
+  workbenchSessionCursorSchema,
+  getWorkbenchSessionFilter,
 } from '@musefold/contracts';
-import { type MusefoldDatabase, prompts, workbenchSessions } from '@musefold/db';
-import { and, desc, eq, inArray, isNull, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { type MusefoldDatabase, prompts, workbenchSessions, generationRuns } from '@musefold/db';
+import { and, desc, eq, inArray, isNull, isNotNull, getTableColumns, sql } from 'drizzle-orm';
 import { AppError } from '../../lib/errors.js';
 import type { DbLike } from '../sync/change-log.js';
 
@@ -26,33 +29,85 @@ interface LatestJob {
 export class WorkbenchService {
   constructor(private readonly db: MusefoldDatabase) {}
 
+  async purge(userId: string, id: string): Promise<WorkbenchSessionCleanupResult> {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: workbenchSessions.id, deletedAt: workbenchSessions.deletedAt })
+        .from(workbenchSessions)
+        .where(and(eq(workbenchSessions.userId, userId), eq(workbenchSessions.id, id)))
+        .for('update');
+      if (!row) return { purged: 0 };
+      if (row.deletedAt === null)
+        throw new AppError('VALIDATION_FAILED', '只能永久删除回收站中的会话');
+      await this.deleteLockedSessions(tx, userId, [id]);
+      return { purged: 1 };
+    });
+  }
+
+  async emptyTrash(userId: string): Promise<WorkbenchSessionCleanupResult> {
+    return this.db.transaction(async (tx) => {
+      const rows = await tx
+        .select({ id: workbenchSessions.id })
+        .from(workbenchSessions)
+        .where(and(eq(workbenchSessions.userId, userId), isNotNull(workbenchSessions.deletedAt)))
+        .orderBy(workbenchSessions.id)
+        .for('update');
+      await this.deleteLockedSessions(
+        tx,
+        userId,
+        rows.map((row) => row.id),
+      );
+      return { purged: rows.length };
+    });
+  }
+
+  private async deleteLockedSessions(tx: Tx, userId: string, ids: string[]): Promise<void> {
+    // Bound SQL parameters, while keeping the entire selected trash set atomic.
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const chunk = ids.slice(offset, offset + 500);
+      await tx
+        .update(generationRuns)
+        .set({ sessionId: null })
+        .where(and(eq(generationRuns.userId, userId), inArray(generationRuns.sessionId, chunk)));
+      await tx
+        .delete(workbenchSessions)
+        .where(
+          and(
+            eq(workbenchSessions.userId, userId),
+            inArray(workbenchSessions.id, chunk),
+            isNotNull(workbenchSessions.deletedAt),
+          ),
+        );
+    }
+  }
+
   async list(
     userId: string,
     rawQuery: ParsedWorkbenchSessionListQuery,
   ): Promise<WorkbenchSessionPage> {
     const query = workbenchSessionListQuerySchema.parse(rawQuery);
+    const filter = getWorkbenchSessionFilter(query);
     const conditions = [eq(workbenchSessions.userId, userId)];
-    if (query.archivedOnly) {
-      conditions.push(isNotNull(workbenchSessions.archivedAt));
+    if (filter === 'trash') conditions.push(isNotNull(workbenchSessions.deletedAt));
+    if (filter === 'active' || filter === 'live' || filter === 'archived')
       conditions.push(isNull(workbenchSessions.deletedAt));
-    } else {
-      if (!query.includeDeleted) conditions.push(isNull(workbenchSessions.deletedAt));
-      if (!query.includeArchived) conditions.push(isNull(workbenchSessions.archivedAt));
-    }
+    if (filter === 'archived') conditions.push(isNotNull(workbenchSessions.archivedAt));
+    if (filter === 'active' || filter === 'unarchived')
+      conditions.push(isNull(workbenchSessions.archivedAt));
     if (query.cursor) {
-      const cursor = decodeCursor(query.cursor);
-      const cursorDate = new Date(cursor.updatedAt);
-      const boundary = or(
-        lt(workbenchSessions.updatedAt, cursorDate),
-        and(eq(workbenchSessions.updatedAt, cursorDate), lt(workbenchSessions.id, cursor.id)),
-      );
-      if (boundary) conditions.push(boundary);
+      const cursor = decodeCursor(query.cursor, filter);
+      // Bind the exact PG timestamp text instead of truncating through JavaScript Date.
+      conditions.push(sql`(${workbenchSessions.updatedAt}, ${workbenchSessions.id} COLLATE "C")
+        < (${cursor.updatedAt}::timestamptz, ${cursor.id}::text COLLATE "C")`);
     }
     const rows = await this.db
-      .select()
+      .select({
+        ...getTableColumns(workbenchSessions),
+        cursorUpdatedAt: sql<string>`to_char(${workbenchSessions.updatedAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+      })
       .from(workbenchSessions)
       .where(and(...conditions))
-      .orderBy(desc(workbenchSessions.updatedAt), desc(workbenchSessions.id))
+      .orderBy(desc(workbenchSessions.updatedAt), sql`${workbenchSessions.id} COLLATE "C" DESC`)
       .limit(query.limit + 1);
     const hasMore = rows.length > query.limit;
     const page = hasMore ? rows.slice(0, query.limit) : rows;
@@ -66,7 +121,18 @@ export class WorkbenchService {
       items: page.map((row) => toWorkbenchSession(row, latest.get(row.id))),
       nextCursor:
         hasMore && last
-          ? encodeCursor({ id: last.id, updatedAt: last.updatedAt.toISOString() })
+          ? Buffer.from(
+              JSON.stringify(
+                workbenchSessionCursorSchema.parse({
+                  version: 1,
+                  store: 'postgres',
+                  filter,
+                  id: last.id,
+                  updatedAt: last.cursorUpdatedAt,
+                }),
+              ),
+              'utf8',
+            ).toString('base64url')
           : null,
     };
   }
@@ -108,7 +174,9 @@ export class WorkbenchService {
     const input = updateWorkbenchSessionSchema.parse(rawInput);
     return this.db.transaction(async (tx) => {
       const current = await this.getTx(tx, userId, id);
-      if (current.version !== input.expectedVersion) throw conflict(current);
+      if (current.deletedAt !== null || current.version !== input.expectedVersion) {
+        throw conflict(current);
+      }
       if (input.draft)
         await this.validatePromptReferences(tx, userId, [
           ...input.draft.promptReferenceIds,
@@ -132,6 +200,7 @@ export class WorkbenchService {
             eq(workbenchSessions.userId, userId),
             eq(workbenchSessions.id, id),
             eq(workbenchSessions.version, input.expectedVersion),
+            isNull(workbenchSessions.deletedAt),
           ),
         )
         .returning({ id: workbenchSessions.id });
@@ -283,21 +352,16 @@ function conflict(current: WorkbenchSession): AppError {
   });
 }
 
-function encodeCursor(value: { id: string; updatedAt: string }): string {
-  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
-}
-
-function decodeCursor(cursor: string): { id: string; updatedAt: string } {
+function decodeCursor(cursor: string, filter: ReturnType<typeof getWorkbenchSessionFilter>) {
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
-      id?: unknown;
-      updatedAt?: unknown;
-    };
-    if (typeof parsed.id !== 'string' || typeof parsed.updatedAt !== 'string') {
-      throw new Error('invalid');
-    }
-    return { id: parsed.id, updatedAt: parsed.updatedAt };
+    if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw new Error('Invalid encoding');
+    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+    if (Buffer.from(decoded, 'utf8').toString('base64url') !== cursor)
+      throw new Error('Invalid encoding');
+    const parsed = workbenchSessionCursorSchema.parse(JSON.parse(decoded));
+    if (parsed.store !== 'postgres' || parsed.filter !== filter) throw new Error('Changed scope');
+    return parsed;
   } catch {
-    throw new AppError('VALIDATION_FAILED', '工作台分页游标无效');
+    throw new AppError('VALIDATION_FAILED', '工作台分页游标无效或已过期，请刷新列表');
   }
 }

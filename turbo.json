@@ -11,7 +11,23 @@
   ],
   "globalEnv": ["NODE_VERSION"],
   // PORT 只是本地预览端口(vite.preview.config.ts / E2E),不影响构建产物哈希。
-  "globalPassThroughEnv": ["PORT"],
+  "globalPassThroughEnv": [
+    "PORT",
+    "MUSEFOLD_LIVE_E2E",
+    "MUSEFOLD_LIVE_GENERATION",
+    "MUSEFOLD_LIVE_ACCOUNT_GENERATION",
+    "MUSEFOLD_LIVE_RESUME_RUN_ID",
+    "MUSEFOLD_LIVE_RESUME_AGENT_ID",
+    "MUSEFOLD_LIVE_RESUME_STAGE",
+    "MUSEFOLD_LIVE_RESUME_FORMAL_RUN_ID",
+    "MUSEFOLD_LIVE_RESUME_FORMAL_GENERATION_ID",
+    "MUSEFOLD_E2E_ACCOUNT_IMAGE_MODEL",
+    "MUSEFOLD_E2E_IMAGE_BASE_URL",
+    "MUSEFOLD_E2E_IMAGE_MODEL",
+    "MUSEFOLD_PACKAGE_ARCH",
+    "MUSEFOLD_PACKAGE_PATH",
+    "MUSEFOLD_PACKAGE_REQUIRED"
+  ],
   "tasks": {
     "typecheck": {
       "dependsOn": ["^typecheck"],
@@ -32,6 +48,7 @@
     },
     "//#typecheck": {
       "dependsOn": [
+        "@musefold/managed-fs#typecheck",
         "@musefold/core#typecheck",
         "@musefold/desktop-contracts#typecheck",
         "@musefold/automation-server#typecheck",
@@ -50,19 +67,52 @@
         "apps/desktop/electron/**",
         "packages/**",
         "apps/**",
+        "tests/v25/**",
+        "tests/repo/**",
+        "!tests/v25/.results/**",
         "!**/.tsout/**",
         "!**/*.tsbuildinfo"
       ]
     },
     "test": {
-      "env": ["CI", "MUSEFOLD_TVT_KEY"]
+      "env": [
+        "CI",
+        "MUSEFOLD_TVT_KEY",
+        "RUN_DATABASE_TESTS",
+        "DOCKER_HOST",
+        "TESTCONTAINERS_HOST_OVERRIDE"
+      ]
+    },
+    "@musefold/managed-fs#build": {
+      "cache": false,
+      "outputs": ["build/Release/managed_fs.node", "build/native-input.json"]
     },
     "//#test": {
-      "env": ["CI", "MUSEFOLD_TVT_KEY"],
+      "dependsOn": ["@musefold/managed-fs#build"],
+      "env": [
+        "CI",
+        "MUSEFOLD_TVT_KEY",
+        "RUN_DATABASE_TESTS",
+        "DOCKER_HOST",
+        "TESTCONTAINERS_HOST_OVERRIDE",
+        "RUN_DEPLOY_COMPOSE_TESTS",
+        "RUN_V25_IMAGE_TESTS",
+        "RUN_V25_STAGING_TESTS",
+        "RUN_V25_ROLLBACK_TESTS",
+        "V25_PREVIOUS_API_IMAGE",
+        "V25_PREVIOUS_WORKER_IMAGE",
+        "V25_PREVIOUS_WEB_IMAGE",
+        "V25_API_IMAGE",
+        "V25_WEB_IMAGE",
+        "WORKER_CONTAINER_IMAGE"
+      ],
       "passThroughEnv": [
         "MUSEFOLD_E2E_USERNAME",
         "MUSEFOLD_E2E_PASSWORD",
-        "MUSEFOLD_E2E_IMAGE_API_KEY"
+        "MUSEFOLD_E2E_IMAGE_API_KEY",
+        "RUN_DATABASE_TESTS",
+        "TWO_DEVICE_RESULTS_DIR",
+        "V25_STAGING_EVIDENCE_DIR"
       ],
       "inputs": [
         "package.json",
@@ -72,7 +122,12 @@
         "docs/v2.5/V25-EVIDENCE-MANIFEST.json",
         "docs/v2.5/V25-MIGRATION-CARDS.md",
         "apps/desktop/src/**",
+        "tests/v25/**",
+        "!tests/v25/.results/**",
         "tests/repo/**",
+        "scripts/**",
+        "infra/**",
+        ".github/workflows/**",
         "apps/desktop/electron/**",
         "packages/**",
         "!**/.tsout/**",
@@ -88,6 +143,7 @@
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "//#build": {
+      "dependsOn": ["@musefold/managed-fs#build"],
       "outputs": ["apps/desktop/out/**"],
       "inputs": [
         "package.json",

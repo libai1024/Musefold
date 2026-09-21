@@ -323,8 +323,7 @@ export function MarketInstallDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="text-foreground text-xs leading-6">
-          Musefold 会下载仓库快照，由 Agent
-          整理成方案草稿。添加后需要完成一次本机试运行，才能正式使用。
+          Musefold 会下载仓库快照，由 Agent 整理成方案草稿。添加后需要完成一次试运行，才能正式使用。
         </div>
         <div className="space-y-2 border-border border-y py-3 text-[11px] text-muted-foreground">
           <p className="flex items-center gap-2">

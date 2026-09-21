@@ -1,0 +1,2 @@
+ALTER TABLE "design_scheme_assets" DROP CONSTRAINT "design_scheme_assets_origin_check";--> statement-breakpoint
+ALTER TABLE "design_scheme_assets" ADD CONSTRAINT "design_scheme_assets_origin_check" CHECK ("design_scheme_assets"."origin" IN ('repository', 'local-run', 'uploaded'));

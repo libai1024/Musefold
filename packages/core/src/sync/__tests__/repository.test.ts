@@ -117,6 +117,235 @@ function remoteChange(content: string, version: number): SyncChange {
 }
 
 describe('DesktopSyncRepository', () => {
+  it.each(['ready', 'backoff', 'error'] as const)(
+    'waits for related folder/prompt acknowledgements before taxonomy tombstones, even when dependencies are %s',
+    (dependencyStatus) => {
+      const parent = remoteFolder('parent', null);
+      const child = remoteFolder('child', parent.id);
+      const p = { ...remotePrompt('Keep content', 1), folderId: parent.id };
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, 'folder', parent);
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, 'folder', child);
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, 'tag', remoteTag());
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', p);
+      db.prepare('UPDATE folders SET parent_id = NULL WHERE workspace_id = ? AND id = ?').run(
+        workspaceId,
+        child.id,
+      );
+      db.prepare('UPDATE prompts SET folder_id = NULL WHERE workspace_id = ? AND id = ?').run(
+        workspaceId,
+        p.id,
+      );
+      db.prepare('DELETE FROM prompt_tags WHERE workspace_id = ? AND prompt_id = ?').run(
+        workspaceId,
+        p.id,
+      );
+      repository.enqueue(ownerId, workspaceId, 'folder', parent.id, 'delete');
+      repository.enqueue(ownerId, workspaceId, 'tag', remoteTag().id, 'delete');
+      repository.enqueue(ownerId, workspaceId, 'folder', child.id, 'update');
+      repository.enqueue(ownerId, workspaceId, 'prompt', p.id, 'update');
+      const all = repository.listReadyMutations(ownerId, workspaceId);
+      const dependents = all.filter((m) => m.entityId === child.id || m.entityId === p.id);
+      expect(dependents).toHaveLength(2);
+      if (dependencyStatus !== 'ready') {
+        for (const m of dependents) {
+          if (dependencyStatus === 'backoff')
+            repository.markMutationAttempt(ownerId, workspaceId, m.mutationId, 'response lost');
+          else
+            repository.applyPushResult(ownerId, workspaceId, m, {
+              mutationId: m.mutationId,
+              status: 'rejected',
+              version: null,
+              errorCode: 'TEST_REJECTION',
+              snapshot: null,
+            });
+        }
+      }
+      expect(
+        repository.listReadyMutations(ownerId, workspaceId).some((m) => m.operation === 'delete'),
+      ).toBe(false);
+      expect(
+        repository
+          .listReadyMutations(ownerId, workspaceId, 1)
+          .some((m) => m.operation === 'delete'),
+      ).toBe(false);
+      // Only an actual acknowledgement unlocks the referenced classification. Keep the
+      // original mutation identity/base version through backoff; never force resolve a conflict.
+      for (const m of dependents)
+        repository.applyPushResult(ownerId, workspaceId, m, {
+          mutationId: m.mutationId,
+          status: 'applied',
+          version: 2,
+          errorCode: null,
+          snapshot:
+            m.entityType === 'folder'
+              ? { ...child, parentId: null, version: 2 }
+              : { ...p, folderId: null, tags: [], version: 2 },
+        });
+      expect(
+        repository
+          .listReadyMutations(ownerId, workspaceId)
+          .map((m) => [m.entityId, m.operation, m.baseVersion]),
+      ).toEqual([
+        [parent.id, 'delete', 1],
+        [remoteTag().id, 'delete', 1],
+      ]);
+    },
+  );
+
+  it('does not hold unrelated taxonomy deletion behind a failed prompt', () => {
+    repository.applyBootstrapSnapshot(
+      ownerId,
+      workspaceId,
+      'folder',
+      remoteFolder('unrelated', null),
+    );
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', remotePrompt('Original', 1));
+    db.prepare('UPDATE prompts SET content = ? WHERE workspace_id = ? AND id = ?').run(
+      'Changed',
+      workspaceId,
+      'prompt-cloud',
+    );
+    repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-cloud', 'update');
+    const [m] = repository.listReadyMutations(ownerId, workspaceId);
+    repository.markMutationAttempt(ownerId, workspaceId, m.mutationId, 'response lost');
+    repository.enqueue(ownerId, workspaceId, 'folder', 'unrelated', 'delete');
+    expect(repository.listReadyMutations(ownerId, workspaceId).map((m) => m.entityId)).toEqual([
+      'unrelated',
+    ]);
+  });
+
+  it('does not use another owner workspace with identical IDs as a deletion dependency', () => {
+    const parent = remoteFolder('same-parent', null);
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'folder', parent);
+    const foreignOwner = 'other-owner';
+    const foreignWorkspace = ensureAccountWorkspace(db, foreignOwner);
+    repository.activateAccount({
+      ownerId: foreignOwner,
+      username: 'Other',
+      deviceId: 'other-device',
+      deviceName: 'Other',
+      platform: 'macos',
+      clientVersion: 'test',
+    });
+    repository.setEnabled(foreignOwner, true);
+    repository.applyBootstrapSnapshot(foreignOwner, foreignWorkspace, 'folder', parent);
+    repository.applyBootstrapSnapshot(foreignOwner, foreignWorkspace, 'prompt', {
+      ...remotePrompt('Other content', 1),
+      folderId: parent.id,
+      tags: [],
+    });
+    db.prepare('UPDATE prompts SET content = ? WHERE workspace_id = ? AND id = ?').run(
+      'Other pending edit',
+      foreignWorkspace,
+      'prompt-cloud',
+    );
+    repository.enqueue(foreignOwner, foreignWorkspace, 'prompt', 'prompt-cloud', 'update');
+    repository.enqueue(ownerId, workspaceId, 'folder', parent.id, 'delete');
+    expect(repository.listReadyMutations(ownerId, workspaceId).map((m) => m.entityId)).toEqual([
+      parent.id,
+    ]);
+    expect(
+      repository.listReadyMutations(foreignOwner, foreignWorkspace).map((m) => m.entityId),
+    ).toEqual(['prompt-cloud']);
+  });
+
+  it.each(['pull', 'bootstrap'] as const)(
+    'acknowledges a matching committed echo through %s while the outbox is in retry backoff',
+    (mode) => {
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, 'tag', remoteTag());
+      repository.applyBootstrapSnapshot(
+        ownerId,
+        workspaceId,
+        'prompt',
+        remotePrompt('初始内容', 1),
+      );
+      db.prepare('UPDATE prompts SET content = ? WHERE workspace_id = ? AND id = ?').run(
+        '已提交内容',
+        workspaceId,
+        'prompt-cloud',
+      );
+      repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-cloud', 'update');
+      const [mutation] = repository.listReadyMutations(ownerId, workspaceId);
+      repository.markMutationAttempt(ownerId, workspaceId, mutation.mutationId, 'response lost');
+      expect(repository.listReadyMutations(ownerId, workspaceId)).toEqual([]);
+      if (mode === 'pull')
+        repository.applyPullPage(ownerId, workspaceId, [remoteChange('已提交内容', 2)], '2');
+      else
+        repository.applyBootstrapSnapshot(
+          ownerId,
+          workspaceId,
+          'prompt',
+          remotePrompt('已提交内容', 2),
+        );
+      expect(repository.getSummary()).toMatchObject({
+        pendingMutations: 0,
+        conflicts: 0,
+        status: 'idle',
+      });
+      expect(
+        db
+          .prepare('SELECT cloud_version,sync_status FROM cloud_entity_state WHERE local_id = ?')
+          .get('prompt-cloud'),
+      ).toMatchObject({ cloud_version: 2, sync_status: 'clean' });
+    },
+  );
+
+  it('preserves an edit made after the lost response instead of acknowledging an older echo', () => {
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', remotePrompt('初始内容', 1));
+    db.prepare('UPDATE prompts SET content = ? WHERE workspace_id = ? AND id = ?').run(
+      '较新本地内容',
+      workspaceId,
+      'prompt-cloud',
+    );
+    repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-cloud', 'update');
+    repository.applyPullPage(ownerId, workspaceId, [remoteChange('先前已提交内容', 2)], '2');
+    expect(repository.listConflicts(ownerId, workspaceId)[0]).toMatchObject({
+      localSnapshot: { content: '较新本地内容' },
+      remoteSnapshot: { content: '先前已提交内容' },
+    });
+    expect(repository.getSummary().pendingMutations).toBe(1);
+    expect(db.prepare('SELECT content FROM prompts WHERE id = ?').get('prompt-cloud')).toEqual({
+      content: '较新本地内容',
+    });
+  });
+
+  it('does not let equal text acknowledge a remote deletion of a pending update', () => {
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', remotePrompt('初始内容', 1));
+    db.prepare('UPDATE prompts SET content = ? WHERE workspace_id = ? AND id = ?').run(
+      '待提交内容',
+      workspaceId,
+      'prompt-cloud',
+    );
+    repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-cloud', 'update');
+    repository.applyRemoteChange(ownerId, workspaceId, {
+      ...remoteChange('待提交内容', 2),
+      operation: 'delete',
+      snapshot: { ...remotePrompt('待提交内容', 2), deletedAt: now },
+    });
+    expect(repository.getSummary()).toMatchObject({ pendingMutations: 1, conflicts: 1 });
+    expect(db.prepare('SELECT deleted_at FROM prompts WHERE id = ?').get('prompt-cloud')).toEqual({
+      deleted_at: null,
+    });
+  });
+
+  it('acknowledges a pending deletion only when the remote snapshot is a tombstone', () => {
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', remotePrompt('初始内容', 1));
+    db.prepare('UPDATE prompts SET deleted_at = 123 WHERE workspace_id = ? AND id = ?').run(
+      workspaceId,
+      'prompt-cloud',
+    );
+    repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-cloud', 'delete');
+    repository.applyRemoteChange(ownerId, workspaceId, {
+      ...remoteChange('初始内容', 2),
+      operation: 'delete',
+      snapshot: { ...remotePrompt('初始内容', 2), deletedAt: now },
+    });
+    expect(repository.getSummary()).toMatchObject({ pendingMutations: 0, conflicts: 0 });
+    expect(db.prepare('SELECT deleted_at FROM prompts WHERE id = ?').get('prompt-cloud')).toEqual({
+      deleted_at: Date.parse(now),
+    });
+  });
+
   it('builds a cloud-safe outbox and compacts edits into one stable mutation', () => {
     insertLocalPrompt();
     expect(repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-local', 'create')).toBe(true);
@@ -647,5 +876,121 @@ describe('DesktopSyncRepository', () => {
         payload: { title: '本地标题', content: '本地正文' },
       });
     });
+  });
+});
+
+describe('permanent taxonomy conflict resolution', () => {
+  it.each(['folder', 'tag'] as const)(
+    'refuses local resurrection of a deleted %s without changing data or intent; remote resolution preserves content',
+    (kind) => {
+      const base = kind === 'folder' ? remoteFolder('folder-cloud', null) : remoteTag();
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, kind, base);
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', {
+        ...remotePrompt('Retained content', 1),
+        folderId: kind === 'folder' ? base.id : null,
+        tags: kind === 'tag' ? [remoteTag()] : [],
+      });
+      const table = kind === 'folder' ? 'folders' : 'tags';
+      db.prepare(`UPDATE ${table} SET name = ? WHERE workspace_id = ? AND id = ?`).run(
+        'Local edit',
+        workspaceId,
+        base.id,
+      );
+      repository.enqueue(ownerId, workspaceId, kind, base.id, 'update');
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, kind, {
+        ...base,
+        version: 2,
+        deletedAt: now,
+      });
+      const [conflict] = repository.listConflicts(ownerId, workspaceId);
+      if (!conflict) throw new Error('Expected deleted taxonomy conflict');
+      const state = () =>
+        [
+          'folders',
+          'tags',
+          'prompts',
+          'prompt_tags',
+          'prompts_fts',
+          'cloud_sync_outbox',
+          'cloud_entity_state',
+          'cloud_sync_conflicts',
+        ].map((t) => db.prepare(`SELECT * FROM ${t}`).all());
+      const before = state();
+      expect(() => repository.resolveConflict(ownerId, workspaceId, conflict.id, 'local')).toThrow(
+        '分类已永久删除，不能保留本地版本',
+      );
+      expect(state()).toEqual(before);
+      repository.resolveConflict(ownerId, workspaceId, conflict.id, 'remote');
+      expect(
+        db
+          .prepare(`SELECT id FROM ${table} WHERE workspace_id=? AND id=?`)
+          .get(workspaceId, base.id),
+      ).toBeUndefined();
+      expect(
+        db
+          .prepare('SELECT content,folder_id,deleted_at FROM prompts WHERE workspace_id=? AND id=?')
+          .get(workspaceId, 'prompt-cloud'),
+      ).toEqual({ content: 'Retained content', folder_id: null, deleted_at: null });
+      expect(repository.listConflicts(ownerId, workspaceId)).toEqual([]);
+      expect(repository.listReadyMutations(ownerId, workspaceId)).toEqual([]);
+    },
+  );
+
+  it.each(['folder', 'tag'] as const)(
+    'still permits keeping a local edit of an existing %s',
+    (kind) => {
+      const base = kind === 'folder' ? remoteFolder('folder-cloud', null) : remoteTag();
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, kind, base);
+      const table = kind === 'folder' ? 'folders' : 'tags';
+      db.prepare(`UPDATE ${table} SET name=? WHERE workspace_id=? AND id=?`).run(
+        'Local edit',
+        workspaceId,
+        base.id,
+      );
+      repository.enqueue(ownerId, workspaceId, kind, base.id, 'update');
+      repository.applyBootstrapSnapshot(ownerId, workspaceId, kind, {
+        ...base,
+        name: 'Remote edit',
+        version: 2,
+      });
+      const [conflict] = repository.listConflicts(ownerId, workspaceId);
+      if (!conflict) throw new Error('Expected live taxonomy conflict');
+      repository.resolveConflict(ownerId, workspaceId, conflict.id, 'local');
+      expect(repository.listReadyMutations(ownerId, workspaceId)).toEqual([
+        expect.objectContaining({
+          operation: 'update',
+          baseVersion: 2,
+          payload: expect.objectContaining({ name: 'Local edit' }),
+        }),
+      ]);
+    },
+  );
+
+  it('keeps Prompt soft-delete restore available when resolving a local conflict', () => {
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', {
+      ...remotePrompt('Base', 1),
+      tags: [],
+    });
+    db.prepare('UPDATE prompts SET content=? WHERE workspace_id=? AND id=?').run(
+      'Local content',
+      workspaceId,
+      'prompt-cloud',
+    );
+    repository.enqueue(ownerId, workspaceId, 'prompt', 'prompt-cloud', 'update');
+    repository.applyBootstrapSnapshot(ownerId, workspaceId, 'prompt', {
+      ...remotePrompt('Base', 2),
+      tags: [],
+      deletedAt: now,
+    });
+    const [conflict] = repository.listConflicts(ownerId, workspaceId);
+    if (!conflict) throw new Error('Expected deleted Prompt conflict');
+    repository.resolveConflict(ownerId, workspaceId, conflict.id, 'local');
+    expect(repository.listReadyMutations(ownerId, workspaceId)).toEqual([
+      expect.objectContaining({
+        operation: 'restore',
+        baseVersion: 2,
+        payload: expect.objectContaining({ content: 'Local content' }),
+      }),
+    ]);
   });
 });

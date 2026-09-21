@@ -82,7 +82,7 @@
 |---|---|---|
 | ~~P2~~ | ~~「关于」卡(双端)~~ **已交付 2026-09-06**(B1-T6) | 单测断言复制串含版本 / `darwin arm64` / 库结构版本 / 通道;第三方声明可打开且逐条渲染 |
 | ~~P2~~ | ~~快捷键表~~ **已交付 2026-09-06**:`PRODUCT_SHORTCUTS` 单源 + `@musefold/ui/components/kbd` | 单测遍历表内每条断言「标签 + 作用域 + 平台键」均渲染,新增条目自动上表 |
-| P3 | Web 构建标识(commit / 构建时间):当前 Web 版本行只显示「Web 版」,`appInfoSchema.commit` 留空 | 需宿主注入(`PlatformProvider` 增可选 buildInfo 或 Web gateway 提供 system.getAppInfo 的 Web 变体) |
+| ~~P3~~ | ~~Web 构建标识~~ **已交付 2026-09-06**(B2-T6):`PlatformProvider` 可选 `buildInfo` + `useBuildInfo()`;Web 版本行 `Web 版 · {version}`(commit 前 7 位);`NEXT_PUBLIC_*` 由 CI 注入,本地缺省仍显示「Web 版」 | 单测覆盖有/无 buildInfo;web.shell 断言含「Web 版」 |
 | ~~P3~~ | ~~ui 包 `<Kbd>` 原语~~ 已升格为跨屏 C-2 并交付(2026-08-29:`@musefold/ui/components/kbd` + features shell `PRODUCT_SHORTCUTS` 单源),本篇快捷键表恢复时直接消费 | — |
 
 > 暂缓域挂点:应用更新行/内容层行/更新通道行(热更新控制面)。本分区已恢复 → 07-00 分组导航评估已触发(「应用」组 = 数据 + 关于)。

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -7,6 +8,7 @@ import {
 } from '@musefold/desktop-contracts/design-scheme/schema';
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
+import { isDesignSchemeOperationActive } from '@musefold/core/services/design-scheme-lifetime';
 import type { ResolvedGithubSource } from '../source-ingestion';
 import type { OpenAiCompatibleTextAdapter, TextCompletionRequest } from '../text-adapter';
 
@@ -15,7 +17,11 @@ const sourceMocks = vi.hoisted(() => ({
   persistGithubSnapshot: vi.fn(),
 }));
 
-vi.mock('../source-ingestion', () => sourceMocks);
+vi.mock('electron', () => ({ app: { getPath: () => '/tmp' } }));
+vi.mock('../source-ingestion', async (original) => ({
+  ...(await original<typeof import('../source-ingestion')>()),
+  ...sourceMocks,
+}));
 
 import { checkSchemeUpdate } from '../update-check';
 
@@ -24,7 +30,7 @@ const REPO_B = 'https://github.com/acme/source-b';
 const OLD_A = 'a'.repeat(40);
 const NEW_A = 'b'.repeat(40);
 const OLD_B = 'c'.repeat(40);
-const CONTENT_HASH = 'd'.repeat(64);
+const CONTENT_HASH = createHash('sha256').update('# 测试规则').digest('hex');
 
 const ANALYST_JSON = JSON.stringify({
   repoKind: 'agent-skill',
@@ -80,7 +86,7 @@ function githubSource(repositoryUrl: string, commitHash: string): ResolvedGithub
       {
         path: 'SKILL.md',
         contentHash: CONTENT_HASH,
-        sizeBytes: 12,
+        sizeBytes: Buffer.byteLength('# 测试规则'),
         text: '# 测试规则',
       },
     ],
@@ -275,6 +281,30 @@ describe('checkSchemeUpdate', () => {
     });
   }
 
+  it.each(['resolve', 'reject'] as const)(
+    'holds the scheme while checking upstream and releases after %s',
+    async (outcome) => {
+      insertDraft(documentFixture({ sources: [githubBinding('src_repo', REPO_A, OLD_A)] }));
+      let settle!: () => void;
+      sourceMocks.resolveGithubSource.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            settle = () =>
+              outcome === 'resolve'
+                ? resolve({ ok: true, data: githubSource(REPO_A, OLD_A) })
+                : reject(new Error('upstream unavailable'));
+          }),
+      );
+      const pending = checkSchemeUpdate('dsch_update', { db, resolveAdapter: () => null });
+      const heldWhilePending = isDesignSchemeOperationActive(db, 'dsch_update');
+      settle();
+      const result = await pending;
+      expect(heldWhilePending).toBe(true);
+      expect(result.ok).toBe(outcome === 'resolve');
+      expect(isDesignSchemeOperationActive(db, 'dsch_update')).toBe(false);
+    },
+  );
+
   it('没有 GitHub 来源时返回 no-source，且不解析适配器', async () => {
     insertDraft(documentFixture());
     const resolveAdapter = vi.fn(() => makeAdapter());
@@ -284,6 +314,7 @@ describe('checkSchemeUpdate', () => {
     expect(result).toMatchObject({ ok: true, data: { status: 'no-source' } });
     expect(resolveAdapter).not.toHaveBeenCalled();
     expect(sourceMocks.resolveGithubSource).not.toHaveBeenCalled();
+    expect(isDesignSchemeOperationActive(db, 'dsch_update')).toBe(false);
   });
 
   it('所有来源已是最新时返回 up-to-date，且只做上游比较', async () => {
@@ -340,7 +371,12 @@ describe('checkSchemeUpdate', () => {
     const updated = repository.getRevisionDocument(result.data.revisionId);
     expect(updated?.sources).toEqual([
       { id: 'src_brief', kind: 'user-brief', role: 'context' },
-      githubBinding('src_repo', REPO_A, NEW_A),
+      {
+        ...githubBinding('src_repo', REPO_A, NEW_A),
+        packageId: 'pkg_new_1',
+        snapshotId: 'snap_new_1',
+        contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
     ]);
     expect(updated?.parameters).toEqual([
       { id: 'density', label: '密度', type: 'number', defaultValue: 2, userEditable: true },
@@ -482,7 +518,12 @@ describe('checkSchemeUpdate', () => {
     const updated = repository.getRevisionDocument(result.data.revisionId);
     expect(updated?.sources).toEqual([
       sources[0],
-      githubBinding('src_repo_a', REPO_A, NEW_A),
+      {
+        ...githubBinding('src_repo_a', REPO_A, NEW_A),
+        packageId: 'pkg_new_1',
+        snapshotId: 'snap_new_1',
+        contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
       sources[2],
       sources[3],
       sources[4],

@@ -1,0 +1,39 @@
+name: Package lifetime
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  natural-expiry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      RUN_DATABASE_TESTS: 'true'
+      RUN_PACKAGE_LIFETIME_TESTS: 'true'
+      PACKAGE_LIFETIME_EVIDENCE_DIR: ${{ github.workspace }}/apps/api/test-results/package-lifetime/evidence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Observe the original one-hour package deadlines
+        timeout-minutes: 70
+        run: pnpm --filter @musefold/api exec vitest run src/__tests__/integration/package-lifetime.integration.test.ts --reporter=default --reporter=json --outputFile=test-results/package-lifetime/vitest.json
+      - name: Require actual natural-expiry execution and complete evidence
+        run: node scripts/verify-package-lifetime.mjs apps/api/test-results/package-lifetime
+      - name: Scan the actual input and exported archives
+        run: node scripts/security/scan.mjs plan --plan apps/api/test-results/package-lifetime/scan-plan.json --report apps/api/test-results/package-lifetime/security.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-lifetime-results
+          path: apps/api/test-results/package-lifetime/
+          if-no-files-found: error
+          retention-days: 14

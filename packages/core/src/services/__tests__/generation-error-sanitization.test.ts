@@ -49,8 +49,8 @@ beforeAll(() => {
     .prepare(
       `INSERT INTO providers
        (id, name, type, base_url, model, has_key, is_active, created_at, updated_at, managed_by)
-     VALUES ('account-test', '托管服务', 'doubao-web', 'https://www.doubao.com/chat/create-image',
-       'seedream-4.5', 1, 1, 1, 1, 'account')`,
+     VALUES ('account-test', '托管服务', 'musefold-cloud', 'https://cloud.example.invalid',
+       'musefold-image-pro', 0, 0, 1, 1, 'account')`,
     )
     .run();
 });
@@ -108,12 +108,16 @@ describe('generation error sanitization', () => {
     expectSanitized(run?.errorMessage);
   });
 
-  it('keeps account-managed code mapping intact while sanitizing the message', async () => {
-    doubaoRuntime.generateImage.mockRejectedValueOnce(
-      Object.assign(new Error(SENSITIVE_THROWN), { code: 'NO_BALANCE', status: 402 }),
-    );
-
-    const result = await generate(baseRequest('sanitize-account', 'account-test'));
+  it('keeps authorized account-transport error mapping intact while sanitizing the message', async () => {
+    const result = await generate(baseRequest('sanitize-account', 'account-test'), undefined, {
+      transport: {
+        providerId: 'account-test',
+        assertCurrent: () => undefined,
+        generate: async () => {
+          throw Object.assign(new Error(SENSITIVE_THROWN), { code: 'NO_BALANCE', status: 402 });
+        },
+      },
+    });
 
     expect(result.status).toBe('failed');
     // managed_by=account 的上游 NO_BALANCE 稳定映射为 ACCOUNT/QUOTA。

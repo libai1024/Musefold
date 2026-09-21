@@ -1,18 +1,25 @@
+import { drainLocalAssetCleanup } from '@musefold/core/services/local-asset-cleanup';
 // workbench/generation 域桥守护:回收站永久删除只对已软删终态行合法,
 // 删除后 run 行与磁盘资产文件一并消失(资产行外键级联);
 // 参考图上传进 staging 目录、create 时由契约引用重建受管路径。
 
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const tempDir = mkdtempSync(join(tmpdir(), 'musefold-workbench-domain-'));
 
-vi.mock('electron', () => ({
-  app: { getPath: () => tempDir, getVersion: () => '2.5.0-test' },
-  dialog: { showSaveDialog: vi.fn() },
-}));
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events');
+  const target = Object.assign(new EventEmitter(), { isDestroyed: () => false });
+  const second = Object.assign(new EventEmitter(), { isDestroyed: () => false });
+  return {
+    webContents: { fromId: (id: number) => (id === 41 ? target : id === 42 ? second : undefined) },
+    app: { getPath: () => tempDir, getVersion: () => '2.5.0-test' },
+    dialog: { showSaveDialog: vi.fn() },
+  };
+});
 vi.mock('../../../system/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
@@ -21,14 +28,17 @@ vi.mock('@musefold/core/services/generation', () => ({
   cancelGeneration: vi.fn(),
 }));
 
+import { generationHistoryQuerySchema } from '@musefold/contracts';
 import { getDb } from '@musefold/core/db';
 import { configureCoreRuntime } from '@musefold/core/runtime';
 import { generate } from '@musefold/core/services/generation';
 import { dialog } from 'electron';
 import { buildWorkbenchDomainMethods } from '../workbench-domain';
 import { BridgeError } from '../envelope';
+import { filesystem } from '../../design-scheme/__tests__/managed-fs-fixture';
 
 configureCoreRuntime({
+  managedFilesystem: () => filesystem,
   getPaths: () => ({
     userData: tempDir,
     db: join(tempDir, 'test.db'),
@@ -176,6 +186,18 @@ function insertRun(
     .run(id, promptId, status, now, deletedAt);
 }
 
+function insertFailedRun(id: string, errorCode: string, errorMessage: string): void {
+  const now = Date.now();
+  getDb()
+    .prepare(
+      `INSERT INTO generation_runs
+         (id, run_kind, prompt_id, provider_id, model, base_prompt, final_prompt,
+          params_json, prompt_snapshot_json, status, error_code, error_message, created_at, deleted_at)
+       VALUES (?, 'free_generation', null, 'p1', 'test-model', 'a prompt', 'a prompt', '{}', '{}', 'failed', ?, ?, ?, null)`,
+    )
+    .run(id, errorCode, errorMessage, now);
+}
+
 function insertAsset(id: string, runId: string, mediaPath: string | null): void {
   getDb()
     .prepare(
@@ -212,6 +234,68 @@ describe('workbench 域桥:生成记录永久删除', () => {
     expect(job.request.promptId).toBe('prompt-job-source');
   });
 
+  it('generation.list 按 promptId 只回匹配行', async () => {
+    insertRun('run-prompt-a', 'success', null, 'prompt-a');
+    insertRun('run-prompt-b', 'success', null, 'prompt-b');
+
+    const page = (await methods['generation.list'].handle(
+      generationHistoryQuerySchema.parse({ promptId: 'prompt-a' }),
+    )) as {
+      items: Array<{ id: string; promptId: string | null }>;
+    };
+    expect(page.items.map((item) => item.id)).toEqual(['run-prompt-a']);
+    expect(page.items[0]?.promptId).toBe('prompt-a');
+  });
+
+  it('failed run 把 AUTH / ACCOUNT/AUTH 映射为契约密钥码', async () => {
+    insertFailedRun('run-auth', 'AUTH', 'API Key 无效或无权限');
+    insertFailedRun('run-account-auth', 'ACCOUNT/AUTH', 'account auth failed');
+    insertFailedRun('run-upstream', 'PROVIDER_REJECTED', '上游拒绝');
+
+    const auth = (await methods['generation.get'].handle('run-auth')) as {
+      error: { code: string; message: string } | null;
+    };
+    const accountAuth = (await methods['generation.get'].handle('run-account-auth')) as {
+      error: { code: string; message: string } | null;
+    };
+    const upstream = (await methods['generation.get'].handle('run-upstream')) as {
+      error: { code: string; message: string } | null;
+    };
+
+    expect(auth.error).toMatchObject({
+      code: 'AUTH_CREDENTIALS_INVALID',
+      message: 'API Key 无效或无权限',
+    });
+    expect(accountAuth.error).toMatchObject({ code: 'AUTH_CREDENTIALS_INVALID' });
+    expect(upstream.error).toMatchObject({ code: 'GENERATION_UPSTREAM_REJECTED' });
+  });
+
+  it('preserves official quota guidance without treating BYOK balance failures as official quota', async () => {
+    for (const [id, code] of [
+      ['quota-managed', 'ACCOUNT/QUOTA'],
+      ['quota-contract', 'ACCOUNT_QUOTA_INSUFFICIENT'],
+      ['quota-byok', 'NO_BALANCE'],
+    ])
+      insertFailedRun(id, code, '额度不足');
+    const read = (id: string) => methods['generation.get'].handle(id);
+    await expect(read('quota-managed')).resolves.toMatchObject({
+      error: { code: 'ACCOUNT_QUOTA_INSUFFICIENT' },
+    });
+    await expect(read('quota-contract')).resolves.toMatchObject({
+      error: { code: 'ACCOUNT_QUOTA_INSUFFICIENT' },
+    });
+    await expect(read('quota-byok')).resolves.toMatchObject({
+      error: { code: 'GENERATION_UPSTREAM_REJECTED' },
+    });
+  });
+
+  it('preserves legacy unbound payer failures as account verification errors', async () => {
+    insertFailedRun('run-unbound', 'PAYMENT_IDENTITY_UNBOUND', '旧账号连接需要核对');
+    await expect(methods['generation.get'].handle('run-unbound')).resolves.toMatchObject({
+      error: { code: 'ACCOUNT_IDENTITY_UNVERIFIED', message: '旧账号连接需要核对' },
+    });
+  });
+
   it('终态 cancel 与 retry 规则和 Web 对齐', async () => {
     insertRun('run-cancelled-idempotent', 'cancelled', null);
     insertRun('run-succeeded-terminal', 'success', null);
@@ -245,6 +329,36 @@ describe('workbench 域桥:生成记录永久删除', () => {
     await expect(methods['generation.purge'].handle('run-running')).rejects.toThrow(
       '任务仍在进行中',
     );
+  });
+
+  it('purge preserves a file outside managed image roots', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'musefold-purge-outside-'));
+    const original = join(outside, 'original.png');
+    writeFileSync(original, 'owned-original');
+    insertRun('outside-run', 'success', Date.now());
+    insertAsset('outside-asset', 'outside-run', original);
+    try {
+      await methods['generation.purge'].handle('outside-run');
+      expect(existsSync(original)).toBe(true);
+      expect(readFileSync(original, 'utf8')).toBe('owned-original');
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('purge preserves an image still used by a surviving generation', async () => {
+    const shared = join(tempDir, 'shared-surviving.png');
+    writeFileSync(shared, 'shared-result');
+    insertRun('purged-shared', 'success', Date.now());
+    insertRun('surviving-shared', 'success', null);
+    insertAsset('purged-shared-asset', 'purged-shared', shared);
+    insertAsset('surviving-shared-asset', 'surviving-shared', shared);
+    await methods['generation.purge'].handle('purged-shared');
+    expect(existsSync(shared)).toBe(true);
+    expect(readFileSync(shared, 'utf8')).toBe('shared-result');
+    expect(
+      getDb().prepare('SELECT 1 FROM generated_assets WHERE id = ?').get('surviving-shared-asset'),
+    ).toBeDefined();
   });
 
   it('软删终态行 purge:run 行、资产行、磁盘文件一并消失', async () => {
@@ -309,7 +423,10 @@ interface ContractReference {
 }
 
 describe('workbench 域桥:参考图输入链(ui-parity 03 §7 P0)', () => {
-  let methods: Record<string, { handle(input: unknown): Promise<unknown> }>;
+  let methods: Record<
+    string,
+    { handle(input: unknown, context?: { senderId: number }): Promise<unknown> }
+  >;
 
   beforeAll(() => {
     methods = buildWorkbenchDomainMethods() as typeof methods;
@@ -322,11 +439,71 @@ describe('workbench 域桥:参考图输入链(ui-parity 03 §7 P0)', () => {
       .run(now, now);
   });
 
+  const ownUpload = async (senderId: number) =>
+    (await methods['generation.uploadReferenceImage'].handle(
+      { name: 'release.png', bytes: PNG_BYTES },
+      { senderId },
+    )) as ContractReference;
+  const uploadPath = (ref: ContractReference) => join(tempDir, 'uploads', `${ref.id}.png`);
+  it('reference release protocol: trusted sender releases its own file idempotently and leaves another window intact', async () => {
+    const a = await ownUpload(41);
+    const b = await ownUpload(42);
+    expect(methods['generation.releaseReferenceImage']).toBeDefined();
+    await methods['generation.releaseReferenceImage'].handle({ id: a.id }, { senderId: 42 });
+    expect(readFileSync(uploadPath(a))).toEqual(Buffer.from(PNG_BYTES));
+    await methods['generation.releaseReferenceImage'].handle({ id: a.id }, { senderId: 41 });
+    expect(existsSync(uploadPath(a))).toBe(false);
+    expect(readFileSync(uploadPath(b))).toEqual(Buffer.from(PNG_BYTES));
+    await methods['generation.releaseReferenceImage'].handle({ id: a.id }, { senderId: 41 });
+    await methods['generation.releaseReferenceImage'].handle({ id: b.id }, { senderId: 42 });
+    expect(existsSync(uploadPath(b))).toBe(false);
+  });
+  it('reference release protocol: current sender cannot turn a file id into arbitrary path deletion', async () => {
+    const a = await ownUpload(41);
+    const original = join(tempDir, 'outside-original.png');
+    writeFileSync(original, PNG_BYTES);
+    const release = buildWorkbenchDomainMethods()['generation.releaseReferenceImage'];
+    expect(release).toBeDefined();
+    for (const input of [
+      { id: '../outside-original' },
+      { id: a.id, path: original },
+      { id: a.id, senderId: 42 },
+    ])
+      expect(release.input.safeParse(input).success).toBe(false);
+    await expect(release.handle({ id: a.id })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(readFileSync(original)).toEqual(Buffer.from(PNG_BYTES));
+    expect(readFileSync(uploadPath(a))).toEqual(Buffer.from(PNG_BYTES));
+    await release.handle({ id: a.id }, { senderId: 41 });
+  });
+  it('reference release protocol: surviving run reference protects bytes and last-reference removal permits cleanup', async () => {
+    const a = await ownUpload(41);
+    const path = uploadPath(a);
+    const id = `release-reader-${a.id}`;
+    getDb()
+      .prepare(`INSERT INTO generation_runs(id,run_kind,provider_id,model,base_prompt,final_prompt,params_json,prompt_snapshot_json,status,created_at)
+      VALUES (?,'free_generation','prov-ref','flux','keep','keep',?,'{}','failed',1)`)
+      .run(id, JSON.stringify({ referenceImages: [{ path, source: 'upload' }] }));
+    const original = getDb().prepare('SELECT * FROM generation_runs WHERE id=?').get(id);
+    expect(methods['generation.releaseReferenceImage']).toBeDefined();
+    await methods['generation.releaseReferenceImage'].handle({ id: a.id }, { senderId: 41 });
+    expect(readFileSync(path)).toEqual(Buffer.from(PNG_BYTES));
+    expect(getDb().prepare('SELECT * FROM generation_runs WHERE id=?').get(id)).toEqual(original);
+    getDb().prepare('DELETE FROM generation_runs WHERE id=?').run(id);
+    const due = getDb()
+      .prepare('SELECT MAX(next_attempt_at) AS n FROM local_asset_cleanup')
+      .get() as { n: number };
+    drainLocalAssetCleanup(due.n);
+    expect(existsSync(path)).toBe(false);
+  });
+
   it('上传:字节进 staging 目录,返回契约引用(media:// 展示 URL)', async () => {
-    const reference = (await methods['generation.uploadReferenceImage'].handle({
-      name: 'ref.png',
-      bytes: PNG_BYTES,
-    })) as ContractReference;
+    const reference = (await methods['generation.uploadReferenceImage'].handle(
+      {
+        name: 'ref.png',
+        bytes: PNG_BYTES,
+      },
+      { senderId: 41 },
+    )) as ContractReference;
 
     expect(reference.mimeType).toBe('image/png');
     expect(reference.name).toBe('ref.png');
@@ -338,10 +515,13 @@ describe('workbench 域桥:参考图输入链(ui-parity 03 §7 P0)', () => {
 
   it('上传:非图片字节被拒(魔数嗅探)', async () => {
     await expect(
-      methods['generation.uploadReferenceImage'].handle({
-        name: 'fake.png',
-        bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
-      }),
+      methods['generation.uploadReferenceImage'].handle(
+        {
+          name: 'fake.png',
+          bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+        },
+        { senderId: 41 },
+      ),
     ).rejects.toThrow('请选择 PNG、JPG 或 WebP 图片');
   });
 
@@ -360,10 +540,13 @@ describe('workbench 域桥:参考图输入链(ui-parity 03 §7 P0)', () => {
   });
 
   it('create:契约引用重建受管路径传给 core;回读回合带参考图缩略', async () => {
-    const reference = (await methods['generation.uploadReferenceImage'].handle({
-      name: 'style.png',
-      bytes: PNG_BYTES,
-    })) as ContractReference;
+    const reference = (await methods['generation.uploadReferenceImage'].handle(
+      {
+        name: 'style.png',
+        bytes: PNG_BYTES,
+      },
+      { senderId: 41 },
+    )) as ContractReference;
 
     const generateMock = vi.mocked(generate);
     generateMock.mockClear();
@@ -894,4 +1077,189 @@ describe('workbench 域桥:提示词引用选择与快照', () => {
     expect(retryJob.userPrompt).toBe('raw retry request');
     expect(retryJob.promptReferences).toEqual(sourceRequest.promptReferences);
   });
+});
+
+describe('workbench 域桥:会话库损坏逃生门', () => {
+  it('listSessions 把缺表映射为 WORKBENCH_SESSION_RESTART_REQUIRED', async () => {
+    const methods = buildWorkbenchDomainMethods() as Methods;
+    const sqlite = getDb();
+    const originalPrepare = sqlite.prepare.bind(sqlite);
+    const spy = vi.spyOn(sqlite, 'prepare').mockImplementation((sql: string) => {
+      if (String(sql).includes('FROM workbench_sessions')) {
+        throw new Error('no such table: workbench_sessions');
+      }
+      return originalPrepare(sql);
+    });
+    try {
+      const error = await methods['workbench.listSessions'].handle({}).catch((reason) => reason);
+      expect(error).toBeInstanceOf(BridgeError);
+      expect(error).toMatchObject({
+        code: 'WORKBENCH_SESSION_RESTART_REQUIRED',
+        message: expect.stringContaining('重启'),
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('workbench 域桥:多图张数链(§9-D3 / ui-parity 03 §2)', () => {
+  let methods: Methods;
+
+  beforeAll(() => {
+    methods = buildWorkbenchDomainMethods() as Methods;
+    const now = Date.now();
+    getDb()
+      .prepare(
+        `INSERT INTO providers (id, name, type, base_url, model, created_at, updated_at)
+         VALUES ('prov-count', '张数连接', 'openai-compatible', 'https://gw.example', 'flux', ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(now, now);
+  });
+
+  it('create:契约 count 进 core `n`,缺省 1', async () => {
+    const generateMock = vi.mocked(generate);
+    for (const [count, expected] of [
+      [4, 4],
+      [2, 2],
+      [undefined, 1],
+    ] as const) {
+      generateMock.mockClear();
+      const pending = methods['generation.create'].handle(
+        methods['generation.create'].input.parse({
+          prompt: 'four up',
+          providerId: 'prov-count',
+          ...(count ? { count } : {}),
+        }),
+      );
+      await vi.waitFor(() => expect(generateMock).toHaveBeenCalledTimes(1));
+      const request = generateMock.mock.calls[0]?.[0] as CapturedRequest & { n?: number };
+      expect(request.n).toBe(expected);
+      insertQueuedJob(request, (generateMock.mock.calls[0]?.[2] ?? {}) as CapturedOptions);
+      await pending;
+    }
+  });
+
+  it('目录外 count 3 在桥的入参校验处被拒,不发起生成', () => {
+    expect(() =>
+      methods['generation.create'].input.parse({
+        prompt: 'three up',
+        providerId: 'prov-count',
+        count: 3,
+      }),
+    ).toThrow();
+  });
+
+  it('回读:request.count 取 params_json.n,多行资产按 position 回原顺序', async () => {
+    const now = Date.now();
+    getDb()
+      .prepare(
+        `INSERT INTO generation_runs
+           (id, run_kind, provider_id, model, base_prompt, final_prompt,
+            params_json, prompt_snapshot_json, status, created_at, finished_at)
+         VALUES ('run-count-4', 'free_generation', 'prov-count', 'flux', 'four up', 'four up',
+            ?, '{}', 'success', ?, ?)`,
+      )
+      .run(JSON.stringify({ schemaVersion: 1, size: 'auto', quality: 'auto', n: 4 }), now, now);
+    // 乱序插入以证明回读靠 position 而非插入顺序。
+    for (const [id, position] of [
+      ['asset-count-c', 2],
+      ['asset-count-a', 0],
+      ['asset-count-d', 3],
+      ['asset-count-b', 1],
+    ] as const) {
+      const mediaPath = join(tempDir, `${id}.png`);
+      writeFileSync(mediaPath, 'png');
+      getDb()
+        .prepare(
+          `INSERT INTO generated_assets (id, run_id, position, status, media_path, created_at)
+           VALUES (?, 'run-count-4', ?, 'available', ?, ?)`,
+        )
+        .run(id, position, mediaPath, now);
+    }
+
+    const job = (await methods['generation.get'].handle('run-count-4')) as {
+      request: { count: number };
+      assets: Array<{ id: string }>;
+    };
+
+    expect(job.request.count).toBe(4);
+    expect(job.assets.map((asset) => asset.id)).toEqual([
+      'asset-count-a',
+      'asset-count-b',
+      'asset-count-c',
+      'asset-count-d',
+    ]);
+  });
+
+  it('回读:旧运行缺 n → 1;目录外历史值夹到最近合法档', async () => {
+    const now = Date.now();
+    const insert = getDb().prepare(
+      `INSERT INTO generation_runs
+         (id, run_kind, provider_id, model, base_prompt, final_prompt,
+          params_json, prompt_snapshot_json, status, created_at)
+       VALUES (?, 'free_generation', 'prov-count', 'flux', 'p', 'p', ?, '{}', 'success', ?)`,
+    );
+    insert.run('run-count-legacy', JSON.stringify({ schemaVersion: 1 }), now);
+    insert.run('run-count-odd', JSON.stringify({ schemaVersion: 1, n: 3 }), now);
+    insert.run('run-count-huge', JSON.stringify({ schemaVersion: 1, n: 9 }), now);
+
+    for (const [id, expected] of [
+      ['run-count-legacy', 1],
+      ['run-count-odd', 2],
+      ['run-count-huge', 4],
+    ] as const) {
+      await expect(methods['generation.get'].handle(id)).resolves.toMatchObject({
+        request: { count: expected },
+      });
+    }
+  });
+
+  it('retry:沿用原运行的张数快照,不悄悄改回 1', async () => {
+    const now = Date.now();
+    getDb()
+      .prepare(
+        `INSERT INTO generation_runs
+           (id, run_kind, provider_id, model, base_prompt, final_prompt,
+            params_json, prompt_snapshot_json, status, created_at)
+         VALUES ('run-count-retry', 'free_generation', 'prov-count', 'flux', 'p', 'p', ?, '{}', 'failed', ?)`,
+      )
+      .run(JSON.stringify({ schemaVersion: 1, size: 'auto', quality: 'auto', n: 2 }), now);
+    const generateMock = vi.mocked(generate);
+    generateMock.mockClear();
+
+    const pending = methods['generation.retry'].handle('run-count-retry');
+    await vi.waitFor(() => expect(generateMock).toHaveBeenCalledTimes(1));
+    const request = generateMock.mock.calls[0]?.[0] as CapturedRequest & { n?: number };
+    expect(request.n).toBe(2);
+    insertQueuedJob(request, (generateMock.mock.calls[0]?.[2] ?? {}) as CapturedOptions);
+    await pending;
+  });
+
+  it.each(['unknown', 'UNKNOWN', ' unknown '])(
+    'retry:模型缺失 %j 时两种入参都即时拒绝且原记录不变',
+    async (model) => {
+      const id = `ipc-model-missing-${model.trim()}-${model.length}`;
+      const db = getDb();
+      db.prepare(`INSERT INTO generation_runs
+      (id,run_kind,provider_id,model,base_prompt,final_prompt,params_json,prompt_snapshot_json,status,actual_cost,created_at)
+      VALUES (?,'free_generation','prov-count',?,'original','original',?,'{}','cancelled',3,1)`).run(
+        id,
+        model,
+        JSON.stringify({ schemaVersion: 1, size: 'auto', quality: 'auto', n: 1 }),
+      );
+      const original = db.prepare('SELECT * FROM generation_runs WHERE id = ?').get(id);
+      const mock = vi.mocked(generate);
+      mock.mockClear();
+      for (const input of [id, { id, idempotencyKey: 'missing-model-explicit' }]) {
+        await expect(methods['generation.retry'].handle(input)).rejects.toMatchObject({
+          code: 'GENERATION_RETRY_MODEL_MISSING',
+          message: expect.stringContaining('工作台'),
+        });
+        expect(mock).not.toHaveBeenCalled();
+        expect(db.prepare('SELECT * FROM generation_runs WHERE id = ?').get(id)).toEqual(original);
+      }
+    },
+  );
 });

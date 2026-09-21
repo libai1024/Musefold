@@ -1,6 +1,5 @@
 import {
   acquireOwnerLock,
-  currentOwner,
   readDiscoveryFile,
   type AcquireResult,
   type OwnerLockInfo,
@@ -29,7 +28,7 @@ export async function acquireDesktopOwnerLockWithHeadlessTakeover(
   const initial = acquireOwnerLock(dataDir, 'desktop-app');
   if (initial.acquired || initial.holder?.owner !== 'headless-daemon') return initial;
 
-  await stopHeadlessDaemonForTakeover(dataDir, initial.holder, options);
+  if (!(await stopHeadlessDaemonForTakeover(dataDir, initial.holder, options))) return initial;
   return acquireOwnerLock(dataDir, 'desktop-app');
 }
 
@@ -52,8 +51,9 @@ async function stopHeadlessDaemonForTakeover(
   if (!sendSignal(holder.pid, 'SIGTERM', signalProcess)) return false;
 
   while (Date.now() - startedAt < timeoutMs) {
-    const current = currentOwner(dataDir);
-    if (!current || current.pid !== holder.pid || current.owner !== holder.owner) return true;
+    // Older serve versions released owner.lock before their Provider promise ended.
+    // A missing/replaced lock is not evidence that the original process has stopped.
+    if (!processAlive(holder.pid)) return true;
 
     if (!forceKillSent && Date.now() - startedAt >= forceKillAfterMs) {
       forceKillSent = sendSignal(holder.pid, 'SIGKILL', signalProcess);
@@ -63,6 +63,15 @@ async function stopHeadlessDaemonForTakeover(
   }
 
   return false;
+}
+
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
 }
 
 function headlessDiscoveryMatches(dataDir: string, holder: OwnerLockInfo): boolean {

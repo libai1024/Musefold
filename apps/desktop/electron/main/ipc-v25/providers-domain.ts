@@ -10,6 +10,7 @@ import type {
   AiProviderTestResult,
 } from '@musefold/contracts';
 import {
+  ACCOUNT_CLOUD_PROVIDER_TYPE,
   aiProviderListModelsInputSchema,
   aiProviderModelListSchema,
   aiProviderTestInputSchema,
@@ -30,6 +31,12 @@ import {
   saveApiKey,
 } from '../../security/keychain';
 import { BridgeError, type MethodDef } from './envelope';
+import {
+  activateImageProvider,
+  assertProviderEditable,
+  ProviderConnectionError,
+  removeImageProviderRow,
+} from '../../system/provider-connections';
 
 interface ProviderRow {
   id: string;
@@ -54,8 +61,8 @@ function toAiProvider(row: ProviderRow): AiProvider {
     type: row.type,
     baseUrl: row.base_url,
     model: row.model,
-    hasKey: hasApiKey(row.id),
-    keySuffix: getKeySuffix(row.id),
+    hasKey: row.type === ACCOUNT_CLOUD_PROVIDER_TYPE ? false : hasApiKey(row.id),
+    keySuffix: row.type === ACCOUNT_CLOUD_PROVIDER_TYPE ? null : getKeySuffix(row.id),
     isActive: row.is_active === 1,
     managedBy: row.managed_by === 'account' ? ('account' as const) : null,
     createdAt: epochMsToIso(row.created_at),
@@ -100,28 +107,17 @@ function setActiveRow(id: string): void {
   })(id);
 }
 
-function removeProviderRow(id: string): ProviderRow {
-  const db = getDb();
-  return db.transaction((targetId: string) => {
-    const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(targetId) as
-      | ProviderRow
-      | undefined;
-    if (!row) throw new BridgeError('NOT_FOUND', 'AI 连接不存在');
+function providerBridgeError(error: unknown): never {
+  if (error instanceof ProviderConnectionError) throw new BridgeError(error.code, error.message);
+  throw error;
+}
 
-    const next =
-      row.is_active === 1
-        ? (db
-            .prepare('SELECT id FROM providers WHERE id <> ? ORDER BY updated_at DESC LIMIT 1')
-            .get(targetId) as { id: string } | undefined)
-        : undefined;
-    const removed = db.prepare('DELETE FROM providers WHERE id = ?').run(targetId);
-    if (removed.changes !== 1) throw new BridgeError('NOT_FOUND', 'AI 连接不存在');
-    if (next) {
-      const activated = db.prepare('UPDATE providers SET is_active = 1 WHERE id = ?').run(next.id);
-      if (activated.changes !== 1) throw new BridgeError('INTERNAL_ERROR', 'AI 连接接管失败');
-    }
-    return row;
-  })(id);
+function removeProviderRow(id: string): ProviderRow {
+  try {
+    return removeImageProviderRow(id) as unknown as ProviderRow;
+  } catch (error) {
+    return providerBridgeError(error);
+  }
 }
 
 const updatePayloadSchema = z.object({ id: entityIdSchema, patch: updateAiProviderSchema });
@@ -267,7 +263,11 @@ export function buildAiProvidersDomainMethods(
       input: updatePayloadSchema,
       handle: async (payload) => {
         const { id, patch } = payload as z.infer<typeof updatePayloadSchema>;
-        requireRow(id);
+        try {
+          assertProviderEditable(id);
+        } catch (error) {
+          providerBridgeError(error);
+        }
         const db = getDb();
         const sets: string[] = [];
         const values: unknown[] = [];
@@ -295,8 +295,8 @@ export function buildAiProvidersDomainMethods(
       input: z.object({ id: entityIdSchema }),
       handle: async (payload) => {
         const { id } = payload as { id: string };
-        removeProviderRow(id);
-        deleteApiKey(id);
+        const row = removeProviderRow(id);
+        if (row.type !== ACCOUNT_CLOUD_PROVIDER_TYPE) deleteApiKey(id);
         return null;
       },
     },
@@ -304,8 +304,11 @@ export function buildAiProvidersDomainMethods(
       input: z.object({ id: entityIdSchema }),
       handle: async (payload) => {
         const { id } = payload as { id: string };
-        requireRow(id);
-        setActiveRow(id);
+        try {
+          await activateImageProvider(id);
+        } catch (error) {
+          providerBridgeError(error);
+        }
         return toAiProvider(requireRow(id));
       },
     },
@@ -318,6 +321,21 @@ export function buildAiProvidersDomainMethods(
           return probeProvider(input.baseUrl, input.apiKey, fetchImpl);
         }
         const row = requireRow(input.id);
+        if (row.type === ACCOUNT_CLOUD_PROVIDER_TYPE) {
+          const { useAccountCloudProvider, managedConnectionMessage } = await import(
+            '../../system/account-cloud-connection'
+          );
+          const started = Date.now();
+          try {
+            return await useAccountCloudProvider(row.id, () => ({
+              ok: true,
+              message: '账号云连接正常',
+              latencyMs: Date.now() - started,
+            }));
+          } catch (error) {
+            return { ok: false, message: managedConnectionMessage(error), latencyMs: null };
+          }
+        }
         // doubao-web 存量行没有 openai-compatible /models 端点,通用探测只会误报;
         // 改用冻结面的会话校验(带登录态与当日用量的人话结果),密钥探测不适用。
         if (row.type === 'doubao-web') {
@@ -339,6 +357,10 @@ export function buildAiProvidersDomainMethods(
           return listProviderModels(input.baseUrl, input.apiKey ?? null, fetchImpl);
         }
         const row = requireRow(input.id);
+        if (row.type === ACCOUNT_CLOUD_PROVIDER_TYPE)
+          return aiProviderModelListSchema.parse({
+            models: [{ id: 'musefold-image-pro', label: 'Musefold 云图像' }],
+          });
         if (row.type === 'doubao-web') {
           const result = await validateDoubaoWebSession();
           if (!result.ok) throw new BridgeError('PROBE_FAILED', result.message);

@@ -7,7 +7,8 @@ export type ObjectCleanupReason =
   | 'generation_purge'
   | 'generation_compensation'
   | 'reference_expired'
-  | 'reference_upload_failed';
+  | 'reference_upload_failed'
+  | 'design_scheme_purge';
 
 export interface ObjectCleanupIntent {
   objectKey: string;

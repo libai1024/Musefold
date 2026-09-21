@@ -11,9 +11,12 @@
   "scripts": {
     "dev": "tsx watch src/bin.ts",
     "start": "tsx src/bin.ts",
+    "taxonomy:backfill": "tsx src/taxonomy-backfill-bin.ts",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run src",
-    "test:integration": "RUN_DATABASE_TESTS=true vitest run src/__tests__/integration"
+    "test:integration": "RUN_DATABASE_TESTS=true vitest run src/__tests__/integration src/modules/design-schemes/__tests__/detail.test.ts",
+    "dev:agent-worker": "tsx watch src/agent-worker-bin.ts",
+    "start:agent-worker": "tsx src/agent-worker-bin.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",
@@ -21,6 +24,7 @@
     "@better-auth/cimd": "^1.7.2",
     "@better-auth/core": "^1.7.2",
     "@better-auth/mcp": "^1.7.2",
+    "@better-auth/oauth-provider": "^1.7.2",
     "@hono/node-server": "^2.1.1",
     "@hono/zod-openapi": "^1.6.1",
     "@modelcontextprotocol/server": "^2.0.0",
@@ -34,8 +38,11 @@
     "graphile-worker": "0.17.3",
     "hono": "^4.13.5",
     "pg": "8.23.0",
+    "sharp": "0.35.4",
     "tsx": "4.20.5",
-    "zod": "^4.4.3"
+    "yauzl": "2.10.0",
+    "zod": "^4.4.3",
+    "@musefold/scheme-package": "workspace:*"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^12.1.0",

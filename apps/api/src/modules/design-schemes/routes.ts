@@ -1,5 +1,10 @@
 import {
   cancelDesignSchemeInputSchema,
+  prepareDesignSchemeRunInputSchema,
+  prepareDesignSchemeRunResultSchema,
+  designSchemeRunQuerySchema,
+  designSchemeRunEventQuerySchema,
+  designSchemeRunEventPageSchema,
   confirmDesignSchemeInstallInputSchema,
   cancelDesignSchemeResultSchema,
   confirmDesignSchemeInstallResultSchema,
@@ -29,6 +34,8 @@ import {
   promoteWorkingDraftResultSchema,
   removeDesignSchemeInputSchema,
   removeDesignSchemeResultSchema,
+  purgeDesignSchemeInputSchema,
+  purgeDesignSchemeResultSchema,
   renameDesignSchemeInputSchema,
   renameDesignSchemeResultSchema,
   runResultSchema,
@@ -86,6 +93,19 @@ export function designSchemeRoutes(service: DesignSchemeService) {
   route(
     app,
     {
+      method: 'post',
+      path: '/design-schemes/purge',
+      tags,
+      body: purgeDesignSchemeInputSchema,
+      response: purgeDesignSchemeResultSchema,
+    },
+    async (c, input) =>
+      c.json(await service.purge(c.get('userId'), input.body, c.get('sessionId'))),
+  );
+
+  route(
+    app,
+    {
       method: 'get',
       path: '/design-schemes',
       tags,
@@ -104,7 +124,7 @@ export function designSchemeRoutes(service: DesignSchemeService) {
       query: marketSearchQuerySchema,
       response: marketSearchResultSchema,
     },
-    async (c, input) => c.json(service.searchMarket(c.get('userId'), input.query)),
+    async (c, input) => c.json(await service.searchMarket(c.get('userId'), input.query)),
   );
 
   route(
@@ -167,7 +187,7 @@ export function designSchemeRoutes(service: DesignSchemeService) {
       body: cancelDesignSchemeInputSchema,
       response: cancelDesignSchemeResultSchema,
     },
-    async (c, input) => c.json(service.cancel(c.get('userId'), input.body)),
+    async (c, input) => c.json(await service.cancel(c.get('userId'), input.body)),
   );
 
   route(
@@ -275,7 +295,15 @@ export function designSchemeRoutes(service: DesignSchemeService) {
       body: importDesignSchemeInputSchema,
       response: importDesignSchemeResultSchema,
     },
-    async (c, input) => c.json(service.importPackage(c.get('userId'), input.body)),
+    async (c, input) =>
+      c.json(
+        await service.importPackage(
+          c.get('userId'),
+          input.body,
+          c.get('sessionId'),
+          c.req.raw.signal,
+        ),
+      ),
   );
 
   route(
@@ -299,7 +327,44 @@ export function designSchemeRoutes(service: DesignSchemeService) {
       body: designSchemeRunInputSchema,
       response: runResultSchema,
     },
-    async (c, input) => c.json(service.run(c.get('userId'), input.body)),
+    async (c, input) => c.json(await service.run(c.get('userId'), input.body, c.get('sessionId'))),
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/design-schemes/prepare-run',
+      tags,
+      body: prepareDesignSchemeRunInputSchema,
+      response: prepareDesignSchemeRunResultSchema,
+    },
+    async (c, input) =>
+      c.json(await service.prepareRun(c.get('userId'), input.body, c.get('sessionId'))),
+  );
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/design-schemes/runs/{runId}',
+      tags,
+      params: designSchemeRunQuerySchema,
+      response: runResultSchema,
+    },
+    async (c, input) => c.json(await service.getRun(c.get('userId'), input.params.runId)),
+  );
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/design-schemes/runs/{runId}/events',
+      tags,
+      params: designSchemeRunQuerySchema,
+      query: designSchemeRunEventQuerySchema,
+      response: designSchemeRunEventPageSchema,
+    },
+    async (c, input) =>
+      c.json(await service.runEvents(c.get('userId'), input.params.runId, input.query.afterSeq)),
   );
 
   return app;

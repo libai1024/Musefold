@@ -8,6 +8,7 @@ import {
   type AutomationRouteContext,
   type AutomationRouteHandler,
 } from '@musefold/automation-server';
+import { OFFICIAL_CLOUD_API_BASE } from '@musefold/contracts';
 import type { ProviderConfig } from '@musefold/desktop-contracts/models';
 import type {
   AutomationProviderDraft,
@@ -217,7 +218,7 @@ export function createElectronAutomationSetupRoutes(): Record<string, Automation
       return {
         loggedIn,
         health: loggedIn ? 'ok' : 'unknown',
-        isDefaultServer: apiBase() === 'https://api.musefold.app',
+        isDefaultServer: apiBase() === OFFICIAL_CLOUD_API_BASE,
       };
     },
     listProviders: () => getMusefoldCore().providers.list(),

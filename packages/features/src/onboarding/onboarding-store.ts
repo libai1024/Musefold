@@ -3,7 +3,7 @@
 import type { AppPreferences } from '@musefold/contracts';
 import { queryKeys, useCapabilities, useGateway } from '@musefold/platform';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { create } from 'zustand';
 
 /**
@@ -72,11 +72,13 @@ export const useOnboardingFlow = create<OnboardingFlowState>((set) => ({
   ...INITIAL_FLOW,
   markActive: () => set({ active: true }),
   // 换轨会作废上一轨的落地物:providerId 只对 BYOK 轨有意义,留着会让 validate 测错通道。
-  selectTrack: (track) => set({ track, providerId: null }),
+  selectTrack: (track) => set({ track, providerId: null, active: true }),
   setDraftPrompt: (draftPrompt) => set({ draftPrompt }),
   setProviderId: (providerId) => set({ providerId }),
-  goTo: (step) => set({ step }),
-  goNext: () => set((state) => ({ step: stepAt(1, state.step) })),
+  // 离开 welcome 即同步放行:不能只靠 useEffect 置 active,否则 BYOK 建连成功的同一拍
+  // hasUsableChannel 变 true 时 active 仍是 false,引导层会被卸掉并误触发静默写哨兵。
+  goTo: (step) => set({ step, active: true }),
+  goNext: () => set((state) => ({ step: stepAt(1, state.step), active: true })),
   // connect 步选中轨道后,「返回」先退回轨道选择(承 v2.1),再退才回 welcome。
   goBack: () =>
     set((state) =>
@@ -112,7 +114,11 @@ export function useOnboardingGate(): OnboardingGate {
   const capabilities = useCapabilities();
   const complete = useCompleteOnboarding();
   const flowActive = useOnboardingFlow((state) => state.active);
+  const step = useOnboardingFlow((state) => state.step);
   const markActive = useOnboardingFlow((state) => state.markActive);
+  // v2.1「step > 1 即保持可见」:即使用户已经点进 connect,active 的 effect 还没跑,
+  // 也不能在 BYOK 刚落库时把引导层拆掉。
+  const flowHeld = flowActive || step !== 'welcome';
 
   const preferences = useQuery({
     queryKey: queryKeys.settings.preferences(),
@@ -145,8 +151,10 @@ export function useOnboardingGate(): OnboardingGate {
     retry: false,
   });
 
-  const settled = (query: { isSuccess: boolean; isError: boolean }, enabled = true) =>
-    !enabled || query.isSuccess || query.isError;
+  // isFetched 在首轮成功/失败后保持为 true:error 态 query 被 invalidate 再取时
+  // 会短暂回到 pending,若用 isSuccess||isError 会让 gate 闪关,BYOK validate 的
+  // onSuccess 失效 account 就会拆掉引导层再自动重跑,打出 /models 风暴。
+  const settled = (query: { isFetched: boolean }, enabled = true) => !enabled || query.isFetched;
   const resolved =
     preferences.isSuccess &&
     settled(account) &&
@@ -157,9 +165,9 @@ export function useOnboardingGate(): OnboardingGate {
     account.isSuccess ||
     (providersEnabled && (providers.data ?? []).some((option) => option.available)) ||
     (doubaoEnabled && doubao.data?.loggedIn === true);
-  const open = resolved && completedAt === null && (flowActive || !hasUsableChannel);
+  const open = resolved && completedAt === null && (flowHeld || !hasUsableChannel);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open && !flowActive) markActive();
   }, [open, flowActive, markActive]);
 
@@ -169,10 +177,10 @@ export function useOnboardingGate(): OnboardingGate {
   const writeSentinel = complete.mutate;
   useEffect(() => {
     if (silentWriteTried.current) return;
-    if (!resolved || completedAt !== null || !hasUsableChannel || flowActive) return;
+    if (!resolved || completedAt !== null || !hasUsableChannel || flowHeld) return;
     silentWriteTried.current = true;
     writeSentinel();
-  }, [resolved, completedAt, hasUsableChannel, flowActive, writeSentinel]);
+  }, [resolved, completedAt, hasUsableChannel, flowHeld, writeSentinel]);
 
   return { resolved, open, hasUsableChannel, completedAt };
 }

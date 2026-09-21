@@ -1,6 +1,9 @@
 import { expect, type Page, test } from '@playwright/test';
 import { seedOnboardingCompleted } from './onboarding-helpers';
 
+// Device timestamps are part of the visual contract; keep them stable across CI hosts.
+test.use({ timezoneId: 'Asia/Shanghai' });
+
 // 首启引导夹具(U01-onboarding):既有用例都是未登录环境,不预置完成哨兵会被引导层盖住。
 test.beforeEach(async ({ page }) => {
   await seedOnboardingCompleted(page);
@@ -63,6 +66,43 @@ async function installAccountApiMock(
     if (path === '/account/status') {
       if (!state.signedIn) return route.fulfill(apiError('AUTH_REQUIRED', '未登录', 401));
       return route.fulfill(json({ ...ACCOUNT, quota }));
+    }
+    if (path === '/account/notices')
+      return route.fulfill(
+        json({
+          apiIssuer: 'https://api.example.test',
+          issuer: 'https://account.example.test',
+          items: [],
+        }),
+      );
+    if (path === '/account/login-sessions') {
+      if (!state.signedIn) return route.fulfill(apiError('AUTH_REQUIRED', '未登录', 401));
+      return route.fulfill(
+        json({
+          items: [
+            {
+              sessionRef: 'current-visual-device',
+              version: 1,
+              current: true,
+              client: 'Chrome',
+              platform: 'Web',
+              createdAt: '2026-09-20T00:00:00.000Z',
+              lastInteractiveAt: '2026-09-20T00:05:00.000Z',
+              lastSeenAt: '2026-09-20T00:05:00.000Z',
+              expiresAt: '2026-10-20T00:00:00.000Z',
+              maskedIp: '192.168.*.*',
+            },
+          ],
+          total: 1,
+          limit: 50,
+          required: 0,
+          requiresReauthentication: false,
+        }),
+      );
+    }
+    if (path === '/account/login-sessions/touch') {
+      if (!state.signedIn) return route.fulfill(apiError('AUTH_REQUIRED', '未登录', 401));
+      return route.fulfill(json({ ok: true }));
     }
     if (path === '/account/redeem') {
       quota += 500_000;
@@ -130,10 +170,12 @@ test('账密登录 → 已登录视图与侧栏账号区 → 兑换 → 退出',
   await page.getByTestId('account-redeem-submit').click();
   await expect(page.getByTestId('account-points')).toHaveText('72.8 积分');
 
-  // 退出(AlertDialog 确认)→ 回到未登录表单
+  // 退出(AlertDialog 确认)→ 回到未登录表单,用户名预填、密码清空
   await page.getByTestId('account-logout').click();
   await page.getByTestId('account-logout-confirm').click();
   await expect(page.getByTestId('account-auth-form')).toBeVisible();
+  await expect(page.getByTestId('account-username')).toHaveValue('xiaomiao');
+  await expect(page.getByTestId('account-password')).toHaveValue('');
 });
 
 test('登录失败在表单内展示服务端错误', async ({ page }) => {
@@ -157,5 +199,13 @@ test('已登录设置页视觉基线', async ({ page }) => {
   await page.getByTestId('account-password').fill('12345678');
   await page.getByTestId('account-auth-submit').click();
   await expect(page.getByTestId('account-signed-in')).toBeVisible();
+  const devices = page.getByTestId('account-login-sessions');
+  await expect(devices).toContainText('1 / 50 个登录设备');
+  await expect(devices.getByRole('alert')).toHaveCount(0);
+  const current = page.getByTestId('account-login-session-select-current-visual-device');
+  await expect(current).toBeDisabled();
   await expect(page).toHaveScreenshot('settings-signed-in.png', { fullPage: true });
+  await current.scrollIntoViewIfNeeded();
+  await expect(current).toBeInViewport();
+  await expect(devices).toHaveScreenshot('settings-login-devices.png');
 });

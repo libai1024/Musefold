@@ -105,7 +105,7 @@ interface SystemStubOptions {
   backups?: BackupInfo[];
   backupsMode?: CallMode;
   createMode?: CallMode;
-  restoreMode?: CallMode;
+  restoreMode?: CallMode | 'restart-required';
   locationsMode?: CallMode;
   openMode?: CallMode;
   logText?: string;
@@ -135,6 +135,10 @@ function createSystemStub(options: SystemStubOptions) {
     }),
     restoreBackup: vi.fn((input: { file: string }) => {
       if (options.restoreMode === 'error') return Promise.reject(new Error('备份文件损坏'));
+      if (options.restoreMode === 'restart-required')
+        return Promise.reject(
+          Object.assign(new Error('恢复未完成,请重启应用并核对备份'), { code: 'RESTORE_FAILED' }),
+        );
       return Promise.resolve({
         safetyBackupFile: `safety-${input.file}`,
         needsRestart: true as const,
@@ -172,6 +176,7 @@ function createTestGateway(overrides?: {
   preferences?: Partial<AppPreferences>;
   preferencesMode?: CallMode;
   archived?: WorkbenchSession[];
+  listByCursor?: Record<string, { items: WorkbenchSession[]; nextCursor: string | null }>;
   listMode?: CallMode;
   updateMode?: CallMode;
   removeMode?: CallMode;
@@ -227,6 +232,10 @@ function createTestGateway(overrides?: {
   const listSessionsSpy = vi.fn((query: WorkbenchSessionListQuery) => {
     if (overrides?.listMode === 'pending') return new Promise(() => {});
     if (overrides?.listMode === 'error') return Promise.reject(new Error('LIST_FAILED'));
+    if (overrides?.listByCursor) {
+      const cursor = typeof query.cursor === 'string' ? query.cursor : '';
+      return Promise.resolve(overrides.listByCursor[cursor] ?? { items: [], nextCursor: null });
+    }
     const archivedOnly = query.archivedOnly === true || query.archivedOnly === 'true';
     return Promise.resolve({
       items: [...sessions.values()].filter(
@@ -349,6 +358,13 @@ function createTestGateway(overrides?: {
       refreshLogin: vi.fn(),
       logout: vi.fn(),
     },
+    cloudMcp: {
+      listAuthorizations: async () => ({ items: [] }),
+      revokeAuthorization: vi.fn(async (input: { clientId: string }) => ({
+        revoked: true as const,
+        clientId: input.clientId,
+      })),
+    },
     ...(system ? { system } : {}),
   } as unknown as MusefoldGateway;
 
@@ -411,6 +427,8 @@ describe('SettingsScreen', () => {
       'settings-nav-appearance',
       'settings-nav-account',
       'settings-nav-data',
+      'settings-nav-open',
+      'settings-nav-usage',
       'settings-nav-about',
     ]);
     expect(screen.getByTestId('settings-group-general')).toBeTruthy();
@@ -522,6 +540,43 @@ describe('SettingsScreen', () => {
     });
   });
 
+  it('默认张数行:maxGenerationCount > 1 时渲染 1/2/4 并写偏好(§9-D3)', async () => {
+    const { gateway, updateSpy } = createTestGateway();
+    renderSettings(gateway);
+
+    const group = await screen.findByTestId('settings-default-count');
+    expect([...group.querySelectorAll('[data-slot="toggle-group-item"]')]).toHaveLength(3);
+    expect(screen.getByTestId('settings-default-count-1').getAttribute('data-state')).toBe('on');
+
+    fireEvent.click(screen.getByTestId('settings-default-count-4'));
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith({ defaultCount: 4 });
+    });
+  });
+
+  it('宿主 maxGenerationCount === 1:默认张数行整块不渲染(不留死控件,D2)', async () => {
+    const { gateway } = createTestGateway();
+    renderSettings(gateway, undefined, { ...WEB_CAPABILITIES, maxGenerationCount: 1 });
+
+    await screen.findByTestId('settings-default-quality');
+    expect(screen.queryByTestId('settings-default-count')).toBeNull();
+  });
+
+  it('consumes density tokens on the page, nav, and setting rows', async () => {
+    const { gateway } = createTestGateway();
+    renderSettings(gateway);
+    await screen.findByTestId('settings-screen');
+    expect(screen.getByTestId('settings-screen').className).toContain('--density-page-padding');
+    expect(screen.getByTestId('settings-nav-appearance').className).toContain('--density-nav-y');
+    await screen.findByTestId('settings-theme-trigger');
+    expect(screen.getByTestId('settings-theme-trigger').parentElement?.className).toContain(
+      '--density-setting-row-y',
+    );
+    expect(screen.getByTestId('settings-default-quality').parentElement?.className).toContain(
+      '--density-setting-row-y',
+    );
+  });
+
   it('writes density preference from the two-option toggle group', async () => {
     const { gateway, updateSpy } = createTestGateway();
     renderSettings(gateway);
@@ -603,6 +658,20 @@ describe('SettingsScreen', () => {
     renderSettings(gateway);
     await screen.findByTestId('settings-section-account');
     expect(screen.queryByTestId('settings-connections-anchor')).toBeNull();
+    expect(useScreenIntent.getState().intent).toBeNull();
+  });
+
+  it('consumes settings-section intent and optionally highlights a testid', async () => {
+    useScreenIntent.setState({
+      intent: { kind: 'settings-section', section: 'account', highlight: 'settings-account-card' },
+    });
+    const { gateway } = createTestGateway();
+    renderSettings(gateway);
+
+    const panel = await screen.findByTestId('settings-section-account');
+    expect(panel.className).toContain('ring-2');
+    const card = await screen.findByTestId('settings-account-card');
+    expect(card.getAttribute('data-settings-highlight')).toBe('true');
     expect(useScreenIntent.getState().intent).toBeNull();
   });
 
@@ -688,12 +757,20 @@ describe('settings section registry(sections.tsx)', () => {
       'sync',
       'connections',
       'data',
+      'open',
+      'usage',
       'about',
     ]);
     expect(sectionForIntent('settings-connections', desktop)).toBe('connections');
     const web = availableSettingsSections({ capabilities: WEB_CAPABILITIES });
     // 「关于」双端都注册(Web 版本行显示「Web 版」);「数据」要宿主接了切屏回调才注册。
-    expect(web.map((section) => section.id)).toEqual(['appearance', 'account', 'about']);
+    expect(web.map((section) => section.id)).toEqual([
+      'appearance',
+      'account',
+      'open',
+      'usage',
+      'about',
+    ]);
     expect(sectionForIntent('settings-connections', web)).toBe('account');
     expect(filterSettingsSections(desktop, '豆包').map((section) => section.id)).toEqual([
       'connections',
@@ -775,7 +852,33 @@ describe('ArchivedSessionsPanel(设置·数据卡内已归档对话)', () => {
     );
     fireEvent.click(screen.getByTestId('archived-refresh'));
     await waitFor(() => expect(listSessionsSpy.mock.calls.length).toBeGreaterThan(callsBefore));
-    expect(listSessionsSpy).toHaveBeenLastCalledWith({ archivedOnly: true, limit: 100 });
+    expect(listSessionsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ archivedOnly: true, limit: 100 }),
+    );
+  });
+
+  it('消费 nextCursor:加载更多带上 cursor,计数在还有下一页时显示 N+', async () => {
+    const first = makeArchivedSession('s1', '第一页', ARCHIVED_AT);
+    const second = makeArchivedSession('s2', '第二页', '2026-01-20T09:15:00.000Z');
+    const { listSessionsSpy } = renderWithArchived({
+      listByCursor: {
+        '': { items: [first], nextCursor: 'c2' },
+        c2: { items: [second], nextCursor: null },
+      },
+    });
+
+    expect((await screen.findByTestId('archived-count')).textContent).toBe('1+');
+    await expand();
+    expect(await screen.findByTestId('archived-session-s1')).toBeTruthy();
+    expect(screen.queryByTestId('archived-session-s2')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('archived-load-more'));
+    expect(await screen.findByTestId('archived-session-s2')).toBeTruthy();
+    expect(listSessionsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ archivedOnly: true, limit: 100, cursor: 'c2' }),
+    );
+    expect(screen.getByTestId('archived-count').textContent).toBe('2');
+    expect(screen.queryByTestId('archived-load-more')).toBeNull();
   });
 
   it('恢复:versioned update(expectedVersion + archived:false),pending 禁用,成功后失效刷新行消失', async () => {
@@ -806,7 +909,9 @@ describe('ArchivedSessionsPanel(设置·数据卡内已归档对话)', () => {
       expect(screen.queryByTestId('archived-session-s1')).toBeNull();
     });
     expect(listSessionsSpy.mock.calls.length).toBeGreaterThan(callsBefore);
-    expect(listSessionsSpy).toHaveBeenLastCalledWith({ archivedOnly: true, limit: 100 });
+    expect(listSessionsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ archivedOnly: true, limit: 100 }),
+    );
     expect(toast.success).toHaveBeenCalledWith('聊天已恢复 · 霓虹城市');
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -1037,6 +1142,26 @@ describe('DataStorageCard(设置·数据存储,桌面本机数据面)', () => {
     );
     expect(system?.relaunch).not.toHaveBeenCalled();
     expect(screen.getByTestId('settings-backup-restore-confirm')).toBeTruthy();
+  });
+
+  it('恢复隔离失败后关闭确认框并提供显式重启，不能继续提交恢复或创建备份', async () => {
+    const file = 'backup-20260906-101500-000-manual.db';
+    const { system } = renderData({
+      backups: [makeBackup(file, '2026-09-06T10:15:00.000Z')],
+      restoreMode: 'restart-required',
+    });
+    fireEvent.click(await screen.findByTestId('settings-backup-toggle'));
+    fireEvent.click(await screen.findByTestId(`settings-backup-restore-${file}`));
+    fireEvent.click(await screen.findByTestId('settings-backup-restore-confirm'));
+    const restart = await screen.findByTestId('settings-backup-restart');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect((screen.getByTestId('settings-backup-create') as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByTestId(`settings-backup-restore-${file}`) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(system?.relaunch).not.toHaveBeenCalled();
+    fireEvent.click(restart);
+    await waitFor(() => expect(system?.relaunch).toHaveBeenCalledOnce());
   });
 
   it('存储位置:路径行 mono、复制路径与打开;读取失败就地报错', async () => {

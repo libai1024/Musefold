@@ -26,8 +26,23 @@ interface SeedJob {
   errorCode?: string;
 }
 
+function localDayString(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+/** 近 N 分钟的 ISO。UTC+8 午夜后「30 分钟前」会落到昨天,自定义「今天」会漏行,故夹到当日本地。 */
 function iso(offsetMinutes: number): string {
-  return new Date(Date.now() - offsetMinutes * 60_000).toISOString().replace(/Z$/, '+00:00');
+  const now = Date.now();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const raw = now - offsetMinutes * 60_000;
+  const created =
+    raw >= startOfToday.getTime() ? raw : startOfToday.getTime() + (70 - offsetMinutes) * 1000;
+  return new Date(created).toISOString().replace(/Z$/, '+00:00');
 }
 
 const SEEDS: SeedJob[] = [
@@ -352,24 +367,20 @@ test('自定义时间区间:两个日期输入进入查询(含首含尾)', async
   await page.getByRole('option', { name: '自定义' }).click();
   await expect(page.getByTestId('history-filter-custom-range')).toBeVisible();
 
-  // 今天整天:全部未删记录都在窗口内(种子都在近 1 小时)。
-  const today = new Date();
-  const day = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, '0'),
-    String(today.getDate()).padStart(2, '0'),
-  ].join('-');
-  await page.getByTestId('history-filter-custom-from').fill(day);
-  await page.getByTestId('history-filter-custom-to').fill(day);
+  // 按未删种子的本地日历日含首含尾,避免午夜后「近 1 小时」跨自然日。
+  const liveTimes = SEEDS.filter((seed) => seed.deletedAt === null).map((seed) =>
+    new Date(seed.createdAt).getTime(),
+  );
+  const fromDay = localDayString(new Date(Math.min(...liveTimes)));
+  const toDay = localDayString(new Date(Math.max(...liveTimes)));
+  await page.getByTestId('history-filter-custom-from').fill(fromDay);
+  await page.getByTestId('history-filter-custom-to').fill(toDay);
   await expect(page.getByTestId('history-row')).toHaveCount(4);
 
-  // 起点推到明天 → 空窗口,列表落筛选空态。
-  const tomorrow = new Date(today.getTime() + 86_400_000);
-  const nextDay = [
-    tomorrow.getFullYear(),
-    String(tomorrow.getMonth() + 1).padStart(2, '0'),
-    String(tomorrow.getDate()).padStart(2, '0'),
-  ].join('-');
+  // 窗口推到明天 → 空窗口,列表落筛选空态。
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const nextDay = localDayString(tomorrow);
   await page.getByTestId('history-filter-custom-from').fill(nextDay);
   await page.getByTestId('history-filter-custom-to').fill(nextDay);
   await expect(page.getByTestId('history-empty')).toBeVisible();
@@ -425,4 +436,49 @@ test('历史屏视觉基线', async ({ page }) => {
   await expect(page).toHaveScreenshot('history-list.png', {
     mask: [page.getByTestId('history-row-time')],
   });
+});
+
+test('重试交互：列表/详情共享处理中，重复点击仅一个请求，失败可见且下次新授权使用新 key', async ({
+  page,
+}) => {
+  const keys: string[] = [];
+  const releases: Array<() => void> = [];
+  await page.route('**/api/v1/generations/run-b/retry', async (route) => {
+    keys.push(route.request().headers()['idempotency-key']);
+    await new Promise<void>((resolve) => releases.push(resolve));
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: '原任务费用尚未核对',
+          requestId: 'synthetic-retry',
+          retryable: false,
+        },
+      }),
+    });
+  });
+  const row = page.getByTestId('history-row').filter({ hasText: 'broken robot sketch' });
+  // Two synchronous UI events exercise admission before a disabled-button render.
+  await row.getByTestId('history-row-retry').evaluate((button) => {
+    (button as HTMLButtonElement).click();
+    (button as HTMLButtonElement).click();
+  });
+  await expect.poll(() => keys.length).toBe(1);
+  await expect(row.getByTestId('history-row-retry')).toBeDisabled();
+  await row.getByTestId('history-row-open').click();
+  const detail = page.getByTestId('history-inspector-retry');
+  await expect(detail).toBeDisabled();
+  await detail.evaluate((button) => (button as HTMLButtonElement).click());
+  expect(keys).toHaveLength(1);
+  releases.shift()?.();
+  await expect(page.getByText('重试未完成', { exact: true })).toBeVisible();
+  await expect(page.getByText('原任务费用尚未核对', { exact: true })).toBeVisible();
+  await expect(detail).toBeEnabled();
+  await detail.click();
+  await expect.poll(() => keys.length).toBe(2);
+  expect(keys[0]).not.toBe(keys[1]);
+  releases.shift()?.();
+  await expect(detail).toBeEnabled();
 });

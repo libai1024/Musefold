@@ -20,6 +20,11 @@ export interface CloudMcpDependencies {
   resourceUrl: string;
   /** 固定对外暴露的云端生图模型别名。 */
   modelAliases: readonly string[];
+  /**
+   * JWT 签名通过后仍须验证其绑定的 consent 行及可信会话。
+   * 缺少持久授权校验时 fail closed，不能只按 user/client 判断后来的新授权。
+   */
+  isAuthorizationActive?(claims: Record<string, unknown>): Promise<boolean>;
 }
 
 export interface CloudMcpToolManifestEntry {

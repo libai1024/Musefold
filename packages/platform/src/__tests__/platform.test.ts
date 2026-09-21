@@ -16,6 +16,7 @@ describe('platform capabilities', () => {
       canRevealLocalFile: true,
       hasCloudSyncControls: true,
       hasLocalAutomation: true,
+      hasCloudMcpControls: true,
       hasWindowChrome: true,
       hasLocalAiProviders: true,
       hasAgentConnections: true,
@@ -24,6 +25,8 @@ describe('platform capabilities', () => {
       hasDoubaoWebLogin: true,
       // 备份 / 存储位置 / 诊断日志 / 危险区都由 system 域承载。
       hasLocalDataManagement: true,
+      // §9-D3 解锁:core `n` → 按 position 落多行资产。
+      maxGenerationCount: 4,
     });
   });
 
@@ -33,6 +36,7 @@ describe('platform capabilities', () => {
       canRevealLocalFile: false,
       hasCloudSyncControls: false,
       hasLocalAutomation: false,
+      hasCloudMcpControls: true,
       hasWindowChrome: false,
       hasLocalAiProviders: false,
       hasAgentConnections: false,
@@ -42,6 +46,8 @@ describe('platform capabilities', () => {
       hasDoubaoWebLogin: false,
       // 云端有自己的备份纪律,浏览器无本机路径/本地库:整块本机数据面不注册。
       hasLocalDataManagement: false,
+      // §9-D3 解锁:worker 透传上游 `n` 并按 position 落 N 行资产,计费在上游按张扣减。
+      maxGenerationCount: 4,
     });
   });
   it('returns the adapter only when capability and adapter are both available', () => {
@@ -94,7 +100,9 @@ describe('platform capabilities', () => {
 describe('query keys', () => {
   it('produces stable hierarchical keys for every factory', () => {
     expect(queryKeys.settings.preferences()).toEqual(['settings', 'preferences']);
+    expect(queryKeys.account.all()).toEqual(['account']);
     expect(queryKeys.account.status()).toEqual(['account', 'status']);
+    expect(queryKeys.cloudMcp.authorizations()).toEqual(['account', 'cloud-mcp']);
     expect(queryKeys.aiProviders.list()).toEqual(['ai-providers', 'list']);
     expect(queryKeys.sync.status()).toEqual(['sync', 'status']);
     expect(queryKeys.sync.conflicts()).toEqual(['sync', 'conflicts']);
@@ -104,6 +112,11 @@ describe('query keys', () => {
     expect(queryKeys.system.backups()).toEqual(['system', 'backups']);
     expect(queryKeys.system.storageLocations()).toEqual(['system', 'storage-locations']);
     expect(queryKeys.system.diagnosticLog()).toEqual(['system', 'diagnostic-log']);
+    expect(queryKeys.automation.all()).toEqual(['automation']);
+    expect(queryKeys.automation.status()).toEqual(['automation', 'status']);
+    expect(queryKeys.automation.requestLog()).toEqual(['automation', 'request-log']);
+    expect(queryKeys.automation.spendAudit()).toEqual(['automation', 'spend-audit']);
+    expect(queryKeys.automation.integrationGuide()).toEqual(['automation', 'integration-guide']);
 
     const schemeQuery = { status: 'draft' as const, limit: 20 };
     const marketQuery = { query: 'poster', limit: 10 };
@@ -148,6 +161,11 @@ describe('query keys', () => {
       'sessions',
       { archivedOnly: true },
     ]);
+    expect(queryKeys.workbench.archived({ archivedOnly: true })).toEqual([
+      'workbench',
+      'archived',
+      { archivedOnly: true },
+    ]);
     expect(queryKeys.workbench.session('s1')).toEqual(['workbench', 'session', 's1']);
 
     expect(queryKeys.generation.all()).toEqual(['generation']);
@@ -156,6 +174,9 @@ describe('query keys', () => {
     expect(queryKeys.generation.detail('g1')).toEqual(['generation', 'detail', 'g1']);
     expect(queryKeys.generation.providers()).toEqual(['generation', 'providers']);
     expect(queryKeys.generation.storageUsage()).toEqual(['generation', 'storage-usage']);
+    expect(queryKeys.usage.all()).toEqual(['usage']);
+    expect(queryKeys.usage.summary('30d')).toEqual(['usage', 'summary', '30d']);
+    expect(queryKeys.usage.summary('7d')).toEqual(['usage', 'summary', '7d']);
   });
 
   it('keeps the same query object in list keys and compares equivalent objects by value', () => {
@@ -165,6 +186,7 @@ describe('query keys', () => {
 
     expect(queryKeys.prompts.list(promptQuery)[2]).toBe(promptQuery);
     expect(queryKeys.workbench.sessions(sessionQuery)[2]).toBe(sessionQuery);
+    expect(queryKeys.workbench.archived(sessionQuery)[2]).toBe(sessionQuery);
     expect(queryKeys.generation.list(generationQuery)[2]).toBe(generationQuery);
     expect(queryKeys.prompts.list(promptQuery)).toEqual(queryKeys.prompts.list({ ...promptQuery }));
   });
@@ -235,7 +257,11 @@ describe('query keys', () => {
       },
       {
         prefix: queryKeys.workbench.all(),
-        keys: [queryKeys.workbench.sessions({}), queryKeys.workbench.session('s1')],
+        keys: [
+          queryKeys.workbench.sessions({}),
+          queryKeys.workbench.archived({ archivedOnly: true }),
+          queryKeys.workbench.session('s1'),
+        ],
       },
       {
         prefix: queryKeys.designSchemes.all(),
@@ -255,6 +281,15 @@ describe('query keys', () => {
         ],
       },
       {
+        prefix: queryKeys.automation.all(),
+        keys: [
+          queryKeys.automation.status(),
+          queryKeys.automation.requestLog(),
+          queryKeys.automation.spendAudit(),
+          queryKeys.automation.integrationGuide(),
+        ],
+      },
+      {
         prefix: queryKeys.generation.all(),
         keys: [
           queryKeys.generation.list({}),
@@ -263,6 +298,14 @@ describe('query keys', () => {
           queryKeys.generation.providers(),
           queryKeys.generation.storageUsage(),
         ],
+      },
+      {
+        prefix: queryKeys.usage.all(),
+        keys: [queryKeys.usage.summary('30d'), queryKeys.usage.summary('7d')],
+      },
+      {
+        prefix: queryKeys.account.all(),
+        keys: [queryKeys.account.status(), queryKeys.cloudMcp.authorizations()],
       },
     ] as const;
 

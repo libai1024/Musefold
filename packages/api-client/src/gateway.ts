@@ -1,5 +1,15 @@
+import { releaseReferenceImageInputSchema } from '@musefold/contracts';
 import {
+  cloudMcpOAuthRequestSchema,
+  cloudMcpOAuthReviewSchema,
+  cloudMcpOAuthDecisionSchema,
+  cloudMcpOAuthRedirectSchema,
+  accountExecutionBindingSchema,
+  accountModelCatalogSchema,
+  accountRecoveryRequestSchema,
+  accountRecoveryReviewSchema,
   accountSummarySchema,
+  accountNoticesSchema,
   type CreateGenerationInput,
   type LoginRequest,
   type CreateWorkbenchSession,
@@ -8,6 +18,9 @@ import {
   type GenerationHistoryQuery,
   generationHistoryPageSchema,
   generationJobSchema,
+  generationExecutionReceiptSchema,
+  generationReceiptQuerySchema,
+  retryGenerationInputSchema,
   generationReferenceImageSchema,
   type NewPromptDocument,
   type NewPromptFolder,
@@ -29,14 +42,27 @@ import {
   type UpdatePromptTag,
   type UpdateWorkbenchSession,
   type UploadReferenceImageInput,
+  type UsageSummaryQuery,
+  usageSummarySchema,
+  type CloudMcpRevokeInput,
+  cloudMcpAuthorizationListSchema,
+  cloudMcpRevokeResultSchema,
   type WorkbenchSessionListQuery,
   workbenchSessionPageSchema,
   workbenchSessionSchema,
+  workbenchSessionCleanupResultSchema,
 } from '@musefold/contracts';
 import type { MusefoldGateway } from '@musefold/platform';
 import { z } from 'zod';
 import { createCloudDesignSchemesGateway } from './design-schemes';
 import { type ApiClientConfig, ApiHttp } from './http';
+import { ApiRequestError } from './http';
+import {
+  loginCapacityReviewSchema,
+  loginSessionPageSchema,
+  revokeLoginSessionsResultSchema,
+  type LoginCapacityReview,
+} from '@musefold/contracts';
 
 /**
  * MusefoldGateway 的云端数据域实现(Web 宿主用)。
@@ -45,7 +71,12 @@ import { type ApiClientConfig, ApiHttp } from './http';
 export type CloudDataGateway = Omit<MusefoldGateway, 'settings'>;
 
 // Better Auth 登录/注册响应:只关心会话建立成功,token 由 cookie 承载(Web)。
-const authSessionResponseSchema = z.looseObject({ token: z.string().min(1) });
+const authSessionResponseSchema = z
+  .looseObject({
+    token: z.string().min(1).optional(),
+    managed: z.boolean().optional(),
+  })
+  .refine((value) => value.managed === true || !!value.token, 'Missing login result');
 
 export function createCloudDataGateway(config: ApiClientConfig): CloudDataGateway {
   const http = new ApiHttp(config);
@@ -54,30 +85,109 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
 
   const getStatus = () =>
     http.request({ method: 'GET', path: '/account/status', response: accountSummarySchema });
+  let pendingCapacity: LoginCapacityReview | null = null;
+  const acknowledge = () =>
+    http.request({
+      method: 'POST',
+      path: '/account/login-sessions/touch',
+      body: { acknowledge: true },
+      response: z.unknown(),
+    });
+  const authenticate = async (
+    path: '/sign-in/new-api' | '/sign-up/new-api',
+    input: LoginRequest,
+  ) => {
+    pendingCapacity = null;
+    try {
+      const result = await http.request({
+        method: 'POST',
+        prefix: '/api/auth',
+        path,
+        body: {
+          email: input.username,
+          password: input.password,
+          twoFactorCode: input.twoFactorCode,
+        },
+        response: authSessionResponseSchema,
+      });
+      if (result.managed) await acknowledge();
+      return getStatus();
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.code === 'AUTH_SESSION_LIMIT') {
+        const review = loginCapacityReviewSchema.safeParse(error.details.review);
+        if (review.success) pendingCapacity = review.data;
+      }
+      throw error;
+    }
+  };
 
   return {
     account: {
       getStatus,
-      login: async (input: LoginRequest) => {
+      listLoginSessions: () =>
+        http.request({
+          method: 'GET',
+          path: '/account/login-sessions',
+          response: loginSessionPageSchema,
+        }),
+      getLoginCapacityReview: async (input) => {
+        const flowRef = input?.flowRef ?? pendingCapacity?.flowRef;
+        if (!flowRef)
+          throw new ApiRequestError(
+            'AUTH_LOGIN_CHALLENGE_EXPIRED',
+            '验证已过期，请重新登录',
+            401,
+            false,
+          );
+        const review = await http.request({
+          method: 'POST',
+          prefix: '/api/auth',
+          path: '/login-capacity/review',
+          body: { flowRef },
+          response: loginCapacityReviewSchema,
+        });
+        pendingCapacity = review;
+        return review;
+      },
+      completeLoginCapacity: async (input) => {
         await http.request({
           method: 'POST',
           prefix: '/api/auth',
-          path: '/sign-in/new-api',
-          body: { email: input.username, password: input.password },
+          path: '/login-capacity/complete',
+          body: input,
           response: authSessionResponseSchema,
         });
+        pendingCapacity = null;
+        await acknowledge();
         return getStatus();
       },
-      register: async (input: RegisterRequest) => {
+      cancelLoginCapacity: async (input) => {
         await http.request({
           method: 'POST',
           prefix: '/api/auth',
-          path: '/sign-up/new-api',
-          body: { email: input.username, password: input.password },
-          response: authSessionResponseSchema,
+          path: '/login-capacity/cancel',
+          body: input,
+          response: z.unknown(),
         });
-        return getStatus();
+        pendingCapacity = null;
       },
+      revokeLoginSessions: (input) =>
+        http.request({
+          method: 'POST',
+          path: '/account/login-sessions/revoke',
+          body: input,
+          response: revokeLoginSessionsResultSchema,
+        }),
+      touchLoginSession: async () => {
+        await http.request({
+          method: 'POST',
+          path: '/account/login-sessions/touch',
+          body: { acknowledge: false },
+          response: z.unknown(),
+        });
+      },
+      login: (input: LoginRequest) => authenticate('/sign-in/new-api', input),
+      register: (input: RegisterRequest) => authenticate('/sign-up/new-api', input),
       logout: async () => {
         await http.request({
           method: 'POST',
@@ -94,6 +204,48 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           body: { code },
           response: redeemResultSchema,
         }),
+      retryRecovery: (input) =>
+        http.request({
+          method: 'POST',
+          path: '/account/recovery/retry',
+          body: accountRecoveryRequestSchema.parse(input),
+          response: accountSummarySchema,
+        }),
+      inspectRecovery: (input) =>
+        http.request({
+          method: 'POST',
+          path: '/account/recovery/inspect',
+          body: accountRecoveryRequestSchema.parse(input),
+          response: accountRecoveryReviewSchema,
+        }),
+      verifyOriginalSession: (input) =>
+        http.request({
+          method: 'POST',
+          path: '/account/recovery/verify-original-session',
+          body: accountRecoveryRequestSchema.parse(input),
+          response: accountSummarySchema,
+        }),
+      createIndependentWorkspace: (input) =>
+        http.request({
+          method: 'POST',
+          path: '/account/recovery/independent-workspace',
+          body: accountRecoveryRequestSchema.parse(input),
+          response: accountSummarySchema,
+        }),
+      getExecutionBinding: () =>
+        http.request({
+          method: 'GET',
+          path: '/account/execution-binding',
+          response: accountExecutionBindingSchema,
+        }),
+      getModelCatalog: () =>
+        http.request({
+          method: 'GET',
+          path: '/account/models',
+          response: accountModelCatalogSchema,
+        }),
+      getNotices: () =>
+        http.request({ method: 'GET', path: '/account/notices', response: accountNoticesSchema }),
     },
     prompts: {
       list: (query: PromptListQuery) =>
@@ -219,6 +371,18 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           path: `/workbench/sessions/${id}/restore`,
           response: workbenchSessionSchema,
         }),
+      purgeSession: (id) =>
+        http.request({
+          method: 'POST',
+          path: `/workbench/sessions/${id}/purge`,
+          response: workbenchSessionCleanupResultSchema,
+        }),
+      emptyTrash: () =>
+        http.request({
+          method: 'POST',
+          path: '/workbench/sessions/empty-trash',
+          response: workbenchSessionCleanupResultSchema,
+        }),
     },
     generation: {
       create: (input: CreateGenerationInput, idempotencyKey) =>
@@ -244,12 +408,20 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           path: `/generations/${id}/cancel`,
           response: generationJobSchema,
         }),
-      retry: (id, idempotencyKey) =>
+      retry: (id, idempotencyKey, input) =>
         http.request({
           method: 'POST',
           path: `/generations/${id}/retry`,
+          body: input === undefined ? undefined : retryGenerationInputSchema.parse(input),
           headers: { 'idempotency-key': idempotencyKey },
           response: generationJobSchema,
+        }),
+      getExecutionReceipt: (key) =>
+        http.request({
+          method: 'GET',
+          path: '/generations/receipts/by-key',
+          query: generationReceiptQuerySchema.parse({ key }),
+          response: generationExecutionReceiptSchema,
         }),
       remove: (id) =>
         http.request({
@@ -294,6 +466,14 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
           response: generationReferenceImageSchema,
         });
       },
+      releaseReferenceImage: async (input) => {
+        const parsed = releaseReferenceImageInputSchema.parse(input);
+        await http.request({
+          method: 'DELETE',
+          path: `/reference-images/${encodeURIComponent(parsed.id)}`,
+          response: z.void(),
+        });
+      },
       saveAsset: async (input: SaveAssetInput) => {
         // 浏览器下载:同源/CORS 允许时 fetch → blob → a[download];
         // 预签名跨域未开 CORS 时降级新窗口打开(浏览器按响应头处置)。
@@ -312,6 +492,50 @@ export function createCloudDataGateway(config: ApiClientConfig): CloudDataGatewa
         }
         return 'saved' as const;
       },
+    },
+    usage: {
+      summary: (query: UsageSummaryQuery) =>
+        http.request({
+          method: 'GET',
+          path: '/usage/summary',
+          query: { range: query.range },
+          response: usageSummarySchema,
+        }),
+    },
+    cloudMcp: {
+      authorization: {
+        review: (input) =>
+          http.request({
+            method: 'POST',
+            prefix: '/api/auth',
+            path: '/musefold/oauth-review',
+            body: cloudMcpOAuthRequestSchema.parse(input),
+            response: cloudMcpOAuthReviewSchema,
+          }),
+        decide: (input) => {
+          const { reviewRef, ...body } = cloudMcpOAuthDecisionSchema.parse(input);
+          return http.request({
+            method: 'POST',
+            prefix: '/api/auth',
+            path: '/oauth2/consent',
+            body,
+            headers: { 'x-musefold-oauth-review': reviewRef },
+            response: cloudMcpOAuthRedirectSchema,
+          });
+        },
+      },
+      listAuthorizations: () =>
+        http.request({
+          method: 'GET',
+          path: '/mcp/authorizations',
+          response: cloudMcpAuthorizationListSchema,
+        }),
+      revokeAuthorization: (input: CloudMcpRevokeInput) =>
+        http.request({
+          method: 'DELETE',
+          path: `/mcp/authorizations/${encodeURIComponent(input.clientId)}`,
+          response: cloudMcpRevokeResultSchema,
+        }),
     },
     designSchemes: createCloudDesignSchemesGateway(http),
   };

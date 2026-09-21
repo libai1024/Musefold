@@ -1,6 +1,8 @@
 import {
   bigint,
+  foreignKey,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -11,7 +13,10 @@ import {
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { user } from './auth.js';
+import { designSchemeRuns } from './design-schemes.js';
+import { generationExecutionReceipts } from './generation-execution-receipts.js';
 
 /**
  * 工作台与生图(字段形状对齐 @musefold/contracts workbench.ts / generation.ts)。
@@ -43,6 +48,8 @@ export const generationRuns = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     sessionId: varchar('session_id', { length: 64 }),
+    /** Optional one-to-one scheme execution; ordinary generations remain independent. */
+    designSchemeRunId: varchar('design_scheme_run_id', { length: 64 }),
     parentRunId: varchar('parent_run_id', { length: 64 }),
     promptId: varchar('prompt_id', { length: 64 }),
     runKind: varchar('run_kind', { length: 20 }).notNull().default('free_generation'),
@@ -55,6 +62,8 @@ export const generationRuns = pgTable(
     promptSnapshot: jsonb('prompt_snapshot').$type<Record<string, unknown>>(),
     /** 幂等键按用户隔离(复合唯一,见表级索引):不同用户可以撞同一个键。 */
     idempotencyKey: varchar('idempotency_key', { length: 160 }),
+    /** Expand migration: pre-receipt/unkeyed rows remain nullable and cannot gain paid authority. */
+    executionReceiptId: varchar('execution_receipt_id', { length: 64 }),
     providerModel: varchar('provider_model', { length: 128 }),
     costPoints: integer('cost_points'),
     errorCode: varchar('error_code', { length: 80 }),
@@ -70,13 +79,31 @@ export const generationRuns = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
     finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    /** Internal irreversible-retention marker; hidden from public jobs, resumed by maintenance. */
+    purgeStartedAt: timestamp('purge_started_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
+    check(
+      'generation_runs_purge_state_check',
+      sql`${table.purgeStartedAt} IS NULL OR (${table.deletedAt} IS NOT NULL AND ${table.status} IN ('succeeded','failed','cancelled','rejected','expired'))`,
+    ),
     index('generation_runs_user_created_idx').on(table.userId, table.createdAt),
     index('generation_runs_user_session_idx').on(table.userId, table.sessionId),
     index('generation_runs_user_status_idx').on(table.userId, table.status),
     unique('generation_runs_id_user_unique').on(table.id, table.userId),
+    unique('generation_runs_scheme_run_owner_unique').on(table.designSchemeRunId, table.userId),
+    foreignKey({
+      columns: [table.designSchemeRunId, table.userId],
+      foreignColumns: [designSchemeRuns.runId, designSchemeRuns.userId],
+      name: 'generation_runs_scheme_owner_fk',
+    }),
     uniqueIndex('generation_runs_user_idempotency_key_idx').on(table.userId, table.idempotencyKey),
+    foreignKey({
+      columns: [table.executionReceiptId, table.userId],
+      foreignColumns: [generationExecutionReceipts.id, generationExecutionReceipts.principalId],
+      name: 'generation_runs_receipt_principal_fk',
+    }),
+    uniqueIndex('generation_runs_receipt_unique').on(table.executionReceiptId),
   ],
 );
 
@@ -100,7 +127,10 @@ export const generationAssets = pgTable(
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (table) => [index('generation_assets_run_idx').on(table.runId)],
+  (table) => [
+    index('generation_assets_run_idx').on(table.runId),
+    index('generation_assets_retention_idx').on(table.runId, table.id),
+  ],
 );
 
 /** 运行事件流(排队/进度/完成/失败),worker 追加,API 轮询消费。 */

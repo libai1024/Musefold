@@ -64,6 +64,8 @@ export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
 export const ASSET_ORIGIN_LABEL: Record<DesignSchemeAsset['origin'], string> = {
   repository: '仓库示例',
   'local-run': '本机生成',
+  'cloud-run': '云端生成',
+  uploaded: '上传素材',
 };
 
 export const PACKAGE_KIND_LABEL: Record<SourcePackageKind, string> = {

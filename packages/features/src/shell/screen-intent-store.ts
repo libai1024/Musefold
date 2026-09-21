@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { SettingsSectionId } from '../settings/section-ids';
 
 /**
  * 跨屏一次性意图(如「设置 → 提示词库回收站」「存为提示词 → 跳库高亮」):
@@ -16,6 +17,8 @@ export type ScreenIntent =
   /** 侧栏账号区深链(01 §2 左下角账号/中转站/豆包):落设置对应卡并滚动高亮。 */
   | { kind: 'settings-account' }
   | { kind: 'settings-connections' }
+  /** 通用设置深链(07-00 P2):分区 + 可选高亮 testid。既有 account/connections 别名仍可用。 */
+  | { kind: 'settings-section'; section: SettingsSectionId; highlight?: string }
   /** 设计方案详情深链(工作台「查看详情」):落方案中心整屏详情,宿主切屏后由视图 mount 消费。 */
   | { kind: 'scheme-detail'; schemeId: string };
 
@@ -36,3 +39,12 @@ export const useScreenIntent = create<ScreenIntentState>((set, get) => ({
     return current as Extract<ScreenIntent, { kind: K }>;
   },
 }));
+
+/** 密钥/连接引导:落到设置连接分区后再切屏(宿主注入 onOpenSettings)。 */
+export function openConnectionsSettings(onOpenSettings?: () => void): void {
+  useScreenIntent.getState().setIntent({
+    kind: 'settings-section',
+    section: 'connections',
+  });
+  onOpenSettings?.();
+}

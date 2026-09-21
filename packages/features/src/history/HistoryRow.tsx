@@ -51,6 +51,7 @@ export interface HistoryRowProps {
   onOpen(): void;
   onCancel(): void;
   onRetry(): void;
+  retryPending?: boolean;
   onRemove(): void;
   onRestore(): void;
   /** 回收站行「永久删除」;确认对话框由屏幕层持有。 */
@@ -68,6 +69,7 @@ export function HistoryRow({
   onOpen,
   onCancel,
   onRetry,
+  retryPending = false,
   onRemove,
   onRestore,
   onPurge,
@@ -135,7 +137,7 @@ export function HistoryRow({
         data-thread-root={thread.threadRootId}
         data-orphan={thread.orphan ? 'true' : 'false'}
         className={cn(
-          'group flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
+          'group flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2 transition-colors [[data-density=compact]_&]:px-[var(--density-row-padding)] [[data-density=compact]_&]:py-[var(--density-row-padding)]',
           selected
             ? 'border-border bg-card'
             : 'border-transparent hover:border-border hover:bg-card',
@@ -144,7 +146,7 @@ export function HistoryRow({
       >
         <button
           type="button"
-          className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground"
+          className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground [[data-density=compact]_&]:size-[var(--density-history-thumb)]"
           onClick={!imageBroken && onOpenLightbox ? onOpenLightbox : onOpen}
           aria-label={!imageBroken && onOpenLightbox ? '放大预览' : '查看详情'}
           data-testid="history-thumb"
@@ -247,8 +249,10 @@ export function HistoryRow({
                   variant="ghost"
                   size="icon"
                   className="size-7 text-muted-foreground hover:text-foreground"
-                  aria-label="重试生成"
                   data-testid="history-row-retry"
+                  disabled={retryPending}
+                  aria-busy={retryPending}
+                  aria-label={retryPending ? '正在提交重试' : '重试生成'}
                   onClick={onRetry}
                 >
                   <RotateCcw className="size-4" />

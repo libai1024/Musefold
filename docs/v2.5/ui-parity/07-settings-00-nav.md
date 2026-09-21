@@ -77,7 +77,7 @@
 
 | 优先级 | 任务 | 验收要点 |
 |---|---|---|
-| P2 | 设置深链:screen-intent 扩展 `settings-section`(含子 tab payload),Composer「前往设置添加」直达 AI 连接卡 | 双端深链滚动/高亮到目标卡 |
+| ~~P2~~ | ~~设置深链:screen-intent 扩展 `settings-section`~~ ✅ 已收口(2026-09-06):`{kind:'settings-section',section,highlight?}`;既有 `settings-account`/`settings-connections` 别名保留;Composer「前往设置添加」直达连接分区 | 双端深链滚动/高亮到目标卡 |
 | P2 | `SettingRow`/`ChoiceRow` 复合组件统一现有 5 卡行排布 | 视觉快照无回退,行距/对齐一致 |
 | P3(触发式) | 分组导航工作区:≥6 分区时启动;含三组导航/搜索/能力门控/分区记忆/桌面全屏形态 + 返回钮 | 对照本篇 §2 五条机制逐项验收 |
 

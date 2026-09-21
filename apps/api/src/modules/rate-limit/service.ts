@@ -17,6 +17,9 @@ export const RATE_LIMIT_POLICIES = {
   promptSync: { capacity: 180, windowSeconds: 60 },
   cloudMcp: { capacity: 120, windowSeconds: 60 },
   cloudMcpIp: { capacity: 300, windowSeconds: 60 },
+  marketSearch: { capacity: 30, windowSeconds: 60 },
+  /** Anonymous GitHub Search budget is shared by every API instance/user. */
+  marketGithub: { capacity: 10, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitPolicy>;
 
 /**

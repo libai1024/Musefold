@@ -44,23 +44,24 @@ export interface LocalRoutesResult {
 }
 
 export function createLocalRoutes(dataDir: string, ops: LocalAdminOps): LocalRoutesResult {
-  const challenges = new Map<string, { content: string; expiresAt: number }>();
+  const challenges = new Map<string, { content: string; expiresAt: number; filePath: string }>();
   const challengeDir = join(dataDir, CHALLENGE_DIR);
 
   const issueChallenge = () => {
     // 清理过期质询（文件 + 记录）
     const now = Date.now();
     for (const [id, entry] of challenges) {
-      if (entry.expiresAt < now) {
+      if (entry.expiresAt <= now) {
         challenges.delete(id);
-        rmSync(join(challengeDir, id), { force: true });
+        rmSync(entry.filePath, { force: true });
       }
     }
     const challengeId = randomUUID();
     const content = randomBytes(32).toString('base64url');
     mkdirSync(challengeDir, { recursive: true, mode: 0o700 });
-    writeFileSync(join(challengeDir, challengeId), content, { encoding: 'utf8', mode: 0o600 });
-    challenges.set(challengeId, { content, expiresAt: now + CHALLENGE_TTL_MS });
+    const filePath = join(challengeDir, challengeId);
+    writeFileSync(filePath, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    challenges.set(challengeId, { content, expiresAt: now + CHALLENGE_TTL_MS, filePath });
     return { challengeId, fileName: join(CHALLENGE_DIR, challengeId) };
   };
 
@@ -78,9 +79,13 @@ export function createLocalRoutes(dataDir: string, ops: LocalAdminOps): LocalRou
     const challengeId = proof.slice(0, separator);
     const provided = proof.slice(separator + 1);
     const entry = challenges.get(challengeId);
+    // 请求中的 ID 只能查找已签发记录，绝不能直接成为文件清理路径。
+    if (!entry) {
+      throw new AutomationError('LOCAL_PROOF_INVALID', '本地质询校验失败或已过期', 403);
+    }
     challenges.delete(challengeId); // 单次有效：无论成败都消耗
-    rmSync(join(challengeDir, challengeId), { force: true });
-    if (!entry || entry.expiresAt < Date.now() || !tokenEquals(entry.content, provided)) {
+    rmSync(entry.filePath, { force: true });
+    if (entry.expiresAt <= Date.now() || !tokenEquals(entry.content, provided)) {
       throw new AutomationError('LOCAL_PROOF_INVALID', '本地质询校验失败或已过期', 403);
     }
   };

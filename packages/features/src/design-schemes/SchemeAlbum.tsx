@@ -3,7 +3,7 @@
 import type { DesignSchemeAsset } from '@musefold/contracts';
 import { Button } from '@musefold/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@musefold/ui/components/dialog';
-import { FadeImage } from '@musefold/ui/components/fade-image';
+import { SchemeAssetImage } from './SchemeAssetImage';
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { ChevronLeft, ChevronRight, Images } from '@musefold/ui/icons';
 import { useEffect, useRef, useState } from 'react';
@@ -30,7 +30,13 @@ export function SchemeAlbum({
   coverBusy: boolean;
 }) {
   const [activeId, setActiveId] = useState(coverAssetId ?? assets[0]?.id ?? '');
-  const [lightbox, setLightbox] = useState<DesignSchemeAsset | null>(null);
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
+  const lightbox = assets.find((asset) => asset.id === lightboxId) ?? null;
+  const lightboxTrigger = useRef<HTMLButtonElement | null>(null);
+  const albumRegion = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (lightboxId && !assets.some((asset) => asset.id === lightboxId)) setLightboxId(null);
+  }, [assets, lightboxId]);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const suppressClickRef = useRef(false);
   useEffect(() => setActiveId(coverAssetId ?? assets[0]?.id ?? ''), [coverAssetId, assets]);
@@ -39,7 +45,7 @@ export function SchemeAlbum({
     return (
       <div className="flex min-h-[280px] flex-col items-center justify-center rounded-md border border-border border-dashed bg-muted/30 px-6 text-center">
         <Images className="size-6 text-muted-foreground/60" aria-hidden />
-        <p className="mt-3 font-medium text-foreground text-xs">还没有本机试运行结果</p>
+        <p className="mt-3 font-medium text-foreground text-xs">还没有试运行结果</p>
         <p className="mt-1 text-[11px] text-muted-foreground">
           完成一次试运行后,这里会展示生成的示例。
         </p>
@@ -101,6 +107,7 @@ export function SchemeAlbum({
           className="relative mr-6 mb-6 min-h-[300px] touch-pan-y max-[720px]:mr-3 max-[720px]:mb-3"
           tabIndex={0}
           role="region"
+          ref={albumRegion}
           aria-label="方案示例相册"
           onKeyDown={handleKeyDown}
           onTouchStart={handleTouchStart}
@@ -123,7 +130,12 @@ export function SchemeAlbum({
                 aria-label="查看这张示例"
               >
                 {url ? (
-                  <FadeImage src={url} alt="" className="h-full w-full object-contain opacity-70" />
+                  <SchemeAssetImage
+                    compact
+                    src={url}
+                    alt=""
+                    className="h-full w-full object-contain opacity-70"
+                  />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center text-muted-foreground/60">
                     <Images className="size-6" aria-hidden />
@@ -132,18 +144,27 @@ export function SchemeAlbum({
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={() => setLightbox(active)}
-            className="relative z-10 flex h-[min(48dvh,440px)] min-h-[300px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-md border border-border bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="全屏查看当前示例"
-          >
+          <div className="relative z-10 flex h-[min(48dvh,440px)] min-h-[300px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-md border border-border bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {activeUrl ? (
-              <FadeImage src={activeUrl} alt="方案示例" className="h-full w-full object-contain" />
+              <SchemeAssetImage
+                src={activeUrl}
+                alt="方案示例"
+                onOpen={(trigger) => {
+                  lightboxTrigger.current = trigger;
+                  setLightboxId(active.id);
+                }}
+              />
             ) : (
-              <Images className="size-8 text-muted-foreground/60" aria-hidden />
+              <button
+                type="button"
+                disabled
+                aria-label="全屏查看当前示例"
+                className="flex h-full w-full items-center justify-center"
+              >
+                <Images className="size-8 text-muted-foreground/60" aria-hidden />
+              </button>
             )}
-          </button>
+          </div>
         </div>
         <div className="flex min-h-8 items-center gap-2 text-[11px] text-muted-foreground">
           <span>{ASSET_ORIGIN_LABEL[active.origin]}</span>
@@ -192,15 +213,21 @@ export function SchemeAlbum({
         </div>
       </div>
 
-      <Dialog open={lightbox != null} onOpenChange={(open) => !open && setLightbox(null)}>
+      <Dialog open={lightboxUrl != null} onOpenChange={(open) => !open && setLightboxId(null)}>
         <DialogContent
           className="flex max-h-[92dvh] max-w-[92vw] items-center justify-center border-none bg-transparent p-0 shadow-none sm:max-w-[92vw]"
           aria-label="方案示例全屏预览"
           data-testid="scheme-asset-lightbox"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const target = lightboxTrigger.current;
+            if (target?.isConnected) target.focus();
+            else albumRegion.current?.focus();
+          }}
         >
           <DialogTitle className="sr-only">方案示例全屏预览</DialogTitle>
           {lightboxUrl ? (
-            <FadeImage
+            <SchemeAssetImage
               src={lightboxUrl}
               alt="方案示例"
               className="max-h-[88dvh] max-w-full object-contain"

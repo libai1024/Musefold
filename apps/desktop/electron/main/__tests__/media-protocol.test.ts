@@ -37,6 +37,9 @@ function writeBytes(path: string, bytes: Uint8Array = PNG_BYTES): void {
 function assetDb(): Database.Database {
   const db = new Database(':memory:');
   db.exec('CREATE TABLE design_scheme_assets (id TEXT PRIMARY KEY, store_key TEXT NOT NULL)');
+  db.exec(
+    'CREATE TABLE design_scheme_retained_assets (asset_id TEXT, run_id TEXT, store_key TEXT NOT NULL)',
+  );
   return db;
 }
 
@@ -111,6 +114,37 @@ describe('scheme asset store', () => {
     expect(descriptor?.identity.ino).toEqual(expect.any(BigInt));
     db.close();
   });
+
+  it.each([true, false])(
+    'serves retained run results when the pictures root exists=%s, without weakening managed-file checks',
+    async (picturesExist) => {
+      const userData = tempDir('musefold-retained-scheme-');
+      const pictures = join(userData, 'Pictures');
+      if (picturesExist) mkdirSync(pictures);
+      const path = join(userData, 'design-scheme-imports', 'retained', 'result.png');
+      writeBytes(path);
+      const db = assetDb();
+      db.prepare('INSERT INTO design_scheme_retained_assets VALUES (?,?,?)').run(
+        'retained',
+        'run',
+        path,
+      );
+      try {
+        const response = await handleMediaRequest('media://scheme-asset/retained', {
+          resolveSchemeAsset: (id) => resolveSchemeAssetMediaDescriptor(db, id, userData, pictures),
+        });
+        expect(response.status).toBe(200);
+        expect(new Uint8Array(await response.arrayBuffer())).toEqual(PNG_BYTES);
+        renameSync(path, `${path}.original`);
+        const outside = join(tempDir('musefold-retained-outside-'), 'secret.png');
+        writeBytes(outside);
+        symlinkSync(outside, path);
+        expect(resolveSchemeAssetMediaDescriptor(db, 'retained', userData, pictures)).toBeNull();
+      } finally {
+        db.close();
+      }
+    },
+  );
 });
 
 describe('media protocol request handling', () => {

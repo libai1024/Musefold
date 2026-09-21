@@ -168,6 +168,8 @@ export const promptListQuerySchema = z.object({
     .optional(),
   pinnedOnly: queryBooleanSchema.optional(),
   includeDeleted: queryBooleanSchema.default(false),
+  /** 仅回收站记录；true 优先于 includeDeleted，筛选必须在分页前由宿主执行。 */
+  deletedOnly: queryBooleanSchema.optional(),
   sort: z.enum(['updated-desc', 'created-desc', 'usage-desc', 'title-asc']).default('updated-desc'),
 });
 

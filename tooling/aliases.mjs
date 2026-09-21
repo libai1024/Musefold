@@ -36,6 +36,8 @@ export const SHARED_ALIAS_RELATIVE = Object.freeze({
   '@musefold/desktop-db': 'packages/desktop-db/src',
   '@musefold/domain': 'packages/domain/src',
   '@musefold/new-api-client': 'packages/new-api-client/src',
+  '@musefold/managed-fs': 'packages/managed-fs/src',
+  '@musefold/scheme-package': 'packages/scheme-package/src',
   '@musefold/server-crypto': 'packages/server-crypto/src',
   '@musefold/update-protocol': 'packages/update-protocol/src',
 });

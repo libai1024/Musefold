@@ -15,6 +15,9 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run src"
   },
+  "dependencies": {
+    "@musefold/contracts": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.7.2",
     "vitest": "^4.1.10"

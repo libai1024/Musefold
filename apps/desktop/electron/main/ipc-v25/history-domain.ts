@@ -1,3 +1,7 @@
+import {
+  purgeLocalGenerationRecords,
+  tryDrainLocalAssetCleanup,
+} from '@musefold/core/services/local-asset-cleanup';
 // v2.5 桌面历史维护域桥(generation.* 的批量与本机文件动作,ui-parity 05 §7):
 // 列表/详情/单条回收站语义在 workbench-domain.ts;本文件只装「跨行批量」与
 // 「本机资产动作」四个方法,避免 workbench-domain 继续膨胀。
@@ -9,14 +13,11 @@ import { generationCleanupInputSchema, entityIdSchema } from '@musefold/contract
 import { getDb } from '@musefold/core/db';
 import { getPaths } from '@musefold/core/runtime';
 import { clipboard, nativeImage, shell } from 'electron';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { collectImageDiskUsage } from '../../system/disk-usage';
-import { createLogger } from '../../system/logger';
 import { BridgeError, type MethodDef } from './envelope';
-
-const logger = createLogger('ipc-v25:history');
 
 /** 「清 30 天前」的窗口(承旧 HistoryCleanupMenu)。 */
 const CLEANUP_OLDER_THAN_MS = 30 * 24 * 60 * 60_000;
@@ -63,7 +64,7 @@ function softDeleteRuns(where: string, args: unknown[]): number {
 
 /**
  * 清空回收站:与单条 generation.purge 同一语义 —— 先删行(资产行级联),
- * 后清磁盘;文件删除失败只留孤儿文件并告警,不阻塞用户操作。
+ * 同事务保留磁盘清理意图,再按受管路径/引用/文件身份清理；失败可跨重启重试。
  */
 function emptyTrash(): number {
   const db = getDb();
@@ -74,22 +75,12 @@ function emptyTrash(): number {
     )
     .all(...TERMINAL_RUN_STATUSES) as Array<{ id: string }>;
   if (doomed.length === 0) return 0;
-  const ids = doomed.map((row) => row.id);
-  const placeholders = ids.map(() => '?').join(', ');
-  const assets = db
-    .prepare(`SELECT media_path FROM generated_assets WHERE run_id IN (${placeholders})`)
-    .all(...ids) as Array<{ media_path: string | null }>;
-  db.prepare(`DELETE FROM generation_runs WHERE id IN (${placeholders})`).run(...ids);
-  for (const asset of assets) {
-    const path = managedAssetPath(asset.media_path);
-    if (!path) continue;
-    try {
-      rmSync(path, { force: true });
-    } catch (error) {
-      logger.warn('清空回收站时清理资产文件失败', error instanceof Error ? error.message : '未知');
-    }
-  }
-  return ids.length;
+  const affected = purgeLocalGenerationRecords(
+    doomed.map((row) => row.id),
+    db,
+  );
+  tryDrainLocalAssetCleanup();
+  return affected;
 }
 
 export function buildHistoryDomainMethods(): Record<string, MethodDef> {

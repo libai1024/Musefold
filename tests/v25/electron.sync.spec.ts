@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
@@ -79,6 +79,7 @@ async function startSyncApi(): Promise<SyncApiServer> {
     sessionToken: randomUUID(),
   };
   let signedIn = false;
+  let baseUrl = '';
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -116,6 +117,13 @@ async function startSyncApi(): Promise<SyncApiServer> {
           quota: 3_140_000,
           quotaUnit: '点',
           canGenerate: true,
+          identity: {
+            apiIssuer: baseUrl,
+            principalId: 'principal-e2e',
+            status: 'active',
+            identityVersion: 1,
+          },
+          recovery: null,
         });
       }
       if (!isSync || request.headers.authorization !== `Bearer ${state.sessionToken}`) {
@@ -190,9 +198,10 @@ async function startSyncApi(): Promise<SyncApiServer> {
   });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('loopback sync server did not bind');
+  baseUrl = `http://127.0.0.1:${address.port}`;
 
   return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
+    baseUrl,
     state,
     close: () =>
       new Promise<void>((resolve, reject) =>
@@ -312,6 +321,9 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
   browserName: _browserName,
 }, testInfo) => {
   const api = await startSyncApi();
+  const workspaceOwner = createHash('sha256')
+    .update(JSON.stringify(['principal', api.baseUrl, 'principal-e2e']))
+    .digest('hex');
   let app: ElectronApplication | undefined;
   let userDataDir = '';
   try {
@@ -321,7 +333,7 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     app = launched.app;
     userDataDir = launched.userDataDir;
     const page = await v25ShellPage(app);
-    seedAccountWorkspace(userDataDir, 'owner-e2e-xiaomiao');
+    seedAccountWorkspace(userDataDir, workspaceOwner);
     await openSettings(page, 'account');
     await login(page);
 
@@ -399,9 +411,13 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     const beforeLogout = db
       .prepare(
         `SELECT consent_state, cursor, bootstrap_completed_at
-         FROM cloud_sync_accounts WHERE owner_id = 'owner-e2e-xiaomiao'`,
+         FROM cloud_sync_accounts WHERE owner_id = ?`,
       )
-      .get() as { consent_state: string; cursor: string; bootstrap_completed_at: number };
+      .get(workspaceOwner) as {
+      consent_state: string;
+      cursor: string;
+      bootstrap_completed_at: number;
+    };
     expect(beforeLogout).toMatchObject({ consent_state: 'enabled', cursor: '10' });
     expect(beforeLogout.bootstrap_completed_at).toBeGreaterThan(0);
     expect(
@@ -424,9 +440,9 @@ test('Electron 云同步:unset 零请求 → 首轮顺序 → paused 积累 → 
     const afterRelogin = dbAfter
       .prepare(
         `SELECT active, consent_state, cursor, bootstrap_completed_at
-         FROM cloud_sync_accounts WHERE owner_id = 'owner-e2e-xiaomiao'`,
+         FROM cloud_sync_accounts WHERE owner_id = ?`,
       )
-      .get();
+      .get(workspaceOwner);
     dbAfter.close();
     expect(afterRelogin).toEqual({ active: 1, ...beforeLogout });
   } finally {

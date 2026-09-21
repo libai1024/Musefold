@@ -22,6 +22,51 @@ afterEach(async () => {
 });
 
 describe('acquireDesktopOwnerLockWithHeadlessTakeover', () => {
+  it('waits for an old process that releases its owner lock before its work finishes', async () => {
+    const dir = tempDir();
+    const child = await spawnEarlyReleaseChild(dir, 250);
+    writeOwnerLock(dir, {
+      pid: child.pid,
+      owner: 'headless-daemon',
+      acquiredAt: new Date(0).toISOString(),
+    });
+    writeDiscoveryFile(dir, discoveryDocument(child.pid, 'headless-daemon'));
+    const started = Date.now();
+    const result = await acquireDesktopOwnerLockWithHeadlessTakeover(dir, {
+      timeoutMs: 1500,
+      forceKillAfterMs: 1000,
+      pollIntervalMs: 10,
+    });
+    expect(result.acquired).toBe(true);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(200);
+    expect(processAlive(child.pid)).toBe(false);
+    await waitForExit(child);
+    expect(child.exitCode).toBe(0);
+    result.release?.();
+  });
+
+  it('does not acquire a released directory when the original process still lives at timeout', async () => {
+    const dir = tempDir();
+    const child = await spawnEarlyReleaseChild(dir, null);
+    writeOwnerLock(dir, {
+      pid: child.pid,
+      owner: 'headless-daemon',
+      acquiredAt: new Date(0).toISOString(),
+    });
+    writeDiscoveryFile(dir, discoveryDocument(child.pid, 'headless-daemon'));
+    const result = await acquireDesktopOwnerLockWithHeadlessTakeover(dir, {
+      timeoutMs: 150,
+      forceKillAfterMs: 50,
+      pollIntervalMs: 10,
+      signalProcess(pid, signal) {
+        if (signal === 'SIGTERM') process.kill(pid, signal);
+      },
+    });
+    expect(result.acquired).toBe(false);
+    expect(processAlive(child.pid)).toBe(true);
+    expect(() => readFileSync(join(dir, OWNER_LOCK_FILE))).toThrow();
+  });
+
   it('stops a headless daemon and lets the desktop app acquire owner.lock', async () => {
     const dir = tempDir();
     const child = await spawnIdleChild();
@@ -83,6 +128,27 @@ function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'musefold-headless-takeover-'));
   tempDirs.push(dir);
   return dir;
+}
+
+async function spawnEarlyReleaseChild(
+  dir: string,
+  exitDelay: number | null,
+): Promise<ChildProcess & { pid: number }> {
+  const code = `const fs = require('node:fs');
+    process.on('SIGTERM', () => {
+      fs.rmSync(${JSON.stringify(join(dir, OWNER_LOCK_FILE))}, { force: true });
+      ${exitDelay === null ? '' : `setTimeout(() => process.exit(0), ${exitDelay});`}
+    });
+    setInterval(() => {}, 1000);
+    process.stdout.write('ready');`;
+  const child = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'ignore'] });
+  children.push(child);
+  await new Promise<void>((resolve, reject) => {
+    child.once('error', reject);
+    child.stdout.once('data', () => resolve());
+  });
+  if (!child.pid) throw new Error('spawned child has no pid');
+  return child as ChildProcess & { pid: number };
 }
 
 async function spawnIdleChild(): Promise<ChildProcess & { pid: number }> {

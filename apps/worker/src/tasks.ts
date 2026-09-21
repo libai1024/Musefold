@@ -1,3 +1,12 @@
+import {
+  INVENTORY_PREFIXES,
+  inventoryScanRequestSchema,
+  inventoryScopeId,
+  scanObjectInventoryPage,
+} from './object-inventory.js';
+import { findProtectedObjects } from './object-protection.js';
+import { processObjectInventoryCandidates } from './object-inventory-delete.js';
+import { retireUnprotectedObjects } from './object-retirement.js';
 import { randomUUID } from 'node:crypto';
 import {
   DeleteObjectsCommand,
@@ -13,35 +22,49 @@ import {
   type MusefoldDatabase,
   MAX_OBJECT_CLEANUP_ATTEMPTS,
   acknowledgeObjectCleanup,
-  accountCredentials,
+  collectObjectMaintenanceSnapshot,
+  ExecutionAuthorityError,
   deferObjectCleanup,
   enqueueObjectCleanup,
   generationAssets,
   generationEvents,
   generationReferenceLinks,
   generationReferenceUploads,
+  designSchemeGenerationReferences,
   generationRuns,
+  generationExecutionReceipts,
   markObjectCleanupAttemptFailed,
   objectCleanupQueue,
-  rateLimitBuckets,
   removeAcknowledgedReferenceUploads,
+  retireDesignSchemeSourcePreparations,
+  retireDesignSchemePackageStages,
+  runRetentionTransaction,
 } from '@musefold/db';
 import { openJsonFromString } from '@musefold/server-crypto';
 import { and, eq, gt, inArray, isNull, lte, notExists, or, sql } from 'drizzle-orm';
 import type { TaskList } from 'graphile-worker';
 import type { WorkerEnv } from './env.js';
+import type { GenerationPayload, UploadedGenerationAsset } from './generation-types.js';
+import {
+  assertSchemeGenerationRequest,
+  downloadDesignSchemeReferences,
+  synchronizeDesignSchemeRun,
+} from './design-scheme-runs.js';
 import {
   type GeneratedImage,
+  type ImageDispatchSnapshot,
   type ReferenceImageInput,
   UpstreamImageError,
   generateImage,
   imageChecksum,
 } from './image-gateway.js';
+import { clearExpiredAccountRecoverySecretBatches } from './account-recovery-retention.js';
+import { purgeExpiredSoftDeletedPrompts, purgeExpiredSoftDeletedRuns } from './retention.js';
+import { trimExpiredSyncRecords } from './sync-retention.js';
+import { purgeExpiredRateLimitBuckets } from './maintenance-retention.js';
+import { claimGenerationExecution, synchronizeExecutionReceipt } from './generation-execution.js';
 
-export interface GenerationPayload {
-  userId: string;
-  runId: string;
-}
+export type { GenerationPayload, UploadedGenerationAsset } from './generation-types.js';
 
 export interface GenerationAttemptOwner extends GenerationPayload {
   epoch: number;
@@ -52,12 +75,6 @@ export interface AcquiredGenerationRun {
   attemptCount: number;
 }
 
-export interface UploadedGenerationAsset extends GeneratedImage {
-  id: string;
-  objectKey: string;
-  checksum: string;
-}
-
 export type GenerationTransition = 'succeed' | 'cancel' | 'skip';
 
 export interface GenerationLeaseHandle {
@@ -65,19 +82,18 @@ export interface GenerationLeaseHandle {
   start(): void;
   stop(): void;
   assertOwned(): Promise<void>;
-  markUpstreamRequestSent(): Promise<boolean>;
+  claimUpstreamRequest(): Promise<ImageDispatchSnapshot | null>;
+  readonly dispatchClaimed: boolean;
 }
 
 export interface GenerationAttemptDependencies {
   s3: S3Client;
   bucket: string;
-  baseUrl: string;
   owner: GenerationAttemptOwner;
   request: ParsedCloudGenerationRequest;
-  apiKey: string;
   references: ReferenceImageInput[];
   lease: GenerationLeaseHandle;
-  markFailed: (code: string, message: string) => Promise<void>;
+  markFailed: (code: string, message: string, confirmedNotSent?: boolean) => Promise<void>;
   finalize: (assets: UploadedGenerationAsset[]) => Promise<GenerationTransition>;
   generate?: typeof generateImage;
   upload?: (
@@ -88,14 +104,35 @@ export interface GenerationAttemptDependencies {
     uploadedObjectKeys: string[],
     beforeUpload?: (objectKey: string) => Promise<void>,
   ) => Promise<UploadedGenerationAsset[]>;
-  remove?: (s3: S3Client, bucket: string, objectKeys: string[]) => Promise<void>;
   enqueueCleanup: (objectKeys: string[], nextAttemptAt?: Date) => Promise<void>;
   acknowledgeCleanup: (objectKeys: string[]) => Promise<void>;
-  recordCleanupFailure: (objectKeys: string[], error: unknown) => Promise<void>;
 }
 
-function mapGenerationError(error: unknown): UpstreamImageError {
+class LeaseLostError extends Error {
+  constructor() {
+    super('生成任务租约已失效');
+    this.name = 'LeaseLostError';
+  }
+}
+
+function isObjectStorageError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const name = 'name' in error ? String((error as { name?: string }).name) : '';
+  const code = 'Code' in error ? String((error as { Code?: string }).Code) : '';
+  const message = error instanceof Error ? error.message : '';
+  return /ObjectStorageError|NoSuchBucket|NotFound|AccessDenied|TimeoutError|NetworkingError|ECONNREFUSED|S3/.test(
+    `${name} ${code} ${message}`,
+  );
+}
+
+export function mapGenerationError(error: unknown): UpstreamImageError {
   if (error instanceof UpstreamImageError) return error;
+  if (error instanceof LeaseLostError) {
+    return new UpstreamImageError('unknown', '生成任务租约已失效');
+  }
+  if (isObjectStorageError(error)) {
+    return new UpstreamImageError('unknown', '成图保存失败，请重试');
+  }
   return new UpstreamImageError('unknown', '生成执行失败');
 }
 
@@ -112,11 +149,10 @@ export async function executeGenerationAttempt(deps: GenerationAttemptDependenci
   let committed = false;
   const generate = deps.generate ?? generateImage;
   const upload = deps.upload ?? uploadImagesForGeneration;
-  const remove = deps.remove ?? removeObjects;
   try {
-    const images = await generate(deps.baseUrl, deps.apiKey, deps.request, deps.references, {
+    const images = await generate(deps.request, deps.references, {
       signal: deps.lease.signal,
-      beforeUpstreamRequest: () => deps.lease.markUpstreamRequestSent(),
+      claimUpstreamRequest: () => deps.lease.claimUpstreamRequest(),
     });
     await deps.lease.assertOwned();
     const uploaded = await upload(
@@ -133,17 +169,22 @@ export async function executeGenerationAttempt(deps: GenerationAttemptDependenci
     if (committed) await deps.acknowledgeCleanup(uploadedObjectKeys).catch(() => undefined);
   } catch (error) {
     const mapped = mapGenerationError(error);
-    await deps.markFailed(generationErrorCode(mapped), mapped.message);
+    console.error('[worker] generation attempt failed', {
+      code: mapped.code,
+      name: error instanceof Error ? error.name : typeof error,
+      message: mapped.message,
+    });
+    await deps.markFailed(
+      generationErrorCode(mapped),
+      mapped.message,
+      mapped.dispatch === 'not_sent' && deps.lease.dispatchClaimed,
+    );
   } finally {
     deps.lease.stop();
     if (!committed && uploadedObjectKeys.length > 0) {
+      // A lost commit response can hide a successful transaction. Maintenance is
+      // the only deletion entry point, and rechecks canonical owners and leases.
       await deps.enqueueCleanup(uploadedObjectKeys);
-      try {
-        await remove(deps.s3, deps.bucket, uploadedObjectKeys);
-        await deps.acknowledgeCleanup(uploadedObjectKeys);
-      } catch (error) {
-        await deps.recordCleanupFailure(uploadedObjectKeys, error);
-      }
     }
   }
 }
@@ -152,13 +193,6 @@ const LEASE_DURATION_MS = 10 * 60_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 export const OBJECT_CLEANUP_BATCH_SIZE = 100;
 const OBJECT_CLEANUP_CLAIM_MS = 10 * 60_000;
-
-class LeaseLostError extends Error {
-  constructor() {
-    super('生成任务租约已失效');
-    this.name = 'LeaseLostError';
-  }
-}
 
 export function ownsGenerationLease(
   run: { attemptCount: number; leaseExpiresAt: Date | null },
@@ -183,6 +217,7 @@ export class GenerationLease {
   private timer: NodeJS.Timeout | undefined;
   private renewing = false;
   private lost = false;
+  private claimed = false;
 
   constructor(
     private readonly db: MusefoldDatabase,
@@ -190,6 +225,7 @@ export class GenerationLease {
     private readonly runId: string,
     readonly epoch: number,
     private readonly abortController: AbortController,
+    private readonly execution: { env: TaskDependencies['env']; request: unknown },
   ) {}
 
   start(): void {
@@ -216,24 +252,50 @@ export class GenerationLease {
     return this.abortController.signal;
   }
 
-  async markUpstreamRequestSent(): Promise<boolean> {
+  get dispatchClaimed(): boolean {
+    return this.claimed;
+  }
+
+  async claimUpstreamRequest(): Promise<ImageDispatchSnapshot | null> {
     await this.assertOwned();
-    const rows = await this.db
-      .update(generationRuns)
-      .set({ upstreamRequestSent: true })
-      .where(
-        and(
-          eq(generationRuns.userId, this.userId),
-          eq(generationRuns.id, this.runId),
-          eq(generationRuns.status, 'running'),
-          eq(generationRuns.attemptCount, this.epoch),
-          gt(generationRuns.leaseExpiresAt, new Date()),
-          eq(generationRuns.upstreamRequestSent, false),
-        ),
+    try {
+      const snapshot = await claimGenerationExecution(this.db, this.execution.env, {
+        userId: this.userId,
+        runId: this.runId,
+        epoch: this.epoch,
+        request: this.execution.request,
+      });
+      if (!snapshot) {
+        this.markLost();
+        return null;
+      }
+      this.claimed = true;
+      // This is the ciphertext returned by the successful authority/claim
+      // transaction. Never read the current account key after releasing it.
+      const credential = openJsonFromString<{ apiKey?: unknown }>(
+        snapshot.encryptedCredential.ciphertext,
+        this.execution.env.CREDENTIAL_ENCRYPTION_KEY,
+      );
+      if (
+        typeof credential.apiKey !== 'string' ||
+        !credential.apiKey ||
+        credential.apiKey.length > 8192
       )
-      .returning({ id: generationRuns.id });
-    if (rows.length === 0) this.markLost();
-    return rows.length > 0;
+        throw new Error('Invalid credential envelope');
+      return Object.freeze({
+        baseUrl: snapshot.baseUrl,
+        apiKey: credential.apiKey,
+        model: snapshot.model,
+      });
+    } catch (error) {
+      throw new UpstreamImageError(
+        'rejected',
+        error instanceof ExecutionAuthorityError
+          ? '账号执行授权已失效，请重新登录后重新提交'
+          : '账号生图凭据不可用，请重新登录',
+        'not_sent',
+      );
+    }
   }
 
   async renewNow(): Promise<void> {
@@ -282,8 +344,9 @@ function defaultCreateLease(
   runId: string,
   epoch: number,
   abortController: AbortController,
+  execution: { env: TaskDependencies['env']; request: unknown },
 ): GenerationLeaseHandle {
-  return new GenerationLease(db, userId, runId, epoch, abortController);
+  return new GenerationLease(db, userId, runId, epoch, abortController, execution);
 }
 
 export type LeaseRecoveryAction = 'continue' | 'mark_unknown' | 'mark_cancelled' | 'skip';
@@ -354,7 +417,11 @@ export async function reconcileStaleRuns(
 
 export interface TaskDependencies {
   db: MusefoldDatabase;
-  env: Pick<WorkerEnv, 'NEW_API_BASE_URL' | 'CREDENTIAL_ENCRYPTION_KEY' | 'S3_BUCKET'>;
+  env: Pick<
+    WorkerEnv,
+    'PUBLIC_BASE_URL' | 'NEW_API_BASE_URL' | 'CREDENTIAL_ENCRYPTION_KEY' | 'S3_BUCKET'
+  > &
+    Partial<Pick<WorkerEnv, 'MAINTENANCE_CLEANUP_PAUSED' | 'S3_ENDPOINT' | 'S3_REGION'>>;
   s3: S3Client;
   generate?: typeof generateImage;
   createLease?: (
@@ -363,9 +430,10 @@ export interface TaskDependencies {
     runId: string,
     epoch: number,
     abortController: AbortController,
+    execution: { env: TaskDependencies['env']; request: unknown },
   ) => GenerationLeaseHandle;
   upload?: GenerationAttemptDependencies['upload'];
-  remove?: GenerationAttemptDependencies['remove'];
+  remove?: (s3: S3Client, bucket: string, objectKeys: string[]) => Promise<void>;
   cleanupStore?: ObjectCleanupStore;
 }
 
@@ -383,17 +451,24 @@ export interface ObjectCleanupStore {
   queueExpiredReferences(now?: Date): Promise<number>;
   claimDue(now?: Date): Promise<ClaimedObjectCleanup[]>;
   findProtected(objectKeys: string[], now?: Date): Promise<ObjectCleanupProtection>;
+  authorizeDeletion(objectKeys: string[], now?: Date): Promise<ObjectCleanupProtection>;
   acknowledge(objectKeys: string[]): Promise<void>;
   discardProtected(objectKeys: string[]): Promise<void>;
   deferLeased(objectKeys: string[], now?: Date): Promise<void>;
   fail(objectKeys: string[], error: unknown, now?: Date): Promise<void>;
 }
 
+/** PostgreSQL lock_not_available from the retention transaction's bounded lock wait. */
+function isStorageKeyLockContention(error: unknown): boolean {
+  const code = (error as { code?: string } | undefined)?.code;
+  const cause = (error as { cause?: { code?: string } } | undefined)?.cause;
+  return code === '55P03' || cause?.code === '55P03';
+}
+
 export class PostgresObjectCleanupStore implements ObjectCleanupStore {
   constructor(private readonly db: MusefoldDatabase) {}
-
   async queueExpiredReferences(now = new Date()): Promise<number> {
-    return this.db.transaction(async (tx) => {
+    return runRetentionTransaction(this.db, async (tx) => {
       const rows = await tx
         .select({
           id: generationReferenceUploads.id,
@@ -416,6 +491,17 @@ export class PostgresObjectCleanupStore implements ObjectCleanupStore {
                   ),
                 ),
             ),
+            notExists(
+              tx
+                .select({ value: sql`1` })
+                .from(designSchemeGenerationReferences)
+                .where(
+                  eq(
+                    designSchemeGenerationReferences.objectKey,
+                    generationReferenceUploads.objectKey,
+                  ),
+                ),
+            ),
           ),
         )
         .limit(OBJECT_CLEANUP_BATCH_SIZE)
@@ -431,7 +517,21 @@ export class PostgresObjectCleanupStore implements ObjectCleanupStore {
           ),
         );
       const linkedIds = new Set(linked.map((row) => row.referenceId));
-      const expired = rows.filter((row) => !linkedIds.has(row.id));
+      // Adoption takes this upload's row lock before writing its immutable scheme reference.
+      // Re-read after acquiring locks: the candidate SELECT may predate that commit.
+      const schemeReferences = await tx
+        .select({ objectKey: designSchemeGenerationReferences.objectKey })
+        .from(designSchemeGenerationReferences)
+        .where(
+          inArray(
+            designSchemeGenerationReferences.objectKey,
+            rows.map((row) => row.objectKey),
+          ),
+        );
+      const schemeKeys = new Set(schemeReferences.map((row) => row.objectKey));
+      const expired = rows.filter(
+        (row) => !linkedIds.has(row.id) && !schemeKeys.has(row.objectKey),
+      );
       if (expired.length === 0) return 0;
       const objectKeys = expired.map((row) => row.objectKey);
       await tx
@@ -453,7 +553,7 @@ export class PostgresObjectCleanupStore implements ObjectCleanupStore {
   }
 
   async claimDue(now = new Date()): Promise<ClaimedObjectCleanup[]> {
-    return this.db.transaction(async (tx) => {
+    return runRetentionTransaction(this.db, async (tx) => {
       const rows = await tx
         .select({
           objectKey: objectCleanupQueue.objectKey,
@@ -487,62 +587,38 @@ export class PostgresObjectCleanupStore implements ObjectCleanupStore {
   }
 
   async findProtected(objectKeys: string[], now = new Date()): Promise<ObjectCleanupProtection> {
-    if (objectKeys.length === 0) return { permanent: [], leased: [] };
-    const result = await this.db.execute<{
-      object_key: string;
-      protection: 'permanent' | 'leased';
-    }>(sql`
-      WITH candidates(object_key) AS (
-        VALUES ${sql.join(
-          objectKeys.map((key) => sql`(${key})`),
-          sql`, `,
-        )}
-      )
-      SELECT DISTINCT object_key, protection
-      FROM (
-        SELECT ga.object_key, 'permanent'::text AS protection
-        FROM generation_assets ga
-        WHERE ga.object_key IN (${sql.join(
-          objectKeys.map((key) => sql`${key}`),
-          sql`, `,
-        )})
-        UNION ALL
-        SELECT gru.object_key, 'permanent'::text AS protection
-        FROM generation_reference_uploads gru
-        WHERE gru.object_key IN (${sql.join(
-          objectKeys.map((key) => sql`${key}`),
-          sql`, `,
-        )})
-          AND EXISTS (
-            SELECT 1
-            FROM generation_reference_links grl
-            WHERE grl.reference_id = gru.id AND grl.user_id = gru.user_id
-          )
-        UNION ALL
-        SELECT candidate.object_key, 'leased'::text AS protection
-        FROM candidates candidate
-        JOIN generation_runs run
-          ON left(
-            candidate.object_key,
-            length('users/' || run.user_id || '/generations/' || run.id || '/')
-          ) = 'users/' || run.user_id || '/generations/' || run.id || '/'
-        WHERE run.status IN ('queued', 'running', 'cancelling')
-          AND (run.status = 'queued' OR run.lease_expires_at > ${now})
-      ) protected
-    `);
-    const permanent = new Set<string>();
-    const leased = new Set<string>();
-    for (const row of result.rows) {
-      if (row.protection === 'permanent') permanent.add(row.object_key);
-      else leased.add(row.object_key);
+    return findProtectedObjects(this.db, objectKeys, now);
+  }
+
+  async authorizeDeletion(
+    objectKeys: string[],
+    now = new Date(),
+  ): Promise<ObjectCleanupProtection> {
+    try {
+      return await retireUnprotectedObjects(this.db, objectKeys, now);
+    } catch (error) {
+      if (!isStorageKeyLockContention(error) || objectKeys.length === 1) throw error;
+      // A key whose advisory lock is held has an in-flight publication or retirement.
+      // It must not roll back co-claimed keys: retire key-by-key and defer the
+      // contested one as if leased; its serialized writer resolves the next round.
+      const merged: ObjectCleanupProtection = { permanent: [], leased: [] };
+      for (const objectKey of objectKeys) {
+        try {
+          const protection = await retireUnprotectedObjects(this.db, [objectKey], now);
+          merged.permanent.push(...protection.permanent);
+          merged.leased.push(...protection.leased);
+        } catch (error) {
+          if (!isStorageKeyLockContention(error)) throw error;
+          merged.leased.push(objectKey);
+        }
+      }
+      return merged;
     }
-    for (const objectKey of permanent) leased.delete(objectKey);
-    return { permanent: [...permanent], leased: [...leased] };
   }
 
   async acknowledge(objectKeys: string[]): Promise<void> {
     if (objectKeys.length === 0) return;
-    await this.db.transaction(async (tx) => {
+    await runRetentionTransaction(this.db, async (tx) => {
       await removeAcknowledgedReferenceUploads(tx, objectKeys);
       await acknowledgeObjectCleanup(tx, objectKeys);
     });
@@ -550,26 +626,37 @@ export class PostgresObjectCleanupStore implements ObjectCleanupStore {
 
   async discardProtected(objectKeys: string[]): Promise<void> {
     if (objectKeys.length === 0) return;
-    await this.db.transaction(async (tx) => {
+    // Import source/asset objects must retain a durable cleanup intent after promotion, including
+    // after an account cascade removes their registry. Revisit while canonical references protect them.
+    const imported = objectKeys.filter((key) => key.startsWith('scheme-imports/'));
+    const ordinary = objectKeys.filter((key) => !key.startsWith('scheme-imports/'));
+    if (!objectKeys.length) return;
+    await runRetentionTransaction(this.db, async (tx) => {
+      if (imported.length) await deferObjectCleanup(tx, imported);
+      if (!ordinary.length) return;
       await tx
         .update(generationReferenceUploads)
         .set({ status: 'available', cleanupQueuedAt: null })
         .where(
           and(
-            inArray(generationReferenceUploads.objectKey, objectKeys),
+            inArray(generationReferenceUploads.objectKey, ordinary),
             eq(generationReferenceUploads.status, 'cleanup_pending'),
           ),
         );
-      await acknowledgeObjectCleanup(tx, objectKeys);
+      await acknowledgeObjectCleanup(tx, ordinary);
     });
   }
 
   async deferLeased(objectKeys: string[], now = new Date()): Promise<void> {
-    await deferObjectCleanup(this.db, objectKeys, now);
+    if (!objectKeys.length) return;
+    await runRetentionTransaction(this.db, (tx) => deferObjectCleanup(tx, objectKeys, now));
   }
 
   async fail(objectKeys: string[], error: unknown, now = new Date()): Promise<void> {
-    await markObjectCleanupAttemptFailed(this.db, objectKeys, error, now, true);
+    if (!objectKeys.length) return;
+    await runRetentionTransaction(this.db, (tx) =>
+      markObjectCleanupAttemptFailed(tx, objectKeys, error, now, true),
+    );
   }
 }
 
@@ -577,7 +664,7 @@ export async function processObjectCleanupBatch(
   store: ObjectCleanupStore,
   s3: S3Client,
   bucket: string,
-  remove: NonNullable<GenerationAttemptDependencies['remove']> = removeObjects,
+  remove: NonNullable<TaskDependencies['remove']> = removeObjects,
   now = new Date(),
 ): Promise<{ expiredReferences: number; deleted: number; protected: number; failed: number }> {
   const expiredReferences = await store.queueExpiredReferences(now);
@@ -586,7 +673,7 @@ export async function processObjectCleanupBatch(
   if (objectKeys.length === 0) {
     return { expiredReferences, deleted: 0, protected: 0, failed: 0 };
   }
-  const protection = await store.findProtected(objectKeys, now);
+  const protection = await store.authorizeDeletion(objectKeys, now);
   const permanentSet = new Set(protection.permanent);
   const leasedSet = new Set(protection.leased);
   const deletable = objectKeys.filter(
@@ -622,7 +709,7 @@ export async function processObjectCleanupBatches(
   store: ObjectCleanupStore,
   s3: S3Client,
   bucket: string,
-  remove: NonNullable<GenerationAttemptDependencies['remove']> = removeObjects,
+  remove: NonNullable<TaskDependencies['remove']> = removeObjects,
   now = new Date(),
   maxBatches = 10,
 ): Promise<{ expiredReferences: number; deleted: number; protected: number; failed: number }> {
@@ -665,10 +752,11 @@ export function createTaskList(deps: TaskDependencies): TaskList {
     epoch: number,
     code: string,
     message: string,
+    confirmedNotSent = false,
   ): Promise<void> {
     await db.transaction(async (tx) => {
       const rows = await tx
-        .select({ status: generationRuns.status, attemptCount: generationRuns.attemptCount })
+        .select()
         .from(generationRuns)
         .where(
           and(
@@ -702,8 +790,16 @@ export function createTaskList(deps: TaskDependencies): TaskList {
             ),
           )
           .returning({ id: generationRuns.id });
-        if (updated.length > 0)
+        if (updated.length > 0) {
+          await synchronizeExecutionReceipt(tx, current, 'cancelled', { confirmedNotSent });
+          await synchronizeDesignSchemeRun(
+            tx,
+            { id: runId, userId, designSchemeRunId: current.designSchemeRunId },
+            'cancelled',
+            { now: new Date() },
+          );
           await appendEvent(tx, userId, runId, 'generation.cancelled', { code });
+        }
         return;
       }
       const updated = await tx
@@ -726,7 +822,24 @@ export function createTaskList(deps: TaskDependencies): TaskList {
           ),
         )
         .returning({ id: generationRuns.id });
-      if (updated.length > 0) await appendEvent(tx, userId, runId, 'generation.failed', { code });
+      if (updated.length > 0) {
+        await synchronizeExecutionReceipt(tx, current, 'failed', { confirmedNotSent });
+        await synchronizeDesignSchemeRun(
+          tx,
+          { id: runId, userId, designSchemeRunId: current.designSchemeRunId },
+          'failed',
+          {
+            now: new Date(),
+            error: {
+              code,
+              message: message.trim().slice(0, 500) || '生成执行失败',
+              retryable: false,
+              recoveryAction: 'none',
+            },
+          },
+        );
+        await appendEvent(tx, userId, runId, 'generation.failed', { code });
+      }
     });
   }
 
@@ -736,11 +849,7 @@ export function createTaskList(deps: TaskDependencies): TaskList {
   ): Promise<GenerationTransition> {
     return db.transaction(async (tx) => {
       const current = await tx
-        .select({
-          status: generationRuns.status,
-          attemptCount: generationRuns.attemptCount,
-          leaseExpiresAt: generationRuns.leaseExpiresAt,
-        })
+        .select()
         .from(generationRuns)
         .where(
           and(
@@ -775,6 +884,17 @@ export function createTaskList(deps: TaskDependencies): TaskList {
           )
           .returning({ id: generationRuns.id });
         if (updated.length === 0) return 'skip';
+        await synchronizeExecutionReceipt(tx, currentRun, 'cancelled');
+        await synchronizeDesignSchemeRun(
+          tx,
+          {
+            id: owner.runId,
+            userId: owner.userId,
+            designSchemeRunId: currentRun.designSchemeRunId,
+          },
+          'cancelled',
+          { now: new Date() },
+        );
         await appendEvent(tx, owner.userId, owner.runId, 'generation.cancelled', {
           reason: 'cancelled_during_run',
         });
@@ -813,6 +933,13 @@ export function createTaskList(deps: TaskDependencies): TaskList {
         )
         .returning({ id: generationRuns.id });
       if (updated.length === 0) throw new LeaseLostError();
+      await synchronizeExecutionReceipt(tx, currentRun, 'succeeded');
+      await synchronizeDesignSchemeRun(
+        tx,
+        { id: owner.runId, userId: owner.userId, designSchemeRunId: currentRun.designSchemeRunId },
+        'completed',
+        { now: new Date(), uploaded },
+      );
       await appendEvent(tx, owner.userId, owner.runId, 'generation.succeeded', {
         assetCount: uploaded.length,
       });
@@ -820,19 +947,102 @@ export function createTaskList(deps: TaskDependencies): TaskList {
     });
   }
 
-  return {
-    'maintenance.cleanup': async () => {
-      await db
-        .delete(rateLimitBuckets)
-        .where(lte(rateLimitBuckets.updatedAt, sql`now() - interval '2 days'`));
-      await processObjectCleanupBatches(cleanupStore, s3, env.S3_BUCKET, deps.remove);
-    },
+  const cleanup: TaskList[string] = async (_payload, helpers) => {
+    if (env.MAINTENANCE_CLEANUP_PAUSED) {
+      helpers?.logger?.info('[maintenance] paused');
+      return;
+    }
+    let stage = 'package_stages';
+    // Only explicitly selected counters enter logs; no row IDs, content, object
+    // keys or raw SQL errors. Completed stages remain committed if a later one fails.
+    const report = (counts: Record<string, number>) =>
+      helpers?.logger?.info(`[maintenance] ${JSON.stringify({ stage, ...counts })}`);
+    try {
+      report({ retired: await retireDesignSchemePackageStages(db) });
+      stage = 'source_preparations';
+      report({ retired: await retireDesignSchemeSourcePreparations(db) });
+      stage = 'account_recovery';
+      report(await clearExpiredAccountRecoverySecretBatches(db));
+      stage = 'rate_limits';
+      report(await purgeExpiredRateLimitBuckets(db));
+      stage = 'generation_runs';
+      const runs = await purgeExpiredSoftDeletedRuns(db);
+      report({ purged: runs.purged, queuedObjects: runs.objectKeys.length });
+      stage = 'prompts';
+      report(await purgeExpiredSoftDeletedPrompts(db));
+      stage = 'sync';
+      report(await trimExpiredSyncRecords(db));
+      stage = 'objects';
+      report(await processObjectCleanupBatches(cleanupStore, s3, env.S3_BUCKET, deps.remove));
+    } catch {
+      // Graphile persists and logs thrown errors. Keep retries without persisting
+      // database query parameters or storage credentials in the job error field.
+      throw new Error(`Maintenance stage failed: ${stage}`);
+    }
+  };
+  // 防卡死巡检(crontab 每分钟):租约过期的 running/cancelling 与超时 queued 重新入队,
+  // 恢复动作由 generate 任务 acquire 阶段的 decideLeaseRecovery 裁决(mark_unknown/mark_cancelled/continue)。
+  const reconcile = async () => {
+    await reconcileStaleRuns(db);
+  };
 
-    // 防卡死巡检(crontab 每分钟):租约过期的 running/cancelling 与超时 queued 重新入队,
-    // 恢复动作由 generate 任务 acquire 阶段的 decideLeaseRecovery 裁决(mark_unknown/mark_cancelled/continue)。
-    'generation.reconcile': async () => {
-      await reconcileStaleRuns(db);
-    },
+  const inventory: TaskList[string] = async (payload, helpers) => {
+    if (env.MAINTENANCE_CLEANUP_PAUSED) {
+      helpers?.logger?.info('[inventory] paused');
+      return;
+    }
+    const request = inventoryScanRequestSchema.safeParse(payload ?? {});
+    if (!request.success) throw new Error('InvalidInventoryRequest');
+    const scopeId = inventoryScopeId(
+      env.S3_BUCKET,
+      env.S3_ENDPOINT ?? `aws:${env.S3_REGION ?? 'auto'}`,
+    );
+    try {
+      for (const prefix of INVENTORY_PREFIXES) {
+        const counts = await scanObjectInventoryPage(
+          { db, s3, bucket: env.S3_BUCKET, scopeId },
+          prefix,
+          request.data.mode,
+        );
+        helpers?.logger?.info(
+          `[inventory] ${JSON.stringify({ prefix, mode: request.data.mode, ...counts })}`,
+        );
+      }
+      const deleted = await processObjectInventoryCandidates(
+        { db, s3, bucket: env.S3_BUCKET, scopeId },
+        request.data.mode,
+      );
+      helpers?.logger?.info(`[inventory-delete] ${JSON.stringify(deleted)}`);
+    } catch {
+      throw new Error('ObjectInventoryScanFailed');
+    }
+  };
+
+  // D02.7 read-only observation seam. Intentionally NOT gated by
+  // MAINTENANCE_CLEANUP_PAUSED: a paused executor is exactly when operators
+  // watch these counters. Pure SELECT aggregation; logs counts only — object
+  // identities stay as SHA-256 hashes inside the snapshot, never in logs.
+  const safetySnapshot: TaskList[string] = async (_payload, helpers) => {
+    const snapshot = await collectObjectMaintenanceSnapshot(db);
+    helpers?.logger?.info(
+      `[maintenance-safety] ${JSON.stringify({
+        outbox: snapshot.outbox,
+        inventory: snapshot.inventory,
+        retired: snapshot.retired,
+        totals: snapshot.totals,
+      })}`,
+    );
+  };
+
+  return {
+    'maintenance.safety-snapshot': safetySnapshot,
+    'maintenance/safety-snapshot': safetySnapshot,
+    'maintenance.inventory': inventory,
+    'maintenance/inventory': inventory,
+    'maintenance.cleanup': cleanup,
+    'maintenance/cleanup': cleanup,
+    'generation.reconcile': reconcile,
+    'generation/reconcile': reconcile,
 
     'generation.generate': async (rawPayload) => {
       const payload = rawPayload as GenerationPayload;
@@ -858,8 +1068,23 @@ export function createTaskList(deps: TaskDependencies): TaskList {
           .for('update');
         const run = rows[0];
         if (!run) return null;
-        if (run.status !== 'queued') {
-          const action = decideLeaseRecovery(run);
+        const [receipt] = run.executionReceiptId
+          ? await tx
+              .select()
+              .from(generationExecutionReceipts)
+              .where(
+                and(
+                  eq(generationExecutionReceipts.id, run.executionReceiptId),
+                  eq(generationExecutionReceipts.principalId, run.userId),
+                ),
+              )
+              .for('update')
+          : [];
+        if (run.status !== 'queued' || run.upstreamRequestSent || receipt?.dispatch === 'claimed') {
+          const action =
+            run.upstreamRequestSent || receipt?.dispatch === 'claimed'
+              ? 'mark_unknown'
+              : decideLeaseRecovery(run);
           if (action === 'mark_unknown') {
             await tx
               .update(generationRuns)
@@ -878,6 +1103,16 @@ export function createTaskList(deps: TaskDependencies): TaskList {
                   eq(generationRuns.attemptCount, run.attemptCount),
                 ),
               );
+            await synchronizeExecutionReceipt(tx, run, 'failed');
+            await synchronizeDesignSchemeRun(tx, run, 'failed', {
+              now: new Date(),
+              error: {
+                code: 'GENERATION_UPSTREAM_UNKNOWN',
+                message: 'worker 在上游请求完成前退出，结果无法确认',
+                retryable: false,
+                recoveryAction: 'none',
+              },
+            });
             await appendEvent(tx, payload.userId, payload.runId, 'generation.failed', {
               code: 'GENERATION_UPSTREAM_UNKNOWN',
             });
@@ -899,12 +1134,49 @@ export function createTaskList(deps: TaskDependencies): TaskList {
                   eq(generationRuns.attemptCount, run.attemptCount),
                 ),
               );
+            await synchronizeExecutionReceipt(tx, run, 'cancelled');
+            await synchronizeDesignSchemeRun(tx, run, 'cancelled', { now: new Date() });
             await appendEvent(tx, payload.userId, payload.runId, 'generation.cancelled', {
               reason: 'lease_expired_before_upstream',
             });
             return null;
           }
           if (action !== 'continue') return null;
+        }
+        if (
+          receipt?.bindingState !== 'bound' ||
+          !receipt.binding ||
+          receipt.originalRunId !== run.id ||
+          !receipt.authorizingSessionId ||
+          !receipt.authRevision ||
+          receipt.dispatch !== 'not_started' ||
+          receipt.purgedAt
+        ) {
+          await tx
+            .update(generationRuns)
+            .set({
+              status: 'failed',
+              progress: 100,
+              errorCode: 'ACCOUNT_IDENTITY_UNVERIFIED',
+              errorMessage: '历史任务缺少可信执行授权，请重新登录后重新提交',
+              finishedAt: new Date(),
+              leaseExpiresAt: null,
+            })
+            .where(eq(generationRuns.id, run.id));
+          await synchronizeExecutionReceipt(tx, run, 'failed');
+          await synchronizeDesignSchemeRun(tx, run, 'failed', {
+            now: new Date(),
+            error: {
+              code: 'ACCOUNT_IDENTITY_UNVERIFIED',
+              message: '历史任务缺少可信执行授权，请重新提交',
+              retryable: false,
+              recoveryAction: 'none',
+            },
+          });
+          await appendEvent(tx, run.userId, run.id, 'generation.failed', {
+            code: 'ACCOUNT_IDENTITY_UNVERIFIED',
+          });
+          return null;
         }
         const nextEpoch = run.attemptCount + 1;
         const updated = await tx
@@ -926,10 +1198,14 @@ export function createTaskList(deps: TaskDependencies): TaskList {
           )
           .returning({ id: generationRuns.id });
         if (updated.length === 0) return null;
+        await synchronizeExecutionReceipt(tx, run, 'running');
+        const schemeContext = await synchronizeDesignSchemeRun(tx, run, 'executing', {
+          now: new Date(),
+        });
         await appendEvent(tx, payload.userId, payload.runId, 'generation.running', {
           attemptCount: nextEpoch,
         });
-        return { ...run, attemptCount: nextEpoch };
+        return { ...run, attemptCount: nextEpoch, schemeContext };
       });
       if (!acquired) return;
 
@@ -940,6 +1216,7 @@ export function createTaskList(deps: TaskDependencies): TaskList {
         payload.runId,
         acquired.attemptCount,
         abortController,
+        { env, request: acquired.request },
       );
       lease.start();
 
@@ -959,39 +1236,30 @@ export function createTaskList(deps: TaskDependencies): TaskList {
       }
 
       try {
-        const credentialRows = await db
-          .select({ ciphertext: accountCredentials.ciphertext })
-          .from(accountCredentials)
-          .where(
-            and(
-              eq(accountCredentials.userId, payload.userId),
-              eq(accountCredentials.provider, 'new-api'),
-            ),
-          );
-        const credentialRow = credentialRows[0];
-        if (!credentialRow) {
-          throw new UpstreamImageError('rejected', '账号生图凭据不存在，请重新登录');
-        }
-        const credential = openJsonFromString<{ apiKey: string }>(
-          credentialRow.ciphertext,
-          env.CREDENTIAL_ENCRYPTION_KEY,
-        );
-        const references = await downloadReferences(s3, env.S3_BUCKET, payload.userId, request);
+        if (acquired.schemeContext) assertSchemeGenerationRequest(acquired.schemeContext, request);
+        const references = acquired.designSchemeRunId
+          ? await downloadDesignSchemeReferences(db, s3, env.S3_BUCKET, payload, request)
+          : await downloadReferences(s3, env.S3_BUCKET, payload.userId, request);
         await executeGenerationAttempt({
           s3,
           bucket: env.S3_BUCKET,
-          baseUrl: env.NEW_API_BASE_URL,
           owner: {
             userId: payload.userId,
             runId: payload.runId,
             epoch: acquired.attemptCount,
           },
           request,
-          apiKey: credential.apiKey,
           references,
           lease,
-          markFailed: (code, message) =>
-            markFailed(payload.userId, payload.runId, acquired.attemptCount, code, message),
+          markFailed: (code, message, confirmedNotSent) =>
+            markFailed(
+              payload.userId,
+              payload.runId,
+              acquired.attemptCount,
+              code,
+              message,
+              confirmedNotSent,
+            ),
           finalize: (uploaded) =>
             finalizeGeneration(
               {
@@ -1003,7 +1271,6 @@ export function createTaskList(deps: TaskDependencies): TaskList {
             ),
           generate: deps.generate,
           upload: deps.upload,
-          remove: deps.remove,
           enqueueCleanup: (objectKeys, nextAttemptAt) => {
             const now = new Date();
             return enqueueObjectCleanup(
@@ -1019,8 +1286,6 @@ export function createTaskList(deps: TaskDependencies): TaskList {
             );
           },
           acknowledgeCleanup: (objectKeys) => acknowledgeObjectCleanup(db, objectKeys),
-          recordCleanupFailure: (objectKeys, error) =>
-            markObjectCleanupAttemptFailed(db, objectKeys, error),
         });
       } catch (error) {
         const mapped = mapGenerationError(error);
@@ -1089,15 +1354,22 @@ export async function uploadImagesForGeneration(
     const objectKey = `users/${payload.userId}/generations/${payload.runId}/${id}`;
     await beforeUpload?.(objectKey);
     uploadedObjectKeys.push(objectKey);
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: objectKey,
-        Body: image.bytes,
-        ContentType: image.mimeType,
-        Metadata: { runId: payload.runId },
-      }),
-    );
+    try {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: objectKey,
+          Body: image.bytes,
+          ContentType: image.mimeType,
+          Metadata: { runId: payload.runId },
+        }),
+      );
+    } catch (error) {
+      throw Object.assign(new Error('成图保存失败，请重试'), {
+        name: 'ObjectStorageError',
+        cause: error,
+      });
+    }
     uploaded.push({ ...image, id, objectKey, checksum: imageChecksum(image.bytes) });
   }
   return uploaded;

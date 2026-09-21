@@ -8,20 +8,54 @@ import type { MusefoldGateway, PromptsGateway } from '@musefold/platform';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { TooltipProvider } from '@musefold/ui/components/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useScreenIntent } from '../../shell/screen-intent-store';
 import { useActiveSession } from '../../workbench/session-store';
 import { promptToWorkbenchDraft } from '../hooks';
+import { PromptEditorDialog } from '../PromptEditorDialog';
 import { PromptLibraryScreen, type PromptLibraryScreenProps } from '../PromptLibraryScreen';
 
 /** Radix Tabs 等组件依赖完整 pointer 事件序列,统一走 user-event。 */
 const user = userEvent.setup({ pointerEventsCheck: 0 });
 
+/** 可控 matchMedia:与 app-shell 单测同构,用于强制 (min-width: 760px) 双列。 */
+function stubMatchMedia(initialMatches: boolean) {
+  let matches = initialMatches;
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const stub = vi.fn().mockImplementation((query: string) => ({
+    get matches() {
+      return matches;
+    },
+    media: query,
+    onchange: null,
+    addEventListener: (_type: string, cb: (event: MediaQueryListEvent) => void) =>
+      listeners.add(cb),
+    removeEventListener: (_type: string, cb: (event: MediaQueryListEvent) => void) =>
+      listeners.delete(cb),
+    addListener: (cb: (event: MediaQueryListEvent) => void) => listeners.add(cb),
+    removeListener: (cb: (event: MediaQueryListEvent) => void) => listeners.delete(cb),
+    dispatchEvent: () => false,
+  }));
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: stub,
+  });
+  return {
+    setMatches(next: boolean) {
+      matches = next;
+      act(() => {
+        for (const cb of listeners) cb({ matches } as MediaQueryListEvent);
+      });
+    },
+  };
+}
+
 /** 内存版 prompts gateway:形状对齐 contracts,行为够 UI 流程断言。 */
-function createMemoryPromptsGateway(): PromptsGateway {
+function createMemoryPromptsGateway(options?: { pageSize?: number }): PromptsGateway {
   let seq = 0;
   const now = () => new Date().toISOString().replace(/Z$/, '+00:00');
   const documents = new Map<string, PromptDocument>();
@@ -65,10 +99,15 @@ function createMemoryPromptsGateway(): PromptsGateway {
   return {
     list: async (query: PromptListQuery) => {
       let rows = [...documents.values()];
-      if (!query.includeDeleted) rows = rows.filter((row) => row.deletedAt == null);
+      if (query.deletedOnly) rows = rows.filter((row) => row.deletedAt != null);
+      else if (!query.includeDeleted) rows = rows.filter((row) => row.deletedAt == null);
       if (query.pinnedOnly) rows = rows.filter((row) => row.isPinned);
       if (query.q) rows = rows.filter((row) => row.title.includes(query.q ?? ''));
-      return { items: rows, nextCursor: null };
+      if (options?.pageSize == null) return { items: rows, nextCursor: null };
+      const offset = Number(query.cursor ?? 0);
+      const page = rows.slice(offset, offset + options.pageSize);
+      const next = offset + options.pageSize;
+      return { items: page, nextCursor: next < rows.length ? String(next) : null };
     },
     get: async (id) => get(id),
     create: async (input) => create(input),
@@ -158,6 +197,63 @@ function renderLibrary(prompts: PromptsGateway, props?: PromptLibraryScreenProps
   }
   return render(<PromptLibraryScreen {...props} />, { wrapper: Providers });
 }
+
+describe('PromptEditorDialog', () => {
+  const document: PromptDocument = {
+    id: 'prompt-1',
+    title: '原标题',
+    description: null,
+    content: '原文',
+    negative: null,
+    folderId: null,
+    tags: [],
+    modelId: null,
+    params: null,
+    rating: 0,
+    isPinned: false,
+    pinOrder: null,
+    usageCount: 0,
+    lastUsedAt: null,
+    source: 'manual',
+    sourceUrl: null,
+    coverImageUrl: null,
+    version: 1,
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    deletedAt: null,
+  };
+
+  it('同一条提示词的对象引用变化不覆盖正在编辑的字段', () => {
+    const { rerender } = render(
+      <PromptEditorDialog
+        open
+        prompt={document}
+        folders={[]}
+        tags={[]}
+        submitting={false}
+        onOpenChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('prompt-editor-title'), {
+      target: { value: '改过的标题' },
+    });
+    rerender(
+      <PromptEditorDialog
+        open
+        prompt={{ ...document }}
+        folders={[]}
+        tags={[]}
+        submitting={false}
+        onOpenChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+    expect((screen.getByTestId('prompt-editor-title') as HTMLInputElement).value).toBe(
+      '改过的标题',
+    );
+  });
+});
 
 describe('PromptLibraryScreen', () => {
   it('shows empty state, then created prompt appears in the list', async () => {
@@ -677,6 +773,216 @@ describe('PromptEditorDialog dirty guard(未保存修改保护)', () => {
   });
 });
 
+describe('PromptLibraryScreen 密度与虚拟化', () => {
+  async function seedLibrary(count: number, extra?: Partial<NewPromptDocument>, pageSize?: number) {
+    const prompts = createMemoryPromptsGateway(pageSize != null ? { pageSize } : undefined);
+    for (let index = 0; index < count; index += 1) {
+      await prompts.create({
+        ...BASE_INPUT,
+        ...extra,
+        title: `${extra?.title ?? 'item'}-${index}`,
+        content: `content ${index}`,
+        isPinned: extra?.isPinned ?? false,
+      });
+    }
+    return prompts;
+  }
+
+  function promptRowCount(): number {
+    return document.querySelectorAll('[data-testid^="prompt-row-prompt-"]').length;
+  }
+
+  it('行 class 消费密度 token(舒适态仍走原 Tailwind 值)', async () => {
+    const prompts = await seedLibrary(1);
+    renderLibrary(prompts);
+    await waitFor(() => expect(screen.getByTestId('prompt-row-prompt-1')).toBeTruthy());
+    const row = screen.getByTestId('prompt-row-prompt-1');
+    expect(row.className).toContain('--density-row-padding');
+    expect(row.className).toContain('--density-list-gap');
+    expect(row.className).toContain('px-3');
+    expect(row.className).toContain('py-2.5');
+  });
+
+  it('>150 行只渲染视口内若干行,置顶分节常驻', async () => {
+    const prompts = createMemoryPromptsGateway();
+    for (let index = 0; index < 3; index += 1) {
+      await prompts.create({
+        ...BASE_INPUT,
+        title: `pinned-${index}`,
+        content: `pinned ${index}`,
+        isPinned: true,
+      });
+    }
+    for (let index = 0; index < 160; index += 1) {
+      await prompts.create({
+        ...BASE_INPUT,
+        title: `item-${index}`,
+        content: `content ${index}`,
+      });
+    }
+    renderLibrary(prompts);
+    await waitFor(() => expect(screen.getByTestId('prompt-virtual-list')).toBeTruthy());
+    expect(screen.getByTestId('prompt-grid').getAttribute('data-virtualized')).toBe('true');
+    expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('1');
+    expect(screen.getAllByLabelText('已置顶')).toHaveLength(3);
+    expect(promptRowCount()).toBeLessThan(163);
+    expect(promptRowCount()).toBeGreaterThan(3);
+  });
+
+  it('哨兵在虚拟列表末尾仍能触发下一页', async () => {
+    const observed: Element[] = [];
+    const sentinel: { trigger: (() => void) | null } = { trigger: null };
+    class FakeObserver {
+      constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        sentinel.trigger = () => callback([{ isIntersecting: true }]);
+      }
+      observe(node: Element) {
+        observed.push(node);
+      }
+      disconnect() {
+        sentinel.trigger = null;
+      }
+    }
+    const original = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = FakeObserver as unknown as typeof IntersectionObserver;
+    try {
+      const prompts = await seedLibrary(180, undefined, 160);
+      renderLibrary(prompts);
+      await waitFor(() => expect(screen.getByTestId('prompt-virtual-list')).toBeTruthy());
+      await waitFor(() => expect(screen.getByTestId('prompt-scroll-sentinel')).toBeTruthy());
+      expect(observed).toHaveLength(1);
+      sentinel.trigger?.();
+      await waitFor(() => expect(screen.getByTestId('prompt-count').textContent).toBe('180 条'));
+      expect(promptRowCount()).toBeLessThan(180);
+    } finally {
+      globalThis.IntersectionObserver = original;
+    }
+  });
+});
+
+describe('提示词库双列自适应(B5-T2)', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  });
+
+  it('jsdom 默认 matchMedia 为假,「全部」保持单列', async () => {
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({ ...BASE_INPUT, title: '单列甲', content: 'a' });
+    await prompts.create({ ...BASE_INPUT, title: '单列乙', content: 'b' });
+    renderLibrary(prompts);
+
+    const grid = await screen.findByTestId('prompt-grid');
+    expect(grid.getAttribute('data-columns')).toBe('1');
+    expect(screen.getByTestId('prompt-row-prompt-1').parentElement?.className).not.toContain(
+      'grid-cols-2',
+    );
+  });
+
+  it('视口 ≥760px 且详情关闭时「全部」为 2 列,两行落在同一格行', async () => {
+    stubMatchMedia(true);
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({ ...BASE_INPUT, title: '列一', content: 'a' });
+    await prompts.create({ ...BASE_INPUT, title: '列二', content: 'b' });
+    await prompts.create({ ...BASE_INPUT, title: '列三', content: 'c' });
+    renderLibrary(prompts);
+
+    const grid = await screen.findByTestId('prompt-grid');
+    expect(grid.getAttribute('data-columns')).toBe('2');
+
+    const first = screen.getByTestId('prompt-row-prompt-1');
+    const second = screen.getByTestId('prompt-row-prompt-2');
+    expect(first.parentElement).toBe(second.parentElement);
+    expect(first.parentElement?.className).toContain('grid-cols-2');
+    expect(first.parentElement?.className).toContain('gap-x-7');
+    expect(screen.getByTestId('prompt-row-prompt-3').parentElement).toBe(first.parentElement);
+  });
+
+  it('详情开启或视口收窄时回单列', async () => {
+    const media = stubMatchMedia(true);
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({ ...BASE_INPUT, title: '开详情', content: 'a' });
+    await prompts.create({ ...BASE_INPUT, title: '旁行', content: 'b' });
+    renderLibrary(prompts);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('2');
+    });
+
+    fireEvent.click(screen.getAllByTestId('prompt-row-open')[0] as HTMLElement);
+    await screen.findByTestId('prompt-detail');
+    expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('1');
+    expect(screen.getByTestId('prompt-row-prompt-1').parentElement?.className).not.toContain(
+      'grid-cols-2',
+    );
+
+    fireEvent.click(screen.getByTestId('prompt-detail-close'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-detail')).toBeNull();
+    });
+    expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('2');
+
+    media.setMatches(false);
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('1');
+    });
+  });
+
+  it('置顶分节始终单列,「全部」才双列', async () => {
+    stubMatchMedia(true);
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({ ...BASE_INPUT, title: '钉一', content: 'p1', isPinned: true });
+    await prompts.create({ ...BASE_INPUT, title: '钉二', content: 'p2', isPinned: true });
+    await prompts.create({ ...BASE_INPUT, title: '普一', content: 'a' });
+    await prompts.create({ ...BASE_INPUT, title: '普二', content: 'b' });
+    renderLibrary(prompts);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('2');
+    });
+
+    const pinnedFirst = screen.getByTestId('prompt-row-prompt-1');
+    const pinnedSecond = screen.getByTestId('prompt-row-prompt-2');
+    expect(pinnedFirst.closest('.grid-cols-2')).toBeNull();
+    expect(pinnedSecond.closest('.grid-cols-2')).toBeNull();
+
+    const restFirst = screen.getByTestId('prompt-row-prompt-3');
+    const restSecond = screen.getByTestId('prompt-row-prompt-4');
+    expect(restFirst.parentElement).toBe(restSecond.parentElement);
+    expect(restFirst.parentElement?.className).toContain('grid-cols-2');
+  });
+
+  it('宽屏虚拟化按行成对:每个虚拟行两格', async () => {
+    stubMatchMedia(true);
+    const prompts = createMemoryPromptsGateway();
+    for (let index = 0; index < 160; index += 1) {
+      await prompts.create({
+        ...BASE_INPUT,
+        title: `wide-${index}`,
+        content: `content ${index}`,
+      });
+    }
+    renderLibrary(prompts);
+
+    await waitFor(() => expect(screen.getByTestId('prompt-virtual-list')).toBeTruthy());
+    expect(screen.getByTestId('prompt-grid').getAttribute('data-columns')).toBe('2');
+    const firstVirtualRow = screen
+      .getByTestId('prompt-virtual-list')
+      .querySelector('[data-index="0"]');
+    expect(firstVirtualRow).toBeTruthy();
+    expect(firstVirtualRow?.querySelectorAll('[data-testid^="prompt-row-prompt-"]').length).toBe(2);
+    expect(firstVirtualRow?.firstElementChild?.className).toContain('grid-cols-2');
+    expect(document.querySelectorAll('[data-testid^="prompt-row-prompt-"]').length).toBeLessThan(
+      160,
+    );
+  });
+});
+
 describe('promptToWorkbenchDraft(参数收编与降级)', () => {
   const doc = {
     content: 'poster study',
@@ -701,5 +1007,101 @@ describe('promptToWorkbenchDraft(参数收编与降级)', () => {
       promptToWorkbenchDraft({ ...doc, params: { aspectRatio: '超宽', quality: 'ultra' } }).params,
     ).toEqual({});
     expect(promptToWorkbenchDraft(doc).params).toEqual({});
+  });
+});
+
+describe('trash query completeness and recoverable pagination', () => {
+  it('queries only deleted rows even when live rows fill the entire first normal page', async () => {
+    const prompts = createMemoryPromptsGateway({ pageSize: 30 });
+    for (let i = 0; i < 31; i++)
+      await prompts.create({ ...BASE_INPUT, title: `Live ${i}`, content: 'live' });
+    const trash = await prompts.create({ ...BASE_INPUT, title: 'Visible trash', content: 'trash' });
+    await prompts.remove(trash.id);
+    const read = vi.spyOn(prompts, 'list');
+    renderLibrary(prompts);
+    await user.click(screen.getByTestId('prompt-tab-trash'));
+    expect(await screen.findByText('Visible trash')).toBeTruthy();
+    expect(read).toHaveBeenCalledWith(expect.objectContaining({ deletedOnly: true }));
+    expect(screen.queryByText('Live 0')).toBeNull();
+  });
+
+  it('offers clearing filters instead of claiming a filtered trash view is empty', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const trash = await prompts.create({
+      ...BASE_INPUT,
+      title: 'Filtered trash',
+      content: 'trash',
+    });
+    await prompts.remove(trash.id);
+    renderLibrary(prompts);
+    await user.click(screen.getByTestId('prompt-tab-trash'));
+    await screen.findByText('Filtered trash');
+    fireEvent.change(screen.getByTestId('prompt-search'), { target: { value: 'no-match' } });
+    const clear = await screen.findByTestId('prompt-clear-filters');
+    expect(screen.queryByText('回收站是空的')).toBeNull();
+    await user.click(clear);
+    expect(await screen.findByText('Filtered trash')).toBeTruthy();
+  });
+
+  it('discloses all-trash scope when filtering hides records and cancel preserves both', async () => {
+    const prompts = createMemoryPromptsGateway();
+    const first = await prompts.create({ ...BASE_INPUT, title: 'Visible trash', content: 'a' });
+    const second = await prompts.create({ ...BASE_INPUT, title: 'Hidden trash', content: 'b' });
+    await prompts.remove(first.id);
+    await prompts.remove(second.id);
+    renderLibrary(prompts);
+    await user.click(screen.getByTestId('prompt-tab-trash'));
+    await screen.findByText('Visible trash');
+    fireEvent.change(screen.getByTestId('prompt-search'), { target: { value: 'Visible' } });
+    await waitFor(() => {
+      expect(screen.queryByText('Hidden trash')).toBeNull();
+      expect(screen.getByText('Visible trash')).toBeTruthy();
+    });
+    await user.click(screen.getByTestId('prompt-empty-trash'));
+    const dialog = await screen.findByTestId('prompt-empty-trash-dialog');
+    expect(dialog.textContent).toContain('全部');
+    expect(dialog.textContent).toContain('筛选');
+    await user.click(screen.getByRole('button', { name: '取消' }));
+    expect(await prompts.get(first.id)).toMatchObject({ id: first.id });
+    expect(await prompts.get(second.id)).toMatchObject({ id: second.id });
+    await user.click(screen.getByTestId('prompt-empty-trash'));
+    await user.click(screen.getByTestId('prompt-empty-trash-confirm'));
+    await waitFor(async () => {
+      await expect(prompts.get(first.id)).rejects.toThrow('NOT_FOUND');
+      await expect(prompts.get(second.id)).rejects.toThrow('NOT_FOUND');
+    });
+  });
+
+  it('offers a real retry after the initial query fails', async () => {
+    const prompts = createMemoryPromptsGateway();
+    await prompts.create({ ...BASE_INPUT, title: 'Recovered list', content: 'a' });
+    vi.spyOn(prompts, 'list').mockRejectedValueOnce(new Error('Synthetic read failure'));
+    renderLibrary(prompts);
+    await user.click(await screen.findByTestId('prompt-retry'));
+    expect(await screen.findByText('Recovered list')).toBeTruthy();
+  });
+
+  it('keeps the first page visible after a later page fails and allows recovery', async () => {
+    const prompts = createMemoryPromptsGateway({ pageSize: 1 });
+    await prompts.create({ ...BASE_INPUT, title: 'First page', content: 'a' });
+    await prompts.create({ ...BASE_INPUT, title: 'Second page', content: 'b' });
+    const original = prompts.list.bind(prompts);
+    let fail = true;
+    vi.spyOn(prompts, 'list').mockImplementation((query) =>
+      query.cursor && fail
+        ? Promise.reject(new Error('Synthetic next page failure'))
+        : original(query),
+    );
+    renderLibrary(prompts);
+    await screen.findByText('First page');
+    await user.click(screen.getByTestId('prompt-load-more'));
+    await screen.findByTestId('prompt-error');
+    expect(screen.getByText('First page')).toBeTruthy();
+    fail = false;
+    await user.click(screen.getByTestId('prompt-retry'));
+    await waitFor(() => expect(screen.queryByTestId('prompt-error')).toBeNull());
+    const more = screen.queryByTestId('prompt-load-more');
+    if (more) await user.click(more);
+    expect(await screen.findByText('Second page')).toBeTruthy();
   });
 });

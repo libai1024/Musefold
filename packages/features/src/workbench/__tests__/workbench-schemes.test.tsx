@@ -1,4 +1,6 @@
 import type {
+  AccountModelCatalog,
+  AccountSummary,
   DesignSchemeDetail,
   DesignSchemeEvent,
   DesignSchemeRevisionDocument,
@@ -10,10 +12,11 @@ import type {
 import type { MusefoldGateway } from '@musefold/platform';
 import { PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beginAccountTransition } from '../../account/account-session';
 import {
   type SchemeComposerHandlers,
   type SchemeComposerSubmission,
@@ -22,6 +25,7 @@ import {
   useSchemeIntegration,
 } from '../../design-schemes/integration-store';
 import { useActiveSession } from '../session-store';
+import { modelPreferenceKey } from '../account-model-choice';
 import { WorkbenchScreen } from '../WorkbenchScreen';
 
 const user = userEvent.setup({ pointerEventsCheck: 0 });
@@ -263,6 +267,7 @@ function createMemoryGateway(seed?: { schemes?: DesignSchemeSummary[]; confirmIn
 }
 
 interface RenderOptions {
+  configureGateway?: (gateway: MusefoldGateway) => void;
   submissions?: SchemeComposerSubmission[];
   /**
    * 'full' = 三条生命周期接缝齐备(run 立即成功);'no-submit' = 只接导航不接任何提交缝;
@@ -280,6 +285,7 @@ function renderWorkbench(options: RenderOptions = {}) {
     schemes: options.schemes,
     confirmInstall: options.confirmInstall,
   });
+  options.configureGateway?.(memory.gateway);
   const submissions: SchemeComposerSubmission[] = options.submissions ?? [];
   const onOpenDesignSchemes = vi.fn();
   const fullHandlers: SchemeComposerHandlers = {
@@ -314,6 +320,7 @@ function renderWorkbench(options: RenderOptions = {}) {
   }
   return {
     ...memory,
+    queryClient,
     onOpenDesignSchemes,
     ...render(<WorkbenchScreen designSchemes={designSchemesProp} />, { wrapper: Providers }),
   };
@@ -333,6 +340,237 @@ beforeEach(() => {
     pendingDraft: null,
     draftParamOverrides: {},
   });
+});
+
+describe('scheme image runs use the account model and current cloud price', () => {
+  const account: AccountSummary = {
+    id: 'owner-a',
+    username: 'scheme-model-test',
+    displayName: null,
+    quota: 500000,
+    quotaUnit: 'quota',
+    canGenerate: true,
+    identity: {
+      apiIssuer: 'https://api.test',
+      principalId: 'principal-a',
+      identityVersion: 1,
+      status: 'active',
+    },
+  };
+  function catalog(): AccountModelCatalog {
+    return {
+      identity: {
+        apiIssuer: 'https://api.test',
+        principalId: 'principal-a',
+        payer: { issuer: 'https://upstream.test', ownerId: 'owner-a' },
+        credential: { ref: 'credential-a', version: 1 },
+      },
+      checkedAt: NOW,
+      group: 'vip',
+      models: ['musefold-image-pro', 'gpt-image-2'].map((model, index) => ({
+        model,
+        imageGeneration: true,
+        supportedEndpointTypes: ['image-generation'],
+        pricing: {
+          kind: 'per_call',
+          baseUsd: 0.04,
+          groupRatio: 3,
+          quotaPerCall: 60000 * (index + 1),
+        },
+      })),
+    };
+  }
+  function setup(
+    mode: 'trial' | 'formal' | 'modify' = 'trial',
+    handlers?: Partial<SchemeComposerHandlers>,
+  ) {
+    const read = vi.fn(async () => catalog());
+    const submissions: SchemeComposerSubmission[] = [];
+    let createSession!: ReturnType<typeof vi.spyOn>;
+    const h = renderWorkbench({
+      submissions,
+      handlers,
+      configureGateway(gateway) {
+        gateway.account = {
+          getStatus: async () => account,
+          getModelCatalog: read,
+        } as unknown as MusefoldGateway['account'];
+        gateway.generation.listProviders = async () => [
+          {
+            id: 'cloud-default',
+            label: 'Musefold 云生图',
+            model: 'musefold-image-pro',
+            kind: 'cloud',
+            available: true,
+          },
+        ];
+        createSession = vi.spyOn(gateway.workbench, 'createSession');
+      },
+    });
+    setSchemeWorkbenchIntent({
+      kind: 'attach',
+      attachment: {
+        schemeId: 'scheme-1',
+        revisionId: 'revision-2',
+        expectedVersion: 3,
+        name: '海报',
+        summary: '',
+        mode,
+        fidelity: 'faithful',
+        sourceLabel: 'Musefold 创建',
+        inputs: [],
+        coverAssetId: null,
+        hasSuccessfulTrial: mode === 'formal',
+      },
+    });
+    return { ...h, read, submissions, createSession };
+  }
+  beforeEach(() => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+    localStorage.setItem(modelPreferenceKey(catalog()), 'gpt-image-2');
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each(['trial', 'formal'] as const)(
+    'submits the displayed model and unchanged revision for %s, excluding concurrent clicks',
+    async (mode) => {
+      const pending = deferred<AccountModelCatalog>();
+      const h = setup(mode);
+      await waitFor(() =>
+        expect(screen.getByTestId('composer-model-price').textContent).toContain('2.4 积分'),
+      );
+      await user.type(screen.getByTestId('composer-prompt'), '保留这次方案要求');
+      h.read.mockImplementationOnce(() => pending.promise);
+      const submit = screen.getByTestId('composer-submit');
+      act(() => {
+        fireEvent.click(submit);
+        fireEvent.click(submit);
+      });
+      await waitFor(() => expect(h.read).toHaveBeenCalledTimes(2));
+      expect(h.createSession).not.toHaveBeenCalled();
+      expect(h.submissions).toHaveLength(0);
+      expect(screen.getByRole('combobox', { name: '账号模型' }).hasAttribute('disabled')).toBe(
+        true,
+      );
+      await act(async () => pending.resolve(catalog()));
+      await waitFor(() => expect(h.submissions).toHaveLength(1));
+      expect(h.createSession).toHaveBeenCalledOnce();
+      expect(h.submissions[0]).toMatchObject({
+        kind: 'run',
+        brief: '保留这次方案要求',
+        model: 'gpt-image-2',
+        attachment: { mode, revisionId: 'revision-2', expectedVersion: 3 },
+        expectedBinding: { model: 'gpt-image-2', principalId: 'principal-a' },
+      });
+      expect(h.generationCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('requires another explicit send after a price change and keeps the original input', async () => {
+    const h = setup();
+    await waitFor(() =>
+      expect(screen.getByTestId('composer-model-price').textContent).toContain('2.4 积分'),
+    );
+    await user.type(screen.getByTestId('composer-prompt'), '价格变化不要自动发送');
+    const changed = catalog();
+    changed.models[1].pricing = {
+      kind: 'per_call',
+      baseUsd: 0.04,
+      groupRatio: 4,
+      quotaPerCall: 160000,
+    };
+    h.read.mockResolvedValue(changed);
+    await user.click(screen.getByTestId('composer-submit'));
+    await waitFor(() =>
+      expect(screen.getByTestId('scheme-submit-error').textContent).toContain('价格已更新'),
+    );
+    expect(h.createSession).not.toHaveBeenCalled();
+    expect(h.submissions).toHaveLength(0);
+    expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+      '价格变化不要自动发送',
+    );
+    expect(screen.getByTestId('composer-model-price').textContent).toContain('3.2 积分');
+    await user.click(screen.getByTestId('composer-submit'));
+    await waitFor(() => expect(h.submissions).toHaveLength(1));
+  });
+
+  it.each(['unpriced', 'removed', 'identity'] as const)(
+    'rejects a newly %s model/identity before any session or scheme request',
+    async (change) => {
+      const h = setup();
+      await waitFor(() =>
+        expect(screen.getByTestId('composer-model-price').textContent).toContain('2.4 积分'),
+      );
+      const next = catalog();
+      if (change === 'unpriced')
+        next.models[1].pricing = { kind: 'unavailable', reason: 'missing_price' };
+      else if (change === 'removed') next.models.pop();
+      else next.identity.credential.version += 1;
+      h.read.mockResolvedValue(next);
+      await user.click(screen.getByTestId('composer-submit'));
+      await screen.findByTestId('scheme-submit-error');
+      expect(h.createSession).not.toHaveBeenCalled();
+      expect(h.submissions).toHaveLength(0);
+    },
+  );
+
+  it.each(['account', 'cancel'] as const)(
+    'does not continue after %s changes while checking the cloud catalog',
+    async (change) => {
+      const pending = deferred<AccountModelCatalog>();
+      const onCancelRun = vi.fn(async () => {});
+      const h = setup('trial', { onCancelRun });
+      await waitFor(() =>
+        expect(screen.getByTestId('composer-model-price').textContent).toContain('2.4 积分'),
+      );
+      h.read.mockImplementationOnce(() => pending.promise);
+      await user.click(screen.getByTestId('composer-submit'));
+      await waitFor(() => expect(h.read).toHaveBeenCalledTimes(2));
+      if (change === 'account')
+        act(() => {
+          beginAccountTransition(h.queryClient);
+        });
+      else await user.click(screen.getByTestId('composer-cancel'));
+      await act(async () => pending.resolve(catalog()));
+      await waitFor(() => expect(screen.queryByTestId('composer-cancel')).toBeNull());
+      expect(h.createSession).not.toHaveBeenCalled();
+      expect(h.submissions).toHaveLength(0);
+      expect(screen.queryByTestId('scheme-submit-error')).toBeNull();
+    },
+  );
+
+  it.each(['create', 'modify'] as const)(
+    'does not use image pricing to authorize text-only %s',
+    async (kind) => {
+      const terminal = deferred<void>();
+      const onCreate = vi.fn(() => terminal.promise);
+      const onModify = vi.fn(() => terminal.promise);
+      const h = setup('modify', { onCreate, onModify });
+      if (kind === 'create')
+        setSchemeWorkbenchIntent({
+          kind: 'create',
+          createKind: 'idea',
+          source: null,
+          seed: '编写方案',
+        });
+      else await user.type(screen.getByTestId('composer-prompt'), '修改方案');
+      expect(screen.queryByRole('combobox', { name: '账号模型' })).toBeNull();
+      await waitFor(() =>
+        expect((screen.getByTestId('composer-submit') as HTMLButtonElement).disabled).toBe(false),
+      );
+      await user.click(screen.getByTestId('composer-submit'));
+      const handler = kind === 'create' ? onCreate : onModify;
+      await waitFor(() => expect(handler).toHaveBeenCalledOnce());
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ kind }));
+      expect(h.read).not.toHaveBeenCalled();
+      expect(h.createSession).not.toHaveBeenCalled();
+      await act(async () => terminal.resolve());
+    },
+  );
 });
 
 /**
@@ -384,6 +622,7 @@ describe('WorkbenchScreen 方案入口闸门', () => {
       attachment: {
         schemeId: 'scheme-1',
         revisionId: 'rev-1',
+        expectedVersion: 3,
         name: '水彩海报',
         summary: '柔和水彩质感的活动海报配方',
         mode: 'trial',
@@ -402,6 +641,98 @@ describe('WorkbenchScreen 方案入口闸门', () => {
 });
 
 describe('WorkbenchScreen 方案选择器与运行提交', () => {
+  it.each([false, true])(
+    'late initial session hydration preserves new scheme input and reference, then allows a session switch (pending prompt: %s)',
+    async (pendingPrompt) => {
+      const pending = deferred<{ items: WorkbenchSession[]; nextCursor: null }>();
+      const past: WorkbenchSession = {
+        id: 'past-session',
+        title: '已有会话',
+        version: 1,
+        draft: {
+          prompt: '旧会话正文',
+          negative: '',
+          params: {},
+          promptReferenceSelections: [],
+          promptReferenceIds: [],
+        },
+        createdAt: NOW,
+        updatedAt: NOW,
+        archivedAt: null,
+        deletedAt: null,
+        latestJobStatus: null,
+        latestJobFinishedAt: null,
+      };
+      const other = {
+        ...past,
+        id: 'other-session',
+        title: '另一会话',
+        draft: { ...past.draft, prompt: '另一会话正文' },
+      };
+      if (pendingPrompt) useActiveSession.getState().setPendingDraft(past.draft);
+      renderWorkbench({
+        configureGateway: (gateway) => {
+          gateway.workbench.listSessions = () => pending.promise;
+          gateway.workbench.getSession = async (id) => (id === other.id ? other : past);
+          gateway.workbench.updateSession = async (id) => (id === other.id ? other : past);
+          gateway.generation.uploadReferenceImage = async (input) => ({
+            id: 'REF0000000000000000000001',
+            url: 'https://example.test/reference.png',
+            name: input.name,
+            mimeType: 'image/png',
+            byteSize: input.bytes.byteLength,
+          });
+        },
+      });
+      setSchemeWorkbenchIntent({
+        kind: 'attach',
+        attachment: {
+          schemeId: 'scheme-1',
+          revisionId: 'rev-1',
+          expectedVersion: 1,
+          name: '新方案',
+          summary: '',
+          mode: 'trial',
+          fidelity: 'faithful',
+          sourceLabel: 'Musefold',
+          inputs: makeDocument().inputs,
+          coverAssetId: null,
+          hasSuccessfulTrial: false,
+        },
+      });
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByTestId('composer-prompt')),
+      );
+      await user.type(screen.getByTestId('scheme-run-variable-subject'), '新主题');
+      await user.clear(screen.getByTestId('composer-prompt'));
+      await user.type(screen.getByTestId('composer-prompt'), '新的试跑要求');
+      await user.upload(
+        screen.getByTestId('composer-file-input'),
+        new File(['image-fixture'], 'reference.png', { type: 'image/png' }),
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId('composer-reference').getAttribute('data-status')).toBe('ready'),
+      );
+      await act(async () => pending.resolve({ items: [past, other], nextCursor: null }));
+      await waitFor(() => expect(useActiveSession.getState().activeSessionId).toBe(past.id));
+      expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+        '新的试跑要求',
+      );
+      expect((screen.getByTestId('scheme-run-variable-subject') as HTMLInputElement).value).toBe(
+        '新主题',
+      );
+      expect(screen.getByTestId('composer-reference').getAttribute('data-status')).toBe('ready');
+      act(() => useActiveSession.getState().setActiveSessionId(other.id));
+      await waitFor(() =>
+        expect((screen.getByTestId('composer-prompt') as HTMLTextAreaElement).value).toBe(
+          '另一会话正文',
+        ),
+      );
+      expect(screen.queryByTestId('composer-reference')).toBeNull();
+      expect(screen.queryByTestId('scheme-run-attachment')).toBeNull();
+    },
+  );
+
   it('「设计方案」选择器:列出正式方案 → 选中挂载附件 → 集齐必需输入后提交到运行缝', async () => {
     const submissions: SchemeComposerSubmission[] = [];
     renderWorkbench({ integration: 'full', submissions, schemes: [makeSummary()] });
@@ -412,6 +743,9 @@ describe('WorkbenchScreen 方案选择器与运行提交', () => {
     expect((screen.getByTestId('composer-submit') as HTMLButtonElement).disabled).toBe(true);
 
     await user.type(await screen.findByTestId('scheme-run-variable-subject'), '猫');
+    await user.click(screen.getByTestId('composer-settings'));
+    await user.click(screen.getByTestId('composer-count-4'));
+    await user.keyboard('{Escape}');
     const submit = screen.getByTestId('composer-submit') as HTMLButtonElement;
     await waitFor(() => expect(submit.disabled).toBe(false));
     await user.click(submit);
@@ -425,6 +759,7 @@ describe('WorkbenchScreen 方案选择器与运行提交', () => {
       expect(submission.inputValues).toEqual({ subject: '猫' });
       expect(submission.providerId).toBe('p1');
       expect(submission.params.quality).toBe('auto');
+      expect(submission.params.count).toBe(4);
       // 运行落在会话账本:草稿态首次运行先建会话,submission 携带会话 id。
       expect(submission.workbenchSessionId).toMatch(/^session-/);
       expect(submission.executionId).toMatch(/[0-9a-f-]{36}/);
@@ -600,6 +935,7 @@ describe('WorkbenchScreen 方案选择器与运行提交', () => {
       attachment: {
         schemeId: 'scheme-img',
         revisionId: 'rev-img',
+        expectedVersion: 3,
         name: '换脸海报',
         summary: '需要一张参考图',
         mode: 'formal',
@@ -959,6 +1295,7 @@ describe('WorkbenchScreen 跨屏方案意图消费', () => {
       attachment: {
         schemeId: 'scheme-2',
         revisionId: 'rev-9',
+        expectedVersion: 3,
         name: '霓虹城市',
         summary: '夜景配方',
         mode: 'modify',
@@ -984,6 +1321,7 @@ describe('WorkbenchScreen 跨屏方案意图消费', () => {
       attachment: {
         schemeId: 'scheme-2',
         revisionId: 'rev-9',
+        expectedVersion: 3,
         name: '霓虹城市',
         summary: '夜景配方',
         mode: 'modify',
@@ -1014,3 +1352,58 @@ describe('WorkbenchScreen 跨屏方案意图消费', () => {
     expect(screen.getByTestId('scheme-run-attachment')).toBeTruthy();
   });
 });
+
+it.each(['session', 'run'] as const)(
+  'scheme reference release: leaving during %s preserves input until the run settles',
+  async (phase) => {
+    const sessionGate = deferred<void>();
+    const runGate = deferred<RunResult>();
+    const release = vi.fn(async () => {});
+    const onRun = vi.fn((submission: SchemeRunSubmission) => runGate.promise);
+    let sessionStarted = false;
+    const view = renderWorkbench({
+      schemes: [makeSummary()],
+      handlers: { onRun },
+      configureGateway(gateway) {
+        const createSession = gateway.workbench.createSession;
+        gateway.workbench.createSession = async (input) => {
+          sessionStarted = true;
+          if (phase === 'session') await sessionGate.promise;
+          return createSession(input);
+        };
+        gateway.generation.releaseReferenceImage = release;
+        gateway.generation.uploadReferenceImage = async (input) => ({
+          id: 'scheme-reference',
+          url: 'https://example.test/ref.png',
+          name: input.name,
+          mimeType: 'image/png',
+          byteSize: input.bytes.byteLength,
+        });
+      },
+    });
+    await attachSchemeViaPicker();
+    await user.type(screen.getByTestId('scheme-run-variable-subject'), '猫');
+    await user.upload(
+      screen.getByTestId('composer-file-input'),
+      new File(['image-fixture'], 'scheme-input.png', { type: 'image/png' }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('composer-reference').getAttribute('data-status')).toBe('ready'),
+    );
+    await user.click(screen.getByTestId('composer-submit'));
+    if (phase === 'session') await waitFor(() => expect(sessionStarted).toBe(true));
+    else await waitFor(() => expect(onRun).toHaveBeenCalledOnce());
+    view.unmount();
+    await act(async () => {});
+    expect(release).not.toHaveBeenCalled();
+    if (phase === 'session') await act(async () => sessionGate.resolve());
+    await waitFor(() => expect(onRun).toHaveBeenCalledOnce());
+    const submission = onRun.mock.calls[0]![0];
+    expect(submission.referenceImages?.[0]?.name).toBe('scheme-input.png');
+    expect(release).not.toHaveBeenCalled();
+    await act(async () => runGate.resolve(makeRunResult(submission)));
+    await waitFor(() =>
+      expect(release).toHaveBeenCalledExactlyOnceWith({ id: 'scheme-reference' }),
+    );
+  },
+);

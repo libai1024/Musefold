@@ -83,3 +83,91 @@ test('密度切换会更新 html data-density', async ({ page }) => {
   await page.getByTestId('settings-density-comfortable').click();
   await expect(page.locator('html')).toHaveAttribute('data-density', 'comfortable');
 });
+
+test('切紧凑后设置页内边距与提示词行高变小', async ({ page, isMobile }) => {
+  const timestamp = new Date().toISOString().replace(/Z$/, '+00:00');
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname.replace(/^\/api\/v1/, '');
+    const method = route.request().method();
+    if (path === '/account/status') {
+      return route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'AUTH_REQUIRED', message: '未登录' }),
+      });
+    }
+    if ((path === '/folders' || path === '/tags') && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    }
+    if (path === '/generations' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], nextCursor: null }),
+      });
+    }
+    if (path === '/prompts' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 'prompt-density',
+              title: '密度行',
+              description: null,
+              content: 'density row',
+              negative: null,
+              folderId: null,
+              tags: [],
+              modelId: null,
+              params: null,
+              rating: 0,
+              isPinned: false,
+              pinOrder: null,
+              usageCount: 0,
+              lastUsedAt: null,
+              source: 'manual',
+              sourceUrl: null,
+              coverImageUrl: null,
+              version: 1,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              deletedAt: null,
+            },
+          ],
+          nextCursor: null,
+        }),
+      });
+    }
+    return route.continue();
+  });
+
+  await page.goto('/prompts');
+  const row = page.locator('[data-testid^="prompt-row-"]').first();
+  await expect(row).toBeVisible();
+  const comfortableRowHeight = await row.evaluate((node) => node.getBoundingClientRect().height);
+
+  await openAppearance(page);
+  const settings = page.getByTestId('settings-screen');
+  const comfortablePadding = await settings.evaluate((node) =>
+    Number.parseFloat(getComputedStyle(node).paddingTop),
+  );
+
+  await page.getByTestId('settings-density-compact').click();
+  await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
+  const compactPadding = await settings.evaluate((node) =>
+    Number.parseFloat(getComputedStyle(node).paddingTop),
+  );
+  expect(compactPadding).toBeLessThan(comfortablePadding);
+
+  if (isMobile) {
+    await page.getByTestId('bottom-nav-prompts').click();
+  } else {
+    await page.getByTestId('nav-prompts').click();
+  }
+  await expect(row).toBeVisible();
+  const compactRowHeight = await row.evaluate((node) => node.getBoundingClientRect().height);
+  expect(compactRowHeight).toBeLessThan(comfortableRowHeight);
+});

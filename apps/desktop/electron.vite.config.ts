@@ -23,6 +23,8 @@ export default defineConfig({
           '@musefold/core',
           '@musefold/automation-server',
           '@musefold/new-api-client',
+          '@musefold/scheme-package',
+          '@musefold/managed-fs',
           // 纯 JS 运行时依赖打进 main chunk(M5-b):electron-builder 26 的
           // pnpm 收集器会剥掉嵌套传递依赖(lazystream → readable-stream@2),
           // bundle 后 asar 不再依赖这些包的 node_modules 树。
@@ -51,6 +53,8 @@ export default defineConfig({
           '@musefold/domain',
           '@musefold/update-protocol',
           '@musefold/new-api-client',
+          '@musefold/scheme-package',
+          '@musefold/managed-fs',
         ],
         repoRoot,
       ),

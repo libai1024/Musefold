@@ -2,7 +2,7 @@ import type { S3Client } from '@aws-sdk/client-s3';
 import { cloudGenerationRequestSchema } from '@musefold/contracts';
 import type { MusefoldDatabase } from '@musefold/db';
 import { describe, expect, it, vi } from 'vitest';
-import type { GeneratedImage } from '../image-gateway.js';
+import type { GeneratedImage, ImageDispatchSnapshot } from '../image-gateway.js';
 import {
   decideFailureTransition,
   decideFinishTransition,
@@ -11,12 +11,14 @@ import {
   downloadReferences,
   executeGenerationAttempt,
   generationJobKey,
+  mapGenerationError,
   ownsGenerationLease,
   processObjectCleanupBatch,
   processObjectCleanupBatches,
   reconcileStaleRuns,
   uploadImagesForGeneration,
   type ObjectCleanupStore,
+  type UploadedGenerationAsset,
 } from '../tasks.js';
 
 const generatedImage: GeneratedImage = {
@@ -32,7 +34,7 @@ function generationAttemptRequest() {
 
 function generationLease(
   overrides: Partial<{
-    markUpstreamRequestSent: () => Promise<boolean>;
+    claimUpstreamRequest: () => Promise<ImageDispatchSnapshot | null>;
     assertOwned: () => Promise<void>;
   }> = {},
 ) {
@@ -41,7 +43,14 @@ function generationLease(
     start: vi.fn(),
     stop: vi.fn(),
     assertOwned: overrides.assertOwned ?? vi.fn(async () => undefined),
-    markUpstreamRequestSent: overrides.markUpstreamRequestSent ?? vi.fn(async () => true),
+    claimUpstreamRequest:
+      overrides.claimUpstreamRequest ??
+      vi.fn(async () => ({
+        baseUrl: 'https://newapi.example',
+        apiKey: 'secret',
+        model: 'musefold-image-pro',
+      })),
+    dispatchClaimed: false,
   };
 }
 
@@ -49,40 +58,53 @@ function cleanupCallbacks() {
   return {
     enqueueCleanup: vi.fn(async (_keys: string[], _nextAttemptAt?: Date) => undefined),
     acknowledgeCleanup: vi.fn(async (_keys: string[]) => undefined),
-    recordCleanupFailure: vi.fn(async (_keys: string[], _error: unknown) => undefined),
   };
 }
+
+describe('mapGenerationError', () => {
+  it('对象存储失败给出可重试文案,其它未知错误仍用生成执行失败', () => {
+    expect(
+      mapGenerationError(Object.assign(new Error('NoSuchBucket'), { name: 'NoSuchBucket' })),
+    ).toMatchObject({
+      code: 'unknown',
+      message: '成图保存失败，请重试',
+    });
+    expect(mapGenerationError(new Error('boom'))).toMatchObject({
+      code: 'unknown',
+      message: '生成执行失败',
+    });
+  });
+});
 
 describe('generation task attempt 副作用 fencing', () => {
   it('请求边界拒绝时不调用 fetch，仍调用 guarded markFailed', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const lease = generationLease({
-      markUpstreamRequestSent: vi.fn(async () => false),
+      claimUpstreamRequest: vi.fn(async () => null),
     });
     const markFailed = vi.fn(async () => undefined);
     const finalize = vi.fn(async () => 'succeed' as const);
-    const remove = vi.fn(async () => undefined);
 
     await executeGenerationAttempt({
       s3: {} as S3Client,
       bucket: 'bucket',
-      baseUrl: 'https://newapi.example',
       owner: { userId: 'user-1', runId: 'run-1', epoch: 2 },
       request: generationAttemptRequest(),
-      apiKey: 'secret',
       references: [],
       lease,
       markFailed,
       finalize,
-      remove,
       ...cleanupCallbacks(),
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(markFailed).toHaveBeenCalledWith('GENERATION_UPSTREAM_UNKNOWN', '生成租约已失效');
+    expect(markFailed).toHaveBeenCalledWith(
+      'GENERATION_UPSTREAM_UNKNOWN',
+      '生成发送权限已失效',
+      false,
+    );
     expect(finalize).not.toHaveBeenCalled();
-    expect(remove).not.toHaveBeenCalled();
     expect(lease.stop).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
   });
@@ -98,48 +120,89 @@ describe('generation task attempt 副作用 fencing', () => {
         return {};
       }),
     } as unknown as S3Client;
-    const removed: string[][] = [];
+    const cleanup = cleanupCallbacks();
     const markFailed = vi.fn(async () => undefined);
     const finalize = vi.fn(async () => 'succeed' as const);
 
     await executeGenerationAttempt({
       s3,
       bucket: 'bucket',
-      baseUrl: 'https://newapi.example',
       owner: { userId: 'user-1', runId: 'run-1', epoch: 2 },
       request: generationAttemptRequest(),
-      apiKey: 'secret',
       references: [],
       lease: generationLease(),
       markFailed,
       finalize,
       generate: vi.fn(async () => [generatedImage, generatedImage]),
       upload: uploadImagesForGeneration,
-      remove: vi.fn(async (_s3, _bucket, keys) => {
-        removed.push([...keys]);
-      }),
-      ...cleanupCallbacks(),
+      ...cleanup,
     });
 
     expect(putKeys).toHaveLength(2);
-    expect(removed).toEqual([[putKeys[0] as string, putKeys[1] as string]]);
-    expect(markFailed).toHaveBeenCalledWith('GENERATION_UPSTREAM_UNKNOWN', '生成执行失败');
+    expect(cleanup.enqueueCleanup).toHaveBeenLastCalledWith(putKeys);
+    expect(cleanup.acknowledgeCleanup).not.toHaveBeenCalled();
+    expect(markFailed).toHaveBeenCalledWith(
+      'GENERATION_UPSTREAM_UNKNOWN',
+      '成图保存失败，请重试',
+      false,
+    );
     expect(finalize).not.toHaveBeenCalled();
   });
 
-  it('finalize 因 lease/epoch 丢失跳过时清理对象且不视为成功提交', async () => {
+  // §9-D3:count 4 的成功路径——上游 4 张按上游顺序上传，finalize 收到的下标即落库 position。
+  it('张数 4 上传 4 个独立对象键并按上游顺序交给 finalize(position = 下标)', async () => {
+    const putKeys: string[] = [];
+    const s3 = {
+      send: vi.fn(async (command: { input?: { Key?: string } }) => {
+        if (command.input?.Key) putKeys.push(command.input.Key);
+        return {};
+      }),
+    } as unknown as S3Client;
+    let uploaded: UploadedGenerationAsset[] = [];
+    const finalize = vi.fn(async (assets: UploadedGenerationAsset[]) => {
+      uploaded = assets;
+      return 'succeed' as const;
+    });
+    const cleanup = cleanupCallbacks();
+    const images = [1, 2, 3, 4].map((height) => ({ ...generatedImage, height }));
+
+    await executeGenerationAttempt({
+      s3,
+      bucket: 'bucket',
+      owner: { userId: 'user-1', runId: 'run-1', epoch: 2 },
+      request: cloudGenerationRequestSchema.parse({ prompt: 'four up', count: 4 }),
+      references: [],
+      lease: generationLease(),
+      markFailed: vi.fn(async () => undefined),
+      finalize,
+      generate: vi.fn(async (request) => {
+        expect(request.count).toBe(4);
+        return images;
+      }),
+      upload: uploadImagesForGeneration,
+      ...cleanup,
+    });
+
+    expect(putKeys).toHaveLength(4);
+    expect(new Set(putKeys).size).toBe(4);
+    expect(putKeys.every((key) => key.startsWith('users/user-1/generations/run-1/'))).toBe(true);
+    expect(finalize).toHaveBeenCalledTimes(1);
+    expect(uploaded.map((asset) => asset.height)).toEqual([1, 2, 3, 4]);
+    expect(uploaded.map((asset) => asset.objectKey)).toEqual(putKeys);
+    expect(cleanup.acknowledgeCleanup).toHaveBeenCalledWith(putKeys);
+  });
+
+  it('finalize 因 lease/epoch 丢失跳过时只入队补偿且不视为成功提交', async () => {
     const uploadedKey = 'users/user-1/generations/run-1/asset-1';
-    const remove = vi.fn(async () => undefined);
+    const cleanup = cleanupCallbacks();
     const markFailed = vi.fn(async () => undefined);
     const finalize = vi.fn(async () => 'skip' as const);
 
     await executeGenerationAttempt({
       s3: {} as S3Client,
       bucket: 'bucket',
-      baseUrl: 'https://newapi.example',
       owner: { userId: 'user-1', runId: 'run-1', epoch: 2 },
       request: generationAttemptRequest(),
-      apiKey: 'secret',
       references: [],
       lease: generationLease(),
       markFailed,
@@ -156,33 +219,32 @@ describe('generation task attempt 副作用 fencing', () => {
           },
         ];
       }),
-      remove,
-      ...cleanupCallbacks(),
+      ...cleanup,
     });
 
     expect(finalize).toHaveBeenCalledOnce();
-    expect(markFailed).toHaveBeenCalledWith('GENERATION_UPSTREAM_UNKNOWN', '生成执行失败');
-    expect(remove).toHaveBeenCalledWith(expect.anything(), 'bucket', [uploadedKey]);
+    expect(markFailed).toHaveBeenCalledWith(
+      'GENERATION_UPSTREAM_UNKNOWN',
+      '生成任务租约已失效',
+      false,
+    );
+    expect(cleanup.enqueueCleanup).toHaveBeenCalledWith([uploadedKey]);
+    expect(cleanup.acknowledgeCleanup).not.toHaveBeenCalled();
   });
-  it('删除失败时先固化清理意图并记录失败,不确认队列', async () => {
+  it('取消补偿仅固化清理意图,不直接调用对象存储或确认队列', async () => {
     const uploadedKey = 'users/user-1/generations/run-1/asset-failed-delete';
     const cleanup = cleanupCallbacks();
-    const removeError = Object.assign(new Error('storage unavailable'), { name: 'S3Unavailable' });
+    const send = vi.fn();
     const order: string[] = [];
     cleanup.enqueueCleanup.mockImplementation(async () => {
       order.push('enqueue');
     });
-    cleanup.recordCleanupFailure.mockImplementation(async () => {
-      order.push('failure');
-    });
 
     await executeGenerationAttempt({
-      s3: {} as S3Client,
+      s3: { send } as unknown as S3Client,
       bucket: 'bucket',
-      baseUrl: 'https://newapi.example',
       owner: { userId: 'user-1', runId: 'run-1', epoch: 2 },
       request: generationAttemptRequest(),
-      apiKey: 'secret',
       references: [],
       lease: generationLease(),
       markFailed: vi.fn(async () => undefined),
@@ -200,17 +262,13 @@ describe('generation task attempt 副作用 fencing', () => {
           },
         ];
       }),
-      remove: vi.fn(async () => {
-        order.push('remove');
-        throw removeError;
-      }),
       ...cleanup,
     });
 
-    expect(order).toEqual(['enqueue', 'enqueue', 'remove', 'failure']);
+    expect(order).toEqual(['enqueue', 'enqueue']);
     expect(cleanup.enqueueCleanup).toHaveBeenNthCalledWith(1, [uploadedKey], expect.any(Date));
     expect(cleanup.enqueueCleanup).toHaveBeenNthCalledWith(2, [uploadedKey]);
-    expect(cleanup.recordCleanupFailure).toHaveBeenCalledWith([uploadedKey], removeError);
+    expect(send).not.toHaveBeenCalled();
     expect(cleanup.acknowledgeCleanup).not.toHaveBeenCalled();
   });
 });
@@ -223,6 +281,10 @@ describe('对象存储清理维护', () => {
         input.claimed.map((objectKey) => ({ objectKey, objectType: 'generation_asset' })),
       ),
       findProtected: vi.fn(async () => ({
+        permanent: input.protected ?? [],
+        leased: input.leased ?? [],
+      })),
+      authorizeDeletion: vi.fn(async () => ({
         permanent: input.protected ?? [],
         leased: input.leased ?? [],
       })),

@@ -19,6 +19,9 @@ const EXPECTED_TABLES = [
   'oauth_access_token',
   'oauth_consent',
   'account_credentials',
+  'account_identities',
+  'account_recovery_requests',
+  'account_session_authorizations',
   'relay_sessions',
   'rate_limit_buckets',
   'prompt_folders',
@@ -37,6 +40,9 @@ const EXPECTED_TABLES = [
   'generation_reference_uploads',
   'generation_reference_links',
   'object_cleanup_queue',
+  'object_inventory_cursors',
+  'object_inventory_candidates',
+  'object_key_retirements',
   'published_skills',
   'design_schemes',
   'design_scheme_revisions',
@@ -44,6 +50,12 @@ const EXPECTED_TABLES = [
   'design_scheme_source_snapshots',
   'design_scheme_source_files',
   'design_scheme_source_bindings',
+  'design_scheme_source_preparations',
+  'design_scheme_agent_sessions',
+  'design_scheme_agent_events',
+  'design_scheme_package_stages',
+  'design_scheme_package_imports',
+  'design_scheme_package_exports',
   'design_scheme_assets',
   'design_scheme_runs',
   'design_scheme_run_steps',
@@ -84,6 +96,9 @@ describe('Drizzle schema', () => {
       schema.designSchemeSourceSnapshots,
       schema.designSchemeSourceFiles,
       schema.designSchemeSourceBindings,
+      schema.designSchemeSourcePreparations,
+      schema.designSchemeAgentSessions,
+      schema.designSchemeAgentEvents,
       schema.designSchemeAssets,
       schema.designSchemeRuns,
       schema.designSchemeRunSteps,
@@ -99,6 +114,9 @@ describe('Drizzle schema', () => {
       [schema.designSchemeSourceFiles, 'design_scheme_source_files_snapshot_owner_fk'],
       [schema.designSchemeSourceBindings, 'design_scheme_source_bindings_revision_owner_fk'],
       [schema.designSchemeSourceBindings, 'design_scheme_source_bindings_snapshot_owner_fk'],
+      [schema.designSchemeSourcePreparations, 'scheme_source_preparation_snapshot_owner_fk'],
+      [schema.designSchemeAgentEvents, 'scheme_agent_event_owner_fk'],
+      [schema.designSchemePackageImports, 'scheme_package_import_stage_owner_fk'],
       [schema.designSchemeAssets, 'design_scheme_assets_revision_owner_fk'],
       [schema.designSchemeRuns, 'design_scheme_runs_scheme_owner_fk'],
       [schema.designSchemeRuns, 'design_scheme_runs_revision_owner_fk'],
@@ -201,5 +219,10 @@ describe('Drizzle schema', () => {
     ]) {
       expect(cloudSql, `migration missing ${name}`).toContain(`"${name}"`);
     }
+  });
+  it('Agent material freeze is an additive nullable server-authored context', () => {
+    expect(schema.designSchemeAgentSessions.materials.name).toBe('materials');
+    expect(schema.designSchemeAgentSessions.materials.notNull).toBe(false);
+    expect(schema.designSchemeAgentSessions.materials.hasDefault).toBe(false);
   });
 });

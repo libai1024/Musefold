@@ -18,8 +18,8 @@ import type { DesignSchemesActions } from './types';
  * 工作台屏消费意图落 Composer。方案运行/创建/修改的真正执行仍是宿主运行
  * 管线(经 WorkbenchScreen 的 designSchemes.onRun/onCancelRun/onCreate/onModify 接缝),此处不伪造。
  *
- * onImportScheme / onInstallMarketCandidate 不在此提供:导入文件对话框与
- * 市场快照下载 staging 是宿主/运行管线职责,缺省时对应入口禁用并解释(I4)。
+ * 云端市场入口只写创建意图，来源准备和费用授权由工作台显式承接。
+ * onImportScheme 的文件选择由宿主接缝提供，缺省时入口禁用并解释(I4)。
  */
 export function useDesignSchemesIntegration(options: {
   /** 宿主切屏到工作台(意图落地页);缺省时整套动作为空(入口禁用并解释)。 */
@@ -47,6 +47,23 @@ export function useDesignSchemesIntegration(options: {
     };
 
     return {
+      ...(designSchemes.agent
+        ? {
+            onInstallMarketCandidate: (
+              candidate: Parameters<
+                NonNullable<DesignSchemesActions['onInstallMarketCandidate']>
+              >[0],
+            ) => {
+              setWorkbenchIntent({
+                kind: 'create',
+                createKind: 'github',
+                seed: candidate.repositoryUrl,
+                source: null,
+              });
+              onOpenWorkbench();
+            },
+          }
+        : {}),
       onRunScheme: (scheme, mode) => attach(scheme, mode),
       onModifyScheme: (scheme) => attach(scheme, 'modify'),
       onCreateScheme: (createKind) => {

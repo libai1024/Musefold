@@ -1,4 +1,13 @@
 import {
+  legacyPackageFixture,
+  FULL_PROMPT,
+} from '../../../../../../packages/scheme-package/src/__tests__/legacy-fixture';
+import { writeDesignSchemePackageBytes } from '@musefold/scheme-package';
+import {
+  mixedPackage,
+  PNG,
+} from '../../../../../../packages/scheme-package/src/__tests__/fixtures';
+import {
   createWriteStream,
   mkdtempSync,
   mkdirSync,
@@ -6,11 +15,19 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import Database from 'better-sqlite3';
 import archiver from 'archiver';
+import { loadManagedFilesystem } from '@musefold/managed-fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { designSchemeDetailSchema, DESIGN_SCHEME_WIRE_METHODS } from '@musefold/contracts';
+import {
+  isDesignSchemeImportSessionHeld,
+  sweepDesignSchemeImportOrphans,
+} from '@musefold/core/services/design-scheme-import-gc';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
   type DesignSchemeRevisionDocument,
@@ -18,7 +35,7 @@ import {
 import { runDesignSchemeDbMigrations } from '@musefold/core/db/design-scheme/migrations';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import {
-  contentEntriesHash,
+  stableContentEntriesHash,
   readValidatedDesignSchemePackage,
   sha256,
   type CanonicalShareManifest,
@@ -31,6 +48,8 @@ import {
   SHARE_FORMAT_VERSION,
 } from '../share';
 import { fakePngBuffer } from './evaluation.test';
+import { buildDesignSchemesDomainMethods } from '../../ipc-v25/design-scheme-domain';
+import { resolveSchemeAssetMediaTarget } from '../asset-store';
 
 vi.mock('electron', () => ({
   app: { getPath: () => tmpdir() },
@@ -179,6 +198,257 @@ describe('exportDesignScheme / importDesignScheme', () => {
     seedFormalScheme(db, userData);
   });
 
+  it.each(['replaced', 'removed'] as const)(
+    'imports verified package bytes after the staging pathname is %s',
+    async (change) => {
+      const { manifest, content } = mixedPackage();
+      const input = join(tempRoot(), 'verified.musefold.design');
+      const verified = await writeDesignSchemePackageBytes(manifest, content);
+      writeFileSync(input, verified);
+      if (change === 'replaced') writeFileSync(input, 'untrusted replacement');
+      else rmSync(input);
+
+      const imported = await importDesignScheme(input, { db, userDataDir: userData }, verified);
+      if (!imported.ok) throw new Error(imported.error.message);
+      const get = buildDesignSchemesDomainMethods({
+        db,
+        userDataDir: userData,
+        picturesDir: userData,
+      })[DESIGN_SCHEME_WIRE_METHODS.get];
+      const detail = designSchemeDetailSchema.parse(
+        await get.handle(get.input.parse({ id: imported.data.scheme.id })),
+      );
+      expect(detail.document.name).toBe(manifest.document.name);
+      expect(detail.sourceSnapshots).toHaveLength(2);
+      expect(detail.assets).toHaveLength(2);
+      for (const asset of detail.assets) {
+        const target = resolveSchemeAssetMediaTarget(db, asset.id, userData, userData);
+        if (!target) throw new Error('Verified package asset missing');
+        expect(sha256(readFileSync(target))).toBe(asset.contentHash);
+      }
+      if (change === 'replaced') expect(readFileSync(input, 'utf8')).toBe('untrusted replacement');
+      else expect(fs.existsSync(input)).toBe(false);
+    },
+  );
+
+  it('rejects invalid supplied bytes without falling back to a valid pathname', async () => {
+    const { manifest, content } = mixedPackage();
+    const input = join(tempRoot(), 'valid.musefold.design');
+    const valid = await writeDesignSchemePackageBytes(manifest, content);
+    writeFileSync(input, valid);
+    const before = db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get();
+    const imported = await importDesignScheme(
+      input,
+      { db, userDataDir: userData },
+      Buffer.from('invalid supplied bytes'),
+    );
+    expect(imported.ok).toBe(false);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual(before);
+    expect(readFileSync(input)).toEqual(valid);
+  });
+
+  it('v1旧包经过实际导入得到新草稿并保留旧来源文件', async () => {
+    const path = join(tempRoot(), 'legacy-v1.musefold.design');
+    const document = Buffer.from(JSON.stringify(documentFixture()));
+    const text = Buffer.from('legacy source text');
+    const manifest = {
+      format: SHARE_FORMAT,
+      formatVersion: 1,
+      exportedAt: 0,
+      scheme: {
+        name: '旧包',
+        summary: '',
+        fidelity: 'faithful',
+        sourceLabel: '旧仓库',
+        sourcePresentation: 'skill',
+      },
+      revisionId: 'dsrv_share',
+      snapshots: [
+        {
+          dir: 'old',
+          kind: 'github',
+          role: 'normative',
+          repositoryUrl: 'https://github.com/acme/illust',
+          ref: 'main',
+          commitHash: COMMIT,
+          license: null,
+          scan: {},
+        },
+      ],
+      files: { 'scheme.json': sha256(document), 'sources/old/SKILL.md': sha256(text) },
+    };
+    await writeZipFixture(path, [
+      { name: 'manifest.json', content: JSON.stringify(manifest) },
+      { name: 'scheme.json', content: document },
+      { name: 'sources/old/SKILL.md', content: text },
+    ]);
+    const imported = await importDesignScheme(path, { db, userDataDir: userData });
+    if (!imported.ok) throw new Error(imported.error.message);
+    expect(imported.data.scheme.id).not.toBe('dsch_share');
+    expect(imported.data.scheme.status).toBe('draft');
+    const repository = new DesignSchemeRepository(db);
+    expect(
+      repository.listSourceSnapshotMetadata(imported.data.scheme.id)[0].files[0].textExcerpt,
+    ).toBe(text.toString('utf8'));
+    expect(() => repository.formalize(imported.data.scheme.id)).toThrow();
+  });
+
+  it('legacy full sources and preview bytes remain reachable through canonical desktop detail without importing scan authority', async () => {
+    const fixture = await legacyPackageFixture(mixedPackage().manifest.document, PNG);
+    const input = join(tempRoot(), 'legacy-full.musefold.design');
+    writeFileSync(input, await fixture.encode());
+    const imported = await importDesignScheme(input, { db, userDataDir: userData });
+    if (!imported.ok) throw new Error(imported.error.message);
+    const id = imported.data.scheme.id;
+    const get = buildDesignSchemesDomainMethods({
+      db,
+      userDataDir: userData,
+      picturesDir: userData,
+    })[DESIGN_SCHEME_WIRE_METHODS.get];
+    const detail = designSchemeDetailSchema.parse(await get.handle(get.input.parse({ id })));
+    expect(detail.sourceSnapshots).toHaveLength(1);
+    expect(detail.assets).toHaveLength(2);
+    expect(detail.document.sourceSnapshotIds).toEqual([detail.sourceSnapshots[0].id]);
+    expect(new Set(detail.document.assetIds)).toEqual(
+      new Set(detail.assets.map((asset) => asset.id)),
+    );
+    expect(detail.sourceSnapshots[0].commitHash).toBeNull();
+    expect(detail.sourceSnapshots[0].historyItems).toBeUndefined();
+    expect(detail.sourceSnapshots[0].files.find((file) => file.kind === 'text')).toMatchObject({
+      mimeType: 'text/plain',
+      sizeBytes: Buffer.byteLength(FULL_PROMPT),
+    });
+    const source = db
+      .prepare('SELECT text_content FROM source_files WHERE snapshot_id=? AND kind=?')
+      .get(detail.sourceSnapshots[0].id, 'text') as { text_content: string };
+    expect(source.text_content).toBe(FULL_PROMPT);
+    expect(detail.summary).toMatchObject({
+      status: 'draft',
+      hasSuccessfulTrial: false,
+      coverAssetId: null,
+    });
+    expect(detail.document).toMatchObject({ createdBy: 'import', parentRevisionId: null });
+    for (const asset of detail.assets) {
+      const target = resolveSchemeAssetMediaTarget(db, asset.id, userData, userData);
+      if (!target) throw new Error('Missing imported image content');
+      expect(sha256(readFileSync(target))).toBe(asset.contentHash);
+    }
+    expect(() => new DesignSchemeRepository(db).formalize(id)).toThrow();
+  });
+
+  it('v1包外壳合法但旧文档无效时不发布半成品', async () => {
+    const path = join(tempRoot(), 'invalid-legacy.musefold.design');
+    const bytes = Buffer.from('{}');
+    const manifest = {
+      format: SHARE_FORMAT,
+      formatVersion: 1,
+      exportedAt: 0,
+      scheme: {
+        name: '旧包',
+        summary: '',
+        fidelity: 'faithful',
+        sourceLabel: '',
+        sourcePresentation: 'skill',
+      },
+      revisionId: 'old_revision',
+      snapshots: [],
+      files: { 'scheme.json': sha256(bytes) },
+    };
+    await writeZipFixture(path, [
+      { name: 'manifest.json', content: JSON.stringify(manifest) },
+      { name: 'scheme.json', content: bytes },
+    ]);
+    const before = db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get();
+    const result = await importDesignScheme(path, { db, userDataDir: userData });
+    expect(result.ok).toBe(false);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM design_schemes').get()).toEqual(before);
+  });
+
+  it('canonical历史正文和仓库图片经实际导入、IPC重读、再次导出保留新身份及完整内容', async () => {
+    const { manifest, content } = mixedPackage();
+    const input = join(tempRoot(), 'mixed.musefold.design');
+    writeFileSync(input, await writeDesignSchemePackageBytes(manifest, content));
+    const imported = await importDesignScheme(input, { db, userDataDir: userData });
+    if (!imported.ok) throw new Error(imported.error.message);
+    const id = imported.data.scheme.id;
+    const repository = new DesignSchemeRepository(db);
+    const document = repository.getRevisionDocument(imported.data.revisionId);
+    expect(document?.repositoryImages).toHaveLength(1);
+    expect(document?.repositoryImages?.[0].assetId).not.toBe('asset_repo');
+    expect(document?.repositoryImages?.[0].snapshotId).not.toBe('snap_repo');
+    expect(document?.assetIds).not.toContain('asset_history');
+    expect(imported.data.scheme.status).toBe('draft');
+    expect(imported.data.scheme.hasSuccessfulTrial).toBe(false);
+    expect(() => repository.formalize(id)).toThrow();
+    const get = buildDesignSchemesDomainMethods({
+      db,
+      userDataDir: userData,
+      picturesDir: userData,
+    })[DESIGN_SCHEME_WIRE_METHODS.get];
+    const detail = designSchemeDetailSchema.parse(await get.handle(get.input.parse({ id })));
+    expect(detail.document.repositoryImages).toEqual(document?.repositoryImages);
+    const history = detail.sourceSnapshots.find((snapshot) => snapshot.kind === 'history');
+    expect(history?.historyItems?.[0].prompt).toBe(
+      manifest.sourceSnapshots[1].historyItems?.[0].prompt,
+    );
+    expect(history?.historyItems?.[0].imageAssetId).not.toBe('asset_history');
+    expect(
+      detail.assets.some((asset) => asset.id === history?.historyItems?.[0].imageAssetId),
+    ).toBe(true);
+    // Controlled formal-state fixture checks export compatibility only; it is not a successful image trial.
+    db.prepare("UPDATE design_schemes SET status = 'formal' WHERE id = ?").run(id);
+    const output = join(tempRoot(), 'mixed-again.musefold.design');
+    const exported = await exportDesignScheme(id, output, { db, userDataDir: userData });
+    if (!exported.ok) throw new Error(exported.error.message);
+    const parsed = await readValidatedDesignSchemePackage(output, [2]);
+    if (parsed.formatVersion !== 2) throw new Error('Expected canonical output');
+    expect(parsed.manifest.document.repositoryImages).toEqual(document?.repositoryImages);
+    expect(
+      parsed.manifest.sourceSnapshots.find((snapshot) => snapshot.kind === 'history')?.historyItems,
+    ).toEqual(history?.historyItems);
+    const preserved = parsed.manifest.sourceSnapshots.find(
+      (snapshot) => snapshot.kind === 'history',
+    );
+    if (!preserved?.historyItems?.[0].promptPath) throw new Error('History text missing');
+    expect(
+      parsed.entries.get(`sources/${preserved.id}/${preserved.historyItems[0].promptPath}`),
+    ).toEqual(content.get('sources/snap_history/prompt.txt'));
+    const second = await importDesignScheme(output, { db, userDataDir: userData });
+    if (!second.ok) throw new Error(second.error.message);
+    expect(second.data.scheme.status).toBe('draft');
+    expect(
+      repository.getRevisionDocument(second.data.revisionId)?.repositoryImages?.[0].assetId,
+    ).not.toBe(document?.repositoryImages?.[0].assetId);
+  });
+
+  it('preserves an admitted text MIME through export and reimport without guessing from extension', async () => {
+    db.prepare(
+      "UPDATE source_files SET mime_type = 'text/plain' WHERE snapshot_id = 'snap_share' AND path = 'SKILL.md'",
+    ).run();
+    const output = join(tempRoot(), 'declared-text-mime.musefold.design');
+    const result = await exportDesignScheme('dsch_share', output, { db, userDataDir: userData });
+    if (!result.ok) throw new Error(result.error.message);
+    const archive = await readValidatedDesignSchemePackage(output, [2]);
+    if (archive.formatVersion !== 2) throw new Error('Expected canonical export');
+    const snapshot = archive.manifest.sourceSnapshots[0];
+    const path = `sources/${snapshot.id}/SKILL.md`;
+    expect(snapshot.files.find((file) => file.relativePath === 'SKILL.md')?.mimeType).toBe(
+      'text/plain',
+    );
+    expect(
+      archive.manifest.content.entries.find((entry) => entry.relativePath === path)?.mimeType,
+    ).toBe('text/plain');
+    expect(archive.entries.get(path)?.toString('utf8')).toBe('# 小黑插画 skill');
+    const imported = await importDesignScheme(output, { db, userDataDir: userData });
+    if (!imported.ok) throw new Error(imported.error.message);
+    const repository = new DesignSchemeRepository(db);
+    const files = repository.listSourceSnapshotMetadata(
+      imported.data.scheme.id,
+      imported.data.revisionId,
+    );
+    expect(files[0]?.files.find((file) => file.path === 'SKILL.md')?.mimeType).toBe('text/plain');
+  });
+
   it('导出→导入闭环：新库得到全新 ID 的草稿，来源与图片资产完整还原', async () => {
     const packagePath = join(tempRoot(), 'illust.musefold.design');
     const exported = await exportDesignScheme('dsch_share', packagePath, {
@@ -239,6 +509,86 @@ describe('exportDesignScheme / importDesignScheme', () => {
     expect(importedFiles.find((file) => file.path === 'reference.png')?.mime_type).toBe(
       'image/png',
     );
+  });
+
+  it.each([
+    { origin: 'uploaded', role: 'reference' },
+    { origin: 'cloud-run', role: 'output' },
+  ])('$origin/$role 随专用包往返，v25 相册保留来源、角色和哈希', async ({ origin, role }) => {
+    const assetBytes = fakePngBuffer(320, 240);
+    const storeKey = join('design-scheme-sources', 'snap_share', 'external.png');
+    writeFileSync(join(userData, storeKey), assetBytes);
+    db.prepare(`INSERT INTO design_scheme_assets
+      (id, revision_id, store_key, role, origin, license, created_at)
+      VALUES ('dsas_external', 'dsrv_share', ?, ?, ?, 'CC0', 30)`).run(storeKey, role, origin);
+    const packagePath = join(tempRoot(), 'external.musefold.design');
+    const exported = await exportDesignScheme('dsch_share', packagePath, {
+      db,
+      userDataDir: userData,
+    });
+    expect(exported.ok).toBe(true);
+    if (!exported.ok) throw new Error(exported.error.message);
+    const validated = await readValidatedDesignSchemePackage(packagePath, [SHARE_FORMAT_VERSION]);
+    if (validated.formatVersion !== SHARE_FORMAT_VERSION) throw new Error('expected v2 package');
+    const expectedMetadata = {
+      origin,
+      role,
+      mimeType: 'image/png',
+      width: 320,
+      height: 240,
+      byteSize: assetBytes.length,
+      contentHash: sha256(assetBytes),
+      license: 'CC0',
+    };
+    expect(validated.manifest.assets.find((asset) => asset.id === 'dsas_external')).toMatchObject(
+      expectedMetadata,
+    );
+
+    const otherDb = makeDb();
+    try {
+      const otherUserData = tempRoot();
+      const imported = await importDesignScheme(packagePath, {
+        db: otherDb,
+        userDataDir: otherUserData,
+      });
+      expect(imported.ok).toBe(true);
+      if (!imported.ok) throw new Error(imported.error.message);
+      const repository = new DesignSchemeRepository(otherDb);
+      const externalAsset = repository
+        .listAssetMetadataRows(imported.data.scheme.id)
+        .find((asset) => asset.origin === origin);
+      expect(externalAsset).toMatchObject(expectedMetadata);
+      if (!externalAsset) throw new Error('missing imported external asset');
+      expect(externalAsset.id).not.toBe('dsas_external');
+      expect(readFileSync(join(otherUserData, externalAsset.storeKey))).toEqual(assetBytes);
+      const mediaTarget = resolveSchemeAssetMediaTarget(
+        otherDb,
+        externalAsset.id,
+        otherUserData,
+        otherUserData,
+      );
+      if (!mediaTarget) throw new Error('external asset is not available to the media reader');
+      expect(readFileSync(mediaTarget)).toEqual(assetBytes);
+      expect(imported.data.scheme.hasSuccessfulTrial).toBe(false);
+      expect(imported.data.scheme.status).toBe('draft');
+      expect(() => repository.selectCover(imported.data.scheme.id, externalAsset.id)).toThrow();
+      expect(() => repository.formalize(imported.data.scheme.id)).toThrow();
+
+      const get = buildDesignSchemesDomainMethods({
+        db: otherDb,
+        userDataDir: otherUserData,
+        picturesDir: otherUserData,
+      })[DESIGN_SCHEME_WIRE_METHODS.get];
+      const detail = designSchemeDetailSchema.parse(
+        await get.handle(get.input.parse({ id: imported.data.scheme.id })),
+      );
+      expect(detail.assets.find((asset) => asset.id === externalAsset.id)).toMatchObject(
+        expectedMetadata,
+      );
+      expect(JSON.stringify(detail.assets)).not.toContain(otherUserData);
+    } finally {
+      otherDb.close();
+    }
   });
 
   it('导出包内容：manifest 声明全部文件哈希，封面与质量门证据随包携带且证据路径脱敏', async () => {
@@ -373,6 +723,138 @@ describe('exportDesignScheme / importDesignScheme', () => {
     expect(manifestResult.ok).toBe(false);
     if (manifestResult.ok) return;
     expect(manifestResult.error.message).toContain('manifest');
+  });
+
+  it.each(['ENOSPC', 'EDQUOT', 'EACCES'])(
+    '导入文件写入 %s：清理残留并提供不泄漏路径的恢复提示',
+    async (code) => {
+      const packagePath = join(tempRoot(), 'storage-error.musefold.design');
+      expect(
+        (await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData })).ok,
+      ).toBe(true);
+      const output = tempRoot();
+      const target = makeDb();
+      const original = fs.writeFileSync;
+      const write = vi.spyOn(fs, 'writeFileSync').mockImplementation((path, data, options) => {
+        if (String(path).startsWith(join(output, 'design-scheme-imports'))) {
+          throw Object.assign(new Error(`private path: ${path}`), { code });
+        }
+        return original(path, data, options);
+      });
+      syncBuiltinESMExports();
+      try {
+        const result = await importDesignScheme(packagePath, { db: target, userDataDir: output });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('Expected import failure');
+        expect(result.error).toMatchObject(
+          code === 'EACCES'
+            ? { code: 'INVALID_TYPE', message: '分享包内容无法安全导入', retryable: false }
+            : {
+                code: 'INVALID_STATE',
+                message: '磁盘空间不足，导入未完成。请释放空间后重试。',
+                retryable: true,
+              },
+        );
+        expect(result.error.recoveryAction).toBe('retry');
+        expect(JSON.stringify(result)).not.toContain(output);
+        expect(fs.readdirSync(join(output, 'design-scheme-imports'))).toEqual([]);
+        expect(target.prepare('SELECT count(*) AS count FROM design_schemes').get()).toEqual({
+          count: 0,
+        });
+      } finally {
+        write.mockRestore();
+        syncBuiltinESMExports();
+        target.close();
+      }
+    },
+  );
+
+  it('导入数据库 SQLITE_FULL：清理已准备文件并提示释放空间后重试', async () => {
+    const packagePath = join(tempRoot(), 'database-full.musefold.design');
+    expect(
+      (await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData })).ok,
+    ).toBe(true);
+    const output = tempRoot();
+    const target = makeDb();
+    const transaction = vi.spyOn(target, 'transaction').mockImplementation(() => {
+      expect(fs.readdirSync(join(output, 'design-scheme-imports'))).toHaveLength(1);
+      throw Object.assign(new Error(`private database path: ${output}`), { code: 'SQLITE_FULL' });
+    });
+    try {
+      const result = await importDesignScheme(packagePath, { db: target, userDataDir: output });
+      expect(result).toEqual({
+        ok: false,
+        error: {
+          code: 'INVALID_STATE',
+          message: '磁盘空间不足，导入未完成。请释放空间后重试。',
+          retryable: true,
+          recoveryAction: 'retry',
+        },
+      });
+      expect(fs.readdirSync(join(output, 'design-scheme-imports'))).toEqual([]);
+      expect(target.prepare('SELECT count(*) AS count FROM design_schemes').get()).toEqual({
+        count: 0,
+      });
+    } finally {
+      transaction.mockRestore();
+      target.close();
+    }
+  });
+
+  it('导入中途回调清扫：活跃会话目录受保护；完成后 DB 引用接管属主、会话释放', async () => {
+    const packagePath = join(tempRoot(), 'mid-import-sweep.musefold.design');
+    expect(
+      (await exportDesignScheme('dsch_share', packagePath, { db, userDataDir: userData })).ok,
+    ).toBe(true);
+    const output = tempRoot();
+    const target = makeDb();
+    const native = loadManagedFilesystem(
+      resolve('packages/managed-fs/build/Release/managed_fs.node'),
+    );
+    const observations: Array<{ held: number; reclaimed: number; enqueued: number }> = [];
+    const original = fs.writeFileSync;
+    // §5.103 手法：先转发真实写再观察——在真实导入写回调里同步跑一次清扫，
+    // 断言在途目录（此刻 DB 引用尚未提交）只靠会话注册表存活。
+    const write = vi.spyOn(fs, 'writeFileSync').mockImplementation((path, data, options) => {
+      if (String(path).startsWith(join(output, 'design-scheme-imports'))) {
+        const counts = sweepDesignSchemeImportOrphans({
+          db: target,
+          userDataDir: output,
+          filesystem: native,
+        });
+        observations.push({
+          held: counts.held,
+          reclaimed: counts.reclaimed,
+          enqueued: counts.enqueued,
+        });
+      }
+      return original(path, data, options);
+    });
+    syncBuiltinESMExports();
+    try {
+      const result = await importDesignScheme(packagePath, { db: target, userDataDir: output });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(observations.length).toBeGreaterThan(0);
+      for (const observation of observations) {
+        expect(observation).toEqual({ held: 1, reclaimed: 0, enqueued: 0 });
+      }
+      // 导入完成后：目录由 DB 引用属主接管，会话注册表清空，清扫不再回收。
+      const rootDirs = fs.readdirSync(join(output, 'design-scheme-imports'));
+      expect(rootDirs).toHaveLength(1);
+      expect(isDesignSchemeImportSessionHeld(rootDirs[0]!)).toBe(false);
+      const after = sweepDesignSchemeImportOrphans({
+        db: target,
+        userDataDir: output,
+        filesystem: native,
+      });
+      expect(after).toMatchObject({ referenced: 1, reclaimed: 0, enqueued: 0 });
+      expect(fs.readdirSync(join(output, 'design-scheme-imports'))).toHaveLength(1);
+    } finally {
+      write.mockRestore();
+      syncBuiltinESMExports();
+      target.close();
+    }
   });
 
   it('导出回滚：已有目标在索引失败时保持原文件', async () => {
@@ -585,7 +1067,7 @@ async function writeCanonicalManifestFixture(
     (sum, entry) => sum + entry.sizeBytes,
     0,
   );
-  manifest.content.contentHash = contentEntriesHash(manifest.content.entries);
+  manifest.content.contentHash = stableContentEntriesHash(manifest.content.entries);
   await writeZipFixture(path, [
     { name: 'manifest.json', content: JSON.stringify(manifest) },
     ...manifest.content.entries.map((entry) => ({
@@ -617,7 +1099,7 @@ async function writeCanonicalZipFixture(
       (sum, entry) => sum + entry.sizeBytes,
       0,
     );
-    manifest.content.contentHash = contentEntriesHash(manifest.content.entries);
+    manifest.content.contentHash = stableContentEntriesHash(manifest.content.entries);
   }
   await writeZipFixture(path, [
     { name: 'manifest.json', content: JSON.stringify(manifest) },

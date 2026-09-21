@@ -32,12 +32,14 @@ const COMMAND_FLAGS: Record<string, FlagSpec[]> = {
     { name: 'ratio', takesValue: true },
     { name: 'n', short: 'n', takesValue: true },
     { name: 'priority', takesValue: true },
+    { name: 'idempotency-key', takesValue: true },
     { name: 'no-wait', takesValue: false },
   ],
   skill: [
     { name: 'prompt', short: 'p', takesValue: true },
     { name: 'ratio', takesValue: true },
     { name: 'n', short: 'n', takesValue: true },
+    { name: 'idempotency-key', takesValue: true },
     { name: 'no-wait', takesValue: false },
   ],
   provider: [
@@ -72,6 +74,7 @@ const COMMAND_FLAGS: Record<string, FlagSpec[]> = {
     { name: 'negative', takesValue: true },
     { name: 'ref', takesValue: true, repeatable: true },
     { name: 'ref-history', takesValue: true, repeatable: true },
+    { name: 'idempotency-key', takesValue: true },
     { name: 'out', short: 'o', takesValue: true },
     { name: 'no-wait', takesValue: false },
   ],
@@ -98,6 +101,8 @@ const USAGE = [
   '  serve [--data-dir]         headless 本地 Provider 守护（不读取桌面账号，与 App 互斥）',
   '',
   '全局参数：--json（机器可读输出）、-y 跳过确认、--max-cost <积分>、--endpoint/--token、--autostart、-q',
+  '稳定重试：generate / scheme run / skill run 支持 --idempotency-key <键>（调用者自选的意图身份，',
+  '同键同输入重放原任务不重复执行，同键异输入报 409；不传则保持无键行为）。',
   '连接：安装版 CLI 会自动拉起 Musefold App；桌面账号仅由 App 的自动化控制面提供。',
 ].join('\n');
 
@@ -175,13 +180,30 @@ async function runServe(argv: string[], io: CliIo): Promise<number> {
       log: (line) => io.stderr(line),
     });
     io.stderr(`musefold: 守护运行中（Ctrl-C 退出）；发现文件已写入 ${handle.dataDir}`);
-    await new Promise<void>((resolve) => {
-      const shutdown = () => {
-        io.stderr('musefold: 正在停止守护…');
-        void handle.stop().then(() => resolve());
+    await new Promise<void>((resolve, reject) => {
+      let stopping = false;
+      const cleanup = () => {
+        process.off('SIGINT', shutdown);
+        process.off('SIGTERM', shutdown);
       };
-      process.once('SIGINT', shutdown);
-      process.once('SIGTERM', shutdown);
+      const shutdown = () => {
+        if (stopping) return;
+        stopping = true;
+        io.stderr('musefold: 正在停止守护…');
+        void handle.stop().then(
+          () => {
+            cleanup();
+            resolve();
+          },
+          (error) => {
+            cleanup();
+            reject(error);
+          },
+        );
+      };
+      // Keep handlers installed while stop is pending, including repeated Ctrl-C.
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
     });
     return EXIT.OK;
   } catch (error) {

@@ -18,6 +18,7 @@ export default function HistoryPage() {
           router.push(createWorkbenchHref(sessionId));
         }}
         onOpenPrompts={() => router.push('/prompts')}
+        onOpenSettings={() => router.push('/settings')}
       />
     </div>
   );

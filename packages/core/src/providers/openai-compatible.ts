@@ -3,12 +3,19 @@
 // 详见 docs/05-image-generation.md §2.1、§3
 
 import OpenAI from 'openai';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
+import {
+  assertLocalAssetWriteScope,
+  writeLocalGeneratedImage,
+} from '../services/local-asset-writes';
 import { join } from 'node:path';
 import { ulid } from 'ulid';
+import { createHash } from 'node:crypto';
+import { automationPayerBindingSchema } from '@musefold/desktop-contracts/automation-spend';
 import type {
   GenerateImageRequest,
   GenerateImageResult,
+  GeneratedImageOutput,
   ImageProgressHandler,
   ModelInfo,
   ValidationResult,
@@ -22,6 +29,11 @@ import { parseRetryAfter, withRetry } from './retry';
 import { sanitizeProviderErrorMessage } from './sanitize-error';
 import { LocalImageError, readLocalImage } from './local-image';
 import { parseExpectedSize, readImagePixelSize } from './image-dimensions';
+import {
+  claimGenerationDispatch,
+  GenerationDispatchError,
+  type GenerationExecution,
+} from './execution';
 
 const logger = createLogger('provider:openai-compatible');
 
@@ -164,10 +176,14 @@ export class OpenAICompatibleProvider extends BaseProvider {
     req: GenerateImageRequest,
     signal?: AbortSignal,
     onProgress?: ImageProgressHandler,
+    execution?: GenerationExecution,
   ): Promise<GenerateImageResult> {
     // IPC 层把任务、历史和文件统一为同一个 id；保留 fallback 兼容直接调用 Provider 的测试/工具。
     const historyId = req.jobId ?? ulid();
     const startTs = Date.now();
+    let claimed = false;
+    let costReported = false;
+    let frozenExecution: GenerationExecution | undefined;
 
     // 合并外部取消信号与内部重试控制
     const controller = new AbortController();
@@ -177,71 +193,159 @@ export class OpenAICompatibleProvider extends BaseProvider {
       else signal.addEventListener('abort', onAbort, { once: true });
     }
     try {
+      if (execution) {
+        req = { ...structuredClone(req), model: req.model ?? this.model };
+        const binding = automationPayerBindingSchema.parse(execution.binding);
+        if (
+          !execution.apiKey ||
+          !binding.credentialEpoch ||
+          binding.payerKind === 'unbound' ||
+          binding.providerId !== this.id ||
+          req.providerId !== this.id ||
+          !['openai', 'openai-compatible'].includes(binding.providerType) ||
+          binding.baseUrl !== this.baseUrl ||
+          binding.model !== (req.model ?? this.model)
+        ) {
+          throw new GenerationDispatchError(
+            'AUTOMATION_BINDING_CHANGED',
+            '生图连接或付款方已变化，请重新发起请求',
+          );
+        }
+        frozenExecution = {
+          apiKey: execution.apiKey,
+          binding,
+          beforeDispatch: execution.beforeDispatch.bind(execution),
+          onCost: execution.onCost.bind(execution),
+        };
+      }
+      assertLocalAssetWriteScope();
+      // Pricing is only a local estimate. Freeze it before dispatch; the host decides whether
+      // the payer belongs to a managed balance or an external BYOK budget.
+      const reportedEstimate = frozenExecution ? estimateProviderCost(this.id, req) : null;
+      const estimatedCost =
+        reportedEstimate != null && Number.isFinite(reportedEstimate) && reportedEstimate >= 0
+          ? reportedEstimate
+          : null;
+      const beforeDispatch = (referenceHashes: string[]) => {
+        controller.signal.throwIfAborted();
+        if (frozenExecution) {
+          claimGenerationDispatch(frozenExecution, req, referenceHashes);
+          claimed = true;
+        }
+      };
       const result = await withRetry(
         async (sig) => {
           try {
-            if (req.referenceImages?.length) return await this.editImage(req, sig);
+            if (req.referenceImages?.length) {
+              return await this.editImage(req, sig, frozenExecution, beforeDispatch);
+            }
+            const body = {
+              model: req.model ?? this.model,
+              prompt: req.prompt,
+              n: req.n,
+              size: req.size as unknown as OpenAI.Images.ImageGenerateParams['size'],
+              quality: req.quality as 'low' | 'medium' | 'high' | 'auto',
+              ...(req.background ? { background: req.background } : {}),
+              ...(req.moderation ? { moderation: req.moderation } : {}),
+            };
+            if (frozenExecution) {
+              const init = {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${frozenExecution.apiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+                signal: sig,
+                // A redirect could repeat a paid POST without another durable claim.
+                redirect: 'error' as const,
+              };
+              const url = `${frozenExecution.binding.baseUrl.replace(/\/+$/, '')}/images/generations`;
+              // No SDK scheduling/retries between the durable claim and the actual fetch.
+              beforeDispatch([]);
+              return await readImageResponse(await fetch(url, init));
+            }
             const client = this.getClient();
-            return await client.images.generate(
-              {
-                model: req.model ?? this.model,
-                prompt: req.prompt,
-                n: req.n,
-                size: req.size as unknown as OpenAI.Images.ImageGenerateParams['size'],
-                quality: req.quality as 'low' | 'medium' | 'high' | 'auto',
-                ...(req.background ? { background: req.background } : {}),
-                ...(req.moderation ? { moderation: req.moderation } : {}),
-              },
-              { signal: sig },
-            );
+            return await client.images.generate(body, { signal: sig });
           } catch (err) {
+            if (err instanceof GenerationDispatchError) throw err;
             // 必须在 withRetry 内部把 SDK 异常归一化，否则 Retry-After 只能在所有重试结束后才被读取。
             throw enrichRetryError(err);
           }
         },
-        { onRetry: (progress) => onProgress?.(progress) },
+        {
+          ...(frozenExecution ? { maxRetries: 0 } : {}),
+          onRetry: (progress) => onProgress?.(progress),
+        },
         controller.signal,
       );
 
-      // gpt-image 返回 b64_json
-      const b64 = result.data?.[0]?.b64_json;
-      if (!b64) throw new Error('响应中没有图像数据');
+      // gpt-image 返回 b64_json；n > 1 时 data 是多张，逐张落盘（GenerationService 按顺序入账 position）。
+      const encoded = (result.data ?? [])
+        .map((item) => item.b64_json)
+        .filter((value): value is string => Boolean(value));
+      if (encoded.length === 0) throw new Error('响应中没有图像数据');
+      if (frozenExecution) {
+        costReported = true;
+        frozenExecution.onCost({
+          reportedPoints: estimatedCost,
+          source: estimatedCost === null ? 'unknown' : 'local_price_estimate',
+          evidenceRef: null,
+        });
+      }
 
-      // 解码写盘
+      // 解码写盘：首张沿用 `${historyId}.png`，后续与资产 id 同规（`-2`、`-3`…）。
       const paths = getPaths();
       await mkdir(paths.pictures, { recursive: true });
-      const imgPath = join(paths.pictures, `${historyId}.png`);
-      const imageBuffer = Buffer.from(b64, 'base64');
-      const actualSize = readImagePixelSize(imageBuffer) ?? undefined;
       const expectedSize = parseExpectedSize(req.size);
-      const sizeMismatch =
-        actualSize &&
-        expectedSize &&
-        (actualSize.width !== expectedSize.width || actualSize.height !== expectedSize.height)
-          ? { expected: req.size, actual: `${actualSize.width}x${actualSize.height}` }
-          : undefined;
-      if (sizeMismatch) {
-        logger.warn(
-          '生成尺寸与请求不一致',
-          `model=${req.model ?? this.model}`,
-          `expected=${sizeMismatch.expected}`,
-          `actual=${sizeMismatch.actual}`,
+      const images: GeneratedImageOutput[] = [];
+      let sizeMismatch: { expected: GenerateImageRequest['size']; actual: string } | undefined;
+      for (const [index, b64] of encoded.entries()) {
+        const imgPath = join(
+          paths.pictures,
+          index === 0 ? `${historyId}.png` : `${historyId}-${index + 1}.png`,
         );
+        const imageBuffer = Buffer.from(b64, 'base64');
+        const size = readImagePixelSize(imageBuffer) ?? undefined;
+        const mismatch =
+          size &&
+          expectedSize &&
+          (size.width !== expectedSize.width || size.height !== expectedSize.height)
+            ? { expected: req.size, actual: `${size.width}x${size.height}` }
+            : undefined;
+        if (mismatch && !sizeMismatch) {
+          sizeMismatch = mismatch;
+          logger.warn(
+            '生成尺寸与请求不一致',
+            `model=${req.model ?? this.model}`,
+            `expected=${mismatch.expected}`,
+            `actual=${mismatch.actual}`,
+          );
+        }
+        await writeLocalGeneratedImage(imgPath, imageBuffer);
+        images.push({ imagePath: imgPath, ...(size ? { actualSize: size } : {}) });
       }
-      await writeFile(imgPath, imageBuffer);
 
-      const cost = estimateProviderCost(this.id, req) ?? undefined;
+      const cost =
+        (frozenExecution ? estimatedCost : estimateProviderCost(this.id, req)) ?? undefined;
+      const actualSize = images[0]?.actualSize;
 
       return {
         historyId,
         status: 'success',
-        imagePath: imgPath,
+        imagePath: images[0].imagePath,
+        images,
         durationMs: Date.now() - startTs,
         cost,
         ...(actualSize ? { actualSize } : {}),
         ...(sizeMismatch ? { sizeMismatch } : {}),
       };
     } catch (err) {
+      if (frozenExecution && claimed && !costReported) {
+        costReported = true;
+        frozenExecution.onCost({ reportedPoints: null, source: 'unknown', evidenceRef: null });
+      }
+      if (err instanceof GenerationDispatchError) throw err;
       // 用户取消：归一为 CANCELLED，不当作服务端错误
       if (
         signal?.aborted ||
@@ -266,6 +370,8 @@ export class OpenAICompatibleProvider extends BaseProvider {
   private async editImage(
     req: GenerateImageRequest,
     signal: AbortSignal,
+    execution?: GenerationExecution,
+    beforeDispatch?: (referenceHashes: string[]) => void,
   ): Promise<{
     data?: Array<{ b64_json?: string; url?: string }>;
   }> {
@@ -292,28 +398,37 @@ export class OpenAICompatibleProvider extends BaseProvider {
       );
     }
 
-    const response = await fetch(`${this.baseUrl.replace(/\/+$/, '')}/images/edits`, {
+    const init = {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.getApiKey()}` },
+      headers: { Authorization: `Bearer ${execution ? execution.apiKey : this.getApiKey()}` },
       body: form,
       signal,
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      data?: Array<{ b64_json?: string; url?: string }>;
-      error?: { message?: string; code?: string };
-      message?: string;
+      ...(execution ? { redirect: 'error' as const } : {}),
     };
-    if (!response.ok) {
-      const error = new Error(
-        payload.error?.message ?? payload.message ?? `图片编辑请求失败（HTTP ${response.status}）`,
-      );
-      (error as { status?: number }).status = response.status;
-      (error as { code?: string }).code = payload.error?.code;
-      (error as { headers?: Headers }).headers = response.headers;
-      throw error;
-    }
-    return payload;
+    const url = `${(execution?.binding.baseUrl ?? this.baseUrl).replace(/\/+$/, '')}/images/edits`;
+    beforeDispatch?.(images.map(({ bytes }) => createHash('sha256').update(bytes).digest('hex')));
+    return readImageResponse(await fetch(url, init));
   }
+}
+
+async function readImageResponse(response: Response): Promise<{
+  data?: Array<{ b64_json?: string; url?: string }>;
+}> {
+  const payload = (await response.json().catch(() => ({}))) as {
+    data?: Array<{ b64_json?: string; url?: string }>;
+    error?: { message?: string; code?: string };
+    message?: string;
+  };
+  if (!response.ok) {
+    const error = new Error(
+      payload.error?.message ?? payload.message ?? `图片编辑请求失败（HTTP ${response.status}）`,
+    );
+    (error as { status?: number }).status = response.status;
+    (error as { code?: string }).code = payload.error?.code;
+    (error as { headers?: Headers }).headers = response.headers;
+    throw error;
+  }
+  return payload;
 }
 
 /** 把 SDK 异常变成带 status/retryAfterMs 的 Error，让统一重试器可判断。 */

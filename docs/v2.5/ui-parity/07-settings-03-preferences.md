@@ -7,7 +7,7 @@
 
 ## 1. 结论与迁移状态
 
-外观三件套里**主题已完整对位**(且新版语义化为 `AppTheme` 契约、`ThemeSync` 数据驱动挂 class,实现优于旧版),**语言是新增项**(旧版无 i18n 设置)。原 P0(减少动效死开关)已于 2026-08-29 收口:契约升三态 + `MotionSync` + 压制规则 + `skipMotion()`,全局动效闸门就位(§4.1 存档为验收基准)。**界面密度**(P2,2026-09-06):契约 `density` + `--density-*` 七 token + `DensitySync` 挂 `data-density` + 外观卡两档 ToggleGroup;**提示词/历史/设置行消费接入留后续批次**。**生成默认参数卡**(P2,2026-09-06):`defaultAspectRatio` / `defaultQuality` 进契约,外观分区第二张「生成参数」卡,新会话/空草稿继承,已改草稿不覆盖。背景/张数/方案优先级仍暂缓。
+外观三件套里**主题已完整对位**(且新版语义化为 `AppTheme` 契约、`ThemeSync` 数据驱动挂 class,实现优于旧版),**语言是新增项**(旧版无 i18n 设置)。原 P0(减少动效死开关)已于 2026-08-29 收口:契约升三态 + `MotionSync` + 压制规则 + `skipMotion()`,全局动效闸门就位(§4.1 存档为验收基准)。**界面密度**(P2,2026-09-06 B2-T4):契约 `density` + `--density-*` 七 token + `DensitySync` 挂 `data-density` + 外观卡两档 ToggleGroup;**设置页/导航/设置行/提示词行/历史行已消费 token**(会话列表归 B2-T3,未改)。`ui/card` 舒适态保持 shadcn `px-6`/`py-6`(1.5rem,token 舒适值 0.75rem 对不上),紧凑态走 `--density-card-padding`。**生成默认参数卡**(P2,2026-09-06):`defaultAspectRatio` / `defaultQuality` 进契约,外观分区第二张「生成参数」卡,新会话/空草稿继承,已改草稿不覆盖。背景/张数/方案优先级仍暂缓。
 
 ## 2. 外观对照
 
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 主题 | ChoiceChips 三档(跟随系统 Monitor / 浅色 Sun / 深色 Moon,带图标);hint 动态显示「跟随系统,当前为深色」 | ✅ ToggleGroup 三档(带图标,testid 仍为 `settings-theme-*`);system 档动态 hint「跟随系统,当前为深色/浅色」(挂载后读 matchMedia) | 一致 |
 | 减少动效 | **三态 ChoiceChips:跟随系统 / 减少动效 / 完整动效**;挂 `html[data-motion]` + `.reduce-motion`,`motion.css` 双通道:显式 on 全压 0.01ms,system 时仅在媒体查询命中时压,**off 可强制完整动效覆盖系统设置** | ✅ 已收口(2026-08-29)语义 + 2026-09-06 ToggleGroup 三档(0703-C2)+ system 档动态 hint「跟随系统,当前:完整动效/减少动效」(0703-C1) | 一致 |
-| 界面密度 | 舒适 / 紧凑(`data-density` 驱动 7 个 `--density-*` token:行距/卡距/缩略图尺寸/导航行高) | ✅ 契约 `density` + `@theme` 七 token + `html[data-density=compact]` + `DensitySync` + ToggleGroup 两档 | token/控件已交付;列表行消费接入留后续批次 |
+| 界面密度 | 舒适 / 紧凑(`data-density` 驱动 7 个 `--density-*` token:行距/卡距/缩略图尺寸/导航行高) | ✅ 契约 `density` + `@theme` 七 token + `html[data-density=compact]` + `DensitySync` + ToggleGroup 两档 + 设置/提示词/历史行消费 | ✅ 2026-09-06 B2-T4(会话列表除外) |
 | 语言 | 无 | 简体中文 / English Select | 新增保留;实际文案 i18n 化是独立大卡,本项现在只落偏好 |
 
 ## 3. 生成默认参数对照(旧 `GenerationSection`)
@@ -27,7 +27,7 @@
 | 默认比例 | 与工作台一致的画幅下拉 | ✅ `preferences.defaultAspectRatio`(默认 `auto`,与 Composer 一致);「生成参数」卡 Select 用同一 `RATIO_CATALOG` | 新会话/空草稿继承;已改草稿不覆盖 |
 | 默认质量 | 标准(low)/高清(medium)/超清(high) | ✅ `preferences.defaultQuality`(默认 `auto`);文案与当前 Composer 口径一致:自动/标准/高清/超清(auto/low/medium/high) | 同上;已按 Composer 现行口径回写(不是「快速/标准/精细」旧稿) |
 | 默认背景 | 自动/透明/不透明 | 无(契约无背景参数) | 随生图参数扩展排卡(P3,依赖 provider 能力探测) |
-| 默认张数 | 1/2/4 | 锁 1(D3) | 随 D3 解锁 |
+| 默认张数 | 1/2/4 | ✅ `preferences.defaultCount`(1/2/4,默认 1);「生成参数」卡「默认张数」ToggleGroup(`settings-default-count-{1,2,4}`),仅 `capabilities.maxGenerationCount > 1` 的宿主渲染(双端现为 4) | 2026-09-06 随 B2-T1 / §9-D3 解锁;新设计/空草稿继承,已显式改过的草稿不被覆盖 |
 | 方案运行优先级 | 三档,默认「方案主导」 | 无 | 暂缓域(设计方案)挂点 |
 | 联动语义 | **修改默认值同步应用到当前工作台草稿** | ✅ `session-store.draftParamOverrides` 区分显式设置与默认继承 | 只同步未显式改过的当前草稿 |
 
@@ -36,7 +36,7 @@
 - 主题/动效/密度已统一 shadcn ToggleGroup(带图标,选中过渡 `--dur-fast` + `--ease-out`);语言仍为 Select。
 - 减少动效行 hint:system 档挂载后显示「跟随系统,当前:完整动效/减少动效」;on/off 档显示语义说明(0703-C1)。
 - 旧密度切换即时生效且虚拟列表重测行高(04 §6 提到的 `virtualizer.measure()`);恢复密度时新虚拟化实现要有同样的重测钩子。
-- 偏好全部本机持久(桌面 SQLite/浏览器 localStorage 经 gateway),两代口径一致:「仅保存在本机」。
+- 偏好全部本机持久：桌面经主进程Gateway保存到`v25-preferences.json`，Web经Gateway保存在浏览器localStorage；两代产品口径一致为「仅保存在本机」，桌面不是SQLite。旧桌面file/app origin中的偏好由主进程启动时白名单只读迁入新JSON；已有v25文件不覆盖，旧存储不删，失败后续启动重试，不迁移凭据或暂缓域字段。09-21真实Electron两origin迁移/新PID/再改偏好后重启2P，与引导/设置/窗口联合20P；新包最终验证另记。
 
 ## 4.1 减少动效的完整规格(✅ 已收口 2026-08-29,存档为验收基准;承旧 `motion.css` 双通道)
 
@@ -61,10 +61,10 @@
 | 优先级 | 任务 | 验收要点 |
 |---|---|---|
 | P2 | ✅ 生成默认参数卡:defaultAspectRatio + defaultQuality 进偏好契约;新会话草稿初始化读取;未改草稿联动 | 改默认后新建会话 Composer 预选一致 |
-| P2 | ◐ 界面密度:token + ToggleGroup + `data-density` 已交付;提示词/历史/设置行消费接入留后续 | 紧凑态快照与虚拟列表行高重测随消费批次 |
+| P2 | ✅ 界面密度:token + ToggleGroup + `data-density` + 设置/提示词/历史行消费;虚拟列表 `measure()` | 紧凑态用数值断言(设置内边距/提示词行高),舒适态视觉基线零漂移;会话列表归 B2-T3 |
 | P3 | ✅ 主题动态 hint;质量档位文案与 Composer 现行口径(自动/标准/高清/超清)对齐 | — |
 
-> 暂缓域挂点:默认背景(生图参数扩展)、方案运行优先级(设计方案域)、张数(D3)。
+> 暂缓域挂点:默认背景(生图参数扩展)、方案运行优先级(设计方案域)。张数已随 D3 解锁(B2-T1)。
 
 ## 6. Codex 增益(C 系列,语汇见 [00-codex-craft.md](./00-codex-craft.md))
 
@@ -72,6 +72,6 @@
 |---|---|---|---|
 | 0703-C1 | C1 | ✅ 动效行动态 hint(与主题 hint 同法同卡) | system 档 hint 显示解析结果:「跟随系统,当前:完整动效/减少动效」(读 `matchMedia`);on/off 档显示语义说明 |
 | 0703-C2 | C1 | ✅ 主题/动效/密度统一 ToggleGroup(带图标) | 选中过渡 `--dur-fast` + `--ease-out`;既有 `settings-theme-*` / `settings-motion-*` testid 保留 |
-| 0703-C3 | C2 | ◐ 密度 token 已进 `@theme`;列表行消费与行高下移留后续批次 | `--density-*` 七值(§4.1)已挂 ui 包,与动效 token 同一落点 |
+| 0703-C3 | C2 | ✅ 密度 token 已进 `@theme`;设置/提示词/历史行消费 + 虚拟列表重测 | `--density-*` 七值(§4.1);card 舒适态保持 1.5rem,紧凑走 token |
 
 测试建议:动效三态用单测锁 `MotionSync` 的 class/attr 输出矩阵(3 档 × 系统媒体查询 2 态 = 6 组合),E2E 各取一条(on 态断言工作台空态无 marquee 轨道、off 态在模拟系统 reduce 下仍有);密度恢复时视觉快照加紧凑态一组;生成默认值用工作台单测断言「新会话草稿继承默认、已改草稿不被覆盖」。

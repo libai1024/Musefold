@@ -4,14 +4,14 @@
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "scripts": {
-    "dev": "cd apps/desktop && electron-vite dev --config electron.vite.config.ts",
+    "dev": "pnpm --filter @musefold/managed-fs run build && cd apps/desktop && electron-vite dev --config electron.vite.config.ts",
     "dev:stop": "node scripts/stop-dev-processes.mjs",
     "dev:web": "pnpm --filter @musefold/web-next run dev",
     "dev:api": "pnpm --filter @musefold/api run dev",
     "dev:worker": "pnpm --filter @musefold/worker run dev",
     "dev:infra": "docker compose -f infra/v2.5/compose.yaml up -d",
     "dev:infra:down": "docker compose -f infra/v2.5/compose.yaml down",
-    "build": "cd apps/desktop && electron-vite build --config electron.vite.config.ts",
+    "build": "pnpm --filter @musefold/managed-fs run build && cd apps/desktop && electron-vite build --config electron.vite.config.ts",
     "build:web": "pnpm --filter @musefold/web-next run build",
     "package": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs",
     "package:mac": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs --mac --config.electronDist=../../node_modules/electron/dist",
@@ -19,9 +19,10 @@
     "package:win": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs --win",
     "rebuild": "pnpm --filter musefold-app run postinstall",
     "typecheck": "tsc -b",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "pnpm --filter @musefold/managed-fs run build && vitest run",
+    "test:watch": "pnpm --filter @musefold/managed-fs run build && vitest",
     "test:e2e": "pnpm --filter @musefold/web-next run build && pnpm run build && playwright test -c tests/v25",
+    "test:e2e:live": "node scripts/v25-live-verification.mjs && pnpm run build:web && pnpm run build && playwright test -c tests/v25/playwright.live.config.ts",
     "test:e2e:verify": "pnpm run build && node preview/mcp-verify-ipc.mjs",
     "lint": "biome check .",
     "format": "biome format --write .",
@@ -33,11 +34,13 @@
     "deploy:prod": "node scripts/deploy/run.mjs",
     "deploy:rollback": "node scripts/deploy/rollback.mjs",
     "deploy:desktop": "node scripts/deploy/publish-desktop.mjs",
+    "deploy:v25:plan": "node scripts/deploy/v25-plan.mjs",
     "bundle:manifest": "node packages/update-protocol/src/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
     "@changesets/cli": "^3.0.1",
+    "@electron/asar": "3.4.1",
     "@lhci/cli": "^0.15.1",
     "@musefold/core": "workspace:*",
     "@musefold/desktop-contracts": "workspace:*",
@@ -65,6 +68,10 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
     "vitest": "^4.1.10",
-    "zod": "^4.4.3"
+    "yaml": "2.9.0",
+    "yauzl": "2.10.0",
+    "zod": "^4.4.3",
+    "@musefold/scheme-package": "workspace:*",
+    "@musefold/managed-fs": "workspace:*"
   }
 }

@@ -16,6 +16,7 @@ import { loadApiKey, sweepOrphanedProviderKeys } from '../security/keychain';
 import { estimateProviderCost, sweepUnmanagedProviderPricing } from '../settings/pricing';
 import { electronPathsPort, electronSecretsPort } from './core-adapters';
 import { doubaoWebRuntime } from '../doubao-web/browser-service';
+import { getManagedFilesystem } from './managed-filesystem';
 
 let core: MusefoldCore | null = null;
 let hub: EventHub | null = null;
@@ -30,6 +31,7 @@ export function initMusefoldCore(): MusefoldCore {
     createLogger,
     estimateProviderCost,
     doubaoWeb: doubaoWebRuntime,
+    managedFilesystem: getManagedFilesystem,
   });
   // v2.5(M4e):legacy 链跑到终态后,库交给 drizzle 受管;此后 schema 变更
   // 全部走 packages/desktop-db 迁移,core run-migrations 冻结在 0020。

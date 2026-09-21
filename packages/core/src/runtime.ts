@@ -12,6 +12,7 @@ import type {
   ValidationResult,
 } from '@musefold/desktop-contracts/providers';
 import type { Logger } from './ports';
+import type { ManagedFilesystem } from '@musefold/managed-fs';
 
 /** 与 electron/system/paths.ts 的 getPaths() 同形态。 */
 export interface CorePaths {
@@ -39,6 +40,8 @@ export interface CoreRuntime {
   createLogger(scope: string): Logger;
   estimateProviderCost(providerId: string, req: { n?: number }): number | null;
   doubaoWeb?: DoubaoWebRuntime;
+  /** Host-owned native IO; missing capability preserves cleanup intent instead of path fallback. */
+  managedFilesystem?: () => ManagedFilesystem;
 }
 
 let runtime: CoreRuntime | null = null;

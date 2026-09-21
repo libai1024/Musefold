@@ -6,6 +6,10 @@ import {
   aiProviderTestResultSchema,
   appInfoSchema,
   appPreferencesSchema,
+  automationIntegrationGuideSchema,
+  automationRequestLogEntrySchema,
+  automationSpendAuditSchema,
+  automationStatusSchema,
   backupInfoSchema,
   clearAllDataResultSchema,
   createAiProviderSchema,
@@ -34,6 +38,7 @@ import {
   promptUseResultSchema,
   providerOptionSchema,
   redeemResultSchema,
+  resolveAutomationConfirmationResultSchema,
   saveAssetInputSchema,
   saveAssetResultSchema,
   syncConflictListSchema,
@@ -43,6 +48,8 @@ import {
   updatePromptTagSchema,
   updateWorkbenchSessionSchema,
   uploadReferenceImageInputSchema,
+  usageSummarySchema,
+  cloudMcpAuthorizationListSchema,
   workbenchSessionListQuerySchema,
   workbenchSessionPageSchema,
   workbenchSessionSchema,
@@ -304,6 +311,42 @@ const appInfo = appInfoSchema.parse({
   schemaVersion: 21,
   channel: 'stable',
 });
+const automationStatus = automationStatusSchema.parse({
+  enabled: true,
+  running: true,
+  host: '127.0.0.1',
+  port: 43_217,
+  apiVersion: 'v1',
+  tokenMasked: 'mf_a…0u_v',
+  monthlyBudgetPoints: 20,
+  spentThisMonthPoints: 3.5,
+  budgetMonth: '2026-09',
+});
+const automationRequestLogEntry = automationRequestLogEntrySchema.parse({
+  at: NOW,
+  method: 'POST',
+  path: '/v1/generate',
+  status: 202,
+  durationMs: 41,
+});
+const automationSpendAudit = automationSpendAuditSchema.parse({
+  id: 7,
+  at: NOW,
+  action: 'generate_image',
+  promptPreview: '一只橘猫',
+  approvedVia: 'confirmation',
+  status: 'success',
+  estimatedPoints: 4,
+  actualPoints: 3.5,
+});
+const automationGuide = automationIntegrationGuideSchema.parse({
+  bundledReady: true,
+  mcpConfigJson: '{"mcpServers":{}}',
+  codexConfigToml: '[mcp_servers.musefold]',
+  claudeCommand: 'claude mcp add musefold',
+  cliInstalled: true,
+  cliOnPath: false,
+});
 
 const responseByMethod: Record<string, unknown> = {
   'settings.getPreferences': preferences,
@@ -363,6 +406,17 @@ const responseByMethod: Record<string, unknown> = {
   'system.openExternal': null,
   'system.openProductDocs': null,
   'system.relaunch': null,
+  'automation.getStatus': automationStatus,
+  'automation.setEnabled': automationStatus,
+  'automation.rotateToken': automationStatus,
+  'automation.copyToken': null,
+  'automation.setMonthlyBudget': automationStatus,
+  'automation.listRequestLog': [automationRequestLogEntry],
+  'automation.listSpendAudit': [automationSpendAudit],
+  'automation.resolveConfirmation': resolveAutomationConfirmationResultSchema.parse({
+    handled: true,
+  }),
+  'automation.getIntegrationGuide': automationGuide,
   'prompts.list': promptPageSchema.parse({ items: [prompt], nextCursor: null }),
   'prompts.get': prompt,
   'prompts.create': prompt,
@@ -389,6 +443,8 @@ const responseByMethod: Record<string, unknown> = {
   'workbench.updateSession': session,
   'workbench.removeSession': session,
   'workbench.restoreSession': session,
+  'workbench.purgeSession': { purged: 1 },
+  'workbench.emptyTrash': { purged: 501 },
   'generation.create': job,
   'generation.list': generationHistoryPageSchema.parse({ items: [job], nextCursor: null }),
   'generation.get': job,
@@ -407,6 +463,7 @@ const responseByMethod: Record<string, unknown> = {
     }),
   ],
   'generation.uploadReferenceImage': referenceImage,
+  'generation.releaseReferenceImage': undefined,
   'generation.saveAsset': saveAssetResultSchema.parse('saved'),
   'generation.cleanup': generationCleanupResultSchema.parse({ affected: 3 }),
   'generation.getStorageUsage': generationStorageUsageSchema.parse({
@@ -415,6 +472,34 @@ const responseByMethod: Record<string, unknown> = {
   }),
   'generation.revealAsset': undefined,
   'generation.copyAssetToClipboard': undefined,
+  'cloudMcp.listAuthorizations': cloudMcpAuthorizationListSchema.parse({
+    items: [
+      {
+        clientId: 'cursor-mcp-client',
+        name: 'Cursor',
+        uri: null,
+        scopes: ['account:read'],
+        authorizedAt: NOW,
+        lastUsedAt: null,
+      },
+    ],
+  }),
+  'cloudMcp.revokeAuthorization': { revoked: true, clientId: 'cursor-mcp-client' },
+  'usage.summary': usageSummarySchema.parse({
+    range: '30d',
+    from: NOW,
+    to: NOW,
+    generationCount: 0,
+    succeededCount: 0,
+    failedCount: 0,
+    cancelledCount: 0,
+    imageCount: 0,
+    costPoints: null,
+    successRate: null,
+    byProvider: [],
+    byDay: [],
+    byModel: [],
+  }),
 };
 
 function setBridge(): void {
@@ -431,6 +516,18 @@ describe('desktop gateway transport contract', () => {
     invokeMock.mockImplementation(async (method) => ({ ok: true, data: responseByMethod[method] }));
   });
 
+  it('routes scheme permanent deletion through the canonical IPC and rejects malformed receipts', async () => {
+    const gateway = createDesktopGateway();
+    if (!gateway.designSchemes) throw new Error('Missing desktop scheme gateway');
+    const input = { schemeId: 'scheme_1', expectedVersion: 8 };
+    const result = { schemeId: 'scheme_1', purged: true, retiredKeys: 2, deferredKeys: 1 };
+    invokeMock.mockResolvedValueOnce({ ok: true, data: result });
+    await expect(gateway.designSchemes.purge(input)).resolves.toEqual(result);
+    expect(invokeMock).toHaveBeenLastCalledWith('designSchemes.purge', input);
+    invokeMock.mockResolvedValueOnce({ ok: true, data: { ...result, deferredKeys: -1 } });
+    await expect(gateway.designSchemes.purge(input)).rejects.toThrow();
+  });
+
   it('maps every MusefoldGateway method to its IPC name and exact payload shape', async () => {
     const gateway = createDesktopGateway();
     const sync = gateway.sync;
@@ -438,7 +535,17 @@ describe('desktop gateway transport contract', () => {
     const agentConnections = gateway.agentConnections;
     const doubao = gateway.doubao;
     const system = gateway.system;
-    if (!sync || !aiProviders || !agentConnections || !doubao || !system) {
+    const automation = gateway.automation;
+    const cloudMcp = gateway.cloudMcp;
+    if (
+      !sync ||
+      !aiProviders ||
+      !agentConnections ||
+      !doubao ||
+      !system ||
+      !automation ||
+      !cloudMcp
+    ) {
       throw new Error('desktop gateway optional domains are missing');
     }
 
@@ -484,6 +591,15 @@ describe('desktop gateway transport contract', () => {
     await system.openExternal({ url: 'https://ai.tvt.wiki/login/' });
     await system.openProductDocs();
     await system.relaunch();
+    await automation.getStatus();
+    await automation.setEnabled({ enabled: false });
+    await automation.rotateToken();
+    await automation.copyToken();
+    await automation.setMonthlyBudget({ points: 20 });
+    await automation.listRequestLog({ limit: 50 });
+    await automation.listSpendAudit();
+    await automation.resolveConfirmation({ confirmationId: 'c-1', approved: true });
+    await automation.getIntegrationGuide();
     await gateway.prompts.list(promptQuery);
     await gateway.prompts.get(prompt.id);
     await gateway.prompts.create(createPrompt);
@@ -507,6 +623,8 @@ describe('desktop gateway transport contract', () => {
     await gateway.workbench.updateSession(session.id, updateSession);
     await gateway.workbench.removeSession(session.id);
     await gateway.workbench.restoreSession(session.id);
+    await expect(gateway.workbench.purgeSession(session.id)).resolves.toEqual({ purged: 1 });
+    await expect(gateway.workbench.emptyTrash()).resolves.toEqual({ purged: 501 });
     await gateway.generation.create(generationInput, 'desktop-create-intent');
     await gateway.generation.list(generationQuery);
     await gateway.generation.get(job.id);
@@ -517,11 +635,15 @@ describe('desktop gateway transport contract', () => {
     await gateway.generation.purge(job.id);
     await gateway.generation.listProviders();
     await gateway.generation.uploadReferenceImage(upload);
+    await gateway.generation.releaseReferenceImage({ id: referenceImage.id });
     await gateway.generation.saveAsset(save);
     await gateway.generation.cleanup({ scope: 'older-than-30d' });
     await gateway.generation.getStorageUsage?.();
     await gateway.generation.revealAsset?.('asset-1');
     await gateway.generation.copyAssetToClipboard?.('asset-1');
+    await gateway.usage.summary({ range: '30d' });
+    await cloudMcp.listAuthorizations();
+    await cloudMcp.revokeAuthorization({ clientId: 'cursor-mcp-client' });
 
     expect(invokeMock.mock.calls.map(([method, payload]) => [method, payload])).toEqual([
       ['settings.getPreferences', undefined],
@@ -566,6 +688,16 @@ describe('desktop gateway transport contract', () => {
       ['system.openExternal', { url: 'https://ai.tvt.wiki/login/' }],
       ['system.openProductDocs', undefined],
       ['system.relaunch', undefined],
+      ['automation.getStatus', undefined],
+      ['automation.setEnabled', { enabled: false }],
+      ['automation.rotateToken', undefined],
+      // 复制令牌:无入参、无出参 —— 明文只在主进程里进系统剪贴板。
+      ['automation.copyToken', undefined],
+      ['automation.setMonthlyBudget', { points: 20 }],
+      ['automation.listRequestLog', { limit: 50 }],
+      ['automation.listSpendAudit', undefined],
+      ['automation.resolveConfirmation', { confirmationId: 'c-1', approved: true }],
+      ['automation.getIntegrationGuide', undefined],
       ['prompts.list', promptQuery],
       ['prompts.get', { id: prompt.id }],
       ['prompts.create', createPrompt],
@@ -589,24 +721,147 @@ describe('desktop gateway transport contract', () => {
       ['workbench.updateSession', { id: session.id, patch: updateSession }],
       ['workbench.removeSession', session.id],
       ['workbench.restoreSession', session.id],
+      ['workbench.purgeSession', session.id],
+      ['workbench.emptyTrash', undefined],
       ['generation.create', generationInput],
       ['generation.list', generationQuery],
       ['generation.get', job.id],
       ['generation.cancel', job.id],
-      ['generation.retry', job.id],
+      ['generation.retry', { id: job.id, idempotencyKey: 'desktop-retry-intent' }],
       ['generation.remove', job.id],
       ['generation.restore', job.id],
       ['generation.purge', job.id],
       ['generation.listProviders', undefined],
       ['generation.uploadReferenceImage', upload],
+      ['generation.releaseReferenceImage', { id: referenceImage.id }],
       ['generation.saveAsset', save],
       ['generation.cleanup', { scope: 'older-than-30d' }],
       ['generation.getStorageUsage', undefined],
       // 本机文件动作只送资产 id:渲染层不持有任何路径(ui-parity 05 §7)。
       ['generation.revealAsset', 'asset-1'],
       ['generation.copyAssetToClipboard', 'asset-1'],
+      ['usage.summary', { range: '30d' }],
+      ['cloudMcp.listAuthorizations', undefined],
+      ['cloudMcp.revokeAuthorization', { clientId: 'cursor-mcp-client' }],
     ]);
-    expect(invokeMock).toHaveBeenCalledTimes(80);
+    expect(invokeMock).toHaveBeenCalledTimes(95);
+  });
+
+  it('preserves the reviewed session reference across consent, the legacy alias and local preparation', async () => {
+    const sync = createDesktopGateway().sync;
+    if (!sync?.prepareLocalWorkspace) throw new Error('Missing local recovery gateway');
+    const reviewRef = 'a'.repeat(64);
+    await sync.setConsent('enabled', reviewRef);
+    await sync.setEnabled(true, reviewRef);
+    invokeMock.mockResolvedValueOnce({ ok: true, data: { ...syncStatus, reviewRef } });
+    await expect(sync.prepareLocalWorkspace({ mode: 'empty', reviewRef })).resolves.toMatchObject({
+      reviewRef,
+    });
+    expect(invokeMock.mock.calls).toEqual([
+      ['sync.setConsent', { consent: 'enabled', reviewRef }],
+      ['sync.setEnabled', { enabled: true, reviewRef }],
+      ['sync.prepareLocalWorkspace', { mode: 'empty', reviewRef }],
+    ]);
+  });
+
+  it('rejects a cloudMcp list envelope that leaks a token', async () => {
+    const cloudMcp = createDesktopGateway().cloudMcp;
+    if (!cloudMcp) throw new Error('desktop gateway cloudMcp domain is missing');
+
+    await expect(cloudMcp.listAuthorizations()).resolves.toMatchObject({
+      items: [{ clientId: 'cursor-mcp-client', name: 'Cursor' }],
+    });
+    invokeMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        items: [
+          {
+            clientId: 'cursor-mcp-client',
+            name: 'Cursor',
+            uri: null,
+            scopes: ['account:read'],
+            authorizedAt: NOW,
+            lastUsedAt: null,
+            access_token: 'tok',
+          },
+        ],
+      },
+    });
+    await expect(cloudMcp.listAuthorizations()).rejects.toBeInstanceOf(z.ZodError);
+  });
+
+  it('rejects an automation status envelope that carries a full token or a host path', async () => {
+    const automation = createDesktopGateway().automation;
+    if (!automation) throw new Error('desktop gateway automation domain is missing');
+
+    await expect(automation.getStatus()).resolves.toEqual(automationStatus);
+
+    // 掩码正则是渲染层的最后一道闸:主进程若回退成明文 token,这里直接 ZodError。
+    invokeMock.mockResolvedValueOnce({
+      ok: true,
+      data: { ...automationStatus, tokenMasked: `mf_at_${'x'.repeat(43)}` },
+    });
+    await expect(automation.getStatus()).rejects.toBeInstanceOf(z.ZodError);
+
+    invokeMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...automationStatus,
+        discoveryPath: '/Users/creator/Library/Application Support/Musefold/automation.json',
+      },
+    });
+    await expect(automation.getStatus()).rejects.toBeInstanceOf(z.ZodError);
+  });
+
+  it('subscribes to both confirmation event kinds and drops malformed payloads', () => {
+    const listeners: Array<(payload: unknown) => void> = [];
+    const unsubscribe = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        musefoldV25: {
+          invoke: invokeMock,
+          onAutomationEvent(callback: (payload: unknown) => void) {
+            listeners.push(callback);
+            return unsubscribe;
+          },
+        },
+      },
+    });
+
+    const automation = createDesktopGateway().automation;
+    if (!automation) throw new Error('desktop gateway automation domain is missing');
+    const seen: unknown[] = [];
+    const off = automation.subscribeConfirmations((event) => seen.push(event));
+    const emit = listeners[0];
+    if (!emit) throw new Error('automation event listener was not registered');
+
+    const summary = {
+      confirmationId: 'c-1',
+      providerName: '中转站',
+      model: 'image-model',
+      n: 1,
+      estimatedPoints: 4,
+      promptPreview: '一只橘猫',
+    };
+    emit({ type: 'required', summary });
+    emit({ type: 'resolved', resolved: { confirmationId: 'c-1', outcome: 'timeout' } });
+    // 坏事件静默丢弃(与设计方案事件同口径),不炸壳。
+    emit({ type: 'required', summary: { confirmationId: 'c-2' } });
+    emit(undefined);
+
+    expect(seen).toEqual([
+      { type: 'required', summary },
+      { type: 'resolved', resolved: { confirmationId: 'c-1', outcome: 'timeout' } },
+    ]);
+    off();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('fails structurally when the host has no automation event channel', () => {
+    const automation = createDesktopGateway().automation;
+    if (!automation) throw new Error('desktop gateway automation domain is missing');
+    expect(() => automation.subscribeConfirmations(() => {})).toThrow(DesktopGatewayError);
   });
 
   it('parses successful data with the method response schema and rejects mismatches', async () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import type { WorkbenchSession } from '@musefold/contracts';
+import { useGateway } from '@musefold/platform';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +30,7 @@ import {
 import { Input } from '@musefold/ui/components/input';
 import { Kbd } from '@musefold/ui/components/kbd';
 import { Skeleton } from '@musefold/ui/components/skeleton';
+import { toast } from '@musefold/ui/components/sonner';
 import {
   Archive,
   BellDot,
@@ -43,10 +45,25 @@ import {
 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
 import { Fragment, useEffect, useState } from 'react';
-import { usePreferences, useUpdatePreferences } from '../settings/hooks';
+import { usePreferences, useRelaunchApp, useUpdatePreferences } from '../settings/hooks';
 import { isMacPlatform, shortcutDisplay } from '../shell/shortcuts';
 import { sessionHasActiveJob, useRemoveSession, useSessionList, useUpdateSession } from './hooks';
 import { isSessionUnread, useActiveSession } from './session-store';
+
+/** 与 `workbenchSessionSchema.title` 上限对齐(contracts max 120)。 */
+export const SESSION_TITLE_MAX_LENGTH = 120;
+
+/** 桌面 SQLite 迁移/库损坏后会话列表的逃生门码(经 DesktopGatewayError.code 传播)。 */
+export const WORKBENCH_SESSION_RESTART_REQUIRED = 'WORKBENCH_SESSION_RESTART_REQUIRED';
+
+export function isSessionRestartRequired(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = (error as { code: unknown }).code;
+    if (code === WORKBENCH_SESSION_RESTART_REQUIRED) return true;
+  }
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return message.includes(WORKBENCH_SESSION_RESTART_REQUIRED);
+}
 
 /**
  * 壳侧栏「对话」区(承 v2.1 ProductSidebar 的 sessionList 槽):
@@ -141,7 +158,7 @@ export function NewSessionAction({ onOpen }: SessionPanelProps) {
   return (
     <button
       type="button"
-      className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] text-muted-foreground transition-colors duration-(--dur-fast) hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-[var(--density-nav-y)] text-left text-[13px] text-muted-foreground transition-colors duration-(--dur-fast) hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
       title={shortcut ? `新设计(${shortcut})` : '新设计'}
       onClick={() => {
         startDraftSession();
@@ -221,6 +238,7 @@ function SessionRow({
           autoFocus
           data-testid="session-rename-input"
           className="h-8 text-sm"
+          maxLength={SESSION_TITLE_MAX_LENGTH}
           onChange={(event) => setTitle(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') commit();
@@ -280,6 +298,7 @@ function SessionRow({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
+          data-testid={`session-row-${session.id}`}
           className={cn(
             'group flex items-center gap-1 rounded-md pr-1 transition-colors',
             active ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/60',
@@ -290,7 +309,7 @@ function SessionRow({
             onClick={onSelect}
             data-testid={`session-${session.id}`}
             className={cn(
-              'flex h-8 min-w-0 flex-1 items-center gap-1.5 truncate px-2.5 text-left text-[13px]',
+              'flex min-w-0 flex-1 items-center gap-1.5 truncate px-2.5 py-[var(--density-nav-y)] text-left text-[13px]',
               active ? 'font-medium text-sidebar-foreground' : 'text-muted-foreground',
             )}
           >
@@ -300,13 +319,13 @@ function SessionRow({
           </button>
           {/* 静息态行尾显示相对时间(承 ZCode/Cursor);hover/focus 让位给动作组。 */}
           <span
-            className="shrink-0 pr-1.5 text-[11px] text-muted-foreground/60 tabular-nums group-focus-within:hidden group-hover:hidden pointer-coarse:hidden"
+            className="shrink-0 pr-1.5 text-[11px] text-muted-foreground/60 tabular-nums group-focus-within:hidden group-hover:hidden pointer-coarse:hidden max-md:hidden"
             data-testid="session-updated-at"
           >
             {sessionRelativeTime(session.updatedAt)}
           </span>
-          {/* 触屏(pointer-coarse)常显;鼠标 hover/键盘 focus 显示(§8-I2)。 */}
-          <div className="hidden shrink-0 items-center pointer-coarse:flex group-focus-within:flex group-hover:flex">
+          {/* 窄屏抽屉和触屏常显;大屏鼠标 hover/键盘 focus 显示(§8-I2)。 */}
+          <div className="hidden shrink-0 items-center pointer-coarse:flex group-focus-within:flex group-hover:flex max-md:flex">
             <Button
               variant="ghost"
               size="icon"
@@ -352,7 +371,7 @@ function SessionRow({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-6 text-muted-foreground hover:text-foreground"
+                  className="size-6 text-muted-foreground hover:text-foreground max-md:size-11"
                   aria-label="更多操作"
                   data-testid="session-more"
                 >
@@ -401,6 +420,9 @@ export function SessionListPanel({ onOpen }: SessionPanelProps) {
   const removeSession = useRemoveSession();
   const preferences = usePreferences();
   const updatePreferences = useUpdatePreferences();
+  const canRelaunch = Boolean(useGateway().system);
+  const relaunch = useRelaunchApp();
+  const restartRequired = sessions.isError && isSessionRestartRequired(sessions.error);
   const activeSessionId = useActiveSession((s) => s.activeSessionId);
   const setActiveSessionId = useActiveSession((s) => s.setActiveSessionId);
   const seenAt = useActiveSession((s) => s.seenAt);
@@ -432,7 +454,12 @@ export function SessionListPanel({ onOpen }: SessionPanelProps) {
   }
 
   function leaveSession(id: string) {
-    if (activeSessionId === id) setActiveSessionId(null);
+    const state = useActiveSession.getState();
+    if (state.activeSessionId === id) {
+      const next = rawItems.find((session) => session.id !== id);
+      if (next) state.setActiveSessionId(next.id);
+      else state.startDraftSession();
+    }
     // 会话离场(归档/删除)时顺带清置顶,避免偏好里积累孤儿 id。
     if (pinnedSet.has(id)) {
       updatePreferences.mutate({
@@ -450,17 +477,40 @@ export function SessionListPanel({ onOpen }: SessionPanelProps) {
         {sessions.isPending &&
           [0, 1, 2].map((index) => <Skeleton key={index} className="h-8 shrink-0 rounded-md" />)}
         {sessions.isError && (
-          <div className="flex flex-col items-start gap-2 px-2.5 py-3">
-            <p className="text-muted-foreground text-xs">对话读取失败</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => void sessions.refetch()}
-              data-testid="session-list-retry"
-            >
-              重试
-            </Button>
+          <div
+            className="flex flex-col items-start gap-2 px-2.5 py-3"
+            data-testid="session-list-error"
+          >
+            <p className="text-foreground text-xs" data-testid="session-list-error-title">
+              {restartRequired ? '需要重启应用' : '对话读取失败'}
+            </p>
+            {restartRequired ? (
+              <p className="text-muted-foreground text-xs" data-testid="session-list-error-hint">
+                对话服务尚未加载。请完全重启后再试。
+              </p>
+            ) : null}
+            {restartRequired && canRelaunch ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => relaunch.mutate()}
+                disabled={relaunch.isPending}
+                data-testid="session-list-relaunch"
+              >
+                立即重启
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => void sessions.refetch()}
+                data-testid="session-list-retry"
+              >
+                重试
+              </Button>
+            )}
           </div>
         )}
         {sessions.isSuccess &&
@@ -494,11 +544,19 @@ export function SessionListPanel({ onOpen }: SessionPanelProps) {
                       })
                     }
                     onArchive={() => {
-                      leaveSession(session.id);
-                      updateSession.mutate({
-                        id: session.id,
-                        patch: { expectedVersion: session.version, archived: true },
-                      });
+                      updateSession.mutate(
+                        {
+                          id: session.id,
+                          patch: { expectedVersion: session.version, archived: true },
+                        },
+                        {
+                          onSuccess: () => leaveSession(session.id),
+                          onError: (error) =>
+                            toast.error(
+                              error instanceof Error ? error.message : '归档失败，请重试',
+                            ),
+                        },
+                      );
                     }}
                     onMarkUnread={() => markUnread(session.id)}
                     onRequestRemove={() => setDeleteTarget(session)}
@@ -517,29 +575,38 @@ export function SessionListPanel({ onOpen }: SessionPanelProps) {
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
+          if (!open && !removeSession.isPending) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle>删除对话？</AlertDialogTitle>
             <AlertDialogDescription>
-              「{deleteTarget?.title}」将从对话列表移除。已经生成的图片仍保留在生成历史中。
+              「{deleteTarget?.title}」将移入设置中的会话回收站。已经生成的图片仍保留在生成历史中。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={removeSession.isPending}>取消</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               data-testid="session-remove-confirm"
-              onClick={() => {
-                if (deleteTarget) {
-                  leaveSession(deleteTarget.id);
-                  removeSession.mutate(deleteTarget.id);
+              disabled={removeSession.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget && !removeSession.isPending) {
+                  const id = deleteTarget.id;
+                  removeSession.mutate(id, {
+                    onSuccess: () => {
+                      leaveSession(id);
+                      setDeleteTarget(null);
+                    },
+                    onError: (error) =>
+                      toast.error(error instanceof Error ? error.message : '删除失败，请重试'),
+                  });
                 }
-                setDeleteTarget(null);
               }}
             >
-              删除对话
+              {removeSession.isPending ? '删除中…' : '删除对话'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

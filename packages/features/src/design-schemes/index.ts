@@ -25,3 +25,4 @@ export { SchemeRunPicker } from './SchemeRunPicker';
 export { SchemesScreen, type SchemesScreenProps } from './SchemesScreen';
 export * from './scheme-labels';
 export * from './types';
+export { useSchemeRunHandlers } from './use-scheme-run-handlers';

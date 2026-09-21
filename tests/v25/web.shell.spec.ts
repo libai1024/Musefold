@@ -107,3 +107,12 @@ test('mobile drawer traps the shell, closes on Escape, restores focus, and dismi
   await expect(page).toHaveURL(/\/prompts$/);
   await expect(page.getByRole('dialog', { name: '主导航' })).toHaveCount(0);
 });
+
+test('关于分区版本行含 Web 版', async ({ page, isMobile }) => {
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  const back = page.getByTestId('settings-section-back');
+  if (isMobile && (await back.isVisible().catch(() => false))) await back.click();
+  await page.getByTestId('settings-nav-about').click();
+  await expect(page.getByTestId('settings-about-version')).toContainText('Web 版');
+});

@@ -128,7 +128,7 @@ export function AppearanceCard() {
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-[var(--density-setting-row-y)]">
               <div>
                 <Label>主题</Label>
                 <p className="mt-1 text-muted-foreground text-xs" data-testid="settings-theme-hint">
@@ -166,7 +166,7 @@ export function AppearanceCard() {
               </ToggleGroup>
             </div>
             <Separator />
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-[var(--density-setting-row-y)]">
               <div>
                 <Label>动效</Label>
                 <p
@@ -207,7 +207,7 @@ export function AppearanceCard() {
               </ToggleGroup>
             </div>
             <Separator />
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-[var(--density-setting-row-y)]">
               <div>
                 <Label>界面密度</Label>
                 <p

@@ -4,6 +4,7 @@
 // 每个真实事件（流式文本、工具调用、逐张生图结果）经 SKILL_RUNTIME_EVENT 推给渲染进程，
 // 作为对话内容展示。Agent 不可用时回退为文件附件直传（md/txt 全文 + 图片直接生图）。
 
+import { createHash } from 'node:crypto';
 import { stepCountIs, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { ulid } from 'ulid';
@@ -35,6 +36,10 @@ import type {
 import { getAiConnectionStore } from '../../ai/connection-store';
 import { classifyAiError, OpenAiCompatibleAssistant } from '../../ai/openai-compatible-assistant';
 import { stageLocalImageBytes } from '@musefold/core/providers/local-image';
+import {
+  createLocalUploadOwner,
+  type LocalUploadOwner,
+} from '@musefold/core/services/local-upload-owner';
 import { getDb } from '@musefold/core/db/index';
 import { createLogger } from '../../system/logger';
 import { skillRuntimePolicyForProvider } from '../skill-runtime-policy';
@@ -63,9 +68,29 @@ interface RuntimeRecord {
 const runtimes = new Map<string, RuntimeRecord>();
 const executions = new Map<string, AbortController>();
 
+/** Hash actual snapshot bytes, not the remote reader's declared hash. No credentials are included. */
+export function skillRuntimeSourceDigest(runtimeId: string): string {
+  cleanupExpiredRuntimes();
+  const record = runtimes.get(runtimeId);
+  if (!record) throw new Error('Skill runtime expired before authorization');
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        attachment: { ...record.attachment, runtimeId: undefined },
+        files: runtimeFiles(record).map((file) => ({
+          path: file.relativePath,
+          hash: createHash('sha256').update(file.bytes).digest('hex'),
+        })),
+      }),
+    )
+    .digest('hex');
+}
+
 function cleanupExpiredRuntimes(now = Date.now()): void {
   for (const [runtimeId, record] of runtimes) {
-    if (now - record.createdAt > RUNTIME_TTL_MS) runtimes.delete(runtimeId);
+    // Expiry prevents new authorization/dispatch. Active executions retain their
+    // snapshot and cancellation controller until their own finally block runs.
+    if (now - record.createdAt >= RUNTIME_TTL_MS) runtimes.delete(runtimeId);
   }
 }
 
@@ -136,6 +161,7 @@ function fallbackPrompt(
 async function stageRuntimeImages(
   record: RuntimeRecord,
   availableSlots: number,
+  uploadOwner: LocalUploadOwner,
 ): Promise<LocalImageReference[]> {
   const slots = Math.max(
     0,
@@ -159,7 +185,9 @@ async function stageRuntimeImages(
   const staged: LocalImageReference[] = [];
   for (const image of images.slice(0, slots)) {
     try {
-      staged.push(await stageLocalImageBytes({ bytes: image.bytes, name: image.relativePath }));
+      staged.push(
+        await stageLocalImageBytes({ bytes: image.bytes, name: image.relativePath }, uploadOwner),
+      );
     } catch (error) {
       logger.warn(
         '忽略无法作为参考图读取的 Skill 资源',
@@ -237,6 +265,7 @@ interface ExecutionContext {
   emit: (event: SkillRuntimeEvent) => void;
   sendProgress: (progress: ImageGenerationProgress) => void;
   signal: AbortSignal;
+  generate?: typeof runProviderGeneration;
 }
 
 /** 按渲染进程预组装的计划逐张生图；提示词在此完成唯一一次规范化组合。 */
@@ -293,9 +322,10 @@ async function runPlannedGenerations(
         trace: ctx.trace.snapshot(),
       },
     };
-    const result = await runProviderGeneration(request, ctx.sendProgress, {
+    const result = await (ctx.generate ?? runProviderGeneration)(request, ctx.sendProgress, {
       promptAlreadyComposed: true,
       userPrompt: ctx.request.userPrompt,
+      signal: ctx.signal,
     });
     const outcome: SkillRuntimeGenerationOutcome = { jobId, resultIndex, result };
     outcomes.push(outcome);
@@ -423,8 +453,13 @@ async function runSkillAgent(
   ctx: ExecutionContext,
   profile: AiConnectionProfile,
   apiKey: string,
+  fetchImpl?: typeof fetch,
 ): Promise<SkillRuntimeExecution> {
-  const assistant = new OpenAiCompatibleAssistant({ connection: profile, apiKey });
+  const assistant = new OpenAiCompatibleAssistant({
+    connection: profile,
+    apiKey,
+    fetch: fetchImpl,
+  });
   const agentStartedAt = Date.now();
   ctx.trace.upsert({
     id: 'agent-run',
@@ -736,6 +771,12 @@ export async function prepareGithubSkillRuntime(
 export interface SkillRuntimeEmitters {
   emit: (payload: SkillRuntimeEvent) => void;
   sendProgress: (progress: ImageGenerationProgress) => void;
+  execution?: {
+    sourceDigest: string;
+    text: { profile: AiConnectionProfile; key: string; fetch: typeof fetch } | null;
+    generate: typeof runProviderGeneration;
+    onReferences: (references: LocalImageReference[]) => void;
+  };
 }
 
 /** 供 IPC 与控制面共用：豆包直传；其他 Provider 仍为 Agent 优先。 */
@@ -746,6 +787,11 @@ export async function executeSkillRuntime(
   cleanupExpiredRuntimes();
   const record = runtimes.get(request.runtimeId);
   if (!record) return invalidRuntime('Skill 引用已过期，请重新粘贴仓库地址');
+  if (
+    emitters.execution &&
+    skillRuntimeSourceDigest(request.runtimeId) !== emitters.execution.sourceDigest
+  )
+    throw new Error('Skill snapshot changed after authorization');
   if (!request.userPrompt?.trim()) {
     return fail(
       appError('REQUIRED', '请先描述这次希望生成的图片', { recoveryAction: 'edit-input' }),
@@ -771,10 +817,16 @@ export async function executeSkillRuntime(
   executions.set(executionId, controller);
   const { emit, sendProgress } = emitters;
   const trace = new TraceLog(emit, executionId, validTraceSeed(request.traceSeed));
+  const uploadOwner = createLocalUploadOwner();
 
   try {
-    const imageReferences = await stageRuntimeImages(record, request.availableImageSlots);
+    const imageReferences = await stageRuntimeImages(
+      record,
+      request.availableImageSlots,
+      uploadOwner,
+    );
     const userImages = Array.isArray(request.userImages) ? request.userImages : [];
+    emitters.execution?.onReferences([...userImages, ...imageReferences]);
     const imageManifest: AiSkillImageReference[] = [
       ...userImages.map((image, index) => ({
         index: index + 1,
@@ -802,6 +854,7 @@ export async function executeSkillRuntime(
       emit,
       sendProgress,
       signal: controller.signal,
+      generate: emitters.execution?.generate,
     };
 
     const providerId = plan.requestTemplate.providerId;
@@ -813,14 +866,22 @@ export async function executeSkillRuntime(
     }
 
     const connections = getAiConnectionStore();
-    const profile =
-      connections.list().find((item) => item.isActive && item.hasKey) ??
-      connections.list().find((item) => item.hasKey);
+    const profile = emitters.execution
+      ? emitters.execution.text?.profile
+      : (connections.list().find((item) => item.isActive && item.hasKey) ??
+        connections.list().find((item) => item.hasKey));
     if (!profile) {
       return ok(await runFileFallback(ctx, '未配置可用的 Agent 连接'));
     }
     try {
-      return ok(await runSkillAgent(ctx, profile, connections.loadKey(profile.id)));
+      return ok(
+        await runSkillAgent(
+          ctx,
+          profile,
+          emitters.execution?.text?.key ?? connections.loadKey(profile.id),
+          emitters.execution?.text?.fetch,
+        ),
+      );
     } catch (error) {
       if (controller.signal.aborted) {
         trace.upsert({
@@ -851,6 +912,7 @@ export async function executeSkillRuntime(
       return ok(await runFileFallback(ctx, classified.message));
     }
   } finally {
+    uploadOwner.close();
     executions.delete(executionId);
   }
 }

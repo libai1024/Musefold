@@ -1,0 +1,28 @@
+{
+  "name": "@musefold/scheme-package",
+  "version": "0.0.0-internal",
+  "description": "Node-only Musefold design package codec shared by cloud services and the desktop main process",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@musefold/contracts": "workspace:*",
+    "archiver": "7.0.1",
+    "yauzl": "2.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/archiver": "6.0.3",
+    "@types/yauzl": "2.10.3",
+    "typescript": "^5.7.2"
+  }
+}

@@ -33,7 +33,13 @@ async function startModelsServer(): Promise<ModelsServer> {
     if (request.method === 'GET' && request.url?.endsWith('/models')) {
       modelsRequests += 1;
       response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ data: [{ id: 'e2e-image-model' }] }));
+      response.end(
+        JSON.stringify({
+          object: 'list',
+          data: [{ id: 'e2e-image-model' }],
+          has_more: false,
+        }),
+      );
       return;
     }
     response.writeHead(404).end();
@@ -107,8 +113,11 @@ test('BYOK 轨:建本地连接 → 确认连接 → 首图提示词进工作台,
   await page.getByTestId('onboarding-next').click();
 
   // validate 进入即自动确认一次:回环 /v1/models 返回 200 → 连接正常。
+  // 探测本身 8s 超时;给结果行留出主进程排队余量,避免只等到默认 5s。
   await expect(page.getByTestId('onboarding-step-validate')).toBeVisible();
-  await expect(page.getByTestId('onboarding-validate-result')).toContainText('连接正常');
+  await expect(page.getByTestId('onboarding-validate-result')).toContainText('连接正常', {
+    timeout: 15_000,
+  });
   expect(gateway.modelsRequests()).toBeGreaterThan(0);
 
   // 连接落库:API Key 进系统安全存储(has_key=1),库里不存明文。

@@ -72,7 +72,15 @@ export function resolveManagedMediaFile(
     const stat = lstatSync(target, { bigint: true });
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
     const realTarget = realpathSync(target);
-    const realRoots = [userDataDir, picturesDir].map((root) => realpathSync(root));
+    // A fresh profile may not have generated any pictures yet. An absent or inaccessible
+    // root contributes no allowed paths; it must not invalidate another existing root.
+    const realRoots = [userDataDir, picturesDir].flatMap((root) => {
+      try {
+        return [realpathSync(root)];
+      } catch {
+        return [];
+      }
+    });
     if (!realRoots.some((root) => isWithin(root, realTarget))) return null;
     return {
       path: realTarget,
@@ -95,9 +103,10 @@ export function resolveSchemeAssetMediaDescriptor(
   picturesDir: string,
 ): SchemeAssetMediaDescriptor | null {
   if (!isSchemeAssetId(assetId)) return null;
-  const row = db.prepare('SELECT store_key FROM design_scheme_assets WHERE id = ?').get(assetId) as
-    | { store_key: string }
-    | undefined;
+  const row = db
+    .prepare(`SELECT store_key FROM design_scheme_assets WHERE id = ?
+    UNION ALL SELECT store_key FROM design_scheme_retained_assets WHERE asset_id = ? LIMIT 1`)
+    .get(assetId, assetId) as { store_key: string } | undefined;
   if (!row) return null;
 
   return resolveManagedMediaFile(row.store_key, userDataDir, picturesDir);

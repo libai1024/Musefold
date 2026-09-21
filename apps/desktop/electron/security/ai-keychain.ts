@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import Store from 'electron-store';
 import { AI_CONNECTION_STORE_NAME } from '@musefold/core/constants';
 import { resolveSafeStorage } from './e2e-safe-storage';
@@ -6,6 +7,7 @@ import { ensureOsCryptKeyPersisted } from './os-crypt-durability';
 export interface AiSecretKeychain {
   save(connectionId: string, apiKey: string): void;
   load(connectionId: string): string | null;
+  snapshot?(connectionId: string): { key: string; epoch: string } | null;
   delete(connectionId: string): void;
   has(connectionId: string): boolean;
   suffix(connectionId: string): string | null;
@@ -44,10 +46,19 @@ export class ElectronAiSecretKeychain implements AiSecretKeychain {
   }
 
   load(connectionId: string): string | null {
+    return this.snapshot(connectionId)?.key ?? null;
+  }
+
+  snapshot(connectionId: string): { key: string; epoch: string } | null {
     const encrypted = this.store.get(`keys.${connectionId}`);
     if (typeof encrypted !== 'string' || !encrypted) return null;
     try {
-      return this.encryption.decryptString(Buffer.from(encrypted, 'base64'));
+      const ciphertext = Buffer.from(encrypted, 'base64');
+      const epoch = createHash('sha256').update(ciphertext).digest('hex');
+      return {
+        key: this.encryption.decryptString(ciphertext),
+        epoch,
+      };
     } catch {
       // 密文在但解不开 = 系统主密钥换了，界面只会显示「未配置」。留一行日志好定位。
       console.warn(`[security] AI 连接 ${connectionId} 的密钥无法解密，系统主密钥可能已变更`);

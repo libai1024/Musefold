@@ -16,6 +16,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('fs/promises', () => ({ mkdir: mocks.mkdir, writeFile: mocks.writeFile }));
+// This suite owns the HTTP/multipart protocol; production write durability has real DB/IO tests.
+vi.mock('../../services/local-asset-writes', () => ({
+  assertLocalAssetWriteScope: () => undefined,
+  writeLocalGeneratedImage: (...args: unknown[]) => mocks.writeFile(...args),
+}));
 vi.mock('../local-image', () => ({
   LocalImageError: class MockLocalImageError extends Error {
     code: string;
@@ -106,6 +111,46 @@ describe('OpenAICompatibleProvider image edits', () => {
     expect(result).toMatchObject({ historyId: REQUEST.jobId, status: 'success' });
     expect(mocks.writeFile).toHaveBeenCalledOnce();
     expect(mocks.writeFile.mock.calls[0][1]).toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  // §9-D3:n > 1 时 provider 必须把 data 里的每一张都落盘并回 images[],
+  // 否则 GenerationService 只入账首张,渲染层永远看不到第 2/3/4 张。
+  it('n=4 时逐张落盘并回 images[],文件名与资产 id 同规', async () => {
+    const shades = [1, 2, 3, 4].map((value) => Buffer.from([value, value, value]));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        const form = init?.body as FormData | undefined;
+        expect(form?.get('n')).toBe('4');
+        return jsonResponse({
+          data: shades.map((bytes) => ({ b64_json: bytes.toString('base64') })),
+        });
+      }),
+    );
+
+    const provider = new OpenAICompatibleProvider(
+      'provider-1',
+      'https://images.test/v1',
+      'gpt-image-2',
+      'Images',
+    );
+    const result = await provider.generateImage({
+      ...REQUEST,
+      n: 4,
+      referenceImages: [
+        { source: 'upload', path: '/tmp/previews/uploads/reference-1.png', name: 'r1.png' },
+      ],
+    });
+
+    expect(result.images?.map((image) => image.imagePath.split('/').at(-1))).toEqual([
+      'image-edit-unit-test.png',
+      'image-edit-unit-test-2.png',
+      'image-edit-unit-test-3.png',
+      'image-edit-unit-test-4.png',
+    ]);
+    expect(result.imagePath).toBe(result.images?.[0]?.imagePath);
+    expect(mocks.writeFile).toHaveBeenCalledTimes(4);
+    expect(mocks.writeFile.mock.calls.map((call) => call[1])).toEqual(shades);
   });
 
   it('maps edit authentication failures to AUTH without retrying', async () => {

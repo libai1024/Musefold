@@ -10,6 +10,7 @@ import {
   prepareDesktopDesignSchemeRun,
 } from '../fixed-run-plan-builder';
 import { validateDesktopFixedRunPlan } from '../fixed-run-plan';
+import { managedCommand } from '@musefold/core/services/__tests__/fixtures/managed-generation';
 
 const HASH = 'a'.repeat(64);
 
@@ -193,6 +194,70 @@ describe('desktop fixed design-scheme run plan builder', () => {
         coreDb,
       }),
     ).not.toThrow();
+  });
+
+  it.each(['gpt-image-2', 'musefold-image'])(
+    'freezes host-authorized cloud model %s without changing the connection default',
+    (model) => {
+      coreDb
+        .prepare(
+          "UPDATE providers SET type = 'musefold-cloud', model = 'musefold-image-pro' WHERE id = 'provider_prepare'",
+        )
+        .run();
+      const cloudBinding = { ...managedCommand().binding, model };
+      const request = input();
+      request.executionSettings.model = model;
+      request.executionSettings.expectedBinding = structuredClone(cloudBinding);
+      const deps = { designSchemeDb: schemeDb, coreDb, cloudBinding };
+      const prepared = prepareDesktopDesignSchemeRun(request, deps);
+      expect(prepared.executionBinding).toEqual(cloudBinding);
+      expect(prepared.plan.provider).toMatchObject({
+        providerId: 'provider_prepare',
+        model,
+        capabilities: { text: false, image: true, editing: true },
+      });
+      expect(validateDesktopFixedRunPlan(prepared)).toEqual({ ok: true });
+      expect(() => assertDesktopPreparedRunAuthority(prepared, deps)).not.toThrow();
+      expect(
+        coreDb.prepare("SELECT model FROM providers WHERE id = 'provider_prepare'").get(),
+      ).toEqual({ model: 'musefold-image-pro' });
+      const missing = structuredClone(prepared);
+      delete missing.executionBinding;
+      expect(errorCode(() => assertDesktopPreparedRunAuthority(missing, deps))).toBe(
+        'DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH',
+      );
+      const otherAccount = structuredClone(cloudBinding);
+      otherAccount.principalId = 'another-principal';
+      expect(
+        errorCode(() =>
+          assertDesktopPreparedRunAuthority(prepared, { ...deps, cloudBinding: otherAccount }),
+        ),
+      ).toBe('DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH');
+      expect(
+        errorCode(() =>
+          prepareDesktopDesignSchemeRun(request, { designSchemeDb: schemeDb, coreDb }),
+        ),
+      ).toBe('DESIGN_SCHEME_PROVIDER_UNSUPPORTED');
+    },
+  );
+
+  it('does not authorize a cloud model from display data or apply it to BYOK', () => {
+    const request = input();
+    request.executionSettings.model = 'gpt-image-2';
+    request.executionSettings.expectedBinding = {
+      ...managedCommand().binding,
+      model: 'gpt-image-2',
+    };
+    const deps = { designSchemeDb: schemeDb, coreDb };
+    expect(errorCode(() => prepareDesktopDesignSchemeRun(request, deps))).toBe(
+      'DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH',
+    );
+    coreDb
+      .prepare("UPDATE providers SET type = 'musefold-cloud' WHERE id = 'provider_prepare'")
+      .run();
+    expect(errorCode(() => prepareDesktopDesignSchemeRun(request, deps))).toBe(
+      'DESIGN_SCHEME_PROVIDER_UNSUPPORTED',
+    );
   });
 
   it.each([

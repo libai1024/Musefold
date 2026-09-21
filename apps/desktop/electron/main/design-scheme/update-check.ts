@@ -1,3 +1,9 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { getPaths } from '../../system/paths';
+import { readRevisionAssetIds } from '@musefold/core/db/design-scheme/revision-assets';
+import { retainDesignSchemeOperation } from '@musefold/core/services/design-scheme-lifetime';
+import { prepareUpdatedSourceMaterials } from './update-materials';
 /**
  * 「检查更新」（UI 规范 §4.2 / 设计规范 §2.2）：
  * 对比上游 GitHub 来源的最新 commit 与方案绑定的快照；有变化时重新
@@ -161,6 +167,8 @@ function canonicalSource(binding: SourceBinding): Record<string, unknown> {
     ...(binding.filePath ? { relativePath: binding.filePath } : {}),
     ...(binding.contentHash ? { contentHash: binding.contentHash } : {}),
     ...(binding.license ? { license: binding.license } : {}),
+    ...(binding.packageId ? { packageId: binding.packageId } : {}),
+    ...(binding.snapshotId ? { snapshotId: binding.snapshotId } : {}),
   };
 }
 
@@ -176,6 +184,9 @@ function validateDocument(document: DesignSchemeRevisionDocument): void {
       summary: document.summary,
       fidelity: document.fidelity,
       sources: document.sources.map(canonicalSource),
+      sourceSnapshotIds: document.sourceSnapshotIds,
+      assetIds: document.assetIds,
+      repositoryImages: document.repositoryImages,
       inputs: document.inputs,
       parameters: document.parameters,
       constraints: document.constraints,
@@ -223,29 +234,20 @@ function updateTrace(changed: ResolvedBinding[]): CompilationTraceItem[] {
   }));
 }
 
-function replaceChangedSnapshotBindings(
-  db: Database.Database,
-  revisionId: string,
-  changed: Array<ResolvedBinding & { snapshotId: string }>,
-): void {
-  const removeSuperseded = db.prepare(
-    `DELETE FROM design_scheme_source_bindings
-      WHERE revision_id = ?
-        AND source_snapshot_id IN (
-          SELECT snapshot.id
-            FROM source_snapshots snapshot
-            JOIN source_packages package ON package.id = snapshot.package_id
-           WHERE package.kind = 'github'
-             AND package.repository_url = ?
-             AND snapshot.id <> ?
-        )`,
-  );
-  for (const item of changed) {
-    removeSuperseded.run(revisionId, item.source.repositoryUrl, item.snapshotId);
+export async function checkSchemeUpdate(
+  schemeId: string,
+  deps: UpdateCheckDeps,
+  requestedRevisionId?: string,
+): Promise<AppResult<DesignSchemeCheckUpdateResult>> {
+  const release = retainDesignSchemeOperation(deps.db, schemeId);
+  try {
+    return await checkRetainedSchemeUpdate(schemeId, deps, requestedRevisionId);
+  } finally {
+    release();
   }
 }
 
-export async function checkSchemeUpdate(
+async function checkRetainedSchemeUpdate(
   schemeId: string,
   deps: UpdateCheckDeps,
   requestedRevisionId?: string,
@@ -287,6 +289,8 @@ export async function checkSchemeUpdate(
     return ok({ status: 'no-source', detail: '这个方案没有 GitHub 来源，不需要检查更新。' });
   }
 
+  const createdSnapshotRoots: string[] = [];
+  let committed = false;
   try {
     const resolved: ResolvedBinding[] = [];
     for (const binding of repoBindings) {
@@ -333,6 +337,8 @@ export async function checkSchemeUpdate(
       );
     }
 
+    const baseSnapshots = repository.listSourceSnapshotMetadata(schemeId, authoritativeRevisionId);
+    const historyItems = baseSnapshots.flatMap((snapshot) => snapshot.historyItems ?? []);
     const brief = base.compilation.briefExcerpt ?? '';
     const analyzed: Array<ResolvedBinding & { report: AnalystReport }> = [];
     for (const item of changed) {
@@ -359,6 +365,17 @@ export async function checkSchemeUpdate(
         brief,
         repositoryLabel: primary.source.repositoryLabel,
         analystReport: primary.report,
+        ...(historyItems.length
+          ? {
+              historyContext: {
+                imageCount: historyItems.filter((item) => item.imageAssetId).length,
+                prompts: historyItems.flatMap((item) => (item.prompt ? [item.prompt] : [])),
+                evidencePaths: historyItems.flatMap((item) =>
+                  item.prompt ? [item.promptPath ?? 'history'] : [],
+                ),
+              },
+            }
+          : {}),
         ...(additional.length > 0
           ? {
               additionalRepositories: additional.map((item) => ({
@@ -414,24 +431,91 @@ export async function checkSchemeUpdate(
     };
     validateDocument(document);
 
+    const baseAssetIds = readRevisionAssetIds(deps.db, schemeId, authoritativeRevisionId);
     const saved = deps.db.transaction(() => {
-      const persisted = changed.map((item) => {
-        const snapshot = persistGithubSnapshot(deps.db, item.source, deps.userDataDir);
+      const userDataDir = deps.userDataDir ?? getPaths().userData;
+      const replacedIds = new Set(
+        baseSnapshots
+          .filter((snapshot) =>
+            changed.some((item) =>
+              item.binding.snapshotId
+                ? item.binding.snapshotId === snapshot.snapshotId
+                : item.source.repositoryUrl === snapshot.repositoryUrl,
+            ),
+          )
+          .map((snapshot) => snapshot.snapshotId),
+      );
+      const persisted = analyzed.map((item) => {
+        const snapshot = persistGithubSnapshot(deps.db, item.source, userDataDir);
+        createdSnapshotRoots.push(join(userDataDir, 'design-scheme-sources', snapshot.snapshotId));
         parseCanonical(opaqueIdSchema, snapshot.packageId, 'GitHub 来源包 ID');
         const snapshotId = parseCanonical(opaqueIdSchema, snapshot.snapshotId, 'GitHub 快照 ID');
-        return { ...item, snapshotId };
+        const materials = prepareUpdatedSourceMaterials(
+          deps.db,
+          item.source,
+          snapshot,
+          item.report,
+          userDataDir,
+        );
+        return { ...item, snapshotId, packageId: snapshot.packageId, materials };
       });
+      const replacedAssets = new Set(
+        (base.repositoryImages ?? [])
+          .filter((image) => replacedIds.has(image.snapshotId))
+          .map((image) => image.assetId),
+      );
+      const newAssets = persisted.flatMap((item) => item.materials.assets);
+      const repositoryImages = [
+        ...(base.repositoryImages ?? []).filter((image) => !replacedIds.has(image.snapshotId)),
+        ...persisted.flatMap((item) => item.materials.images),
+      ];
+      document.sourceSnapshotIds = [
+        ...new Set([
+          ...baseSnapshots
+            .map((snapshot) => snapshot.snapshotId)
+            .filter((id) => !replacedIds.has(id)),
+          ...persisted.map((item) => item.snapshotId),
+        ]),
+      ];
+      document.assetIds = [
+        ...baseAssetIds.filter((id) => !replacedAssets.has(id)),
+        ...newAssets.map((asset) => asset.id),
+      ];
+      if (base.repositoryImages || repositoryImages.length)
+        document.repositoryImages = repositoryImages;
+      document.sources = document.sources.map((binding) => {
+        const item = persisted.find((source) => source.binding.id === binding.id);
+        return item
+          ? {
+              ...binding,
+              packageId: item.packageId,
+              snapshotId: item.snapshotId,
+              contentHash: item.materials.snapshot.contentHash ?? undefined,
+            }
+          : binding;
+      });
+      if (newAssets.length || replacedAssets.size)
+        document.compilation.warnings = [
+          ...document.compilation.warnings.slice(0, 39),
+          `已采用 ${newAssets.length} 张更新来源图片，替换 ${replacedAssets.size} 张旧来源图片；历史及未变来源保留，本次文本编译未做图片视觉解析。`,
+        ];
+      validateDocument(document);
       const result = repository.applyAgentRevision(
         schemeId,
         authoritativeRevisionId,
         document,
         persisted.map((item) => ({ snapshotId: item.snapshotId, role: item.binding.role })),
         summary.version,
+        newAssets,
       );
-      replaceChangedSnapshotBindings(deps.db, result.document.revisionId, persisted);
+      deps.db
+        .prepare(`DELETE FROM design_scheme_source_bindings WHERE revision_id = ?
+        AND source_snapshot_id IN (SELECT value FROM json_each(?))`)
+        .run(result.document.revisionId, JSON.stringify([...replacedIds]));
       return result;
     })();
 
+    committed = true;
     const updatedLabel =
       changed.length === 1
         ? `commit ${changed[0]?.source.commitHash?.slice(0, 10) ?? changed[0]?.source.resolvedRef}`
@@ -446,6 +530,19 @@ export async function checkSchemeUpdate(
       revisionId: saved.document.revisionId,
     });
   } catch (error) {
+    if (!committed) {
+      for (const root of createdSnapshotRoots) {
+        try {
+          rmSync(root, { recursive: true, force: true });
+        } catch {
+          return fail(
+            appError('INVALID_STATE', '更新未保存，部分新来源文件清理失败，请检查本机存储后重试', {
+              retryable: true,
+            }),
+          );
+        }
+      }
+    }
     if (
       error instanceof DesignSchemeVersionConflictError ||
       (error instanceof Error && error.message.includes('方案已有更新版本'))

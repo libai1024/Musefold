@@ -157,7 +157,7 @@ export function PromptListRow({
         node.scrollIntoView?.({ block: 'center', behavior: skipMotion() ? 'auto' : 'smooth' });
       }}
       className={cn(
-        'group flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-card',
+        'group flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-card [[data-density=compact]_&]:gap-[var(--density-list-gap)] [[data-density=compact]_&]:p-[var(--density-row-padding)]',
         deleted && 'opacity-70',
         selected && 'border-border bg-card',
         highlighted && 'mf-row-highlight',
@@ -165,7 +165,7 @@ export function PromptListRow({
     >
       <button
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        className="flex min-w-0 flex-1 items-center gap-3 text-left [[data-density=compact]_&]:gap-[var(--density-list-gap)]"
         onClick={() => onOpen(prompt)}
         data-testid="prompt-row-open"
       >

@@ -22,13 +22,34 @@ export interface SettingsScreenProps {
   onOpenScreen?(id: 'prompts' | 'history'): void;
 }
 
+type ConsumedSettingsIntent =
+  | { kind: 'settings-account' }
+  | { kind: 'settings-connections' }
+  | { kind: 'settings-section'; section: SettingsSectionId; highlight?: string };
+
 /** 深链意图(侧栏账号菜单等)只在挂载时消费一次;StrictMode 双跑安全:第二次消费不到即返回 null。 */
 function consumeSettingsIntent(
   consume: ReturnType<typeof useScreenIntent.getState>['consume'],
-): 'settings-account' | 'settings-connections' | null {
-  if (consume('settings-account')) return 'settings-account';
-  if (consume('settings-connections')) return 'settings-connections';
+): ConsumedSettingsIntent | null {
+  const section = consume('settings-section');
+  if (section) return section;
+  if (consume('settings-account')) return { kind: 'settings-account' };
+  if (consume('settings-connections')) return { kind: 'settings-connections' };
   return null;
+}
+
+function resolveSettingsDeepLink(
+  intent: ConsumedSettingsIntent,
+  sections: readonly SettingsSectionDefinition[],
+): { sectionId: SettingsSectionId | null; highlightTestId?: string } {
+  if (intent.kind === 'settings-section') {
+    const available = sections.some((section) => section.id === intent.section);
+    return {
+      sectionId: available ? intent.section : sectionForIntent('settings-account', sections),
+      highlightTestId: intent.highlight,
+    };
+  }
+  return { sectionId: sectionForIntent(intent.kind, sections) };
 }
 
 /**
@@ -54,10 +75,11 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
   // 挂载时一次性裁决初始分区:深链意图 > 记忆 > 首个可用分区。深链同时把移动端推进二级面板。
   const [initial] = useState(() => {
     const intent = consumeSettingsIntent(useScreenIntent.getState().consume);
-    const fromIntent = intent ? sectionForIntent(intent, sections) : null;
+    const resolved = intent ? resolveSettingsDeepLink(intent, sections) : null;
     return {
-      sectionId: fromIntent ?? rememberedId ?? sections[0]?.id ?? null,
-      fromIntent: fromIntent !== null,
+      sectionId: resolved?.sectionId ?? rememberedId ?? sections[0]?.id ?? null,
+      fromIntent: resolved?.sectionId != null,
+      highlightTestId: resolved?.highlightTestId,
     };
   });
   const [activeId, setActiveId] = useState<SettingsSectionId | null>(initial.sectionId);
@@ -84,6 +106,20 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
     window.setTimeout(() => setHighlight(false), 1_800);
   }, [highlight]);
 
+  useEffect(() => {
+    const testId = initial.highlightTestId;
+    if (!testId) return;
+    const escaped =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(testId)
+        : testId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const node = document.querySelector(`[data-testid="${escaped}"]`);
+    if (!(node instanceof HTMLElement)) return;
+    node.setAttribute('data-settings-highlight', 'true');
+    node.scrollIntoView({ block: 'nearest' });
+    window.setTimeout(() => node.removeAttribute('data-settings-highlight'), 1_800);
+  }, [initial.highlightTestId]);
+
   const filtered = useMemo(() => filterSettingsSections(sections, query), [sections, query]);
   const groups = SETTINGS_GROUPS.map((group) => ({
     ...group,
@@ -99,7 +135,10 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
   const ActiveIcon = active?.icon;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6" data-testid="settings-screen">
+    <div
+      className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-[var(--density-page-padding)]"
+      data-testid="settings-screen"
+    >
       <header className="flex items-center justify-between">
         <div>
           <h1 className="font-semibold text-foreground text-xl">设置</h1>
@@ -156,7 +195,7 @@ export function SettingsScreen({ onOpenScreen }: SettingsScreenProps = {}) {
                           onClick={() => openSection(section.id)}
                           aria-current={isActive ? 'page' : undefined}
                           className={cn(
-                            'flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-colors',
+                            'flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-colors [[data-density=compact]_&]:py-[var(--density-nav-y)]',
                             isActive
                               ? 'bg-accent font-medium text-foreground'
                               : 'text-muted-foreground hover:bg-muted hover:text-foreground',

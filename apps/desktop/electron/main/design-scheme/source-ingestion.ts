@@ -1,3 +1,4 @@
+import { sniffImageMimeType } from '@musefold/scheme-package';
 /**
  * 来源治理切片：把 GitHub 仓库固化为「固定 commit 快照」写入 design-scheme 库。
  * 复用 skill-import 的 github-reader（归档下载 + 预算 + 许可证识别）。
@@ -50,8 +51,6 @@ export function repositoryLabelOf(repositoryUrl: string): string {
 // 全部基于真实读取，任何一步失败返回 null —— 读模型据此省略该资产，绝不伪造。
 // ---------------------------------------------------------------------------
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
 export interface ProbedAssetMetadata {
   mimeType: string;
   width: number;
@@ -60,26 +59,7 @@ export interface ProbedAssetMetadata {
   contentHash: string;
 }
 
-/** 魔数嗅探图片 MIME；无法识别返回 null（扩展名不可信）。接受 Buffer/Uint8Array。 */
-export function sniffImageMimeType(bytes: Uint8Array): string | null {
-  const buffer = Buffer.isBuffer(bytes)
-    ? bytes
-    : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (buffer.length < 12) return null;
-  if (buffer.subarray(0, 8).equals(PNG_SIGNATURE)) return 'image/png';
-  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
-  if (
-    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
-  ) {
-    return 'image/webp';
-  }
-  const gifHeader = buffer.subarray(0, 6).toString('ascii');
-  if (gifHeader === 'GIF87a' || gifHeader === 'GIF89a') return 'image/gif';
-  if (buffer.subarray(0, 2).toString('ascii') === 'BM') return 'image/bmp';
-  if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') return 'image/avif';
-  return null;
-}
+export { sniffImageMimeType } from '@musefold/scheme-package';
 
 /** 文本类来源文件按扩展名给 MIME（内容已被固化为 UTF-8 文本）。 */
 export function textMimeTypeForPath(path: string): string {

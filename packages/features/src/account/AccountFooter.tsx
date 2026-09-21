@@ -1,6 +1,7 @@
 'use client';
 
 import type { AiProvider } from '@musefold/contracts';
+import { ACCOUNT_CLOUD_PROVIDER_TYPE } from '@musefold/contracts';
 import { useCapabilities } from '@musefold/platform';
 import {
   AlertDialog,
@@ -41,6 +42,7 @@ import {
 import { cn } from '@musefold/ui/lib/utils';
 import { useState } from 'react';
 import { useScreenIntent } from '../shell/screen-intent-store';
+import { isAccountRestricted } from './account-session';
 import {
   formatPoints,
   useAccountStatus,
@@ -55,7 +57,7 @@ import {
  */
 export function MobileQuotaReadout() {
   const account = useAccountStatus();
-  if (!account.isSuccess) return null;
+  if (!account.isSuccess || isAccountRestricted(account.data)) return null;
   return (
     <span
       className="flex items-center gap-1 px-1.5 text-muted-foreground text-xs tabular-nums"
@@ -82,7 +84,7 @@ const ACCOUNT_CHANNEL: ChannelDisplay = { kind: 'account' };
 
 function resolveChannel(items: readonly AiProvider[] | undefined): ChannelDisplay {
   const active = items?.find((provider) => provider.isActive);
-  if (!active || active.managedBy === 'account') return ACCOUNT_CHANNEL;
+  if (!active || active.type === ACCOUNT_CLOUD_PROVIDER_TYPE) return ACCOUNT_CHANNEL;
   if (active.type === 'doubao-web') return { kind: 'doubao', provider: active };
   return { kind: 'relay', provider: active };
 }
@@ -106,7 +108,9 @@ function MoreConnectionsMenu({
 
   const items = providers.data ?? [];
   const activeId = items.find((provider) => provider.isActive)?.id ?? null;
-  const accountRow = items.find((provider) => provider.managedBy === 'account');
+  const accountRow =
+    items.find((provider) => provider.type === ACCOUNT_CLOUD_PROVIDER_TYPE && provider.isActive) ??
+    items.find((provider) => provider.type === ACCOUNT_CLOUD_PROVIDER_TYPE);
   const doubao = items.find((provider) => provider.type === 'doubao-web' && provider.hasKey);
   // 列表按 is_active DESC, updated_at DESC:首个可用中转站即「活跃或最近」项。
   const relays = items.filter(
@@ -238,6 +242,7 @@ function AccountFooterBody({
   };
 
   const signedIn = account.isSuccess;
+  const restricted = isAccountRestricted(account.data);
   const name = signedIn ? (account.data.displayName ?? account.data.username) : null;
 
   // 触发钮三态:官方账号(登录态)/ 豆包 / 中转站连接名。
@@ -245,10 +250,18 @@ function AccountFooterBody({
     channel.kind === 'doubao'
       ? { title: '豆包', subtitle: '免费试用通道' }
       : channel.kind === 'relay'
-        ? { title: channel.provider.name, subtitle: '中转站通道' }
+        ? {
+            title: channel.provider.name,
+            subtitle:
+              channel.provider.managedBy === 'account' ? '旧托管连接，身份未绑定' : '中转站通道',
+          }
         : {
             title: signedIn && name ? name : '登录账号',
-            subtitle: signedIn ? `${formatPoints(account.data.quota)} 积分` : '同步与云生图',
+            subtitle: restricted
+              ? '账号需要恢复'
+              : signedIn
+                ? `${formatPoints(account.data.quota)} 积分`
+                : '同步与云生图',
           };
 
   return (
@@ -309,11 +322,11 @@ function AccountFooterBody({
                 <DropdownMenuLabel className="flex min-w-0 items-center gap-2">
                   <span className="min-w-0 flex-1 truncate">{name}</span>
                   <span className="shrink-0 font-normal text-[11px] text-muted-foreground tabular-nums">
-                    {formatPoints(account.data.quota)} 积分
+                    {restricted ? '待验证' : `${formatPoints(account.data.quota)} 积分`}
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuItem onSelect={openAccount} data-testid="account-menu-manage">
-                  <UserRound className="size-4" /> 账户与额度
+                  <UserRound className="size-4" /> {restricted ? '恢复账号' : '账户与额度'}
                 </DropdownMenuItem>
               </>
             ) : (

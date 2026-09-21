@@ -1,11 +1,15 @@
 import {
   MAX_REFERENCE_IMAGE_BYTES,
+  releaseReferenceImageInputSchema,
   createGenerationInputSchema,
   generationCleanupInputSchema,
   generationCleanupResultSchema,
   generationHistoryPageSchema,
   generationHistoryQuerySchema,
   generationJobSchema,
+  generationExecutionReceiptSchema,
+  generationReceiptQuerySchema,
+  retryGenerationInputSchema,
   providerOptionSchema,
 } from '@musefold/contracts';
 import type { MiddlewareHandler } from 'hono';
@@ -15,6 +19,7 @@ import { z } from 'zod';
 import { AppError } from '../../lib/errors.js';
 import { createAuthedRouter, route } from '../../lib/openapi.js';
 import { type GenerationService, PROVIDER_MODEL } from './service.js';
+import { CLOUD_GENERATION_PROVIDER_ID } from '@musefold/domain/cloud-generation-policy';
 
 const idParams = z.object({ id: z.string().trim().min(1).max(64) });
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
@@ -50,6 +55,18 @@ export function generationRoutes(service: GenerationService) {
   route(
     app,
     {
+      method: 'get',
+      path: '/generations/receipts/by-key',
+      tags,
+      query: generationReceiptQuerySchema,
+      response: generationExecutionReceiptSchema,
+    },
+    async (c, input) => c.json(await service.getReceipt(c.get('userId'), input.query.key)),
+  );
+
+  route(
+    app,
+    {
       method: 'post',
       path: '/generations',
       tags,
@@ -59,7 +76,10 @@ export function generationRoutes(service: GenerationService) {
     },
     async (c, input) => {
       const idempotencyKey = requireIdempotencyKey(c.req.header('idempotency-key'));
-      return c.json(await service.create(c.get('userId'), input.body, idempotencyKey), 201);
+      return c.json(
+        await service.create(c.get('userId'), input.body, idempotencyKey, c.get('sessionId')),
+        201,
+      );
     },
   );
 
@@ -87,7 +107,7 @@ export function generationRoutes(service: GenerationService) {
     async (c) =>
       c.json([
         {
-          id: 'cloud-default',
+          id: CLOUD_GENERATION_PROVIDER_ID,
           label: 'Musefold 云生图',
           model: PROVIDER_MODEL,
           kind: 'cloud' as const,
@@ -168,12 +188,22 @@ export function generationRoutes(service: GenerationService) {
       path: '/generations/{id}/retry',
       tags,
       params: idParams,
+      body: retryGenerationInputSchema.default({}),
       status: 201,
       response: generationJobSchema,
     },
     async (c, input) => {
       const idempotencyKey = requireIdempotencyKey(c.req.header('idempotency-key'));
-      return c.json(await service.retry(c.get('userId'), input.params.id, idempotencyKey), 201);
+      return c.json(
+        await service.retry(
+          c.get('userId'),
+          input.params.id,
+          idempotencyKey,
+          c.get('sessionId'),
+          input.body,
+        ),
+        201,
+      );
     },
   );
 
@@ -222,6 +252,22 @@ export function generationRoutes(service: GenerationService) {
     return c.redirect(signed.url, 302);
   });
 
+  app.get('/assets/:id/content', async (c) => {
+    c.header('cache-control', 'no-store');
+    c.header('x-content-type-options', 'nosniff');
+    const params = idParams.safeParse({ id: c.req.param('id') });
+    if (!params.success || new URL(c.req.url).search)
+      throw new AppError('VALIDATION_FAILED', '资产下载仅接受有效的资产标识');
+    const id = params.data.id;
+    const content = await service.assetContent(c.get('userId'), id, c.req.raw.signal);
+    const extension =
+      content.mimeType === 'image/jpeg' ? 'jpg' : content.mimeType.slice('image/'.length);
+    c.header('content-type', content.mimeType);
+    c.header('content-disposition', `attachment; filename="musefold-image.${extension}"`);
+    c.header('content-length', String(content.bytes.byteLength));
+    return c.body(new Uint8Array(content.bytes));
+  });
+
   // 参考图上传(multipart,字段 file):魔数与尺寸在 service 校验,返回可随 create 提交的引用。
   app.post('/reference-images', limitReferenceUploadBody, async (c) => {
     const form = await c.req.formData().catch(() => null);
@@ -235,6 +281,15 @@ export function generationRoutes(service: GenerationService) {
       bytes,
     });
     return c.json(uploaded, 201);
+  });
+
+  app.delete('/reference-images/:id', async (c) => {
+    const parsed = releaseReferenceImageInputSchema.safeParse({ id: c.req.param('id') });
+    if (!parsed.success || new URL(c.req.url).search)
+      throw new AppError('VALIDATION_FAILED', '参考图释放仅接受有效标识');
+    await service.releaseReferenceImage(c.get('userId'), parsed.data);
+    c.header('cache-control', 'no-store');
+    return c.body(null, 204);
   });
 
   // 与 /assets/:id/url 同款 302:cookie 鉴权下 <img src> 直接可用。

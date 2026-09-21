@@ -1,20 +1,31 @@
+import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
+
+// Playwright's automatic failure DOM snapshot includes password input values.
+// Live credentials must never enter error-context.md or the HTML report archive.
+if (process.env.MUSEFOLD_LIVE_E2E === '1' || process.env.MUSEFOLD_E2E_IMAGE_API_KEY) {
+  process.env.PLAYWRIGHT_NO_COPY_PROMPT = '1';
+}
 
 /**
  * v2.5 双端 E2E(M3 起步,M5a 全量替代 Python 栈)。
  * 前置:`pnpm --filter @musefold/web-next build` 与 `pnpm run build`(桌面 out/)。
- * 根脚本 `pnpm run test:e2e:v25` 已串联。
+ * 根脚本 `pnpm run test:e2e` 已串联。默认验证 standalone 生产产物。
  */
 export default defineConfig({
   testDir: '.',
-  outputDir: './.results',
+  outputDir: './.results/artifacts',
   fullyParallel: false,
   // 单 worker 串行:Electron 是真窗口(headed),多实例并行会互抢 macOS
   // 焦点,Radix 浮层(菜单/弹窗)一失焦即 dismiss,菜单类用例必然抖动。
   workers: 1,
   // 本机 0 次重试暴露问题;CI 重试 2 次过滤偶发渲染帧抖动(视觉快照高负载下偶发)。
   retries: process.env.CI ? 2 : 0,
-  reporter: [['list']],
+  reporter: [
+    ['list'],
+    ['json', { outputFile: resolve(import.meta.dirname, '.results/report.json') }],
+    ['html', { outputFolder: resolve(import.meta.dirname, '.results/html'), open: 'never' }],
+  ],
   timeout: 60_000,
   expect: {
     toHaveScreenshot: {
@@ -49,19 +60,13 @@ export default defineConfig({
       name: 'electron',
       testMatch: /electron\..*\.spec\.ts/,
     },
-    {
-      // 打包产物冒烟(M5-b):产物缺失时自动 skip,发布矩阵打包后必跑。
-      name: 'package-smoke',
-      testMatch: /package\.smoke\.spec\.ts/,
-    },
   ],
   webServer: {
-    // standalone 输出不支持 next start;E2E 走 dev(devIndicators 已关,不入快照)。
-    // 本机与 CI 同用 dev server,与视觉基线渲染路径一致;standalone 部署形态
-    // 的运行验证属发布链(M5b)。
-    command: 'pnpm --filter @musefold/web-next exec next dev -p 3399',
+    // 独立进程验证本次生产构建,端口被占用时失败,不能误连本地旧 dev server。
+    command: 'node scripts/start-v25-web.mjs',
+    cwd: resolve(import.meta.dirname, '../..'),
     url: 'http://127.0.0.1:3399/settings',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

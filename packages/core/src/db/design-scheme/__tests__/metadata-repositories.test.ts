@@ -126,6 +126,65 @@ describe('DesignSchemeRepository v6 元数据切片', () => {
     ]);
   });
 
+  it('canonical 读模型保留 uploaded 参考图来源；旧相册不冒充试运行产物', () => {
+    db.prepare(`INSERT INTO design_scheme_assets
+      (id, revision_id, store_key, role, origin, created_at,
+       mime_type, width, height, byte_size, content_hash)
+      VALUES ('dsas_uploaded', 'dsrv_meta_1', 'design-scheme-sources/snap_meta/upload.png',
+        'reference', 'uploaded', 20, ?, ?, ?, ?, ?)`).run(
+      FULL_METADATA.mimeType,
+      FULL_METADATA.width,
+      FULL_METADATA.height,
+      FULL_METADATA.byteSize,
+      FULL_METADATA.contentHash,
+    );
+    expect(repository.listAssetMetadataRows('dsch_meta')).toEqual([
+      expect.objectContaining({
+        id: 'dsas_uploaded',
+        role: 'reference',
+        origin: 'uploaded',
+        ...FULL_METADATA,
+      }),
+    ]);
+    expect(repository.listAssets('dsch_meta')).toEqual([]);
+    expect(repository.requireSummary('dsch_meta').hasSuccessfulTrial).toBe(false);
+    expect(() => repository.selectCover('dsch_meta', 'dsas_uploaded')).toThrow();
+  });
+
+  it('canonical 读模型保留 cloud-run/output，不能把导入云结果当成本机成功试运行', () => {
+    db.prepare(`INSERT INTO design_scheme_assets
+      (id, revision_id, store_key, role, origin, created_at,
+       mime_type, width, height, byte_size, content_hash)
+      VALUES ('dsas_cloud', 'dsrv_meta_1', 'design-scheme-imports/cloud/result.png',
+        'output', 'cloud-run', 20, ?, ?, ?, ?, ?)`).run(
+      FULL_METADATA.mimeType,
+      FULL_METADATA.width,
+      FULL_METADATA.height,
+      FULL_METADATA.byteSize,
+      FULL_METADATA.contentHash,
+    );
+    expect(repository.listAssetMetadataRows('dsch_meta')).toEqual([
+      expect.objectContaining({
+        id: 'dsas_cloud',
+        role: 'output',
+        origin: 'cloud-run',
+        ...FULL_METADATA,
+      }),
+    ]);
+    expect(repository.listAssets('dsch_meta')).toEqual([]);
+    const before = repository.requireSummary('dsch_meta');
+    expect(before.hasSuccessfulTrial).toBe(false);
+    expect(() => repository.selectCover('dsch_meta', 'dsas_cloud')).toThrow(/本机试运行/);
+    expect(() => repository.formalize('dsch_meta')).toThrow();
+    expect(repository.requireSummary('dsch_meta')).toEqual(before);
+    // A canonical output role is not one of the local trial cover roles, either.
+    db.prepare(
+      "UPDATE design_scheme_assets SET origin = 'local-run' WHERE id = 'dsas_cloud'",
+    ).run();
+    expect(() => repository.selectCover('dsch_meta', 'dsas_cloud')).toThrow(/本机试运行/);
+    expect(repository.requireSummary('dsch_meta')).toEqual(before);
+  });
+
   it('insertLocalRunAsset 带元数据落列；不带元数据保持 NULL（legacy 形态）', () => {
     const withMeta = repository.insertLocalRunAsset('dsrv_meta_1', '/tmp/a.png', FULL_METADATA);
     const legacy = repository.insertLocalRunAsset('dsrv_meta_1', '/tmp/b.png');

@@ -1,13 +1,11 @@
-// v2.5 桌面壳:Windows/Linux 自绘窗口控件(ui-parity 01 §3 WindowControls P1 缺口补齐)。
+// v2.5 桌面壳:Windows/Linux 自绘窗口控件接线(ui-parity 01 §3 WindowControls)。
 //
 // 窗口动作是宿主特权信号,不进 contracts / platform data gateway / musefold:invoke
 // 方法表;渲染层直接读 preload 暴露的 window.musefoldV25 窗口方法(与
 // use-window-fullscreen.ts 同一通道纪律)。macOS 保留原生交通灯,本组件恒 null。
-//
-// 几何承旧版基线:命中区 46×36(Win 标准),图标 10px 发丝级 stroke;
-// 关闭键 hover 变红(Windows 语义),最小化/最大化 hover 中性高亮。
+// 纯 UI 在 features/shell/WindowControls;这里只接最大化态与三钮回调。
 
-import { Copy, Minus, Square, X } from '@musefold/ui/icons';
+import { WindowControls as WindowControlsUi } from '@musefold/features/shell';
 import { useEffect, useState } from 'react';
 
 type MaximizeListener = (maximized: boolean) => void;
@@ -83,66 +81,26 @@ export function useWindowMaximized(enabled: boolean): boolean {
   return isMaximized;
 }
 
-/** 命中区与中性 hover 基线(承旧 WindowControls neutralButtonClass)。 */
-const buttonClass =
-  'flex h-full w-[46px] items-center justify-center text-muted-foreground transition-colors duration-(--dur-fast) ease-out outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50';
-
 interface WindowControlsProps {
   /** 仅非 macOS 宿主渲染(mac 保留原生交通灯,V25-UI-SPEC §2.3)。 */
   enabled: boolean;
 }
 
 /**
- * 右上角自绘窗口控件(Windows/Linux)。fixed 覆盖在浮岛工作面右上角之上:
- * v25 壳 md+ 无常驻顶栏(D5),宿主以浮层形式补回系统 chrome;桌面窗口
- * minWidth 940px,不会落入 <768px 移动形态,无移动 header 遮挡问题。
- * 拖拽层豁免(no-drag)由 globals.css 按 data-testid 统一声明。
+ * 宿主适配器:最大化态经 preload 订阅,三钮转发 musefoldV25。
+ * 几何由 AppShell `windowControls` 槽(主区右上 32px 窄带)定位。
  */
 export function WindowControls({ enabled }: WindowControlsProps) {
   const isMaximized = useWindowMaximized(enabled);
   if (!enabled) return null;
 
   const bridge = typeof window === 'undefined' ? undefined : window.musefoldV25;
-  const minimize = () => bridge?.minimize();
-  const maximizeToggle = () => bridge?.maximizeToggle();
-  const close = () => bridge?.close();
-
   return (
-    <div className="fixed top-0 right-0 z-50 flex h-9 items-stretch" data-testid="window-controls">
-      <button
-        type="button"
-        className={buttonClass}
-        aria-label="最小化"
-        title="最小化"
-        data-testid="window-control-minimize"
-        onClick={minimize}
-      >
-        <Minus className="size-[10px]" strokeWidth={1.5} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className={buttonClass}
-        aria-label={isMaximized ? '还原' : '最大化'}
-        title={isMaximized ? '还原' : '最大化'}
-        data-testid="window-control-maximize"
-        onClick={maximizeToggle}
-      >
-        {isMaximized ? (
-          <Copy className="size-[10px]" strokeWidth={1.5} aria-hidden="true" />
-        ) : (
-          <Square className="size-[10px]" strokeWidth={1.5} aria-hidden="true" />
-        )}
-      </button>
-      <button
-        type="button"
-        className="flex h-full w-[46px] items-center justify-center text-muted-foreground transition-colors duration-(--dur-fast) ease-out outline-none hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        aria-label="关闭"
-        title="关闭"
-        data-testid="window-control-close"
-        onClick={close}
-      >
-        <X className="size-[10px]" strokeWidth={1.5} aria-hidden="true" />
-      </button>
-    </div>
+    <WindowControlsUi
+      isMaximized={isMaximized}
+      onMinimize={() => bridge?.minimize()}
+      onMaximizeToggle={() => bridge?.maximizeToggle()}
+      onClose={() => bridge?.close()}
+    />
   );
 }

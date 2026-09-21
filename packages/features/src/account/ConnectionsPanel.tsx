@@ -133,36 +133,57 @@ function PresetChips({
   );
 }
 
+function isKeyInvalidMessage(message: string): boolean {
+  return /API Key 无效|无权限|401|unauthorized|invalid api key/i.test(message);
+}
+
 function TestResultLine({
   result,
   testId,
+  onReplaceKey,
 }: {
   result: AiProviderTestResult | null;
   testId: string;
+  onReplaceKey?: () => void;
 }) {
+  const keyInvalid = Boolean(result && !result.ok && isKeyInvalidMessage(result.message));
   return (
-    <p
-      role="status"
-      className={cn(
-        'min-h-4 text-xs',
-        result?.ok ? 'text-success' : result ? 'text-destructive' : 'text-transparent',
-      )}
-      data-testid={testId}
-    >
-      {result?.ok ? (
-        <>
-          连接正常
-          {result.latencyMs != null ? (
-            <>
-              {' · '}
-              <span className="tabular-nums">{result.latencyMs}ms</span>
-            </>
-          ) : null}
-        </>
-      ) : (
-        (result?.message ?? ' ')
-      )}
-    </p>
+    <div className="flex flex-col gap-1">
+      <p
+        role="status"
+        className={cn(
+          'min-h-4 text-xs',
+          result?.ok ? 'text-success' : result ? 'text-destructive' : 'text-transparent',
+        )}
+        data-testid={testId}
+      >
+        {result?.ok ? (
+          <>
+            连接正常
+            {result.latencyMs != null ? (
+              <>
+                {' · '}
+                <span className="tabular-nums">{result.latencyMs}ms</span>
+              </>
+            ) : null}
+          </>
+        ) : keyInvalid ? (
+          'API Key 无效或已失效。请编辑连接并替换密钥'
+        ) : (
+          (result?.message ?? ' ')
+        )}
+      </p>
+      {keyInvalid && onReplaceKey ? (
+        <button
+          type="button"
+          className="w-fit text-primary text-xs underline-offset-2 hover:underline"
+          data-testid={`${testId}-key-invalid-hint`}
+          onClick={onReplaceKey}
+        >
+          编辑并替换密钥
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -586,7 +607,7 @@ function ProviderRow({
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-      <TestResultLine result={lastTest ?? null} testId={`${p}-test-result`} />
+      <TestResultLine result={lastTest ?? null} testId={`${p}-test-result`} onReplaceKey={onEdit} />
     </li>
   );
 }
@@ -599,11 +620,14 @@ function ProviderRow({
 export function ConnectionsPanel({
   hooks,
   copy,
+  filterProvider,
 }: {
   hooks: ConnectionsHooks;
   copy: ConnectionsPanelCopy;
+  filterProvider?: (provider: AiProvider) => boolean;
 }) {
   const providers = hooks.useList();
+  const items = providers.data?.filter((item) => !filterProvider || filterProvider(item)) ?? [];
   const remove = hooks.useRemove();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [deleting, setDeleting] = useState<AiProvider | null>(null);
@@ -648,7 +672,7 @@ export function ConnectionsPanel({
               重试
             </Button>
           </div>
-        ) : providers.data.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="flex flex-col gap-3">
             <p className="text-muted-foreground text-sm" data-testid={copy.emptyTestId}>
               {copy.emptyText}
@@ -657,7 +681,7 @@ export function ConnectionsPanel({
           </div>
         ) : (
           <ul className="flex flex-col gap-2" data-testid={copy.listTestId}>
-            {providers.data.map((provider) => (
+            {items.map((provider) => (
               <ProviderRow
                 key={provider.id}
                 provider={provider}

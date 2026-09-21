@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   workbench: vi.fn(),
   doubao: vi.fn(),
   system: vi.fn(),
+  automation: vi.fn(),
+  cloudMcp: vi.fn(),
   accountBeforeChange: vi.fn(),
   accountChanged: vi.fn(),
   accountChangeCancelled: vi.fn(),
@@ -52,6 +54,12 @@ vi.mock('../doubao-domain', () => ({ buildDoubaoDomainMethods: mocks.doubao }));
 // system 域的真实方法表与契约的双向比对在其就地测试里(system-domain.test.ts);
 // 这里只需保证 buildMethods 把它按域展开一次,避免备份/日志/electron-store 依赖进入本测。
 vi.mock('../system-domain', () => ({ buildSystemDomainMethods: mocks.system }));
+// automation 域同理:真实方法表与契约的双向比对在 automation-domain.test.ts,
+// 这里 mock 掉,避免 automation server / electron-store / integration 的宿主链进入本测。
+vi.mock('../automation-domain', () => ({ buildAutomationDomainMethods: mocks.automation }));
+// cloudMcp 域同理:真实方法表与契约的双向比对在 cloud-mcp-domain.test.ts,
+// 这里 mock 掉,避免官方云 fetch / account-domain 默认依赖进入本测。
+vi.mock('../cloud-mcp-domain', () => ({ buildCloudMcpDomainMethods: mocks.cloudMcp }));
 // 真实 doubao-domain 经 importActual 参与双向比对;其冻结面依赖在此 mock,
 // 避免 browser-service 的 electron 会话链进入单测进程。
 vi.mock('../../../doubao-web/browser-service', () => ({
@@ -139,6 +147,7 @@ const DESIGN_SCHEME_INPUTS: Record<string, unknown> = {
   },
   'designSchemes.rename': { schemeId: 'scheme_1', name: 'Renamed', expectedVersion: 1 },
   'designSchemes.remove': { schemeId: 'scheme_1', expectedVersion: 1 },
+  'designSchemes.purge': { schemeId: 'scheme_1', expectedVersion: 2 },
   'designSchemes.checkUpdate': { schemeId: 'scheme_1' },
   'designSchemes.importPackage': {
     packageId: 'package_1',
@@ -227,7 +236,27 @@ function makeMethods(prefix: string, names: string[]): Record<string, TestMethod
 let accountMethods: Record<string, TestMethod>;
 
 function configureDomainMocksCorrectly(): void {
-  accountMethods = makeMethods('account', ['getStatus', 'login', 'register', 'logout', 'redeem']);
+  accountMethods = makeMethods('account', [
+    'getStatus',
+    'login',
+    'register',
+    'logout',
+    'redeem',
+    'retryRecovery',
+    'inspectRecovery',
+    'verifyOriginalSession',
+    'createIndependentWorkspace',
+    'getExecutionBinding',
+    'getModelCatalog',
+    'getNotices',
+    'listLoginSessions',
+    'revokeLoginSessions',
+    'getLoginCapacityReview',
+    'completeLoginCapacity',
+    'cancelLoginCapacity',
+    'touchLoginSession',
+    'getLoginReleaseStatus',
+  ]);
   mocks.account.mockReturnValue(accountMethods);
   mocks.providers.mockReturnValue(
     makeMethods('aiProviders', [
@@ -275,6 +304,9 @@ function configureDomainMocksCorrectly(): void {
   mocks.sync.mockReturnValue(
     makeMethods('sync', [
       'getStatus',
+      'listLocalWorkspaces',
+      'previewLocalWorkspace',
+      'prepareLocalWorkspace',
       'setConsent',
       'listConflicts',
       'resolveConflict',
@@ -300,6 +332,22 @@ function configureDomainMocksCorrectly(): void {
       'relaunch',
     ]),
   );
+  mocks.automation.mockReturnValue(
+    makeMethods('automation', [
+      'getStatus',
+      'setEnabled',
+      'rotateToken',
+      'copyToken',
+      'setMonthlyBudget',
+      'listRequestLog',
+      'listSpendAudit',
+      'resolveConfirmation',
+      'getIntegrationGuide',
+    ]),
+  );
+  mocks.cloudMcp.mockReturnValue(
+    makeMethods('cloudMcp', ['listAuthorizations', 'revokeAuthorization']),
+  );
   const workbench = makeMethods('workbench', [
     'listSessions',
     'createSession',
@@ -307,6 +355,8 @@ function configureDomainMocksCorrectly(): void {
     'updateSession',
     'removeSession',
     'restoreSession',
+    'purgeSession',
+    'emptyTrash',
   ]);
   const generation = makeMethods('generation', [
     'create',
@@ -319,6 +369,7 @@ function configureDomainMocksCorrectly(): void {
     'purge',
     'listProviders',
     'uploadReferenceImage',
+    'releaseReferenceImage',
     'saveAsset',
     'cleanup',
     'getStorageUsage',
@@ -368,6 +419,8 @@ describe('v25 gateway bridge transport contract', () => {
     expect(mocks.workbench).toHaveBeenCalledOnce();
     expect(mocks.doubao).toHaveBeenCalledOnce();
     expect(mocks.system).toHaveBeenCalledOnce();
+    expect(mocks.automation).toHaveBeenCalledOnce();
+    expect(mocks.cloudMcp).toHaveBeenCalledOnce();
   });
 
   it('matches real domain builders in both directions', async () => {

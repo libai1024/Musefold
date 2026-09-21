@@ -1,6 +1,6 @@
 # packages/ — 共享包开发约束
 
-17 个 workspace 包,依赖方向由 `tooling/dependency-cruiser.cjs` 机器强制(`pnpm run check:boundaries`,0 豁免)。本文件是人话版:每个包是什么、放什么、不放什么。
+workspace 包,依赖方向由 `tooling/dependency-cruiser.cjs` 机器强制(`pnpm run check:boundaries`,0 豁免)。本文件是人话版:每个包是什么、放什么、不放什么。
 
 ## 依赖格架(谁能 import 谁)
 
@@ -12,7 +12,7 @@ ui               零 workspace 依赖 —— shadcn/ui 原语 + tokens + icons �
 features         contracts + platform + ui + TanStack Query —— 页面级产品模块,四端同一份;
                  禁 electron/next/宿主实现/Node 内置
 api-client       contracts + platform —— Web 宿主的 gateway HTTP 实现
-db               Drizzle PG schema,只允许 apps/api 与 apps/worker 消费
+db               contracts + Drizzle PG schema/共享账号执行事务校验,只允许 apps/api 与 apps/worker 消费
 desktop-db       桌面 SQLite Drizzle 受管层,生产代码零 workspace 依赖
 
 ═══ 桌面本地生态(存量,继续演进)═══
@@ -23,6 +23,8 @@ update-protocol  纯协议(manifest schema + Ed25519 + rollout),被桌面与发�
 automation-server / client / cli / mcp   Agent 对外能力面(Automation API / CLI / MCP)
 new-api-client   apps/api 调 New API 网关的传输层;仅依赖 contracts
 server-crypto    服务端加密;零 workspace 依赖
+managed-fs       Node-API目录句柄IO叶子，零workspace依赖；仅Desktop主进程/core与持有本机owner.lock的CLI serve宿主消费，禁渲染层/云；native产物由build生成并随桌面资源打包
+scheme-package   Node归档编解码;仅依赖contracts与ZIP库。API/worker和桌面主进程可用,禁渲染层/domain消费;不含账号/数据库/网络调用
 ```
 
 改包依赖前先问:「这个方向在格架上成立吗?」格架不成立的需求,99% 是内容放错了包。

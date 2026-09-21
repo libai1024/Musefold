@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1254" height="1254" viewBox="0 0 1254 1254" fill="none"
+     role="img" aria-labelledby="logo-title logo-description">
+  <title id="logo-title">Musefold / 未像</title>
+  <desc id="logo-description">Vector tracing of logo.png, preserving its original geometry,
+    rounded ivory tile, charcoal folded-page symbol and vermilion dot.
+    The checkerboard background preserves the source image composition. Texture is procedural SVG;
+    this file contains no embedded bitmap, external assets or fonts.</desc>
+  <defs>
+    <!-- Coordinates retain the source image's 1254 × 1254 canvas. -->
+    <path id="tile-shape" d="M438.613 241.47 H818.81
+      C913.467 241.47 973.78 308.278 973.78 401.913
+      V796.731 C973.78 882.676 924.256 960.56 815.797 960.56
+      H438.696 C345.664 960.56 281 898.283 281 795.567
+      V400.477 C281 307.348 343.005 241.47 438.613 241.47 Z"/>
+    <!-- The opening is a real cutout, not an overlaid white shape. -->
+    <path id="mark-shape" fill-rule="evenodd" clip-rule="evenodd" d="
+      M427.8 364.69 H829.5
+      C850.191 364.69 855.84 383.329 855.84 392.5
+      L855.89 610.5 C855.89 619.518 849.049 628.518 844.22 633.5
+      L651.95 831.5 C651.803 831.652 644.137 838.45 631 838.45
+      H426.3 C407.274 838.45 400.73 819.912 400.73 811.5
+      L400.84 392.5 C400.84 383.173 407.052 364.69 427.8 364.69 Z
+      M497.5 424.87 L834.5 424.86
+      C848.439 424.86 849.96 436.274 849.96 441.5
+      L850.07 607.5 C850.07 615.378 840.853 623.86 831 623.86
+      L785.5 623.79 C746.729 623.79 725.868 651.85 715.807 672.5
+      L644.04 820.5 C641.234 826.259 635.171 832.65 625.5 832.65
+      H497.5 C485.819 832.65 479.99 824.973 479.99 818.5
+      L479.96 441.5 C479.96 436.308 481.566 424.87 497.5 424.87 Z"/>
+    <clipPath id="tile-clip"><use xlink:href="#tile-shape"/></clipPath>
+    <clipPath id="mark-clip"><use xlink:href="#mark-shape"/></clipPath>
+    <linearGradient id="paper-color" x1="627" y1="242" x2="627" y2="961"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4f3f2"/>
+      <stop offset=".56" stop-color="#f3f2f1"/>
+      <stop offset="1" stop-color="#f4f3f1"/>
+    </linearGradient>
+    <linearGradient id="rim-color" x1="627" y1="241" x2="627" y2="961"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b8b8b7"/>
+      <stop offset=".48" stop-color="#959594"/>
+      <stop offset="1" stop-color="#888887"/>
+    </linearGradient>
+    <linearGradient id="ink-color" x1="628" y1="365" x2="570" y2="839"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#272727"/>
+      <stop offset=".45" stop-color="#282828"/>
+      <stop offset="1" stop-color="#282827"/>
+    </linearGradient>
+    <radialGradient id="dot-color" cx="770" cy="509" r="49"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d0612e"/>
+      <stop offset=".56" stop-color="#c95528"/>
+      <stop offset="1" stop-color="#c04922"/>
+    </radialGradient>
+    <linearGradient id="dot-rim" x1="755" y1="481" x2="812" y2="505"
+                    gradientUnits="userSpaceOnUse">
+      <stop stop-color="#bd4924"/>
+      <stop offset="1" stop-color="#b53c19"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="-5%" y="-5%" width="110%" height="112%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.1"/>
+      <feOffset dy="3.2"/>
+      <feComponentTransfer><feFuncA type="linear" slope=".095"/></feComponentTransfer>
+    </filter>
+    <!-- Small-amplitude paper grain: remove this filter for a flat vector finish. -->
+    <filter id="paper-grain" x="0" y="0" width="100%" height="100%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".38" numOctaves="3"
+                    seed="24" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" result="gray-noise"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="SourceGraphic" in2="gray-noise" operator="arithmetic"
+                   k1="0" k2="1" k3=".063" k4="-.0315" result="paper"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="3"
+                    seed="17" stitchTiles="stitch" result="paper-cloud"/>
+      <feColorMatrix in="paper-cloud" type="matrix" result="paper-cloud-gray"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="paper" in2="paper-cloud-gray" operator="arithmetic"
+                   k1="0" k2="1" k3=".045" k4="-.0225" result="paper-finish"/>
+      <feComposite in="paper-finish" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="ink-grain" x="0" y="0" width="100%" height="100%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".10 .09" numOctaves="3"
+                    seed="12" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" result="gray-noise"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="SourceGraphic" in2="gray-noise" operator="arithmetic"
+                   k1="0" k2="1" k3=".032" k4="-.016" result="ink"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".022" numOctaves="3"
+                    seed="22" stitchTiles="stitch" result="ink-cloud"/>
+      <feColorMatrix in="ink-cloud" type="matrix" result="ink-cloud-gray"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="ink" in2="ink-cloud-gray" operator="arithmetic"
+                   k1="0" k2="1" k3=".05" k4="-.025" result="clouded-ink"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".4" numOctaves="2"
+                    seed="27" stitchTiles="stitch" result="ink-fine"/>
+      <feColorMatrix in="ink-fine" type="matrix" result="ink-fine-gray"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="clouded-ink" in2="ink-fine-gray" operator="arithmetic"
+                   k1="0" k2="1" k3=".022" k4="-.011" result="ink-finish"/>
+      <feComposite in="ink-finish" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="dot-grain" x="-5%" y="-5%" width="110%" height="110%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".085" numOctaves="2"
+                    seed="9" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" result="gray-noise"
+                     values=".2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             .2126 .7152 .0722 0 0
+                             0 0 0 0 1"/>
+      <feComposite in="SourceGraphic" in2="gray-noise" operator="arithmetic"
+                   k1="0" k2="1" k3=".095" k4="-.0475" result="pigment"/>
+      <feComposite in="pigment" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <pattern id="checkerboard" width="68.67" height="68.67" patternUnits="userSpaceOnUse">
+      <rect width="68.67" height="68.67" fill="#fefefe"/>
+      <path d="M34.335 0H68.67V34.335H34.335ZM0 34.335H34.335V68.67H0Z" fill="#f5f5f5"/>
+    </pattern>
+  </defs>
+  <rect id="reference-background" width="1254" height="1254" fill="url(#checkerboard)"/>
+  <g id="rounded-tile">
+    <use xlink:href="#tile-shape" fill="#000" filter="url(#tile-shadow)"/>
+    <use xlink:href="#tile-shape" fill="url(#paper-color)" filter="url(#paper-grain)"/>
+    <use xlink:href="#tile-shape" stroke="#fff" stroke-width="9" opacity=".64"
+         clip-path="url(#tile-clip)"/>
+    <use xlink:href="#tile-shape" stroke="url(#rim-color)" stroke-width="3.8"/>
+  </g>
+  <g id="folded-page" filter="url(#ink-grain)">
+    <use xlink:href="#mark-shape" fill="url(#ink-color)"/>
+    <use xlink:href="#mark-shape" stroke="#161716" stroke-width="1.65"
+         opacity=".72" clip-path="url(#mark-clip)"/>
+  </g>
+  <g id="vermilion-dot">
+    <ellipse cx="783.108" cy="495.001" rx="28.518" ry="29.021"
+             fill="url(#dot-color)" filter="url(#dot-grain)"/>
+    <ellipse cx="783.108" cy="495.001" rx="28.118" ry="28.621"
+             stroke="url(#dot-rim)" stroke-width=".8"/>
+  </g>
+</svg>

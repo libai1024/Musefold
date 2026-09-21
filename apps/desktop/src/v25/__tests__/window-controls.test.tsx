@@ -75,6 +75,10 @@ describe('WindowControls 渲染与点击转发', () => {
     // Electron 拖拽层豁免:控件与其按钮必须整层 no-drag(真实鼠标才点得到)。
     expect(globalsCss).toContain("[data-testid='window-controls']");
     expect(globalsCss).toContain('-webkit-app-region: no-drag');
+    expect(globalsCss).toContain(
+      "[data-testid='mainview-surface'][data-window-controls-safe]:has([data-window-controls-band])",
+    );
+    expect(globalsCss).toContain('padding-top: 32px');
 
     expect(getByTestId('window-control-minimize').getAttribute('aria-label')).toBe('最小化');
     expect(getByTestId('window-control-maximize').getAttribute('aria-label')).toBe('最大化');

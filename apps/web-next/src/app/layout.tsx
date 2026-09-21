@@ -30,7 +30,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
       <body className="antialiased">
-        <Providers>
+        <Providers
+          buildInfo={{
+            version: process.env.NEXT_PUBLIC_APP_VERSION,
+            commit: process.env.NEXT_PUBLIC_GIT_COMMIT,
+            builtAt: process.env.NEXT_PUBLIC_BUILT_AT,
+          }}
+        >
           <AppShell>{children}</AppShell>
           <Toaster />
         </Providers>

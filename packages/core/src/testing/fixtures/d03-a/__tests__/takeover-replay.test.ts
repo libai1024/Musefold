@@ -1,9 +1,9 @@
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { takeoverDesktopDatabase } from '@musefold/desktop-db';
 import { DESKTOP_MIGRATIONS } from '@musefold/desktop-db/migrations.generated';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   D03A_FIXED_TIME,
   D03A_LEGACY_USER_VERSION,
@@ -45,6 +45,90 @@ function tableExists(db: Database.Database, table: string): boolean {
     db
       .prepare("SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?")
       .get(table),
+  );
+}
+
+const retainedTables = [
+  'folders',
+  'prompts',
+  'tags',
+  'prompt_tags',
+  'smart_sets',
+  'search_history',
+  'providers',
+  'doubao_web_daily_usage',
+  'automation_audit',
+  'workbench_sessions',
+  'cloud_sync_accounts',
+  'cloud_entity_state',
+  'cloud_sync_outbox',
+  'cloud_sync_conflicts',
+  'cloud_sync_usage_outbox',
+  'generation_runs',
+  'generated_assets',
+] as const;
+
+const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
+type OriginalTable = { columns: string[]; rows: Record<string, unknown>[] };
+
+function originalTables(db: Database.Database, tables: readonly string[]) {
+  return Object.fromEntries(
+    tables.map((table) => [
+      table,
+      {
+        columns: (db.prepare(`PRAGMA table_info(${quote(table)})`).all() as { name: string }[]).map(
+          (column) => column.name,
+        ),
+        rows: db.prepare(`SELECT * FROM ${quote(table)}`).all() as Record<string, unknown>[],
+      },
+    ]),
+  ) satisfies Record<string, OriginalTable>;
+}
+
+function expectOriginalRows(db: Database.Database, original: Record<string, OriginalTable>) {
+  const sorted = (rows: Record<string, unknown>[]) => rows.map((row) => JSON.stringify(row)).sort();
+  for (const [table, before] of Object.entries(original)) {
+    let rows = db
+      .prepare(`SELECT ${before.columns.map(quote).join(',')} FROM ${quote(table)}`)
+      .all() as Record<string, unknown>[];
+    // Historical rows legitimately add runs/assets; their migration is asserted separately.
+    if (table === 'generation_runs' || table === 'generated_assets') {
+      const originalIds = new Set(before.rows.map((row) => row.id));
+      rows = rows.filter((row) => originalIds.has(row.id));
+    }
+    expect(sorted(rows), `${table}: every original column`).toEqual(sorted(before.rows));
+  }
+}
+
+function expectHealthyLatest(db: Database.Database) {
+  expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
+  expect(db.pragma('foreign_key_check')).toEqual([]);
+  expect(db.pragma('user_version', { simple: true })).toBe(D03A_LEGACY_USER_VERSION);
+  expect(
+    db.prepare('SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at').all(),
+  ).toEqual(
+    DESKTOP_MIGRATIONS.map((migration) => ({
+      hash: migration.hash,
+      created_at: migration.folderMillis,
+    })),
+  );
+}
+
+/** Persist only synthetic database hashes/counters in the captured test output. */
+function recordReplay(caseId: string, phase: string, db: Database.Database) {
+  const foreignKeys = db.pragma('foreign_key_check');
+  if (!Array.isArray(foreignKeys)) throw new Error('Expected SQLite foreign key result rows');
+  console.info(
+    'D03_REPLAY',
+    JSON.stringify({
+      caseId,
+      phase,
+      provenance: 'synthetic-D03-A',
+      hash: canonicalFixtureHash(db),
+      userVersion: db.pragma('user_version', { simple: true }),
+      integrity: db.pragma('integrity_check', { simple: true }),
+      foreignKeyViolations: foreignKeys.length,
+    }),
   );
 }
 
@@ -290,4 +374,316 @@ describe('D03-B disposable takeover and replay', () => {
       count: 1,
     });
   });
+});
+
+describe('D03.2/3 exact data preservation and failed backup recovery', () => {
+  it('preserves every original column, including tombstones and retries, and leaves repeated takeover unchanged', () => {
+    const root = createD03ATestRoot('musefold-d03-exact-');
+    roots.push(root);
+    const artifact = buildD03ALegacyFixture(root);
+    const db = openFixture(artifact.path);
+    const before = originalTables(db, retainedTables);
+    recordReplay('exact-columns', 'before', db);
+    const started = Math.floor(Date.now() / 1000) * 1000;
+    takeoverDesktopDatabase(db, { backupDir: join(root, 'backups') });
+    expectOriginalRows(db, before);
+    expectHealthyLatest(db);
+    for (const row of db.prepare('SELECT created_at,updated_at FROM local_workspaces').all() as {
+      created_at: number;
+      updated_at: number;
+    }[]) {
+      expect(row.created_at).toBeGreaterThanOrEqual(started);
+      expect(row.created_at).toBeLessThanOrEqual(Date.now());
+      expect(row.updated_at).toBe(row.created_at);
+    }
+    const migrated = canonicalFixtureHash(db);
+    expect(takeoverDesktopDatabase(db, { backupDir: join(root, 'backups') })).toEqual({
+      mode: 'noop',
+      backupPath: null,
+    });
+    expect(canonicalFixtureHash(db)).toBe(migrated);
+    expect(readdirSync(join(root, 'backups'))).toHaveLength(1);
+    recordReplay('exact-columns', 'migrated-noop', db);
+  });
+
+  it('preserves every independent scheme field after a failed atomic step, upgrade and noop replay', () => {
+    const root = createD03ATestRoot('musefold-d03-scheme-exact-');
+    roots.push(root);
+    const core = openFixture(buildD03ALegacyFixture(root).path);
+    const coreBefore = canonicalFixtureHash(core);
+    const scheme = openFixture(buildD03ADesignSchemeFixture(root).path);
+    const tables = (
+      scheme
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table'
+      AND name NOT LIKE 'sqlite_%' AND name NOT IN ('design_scheme_meta','design_scheme_migrations')
+      ORDER BY name`)
+        .all() as { name: string }[]
+    ).map((row) => row.name);
+    const before = originalTables(scheme, tables);
+    const stableMeta = () =>
+      scheme
+        .prepare("SELECT * FROM design_scheme_meta WHERE key != 'schema_version' ORDER BY key")
+        .all();
+    const beforeMeta = stableMeta();
+    const beforeJournal = scheme
+      .prepare('SELECT * FROM design_scheme_migrations ORDER BY version')
+      .all();
+    const originalHash = canonicalFixtureHash(scheme);
+    recordReplay('scheme-atomic', 'before', scheme);
+    expect(() =>
+      runDesignSchemeDbMigrations(scheme, [
+        {
+          version: 5,
+          name: 'd03_failed_scheme_step',
+          up(current) {
+            current.exec(
+              "CREATE TABLE scheme_should_rollback(id TEXT); UPDATE source_packages SET license='uncommitted fixture'; UPDATE design_scheme_meta SET value='uncommitted namespace' WHERE key='namespace'",
+            );
+            throw new Error('D03 scheme step interrupted');
+          },
+        },
+      ]),
+    ).toThrow('D03 scheme step interrupted');
+    expect(canonicalFixtureHash(scheme)).toBe(originalHash);
+    expect(scheme.pragma('user_version', { simple: true })).toBe(4);
+    expect(tableExists(scheme, 'scheme_should_rollback')).toBe(false);
+    recordReplay('scheme-atomic', 'rolled-back', scheme);
+    runDesignSchemeDbMigrations(scheme);
+    expectOriginalRows(scheme, before);
+    expect(stableMeta()).toEqual(beforeMeta);
+    expect(
+      scheme
+        .prepare('SELECT * FROM design_scheme_migrations WHERE version <= 4 ORDER BY version')
+        .all(),
+    ).toEqual(beforeJournal);
+    expect(scheme.pragma('integrity_check', { simple: true })).toBe('ok');
+    expect(scheme.pragma('foreign_key_check')).toEqual([]);
+    expect(scheme.pragma('user_version', { simple: true })).toBe(DESIGN_SCHEME_DB_SCHEMA_VERSION);
+    const upgraded = canonicalFixtureHash(scheme);
+    runDesignSchemeDbMigrations(scheme);
+    expect(canonicalFixtureHash(scheme)).toBe(upgraded);
+    expect(canonicalFixtureHash(core)).toBe(coreBefore);
+    expect(tableExists(scheme, 'prompts')).toBe(false);
+    expect(tableExists(core, 'design_schemes')).toBe(false);
+    recordReplay('scheme-atomic', 'migrated-noop', scheme);
+  });
+
+  it('retains historical text, parameters, references, failures and both legacy cost units in the single ledger', () => {
+    const root = createD03ATestRoot('musefold-d03-history-values-');
+    roots.push(root);
+    const db = openFixture(buildD03ALegacyFixture(root).path);
+    db.prepare('UPDATE history SET negative_text=?,params=?,cost=?,cost_unit=? WHERE id=?').run(
+      '避免过曝 / 露出',
+      '{"schemaVersion":1,"quality":"high"}',
+      12.5,
+      'point',
+      'history-success',
+    );
+    db.prepare('UPDATE history SET cost=?,cost_unit=? WHERE id=?').run(
+      725,
+      'cny_cent',
+      'history-missing',
+    );
+    recordReplay('history-values', 'before', db);
+    takeoverDesktopDatabase(db, { backupDir: join(root, 'backups') });
+    const success = db
+      .prepare("SELECT * FROM generation_runs WHERE id='history-success'")
+      .get() as Record<string, unknown>;
+    expect(success).toMatchObject({
+      run_kind: 'free_generation',
+      prompt_id: 'prompt-alpha',
+      provider_id: 'provider-synthetic',
+      model: 'synthetic-model',
+      user_prompt: D03A_REDACTED_PROMPT,
+      base_prompt: D03A_REDACTED_PROMPT,
+      final_prompt: D03A_REDACTED_PROMPT,
+      negative_prompt: '避免过曝 / 露出',
+      params_json: '{"schemaVersion":1,"quality":"high"}',
+      status: 'success',
+      error_code: null,
+      error_message: null,
+      actual_cost: 12.5,
+      duration_ms: 1200,
+      created_at: D03A_FIXED_TIME + 50,
+      finished_at: D03A_FIXED_TIME + 50,
+      started_at: null,
+    });
+    expect(JSON.parse(success.prompt_snapshot_json as string)).toEqual({
+      schemaVersion: 1,
+      userPrompt: D03A_REDACTED_PROMPT,
+      basePrompt: D03A_REDACTED_PROMPT,
+      refinementInstruction: null,
+      finalPrompt: D03A_REDACTED_PROMPT,
+      negativePrompt: '避免过曝 / 露出',
+      promptReferences: [
+        {
+          promptId: 'prompt-alpha',
+          title: '雾中的庭院 / 霧の庭',
+          excerpt: D03A_REDACTED_PROMPT,
+          scope: 'full',
+        },
+      ],
+    });
+    expect(
+      db.prepare("SELECT * FROM generated_assets WHERE id='history-success'").get(),
+    ).toMatchObject({
+      run_id: 'history-success',
+      position: 0,
+      status: 'available',
+      media_path: 'fixture-assets/history/success.png',
+      created_at: D03A_FIXED_TIME + 50,
+    });
+    expect(
+      db.prepare("SELECT * FROM generation_runs WHERE id='history-missing'").get(),
+    ).toMatchObject({
+      prompt_id: null,
+      provider_id: 'provider-synthetic',
+      model: 'synthetic-model',
+      user_prompt: D03A_REDACTED_PROMPT,
+      status: 'failed',
+      error_code: 'FIXTURE_ONLY',
+      error_message: 'synthetic failure; no provider call',
+      actual_cost: 7.25,
+      created_at: D03A_FIXED_TIME + 51,
+      finished_at: D03A_FIXED_TIME + 51,
+    });
+    expect(
+      db.prepare("SELECT * FROM generated_assets WHERE run_id='history-missing'").all(),
+    ).toEqual([]);
+    expectHealthyLatest(db);
+    recordReplay('history-values', 'migrated', db);
+  });
+
+  it.each(['directory', 'vacuum'] as const)(
+    'a real %s backup failure leaves the original intact and permits retry',
+    (phase) => {
+      const root = createD03ATestRoot('musefold-d03-backup-fault-');
+      roots.push(root);
+      const db = openFixture(buildD03ALegacyFixture(root).path);
+      const beforeHash = canonicalFixtureHash(db);
+      const before = originalTables(db, retainedTables);
+      const backupDir = join(root, 'backups');
+      const occupiedPaths: string[] = [];
+      recordReplay(`backup-${phase}`, 'before', db);
+      if (phase === 'directory') writeFileSync(backupDir, 'owned test file prevents mkdir');
+      else {
+        mkdirSync(backupDir);
+        const stamp = new Date(D03A_FIXED_TIME).toISOString().replace(/[:.]/g, '-');
+        // Both candidates are nonempty valid databases; VACUUM must preserve them.
+        for (const suffix of ['', `-${D03A_FIXED_TIME}`]) {
+          const path = join(backupDir, `db-v25-takeover-${stamp}${suffix}.db`);
+          const occupied = new Database(path);
+          try {
+            occupied.exec(
+              "CREATE TABLE occupied(value TEXT); INSERT INTO occupied VALUES ('preserve fixture')",
+            );
+          } finally {
+            occupied.close();
+          }
+          occupiedPaths.push(path);
+        }
+      }
+      const now = vi.spyOn(Date, 'now').mockReturnValue(D03A_FIXED_TIME);
+      try {
+        expect(() =>
+          takeoverDesktopDatabase(db, { backupDir, now: () => new Date(D03A_FIXED_TIME) }),
+        ).toThrow(phase === 'directory' ? /EEXIST|ENOTDIR/ : /already exists/);
+      } finally {
+        now.mockRestore();
+      }
+      expect(canonicalFixtureHash(db)).toBe(beforeHash);
+      expect(db.pragma('user_version', { simple: true })).toBe(D03A_LEGACY_USER_VERSION);
+      expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+      expect(tableExists(db, '__drizzle_migrations')).toBe(false);
+      recordReplay(`backup-${phase}`, 'rolled-back', db);
+      for (const path of occupiedPaths) {
+        const occupied = new Database(path, { readonly: true });
+        try {
+          expect(occupied.prepare('SELECT value FROM occupied').get()).toEqual({
+            value: 'preserve fixture',
+          });
+          expect(occupied.pragma('integrity_check', { simple: true })).toBe('ok');
+        } finally {
+          occupied.close();
+        }
+      }
+      rmSync(backupDir, { recursive: true, force: true });
+      expect(takeoverDesktopDatabase(db, { backupDir }).mode).toBe('adopted');
+      expectOriginalRows(db, before);
+      expectHealthyLatest(db);
+      recordReplay(`backup-${phase}`, 'recovered', db);
+    },
+  );
+
+  it.each(['after-backup', 'after-writes', 'verification'] as const)(
+    '%s failure rolls back the original; its real snapshot and original both upgrade after removing the fault',
+    (phase) => {
+      const root = createD03ATestRoot('musefold-d03-transaction-fault-');
+      roots.push(root);
+      const db = openFixture(buildD03ALegacyFixture(root).path);
+      const beforeHash = canonicalFixtureHash(db);
+      const before = originalTables(db, retainedTables);
+      const backupDir = join(root, 'backups');
+      const originalMigrations = [...DESKTOP_MIGRATIONS];
+      recordReplay(`transaction-${phase}`, 'before', db);
+      const last = originalMigrations.at(-1);
+      if (!last || !originalMigrations[1]) throw new Error('Expected inline pending migrations');
+      try {
+        if (phase === 'after-backup') {
+          // The backup has completed; fail the first pending statement after the baseline marker.
+          DESKTOP_MIGRATIONS[1] = {
+            ...originalMigrations[1],
+            sql: ['SELECT missing_d03_fault_column'],
+          };
+        } else {
+          DESKTOP_MIGRATIONS.push({
+            bps: true,
+            folderMillis: last.folderMillis + 1,
+            hash: `d03-fault-${phase}`,
+            sql: [
+              'CREATE TABLE d03_partial_write (id TEXT PRIMARY KEY)',
+              "UPDATE prompts SET content='intentional uncommitted fixture mutation'",
+              phase === 'verification'
+                ? 'DROP TABLE smart_sets'
+                : 'SELECT missing_d03_fault_column',
+            ],
+          });
+        }
+        expect(() => takeoverDesktopDatabase(db, { backupDir })).toThrow(
+          phase === 'verification' ? /缺少必需表 smart_sets/ : /missing_d03_fault_column/,
+        );
+        expect(canonicalFixtureHash(db)).toBe(beforeHash);
+        expect(db.pragma('user_version', { simple: true })).toBe(D03A_LEGACY_USER_VERSION);
+        expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+        expect(tableExists(db, '__drizzle_migrations')).toBe(false);
+        expect(tableExists(db, 'd03_partial_write')).toBe(false);
+        recordReplay(`transaction-${phase}`, 'rolled-back', db);
+      } finally {
+        DESKTOP_MIGRATIONS.splice(0, DESKTOP_MIGRATIONS.length, ...originalMigrations);
+      }
+      const backups = readdirSync(backupDir);
+      expect(backups).toHaveLength(1);
+      const restoredPath = join(root, 'restored.db');
+      copyFileSync(join(backupDir, backups[0]), restoredPath);
+      const restored = openFixture(restoredPath);
+      expect(canonicalFixtureHash(restored)).toBe(beforeHash);
+      expect(restored.pragma('integrity_check', { simple: true })).toBe('ok');
+      expect(restored.pragma('foreign_key_check')).toEqual([]);
+      expect(restored.pragma('user_version', { simple: true })).toBe(D03A_LEGACY_USER_VERSION);
+      recordReplay(`transaction-${phase}`, 'backup', restored);
+      for (const candidate of [db, restored]) {
+        expect(takeoverDesktopDatabase(candidate).mode).toBe('adopted');
+        expectOriginalRows(candidate, before);
+        expectHealthyLatest(candidate);
+        const migrated = canonicalFixtureHash(candidate);
+        expect(takeoverDesktopDatabase(candidate).mode).toBe('noop');
+        expect(canonicalFixtureHash(candidate)).toBe(migrated);
+        recordReplay(
+          `transaction-${phase}`,
+          candidate === db ? 'recovered-original' : 'recovered-backup',
+          candidate,
+        );
+      }
+    },
+  );
 });

@@ -6,11 +6,13 @@
 // v0.4 headless 能力面：全部只读端点 + 生图闭环（方案/Skill 运行需桌面 App）。
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { candidateDataDirs } from '@musefold/client';
 import {
   acquireOwnerLock,
+  AutomationError,
   createAutomationServer,
   createGenerationGate,
   createV1ReadRoutes,
@@ -30,6 +32,14 @@ import {
   STORE_NAME,
 } from '@musefold/core/constants';
 import packageInfo from '../package.json';
+import { loadServeFilesystem } from './managed-filesystem';
+import { tryDrainLocalAssetCleanup } from '@musefold/core/services/local-asset-cleanup';
+import { tryDrainDesignSchemeAssetCleanup } from '@musefold/core/services/design-scheme-purge';
+import { trySweepDesignSchemeImportOrphans } from '@musefold/core/services/design-scheme-import-gc';
+import {
+  createLocalUploadOwner,
+  reclaimLocalAssets,
+} from '@musefold/core/services/local-upload-owner';
 
 export interface ServeOptions {
   dataDir?: string;
@@ -99,6 +109,8 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
   );
   log('[serve] 使用 Musefold 账号时请退出 serve，CLI/MCP 会自动拉起桌面 App。');
   const dataDir = resolveDataDir(options.dataDir);
+  // Resolve application code resources before acquiring data ownership or opening any database.
+  const filesystem = loadServeFilesystem();
 
   const lock = acquireOwnerLock(dataDir, 'headless-daemon');
   if (!lock.acquired) {
@@ -115,6 +127,7 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
 
   const paths = headlessPaths(dataDir);
   configureCoreRuntime({
+    managedFilesystem: () => filesystem,
     getPaths: () => paths,
     loadApiKey: (providerId) => process.env[envKeyName(providerId)] ?? null,
     createLogger: (scope) => ({
@@ -170,8 +183,23 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
     );
   };
 
+  let closing = false;
+  let stopPromise: Promise<void> | undefined;
+  const inFlight = new Map<string, Promise<unknown>>();
+  const uploadOwner = createLocalUploadOwner();
   const host: GenerationHost = {
-    run: (req, onProgress) => core.generation.generate(req, onProgress),
+    run: (req, onProgress) => {
+      if (closing)
+        throw new AutomationError('SERVER_STOPPING', '守护正在退出，未开始新的生成', 503);
+      const jobId = req.jobId ?? randomUUID();
+      const completion = core.generation.generate({ ...req, jobId }, onProgress);
+      inFlight.set(jobId, completion);
+      void completion.then(
+        () => inFlight.delete(jobId),
+        () => inFlight.delete(jobId),
+      );
+      return completion;
+    },
     cancel: (jobId) => core.generation.cancel(jobId),
     estimate(body) {
       const db = getDb();
@@ -204,11 +232,14 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
     requestConfirmation: async () => 'denied',
     authorizeReferencePath: (path) => isManagedUploadPath(path),
     stageUpload: (bytes, name, mimeType) =>
-      stageLocalImageBytes({
-        bytes,
-        name,
-        mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
-      }),
+      stageLocalImageBytes(
+        {
+          bytes,
+          name,
+          mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
+        },
+        uploadOwner,
+      ),
     resolveHistoryImage(historyId) {
       // 单账本:按运行 id 取首张可用资产(旧 history.image_path 的等价物)。
       const row = getDb()
@@ -233,17 +264,37 @@ export async function startHeadlessServe(options: ServeOptions = {}): Promise<{
     routes: { ...createV1ReadRoutes(core), ...gate.routes },
   });
   const info = await server.start();
+  tryDrainLocalAssetCleanup();
+  tryDrainDesignSchemeAssetCleanup();
+  // serve 同样是 owner PID：启动时续跑分享导入崩溃孤儿的清扫（导入只发生在桌面
+  // 宿主，serve 持锁期间不存在在途导入会话；有界且失败保留意图行）。
+  trySweepDesignSchemeImportOrphans();
+  // 60s 周期：先对超 TTL 的长驻上传归还持有，再走正常清理 drain（不新建 timer）。
+  const cleanupTimer = setInterval(reclaimLocalAssets, 60_000);
+  cleanupTimer.unref();
   log(`[serve] Musefold headless 守护就绪 · 127.0.0.1:${info.port} · data=${dataDir}`);
 
   return {
     port: info.port,
     token: info.token,
     dataDir,
-    stop: async () => {
-      await server.stop();
-      closeDb();
-      closeDesignSchemeDb();
-      lock.release?.();
+    stop: () => {
+      stopPromise ??= (async () => {
+        // Stop admission before any pending gate continuation can start new work.
+        // Keep the database and directory ownership until cancellation/finalization ends.
+        closing = true;
+        clearInterval(cleanupTimer);
+        const serverStopped = server.stop();
+        for (const jobId of inFlight.keys()) core.generation.cancel(jobId);
+        await Promise.all([serverStopped, Promise.allSettled([...inFlight.values()])]);
+        uploadOwner.close();
+        tryDrainLocalAssetCleanup();
+        closeDb();
+        closeDesignSchemeDb();
+        core.dispose();
+        lock.release?.();
+      })();
+      return stopPromise;
     },
   };
 }

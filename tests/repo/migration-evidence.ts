@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { assertEvidenceSourceCommit } from './evidence-source-identity';
 
 export const EVIDENCE_MANIFEST_PATH = 'docs/v2.5/V25-EVIDENCE-MANIFEST.json';
 export const MIGRATION_CARDS_PATH = 'docs/v2.5/V25-MIGRATION-CARDS.md';
@@ -565,13 +566,7 @@ function assertExecutionFields(claim: EvidenceClaim, repoRoot: string): void {
     if (!claim.commit || !claim.date || (!claim.report && !claim.artifact)) {
       throw new Error(`${claim.id}: ${claim.result} 必须绑定 commit、date 和 report/artifact`);
     }
-    const gitState = readCurrentGitState(repoRoot);
-    if (gitState.head !== claim.commit) {
-      throw new Error(`${claim.id}: commit 已过期,必须精确绑定当前 HEAD ${gitState.head}`);
-    }
-    if (gitState.dirty) {
-      throw new Error(`${claim.id}: dirty working tree 不能构成当前 pass/fail evidence`);
-    }
+    assertEvidenceSourceCommit(repoRoot, claim.commit);
   }
 }
 

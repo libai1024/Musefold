@@ -6,13 +6,17 @@ import { Button } from '@musefold/ui/components/button';
 import { Sheet, SheetContent, SheetTitle } from '@musefold/ui/components/sheet';
 import { toast } from '@musefold/ui/components/sonner';
 import { Blocks, Search } from '@musefold/ui/icons';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMediaQuery } from '../history/hooks';
 import { HistorySourcePicker } from './HistorySourcePicker';
-import { useMarketSearch, useRemoveScheme, useSchemeList } from './hooks';
+import { useDesignSchemesGateway, useMarketSearch, useRemoveScheme, useSchemeList } from './hooks';
 import { SchemeControlDeck } from './SchemeControlDeck';
+import { SchemeAgentDialog } from './SchemeAgentDialog';
 import { SchemeDetailView } from './SchemeDetailView';
 import { MarketInstallDialog, SchemeRemoveDialog } from './SchemeDialogs';
+import { SchemePackageExportDialog } from './SchemePackageExportDialog';
+import { SchemePackageImportDialog } from './SchemePackageImportDialog';
+import { SchemeTrashDialog } from './SchemeTrashDialog';
 import { SchemeInspector } from './SchemeInspector';
 import {
   SchemeEmptyState,
@@ -60,7 +64,18 @@ export function SchemesScreen({
   onDetailBack,
   onDetailRemoved,
 }: SchemesScreenProps) {
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const trashTrigger = useRef<HTMLElement | null>(null);
   const capabilities = useCapabilities();
+  const agent = useDesignSchemesGateway()?.agent;
+  const [agentHistoryOpen, setAgentHistoryOpen] = useState(false);
+  const agentHistoryTrigger = useRef<HTMLElement | null>(null);
+  const packageImport = useDesignSchemesGateway()?.packageImport;
+  const exportRecovery = useDesignSchemesGateway()?.packageExport?.recovery;
+  const [exportHistoryOpen, setExportHistoryOpen] = useState(false);
+  const exportHistoryTrigger = useRef<HTMLElement | null>(null);
+  const [packageImportOpen, setPackageImportOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const [surface, setSurface] = useState<SchemeSurface>(initialSurface);
@@ -114,7 +129,8 @@ export function SchemesScreen({
       return;
     }
     if (kind === 'import') {
-      actions.onImportScheme?.();
+      if (packageImport) setPackageImportOpen(true);
+      else actions.onImportScheme?.();
       return;
     }
     actions.onCreateScheme?.(kind);
@@ -208,15 +224,38 @@ export function SchemesScreen({
       <main className="min-w-0 flex-1 overflow-y-auto" data-testid="scheme-list-workspace">
         <div className="mx-auto w-full max-w-5xl px-4 py-4">
           <SchemeControlDeck
+            onOpenTrash={() => {
+              trashTrigger.current = document.activeElement as HTMLElement | null;
+              setTrashOpen(true);
+            }}
+            onAgentHistory={
+              agent
+                ? () => {
+                    agentHistoryTrigger.current = document.activeElement as HTMLElement | null;
+                    setAgentHistoryOpen(true);
+                  }
+                : undefined
+            }
+            onExportHistory={
+              exportRecovery
+                ? () => {
+                    exportHistoryTrigger.current = document.activeElement as HTMLElement | null;
+                    setExportHistoryOpen(true);
+                  }
+                : undefined
+            }
+            createTriggerRef={createTriggerRef}
             surface={surface}
             mineCount={schemes.length}
-            marketCount={marketResult?.candidates.length}
+            marketCount={marketResult ? marketSearch.candidates.length : undefined}
             query={query}
             listLoading={list.isPending || list.isRefetching}
             marketLoading={marketSearch.isPending}
             createOpen={createOpen}
             onCreateOpenChange={setCreateOpen}
-            createDisabledReason={(kind) => createKindDisabledReason(kind, actions)}
+            createDisabledReason={(kind) =>
+              kind === 'import' && packageImport ? null : createKindDisabledReason(kind, actions)
+            }
             onSurfaceChange={(next) => {
               setSurface(next);
               setSelectedSchemeId(null);
@@ -319,7 +358,11 @@ export function SchemesScreen({
           ) : (
             <div className="mt-7" data-testid="market-discover">
               {marketSearch.isPending ? (
-                <div className="py-16 text-center text-[11px] text-muted-foreground">
+                <div
+                  role="status"
+                  className="py-16 text-center text-[11px] text-muted-foreground"
+                  data-testid="market-loading"
+                >
                   正在搜索 GitHub 市场…
                 </div>
               ) : marketSearch.isError ? (
@@ -331,19 +374,31 @@ export function SchemesScreen({
                 />
               ) : marketResult ? (
                 <>
-                  {marketResult.fromCache ? (
+                  {marketSearch.cachedAt ? (
                     <p
                       className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground"
                       data-testid="market-cache-notice"
                     >
-                      网络暂不可用，以下是最近一次搜索的候选缓存。
+                      包含缓存候选，最早获取于{' '}
+                      <time dateTime={marketSearch.cachedAt}>
+                        {new Date(marketSearch.cachedAt).toLocaleString()}
+                      </time>
+                      。
+                    </p>
+                  ) : null}
+                  {!actions.onInstallMarketCandidate ? (
+                    <p
+                      className="mb-3 text-[11px] text-muted-foreground"
+                      data-testid="market-install-unavailable"
+                    >
+                      当前环境暂未接入市场安装，可先浏览候选与来源信息。
                     </p>
                   ) : null}
                   <SchemeListSection
                     title={`「${marketResult.query}」的候选`}
-                    count={marketResult.candidates.length}
+                    count={marketSearch.candidates.length}
                   >
-                    {marketResult.candidates.map((candidate) => {
+                    {marketSearch.candidates.map((candidate) => {
                       const installed = findInstalled(candidate);
                       return (
                         <MarketCandidateRow
@@ -359,7 +414,28 @@ export function SchemesScreen({
                       );
                     })}
                   </SchemeListSection>
-                  {marketResult.candidates.length === 0 ? (
+                  {marketSearch.pageError ? (
+                    <SchemeInlineError
+                      title="读取更多候选失败"
+                      message={marketSearch.pageError.message}
+                      onRetry={() => void marketSearch.loadMore().catch(() => undefined)}
+                      testId="market-page-error"
+                    />
+                  ) : null}
+                  {marketSearch.nextCursor && !marketSearch.pageError ? (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={marketSearch.isLoadingMore}
+                        onClick={() => void marketSearch.loadMore().catch(() => undefined)}
+                        data-testid="market-load-more"
+                      >
+                        {marketSearch.isLoadingMore ? '正在读取…' : '更多候选'}
+                      </Button>
+                    </div>
+                  ) : null}
+                  {marketSearch.candidates.length === 0 ? (
                     <SchemeEmptyState
                       icon={<Search className="size-5" aria-hidden />}
                       title="没有找到匹配的结果"
@@ -375,7 +451,7 @@ export function SchemesScreen({
                     从 GitHub 市场寻找设计方案
                   </p>
                   <p className="mt-1.5 text-[11px] text-muted-foreground leading-5">
-                    候选会显示许可证与风险提示，添加后需要本机试运行才能正式使用。
+                    候选会显示许可证与风险提示，添加后需要试运行验证。
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                     {MARKET_SUGGESTIONS.map((suggestion) => (
@@ -420,6 +496,28 @@ export function SchemesScreen({
         </Sheet>
       )}
 
+      {trashOpen && (
+        <SchemeTrashDialog
+          onClose={() => setTrashOpen(false)}
+          onRestoreFocus={() => trashTrigger.current?.focus()}
+        />
+      )}
+      {agentHistoryOpen ? (
+        <SchemeAgentDialog
+          onClose={() => setAgentHistoryOpen(false)}
+          onRestoreFocus={() => agentHistoryTrigger.current?.focus()}
+          onOpenScheme={(id) => {
+            setAgentHistoryOpen(false);
+            openDetail(id);
+          }}
+        />
+      ) : null}
+      {exportHistoryOpen ? (
+        <SchemePackageExportDialog
+          onClose={() => setExportHistoryOpen(false)}
+          onRestoreFocus={() => exportHistoryTrigger.current?.focus()}
+        />
+      ) : null}
       <MarketInstallDialog
         candidate={installCandidate}
         onCancel={() => setInstallCandidate(null)}
@@ -435,6 +533,20 @@ export function SchemesScreen({
         onCancel={() => setRemoveTarget(null)}
         onConfirm={confirmRemove}
       />
+      {packageImportOpen ? (
+        <SchemePackageImportDialog
+          onClose={() => setPackageImportOpen(false)}
+          onRestoreFocus={() => createTriggerRef.current?.focus()}
+          onImported={(result) => {
+            setPackageImportOpen(false);
+            setSurface('mine');
+            setQuery('');
+            toast.success('导入记录已确认', { description: result.scheme.name });
+            openDetail(result.scheme.id);
+          }}
+        />
+      ) : null}
+
       <HistorySourcePicker
         open={historySourceOpen}
         onCancel={() => setHistorySourceOpen(false)}

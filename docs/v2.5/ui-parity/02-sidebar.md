@@ -36,13 +36,13 @@
 | 日期分组 | `groupWorkbenchSessions`:置顶 → 今天 → 昨天 → 更早,组内按 `updatedAt` 降序;组标题 `<h3>`,`aria-label="今天的对话"` | ✅ 已收口(2026-08-29):`groupWorkbenchSessions` 移植进 `SessionListPanel`(now 注入可测,置顶为偏好通道入参),`<section aria-label>` + sticky 组标题(02-C1 一并落地) | 收口 |
 | 打开会话 | 点击行主体;`aria-label` 拼接状态语(「正在生成」/「未读」) | 同;`aria-label` 无状态语(状态点自带 aria-label) | 一致(a11y 口径不同但等价) |
 | 置顶/取消置顶 | 行首 hover 钮 + 右键菜单;`aria-pressed` | 行尾钮;偏好通道持久化 | 一致偏优(D6 登记) |
-| 重命名 | 右键菜单进入行内 `<form>`:Input(maxLength 80)+「保存」钮,Esc 取消;顶栏菜单走 `WorkbenchSessionRenameDialog` 对话框 | 行尾钮进入行内 Input + Check 钮,Enter 提交 / Esc 取消 | 一致;**maxLength 80 丢了**(新版不限长,契约 120),P3 对齐契约即可 |
+| 重命名 | 右键菜单进入行内 `<form>`:Input(maxLength 80)+「保存」钮,Esc 取消;顶栏菜单走 `WorkbenchSessionRenameDialog` 对话框 | 行尾钮进入行内 Input + Check 钮,Enter 提交 / Esc 取消;`maxLength` 对齐契约 120 | ✅ 收口 |
 | 归档 | 行尾 hover 钮 + 右键菜单;归档即清未读 | 行尾钮;归档清置顶、清活动会话 | 一致 |
 | 删除 | 仅右键菜单入口 → `WorkbenchSessionDeleteDialog` 确认 | 行尾钮 → AlertDialog 确认(文案说明图片保留在历史) | 一致偏优(入口从浮层提为常驻,I2) |
 | **标记为未读** | 右键菜单项:手动把会话标回未读点 | ✅ 已收口(2026-08-29):`session-store.markUnread`(unreadMarks 覆盖 seenAt),打开会话/markSeen 即清;右键与「更多」菜单双入口 | 收口 |
 | 右键菜单 | `WorkbenchSessionContextMenu`:坐标锚定、焦点圈闭、关闭归还焦点到行;键盘 ContextMenu 键 / Shift+F10 触发 | ✅ 已收口(2026-08-29):ui 包新增 radix `ContextMenu` 原语,五项(置顶/重命名/归档/标记未读/删除)与「更多」DropdownMenu 同构单源;焦点圈闭/归还与 Shift+F10 由 Radix 承接 | 收口;触屏「更多」钮(`session-more`)一并恢复,动作组 `pointer-coarse:opacity-100` 常显 |
 | 状态点 | `data-status` 三态;running 走 `status-breathe` 呼吸动画(1.8s 缩放+透明度) | running = `animate-pulse`(透明度闪烁),unread = 实心点 | **P2 动效降级**:旧版是缩放呼吸,新版是标准 pulse;恢复 `status-breathe` keyframes 到 ui 包 |
-| 读取失败 | 错误卡:标题 + 消息 + 重试钮;`WORKBENCH_SESSION_RESTART_REQUIRED` 特判「需要重启应用」+ 立即重启钮(调 `system.relaunch`) | 错误文案 + 重试钮 | **P2 缺口**:重启特判是桌面 SQLite 迁移失败的逃生门,装桌面壳时必须恢复 |
+| 读取失败 | 错误卡:标题 + 消息 + 重试钮;`WORKBENCH_SESSION_RESTART_REQUIRED` 特判「需要重启应用」+ 立即重启钮(调 `system.relaunch`) | ✅ 特判「需要重启应用」+ 立即重启(`useRelaunchApp`);无 system 域只留说明与重试 | 收口 |
 | 加载态 | 「正在读取对话」spinner 行 | 3 条 Skeleton | 新版更优(I1),维持 |
 | 空态 | 文案「还没有对话。点『新设计』开始…」 | 同文案 | 一致 |
 
@@ -100,9 +100,9 @@
 | ~~P1~~ | ~~会话右键菜单 + 触屏「更多」钮~~ ✅ 已收口(2026-08-29,见 §4 结论);交互测试覆盖右键开合与菜单项 | — |
 | ~~P1~~ | ~~「标记为未读」~~ ✅ 已收口(2026-08-29):实现为 `unreadMarks` 覆盖层(优先于 seenAt),单测覆盖标记/清除 | — |
 | ~~P2~~ | ~~running 点恢复 `status-breathe` 呼吸~~ ✅ 已收口(2026-08-29,见 §6 表) | — |
-| P2 | 会话读取失败的「需要重启应用」特判(桌面能力开关) | 桥抛 RESTART_REQUIRED 时显示重启钮 |
+| ~~P2~~ | ~~会话读取失败的「需要重启应用」特判~~ ✅ 已收口(2026-09-06):`WORKBENCH_SESSION_RESTART_REQUIRED` → 标题 + 立即重启;Web 无 system 域降级为说明+重试 | 桥抛 RESTART_REQUIRED 时显示重启钮 |
 | ~~P2~~ | ~~AccountFooter 升级 DropdownMenu(设置深链 + 退出登录)~~ ✅ 已收口(2026-08-29,先于设置分组导航,深链走 ScreenIntent 滚动+高亮;含「更多连接」切换子菜单,见 §5) | 深链直达对应设置卡 |
-| P3 | 重命名 maxLength 对齐契约 120;导航 count 角标接口预留 | — |
+| ~~P3~~ | ~~重命名 maxLength 对齐契约 120~~ ✅ 已收口(2026-09-06);导航 count 角标接口预留仍观察 | 重命名输入 maxLength=120 |
 
 ## 8. Codex 增益(C 系列,语汇见 [00-codex-craft.md](./00-codex-craft.md))
 

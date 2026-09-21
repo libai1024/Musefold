@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { isoDateTimeSchema } from './common';
-import { generationAspectRatioSchema, generationQualitySchema } from './generation';
+import { accountNoticeReadIdsSchema } from './account-notices';
+import {
+  generationAspectRatioSchema,
+  generationCountSchema,
+  generationQualitySchema,
+} from './generation';
 
 /**
  * 应用偏好(v2.5 设置域打样契约)。
@@ -49,6 +54,11 @@ export const appPreferencesSchema = z.object({
    * 新设计默认质量(generationQualitySchema)。缺字段 → auto(与 Composer 当前默认一致)。
    */
   defaultQuality: generationQualitySchema.default('auto'),
+  /**
+   * 新设计默认张数(§9-D3 解锁后生效)。缺字段 → 1;
+   * 宿主 `maxGenerationCount === 1` 时该偏好不出现在设置面,仍按 1 参与继承。
+   */
+  defaultCount: generationCountSchema.default(1),
   /** 界面密度。缺字段 → comfortable。 */
   density: interfaceDensitySchema.default('comfortable'),
   /**
@@ -57,6 +67,8 @@ export const appPreferencesSchema = z.object({
    * 一旦非 null 就不再重放。本机偏好,不进云同步。
    */
   onboardingCompletedAt: isoDateTimeSchema.nullable().default(null),
+  /** Read-only import of legacy device-wide public notice markers; no credentials/content. */
+  legacyAccountNoticeReadIds: accountNoticeReadIdsSchema.optional(),
 });
 
 /**
@@ -89,6 +101,7 @@ export const defaultAppPreferences: AppPreferences = {
   pinnedSessionIds: [],
   defaultAspectRatio: 'auto',
   defaultQuality: 'auto',
+  defaultCount: 1,
   density: 'comfortable',
   onboardingCompletedAt: null,
 };

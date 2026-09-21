@@ -1,0 +1,1 @@
+ALTER TABLE "design_scheme_agent_sessions" ADD COLUMN "update_context" jsonb;

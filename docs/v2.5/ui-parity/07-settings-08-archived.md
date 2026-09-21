@@ -26,7 +26,7 @@
 | 决策点 | 建议 |
 |---|---|
 | 入口位置 | 设置「数据」卡内归档面板,折叠时保留行级入口;不新增 `ScreenIntent`,恢复后通过 workbench query invalidation 让侧栏重新可见 |
-| 承载形态 | 迁移期:设置内卡 + 列表(行数通常少);会话数大时再分页 |
+| 承载形态 | 设置内卡 + 列表;`useInfiniteQuery` 消费 `nextCursor` +「加载更多」(`archived-load-more`,B4-T2) |
 | 契约 | `workbench.listSessions({ archivedOnly: true })`——当前契约、API、桥已支持 `archivedOnly` 与 `expectedVersion`,归档列表不在客户端二次过滤 |
 | 恢复动作 | `updateSession({ archived: false })`(桥/服务已有 archived 语义);恢复后 invalidate 会话列表 |
 | 删除动作 | 与 02 §3 删除对话同 mutation(AlertDialog 文案:「已生成的图片仍保留在生成历史中」口径一致) |

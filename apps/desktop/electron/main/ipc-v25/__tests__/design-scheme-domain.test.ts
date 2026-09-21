@@ -1,7 +1,7 @@
 /**
  * v2.5 design-scheme 域 adapter 单测(P01-4 成功切片 + P01-2 详情元数据)。
  *
- * 用真实内存 SQLite 仓库驱动全部 17 个 deployed canonical 方法;网络 seam(市场搜索、
+ * 用真实内存 SQLite 仓库驱动全部 19 个 deployed canonical 方法;网络 seam(市场搜索、
  * 上游更新检查)注入假实现。重点:
  * - 方法表与 canonical 方法集逐名一致(不落回 fail-closed);
  * - canonical ↔ legacy 文档映射的有损字段按声明收敛;
@@ -417,7 +417,9 @@ function makeAgentAdapter(options: { fail?: boolean; onComplete?: () => void } =
 function wire() {
   searchMarket = vi.fn();
   checkUpdate = vi.fn();
-  consumeStagedPackage = vi.fn(async (_ownerId, _input, consume) => consume('/verified/package'));
+  consumeStagedPackage = vi.fn(async (_ownerId, _input, consume) =>
+    consume('/verified/package', Buffer.from('verified fixture bytes')),
+  );
   importPackage = vi.fn();
   exportPackage = vi.fn();
   showSaveDialog = vi.fn();
@@ -553,8 +555,8 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('方法表', () => {
-  it('逐名锁定为 deployed canonical 方法集(18 个,无旧通道残留)', () => {
-    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(18);
+  it('逐名锁定为 deployed canonical 方法集(19 个,含永久删除且无旧通道残留)', () => {
+    expect([...DESIGN_SCHEME_METHOD_NAMES]).toHaveLength(19);
     expect(Object.keys(methods).sort()).toEqual([...DESIGN_SCHEME_METHOD_NAMES].sort());
   });
 
@@ -586,7 +588,7 @@ describe('list', () => {
     await expect(invoke('list', {})).resolves.toEqual({ items: [], nextCursor: null });
   });
 
-  it('按状态/关键词过滤并做 offset 分页', async () => {
+  it('按状态/关键词过滤并使用不透明 keyset 游标分页', async () => {
     await invoke('create', createInputFixture('dsch_a', 'dsrv_a1'));
     await new Promise((resolve) => setTimeout(resolve, 5));
     await invoke(
@@ -621,10 +623,10 @@ describe('list', () => {
       { limit: 1 },
     );
     expect(page1.items).toHaveLength(1);
-    expect(page1.nextCursor).toBe('1');
+    expect(page1.nextCursor).toEqual(expect.any(String));
     const page2 = await invoke<{ items: Array<{ id: string }>; nextCursor: string | null }>(
       'list',
-      { limit: 1, cursor: '1' },
+      { limit: 1, cursor: page1.nextCursor },
     );
     expect(page2.items).toHaveLength(1);
     expect(page2.nextCursor).toBeNull();
@@ -632,6 +634,19 @@ describe('list', () => {
       'dsch_a',
       'dsch_b',
     ]);
+  });
+
+  it('已移除方案返回软删后的版本，活动列表隔离且拒绝旧式游标', async () => {
+    await invoke('create', createInputFixture('dsch_removed', 'dsrv_removed'));
+    await invoke('remove', { schemeId: 'dsch_removed', expectedVersion: 1 });
+    expect((await invoke('list', {})).items).toEqual([]);
+    expect((await invoke('list', { deletedOnly: true })).items).toMatchObject([
+      { id: 'dsch_removed', version: 2 },
+    ]);
+    expect((await invoke('list', { deletedOnly: 'false' })).items).toEqual([]);
+    await expect(invoke('list', { cursor: '1' })).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
   });
 });
 
@@ -1491,7 +1506,8 @@ describe('modify(Agent 管线)', () => {
     expect(result.scheme.currentRevisionId).toBe(result.revisionId);
     expect(result.revisionId).not.toBe('dsrv_md1');
     expect(result.document.name).toBe('Agent 水彩海报');
-    expect(result.document.parentRevisionId ?? null).toBeNull();
+    expect(result.document.parentRevisionId).toBe('dsrv_md1');
+    expect(result.document.createdBy).toBe('agent');
     expect(result.creationSummary).toContain('水彩海报方案');
     expect(events.map((event) => parseDesignSchemeEvent(event).kind).at(-1)).toBe('draft-ready');
   });
@@ -1729,6 +1745,33 @@ describe('remove', () => {
     expect((await invokeError('remove', { schemeId: 'dsch_rm', expectedVersion: 2 })).code).toBe(
       'NOT_FOUND',
     );
+  });
+});
+
+describe('purge', () => {
+  it('requires the removed version and returns the same committed receipt on replay', async () => {
+    await invoke('create', createInputFixture('dsch_purge', 'dsrv_purge'));
+    expect((await invokeError('purge', { schemeId: 'dsch_purge', expectedVersion: 1 })).code).toBe(
+      'DESIGN_SCHEME_INVALID_STATE',
+    );
+    await invoke('remove', { schemeId: 'dsch_purge', expectedVersion: 1 });
+    expect((await invokeError('purge', { schemeId: 'dsch_purge', expectedVersion: 1 })).code).toBe(
+      'DESIGN_SCHEME_VERSION_CONFLICT',
+    );
+    const result = await invoke('purge', { schemeId: 'dsch_purge', expectedVersion: 2 });
+    expect(result).toEqual({
+      schemeId: 'dsch_purge',
+      purged: true,
+      retiredKeys: 0,
+      deferredKeys: 0,
+    });
+    expect(await invoke('purge', { schemeId: 'dsch_purge', expectedVersion: 2 })).toEqual(result);
+    expect((await invoke('list', { deletedOnly: true })).items).toEqual([]);
+    expect((await invokeError('get', { id: 'dsch_purge' })).code).toBe('NOT_FOUND');
+    expect((await invokeError('purge', { schemeId: 'missing', expectedVersion: 2 })).code).toBe(
+      'NOT_FOUND',
+    );
+    expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 });
 
@@ -2231,11 +2274,15 @@ describe('分享包导入导出', () => {
     const result = await invoke('importPackage', importInput, 73);
 
     expect(consumeStagedPackage).toHaveBeenCalledWith(73, importInput, expect.any(Function));
-    expect(importPackage).toHaveBeenCalledWith('/verified/package', {
-      db,
-      userDataDir,
-      picturesDir,
-    });
+    expect(importPackage).toHaveBeenCalledWith(
+      '/verified/package',
+      {
+        db,
+        userDataDir,
+        picturesDir,
+      },
+      Buffer.from('verified fixture bytes'),
+    );
     expect(result).toMatchObject({
       scheme: { id: 'dsch_imported', status: 'draft' },
       revisionId: 'dsrv_imported',

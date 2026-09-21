@@ -12,7 +12,7 @@ import {
 /**
  * Better Auth 核心表(v1.7 形状)。
  * drizzle adapter 通过 TS 字段名解析列,DB 列名统一 snake_case。
- * newApiUserId 是账号事实源(自托管 New API 网关)的用户主键映射。
+ * newApiUserId 仅保留历史映射线索;可信身份来自 account_identities 的 issuer + owner。
  */
 export const user = pgTable('user', {
   id: text('id').primaryKey(),

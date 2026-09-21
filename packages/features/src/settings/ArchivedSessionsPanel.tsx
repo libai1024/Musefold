@@ -16,10 +16,11 @@ import { Skeleton } from '@musefold/ui/components/skeleton';
 import { toast } from '@musefold/ui/components/sonner';
 import { Archive, ArchiveRestore, ChevronDown, RefreshCw, Trash2 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useAutoLoadMore } from '../history/hooks';
 import { useArchivedSessions, useRemoveSession, useRestoreSession } from '../workbench/hooks';
 
-/** 归档列表一次拉全(契约 limit 上限 100);个人创作者归档量远低于此。 */
+/** 每页最多100条,更多归档沿服务端游标追加。 */
 const ARCHIVED_QUERY = { archivedOnly: true, limit: 100 } as const;
 
 /**
@@ -54,8 +55,13 @@ export function ArchivedSessionsPanel() {
   const [restoringIds, setRestoringIds] = useState<Set<string>>(() => new Set());
   const [removingIds, setRemovingIds] = useState<Set<string>>(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState<WorkbenchSession | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const items = archived.data?.items ?? [];
+  const items = archived.data?.pages.flatMap((page) => page.items) ?? [];
+  const hasMore = archived.hasNextPage === true;
+  useAutoLoadMore(loadMoreRef, expanded && hasMore && !archived.isFetchingNextPage, () => {
+    void archived.fetchNextPage();
+  });
 
   function restore(session: WorkbenchSession) {
     setRestoringIds((current) => new Set(current).add(session.id));
@@ -115,7 +121,7 @@ export function ArchivedSessionsPanel() {
               className="shrink-0 text-muted-foreground text-xs tabular-nums"
               data-testid="archived-count"
             >
-              {items.length}
+              {hasMore ? `${items.length}+` : items.length}
             </span>
           )}
           <ChevronDown
@@ -214,6 +220,20 @@ export function ArchivedSessionsPanel() {
               ))}
             </ul>
           )}
+          {archived.isSuccess && hasMore && (
+            <div ref={loadMoreRef} className="pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-full text-xs"
+                data-testid="archived-load-more"
+                disabled={archived.isFetchingNextPage}
+                onClick={() => void archived.fetchNextPage()}
+              >
+                {archived.isFetchingNextPage ? '加载中…' : '加载更多'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -234,6 +254,7 @@ export function ArchivedSessionsPanel() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removeSession.isPending}>取消</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               data-testid="archived-remove-confirm"
               disabled={removeSession.isPending}
               onClick={(event) => {

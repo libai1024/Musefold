@@ -1,13 +1,16 @@
 import type {
+  AccountSummary,
   AiProvider,
   AiProviderListModelsInput,
   AiProviderModelList,
   AiProviderTestInput,
   AiProviderTestResult,
   CreateAiProvider,
-  DesktopSyncConsent,
+  SetSyncConsentInput,
+  SetSyncEnabled,
   DesktopSyncStatus,
   DoubaoAccountStatus,
+  GenerationJob,
   LoginRequest,
   RedeemResult,
   SyncConflictResolution,
@@ -21,12 +24,40 @@ import {
   useGateway,
 } from '@musefold/platform';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { toast } from '@musefold/ui/components/sonner';
+import {
+  consumeQuotaRecovery,
+  peekQuotaRecovery,
+  resetQuotaRecovery,
+} from '../history/spend-recovery-store';
+import { useCreateGeneration } from '../workbench/hooks';
+import { useRetryAction } from '../workbench/use-retry-action';
+import { accountErrorMessage } from './error-messages';
+import {
+  accountEpoch,
+  applyAccountSession,
+  assertAccountEpoch,
+  beginAccountTransition,
+  isAccountRestricted,
+  observeAccountSession,
+} from './account-session';
+import { useRememberedUsername } from './remembered-username';
+import { observeLoginInteraction } from './login-interaction';
 
 export function useAccountStatus() {
   const gateway = useGateway();
+  const queryClient = useQueryClient();
+  useEffect(() => observeLoginInteraction(queryClient, gateway), [queryClient, gateway]);
   return useQuery({
     queryKey: queryKeys.account.status(),
-    queryFn: () => gateway.account.getStatus(),
+    queryFn: async () => {
+      const epoch = accountEpoch(queryClient);
+      const account = await gateway.account.getStatus();
+      assertAccountEpoch(queryClient, epoch);
+      observeAccountSession(queryClient, account);
+      return account;
+    },
     retry: false,
   });
 }
@@ -35,11 +66,20 @@ export function useLogin() {
   const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: LoginRequest) => gateway.account.login(input),
-    onSuccess: (account) => {
-      queryClient.setQueryData(queryKeys.account.status(), account);
-      // 登录改变全部服务端数据的可见性,重新拉取登录前失败/为空的查询(会话列表等)。
-      void queryClient.invalidateQueries();
+    gcTime: 0,
+    mutationFn: async (input: LoginRequest) => {
+      try {
+        return await gateway.account.login({ ...input });
+      } finally {
+        input.password = '';
+        input.twoFactorCode = undefined;
+      }
+    },
+    onMutate: () => beginAccountTransition(queryClient),
+    onSuccess: async (account, _input, epoch) => {
+      assertAccountEpoch(queryClient, epoch);
+      useRememberedUsername.getState().remember(account.username);
+      await applyAccountSession(queryClient, account, epoch);
     },
   });
 }
@@ -48,10 +88,20 @@ export function useRegister() {
   const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: LoginRequest) => gateway.account.register(input),
-    onSuccess: (account) => {
-      queryClient.setQueryData(queryKeys.account.status(), account);
-      void queryClient.invalidateQueries();
+    gcTime: 0,
+    mutationFn: async (input: LoginRequest) => {
+      try {
+        return await gateway.account.register({ ...input });
+      } finally {
+        input.password = '';
+        input.twoFactorCode = undefined;
+      }
+    },
+    onMutate: () => beginAccountTransition(queryClient),
+    onSuccess: async (account, _input, epoch) => {
+      assertAccountEpoch(queryClient, epoch);
+      useRememberedUsername.getState().remember(account.username);
+      await applyAccountSession(queryClient, account, epoch);
     },
   });
 }
@@ -61,9 +111,15 @@ export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => gateway.account.logout(),
-    onSuccess: () => {
+    onMutate: () => beginAccountTransition(queryClient),
+    onSuccess: async (_result, _input, epoch) => {
+      assertAccountEpoch(queryClient, epoch);
+      const before = queryClient.getQueryData<AccountSummary>(queryKeys.account.status());
+      if (before?.username) useRememberedUsername.getState().remember(before.username);
+      await queryClient.cancelQueries();
+      assertAccountEpoch(queryClient, epoch);
       // 全量重置:账号状态回到未登录错误分支,其余数据不残留上个会话内容。
-      queryClient.resetQueries();
+      await queryClient.resetQueries();
     },
   });
 }
@@ -71,12 +127,94 @@ export function useLogout() {
 export function useRedeem() {
   const gateway = useGateway();
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (code: string) => gateway.account.redeem(code),
-    onSuccess: (result: RedeemResult) => {
+  const retry = useRetryAction();
+  const create = useCreateGeneration();
+  // Presentation only; durable submission and payment authority remain in the gateway.
+  const [recovery, setRecovery] = useState<{
+    epoch: number;
+    status: 'pending' | 'submitted' | 'failed';
+    message: string;
+    jobId?: string;
+  } | null>(null);
+  const mutation = useMutation({
+    retry: false,
+    mutationFn: (code: string) => {
+      if (isAccountRestricted(queryClient.getQueryData(queryKeys.account.status()))) {
+        throw new Error('请先完成账号恢复，再使用兑换与生图');
+      }
+      return gateway.account.redeem(code);
+    },
+    onMutate: () => {
+      setRecovery(null);
+      return { epoch: accountEpoch(queryClient), pending: peekQuotaRecovery() };
+    },
+    onError: (error, _input, context) => {
+      if (context && accountEpoch(queryClient) === context.epoch)
+        toast.error(accountErrorMessage(error));
+    },
+    onSuccess: async (result: RedeemResult, _input, context) => {
+      const { epoch } = context;
+      if (accountEpoch(queryClient) !== epoch) return;
+      if (isAccountRestricted(result.account)) {
+        resetQuotaRecovery();
+        await applyAccountSession(queryClient, result.account, epoch);
+        return;
+      }
       queryClient.setQueryData(queryKeys.account.status(), result.account);
+      // Crediting is already complete. A separate generation failure must not turn it into
+      // a redemption error or promise that an unaccepted generation is still being retried.
+      toast.success(`兑换成功,到账 ${formatPoints(result.creditedQuota)} 积分`);
+      const ownedRecovery = consumeQuotaRecovery(context.pending);
+      if (!ownedRecovery) return;
+      const pending = ownedRecovery.intent;
+      const originalId = pending.kind === 'retry-job' ? pending.jobId : undefined;
+      setRecovery({
+        epoch,
+        status: 'pending',
+        message: '额度已到账，正在恢复生成…',
+        jobId: originalId,
+      });
+      try {
+        let job: GenerationJob;
+        if (pending.kind === 'retry-job') {
+          const outcome = await retry.requestAsync({ id: pending.jobId });
+          if (!outcome.ok) throw outcome.error;
+          job = outcome.job;
+        } else {
+          // Preserve the original create key and frozen input; never turn a lost reply into
+          // a fresh authorization. The shared mutation supplies account guards/invalidation.
+          job = await create.mutateAsync([...pending.intent]);
+        }
+        if (accountEpoch(queryClient) === epoch) {
+          const failed = ['failed', 'rejected', 'expired'].includes(job.status);
+          setRecovery({
+            epoch,
+            status: failed ? 'failed' : 'submitted',
+            message: failed
+              ? `额度已到账，但本次生成未成功：${job.error?.message ?? '请查看原任务。'}`
+              : job.status === 'cancelled'
+                ? '生成已取消，兑换到账结果不受影响。'
+                : '生成请求已提交，请查看任务结果。',
+            jobId: job.id,
+          });
+        }
+      } catch (error) {
+        if (accountEpoch(queryClient) !== epoch) return;
+        const reason = error instanceof Error ? error.message : '暂时无法确认结果，请核对原任务。';
+        setRecovery({
+          epoch,
+          status: 'failed',
+          message: `额度已到账，但生成未恢复：${reason}`,
+          jobId: originalId,
+        });
+        // Retry owns a single error notification even when another screen joined it.
+        if (pending.kind === 'replay-create') toast.error('生成未恢复', { description: reason });
+      } finally {
+        ownedRecovery.release();
+      }
     },
   });
+  return { ...mutation, recovery: recovery?.epoch === accountEpoch(queryClient) ? recovery : null };
 }
 
 /** 展示积分:1 积分 = 50000 quota,保留一位小数(整数值不带小数点)。 */
@@ -97,9 +235,15 @@ function useSyncGateway() {
 
 export function useSyncStatus() {
   const sync = useSyncGateway();
+  const client = useQueryClient();
   return useQuery({
     queryKey: queryKeys.sync.status(),
-    queryFn: () => sync.getStatus(),
+    queryFn: async () => {
+      const epoch = accountEpoch(client);
+      const status = await sync.getStatus();
+      assertAccountEpoch(client, epoch);
+      return status;
+    },
     // 同步在后台跑(防抖/60s 兜底轮),状态面板保持新鲜。
     refetchInterval: 5_000,
   });
@@ -108,7 +252,8 @@ export function useSyncStatus() {
 /** 同步动作成功后除状态外还要失效提示词数据(pull 可能带回远端变更)。 */
 function useApplySyncResult() {
   const queryClient = useQueryClient();
-  return (status: DesktopSyncStatus) => {
+  return (status: DesktopSyncStatus, epoch: number) => {
+    assertAccountEpoch(queryClient, epoch);
     queryClient.setQueryData(queryKeys.sync.status(), status);
     void queryClient.invalidateQueries({ queryKey: queryKeys.prompts.all() });
   };
@@ -117,9 +262,12 @@ function useApplySyncResult() {
 export function useSetSyncEnabled() {
   const sync = useSyncGateway();
   const apply = useApplySyncResult();
+  const client = useQueryClient();
   return useMutation({
-    mutationFn: (enabled: boolean) => sync.setEnabled(enabled),
-    onSuccess: apply,
+    mutationFn: ({ enabled, reviewRef }: SetSyncEnabled) =>
+      reviewRef === undefined ? sync.setEnabled(enabled) : sync.setEnabled(enabled, reviewRef),
+    onMutate: () => accountEpoch(client),
+    onSuccess: (status, _input, epoch) => apply(status, epoch),
   });
 }
 
@@ -127,18 +275,26 @@ export function useSetSyncEnabled() {
 export function useSetSyncConsent() {
   const sync = useSyncGateway();
   const apply = useApplySyncResult();
+  const client = useQueryClient();
   return useMutation({
-    mutationFn: (consent: DesktopSyncConsent) => sync.setConsent(consent),
-    onSuccess: apply,
+    mutationFn: ({ consent, reviewRef }: SetSyncConsentInput) =>
+      reviewRef === undefined ? sync.setConsent(consent) : sync.setConsent(consent, reviewRef),
+    onError: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.sync.status() });
+    },
+    onMutate: () => accountEpoch(client),
+    onSuccess: (status, _input, epoch) => apply(status, epoch),
   });
 }
 
 export function useSyncNow() {
   const sync = useSyncGateway();
   const apply = useApplySyncResult();
+  const client = useQueryClient();
   return useMutation({
     mutationFn: () => sync.syncNow(),
-    onSuccess: apply,
+    onMutate: () => accountEpoch(client),
+    onSuccess: (status, _input, epoch) => apply(status, epoch),
   });
 }
 
@@ -164,9 +320,10 @@ export function useResolveSyncConflict() {
       conflictId: string;
       resolution: SyncConflictResolution;
     }) => sync.resolveConflict(conflictId, resolution),
-    onSuccess: (status) => {
+    onMutate: () => accountEpoch(queryClient),
+    onSuccess: (status, _input, epoch) => {
       // apply 已失效 prompts;冲突列表随状态一起刷新,行级错误由调用方就地呈现。
-      apply(status);
+      apply(status, epoch);
       void queryClient.invalidateQueries({ queryKey: queryKeys.sync.conflicts() });
     },
   });

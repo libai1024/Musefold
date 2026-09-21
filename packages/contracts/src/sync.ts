@@ -318,6 +318,8 @@ function legacyDesktopSyncPhase(value: Record<string, unknown>): DesktopSyncPhas
  * enabled/state 仅保留给尚未迁移的当前消费方。旧响应缺少新字段时在边界补出
  * 保守的 unset/派生 phase,新宿主仍应发送显式字段。
  */
+const localWorkspaceReferenceSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
 export const desktopSyncStatusSchema = z.preprocess(
   (value) => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
@@ -331,6 +333,8 @@ export const desktopSyncStatusSchema = z.preprocess(
   },
   z
     .object({
+      /** Non-authorizing binding to the session shown to the user. */
+      reviewRef: localWorkspaceReferenceSchema.nullable().optional(),
       consent: desktopSyncConsentSchema,
       phase: desktopSyncPhaseSchema,
       enabled: z.boolean(),
@@ -350,10 +354,96 @@ export const desktopSyncStatusSchema = z.preprocess(
     .strict(),
 );
 
-export const setSyncEnabledSchema = z.object({ enabled: z.boolean() });
+export const setSyncEnabledSchema = z
+  .object({ enabled: z.boolean(), reviewRef: localWorkspaceReferenceSchema.nullable().optional() })
+  .strict();
 /** Gateway setConsent 接受 durable consent 值本身; transport 可另包一层对象。 */
 export const setSyncConsentSchema = desktopSyncConsentSchema;
-export const setSyncConsentInputSchema = z.object({ consent: desktopSyncConsentSchema }).strict();
+export const setSyncConsentInputSchema = z
+  .object({
+    consent: desktopSyncConsentSchema,
+    reviewRef: localWorkspaceReferenceSchema.nullable().optional(),
+  })
+  .strict();
+
+export const localWorkspaceRecoveryStatusSchema = z
+  .object({
+    reviewRef: localWorkspaceReferenceSchema.nullable(),
+    targetAccount: z
+      .object({ username: z.string().min(1) })
+      .strict()
+      .nullable(),
+    targetReady: z.boolean(),
+    canPrepare: z.boolean(),
+    sources: z.array(
+      z
+        .object({
+          sourceId: localWorkspaceReferenceSchema,
+          label: z.string(),
+          kind: z.enum(['local_only', 'account']),
+          createdAt: isoDateTimeSchema,
+          counts: z
+            .object({
+              prompts: z.number().int().nonnegative(),
+              folders: z.number().int().nonnegative(),
+              tags: z.number().int().nonnegative(),
+            })
+            .strict(),
+          revision: localWorkspaceReferenceSchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export const previewLocalWorkspaceInputSchema = z
+  .object({
+    sourceId: localWorkspaceReferenceSchema,
+    cursor: z.string().regex(/^\d+$/).max(12).optional(),
+  })
+  .strict();
+export const localWorkspacePreviewSchema = z
+  .object({
+    sourceId: localWorkspaceReferenceSchema,
+    revision: localWorkspaceReferenceSchema,
+    prompts: z.array(
+      z
+        .object({
+          id: z.string(),
+          title: z.string(),
+          content: z.string(),
+          negative: z.string().nullable(),
+          folderName: z.string().nullable(),
+          tags: z.array(z.string()),
+          isDeleted: z.boolean(),
+        })
+        .strict(),
+    ),
+    /** Bounded metadata summary (first 200); the copy includes all folders and tags. */
+    folders: z.array(
+      z.object({ id: z.string(), name: z.string(), parentId: z.string().nullable() }).strict(),
+    ),
+    tags: z.array(z.object({ id: z.string(), name: z.string() }).strict()),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+/** The host derives the destination from its verified session; callers cannot choose an owner. */
+export const prepareLocalWorkspaceInputSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('empty'), reviewRef: localWorkspaceReferenceSchema }).strict(),
+  z
+    .object({
+      mode: z.literal('copy'),
+      reviewRef: localWorkspaceReferenceSchema,
+      sourceId: localWorkspaceReferenceSchema,
+      expectedRevision: localWorkspaceReferenceSchema,
+    })
+    .strict(),
+]);
+
+export type LocalWorkspaceRecoveryStatus = z.infer<typeof localWorkspaceRecoveryStatusSchema>;
+export type PreviewLocalWorkspaceInput = z.infer<typeof previewLocalWorkspaceInputSchema>;
+export type LocalWorkspacePreview = z.infer<typeof localWorkspacePreviewSchema>;
+export type PrepareLocalWorkspaceInput = z.infer<typeof prepareLocalWorkspaceInputSchema>;
 
 export type SyncEntityType = z.infer<typeof syncEntityTypeSchema>;
 export type SyncMutationOperation = z.infer<typeof syncMutationOperationSchema>;
@@ -362,6 +452,13 @@ export type DesktopSyncConsent = z.infer<typeof desktopSyncConsentSchema>;
 export type DesktopSyncPhase = z.infer<typeof desktopSyncPhaseSchema>;
 export type SyncConflictSummary = z.infer<typeof syncConflictSummarySchema>;
 export type SyncConflict = SyncConflictSummary;
+/** Folder/Tag deletion is permanent; Prompt deletion retains its restore semantics. */
+export function canKeepLocalSyncConflict(
+  conflict: Pick<SyncConflictSummary, 'entityType' | 'remoteSnapshot'>,
+): boolean {
+  return conflict.entityType === 'prompt' || conflict.remoteSnapshot.deletedAt == null;
+}
+
 export type SyncConflictResolution = z.infer<typeof syncConflictResolutionSchema>;
 export type SyncConflictResolutionInput = z.infer<typeof syncConflictResolutionInputSchema>;
 export type SyncDeviceRegistration = z.infer<typeof syncDeviceRegistrationSchema>;
@@ -385,3 +482,5 @@ export type DesktopSyncState = z.infer<typeof desktopSyncStateSchema>;
 export type DesktopSyncStatus = z.infer<typeof desktopSyncStatusSchema>;
 export type SetSyncEnabled = z.infer<typeof setSyncEnabledSchema>;
 export type SetSyncConsent = z.infer<typeof setSyncConsentSchema>;
+
+export type SetSyncConsentInput = z.infer<typeof setSyncConsentInputSchema>;

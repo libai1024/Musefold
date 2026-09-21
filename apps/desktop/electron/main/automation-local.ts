@@ -2,7 +2,16 @@
 // 与 IPC handlers 使用同一批底层原语（db SQL / keychain / system 模块）。
 
 import { ulid } from 'ulid';
-import type { LocalAdminOps } from '@musefold/automation-server';
+import { AutomationError, type LocalAdminOps } from '@musefold/automation-server';
+import { ACCOUNT_CLOUD_PROVIDER_TYPE } from '@musefold/contracts';
+import { isProviderType } from '@musefold/desktop-contracts/enums';
+import {
+  activateImageProvider,
+  assertProviderEditable,
+  ProviderConnectionError,
+  removeImageProviderRow,
+  withVerifiedProvider,
+} from '../system/provider-connections';
 import { getDb } from '@musefold/core/db/index';
 import { createProvider } from '@musefold/core/providers/registry';
 import { promptsRepo } from '@musefold/core/db/repositories/prompts';
@@ -29,56 +38,84 @@ function requireProviderRow(providerId: string): Record<string, unknown> {
   return row;
 }
 
+async function providerMutation<T>(work: () => T | Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof ProviderConnectionError)
+      throw new AutomationError(error.code, error.message, error.code === 'NOT_FOUND' ? 404 : 409);
+    throw error;
+  }
+}
+
 export function createElectronLocalAdminOps(): LocalAdminOps {
   return {
     createProvider(input) {
+      if (
+        !isProviderType(input.type) ||
+        (input.isActive !== undefined && typeof input.isActive !== 'boolean')
+      )
+        throw new AutomationError(
+          'INVALID_PARAMS',
+          '请选择支持的本地连接类型与默认状态；账号云连接须由账号设置建立',
+          400,
+        );
       const db = getDb();
       const id = ulid();
       const now = Date.now();
-      if (input.isActive) db.prepare('UPDATE providers SET is_active = 0').run();
-      db.prepare(
-        'INSERT INTO providers (id, name, type, base_url, model, has_key, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)',
-      ).run(
-        id,
-        input.name,
-        input.type,
-        input.baseUrl,
-        input.model,
-        input.isActive ? 1 : 0,
-        now,
-        now,
-      );
+      db.transaction(() => {
+        if (input.isActive) db.prepare('UPDATE providers SET is_active = 0').run();
+        db.prepare(
+          'INSERT INTO providers (id, name, type, base_url, model, has_key, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)',
+        ).run(
+          id,
+          input.name,
+          input.type,
+          input.baseUrl,
+          input.model,
+          input.isActive ? 1 : 0,
+          now,
+          now,
+        );
+      })();
       return rowToProvider(requireProviderRow(id));
     },
     setProviderKey(providerId, apiKey) {
-      requireProviderRow(providerId);
-      saveApiKey(providerId, apiKey);
-      getDb()
-        .prepare('UPDATE providers SET has_key = 1, key_suffix = ?, updated_at = ? WHERE id = ?')
-        .run(getKeySuffix(providerId), Date.now(), providerId);
-      return { ok: true as const, keySuffix: getKeySuffix(providerId) };
+      return providerMutation(() => {
+        assertProviderEditable(providerId);
+        saveApiKey(providerId, apiKey);
+        getDb()
+          .prepare('UPDATE providers SET has_key = 1, key_suffix = ?, updated_at = ? WHERE id = ?')
+          .run(getKeySuffix(providerId), Date.now(), providerId);
+        return { ok: true as const, keySuffix: getKeySuffix(providerId) };
+      });
     },
     deleteProvider(providerId) {
-      requireProviderRow(providerId);
-      getDb().prepare('DELETE FROM providers WHERE id = ?').run(providerId);
-      deleteApiKey(providerId);
-      deleteProviderPricing(providerId);
-      return { ok: true as const };
+      return providerMutation(() => {
+        const row = removeImageProviderRow(providerId);
+        if (row.type !== ACCOUNT_CLOUD_PROVIDER_TYPE) deleteApiKey(providerId);
+        deleteProviderPricing(providerId);
+        return { ok: true as const };
+      });
     },
     setActiveProvider(providerId) {
-      requireProviderRow(providerId);
-      const db = getDb();
-      db.transaction(() => {
-        db.prepare('UPDATE providers SET is_active = 0').run();
-        db.prepare('UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?').run(
-          Date.now(),
-          providerId,
-        );
-      })();
-      return { ok: true as const };
+      return providerMutation(async () => {
+        await activateImageProvider(providerId);
+        return { ok: true as const };
+      });
     },
     async validateProvider(providerId) {
       const row = requireProviderRow(providerId);
+      if (row.type === ACCOUNT_CLOUD_PROVIDER_TYPE) {
+        try {
+          return await withVerifiedProvider(providerId, () => ({
+            ok: true,
+            message: '账号云连接正常',
+          }));
+        } catch (error) {
+          return { ok: false, message: error instanceof Error ? error.message : '连接需要核对' };
+        }
+      }
       const isDoubaoWeb = row.type === 'doubao-web';
       if (!isDoubaoWeb && !hasApiKey(providerId)) return { ok: false, message: '尚未保存 API Key' };
       const provider = createProvider(

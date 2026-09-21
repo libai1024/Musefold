@@ -21,6 +21,10 @@ describe('desktop application composition', () => {
       createWindow,
     );
     expect(statementIndex('  registerWindowHandlers();')).toBeLessThan(createWindow);
+    expect(statementIndex('  await prepareLegacyPreferencesMigration();')).toBeLessThan(
+      createWindow,
+    );
+    expect(statementIndex('  mainWindowReady = true;')).toBeGreaterThan(createWindow);
   });
 
   it('closes admission, drains asynchronous work, and closes both databases in order', () => {

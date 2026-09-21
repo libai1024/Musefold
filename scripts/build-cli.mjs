@@ -3,12 +3,18 @@
 // esbuild（vite 自带依赖）→ packages/cli/dist/musefold.mjs，ESM + shebang。
 
 import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
 import { chmodSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pickAliases } from '../tooling/aliases.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+execFileSync(process.execPath, [resolve(root, 'packages/managed-fs/scripts/build-native.mjs')], {
+  cwd: root,
+  stdio: 'inherit',
+});
 
 const shared = {
   bundle: true,
@@ -24,12 +30,13 @@ const shared = {
       '@musefold/domain',
       '@musefold/desktop-contracts',
       '@musefold/contracts',
+      '@musefold/managed-fs',
     ],
     root,
   ),
   external: ['better-sqlite3'],
   banner: {
-    js: '#!/usr/bin/env node\nimport { createRequire } from "node:module"; const require = globalThis.require ?? createRequire(import.meta.url);',
+    js: '#!/usr/bin/env node\nimport { createRequire as __musefoldCreateRequire } from "node:module"; const require = globalThis.require ?? __musefoldCreateRequire(import.meta.url);',
   },
   logLevel: 'warning',
 };

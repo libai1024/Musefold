@@ -18,8 +18,14 @@ files:
     filter:
       - apps/desktop/out/**/*
   - package.json
+  # Workspace modules are already bundled by electron-vite. The dependency collector
+  # otherwise follows workspace links and ships test sources and local Turbo logs.
+  - '!node_modules/@musefold/**/*'
+  - '!**/{__tests__,.turbo}/**/*'
 afterPack: ../../scripts/after-pack.cjs
 extraResources:
+  - from: ../../packages/managed-fs/build/Release/managed_fs.node
+    to: native/managed_fs.node
   - from: ../../resources/icon.png
     to: icon.png
   - from: ../../resources/builtin
@@ -69,6 +75,7 @@ win:
   # `-c.win.signExecutable=true` and provide the certificate environment.
   signExecutable: false
 nsis:
+  artifactName: '${productName}-${version}-${arch}-Setup.${ext}'
   oneClick: false
   allowToChangeInstallationDirectory: true
   include: ../../build/installer.nsh

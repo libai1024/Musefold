@@ -111,7 +111,7 @@ export const objectCleanupQueue = pgTable(
     ),
     check(
       'object_cleanup_queue_reason_check',
-      sql`${table.reason} IN ('generation_purge', 'generation_compensation', 'reference_expired', 'reference_upload_failed')`,
+      sql`${table.reason} IN ('generation_purge', 'generation_compensation', 'reference_expired', 'reference_upload_failed', 'design_scheme_purge')`,
     ),
   ],
 );

@@ -1,5 +1,7 @@
 'use client';
 
+import { useRetryAction } from '../workbench/use-retry-action';
+
 import type { GenerationAsset, GenerationCleanupScope, GenerationJob } from '@musefold/contracts';
 import { useCapabilities } from '@musefold/platform';
 import {
@@ -19,7 +21,7 @@ import { toast } from '@musefold/ui/components/sonner';
 import { Spinner } from '@musefold/ui/components/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@musefold/ui/components/tabs';
 import { History as HistoryIcon, Trash2 } from '@musefold/ui/icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   jobToSavePromptSource,
   SavePromptDialog,
@@ -27,18 +29,20 @@ import {
 } from '../prompts/SavePromptDialog';
 import { useScreenIntent } from '../shell/screen-intent-store';
 import {
-  assetSaveName,
-  createRetryGenerationMutationIntent,
-  useCancelGeneration,
-  useRetryGeneration,
-  useSaveAsset,
-} from '../workbench/hooks';
+  canMeasureVirtualRows,
+  historyThreadEstimate,
+  shouldVirtualizeList,
+  useDocumentDensity,
+  useListVirtualizer,
+  VirtualListFrame,
+} from '../shell/use-virtual-rows';
+import { assetSaveName, useCancelGeneration, useSaveAsset } from '../workbench/hooks';
 import { HistoryFilterBar } from './HistoryFilterBar';
 import { HistoryInspector } from './HistoryInspector';
 import { HistoryLightbox, type LightboxEntry } from './HistoryLightbox';
 import { CLEANUP_COPY, HistoryMaintenanceBar } from './HistoryMaintenanceBar';
 import { HistoryRow } from './HistoryRow';
-import { type ThreadedJob, threadJobs } from './format';
+import { groupHistoryThreads, type ThreadedJob, threadJobs } from './format';
 import {
   buildHistoryQuery,
   DEFAULT_HISTORY_FILTERS,
@@ -60,19 +64,26 @@ export interface HistoryScreenProps {
   onOpenSession?(sessionId: string): void;
   /** 「存为提示词」成功 toast「查看」跳库的切屏回调(宿主注入)。 */
   onOpenPrompts?(): void;
+  /** 密钥/连接引导切设置(宿主注入)。 */
+  onOpenSettings?(): void;
 }
 
 /**
  * 生成历史屏(V25-UI-SPEC §5):筛选栏 + 线程缩进列表 + 详情 Inspector + 回收站。
  * Inspector:lg+ 内嵌右栏(8px 右移淡入,过 CSS reduce-motion 闸门);窄屏 Sheet。
  */
-export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenProps) {
+export function HistoryScreen({
+  onOpenSession,
+  onOpenPrompts,
+  onOpenSettings,
+}: HistoryScreenProps) {
   const [tab, setTab] = useState<'all' | 'trash'>('all');
   const [filters, setFilters] = useState<HistoryFilters>(DEFAULT_HISTORY_FILTERS);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const isMdUp = useMediaQuery('(min-width: 768px)');
   const capabilities = useCapabilities();
   const canRevealLocalFile = capabilities.canRevealLocalFile;
 
@@ -102,7 +113,7 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
   );
   const list = useHistoryList(query);
   const cancelGeneration = useCancelGeneration();
-  const retryGeneration = useRetryGeneration();
+  const retryGeneration = useRetryAction(onOpenSettings);
   const removeGeneration = useRemoveGeneration();
   const restoreGeneration = useRestoreGeneration();
   const purgeGeneration = usePurgeGeneration();
@@ -178,6 +189,10 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
 
   const jobs = useMemo(() => (list.data?.pages ?? []).flatMap((page) => page.items), [list.data]);
   const threaded = useMemo(() => threadJobs(jobs), [jobs]);
+  const threadGroups = useMemo(() => groupHistoryThreads(threaded), [threaded]);
+  const density = useDocumentDensity();
+  const shouldVirtualize =
+    shouldVirtualizeList(threadGroups.length) || shouldVirtualizeList(threaded.length);
   const modelOptions = useMemo(
     () => [...new Set(jobs.map((job) => job.providerModel).filter((m): m is string => !!m))],
     [jobs],
@@ -229,16 +244,49 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     void list.fetchNextPage();
   });
 
-  // 深链落地:目标行渲染出来后滚到可视区并停止等待。
+  // 深链落地:目标行渲染出来后滚到可视区并停止等待。虚拟化时先 scrollToIndex 再对行 scrollIntoView。
   const listRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
+  const virtualFrameRef = useRef<HTMLDivElement | null>(null);
+  const useWindowScroll = canMeasureVirtualRows() && !isMdUp;
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useLayoutEffect(() => {
+    if (!shouldVirtualize || !useWindowScroll) {
+      setScrollMargin(0);
+      return;
+    }
+    const frame = virtualFrameRef.current;
+    if (!frame) return;
+    const update = () => setScrollMargin(frame.getBoundingClientRect().top + window.scrollY);
+    update();
+    if (typeof ResizeObserver !== 'function') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [shouldVirtualize, useWindowScroll]);
+  const virtualizer = useListVirtualizer({
+    count: shouldVirtualize ? threadGroups.length : 0,
+    getScrollElement: () => listRef.current,
+    estimateSize: (index) => historyThreadEstimate(threadGroups[index]?.length ?? 1, density),
+    scrollMargin,
+    useWindowScroll,
+  });
+  useLayoutEffect(() => {
     // 目标行还没进当前结果集(首屏未回或被筛掉)就继续等,别把意图丢掉。
-    if (!pendingScrollId || !threaded.some((item) => item.job.id === pendingScrollId)) return;
+    if (!pendingScrollId) return;
+    if (!threaded.some((item) => item.job.id === pendingScrollId)) return;
+    const groupIndex = threadGroups.findIndex((group) =>
+      group.some((item) => item.job.id === pendingScrollId),
+    );
+    if (shouldVirtualize && groupIndex >= 0) {
+      void virtualizer.getTotalSize();
+      const visible = virtualizer.getVirtualItems().some((item) => item.index === groupIndex);
+      if (!visible) virtualizer.scrollToIndex(groupIndex, { align: 'center' });
+    }
     const row = listRef.current?.querySelector(`[data-job-row="${pendingScrollId}"]`);
     if (!row) return;
     row.scrollIntoView({ block: 'center', behavior: 'auto' });
     setPendingScrollId(null);
-  }, [pendingScrollId, threaded]);
+  });
 
   const hasActiveFilter = Boolean(
     filters.status || filters.providerModel || filters.datePreset !== '30d' || search.trim(),
@@ -255,7 +303,8 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     return {
       onOpen: () => setSelectedId(job.id),
       onCancel: () => cancelGeneration.mutate(job.id),
-      onRetry: () => retryGeneration.mutate(createRetryGenerationMutationIntent(job.id)),
+      onRetry: () => retryGeneration.request(job),
+      retryPending: retryGeneration.isPending(job.id),
       onRemove: () => {
         if (selectedId === job.id) setSelectedId(null);
         removeGeneration.mutate(job.id);
@@ -267,13 +316,39 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
     };
   }
 
+  function renderThreadGroup(group: ThreadedJob[]) {
+    const root = group[0];
+    if (!root) return null;
+    return (
+      <div
+        key={root.threadRootId}
+        className="flex flex-col gap-1"
+        data-testid="history-thread-group"
+        data-thread-root={root.threadRootId}
+      >
+        {group.map((item) => (
+          <div key={item.job.id} data-job-row={item.job.id}>
+            <HistoryRow
+              job={item.job}
+              thread={item}
+              selected={selectedId === item.job.id}
+              deletedView={tab === 'trash'}
+              {...rowActions(item.job)}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const selectedAsset = selectedJob?.assets[0];
   const inspector = selectedJob && (
     <HistoryInspector
       job={selectedJob}
       onClose={() => setSelectedId(null)}
       onCancel={() => cancelGeneration.mutate(selectedJob.id)}
-      onRetry={() => retryGeneration.mutate(createRetryGenerationMutationIntent(selectedJob.id))}
+      onRetry={() => retryGeneration.request(selectedJob)}
+      retryPending={retryGeneration.isPending(selectedJob.id)}
       onRemove={() => {
         removeGeneration.mutate(selectedJob.id);
         setSelectedId(null);
@@ -289,6 +364,7 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
           : undefined
       }
       onOpenSession={onOpenSession}
+      onOpenSettings={onOpenSettings}
       // 桌面文件操作:Web 宿主不注入 → Inspector 不渲染这两个动作。
       {...(canRevealLocalFile && selectedAsset
         ? {
@@ -349,6 +425,8 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
         <div
           ref={listRef}
           className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3"
+          data-testid="history-list-scroll"
+          data-virtualized={shouldVirtualize ? 'true' : undefined}
           role="list"
         >
           {list.isPending &&
@@ -397,17 +475,17 @@ export function HistoryScreen({ onOpenSession, onOpenPrompts }: HistoryScreenPro
             </div>
           )}
 
-          {threaded.map((item: ThreadedJob) => (
-            <div key={item.job.id} data-job-row={item.job.id}>
-              <HistoryRow
-                job={item.job}
-                thread={item}
-                selected={selectedId === item.job.id}
-                deletedView={tab === 'trash'}
-                {...rowActions(item.job)}
-              />
-            </div>
-          ))}
+          {shouldVirtualize ? (
+            <VirtualListFrame
+              virtualizer={virtualizer}
+              listRef={virtualFrameRef}
+              testId="history-virtual-list"
+            >
+              {(index) => renderThreadGroup(threadGroups[index] ?? [])}
+            </VirtualListFrame>
+          ) : (
+            threadGroups.map((group) => renderThreadGroup(group))
+          )}
 
           {list.hasNextPage && (
             <>

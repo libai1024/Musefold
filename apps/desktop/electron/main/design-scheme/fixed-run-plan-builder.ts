@@ -1,3 +1,4 @@
+import { readRevisionAssetIds } from '@musefold/core/db/design-scheme/revision-assets';
 import type Database from 'better-sqlite3';
 import {
   DESIGN_SCHEME_DOCUMENT_VERSION,
@@ -6,7 +7,9 @@ import {
   type ParsedPrepareDesignSchemeRunInput,
   type PlannedInput,
   type RunStep,
+  type ExecutionBinding,
 } from '@musefold/contracts';
+import { automationInputHash } from '@musefold/core/db/repositories/automation-spend';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { ulid } from 'ulid';
 import { BridgeError } from '../ipc-v25/envelope';
@@ -41,6 +44,8 @@ export interface DesktopFixedRunPlanDeps {
    * 缺省只认方案资产;宿主域注入含上传暂存的实现。
    */
   hasReferenceAsset?: ResolveReferenceAsset;
+  /** Authenticated host result, never copied from a renderer-supplied expectation. */
+  cloudBinding?: ExecutionBinding;
 }
 
 function fail(code: string, message: string): never {
@@ -106,9 +111,20 @@ function resolveAuthority(
   }
   const sourceSnapshotIds = declaredSnapshotIds ?? [...boundSnapshotIds].sort();
 
-  const provider = toDesktopProviderSnapshot(
-    readDesktopDesignSchemeProvider(deps.coreDb, input.executionSettings.providerId),
-  );
+  const row = readDesktopDesignSchemeProvider(deps.coreDb, input.executionSettings.providerId);
+  const provider = toDesktopProviderSnapshot(row, deps.cloudBinding);
+  if (
+    (input.executionSettings.model !== undefined &&
+      input.executionSettings.model !== provider.model) ||
+    (input.executionSettings.expectedBinding &&
+      (row.type !== 'musefold-cloud' ||
+        automationInputHash(input.executionSettings.expectedBinding) !==
+          automationInputHash(deps.cloudBinding)))
+  )
+    fail(
+      'DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH',
+      '所选模型或账号身份已变化，请重新生成运行计划',
+    );
   return { summary, document, sourceSnapshotIds, provider };
 }
 
@@ -118,16 +134,7 @@ function schemeAssetExists(
   revisionId: string,
   assetId: string,
 ): boolean {
-  return Boolean(
-    db
-      .prepare(
-        `SELECT 1 FROM design_scheme_assets a
-           JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
-          WHERE a.id = ? AND r.scheme_id = ? AND r.revision_id = ?
-          LIMIT 1`,
-      )
-      .get(assetId, schemeId, revisionId),
-  );
+  return readRevisionAssetIds(db, schemeId, revisionId).includes(assetId);
 }
 
 /**
@@ -230,6 +237,7 @@ export function prepareDesktopDesignSchemeRun(
   const result = designSchemeRunInputSchema.parse({
     ...input,
     inputValues,
+    ...(deps.cloudBinding ? { executionBinding: deps.cloudBinding } : {}),
     schemeStatus: authority.summary.status,
     schemeFidelity: authority.document.fidelity,
     plan: {
@@ -275,6 +283,13 @@ export function assertDesktopPreparedRunAuthority(
   deps: DesktopFixedRunPlanDeps,
 ): void {
   const authority = resolveAuthority(input, deps);
+  if (
+    (deps.cloudBinding &&
+      (!input.executionBinding ||
+        automationInputHash(input.executionBinding) !== automationInputHash(deps.cloudBinding))) ||
+    (!deps.cloudBinding && input.executionBinding)
+  )
+    fail('DESIGN_SCHEME_PROVIDER_SNAPSHOT_MISMATCH', '运行账号身份已变化，请重新生成运行计划');
   const inputShapeMatches =
     input.plan.inputs.length === authority.document.inputs.length &&
     input.plan.inputs.every((planned, index) => {

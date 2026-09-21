@@ -21,6 +21,8 @@ import {
   X,
 } from '@musefold/ui/icons';
 import { useEffect, useState } from 'react';
+import { KeyGuidanceAction } from './KeyGuidanceAction';
+import { GenerationRecoveryNotice } from './GenerationRecoveryNotice';
 import { canRetryGeneration, historyErrorPresentation } from './error';
 import {
   formatCostPoints,
@@ -105,6 +107,7 @@ export interface HistoryInspectorProps {
   onClose(): void;
   onCancel(): void;
   onRetry(): void;
+  retryPending?: boolean;
   onRemove(): void;
   onRestore(): void;
   /** 「存为提示词」(03/05 §7 共用链路):Dialog 由 Screen 层持有。 */
@@ -115,6 +118,8 @@ export interface HistoryInspectorProps {
   onOpenLightbox?(): void;
   /** 跳到所属会话(宿主注入导航);无 sessionId 时不展示入口。 */
   onOpenSession?(sessionId: string): void;
+  /** 密钥/连接引导切设置(宿主注入)。 */
+  onOpenSettings?(): void;
   /** 桌面文件操作(05 §7):按 capabilities.canRevealLocalFile 门控注入,Web 不渲染。 */
   onRevealAsset?(): void;
   onCopyAsset?(): void;
@@ -132,12 +137,14 @@ export function HistoryInspector({
   onClose,
   onCancel,
   onRetry,
+  retryPending = false,
   onRemove,
   onRestore,
   onSavePrompt,
   onSaveAsset,
   onOpenLightbox,
   onOpenSession,
+  onOpenSettings,
   onRevealAsset,
   onCopyAsset,
   parentJob = null,
@@ -207,6 +214,7 @@ export function HistoryInspector({
               />
             </div>
           ))}
+        <GenerationRecoveryNotice job={job} />
         {error && (
           <div
             className="flex flex-col gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
@@ -215,12 +223,12 @@ export function HistoryInspector({
             <p className="font-medium text-destructive text-xs">{error.title}</p>
             <p className="text-muted-foreground text-xs leading-snug">{error.hint}</p>
             {error.action && (
-              <p
-                className="font-medium text-[11px] text-foreground"
-                data-testid="history-detail-error-action"
-              >
-                建议:{error.action}
-              </p>
+              <KeyGuidanceAction
+                guidance={error}
+                onOpenSettings={onOpenSettings}
+                testId="history-detail-error-action"
+                recoveryJobId={job.id}
+              />
             )}
             {/* 原始错误码 + 上游文案留作诊断线索(承旧 details),标题已归一时也不丢。 */}
             {errorDetails && (
@@ -357,6 +365,9 @@ export function HistoryInspector({
                   variant="outline"
                   className="gap-1.5"
                   data-testid="history-inspector-retry"
+                  disabled={retryPending}
+                  aria-busy={retryPending}
+                  aria-label={retryPending ? '正在提交重试' : '重试生成'}
                   onClick={onRetry}
                 >
                   <RotateCcw className="size-3.5" /> 重试

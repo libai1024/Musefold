@@ -3,7 +3,8 @@ import { lookup } from 'node:dns/promises';
 import { request as requestHttp, type IncomingMessage } from 'node:http';
 import { request as requestHttps } from 'node:https';
 import { BlockList, isIP, type LookupFunction } from 'node:net';
-import type { ParsedCloudGenerationRequest } from '@musefold/contracts';
+import { cloudModelIdSchema, type ParsedCloudGenerationRequest } from '@musefold/contracts';
+import { CLOUD_GENERATION_MODEL } from '@musefold/domain/cloud-generation-policy';
 
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
 
@@ -68,105 +69,146 @@ export interface ReferenceImageInput {
   name: string;
 }
 
+export interface ImageDispatchSnapshot {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 export interface GenerateImageOptions {
   signal?: AbortSignal;
-  /** Called immediately before the provider generation request is sent. */
-  beforeUpstreamRequest?: () => boolean | Promise<boolean>;
+  /** Atomically claims the send and returns its verified credential snapshot. */
+  claimUpstreamRequest: () => Promise<ImageDispatchSnapshot | null>;
 }
 
 export class UpstreamImageError extends Error {
   constructor(
     readonly code: 'quota' | 'rejected' | 'unknown',
     message: string,
+    readonly dispatch: 'not_sent' | 'unknown' = 'unknown',
   ) {
     super(message);
     this.name = 'UpstreamImageError';
   }
 }
 
+/** Only gateway-owned fixed messages may cross the error boundary. */
+class ImageGatewayFailure extends Error {
+  constructor(
+    readonly code: UpstreamImageError['code'],
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export async function generateImage(
-  baseUrl: string,
-  apiKey: string,
   request: ParsedCloudGenerationRequest,
-  references: ReferenceImageInput[] = [],
-  options: GenerateImageOptions = {},
+  references: ReferenceImageInput[],
+  options: GenerateImageOptions,
 ): Promise<GeneratedImage[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120_000);
   const abortExternal = () => controller.abort();
   if (options.signal?.aborted) controller.abort();
   else options.signal?.addEventListener('abort', abortExternal, { once: true });
+  let upstreamRequestStarted = false;
   try {
-    const base = baseUrl.replace(/\/+$/, '');
-    const providerOrigin = readHttpOrigin(baseUrl);
+    controller.signal.throwIfAborted();
     const prompt = request.negative
       ? `${request.prompt}\n\nNegative prompt: ${request.negative}`
       : request.prompt;
     // 带参考图走图片编辑通道(multipart image[],与桌面 OpenAICompatibleProvider 同款)。
-    const endpoint = references.length
-      ? `${base}/v1/images/edits`
-      : `${base}/v1/images/generations`;
-    const init: RequestInit = references.length
-      ? {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-          body: buildEditForm(prompt, request, references),
-          signal: controller.signal,
-        }
-      : {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'musefold-image-pro',
-            prompt,
-            size: request.size === 'auto' ? undefined : request.size,
-            quality: request.quality === 'auto' ? undefined : request.quality,
-            n: request.count,
-          }),
-          signal: controller.signal,
-        };
-    if (options.beforeUpstreamRequest && !(await options.beforeUpstreamRequest())) {
-      throw new UpstreamImageError('unknown', '生成租约已失效');
-    }
+    const edits = references.length > 0;
+    const model = cloudModelIdSchema.parse(request.model ?? CLOUD_GENERATION_MODEL);
+    const body = edits
+      ? buildEditForm(prompt, request, references, model)
+      : JSON.stringify({
+          model,
+          prompt,
+          size: request.size === 'auto' ? undefined : request.size,
+          quality: request.quality === 'auto' ? undefined : request.quality,
+          n: request.count,
+        });
+    controller.signal.throwIfAborted();
+    const snapshot = await options.claimUpstreamRequest();
+    controller.signal.throwIfAborted();
+    if (!snapshot) throw new ImageGatewayFailure('unknown', '生成发送权限已失效');
+    // Endpoint, Authorization and init are constructed only from the late claim.
+    const { baseUrl, apiKey } = snapshot;
+    if (snapshot.model !== model)
+      throw new ImageGatewayFailure('rejected', '生图模型与执行授权不一致');
+    if (typeof baseUrl !== 'string' || typeof apiKey !== 'string' || !apiKey.trim())
+      throw new ImageGatewayFailure('rejected', '生图发送凭据无效');
+    const base = baseUrl.replace(/\/+$/, '');
+    const providerOrigin = readHttpOrigin(base);
+    if (!providerOrigin) throw new ImageGatewayFailure('rejected', '生图服务地址无效');
+    const endpoint = `${base}/v1/images/${edits ? 'edits' : 'generations'}`;
+    const headers = new Headers({ Authorization: `Bearer ${apiKey}`, Accept: 'application/json' });
+    if (!edits) headers.set('Content-Type', 'application/json');
+    const init: RequestInit = {
+      method: 'POST',
+      redirect: 'error',
+      headers,
+      body,
+      signal: controller.signal,
+    };
+    controller.signal.throwIfAborted();
+    upstreamRequestStarted = true;
     const response = await fetch(endpoint, init);
+    controller.signal.throwIfAborted();
     const payload = (await response.json().catch(() => ({}))) as {
       data?: Array<{ b64_json?: string; url?: string }>;
       error?: { message?: string; code?: string };
       message?: string;
-    };
+    } | null;
+    controller.signal.throwIfAborted();
     if (!response.ok) {
       const message =
-        payload.error?.message ?? payload.message ?? `上游生图失败（HTTP ${response.status}）`;
+        typeof payload?.error?.message === 'string'
+          ? payload.error.message
+          : typeof payload?.message === 'string'
+            ? payload.message
+            : '';
       if (response.status === 402 || /quota|balance|余额|配额/i.test(message))
-        throw new UpstreamImageError('quota', message);
+        throw new ImageGatewayFailure('quota', '上游生图额度不足');
       if (response.status >= 400 && response.status < 500)
-        throw new UpstreamImageError('rejected', message);
-      throw new UpstreamImageError('unknown', message);
+        throw new ImageGatewayFailure('rejected', '上游拒绝了生图请求');
+      throw new ImageGatewayFailure('unknown', '无法确认上游生图结果');
     }
-    const items = payload.data ?? [];
-    if (!items.length) throw new UpstreamImageError('unknown', '上游没有返回图像数据');
+    const items = payload?.data ?? [];
+    if (!items.length) throw new ImageGatewayFailure('unknown', '上游没有返回图像数据');
     const images: GeneratedImage[] = [];
     for (const item of items) {
+      controller.signal.throwIfAborted();
       const bytes = item.b64_json
         ? decodeBase64Image(item.b64_json)
         : item.url
           ? await readImageUrl(item.url, providerOrigin, controller.signal)
           : null;
-      if (!bytes?.length) throw new UpstreamImageError('unknown', '上游图像数据为空');
+      controller.signal.throwIfAborted();
+      if (!bytes?.length) throw new ImageGatewayFailure('unknown', '上游图像数据为空');
       const metadata = detectImage(bytes);
-      if (!metadata) throw new UpstreamImageError('rejected', '上游返回了不支持的图像格式');
+      if (!metadata) throw new ImageGatewayFailure('rejected', '上游返回了不支持的图像格式');
       images.push({ bytes, ...metadata });
     }
     return images;
   } catch (error) {
-    if (error instanceof UpstreamImageError) throw error;
+    // The claim can commit while cancellation arrives. Only a failure before
+    // fetch is known unsent; even 4xx, redirects and cancellation after it are unknown.
+    if (!upstreamRequestStarted && controller.signal.aborted) {
+      throw new UpstreamImageError('rejected', '生成已取消，未发送上游请求', 'not_sent');
+    }
     throw new UpstreamImageError(
-      'unknown',
-      error instanceof Error ? error.message : '无法确认上游生图结果',
+      error instanceof ImageGatewayFailure || error instanceof UpstreamImageError
+        ? error.code
+        : 'unknown',
+      error instanceof ImageGatewayFailure
+        ? error.message
+        : upstreamRequestStarted
+          ? '无法确认上游生图结果'
+          : '生图请求未发送',
+      upstreamRequestStarted ? 'unknown' : 'not_sent',
     );
   } finally {
     clearTimeout(timer);
@@ -178,9 +220,10 @@ function buildEditForm(
   prompt: string,
   request: ParsedCloudGenerationRequest,
   references: ReferenceImageInput[],
+  model: string,
 ): FormData {
   const form = new FormData();
-  form.append('model', 'musefold-image-pro');
+  form.append('model', model);
   form.append('prompt', prompt);
   form.append('n', String(request.count));
   if (request.size !== 'auto') form.append('size', request.size);
@@ -206,29 +249,29 @@ async function readImageUrl(
   try {
     parsed = new URL(url);
   } catch {
-    throw new UpstreamImageError('rejected', '上游返回了无效图像 URL');
+    throw new ImageGatewayFailure('rejected', '上游返回了无效图像 URL');
   }
   if (!['https:', 'http:'].includes(parsed.protocol))
-    throw new UpstreamImageError('rejected', '上游图像 URL 协议不安全');
+    throw new ImageGatewayFailure('rejected', '上游图像 URL 协议不安全');
   if (parsed.username || parsed.password)
-    throw new UpstreamImageError('rejected', '上游图像 URL 不得包含用户凭据');
+    throw new ImageGatewayFailure('rejected', '上游图像 URL 不得包含用户凭据');
 
   const allowPrivate = providerOrigin !== null && parsed.origin === providerOrigin;
   const addresses = await resolveImageHost(parsed, allowPrivate);
   const response = await requestImage(parsed, addresses, signal);
   if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400) {
     response.destroy();
-    throw new UpstreamImageError('rejected', '上游图像 URL 不得重定向');
+    throw new ImageGatewayFailure('rejected', '上游图像 URL 不得重定向');
   }
   if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
     response.destroy();
-    throw new UpstreamImageError('unknown', '下载上游图像失败');
+    throw new ImageGatewayFailure('unknown', '下载上游图像失败');
   }
   const lengthHeader = response.headers['content-length'];
   const contentLength = Number(Array.isArray(lengthHeader) ? lengthHeader[0] : (lengthHeader ?? 0));
   if (contentLength > MAX_IMAGE_BYTES) {
     response.destroy();
-    throw new UpstreamImageError('rejected', '图像文件过大');
+    throw new ImageGatewayFailure('rejected', '图像文件过大');
   }
   const chunks: Buffer[] = [];
   let total = 0;
@@ -236,7 +279,7 @@ async function readImageUrl(
     for await (const value of response) {
       const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
       total += chunk.length;
-      if (total > MAX_IMAGE_BYTES) throw new UpstreamImageError('rejected', '图像文件过大');
+      if (total > MAX_IMAGE_BYTES) throw new ImageGatewayFailure('rejected', '图像文件过大');
       chunks.push(chunk);
     }
   } finally {
@@ -248,7 +291,13 @@ async function readImageUrl(
 function readHttpOrigin(value: string): string | null {
   try {
     const url = new URL(value);
-    return ['https:', 'http:'].includes(url.protocol) ? url.origin : null;
+    return ['https:', 'http:'].includes(url.protocol) &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+      ? url.origin
+      : null;
   } catch {
     return null;
   }
@@ -261,20 +310,20 @@ async function resolveImageHost(url: URL, allowPrivate: boolean): Promise<Resolv
     (!allowPrivate &&
       (hostname.toLowerCase() === 'localhost' || hostname.toLowerCase().endsWith('.localhost')))
   ) {
-    throw new UpstreamImageError('rejected', '上游图像 URL 指向非公开网络地址');
+    throw new ImageGatewayFailure('rejected', '上游图像 URL 指向非公开网络地址');
   }
 
   const literalFamily = isIP(hostname);
   const resolved = literalFamily
     ? [{ address: hostname, family: literalFamily }]
     : await lookup(hostname, { all: true, verbatim: true }).catch(() => {
-        throw new UpstreamImageError('unknown', '无法解析上游图像主机');
+        throw new ImageGatewayFailure('unknown', '无法解析上游图像主机');
       });
   const addresses = resolved.filter(
     (entry): entry is ResolvedAddress =>
       (entry.family === 4 || entry.family === 6) && isIP(entry.address) === entry.family,
   );
-  if (!addresses.length) throw new UpstreamImageError('unknown', '无法解析上游图像主机');
+  if (!addresses.length) throw new ImageGatewayFailure('unknown', '无法解析上游图像主机');
   if (
     !allowPrivate &&
     addresses.some(
@@ -285,7 +334,7 @@ async function resolveImageHost(url: URL, allowPrivate: boolean): Promise<Resolv
             !GLOBAL_IPV6_ADDRESSES.check(entry.address, 'ipv6'))),
     )
   ) {
-    throw new UpstreamImageError('rejected', '上游图像 URL 指向非公开网络地址');
+    throw new ImageGatewayFailure('rejected', '上游图像 URL 指向非公开网络地址');
   }
   return addresses;
 }
@@ -327,31 +376,31 @@ function requestImage(
 
 function decodeDataImageUrl(value: string): Buffer {
   if (value.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 8192) {
-    throw new UpstreamImageError('rejected', '图像文件过大');
+    throw new ImageGatewayFailure('rejected', '图像文件过大');
   }
   const comma = value.indexOf(',');
-  if (comma < 0) throw new UpstreamImageError('rejected', '上游返回了无效图像 data URL');
+  if (comma < 0) throw new ImageGatewayFailure('rejected', '上游返回了无效图像 data URL');
   const metadata = value.slice(5, comma).split(';');
   const mimeType = metadata[0].toLowerCase();
   if (
     !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(mimeType) ||
     metadata.at(-1)?.toLowerCase() !== 'base64'
   ) {
-    throw new UpstreamImageError('rejected', '上游返回了不支持的图像 data URL');
+    throw new ImageGatewayFailure('rejected', '上游返回了不支持的图像 data URL');
   }
   const encoded = value.slice(comma + 1);
   if (!/^[a-z0-9+/]*={0,2}$/i.test(encoded) || encoded.length % 4 !== 0) {
-    throw new UpstreamImageError('rejected', '上游返回了无效图像 data URL');
+    throw new ImageGatewayFailure('rejected', '上游返回了无效图像 data URL');
   }
   return decodeBase64Image(encoded);
 }
 
 function decodeBase64Image(value: string): Buffer {
   if (value.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 4096) {
-    throw new UpstreamImageError('rejected', '图像文件过大');
+    throw new ImageGatewayFailure('rejected', '图像文件过大');
   }
   const bytes = Buffer.from(value, 'base64');
-  if (bytes.length > MAX_IMAGE_BYTES) throw new UpstreamImageError('rejected', '图像文件过大');
+  if (bytes.length > MAX_IMAGE_BYTES) throw new ImageGatewayFailure('rejected', '图像文件过大');
   return bytes;
 }
 

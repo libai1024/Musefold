@@ -1,3 +1,6 @@
+import { reclaimLocalAssets } from '@musefold/core/services/local-upload-owner';
+import { trySweepDesignSchemeImportOrphans } from '@musefold/core/services/design-scheme-import-gc';
+import { closeWindowUploadOwners } from './ipc-v25/local-upload-owners';
 // Main application lifecycle. Loaded dynamically by index.ts so early module
 // failures can be written to a diagnostic log instead of becoming opaque.
 
@@ -7,9 +10,12 @@ import { initDb, closeDb } from '@musefold/core/db';
 import { closeDesignSchemeDb } from '@musefold/core/db/design-scheme';
 import { registerAllHandlers } from './ipc';
 import { registerV25GatewayBridge } from './ipc-v25/gateway-bridge';
+import { prepareLegacyPreferencesMigration } from './preferences/origin';
+import { startAccountReleaseRetries } from './ipc-v25/account-release-queue';
 import {
   cleanupDesignSchemePackageStaging,
   registerDesignSchemePackageHostActions,
+  startDesignSchemePackageStagingMaintenance,
 } from './design-scheme/package-host';
 import { stopV25CloudSync } from './ipc-v25/sync-domain';
 import {
@@ -69,10 +75,11 @@ let isQuitting = false;
 let cleanupComplete = false;
 let updateInstallRequested = false;
 let cleanupPromise: Promise<void> | null = null;
+let mainWindowReady = false;
 
 app.on('second-instance', (_event, argv) => {
   // 优先聚焦主窗口，别把焦点给了桌宠的小窗
-  openMainWindow();
+  if (mainWindowReady) openMainWindow();
   handleShareArgv(argv);
 });
 
@@ -85,6 +92,8 @@ app.on('child-process-gone', (_event, details) => {
   });
 });
 
+let assetCleanupTimer: ReturnType<typeof setInterval> | undefined;
+
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
 
@@ -95,11 +104,19 @@ app.whenReady().then(async () => {
     return;
   }
   ownerLockRelease = ownership.release ?? null;
+  startDesignSchemePackageStagingMaintenance();
 
   denyAllPermissions();
 
   initMusefoldCore();
   initDb();
+  // 60s 周期：先对超 TTL 的长驻上传归还持有，再走正常清理 drain（不新建 timer）。
+  assetCleanupTimer = setInterval(reclaimLocalAssets, 60_000);
+  assetCleanupTimer.unref();
+  reclaimLocalAssets();
+  // 新 owner PID 启动清扫分享导入崩溃孤儿（owner lock 已排除并发写者，
+  // 此刻窗口尚未创建、不可能存在本进程在途导入；有界且失败保留意图行）。
+  trySweepDesignSchemeImportOrphans();
   void startAutomationIfEnabled();
   registerMediaProtocolHandler();
   // 加载分支只在此处判断一次：Vite 开发态不消费 bundle。prepare 与解析必须看到同一结论。
@@ -113,11 +130,14 @@ app.whenReady().then(async () => {
   registerAppProtocolHandler(rendererRoot.root);
   registerAllHandlers();
   registerV25GatewayBridge();
+  startAccountReleaseRetries();
   registerDesignSchemePackageHostActions();
   registerWindowHandlers();
   await ensureCliInstalledAtStartup();
   void checkSkillUpdatesAtStartup();
+  await prepareLegacyPreferencesMigration();
   createMainWindow();
+  mainWindowReady = true;
   initializeUpdater({ beforeInstall: prepareForUpdateInstall });
   // 桌宠默认关闭，只能由用户通过显式开关开启。应用生命周期不能替用户改开关。
   createAppTray(openMainWindow);
@@ -225,7 +245,7 @@ function showOwnerLockError(ownership: AcquireResult): void {
 app.on('window-all-closed', () => {
   // 偏好导出隐藏窗在主窗口创建前就会 destroy。若这里立刻 quit，
   // 已安装用户升级后主界面永远不会出现。
-  app.quit();
+  if (mainWindowReady) app.quit();
 });
 
 app.on('before-quit', (event) => {
@@ -267,8 +287,11 @@ async function prepareForUpdateInstall(): Promise<void> {
 }
 
 async function shutdownApplication(): Promise<void> {
+  if (assetCleanupTimer) clearInterval(assetCleanupTimer);
+  assetCleanupTimer = undefined;
   closeApplicationAdmission();
   await Promise.allSettled([drainDesignSchemeExecutions(), waitForApplicationRequests()]);
+  await settleShutdownStep('window reference uploads', closeWindowUploadOwners);
   await settleShutdownStep('design-scheme package staging', cleanupDesignSchemePackageStaging);
   await Promise.allSettled([
     settleShutdownStep('cloud sync', stopV25CloudSync),

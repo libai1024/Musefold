@@ -72,7 +72,9 @@ async function fixture(
     })),
     budget: {
       remainingPoints: () => overrides.remaining ?? 0,
-      settle: (points: number) => settled.push(points),
+      settle: (points: number) => {
+        settled.push(points);
+      },
     },
     requestConfirmation: vi.fn(async () => {
       if (overrides.confirm === 'hang') return new Promise<never>(() => {});

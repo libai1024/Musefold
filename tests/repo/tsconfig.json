@@ -3,11 +3,57 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM"],
     "types": ["node", "vitest/globals"],
-    "rootDir": ".",
+    "rootDir": "../..",
     "outDir": ".tsout",
     "tsBuildInfoFile": ".tsout/tsconfig.tsbuildinfo",
     "noEmit": true
   },
-  "include": ["*.ts"],
-  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/core" }]
+  "include": [
+    "*.ts",
+    "fixtures/**/*.ts",
+    "../../scripts/deploy/__tests__/**/*.ts",
+    "../v25/onboarding-helpers.ts",
+    "../v25/prompt-helpers.ts",
+    "../v25/__tests__/**/*.test.ts",
+    "../v25/real-backup-fixture.ts",
+    "../v25/package-build-identity.ts",
+    "../v25/package.real-backup.spec.ts",
+    "../v25/playwright.backup.config.ts",
+    "../v25/playwright.config.ts",
+    "../v25/electron-helpers.ts",
+    "../v25/design-scheme-test-helpers.ts",
+    "../../apps/desktop/electron/system/__tests__/fixtures/cloud-service-process.ts",
+    "../v25/agent-browser-process.ts",
+    "../v25/notices-browser-process.ts",
+    "../v25/oauth-browser-process.ts",
+    "../v25/package-exchange-browser.ts",
+    "../v25/package-exchange-process.ts",
+    "../v25/package-recovery-process.ts",
+    "../v25/scheme-trial-browser.ts",
+    "../v25/web.scheme-promote-helper.ts",
+    "../v25/electron.account-models.spec.ts",
+    "../v25/web.scheme-account-models.spec.ts",
+    "../v25/electron.live-sync.spec.ts",
+    "../v25/web.live-journey.spec.ts",
+    "../v25/electron.c3b-settle-main.spec.ts",
+    "../v25/live-account-helpers.ts",
+    "../v25/desktop-sync-helpers.ts",
+    "../v25/desktop-sync-process.ts",
+    "../v25/cloud-crash-helpers.ts"
+  ],
+  "references": [
+    { "path": "../../apps/desktop/tsconfig.node.json" },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../apps/api"
+    },
+    {
+      "path": "../../apps/worker"
+    }
+  ]
 }

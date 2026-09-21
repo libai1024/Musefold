@@ -63,6 +63,13 @@ export const HISTORY_ERROR_GUIDANCE: Record<string, HistoryErrorGuidance> = {
     actionKind: 'top_up',
     canRetry: false,
   },
+  ACCOUNT_IDENTITY_UNVERIFIED: {
+    title: '账号连接需要核对',
+    hint: '这次生成缺少可信账号身份，请检查账号云连接，或选择自备连接重新发起。',
+    action: '去设置连接',
+    actionKind: 'setup_provider',
+    canRetry: false,
+  },
   MCP_BUDGET_EXCEEDED: {
     title: '本次预算已用尽',
     hint: '调用方声明的预算不足以支付这次生成,提高预算后重新发起。',
@@ -175,14 +182,44 @@ const CODE_ALIASES: Record<string, string> = {
   CONTENT_POLICY: 'VALIDATION_FAILED',
   PROVIDER_REJECTED: 'GENERATION_UPSTREAM_REJECTED',
   DOUBAO_DAILY_LIMIT: 'RATE_LIMITED',
+  'ACCOUNT/AUTH': 'AUTH_CREDENTIALS_INVALID',
 };
 
 /** 把任意错误码归一到目录键;归一不到返回 'UNKNOWN'。 */
 export function normalizeHistoryErrorCode(code?: string | null): string {
   const upper = (code ?? '').trim().toUpperCase();
   if (Object.hasOwn(HISTORY_ERROR_GUIDANCE, upper)) return upper;
-  const alias = CODE_ALIASES[upper];
+  const alias = CODE_ALIASES[upper] ?? CODE_ALIASES[upper.replaceAll('/', '_')];
   return alias && Object.hasOwn(HISTORY_ERROR_GUIDANCE, alias) ? alias : 'UNKNOWN';
+}
+
+const KEY_INVALID_RE = /API Key 无效|无权限|401|unauthorized|invalid api key/i;
+
+export function isKeyInvalidMessage(message: string): boolean {
+  return KEY_INVALID_RE.test(message);
+}
+
+/** 提交失败(非 job.error)的展示:优先契约/别名码,其次密钥文案。 */
+export function thrownErrorPresentation(error: unknown): HistoryErrorGuidance | null {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? (error as { code: unknown }).code
+      : undefined;
+  const message = error instanceof Error ? error.message : '';
+  if (typeof code === 'string' && code.trim()) {
+    return historyErrorPresentation({
+      code: code as NonNullable<GenerationJob['error']>['code'],
+      message: message || code,
+    });
+  }
+  if (isKeyInvalidMessage(message)) return HISTORY_ERROR_GUIDANCE.AUTH_CREDENTIALS_INVALID;
+  return null;
+}
+
+export function isSettingsGuidance(kind: HistoryErrorActionKind): boolean {
+  return (
+    kind === 'check_key' || kind === 'setup_provider' || kind === 'sign_in' || kind === 'top_up'
+  );
 }
 
 /**
@@ -205,6 +242,12 @@ export function historyErrorPresentation(
  */
 export function canRetryGeneration(job: GenerationJob): boolean {
   if (isActiveStatus(job.status)) return false;
+  if (job.recovery)
+    return (
+      (job.status === 'failed' || job.status === 'cancelled') &&
+      job.recovery.costKnown &&
+      job.recovery.result !== 'purged'
+    );
   if (job.status === 'cancelled') return true;
   if (job.status !== 'failed') return false;
   return historyErrorPresentation(job.error)?.canRetry ?? true;

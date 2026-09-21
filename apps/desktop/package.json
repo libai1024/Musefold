@@ -62,6 +62,8 @@
     "yaml": "^2.9.0",
     "yauzl": "2.10.0",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@musefold/scheme-package": "workspace:*",
+    "@musefold/managed-fs": "workspace:*"
   }
 }

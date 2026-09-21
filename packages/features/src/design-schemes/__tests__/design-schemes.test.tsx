@@ -223,6 +223,10 @@ function createMemoryGateway(seed: {
       schemes.delete(input.schemeId);
       return { schemeId: input.schemeId, removed: true as const };
     }),
+    purge: vi.fn(async (input: { schemeId: string; expectedVersion: number }) => {
+      schemes.delete(input.schemeId);
+      return { schemeId: input.schemeId, purged: true as const, retiredKeys: 0, deferredKeys: 0 };
+    }),
     selectCover: vi.fn(
       async (input: { schemeId: string; assetId: string; expectedVersion: number }) => {
         const summary = schemes.get(input.schemeId);
@@ -621,7 +625,7 @@ describe('SchemesScreen 详情页', () => {
       }),
     },
     assets: {
-      'scheme-1': [makeAsset({ id: 'asset-1' }), makeAsset({ id: 'asset-2' })],
+      'scheme-1': [makeAsset({ id: 'asset-1', origin: 'uploaded' }), makeAsset({ id: 'asset-2' })],
     },
   };
 
@@ -642,6 +646,7 @@ describe('SchemesScreen 详情页', () => {
     expect(screen.getByText('以暖色系为主')).toBeTruthy();
     expect(screen.getByTestId('runtime-scheme-album')).toBeTruthy();
     expect(screen.getByText('1 / 2')).toBeTruthy();
+    expect(screen.getByText('上传素材')).toBeTruthy();
     await user.click(screen.getByTestId('runtime-scheme-detail-back'));
     await waitFor(() => expect(screen.getByTestId('scheme-list-workspace')).toBeTruthy());
     expect(onDetailBack).toHaveBeenCalledTimes(1);
@@ -820,6 +825,189 @@ describe('SchemesScreen 详情页', () => {
         confirmed: true,
       }),
     );
+  });
+
+  it('promote keeps version-dependent actions disabled until the committed detail is read', async () => {
+    const actions = actionsWithSpies();
+    const { designSchemes } = renderScreen(
+      {
+        schemes: [
+          makeSummary({
+            status: 'formal',
+            hasSuccessfulTrial: true,
+            coverAssetId: 'asset-1',
+            workingDraftRevisionId: 'rev-2',
+          }),
+        ],
+        documents: {
+          'rev-1': makeDocument(),
+          'rev-2': makeDocument({ revisionId: 'rev-2', parentRevisionId: 'rev-1' }),
+        },
+        assets: { 'scheme-1': [makeAsset({ id: 'asset-1' })] },
+      },
+      { actions },
+    );
+    await screen.findByTestId('runtime-scheme-open-scheme-1');
+    await openDetailFromList('scheme-1');
+    await screen.findByTestId('runtime-scheme-working-draft');
+    const originalGet = designSchemes.get.getMockImplementation();
+    if (!originalGet) throw new Error('Missing actual memory gateway read');
+    let release = () => {};
+    const refreshed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reads = 0;
+    designSchemes.get.mockImplementation(async (...args) => {
+      reads++;
+      await refreshed;
+      return originalGet(...args);
+    });
+    try {
+      await user.click(screen.getByTestId('runtime-scheme-promote-working-draft'));
+      await waitFor(() => expect(reads).toBeGreaterThan(0));
+      for (const id of [
+        'runtime-scheme-menu',
+        'runtime-scheme-primary-action',
+        'runtime-scheme-modify',
+        'runtime-scheme-promote-working-draft',
+      ])
+        expect(screen.getByTestId(id).hasAttribute('disabled'), id).toBe(true);
+      expect(actions.onRunScheme).not.toHaveBeenCalled();
+      release();
+      await waitFor(() => expect(screen.queryByTestId('runtime-scheme-working-draft')).toBeNull());
+      await waitFor(() =>
+        expect(screen.getByTestId('runtime-scheme-menu').hasAttribute('disabled')).toBe(false),
+      );
+      await user.click(screen.getByTestId('runtime-scheme-primary-action'));
+      expect(actions.onRunScheme).toHaveBeenCalledWith(
+        expect.objectContaining({
+          version: 2,
+          currentRevisionId: 'rev-2',
+          workingDraftRevisionId: null,
+        }),
+        'formal',
+      );
+    } finally {
+      release();
+    }
+  });
+
+  it.each(['cover', 'formalize'] as const)(
+    '%s waits for the committed version before another action',
+    async (operation) => {
+      const actions = actionsWithSpies();
+      const { designSchemes } = renderScreen(
+        {
+          schemes: [
+            makeSummary({
+              hasSuccessfulTrial: true,
+              coverAssetId: operation === 'formalize' ? 'asset-1' : null,
+            }),
+          ],
+          documents: { 'rev-1': makeDocument() },
+          assets: { 'scheme-1': [makeAsset()] },
+        },
+        { actions },
+      );
+      await screen.findByTestId('runtime-scheme-open-scheme-1');
+      await openDetailFromList('scheme-1');
+      const originalGet = designSchemes.get.getMockImplementation();
+      if (!originalGet) throw new Error('Missing actual memory gateway read');
+      let release = () => {};
+      const refreshed = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let reads = 0;
+      designSchemes.get.mockImplementation(async (...args) => {
+        reads++;
+        await refreshed;
+        return originalGet(...args);
+      });
+      try {
+        await user.click(
+          screen.getByTestId(
+            operation === 'cover' ? 'runtime-scheme-set-cover' : 'runtime-scheme-formalize',
+          ),
+        );
+        await waitFor(() => expect(reads).toBeGreaterThan(0));
+        expect(screen.getByTestId('runtime-scheme-menu').hasAttribute('disabled')).toBe(true);
+        expect(screen.getByTestId('runtime-scheme-primary-action').hasAttribute('disabled')).toBe(
+          true,
+        );
+        expect(screen.getByTestId('runtime-scheme-version-pending').textContent).toContain(
+          '正在确认方案最新版本',
+        );
+        await user.click(screen.getByTestId('runtime-scheme-primary-action'));
+        expect(actions.onRunScheme).not.toHaveBeenCalled();
+        release();
+        await waitFor(() =>
+          expect(screen.getByTestId('runtime-scheme-primary-action').hasAttribute('disabled')).toBe(
+            false,
+          ),
+        );
+        await user.click(screen.getByTestId('runtime-scheme-primary-action'));
+        expect(actions.onRunScheme).toHaveBeenCalledWith(
+          expect.objectContaining({ version: 2, coverAssetId: 'asset-1' }),
+          operation === 'formalize' ? 'formal' : 'trial',
+        );
+        expect(
+          operation === 'cover' ? designSchemes.selectCover : designSchemes.formalize,
+        ).toHaveBeenCalledTimes(1);
+      } finally {
+        release();
+      }
+    },
+  );
+
+  it('a failed current-selector refresh cannot hide behind a cached working draft; retry only reads', async () => {
+    const actions = actionsWithSpies();
+    const { designSchemes } = renderScreen(
+      {
+        schemes: [
+          makeSummary({
+            status: 'formal',
+            hasSuccessfulTrial: true,
+            workingDraftRevisionId: 'rev-2',
+          }),
+        ],
+        documents: {
+          'rev-1': makeDocument(),
+          'rev-2': makeDocument({ revisionId: 'rev-2', parentRevisionId: 'rev-1' }),
+        },
+        assets: { 'scheme-1': [makeAsset()] },
+      },
+      { actions },
+    );
+    await screen.findByTestId('runtime-scheme-open-scheme-1');
+    await openDetailFromList('scheme-1');
+    const originalGet = designSchemes.get.getMockImplementation();
+    if (!originalGet) throw new Error('Missing actual memory gateway read');
+    designSchemes.get.mockImplementation(async (id, revision) => {
+      if (revision?.kind === 'current') throw new Error('详情刷新失败');
+      return originalGet(id, revision);
+    });
+    await user.click(screen.getByTestId('runtime-scheme-set-cover'));
+    await screen.findByTestId('runtime-scheme-detail-error');
+    expect(screen.queryByTestId('runtime-scheme-primary-action')).toBeNull();
+    expect(designSchemes.selectCover).toHaveBeenCalledTimes(1);
+    designSchemes.get.mockImplementation(originalGet);
+    await user.click(screen.getByRole('button', { name: /^重试$/ }));
+    await screen.findByTestId('runtime-scheme-detail');
+    await waitFor(() =>
+      expect(screen.getByTestId('runtime-scheme-primary-action').hasAttribute('disabled')).toBe(
+        false,
+      ),
+    );
+    await user.click(screen.getByTestId('runtime-scheme-primary-action'));
+    expect(actions.onRunScheme).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 2,
+        workingDraftRevisionId: 'rev-2',
+        coverAssetId: 'asset-1',
+      }),
+      'formal',
+    );
+    expect(designSchemes.selectCover).toHaveBeenCalledTimes(1);
   });
 
   it('正式方案菜单:导出分享包 + 检查更新(GitHub 源限定)', async () => {

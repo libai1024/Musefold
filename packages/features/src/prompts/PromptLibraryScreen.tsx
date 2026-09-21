@@ -27,13 +27,29 @@ import { Skeleton } from '@musefold/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@musefold/ui/components/tabs';
 import { Library, Plus, Search, Trash2 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   buildSchemeCreateSeedFromPrompt,
   useSchemeIntegration,
 } from '../design-schemes/integration-store';
 import { useScreenIntent } from '../shell/screen-intent-store';
 import { useMediaQuery } from '../shell/sidebar-layout';
+import {
+  promptRowEstimate,
+  useDocumentDensity,
+  canMeasureVirtualRows,
+  useListVirtualizer,
+  VirtualListFrame,
+  VIRTUAL_LIST_THRESHOLD,
+} from '../shell/use-virtual-rows';
 import { PromptDetailInspector } from './PromptDetailInspector';
 import { PromptEditorDialog, editorValueToNewDocument } from './PromptEditorDialog';
 import { PromptListRow } from './PromptListRow';
@@ -60,6 +76,8 @@ type LibrarySort = NonNullable<PromptListQuery['sort']>;
 
 const ALL_FOLDERS = '__all__';
 const UNFILED = '__unfiled__';
+/** 「全部」/回收站双列:视口 ≥760px 且详情关闭(旧 LibraryPage 几何)。置顶始终单列。 */
+const LIBRARY_DUAL_COLUMN_QUERY = '(min-width: 760px)';
 
 const SORT_LABELS: Record<LibrarySort, string> = {
   'updated-desc': '最近更新',
@@ -72,6 +90,23 @@ interface RowSection {
   key: string;
   title: string | null;
   items: PromptDocument[];
+}
+
+/** 「全部」/回收站流:1 列或 2 列同一套格子,虚拟行与小库常驻列表共用。 */
+function PromptFlowRow({
+  columns,
+  items,
+  children,
+}: {
+  columns: 1 | 2;
+  items: PromptDocument[];
+  children: (prompt: PromptDocument) => ReactNode;
+}) {
+  return (
+    <div className={cn('grid gap-y-1', columns === 2 ? 'grid-cols-2 gap-x-7' : 'grid-cols-1')}>
+      {items.map((prompt) => children(prompt))}
+    </div>
+  );
 }
 
 /** 「/」聚焦搜索的输入态判定:输入框/文本域/可编辑区内不抢键。 */
@@ -115,6 +150,7 @@ export function PromptLibraryScreen({
 
   const searchRef = useRef<HTMLInputElement>(null);
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const isWideLibrary = useMediaQuery(LIBRARY_DUAL_COLUMN_QUERY);
 
   // 「存为提示词 → 查看」落点(03/05 §7):高亮新条目 2s 渐隐,一次性。
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -143,7 +179,7 @@ export function PromptLibraryScreen({
       folderId:
         folderFilter === ALL_FOLDERS ? undefined : folderFilter === UNFILED ? null : folderFilter,
       tagIds: tagFilter.length > 0 ? tagFilter : undefined,
-      includeDeleted: tab === 'trash' ? true : undefined,
+      deletedOnly: tab === 'trash' ? true : undefined,
     }),
     [deferredSearch, sort, folderFilter, tagFilter, tab],
   );
@@ -162,7 +198,7 @@ export function PromptLibraryScreen({
   const sections = useMemo<RowSection[]>(() => {
     const rows = list.data?.pages.flatMap((page) => page.items) ?? [];
     if (tab === 'trash') {
-      // includeDeleted 语义是「包含」;回收站视图只看已删。
+      // 宿主先筛选回收站再分页，保留对错误 gateway 数据的防御性检查。
       return [{ key: 'trash', title: null, items: rows.filter((row) => row.deletedAt != null) }];
     }
     const pinned = rows.filter((row) => row.isPinned);
@@ -186,6 +222,7 @@ export function PromptLibraryScreen({
   useEffect(() => {
     if (detailId && !detailPrompt && list.isSuccess) setDetailId(null);
   }, [detailId, detailPrompt, list.isSuccess]);
+  const listColumns: 1 | 2 = isWideLibrary && detailPrompt == null ? 2 : 1;
 
   function clearFilters() {
     setSearch('');
@@ -266,9 +303,11 @@ export function PromptLibraryScreen({
   }, []);
 
   // 滚动哨兵:列表底部进入视口即自动取下一页(「加载更多」钮保留为键盘/无 IO 回退)。
-  // 注:workspace 未安装 @tanstack/react-virtual,本轮不新增依赖,不做行虚拟化。
+  // 「全部」/回收站 >150 行才虚拟化;置顶分节常驻。
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const hasNextPage = list.hasNextPage;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualListRef = useRef<HTMLDivElement>(null);
+  const hasNextPage = list.hasNextPage && !list.isError;
   const isFetchingNextPage = list.isFetchingNextPage;
   const fetchNextPage = list.fetchNextPage;
   useEffect(() => {
@@ -282,6 +321,102 @@ export function PromptLibraryScreen({
     observer.observe(node);
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const density = useDocumentDensity();
+  const useWindowScroll = canMeasureVirtualRows() && !isDesktop;
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const virtualSection = useMemo(
+    () =>
+      sections.find(
+        (section) => section.key !== 'pinned' && section.items.length > VIRTUAL_LIST_THRESHOLD,
+      ) ?? null,
+    [sections],
+  );
+  const shouldVirtualize = virtualSection != null;
+
+  useLayoutEffect(() => {
+    if (!shouldVirtualize) return;
+    const list = virtualListRef.current;
+    if (!list) return;
+    const update = () => {
+      if (useWindowScroll) {
+        setScrollMargin(list.getBoundingClientRect().top + window.scrollY);
+        return;
+      }
+      const scroll = scrollRef.current;
+      if (!scroll) return;
+      setScrollMargin(
+        list.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop,
+      );
+    };
+    update();
+    if (typeof ResizeObserver !== 'function') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    const scroll = scrollRef.current;
+    if (scroll) observer.observe(scroll);
+    return () => observer.disconnect();
+  }, [shouldVirtualize, useWindowScroll]);
+
+  const virtualizer = useListVirtualizer({
+    count: virtualSection ? Math.ceil(virtualSection.items.length / listColumns) : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => promptRowEstimate(density),
+    scrollMargin,
+    useWindowScroll,
+  });
+
+  const previousListColumns = useRef(listColumns);
+  useLayoutEffect(() => {
+    if (previousListColumns.current === listColumns) return;
+    previousListColumns.current = listColumns;
+    virtualizer.measure();
+  }, [listColumns, virtualizer]);
+
+  useEffect(() => {
+    if (!highlightId || !virtualSection) return;
+    const index = virtualSection.items.findIndex((prompt) => prompt.id === highlightId);
+    if (index >= 0) virtualizer.scrollToIndex(Math.floor(index / listColumns), { align: 'center' });
+  }, [highlightId, virtualSection, virtualizer, listColumns]);
+
+  function renderPromptRow(prompt: PromptDocument) {
+    return (
+      <PromptListRow
+        key={prompt.id}
+        prompt={prompt}
+        highlighted={prompt.id === highlightId}
+        selected={prompt.id === detailId}
+        onOpen={(target) => setDetailId(target.id)}
+        onUse={handleUse}
+        onEdit={openEdit}
+        onCopy={handleCopy}
+        onTogglePin={handleTogglePin}
+        onRemove={(target) => removePrompt.mutate(target.id)}
+        onRestore={(target) => restorePrompt.mutate(target.id)}
+        onPurge={setPurgeTarget}
+        onCreateScheme={canCreateScheme ? handleCreateScheme : undefined}
+      />
+    );
+  }
+
+  const queryError = (
+    <div
+      className="flex flex-col items-center gap-2 py-6 text-sm"
+      role="alert"
+      data-testid="prompt-error"
+    >
+      <p className="font-medium text-destructive">提示词加载失败</p>
+      <p className="text-muted-foreground">请重试加载。</p>
+      <Button
+        variant="outline"
+        disabled={list.isFetching}
+        onClick={() => void list.refetch()}
+        data-testid="prompt-retry"
+      >
+        重试
+      </Button>
+    </div>
+  );
 
   const inspector = detailPrompt && (
     <PromptDetailInspector
@@ -299,7 +434,11 @@ export function PromptLibraryScreen({
 
   return (
     <div className="flex h-full min-h-0" data-testid="prompt-library">
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="min-w-0 flex-1 overflow-y-auto"
+        data-testid="prompt-list-scroll"
+      >
         <div
           className={cn(
             'mx-auto flex w-full flex-col gap-4 p-4 md:p-6',
@@ -423,19 +562,15 @@ export function PromptLibraryScreen({
                 <Skeleton key={index} className="h-16 rounded-lg" />
               ))}
             </div>
-          ) : list.isError ? (
-            <p className="py-12 text-center text-destructive text-sm" data-testid="prompt-error">
-              提示词加载失败,请重试
-            </p>
+          ) : list.isError && totalCount === 0 ? (
+            queryError
           ) : totalCount === 0 ? (
             <div
               className="flex flex-col items-center gap-2 py-16 text-muted-foreground"
               data-testid="prompt-empty"
             >
               <Library className="size-8" aria-hidden />
-              {tab === 'trash' ? (
-                <p className="text-sm">回收站是空的</p>
-              ) : hasActiveFilter ? (
+              {hasActiveFilter ? (
                 <>
                   <p className="text-sm">没有匹配的提示词</p>
                   <Button
@@ -447,6 +582,8 @@ export function PromptLibraryScreen({
                     清除筛选
                   </Button>
                 </>
+              ) : tab === 'trash' ? (
+                <p className="text-sm">回收站是空的</p>
               ) : (
                 <>
                   <p className="text-sm">还没有提示词,新建一条开始</p>
@@ -457,9 +594,19 @@ export function PromptLibraryScreen({
               )}
             </div>
           ) : (
-            <div className="flex flex-col gap-4" data-testid="prompt-grid" role="list">
-              {sections.map((section) =>
-                section.items.length > 0 ? (
+            <div
+              className="flex flex-col gap-4"
+              data-testid="prompt-grid"
+              data-columns={String(listColumns)}
+              data-virtualized={shouldVirtualize ? 'true' : undefined}
+              role="list"
+            >
+              {sections.map((section) => {
+                if (section.items.length === 0) return null;
+                const virtualize =
+                  section.key !== 'pinned' && section.items.length > VIRTUAL_LIST_THRESHOLD;
+                const flowColumns = section.key === 'pinned' ? 1 : listColumns;
+                return (
                   <section key={section.key} className="flex flex-col gap-1">
                     {section.title && (
                       <h2 className="px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -467,28 +614,36 @@ export function PromptLibraryScreen({
                         <span className="ml-1.5 opacity-70">{section.items.length}</span>
                       </h2>
                     )}
-                    {section.items.map((prompt) => (
-                      <PromptListRow
-                        key={prompt.id}
-                        prompt={prompt}
-                        highlighted={prompt.id === highlightId}
-                        selected={prompt.id === detailId}
-                        onOpen={(target) => setDetailId(target.id)}
-                        onUse={handleUse}
-                        onEdit={openEdit}
-                        onCopy={handleCopy}
-                        onTogglePin={handleTogglePin}
-                        onRemove={(target) => removePrompt.mutate(target.id)}
-                        onRestore={(target) => restorePrompt.mutate(target.id)}
-                        onPurge={setPurgeTarget}
-                        onCreateScheme={canCreateScheme ? handleCreateScheme : undefined}
-                      />
-                    ))}
+                    {virtualize ? (
+                      <VirtualListFrame
+                        virtualizer={virtualizer}
+                        listRef={virtualListRef}
+                        testId="prompt-virtual-list"
+                      >
+                        {(rowIndex) => (
+                          <PromptFlowRow
+                            columns={flowColumns}
+                            items={section.items.slice(
+                              rowIndex * flowColumns,
+                              rowIndex * flowColumns + flowColumns,
+                            )}
+                          >
+                            {renderPromptRow}
+                          </PromptFlowRow>
+                        )}
+                      </VirtualListFrame>
+                    ) : section.key === 'pinned' ? (
+                      section.items.map(renderPromptRow)
+                    ) : (
+                      <PromptFlowRow columns={flowColumns} items={section.items}>
+                        {renderPromptRow}
+                      </PromptFlowRow>
+                    )}
                   </section>
-                ) : null,
-              )}
+                );
+              })}
               <div ref={sentinelRef} aria-hidden data-testid="prompt-scroll-sentinel" />
-              {list.hasNextPage && (
+              {list.hasNextPage && !list.isError && (
                 <Button
                   variant="outline"
                   className="mx-auto"
@@ -501,6 +656,7 @@ export function PromptLibraryScreen({
               )}
             </div>
           )}
+          {list.isError && totalCount > 0 && queryError}
         </div>
       </div>
 
@@ -560,8 +716,9 @@ export function PromptLibraryScreen({
           <AlertDialogHeader>
             <AlertDialogTitle>清空回收站?</AlertDialogTitle>
             <AlertDialogDescription>
-              回收站中的 {totalCount} 条提示词将被彻底删除,无法恢复。
-              {list.hasNextPage && ' 清空范围含尚未加载的条目。'}
+              {hasActiveFilter || list.hasNextPage
+                ? `回收站中的全部提示词将被彻底删除，无法恢复。当前列表显示 ${totalCount} 条；清空范围包括尚未加载及被筛选隐藏的条目。`
+                : `回收站中的 ${totalCount} 条提示词将被彻底删除，无法恢复。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -609,11 +766,16 @@ export function PromptLibraryScreen({
                   expectedVersion: editing.version,
                 },
               },
-              { onSuccess: () => setEditorOpen(false) },
+              {
+                onSuccess: () => setEditorOpen(false),
+                onError: (error) =>
+                  toast.error(error instanceof Error ? error.message : '保存失败'),
+              },
             );
           } else {
             createPrompt.mutate(editorValueToNewDocument(value), {
               onSuccess: () => setEditorOpen(false),
+              onError: (error) => toast.error(error instanceof Error ? error.message : '创建失败'),
             });
           }
         }}

@@ -1,7 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
 import { seedOnboardingCompleted } from './onboarding-helpers';
+import type { AccountModelCatalog, AccountSummary } from '@musefold/contracts';
 
-// 首启引导夹具(U01-onboarding):既有用例都是未登录环境,不预置完成哨兵会被引导层盖住。
+// 已登录账号云生图夹具；身份和定价同源，首启引导不影响工作台用例。
 test.beforeEach(async ({ page }) => {
   await seedOnboardingCompleted(page);
 });
@@ -95,7 +96,46 @@ function nowIso(): string {
 const TINY_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-async function installWorkbenchApiMock(page: Page): Promise<void> {
+const MODEL_ACCOUNT: AccountSummary = {
+  id: 'workbench-owner',
+  username: 'workbench-test',
+  displayName: null,
+  quota: 500000,
+  quotaUnit: 'quota',
+  canGenerate: true,
+  identity: {
+    apiIssuer: 'https://workbench-api.test',
+    principalId: 'workbench-principal',
+    status: 'active',
+    identityVersion: 1,
+  },
+};
+const MODEL_CATALOG: AccountModelCatalog = {
+  identity: {
+    apiIssuer: 'https://workbench-api.test',
+    principalId: 'workbench-principal',
+    payer: { issuer: 'https://workbench-payer.test', ownerId: 'workbench-owner' },
+    credential: { ref: 'workbench-credential', version: 1 },
+  },
+  group: 'vip',
+  checkedAt: '2026-09-20T00:00:00.000Z',
+  models: ['musefold-image-pro', 'gpt-image-2'].map((model, index) => ({
+    model,
+    supportedEndpointTypes: ['image-generation'],
+    imageGeneration: true,
+    pricing: {
+      kind: 'per_call',
+      baseUsd: 0.04 * (index + 1),
+      groupRatio: 3,
+      quotaPerCall: 60000 * (index + 1),
+    },
+  })),
+};
+
+async function installWorkbenchApiMock(
+  page: Page,
+  options: { assetUrl?: string } = {},
+): Promise<void> {
   let seq = 0;
   const sessions = new Map<string, MockSession>();
   const jobs = new Map<string, MockJob>();
@@ -150,17 +190,17 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
         job.status = 'succeeded';
         job.progress = 100;
         job.finishedAt = nowIso();
-        job.assets = [
-          {
-            id: `${job.id}-asset`,
-            url: `data:image/png;base64,${TINY_PNG}`,
-            mimeType: 'image/png',
-            width: 1,
-            height: 1,
-            byteSize: 68,
-            expiresAt: '2099-01-01T00:00:00+00:00',
-          },
-        ];
+        // 张数(§9-D3):按 request.count 回 N 个资产,position 即数组下标。
+        const count = Number(job.request.count ?? 1);
+        job.assets = Array.from({ length: count }, (_, index) => ({
+          id: index === 0 ? `${job.id}-asset` : `${job.id}-asset-${index + 1}`,
+          url: options.assetUrl ?? `data:image/png;base64,${TINY_PNG}`,
+          mimeType: 'image/png',
+          width: 1,
+          height: 1,
+          byteSize: 68,
+          expiresAt: '2099-01-01T00:00:00+00:00',
+        }));
       }
     }
   }
@@ -172,7 +212,10 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
     const method = request.method();
 
     if (path === '/account/status') {
-      return route.fulfill(json({ code: 'AUTH_REQUIRED', message: '未登录' }, 401));
+      return route.fulfill(json(MODEL_ACCOUNT));
+    }
+    if (path === '/account/models') {
+      return route.fulfill(json(MODEL_CATALOG));
     }
 
     if (path === '/prompts' && method === 'GET') {
@@ -286,6 +329,10 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
         ),
       );
     }
+    // Memory transport fixture: release is idempotent and has no response body.
+    if (/^\/reference-images\/[^/]+$/.test(path) && method === 'DELETE') {
+      return route.fulfill({ status: 204 });
+    }
     if (/^\/reference-images\/[^/]+\/url$/.test(path) && method === 'GET') {
       return route.fulfill({
         status: 200,
@@ -349,11 +396,12 @@ async function installWorkbenchApiMock(page: Page): Promise<void> {
           size: input.size ?? 'auto',
           aspectRatio: input.aspectRatio,
           quality: input.quality ?? 'auto',
-          count: 1,
+          count: input.count ?? 1,
           providerId: input.providerId,
+          model: input.model,
           referenceImages: input.referenceImages ?? [],
         },
-        providerModel: 'musefold-image-pro',
+        providerModel: String(input.model ?? 'musefold-image-pro'),
         costPoints: null,
         assets: [],
         error: null,
@@ -417,6 +465,108 @@ test.beforeEach(async ({ page }) => {
   await installWorkbenchApiMock(page);
   await page.goto('/workbench');
   await expect(page.getByTestId('workbench')).toBeVisible();
+});
+
+test('账号模型：键盘选择、刷新持久化与实际请求一致', async ({ page }, testInfo) => {
+  const model = page.getByRole('combobox', { name: '账号模型' });
+  await expect(model).toHaveText('musefold-image-pro');
+  await model.focus();
+  await model.press('ArrowDown');
+  await page.getByRole('option', { name: /gpt-image-2/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(model).toBeFocused();
+  await expect(model).toHaveText('gpt-image-2');
+  await expect(page.getByTestId('composer-model-price')).toContainText('2.4 积分/计费次');
+  await page.reload();
+  await expect(model).toHaveText('gpt-image-2');
+  await page.getByTestId('composer-prompt').fill('Use the chosen account model');
+  const posted = page.waitForRequest(
+    (request) => request.url().endsWith('/generations') && request.method() === 'POST',
+  );
+  await page.getByTestId('composer-submit').click();
+  expect((await posted).postDataJSON()).toMatchObject({
+    model: 'gpt-image-2',
+    expectedBinding: { model: 'gpt-image-2', principalId: MODEL_CATALOG.identity.principalId },
+  });
+  // The fixture completes after two 3s polls, matching the ordinary generation test below.
+  await expect(page.getByTestId('job-status')).toHaveAttribute('data-status', 'succeeded', {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId('job-asset').first()).toBeVisible();
+  await expect(page.getByTestId('timeline')).toHaveAttribute(
+    'data-composer-extra-inset',
+    /^[1-9]\d*$/,
+  );
+  await page.getByTestId('timeline').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const image = await page.getByTestId('job-asset').first().boundingBox();
+  const composer = await page.getByTestId('composer').boundingBox();
+  expect(image).not.toBeNull();
+  expect(composer).not.toBeNull();
+  if (image && composer) expect(image.y + image.height).toBeLessThanOrEqual(composer.y);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('account-model-timeline.png') });
+});
+
+test('账号模型：价格变化要求重新确认发送，读取失败不显示旧价', async ({ page }) => {
+  await expect(page.getByTestId('composer-model-price')).toContainText('1.2 积分/计费次');
+  let calls = 0;
+  page.on('request', (request) => {
+    if (request.url().endsWith('/generations') && request.method() === 'POST') calls++;
+  });
+  const next = structuredClone(MODEL_CATALOG);
+  next.models[0].pricing = { kind: 'per_call', baseUsd: 0.06, groupRatio: 3, quotaPerCall: 90000 };
+  await page.route('**/api/v1/account/models', (route) => route.fulfill({ json: next }));
+  await page.getByTestId('composer-prompt').fill('Preserve input on changed prices');
+  await page.getByTestId('composer-submit').click();
+  await expect(page.getByText('云端价格已更新，请核对后重新发送')).toBeVisible();
+  await expect(page.getByTestId('composer-model-price')).toContainText('1.8 积分/计费次');
+  await expect(page.getByTestId('composer-prompt')).toHaveValue('Preserve input on changed prices');
+  expect(calls).toBe(0);
+  await page.route('**/api/v1/account/models', (route) =>
+    route.fulfill({ status: 503, json: { code: 'UNAVAILABLE', message: 'pricing unavailable' } }),
+  );
+  await page.getByRole('button', { name: '刷新云端模型与价格' }).click();
+  await expect(page.getByTestId('composer-model-price')).toContainText('读取失败');
+  await expect(page.getByTestId('composer-submit')).toBeDisabled();
+  await expect(page.getByTestId('composer-model-price')).not.toContainText('1.8');
+  expect(calls).toBe(0);
+  await page.route('**/api/v1/account/models', (route) => route.fulfill({ json: next }));
+  await page.getByRole('button', { name: '刷新云端模型与价格' }).click();
+  await expect(page.getByTestId('composer-submit')).toBeEnabled();
+  await page.getByTestId('composer-submit').click();
+  await expect.poll(() => calls).toBe(1);
+});
+
+test('账号模型：换号隔离与缺价拒绝', async ({ page }) => {
+  await page.getByRole('combobox', { name: '账号模型' }).click();
+  await page.getByRole('option', { name: /gpt-image-2/ }).click();
+  const nextAccount: AccountSummary = {
+    ...MODEL_ACCOUNT,
+    id: 'other-owner',
+    identity: {
+      apiIssuer: MODEL_CATALOG.identity.apiIssuer,
+      principalId: 'other-principal',
+      status: 'active',
+      identityVersion: 1,
+    },
+  };
+  const next = structuredClone(MODEL_CATALOG);
+  next.identity.principalId = 'other-principal';
+  next.identity.payer.ownerId = 'other-owner';
+  next.identity.credential.ref = 'other-credential';
+  await page.route('**/api/v1/account/status', (route) => route.fulfill({ json: nextAccount }));
+  await page.route('**/api/v1/account/models', (route) => route.fulfill({ json: next }));
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: '账号模型' })).toHaveText('musefold-image-pro');
+  next.models[0].pricing = { kind: 'unavailable', reason: 'missing_price' };
+  // Even the initially displayed choice must stay fixed when its cloud price disappears.
+  await page.getByRole('button', { name: '刷新云端模型与价格' }).click();
+  await expect(page.getByTestId('composer-model-price')).toContainText('云端未提供价格');
+  await page.getByTestId('composer-prompt').fill('Do not silently switch models');
+  await expect(page.getByTestId('composer-submit')).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: '账号模型' })).toHaveText('musefold-image-pro');
 });
 
 test('会话 URL:深链恢复、跨会话 push、back/forward 回放与无效 id replace', async ({
@@ -508,6 +658,38 @@ test('提交生成:排队→运行→成图', async ({ page }) => {
   await expect(page.getByTestId('composer-prompt')).toHaveValue('');
 });
 
+test('单图从生成中完成后在真实图片字节到达前保留可见尺寸', async ({ page }) => {
+  await installWorkbenchApiMock(page, { assetUrl: '/delayed-workbench-result.png' });
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested = false;
+  await page.route('**/delayed-workbench-result.png', async (route) => {
+    requested = true;
+    await gate;
+    await route.fulfill({ contentType: 'image/png', body: Buffer.from(TINY_PNG, 'base64') });
+  });
+  await page.reload();
+  await page.getByTestId('composer-prompt').fill('delayed image geometry');
+  await page.getByTestId('composer-submit').click();
+  try {
+    await expect(page.getByTestId('job-status')).toHaveAttribute('data-status', 'succeeded', {
+      timeout: 15000,
+    });
+    const image = page.getByTestId('job-asset').locator('img');
+    await expect(image).toBeAttached();
+    await expect(image).toHaveAttribute('data-loaded', 'false');
+    await expect.poll(async () => (await image.boundingBox())?.height ?? 0).toBeGreaterThan(0);
+    await expect.poll(() => requested).toBe(true);
+  } finally {
+    release();
+  }
+  const image = page.getByTestId('job-asset').locator('img');
+  await expect(image).toHaveAttribute('data-loaded', 'true');
+  expect(await image.evaluate((node: HTMLImageElement) => node.naturalWidth)).toBeGreaterThan(0);
+});
+
 test('「新设计」草稿态:发送才建会话(标题取首句),随后可重命名', async ({ page }, testInfo) => {
   if (testInfo.project.name === 'web-mobile') {
     // 移动布局:顶栏「+」进草稿态(选择器回占位),发送后会话出现且标题取首句。
@@ -539,18 +721,93 @@ test('「新设计」草稿态:发送才建会话(标题取首句),随后可重�
   await expect(page.getByTestId('session-panel').getByText('落日湖泊系列')).toBeVisible();
 });
 
-test('删除会话经确认对话框', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === 'web-mobile', '移动布局删除入口随会话管理面后续排卡');
+async function requestSessionRemoval(page: Page, id: string, mobile: boolean): Promise<void> {
+  if (mobile && !(await page.getByTestId('session-panel').isVisible())) {
+    await page.getByTestId('sidebar-drawer-open').click();
+  }
+  const row = page.getByTestId(`session-row-${id}`);
+  await expect(row).toBeVisible();
+  if (!mobile) await row.hover();
+  const more = row.getByTestId('session-more');
+  await expect(more).toBeVisible();
+  if (mobile) {
+    const box = await more.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  }
+  await more.click();
+  await page.getByTestId('session-menu-remove').click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+}
 
-  // 发送建会话(草稿态语义下唯一入列路径),再走删除流。
+test('删除会话经确认对话框,取消保留且最后一条删除后回空态', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'web-mobile';
+  const deletions: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE') deletions.push(new URL(request.url()).pathname);
+  });
   await page.getByTestId('composer-prompt').fill('待删除的会话');
   await page.getByTestId('composer-submit').click();
-  await expect(page.getByTestId('session-panel').getByText('待删除的会话')).toBeVisible();
+  await expect(page).toHaveURL(/\/workbench\?session=/);
+  const id = new URL(page.url()).searchParams.get('session');
+  expect(id).toBeTruthy();
+  if (!id) throw new Error('未创建会话');
 
-  await page.getByTestId('session-panel').getByText('待删除的会话').hover();
-  await page.getByTestId('session-remove').click();
+  await requestSessionRemoval(page, id, mobile);
+  await expect(page.getByRole('alertdialog')).toContainText('待删除的会话');
+  await page.getByRole('alertdialog').getByRole('button', { name: '取消', exact: true }).click();
+  await expect(page.getByRole('alertdialog')).toBeHidden();
+  await expect(page.getByTestId(`session-row-${id}`)).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('session')).toBe(id);
+  expect(deletions).toEqual([]);
+
+  await requestSessionRemoval(page, id, mobile);
   await page.getByTestId('session-remove-confirm').click();
-  await expect(page.getByTestId('session-panel').getByText('待删除的会话')).toBeHidden();
+  await expect(page.getByTestId(`session-row-${id}`)).toBeHidden();
+  await expect(page.getByTestId('session-panel')).toContainText('还没有对话');
+  await expect(page).toHaveURL(/\/workbench$/);
+  expect(deletions).toEqual([`/api/v1/workbench/sessions/${id}`]);
+  if (mobile) await page.getByTestId('sidebar-collapse').click();
+  await expect(page.getByTestId('workbench-empty-greeting')).toBeVisible();
+  if (mobile) await expect(page.getByTestId('session-picker')).toContainText('选择创作会话');
+});
+
+test('删除会话经确认对话框,非当前不切换且当前删除回退到剩余会话', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'web-mobile';
+  const ids: string[] = [];
+  for (const title of ['先前对话', '保留对话', '当前对话']) {
+    if (ids.length > 0) {
+      await page.getByTestId(mobile ? 'session-create-mobile' : 'session-create').click();
+      await expect(page).toHaveURL(/\/workbench$/);
+    }
+    await page.getByTestId('composer-prompt').fill(title);
+    await page.getByTestId('composer-submit').click();
+    await expect(page).toHaveURL(/\/workbench\?session=/);
+    const id = new URL(page.url()).searchParams.get('session');
+    if (!id) throw new Error('未创建会话');
+    ids.push(id);
+    await expect(page.getByTestId('job-status')).toHaveAttribute('data-status', 'succeeded', {
+      timeout: 15_000,
+    });
+  }
+  const [earlierId, remainingId, currentId] = ids;
+  if (!earlierId || !remainingId || !currentId) throw new Error('会话夹具不完整');
+
+  await requestSessionRemoval(page, earlierId, mobile);
+  await page.getByTestId('session-remove-confirm').click();
+  await expect(page.getByTestId(`session-row-${earlierId}`)).toBeHidden();
+  expect(new URL(page.url()).searchParams.get('session')).toBe(currentId);
+
+  await requestSessionRemoval(page, currentId, mobile);
+  await page.getByTestId('session-remove-confirm').click();
+  await expect(page.getByTestId(`session-row-${currentId}`)).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/workbench\\?session=${remainingId}$`));
+  await expect(page.getByTestId(`session-row-${remainingId}`)).toBeVisible();
+  if (mobile) await page.getByTestId('sidebar-collapse').click();
+  await expect(
+    page.getByTestId(mobile ? 'session-picker' : 'workbench-session-title'),
+  ).toContainText('保留对话');
+  await expect(page.getByTestId('job-status')).toHaveAttribute('data-status', 'succeeded');
 });
 
 test('运行中可取消', async ({ page }) => {
@@ -649,6 +906,66 @@ test('提示词引用:纯引用生成并在源编辑后保留时间线快照', a
   );
 });
 
+test('张数 2:两列结果网格 + 参数 meta 行 + Lightbox 翻页(§9-D3)', async ({ page }) => {
+  // 张数控件在设置弹层内(值摘要钮 → 304px 弹层),选 2 后摘要文案带张数。
+  await page.getByTestId('composer-settings').click();
+  await page.getByTestId('composer-count-2').click();
+  await expect(page.getByTestId('composer-count-2')).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('composer-settings')).toContainText('2 张');
+
+  await page.getByTestId('composer-prompt').fill('twin moons over the sea');
+  await page.getByTestId('composer-submit').click();
+
+  // 生成中骨架按张数占位,成图后两列网格落位。
+  await expect(page.getByTestId('job-placeholder-grid')).toHaveAttribute('data-count', '2');
+  await expect(page.getByTestId('job-status')).toHaveAttribute('data-status', 'succeeded', {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId('job-asset-grid')).toHaveAttribute('data-count', '2');
+  await expect(page.getByTestId('job-asset')).toHaveCount(2);
+  const grid = page.getByTestId('job-asset-grid');
+  await expect(grid).toHaveClass(/grid-cols-2/);
+  // Tiles enter with staggered transforms. Assert the final two-column geometry,
+  // keeping exact row alignment rather than sampling a transitional frame.
+  await expect
+    .poll(() =>
+      page.getByTestId('job-asset-tile').evaluateAll((nodes) => {
+        const boxes = nodes.map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { x: Math.round(rect.x), y: Math.round(rect.y) };
+        });
+        return boxes.length === 2 && boxes[0].y === boxes[1].y && boxes[0].x !== boxes[1].x;
+      }),
+    )
+    .toBe(true);
+
+  // 参数 meta 行:比例 · 质量 · 张数(>1 时)。
+  await expect(page.getByTestId('job-meta')).toContainText('2 张');
+  await expect(page.getByTestId('job-meta')).toContainText('自动');
+
+  // 回合级「全部保存」在多图时才出现,单图仍是保存单钮。
+  await expect(page.getByTestId('job-save-all')).toBeVisible();
+  await expect(page.getByTestId('job-save-asset')).toHaveCount(0);
+
+  // Lightbox:计数 + 按钮翻页 + 方向键翻页;Web 不渲染「复制图片」(D2)。
+  await page.getByTestId('job-asset').first().click();
+  await expect(page.getByTestId('job-lightbox')).toBeVisible();
+  await expect(page.getByTestId('lightbox-counter')).toHaveText('1 / 2');
+  await expect(page.getByTestId('lightbox-copy-asset')).toHaveCount(0);
+  await page.getByTestId('lightbox-next').click();
+  await expect(page.getByTestId('lightbox-counter')).toHaveText('2 / 2');
+  await expect(page.getByTestId('lightbox-next')).toHaveCount(0);
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByTestId('lightbox-counter')).toHaveText('1 / 2');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('lightbox-counter')).toHaveText('2 / 2');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('job-lightbox')).toBeHidden();
+  // 焦点归还打开灯箱的图格(§8-I9)。
+  await expect(page.getByTestId('job-asset').first()).toBeFocused();
+});
+
 test('生成完成后的视觉基线', async ({ page }) => {
   await page.getByTestId('composer-prompt').fill('baseline shot');
   await page.getByTestId('composer-submit').click();
@@ -657,6 +974,16 @@ test('生成完成后的视觉基线', async ({ page }) => {
   });
   await expect(page.getByTestId('job-asset').locator('img')).toHaveAttribute('data-loaded', 'true');
   const timeline = page.getByTestId('timeline');
+  // A taller account-model Composer changes bottom-following scroll, not the saved user message.
+  const message = timeline.getByText('baseline shot', { exact: true });
+  await expect(message).toHaveCount(1);
+  await timeline.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(message).toBeInViewport();
+  await timeline.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
   await expect
     .poll(
       () =>
@@ -668,4 +995,111 @@ test('生成完成后的视觉基线', async ({ page }) => {
     )
     .toBe(true);
   await expect(page).toHaveScreenshot('workbench-finished.png');
+});
+
+test('清空工作台后迟到的文件读取不上传，新参考图仍可正常上传', async ({ page }, testInfo) => {
+  const sessionId = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/workbench/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '待清空的参考图会话' }),
+    });
+    if (!response.ok) throw new Error('Fixture session creation failed');
+    return (await response.json()).id as string;
+  });
+  await page.goto(`/workbench?session=${sessionId}`);
+  await expect(page).toHaveURL(new RegExp(`/workbench\\?session=${sessionId}$`));
+  await expect(page.getByTestId('composer-prompt')).toBeVisible();
+  const uploadedNames: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === '/api/v1/reference-images'
+    ) {
+      const name = /filename="([^"]+)"/.exec(request.postData() ?? '')?.[1];
+      uploadedNames.push(name ?? 'missing filename');
+    }
+  });
+  await page.evaluate(() => {
+    const original = File.prototype.arrayBuffer;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const probe = { started: false, returned: false, release };
+    Object.assign(window, { referenceReadProbe: probe });
+    File.prototype.arrayBuffer = async function () {
+      const bytes = await original.call(this);
+      if (this.name === 'cleared-reference.png') {
+        probe.started = true;
+        await gate;
+        probe.returned = true;
+      }
+      return bytes;
+    };
+  });
+  await page.getByTestId('composer-file-input').setInputFiles({
+    name: 'cleared-reference.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(TINY_PNG, 'base64'),
+  });
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { referenceReadProbe: { started: boolean } }).referenceReadProbe
+        .started,
+  );
+  await expect(page.getByTestId('composer-reference')).toHaveAttribute('data-status', 'uploading');
+  await page
+    .getByTestId(
+      testInfo.project.name === 'web-mobile' ? 'session-create-mobile' : 'session-create',
+    )
+    .click();
+  await expect(page.getByTestId('composer-reference')).toHaveCount(0);
+  await page.evaluate(() =>
+    (window as unknown as { referenceReadProbe: { release(): void } }).referenceReadProbe.release(),
+  );
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { referenceReadProbe: { returned: boolean } }).referenceReadProbe
+        .returned,
+  );
+  await page.getByTestId('composer-file-input').setInputFiles({
+    name: 'current-reference.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(TINY_PNG, 'base64'),
+  });
+  await expect(page.getByTestId('composer-reference')).toHaveAttribute('data-status', 'ready');
+  expect(uploadedNames).toEqual(['current-reference.png']);
+});
+
+test('移除参考图通过正式 Web gateway 发送无请求体 DELETE 并接受 204', async ({ page }) => {
+  const creations: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/generations')
+      creations.push(request.url());
+  });
+  const upload = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/v1/reference-images',
+  );
+  await page.getByTestId('composer-file-input').setInputFiles({
+    name: 'release-me.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(TINY_PNG, 'base64'),
+  });
+  const image = (await (await upload).json()) as { id: string; name: string };
+  await expect(page.getByTestId('composer-reference')).toHaveAttribute('data-status', 'ready');
+  const released = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'DELETE' &&
+      new URL(response.url()).pathname === `/api/v1/reference-images/${image.id}`,
+  );
+  await page.getByRole('button', { name: '移除参考图 release-me.png' }).click();
+  const response = await released;
+  expect(response.status()).toBe(204);
+  expect(response.request().postData()).toBeNull();
+  expect(new URL(response.url()).search).toBe('');
+  await expect(page.getByTestId('composer-reference')).toHaveCount(0);
+  expect(creations).toEqual([]);
 });

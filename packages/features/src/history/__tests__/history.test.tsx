@@ -10,19 +10,26 @@ import type {
 import type { GenerationGateway, MusefoldGateway } from '@musefold/platform';
 import { DESKTOP_CAPABILITIES, PlatformProvider, WEB_CAPABILITIES } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScreenIntent } from '../../shell/screen-intent-store';
+import { peekQuotaRecovery, resetQuotaRecovery } from '../spend-recovery-store';
 import { HistoryScreen } from '../HistoryScreen';
-import { canRetryGeneration, historyErrorPresentation, normalizeHistoryErrorCode } from '../error';
+import {
+  canRetryGeneration,
+  historyErrorPresentation,
+  isSettingsGuidance,
+  normalizeHistoryErrorCode,
+} from '../error';
 import {
   formatBytes,
   formatDurationMs,
   jobDurationMs,
   refinementLabel,
   refinementTitle,
+  groupHistoryThreads,
   threadJobs,
 } from '../format';
 import { buildHistoryQuery, DEFAULT_HISTORY_FILTERS, historyDateBounds } from '../hooks';
@@ -225,6 +232,7 @@ function createMemoryHistory(jobs: GenerationJob[], pageSize?: number) {
 
 interface RenderHistoryOptions {
   onOpenSession?(id: string): void;
+  onOpenSettings?(): void;
   /** 桌面宿主视角(canRevealLocalFile=true):磁盘占用与本机文件动作才渲染。 */
   desktop?: boolean;
   /** 让 fake 宿主分页(offset cursor),用于滚动哨兵用例。 */
@@ -249,7 +257,10 @@ function renderHistory(jobs: GenerationJob[], options: RenderHistoryOptions = {}
       </QueryClientProvider>
     );
   }
-  render(<HistoryScreen onOpenSession={options.onOpenSession} />, { wrapper: Providers });
+  render(
+    <HistoryScreen onOpenSession={options.onOpenSession} onOpenSettings={options.onOpenSettings} />,
+    { wrapper: Providers },
+  );
   return memory;
 }
 
@@ -289,6 +300,16 @@ describe('threadJobs', () => {
     const b = makeJob({ id: 'b', parentRunId: 'a', createdAt: nowIso(-1000) });
     const rows = threadJobs([b, a]);
     expect(rows.map((row) => row.job.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('groupHistoryThreads 按线程根归组,子回合留在父组', () => {
+    const parent = makeJob({ id: 'a', createdAt: nowIso(-3000) });
+    const child = makeJob({ id: 'b', parentRunId: 'a', createdAt: nowIso(-1000) });
+    const other = makeJob({ id: 'c', createdAt: nowIso(-2000) });
+    const groups = groupHistoryThreads(threadJobs([child, other, parent]));
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.map((row) => row.job.id)).toEqual(['a', 'b']);
+    expect(groups[1]?.map((row) => row.job.id)).toEqual(['c']);
   });
 });
 
@@ -370,6 +391,14 @@ describe('buildHistoryQuery', () => {
 });
 
 describe('historyErrorPresentation', () => {
+  it('guides an unverified account connection to settings without offering another retry or redemption', () => {
+    const error = { code: 'ACCOUNT_IDENTITY_UNVERIFIED' as const, message: '旧账号连接需要核对' };
+    expect(historyErrorPresentation(error)).toMatchObject({
+      actionKind: 'setup_provider',
+      canRetry: false,
+    });
+    expect(canRetryGeneration(makeJob({ id: 'unbound', status: 'failed', error }))).toBe(false);
+  });
   it('契约错误码给标题 + 建议动作,并决定重试可用性', () => {
     const auth = historyErrorPresentation({ code: 'AUTH_CREDENTIALS_INVALID', message: 'bad key' });
     expect(auth).toMatchObject({ action: '检查密钥', canRetry: false });
@@ -377,6 +406,14 @@ describe('historyErrorPresentation', () => {
 
     const limited = historyErrorPresentation({ code: 'RATE_LIMITED', message: '429' });
     expect(limited).toMatchObject({ action: '稍后重试', canRetry: true });
+
+    const quota = historyErrorPresentation({
+      code: 'ACCOUNT_QUOTA_INSUFFICIENT',
+      message: 'no balance',
+    });
+    expect(quota).toMatchObject({ action: '去兑换', actionKind: 'top_up', canRetry: false });
+    expect(isSettingsGuidance('top_up')).toBe(true);
+    expect(isSettingsGuidance('retry')).toBe(false);
 
     // 已计费但结果未知:绝不给「重试」以免二次扣费。
     expect(
@@ -386,6 +423,7 @@ describe('historyErrorPresentation', () => {
 
   it('旧宿主自由错误码经别名表归一,归一不到用原始 message 当标题', () => {
     expect(normalizeHistoryErrorCode('auth')).toBe('AUTH_CREDENTIALS_INVALID');
+    expect(normalizeHistoryErrorCode('ACCOUNT/AUTH')).toBe('AUTH_CREDENTIALS_INVALID');
     expect(normalizeHistoryErrorCode('INSUFFICIENT_BALANCE')).toBe('ACCOUNT_QUOTA_INSUFFICIENT');
     expect(normalizeHistoryErrorCode('DOUBAO_DAILY_LIMIT')).toBe('RATE_LIMITED');
     expect(normalizeHistoryErrorCode('who-knows')).toBe('UNKNOWN');
@@ -395,6 +433,29 @@ describe('historyErrorPresentation', () => {
     >;
     expect(historyErrorPresentation(legacyError)?.title).toBe('上游炸了');
     expect(historyErrorPresentation(null)).toBeNull();
+  });
+
+  it('账号云已结失败可重试，purge与未知费用不可，失败文案不替代账本状态', () => {
+    const source = makeJob({
+      id: 'managed-failed',
+      status: 'failed',
+      error: { code: 'INTERNAL_ERROR', message: '结束' },
+      recovery: {
+        requestId: 'r',
+        remoteStatus: 'failed',
+        costKnown: true,
+        result: 'not_ready',
+        message: '已核对',
+      },
+    });
+    if (!source.recovery) throw new Error('Missing recovery');
+    expect(canRetryGeneration(source)).toBe(true);
+    expect(
+      canRetryGeneration({ ...source, recovery: { ...source.recovery, costKnown: false } }),
+    ).toBe(false);
+    expect(
+      canRetryGeneration({ ...source, recovery: { ...source.recovery, result: 'purged' } }),
+    ).toBe(false);
   });
 
   it('重试可用性:成功/进行中不可重试,已取消可重试', () => {
@@ -433,7 +494,65 @@ describe('HistoryScreen', () => {
   // 意图是全局 zustand:上个用例没消费干净不能污染下一个。
   beforeEach(() => {
     useScreenIntent.setState({ intent: null });
+    resetQuotaRecovery();
   });
+
+  it('列表与详情共享进行中重试，重复点击仅提交一次且失败后恢复可用', async () => {
+    const source = makeJob({ id: 'retry-pending', status: 'cancelled' });
+    const memory = renderHistory([source]);
+    let reject!: (error: Error) => void;
+    const retry = vi.spyOn(memory.generation, 'retry').mockImplementation(
+      () =>
+        new Promise((_resolve, no) => {
+          reject = no;
+        }),
+    );
+    await userEvent.click(await screen.findByTestId('history-row-open'));
+    const row = screen.getByTestId('history-row-retry');
+    const detail = await screen.findByTestId('history-inspector-retry');
+    fireEvent.click(row);
+    fireEvent.click(detail);
+    fireEvent.click(row);
+    await waitFor(() => {
+      expect(retry).toHaveBeenCalledTimes(1);
+      expect(row.hasAttribute('disabled')).toBe(true);
+      expect(detail.hasAttribute('disabled')).toBe(true);
+      expect(detail.getAttribute('aria-label')).toBe('正在提交重试');
+    });
+    await act(async () => reject(new Error('synthetic retry refused')));
+    await waitFor(() => {
+      expect(row.hasAttribute('disabled')).toBe(false);
+      expect(detail.hasAttribute('disabled')).toBe(false);
+    });
+  });
+
+  it.each(['failed', 'cancelled'] as const)(
+    '账号云%s按费用状态提供重试和原任务核对',
+    async (status) => {
+      const memory = renderHistory([
+        makeJob({
+          id: 'managed-unknown',
+          status,
+          recovery: {
+            requestId: 'request-unknown',
+            remoteStatus: status,
+            costKnown: false,
+            result: 'not_ready',
+            message: '原费用未知',
+          },
+        }),
+      ]);
+      const retry = vi.spyOn(memory.generation, 'retry');
+      await userEvent.click(await screen.findByTestId('history-row-open'));
+      expect(screen.queryByTestId('history-row-retry')).toBeNull();
+      expect(screen.queryByTestId('history-inspector-retry')).toBeNull();
+      expect(screen.getByTestId('generation-recovery-notice').textContent).toContain(
+        '费用尚未核对完成',
+      );
+      expect(screen.getByRole('button', { name: '核对原任务' })).toBeTruthy();
+      expect(retry).not.toHaveBeenCalled();
+    },
+  );
 
   it('渲染列表行与状态徽标', async () => {
     renderHistory([
@@ -755,8 +874,55 @@ describe('HistoryScreen', () => {
     expect(screen.getByTestId('history-inspector-error').textContent).toContain(
       'API Key 无效或已失效',
     );
-    expect(screen.getByTestId('history-detail-error-action').textContent).toContain('检查密钥');
+    const action = screen.getByTestId('history-detail-error-action');
+    expect(action.tagName).toBe('BUTTON');
+    expect(action.textContent).toContain('检查密钥');
     expect(screen.queryByTestId('history-inspector-retry')).toBeNull();
+  });
+
+  it('检查密钥按钮写入连接分区意图并调用 onOpenSettings', async () => {
+    const onOpenSettings = vi.fn();
+    renderHistory(
+      [
+        makeJob({
+          id: 'bad-key-cta',
+          status: 'failed',
+          error: { code: 'AUTH_CREDENTIALS_INVALID', message: 'invalid api key' },
+        }),
+      ],
+      { onOpenSettings },
+    );
+    await waitFor(() => expect(screen.getByTestId('history-row')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('history-row-open'));
+    await userEvent.click(await screen.findByTestId('history-detail-error-action'));
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({
+      kind: 'settings-section',
+      section: 'connections',
+    });
+  });
+
+  it('去兑换按钮写入账号分区意图并记下待重试 job', async () => {
+    const onOpenSettings = vi.fn();
+    renderHistory(
+      [
+        makeJob({
+          id: 'quota-job',
+          status: 'failed',
+          error: { code: 'ACCOUNT_QUOTA_INSUFFICIENT', message: 'no balance' },
+        }),
+      ],
+      { onOpenSettings },
+    );
+    await waitFor(() => expect(screen.getByTestId('history-row')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('history-row-open'));
+    await userEvent.click(await screen.findByTestId('history-detail-error-action'));
+    expect(onOpenSettings).toHaveBeenCalled();
+    expect(useScreenIntent.getState().intent).toEqual({
+      kind: 'settings-section',
+      section: 'account',
+    });
+    expect(peekQuotaRecovery()).toEqual({ kind: 'retry-job', jobId: 'quota-job' });
   });
 
   it('可重试的错误码给重试入口,成功行不给(宿主 retry 只受理 failed/cancelled)', async () => {
@@ -992,6 +1158,93 @@ describe('HistoryScreen', () => {
       // 第二页走 cursor,不是重复取第一页。
       expect(memory.calls[1]?.cursor).toBe('1');
       await waitFor(() => expect(screen.queryByTestId('history-load-sentinel')).toBeNull());
+    } finally {
+      globalThis.IntersectionObserver = original;
+    }
+  });
+
+  it('行 class 消费密度 token,缩略保持舒适态 size-11', async () => {
+    renderHistory([makeJob({ id: 'density' })]);
+    await waitFor(() => expect(screen.getByTestId('history-row')).toBeTruthy());
+    const row = screen.getByTestId('history-row');
+    expect(row.className).toContain('--density-row-padding');
+    expect(row.className).toContain('px-3');
+    expect(screen.getByTestId('history-thumb').className).toContain('--density-history-thumb');
+    expect(screen.getByTestId('history-thumb').className).toContain('size-11');
+  });
+
+  it('>150 线程只渲染视口内若干组,子回合与父行成组', async () => {
+    const jobs = Array.from({ length: 160 }, (_, index) => [
+      makeJob({ id: `p${index}`, createdAt: nowIso(-2000 - index) }),
+      makeJob({
+        id: `c${index}`,
+        parentRunId: `p${index}`,
+        createdAt: nowIso(-1000 - index),
+      }),
+    ]).flat();
+    renderHistory(jobs);
+    await waitFor(() => expect(screen.getByTestId('history-virtual-list')).toBeTruthy());
+    expect(screen.getByTestId('history-list-scroll').getAttribute('data-virtualized')).toBe('true');
+    const groups = screen.getAllByTestId('history-thread-group');
+    expect(groups.length).toBeLessThan(160);
+    expect(groups.length).toBeGreaterThan(0);
+    const rows = screen.getAllByTestId('history-row');
+    expect(rows.length).toBeLessThan(320);
+    for (const group of groups) {
+      const groupRows = group.querySelectorAll('[data-testid="history-row"]');
+      expect(groupRows.length).toBeGreaterThanOrEqual(1);
+      if (groupRows.length > 1) {
+        expect(group.querySelector('[data-testid="history-thread-connector"]')).toBeTruthy();
+      }
+    }
+  });
+
+  it('虚拟化下深链 scrollToIndex 能露出目标行', async () => {
+    useScreenIntent.getState().setIntent({ kind: 'history-select', jobId: 'job-140' });
+    renderHistory(
+      Array.from({ length: 160 }, (_, index) =>
+        makeJob({ id: `job-${index}`, createdAt: nowIso(-index) }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('history-inspector-prompt').textContent).toBe('prompt job-140'),
+    );
+    await waitFor(() => expect(document.querySelector('[data-job-row="job-140"]')).toBeTruthy());
+    expect(useScreenIntent.getState().intent).toBeNull();
+  });
+
+  it('虚拟化列表末尾哨兵仍触发下一页', async () => {
+    const observed: Element[] = [];
+    const sentinel: { trigger: (() => void) | null } = { trigger: null };
+    class FakeObserver {
+      constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        sentinel.trigger = () => callback([{ isIntersecting: true }]);
+      }
+      observe(node: Element) {
+        observed.push(node);
+      }
+      disconnect() {
+        sentinel.trigger = null;
+      }
+    }
+    const original = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = FakeObserver as unknown as typeof IntersectionObserver;
+    try {
+      renderHistory(
+        Array.from({ length: 180 }, (_, index) =>
+          makeJob({ id: `page-${index}`, createdAt: nowIso(-index) }),
+        ),
+        { pageSize: 160 },
+      );
+      await waitFor(() => expect(screen.getByTestId('history-virtual-list')).toBeTruthy());
+      await waitFor(() => expect(screen.getByTestId('history-load-sentinel')).toBeTruthy());
+      expect(observed).toHaveLength(1);
+      sentinel.trigger?.();
+      await waitFor(() =>
+        expect(screen.getAllByTestId('history-thread-group').length).toBeGreaterThan(0),
+      );
+      await waitFor(() => expect(screen.queryByTestId('history-load-sentinel')).toBeNull());
+      expect(screen.getAllByTestId('history-row').length).toBeLessThan(180);
     } finally {
       globalThis.IntersectionObserver = original;
     }

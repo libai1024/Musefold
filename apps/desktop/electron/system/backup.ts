@@ -6,10 +6,17 @@
 // VACUUM INTO 由引擎在一致性快照上生成单文件副本，天然不需要停写。
 
 import Database from 'better-sqlite3';
-import { copyFile, lstat, mkdir, readdir, rename, rm, stat, unlink } from 'fs/promises';
-import { basename, join } from 'path';
+import { copyFile, lstat, mkdir, open, readdir, rename, rm, stat, unlink } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { basename, join } from 'node:path';
 import type { BackupInfo } from '@musefold/desktop-contracts/ipc';
-import { closeDb, getDb, initDb } from '@musefold/core/db/index';
+import { beginDatabaseRestore, getDb } from '@musefold/core/db/index';
+import { ManagedExecutionRepository } from '@musefold/core/db/repositories/managed-execution';
+import { ManagedExecutionGuard } from '@musefold/core/services/managed-execution-guard';
+import { DESKTOP_MIGRATIONS } from '@musefold/desktop-db/migrations.generated';
+import { createManagedExecutionAnchor } from '../security/managed-execution-anchor';
+import { managedExecutionWorkScope } from './managed-execution';
+import { stopV25CloudSync } from '../main/ipc-v25/sync-domain';
 import { getPaths } from './paths';
 import { createLogger } from './logger';
 
@@ -19,6 +26,29 @@ const logger = createLogger('backup');
 const KEEP = 10;
 
 const BACKUP_PREFIX = 'backup-';
+// Deliberately outside BACKUP_PREFIX: normal retention must never erase the recovery baseline.
+const RECOVERY_PREFIX = 'recovery-safety-';
+
+async function createRestoreSafetyBackup(db: Database.Database): Promise<string> {
+  const paths = getPaths();
+  const target = join(paths.backups, `${RECOVERY_PREFIX}${stamp()}-${randomUUID()}.db`);
+  db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+  const file = await open(target, 'r');
+  try {
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  if (process.platform !== 'win32') {
+    const directory = await open(paths.backups, 'r');
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+  }
+  return target;
+}
 
 function backupError(code: string, message: string): Error {
   const error = new Error(`${code}: ${message}`);
@@ -137,6 +167,29 @@ function validateMusefoldBackup(path: string): void {
     if (version > currentVersion) {
       throw backupError('INCOMPATIBLE_BACKUP', '备份来自更高版本的 Musefold，请先升级应用');
     }
+    // v2.5 increments Drizzle rather than user_version. Checking only user_version would
+    // accept a future or rewritten migration chain as if this binary understood its schema.
+    if (
+      candidate
+        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'")
+        .get()
+    ) {
+      const rows = candidate
+        .prepare('SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at, id')
+        .all() as Array<{ hash: string; created_at: number }>;
+      if (
+        rows.length === 0 ||
+        rows.length > DESKTOP_MIGRATIONS.length ||
+        rows.some((row, index) => {
+          const expected = DESKTOP_MIGRATIONS[index];
+          return row.hash !== expected?.hash || Number(row.created_at) !== expected?.folderMillis;
+        })
+      )
+        throw backupError(
+          'INCOMPATIBLE_BACKUP',
+          '备份的数据库迁移链与当前应用不兼容，请先核对版本',
+        );
+    }
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === 'INVALID_BACKUP' || code === 'INCOMPATIBLE_BACKUP') throw error;
@@ -146,8 +199,25 @@ function validateMusefoldBackup(path: string): void {
   }
 }
 
-/** 恢复前校验、保全当前库，再原子替换 data.db。调用方随后必须重启应用。 */
+const restoreRequests = new Set<string>();
+
+/** Restore is exclusive from validation onward, including callers outside the renderer. */
 export async function restoreBackup(file: string): Promise<{ safetyBackupPath: string }> {
+  const path = getPaths().db;
+  if (restoreRequests.has(path))
+    throw backupError('RESTORE_FAILED', '恢复正在进行，请等待完成后重启');
+  // A later call in the same PID must not misclassify a healthy backup as corrupt.
+  getDb();
+  restoreRequests.add(path);
+  try {
+    return await performRestoreBackup(file);
+  } finally {
+    restoreRequests.delete(path);
+  }
+}
+
+/** 恢复前校验、保全当前库，再原子替换 data.db。调用方随后必须重启应用。 */
+async function performRestoreBackup(file: string): Promise<{ safetyBackupPath: string }> {
   const paths = getPaths();
   await mkdir(paths.backups, { recursive: true });
 
@@ -163,24 +233,31 @@ export async function restoreBackup(file: string): Promise<{ safetyBackupPath: s
 
   validateMusefoldBackup(source);
 
-  // 先复制到 data.db 同目录。createBackup 会执行保留策略，最旧备份可能被清理，
-  // staging 能保证用户选择的源在整个恢复过程中保持可用。
-  const staging = `${paths.db}.restore-next-${process.pid}-${Date.now()}`;
+  // Pin validated bytes before any DB transition, even when the original backup is pruned.
+  const staging = `${paths.db}.restore-next-${randomUUID()}`;
   const previous = `${paths.db}.restore-previous`;
   await copyFile(source, staging);
-  let safetyBackupPath: string;
   try {
-    safetyBackupPath = await createBackup('pre-restore');
+    validateMusefoldBackup(staging);
   } catch (error) {
     await rm(staging, { force: true }).catch(() => undefined);
     throw error;
   }
 
-  let closed = false;
   let movedCurrent = false;
+  let installed = false;
   try {
-    closeDb();
-    closed = true;
+    // The barrier persists through failure and closeDb. Only a new process may reopen this DB;
+    // the old host remains unable to write callbacks into either a restored or rolled-back DB.
+    const restore = beginDatabaseRestore();
+    await managedExecutionWorkScope().drainForRestore();
+    await stopV25CloudSync();
+    const safetyBackupPath = await createRestoreSafetyBackup(restore.db);
+    await new ManagedExecutionGuard(
+      new ManagedExecutionRepository(restore.db),
+      createManagedExecutionAnchor(paths.userData),
+    ).suspendForRestore();
+    restore.close();
     await rm(`${paths.db}-wal`, { force: true });
     await rm(`${paths.db}-shm`, { force: true });
     await rm(previous, { force: true });
@@ -193,22 +270,17 @@ export async function restoreBackup(file: string): Promise<{ safetyBackupPath: s
     }
 
     await rename(staging, paths.db);
-    await rm(previous, { force: true });
+    installed = true;
+    // Installation is already complete. A cleanup error must not roll back an installed DB.
+    await rm(previous, { force: true }).catch(() => undefined);
     logger.info('已恢复数据库备份', file, '等待应用重启');
     return { safetyBackupPath };
-  } catch (error) {
+  } catch {
     await rm(staging, { force: true }).catch(() => undefined);
-    if (movedCurrent) {
-      await rm(paths.db, { force: true }).catch(() => undefined);
+    if (movedCurrent && !installed) {
       await rename(previous, paths.db).catch(() => undefined);
     }
-    if (closed) {
-      try {
-        initDb();
-      } catch {
-        // 保留原错误；下次启动仍会重新初始化数据库。
-      }
-    }
-    throw backupError('RESTORE_FAILED', (error as Error).message || '恢复数据库失败');
+    // Keep the old handle/file and any recovery baseline intact; do not reopen inside this PID.
+    throw backupError('RESTORE_FAILED', '恢复数据库未完成，请重启应用后核对备份');
   }
 }

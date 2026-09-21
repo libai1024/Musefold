@@ -7,7 +7,7 @@
 
 export const DESIGN_SCHEME_DB_FILENAME = 'musefold-design-scheme-v0.3.2.db';
 export const DESIGN_SCHEME_DB_NAMESPACE = 'v0.3.2-design-scheme';
-export const DESIGN_SCHEME_DB_SCHEMA_VERSION = 6;
+export const DESIGN_SCHEME_DB_SCHEMA_VERSION = 11;
 
 export const DESIGN_SCHEME_DB_BOOTSTRAP_SQL = `
 CREATE TABLE design_scheme_meta (
@@ -194,6 +194,60 @@ ALTER TABLE source_files ADD COLUMN mime_type TEXT;
 ALTER TABLE source_files ADD COLUMN evidence_path TEXT;
 `;
 
+/** v7：接收 canonical uploaded 来源；重建 CHECK，保留 v6 资产与全部元数据。 */
+export const DESIGN_SCHEME_UPLOADED_ASSET_ORIGIN_SQL = `
+CREATE TABLE design_scheme_assets_v7 (
+  id TEXT PRIMARY KEY,
+  revision_id TEXT NOT NULL REFERENCES design_scheme_revisions(revision_id) ON DELETE CASCADE,
+  store_key TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('cover', 'example', 'reference')),
+  origin TEXT NOT NULL CHECK (origin IN ('repository', 'local-run', 'uploaded')),
+  license TEXT,
+  created_at INTEGER NOT NULL,
+  mime_type TEXT,
+  width INTEGER,
+  height INTEGER,
+  byte_size INTEGER,
+  content_hash TEXT
+);
+INSERT INTO design_scheme_assets_v7
+  (id, revision_id, store_key, role, origin, license, created_at,
+   mime_type, width, height, byte_size, content_hash)
+SELECT id, revision_id, store_key, role, origin, license, created_at,
+       mime_type, width, height, byte_size, content_hash
+FROM design_scheme_assets;
+DROP TABLE design_scheme_assets;
+ALTER TABLE design_scheme_assets_v7 RENAME TO design_scheme_assets;
+CREATE INDEX idx_ds_assets_revision ON design_scheme_assets(revision_id, created_at);
+`;
+
+/** v8：保留云试运行的真实来源与 output 角色，不改写既有资产或成功试运行资格。 */
+export const DESIGN_SCHEME_CLOUD_RUN_ASSET_SQL = `
+CREATE TABLE design_scheme_assets_v8 (
+  id TEXT PRIMARY KEY,
+  revision_id TEXT NOT NULL REFERENCES design_scheme_revisions(revision_id) ON DELETE CASCADE,
+  store_key TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('cover', 'example', 'reference', 'output')),
+  origin TEXT NOT NULL CHECK (origin IN ('repository', 'local-run', 'uploaded', 'cloud-run')),
+  license TEXT,
+  created_at INTEGER NOT NULL,
+  mime_type TEXT,
+  width INTEGER,
+  height INTEGER,
+  byte_size INTEGER,
+  content_hash TEXT
+);
+INSERT INTO design_scheme_assets_v8
+  (id, revision_id, store_key, role, origin, license, created_at,
+   mime_type, width, height, byte_size, content_hash)
+SELECT id, revision_id, store_key, role, origin, license, created_at,
+       mime_type, width, height, byte_size, content_hash
+FROM design_scheme_assets;
+DROP TABLE design_scheme_assets;
+ALTER TABLE design_scheme_assets_v8 RENAME TO design_scheme_assets;
+CREATE INDEX idx_ds_assets_revision ON design_scheme_assets(revision_id, created_at);
+`;
+
 /** 质量门证据（开发规范 §10：design_scheme_evaluations）。 */
 export const DESIGN_SCHEME_EVALUATION_TABLES_SQL = `
 CREATE TABLE design_scheme_evaluations (
@@ -207,4 +261,24 @@ CREATE TABLE design_scheme_evaluations (
 
 CREATE INDEX idx_ds_evaluations_run
   ON design_scheme_evaluations(run_id, created_at DESC);
+`;
+
+/**
+ * v9：分享导入崩溃孤儿回收意图（D02.5/D02.1）。
+ * root_name 是受管 design-scheme-imports/ 根下的一级目录名（dsch_<32hex>）。
+ * 意图行先于任何删除落库；崩溃中断后由下次 owner 启动续跑。
+ * 刻意不外键到资产/来源表：意图只描述「目录无主待删」，不随作品级联删除。
+ */
+export const DESIGN_SCHEME_IMPORT_GC_TABLES_SQL = `
+CREATE TABLE design_scheme_import_gc (
+  root_name TEXT PRIMARY KEY,
+  state TEXT NOT NULL CHECK (state IN ('pending', 'blocked')),
+  created_at INTEGER NOT NULL,
+  next_attempt_at INTEGER NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT
+);
+
+CREATE INDEX idx_ds_import_gc_due
+  ON design_scheme_import_gc(state, next_attempt_at);
 `;

@@ -74,6 +74,49 @@ describe('AI connection store', () => {
     expect(() => normalizeAiBaseUrl('https://example.com/v1?key=secret')).toThrow('查询参数');
   });
 
+  it('freezes an opaque ciphertext revision and changes it on replacement without deriving it from the plaintext key', () => {
+    const values = new Map<string, unknown>();
+    let nonce = 0;
+    const keychain = new ElectronAiSecretKeychain(
+      {
+        get: (key) => values.get(key),
+        set: (key, value) => {
+          values.set(key, value);
+        },
+        delete: (key) => {
+          values.delete(key);
+        },
+      },
+      {
+        isEncryptionAvailable: () => true,
+        encryptString: (key) => Buffer.from(JSON.stringify({ nonce: ++nonce, key })),
+        decryptString: (bytes) => (JSON.parse(bytes.toString()) as { key: string }).key,
+      },
+    );
+    keychain.save('fixture-text', 'fixture-key');
+    const original = keychain.snapshot('fixture-text');
+    expect(original?.key).toBe('fixture-key');
+    expect(original?.epoch).toMatch(/^[a-f0-9]{64}$/);
+    expect(keychain.snapshot('fixture-text')).toEqual(original);
+    keychain.save('fixture-text', 'fixture-key');
+    expect(keychain.snapshot('fixture-text')?.epoch).not.toBe(original?.epoch);
+    keychain.delete('fixture-text');
+    expect(keychain.snapshot('fixture-text')).toBeNull();
+    const store = new AiConnectionStore({
+      store: new MemoryBackend() as any,
+      secrets: new MemorySecrets(),
+      idFactory: () => 'fixture-text',
+    });
+    store.create({
+      name: 'Fixture',
+      routeKind: 'gateway',
+      presetId: 'custom',
+      baseUrl: 'https://fixture.invalid/v1',
+      model: 'fixture',
+    });
+    expect(store.loadKeySnapshot('fixture-text')).toBeNull();
+  });
+
   it('returns only a sanitized profile and keeps image provider state independent', () => {
     const backend = new MemoryBackend();
     const secrets = new MemorySecrets();

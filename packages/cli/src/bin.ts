@@ -4,7 +4,8 @@
 import { runCli } from './index';
 
 process.on('SIGINT', () => {
-  process.exit(130);
+  // Active commands own cancellation/finalization. Do not preempt their listeners.
+  if (process.listenerCount('SIGINT') === 1) process.exit(130);
 });
 
 const io = {

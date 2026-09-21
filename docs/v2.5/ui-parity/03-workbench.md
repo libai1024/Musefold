@@ -9,7 +9,7 @@
 
 ## 1. 结论与迁移状态
 
-会话式生成主干、参考图、Prompt 引用、结果保存、空态品牌语法与时间线工程细节已迁;契约化和状态矩阵比旧版更严整(cancelling 中间态、失败错误卡、`isComposing` 保护、host-owned Prompt 解析与不可变快照)。当前主要缺口转为:**生成数量/多图消费**、**用户消息参数摘要**、**历史/方案/Skill/微调上下文**、**复制图片与多图 Lightbox**、**审批/费用与额度恢复完整矩阵**。
+会话式生成主干、参考图、Prompt 引用、结果保存、空态品牌语法与时间线工程细节已迁;契约化和状态矩阵比旧版更严整(cancelling 中间态、失败错误卡、`isComposing` 保护、host-owned Prompt 解析与不可变快照)。生成数量/多图消费、用户消息参数摘要、复制图片与多图 Lightbox 已于 2026-09-06 随 D3 解锁收口。当前主要缺口转为:**历史/方案/Skill/微调上下文(发起微调)**、**多选批量保存模式**、**审批/费用完整后端矩阵**。会话标题/任务摘要与移动软键盘 inset 已于 2026-09-07 收口;时间线底部留白叠 inset 已于 2026-09-07 B8-T3 收口(D27);额度引导/兑换重试/只读审批卡已于 2026-09-07 B6 收口。
 
 ## 2. 布局对照
 
@@ -17,9 +17,9 @@
 |---|---|---|---|
 | 整体 | 时间线(内容 760px 中轴)+ 贴底 Composer;右侧可展开素材库 Dock(304px) | ✅ 已收口(2026-08-29):时间线内容列 728px 中轴 + **悬浮贴底 Composer**(728px 卡绝对定位、轨道透明、浮起阴影 + 轻透底毛玻璃,时间线以底部留白 172/220px 从卡后滚过,承旧 floating 布局)+ Prompt 引用 **304px 右侧 Dock**;移动为焦点圈闭的 82dvh 底部 Dialog | 收口 |
 | 空态 | `WorkbenchEmptyState`:水印背景 + 品牌锁定区(mark 96px + tagline)+ 三条横滚建议 + 内联 Composer,整体 `clamp(72px,16vh,140px)` 顶距 | ✅ 已收口(2026-08-29):水印/mark 96px(移动 72px)/横滚建议/`clamp` 顶距全承旧;内联 Composer 20px 品牌焦点外框(移动 16px);矮视口(≤560px 高)建议让位、顶距收紧(承旧 11 §10.3)。同日增强:**时段问候语标题**(`workbench-empty-greeting`,四档,挂载后计算防水合错位,矮视口隐藏;承 ZCode/Cursor 空态语法),E2E 用 `clock.setFixedTime` 钉档 | 收口 |
-| 用户消息 | 左侧头像区无,右对齐气泡 + 气泡上方附件区(Codex 式)+ meta 行(参数摘要/微调来源链) | 右对齐 `rounded-2xl rounded-br-sm bg-primary` 气泡;Prompt 引用以生成时不可变卡展示;纯引用任务不渲染空气泡 | 气泡形与引用语义一致;**meta 行(比例/质量参数摘要)缺失,P2** |
+| 用户消息 | 左侧头像区无,右对齐气泡 + 气泡上方附件区(Codex 式)+ meta 行(参数摘要/微调来源链) | ✅ 已收口(2026-09-06):右对齐 `rounded-2xl rounded-br-sm bg-primary` 气泡 + 气泡下 **meta 行**(`job-meta`:比例 · 质量 · 张数(>1 时)· 「来自 #xx 微调」,`text-xs text-muted-foreground tabular-nums`,文案与 Composer 目录同源);Prompt 引用以生成时不可变卡展示;纯引用任务不渲染空气泡也不渲染 meta 行 | 收口;「来自 #xx 微调」只读跳父回合,发起微调随域 |
 | 助手回合 | 头像(Musefold PNG 头像/豆包蓝底图标)+ header(名称 + 状态文案)+ preface(Skill/方案对话)+ 结果网格 + 回合动作条 | `size-6` 圆底 MusefoldMark + 状态 Badge + 模型名 + 结果格 + hover 动作行 | 结构对位;头像从品牌 PNG 降为线形 mark(P3 可接受);preface 属暂缓域挂点 |
-| 结果网格 | `WorkbenchResultGrid`:按张数/比例排布,骨架带比例占位 | 1 张单列 / 多张 2 列,骨架按 aspectRatio 占位 | 一致(单次 1 张下等价,D3) |
+| 结果网格 | `WorkbenchResultGrid`:按张数/比例排布,骨架带比例占位 | ✅ 已收口(2026-09-06,D3 解锁):1 张单列 / 2 张两列 / 4 张 2×2(`job-asset-grid[data-count]`),骨架按 `request.count` × aspectRatio 同排布占位(`job-placeholder-grid`),成图落位不跳版;多图 60ms 错相 reveal | 收口 |
 | 移动端 | 无对位形态 | 屏顶会话 Select + 新建钮 | 新增,保留 |
 
 ## 3. Composer 对照(逐控件)
@@ -34,7 +34,7 @@
 | 行首 Backspace | 光标在 0 位按 Backspace 依次弹出引用胶囊/指令芯片(Codex 式) | ✅ 已收口:空输入时先弹最后一张 ready 参考图,再从后向前弹 Prompt 引用卡 | 等价;后续上下文类型继续扩展确定序 |
 | 指令建议浮层 | `/` 指令 hints:listbox + 方向键循环 + Enter/Tab 选中 + Esc 关闭,`animate-scale-fade-in` | 无 | 暂缓域(设计方案指令),挂点登记 |
 | 比例 | `WorkbenchRatioPicker`:预设 + **自定义比例输入**(547 行) | ✅ 已收口(2026-08-29):承旧全集 11 档(auto 殿后)+ 形状预览触发钮(26px 基准色板 + mono 值)+ 368px 三列网格菜单(预览卡/勾选/打开聚焦当前项/方向键 ±1 环绕 + Home/End)+ **自定义比例行已恢复**(网格下单一分隔带:W/H 数字输入清洗留 2 位、Enter/「应用」、非法 `role=alert`「比例需在 1:4 与 4:1 之间」弹层不关、自定义当前态 trigger/预览/标题按实际 `W:H` 呈现);testid `composer-ratio-custom-w/-h/-apply/-error` | 收口;数据流只传规范 `W:H`(旧 `custom:` 前缀不迁,见 §9-D7) |
-| 设置弹层 | 质量 + **张数(1/2/4)** + 反向词;豆包托管态显示说明文案 | ✅ 已收口(2026-08-29):值摘要触发钮(当前质量档 + 反向词提示,承旧 generation-trigger)+ 304px 弹层(标题行 + 关闭钮 + 质量 radio 组承旧命名 自动/标准/高清/超清 + 反向词) | 收口;张数 D3 锁 1、豆包托管文案随域 |
+| 设置弹层 | 质量 + **张数(1/2/4)** + 反向词;豆包托管态显示说明文案 | ✅ 已收口(2026-08-29):值摘要触发钮(当前质量档 + 反向词提示,承旧 generation-trigger)+ 304px 弹层(标题行 + 关闭钮 + 质量 radio 组承旧命名 自动/标准/高清/超清 + 反向词);**张数 radio 组 1/2/4 已随 D3 解锁接入**(2026-09-06,`composer-count-{1,2,4}`,承旧命名与顺序;`maxGenerationCount === 1` 时整组不渲染,D2 口径;值摘要钮 >1 时带「N 张」) | 收口;豆包托管文案随域 |
 | 字数计数 | ≥90% 上限显示 `n/12000` 等宽计数 | 同(阈值同为 90%) | 一致 |
 | 超限提示 | 合成提示词(正文+引用)超限时红字,三种上下文文案 | Host 解析每条引用最多 4000 UTF-16 code units、最终合成最多 8000;split surrogate pair、越界、版本漂移均结构化拒绝 | 功能等价并强化信任边界 |
 | Provider | 无行内选择(设置页配置,提交时用默认) | 行内 Select(不可用项禁用) | 新版更优,保留 |
@@ -49,13 +49,13 @@
 | 自动贴底 | `useWorkbenchTimelineController`:followKey 变化贴底,离底暂停 | 同语义(80px 阈值,rAF 贴底) | 一致 |
 | 回到最新钮 | 离底且有回合时,底部悬浮 pill「回到最新」(sticky bottom-4 居中) | ✅ 已收口(2026-08-29):离底(>80px)出 pill(absolute bottom-3 居中,`timeline-back-to-latest`),点击平滑回底(`skipMotion()` 时直切) | 收口 |
 | 用户消息激活 | 点击气泡(排除按钮/链接)或 Enter/Space 激活 → 显示「复制/编辑」动作;点空白或 Esc 关闭 | ✅ 已收口(2026-08-29):hover/focus 渐显动作组;复制/编辑只用 raw `userPrompt`,纯引用复制回落不可变引用正文,绝不暴露 host-composed provider prompt | 收口 |
-| 微调来源链 | meta 行「微调自上一结果」钮 → `scrollIntoView` 平滑滚到父回合 | 无(微调链暂缓) | 挂点登记;历史屏先展示 parentRunId 线索(§0.2) |
+| 微调来源链 | meta 行「微调自上一结果」钮 → `scrollIntoView` 平滑滚到父回合 | ✅ 已收口(2026-09-06,只读半边):meta 行「来自 #xx 微调」钮(`job-meta-parent`,父回合在本会话时才出)→ `scrollIntoView({block:'center'})`,`skipMotion()` 时直切并解除贴底 | 只读跳转收口;**发起微调**仍暂缓(挂点登记) |
 | 取消 | 停止钮(Composer)+ 回合内取消 | 状态行「取消」钮 + Composer 停止钮 | 一致偏优 |
 | 重试 | 结果卡失败态重试 + 回合重试 | 终态动作行 RotateCcw(succeeded/failed/cancelled/expired 可重试) | 一致 |
 | 删除回合 | 无(旧版回合不可删,删除走历史屏) | Trash2 → AlertDialog(说明移入历史回收站) | 新增,保留 |
-| 结果放大 | `ImageLightbox`:左右键翻图、复制图片、提示词展示 | Dialog 预览 + 复制提示词 | **P2**:单回合多图时无翻图;「复制图片」缺(见下) |
-| 结果卡动作 | 下载保存(`system.saveImages`)、**存为提示词**(建库条目+关联历史+toast 带「查看」跳转)、复制图片、继续微调、查看历史 | ✅ 已收口(2026-08-29):存为提示词(`job-save-prompt` → 共用 `SavePromptDialog`,toast「查看」跳库高亮)+ 保存图片(`job-save-asset`/lightbox `lightbox-save-asset` → `generation.saveAsset`:桌面主进程解 media:// 路径 + 系统保存对话框,Web fetch→blob→a[download] 跨域降级新窗口) | 复制图片(桌面 clipboard)P2;微调/查看历史随域 |
-| 多选批量 | ≥2 张成功图:「选择图片」进选择模式 → 计数 +「保存所选」/「取消」,选中释放有 180ms 离场动画 | 不适用(单张) | 随多张恢复(D3 解锁时) |
+| 结果放大 | `ImageLightbox`:左右键翻图、复制图片、提示词展示 | ✅ 已收口(2026-09-06):Dialog 预览(`job-lightbox`)+ 单回合多图左右翻(`lightbox-prev`/`lightbox-next` + ←/→ 方向键 + 计数 `lightbox-counter`「2 / 4」+ 相邻预取)+ 提示词展示/复制 + 保存图片 + **复制图片**(`lightbox-copy-asset`,`canRevealLocalFile` 门控 → `generation.copyAssetToClipboard`;Web 不渲染)+ Esc 关闭并把焦点还给触发图格 | 收口;灯箱指针存 `{回合 id, 图序}`,轮询刷新不定格旧快照 |
+| 结果卡动作 | 下载保存(`system.saveImages`)、**存为提示词**(建库条目+关联历史+toast 带「查看」跳转)、复制图片、继续微调、查看历史 | ✅ 已收口(2026-08-29):存为提示词(`job-save-prompt` → 共用 `SavePromptDialog`,toast「查看」跳库高亮)+ 保存图片(`job-save-asset`/lightbox `lightbox-save-asset` → `generation.saveAsset`:桌面主进程解 media:// 路径 + 系统保存对话框,Web fetch→blob→a[download] 跨域降级新窗口)。2026-09-06 随多图补:**逐图动作**(图格 hover/focus 渐显 `job-asset-save` 保存该图 / `job-asset-save-prompt` 以该图为首图存为提示词)+ 回合级**「全部保存」**(`job-save-all`,顺序调 `saveAsset`,用户取消即止,toast 汇总「已保存 N / M 张」)+ 灯箱**复制图片**(桌面 clipboard,见上行) | 收口;微调/查看历史随域 |
+| 多选批量 | ≥2 张成功图:「选择图片」进选择模式 → 计数 +「保存所选」/「取消」,选中释放有 180ms 离场动画 | 部分收口(2026-09-06):≥2 张出回合级「全部保存」+ 逐图保存;**未做**选择模式(勾选子集 + 「保存所选」+ 离场动画) | 选择模式挂 P3:1/2/4 目录下「全部 + 逐图」已覆盖主用例,子集勾选待真实需求 |
 | 生成中骨架 | 比例占位 + `pulse-soft` 脉冲 | 比例占位 + Skeleton shimmer | 等价 |
 | 错误呈现 | 结果卡内错误 + 重试 | `job-error` 红卡 + 动作行重试 | 一致 |
 
@@ -76,7 +76,7 @@
 
 - **焦点管理**:✅ 已收口(2026-08-29):`WorkbenchScreen.focusPromptEnd`(rAF 聚焦 + 光标置尾)统一走 Composer `promptRef`,建议点击与编辑消息两条回填路径均已接;后续新增回填路径(历史来源确认等)复用同函数。
 - **可达性**:旧 lightbox、选择模式、消息激活全部可键盘;新版动作行 `md:opacity-0 group-hover:opacity-100` 有 `group-focus-within` 兜底,合格。新增动效须带 `aria-hidden` 与 reduce 降级。
-- **文案**:状态标签(排队中/生成中/已完成/失败/取消中/已取消)与旧 `workbenchGenerationStatusLabel` 口径一致;新增 pending_approval/rejected/expired 三态是云端契约扩展,文案已定。
+- **文案**:状态标签(排队中/生成中/已完成/失败/取消中/已取消)与旧 `workbenchGenerationStatusLabel` 口径一致;新增 pending_approval/rejected/expired 三态是云端契约扩展,文案已定。B6:`job-approval-card`「这次生成等待批准后才会进入队列。」/`job-approval-rejected`「这次生成未获批准。」;额度不足「去兑换」。
 - **testid**:旧 `refine-*`/`workbench-*` 双轨 → 新 `composer-*`/`job-*`/`timeline`,E2E 已切新;恢复旧能力时用新命名法(如 `composer-attach-input`、`job-save-prompt`)。
 
 ## 7. 差距 → 任务清单
@@ -90,7 +90,9 @@
 | ~~P1~~ | ~~「回到最新」悬浮 pill + 用户消息「复制/编辑」动作~~ ✅ 已收口(2026-08-29,见 §4 表 + §6 焦点管理):单测覆盖离底显隐/回填聚焦置尾/生成中禁用 | — |
 | ~~P2~~ | ~~结果就位 reveal + 气泡入场~~ ✅ 已收口(2026-08-29,见 §5 表):按 03-C6 屏内作用域实现(不进全局 token,00 §3 裁决);reduce 下经压制规则直接就位 | — |
 | ~~P1~~ | ~~Prompt 引用六层闭环~~ ✅ 已收口(2026-08-29):最多 6 条整条/选中片段意图;owner/workspace host 解析;UTF-16/surrogate/version/长度边界;Composer 托盘;304px Dock/82dvh 移动 Dialog;不可变时间线快照;Web desktop/mobile + 真 Electron/SQLite + 真 PG 证据 | — |
-| P2 | Lightbox 增强:单回合多图左右翻、键盘方向键;用户消息 meta 参数摘要行 | — |
+| ~~P2~~ | ~~Lightbox 增强:单回合多图左右翻、键盘方向键;用户消息 meta 参数摘要行~~ ✅ 已收口(2026-09-06,B2-T1 随 D3 解锁,见 §2/§3/§4 表):契约 `generationCountSchema`(1/2/4)+ 偏好 `defaultCount` + 能力 `maxGenerationCount`(双端 4);Composer 张数组 + 设置「默认张数」+ 草稿覆盖继承;桌面 core `n` → 逐张落盘 → `generated_assets` 多行(position)→ `request.count` 回读;多图网格/骨架、逐图动作、全部保存、Lightbox 翻页 + 计数 + 复制图片、meta 行(含「来自 #xx 微调」跳转);contracts/features/desktop 域桥/api/worker/core 单测 + Web(desktop/mobile)与 Electron E2E 覆盖 | — |
+| ~~P2~~ | ~~移动软键盘 inset~~ ✅ 已收口(2026-09-07,B5-T5 + B8-T3):`<md` 读 `visualViewport` 抬 `composer-dock` / 空态 `composer-empty-inset`;时间线 `paddingBottom = 172 + inset`(`data-keyboard-inset`);md+ / jsdom 恒 0;不另做动画 | features inset hook + `generation-timeline-inset` + workbench 屏级用例 |
+| P3 | 多选批量保存的选择模式(勾选子集 + 「保存所选」+ 180ms 离场动画,见 §4 表「多选批量」) | — |
 | P3 | ~~⌘/Ctrl+Enter 发送别名~~(✅ 2026-08-29 显式接入,含 keyCode 229 守卫);~~建议点击后聚焦~~(✅ 随 §6 焦点管理收口);~~「+」菜单骨架~~(✅ 随参考图 P0 落地,`composer-attach` 菜单暂只「添加图片」) | — |
 
 > 尚未迁挂点(防丢):工作模式 tab、指令建议浮层、历史来源 chip、方案/Skill preface 对话、微调目标引用、通用素材 Dock、豆包托管文案。Prompt 引用卡与提示词选择 Dock 已收口,不再属于暂缓域。

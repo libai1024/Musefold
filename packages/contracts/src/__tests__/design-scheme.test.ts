@@ -217,6 +217,18 @@ function validPlan() {
 }
 
 describe('shared design-scheme contracts', () => {
+  it('round-trips the default empty source label across host and client validation', () => {
+    const parsed = designSchemeSummarySchema.parse({ ...summary, sourceLabel: undefined });
+    expect(parsed.sourceLabel).toBe('');
+    expect(designSchemeSummarySchema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+    expect(designSchemeSummarySchema.parse({ ...summary, sourceLabel: '   ' }).sourceLabel).toBe(
+      '',
+    );
+    expect(
+      designSchemeSummarySchema.safeParse({ ...summary, sourceLabel: 'x'.repeat(161) }).success,
+    ).toBe(false);
+  });
+
   it('round-trips path-free entities through the barrel export', () => {
     const revision = designSchemeRevisionDocumentSchema.parse(validRevision());
     const parsedSummary = designSchemeSummarySchema.parse(summary);
@@ -803,10 +815,11 @@ describe('shared design-scheme contracts', () => {
         decision: 'accept',
       }).success,
     ).toBe(false);
-    expect(DESIGN_SCHEME_METHOD_NAMES).toHaveLength(18);
+    expect(DESIGN_SCHEME_METHOD_NAMES).toHaveLength(19);
     expect(DESIGN_SCHEME_METHOD_NAMES).toContain('designSchemes.confirmInstall');
+    expect(DESIGN_SCHEME_METHOD_NAMES).toContain('designSchemes.purge');
     expect(DESIGN_SCHEME_LIFECYCLE_METHOD_NAMES).toEqual(['designSchemes.prepareImportPackage']);
-    expect(DESIGN_SCHEME_CANONICAL_METHOD_NAMES).toHaveLength(19);
+    expect(DESIGN_SCHEME_CANONICAL_METHOD_NAMES).toHaveLength(20);
     expect(DESIGN_SCHEME_WIRE_METHODS.prepareRun).toBe('designSchemes.prepareRun');
     expect(DESIGN_SCHEME_WIRE_METHODS.confirmInstall).toBe('designSchemes.confirmInstall');
   });

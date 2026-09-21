@@ -2,7 +2,8 @@
 // 路径派生逻辑与 electron/system/paths.ts 完全同形（constants 同源），
 // 使搬移进 core 的 db/providers 单测无需再 mock electron。
 
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { loadManagedFilesystem } from '@musefold/managed-fs';
 import {
   BACKUPS_DIR_NAME,
   DB_NAME,
@@ -36,6 +37,8 @@ export function configureTestCoreRuntime(root: string, overrides: Partial<CoreRu
     loadApiKey: () => null,
     createLogger: () => silentLogger,
     estimateProviderCost: () => null,
+    managedFilesystem: () =>
+      loadManagedFilesystem(resolve('packages/managed-fs/build/Release/managed_fs.node')),
     ...overrides,
   });
 }

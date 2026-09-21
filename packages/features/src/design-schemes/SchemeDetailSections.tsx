@@ -76,6 +76,7 @@ export function SchemeDetailSections({
             <button
               type="button"
               onClick={beginInputEdit}
+              disabled={inputSaveBusy}
               className="inline-flex min-h-7 items-center gap-1.5 rounded-md px-2 font-medium text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               data-testid="runtime-scheme-edit-inputs"
             >

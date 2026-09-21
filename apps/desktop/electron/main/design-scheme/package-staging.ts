@@ -1,5 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream, createWriteStream, lstatSync, mkdirSync, rmSync } from 'node:fs';
+import {
+  constants,
+  createReadStream,
+  createWriteStream,
+  lstatSync,
+  openSync,
+  closeSync,
+  fstatSync,
+  readSync,
+} from 'node:fs';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { dirname, join } from 'node:path';
 import type {
   DesignSchemePackageFormatVersion,
@@ -7,7 +18,13 @@ import type {
   PrepareDesignSchemeImportPackageInput,
   PrepareDesignSchemeImportPackageResult,
 } from '@musefold/contracts';
-import { inspectDesignSchemePackage, MAX_DESIGN_SCHEME_PACKAGE_BYTES } from './package-archive';
+import {
+  type inspectDesignSchemePackage,
+  MAX_DESIGN_SCHEME_PACKAGE_BYTES,
+} from './package-archive';
+import type { ManagedFilesystem } from '@musefold/managed-fs';
+import { readValidatedDesignSchemePackageBytes } from '@musefold/scheme-package';
+import { PackageStagingDirectory } from './package-staging-directory';
 
 interface StagedPackage {
   id: string;
@@ -22,6 +39,7 @@ interface StagedPackage {
 interface ConsumingPackage {
   staged: StagedPackage;
   promise: Promise<unknown>;
+  detached: boolean;
 }
 
 function metadataMatches(staged: StagedPackage, input: ImportDesignSchemeInput): boolean {
@@ -33,62 +51,87 @@ function metadataMatches(staged: StagedPackage, input: ImportDesignSchemeInput):
 
 export interface DesignSchemePackageStagingDeps {
   rootDir: string;
+  filesystem: ManagedFilesystem;
+  trustedParentDir?: string;
+  onCleanupFailure?: () => void;
   inspectPackage?: typeof inspectDesignSchemePackage;
 }
 
-async function copyRegularFileAndHash(
-  sourcePath: string,
-  targetPath: string,
-): Promise<{ packageHash: string; sizeBytes: number }> {
+function validateSource(sourcePath: string) {
   const source = lstatSync(sourcePath);
   if (!source.isFile() || source.isSymbolicLink() || source.size <= 0) {
     throw new Error('选择的分享包不是普通文件');
   }
   if (source.size > MAX_DESIGN_SCHEME_PACKAGE_BYTES) throw new Error('分享包超过大小上限');
-  mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 });
+  return source;
+}
 
-  return new Promise((resolve, reject) => {
-    const hash = createHash('sha256');
-    let sizeBytes = 0;
-    let settled = false;
-    const input = createReadStream(sourcePath);
-    const output = createWriteStream(targetPath, { flags: 'wx', mode: 0o600 });
-    const fail = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      input.destroy();
-      output.destroy();
-      rmSync(targetPath, { force: true });
-      reject(error);
-    };
-    input.on('data', (chunk: string | Buffer) => {
-      const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
-      sizeBytes += bytes.length;
+async function copyRegularFileAndHash(
+  sourcePath: string,
+  targetPath: string,
+  assertTarget: () => void,
+  openTarget: () => number,
+  openSource?: () => number,
+): Promise<{ packageHash: string; sizeBytes: number }> {
+  const source = validateSource(sourcePath);
+  const sourceFd = openSource
+    ? openSource()
+    : openSync(
+        sourcePath,
+        constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0),
+      );
+  let targetFd: number;
+  try {
+    const opened = fstatSync(sourceFd);
+    if (!opened.isFile() || opened.dev !== source.dev || opened.ino !== source.ino) {
+      throw new Error('选择的分享包在读取前发生变化');
+    }
+    assertTarget();
+    targetFd = openTarget();
+  } catch (error) {
+    closeSync(sourceFd);
+    throw error;
+  }
+  const hash = createHash('sha256');
+  let sizeBytes = 0;
+  const hashing = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      sizeBytes += chunk.length;
       if (sizeBytes > MAX_DESIGN_SCHEME_PACKAGE_BYTES) {
-        fail(new Error('分享包超过大小上限'));
+        callback(new Error('分享包超过大小上限'));
         return;
       }
-      hash.update(bytes);
-    });
-    input.on('error', fail);
-    output.on('error', fail);
-    output.on('finish', () => {
-      if (settled) return;
-      settled = true;
-      resolve({ packageHash: hash.digest('hex'), sizeBytes });
-    });
-    input.pipe(output);
+      hash.update(chunk);
+      callback(null, chunk);
+    },
   });
+  // The streams own the already-open descriptors. No asynchronous path reopening,
+  // and pipeline waits for their closure before guarded cleanup can run.
+  await pipeline(
+    createReadStream(sourcePath, { fd: sourceFd, autoClose: true }),
+    hashing,
+    createWriteStream(targetPath, { fd: targetFd, autoClose: true }),
+  );
+  assertTarget();
+  return { packageHash: hash.digest('hex'), sizeBytes };
 }
 
 export class DesignSchemePackageStaging {
   private readonly byId = new Map<string, StagedPackage>();
   private readonly idsByOwner = new Map<number, Set<string>>();
   private readonly consumingById = new Map<string, ConsumingPackage>();
-  private readonly inspectPackage: typeof inspectDesignSchemePackage;
+  private readonly directory: PackageStagingDirectory;
+  private readonly preparing = new Map<string, { ownerId: number; cancelled: boolean }>();
+  private readonly pendingCleanup = new Set<string>();
+  private closed = false;
+  private orphanScan: ReturnType<PackageStagingDirectory['scanStages']> | undefined;
 
   constructor(private readonly deps: DesignSchemePackageStagingDeps) {
-    this.inspectPackage = deps.inspectPackage ?? inspectDesignSchemePackage;
+    this.directory = new PackageStagingDirectory(
+      deps.rootDir,
+      deps.filesystem,
+      deps.trustedParentDir,
+    );
   }
 
   async stagePickedPackage(
@@ -97,13 +140,29 @@ export class DesignSchemePackageStaging {
     input: PrepareDesignSchemeImportPackageInput,
   ): Promise<Extract<PrepareDesignSchemeImportPackageResult, { status: 'staged' }>> {
     if (!Number.isSafeInteger(ownerId) || ownerId <= 0) throw new Error('无效的 renderer 所有者');
+    if (this.closed) throw new Error('暂存服务已关闭');
+    validateSource(sourcePath);
     this.cleanupOwner(ownerId);
     const id = `stage_${randomUUID().replaceAll('-', '')}`;
-    const stageDir = join(this.deps.rootDir, String(ownerId), id);
+    const stageDir = this.directory.createStage(ownerId, id);
+    const preparing = { ownerId, cancelled: false };
+    this.preparing.set(id, preparing);
     const packagePath = join(stageDir, 'package.musefold.design');
     try {
-      const copied = await copyRegularFileAndHash(sourcePath, packagePath);
-      const inspected = await this.inspectPackage(packagePath, input.acceptedFormatVersions);
+      const copied = await copyRegularFileAndHash(
+        sourcePath,
+        packagePath,
+        () => this.directory.assert(stageDir),
+        () => this.directory.openFile(packagePath, 'create'),
+      );
+      const inspected = this.deps.inspectPackage
+        ? await this.deps.inspectPackage(packagePath, input.acceptedFormatVersions)
+        : await readValidatedDesignSchemePackageBytes(
+            this.readPackageBytes(packagePath),
+            input.acceptedFormatVersions,
+          );
+      this.directory.assert(stageDir);
+      if (preparing.cancelled || this.closed) throw new Error('暂存分享包已取消');
       const staged: StagedPackage = {
         id,
         ownerId,
@@ -122,15 +181,18 @@ export class DesignSchemePackageStaging {
         formatVersion: inspected.formatVersion,
       };
     } catch (error) {
-      rmSync(stageDir, { recursive: true, force: true });
+      this.removeStage(stageDir);
       throw error;
+    } finally {
+      this.preparing.delete(id);
+      this.prune(ownerId);
     }
   }
 
   async consume<T>(
     ownerId: number,
     input: ImportDesignSchemeInput,
-    consumePackage: (packagePath: string) => Promise<T>,
+    consumePackage: (packagePath: string, bytes: Buffer) => Promise<T>,
   ): Promise<T> {
     const staged = this.byId.get(input.stagedPackageId);
     if (staged) {
@@ -145,7 +207,7 @@ export class DesignSchemePackageStaging {
     // beginConsume 在首个 await 之前同步完成 staged -> consuming 迁移,并发到达的
     // 同 id consume 只会命中下面的在途分支,不可能再次启动导入回调。
     const consuming = this.consumingById.get(input.stagedPackageId);
-    if (consuming) {
+    if (consuming && !consuming.detached) {
       this.assertOwner(consuming.staged, ownerId);
       if (!metadataMatches(consuming.staged, input)) {
         // 在途导入不受元数据不匹配的重复消费者影响,由它自己的 finally 收尾。
@@ -157,44 +219,156 @@ export class DesignSchemePackageStaging {
   }
 
   cleanupOwner(ownerId: number): void {
-    for (const id of [...(this.idsByOwner.get(ownerId) ?? [])]) this.cleanupStage(id);
-    for (const [id, consuming] of [...this.consumingById]) {
-      if (consuming.staged.ownerId === ownerId) this.consumingById.delete(id);
+    if (!Number.isSafeInteger(ownerId) || ownerId <= 0) return;
+    for (const preparing of this.preparing.values()) {
+      if (preparing.ownerId === ownerId) preparing.cancelled = true;
     }
-    rmSync(join(this.deps.rootDir, String(ownerId)), { recursive: true, force: true });
+    for (const id of [...(this.idsByOwner.get(ownerId) ?? [])]) this.cleanupStage(id);
+    for (const consuming of this.consumingById.values()) {
+      if (consuming.staged.ownerId === ownerId) consuming.detached = true;
+    }
     this.idsByOwner.delete(ownerId);
+    this.retryCleanup();
+    this.prune(ownerId);
   }
 
   cleanupAll(): void {
-    this.byId.clear();
-    this.idsByOwner.clear();
-    this.consumingById.clear();
-    rmSync(this.deps.rootDir, { recursive: true, force: true });
+    this.closed = true;
+    this.orphanScan?.return(undefined);
+    this.orphanScan = undefined;
+    const owners = new Set([
+      ...this.idsByOwner.keys(),
+      ...[...this.preparing.values()].map((item) => item.ownerId),
+      ...[...this.consumingById.values()].map((item) => item.staged.ownerId),
+    ]);
+    for (const owner of owners) this.cleanupOwner(owner);
+    this.retryCleanup();
+    this.prune();
   }
 
-  /**
-   * 启动唯一一次导入。关键顺序:先同步摘除暂存索引(staged -> consuming),再进入
-   * 首个 await;settled 后在 finally 里统一清理在途条目与暂存目录。暂存目录以
-   * stageId 命名,与并发 cleanupOwner/cleanupAll 交错时 rmSync(force) 幂等,
-   * 也不会误删同 owner 的新暂存。
+  /** Called only by the desktop process holding the application owner lock.
+   * Disk directories are the durable cleanup intent; failures stay discoverable.
+   * Never expire an active preparation, preview or consumer by wall-clock age.
    */
+  collectOrphans() {
+    const result = {
+      scanned: 0,
+      deleted: 0,
+      protected: 0,
+      failed: 0,
+      pending: this.pendingCleanup.size,
+    };
+    if (this.closed) return result;
+    this.orphanScan ??= this.directory.scanStages();
+    try {
+      while (result.scanned < 20) {
+        const next = this.orphanScan.next();
+        if (next.done) {
+          this.orphanScan = undefined;
+          break;
+        }
+        result.scanned += 1;
+        if (!next.value) continue;
+        const { id, path, ownerId } = next.value;
+        if (this.byId.has(id) || this.preparing.has(id) || this.consumingById.has(id)) {
+          result.protected += 1;
+          continue;
+        }
+        if (this.removeStage(path)) result.deleted += 1;
+        else result.failed += 1;
+        this.prune(ownerId);
+      }
+    } catch {
+      result.failed += 1;
+      this.orphanScan?.return(undefined);
+      this.orphanScan = undefined;
+      this.deps.onCleanupFailure?.();
+    }
+    result.pending = this.pendingCleanup.size;
+    return result;
+  }
+
+  private removeStage(path: string): boolean {
+    try {
+      this.directory.removeStage(path);
+      this.pendingCleanup.delete(path);
+      return true;
+    } catch {
+      this.pendingCleanup.add(path);
+      this.deps.onCleanupFailure?.();
+      return false;
+    }
+  }
+
+  private retryCleanup(): void {
+    for (const path of [...this.pendingCleanup].slice(0, 20)) this.removeStage(path);
+  }
+
+  private prune(ownerId?: number): void {
+    try {
+      if (ownerId !== undefined)
+        this.directory.removeEmpty(join(this.directory.root, String(ownerId)));
+      if (this.closed || (!this.byId.size && !this.preparing.size && !this.consumingById.size)) {
+        this.directory.removeEmpty(this.directory.root);
+      }
+    } catch {
+      this.deps.onCleanupFailure?.();
+    } finally {
+      if (this.closed && !this.byId.size && !this.preparing.size && !this.consumingById.size)
+        this.directory.dispose();
+    }
+  }
+
+  private readPackageBytes(path: string): Buffer {
+    const fd = this.directory.openFile(path, 'read');
+    try {
+      const size = fstatSync(fd).size;
+      if (size <= 0 || size > MAX_DESIGN_SCHEME_PACKAGE_BYTES)
+        throw new Error('分享包超过大小上限或为空');
+      const bytes = Buffer.alloc(size);
+      let offset = 0;
+      while (offset < size) {
+        const read = readSync(fd, bytes, offset, size - offset, offset);
+        if (!read) throw new Error('暂存分享包在读取中发生变化');
+        offset += read;
+      }
+      if (readSync(fd, Buffer.alloc(1), 0, 1, size)) throw new Error('暂存分享包在读取中发生变化');
+      return bytes;
+    } finally {
+      closeSync(fd);
+    }
+  }
+
+  /** Detach new callers immediately; keep in-flight files until their consumer settles. */
   private beginConsume(
     staged: StagedPackage,
-    consumePackage: (packagePath: string) => Promise<unknown>,
+    consumePackage: (packagePath: string, bytes: Buffer) => Promise<unknown>,
   ): Promise<unknown> {
     this.detachStage(staged);
     const promise = (async () => {
       const verifyPath = join(dirname(staged.path), `verify-${randomUUID()}.musefold.design`);
-      const copied = await copyRegularFileAndHash(staged.path, verifyPath);
+      this.directory.assert(dirname(staged.path));
+      const copied = await copyRegularFileAndHash(
+        staged.path,
+        verifyPath,
+        () => this.directory.assert(dirname(staged.path)),
+        () => this.directory.openFile(verifyPath, 'create'),
+        () => this.directory.openFile(staged.path, 'read'),
+      );
       if (copied.packageHash !== staged.packageHash || copied.sizeBytes !== staged.sizeBytes) {
         throw new Error('暂存分享包在导入前发生变化');
       }
-      return consumePackage(verifyPath);
+      const bytes = this.readPackageBytes(verifyPath);
+      if (createHash('sha256').update(bytes).digest('hex') !== staged.packageHash) {
+        throw new Error('暂存分享包在导入前发生变化');
+      }
+      return consumePackage(verifyPath, bytes);
     })().finally(() => {
       this.consumingById.delete(staged.id);
-      rmSync(dirname(staged.path), { recursive: true, force: true });
+      this.removeStage(dirname(staged.path));
+      this.prune(staged.ownerId);
     });
-    this.consumingById.set(staged.id, { staged, promise });
+    this.consumingById.set(staged.id, { staged, promise, detached: false });
     return promise;
   }
 
@@ -221,6 +395,6 @@ export class DesignSchemePackageStaging {
     const staged = this.byId.get(id);
     if (!staged) return;
     this.detachStage(staged);
-    rmSync(dirname(staged.path), { recursive: true, force: true });
+    this.removeStage(dirname(staged.path));
   }
 }

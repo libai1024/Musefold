@@ -9,6 +9,7 @@ import { PromptLibraryScreen } from '@musefold/features/prompts';
 import { DensitySync, MotionSync, SettingsScreen, ThemeSync } from '@musefold/features/settings';
 import {
   AppShell,
+  AutomationConfirmCard,
   getShellNavItems,
   ShellErrorBoundary,
   type ShellNavItem,
@@ -129,6 +130,7 @@ export function DesktopView({ view, onOpenView }: DesktopViewProps) {
             onOpenView('workbench');
           }}
           onOpenPrompts={() => onOpenView('prompts')}
+          onOpenSettings={() => onOpenView('settings')}
         />
       </div>
     );
@@ -136,16 +138,15 @@ export function DesktopView({ view, onOpenView }: DesktopViewProps) {
   return <SettingsScreen onOpenScreen={onOpenView} />;
 }
 
-// macOS hiddenInset 交通灯占位(window.ts trafficLightPosition x=14 + 三灯宽度)。
-const IS_MAC = navigator.platform.toUpperCase().includes('MAC');
-
 /**
  * 壳宿主:brandInset 由全屏状态驱动(resolveBrandInset 单一几何口径),
  * 状态挂在 StrictMode 边界内的宿主组件上,dev 双跑 effect 由 hook 自身消化。
+ * 平台常量在渲染期读取,便于单测 stub `navigator.platform`(IS_MAC=false 分支)。
  */
 export function DesktopShellHost() {
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
   const [view, setView] = useState<DesktopViewId>('workbench');
-  const isFullscreen = useWindowFullscreen(IS_MAC);
+  const isFullscreen = useWindowFullscreen(isMac);
   const openWorkbench = () => setView('workbench');
 
   return (
@@ -164,15 +165,16 @@ export function DesktopShellHost() {
               sessions={<SessionListPanel onOpen={openWorkbench} />}
               footer={<AccountFooter onOpenSettings={() => setView('settings')} />}
               mobileExtra={<MobileQuotaReadout />}
-              brandInset={resolveBrandInset(IS_MAC, isFullscreen)}
+              brandInset={resolveBrandInset(isMac, isFullscreen)}
+              windowControls={isMac ? undefined : <WindowControls enabled />}
             >
               <DesktopView view={view} onOpenView={setView} />
             </AppShell>
-            {/* Win/Linux 右上角自绘窗口控件(mac 保留原生交通灯,恒 null)。 */}
-            <WindowControls enabled={!IS_MAC} />
           </div>
           {/* 首启引导(U01-onboarding):无可用生图通道且未完成哨兵时自行弹出,否则渲染 null。 */}
           <OnboardingFlow onOpenScreen={setView} />
+          {/* 外部工具花钱确认卡(§2.4):与 Toaster 同级的壳级浮层,无待确认项时渲染 null。 */}
+          <AutomationConfirmCard />
           <Toaster />
         </PlatformProvider>
       </QueryClientProvider>

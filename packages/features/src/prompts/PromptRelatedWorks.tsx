@@ -53,7 +53,7 @@ export interface PromptRelatedWorksProps {
 
 /**
  * 详情「相关作品」(承旧 PromptWorksPanel):该提示词生成过的成图缩略格。
- * 数据为反向查询 —— 生成回合上带 promptId,这里按最近扫描窗口过滤(见 hooks 注释)。
+ * 数据为反向查询 —— 生成回合上带 promptId,服务端按 promptId + succeeded 过滤。
  */
 export function PromptRelatedWorks({ promptId, onOpenWork }: PromptRelatedWorksProps) {
   const works = usePromptRelatedWorks(promptId);

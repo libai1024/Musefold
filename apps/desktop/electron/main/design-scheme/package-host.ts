@@ -14,20 +14,40 @@ import {
   type PrepareDesignSchemeImportPackageResult,
 } from '@musefold/contracts';
 import { join } from 'node:path';
+import { getManagedFilesystem } from '../managed-filesystem';
 import type { BridgeEnvelope } from '../ipc-v25/envelope';
 import { DesignSchemePackageStaging } from './package-staging';
 import { isApplicationAdmissionOpen, trackApplicationRequest } from '../lifecycle-admission';
+import { resolveE2eOpenPackageDialog } from './e2e-dialogs';
 
 export const DESIGN_SCHEME_PREPARE_IMPORT_CHANNEL = 'designSchemes:prepareImportPackage' as const;
 
 let staging: DesignSchemePackageStaging | null = null;
 const watchedSenders = new Set<number>();
+let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
 
 function getStaging(): DesignSchemePackageStaging {
   staging ??= new DesignSchemePackageStaging({
     rootDir: join(app.getPath('userData'), 'staging', 'design-scheme-packages'),
+    filesystem: getManagedFilesystem(),
+    trustedParentDir: app.getPath('userData'),
+    onCleanupFailure: () => console.warn('[package-staging] managed cleanup deferred'),
   });
   return staging;
+}
+
+/** Application calls this after acquiring exclusive userData ownership, before windows. */
+export function startDesignSchemePackageStagingMaintenance(): void {
+  if (cleanupTimer) return;
+  const collect = () => {
+    const result = getStaging().collectOrphans();
+    if (result.scanned || result.failed || result.pending) {
+      console.info('[package-staging-gc]', JSON.stringify(result));
+    }
+    cleanupTimer = setTimeout(collect, result.scanned === 20 ? 1_000 : 60_000);
+    cleanupTimer.unref();
+  };
+  collect();
 }
 
 function watchSender(sender: WebContents): void {
@@ -41,6 +61,8 @@ function watchSender(sender: WebContents): void {
 }
 
 async function showOpenPackageDialog(event: IpcMainInvokeEvent) {
+  const e2e = resolveE2eOpenPackageDialog();
+  if (e2e) return e2e;
   const options: OpenDialogOptions = {
     title: '导入设计方案',
     properties: ['openFile'],
@@ -106,12 +128,14 @@ export function registerDesignSchemePackageHostActions(): void {
 export async function consumeStagedDesignSchemePackage<T>(
   ownerId: number,
   input: ImportDesignSchemeInput,
-  consume: (packagePath: string) => Promise<T>,
+  consume: (packagePath: string, bytes: Buffer) => Promise<T>,
 ): Promise<T> {
   return getStaging().consume(ownerId, input, consume);
 }
 
 export function cleanupDesignSchemePackageStaging(): void {
+  clearTimeout(cleanupTimer);
+  cleanupTimer = undefined;
   staging?.cleanupAll();
   staging = null;
   watchedSenders.clear();

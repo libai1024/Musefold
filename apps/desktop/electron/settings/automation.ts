@@ -3,6 +3,13 @@
 
 import Store from 'electron-store';
 import { STORE_NAME } from '@musefold/core/constants';
+import { getDb } from '@musefold/core/db/index';
+import {
+  AutomationSpendRepository,
+  normalizeLegacyAutomationBudget,
+} from '@musefold/core/db/repositories/automation-spend';
+import { automationLegacyBudgetSchema } from '@musefold/desktop-contracts/automation-spend';
+import { withManagedExecution } from '../system/managed-execution';
 
 interface AutomationBudgetShape {
   /** 月度上限（积分）；0 = 一切花钱动作须确认（Q1 拍板默认） */
@@ -55,42 +62,75 @@ export function setSkillAutoUpdateEnabled(enabled: boolean): void {
 }
 
 export function getAutomationBudget(): AutomationBudgetShape {
-  const budget = store.get('automation.budget') as
-    | (AutomationBudgetShape & {
-        monthlyLimitCents?: number;
-        usedCents?: number;
-      })
-    | undefined;
-  const normalized: AutomationBudgetShape = {
-    monthlyLimitPoints: budget?.monthlyLimitPoints ?? (budget?.monthlyLimitCents ?? 0) / 10,
-    usedPoints: budget?.usedPoints ?? (budget?.usedCents ?? 0) / 10,
-    month: budget?.month ?? currentMonth(),
+  const budget = getAutomationSpendRepository().budget(Date.now());
+  const projection = {
+    monthlyLimitPoints: budget.monthlyLimitPoints,
+    usedPoints: budget.usedPoints,
+    month: budget.month,
   };
-  const legacy = budget && (budget.monthlyLimitPoints == null || budget.usedPoints == null);
-  if (normalized.month !== currentMonth()) {
-    normalized.month = currentMonth();
-    normalized.usedPoints = 0;
-    store.set('automation.budget', normalized);
-  } else if (legacy) {
-    store.set('automation.budget', normalized);
+  // Compatibility projection only: failure never makes the policy re-import stale usage.
+  try {
+    store.set('automation.budget', projection);
+  } catch {
+    /* SQLite remains authoritative. */
   }
-  return normalized;
+  return projection;
 }
 
-export function setAutomationBudgetLimit(monthlyLimitPoints: number): AutomationBudgetShape {
-  const budget = getAutomationBudget();
-  const next = { ...budget, monthlyLimitPoints: Math.max(0, monthlyLimitPoints) };
-  store.set('automation.budget', next);
-  return next;
+/** SQLite is the authority after the first import; changing account/token does not re-import. */
+export function getAutomationSpendRepository(): AutomationSpendRepository {
+  const repository = new AutomationSpendRepository(getDb());
+  if (!repository.isInitialized()) {
+    repository.initializeBudget(
+      normalizeLegacyAutomationBudget(store.get('automation.budget'), Date.now()),
+      Date.now(),
+    );
+  }
+  return repository;
+}
+
+export async function setAutomationBudgetLimit(
+  monthlyLimitPoints: number,
+): Promise<AutomationBudgetShape> {
+  const points = automationLegacyBudgetSchema.shape.monthlyLimitPoints.parse(monthlyLimitPoints);
+  const repository = getAutomationSpendRepository();
+  const now = Date.now();
+  await withManagedExecution(({ guard, assertCurrent }) =>
+    guard.coordinateBudget({ action: 'set_limit', points }, () => {
+      assertCurrent();
+      if (repository.budget(now).monthlyLimitPoints === points) return { unchanged: undefined };
+      return {
+        change: () => {
+          assertCurrent();
+          repository.setBudgetLimit(points, now);
+        },
+      };
+    }),
+  );
+  return getAutomationBudget();
 }
 
 export function remainingAutomationBudgetPoints(): number {
-  const budget = getAutomationBudget();
-  return Math.max(0, budget.monthlyLimitPoints - budget.usedPoints);
+  return getAutomationSpendRepository().budget(Date.now()).remainingPoints;
 }
 
-export function settleAutomationBudget(actualPoints: number): void {
-  if (actualPoints <= 0) return;
-  const budget = getAutomationBudget();
-  store.set('automation.budget', { ...budget, usedPoints: budget.usedPoints + actualPoints });
+export async function settleAutomationBudget(actualPoints: number): Promise<void> {
+  const points = automationLegacyBudgetSchema.shape.usedPoints.parse(actualPoints);
+  if (points === 0) return;
+  // Transitional R/S callers only. Durable calls settle via their unique call records.
+  const repository = getAutomationSpendRepository();
+  const now = Date.now();
+  await withManagedExecution(({ guard, assertCurrent }) =>
+    guard.coordinateBudget({ action: 'legacy_usage', points, now }, () => {
+      assertCurrent();
+      repository.budget(now);
+      return {
+        change: () => {
+          assertCurrent();
+          repository.recordLegacyPolicyUsage(points, now);
+        },
+      };
+    }),
+  );
+  getAutomationBudget();
 }

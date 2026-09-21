@@ -6,6 +6,7 @@ import type { AuthedEnv } from '../../../auth/middleware.js';
 import { AppError, toErrorBody } from '../../../lib/errors.js';
 import { designSchemeRoutes } from '../routes.js';
 import { DesignSchemeService } from '../service.js';
+import { DesignSchemeMarketSearchService } from '../market-search.js';
 
 const OWNER_ID = 'design-scheme-unavailable-owner';
 
@@ -16,7 +17,6 @@ const OWNER_ID = 'design-scheme-unavailable-owner';
  * to keep the server-reported code and the client-mapped code aligned.
  */
 const API_CLIENT_CODE_BY_OPERATION = {
-  searchMarket: 'DESIGN_SCHEME_CLOUD_MARKET_UNAVAILABLE',
   create: 'DESIGN_SCHEME_CLOUD_CREATE_UNAVAILABLE',
   modify: 'DESIGN_SCHEME_CLOUD_AGENT_MODIFY_UNAVAILABLE',
   cancel: 'DESIGN_SCHEME_CLOUD_RUN_CANCEL_UNAVAILABLE',
@@ -162,12 +162,29 @@ describe('Design Scheme fail-closed future operations', () => {
   const service = new DesignSchemeService({} as MusefoldDatabase);
   const app = testApp(service, OWNER_ID);
 
-  it('market search validates the canonical query before failing closed', async () => {
-    const blocked = await app.request('/design-schemes/market?query=editorial&limit=5');
-    await expectCloudBlocker(blocked, 'searchMarket');
+  it('market search returns an awaited canonical page and validates its query', async () => {
+    const market = new DesignSchemeMarketSearchService({
+      rateLimiter: { assertAllowed: async () => undefined },
+      fetchImpl: async () =>
+        Response.json({ total_count: 0, incomplete_results: false, items: [] }),
+      now: () => 1000,
+    });
+    const marketApp = testApp(
+      new DesignSchemeService({} as MusefoldDatabase, undefined, undefined, market),
+      OWNER_ID,
+    );
+    const result = await marketApp.request('/design-schemes/market?query=editorial&limit=5');
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({
+      query: 'editorial',
+      fetchedAt: 1000,
+      fromCache: false,
+      candidates: [],
+      nextCursor: null,
+    });
 
     for (const query of ['?limit=5', '?query=&limit=5', '?query=poster&limit=0']) {
-      const invalid = await app.request(`/design-schemes/market${query}`);
+      const invalid = await marketApp.request(`/design-schemes/market${query}`);
       await expectInvalid(invalid);
     }
   });

@@ -4,6 +4,7 @@ import type {
   GenerationHistoryQuery,
   MarketSearchQuery,
   PromptListQuery,
+  UsageRange,
   WorkbenchSessionListQuery,
 } from '@musefold/contracts';
 
@@ -15,7 +16,22 @@ export const queryKeys = {
     preferences: () => ['settings', 'preferences'] as const,
   },
   account: {
+    all: () => ['account'] as const,
     status: () => ['account', 'status'] as const,
+    notices: (identity: string, epoch: number) => ['account', 'notices', identity, epoch] as const,
+    models: (identity: string, epoch: number) => ['account', 'models', identity, epoch] as const,
+  },
+  accountCloud: {
+    status: () => ['account', 'cloud-connection'] as const,
+    recovery: () => ['account', 'cloud-recovery'] as const,
+    legacy: () => ['account', 'cloud-legacy-diagnostics'] as const,
+  },
+  cloudMcp: {
+    /**
+     * 已授权 MCP 客户端列表。前缀挂在 account.all() 下,
+     * 登出 invalidate/reset account 时列表必须一起空掉。
+     */
+    authorizations: () => ['account', 'cloud-mcp'] as const,
   },
   aiProviders: {
     list: () => ['ai-providers', 'list'] as const,
@@ -26,6 +42,9 @@ export const queryKeys = {
   sync: {
     status: () => ['sync', 'status'] as const,
     conflicts: () => ['sync', 'conflicts'] as const,
+    localWorkspaces: () => ['sync', 'local-workspaces'] as const,
+    localWorkspacePreview: (sourceId: string, cursor?: string) =>
+      ['sync', 'local-workspace-preview', sourceId, cursor ?? '0'] as const,
   },
   doubao: {
     status: () => ['doubao', 'status'] as const,
@@ -36,6 +55,14 @@ export const queryKeys = {
     backups: () => ['system', 'backups'] as const,
     storageLocations: () => ['system', 'storage-locations'] as const,
     diagnosticLog: () => ['system', 'diagnostic-log'] as const,
+  },
+  automation: {
+    all: () => ['automation'] as const,
+    /** 控制面状态(开关/端口/掩码令牌/预算);开关、轮换、存预算后统一失效这一条。 */
+    status: () => ['automation', 'status'] as const,
+    requestLog: () => ['automation', 'request-log'] as const,
+    spendAudit: () => ['automation', 'spend-audit'] as const,
+    integrationGuide: () => ['automation', 'integration-guide'] as const,
   },
   designSchemes: {
     all: () => ['design-schemes'] as const,
@@ -56,6 +83,9 @@ export const queryKeys = {
   workbench: {
     all: () => ['workbench'] as const,
     sessions: (query: WorkbenchSessionListQuery) => ['workbench', 'sessions', query] as const,
+    /** 归档无限分页与侧栏 sessions 同源不同 key,互不覆盖页结构。 */
+    archived: (query: WorkbenchSessionListQuery) => ['workbench', 'archived', query] as const,
+    trash: (query: WorkbenchSessionListQuery) => ['workbench', 'trash', query] as const,
     session: (id: string) => ['workbench', 'session', id] as const,
   },
   generation: {
@@ -67,5 +97,10 @@ export const queryKeys = {
     providers: () => ['generation', 'providers'] as const,
     /** 桌面磁盘占用 readout;与 all() 同前缀,清理/删除后随生成域 invalidate 一起重取。 */
     storageUsage: () => ['generation', 'storage-usage'] as const,
+  },
+  usage: {
+    all: () => ['usage'] as const,
+    /** 生成完成后随 workbench hooks 的 usage.all() 失效(与 generation.all() 同一次)。 */
+    summary: (range: UsageRange) => ['usage', 'summary', range] as const,
   },
 } as const;

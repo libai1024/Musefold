@@ -1,5 +1,8 @@
 export { AccountFooter, MobileQuotaReadout } from './AccountFooter';
 export { AccountPanel } from './AccountPanel';
+export { OAuthAuthorizationScreen } from './OAuthAuthorizationScreen';
+export { accountErrorMessage, ACCOUNT_AUTH_ERROR_CODES } from './error-messages';
+export { useRememberedUsername } from './remembered-username';
 export { AgentConnectionsPanel } from './AgentConnectionsPanel';
 export { AiConnectionsPanel } from './AiConnectionsPanel';
 export { CloudSyncPanel } from './CloudSyncPanel';

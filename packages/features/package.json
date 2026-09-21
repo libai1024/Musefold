@@ -23,6 +23,7 @@
     "@musefold/contracts": "workspace:*",
     "@musefold/platform": "workspace:*",
     "@musefold/ui": "workspace:*",
+    "@tanstack/react-virtual": "^3.14.9",
     "zustand": "^5.0.15"
   },
   "peerDependencies": {

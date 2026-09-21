@@ -12,12 +12,14 @@
     "dev": "tsx watch src/bin.ts",
     "start": "tsx src/bin.ts",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run src"
+    "test": "vitest run src",
+    "test:integration": "RUN_DATABASE_TESTS=true vitest run src/__tests__/*.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",
     "@musefold/contracts": "workspace:*",
     "@musefold/db": "workspace:*",
+    "@musefold/domain": "workspace:*",
     "@musefold/server-crypto": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "graphile-worker": "0.17.3",
@@ -26,6 +28,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.1.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.10"
   }

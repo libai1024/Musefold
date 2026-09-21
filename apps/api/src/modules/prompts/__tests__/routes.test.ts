@@ -17,6 +17,20 @@ function testApp(service: PromptService) {
 
 describe('prompt route query parsing', () => {
   it.each([
+    ['true', true],
+    ['false', false],
+  ])('parses deletedOnly=%s before listing prompts', async (wire, expected) => {
+    const listPrompts = vi.fn(async () => ({ items: [], nextCursor: null }));
+    const app = testApp({ listPrompts } as unknown as PromptService);
+    const response = await app.request(`/prompts?deletedOnly=${wire}&includeDeleted=true`);
+    expect(response.status).toBe(200);
+    expect(listPrompts).toHaveBeenCalledWith(
+      'prompt-routes-user',
+      expect.objectContaining({ deletedOnly: expected, includeDeleted: true }),
+    );
+  });
+
+  it.each([
     ['false', false],
     ['true', true],
   ])('parses includeDeleted=%s as %s', async (wireValue, expected) => {

@@ -38,12 +38,46 @@ function nowIso(): string {
   return new Date().toISOString().replace(/Z$/, '+00:00');
 }
 
-async function installPromptApiMock(page: Page): Promise<void> {
+async function installPromptApiMock(
+  page: Page,
+  options?: { seedCount?: number; pageSize?: number },
+): Promise<void> {
   let seq = 0;
   const prompts = new Map<string, MockPrompt>();
 
   function json(body: unknown, status = 200) {
     return { status, contentType: 'application/json', body: JSON.stringify(body) };
+  }
+
+  if (options?.seedCount) {
+    const timestamp = nowIso();
+    for (let index = 0; index < options.seedCount; index += 1) {
+      seq += 1;
+      const id = `prompt-${seq}`;
+      prompts.set(id, {
+        id,
+        title: `seed-${index}`,
+        description: null,
+        content: `seed content ${index}`,
+        negative: null,
+        folderId: null,
+        tags: [],
+        modelId: null,
+        params: null,
+        rating: 0,
+        isPinned: false,
+        pinOrder: null,
+        usageCount: 0,
+        lastUsedAt: null,
+        source: 'manual',
+        sourceUrl: null,
+        coverImageUrl: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+      });
+    }
   }
 
   await page.route('**/api/v1/**', async (route) => {
@@ -65,13 +99,23 @@ async function installPromptApiMock(page: Page): Promise<void> {
     if (path === '/prompts' && method === 'GET') {
       let rows = [...prompts.values()];
       const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
-      if (!includeDeleted) rows = rows.filter((row) => row.deletedAt == null);
+      if (url.searchParams.get('deletedOnly') === 'true')
+        rows = rows.filter((row) => row.deletedAt != null);
+      else if (!includeDeleted) rows = rows.filter((row) => row.deletedAt == null);
       if (url.searchParams.get('pinnedOnly') === 'true') {
         rows = rows.filter((row) => row.isPinned);
       }
       const q = url.searchParams.get('q');
       if (q) rows = rows.filter((row) => row.title.includes(q) || row.content.includes(q));
       rows.sort((a, b) => Number(b.isPinned) - Number(a.isPinned));
+      if (options?.pageSize != null) {
+        const offset = Number(url.searchParams.get('cursor') ?? 0);
+        const pageRows = rows.slice(offset, offset + options.pageSize);
+        const next = offset + options.pageSize;
+        return route.fulfill(
+          json({ items: pageRows, nextCursor: next < rows.length ? String(next) : null }),
+        );
+      }
       return route.fulfill(json({ items: rows, nextCursor: null }));
     }
 
@@ -301,4 +345,30 @@ test('详情 Inspector 视觉基线', async ({ page }) => {
   await openPromptDetail(page, '晨雾森林');
   await expect(page.getByTestId('prompt-detail-works-empty')).toBeVisible();
   await expect(page).toHaveScreenshot('prompts-detail.png');
+});
+
+test.describe('大库虚拟化', () => {
+  test.beforeEach(async ({ page }) => {
+    await installPromptApiMock(page, { seedCount: 220, pageSize: 200 });
+    await page.goto('/prompts');
+    await expect(page.getByTestId('prompt-library')).toBeVisible();
+  });
+
+  test('200 条只渲染视口行且滚动到底触发下一页', async ({ page }) => {
+    await expect(page.getByTestId('prompt-grid')).toHaveAttribute('data-virtualized', 'true');
+    const rows = page.locator('[data-testid^="prompt-row-prompt-"]');
+    await expect.poll(async () => rows.count()).toBeGreaterThan(0);
+    expect(await rows.count()).toBeLessThan(200);
+    await expect(page.getByTestId('prompt-count')).toHaveText('200 条');
+
+    await page.getByTestId('prompt-list-scroll').evaluate((node) => {
+      if (node.scrollHeight > node.clientHeight + 1) {
+        node.scrollTop = node.scrollHeight;
+        return;
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await expect(page.getByTestId('prompt-count')).toHaveText('220 条');
+    expect(await rows.count()).toBeLessThan(220);
+  });
 });

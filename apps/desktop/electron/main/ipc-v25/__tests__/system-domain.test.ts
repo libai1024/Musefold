@@ -205,7 +205,7 @@ describe('backups', () => {
       [
         'RESTORE_FAILED',
         `RESTORE_FAILED: ENOENT: no such file, rename '${BACKUP_ROW.path}'`,
-        '恢复数据库失败,当前数据未被替换',
+        '恢复未完成,请重启应用并核对备份',
       ],
     ] as const;
 
@@ -229,7 +229,7 @@ describe('backups', () => {
     );
     expect(rejection).toMatchObject({
       code: 'RESTORE_FAILED',
-      message: '恢复数据库失败,当前数据未被替换',
+      message: '恢复未完成,请重启应用并核对备份',
     });
   });
 });

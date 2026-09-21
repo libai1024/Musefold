@@ -42,7 +42,7 @@ export type UpdateMcpConnection = z.infer<typeof updateMcpConnectionSchema>;
 export const aiProviderSchema = z.object({
   id: entityIdSchema,
   name: z.string().trim().min(1).max(80),
-  /** 现存数据可能含历史类型(如 doubao-web);v2.5 新建一律 openai-compatible。 */
+  /** 自建连接为 openai-compatible；账号显式连接为 musefold-cloud；兼容旧类型。 */
   type: z.string().min(1).max(40),
   baseUrl: z.string().trim().url().max(400),
   model: z.string().trim().min(1).max(200),
@@ -51,8 +51,8 @@ export const aiProviderSchema = z.object({
   keySuffix: z.string().max(12).nullable(),
   isActive: z.boolean(),
   /**
-   * 账号托管标记(承 V05 FR-GW-01):'account' 行是登录态维护的官方生图通道,
-   * 渲染层用于把它和用户自建中转站区分开;非托管行为 null。
+   * 历史托管展示标记，不作为执行身份。账号执行须由 musefold-cloud 类型与
+   * 主进程捕获的账号、服务及持久执行记录共同校验；自建连接为 null。
    */
   managedBy: z.enum(['account']).nullable().default(null),
   createdAt: isoDateTimeSchema,

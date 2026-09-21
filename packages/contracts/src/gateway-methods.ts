@@ -13,6 +13,7 @@ export const DESIGN_SCHEME_METHOD_NAMES = [
   'designSchemes.modify',
   'designSchemes.prepareRun',
   'designSchemes.remove',
+  'designSchemes.purge',
   'designSchemes.rename',
   'designSchemes.run',
   'designSchemes.searchMarket',
@@ -35,18 +36,44 @@ export const V25_METHODS_BY_DOMAIN = {
   settings: ['settings.getPreferences', 'settings.updatePreferences'],
   account: [
     'account.getStatus',
+    'account.getNotices',
     'account.login',
     'account.register',
     'account.logout',
     'account.redeem',
+    'account.retryRecovery',
+    'account.inspectRecovery',
+    'account.verifyOriginalSession',
+    'account.createIndependentWorkspace',
+    'account.getExecutionBinding',
+    'account.getModelCatalog',
+    'account.listLoginSessions',
+    'account.getLoginCapacityReview',
+    'account.completeLoginCapacity',
+    'account.cancelLoginCapacity',
+    'account.revokeLoginSessions',
+    'account.touchLoginSession',
+    'account.getLoginReleaseStatus',
   ],
   sync: [
     'sync.getStatus',
+    'sync.listLocalWorkspaces',
+    'sync.previewLocalWorkspace',
+    'sync.prepareLocalWorkspace',
     'sync.setConsent',
     'sync.listConflicts',
     'sync.resolveConflict',
     'sync.setEnabled',
     'sync.syncNow',
+  ],
+  accountCloud: [
+    'accountCloud.getStatus',
+    'accountCloud.connect',
+    'accountCloud.resume',
+    'accountCloud.listRecovery',
+    'accountCloud.listLegacy',
+    'accountCloud.reconcile',
+    'accountCloud.cancel',
   ],
   aiProviders: [
     'aiProviders.list',
@@ -85,6 +112,20 @@ export const V25_METHODS_BY_DOMAIN = {
     'system.openProductDocs',
     'system.relaunch',
   ],
+  // 开放能力 / 本地控制面(桌面专属可选域):设置「开放能力」三张卡 + 壳级确认卡。
+  // 令牌只以掩码下发,复制经主进程剪贴板(automation.copyToken),渲染层拿不到明文;
+  // 确认事件走 preload `automation:confirmation*` 独立通道,不进本方法表。
+  automation: [
+    'automation.getStatus',
+    'automation.setEnabled',
+    'automation.rotateToken',
+    'automation.copyToken',
+    'automation.setMonthlyBudget',
+    'automation.listRequestLog',
+    'automation.listSpendAudit',
+    'automation.resolveConfirmation',
+    'automation.getIntegrationGuide',
+  ],
   prompts: [
     'prompts.list',
     'prompts.get',
@@ -111,6 +152,8 @@ export const V25_METHODS_BY_DOMAIN = {
     'workbench.updateSession',
     'workbench.removeSession',
     'workbench.restoreSession',
+    'workbench.purgeSession',
+    'workbench.emptyTrash',
   ],
   generation: [
     'generation.create',
@@ -123,12 +166,18 @@ export const V25_METHODS_BY_DOMAIN = {
     'generation.purge',
     'generation.listProviders',
     'generation.uploadReferenceImage',
+    'generation.releaseReferenceImage',
     'generation.saveAsset',
     'generation.cleanup',
     'generation.getStorageUsage',
     'generation.revealAsset',
     'generation.copyAssetToClipboard',
   ],
+  // 使用统计(双端必选):设置「使用统计」卡,桌面聚合 SQLite,云端聚合 PG 生成任务表。
+  usage: ['usage.summary'],
+  // Cloud MCP 已连接应用(双端可选域):列出/撤销当前用户已授权的 OAuth 客户端。
+  // 出参 secret-free;自定义账号服务器由桌面域抛 CLOUD_MCP_CUSTOM_SERVER。
+  cloudMcp: ['cloudMcp.listAuthorizations', 'cloudMcp.revokeAuthorization'],
 } as const;
 
 export const V25_METHOD_NAMES = Object.values(V25_METHODS_BY_DOMAIN).flat() as [

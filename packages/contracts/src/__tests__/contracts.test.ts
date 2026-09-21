@@ -581,6 +581,13 @@ describe('cloud-safe contracts', () => {
 
     // 用时/种子是后加的展示字段:旧行缺省即缺席,消费方不得伪造 0(ui-parity 05 §7)。
     const legacyParsed = generationJobSchema.parse(legacyJob);
+    expect(
+      generationJobSchema.parse({
+        ...legacyJob,
+        status: 'failed',
+        error: { code: 'GENERATION_RETRY_MODEL_MISSING', message: '原模型无法核对，请新建生成。' },
+      }).error?.code,
+    ).toBe('GENERATION_RETRY_MODEL_MISSING');
     expect(legacyParsed.durationMs).toBeUndefined();
     expect(legacyParsed.seed).toBeUndefined();
     const reported = generationJobSchema.parse({ ...legacyJob, durationMs: 1_500, seed: 42 });
@@ -776,14 +783,20 @@ describe('cloud-safe contracts', () => {
         to: '2026-08-31T23:59:59.999Z',
         providerModel: 'musefold-image-pro',
         search: '建筑',
+        promptId: 'prompt-related-1',
       }),
     ).toMatchObject({
       limit: 20,
       includeDeleted: false,
       status: 'failed',
       providerModel: 'musefold-image-pro',
+      promptId: 'prompt-related-1',
     });
     expect(generationHistoryQuerySchema.safeParse({ status: 'success' }).success).toBe(false);
+    expect(generationHistoryQuerySchema.safeParse({ promptId: '' }).success).toBe(false);
+    expect(generationHistoryQuerySchema.safeParse({ promptId: 'x'.repeat(65) }).success).toBe(
+      false,
+    );
   });
 
   it('defaults and parses the archived-only workbench list filter', () => {

@@ -3,6 +3,7 @@ import pg from 'pg';
 import * as schema from './schema/index.js';
 
 export type MusefoldDatabase = ReturnType<typeof createDatabase>['db'];
+export type MusefoldTransaction = Parameters<Parameters<MusefoldDatabase['transaction']>[0]>[0];
 
 /** api 与 worker 共用的连接工厂;调用方负责生命周期(shutdown 时 pool.end)。 */
 export function createDatabase(connectionString: string, options?: { max?: number }) {

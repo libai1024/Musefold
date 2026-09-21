@@ -18,6 +18,13 @@ let userDataDir: string;
 function seedRuns(dbPath: string): void {
   const db = new Database(dbPath);
   const now = Date.now();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayStart = startOfToday.getTime();
+  const seedTime = (offsetMinutes: number) => {
+    const raw = now - offsetMinutes * 60_000;
+    return raw >= todayStart ? raw : todayStart + (70 - offsetMinutes) * 1000;
+  };
   const insert = db.prepare(
     `INSERT INTO generation_runs (
        id, run_kind, workbench_session_id, parent_run_id, provider_id, model,
@@ -39,8 +46,8 @@ function seedRuns(dbPath: string): void {
     status: 'success',
     error_code: null,
     error_message: null,
-    created_at: now - 30 * 60_000,
-    finished_at: now - 30 * 60_000 + 8_000,
+    created_at: seedTime(30),
+    finished_at: seedTime(30) + 8_000,
   });
   insert.run({
     id: 'run-e2e-a2',
@@ -50,8 +57,8 @@ function seedRuns(dbPath: string): void {
     status: 'success',
     error_code: null,
     error_message: null,
-    created_at: now - 20 * 60_000,
-    finished_at: now - 20 * 60_000 + 9_000,
+    created_at: seedTime(20),
+    finished_at: seedTime(20) + 9_000,
   });
   insert.run({
     id: 'run-e2e-b',
@@ -61,8 +68,8 @@ function seedRuns(dbPath: string): void {
     status: 'failed',
     error_code: 'PROVIDER_REJECTED',
     error_message: '上游拒绝了请求',
-    created_at: now - 10 * 60_000,
-    finished_at: now - 10 * 60_000 + 2_000,
+    created_at: seedTime(10),
+    finished_at: seedTime(10) + 2_000,
   });
   // 种子写进参数快照(runSeed 从 params_json 读),用时用 duration_ms 列的权威口径。
   db.prepare(

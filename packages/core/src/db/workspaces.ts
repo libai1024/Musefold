@@ -295,13 +295,19 @@ function rebuildWorkspaceFts(db: Database.Database, workspaceId: string): void {
  * Explicit adoption only. Legacy rows are copied into an account workspace and
  * remain intact in local-only-legacy. No login or sync path calls this function.
  */
-export function adoptLegacyWorkspace(
+export function adoptLegacyWorkspace(db: Database.Database, ownerId: string, now = Date.now()) {
+  return copyLocalWorkspace(db, LEGACY_WORKSPACE_ID, ownerId, now);
+}
+
+/** Copy a user-selected local container; never infer a historical account's ownership. */
+export function copyLocalWorkspace(
   db: Database.Database,
+  source: string,
   ownerId: string,
   now = Date.now(),
 ): {
   workspaceId: string;
-  sourceWorkspaceId: typeof LEGACY_WORKSPACE_ID;
+  sourceWorkspaceId: string;
   folders: number;
   prompts: number;
   tags: number;
@@ -311,17 +317,44 @@ export function adoptLegacyWorkspace(
   copiedOutbox: 0;
   copiedUsageOutbox: 0;
 } {
-  const source: typeof LEGACY_WORKSPACE_ID = LEGACY_WORKSPACE_ID;
   return db.transaction(() => {
+    if (!db.prepare('SELECT 1 FROM local_workspaces WHERE id = ?').get(source)) {
+      throw new Error('Local workspace source not found');
+    }
+    if (source === accountWorkspaceId(ownerId))
+      throw new Error('Cannot copy a workspace into itself');
     const workspaceId = ensureAccountWorkspaceRecord(db, ownerId, now);
     const folders = db
       .prepare(
         'SELECT id, name, parent_id, sort_order, created_at FROM folders WHERE workspace_id = ?',
       )
       .all(source) as Array<Record<string, unknown>>;
-    const prompts = db
-      .prepare('SELECT * FROM prompts WHERE workspace_id = ? ORDER BY rowid')
-      .all(source) as Array<Record<string, unknown>>;
+    function* readPrompts(): Generator<Record<string, unknown>> {
+      let after: number | undefined;
+      const firstPage = db.prepare(
+        'SELECT rowid AS source_rowid, * FROM prompts WHERE workspace_id = ? ORDER BY rowid LIMIT 20',
+      );
+      const nextPage = db.prepare(
+        'SELECT rowid AS source_rowid, * FROM prompts WHERE workspace_id = ? AND rowid > ? ORDER BY rowid LIMIT 20',
+      );
+      while (true) {
+        // Writes cannot run while a better-sqlite3 iterator is open. Keyset
+        // pages close the read statement before each copy/FTS write.
+        const rows = (
+          after === undefined ? firstPage.all(source) : nextPage.all(source, after)
+        ) as Array<Record<string, unknown> & { source_rowid: number }>;
+        if (rows.length === 0) return;
+        for (const row of rows) {
+          after = row.source_rowid;
+          yield row;
+        }
+      }
+    }
+    const promptTotals = db
+      .prepare(
+        'SELECT COUNT(*) AS count, COALESCE(SUM(usage_count), 0) AS usage FROM prompts WHERE workspace_id = ?',
+      )
+      .get(source) as { count: number; usage: number };
     const tags = db
       .prepare('SELECT id, name, tag_group, color, created_at FROM tags WHERE workspace_id = ?')
       .all(source) as Array<Record<string, unknown>>;
@@ -352,10 +385,10 @@ export function adoptLegacyWorkspace(
         workspaceId,
         sourceWorkspaceId: source,
         folders: folders.length,
-        prompts: prompts.length,
+        prompts: promptTotals.count,
         tags: tags.length,
         promptTags: links.length,
-        copiedUsage: prompts.reduce((total, row) => total + Number(row.usage_count ?? 0), 0),
+        copiedUsage: promptTotals.usage,
         copiedEntityState: 0 as const,
         copiedOutbox: 0 as const,
         copiedUsageOutbox: 0 as const,
@@ -397,8 +430,15 @@ export function adoptLegacyWorkspace(
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const tagNames = new Map(tags.map((row) => [String(row.id), String(row.name)]));
-    let copiedUsage = 0;
-    for (const row of prompts) {
+    const tagsByPrompt = new Map<string, string[]>();
+    for (const link of links) {
+      const name = tagNames.get(link.tag_id);
+      if (!name) continue;
+      const names = tagsByPrompt.get(link.prompt_id) ?? [];
+      names.push(name);
+      tagsByPrompt.set(link.prompt_id, names);
+    }
+    for (const row of readPrompts()) {
       insertPrompt.run(
         workspaceId,
         row.id,
@@ -421,7 +461,6 @@ export function adoptLegacyWorkspace(
         row.updated_at,
         row.deleted_at,
       );
-      copiedUsage += Number(row.usage_count ?? 0);
     }
 
     const insertLink = db.prepare(
@@ -434,14 +473,11 @@ export function adoptLegacyWorkspace(
       `INSERT INTO prompts_fts (rowid, title, description, content, tags_index)
        VALUES (?, ?, ?, ?, ?)`,
     );
-    for (const row of prompts) {
+    for (const row of readPrompts()) {
       const target = db
         .prepare('SELECT rowid FROM prompts WHERE workspace_id = ? AND id = ?')
         .get(workspaceId, row.id) as { rowid: number };
-      const promptTags = links
-        .filter((link) => link.prompt_id === row.id)
-        .map((link) => tagNames.get(link.tag_id) ?? '')
-        .filter(Boolean);
+      const promptTags = tagsByPrompt.get(String(row.id)) ?? [];
       insertFts.run(
         target.rowid,
         row.title,
@@ -460,10 +496,10 @@ export function adoptLegacyWorkspace(
       workspaceId,
       sourceWorkspaceId: source,
       folders: folders.length,
-      prompts: prompts.length,
+      prompts: promptTotals.count,
       tags: tags.length,
       promptTags: links.length,
-      copiedUsage,
+      copiedUsage: promptTotals.usage,
       // Cloud state/outbox contains owner/device/version identity. It must be
       // recreated for the target owner by seedUnsyncedEntities, never copied.
       copiedEntityState: 0 as const,

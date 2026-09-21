@@ -6,6 +6,7 @@
  * 流程：校验输入 → 编译提示词 → 逐张生图 → 运行记录/相册落库，全程推事件。
  */
 import type Database from 'better-sqlite3';
+import { retainDesignSchemeOperation } from '@musefold/core/services/design-scheme-lifetime';
 import { ulid } from 'ulid';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import {
@@ -40,6 +41,9 @@ export interface RunSessionDeps {
   /** Keep the run in evaluating until a host adapter validates its canonical result. */
   deferTerminalStatus?: boolean;
   signal: AbortSignal;
+  /** Optional local automation guard; legacy/trial/UI callers retain their existing semantics. */
+  validateDocument?: (document: DesignSchemeRevisionDocument) => void;
+  generate?: typeof runProviderGeneration;
 }
 
 interface PreparedRun {
@@ -48,6 +52,18 @@ interface PreparedRun {
 }
 
 export async function runDesignScheme(
+  request: StartDesignSchemeRunRequest,
+  deps: RunSessionDeps,
+): Promise<AppResult<DesignSchemeRunResult>> {
+  const release = retainDesignSchemeOperation(deps.db, request.schemeId);
+  try {
+    return await runRetainedDesignScheme(request, deps);
+  } finally {
+    release();
+  }
+}
+
+async function runRetainedDesignScheme(
   request: StartDesignSchemeRunRequest,
   deps: RunSessionDeps,
 ): Promise<AppResult<DesignSchemeRunResult>> {
@@ -72,6 +88,7 @@ export async function runDesignScheme(
     return prepared;
   }
   const { document, schemeName } = prepared.data;
+  deps.validateDocument?.(document);
   const runId = request.runId ?? `dsr_${ulid()}`;
   const modeLabel = request.mode === 'trial' ? '试运行' : '正式运行';
   // 每次运行保存当时的优先级快照（设计规范 §4.3）；缺省按「方案主导」。
@@ -90,6 +107,9 @@ export async function runDesignScheme(
     provider: {
       providerId: request.generation.requestTemplate.providerId,
       providerName: request.generation.providerName,
+      ...(request.generation.requestTemplate.model === undefined
+        ? {}
+        : { model: request.generation.requestTemplate.model }),
     },
   });
   if (request.repair) {
@@ -222,12 +242,16 @@ export async function runDesignScheme(
       n: 1,
       workbench: template.workbench ? { ...template.workbench, resultIndex } : undefined,
     };
-    const result = await runProviderGeneration(generateRequest, deps.sendProgress, {
-      ...(deps.coreDb ? { db: deps.coreDb } : {}),
-      promptAlreadyComposed: true,
-      userPrompt: request.brief,
-      signal: deps.signal,
-    });
+    const result = await (deps.generate ?? runProviderGeneration)(
+      generateRequest,
+      deps.sendProgress,
+      {
+        ...(deps.coreDb ? { db: deps.coreDb } : {}),
+        promptAlreadyComposed: true,
+        userPrompt: request.brief,
+        signal: deps.signal,
+      },
+    );
     const outcome: DesignSchemeRunGeneration = { jobId, resultIndex, result };
     if (request.mode === 'trial' && result.status === 'success' && result.imagePath) {
       // 首次成功试运行结果自动加入草稿相册（UI 规范 §5.2）；失败结果不进入相册。

@@ -64,10 +64,10 @@ const RESTORE_FALLBACK_MESSAGES: Record<string, string> = {
   BACKUP_NOT_FOUND: '备份不存在、已移动或不是普通文件',
   INVALID_BACKUP: '备份文件损坏或不是 Musefold 数据库备份',
   INCOMPATIBLE_BACKUP: '备份来自更高版本的 Musefold,请先升级应用',
-  RESTORE_FAILED: '恢复数据库失败,当前数据未被替换',
+  RESTORE_FAILED: '恢复未完成,请重启应用并核对备份',
 };
 
-const RESTORE_FAILED_MESSAGE = '恢复数据库失败,当前数据未被替换';
+const RESTORE_FAILED_MESSAGE = '恢复未完成,请重启应用并核对备份';
 
 /** 带路径(或异常冗长)的底层 message 一律换成静态文案:渲染层错误不泄漏绝对路径。 */
 function pathFreeMessage(message: string, fallback: string): string {

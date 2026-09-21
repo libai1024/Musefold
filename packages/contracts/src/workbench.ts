@@ -75,6 +75,11 @@ export const workbenchSessionPageSchema = z.object({
   nextCursor: paginationCursorSchema.nullable(),
 });
 
+/** Permanently removed Sessions only; generation, assets and cost records are retained. */
+export const workbenchSessionCleanupResultSchema = z.object({
+  purged: z.number().int().nonnegative(),
+});
+
 export const workbenchSessionListQuerySchema = z.object({
   cursor: paginationCursorSchema.optional(),
   limit: queryIntegerSchema.pipe(z.number().int().min(1).max(100)).default(20),
@@ -82,7 +87,43 @@ export const workbenchSessionListQuerySchema = z.object({
   includeDeleted: queryBooleanSchema.default(false),
   /** 已归档聊天视图:只返回已归档且未软删的会话,优先于其他包含开关。 */
   archivedOnly: queryBooleanSchema.default(false),
+  /** 回收站包含普通及已归档的软删会话；优先于所有归档/包含开关。 */
+  deletedOnly: queryBooleanSchema.default(false),
 });
+
+/** Effective query scope, also bound into opaque cursors to reject filter changes. */
+export const workbenchSessionFilterSchema = z.enum([
+  'active',
+  'live',
+  'unarchived',
+  'all',
+  'archived',
+  'trash',
+]);
+
+export function getWorkbenchSessionFilter(
+  query: z.output<typeof workbenchSessionListQuerySchema>,
+): z.infer<typeof workbenchSessionFilterSchema> {
+  if (query.deletedOnly) return 'trash';
+  if (query.archivedOnly) return 'archived';
+  if (query.includeArchived) return query.includeDeleted ? 'all' : 'live';
+  return query.includeDeleted ? 'unarchived' : 'active';
+}
+
+/** Private paging token shape. Entity timestamps retain the public response grammar. */
+export const workbenchSessionCursorSchema = z
+  .object({
+    version: z.literal(1),
+    store: z.enum(['postgres', 'sqlite']),
+    filter: workbenchSessionFilterSchema,
+    id: entityIdSchema.refine((value) => !value.includes('\0')),
+    // PG sorting needs all six fractional digits; SQLite emits its milliseconds padded to six.
+    updatedAt: z
+      .string()
+      .datetime({ precision: 6 })
+      .refine((value) => !value.startsWith('0000-')),
+  })
+  .strict();
 
 export const generationHistoryQuerySchema = z.object({
   cursor: paginationCursorSchema.optional(),
@@ -94,6 +135,8 @@ export const generationHistoryQuerySchema = z.object({
   to: isoDateTimeSchema.optional(),
   providerModel: z.string().trim().min(1).max(128).optional(),
   search: z.string().trim().max(200).optional(),
+  /** 提示词详情「相关作品」:按来源 promptId 服务端过滤,不再扫最近一页再客户端筛。 */
+  promptId: entityIdSchema.optional(),
   includeDeleted: queryBooleanSchema.default(false),
   /** 回收站视图:只返回已软删的记录(true 时忽略 includeDeleted)。 */
   deletedOnly: queryBooleanSchema.default(false),
@@ -110,6 +153,7 @@ export type WorkbenchSession = z.infer<typeof workbenchSessionSchema>;
 export type CreateWorkbenchSession = z.input<typeof createWorkbenchSessionSchema>;
 export type UpdateWorkbenchSession = z.infer<typeof updateWorkbenchSessionSchema>;
 export type WorkbenchSessionPage = z.infer<typeof workbenchSessionPageSchema>;
+export type WorkbenchSessionCleanupResult = z.infer<typeof workbenchSessionCleanupResultSchema>;
 export type GenerationHistoryPage = z.infer<typeof generationHistoryPageSchema>;
 export type WorkbenchSessionListQuery = z.input<typeof workbenchSessionListQuerySchema>;
 export type ParsedWorkbenchSessionListQuery = z.output<typeof workbenchSessionListQuerySchema>;

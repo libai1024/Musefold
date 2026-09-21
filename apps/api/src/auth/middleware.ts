@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { AppError } from '../lib/errors.js';
 import type { MusefoldAuth } from './index.js';
+import type { AccountService } from '../modules/account/service.js';
 
 export interface AuthedVariables {
   userId: string;
@@ -16,11 +17,36 @@ export type AuthedEnv = { Variables: AuthedVariables };
 export function requireSession(
   auth: MusefoldAuth,
   trustedOrigins: readonly string[],
+  account?: Pick<AccountService, 'assertSessionAuthorization'>,
 ): MiddlewareHandler<AuthedEnv> {
   return async (c, next) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    const session = await auth.api.getSession({
+      headers: c.req.raw.headers,
+      query: { disableCookieCache: true },
+    });
     if (!session) {
       throw new AppError('AUTH_REQUIRED', '请先登录', 401);
+    }
+    if (account) {
+      const recoveryRead =
+        c.req.method === 'GET' &&
+        ['/account/status', '/account/execution-binding'].some(
+          (path) => c.req.path === path || c.req.path === `/api/v1${path}`,
+        );
+      const recoveryWrite =
+        c.req.method === 'POST' &&
+        (c.req.path === '/api/v1/account/login-sessions/touch' ||
+          c.req.path === '/account/login-sessions/touch' ||
+          ['/retry', '/inspect', '/verify-original-session', '/independent-workspace'].some(
+            (action) =>
+              c.req.path === `/account/recovery${action}` ||
+              c.req.path === `/api/v1/account/recovery${action}`,
+          ));
+      await account.assertSessionAuthorization(
+        session.session.id,
+        session.user.id,
+        recoveryRead || recoveryWrite,
+      );
     }
     const usesBearer = c.req.header('authorization')?.toLowerCase().startsWith('bearer ') ?? false;
     if (!usesBearer && c.req.method !== 'GET' && c.req.method !== 'HEAD') {

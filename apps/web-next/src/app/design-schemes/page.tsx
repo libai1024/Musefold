@@ -6,12 +6,12 @@ import { entityIdSchema } from '@musefold/contracts';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { createWorkbenchHref } from '../../lib/workbench-session-url';
+import { schemeAssetContentUrl } from '../../lib/scheme-asset-url';
 
 /**
  * 设计方案路由(P01-7 挂载):列表/详情/CRUD 走云端确定性语义;
- * 市场搜索、导入/导出与 run/创建/修改管线云端未部署——对应入口禁用并解释
- * 或就地呈现可读不可用错误(I4),资产展示地址解析器(resolveAssetUrl)同样
- * 待云端资产面落地后注入,当前渲染占位图标。
+ * 云端运行、市场与导入预览经共享 gateway；正式包交付和 Agent 产品接入继续推进。
+ * 图片由同源受保护接口读取，宿主只注入地址解析接缝。
  */
 function DesignSchemesView() {
   const router = useRouter();
@@ -44,6 +44,7 @@ function DesignSchemesView() {
         onDetailBack={() => router.replace('/design-schemes')}
         onDetailRemoved={() => router.replace('/design-schemes')}
         actions={actions}
+        resolveAssetUrl={schemeAssetContentUrl}
       />
     </div>
   );

@@ -1,3 +1,14 @@
+import {
+  legacyDesignSchemeDocumentToCanonical,
+  canonicalDesignSchemeDocumentToLegacy as toLegacyDocument,
+} from '@musefold/contracts';
+import { readRevisionAssetIds } from '@musefold/core/db/design-scheme/revision-assets';
+import { DesignSchemeListCursorError } from '@musefold/core/db/design-scheme/list-cursor';
+import {
+  purgeLocalDesignScheme,
+  drainDesignSchemeAssetCleanup,
+} from '@musefold/core/services/design-scheme-purge';
+import { purgeDesignSchemeInputSchema } from '@musefold/contracts';
 // v2.5 design-scheme IPC seam(P01-4 成功 adapter 切片 + P01-2 详情元数据 + P01-10 Agent 切片)。
 //
 // 本文件把已部署的 17 个 `designSchemes.*` 方法接到保留的本地 runtime:
@@ -79,6 +90,7 @@ import type {
 import type { LocalImageReference } from '@musefold/desktop-contracts/providers';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
+import { resolveE2eSavePackageDialog } from '../design-scheme/e2e-dialogs';
 import {
   app,
   dialog,
@@ -215,6 +227,9 @@ function firstZodIssue(error: z.ZodError): string {
 
 /** 仓库/运行时异常 → 稳定 BridgeError;未知异常原样抛出,由 bridge 统一脱敏。 */
 function mapDomainError(error: unknown, fallback: string): never {
+  if (error instanceof DesignSchemeListCursorError) {
+    throw new BridgeError('VALIDATION_FAILED', error.message);
+  }
   if (error instanceof BridgeError) throw error;
   if (error instanceof DesignSchemeVersionConflictError) {
     throw new BridgeError('DESIGN_SCHEME_VERSION_CONFLICT', safeMessage(error, fallback));
@@ -242,8 +257,7 @@ function toCanonicalSummary(summary: LegacySummary): z.output<typeof designSchem
     summary: summary.summary,
     status: summary.status,
     sourcePresentation: summary.sourcePresentation,
-    // 空字符串交给 schema default(''),否则 min(1) 会拒绝。
-    ...(summary.sourceLabel ? { sourceLabel: summary.sourceLabel } : {}),
+    sourceLabel: summary.sourceLabel,
     currentRevisionId: summary.currentRevisionId,
     version: summary.version,
     ...(summary.workingDraftRevisionId != null
@@ -267,129 +281,13 @@ function toCanonicalSummary(summary: LegacySummary): z.output<typeof designSchem
   return parsed.data;
 }
 
-/** canonical trace 的已收敛子集(legacy 文档枚举无 'running')。 */
-type SettledTraceItem = Omit<
-  DesignSchemeRevisionDocument['compilation']['trace'][number],
-  'status'
-> & { status: 'success' | 'warning' | 'error' };
-
-/** canonical document → legacy document(写路径;别名归一,canonical-only 字段不入库)。 */
-function toLegacyDocument(document: DesignSchemeRevisionDocument): LegacyDocument {
-  return {
-    schemaVersion: document.schemaVersion,
-    revisionId: document.revisionId,
-    schemeId: document.schemeId,
-    name: document.name,
-    summary: document.summary,
-    fidelity: document.fidelity,
-    sources: document.sources.map((source) => {
-      const uri = source.repositoryUrl ?? source.uri;
-      const ref = source.resolvedRef ?? source.ref;
-      const commit = source.commitHash ?? source.commit;
-      const filePath = source.relativePath ?? source.evidencePath;
-      const contentHash = source.contentHash ?? source.hash;
-      return {
-        id: source.id,
-        kind: source.kind,
-        role: source.role,
-        ...(uri ? { uri } : {}),
-        ...(ref ? { ref } : {}),
-        ...(commit ? { commit } : {}),
-        // 仓库内相对路径;canonical evidencePath 别名归一到 filePath。
-        ...(filePath ? { filePath } : {}),
-        ...(contentHash ? { contentHash } : {}),
-        ...(source.packageId ? { packageId: source.packageId } : {}),
-        ...(source.snapshotId ? { snapshotId: source.snapshotId } : {}),
-        ...(source.license != null ? { license: source.license } : {}),
-      } satisfies LegacySourceBinding;
-    }),
-    ...(document.sourceSnapshotIds ? { sourceSnapshotIds: document.sourceSnapshotIds } : {}),
-    ...(document.assetIds ? { assetIds: document.assetIds } : {}),
-    inputs: document.inputs,
-    parameters: document.parameters,
-    // legacy 约束没有 evidencePath:有损,证据来源以 sourceIds 保留。
-    constraints: document.constraints.map((constraint) => ({
-      id: constraint.id,
-      domain: constraint.domain,
-      statement: constraint.statement,
-      mode: constraint.mode,
-      sourceIds: constraint.sourceIds,
-      userOverridable: constraint.userOverridable,
-    })),
-    promptProgram: document.promptProgram,
-    compilation: {
-      compiledAt:
-        typeof document.compilation.compiledAt === 'string'
-          ? Date.parse(document.compilation.compiledAt)
-          : document.compilation.compiledAt,
-      model: document.compilation.model,
-      adopted: document.compilation.adopted,
-      omitted: document.compilation.omitted,
-      warnings: document.compilation.warnings,
-      ...(document.compilation.briefExcerpt != null
-        ? { briefExcerpt: document.compilation.briefExcerpt }
-        : {}),
-      // legacy trace 无 kind/output 字段:有损,步骤状态与结论保留;
-      // 'running' 是瞬态,不可变文档里直接落库会破坏 legacy 枚举,创建时视为已结束丢弃。
-      trace: document.compilation.trace
-        .filter((item): item is SettledTraceItem => item.status !== 'running')
-        .map((item) => ({
-          id: item.id,
-          title: item.title,
-          ...(item.detail != null ? { detail: item.detail } : {}),
-          status: item.status,
-          ...(item.durationMs != null ? { durationMs: item.durationMs } : {}),
-        })),
-    },
-  };
-}
-
-/**
- * legacy 来源 uri → canonical:共享契约只接受 HTTPS;v2.1 历史来源写过 `history:<id>` 伪 URI,
- * 其身份已由 revision 的快照绑定表达,这里降级丢弃而不是让整份文档不可读。
- */
-function canonicalSourceUri(uri: string | undefined): { uri: string } | Record<string, never> {
-  return uri && /^https:\/\//i.test(uri) ? { uri } : {};
-}
-
 /** legacy document → canonical document(读路径);不可表示时结构化失败。 */
 function toCanonicalDocument(document: LegacyDocument): DesignSchemeRevisionDocument {
-  const candidate = {
-    schemaVersion: document.schemaVersion,
-    revisionId: document.revisionId,
-    schemeId: document.schemeId,
-    name: document.name,
-    summary: document.summary,
-    fidelity: document.fidelity,
-    sources: document.sources.map((source) => ({
-      id: source.id,
-      kind: source.kind,
-      role: source.role,
-      ...canonicalSourceUri(source.uri),
-      ...(source.ref ? { resolvedRef: source.ref } : {}),
-      ...(source.commit ? { commitHash: source.commit } : {}),
-      ...(source.filePath ? { relativePath: source.filePath } : {}),
-      ...(source.contentHash ? { contentHash: source.contentHash } : {}),
-      ...(source.packageId ? { packageId: source.packageId } : {}),
-      ...(source.snapshotId ? { snapshotId: source.snapshotId } : {}),
-      ...(source.license != null ? { license: source.license } : {}),
-    })),
-    ...(document.sourceSnapshotIds ? { sourceSnapshotIds: document.sourceSnapshotIds } : {}),
-    ...(document.assetIds ? { assetIds: document.assetIds } : {}),
-    inputs: document.inputs,
-    parameters: document.parameters,
-    constraints: document.constraints,
-    promptProgram: document.promptProgram,
-    compilation: document.compilation,
-  };
-  const parsed = designSchemeRevisionDocumentSchema.safeParse(candidate);
-  if (!parsed.success) {
-    throw new BridgeError(
-      'DESIGN_SCHEME_DOCUMENT_UNMAPPABLE',
-      `方案版本 ${document.revisionId} 无法映射为共享契约:${firstZodIssue(parsed.error)}`,
-    );
+  try {
+    return legacyDesignSchemeDocumentToCanonical(document);
+  } catch {
+    throw new BridgeError('DESIGN_SCHEME_DOCUMENT_UNMAPPABLE', '方案版本无法映射为共享契约');
   }
-  return parsed.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -483,26 +381,9 @@ function toCanonicalSourceSnapshot(snapshot: SourceSnapshotMetadataRow) {
     totalBytes: snapshot.totalBytes,
     files,
     createdAt: snapshot.createdAt,
+    ...(snapshot.historyItems ? { historyItems: snapshot.historyItems } : {}),
   });
   return parsed.success ? parsed.data : null;
-}
-
-// ---------------------------------------------------------------------------
-// 列表过滤与游标(仓库 listSummaries 上限 200,内存分页)。
-// ---------------------------------------------------------------------------
-
-function parseOffsetCursor(cursor: string | undefined): number {
-  if (!cursor) return 0;
-  const offset = Number.parseInt(cursor, 10);
-  return Number.isFinite(offset) && offset >= 0 ? offset : 0;
-}
-
-function matchesQuery(summary: LegacySummary, term: string): boolean {
-  const needle = term.trim().toLowerCase();
-  if (!needle) return true;
-  return [summary.name, summary.summary, summary.sourceLabel, summary.id]
-    .filter((value): value is string => Boolean(value))
-    .some((value) => value.toLowerCase().includes(needle));
 }
 
 // ---------------------------------------------------------------------------
@@ -687,7 +568,13 @@ export function buildDesignSchemesDomainMethods(
   const importPackageFn: ImportPackageFn = deps.importPackage ?? importDesignScheme;
   const exportPackageFn: ExportPackageFn = deps.exportPackage ?? exportDesignScheme;
   const showSaveDialog: ShowSaveDialogFn =
-    deps.showSaveDialog ?? ((options) => dialog.showSaveDialog(options));
+    deps.showSaveDialog ??
+    (async (options) => {
+      const e2e = resolveE2eSavePackageDialog();
+      if (e2e?.canceled) return { canceled: true, filePath: '' };
+      if (e2e) return { canceled: false, filePath: e2e.filePath };
+      return dialog.showSaveDialog(options);
+    });
   const runtimeDeps = () => {
     const paths = getPaths();
     return {
@@ -748,20 +635,10 @@ export function buildDesignSchemesDomainMethods(
       async handle(raw) {
         const query = raw as ParsedDesignSchemeListQuery;
         try {
-          const summaries = repository()
-            .listSummaries()
-            .filter(
-              (summary) =>
-                (!query.status || summary.status === query.status) &&
-                (!query.fidelity || summary.fidelity === query.fidelity) &&
-                matchesQuery(summary, query.query ?? ''),
-            );
-          const offset = parseOffsetCursor(query.cursor);
-          const page = summaries.slice(offset, offset + query.limit);
+          const page = repository().listSummaryPage(query);
           return {
-            items: page.map(toCanonicalSummary),
-            nextCursor:
-              offset + query.limit < summaries.length ? String(offset + query.limit) : null,
+            items: page.items.map(toCanonicalSummary),
+            nextCursor: page.nextCursor,
           };
         } catch (error) {
           mapDomainError(error, '读取方案列表失败');
@@ -1191,6 +1068,34 @@ export function buildDesignSchemesDomainMethods(
         }
       },
     },
+    [DESIGN_SCHEME_WIRE_METHODS.purge]: {
+      input: purgeDesignSchemeInputSchema,
+      async handle(raw) {
+        const input = purgeDesignSchemeInputSchema.parse(raw);
+        const paths = getPaths();
+        const options = {
+          db: deps.db ?? getDesignSchemeDb(),
+          coreDb: deps.coreDb ?? getDb(),
+          paths: {
+            ...paths,
+            userData: deps.userDataDir ?? paths.userData,
+            pictures: deps.picturesDir ?? paths.pictures,
+          },
+        };
+        try {
+          const result = purgeLocalDesignScheme(input, options);
+          // A best-effort drain cannot turn a committed purge into a misleading action failure.
+          try {
+            drainDesignSchemeAssetCleanup(options);
+          } catch {
+            /* durable queue retries on host maintenance */
+          }
+          return result;
+        } catch (error) {
+          mapDomainError(error, '永久删除方案失败');
+        }
+      },
+    },
     [DESIGN_SCHEME_WIRE_METHODS.checkUpdate]: {
       input: checkDesignSchemeUpdateInputSchema,
       async handle(raw) {
@@ -1269,8 +1174,8 @@ export function buildDesignSchemesDomainMethods(
           const imported = await consumeStagedPackage(
             context.senderId,
             input,
-            async (packagePath) => {
-              const result = await importPackageFn(packagePath, shareDeps());
+            async (packagePath, bytes) => {
+              const result = await importPackageFn(packagePath, shareDeps(), bytes);
               if (!result.ok) {
                 throw new BridgeError(
                   'DESIGN_SCHEME_PACKAGE_IMPORT_FAILED',
@@ -1344,23 +1249,32 @@ export function buildDesignSchemesDomainMethods(
       async handle(raw) {
         const input = raw as ParsedPrepareDesignSchemeRunInput;
         const schemeDb = resolveDb();
+        const coreDb = deps.coreDb ?? getDb();
+        const { readDesktopDesignSchemeProvider } = await import(
+          '../design-scheme/provider-snapshot'
+        );
+        const provider = readDesktopDesignSchemeProvider(
+          coreDb,
+          input.executionSettings.providerId,
+        );
+        const cloudBinding =
+          provider.type === 'musefold-cloud'
+            ? await (await import('../../system/managed-run-runtime')).prepareManagedRunBinding(
+                provider.id,
+                input.executionSettings.model ?? provider.model,
+                input.executionSettings.expectedBinding,
+              )
+            : undefined;
         const resolveUploaded = deps.resolveUploadedReference ?? resolveUploadedReferenceById;
         return prepareDesignSchemeRunResultSchema.parse(
           prepareDesktopDesignSchemeRun(input, {
             designSchemeDb: schemeDb,
-            coreDb: deps.coreDb ?? getDb(),
+            coreDb,
+            cloudBinding,
             // 参考图 = 当前方案版本的资产,或 Composer 本次上传的暂存(与 run 阶段同一解析规则)。
             hasReferenceAsset: (assetId) =>
-              Boolean(
-                schemeDb
-                  .prepare(
-                    `SELECT 1 FROM design_scheme_assets a
-                       JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
-                      WHERE a.id = ? AND r.scheme_id = ? AND r.revision_id = ?
-                      LIMIT 1`,
-                  )
-                  .get(assetId, input.schemeId, input.revisionId),
-              ) || resolveUploaded(assetId) !== null,
+              readRevisionAssetIds(schemeDb, input.schemeId, input.revisionId).includes(assetId) ||
+              resolveUploaded(assetId) !== null,
           }),
         );
       },

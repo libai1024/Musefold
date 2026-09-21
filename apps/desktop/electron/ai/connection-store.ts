@@ -380,6 +380,12 @@ export class AiConnectionStore {
     return key;
   }
 
+  /** Main-process only; a backend without revision support cannot authorize durable sends. */
+  loadKeySnapshot(id: string): { key: string; epoch: string } | null {
+    this.require(id);
+    return this.secrets.snapshot?.(id) ?? null;
+  }
+
   updateCapabilities(
     id: string,
     capabilities: Partial<AiConnectionCapabilities>,

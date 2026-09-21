@@ -3,12 +3,7 @@ import {
   type DesignSchemeRevisionDocument,
 } from '@musefold/contracts';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import type {
-  NewApiClient,
-  RelayApiToken,
-  RelayAuthSession,
-  RelayUser,
-} from '@musefold/new-api-client';
+import { createFakeNewApi } from '../fixtures/fake-new-api.js';
 import {
   MAX_OBJECT_CLEANUP_ATTEMPTS,
   type MusefoldDatabase,
@@ -34,68 +29,6 @@ import { WorkbenchService } from '../../modules/workbench/service.js';
 const runDatabaseTests = process.env.RUN_DATABASE_TESTS === 'true';
 const describeDb = runDatabaseTests ? describe : describe.skip;
 
-const RELAY_USER: RelayUser = { id: 42, username: 'tester', quota: 2_000_000, group: 'default' };
-
-function relaySession(): RelayAuthSession {
-  return {
-    jwt: `jwt-${Date.now()}`,
-    jwtExpiresAt: Math.floor(Date.now() / 1_000) + 3_600,
-    refreshToken: 'refresh-token',
-    user: RELAY_USER,
-  };
-}
-
-/** 假 New API:凭据校验/余额/兑换全部走内存实现。 */
-function createFakeNewApi(): NewApiClient {
-  const tokens: RelayApiToken[] = [];
-  let quota = RELAY_USER.quota;
-  return {
-    async register() {},
-    async login({ username, password }) {
-      if (password !== 'correct-password') {
-        throw Object.assign(new Error('用户名或密码错误'), { code: 'credentials' });
-      }
-      // newApiUserId 全局唯一(一个中继账号=一个云端用户),每个用户名派生独立 id。
-      const id =
-        username === RELAY_USER.username
-          ? RELAY_USER.id
-          : 10_000 + [...username].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-      return { ...relaySession(), user: { ...RELAY_USER, id, username } };
-    },
-    async refresh() {
-      return relaySession();
-    },
-    async getSelf() {
-      return { ...RELAY_USER, quota };
-    },
-    async listUserModels() {
-      return ['musefold-image-pro'];
-    },
-    async createToken(_jwt, input) {
-      tokens.push({ id: tokens.length + 1, name: input.name, status: 1, keyMasked: 'sk-***' });
-    },
-    async listTokens() {
-      return [...tokens];
-    },
-    async fetchTokenKey(_jwt, tokenId) {
-      return `sk-full-${tokenId}`;
-    },
-    async redeem(_jwt, code) {
-      if (code !== 'GOOD-CODE') {
-        throw Object.assign(new Error('兑换码无效'), { code: 'redeem' });
-      }
-      quota += 500_000;
-      return { quotaAdded: 500_000 };
-    },
-    async getPricing() {
-      return { version: 'v1', groupRatio: {}, models: [] };
-    },
-    async getNotices() {
-      return [];
-    },
-  };
-}
-
 const purgedObjectKeys: string[][] = [];
 const putObjects: Array<{ objectKey: string; byteLength: number; contentType: string }> = [];
 let removeObjectsError: Error | null = null;
@@ -105,6 +38,9 @@ const fakeSigner: AssetUrlSigner = {
   urlTtlSeconds: 7_200,
   async sign(objectKey) {
     return { url: `https://cdn.test/${objectKey}?sig=x`, expiresAt: new Date().toISOString() };
+  },
+  async readObject() {
+    throw new Error('Unexpected asset read');
   },
   async putObject(objectKey, body, contentType) {
     if (putObjectError) throw putObjectError;
@@ -201,12 +137,18 @@ describeDb('API 集成(真 PostgreSQL)', () => {
       db,
       newApi,
       encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY,
+      apiIssuer: env.PUBLIC_BASE_URL,
+      upstreamIssuer: env.NEW_API_BASE_URL,
     });
     const auth = createAuth({
       env,
       db,
       newApi,
-      hooks: { onSessionEstablished: (input) => account.persistSessionCredentials(input) },
+      hooks: {
+        prepareLogin: (input) => account.prepareLogin(input),
+        commitLogin: (input) => account.commitLogin(input),
+        assertSessionAuthorization: (...input) => account.assertSessionAuthorization(...input),
+      },
     });
     const prompts = new PromptService(db);
     app = createApp({
@@ -219,7 +161,10 @@ describeDb('API 集成(真 PostgreSQL)', () => {
         prompts,
         sync: new SyncService(db, prompts),
         workbench: new WorkbenchService(db),
-        generation: new GenerationService(db, fakeSigner),
+        generation: new GenerationService(db, fakeSigner, {
+          apiIssuer: env.PUBLIC_BASE_URL,
+          upstreamIssuer: env.NEW_API_BASE_URL,
+        }),
         skills: new SkillService(db),
       },
     });
@@ -705,10 +650,10 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     };
     expect(sessionJob.sessionId).toBe(session.id);
 
-    await pool.query(
-      "UPDATE generation_runs SET status = 'failed', progress = 100, finished_at = now() WHERE id = $1",
-      [sessionJob.id],
-    );
+    const cancelledForRetry = await request(`/api/v1/generations/${sessionJob.id}/cancel`, {
+      method: 'POST',
+    });
+    expect(cancelledForRetry.status).toBe(200);
     const retried = await request(`/api/v1/generations/${sessionJob.id}/retry`, {
       method: 'POST',
       headers: { 'idempotency-key': 'itest-session-retry-001' },
@@ -1078,12 +1023,12 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     await request(`/api/v1/generations/${job.id}`, { method: 'DELETE' });
     const purged = await request(`/api/v1/generations/${job.id}/purge`, { method: 'POST' });
     expect(purged.status).toBe(200);
-    expect(purgedObjectKeys.at(-1)).toEqual(['assets/itest-asset-1.png']);
+    expect(purgedObjectKeys).toEqual([]);
     const cleanupAfterSuccess = await pool.query(
       'SELECT count(*)::int AS count FROM object_cleanup_queue WHERE object_key = $1',
       ['assets/itest-asset-1.png'],
     );
-    expect(cleanupAfterSuccess.rows[0].count).toBe(0);
+    expect(cleanupAfterSuccess.rows[0].count).toBe(1);
     const gone = await request(`/api/v1/generations/${job.id}`);
     expect(gone.status).toBe(404);
     const orphanAssets = await pool.query(
@@ -1093,7 +1038,7 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(orphanAssets.rows[0].count).toBe(0);
   });
 
-  it('S3 删除 outage 不阻塞永久删除且保留 durable cleanup intent', async () => {
+  it('永久删除不直连 S3,仅保留待 worker 检查共享引用的 durable cleanup intent', async () => {
     const created = await request('/api/v1/generations', {
       method: 'POST',
       headers: { 'idempotency-key': 'itest-purge-outage-001' },
@@ -1141,11 +1086,12 @@ describeDb('API 集成(真 PostgreSQL)', () => {
       object_key: objectKey,
       object_type: 'generation_asset',
       reason: 'generation_purge',
-      attempt_count: 1,
-      last_error: 'S3Unavailable',
+      attempt_count: 0,
+      last_error: null,
     });
     expect(cleanup.rows[0]?.owner_id).toBeTruthy();
-    expect(cleanup.rows[0]?.next_attempt_at.getTime()).toBeGreaterThan(Date.now());
+    expect(cleanup.rows[0]?.next_attempt_at.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(purgedObjectKeys).toEqual([]);
   });
 
   it('对象清理连续失败达到上限后进入可审计终态', async () => {
@@ -1208,9 +1154,10 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     );
     expect(new Set(ids).size).toBe(1);
 
-    const userResult = await pool.query<{ id: string }>('SELECT id FROM "user" WHERE email = $1', [
-      'tester@musefold.app',
-    ]);
+    const userResult = await pool.query<{ id: string }>(
+      'SELECT user_id AS id FROM account_identities WHERE upstream_owner_id = $1',
+      ['42'],
+    );
     expect(userResult.rows).toHaveLength(1);
     const userId = userResult.rows[0]?.id;
     expect(userId).toBeTruthy();
@@ -1259,9 +1206,10 @@ describeDb('API 集成(真 PostgreSQL)', () => {
   });
 
   it('迁移前无提示词快照的云生成幂等重放兼容且坏请求冲突', async () => {
-    const userResult = await pool.query<{ id: string }>('SELECT id FROM "user" WHERE email = $1', [
-      'tester@musefold.app',
-    ]);
+    const userResult = await pool.query<{ id: string }>(
+      'SELECT user_id AS id FROM account_identities WHERE upstream_owner_id = $1',
+      ['42'],
+    );
     const userId = userResult.rows[0]?.id;
     expect(userId).toBeTruthy();
 
@@ -1624,9 +1572,10 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(foreignGeneration.status).toBe(404);
   });
   it('参考图 PUT 失败时保留 registry 与 durable cleanup intent', async () => {
-    const userResult = await pool.query<{ id: string }>('SELECT id FROM "user" WHERE email = $1', [
-      'tester@musefold.app',
-    ]);
+    const userResult = await pool.query<{ id: string }>(
+      'SELECT user_id AS id FROM account_identities WHERE upstream_owner_id = $1',
+      ['42'],
+    );
     const userId = userResult.rows[0]?.id;
     expect(userId).toBeTruthy();
     const before = await pool.query<{ count: number }>(
@@ -1871,10 +1820,10 @@ describeDb('API 集成(真 PostgreSQL)', () => {
     expect(fetchedJob.request.prompt).toBe(sourceJob.request.prompt);
     expect(fetchedJob.promptReferences).toEqual(sourceJob.promptReferences);
 
-    await pool.query(
-      "UPDATE generation_runs SET status = 'failed', progress = 100, finished_at = now() WHERE id = $1",
-      [sourceJob.id],
-    );
+    const cancelledForRetry = await request(`/api/v1/generations/${sourceJob.id}/cancel`, {
+      method: 'POST',
+    });
+    expect(cancelledForRetry.status).toBe(200);
     const retry = await request(`/api/v1/generations/${sourceJob.id}/retry`, {
       method: 'POST',
       headers: { 'idempotency-key': 'itest-immutable-retry-001' },

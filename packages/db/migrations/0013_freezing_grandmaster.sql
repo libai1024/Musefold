@@ -1,0 +1,1 @@
+CREATE INDEX "design_scheme_source_files_object_idx" ON "design_scheme_source_files" USING btree ("object_key");

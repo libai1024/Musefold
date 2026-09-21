@@ -78,6 +78,18 @@ interface ToolGroupSpec {
   register(server: McpServer, client: MusefoldClient, options: McpServerOptions): void;
 }
 
+const IDEMPOTENCY_KEY_FIELD = z
+  .string()
+  .min(1)
+  .max(200)
+  .optional()
+  .describe(
+    'Caller-chosen stable intent key. Reuse the same key to safely retry the same intent: ' +
+      'the server replays the original run without resending (no duplicate spend); ' +
+      'the same key with different input fails with 409 IDEMPOTENCY_CONFLICT. ' +
+      'Omit to keep the legacy no-key behavior.',
+  );
+
 function registerSetupTools(
   server: McpServer,
   client: MusefoldClient,
@@ -403,6 +415,7 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
                 negative: z.string().optional(),
                 referenceImagePaths: z.array(z.string()).max(16).optional(),
                 referenceHistoryIds: z.array(z.string()).max(16).optional(),
+                idempotencyKey: IDEMPOTENCY_KEY_FIELD,
                 wait: z
                   .boolean()
                   .optional()
@@ -417,8 +430,8 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
             },
             async (args, extra) => {
               try {
-                const { wait, ...body } = args;
-                const submitted = await client.startGeneration(body);
+                const { wait, idempotencyKey, ...body } = args;
+                const submitted = await client.startGeneration(body, idempotencyKey);
                 const shouldWait = wait ?? !options.noWait;
                 if (!shouldWait)
                   return textResult({ jobId: submitted.jobId, status: submitted.status });
@@ -580,21 +593,15 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
                 brief: z.string().optional(),
                 ratioId: z.string().optional(),
                 priorityMode: z.enum(['scheme_first', 'user_first', 'agent_mediated']).optional(),
+                idempotencyKey: IDEMPOTENCY_KEY_FIELD,
                 wait: z.boolean().optional(),
               },
               annotations: { readOnlyHint: false, openWorldHint: true },
             },
             async (args) => {
               try {
-                const { schemeId, wait, ...input } = args;
-                const submitted = await client.request<{ jobId: string; status: string }>(
-                  `/v1/schemes/${encodeURIComponent(schemeId)}/runs`,
-                  {
-                    method: 'POST',
-                    body: JSON.stringify(input),
-                    signal: AbortSignal.timeout(150_000),
-                  },
-                );
+                const { schemeId, wait, idempotencyKey, ...input } = args;
+                const submitted = await client.runScheme(schemeId, input, idempotencyKey);
                 const shouldWait = wait ?? !options.noWait;
                 if (!shouldWait) return textResult(submitted);
                 type RunDetail = {
@@ -640,21 +647,16 @@ function toolGroups(level: (toolLevel: ToolLevel) => boolean): ToolGroupSpec[] {
             inputSchema: {
               url: z.string().url(),
               prompt: z.string(),
+              idempotencyKey: IDEMPOTENCY_KEY_FIELD,
               wait: z.boolean().optional(),
             },
             annotations: { readOnlyHint: false, openWorldHint: true },
           },
           async (args) => {
             try {
-              const submitted = await client.request<{ jobId: string; status: string }>(
-                '/v1/skills/github/run',
-                {
-                  method: 'POST',
-                  body: JSON.stringify({ url: args.url, prompt: args.prompt }),
-                  signal: AbortSignal.timeout(150_000),
-                },
-              );
-              const shouldWait = args.wait ?? !options.noWait;
+              const { url, prompt, wait, idempotencyKey } = args;
+              const submitted = await client.runGithubSkill({ url, prompt }, idempotencyKey);
+              const shouldWait = wait ?? !options.noWait;
               if (!shouldWait) return textResult(submitted);
               type RunDetail = {
                 jobId: string;

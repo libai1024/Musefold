@@ -19,6 +19,7 @@ import {
   marketSearchResultSchema,
   modifyDesignSchemeResultSchema,
   removeDesignSchemeResultSchema,
+  purgeDesignSchemeResultSchema,
   renameDesignSchemeResultSchema,
   selectCoverResultSchema,
   updateDesignSchemeResultSchema,
@@ -201,6 +202,12 @@ const responses: Record<string, unknown> = {
     schemeId: 'scheme_1',
     removed: true,
   }),
+  [DESIGN_SCHEME_WIRE_METHODS.purge]: purgeDesignSchemeResultSchema.parse({
+    schemeId: 'scheme_1',
+    purged: true,
+    retiredKeys: 2,
+    deferredKeys: 1,
+  }),
   [DESIGN_SCHEME_WIRE_METHODS.checkUpdate]: checkDesignSchemeUpdateResultSchema.parse({
     status: 'up-to-date',
     detail: 'No update is available.',
@@ -372,6 +379,7 @@ const inputs: Record<string, unknown> = {
     expectedVersion: 1,
   },
   [DESIGN_SCHEME_WIRE_METHODS.remove]: { schemeId: 'scheme_1', expectedVersion: 1 },
+  [DESIGN_SCHEME_WIRE_METHODS.purge]: { schemeId: 'scheme_1', expectedVersion: 2 },
   [DESIGN_SCHEME_WIRE_METHODS.checkUpdate]: { schemeId: 'scheme_1', revisionId: 'rev_1' },
   [DESIGN_SCHEME_WIRE_METHODS.importPackage]: {
     stagedPackageId: 'package_1',
@@ -500,6 +508,8 @@ async function callMethod(
       return gateway.rename(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.remove:
       return gateway.remove(input as never);
+    case DESIGN_SCHEME_WIRE_METHODS.purge:
+      return gateway.purge(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.checkUpdate:
       return gateway.checkUpdate(input as never);
     case DESIGN_SCHEME_WIRE_METHODS.importPackage:
@@ -533,7 +543,7 @@ describe('desktop design scheme gateway transport contract', () => {
     invokeMock.mockImplementation(async (method) => ({ ok: true, data: responses[method] }));
   });
 
-  it('maps all 18 deployed methods to exact payloads and parses each response', async () => {
+  it('maps all deployed methods to exact payloads and parses each response', async () => {
     const gateway = createDesktopGateway().designSchemes;
     if (!gateway) throw new Error('design scheme gateway is missing');
 
@@ -545,7 +555,7 @@ describe('desktop design scheme gateway transport contract', () => {
     );
   });
 
-  it('uses the optional package host channel outside the 16-method registry', async () => {
+  it('uses the optional package host channel outside the data-method registry', async () => {
     const gateway = createDesktopGateway().designSchemes;
     if (!gateway?.prepareImportPackage) throw new Error('package host method is missing');
     const input = { acceptedFormatVersions: [1, 2] as Array<1 | 2> };

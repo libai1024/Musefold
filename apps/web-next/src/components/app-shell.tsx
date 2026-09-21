@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.push(createWorkbenchHref(draftSession ? null : activeSessionId));
   };
 
-  if (pathname === '/ceramic-button') {
+  if (pathname === '/ceramic-button' || pathname === '/login' || pathname === '/consent') {
     return <>{children}</>;
   }
 

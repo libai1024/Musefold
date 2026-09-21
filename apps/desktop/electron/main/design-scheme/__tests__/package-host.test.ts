@@ -21,6 +21,7 @@ import {
   DESIGN_SCHEME_PREPARE_IMPORT_CHANNEL,
   registerDesignSchemePackageHostActions,
   setDesignSchemePackageStagingForTests,
+  startDesignSchemePackageStagingMaintenance,
 } from '../package-host';
 
 function stagingMock() {
@@ -29,6 +30,7 @@ function stagingMock() {
     consume: vi.fn(),
     cleanupOwner: vi.fn(),
     cleanupAll: vi.fn(),
+    collectOrphans: vi.fn(() => ({ scanned: 0, deleted: 0, protected: 0, failed: 0, pending: 0 })),
   };
 }
 
@@ -58,6 +60,35 @@ describe('Design Scheme package host actions', () => {
 
   afterEach(() => {
     cleanupDesignSchemePackageStaging();
+  });
+
+  it('continues full recovery batches promptly, backs off when drained, and stops on shutdown', async () => {
+    vi.useFakeTimers();
+    const staging = stagingMock();
+    staging.collectOrphans.mockReturnValueOnce({
+      scanned: 20,
+      deleted: 19,
+      protected: 0,
+      failed: 0,
+      pending: 0,
+    });
+    setDesignSchemePackageStagingForTests(staging as unknown as DesignSchemePackageStaging);
+    try {
+      startDesignSchemePackageStagingMaintenance();
+      startDesignSchemePackageStagingMaintenance();
+      expect(staging.collectOrphans).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(staging.collectOrphans).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(staging.collectOrphans).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(staging.collectOrphans).toHaveBeenCalledTimes(3);
+      cleanupDesignSchemePackageStaging();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(staging.collectOrphans).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('registers the dedicated host lifecycle channel', () => {
@@ -94,6 +125,33 @@ describe('Design Scheme package host actions', () => {
     ).resolves.toEqual({ ok: true, data: { status: 'cancelled' } });
     expect(staging.stagePickedPackage).not.toHaveBeenCalled();
     expect(staging.cleanupOwner).toHaveBeenCalledWith(73);
+  });
+
+  it('uses MUSEFOLD_E2E_DESIGN_IMPORT_PATH without opening a dialog', async () => {
+    const staging = stagingMock();
+    const staged = {
+      status: 'staged' as const,
+      stagedPackageId: 'stage_e2e',
+      packageHash: 'b'.repeat(64),
+      sizeBytes: 8,
+      formatVersion: 2 as const,
+    };
+    staging.stagePickedPackage.mockResolvedValueOnce(staged);
+    setDesignSchemePackageStagingForTests(staging as unknown as DesignSchemePackageStaging);
+    registerDesignSchemePackageHostActions();
+    process.env['MUSEFOLD_E2E'] = '1';
+    process.env['MUSEFOLD_E2E_DESIGN_IMPORT_PATH'] = '/tmp/e2e.musefold.design';
+    const currentSender = sender();
+
+    await expect(
+      registeredHandler()({ sender: currentSender.value }, { acceptedFormatVersions: [2] }),
+    ).resolves.toEqual({ ok: true, data: staged });
+    expect(electronMock.showOpenDialog).not.toHaveBeenCalled();
+    expect(staging.stagePickedPackage).toHaveBeenCalledWith(73, '/tmp/e2e.musefold.design', {
+      acceptedFormatVersions: [2],
+    });
+    delete process.env['MUSEFOLD_E2E'];
+    delete process.env['MUSEFOLD_E2E_DESIGN_IMPORT_PATH'];
   });
 
   it('stages a selected package under the invoking sender owner', async () => {

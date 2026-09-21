@@ -1,7 +1,7 @@
 # 07-05 设置 · 使用统计 — 旧版 vs v2.5 对照
 
 > **旧版源码**:`UsageStatisticsSection`(256 行)+ `features/settings/UsageStatisticsCharts.tsx`(图表)+ `usage-statistics.ts`(聚合)+ `styles/usage-statistics.css`(500 行)。
-> **新版**:**无对位实现**(0%)。数据侧:桌面本地渠道记录仍在 SQLite;云端 0019_cloud_sync_usage_events 迁移已建事件表——**两端数据都在积累,只是没有可视化**。
+> **新版**:P2 已落地(`usage.summary` + 设置「使用统计」卡,四指标/范围/刷新/渠道明细)。P3 图表仍未做。数据侧:桌面聚合 `generation_runs`/`generated_assets`;云端聚合 PG `generation_runs`/`generation_assets`(同一 zod 形状)。
 
 ---
 
@@ -84,9 +84,9 @@
 
 | 优先级 | 任务 | 验收要点 |
 |---|---|---|
-| P2 | 用量契约 + 双端聚合实现(与历史成本字段同卡):`usage.summary(range)` 网关方法 | 桌面/云端同形状;口径单测(空数据「—」/渠道过滤) |
-| P2 | 「使用统计」设置卡:四指标 + 范围切换 + 刷新 + 错误态 | 状态矩阵四态;数字 tabular-nums |
-| P3 | 图表区(趋势/渠道/模型/成功率),token 化配色 + reduce 降级 + sr-only 数据表 | 深浅色快照;reduce 无动画 |
+| P2 | 用量契约 + 双端聚合实现(与历史成本字段同卡):`usage.summary(range)` 网关方法 | ✅ 2026-09-06:契约 `packages/contracts/src/usage.ts` + 桌面 `usage-domain` / 云端 `apps/api/src/modules/usage`;同一 zod 形状 |
+| P2 | 「使用统计」设置卡:四指标 + 范围切换 + 刷新 + 错误态 | ✅ 2026-09-06:`packages/features/src/settings/UsageCard.tsx`;四态 + tabular-nums + 「—」口径 |
+| P3 | 图表区(趋势/渠道/模型/成功率),token 化配色 + reduce 降级 + sr-only 数据表 | ✅ 2026-09-06:`UsageCharts` 最小 SVG + `--chart-*`;`skipMotion` 终态;sr-only 表。不做像素快照 |
 
 > 本分区触发 07-00 的分组导航评估(恢复后分区数 +1)。
 

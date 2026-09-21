@@ -4,6 +4,7 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { designSchemeDbPath, desktopDbPath, launchV25App, v25ShellPage } from './electron-helpers';
+import { seedFormalTextScheme } from './design-scheme-test-helpers';
 
 // 桌面工作台全链路:features 屏 → IPC 桥 → core SQLite + generate() 编排。
 // 生成用「受控失败」链路(provider 无 API key):提交→run 落库→异步失败→
@@ -68,25 +69,42 @@ const TINY_PNG_BASE64 =
 interface PngImageServer {
   baseUrl: string;
   requestCount(): number;
+  /** 上游收到的 `n`(张数,§9-D3):按请求顺序记录,缺省视为 1。 */
+  requestedCounts(): number[];
   close(): Promise<void>;
 }
 
-/** 成功出图的回环生图服务:对 images/generations 返回 OpenAI 形状的 b64_json PNG。 */
+/**
+ * 成功出图的回环生图服务:对 images/generations 返回 OpenAI 形状的 b64_json PNG。
+ * 按请求体里的 `n` 回同样张数(默认 1),用来验证桌面链路的张数透传。
+ */
 async function startPngImageServer(): Promise<PngImageServer> {
   let requests = 0;
+  const counts: number[] = [];
   const responses = new Set<ServerResponse>();
   const server = createServer((request, response) => {
     responses.add(response);
     response.on('close', () => responses.delete(response));
     if (request.method === 'POST' && request.url?.endsWith('/images/generations')) {
       requests += 1;
-      request.resume();
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk: Buffer) => chunks.push(chunk));
       request.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        const parsed = ((): number => {
+          try {
+            const n = (JSON.parse(body) as { n?: unknown }).n;
+            return typeof n === 'number' && Number.isFinite(n) ? n : 1;
+          } catch {
+            return 1;
+          }
+        })();
+        counts.push(parsed);
         response.writeHead(200, { 'content-type': 'application/json' });
         response.end(
           JSON.stringify({
             created: Math.floor(Date.now() / 1000),
-            data: [{ b64_json: TINY_PNG_BASE64 }],
+            data: Array.from({ length: parsed }, () => ({ b64_json: TINY_PNG_BASE64 })),
           }),
         );
       });
@@ -109,116 +127,9 @@ async function startPngImageServer(): Promise<PngImageServer> {
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     requestCount: () => requests,
+    requestedCounts: () => [...counts],
     close: () => closeServer(server, responses),
   };
-}
-
-function seedFormalTextScheme(userData: string): void {
-  const schemeDb = new Database(designSchemeDbPath(userData));
-  const now = Date.now();
-  const document = {
-    schemaVersion: 1,
-    revisionId: 'revision_e2e_scheme',
-    schemeId: 'scheme_e2e_formal',
-    name: 'E2E 文本海报方案',
-    summary: '用于工作台运行取消测试',
-    fidelity: 'adapted',
-    sources: [
-      {
-        id: 'source_brief',
-        kind: 'user-brief',
-        role: 'context',
-        packageId: 'package_e2e_scheme',
-        snapshotId: 'snapshot_e2e_scheme',
-      },
-    ],
-    sourceSnapshotIds: ['snapshot_e2e_scheme'],
-    inputs: [
-      {
-        id: 'topic',
-        label: '主题',
-        kind: 'text',
-        required: true,
-        description: '输入海报主题',
-      },
-    ],
-    parameters: [],
-    constraints: [],
-    promptProgram: [
-      {
-        id: 'module_1',
-        order: 0,
-        kind: 'input-template',
-        template: 'Create a restrained poster about {{topic}}',
-        variables: ['topic'],
-        sourceIds: ['source_brief'],
-      },
-    ],
-    compilation: {
-      compiledAt: 1,
-      model: { model: 'e2e-fixture', connectionName: 'E2E fixture' },
-      adopted: [],
-      omitted: [],
-      warnings: [],
-      trace: [],
-    },
-  };
-  schemeDb.transaction(() => {
-    schemeDb
-      .prepare(
-        `INSERT INTO source_packages (id, kind, repository_url, license, created_at)
-         VALUES ('package_e2e_scheme', 'user-brief', NULL, NULL, ?)`,
-      )
-      .run(now);
-    schemeDb
-      .prepare(
-        `INSERT INTO source_snapshots
-           (id, package_id, ref, commit_hash, content_hash, total_bytes, scan_json, created_at)
-         VALUES ('snapshot_e2e_scheme', 'package_e2e_scheme', 'e2e-seed', NULL, NULL, 0, '{}', ?)`,
-      )
-      .run(now);
-    schemeDb
-      .prepare(
-        `INSERT INTO design_schemes
-           (id, name, summary, status, source_presentation, source_label, current_revision_id,
-            working_draft_revision_id, cover_asset_id, fidelity, version, created_at, updated_at,
-            deleted_at)
-         VALUES ('scheme_e2e_formal', 'E2E 文本海报方案', '用于工作台运行取消测试',
-           'formal', 'musefold-created', 'E2E 本地种子', 'revision_e2e_scheme', NULL,
-           'asset_e2e_cover', 'adapted', 1, ?, ?, NULL)`,
-      )
-      .run(now, now);
-    schemeDb
-      .prepare(
-        `INSERT INTO design_scheme_revisions
-           (revision_id, scheme_id, schema_version, document_json, created_by, created_at)
-         VALUES ('revision_e2e_scheme', 'scheme_e2e_formal', 1, ?, 'user', ?)`,
-      )
-      .run(JSON.stringify(document), now);
-    schemeDb
-      .prepare(
-        `INSERT INTO design_scheme_source_bindings (revision_id, source_snapshot_id, role)
-         VALUES ('revision_e2e_scheme', 'snapshot_e2e_scheme', 'context')`,
-      )
-      .run();
-    schemeDb
-      .prepare(
-        `INSERT INTO design_scheme_runs
-           (run_id, revision_id, mode, status, policy_json, provider_json, created_at, completed_at)
-         VALUES ('run_e2e_seed', 'revision_e2e_scheme', 'trial', 'completed', '{}', NULL, ?, ?)`,
-      )
-      .run(now, now);
-    schemeDb
-      .prepare(
-        `INSERT INTO design_scheme_assets
-           (id, revision_id, store_key, role, origin, license, mime_type, width, height,
-            byte_size, content_hash, created_at)
-         VALUES ('asset_e2e_cover', 'revision_e2e_scheme', 'e2e-fixture-cover', 'cover',
-           'local-run', NULL, 'image/png', 1, 1, 0, ?, ?)`,
-      )
-      .run('0'.repeat(64), now);
-  })();
-  schemeDb.close();
 }
 
 test.beforeAll(async () => {
@@ -581,6 +492,97 @@ test('正式纯文本方案经真实 IPC 运行成功出图:双账本落成功�
     expect(schemeRun).toMatchObject({ status: 'completed', mode: 'formal' });
     expect(newAssetCount.count).toBe(0);
     expect(evaluationCount.count).toBeGreaterThan(0);
+  } finally {
+    await imageServer.close();
+  }
+});
+
+test('张数 2:core `n` 透传上游 → generated_assets 落两行 → 网格两图(§9-D3)', async () => {
+  const imageServer = await startPngImageServer();
+  try {
+    const apiKey = `e2e-${randomUUID()}`;
+    await page.evaluate(
+      async ({ baseUrl, apiKey: key }) => {
+        const bridge = (
+          window as unknown as {
+            musefoldV25: { invoke(method: string, payload?: unknown): Promise<unknown> };
+          }
+        ).musefoldV25;
+        const envelope = (await bridge.invoke('aiProviders.create', {
+          name: 'E2E 多图回环连接',
+          baseUrl,
+          model: 'e2e-image-model',
+          apiKey: key,
+          activate: true,
+        })) as { ok?: boolean; error?: { message?: string } };
+        if (!envelope.ok) throw new Error(envelope.error?.message ?? 'E2E Provider 创建失败');
+      },
+      { baseUrl: imageServer.baseUrl, apiKey },
+    );
+
+    // 重启让 Composer 的 provider 目录以新默认连接为首选。
+    await app.close();
+    ({ app } = await launchV25App('musefold-v25-workbench-', userDataDir));
+    page = await v25ShellPage(app);
+    await expect(page.getByTestId('workbench')).toBeVisible();
+
+    await page.getByTestId('session-create').click();
+    await page.getByTestId('composer-settings').click();
+    await page.getByTestId('composer-count-2').click();
+    await expect(page.getByTestId('composer-count-2')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('composer-settings')).toContainText('2 张');
+
+    await page.getByTestId('composer-prompt').fill('two takes on a quiet harbour');
+    await page.getByTestId('composer-submit').click();
+
+    await expect(page.getByTestId('job-status').last()).toHaveAttribute(
+      'data-status',
+      'succeeded',
+      { timeout: 30_000 },
+    );
+    // 结果网格两图 + meta 行带张数。
+    await expect(page.getByTestId('job-asset-grid')).toHaveAttribute('data-count', '2');
+    await expect(page.getByTestId('job-asset')).toHaveCount(2);
+    await expect(page.getByTestId('job-meta')).toContainText('2 张');
+    await expect(page.getByTestId('job-save-all')).toBeVisible();
+    // 上游确实收到 n=2(不是本地复制同一张)。
+    expect(imageServer.requestedCounts().at(-1)).toBe(2);
+
+    // 账本:params_json 快照存 n=2,generated_assets 按 position 落两行且文件各自落盘。
+    const coreDb = new Database(desktopDbPath(userDataDir), { readonly: true });
+    const run = coreDb
+      .prepare(
+        `SELECT id, status, params_json FROM generation_runs ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get() as { id: string; status: string; params_json: string };
+    const assets = coreDb
+      .prepare(
+        `SELECT position, status, media_path FROM generated_assets WHERE run_id = ? ORDER BY position`,
+      )
+      .all(run.id) as Array<{ position: number; status: string; media_path: string | null }>;
+    coreDb.close();
+
+    expect(run.status).toBe('success');
+    expect((JSON.parse(run.params_json) as { n?: number }).n).toBe(2);
+    expect(assets.map((asset) => asset.position)).toEqual([0, 1]);
+    expect(assets.every((asset) => asset.status === 'available')).toBe(true);
+    expect(new Set(assets.map((asset) => asset.media_path)).size).toBe(2);
+    for (const asset of assets) {
+      expect(asset.media_path && existsSync(asset.media_path)).toBe(true);
+    }
+
+    // Lightbox:同回合左右翻页 + 计数;桌面渲染「复制图片」入口。
+    await page.getByTestId('job-asset').first().click();
+    await expect(page.getByTestId('job-lightbox')).toBeVisible();
+    await expect(page.getByTestId('lightbox-counter')).toHaveText('1 / 2');
+    await expect(page.getByTestId('lightbox-copy-asset')).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByTestId('lightbox-counter')).toHaveText('2 / 2');
+    await page.getByTestId('lightbox-copy-asset').click();
+    await expect(page.getByText('图片已复制')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('job-lightbox')).toBeHidden();
   } finally {
     await imageServer.close();
   }

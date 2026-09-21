@@ -626,25 +626,28 @@ export async function commandScheme(context: CliContext, rest: string[]): Promis
     if (!requireConsent(context, '运行方案')) return EXIT.REFUSED;
     const inputs = parseKeyValues(context.args.flags.input, context.io, '--input');
     if (!inputs) return EXIT.ARGS;
-    const submitted = await client.request<{ jobId: string; status: string }>(
-      `/v1/schemes/${encodeURIComponent(id)}/runs`,
+    // 幂等键 = 调用者自选的意图身份：跨重试复用同一键才可安全重放；不传保持无键行为
+    const idempotencyKey =
+      typeof context.args.flags['idempotency-key'] === 'string'
+        ? context.args.flags['idempotency-key']
+        : undefined;
+    const submitted = await client.runScheme(
+      id,
       {
-        method: 'POST',
-        body: JSON.stringify({
-          inputs,
-          consent: 'interactive',
-          ...(typeof context.args.flags.brief === 'string'
-            ? { brief: context.args.flags.brief }
-            : {}),
-          ...(typeof context.args.flags.ratio === 'string'
-            ? { ratioId: context.args.flags.ratio }
-            : {}),
-          ...(typeof context.args.flags.n === 'string' ? { n: Number(context.args.flags.n) } : {}),
-          ...(typeof context.args.flags.priority === 'string'
-            ? { priorityMode: context.args.flags.priority }
-            : {}),
-        }),
+        inputs,
+        consent: 'interactive',
+        ...(typeof context.args.flags.brief === 'string'
+          ? { brief: context.args.flags.brief }
+          : {}),
+        ...(typeof context.args.flags.ratio === 'string'
+          ? { ratioId: context.args.flags.ratio }
+          : {}),
+        ...(typeof context.args.flags.n === 'string' ? { n: Number(context.args.flags.n) } : {}),
+        ...(typeof context.args.flags.priority === 'string'
+          ? { priorityMode: context.args.flags.priority }
+          : {}),
       },
+      idempotencyKey,
     );
     return pollExternalRun(context, client, '/v1/scheme-runs', submitted);
   }
@@ -666,20 +669,22 @@ export async function commandSkill(context: CliContext, rest: string[]): Promise
   }
   if (!requireConsent(context, '运行 Skill')) return EXIT.REFUSED;
   const client = await connect(context);
-  const submitted = await client.request<{ jobId: string; status: string }>(
-    '/v1/skills/github/run',
+  // 幂等键 = 调用者自选的意图身份：跨重试复用同一键才可安全重放；不传保持无键行为
+  const idempotencyKey =
+    typeof context.args.flags['idempotency-key'] === 'string'
+      ? context.args.flags['idempotency-key']
+      : undefined;
+  const submitted = await client.runGithubSkill(
     {
-      method: 'POST',
-      body: JSON.stringify({
-        url,
-        prompt,
-        consent: 'interactive',
-        ...(typeof context.args.flags.ratio === 'string'
-          ? { ratioId: context.args.flags.ratio }
-          : {}),
-        ...(typeof context.args.flags.n === 'string' ? { n: Number(context.args.flags.n) } : {}),
-      }),
+      url,
+      prompt,
+      consent: 'interactive',
+      ...(typeof context.args.flags.ratio === 'string'
+        ? { ratioId: context.args.flags.ratio }
+        : {}),
+      ...(typeof context.args.flags.n === 'string' ? { n: Number(context.args.flags.n) } : {}),
     },
+    idempotencyKey,
   );
   return pollExternalRun(context, client, '/v1/skill-runs', submitted);
 }

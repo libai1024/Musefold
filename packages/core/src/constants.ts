@@ -11,6 +11,11 @@ export const PICTURES_DIR_NAME = `Musefold/${APP_DATA_NAMESPACE}`;
 export const BACKUPS_DIR_NAME = `musefold-backups-${APP_DATA_NAMESPACE}`;
 export const PREVIEWS_DIR_NAME = `musefold-previews-${APP_DATA_NAMESPACE}`;
 export const LOGS_DIR_NAME = `musefold-logs-${APP_DATA_NAMESPACE}`;
+/**
+ * 长驻上传（previews/uploads）的自然期限，对齐云端参考图 registry 的 24h TTL 先例。
+ * 到期只归还内存持有（降级为可回收）；是否真删始终由清理器的引用复查裁决。
+ */
+export const LOCAL_UPLOAD_TTL_MS = 24 * 60 * 60_000;
 
 /** FTS5 配置 */
 export const FTS_TOKENIZE = 'unicode61';

@@ -45,6 +45,11 @@ export interface AppShellProps {
   brandInset?: number;
   /** 移动顶栏右侧插槽(额度 readout 等,V25-UI-SPEC §2.3)。 */
   mobileExtra?: ReactNode;
+  /**
+   * Win/Linux 自绘窗口控件槽(D5:主区右上 32px 窄带,只放三钮,不恢复整条顶栏)。
+   * 桌面宿主 `!IS_MAC` 时注入;mac / Web 不传。
+   */
+  windowControls?: ReactNode;
   children: ReactNode;
 }
 
@@ -158,6 +163,7 @@ export function AppShell({
   footer,
   brandInset = 0,
   mobileExtra,
+  windowControls,
   children,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -380,11 +386,36 @@ export function AppShell({
         >
           <div
             className={cn(
-              'flex min-h-0 flex-1 flex-col md:overflow-hidden',
+              'relative flex min-h-0 flex-1 flex-col md:overflow-hidden',
               activeId === 'settings' ? 'md:bg-card' : 'md:rounded-xl md:bg-card md:shadow-sm',
             )}
             data-testid="mainview-surface"
+            data-window-controls-safe={windowControls ? '' : undefined}
           >
+            {/*
+              桌面拖拽钩子(features 不写 app-region):内容顶 12px / 设置全出血 32px。
+              pointer-events-none 避免 Web 抢点击;桌面宿主 CSS 覆写为 drag。
+              `data-window-controls-safe` 仅在注入 windowControls 时出现,供宿主 CSS
+              预留 32×138 三钮安全区;mac / Web 不挂钩子、不加 padding。
+            */}
+            <div
+              data-window-drag-band={activeId === 'settings' ? undefined : ''}
+              data-settings-window-drag={activeId === 'settings' ? '' : undefined}
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block',
+                activeId === 'settings' ? 'h-8' : 'h-3',
+              )}
+            />
+            {windowControls ? (
+              <div
+                className="absolute top-0 right-0 z-30 hidden h-8 items-stretch md:flex"
+                data-window-controls-band=""
+                data-testid="window-controls-band"
+              >
+                {windowControls}
+              </div>
+            ) : null}
             <header className="flex h-12 shrink-0 items-center gap-2 border-border border-b px-4 md:hidden">
               {compact && (
                 <Button

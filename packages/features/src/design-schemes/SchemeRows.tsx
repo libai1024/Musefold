@@ -1,7 +1,7 @@
 'use client';
 
 import type { DesignSchemeSummary, MarketCandidate } from '@musefold/contracts';
-import { FadeImage } from '@musefold/ui/components/fade-image';
+import { SchemeAssetImage } from './SchemeAssetImage';
 import { Blocks, GitBranch, Star, Trash2 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
 import { FIDELITY_LABEL, marketUpdatedLabel, schemeActionLabel } from './scheme-labels';
@@ -27,7 +27,7 @@ function SchemeCoverThumb({
           box,
         )}
       >
-        <FadeImage src={url} alt="" className="h-full w-full object-contain" />
+        <SchemeAssetImage compact src={url} alt="" className="h-full w-full object-contain" />
       </span>
     );
   }

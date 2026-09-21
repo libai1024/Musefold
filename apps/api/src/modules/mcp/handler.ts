@@ -1,6 +1,7 @@
 import { requireMcpAuth } from '@better-auth/mcp';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import type { MusefoldAuth } from '../../auth/index.js';
+import { cloudMcpUnauthorizedResponse } from '../cloud-mcp/service.js';
 import { type CloudMcpAuth, type CloudMcpDependencies, enabledCloudMcpTools } from './manifest.js';
 
 /**
@@ -17,6 +18,10 @@ export function createCloudMcpRequestHandler(
       clientId: typeof claims.client_id === 'string' ? claims.client_id : '',
       scopes: typeof claims.scope === 'string' ? claims.scope.split(' ').filter(Boolean) : [],
     };
+    if (!deps.isAuthorizationActive || !callerAuth.userId || !callerAuth.clientId)
+      return cloudMcpUnauthorizedResponse();
+    const active = await deps.isAuthorizationActive(claims);
+    if (!active) return cloudMcpUnauthorizedResponse();
     const handler = createMcpHandler(
       () => {
         const server = new McpServer({ name: 'musefold-cloud', version: '2.5.0' });

@@ -4,6 +4,7 @@ import {
   workbenchSessionListQuerySchema,
   workbenchSessionPageSchema,
   workbenchSessionSchema,
+  workbenchSessionCleanupResultSchema,
 } from '@musefold/contracts';
 import { z } from 'zod';
 import { createAuthedRouter, route } from '../../lib/openapi.js';
@@ -19,6 +20,29 @@ const versionBody = z
 export function workbenchRoutes(service: WorkbenchService) {
   const app = createAuthedRouter();
   const tags = ['workbench'];
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/workbench/sessions/empty-trash',
+      tags,
+      response: workbenchSessionCleanupResultSchema,
+    },
+    async (c) => c.json(await service.emptyTrash(c.get('userId'))),
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/workbench/sessions/{id}/purge',
+      tags,
+      params: idParams,
+      response: workbenchSessionCleanupResultSchema,
+    },
+    async (c, input) => c.json(await service.purge(c.get('userId'), input.params.id)),
+  );
 
   route(
     app,

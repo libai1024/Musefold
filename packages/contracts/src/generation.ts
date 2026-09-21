@@ -1,10 +1,23 @@
 import { z } from 'zod';
-import { apiErrorCodeSchema, entityIdSchema, isoDateTimeSchema } from './common';
+import { executionBindingSchema } from './account-identity';
+import {
+  apiErrorCodeSchema,
+  cloudModelIdSchema,
+  entityIdSchema,
+  isoDateTimeSchema,
+} from './common';
 import { promptDocumentSchema } from './prompt';
 
 export const generationSizeSchema = z.enum(['auto', '1024x1024', '1536x1024', '1024x1536']);
 
 export const generationQualitySchema = z.enum(['low', 'medium', 'high', 'auto']);
+
+/**
+ * 单次生成张数(承旧 v2.1 Composer 目录 1/2/4;§9-D3 解锁)。
+ * 只收目录内三档:上游 `n` 与资产落库(position 0..n-1)按此计数,
+ * 3/5 等目录外值一律拒绝——避免出现无法在 UI 复原的历史请求。
+ */
+export const generationCountSchema = z.union([z.literal(1), z.literal(2), z.literal(4)]);
 
 /** 单次生图写意图的幂等键;沿用云 API Idempotency-Key 可见 ASCII 线协议。 */
 export const generationIdempotencyKeySchema = z
@@ -129,6 +142,24 @@ export const generationStatusSchema = z.enum([
 ]);
 
 export const generationActorTypeSchema = z.enum(['web', 'cloud_mcp', 'desktop_local']);
+/** Cloud execution, cost knowledge and local delivery are independent outcomes. No local paths. */
+export const generationRecoverySchema = z
+  .object({
+    requestId: entityIdSchema,
+    remoteStatus: generationStatusSchema.nullable(),
+    costKnown: z.boolean(),
+    result: z.enum([
+      'not_ready',
+      'download_pending',
+      'available',
+      'purged',
+      'missing',
+      'history_removed',
+    ]),
+    message: z.string().min(1).max(300),
+  })
+  .strict();
+export type GenerationRecovery = z.infer<typeof generationRecoverySchema>;
 export const generationApprovalStatusSchema = z.enum([
   'not_required',
   'pending_approval',
@@ -188,6 +219,14 @@ export const uploadReferenceImageInputSchema = z.object({
     ),
 });
 
+/** End this upload's temporary retention; persistent execution/source references remain authoritative. */
+export const releaseReferenceImageInputSchema = z
+  .object({
+    id: generationReferenceImageSchema.shape.id,
+  })
+  .strict();
+export type ReleaseReferenceImageInput = z.infer<typeof releaseReferenceImageInputSchema>;
+
 /** 保存资产入参(GenerationGateway.saveAsset,ui-parity 03/05 §7):url 即资产契约地址。 */
 export const saveAssetInputSchema = z.object({
   url: generationAssetUrlSchema,
@@ -236,9 +275,11 @@ export const cloudGenerationRequestSchema = z.object({
   size: generationSizeSchema.default('auto'),
   aspectRatio: persistedGenerationAspectRatioSchema.optional(),
   quality: generationQualitySchema.default('auto'),
-  count: z.literal(1).default(1),
-  /** 目标 provider(ProviderOption.id)。云端当前忽略(服务端定模型);桌面用于本地 Provider 选择。 */
+  count: generationCountSchema.default(1),
+  /** 目标 provider。云端新提交只接受 cloud-default 或省略；桌面允许本地 Provider 选择。旧请求读取不收紧。 */
   providerId: z.string().trim().min(1).max(128).optional(),
+  /** Frozen model choice. Omitted historical requests retain the original cloud default. */
+  model: cloudModelIdSchema.optional(),
   /** 有序参考图(图 1、图 2…):非空时上游走图片编辑通道(/images/edits)。 */
   referenceImages: z.array(generationReferenceImageSchema).max(MAX_REFERENCE_IMAGES).default([]),
 });
@@ -265,6 +306,8 @@ export const createGenerationInputSchema = cloudGenerationRequestSchema
     sessionId: entityIdSchema.optional(),
     parentRunId: entityIdSchema.optional(),
     runKind: z.enum(['free_generation', 'refinement', 'retry']).default('free_generation'),
+    /** Optional caller expectation; the server always freezes its own verified binding. */
+    expectedBinding: executionBindingSchema.optional(),
   })
   .refine((input) => input.prompt.length > 0 || input.promptReferenceSelections.length > 0, {
     path: ['prompt'],
@@ -296,6 +339,7 @@ export const generationJobSchema = z.object({
   actorType: generationActorTypeSchema,
   approvalStatus: generationApprovalStatusSchema,
   status: generationStatusSchema,
+  recovery: generationRecoverySchema.optional(),
   progress: z.number().int().min(0).max(100),
   request: cloudGenerationRequestSchema,
   providerModel: z.string().trim().min(1).max(128).nullable(),
@@ -328,6 +372,7 @@ export const generationJobSchema = z.object({
 
 export type GenerationSize = z.infer<typeof generationSizeSchema>;
 export type GenerationQuality = z.infer<typeof generationQualitySchema>;
+export type GenerationCount = z.infer<typeof generationCountSchema>;
 export type GenerationIdempotencyKey = z.infer<typeof generationIdempotencyKeySchema>;
 export type GenerationStatus = z.infer<typeof generationStatusSchema>;
 export type GenerationActorType = z.infer<typeof generationActorTypeSchema>;

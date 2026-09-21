@@ -12,6 +12,7 @@ const BASE_VALUE: ComposerValue = {
   negative: '',
   aspectRatio: 'auto',
   quality: 'auto',
+  count: 1,
   promptReferenceSelections: [],
 };
 
@@ -21,6 +22,7 @@ function makeAttachment(
   return {
     schemeId: 'scheme-1',
     revisionId: 'rev-1',
+    expectedVersion: 3,
     name: '水彩海报',
     summary: '柔和水彩质感的活动海报配方',
     mode: 'formal',

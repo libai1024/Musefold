@@ -1,5 +1,16 @@
+import { readRevisionAssetIds } from './revision-assets';
+import { decodeSchemeListCursor, encodeSchemeListCursor } from './list-cursor';
 import type Database from 'better-sqlite3';
 import { ulid } from 'ulid';
+import {
+  assetOriginSchema,
+  assetRoleSchema,
+  sourceSnapshotSchema,
+  type SourceSnapshot,
+  type DesignSchemeAsset,
+  designSchemeListQuerySchema,
+  type DesignSchemeListQuery,
+} from '@musefold/contracts';
 import {
   parseDesignSchemeRevisionDocument,
   type DesignSchemeRevisionDocument,
@@ -91,8 +102,8 @@ export interface AssetMetadataRow {
   id: string;
   revisionId: string;
   storeKey: string;
-  role: 'cover' | 'example' | 'reference';
-  origin: 'repository' | 'local-run';
+  role: DesignSchemeAsset['role'];
+  origin: DesignSchemeAsset['origin'];
   license: string | null;
   createdAt: number;
   mimeType: string | null;
@@ -116,7 +127,7 @@ export interface SourceFileMetadataRow {
 export interface SourceSnapshotMetadataRow {
   snapshotId: string;
   packageId: string;
-  packageKind: 'github' | 'history' | 'user-brief';
+  packageKind: SourceSnapshot['kind'];
   repositoryUrl: string | null;
   ref: string;
   commitHash: string | null;
@@ -124,6 +135,23 @@ export interface SourceSnapshotMetadataRow {
   totalBytes: number;
   createdAt: number;
   files: SourceFileMetadataRow[];
+  historyItems?: SourceSnapshot['historyItems'];
+}
+
+function readImportedMetadata(
+  raw: string,
+  snapshotId: string,
+  packageId: string,
+): Partial<Pick<SourceSnapshotMetadataRow, 'historyItems' | 'packageKind'>> {
+  const scan = JSON.parse(raw) as { importedSnapshot?: unknown } | null;
+  if (!scan?.importedSnapshot) return {};
+  const imported = sourceSnapshotSchema.parse(scan.importedSnapshot);
+  if (imported.id !== snapshotId || imported.packageId !== packageId)
+    throw new Error('Imported source identity mismatch');
+  return {
+    packageKind: imported.kind,
+    ...(imported.historyItems ? { historyItems: imported.historyItems } : {}),
+  };
 }
 
 const SCHEME_SUMMARY_COLUMNS = `id, name, summary, status, source_presentation, source_label,
@@ -266,8 +294,13 @@ export class DesignSchemeRepository {
   }
 
   insertSchemeDraft(input: SchemeDraftWriteInput): DesignSchemeSummary {
-    const document = assertValidDocument(input.document);
     const now = Date.now();
+    const document = assertValidDocument({
+      ...input.document,
+      createdBy: input.createdBy,
+      createdAt: now,
+      parentRevisionId: null,
+    });
     this.db.transaction(() => {
       this.db
         .prepare(
@@ -325,14 +358,60 @@ export class DesignSchemeRepository {
     return rows.map((row) => this.toSummary(row));
   }
 
-  /** 方案全部相册资产（跨 revision），新结果在前；封面排序交给 UI。 */
+  /** SQL keyset pagination has no 200-row cap and remains stable while earlier rows are purged. */
+  listSummaryPage(rawQuery: DesignSchemeListQuery) {
+    const query = designSchemeListQuerySchema.parse(rawQuery);
+    const cursor = decodeSchemeListCursor(query);
+    const conditions = [query.deletedOnly ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL'];
+    const values: Array<string | number> = [];
+    if (query.status) {
+      conditions.push('status = ?');
+      values.push(query.status);
+    }
+    if (query.fidelity) {
+      conditions.push('fidelity = ?');
+      values.push(query.fidelity);
+    }
+    if (query.query) {
+      // SQLite LOWER is ASCII-only; use the same Unicode folding as the existing desktop search.
+      this.db.function('scheme_search_contains', { deterministic: true }, (value, needle) =>
+        String(value).toLowerCase().includes(String(needle).toLowerCase()) ? 1 : 0,
+      );
+      conditions.push(
+        "scheme_search_contains(name || ' ' || summary || ' ' || source_label || ' ' || id, ?) = 1",
+      );
+      values.push(query.query);
+    }
+    if (cursor) {
+      conditions.push('(updated_at < ? OR (updated_at = ? AND id < ? COLLATE BINARY))');
+      values.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
+    }
+    const rows = this.db
+      .prepare(`SELECT ${SCHEME_SUMMARY_COLUMNS} FROM design_schemes
+      WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id COLLATE BINARY DESC LIMIT ?`)
+      .all(...values, query.limit + 1) as SchemeRow[];
+    const page = rows.slice(0, query.limit);
+    const last = page.at(-1);
+    return {
+      items: page.map((row) => this.toSummary(row)),
+      nextCursor:
+        rows.length > query.limit && last
+          ? encodeSchemeListCursor(query, last.updated_at, last.id)
+          : null,
+    };
+  }
+
+  /**
+   * 旧桌面相册投影只支持仓库示例和本机试运行，不将 uploaded/cloud-run 伪装成 local-run。
+   * v25 详情走 listAssetMetadataRows，专用包直接读取资产表，均保留 canonical 来源与角色。
+   */
   listAssets(schemeId: string): DesignSchemeAssetSummary[] {
     const rows = this.db
       .prepare(
         `SELECT a.id, a.revision_id, a.store_key, a.role, a.origin, a.created_at
          FROM design_scheme_assets a
          JOIN design_scheme_revisions r ON r.revision_id = a.revision_id
-        WHERE r.scheme_id = ?
+        WHERE r.scheme_id = ? AND a.origin IN ('repository', 'local-run')
         ORDER BY a.created_at DESC, a.id DESC
         LIMIT 200`,
       )
@@ -387,8 +466,8 @@ export class DesignSchemeRepository {
       id: row.id,
       revisionId: row.revision_id,
       storeKey: row.store_key,
-      role: row.role === 'cover' ? 'cover' : row.role === 'reference' ? 'reference' : 'example',
-      origin: row.origin === 'repository' ? 'repository' : 'local-run',
+      role: assetRoleSchema.parse(row.role),
+      origin: assetOriginSchema.parse(row.origin),
       license: row.license,
       createdAt: row.created_at,
       mimeType: row.mime_type,
@@ -511,7 +590,7 @@ export class DesignSchemeRepository {
     const snapshots = this.db
       .prepare(
         `SELECT s.id, s.package_id, p.kind, p.repository_url, s.ref, s.commit_hash,
-                s.content_hash, s.total_bytes, s.created_at
+                s.content_hash, s.total_bytes, s.created_at, s.scan_json
          FROM design_scheme_source_bindings b
          JOIN design_scheme_revisions r ON r.revision_id = b.revision_id
          JOIN source_snapshots s ON s.id = b.source_snapshot_id
@@ -529,6 +608,7 @@ export class DesignSchemeRepository {
       content_hash: string | null;
       total_bytes: number;
       created_at: number;
+      scan_json: string;
     }>;
     const fileQuery = this.db.prepare(
       `SELECT path, kind, size_bytes, content_hash, mime_type, evidence_path, text_content
@@ -544,6 +624,7 @@ export class DesignSchemeRepository {
       contentHash: snapshot.content_hash,
       totalBytes: snapshot.total_bytes,
       createdAt: snapshot.created_at,
+      ...readImportedMetadata(snapshot.scan_json, snapshot.id, snapshot.package_id),
       files: (
         fileQuery.all(snapshot.id) as Array<{
           path: string;
@@ -800,7 +881,7 @@ export class DesignSchemeRepository {
   /**
    * 封面来源不变量（provenance）：只接受「当前选中 revision」上的本机试运行产物，
    * 即 origin = 'local-run' 且 role ∈ {'example', 'cover'} 的资产。
-   * 仓库示例图（origin = 'repository'）、参考图（role = 'reference'）与其他 revision
+   * 仓库示例图、上传素材、云端结果、参考图与其他 revision
    * 的历史资产一律拒绝；拒绝时不改封面、不递增版本。
    * 「成功试运行」资格本身由转正链路（formalize / promoteWorkingDraft）裁决，此处不重复。
    */
@@ -819,6 +900,9 @@ export class DesignSchemeRepository {
       throw new Error('封面必须来自本机试运行结果，不能使用仓库示例图');
     }
     if (asset.role === 'reference') throw new Error('封面不能使用参考图资产');
+    if (asset.role !== 'example' && asset.role !== 'cover') {
+      throw new Error('封面必须来自本机试运行示例或封面资产');
+    }
     if (asset.revision_id !== summary.currentRevisionId) {
       throw new Error('封面必须来自当前选中版本的试运行结果，请刷新后再选择');
     }
@@ -879,8 +963,15 @@ export class DesignSchemeRepository {
       .map((slot) => ({ ...slot, required: requiredById.get(slot.id) ?? slot.required }));
 
     const revisionId = `dsrv_${ulid()}`;
-    const nextDocument = assertValidDocument({ ...document, revisionId, inputs });
     const now = Date.now();
+    const nextDocument = assertValidDocument({
+      ...document,
+      revisionId,
+      inputs,
+      createdBy: 'user',
+      createdAt: now,
+      parentRevisionId: baseRevisionId,
+    });
     this.db.transaction(() => {
       this.db
         .prepare(
@@ -922,6 +1013,7 @@ export class DesignSchemeRepository {
     document: DesignSchemeRevisionDocument,
     extraBindings: Array<{ snapshotId: string; role: SourceRole }> = [],
     expectedVersion?: number,
+    newAssets: Array<DesignSchemeAsset & { storeKey: string }> = [],
   ): { summary: DesignSchemeSummary; document: DesignSchemeRevisionDocument } {
     const summary = this.requireSummary(schemeId);
     const validBase =
@@ -932,9 +1024,29 @@ export class DesignSchemeRepository {
     if (!validBase) throw new Error('方案已有更新版本，请刷新后再修改');
     this.assertExpectedVersion(schemeId, summary.version, expectedVersion);
     if (document.schemeId !== schemeId) throw new Error('修改结果与方案不匹配');
-    const validated = assertValidDocument(document);
     const now = Date.now();
+    const validated = assertValidDocument({
+      ...document,
+      createdBy: 'agent',
+      createdAt: now,
+      parentRevisionId: baseRevisionId,
+    });
     this.db.transaction(() => {
+      const inherited = new Set(readRevisionAssetIds(this.db, schemeId, baseRevisionId));
+      const added = new Set(newAssets.map((asset) => asset.id));
+      if (
+        added.size !== newAssets.length ||
+        newAssets.some((asset) => !validated.assetIds?.includes(asset.id))
+      )
+        throw new Error('新增素材与方案声明不一致');
+      if ((validated.assetIds ?? []).some((id) => !inherited.has(id) && !added.has(id)))
+        throw new Error('新版本不能引用基线之外的素材');
+      for (const asset of newAssets) {
+        assertAssetMetadataWrite(asset);
+        assertManagedStoreKey(asset.storeKey);
+        assetRoleSchema.parse(asset.role);
+        assetOriginSchema.parse(asset.origin);
+      }
       this.db
         .prepare(
           `INSERT INTO design_scheme_revisions
@@ -947,6 +1059,24 @@ export class DesignSchemeRepository {
           validated.schemaVersion,
           JSON.stringify(validated),
           now,
+        );
+      const insertAsset = this.db.prepare(`INSERT INTO design_scheme_assets
+        (id, revision_id, store_key, role, origin, license, mime_type, width, height, byte_size, content_hash, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      for (const asset of newAssets)
+        insertAsset.run(
+          asset.id,
+          validated.revisionId,
+          asset.storeKey,
+          asset.role,
+          asset.origin,
+          asset.license,
+          asset.mimeType,
+          asset.width,
+          asset.height,
+          asset.byteSize,
+          asset.contentHash,
+          typeof asset.createdAt === 'number' ? asset.createdAt : Date.parse(asset.createdAt),
         );
       this.db
         .prepare(
@@ -1092,10 +1222,18 @@ export class DesignSchemeRepository {
 
   getRevisionDocument(revisionId: string): DesignSchemeRevisionDocument | null {
     const row = this.db
-      .prepare('SELECT document_json FROM design_scheme_revisions WHERE revision_id = ?')
-      .get(revisionId) as { document_json: string } | undefined;
+      .prepare(
+        'SELECT document_json, created_by, created_at FROM design_scheme_revisions WHERE revision_id = ?',
+      )
+      .get(revisionId) as
+      | { document_json: string; created_by: 'agent' | 'user' | 'import'; created_at: number }
+      | undefined;
     if (!row) return null;
-    const parsed = parseDesignSchemeRevisionDocument(JSON.parse(row.document_json));
+    const parsed = parseDesignSchemeRevisionDocument({
+      ...JSON.parse(row.document_json),
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+    });
     if (!parsed.ok) throw new Error('设计方案文档已损坏，无法读取');
     return parsed.value;
   }

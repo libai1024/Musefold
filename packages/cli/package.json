@@ -23,6 +23,7 @@
     "@musefold/client": "workspace:*",
     "@musefold/contracts": "workspace:*",
     "@musefold/core": "workspace:*",
-    "@musefold/desktop-contracts": "workspace:*"
+    "@musefold/desktop-contracts": "workspace:*",
+    "@musefold/managed-fs": "workspace:*"
   }
 }

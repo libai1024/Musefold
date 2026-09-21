@@ -38,7 +38,7 @@ import {
 import { Switch } from '@musefold/ui/components/switch';
 import { Textarea } from '@musefold/ui/components/textarea';
 import { cn } from '@musefold/ui/lib/utils';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** 「未整理」在 Select 里的哨兵值(Select 不接受空串 item)。 */
 const NO_FOLDER = '__none__';
@@ -127,13 +127,19 @@ export function PromptEditorDialog({
   const [value, setValue] = useState<PromptEditorValue>(() => toEditorValue(prompt));
   const [initialValue, setInitialValue] = useState<PromptEditorValue>(() => toEditorValue(prompt));
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  /** 同一次打开只快照一次,避免 Strict Mode 二次 effect 或 prompt 引用变化把已输入清掉。 */
+  const openSessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) {
+      openSessionRef.current = null;
       setDiscardConfirmOpen(false);
       return;
     }
 
+    const sessionKey = prompt?.id ?? 'new';
+    if (openSessionRef.current === sessionKey) return;
+    openSessionRef.current = sessionKey;
     // 打开时快照初始值,dirty 全程对照这份快照。
     const snapshot = toEditorValue(prompt);
     setValue(snapshot);

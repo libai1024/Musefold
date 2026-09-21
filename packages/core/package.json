@@ -1,7 +1,7 @@
 {
   "name": "@musefold/core",
   "version": "0.0.0-internal",
-  "description": "Musefold 可移植领域核心（端口-适配器）：Electron 主进程与 headless 守护共用",
+  "description": "Musefold \u53ef\u79fb\u690d\u9886\u57df\u6838\u5fc3\uff08\u7aef\u53e3-\u9002\u914d\u5668\uff09\uff1aElectron \u4e3b\u8fdb\u7a0b\u4e0e headless \u5b88\u62a4\u5171\u7528",
   "license": "MIT",
   "type": "module",
   "private": true,
@@ -19,7 +19,8 @@
     "@musefold/domain": "workspace:*",
     "better-sqlite3": "13.0.2",
     "openai": "^4.77.0",
-    "ulid": "^3.0.1"
+    "ulid": "^3.0.1",
+    "@musefold/managed-fs": "workspace:*"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12"

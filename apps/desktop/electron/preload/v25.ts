@@ -15,6 +15,20 @@ const v25Bridge = {
     ipcRenderer.on('designSchemes:event', listener);
     return () => ipcRenderer.removeListener('designSchemes:event', listener);
   },
+  // 花钱确认卡的事件接缝(与 designSchemes:event 同构):主进程既有的两条广播
+  // 归并成一条带 type 的流,渲染层只订阅一次即可拿到 required / resolved。
+  onAutomationEvent(callback: (payload: unknown) => void): () => void {
+    const onRequired = (_event: unknown, summary: unknown) =>
+      callback({ type: 'required', summary });
+    const onResolved = (_event: unknown, resolved: unknown) =>
+      callback({ type: 'resolved', resolved });
+    ipcRenderer.on('automation:confirmationRequired', onRequired);
+    ipcRenderer.on('automation:confirmationResolved', onResolved);
+    return () => {
+      ipcRenderer.removeListener('automation:confirmationRequired', onRequired);
+      ipcRenderer.removeListener('automation:confirmationResolved', onResolved);
+    };
+  },
   onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void {
     const listener = (_event: unknown, isFullscreen: boolean) => callback(isFullscreen);
     ipcRenderer.on('window:fullscreenChanged', listener);

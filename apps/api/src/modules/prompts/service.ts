@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import {
   type NewPromptDocument,
   type NewPromptFolder,
@@ -12,6 +13,10 @@ import {
   type UpdatePromptDocument,
   type UpdatePromptFolder,
   type UpdatePromptTag,
+  entityIdSchema,
+  promptListQuerySchema,
+  promptFolderSchema,
+  promptTagSchema,
   newPromptDocumentSchema,
   newPromptFolderSchema,
   newPromptTagSchema,
@@ -31,6 +36,14 @@ import {
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { AppError } from '../../lib/errors.js';
 import { type ChangeSource, type DbLike, appendSyncChange } from '../sync/change-log.js';
+import { acquireSyncPublication } from '../sync/publication.js';
+
+import {
+  lockFolderTopology,
+  lockTaxonomyIdentity,
+  readTaxonomyTombstone,
+  recordTaxonomyTombstone,
+} from './taxonomy-deletion.js';
 
 type Tx = DbLike;
 
@@ -44,8 +57,9 @@ export class PromptService {
   constructor(private readonly db: MusefoldDatabase) {}
 
   async listPrompts(userId: string, input: ParsedPromptListQuery): Promise<PromptPage> {
-    const conditions = [sql`p.user_id = ${userId}`];
-    if (!input.includeDeleted) conditions.push(sql`p.deleted_at IS NULL`);
+    const conditions = [sql`p.user_id = ${userId}`, sql`p.purge_started_at IS NULL`];
+    if (input.deletedOnly) conditions.push(sql`p.deleted_at IS NOT NULL`);
+    else if (!input.includeDeleted) conditions.push(sql`p.deleted_at IS NULL`);
     if (input.q) {
       const pattern = `%${input.q}%`;
       conditions.push(
@@ -70,18 +84,20 @@ export class PromptService {
       )`);
     }
 
-    const cursor = input.cursor ? decodeCursor(input.cursor) : null;
+    const cursor = input.cursor ? decodeCursor(input.cursor, input.sort) : null;
     if (cursor) {
       if (input.sort === 'created-desc') {
-        conditions.push(sql`(p.created_at, p.id) < (${new Date(cursor.value)}, ${cursor.id})`);
+        conditions.push(sql`(p.created_at, p.id) < (${cursor.value}::timestamptz, ${cursor.id})`);
       } else if (input.sort === 'usage-desc') {
         conditions.push(
-          sql`(p.usage_count, p.updated_at, p.id) < (${Number(cursor.value)}, ${new Date(cursor.updatedAt)}, ${cursor.id})`,
+          sql`(p.usage_count, p.updated_at, p.id) < (${Number(cursor.value)}, ${cursor.updatedAt}::timestamptz, ${cursor.id})`,
         );
       } else if (input.sort === 'title-asc') {
         conditions.push(sql`(lower(p.title), p.id) > (${cursor.value}, ${cursor.id})`);
       } else {
-        conditions.push(sql`(p.updated_at, p.id) < (${new Date(cursor.value)}, ${cursor.id})`);
+        conditions.push(
+          sql`(p.is_pinned, p.updated_at, p.id) < (${cursor.isPinned}, ${cursor.value}::timestamptz, ${cursor.id})`,
+        );
       }
     }
 
@@ -269,6 +285,13 @@ export class PromptService {
   /** 回收站内永久删除:仅允许已软删的行,硬删并广播 delete 同步事件(幂等)。 */
   async purgePrompt(userId: string, id: string, context?: PromptOperationContext): Promise<void> {
     return this.withTx(context, async (tx) => {
+      // Snapshot validation and deletion share the row lock with restore/update.
+      // The aggregated prompt query itself cannot use FOR UPDATE.
+      await tx
+        .select({ id: prompts.id })
+        .from(prompts)
+        .where(and(eq(prompts.userId, userId), eq(prompts.id, id)))
+        .for('update');
       const current = await this.getPromptTx(tx, userId, id);
       if (current.deletedAt == null) {
         throw new AppError('VALIDATION_FAILED', '只能永久删除回收站中的提示词');
@@ -297,13 +320,30 @@ export class PromptService {
       const trashed = await tx
         .select({ id: prompts.id })
         .from(prompts)
-        .where(and(eq(prompts.userId, userId), isNotNull(prompts.deletedAt)));
+        .where(
+          and(
+            eq(prompts.userId, userId),
+            isNotNull(prompts.deletedAt),
+            isNull(prompts.purgeStartedAt),
+          ),
+        )
+        .orderBy(prompts.id)
+        .for('update');
       if (trashed.length === 0) return { purged: 0 };
       // 快照必须在硬删之前取:变更日志要带被删行的最后状态。
       const snapshots = await Promise.all(
         trashed.map((row) => this.getPromptTx(tx, userId, row.id)),
       );
-      await tx.delete(prompts).where(and(eq(prompts.userId, userId), isNotNull(prompts.deletedAt)));
+      // Delete exactly the locked snapshot set: newly trashed rows belong to a later action.
+      await tx.delete(prompts).where(
+        and(
+          eq(prompts.userId, userId),
+          inArray(
+            prompts.id,
+            trashed.map((row) => row.id),
+          ),
+        ),
+      );
       for (const snapshot of snapshots) {
         await appendSyncChange(
           tx,
@@ -328,6 +368,11 @@ export class PromptService {
     const input = promptUseInputSchema.parse(rawInput);
     const eventId = rawInput.eventId ?? input.idempotencyKey ?? randomUUID();
     return this.db.transaction(async (tx) => {
+      await tx
+        .select({ id: prompts.id })
+        .from(prompts)
+        .where(and(eq(prompts.userId, userId), eq(prompts.id, id), isNull(prompts.purgeStartedAt)))
+        .for('key share');
       const prompt = await this.getPromptTx(tx, userId, id);
       const inserted = await tx
         .insert(promptUsageEvents)
@@ -374,8 +419,12 @@ export class PromptService {
   ): Promise<PromptFolder> {
     const input = newPromptFolderSchema.parse(rawInput);
     return this.withTx(context, async (tx) => {
-      if (input.parentId) await this.requireFolder(tx, userId, input.parentId);
       const id = requestedId ?? randomUUID();
+      await lockFolderTopology(tx, userId);
+      await lockTaxonomyIdentity(tx, userId, 'folder', id);
+      const tombstone = await readTaxonomyTombstone(tx, userId, 'folder', id);
+      if (tombstone) throw promptVersionConflict(tombstone);
+      await this.validateFolderParent(tx, userId, id, input.parentId);
       await tx.insert(promptFolders).values({
         id,
         userId,
@@ -406,14 +455,13 @@ export class PromptService {
   ): Promise<PromptFolder> {
     const input = updatePromptFolderSchema.parse(rawInput);
     return this.withTx(context, async (tx) => {
+      await lockFolderTopology(tx, userId);
+      await lockTaxonomyIdentity(tx, userId, 'folder', id);
       const current = await this.getFolderTx(tx, userId, id);
-      if (current.version !== input.expectedVersion) throw promptVersionConflict(current);
-      if (input.parentId !== undefined && input.parentId) {
-        if (input.parentId === id) {
-          throw new AppError('VALIDATION_FAILED', '文件夹不能嵌套到自身');
-        }
-        await this.requireFolder(tx, userId, input.parentId);
-      }
+      if (current.deletedAt || current.version !== input.expectedVersion)
+        throw promptVersionConflict(current);
+      if (input.parentId !== undefined)
+        await this.validateFolderParent(tx, userId, id, input.parentId);
       const set: Record<string, unknown> = {
         version: sql`${promptFolders.version} + 1`,
         updatedAt: new Date(),
@@ -460,16 +508,16 @@ export class PromptService {
     expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
-    return this.changeFolderDeletedState(userId, id, expectedVersion, true, context);
+    return this.hardDeleteFolder(userId, id, expectedVersion, context);
   }
 
   async restoreFolder(
-    userId: string,
-    id: string,
-    expectedVersion: number | undefined,
-    context?: PromptOperationContext,
+    _userId: string,
+    _id: string,
+    _expectedVersion: number | undefined,
+    _context?: PromptOperationContext,
   ): Promise<PromptFolder> {
-    return this.changeFolderDeletedState(userId, id, expectedVersion, false, context);
+    throw new AppError('VALIDATION_FAILED', '文件夹已永久删除，不能恢复', 409);
   }
 
   async listTags(userId: string, includeDeleted = false): Promise<PromptTag[]> {
@@ -494,6 +542,9 @@ export class PromptService {
     const input = newPromptTagSchema.parse(rawInput);
     return this.withTx(context, async (tx) => {
       const id = requestedId ?? randomUUID();
+      await lockTaxonomyIdentity(tx, userId, 'tag', id);
+      const tombstone = await readTaxonomyTombstone(tx, userId, 'tag', id);
+      if (tombstone) throw promptVersionConflict(tombstone);
       await tx.insert(promptTags).values({
         id,
         userId,
@@ -515,8 +566,10 @@ export class PromptService {
   ): Promise<PromptTag> {
     const input = updatePromptTagSchema.parse(rawInput);
     return this.withTx(context, async (tx) => {
+      await lockTaxonomyIdentity(tx, userId, 'tag', id);
       const current = await this.getTagTx(tx, userId, id);
-      if (current.version !== input.expectedVersion) throw promptVersionConflict(current);
+      if (current.deletedAt || current.version !== input.expectedVersion)
+        throw promptVersionConflict(current);
       const set: Record<string, unknown> = {
         version: sql`${promptTags.version} + 1`,
         updatedAt: new Date(),
@@ -554,16 +607,16 @@ export class PromptService {
     expectedVersion: number | undefined,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
-    return this.changeTagDeletedState(userId, id, expectedVersion, true, context);
+    return this.hardDeleteTag(userId, id, expectedVersion, context);
   }
 
   async restoreTag(
-    userId: string,
-    id: string,
-    expectedVersion: number | undefined,
-    context?: PromptOperationContext,
+    _userId: string,
+    _id: string,
+    _expectedVersion: number | undefined,
+    _context?: PromptOperationContext,
   ): Promise<PromptTag> {
-    return this.changeTagDeletedState(userId, id, expectedVersion, false, context);
+    throw new AppError('VALIDATION_FAILED', '标签已永久删除，不能恢复', 409);
   }
 
   private async changePromptDeletedState(
@@ -590,6 +643,7 @@ export class PromptService {
           and(
             eq(prompts.userId, userId),
             eq(prompts.id, id),
+            isNull(prompts.purgeStartedAt),
             // 无条件路径不设版本谓词,靠 version = version + 1 原子自增,删除/恢复必然落库;
             // 显式版本路径由谓词 + 受影响行数做乐观锁裁决。
             expectedVersion !== undefined ? eq(prompts.version, expectedVersion) : undefined,
@@ -615,106 +669,99 @@ export class PromptService {
     });
   }
 
-  private async changeFolderDeletedState(
+  private async hardDeleteFolder(
     userId: string,
     id: string,
     expectedVersion: number | undefined,
-    deleted: boolean,
     context?: PromptOperationContext,
   ): Promise<PromptFolder> {
     return this.withTx(context, async (tx) => {
+      await lockFolderTopology(tx, userId);
+      await lockTaxonomyIdentity(tx, userId, 'folder', id);
+      const previous = await readTaxonomyTombstone(tx, userId, 'folder', id);
+      if (previous) {
+        if (expectedVersion !== undefined && previous.version !== expectedVersion)
+          throw promptVersionConflict(previous);
+        return promptFolderSchema.parse(previous);
+      }
+      // Lock before detach: reference writers hold KEY SHARE until their transaction commits.
+      await tx
+        .select({ id: promptFolders.id })
+        .from(promptFolders)
+        .where(and(eq(promptFolders.userId, userId), eq(promptFolders.id, id)))
+        .for('update');
       const current = await this.getFolderTx(tx, userId, id);
-      if (expectedVersion !== undefined && current.version !== expectedVersion) {
+      if (expectedVersion !== undefined && current.version !== expectedVersion)
         throw promptVersionConflict(current);
-      }
-      if (!deleted && current.parentId) await this.requireFolder(tx, userId, current.parentId);
-      const updated = await tx
-        .update(promptFolders)
-        .set({
-          deletedAt: deleted ? new Date() : null,
-          version: sql`${promptFolders.version} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(promptFolders.userId, userId),
-            eq(promptFolders.id, id),
-            // 无条件路径不设版本谓词(必然落库);显式版本路径由谓词 + 受影响行数裁决。
-            expectedVersion !== undefined ? eq(promptFolders.version, expectedVersion) : undefined,
-          ),
-        )
-        .returning({ id: promptFolders.id });
-      // 裁决必须先于关联摘除:0 行即输掉竞态,败者事务不得改动子文件夹/提示词,
-      // 也不得追加任何变更日志;重读后抛稳定 CONFLICT。
-      if (updated.length === 0) {
-        throw promptVersionConflict(await this.getFolderTx(tx, userId, id));
-      }
-      if (deleted && !current.deletedAt) {
-        await this.detachFolderRelations(tx, userId, id, context?.source);
-      }
-      const folder = await this.getFolderTx(tx, userId, id);
+      const deletedAt = current.deletedAt ?? new Date().toISOString();
+      const snapshot = promptFolderSchema.parse({
+        ...current,
+        deletedAt,
+        updatedAt: deletedAt,
+        version: current.deletedAt ? current.version : current.version + 1,
+      });
+      await this.detachFolderRelations(tx, userId, id, context?.source);
+      await recordTaxonomyTombstone(tx, userId, 'folder', snapshot);
+      await tx
+        .delete(promptFolders)
+        .where(and(eq(promptFolders.userId, userId), eq(promptFolders.id, id)));
       await appendSyncChange(
         tx,
         userId,
         'folder',
         id,
-        deleted ? 'delete' : 'upsert',
-        folder.version,
-        folder,
+        'delete',
+        snapshot.version,
+        snapshot,
         context?.source,
       );
-      return folder;
+      return snapshot;
     });
   }
 
-  private async changeTagDeletedState(
+  private async hardDeleteTag(
     userId: string,
     id: string,
     expectedVersion: number | undefined,
-    deleted: boolean,
     context?: PromptOperationContext,
   ): Promise<PromptTag> {
     return this.withTx(context, async (tx) => {
+      await lockTaxonomyIdentity(tx, userId, 'tag', id);
+      const previous = await readTaxonomyTombstone(tx, userId, 'tag', id);
+      if (previous) {
+        if (expectedVersion !== undefined && previous.version !== expectedVersion)
+          throw promptVersionConflict(previous);
+        return promptTagSchema.parse(previous);
+      }
+      await tx
+        .select({ id: promptTags.id })
+        .from(promptTags)
+        .where(and(eq(promptTags.userId, userId), eq(promptTags.id, id)))
+        .for('update');
       const current = await this.getTagTx(tx, userId, id);
-      if (expectedVersion !== undefined && current.version !== expectedVersion) {
+      if (expectedVersion !== undefined && current.version !== expectedVersion)
         throw promptVersionConflict(current);
-      }
-      const updated = await tx
-        .update(promptTags)
-        .set({
-          deletedAt: deleted ? new Date() : null,
-          version: sql`${promptTags.version} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(promptTags.userId, userId),
-            eq(promptTags.id, id),
-            // 无条件路径不设版本谓词(必然落库);显式版本路径由谓词 + 受影响行数裁决。
-            expectedVersion !== undefined ? eq(promptTags.version, expectedVersion) : undefined,
-          ),
-        )
-        .returning({ id: promptTags.id });
-      // 裁决必须先于标签关联摘除:0 行即输掉竞态,败者事务不得删链接、
-      // 递增提示词版本或追加变更日志;重读后抛稳定 CONFLICT。
-      if (updated.length === 0) {
-        throw promptVersionConflict(await this.getTagTx(tx, userId, id));
-      }
-      if (deleted && !current.deletedAt) {
-        await this.detachTagRelations(tx, userId, id, context?.source);
-      }
-      const tag = await this.getTagTx(tx, userId, id);
+      const deletedAt = current.deletedAt ?? new Date().toISOString();
+      const snapshot = promptTagSchema.parse({
+        ...current,
+        deletedAt,
+        updatedAt: deletedAt,
+        version: current.deletedAt ? current.version : current.version + 1,
+      });
+      await this.detachTagRelations(tx, userId, id, context?.source);
+      await recordTaxonomyTombstone(tx, userId, 'tag', snapshot);
+      await tx.delete(promptTags).where(and(eq(promptTags.userId, userId), eq(promptTags.id, id)));
       await appendSyncChange(
         tx,
         userId,
         'tag',
         id,
-        deleted ? 'delete' : 'upsert',
-        tag.version,
-        tag,
+        'delete',
+        snapshot.version,
+        snapshot,
         context?.source,
       );
-      return tag;
+      return snapshot;
     });
   }
 
@@ -732,7 +779,9 @@ export class PromptService {
     const affectedPrompts = await tx
       .select({ id: prompts.id })
       .from(prompts)
-      .where(and(eq(prompts.userId, userId), eq(prompts.folderId, folderId)));
+      .where(and(eq(prompts.userId, userId), eq(prompts.folderId, folderId)))
+      .orderBy(prompts.id)
+      .for('update');
     await tx
       .update(promptFolders)
       .set({ parentId: null, version: sql`${promptFolders.version} + 1`, updatedAt: new Date() })
@@ -775,11 +824,15 @@ export class PromptService {
     tagId: string,
     source?: ChangeSource,
   ): Promise<void> {
-    const linked = await tx
-      .select({ promptId: promptTagLinks.promptId })
-      .from(promptTagLinks)
-      .innerJoin(prompts, and(eq(prompts.id, promptTagLinks.promptId), eq(prompts.userId, userId)))
-      .where(eq(promptTagLinks.tagId, tagId));
+    // Match purge/update lock order: lock Prompt rows before deleting their links.
+    const linked = (
+      await tx.execute<{ promptId: string }>(sql`
+      SELECT p.id AS "promptId" FROM prompts p
+      WHERE p.user_id = ${userId} AND EXISTS (
+        SELECT 1 FROM prompt_tag_links l WHERE l.prompt_id = p.id AND l.tag_id = ${tagId}
+      ) ORDER BY p.id FOR UPDATE OF p
+    `)
+    ).rows;
     await tx.delete(promptTagLinks).where(eq(promptTagLinks.tagId, tagId));
     const promptIds = linked.map((row) => row.promptId);
     if (promptIds.length) {
@@ -807,13 +860,17 @@ export class PromptService {
     context: PromptOperationContext | undefined,
     callback: (tx: Tx) => Promise<T>,
   ): Promise<T> {
-    return context ? callback(context.tx) : this.db.transaction(callback);
+    const execute = async (tx: Tx) => {
+      await acquireSyncPublication(tx, 'write');
+      return callback(tx);
+    };
+    return context ? execute(context.tx) : this.db.transaction(execute);
   }
 
   private async getPromptTx(tx: Tx, userId: string, id: string): Promise<PromptDocument> {
     const result = await tx.execute(sql`
       ${promptSelectFragment()}
-      WHERE p.user_id = ${userId} AND p.id = ${id}
+      WHERE p.user_id = ${userId} AND p.id = ${id} AND p.purge_started_at IS NULL
       ${promptGroupByFragment()}
     `);
     const row = (result.rows as unknown as PromptRow[])[0];
@@ -826,7 +883,11 @@ export class PromptService {
       .select()
       .from(promptFolders)
       .where(and(eq(promptFolders.userId, userId), eq(promptFolders.id, id)));
-    if (!rows[0]) throw new AppError('VALIDATION_FAILED', '文件夹不存在', 404);
+    if (!rows[0]) {
+      const marker = await readTaxonomyTombstone(tx, userId, 'folder', id);
+      if (marker) return promptFolderSchema.parse(marker);
+      throw new AppError('VALIDATION_FAILED', '文件夹不存在', 404);
+    }
     return toFolder(rows[0]);
   }
 
@@ -835,8 +896,29 @@ export class PromptService {
       .select()
       .from(promptTags)
       .where(and(eq(promptTags.userId, userId), eq(promptTags.id, id)));
-    if (!rows[0]) throw new AppError('VALIDATION_FAILED', '标签不存在', 404);
+    if (!rows[0]) {
+      const marker = await readTaxonomyTombstone(tx, userId, 'tag', id);
+      if (marker) return promptTagSchema.parse(marker);
+      throw new AppError('VALIDATION_FAILED', '标签不存在', 404);
+    }
     return toTag(rows[0]);
+  }
+
+  private async validateFolderParent(
+    tx: Tx,
+    userId: string,
+    id: string,
+    parentId: string | null,
+  ): Promise<void> {
+    const seen = new Set([id]);
+    let next = parentId;
+    while (next) {
+      if (seen.has(next))
+        throw new AppError('VALIDATION_FAILED', '文件夹不能移动到自身或子文件夹中');
+      seen.add(next);
+      await this.requireFolder(tx, userId, next);
+      next = (await this.getFolderTx(tx, userId, next)).parentId;
+    }
   }
 
   private async requireFolder(tx: Tx, userId: string, id: string): Promise<void> {
@@ -849,7 +931,8 @@ export class PromptService {
           eq(promptFolders.id, id),
           isNull(promptFolders.deletedAt),
         ),
-      );
+      )
+      .for('key share');
     if (!rows[0]) throw new AppError('VALIDATION_FAILED', '文件夹不存在或已删除');
   }
 
@@ -871,7 +954,9 @@ export class PromptService {
           inArray(promptTags.id, unique),
           isNull(promptTags.deletedAt),
         ),
-      );
+      )
+      .orderBy(promptTags.id)
+      .for('key share');
     if (rows.length !== unique.length) {
       throw new AppError('VALIDATION_FAILED', '存在无效或已删除的标签');
     }
@@ -923,6 +1008,10 @@ interface PromptRow {
   updated_at: Date | string;
   deleted_at: Date | string | null;
   tags: PromptDocument['tags'];
+  // Cursor-only SQL projections preserve PostgreSQL precision and collation normalization.
+  pagination_created_at: string;
+  pagination_updated_at: string;
+  pagination_title: string;
 }
 
 function promptSelectFragment() {
@@ -932,6 +1021,9 @@ function promptSelectFragment() {
       p.model_id, p.params, p.rating, p.is_pinned, p.pin_order,
       p.usage_count, p.last_used_at, p.source, p.source_url, p.cover_image_url, p.version,
       p.created_at, p.updated_at, p.deleted_at,
+      to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS pagination_created_at,
+      to_char(p.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS pagination_updated_at,
+      lower(p.title) AS pagination_title,
       COALESCE(jsonb_agg(jsonb_build_object(
         'id', t.id, 'name', t.name, 'group', t.group_name, 'color', t.color,
         'version', t.version, 'createdAt', t.created_at,
@@ -1022,36 +1114,67 @@ function promptVersionConflict(current: unknown): AppError {
   });
 }
 
+// Versioned private cursor; public entities keep their existing ISO timestamp shape.
+// Legacy cursors omit pin state and database microseconds, so resuming them cannot be exact.
+const cursorTimestampSchema = z
+  .string()
+  .datetime({ offset: true })
+  .refine((value) => !value.startsWith('0000-'));
+const promptCursorSchema = z
+  .object({
+    version: z.literal(1),
+    sort: promptListQuerySchema.shape.sort.removeDefault(),
+    id: entityIdSchema.refine((value) => !value.includes('\0')),
+    value: z
+      .string()
+      .max(160)
+      .refine((value) => !value.includes('\0')),
+    updatedAt: cursorTimestampSchema,
+    isPinned: z.boolean(),
+  })
+  .strict()
+  .superRefine((cursor, ctx) => {
+    const validValue =
+      cursor.sort === 'title-asc' ||
+      (cursor.sort === 'usage-desc'
+        ? /^(0|[1-9]\d{0,9})$/.test(cursor.value) && Number(cursor.value) <= 2147483647
+        : cursorTimestampSchema.safeParse(cursor.value).success);
+    if (!validValue)
+      ctx.addIssue({ code: 'custom', path: ['value'], message: 'Invalid sort boundary' });
+  });
+
 function encodeCursorForRow(row: PromptRow, sort: ParsedPromptListQuery['sort']): string {
   const value =
     sort === 'title-asc'
-      ? row.title.toLowerCase()
+      ? row.pagination_title
       : sort === 'usage-desc'
         ? String(row.usage_count)
-        : toIso(sort === 'created-desc' ? row.created_at : row.updated_at);
-  return encodeCursor({ value, id: row.id, updatedAt: toIso(row.updated_at) });
+        : sort === 'created-desc'
+          ? row.pagination_created_at
+          : row.pagination_updated_at;
+  const cursor: z.infer<typeof promptCursorSchema> = {
+    version: 1,
+    sort,
+    value,
+    id: row.id,
+    updatedAt: row.pagination_updated_at,
+    isPinned: row.is_pinned,
+  };
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
 
-function encodeCursor(value: { value: string; id: string; updatedAt: string }): string {
-  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
-}
-
-function decodeCursor(cursor: string): { value: string; id: string; updatedAt: string } {
+function decodeCursor(
+  cursor: string,
+  sort: ParsedPromptListQuery['sort'],
+): z.infer<typeof promptCursorSchema> {
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
-      value?: unknown;
-      id?: unknown;
-      updatedAt?: unknown;
-    };
-    if (
-      typeof parsed.value !== 'string' ||
-      typeof parsed.id !== 'string' ||
-      typeof parsed.updatedAt !== 'string'
-    ) {
-      throw new Error('invalid cursor');
-    }
-    return { value: parsed.value, id: parsed.id, updatedAt: parsed.updatedAt };
+    if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw new Error('invalid encoding');
+    const parsed = promptCursorSchema.parse(
+      JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')),
+    );
+    if (parsed.sort !== sort) throw new Error('sort changed');
+    return parsed;
   } catch {
-    throw new AppError('VALIDATION_FAILED', '分页游标无效');
+    throw new AppError('VALIDATION_FAILED', '分页游标无效或已过期，请刷新列表');
   }
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import type { Ref } from 'react';
 import { Button } from '@musefold/ui/components/button';
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ const CREATE_ITEMS: Array<{
  * scope tabs(我的方案 | 发现,带计数)+ 搜索框 + 刷新 + 新建菜单。
  */
 export function SchemeControlDeck({
+  createTriggerRef,
   surface,
   mineCount,
   marketCount,
@@ -54,7 +56,11 @@ export function SchemeControlDeck({
   onRefresh,
   onMarketSearch,
   onCreate,
+  onExportHistory,
+  onAgentHistory,
+  onOpenTrash,
 }: {
+  createTriggerRef?: Ref<HTMLButtonElement>;
   surface: SchemeSurface;
   mineCount: number;
   /** 未搜索过 = undefined(发现 tab 不显示计数)。 */
@@ -71,6 +77,9 @@ export function SchemeControlDeck({
   onRefresh(): void;
   onMarketSearch(): void;
   onCreate(kind: SchemeCreateKind): void;
+  onExportHistory?: () => void;
+  onAgentHistory?: () => void;
+  onOpenTrash?: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -103,7 +112,7 @@ export function SchemeControlDeck({
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button
           variant="ghost"
           size="icon"
@@ -116,9 +125,47 @@ export function SchemeControlDeck({
         >
           <RefreshCw className={cn('size-3.5', listLoading && 'animate-spin')} aria-hidden />
         </Button>
+        {onAgentHistory ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-h-11 md:min-h-8"
+            onClick={onAgentHistory}
+            data-testid="scheme-agent-history-open"
+          >
+            方案任务
+          </Button>
+        ) : null}
+        {onExportHistory ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onExportHistory}
+            data-testid="scheme-export-history"
+          >
+            导出记录
+          </Button>
+        ) : null}
+        {onOpenTrash ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-h-11 md:min-h-8"
+            onClick={onOpenTrash}
+            data-testid="scheme-trash-open"
+          >
+            已移除
+          </Button>
+        ) : null}
         <DropdownMenu open={createOpen} onOpenChange={onCreateOpenChange}>
           <DropdownMenuTrigger asChild>
-            <Button variant="default" size="sm" className="gap-1" data-testid="scheme-create">
+            <Button
+              ref={createTriggerRef}
+              variant="default"
+              size="sm"
+              className="gap-1"
+              data-testid="scheme-create"
+            >
               <Plus className="size-3.5" aria-hidden />
               新建
               <ChevronDown className="size-3.5" aria-hidden />

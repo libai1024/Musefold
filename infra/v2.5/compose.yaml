@@ -1,7 +1,19 @@
-# Musefold v2.5 服务端编排(自托管 Docker)。
-# 生产:docker compose -f infra/v2.5/compose.yaml up -d(.env 提供密钥)。
-# 迁移由 api 容器外置执行:pnpm --filter @musefold/db run db:migrate。
+# Musefold v2.5 本地开发编排。默认密码、浮动标签和宿主端口不适用于生产。
+# v2.5 发布计划见 scripts/deploy/V25-README.md；此文件不构成生产发布入口。
+# 开发迁移:pnpm --filter @musefold/db run db:migrate。
 services:
+  web:
+    image: musefold/web:v2.5
+    build:
+      context: ../..
+      dockerfile: apps/web-next/Dockerfile
+      args:
+        MUSEFOLD_API_UPSTREAM: http://api:8787
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -41,7 +53,35 @@ services:
     environment:
       NODE_ENV: production
       PORT: "8787"
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:8787}
+      SCHEME_AGENT_TEXT_MODEL: ${SCHEME_AGENT_TEXT_MODEL:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:3000}
+      DATABASE_URL: postgres://musefold:${POSTGRES_PASSWORD:-musefold_local}@postgres:5432/musefold_v25
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      NEW_API_BASE_URL: ${NEW_API_BASE_URL:?}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-musefold}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-musefold_local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-musefold_local_secret}
+    ports:
+      - "8787:8787"
+
+  scheme-agent:
+    image: musefold/api:v2.5
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    command: ["./node_modules/.bin/tsx", "src/agent-worker-bin.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "8787"
+      SCHEME_AGENT_TEXT_MODEL: ${SCHEME_AGENT_TEXT_MODEL:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:3000}
       DATABASE_URL: postgres://musefold:${POSTGRES_PASSWORD:-musefold_local}@postgres:5432/musefold_v25
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
       NEW_API_BASE_URL: ${NEW_API_BASE_URL:?}
@@ -51,8 +91,6 @@ services:
       S3_BUCKET: ${S3_BUCKET:-musefold}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-musefold_local}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-musefold_local_secret}
-    ports:
-      - "8787:8787"
 
   worker:
     image: musefold/worker:v2.5
@@ -63,6 +101,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      MAINTENANCE_CLEANUP_PAUSED: ${MAINTENANCE_CLEANUP_PAUSED:-false}
+      S3_AUTO_CREATE_BUCKET: ${S3_AUTO_CREATE_BUCKET:-true}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:3000}
       NODE_ENV: production
       DATABASE_URL: postgres://musefold:${POSTGRES_PASSWORD:-musefold_local}@postgres:5432/musefold_v25
       NEW_API_BASE_URL: ${NEW_API_BASE_URL:?}

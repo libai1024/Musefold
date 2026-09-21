@@ -8,7 +8,7 @@
 
 ## 1. 结论与迁移状态
 
-列表主体(分节/搜索/排序/编辑器/回收站)已迁且部分能力超过旧版(文件夹/标签筛选是旧版 UI 退役后在新版**恢复**的能力、排序控件是新增、回收站从弹窗提升为页内 tab)。此前破坏产品闭环的 P0(行「使用」动作)已于 2026-08-29 收口。**2026-09-06(B1-T1)收口 §8 全表 P1/P2/P3**:封面缩略(契约 `coverImageUrl` + PG 列 + 桌面 `media://` 映射)、详情 Inspector(含相关作品面板)、空态 CTA 与「清空回收站」、⌘S / `/` / ⌘K 三条快捷键、行更新时间与复制 Check、`prompt-highlight` 接收端。剩余唯一结构性缺口:大库虚拟化(workspace 未装 `@tanstack/react-virtual`,本轮改滚动哨兵自动加载,见 §6)。
+列表主体(分节/搜索/排序/编辑器/回收站)已迁且部分能力超过旧版(文件夹/标签筛选是旧版 UI 退役后在新版**恢复**的能力、排序控件是新增、回收站从弹窗提升为页内 tab)。此前破坏产品闭环的 P0(行「使用」动作)已于 2026-08-29 收口。**2026-09-06(B1-T1)收口 §8 全表 P1/P2/P3**:封面缩略(契约 `coverImageUrl` + PG 列 + 桌面 `media://` 映射)、详情 Inspector(含相关作品面板)、空态 CTA 与「清空回收站」、⌘S / `/` / ⌘K 三条快捷键、行更新时间与复制 Check、`prompt-highlight` 接收端。**2026-09-06(B2-T4)**:「全部」分节 >150 行虚拟化(`@tanstack/react-virtual` 3.14.9,置顶常驻,哨兵仍在列表末尾)。**2026-09-07(B5-T2)**:内容宽 ≥760px 且详情关闭时「全部」2 列(列距 28px / 行缝 4px),虚拟化按行成对;`prompt-grid[data-columns]`。密度 token 已接到行 `px/py/gap`。
 
 ## 2. 布局对照
 
@@ -18,9 +18,9 @@
 | 页头 | 视图标题在顶栏;页内 scope tabs(全部/笺匣,带计数)+ 头部动作组(新建/刷新/回收站/更多菜单) | 页内 h1「提示词库」+ 总数 + 「新建提示词」主钮 | 结构对位;刷新钮由 TanStack 自动 refetch 取代(合理);笺匣随朱点冻结 |
 | 工具条 | 搜索框(store 驱动) | 「库/回收站」tabs + 搜索 + 排序 Select + 文件夹 Select + 标签管理钮 | 新版更完整 |
 | 标签筛选 | 无(v0.1 退役) | Badge 多选行 | **恢复的能力**,保留 |
-| 列表 | 「置顶(常驻渲染)/全部(虚拟化)」分节;双列自适应(≥760px 内容宽 2 列),行高 72/76px + 4px 缝,28px 列距 | 「置顶/全部」分节,单列,分页 30 条 +「加载更多」 | 分节承接;**双列 + 虚拟化缺失**,见 §6 |
+| 列表 | 「置顶(常驻渲染)/全部(虚拟化)」分节;双列自适应(≥760px 内容宽 2 列),行高 72/76px + 4px 缝,28px 列距 | 「置顶」常驻单列 /「全部」>150 行 `useVirtualizer`(按行成对,`estimateSize` 72/76+4px,`measureElement` 动态);≥760px 且详情关闭 `grid-cols-2 gap-x-7`;分页 30 条 + 滚动哨兵 | ✅ 虚拟化(2026-09-06 B2-T4);✅ 双列(2026-09-07 B5-T2) |
 | 回收站 | `TrashDialog` 弹窗(max-w-lg):条目行 + 行内二段确认「彻底删除」+「清空回收站」双重确认 | 页内 trash tab:行动作恢复/永久删除(AlertDialog 确认)+ 工具行「清空回收站」(AlertDialog 写明条数) | ✅ 对位(2026-09-06,`prompts.emptyTrash` 六层走线) |
-| 密度 | `data-density` compact 行高切换 | 无 | 随密度体系(01 §7)P2 |
+| 密度 | `data-density` compact 行高切换 | 行 `px/py/gap` 消费 `--density-row-padding` / `--density-list-gap`;密度切换 `virtualizer.measure()` | ✅ 2026-09-06 B2-T4(舒适态保持原 Tailwind 像素,紧凑态走 token) |
 
 ## 3. 列表行对照
 
@@ -41,6 +41,7 @@
 | 字段 | 标题*、描述、正文*、反向词(**可折叠**)、置顶开关 | 标题*、内容*、负向词(常驻)、备注、文件夹 Select、评分 Select、标签多选、置顶开关 | 新版字段更全(文件夹/评分/标签直编是恢复能力) |
 | 保存 | 提交钮 + **Cmd/Ctrl+S**;副标题提示快捷键 | 提交钮 + ⌘/Ctrl+S(DialogContent `onKeyDown`,dirty 且可提交才落库;无条件吞浏览器「保存网页」) | ✅ 对位(2026-09-06);已进 `PRODUCT_SHORTCUTS`(`prompt-editor-save`) |
 | 关闭防护 | Esc 与点外关闭被拦截(`preventDefault`),必须走「放弃」钮——防误关丢稿 | ShadCN Dialog 接管 Esc/点外/X/取消,脏表单弹 ShadCN AlertDialog「放弃修改?」确认;保存失败保留编辑值 | **已收口(2026-08-29)**:共享 features 组件与 Web/Electron 测试覆盖 clean 直关、Escape/外点/X 拦截、继续编辑、放弃修改和失败保值 |
+| 打开快照 | 打开即写入当前文档 | 同一次打开(`id`/`new`)只快照一次;Strict remount 与对象引用变化不覆盖已输入(D26) | **已收口(2026-09-07,B7-T4)** |
 | 错误 | 表单内错误条「保存失败,改动仍保留」 | mutation 错误 toast,表单保留 | 等价(I4) |
 | 笺誊清 | slip 源特殊标题「誊清这枚笺」+ 保存转 manual | 不适用(笺匣冻结) | 挂点登记 |
 
@@ -52,15 +53,14 @@
 导航(「提示词详情」+ 关闭)→ 头部(封面 48px / 置顶标记 / 标题 / 回收站 Badge / 描述 / `来源 · 使用 n 次 · 更新于 …` / 标签 / 更多菜单 / 主动作「使用」,回收站行换「恢复」)→ 正文 + 反向词(各带 Copy→Check 复制钮)→ **相关作品面板**(`PromptRelatedWorks`)→ 元数据(来源 / 创建 / 更新 / 使用次数)。
 md+ 内嵌右栏 384px(与历史屏 `HistoryInspector` 同构口径),窄屏装 `Sheet`;更多菜单只留编辑/复制正文/置顶/移入回收站,「分享/创建方案」随暂缓域与方案域各自入口不进本菜单。
 
-**相关作品的数据口径(登记为已知限制)**:`generationHistoryQuerySchema` 目前没有 `promptId` 过滤位,面板改为拉最近 100 条回合后在客户端按 `job.promptId` 过滤 `succeeded` 且有成图的记录。
-服务端下推(给 `generation.list` 加 `promptId`,并在 `apps/api` 与 `ipc-v25/generation-domain` 同步)属生成域改动,留作后续卡。
-缩略点击写 `screen-intent` `{ kind: 'history-select', jobId }` 并调宿主 `onOpenHistory`;**宿主尚未注入该回调**(桌面壳 / web-next 的 prompts 页都只接了 `onOpenWorkbench`),未注入时缩略退成只读画廊,不留死链接。历史屏消费 `history-select` 的接线待主代理排。
+**相关作品的数据口径(2026-09-06 B4-T1)**:`generationHistoryQuerySchema` 已有可选 `promptId`;面板下推 `generation.list({ promptId, status:'succeeded', limit:100 })`,API 与桌面 `generation.list` 按 `r.prompt_id` 过滤,客户端只留 `assets.length > 0`。`limit` 缺省 20 防 SQLite `LIMIT NaN`。超过一页仍可能漏,完整跨页由生成域后续卡。
+缩略点击写 `screen-intent` `{ kind: 'history-select', jobId }` 并调宿主 `onOpenHistory`(B1 已注入 desktop-shell / web prompts page);未注入时缩略退成只读画廊,不留死链接。
 
 ## 6. 性能与数据行为对照
 
 | 项 | 旧版 | 新版 | 判定 |
 |---|---|---|---|
-| 大库渲染 | `@tanstack/react-virtual` 虚拟化「全部」区,140+ 条 DOM 有界;置顶区常驻;`scrollMargin` 挂页面滚动;密度切换重测行高 | 无限查询分页(30/页)+ 滚动哨兵(`IntersectionObserver` 自动取下一页)+「加载更多」钮(键盘/无 IO 回退) | **部分收口(2026-09-06)**:哨兵已接,DOM 仍无界。`@tanstack/react-virtual` 不在 workspace 依赖里,按「不新增依赖」纪律未做行虚拟化 —— **剩余 P2**,需先立卡决定是否引入该依赖 |
+| 大库渲染 | `@tanstack/react-virtual` 虚拟化「全部」区,140+ 条 DOM 有界;置顶区常驻;`scrollMargin` 挂页面滚动;密度切换重测行高 | 无限查询分页(30/页)+ 滚动哨兵 +「加载更多」钮;「全部」/回收站 >150 行 `useVirtualizer`(md+ 屏内 `overflow-y-auto`;`<md` 页面滚动走 window 视口);置顶常驻;密度切换 `measure()`;宽屏按行成对 | ✅ 2026-09-06 B2-T4 + 2026-09-07 B5-T2 |
 | 搜索 | store 同步过滤(FTS5 兜底) | `useDeferredValue` + 服务端 `q` | 新版更优 |
 | 跨屏高亮 | `pendingHighlightPromptId` 消费一次即清,虚拟区 `scrollToIndex` / 常驻区 `scrollIntoView` 平滑居中 | `useScreenIntent` 处理 `prompts-trash` / `prompt-highlight` / `prompts-focus-search`,消费一次即清;高亮行 `scrollIntoView({ block: 'center', behavior: skipMotion() ? 'auto' : 'smooth' })` | ✅ 对位(2026-09-06);意图 effect 依赖 intent 值本身,同屏重复触发也会消费 |
 | 乐观更新 | store 手工维护 | TanStack invalidation | 等价 |
@@ -79,6 +79,8 @@ md+ 内嵌右栏 384px(与历史屏 `HistoryInspector` 同构口径),窄屏装 `
 
 > **已收口(2026-08-29)**:行「使用」动作(行尾文字钮 + `pendingDraft` 通道 + usageCount + toast)+ 编辑器脏表单防误关。
 > **已收口(2026-09-06,B1-T1)**:下表除「大库虚拟化」外全部。
+> **已收口(2026-09-06,B2-T4)**:大库虚拟化(>150)。
+> **已收口(2026-09-07,B5-T2/T3)**:双列自适应(≥760px);Taxonomy `<md` Sheet。
 
 | 优先级 | 任务 | 状态 / 验收要点 |
 |---|---|---|
@@ -86,7 +88,7 @@ md+ 内嵌右栏 384px(与历史屏 `HistoryInspector` 同构口径),窄屏装 `
 | P1 | 详情 Inspector:md+ 右栏(≈400px)/窄屏 Sheet;结构承旧(头部/正文/相关作品/元数据);行点击改「打开详情」;「使用」为详情主动作 | ✅ 2026-09-06,见 §5。相关作品跳历史的宿主接线待排(`onOpenHistory` + 历史屏消费 `history-select`) |
 | P1 | 编辑器脏表单防误关:Esc/点外时若有改动弹「放弃修改?」确认 | ✅ 2026-08-29 |
 | P2 | 搜索/筛选空态补「清除筛选」CTA;无提示词空态补「新建」钮;「清空回收站」双重确认批量动作 | ✅ 2026-09-06。`prompts.emptyTrash(): { purged }` 六层走线(contracts / platform / api-client / apps/api / ipc-v25 / desktop-gateway),AlertDialog 写明条数 |
-| P2 | ⌘/Ctrl+S 保存;大库虚拟化(>150 行) | ⌘S ✅ 2026-09-06;虚拟化 **未做**(依赖未装),改滚动哨兵自动加载,见 §6 |
+| P2 | ⌘/Ctrl+S 保存;大库虚拟化(>150 行) | ⌘S ✅ 2026-09-06;虚拟化 ✅ 2026-09-06 B2-T4(置顶常驻,哨兵兼容)。双列 ✅ 2026-09-07 B5-T2 |
 | P3 | 行元信息补更新时间;复制成功 Check 图标态;高亮跳转接收端(screen-intent 扩展 payload) | ✅ 2026-09-06 |
 
 > 暂缓域挂点:笺匣 scope 与誊清流(朱点冻结)、分享/导入菜单项、「创建方案」菜单项(设计方案域,入口留在列表行而非详情菜单)。

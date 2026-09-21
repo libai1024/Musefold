@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '../AppShell';
 import type { ShellNavItem } from '../nav';
 import { useScreenIntent } from '../screen-intent-store';
+import { WINDOW_CONTROLS_BAND_HEIGHT_PX, WINDOW_CONTROLS_BAND_WIDTH_PX } from '../WindowControls';
 import {
   SHELL_SIDEBAR_DEFAULT_WIDTH,
   SHELL_SIDEBAR_MIN_WIDTH,
@@ -90,6 +91,7 @@ interface HarnessProps {
   activeId?: ShellNavItem['id'] | null;
   onNavigate?: (id: ShellNavItem['id']) => void;
   brandInset?: number;
+  windowControls?: ReactNode;
   children?: ReactNode;
 }
 
@@ -97,6 +99,7 @@ function Harness({
   activeId = 'workbench',
   onNavigate = vi.fn(),
   brandInset,
+  windowControls,
   children,
 }: HarnessProps) {
   return (
@@ -104,6 +107,7 @@ function Harness({
       activeId={activeId}
       onNavigate={onNavigate}
       brandInset={brandInset}
+      windowControls={windowControls}
       action={
         <button type="button" data-testid="session-create">
           新设计
@@ -442,5 +446,222 @@ describe('AppShell ⌘/Ctrl+K 全局搜索(shortcuts prompts-search)', () => {
     fireEvent.keyDown(document, { key: 'k', metaKey: true, shiftKey: true });
     expect(onNavigate).not.toHaveBeenCalled();
     expect(useScreenIntent.getState().intent).toBeNull();
+  });
+});
+
+describe('AppShell 窗口控件槽与拖拽钩子(B2-T6)', () => {
+  beforeEach(() => {
+    stubMatchMedia(false);
+    setInnerWidth(1440);
+    stubLocalStorage();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('windowControls 落在主区右上 32px 窄带,不恢复整条顶栏', () => {
+    render(
+      <Harness
+        windowControls={
+          <button type="button" data-testid="wc-probe">
+            x
+          </button>
+        }
+      />,
+    );
+    const band = screen.getByTestId('window-controls-band');
+    expect(band.className).toContain('h-8');
+    expect(band.className).toContain('absolute');
+    expect(screen.getByTestId('wc-probe')).toBeTruthy();
+    expect(screen.queryByTestId('titlebar-session-menu-trigger')).toBeNull();
+  });
+
+  it('普通屏挂 data-window-drag-band;设置屏改挂 data-settings-window-drag', () => {
+    const { rerender } = render(<Harness activeId="workbench" />);
+    const surface = () => screen.getByTestId('mainview-surface');
+    expect(surface().querySelector('[data-window-drag-band]')).toBeTruthy();
+    expect(surface().querySelector('[data-settings-window-drag]')).toBeNull();
+
+    rerender(<Harness activeId="settings" />);
+    expect(surface().querySelector('[data-window-drag-band]')).toBeNull();
+    expect(surface().querySelector('[data-settings-window-drag]')).toBeTruthy();
+  });
+});
+
+/**
+ * 桌面宿主 CSS 合同(apps/desktop/src/v25/globals.css):有安全区钩子 + 控件带时
+ * 主区 padding-top 32px。features 测试注入同一选择器,jsdom 才能读到 computed padding。
+ */
+const WINDOW_CONTROLS_SAFE_AREA_CSS = `
+[data-testid='mainview-surface'][data-window-controls-safe]:has([data-window-controls-band])
+> main {
+  padding-top: ${WINDOW_CONTROLS_BAND_HEIGHT_PX}px;
+}
+`;
+
+function rectsIntersect(a: DOMRect, b: DOMRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function fakeControls() {
+  return (
+    <div
+      data-testid="fake-controls"
+      style={{ width: WINDOW_CONTROLS_BAND_WIDTH_PX, height: WINDOW_CONTROLS_BAND_HEIGHT_PX }}
+    />
+  );
+}
+
+/**
+ * jsdom 不排版。按固定宽容器模拟:控件带钉在右上 32×138;标题/问候取 main 的
+ * computed padding-top,右对齐到容器右缘(最坏情况:首行操作贴右)。
+ */
+function stubSafeAreaGeometry(surfaceWidth: number) {
+  const original = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+    const testid = this.getAttribute('data-testid');
+    if (testid === 'window-controls-band' || testid === 'fake-controls') {
+      return new DOMRect(
+        surfaceWidth - WINDOW_CONTROLS_BAND_WIDTH_PX,
+        0,
+        WINDOW_CONTROLS_BAND_WIDTH_PX,
+        WINDOW_CONTROLS_BAND_HEIGHT_PX,
+      );
+    }
+    if (
+      testid === 'title-probe' ||
+      testid === 'greeting-probe' ||
+      testid === 'settings-badge-probe'
+    ) {
+      const main = this.closest('main');
+      const paddingTop = main ? Number.parseFloat(getComputedStyle(main).paddingTop) || 0 : 0;
+      const header = this.closest('header');
+      const headerPadRight = header
+        ? Number.parseFloat(getComputedStyle(header).paddingRight) || 0
+        : 0;
+      const width = 120;
+      const height = 24;
+      return new DOMRect(surfaceWidth - headerPadRight - width, paddingTop, width, height);
+    }
+    return original.call(this);
+  };
+  return () => {
+    Element.prototype.getBoundingClientRect = original;
+  };
+}
+
+function injectSafeAreaCss() {
+  const style = document.createElement('style');
+  style.setAttribute('data-testid', 'window-controls-safe-area-css');
+  style.textContent = WINDOW_CONTROLS_SAFE_AREA_CSS;
+  document.head.appendChild(style);
+  return () => style.remove();
+}
+
+describe('AppShell Win/Linux 三钮安全区(B3-T3)', () => {
+  const surfaceWidth = 800;
+  let restoreGeometry: (() => void) | undefined;
+  let removeCss: (() => void) | undefined;
+
+  beforeEach(() => {
+    stubMatchMedia(false);
+    setInnerWidth(1440);
+    stubLocalStorage();
+    removeCss = injectSafeAreaCss();
+    restoreGeometry = stubSafeAreaGeometry(surfaceWidth);
+  });
+
+  afterEach(() => {
+    restoreGeometry?.();
+    removeCss?.();
+    vi.restoreAllMocks();
+  });
+
+  it('注入 windowControls 时控件带存在,模拟标题/问候与 32×138 带不相交', () => {
+    render(
+      <div style={{ width: surfaceWidth }}>
+        <Harness windowControls={fakeControls()}>
+          <h1 data-testid="title-probe">提示词库</h1>
+          <p data-testid="greeting-probe">早上好，从一个想法开始</p>
+        </Harness>
+      </div>,
+    );
+
+    const surface = screen.getByTestId('mainview-surface');
+    expect(surface.hasAttribute('data-window-controls-safe')).toBe(true);
+    const band = screen.getByTestId('window-controls-band');
+    expect(band).toBeTruthy();
+    expect(screen.getByTestId('fake-controls')).toBeTruthy();
+
+    const main = surface.querySelector('main');
+    expect(main).toBeTruthy();
+    expect(getComputedStyle(main as HTMLElement).paddingTop).toBe(
+      `${WINDOW_CONTROLS_BAND_HEIGHT_PX}px`,
+    );
+
+    const bandRect = band.getBoundingClientRect();
+    expect(bandRect.width).toBe(WINDOW_CONTROLS_BAND_WIDTH_PX);
+    expect(bandRect.height).toBe(WINDOW_CONTROLS_BAND_HEIGHT_PX);
+    expect(
+      rectsIntersect(bandRect, screen.getByTestId('title-probe').getBoundingClientRect()),
+    ).toBe(false);
+    expect(
+      rectsIntersect(bandRect, screen.getByTestId('greeting-probe').getBoundingClientRect()),
+    ).toBe(false);
+  });
+
+  it('不传 windowControls 时无控件带、无安全区钩子、主区不加顶让位', () => {
+    render(
+      <div style={{ width: surfaceWidth }}>
+        <Harness>
+          <h1 data-testid="title-probe">提示词库</h1>
+        </Harness>
+      </div>,
+    );
+
+    expect(screen.queryByTestId('window-controls-band')).toBeNull();
+    expect(screen.queryByTestId('fake-controls')).toBeNull();
+    const surface = screen.getByTestId('mainview-surface');
+    expect(surface.hasAttribute('data-window-controls-safe')).toBe(false);
+    const main = surface.querySelector('main');
+    expect(main).toBeTruthy();
+    expect(Number.parseFloat(getComputedStyle(main as HTMLElement).paddingTop) || 0).toBe(0);
+  });
+
+  it('设置/非设置拖拽钩子切换时安全区钩子仍在,徽标与控件带不相交', () => {
+    const { rerender } = render(
+      <div style={{ width: surfaceWidth }}>
+        <Harness activeId="workbench" windowControls={fakeControls()}>
+          <h1 data-testid="title-probe">提示词库</h1>
+        </Harness>
+      </div>,
+    );
+    const surface = () => screen.getByTestId('mainview-surface');
+    expect(surface().hasAttribute('data-window-controls-safe')).toBe(true);
+    expect(surface().querySelector('[data-window-drag-band]')).toBeTruthy();
+    expect(surface().querySelector('[data-settings-window-drag]')).toBeNull();
+
+    rerender(
+      <div style={{ width: surfaceWidth }}>
+        <Harness activeId="settings" windowControls={fakeControls()}>
+          <header>
+            <span data-testid="settings-badge-probe">桌面版</span>
+          </header>
+        </Harness>
+      </div>,
+    );
+    expect(surface().hasAttribute('data-window-controls-safe')).toBe(true);
+    expect(surface().querySelector('[data-window-drag-band]')).toBeNull();
+    expect(surface().querySelector('[data-settings-window-drag]')).toBeTruthy();
+    expect(getComputedStyle(surface().querySelector('main') as HTMLElement).paddingTop).toBe(
+      `${WINDOW_CONTROLS_BAND_HEIGHT_PX}px`,
+    );
+    expect(
+      rectsIntersect(
+        screen.getByTestId('window-controls-band').getBoundingClientRect(),
+        screen.getByTestId('settings-badge-probe').getBoundingClientRect(),
+      ),
+    ).toBe(false);
   });
 });

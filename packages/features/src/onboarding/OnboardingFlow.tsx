@@ -84,12 +84,7 @@ export function OnboardingFlow({ onOpenScreen }: OnboardingFlowProps) {
   if (!gate.open) return null;
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) openSkipConfirm();
-      }}
-    >
+    <Dialog open>
       <DialogContent
         showCloseButton={false}
         // Radix 只给 role=dialog(圈焦点 + 外部 aria-hidden);模态语义显式补 aria-modal。
@@ -97,6 +92,17 @@ export function OnboardingFlow({ onOpenScreen }: OnboardingFlowProps) {
         className="flex h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:max-w-full md:h-auto md:max-h-[min(46rem,90dvh)] md:max-w-[640px] md:rounded-lg"
         data-testid="onboarding-flow"
         data-step={step}
+        // 点遮罩 / Esc = 跳过确认。内容换步卸焦点时 Radix 也会发 dismiss,
+        // 不能走 onOpenChange(false),否则会误开跳过层甚至拆掉引导。
+        onPointerDownOutside={(event) => {
+          event.preventDefault();
+          openSkipConfirm();
+        }}
+        onFocusOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          openSkipConfirm();
+        }}
       >
         <DialogTitle className="sr-only">Musefold 首次设置</DialogTitle>
         <DialogDescription className="sr-only">

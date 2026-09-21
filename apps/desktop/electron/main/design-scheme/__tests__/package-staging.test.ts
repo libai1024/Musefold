@@ -1,3 +1,4 @@
+import { filesystem } from './managed-fs-fixture';
 import { createHash } from 'node:crypto';
 import {
   appendFileSync,
@@ -32,7 +33,7 @@ function stagingWithInspector(
 ) {
   const inspectPackage = vi.fn(async () => ({ formatVersion }));
   return {
-    staging: new DesignSchemePackageStaging({ rootDir, inspectPackage }),
+    staging: new DesignSchemePackageStaging({ filesystem, rootDir, inspectPackage }),
     inspectPackage,
   };
 }

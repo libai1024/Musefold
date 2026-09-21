@@ -1,3 +1,8 @@
+import {
+  purgeLocalGenerationRecords,
+  tryDrainLocalAssetCleanup,
+} from '@musefold/core/services/local-asset-cleanup';
+import { windowUploadOwner } from './local-upload-owners';
 // v2.5 桌面 workbench/generation 域桥:contracts 形状 ↔ core SQLite。
 // 会话正文在 workbench_sessions/generation_runs/generated_assets 三表;
 // 草稿在受管表 workbench_drafts(desktop-db 0001 增量;M4b 的 userData JSON
@@ -6,7 +11,9 @@
 // 渲染层轮询终态 —— 进度事件流等 M4e IPC 收口时统一补。
 
 import type {
+  ApiErrorCode,
   GenerationAsset,
+  GenerationCount,
   GenerationJob,
   GenerationReferenceImage,
   GenerationStatus,
@@ -17,6 +24,8 @@ import type {
   WorkbenchSession,
 } from '@musefold/contracts';
 import {
+  ACCOUNT_CLOUD_PROVIDER_TYPE,
+  retryGenerationCommandSchema,
   createGenerationInputSchema,
   createWorkbenchSessionSchema,
   entityIdSchema,
@@ -25,6 +34,7 @@ import {
   saveAssetInputSchema,
   updateWorkbenchSessionSchema,
   uploadReferenceImageInputSchema,
+  releaseReferenceImageInputSchema,
   workbenchDraftSchema,
   workbenchSessionListQuerySchema,
 } from '@musefold/contracts';
@@ -33,6 +43,17 @@ import {
   isValidUtf16SliceRange,
 } from '@musefold/domain/generation-prompt';
 import { getDb } from '@musefold/core/db';
+import {
+  WorkbenchSessionStore,
+  WorkbenchSessionStoreError,
+  readWorkbenchDraftMap,
+  type WorkbenchSessionRow as SessionRow,
+  type WorkbenchSessionRecord,
+} from '@musefold/core/db/repositories/workbench-sessions';
+import {
+  InvalidWorkbenchSessionCursorError,
+  queryWorkbenchSessions,
+} from '@musefold/core/db/repositories/workbench-session-query';
 import { resolveLocalContentWorkspace } from '@musefold/core/db/workspaces';
 import { LocalImageError, stageLocalImageBytes } from '@musefold/core/providers/local-image';
 import { getPaths } from '@musefold/core/runtime';
@@ -52,10 +73,65 @@ import { z } from 'zod';
 import { createLogger } from '../../system/logger';
 import { BridgeError, type MethodDef } from './envelope';
 
+import {
+  startManagedGeneration,
+  managedRequestForLocalJob,
+  cancelManagedGeneration,
+  reconcileManagedGeneration,
+  scheduleManagedReconciliation,
+} from '../../system/managed-generation-runtime';
+import {
+  accountCloudProviderId,
+  managedConnectionMessage,
+} from '../../system/account-cloud-connection';
+import { withManagedGenerationSession } from '../../system/managed-generation-client';
+import { readSessionCredentials } from './account-session-store';
+import { readManagedRecoveryForLocalJob } from '../../system/account-cloud-recovery';
+import { assertLocalRetryModel } from '@musefold/core/services/generation-retry';
+
 const logger = createLogger('ipc-v25:workbench');
 
-/** 桌面表无 version 列;合成乐观锁,写回丢弃。 */
-const SYNTHETIC_VERSION = 1;
+/** 桌面账本自由错误码 → 契约码;密钥类必须可被历史/工作台归一成 check_key。 */
+const DESKTOP_RUN_ERROR_CODES: Record<string, ApiErrorCode> = {
+  AUTH: 'AUTH_CREDENTIALS_INVALID',
+  'ACCOUNT/AUTH': 'AUTH_CREDENTIALS_INVALID',
+  AUTH_FAILED: 'AUTH_CREDENTIALS_INVALID',
+  UNAUTHORIZED: 'AUTH_CREDENTIALS_INVALID',
+  NO_KEY: 'AUTH_CREDENTIALS_INVALID',
+  // Only an account-scoped quota fact offers official redemption. A BYOK provider's
+  // NO_BALANCE is independent and must not invite funding a different account.
+  'ACCOUNT/QUOTA': 'ACCOUNT_QUOTA_INSUFFICIENT',
+  ACCOUNT_QUOTA_INSUFFICIENT: 'ACCOUNT_QUOTA_INSUFFICIENT',
+  PAYMENT_IDENTITY_UNBOUND: 'ACCOUNT_IDENTITY_UNVERIFIED',
+};
+
+function mapDesktopRunErrorCode(raw: string | null | undefined): ApiErrorCode {
+  const upper = (raw ?? '').trim().toUpperCase();
+  return DESKTOP_RUN_ERROR_CODES[upper] ?? 'GENERATION_UPSTREAM_REJECTED';
+}
+
+/** 会话表缺失/损坏:渲染层据此展示「需要重启应用」逃生门。 */
+export const WORKBENCH_SESSION_RESTART_REQUIRED = 'WORKBENCH_SESSION_RESTART_REQUIRED';
+
+function isSqliteSchemaFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /no such table|no such column|malformed|not a database/i.test(message);
+}
+
+function mapSessionStoreError(error: unknown): never {
+  if (error instanceof BridgeError) throw error;
+  if (error instanceof WorkbenchSessionStoreError) throw new BridgeError(error.code, error.message);
+  if (error instanceof InvalidWorkbenchSessionCursorError)
+    throw new BridgeError('VALIDATION_FAILED', error.message);
+  if (isSqliteSchemaFailure(error)) {
+    throw new BridgeError(
+      WORKBENCH_SESSION_RESTART_REQUIRED,
+      '对话服务尚未加载。请完全重启 Musefold 后再试。',
+    );
+  }
+  throw error;
+}
+
 /** 本地资产不过期;契约要求 expiresAt,给远期占位。 */
 const LOCAL_ASSET_EXPIRES_AT = '2099-12-31T00:00:00+00:00';
 
@@ -86,46 +162,8 @@ const EMPTY_DRAFT: WorkbenchDraft = {
   promptReferenceIds: [],
 };
 
-function parseDraftJson(raw: string | undefined): WorkbenchDraft {
-  if (!raw) return EMPTY_DRAFT;
-  try {
-    const parsed = workbenchDraftSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : EMPTY_DRAFT;
-  } catch {
-    return EMPTY_DRAFT;
-  }
-}
-
-function readDraft(sessionId: string): WorkbenchDraft {
-  const row = getDb()
-    .prepare('SELECT draft_json FROM workbench_drafts WHERE session_id = ?')
-    .get(sessionId) as { draft_json: string } | undefined;
-  return parseDraftJson(row?.draft_json);
-}
-
 function readDraftMap(sessionIds: string[]): Map<string, WorkbenchDraft> {
-  if (sessionIds.length === 0) return new Map();
-  const rows = getDb()
-    .prepare(
-      `SELECT session_id, draft_json FROM workbench_drafts
-       WHERE session_id IN (${sessionIds.map(() => '?').join(', ')})`,
-    )
-    .all(...sessionIds) as Array<{ session_id: string; draft_json: string }>;
-  return new Map(rows.map((row) => [row.session_id, parseDraftJson(row.draft_json)]));
-}
-
-function writeDraft(sessionId: string, draft: WorkbenchDraft | null): void {
-  if (draft) {
-    getDb()
-      .prepare(
-        `INSERT INTO workbench_drafts (session_id, draft_json, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(session_id) DO UPDATE SET
-           draft_json = excluded.draft_json, updated_at = excluded.updated_at`,
-      )
-      .run(sessionId, JSON.stringify(draft), Date.now());
-  } else {
-    getDb().prepare('DELETE FROM workbench_drafts WHERE session_id = ?').run(sessionId);
-  }
+  return readWorkbenchDraftMap(getDb(), sessionIds);
 }
 
 /** M4b 旁存 JSON 一次性并入受管表(幂等;导入后删文件,失败只告警不阻断)。 */
@@ -135,18 +173,7 @@ function importLegacyDraftsFile(): void {
   try {
     const parsed = draftsFileSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')));
     if (parsed.success) {
-      const db = getDb();
-      const sessionExists = db.prepare('SELECT 1 FROM workbench_sessions WHERE id = ?');
-      const insert = db.prepare(
-        `INSERT INTO workbench_drafts (session_id, draft_json, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(session_id) DO NOTHING`,
-      );
-      db.transaction(() => {
-        for (const [sessionId, draft] of Object.entries(parsed.data)) {
-          if (sessionExists.get(sessionId))
-            insert.run(sessionId, JSON.stringify(draft), Date.now());
-        }
-      })();
+      new WorkbenchSessionStore(getDb()).importLegacyDrafts(parsed.data);
     }
     rmSync(path, { force: true });
   } catch (error) {
@@ -155,15 +182,6 @@ function importLegacyDraftsFile(): void {
 }
 
 // ---------- 会话 ----------
-
-interface SessionRow {
-  id: string;
-  title: string;
-  created_at: number;
-  updated_at: number;
-  archived_at: number | null;
-  deleted_at: number | null;
-}
 
 /** 会话行状态点(§3.3)派生:每会话最近一次生成的状态与完成时刻。 */
 interface LatestJobRow {
@@ -200,7 +218,7 @@ function sessionRowToDocument(
     id: row.id,
     title: row.title,
     draft,
-    version: SYNTHETIC_VERSION,
+    version: row.version,
     createdAt: epochMsToIso(row.created_at),
     updatedAt: epochMsToIso(row.updated_at),
     archivedAt: epochMsToIsoOrNull(row.archived_at),
@@ -219,8 +237,18 @@ function getSessionRow(id: string): SessionRow {
 }
 
 async function getSession(id: string): Promise<WorkbenchSession> {
-  const row = getSessionRow(id);
-  return sessionRowToDocument(row, readDraft(row.id), readLatestJobMap([row.id]).get(row.id));
+  return sessionStoreOperation((store) => store.get(id));
+}
+
+async function sessionStoreOperation(
+  operation: (store: WorkbenchSessionStore) => WorkbenchSessionRecord,
+): Promise<WorkbenchSession> {
+  try {
+    const { row, draft } = operation(new WorkbenchSessionStore(getDb()));
+    return sessionRowToDocument(row, draft, readLatestJobMap([row.id]).get(row.id));
+  } catch (error) {
+    mapSessionStoreError(error);
+  }
 }
 
 // ---------- 生成 run → 契约 job ----------
@@ -363,9 +391,27 @@ function runSeed(params: GenerationParamsSnapshot): number | null {
   return typeof params.seed === 'number' && Number.isInteger(params.seed) ? params.seed : null;
 }
 
+/**
+ * 张数从参数快照的 core 字段 `n` 回读(§9-D3):
+ * 旧运行没有该字段 → 1;目录外的历史值(3/8…)夹到最近的合法档,保证契约可解析。
+ */
+function runCount(params: GenerationParamsSnapshot): GenerationCount {
+  const n = params.n;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return 1;
+  return n >= 4 ? 4 : n >= 2 ? 2 : 1;
+}
+
 function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
   const params = JSON.parse(row.params_json) as GenerationParamsSnapshot;
-  const status = RUN_STATUS_TO_JOB[row.status];
+  let status = RUN_STATUS_TO_JOB[row.status];
+  if (status === 'queued' || status === 'running') {
+    const cancellation = getDb()
+      .prepare(`SELECT 1 FROM managed_generation_requests m
+      JOIN automation_spend_requests s ON s.id = m.request_id
+      WHERE s.execution_id = ? AND json_extract(m.record_json, '$.cancelRequestedAt') IS NOT NULL`)
+      .get(row.id);
+    if (cancellation) status = 'cancelling';
+  }
   const snapshot = parseStoredPromptSnapshot(row.prompt_snapshot_json);
   return {
     id: row.id,
@@ -377,6 +423,7 @@ function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
     actorType: 'desktop_local',
     approvalStatus: 'not_required',
     status,
+    recovery: readManagedRecoveryForLocalJob(row.id),
     progress: status === 'succeeded' ? 100 : status === 'running' ? 50 : 0,
     request: {
       prompt: row.final_prompt,
@@ -385,7 +432,7 @@ function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
       size: (params.size as GenerationJob['request']['size']) ?? 'auto',
       aspectRatio: params.aspectRatio,
       quality: (params.quality as GenerationJob['request']['quality']) ?? 'auto',
-      count: 1,
+      count: runCount(params),
       providerId: row.provider_id,
       referenceImages: (params.referenceImages ?? [])
         .map(stagedPathToContractReference)
@@ -403,8 +450,7 @@ function runRowToJob(row: RunRow, assets: AssetRow[]): GenerationJob {
     error:
       row.status === 'failed'
         ? {
-            // 桌面本地错误码是自由字符串;契约码收敛为「上游拒绝」,细节在 message。
-            code: 'GENERATION_UPSTREAM_REJECTED' as const,
+            code: mapDesktopRunErrorCode(row.error_code),
             message: row.error_message ?? row.error_code ?? '生成失败',
           }
         : null,
@@ -527,7 +573,9 @@ export function resolvePromptReference(
     )
     .get(workspaceId, selection.promptId) as PromptSourceRow | undefined;
   if (!row) throw new BridgeError('NOT_FOUND', '引用的提示词不存在');
-  if (selection.expectedVersion !== SYNTHETIC_VERSION) {
+  // Legacy prompt rows have no persisted version; this is unrelated to Session CAS.
+  const legacyPromptVersion = 1;
+  if (selection.expectedVersion !== legacyPromptVersion) {
     throw new BridgeError('CONFLICT', '引用的提示词已更新,请重新选择');
   }
 
@@ -549,7 +597,7 @@ export function resolvePromptReference(
       title: row.title,
       text,
       scope: selection.scope,
-      sourceVersion: SYNTHETIC_VERSION,
+      sourceVersion: legacyPromptVersion,
     });
   } catch {
     throw new BridgeError('VALIDATION_FAILED', `第 ${index + 1} 条引用片段无效`);
@@ -663,50 +711,31 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
     'workbench.listSessions': {
       input: workbenchSessionListQuerySchema,
       handle: async (input) => {
-        const query = input as z.output<typeof workbenchSessionListQuerySchema>;
-        const offset = parseOffsetCursor(query.cursor);
-        const conditions: string[] = [];
-        if (query.archivedOnly) {
-          conditions.push('archived_at IS NOT NULL');
-          conditions.push('deleted_at IS NULL');
-        } else {
-          if (!query.includeDeleted) conditions.push('deleted_at IS NULL');
-          if (!query.includeArchived) conditions.push('archived_at IS NULL');
+        try {
+          const query = input as z.output<typeof workbenchSessionListQuerySchema>;
+          // Version and draft must come from the same read snapshot across processes.
+          return db().transaction(() => {
+            const { rows: page, nextCursor } = queryWorkbenchSessions(db(), query);
+            const drafts = readDraftMap(page.map((row) => row.id));
+            const latest = readLatestJobMap(page.map((row) => row.id));
+            return {
+              items: page.map((row) =>
+                sessionRowToDocument(row, drafts.get(row.id) ?? EMPTY_DRAFT, latest.get(row.id)),
+              ),
+              nextCursor,
+            };
+          })();
+        } catch (error) {
+          mapSessionStoreError(error);
         }
-        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-        const rows = db()
-          .prepare(
-            `SELECT * FROM workbench_sessions ${where}
-             ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`,
-          )
-          .all(query.limit + 1, offset) as SessionRow[];
-        const page = rows.slice(0, query.limit);
-        const drafts = readDraftMap(page.map((row) => row.id));
-        const latest = readLatestJobMap(page.map((row) => row.id));
-        return {
-          items: page.map((row) =>
-            sessionRowToDocument(row, drafts.get(row.id) ?? EMPTY_DRAFT, latest.get(row.id)),
-          ),
-          nextCursor: rows.length > query.limit ? String(offset + query.limit) : null,
-        };
       },
     },
     'workbench.createSession': {
       input: createWorkbenchSessionSchema,
-      handle: async (input) => {
-        const parsed = input as z.output<typeof createWorkbenchSessionSchema>;
-        const id = ulid();
-        const now = Date.now();
-        db()
-          .prepare(
-            `INSERT INTO workbench_sessions (id, title, created_at, updated_at, archived_at, deleted_at)
-             VALUES (?, ?, ?, ?, NULL, NULL)`,
-          )
-          .run(id, parsed.title, now, now);
-        const draft = workbenchDraftSchema.parse({ ...EMPTY_DRAFT, ...parsed.draft });
-        writeDraft(id, draft);
-        return getSession(id);
-      },
+      handle: async (input) =>
+        sessionStoreOperation((store) =>
+          store.create(input as z.output<typeof createWorkbenchSessionSchema>),
+        ),
     },
     'workbench.getSession': {
       input: entityIdSchema,
@@ -719,45 +748,37 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
           id: string;
           patch: z.output<typeof updateWorkbenchSessionSchema>;
         };
-        const row = getSessionRow(id);
-        if (row.deleted_at != null) throw new BridgeError('CONFLICT', '会话已删除,请先恢复');
-        const now = Date.now();
-        if (patch.title !== undefined) {
-          db()
-            .prepare('UPDATE workbench_sessions SET title = ?, updated_at = ? WHERE id = ?')
-            .run(patch.title, now, id);
-        }
-        if (patch.archived !== undefined) {
-          db()
-            .prepare('UPDATE workbench_sessions SET archived_at = ?, updated_at = ? WHERE id = ?')
-            .run(patch.archived ? now : null, now, id);
-        }
-        if (patch.draft !== undefined) {
-          writeDraft(id, patch.draft);
-          db().prepare('UPDATE workbench_sessions SET updated_at = ? WHERE id = ?').run(now, id);
-        }
-        return getSession(id);
+        return sessionStoreOperation((store) => store.update(id, patch));
       },
     },
     'workbench.removeSession': {
       input: entityIdSchema,
-      handle: async (id) => {
-        getSessionRow(id as string);
-        const now = Date.now();
-        db()
-          .prepare('UPDATE workbench_sessions SET deleted_at = ?, updated_at = ? WHERE id = ?')
-          .run(now, now, id);
-        return getSession(id as string);
-      },
+      handle: async (id) =>
+        sessionStoreOperation((store) => store.changeDeleted(id as string, true)),
     },
     'workbench.restoreSession': {
       input: entityIdSchema,
+      handle: async (id) =>
+        sessionStoreOperation((store) => store.changeDeleted(id as string, false)),
+    },
+    'workbench.purgeSession': {
+      input: entityIdSchema,
       handle: async (id) => {
-        getSessionRow(id as string);
-        db()
-          .prepare('UPDATE workbench_sessions SET deleted_at = NULL, updated_at = ? WHERE id = ?')
-          .run(Date.now(), id);
-        return getSession(id as string);
+        try {
+          return new WorkbenchSessionStore(db()).purge(id as string);
+        } catch (error) {
+          mapSessionStoreError(error);
+        }
+      },
+    },
+    'workbench.emptyTrash': {
+      input: z.void(),
+      handle: async () => {
+        try {
+          return new WorkbenchSessionStore(db()).emptyTrash();
+        } catch (error) {
+          mapSessionStoreError(error);
+        }
       },
     },
 
@@ -793,35 +814,54 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
             userPrompt: parsed.prompt,
           };
         }
-        fireGeneration(
-          {
-            providerId,
-            jobId,
-            // The bridge owns the only live composition. Core receives the immutable
-            // final prompt plus resolved snapshots and must not query Prompt rows.
-            prompt: composed.finalPrompt,
-            negative: parsed.negative,
-            size: parsed.size === 'auto' ? 'auto' : parsed.size,
-            aspectRatio: parsed.aspectRatio,
-            quality: parsed.quality,
-            n: 1,
-            promptId: parsed.promptId,
-            promptReferences: composed.promptReferences.map(resolvedReferenceToCoreReference),
-            workbench,
-            ...(referenceImages.length > 0 ? { referenceImages } : {}),
-          },
-          undefined,
-          { promptAlreadyComposed: true, userPrompt: parsed.prompt },
-        );
+        const request: GenerateImageRequest = {
+          providerId,
+          jobId,
+          // The bridge owns the only live composition. Core receives the immutable
+          // final prompt plus resolved snapshots and must not query Prompt rows.
+          prompt: composed.finalPrompt,
+          negative: parsed.negative,
+          size: parsed.size === 'auto' ? 'auto' : parsed.size,
+          aspectRatio: parsed.aspectRatio,
+          quality: parsed.quality,
+          // §9-D3:张数进 core `n`,provider 逐张落盘 → GenerationService 按 position 入账多行资产。
+          n: parsed.count,
+          promptId: parsed.promptId,
+          promptReferences: composed.promptReferences.map(resolvedReferenceToCoreReference),
+          workbench,
+          ...(referenceImages.length > 0 ? { referenceImages } : {}),
+        };
+        const providerType = (
+          db().prepare('SELECT type FROM providers WHERE id = ?').get(providerId) as
+            | { type: string }
+            | undefined
+        )?.type;
+        if (providerType === ACCOUNT_CLOUD_PROVIDER_TYPE) {
+          try {
+            await startManagedGeneration(parsed, request);
+          } catch (error) {
+            throw new BridgeError(
+              'MANAGED_GENERATION_NOT_STARTED',
+              managedConnectionMessage(error),
+            );
+          }
+        } else
+          fireGeneration(request, undefined, {
+            promptAlreadyComposed: true,
+            userPrompt: parsed.prompt,
+          });
         return waitForRun(jobId);
       },
     },
     'generation.uploadReferenceImage': {
       input: uploadReferenceImageInputSchema,
-      handle: async (input) => {
+      handle: async (input, context) => {
         const parsed = input as z.output<typeof uploadReferenceImageInputSchema>;
         try {
-          const staged = await stageLocalImageBytes({ bytes: parsed.bytes, name: parsed.name });
+          const staged = await stageLocalImageBytes(
+            { bytes: parsed.bytes, name: parsed.name },
+            windowUploadOwner(context?.senderId),
+          );
           const reference = stagedPathToContractReference({ ...staged, name: parsed.name });
           if (!reference) throw new BridgeError('INTERNAL_ERROR', '参考图暂存结果异常');
           return reference;
@@ -832,6 +872,20 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
           }
           throw error;
         }
+      },
+    },
+    'generation.releaseReferenceImage': {
+      input: releaseReferenceImageInputSchema,
+      handle: async (input, context) => {
+        const { id } = input as z.output<typeof releaseReferenceImageInputSchema>;
+        // Renderer controls only a validated opaque id. The trusted sender can release
+        // only paths already held by its own host-created owner.
+        const owner = windowUploadOwner(context?.senderId);
+        owner.release(
+          Object.values(REFERENCE_MIME_EXTENSION).map((extension) =>
+            join(referenceUploadsDir(), `${id}${extension}`),
+          ),
+        );
       },
     },
     'generation.saveAsset': {
@@ -855,6 +909,7 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
       handle: async (input) => {
         const query = input as z.output<typeof generationHistoryQuerySchema>;
         const offset = parseOffsetCursor(query.cursor);
+        const limit = query.limit ?? 20;
         const conditions: string[] = [];
         const args: unknown[] = [];
         if (query.deletedOnly) conditions.push('r.deleted_at IS NOT NULL');
@@ -871,6 +926,10 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
           if (!desktopStatus) return { items: [], nextCursor: null };
           conditions.push('r.status = ?');
           args.push(desktopStatus);
+        }
+        if (query.promptId) {
+          conditions.push('r.prompt_id = ?');
+          args.push(query.promptId);
         }
         if (query.providerModel) {
           conditions.push('r.model = ?');
@@ -895,8 +954,8 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
             `SELECT r.* FROM generation_runs r ${where}
              ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`,
           )
-          .all(...args, query.limit + 1, offset) as RunRow[];
-        const page = rows.slice(0, query.limit);
+          .all(...args, limit + 1, offset) as RunRow[];
+        const page = rows.slice(0, limit);
         const ids = page.map((row) => row.id);
         const assets =
           ids.length > 0
@@ -908,18 +967,30 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
             : [];
         return {
           items: page.map((row) => runRowToJob(row, assets)),
-          nextCursor: rows.length > query.limit ? String(offset + query.limit) : null,
+          nextCursor: rows.length > limit ? String(offset + limit) : null,
         };
       },
     },
     'generation.get': {
       input: entityIdSchema,
-      handle: async (id) => getJob(id as string),
+      handle: async (id) => {
+        scheduleManagedReconciliation(id as string);
+        return getJob(id as string);
+      },
     },
     'generation.cancel': {
       input: entityIdSchema,
       handle: async (id) => {
         const current = getRunRow(id as string);
+        const managedRequest = managedRequestForLocalJob(id as string);
+        if (managedRequest) {
+          try {
+            await cancelManagedGeneration(managedRequest);
+          } catch (error) {
+            throw new BridgeError('MANAGED_CANCEL_PENDING', managedConnectionMessage(error));
+          }
+          return getJob(id as string);
+        }
         if (current.status === 'cancelled') return getJob(id as string);
         if (current.status !== 'queued' && current.status !== 'running') {
           throw new BridgeError('CONFLICT', '生成任务已经结束');
@@ -929,11 +1000,83 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
       },
     },
     'generation.retry': {
-      input: entityIdSchema,
-      handle: async (id) => {
-        const source = getRunRow(id as string);
+      input: z.union([entityIdSchema, retryGenerationCommandSchema]),
+      handle: async (raw) => {
+        const command = typeof raw === 'string' ? null : retryGenerationCommandSchema.parse(raw);
+        const id = typeof raw === 'string' ? raw : retryGenerationCommandSchema.parse(raw).id;
+        const source = getRunRow(id);
         if (source.status !== 'failed' && source.status !== 'cancelled') {
           throw new BridgeError('CONFLICT', '只有失败或取消的任务可以重试');
+        }
+        const managedRequest = managedRequestForLocalJob(id as string);
+        if (managedRequest) {
+          if (!command)
+            throw new BridgeError(
+              'MANAGED_QUERY_ONLY',
+              '请更新客户端后使用显式重试；原任务没有重新发送。',
+            );
+          try {
+            await reconcileManagedGeneration(managedRequest);
+            const frozen = await withManagedGenerationSession(async ({ client, ledger }) => {
+              const record = ledger.retrySource(managedRequest, client.context);
+              if (accountCloudProviderId(client.context) !== source.provider_id)
+                throw new BridgeError('MANAGED_IDENTITY_CHANGED', '请使用原账号核对这个任务。');
+              return record.frozenRequest;
+            });
+            const jobId = ulid();
+            const parsed = createGenerationInputSchema.parse({
+              ...frozen,
+              providerId: source.provider_id,
+              ...(command.expectedBinding ? { expectedBinding: command.expectedBinding } : {}),
+            });
+            const session = source.workbench_session_id
+              ? getSessionRow(source.workbench_session_id)
+              : null;
+            if (session?.deleted_at != null)
+              throw new BridgeError('CONFLICT', '会话已删除，不能继续生成');
+            const resultId = await startManagedGeneration(
+              parsed,
+              {
+                jobId,
+                providerId: source.provider_id,
+                prompt: frozen.prompt,
+                negative: frozen.negative,
+                size: frozen.size,
+                aspectRatio: frozen.aspectRatio,
+                quality: frozen.quality,
+                n: frozen.count,
+                parentHistoryId: source.id,
+                ...(session
+                  ? {
+                      workbench: {
+                        sessionId: session.id,
+                        sessionTitle: session.title,
+                        turnId: ulid(),
+                        turnIndex: nextTurnIndex(session.id),
+                        resultIndex: 0,
+                        userPrompt: frozen.prompt,
+                      },
+                    }
+                  : {}),
+              },
+              {
+                retryOfRequestId: managedRequest,
+                retryOfRunId: source.id,
+                callerKey: `desktop-retry:${command.idempotencyKey}`,
+              },
+            );
+            return waitForRun(resultId);
+          } catch (error) {
+            if (error instanceof BridgeError) throw error;
+            throw new BridgeError('MANAGED_QUERY_ONLY', managedConnectionMessage(error));
+          }
+        }
+        // Reject before fire-and-wait: core intentionally creates no child for an
+        // incomplete local snapshot. Managed requests above use their own frozen evidence.
+        try {
+          assertLocalRetryModel(source.model);
+        } catch (error) {
+          throw new BridgeError('GENERATION_RETRY_MODEL_MISSING', (error as Error).message);
         }
         const params = JSON.parse(source.params_json) as GenerationParamsSnapshot;
         const jobId = ulid();
@@ -947,7 +1090,8 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
             size: (params.size as GenerateImageRequest['size']) ?? 'auto',
             aspectRatio: params.aspectRatio,
             quality: (params.quality as GenerateImageRequest['quality']) ?? 'auto',
-            n: 1,
+            // 重试沿用原运行的张数快照(缺省 1),不悄悄改变用户当初的请求。
+            n: runCount(params),
             referenceImages: params.referenceImages,
           },
           source.id,
@@ -983,22 +1127,8 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
         if (row.status === 'queued' || row.status === 'running') {
           throw new BridgeError('VALIDATION_FAILED', '任务仍在进行中,请先取消');
         }
-        const assets = db()
-          .prepare('SELECT media_path FROM generated_assets WHERE run_id = ?')
-          .all(id) as Array<{ media_path: string | null }>;
-        // 先删行(assets 级联),后清磁盘:文件删除失败只留孤儿文件,不阻塞用户操作。
-        db().prepare('DELETE FROM generation_runs WHERE id = ?').run(id);
-        for (const asset of assets) {
-          if (!asset.media_path) continue;
-          try {
-            rmSync(asset.media_path, { force: true });
-          } catch (error) {
-            logger.warn(
-              '永久删除时清理资产文件失败',
-              error instanceof Error ? error.message : String(error),
-            );
-          }
-        }
+        purgeLocalGenerationRecords([id as string]);
+        tryDrainLocalAssetCleanup();
         return undefined;
       },
     },
@@ -1012,13 +1142,24 @@ export function buildWorkbenchDomainMethods(): Record<string, MethodDef> {
             'SELECT id, name, model, type FROM providers ORDER BY is_active DESC, created_at',
           )
           .all() as Array<{ id: string; name: string; model: string | null; type: string }>;
+        const account = await readSessionCredentials();
         return rows.map(
           (row): ProviderOption => ({
             id: row.id,
             label: row.name,
             model: row.model,
-            kind: 'local',
-            available: true,
+            kind: row.type === ACCOUNT_CLOUD_PROVIDER_TYPE ? 'cloud' : 'local',
+            available:
+              row.type !== ACCOUNT_CLOUD_PROVIDER_TYPE ||
+              Boolean(
+                account &&
+                  !account.restricted &&
+                  account.principalId &&
+                  accountCloudProviderId({
+                    apiIssuer: account.apiIssuer,
+                    principalId: account.principalId,
+                  }) === row.id,
+              ),
           }),
         );
       },

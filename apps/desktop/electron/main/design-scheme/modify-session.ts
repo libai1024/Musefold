@@ -8,7 +8,8 @@
  * 状态机复用创建事件（created → compiling_scheme → draft_ready / failed / cancelled），
  * 对话轮渲染直接复用创建轨迹组件。
  */
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
+import { retainDesignSchemeOperation } from '@musefold/core/services/design-scheme-lifetime';
 import type Database from 'better-sqlite3';
 import { appError, fail, ok, type AppResult } from '@musefold/domain/app-result';
 import type { CompilerOutput } from '@musefold/desktop-contracts/design-scheme/agents';
@@ -23,6 +24,7 @@ import type {
   StartDesignSchemeModifyRequest,
 } from '@musefold/desktop-contracts/design-scheme';
 import { classifyAiError } from '../../ai/openai-compatible-assistant';
+import { readRevisionAssetIds } from '@musefold/core/db/design-scheme/revision-assets';
 import { DesignSchemeRepository } from '@musefold/core/db/design-scheme/repositories';
 import { buildInputSlots } from './orchestrator';
 import { runSchemeReviser } from './roles/reviser';
@@ -76,6 +78,7 @@ export class DesignSchemeModifySession {
   }
 
   async run(): Promise<AppResult<DesignSchemeCreationResult>> {
+    const release = retainDesignSchemeOperation(this.deps.db, this.request.schemeId);
     try {
       return await this.execute();
     } catch (error) {
@@ -106,6 +109,8 @@ export class DesignSchemeModifySession {
         message: classified.message,
       });
       return fail(classified);
+    } finally {
+      release();
     }
   }
 
@@ -229,6 +234,10 @@ export class DesignSchemeModifySession {
       sources: base.sources.map((binding) => ({ ...binding })),
       // 修订不引入新来源:快照声明沿基线(applyAgentRevision 也会复制基线绑定)。
       ...(base.sourceSnapshotIds ? { sourceSnapshotIds: [...base.sourceSnapshotIds] } : {}),
+      assetIds: readRevisionAssetIds(this.deps.db, base.schemeId, base.revisionId),
+      ...(base.repositoryImages
+        ? { repositoryImages: base.repositoryImages.map((image) => ({ ...image })) }
+        : {}),
       inputs: buildInputSlots(output),
       parameters: base.parameters.map((parameter) => ({ ...parameter })),
       constraints: output.constraints.map((constraint, index) => ({

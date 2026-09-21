@@ -47,5 +47,6 @@ export {
   type GenerationEstimate,
   type GenerationGate,
   type GenerationHost,
+  type GenerationPersistence,
   type GenerationRequestBody,
 } from './generation-routes';

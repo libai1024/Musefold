@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" fill="none" role="img" aria-labelledby="mf-dark-title mf-dark-description">
+  <title id="mf-dark-title">Musefold / 未像 · 黑夜版</title>
+  <desc id="mf-dark-description">Night edition of the original vector logo: graphite tile, carbon paper face, light-gray folded reverse and vermilion pigment. Original geometry and transparent outer canvas retained. SVG paths, gradients, procedural grain and shadows; no embedded bitmap or external assets.</desc>
+  <defs>
+    <path id="mf-dark-tile" d="M438.613 241.47 H818.81       C913.467 241.47 973.78 308.278 973.78 401.913       V796.731 C973.78 882.676 924.256 960.56 815.797 960.56       H438.696 C345.664 960.56 281 898.283 281 795.567       V400.477 C281 307.348 343.005 241.47 438.613 241.47 Z"/>
+    <path id="mf-dark-mark" fill-rule="evenodd" clip-rule="evenodd" d="       M427.8 364.69 H829.5       C850.191 364.69 855.84 383.329 855.84 392.5       L855.89 610.5 C855.89 619.518 849.049 628.518 844.22 633.5       L651.95 831.5 C651.803 831.652 644.137 838.45 631 838.45       H426.3 C407.274 838.45 400.73 819.912 400.73 811.5       L400.84 392.5 C400.84 383.173 407.052 364.69 427.8 364.69 Z       M497.5 424.87 L834.5 424.86       C848.439 424.86 849.96 436.274 849.96 441.5       L850.07 607.5 C850.07 615.378 840.853 623.86 831 623.86       L785.5 623.79 C746.729 623.79 725.868 651.85 715.807 672.5       L644.04 820.5 C641.234 826.259 635.171 832.65 625.5 832.65       H497.5 C485.819 832.65 479.99 824.973 479.99 818.5       L479.96 441.5 C479.96 436.308 481.566 424.87 497.5 424.87 Z"/>
+    <path id="mf-dark-paper" d="M497.5 424.87 L834.5 424.86       C848.439 424.86 849.96 436.274 849.96 441.5       L850.07 607.5 C850.07 615.378 840.853 623.86 831 623.86       L785.5 623.79 C746.729 623.79 725.868 651.85 715.807 672.5       L644.04 820.5 C641.234 826.259 635.171 832.65 625.5 832.65       H497.5 C485.819 832.65 479.99 824.973 479.99 818.5       L479.96 441.5 C479.96 436.308 481.566 424.87 497.5 424.87 Z"/>
+    <path id="mf-dark-fold" d="M855.89 610.5 C855.89 619.518 849.049 628.518 844.22 633.5
+L651.95 831.5 C651.803 831.652 644.137 838.45 631 838.45 L625.5 832.65
+C635.171 832.65 641.234 826.259 644.04 820.5 L715.807 672.5
+C725.868 651.85 746.729 623.79 785.5 623.79 L831 623.86
+C840.853 623.86 850.07 615.378 850.07 607.5 Z"/>
+    <clipPath id="mf-dark-tile-clip"><use href="#mf-dark-tile"/></clipPath>
+    <clipPath id="mf-dark-mark-clip"><use href="#mf-dark-mark"/></clipPath>
+    <linearGradient id="mf-dark-board-color" x1="425" y1="245" x2="765" y2="950" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3a4653"/><stop offset=".48" stop-color="#29323c"/><stop offset="1" stop-color="#1b2229"/>
+    </linearGradient>
+    <linearGradient id="mf-dark-board-rim" x1="520" y1="241" x2="710" y2="961" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#596a7a"/><stop offset=".5" stop-color="#35414e"/><stop offset="1" stop-color="#242c35"/>
+    </linearGradient>
+    <linearGradient id="mf-dark-paper-color" x1="610" y1="425" x2="700" y2="833" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#222b34"/><stop offset="1" stop-color="#141a21"/>
+    </linearGradient>
+    <linearGradient id="mf-dark-mark-color" x1="627" y1="365" x2="607" y2="838" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#bec8ce"/><stop offset=".5" stop-color="#b1bec6"/><stop offset="1" stop-color="#99a7b0"/>
+    </linearGradient>
+    <linearGradient id="mf-dark-fold-color" x1="712" y1="684" x2="762" y2="735" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c1cbd1"/><stop offset=".26" stop-color="#b7c3cb"/><stop offset="1" stop-color="#96a4ae"/>
+    </linearGradient>
+    <radialGradient id="mf-dark-pigment" cx="773" cy="480" r="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e76832"/><stop offset=".64" stop-color="#da5725"/><stop offset="1" stop-color="#c94818"/>
+    </radialGradient>
+    <filter id="mf-dark-tile-shadow" x="-10%" y="-10%" width="120%" height="125%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="9" stdDeviation="9" flood-color="#000000" flood-opacity=".48"/>
+    </filter>
+    <!-- Fine procedural grain softens dark-gradient banding; no bitmap is embedded. -->
+    <filter id="mf-dark-grain" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".48" numOctaves="1" seed="24" stitchTiles="stitch" result="grain"/>
+      <feColorMatrix in="grain" type="saturate" values="0" result="gray"/>
+      <feComposite in="SourceGraphic" in2="gray" operator="arithmetic" k1="0" k2="1" k3=".045" k4="-.0225" result="surface"/>
+      <feComposite in="surface" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="mf-dark-paper-shadow" x="-5%" y="-5%" width="110%" height="112%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2.4" stdDeviation="1.9" flood-color="#000000" flood-opacity=".54"/>
+    </filter>
+    <filter id="mf-dark-dot-shadow" x="-15%" y="-15%" width="130%" height="135%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1" flood-color="#000000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <g id="mf-dark-rounded-tile">
+    <g filter="url(#mf-dark-tile-shadow)">
+      <use href="#mf-dark-tile" fill="url(#mf-dark-board-color)" filter="url(#mf-dark-grain)"/>
+    </g>
+    <use href="#mf-dark-tile" stroke="url(#mf-dark-board-rim)" stroke-width="3.8"/>
+    <use href="#mf-dark-tile" stroke="#8a99a7" stroke-width="6" opacity=".07" clip-path="url(#mf-dark-tile-clip)"/>
+  </g>
+  <use href="#mf-dark-paper" fill="url(#mf-dark-paper-color)"/>
+  <g id="mf-dark-folded-page" filter="url(#mf-dark-paper-shadow)">
+    <use href="#mf-dark-mark" fill="url(#mf-dark-mark-color)"/>
+    <use href="#mf-dark-fold" fill="url(#mf-dark-fold-color)" clip-path="url(#mf-dark-mark-clip)"/>
+    <use href="#mf-dark-mark" stroke="#dde5e9" stroke-width="1.15" opacity=".17" clip-path="url(#mf-dark-mark-clip)"/>
+  </g>
+  <ellipse id="mf-dark-vermilion-dot" cx="783.108" cy="495.001" rx="28.518" ry="29.021" fill="url(#mf-dark-pigment)" filter="url(#mf-dark-dot-shadow)"/>
+</svg>

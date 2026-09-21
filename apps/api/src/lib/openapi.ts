@@ -19,7 +19,7 @@ interface RouteDef<
   params?: P;
   query?: Q;
   body?: B;
-  status?: 200 | 201;
+  status?: 200 | 201 | 202;
   response: z.ZodType;
 }
 
@@ -63,7 +63,10 @@ export function route<
         params: def.params as never,
         query: def.query as never,
         body: def.body
-          ? { content: { 'application/json': { schema: def.body } }, required: true }
+          ? {
+              content: { 'application/json': { schema: def.body } },
+              required: !def.body.isOptional(),
+            }
           : undefined,
       },
       responses: {
@@ -80,12 +83,20 @@ export function route<
     const input = {
       params: parseWith(def.params, c.req.param(), 'params'),
       query: parseWith(def.query, queryRecord(c), 'query'),
-      body: def.body
-        ? parseWith(def.body, await c.req.json().catch(() => undefined), 'body')
-        : undefined,
+      body: def.body ? parseWith(def.body, await readJsonBody(c), 'body') : undefined,
     } as RouteInput<P, Q, B>;
     return handler(c, input);
   });
+}
+
+async function readJsonBody(c: Context<AuthedEnv>): Promise<unknown> {
+  const text = await c.req.text();
+  if (!text.trim()) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new AppError('VALIDATION_FAILED', 'body: JSON 格式无效', 400);
+  }
 }
 
 function queryRecord(c: Context<AuthedEnv>): Record<string, string | string[]> {

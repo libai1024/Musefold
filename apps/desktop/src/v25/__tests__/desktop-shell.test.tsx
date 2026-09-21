@@ -30,7 +30,7 @@ import { getShellNavItems, useScreenIntent } from '@musefold/features/shell';
 import type { MusefoldGateway } from '@musefold/platform';
 import { DESKTOP_CAPABILITIES, PlatformProvider } from '@musefold/platform';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESKTOP_NAV_ITEMS, DesktopShellHost, DesktopView } from '../desktop-shell';
@@ -342,6 +342,7 @@ function makeRunSubmission(overrides: Partial<SchemeRunSubmission> = {}): Scheme
     attachment: {
       schemeId: 'scheme-1',
       revisionId: 'rev-1',
+      expectedVersion: makeSummary().version,
       name: '水彩海报',
       summary: '柔和水彩质感的活动海报配方',
       mode: 'formal',
@@ -441,6 +442,15 @@ describe('工作台 designSchemes 集成 prop(桌面)', () => {
     const settings = designSchemes.prepareRun?.mock.calls[0]?.[0].executionSettings;
     expect(settings).not.toHaveProperty('aspectRatio');
     expect(settings).not.toHaveProperty('negativePrompt');
+  });
+
+  it('onRun:Composer 选择的张数随运行设置提交,不静默降为一张', async () => {
+    const { designSchemes, Providers } = makeHarness({});
+    render(<DesktopView view="workbench" onOpenView={vi.fn()} />, { wrapper: Providers });
+    await lastWorkbenchSchemeProps().onRun?.(
+      makeRunSubmission({ params: { quality: 'auto', count: 4 } }),
+    );
+    expect(designSchemes.prepareRun?.mock.calls[0]?.[0].executionSettings.outputCount).toBe(4);
   });
 
   it('onRun:Composer 参考图只以上传暂存 id 进入 referenceAssetIds(去重保序),不夹带 URL / 名称 / 字节', async () => {
@@ -792,5 +802,67 @@ describe('工作台 designSchemes 集成 prop(桌面)', () => {
       '请描述要修改的内容',
     );
     expect(designSchemes.modify).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('桌面壳 Win/Linux 窗口控件(B2-T6)', () => {
+  const originalPlatform = navigator.platform;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'platform', {
+      configurable: true,
+      value: originalPlatform,
+    });
+    delete window.musefoldV25;
+  });
+
+  function stubPlatform(platform: string) {
+    Object.defineProperty(navigator, 'platform', {
+      configurable: true,
+      value: platform,
+    });
+  }
+
+  function installBridge() {
+    const bridge = {
+      minimize: vi.fn(),
+      maximizeToggle: vi.fn(),
+      close: vi.fn(),
+      isMaximized: vi.fn(() => false),
+      onMaximizeChange: vi.fn(() => () => {}),
+    };
+    Object.defineProperty(window, 'musefoldV25', {
+      configurable: true,
+      writable: true,
+      value: bridge,
+    });
+    return bridge;
+  }
+
+  it('IS_MAC=false:主区右上注入三钮,点击转发 musefoldV25', async () => {
+    stubPlatform('Win32');
+    const bridge = installBridge();
+    render(<DesktopShellHost />);
+
+    expect(screen.getByTestId('window-controls-band')).toBeTruthy();
+    expect(screen.getByTestId('mainview-surface').hasAttribute('data-window-controls-safe')).toBe(
+      true,
+    );
+    expect(screen.getByTestId('window-control-minimize').getAttribute('aria-label')).toBe('最小化');
+    fireEvent.click(screen.getByTestId('window-control-minimize'));
+    expect(bridge.minimize).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('window-control-close'));
+    expect(bridge.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('mac:不渲染窗口控件(原生红绿灯)', () => {
+    stubPlatform('MacIntel');
+    installBridge();
+    render(<DesktopShellHost />);
+    expect(screen.queryByTestId('window-controls')).toBeNull();
+    expect(screen.queryByTestId('window-controls-band')).toBeNull();
+    expect(screen.getByTestId('mainview-surface').hasAttribute('data-window-controls-safe')).toBe(
+      false,
+    );
   });
 });

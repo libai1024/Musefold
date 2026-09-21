@@ -1,18 +1,43 @@
 import { z } from 'zod';
+import { accountIdentitySchema, accountRecoverySchema } from './account-identity';
 import { entityIdSchema } from './common';
 
-export const accountSummarySchema = z.object({
-  id: entityIdSchema,
-  username: z.string().trim().min(1).max(64),
-  displayName: z.string().trim().min(1).max(80).nullable(),
-  quota: z.number().int().nonnegative(),
-  quotaUnit: z.string().trim().min(1).max(24),
-  canGenerate: z.boolean(),
-});
+export const accountSummarySchema = z
+  .object({
+    id: entityIdSchema,
+    username: z.string().trim().min(1).max(64),
+    displayName: z.string().trim().min(1).max(80).nullable(),
+    quota: z.number().int().nonnegative(),
+    quotaUnit: z.string().trim().min(1).max(24),
+    canGenerate: z.boolean(),
+    /** Optional only for compatibility with hosts that predate trusted identity projection. */
+    identity: accountIdentitySchema.optional(),
+    recovery: accountRecoverySchema.nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (
+      value.canGenerate &&
+      (value.recovery || (value.identity && value.identity.status !== 'active'))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['canGenerate'],
+        message: 'Unverified identity cannot generate',
+      });
+    }
+    if (value.recovery && (!value.identity || value.identity.status === 'active')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['recovery'],
+        message: 'Recovery requires a restricted identity',
+      });
+    }
+  });
 
 export const loginRequestSchema = z.object({
   username: z.string().trim().min(1).max(64),
   password: z.string().min(1).max(256),
+  twoFactorCode: z.string().min(1).max(128).optional(),
 });
 
 export const registerRequestSchema = loginRequestSchema;

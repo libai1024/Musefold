@@ -2,7 +2,7 @@
 
 import type { DesignSchemeSummary } from '@musefold/contracts';
 import { Button } from '@musefold/ui/components/button';
-import { FadeImage } from '@musefold/ui/components/fade-image';
+import { SchemeAssetImage } from './SchemeAssetImage';
 import {
   ArrowRight,
   Blocks,
@@ -68,7 +68,7 @@ export function SchemeInspector({
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pt-3 pb-8">
         <div className="aspect-[16/9] w-full overflow-hidden rounded-lg border border-border bg-muted/50">
           {coverUrl ? (
-            <FadeImage
+            <SchemeAssetImage
               src={coverUrl}
               alt={`${scheme.name}方案示例`}
               className="h-full w-full object-contain"

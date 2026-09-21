@@ -4,16 +4,25 @@
 // 旧 CloudSyncService(electron/cloud-sync,绑旧登录体系)不再被 v25 界面触达,M5c 删。
 
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import type {
+  AccountSummary,
   DesktopSyncConsent,
   DesktopSyncPhase,
   DesktopSyncStatus,
   SetSyncEnabled,
+  SetSyncConsentInput,
   SyncConflictResolutionInput,
   SyncConflictSummary,
+  PrepareLocalWorkspaceInput,
+  PreviewLocalWorkspaceInput,
 } from '@musefold/contracts';
 import {
   desktopSyncStatusSchema,
+  localWorkspacePreviewSchema,
+  localWorkspaceRecoveryStatusSchema,
+  prepareLocalWorkspaceInputSchema,
+  previewLocalWorkspaceInputSchema,
   resolveSyncConflictInputSchema,
   setSyncConsentInputSchema,
   setSyncEnabledSchema,
@@ -27,23 +36,33 @@ import {
 import {
   DesktopSyncEngine,
   DesktopSyncRepository,
+  PermanentTaxonomyConflictError,
   type DesktopSyncSummary,
   type DesktopSyncTransport,
 } from '@musefold/core';
 import { getDb } from '@musefold/core/db';
 import { resolveAccountWorkspace } from '@musefold/core/db/workspaces';
+import {
+  listLocalWorkspaceRecovery,
+  previewLocalWorkspace,
+  prepareLocalWorkspace,
+  WorkspaceRecoveryError,
+} from '@musefold/core/db/workspace-recovery';
+import type Database from 'better-sqlite3';
 import { app } from 'electron';
 import { z } from 'zod';
 import { createLogger } from '../../system/logger';
 import {
+  type SessionCredentials,
+  accountWorkspaceOwner,
   apiBase,
-  bindSessionOwner,
   fetchAccountStatus,
   onAccountChangeCancelled,
   onAccountChanged,
   onBeforeAccountChange,
   readSessionCredentials,
 } from './account-domain';
+import { withAccountTransition } from './account-session-store';
 import { BridgeError, type MethodDef } from './envelope';
 
 const logger = createLogger('ipc-v25:sync');
@@ -55,21 +74,39 @@ const WORKSPACE_BLOCKED_ERROR = '当前账号工作区尚未建立,请先显式�
 // ---------- transport:bearer token → /api/v1/sync/* ----------
 
 async function syncFetch(
-  token: string,
+  session: SessionCredentials,
   signal: AbortSignal,
   path: string,
   init: { method: 'GET' | 'POST'; body?: unknown },
 ) {
+  const assertSession = async () => {
+    const current = await readSessionCredentials();
+    if (
+      signal.aborted ||
+      !current ||
+      current.restricted ||
+      current.authEpoch !== session.authEpoch ||
+      current.ownerId !== session.ownerId ||
+      current.principalId !== session.principalId ||
+      current.apiIssuer !== session.apiIssuer ||
+      current.token !== session.token ||
+      apiBase() !== session.apiIssuer
+    ) {
+      throw new BridgeError('AUTH_REQUIRED', '账号状态已变化,云同步已暂停');
+    }
+  };
+  await assertSession();
   let response: Response;
   try {
-    response = await fetch(`${apiBase()}/api/v1${path}`, {
+    response = await fetch(`${session.apiIssuer}/api/v1${path}`, {
       method: init.method,
       headers: {
-        authorization: `Bearer ${token}`,
+        authorization: `Bearer ${session.token}`,
         ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal,
+      redirect: 'error',
     });
   } catch (error) {
     if (signal.aborted) throw error;
@@ -84,7 +121,9 @@ async function syncFetch(
       body?.error?.message ?? `云同步请求失败(HTTP ${response.status})`,
     );
   }
-  return response.json();
+  const result = await response.json();
+  await assertSession();
+  return result;
 }
 
 function toQuery(params: Record<string, string | number | undefined>): string {
@@ -96,33 +135,37 @@ function toQuery(params: Record<string, string | number | undefined>): string {
   return raw ? `?${raw}` : '';
 }
 
-function createCloudTransport(token: string, signal: AbortSignal): DesktopSyncTransport {
+function createCloudTransport(
+  _token: string,
+  signal: AbortSignal,
+  session: SessionCredentials,
+): DesktopSyncTransport {
   return {
     async registerDevice(input) {
       return syncDeviceSchema.parse(
-        await syncFetch(token, signal, '/sync/devices', { method: 'POST', body: input }),
+        await syncFetch(session, signal, '/sync/devices', { method: 'POST', body: input }),
       );
     },
     async bootstrap(input) {
       const query = toQuery({ entity: input.entity, after: input.after, limit: input.limit });
       return syncBootstrapPageSchema.parse(
-        await syncFetch(token, signal, `/sync/bootstrap${query}`, { method: 'GET' }),
+        await syncFetch(session, signal, `/sync/bootstrap${query}`, { method: 'GET' }),
       );
     },
     async pull(input) {
       const query = toQuery({ cursor: input.cursor, limit: input.limit, deviceId: input.deviceId });
       return syncPullResultSchema.parse(
-        await syncFetch(token, signal, `/sync/pull${query}`, { method: 'GET' }),
+        await syncFetch(session, signal, `/sync/pull${query}`, { method: 'GET' }),
       );
     },
     async push(input) {
       return syncPushResultSchema.parse(
-        await syncFetch(token, signal, '/sync/push', { method: 'POST', body: input }),
+        await syncFetch(session, signal, '/sync/push', { method: 'POST', body: input }),
       );
     },
     async pushUsage(input) {
       return syncUsagePushResultSchema.parse(
-        await syncFetch(token, signal, '/sync/usage', { method: 'POST', body: input }),
+        await syncFetch(session, signal, '/sync/usage', { method: 'POST', body: input }),
       );
     },
   };
@@ -131,9 +174,14 @@ function createCloudTransport(token: string, signal: AbortSignal): DesktopSyncTr
 // ---------- 单例引擎 + 调度 ----------
 
 interface SyncRuntime {
+  database?: Database.Database;
   repository: DesktopSyncRepository;
   engine: DesktopSyncEngine;
-  transportFactory?: (token: string, signal: AbortSignal) => DesktopSyncTransport;
+  transportFactory?: (
+    token: string,
+    signal: AbortSignal,
+    session: SessionCredentials,
+  ) => DesktopSyncTransport;
   getWorkspace?: (ownerId: string) => string | null;
 }
 
@@ -152,6 +200,7 @@ function getRuntime(): SyncRuntime {
   if (!runtime) {
     const repository = new DesktopSyncRepository(getDb());
     runtime = {
+      database: getDb(),
       repository,
       engine: new DesktopSyncEngine(repository),
       transportFactory: createCloudTransport,
@@ -170,7 +219,7 @@ async function runSync(): Promise<DesktopSyncSummary> {
   if (epoch !== syncEpoch || accountChangeInProgress || shuttingDown)
     return repository.getSummary();
   const active = repository.getActiveAccount();
-  if (!credentials || !active || credentials.ownerId !== active.ownerId) {
+  if (!credentials || credentials.restricted || !active || credentials.ownerId !== active.ownerId) {
     authBlocked = active?.consent === 'enabled';
     return repository.getSummary();
   }
@@ -185,7 +234,11 @@ async function runSync(): Promise<DesktopSyncSummary> {
   workspaceBlocked = false;
   const controller = new AbortController();
   currentRunController = controller;
-  const transport = getRuntime().transportFactory?.(credentials.token, controller.signal);
+  const transport = getRuntime().transportFactory?.(
+    credentials.token,
+    controller.signal,
+    credentials,
+  );
   return engine
     .run(transport)
     .then((summary) => {
@@ -270,10 +323,10 @@ export async function stopV25CloudSync(): Promise<void> {
 
 function derivePhase(summary: DesktopSyncSummary): DesktopSyncPhase {
   const { account } = summary;
+  if (authBlocked) return 'auth_blocked';
   if (!account) return 'signed_out';
   if (account.consent === 'unset') return 'awaiting_consent';
   if (account.consent === 'paused') return 'paused';
-  if (authBlocked) return 'auth_blocked';
   if (workspaceBlocked) return 'error';
   if (enabling) return 'enabling';
   if (getRuntime().engine.isRunning()) return 'syncing';
@@ -282,7 +335,26 @@ function derivePhase(summary: DesktopSyncSummary): DesktopSyncPhase {
   return 'idle';
 }
 
-function toContractStatus(summary: DesktopSyncSummary): DesktopSyncStatus {
+function reviewReference(session: SessionCredentials | null | undefined): string | null {
+  if (!session || session.restricted || !session.ownerId || session.apiIssuer !== apiBase())
+    return null;
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        'sync-account-review-v1',
+        session.authEpoch,
+        session.apiIssuer,
+        session.principalId,
+        session.ownerId,
+      ]),
+    )
+    .digest('hex');
+}
+
+function toContractStatus(
+  summary: DesktopSyncSummary,
+  session?: SessionCredentials | null,
+): DesktopSyncStatus {
   const { account } = summary;
   const consent: DesktopSyncConsent = account?.consent ?? 'unset';
   const phase = derivePhase(summary);
@@ -297,6 +369,7 @@ function toContractStatus(summary: DesktopSyncSummary): DesktopSyncStatus {
             ? 'idle'
             : 'disabled';
   return desktopSyncStatusSchema.parse({
+    reviewRef: session?.ownerId === account?.ownerId ? reviewReference(session) : null,
     consent,
     phase,
     enabled: consent === 'enabled',
@@ -308,7 +381,11 @@ function toContractStatus(summary: DesktopSyncSummary): DesktopSyncStatus {
         : null,
     pendingMutations: summary.pendingMutations,
     conflicts: summary.conflicts,
-    error: workspaceBlocked ? WORKSPACE_BLOCKED_ERROR : (account?.lastError ?? null),
+    error: authBlocked
+      ? '请先完成账号验证或恢复,云同步已暂停'
+      : workspaceBlocked
+        ? WORKSPACE_BLOCKED_ERROR
+        : (account?.lastError ?? null),
   });
 }
 
@@ -348,19 +425,21 @@ export function buildSyncDomainMethods(): Record<string, MethodDef> {
     authBlocked = false;
     let activated = false;
     try {
-      if (status) {
+      if (status && !status.recovery && (!status.identity || status.identity.status === 'active')) {
         // Login only selects the owner. It must not adopt legacy rows or create
         // a cloud container; explicit adoption/establishment owns that action.
-        const workspaceId = getWorkspace?.(status.id);
+        const ownerId = accountWorkspaceOwner(status);
+        const workspaceId = getWorkspace?.(ownerId);
         workspaceBlocked = !workspaceId;
         repository.activateAccount({
-          ownerId: status.id,
+          ownerId,
           username: status.username,
           deviceName: os.hostname() || 'Musefold Desktop',
           platform: desktopPlatform(),
           clientVersion: app.getVersion(),
         });
       } else {
+        authBlocked = !!status;
         workspaceBlocked = false;
         repository.deactivateAccount();
       }
@@ -372,75 +451,207 @@ export function buildSyncDomainMethods(): Record<string, MethodDef> {
   });
   resumeV25CloudSyncOnStartup();
 
-  const handleSetConsent = async (consent: DesktopSyncConsent): Promise<DesktopSyncStatus> => {
-    if (accountChangeInProgress || shuttingDown) {
-      throw new BridgeError('CONFLICT', '账号正在切换,请稍后重试');
-    }
-    if (consent === 'unset') {
-      throw new BridgeError('VALIDATION_FAILED', '已建立的同步同意只能暂停,不能重置');
-    }
-    const { repository, getWorkspace } = getRuntime();
-    if (consent === 'paused') {
-      const active = repository.getActiveAccount();
-      if (!active) throw new BridgeError('AUTH_REQUIRED', '请先登录账号');
-      await suspendTransport();
-      repository.setConsent(active.ownerId, 'paused');
-      return toContractStatus(repository.getSummary());
-    }
-
-    const credentials = await readSessionCredentials();
-    if (!credentials) throw new BridgeError('AUTH_REQUIRED', '请先登录账号再开启云同步');
-    const status = await fetchAccountStatus(credentials.token);
-    if (credentials.ownerId && credentials.ownerId !== status.id) {
-      authBlocked = true;
-      throw new BridgeError('AUTH_REQUIRED', '本地登录身份与云端账号不一致,请重新登录');
-    }
-    await bindSessionOwner(credentials.token, status.id);
-    const workspaceId = getWorkspace?.(status.id);
-    if (!workspaceId) {
-      workspaceBlocked = true;
-      repository.activateAccount({
-        ownerId: status.id,
-        username: status.username,
-        deviceName: os.hostname() || 'Musefold Desktop',
-        platform: desktopPlatform(),
-        clientVersion: app.getVersion(),
-      });
-      repository.setConsent(status.id, 'enabled');
-      throw new BridgeError(
-        'VALIDATION_FAILED',
-        '当前账号工作区尚未建立,已保留同步设置;请先显式接管本地数据',
-      );
-    }
-    workspaceBlocked = false;
-    repository.activateAccount({
-      ownerId: status.id,
+  const activate = (status: AccountSummary, ownerId: string) =>
+    getRuntime().repository.activateAccount({
+      ownerId,
       username: status.username,
       deviceName: os.hostname() || 'Musefold Desktop',
       platform: desktopPlatform(),
       clientVersion: app.getVersion(),
     });
-    repository.setConsent(status.id, 'enabled');
-    authBlocked = false;
-    enabling = true;
-    startSchedulers();
-    let summary: DesktopSyncSummary;
+
+  const assertCurrent = async (captured: SessionCredentials) => {
+    const current = await readSessionCredentials();
+    if (
+      accountChangeInProgress ||
+      shuttingDown ||
+      !current ||
+      current.authEpoch !== captured.authEpoch ||
+      current.token !== captured.token ||
+      current.apiIssuer !== captured.apiIssuer ||
+      apiBase() !== captured.apiIssuer ||
+      current.ownerId !== captured.ownerId ||
+      current.principalId !== captured.principalId ||
+      current.restricted !== captured.restricted
+    ) {
+      throw new BridgeError('CONFLICT', '账号状态已变化,请刷新后重试');
+    }
+    return current;
+  };
+  const verifyIdentity = (
+    credentials: SessionCredentials,
+    status: AccountSummary,
+    requirePrincipal = false,
+  ) => {
+    if (
+      credentials.restricted ||
+      status.recovery ||
+      (status.identity && status.identity.status !== 'active') ||
+      (requirePrincipal && (!status.identity || !credentials.principalId))
+    ) {
+      throw new BridgeError(
+        'ACCOUNT_IDENTITY_UNVERIFIED',
+        '请先完成账号验证或恢复,再建立提示词库与开启同步',
+      );
+    }
+    const ownerId = accountWorkspaceOwner(status);
+    if (
+      credentials.ownerId !== ownerId ||
+      (status.identity &&
+        (status.identity.apiIssuer !== credentials.apiIssuer ||
+          status.identity.principalId !== credentials.principalId))
+    ) {
+      throw new BridgeError('AUTH_REQUIRED', '本地登录身份与云端账号不一致,请重新登录');
+    }
+    return ownerId;
+  };
+  const requireCredentials = async () => {
+    if (accountChangeInProgress || shuttingDown)
+      throw new BridgeError('CONFLICT', '账号正在切换,请稍后重试');
+    const credentials = await readSessionCredentials();
+    if (!credentials) throw new BridgeError('AUTH_REQUIRED', '请先登录账号');
+    return credentials;
+  };
+  const readStatus = () =>
+    withAccountTransition(async () => {
+      const credentials = await readSessionCredentials();
+      if (credentials?.restricted) authBlocked = true;
+      return toContractStatus(getRuntime().repository.getSummary(), credentials);
+    });
+  const assertReview = (credentials: SessionCredentials, expected: string | null | undefined) => {
+    if (!expected || expected !== reviewReference(credentials)) {
+      throw new BridgeError('CONFLICT', '确认的账号已变化,请刷新账号状态并重新确认');
+    }
+  };
+  const handleSetConsent = async (
+    consent: DesktopSyncConsent,
+    reviewRef?: string | null,
+  ): Promise<DesktopSyncStatus> => {
+    if (consent === 'unset')
+      throw new BridgeError('VALIDATION_FAILED', '已建立的同步同意只能暂停,不能重置');
+    const credentials = await requireCredentials();
+    const { repository, getWorkspace } = getRuntime();
+    if (consent === 'paused') {
+      let stopping: Promise<void> | undefined;
+      await withAccountTransition(async () => {
+        await assertCurrent(credentials);
+        if (reviewRef !== undefined && reviewRef !== null) assertReview(credentials, reviewRef);
+        const active = repository.getActiveAccount();
+        if (!active || credentials.restricted || active.ownerId !== credentials.ownerId)
+          throw new BridgeError('AUTH_REQUIRED', '请先登录当前账号');
+        repository.setConsent(active.ownerId, 'paused');
+        stopping = suspendTransport();
+      });
+      await stopping;
+      return readStatus();
+    }
+    // Network verification is outside the credential commit lock. A delayed A
+    // response cannot activate A or change consent after a B session commits.
+    const status = await fetchAccountStatus(credentials.token);
+    await withAccountTransition(async () => {
+      await assertCurrent(credentials);
+      const ownerId = verifyIdentity(credentials, status);
+      assertReview(credentials, reviewRef);
+      if (!getWorkspace?.(ownerId)) {
+        throw new BridgeError(
+          'VALIDATION_FAILED',
+          '请先查看本机数据,选择复制提示词库或建立空库,再开启云同步',
+        );
+      }
+      activate(status, ownerId);
+      repository.setConsent(ownerId, 'enabled');
+      workspaceBlocked = false;
+      authBlocked = false;
+      enabling = true;
+      startSchedulers();
+    });
     try {
-      summary = await runSync();
+      await runSync();
     } finally {
       enabling = false;
     }
-    return toContractStatus(summary);
+    return readStatus();
+  };
+
+  const workspaceDatabase = () => getRuntime().database ?? getDb();
+  const recoveryOperation = <T>(operation: () => T): T => {
+    try {
+      return operation();
+    } catch (error) {
+      if (error instanceof WorkspaceRecoveryError) throw new BridgeError(error.code, error.message);
+      throw error;
+    }
   };
 
   return {
-    'sync.getStatus': {
+    'sync.listLocalWorkspaces': {
       input: z.undefined().or(z.object({}).strict()),
-      handle: async () => toContractStatus(getRuntime().repository.getSummary()),
+      handle: async () =>
+        withAccountTransition(async () => {
+          const credentials = await readSessionCredentials();
+          const active = getRuntime().repository.getActiveAccount();
+          const reviewRef =
+            credentials?.ownerId === active?.ownerId ? reviewReference(credentials) : null;
+          const verified =
+            !!reviewRef &&
+            !!credentials?.principalId &&
+            !credentials.restricted &&
+            !accountChangeInProgress &&
+            !shuttingDown;
+          return localWorkspaceRecoveryStatusSchema.parse({
+            ...listLocalWorkspaceRecovery(
+              workspaceDatabase(),
+              credentials?.ownerId ?? null,
+              verified,
+            ),
+            reviewRef,
+            targetAccount: reviewRef && active ? { username: active.username } : null,
+          });
+        }),
     },
+    'sync.previewLocalWorkspace': {
+      input: previewLocalWorkspaceInputSchema,
+      handle: async (input) =>
+        recoveryOperation(() =>
+          localWorkspacePreviewSchema.parse(
+            previewLocalWorkspace(workspaceDatabase(), input as PreviewLocalWorkspaceInput),
+          ),
+        ),
+    },
+    'sync.prepareLocalWorkspace': {
+      input: prepareLocalWorkspaceInputSchema,
+      handle: async (input) => {
+        const credentials = await requireCredentials();
+        const status = await fetchAccountStatus(credentials.token);
+        return withAccountTransition(async () => {
+          await assertCurrent(credentials);
+          const ownerId = verifyIdentity(credentials, status, true);
+          assertReview(credentials, (input as PrepareLocalWorkspaceInput).reviewRef);
+          const db = workspaceDatabase();
+          recoveryOperation(() =>
+            db.transaction(() => {
+              prepareLocalWorkspace(db, ownerId, input as PrepareLocalWorkspaceInput);
+              activate(status, ownerId);
+              // Historical consent belongs to the old scope. A newly prepared
+              // target always needs a fresh explicit decision before upload.
+              db.prepare(
+                "UPDATE cloud_sync_accounts SET enabled = 0, consent_state = 'unset' WHERE owner_id = ?",
+              ).run(ownerId);
+            })(),
+          );
+          workspaceBlocked = false;
+          authBlocked = false;
+          return toContractStatus(getRuntime().repository.getSummary(), credentials);
+        });
+      },
+    },
+    'sync.getStatus': { input: z.undefined().or(z.object({}).strict()), handle: readStatus },
     'sync.setConsent': {
       input: setSyncConsentInputSchema,
-      handle: async (input) => handleSetConsent((input as { consent: DesktopSyncConsent }).consent),
+      handle: async (input) => {
+        const request = input as SetSyncConsentInput;
+        return handleSetConsent(request.consent, request.reviewRef);
+      },
     },
     'sync.listConflicts': {
       input: z.undefined().or(z.object({}).strict()),
@@ -466,6 +677,9 @@ export function buildSyncDomainMethods(): Record<string, MethodDef> {
         try {
           repository.resolveConflict(active.ownerId, workspaceId, conflictId, resolution);
         } catch (error) {
+          if (error instanceof PermanentTaxonomyConflictError) {
+            throw new BridgeError('VALIDATION_FAILED', error.message);
+          }
           if (error instanceof Error && error.message === 'Cloud sync conflict not found') {
             throw new BridgeError('NOT_FOUND', '同步冲突不存在或已处理');
           }
@@ -475,13 +689,16 @@ export function buildSyncDomainMethods(): Record<string, MethodDef> {
           throw error;
         }
         if (active.consent === 'enabled') scheduleV25CloudSync();
-        return toContractStatus(repository.getSummary());
+        return readStatus();
       },
     },
     'sync.setEnabled': {
       input: setSyncEnabledSchema,
       handle: async (input) =>
-        handleSetConsent((input as SetSyncEnabled).enabled ? 'enabled' : 'paused'),
+        handleSetConsent(
+          (input as SetSyncEnabled).enabled ? 'enabled' : 'paused',
+          (input as SetSyncEnabled).reviewRef,
+        ),
     },
     'sync.syncNow': {
       input: z.undefined().or(z.object({}).strict()),
@@ -493,7 +710,8 @@ export function buildSyncDomainMethods(): Record<string, MethodDef> {
         if (!active?.enabled) {
           throw new BridgeError('VALIDATION_FAILED', '云同步未开启');
         }
-        return toContractStatus(await runSync());
+        await runSync();
+        return readStatus();
       },
     },
   };
