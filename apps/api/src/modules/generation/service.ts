@@ -138,12 +138,14 @@ export const REFERENCE_UPLOAD_TTL_MS = 24 * 60 * 60_000;
  */
 export class GenerationService {
   readonly receipts: GenerationReceiptService;
+  private readonly servicePath: string;
   constructor(
     private readonly db: MusefoldDatabase,
     private readonly signer: AssetUrlSigner,
     issuers: { apiIssuer: string; upstreamIssuer: string },
     private readonly readModelCatalog?: AccountModelCatalogReader,
   ) {
+    this.servicePath = new URL(issuers.apiIssuer).pathname.replace(/\/+$/, '');
     this.receipts = new GenerationReceiptService({
       apiIssuer: normalizeNewApiUrl(issuers.apiIssuer),
       upstreamIssuer: normalizeNewApiUrl(issuers.upstreamIssuer),
@@ -815,7 +817,7 @@ export class GenerationService {
     }
     return generationReferenceImageSchema.parse({
       id,
-      url: referenceImageUrl(id),
+      url: `${this.servicePath}${referenceImageUrl(id)}`,
       name: input.name,
       mimeType,
       byteSize: input.bytes.byteLength,
@@ -1238,7 +1240,7 @@ export class GenerationService {
       }
       return generationReferenceImageSchema.parse({
         id: stored.id,
-        url: referenceImageUrl(stored.id),
+        url: `${this.servicePath}${referenceImageUrl(stored.id)}`,
         name: stored.originalName,
         mimeType: stored.mimeType,
         byteSize: stored.byteSize,
@@ -1494,7 +1496,18 @@ export class GenerationService {
       approvalStatus: run.approvalStatus,
       status: run.status,
       progress: run.progress,
-      request: cloudGenerationRequestSchema.parse(run.request),
+      request: (() => {
+        const request = cloudGenerationRequestSchema.parse(run.request);
+        return {
+          ...request,
+          referenceImages: request.referenceImages.map((reference) => ({
+            ...reference,
+            url: reference.url.startsWith('/api/')
+              ? `${this.servicePath}${reference.url}`
+              : reference.url,
+          })),
+        };
+      })(),
       providerModel: run.providerModel,
       costPoints: run.costPoints,
       durationMs: runDurationMs(run.startedAt, run.finishedAt),
@@ -1502,7 +1515,7 @@ export class GenerationService {
       seed: null,
       assets: assets.map((asset) => ({
         id: asset.id,
-        url: `/api/v1/assets/${encodeURIComponent(asset.id)}/url`,
+        url: `${this.servicePath}/api/v1/assets/${encodeURIComponent(asset.id)}/url`,
         mimeType: asset.mimeType,
         width: asset.width,
         height: asset.height,

@@ -202,7 +202,7 @@ export function newApiDelegation(
       httpOnly: true,
       secure: new URL(ctx.context.baseURL).protocol === 'https:',
       sameSite: 'strict',
-      path: '/api/auth',
+      path: new URL(ctx.context.baseURL).pathname,
       maxAge: 300,
     });
     if (review.sessions.required > 0) {

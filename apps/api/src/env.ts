@@ -9,8 +9,23 @@ import { validTrustedProxy } from './lib/client-ip.js';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
-  /** 对外可达的服务根地址(OAuth issuer / cookie 域 / MCP resource 由此派生)。 */
-  PUBLIC_BASE_URL: z.string().url().default('http://127.0.0.1:8787'),
+  /** Public service identity, including an optional application mount (never query/credentials). */
+  PUBLIC_BASE_URL: z
+    .string()
+    .url()
+    .refine((value) => {
+      const url = new URL(value);
+      return (
+        ['http:', 'https:'].includes(url.protocol) &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        (url.pathname === '/' || /^\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\/?$/.test(url.pathname))
+      );
+    })
+    .transform((value) => value.replace(/\/+$/, ''))
+    .default('http://127.0.0.1:8787'),
   DATABASE_URL: z.string().min(1),
   BETTER_AUTH_SECRET: z.string().min(16),
   /** 自托管 New API 网关(账号事实源)。 */

@@ -163,7 +163,9 @@ export function oauthBrowser(options: OAuthOptions<string[]>, origins: string[])
                 }
               : null,
             loginRequired: value.loginRequired,
-            continueUrl: value.loginRequired ? null : `/api/auth/oauth2/authorize?${value.query}`,
+            continueUrl: value.loginRequired
+              ? null
+              : `${new URL(ctx.context.baseURL).pathname}/oauth2/authorize?${value.query}`,
             reviewRef:
               !value.current || value.loginRequired
                 ? null

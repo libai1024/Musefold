@@ -64,6 +64,7 @@ export const CLOUD_MODEL_ALIASES = ['musefold-image-pro'] as const;
 
 export function createApp(deps: AppDependencies) {
   const { env, auth, rateLimiter, services } = deps;
+  const servicePath = new URL(env.PUBLIC_BASE_URL).pathname.replace(/\/+$/, '');
   const app = new OpenAPIHono<AuthedEnv>();
   const clientIp = clientIpResolver(env.TRUST_PROXY);
 
@@ -124,14 +125,15 @@ export function createApp(deps: AppDependencies) {
   app.doc('/api/v1/openapi.json', {
     openapi: '3.1.0',
     info: { title: 'Musefold API', version: '2.5.0' },
-    servers: [{ url: '/api/v1' }],
+    servers: [{ url: `${servicePath}/api/v1` }],
   });
 
   // 业务 JSON API(会话保护)。
   const authed = requireSession(
     auth,
-    [env.PUBLIC_BASE_URL, ...env.trustedOrigins],
+    [new URL(env.PUBLIC_BASE_URL).origin, ...env.trustedOrigins],
     services.account,
+    servicePath,
   );
   const api = new OpenAPIHono<AuthedEnv>();
   api.use('*', authed);
@@ -201,5 +203,16 @@ export function createApp(deps: AppDependencies) {
   api.route('/', accountRoutes(services.account, rateLimiter));
   app.route('/api/v1', api);
 
-  return app;
+  if (!servicePath) return app;
+  const mounted = new OpenAPIHono<AuthedEnv>();
+  mounted.route(servicePath, app);
+  // RFC discovery prefixes the issuer/resource path with /.well-known, outside
+  // the application mount. Only this application's exact documents are exposed.
+  for (const path of [
+    `/.well-known/oauth-protected-resource${servicePath}/mcp`,
+    `/.well-known/oauth-authorization-server${servicePath}/api/auth`,
+    `/.well-known/openid-configuration${servicePath}/api/auth`,
+  ])
+    mounted.on(['GET', 'HEAD'], path, (c) => auth.handler(c.req.raw));
+  return mounted;
 }

@@ -53,7 +53,7 @@ export function createWorkbenchHref(sessionId: string | null, sourceUrl?: string
   const base =
     sourceUrl ?? (typeof window === 'undefined' ? 'http://musefold.local/' : window.location.href);
   const url = new URL(base, 'http://musefold.local');
-  url.pathname = '/workbench';
+  url.pathname = `${process.env.NEXT_PUBLIC_APP_BASE_PATH ?? ''}/workbench`;
   if (sessionId?.trim()) url.searchParams.set(WORKBENCH_SESSION_QUERY, sessionId.trim());
   else url.searchParams.delete(WORKBENCH_SESSION_QUERY);
   return `${url.pathname}${url.search}${url.hash}`;
@@ -64,7 +64,11 @@ export function writeWorkbenchSessionUrl(
   sessionId: string | null,
   mode: WorkbenchSessionUrlWriteMode = 'replace',
 ): void {
-  if (typeof window === 'undefined' || window.location.pathname !== '/workbench') return;
+  if (
+    typeof window === 'undefined' ||
+    window.location.pathname !== `${process.env.NEXT_PUBLIC_APP_BASE_PATH ?? ''}/workbench`
+  )
+    return;
   const nextUrl = createWorkbenchHref(sessionId, window.location.href);
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (nextUrl === currentUrl) return;

@@ -28,6 +28,9 @@ export interface CreateAuthDeps {
  * 登录凭据校验全部委托 New API(newApiDelegation 插件),本服务不存密码。
  */
 export function createAuth({ env, db, newApi, hooks }: CreateAuthDeps) {
+  const serviceUrl = new URL(env.PUBLIC_BASE_URL);
+  const servicePath = serviceUrl.pathname.replace(/\/+$/, '');
+  const authPath = `${servicePath}/api/auth`;
   const cloudMcp = new CloudMcpService(db);
   const bearerPlugin = bearer();
   // Explicit shared hashing keeps the early refresh-lineage lookup identical to
@@ -36,8 +39,8 @@ export function createAuth({ env, db, newApi, hooks }: CreateAuthDeps) {
   const oauth = mcp({
     resource: env.mcpResourceUrl,
     scopes: [...MCP_SCOPES],
-    loginPage: '/login',
-    consentPage: '/consent',
+    loginPage: `${servicePath}/login`,
+    consentPage: `${servicePath}/consent`,
     storeTokens: { hash: hashOAuthToken },
     customTokenResponseFields: async ({ grantType, user, scopes, verificationValue }) => {
       // Opaque issuance does not invoke accessToken claims. Apply the same
@@ -84,8 +87,14 @@ export function createAuth({ env, db, newApi, hooks }: CreateAuthDeps) {
     ],
   });
   return betterAuth({
-    baseURL: env.PUBLIC_BASE_URL,
-    basePath: '/api/auth',
+    baseURL: `${serviceUrl.origin}${authPath}`,
+    basePath: authPath,
+    advanced: servicePath
+      ? {
+          cookiePrefix: `musefold_${createHash('sha256').update(servicePath).digest('hex').slice(0, 12)}`,
+          defaultCookieAttributes: { path: servicePath },
+        }
+      : undefined,
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: 'pg' }),
     emailAndPassword: { enabled: false },

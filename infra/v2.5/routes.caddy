@@ -1,0 +1,27 @@
+# Import within the existing domain block; retain all legacy handlers below it.
+# No domain-root login, API or OAuth discovery path is claimed by this application.
+(musefold_v25) {
+    @v25_discovery path /.well-known/oauth-protected-resource/Musefold/v25/mcp /.well-known/oauth-authorization-server/Musefold/v25/api/auth /.well-known/openid-configuration/Musefold/v25/api/auth
+    handle @v25_discovery {
+        reverse_proxy musefold-v25-api:8787
+    }
+    handle /Musefold/v25 {
+        redir /Musefold/v25/ 308
+    }
+    handle /Musefold/v25/api/* {
+        reverse_proxy musefold-v25-api:8787
+    }
+    handle /Musefold/v25/mcp {
+        reverse_proxy musefold-v25-api:8787
+    }
+    handle /Musefold/v25/healthz {
+        reverse_proxy musefold-v25-api:8787
+    }
+    handle /Musefold/v25/* {
+        reverse_proxy musefold-v25-web:3000
+    }
+    # S3 signatures include the exact bucket path: never strip or rewrite it.
+    handle /musefold-v25/* {
+        reverse_proxy musefold-v25-objects:9000
+    }
+}

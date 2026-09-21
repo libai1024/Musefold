@@ -26,6 +26,16 @@ function fixture() {
 }
 
 describe('v2.5 immutable release plan', () => {
+  it('retains an application namespace in identities and runtime health probes', () => {
+    const plan = createV25DeploymentPlan({
+      ...fixture(),
+      publicBaseUrl: 'https://shared.test/Musefold/v25/',
+    });
+    expect(plan.release.publicBaseUrl).toBe('https://shared.test/Musefold/v25');
+    expect(plan.compose.services.api.environment.PUBLIC_BASE_URL).toBe(plan.release.publicBaseUrl);
+    expect(plan.compose.services.api.healthcheck.test.join(' ')).toContain('/Musefold/v25/healthz');
+    expect(plan.compose.services.web.healthcheck.test.join(' ')).toContain('/Musefold/v25/');
+  });
   it('plans one privileged migration and separate runtime services without deploying', () => {
     const plan = createV25DeploymentPlan(fixture());
     expect(plan.publicationAuthorized).toBe(false);

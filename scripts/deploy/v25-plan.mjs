@@ -41,7 +41,7 @@ export function validateV25Release(input) {
     base.password ||
     base.search ||
     base.hash ||
-    base.pathname !== '/' ||
+    (base.pathname !== '/' && !/^\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\/?$/.test(base.pathname)) ||
     !['http:', 'https:'].includes(base.protocol)
   )
     throw new Error('V25_PUBLIC_ORIGIN_INVALID');
@@ -64,7 +64,7 @@ export function validateV25Release(input) {
   ) {
     throw new Error('V25_PRODUCTION_REQUIRES_CLEAN_PUBLISHED_IMAGES');
   }
-  return { ...release, publicBaseUrl: base.origin };
+  return { ...release, publicBaseUrl: `${base.origin}${base.pathname.replace(/\/+$/, '')}` };
 }
 
 function runtime(imageRef, file, environment) {
@@ -102,6 +102,7 @@ function liveness(port, path) {
 export function composeForV25Release(input) {
   const release = validateV25Release(input);
   const common = { PUBLIC_BASE_URL: release.publicBaseUrl };
+  const basePath = new URL(release.publicBaseUrl).pathname.replace(/\/+$/, '');
   return {
     name: release.project,
     services: {
@@ -115,7 +116,7 @@ export function composeForV25Release(input) {
       },
       api: {
         ...runtime(release.images.api, release.envFiles.api, { ...common, PORT: '8787' }),
-        healthcheck: liveness(8787, '/healthz'),
+        healthcheck: liveness(8787, `${basePath}/healthz`),
       },
       'scheme-agent': {
         ...runtime(release.images.api, release.envFiles.schemeAgent, common),
@@ -130,7 +131,7 @@ export function composeForV25Release(input) {
           '/tmp:rw,noexec,nosuid,size=128m,mode=1777',
           '/app/apps/web-next/.next/cache:rw,noexec,nosuid,size=128m,mode=1777',
         ],
-        healthcheck: liveness(3000, '/'),
+        healthcheck: liveness(3000, `${basePath}/`),
       },
     },
   };

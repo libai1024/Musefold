@@ -18,6 +18,7 @@ export function requireSession(
   auth: MusefoldAuth,
   trustedOrigins: readonly string[],
   account?: Pick<AccountService, 'assertSessionAuthorization'>,
+  servicePath = '',
 ): MiddlewareHandler<AuthedEnv> {
   return async (c, next) => {
     const session = await auth.api.getSession({
@@ -28,19 +29,23 @@ export function requireSession(
       throw new AppError('AUTH_REQUIRED', '请先登录', 401);
     }
     if (account) {
+      const requestPath =
+        servicePath && c.req.path.startsWith(`${servicePath}/`)
+          ? c.req.path.slice(servicePath.length)
+          : c.req.path;
       const recoveryRead =
         c.req.method === 'GET' &&
         ['/account/status', '/account/execution-binding'].some(
-          (path) => c.req.path === path || c.req.path === `/api/v1${path}`,
+          (path) => requestPath === path || requestPath === `/api/v1${path}`,
         );
       const recoveryWrite =
         c.req.method === 'POST' &&
-        (c.req.path === '/api/v1/account/login-sessions/touch' ||
-          c.req.path === '/account/login-sessions/touch' ||
+        (requestPath === '/api/v1/account/login-sessions/touch' ||
+          requestPath === '/account/login-sessions/touch' ||
           ['/retry', '/inspect', '/verify-original-session', '/independent-workspace'].some(
             (action) =>
-              c.req.path === `/account/recovery${action}` ||
-              c.req.path === `/api/v1/account/recovery${action}`,
+              requestPath === `/account/recovery${action}` ||
+              requestPath === `/api/v1/account/recovery${action}`,
           ));
       await account.assertSessionAuthorization(
         session.session.id,

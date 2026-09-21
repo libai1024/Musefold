@@ -4,8 +4,13 @@ import { DESIGN_SCHEME_PACKAGE_LIMITS } from '@musefold/contracts';
 // Web 与 API 同源部署(V25-ARCHITECTURE D8):浏览器只见单一 origin,
 // 会话 cookie 走 sameSite=lax,API 无需 CORS。dev 下由 Next 反代到本地 API。
 const API_UPSTREAM = process.env.MUSEFOLD_API_UPSTREAM ?? 'http://127.0.0.1:8787';
+const APP_BASE_PATH = process.env.NEXT_PUBLIC_APP_BASE_PATH ?? '';
+if (APP_BASE_PATH && !/^\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+$/.test(APP_BASE_PATH)) {
+  throw new Error('Invalid application base path');
+}
 
 const nextConfig: NextConfig = {
+  basePath: APP_BASE_PATH,
   reactCompiler: true,
   // Next clones rewrite request bodies; its 10 MiB default truncates valid scheme packages.
   // Admission, exact byte counts and concurrent upload limits remain enforced by the API.
@@ -27,9 +32,12 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/api/:path*', destination: `${API_UPSTREAM}/api/:path*` },
-      { source: '/mcp/:path*', destination: `${API_UPSTREAM}/mcp/:path*` },
-      { source: '/.well-known/:path*', destination: `${API_UPSTREAM}/.well-known/:path*` },
+      { source: '/api/:path*', destination: `${API_UPSTREAM}${APP_BASE_PATH}/api/:path*` },
+      { source: '/mcp/:path*', destination: `${API_UPSTREAM}${APP_BASE_PATH}/mcp/:path*` },
+      {
+        source: '/.well-known/:path*',
+        destination: `${API_UPSTREAM}${APP_BASE_PATH}/.well-known/:path*`,
+      },
     ];
   },
 };
