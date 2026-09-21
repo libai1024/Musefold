@@ -115,7 +115,7 @@ describe('authenticated local session storage', () => {
     vi.unstubAllEnvs();
     vi.resetModules();
     const defaultStore = await import('../account-session-store');
-    expect(defaultStore.apiBase()).toBe('https://zhaozhaoyue.top');
+    expect(defaultStore.apiBase()).toBe('https://www.zhaozhaoyue.top');
   });
 
   it('persists offline logout encrypted, survives a fresh module process state and retries only the original issuer', async () => {

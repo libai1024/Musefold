@@ -74,7 +74,7 @@ describe('cloudMcp authorization contracts(secret-free)', () => {
   });
 
   it('emits offset ISO and recognizes only the official cloud API base', () => {
-    expect(OFFICIAL_CLOUD_API_BASE).toBe('https://zhaozhaoyue.top');
+    expect(OFFICIAL_CLOUD_API_BASE).toBe('https://www.zhaozhaoyue.top');
     expect(toCloudMcpIso(new Date('2026-09-06T08:30:00.000Z'))).toBe(
       '2026-09-06T08:30:00.000+00:00',
     );

@@ -11,7 +11,7 @@ export const cloudMcpClientIdSchema = z.string().trim().min(1).max(256);
 export const CLOUD_MCP_CUSTOM_SERVER_CODE = 'CLOUD_MCP_CUSTOM_SERVER' as const;
 
 /** 官方云 API 默认基址;桌面 `MUSEFOLD_API_URL` 与此不等即自定义服务器。 */
-export const OFFICIAL_CLOUD_API_BASE = 'https://zhaozhaoyue.top';
+export const OFFICIAL_CLOUD_API_BASE = 'https://www.zhaozhaoyue.top';
 
 /**
  * 当前用户已授权的一个 Cloud MCP OAuth 客户端(设置「已连接应用」行)。
