@@ -53,10 +53,16 @@ export function createWorkbenchHref(sessionId: string | null, sourceUrl?: string
   const base =
     sourceUrl ?? (typeof window === 'undefined' ? 'http://musefold.local/' : window.location.href);
   const url = new URL(base, 'http://musefold.local');
-  url.pathname = `${process.env.NEXT_PUBLIC_APP_BASE_PATH ?? ''}/workbench`;
+  // Next router navigation adds its configured basePath itself.
+  url.pathname = '/workbench';
   if (sessionId?.trim()) url.searchParams.set(WORKBENCH_SESSION_QUERY, sessionId.trim());
   else url.searchParams.delete(WORKBENCH_SESSION_QUERY);
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/** Native history writes bypass Next's router and need the public mount explicitly. */
+export function createWorkbenchBrowserHref(sessionId: string | null, sourceUrl?: string): string {
+  return `${process.env.NEXT_PUBLIC_APP_BASE_PATH ?? ''}${createWorkbenchHref(sessionId, sourceUrl)}`;
 }
 
 /** Update only the active session pointer without a document navigation. */
@@ -69,7 +75,7 @@ export function writeWorkbenchSessionUrl(
     window.location.pathname !== `${process.env.NEXT_PUBLIC_APP_BASE_PATH ?? ''}/workbench`
   )
     return;
-  const nextUrl = createWorkbenchHref(sessionId, window.location.href);
+  const nextUrl = createWorkbenchBrowserHref(sessionId, window.location.href);
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (nextUrl === currentUrl) return;
   if (mode === 'push') window.history.pushState(window.history.state, '', nextUrl);

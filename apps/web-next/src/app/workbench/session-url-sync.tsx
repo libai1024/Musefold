@@ -6,7 +6,7 @@ import { queryKeys, usePlatform } from '@musefold/platform';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
-  createWorkbenchHref,
+  createWorkbenchBrowserHref,
   readWorkbenchSessionUrl,
   type WorkbenchSessionUrlTarget,
   writeWorkbenchSessionUrl,
@@ -187,7 +187,7 @@ export function WorkbenchSessionUrlSync({ children }: WorkbenchSessionUrlSyncPro
 
     const nextSessionId = draftSession ? null : activeSessionId;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    const targetUrl = createWorkbenchHref(nextSessionId, window.location.href);
+    const targetUrl = createWorkbenchBrowserHref(nextSessionId, window.location.href);
     if (currentUrl === targetUrl) return;
 
     writeWorkbenchSessionUrl(nextSessionId, 'push');
