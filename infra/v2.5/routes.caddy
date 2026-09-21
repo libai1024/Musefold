@@ -1,6 +1,11 @@
 # Import within the existing domain block; retain all legacy handlers below it.
 # No domain-root login, API or OAuth discovery path is claimed by this application.
 (musefold_v25) {
+    @v25_alias {
+        host www.zhaozhaoyue.top
+        path /Musefold/v25 /Musefold/v25/*
+    }
+    redir @v25_alias https://zhaozhaoyue.top{uri} 308
     handle /.well-known/oauth-protected-resource/Musefold/v25/mcp {
         reverse_proxy musefold-v25-api:8787
     }
