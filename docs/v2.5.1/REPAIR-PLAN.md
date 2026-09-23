@@ -2,10 +2,13 @@
 
 三份文件各司其职：[README](./README.md) 是审计清单（缺什么），[EXECUTION-PLAN](./EXECUTION-PLAN.md) 是已定决策与阶段顺序（谁拍板了什么），**本文是逐项修复工作表（每项怎么修、怎么验收）**。冲突时以 README 与源码为准；执行状态直接在本文各表勾记。
 
-**状态基线（2026-09-23）**：
-- 阶段 0 已完成：三个提交已落——`2561d2a`（CLI/MCP 修复代码+测试）、`3504257`（修复记录+`.spec`，已绑定提交号）、`5bea2d7`（审计+执行计划+索引）。工作树干净。
-- 证据保全已完成：`tests/v25/.results/cli-cloud-20260922/` 现 17 个文件（/tmp 5 个日志已复制，修复记录路径已改写）；manifest 绑定 `2561d2a0…` ↔ 本机 asar `2714fe77…`。
-- 推送暂停：仓库为**公开**（GitHub API `visibility: public`）。`zhaozhaoyue.top`/主机 IP 在 origin/main 已公开（23/8 个文件），推送的新增暴露仅为 `xiaomiao` 账号名与 v2.5 运维细节 → 待 U1 决定。
+**状态基线(2026-09-24)**:
+- 阶段 0 已完成:三个提交已落——`2561d2a`(CLI/MCP 修复代码+测试)、`3504257`(修复记录+`.spec`,已绑定提交号)、`5bea2d7`(审计+执行计划+索引)。
+- 证据保全已完成:`tests/v25/.results/cli-cloud-20260922/` 现 17 个文件(/tmp 5 个日志已复制,修复记录路径已改写);manifest 绑定 `2561d2a0…` ↔ 本机 asar `2714fe77…`。
+- 推送暂停:仓库为**公开**(GitHub API `visibility: public`)。`zhaozhaoyue.top`/主机 IP 在 origin/main 已公开(23/8 个文件),推送的新增暴露仅为 `xiaomiao` 账号名与 v2.5 运维细节 → 待 U1 决定。
+- **阶段 1-2 已完成(09-23/24)**:R1.1–R1.5 全绿;候选冻结链 `0830826 → a43001b → f4a3cf7`(每次源码修复后重冻结,历史 manifest 在 `tests/v25/.results/candidate-20260923/`)。期间并入并行走查会话收尾批次(`58035a4` 模型选择器内联)。
+- **阶段 3(09-24)**:G1 check 38/38;G2 完整 API **1223P/0F/2S**(串行含 DB;期间修复 login-session sweep 跨时钟竞态 `5cf3fdc`,API 输入此后零漂移);G3 完整 Worker **349P/0F/2S**(首 1 失败为 MinIO testcontainers 就绪抖动,留证单独复现通过后全量重跑);G4 三形态 `f4a3cf7` 首轮 372P/0F,212 项 DB 门控 skip 识别后带 `RUN_DATABASE_TESTS=true` 全量复跑(执行中);G5/G6 待 G4 后串行。
+- **Windows 真机(09-24,原 P1-01 提前实锤)**:managed-fs 四个 Windows 缺陷修复(`6d31c10`/`4d2bf17`/`e0510f8`+`a80cbf6`/`f4a3cf7`);NSIS 构建与静默安装成功;package-smoke 4P/0F/3S;真实账号(xiaomiao)登录/提示词 CRUD/**真实云端生图** 3P/0F。证据 `candidate-20260923/windows-20260924/`。
 
 ---
 
