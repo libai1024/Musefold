@@ -203,7 +203,8 @@ static napi_value open_file(napi_env env, napi_callback_info info) {
   // Node fs(libuv)在 Windows 上把 fd 数字直接当 Win32 HANDLE(uv_file)消费;
   // CRT fd(_open_osfhandle)与之不兼容:写入落到无效小整数句柄,目标文件保持 0 字节。
   // 内核句柄仅低 32 位有效,double 可无损承载,fs stream 的 autoClose 走 CloseHandle 语义。
-  NativeHandle file = relative_open(dir->value, name, create ? GENERIC_WRITE : GENERIC_READ, create ? 2 /* FILE_CREATE */ : 1 /* FILE_OPEN */, false);
+  // FILE_READ_ATTRIBUTES:下方 FileAttributeTagInfo 安全检查需要它,而 FILE_GENERIC_WRITE 不含。
+  NativeHandle file = relative_open(dir->value, name, (create ? GENERIC_WRITE : GENERIC_READ) | FILE_READ_ATTRIBUTES, create ? 2 /* FILE_CREATE */ : 1 /* FILE_OPEN */, false);
   if (file == invalid_handle) { os_fail(env); return nullptr; }
   FILE_ATTRIBUTE_TAG_INFO attributes{};
   if (!GetFileInformationByHandleEx(file, FileAttributeTagInfo, &attributes, sizeof(attributes)) ||
