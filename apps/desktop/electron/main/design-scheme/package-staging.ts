@@ -54,7 +54,7 @@ export interface DesignSchemePackageStagingDeps {
   rootDir: string;
   filesystem: ManagedFilesystem;
   trustedParentDir?: string;
-  onCleanupFailure?: () => void;
+  onCleanupFailure?: (error?: unknown) => void;
   inspectPackage?: typeof inspectDesignSchemePackage;
 }
 
@@ -328,9 +328,10 @@ export class DesignSchemePackageStaging {
       this.directory.removeStage(path);
       this.pendingCleanup.delete(path);
       return true;
-    } catch {
+    } catch (error) {
       this.pendingCleanup.add(path);
-      this.deps.onCleanupFailure?.();
+      // 平台清理差异诊断(如 Windows 句柄语义)依赖真实 code,不含路径/凭据。
+      this.deps.onCleanupFailure?.(error);
       return false;
     }
   }
