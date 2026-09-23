@@ -60,12 +60,16 @@ export async function exerciseSessionDraftConflict(
   await expect(dialog).toHaveCount(0);
   await expect(page.getByTestId('session-draft-review')).toBeFocused();
   await expect(prompt).toHaveValue('本页未保存的输入');
-  // Move off the notification before waiting: hovering it pauses Sonner's timer.
   // Keep the real pointer click and all draft/focus assertions below.
   await prompt.hover();
-  await expect(
-    page.getByRole('region', { name: 'Notifications alt+T' }).getByRole('listitem'),
-  ).toHaveCount(0);
+  // UI-SPEC §2.4(v2.5.1 起):错误提示需手动关闭,不再自动消失。
+  // 被拒自动保存的错误 toast 会持久保留——断言它在通知区,手动关闭后继续。
+  const autosaveErrorToast = page
+    .getByRole('region', { name: 'Notifications alt+T' })
+    .getByRole('listitem');
+  await expect(autosaveErrorToast).toHaveCount(1);
+  await autosaveErrorToast.getByRole('button', { name: 'Close toast' }).click();
+  await expect(autosaveErrorToast).toHaveCount(0);
   await page.getByTestId('session-draft-review').click();
   await expect(dialog).toBeVisible();
   const newer = workbenchSessionSchema.parse(
