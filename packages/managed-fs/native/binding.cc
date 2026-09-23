@@ -416,8 +416,13 @@ static napi_value open_reader(napi_env env, napi_callback_info info) {
   if (!arguments(env, info, 1, argv)) return nullptr;
   Directory* dir = unwrap(env, argv[0]); if (!dir) return nullptr;
 #ifdef _WIN32
-  HANDLE handle = relative_open(dir->value, ".", FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES, 1, true);
-  if (handle == invalid_handle) { os_fail(env); return nullptr; }
+  // NT 命名空间没有 "." 条目(Win32 概念),NtCreateFile 相对打开 "." 必然
+  // STATUS_OBJECT_NAME_INVALID——这是 Windows 上暂存清理恒 deferred 的根因。
+  // 枚举自身目录改为复制既有句柄(访问掩码含 FILE_LIST_DIRECTORY 已够)。
+  HANDLE handle = nullptr;
+  if (!DuplicateHandle(GetCurrentProcess(), dir->value, GetCurrentProcess(), &handle, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
+    os_fail(env); return nullptr;
+  }
 #else
   int fd = openat(dir->value, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (fd < 0) { os_fail(env); return nullptr; }
