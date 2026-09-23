@@ -172,10 +172,16 @@ export class PackageStagingDirectory {
 
   removeEmpty(path: string, requireEmpty = false): void {
     if (!this.walk(path, false)) return;
+    const target = resolve(path);
+    const held = this.directories.get(target);
     try {
+      // Windows 带任何打开句柄的目录无法删除(POSIX 无此限制):先关自持句柄再删,
+      // 否则 removeDirectory 恒失败、下方 close 永远走不到,清理被永久 deferred。
+      if (held) {
+        this.filesystem.close(held.handle);
+        this.directories.delete(target);
+      }
       this.filesystem.removeDirectory(this.handle(dirname(path)), basename(path));
-      this.filesystem.close(this.handle(path));
-      this.directories.delete(resolve(path));
     } catch (error) {
       if (
         requireEmpty ||
