@@ -6,12 +6,19 @@ vi.mock('electron', () => ({ app: { focus: vi.fn() } }));
 vi.mock('../ipc-v25/account-domain', () => ({
   apiBase: vi.fn(() => 'https://private.example'),
   readSessionToken: vi.fn(async () => 'token'),
+  fetchAccountStatus: vi.fn(async () => ({ loggedIn: true })),
 }));
 vi.mock('../core-instance', () => ({ getMusefoldCore: vi.fn() }));
 vi.mock('../automation-local', () => ({ createElectronLocalAdminOps: vi.fn() }));
 vi.mock('../window', () => ({ getMainWindow: vi.fn() }));
 
-import { createAutomationSetupRoutes, type AutomationAccountSnapshot } from '../automation-setup';
+import {
+  createAutomationSetupRoutes,
+  createElectronAutomationSetupRoutes,
+  type AutomationAccountSnapshot,
+} from '../automation-setup';
+import { fetchAccountStatus, readSessionToken } from '../ipc-v25/account-domain';
+import { getMusefoldCore } from '../core-instance';
 
 const account: AutomationAccountSnapshot = {
   loggedIn: true,
@@ -62,6 +69,48 @@ function fixture(providers: ProviderConfig[] = [provider()]) {
 }
 
 describe('automation safe setup routes', () => {
+  it('cloud readiness is based on verified account identity, not a local API key', async () => {
+    const cloud = provider({
+      id: 'cloud-fixture',
+      hasKey: false,
+      type: 'musefold-cloud' as ProviderConfig['type'],
+    });
+    const activate = vi.fn(async () => {});
+    const routes = createAutomationSetupRoutes({
+      accountStatus: async () => account,
+      listProviders: () => [cloud],
+      setActiveProvider: activate,
+      openSetup: () => {},
+      providerChanged: () => {},
+      cloudReadyProviderId: async () => cloud.id,
+    });
+    expect(await routes['GET /v1/providers'](context())).toMatchObject({
+      providers: [{ id: cloud.id, available: true, hasKey: false }],
+    });
+    await routes['POST /v1/setup/providers/:id/activate'](context({}, { id: cloud.id }));
+    expect(activate).toHaveBeenCalledWith(cloud.id);
+    const blocked = fixture([cloud]);
+    await expect(
+      blocked.routes['POST /v1/setup/providers/:id/activate'](context({}, { id: cloud.id })),
+    ).rejects.toMatchObject({ code: 'PROVIDER_NOT_READY' });
+  });
+  it('a cached token alone does not report healthy when the live account probe fails', async () => {
+    vi.mocked(getMusefoldCore).mockReturnValue({
+      providers: { list: () => [] },
+    } as unknown as ReturnType<typeof getMusefoldCore>);
+    vi.mocked(fetchAccountStatus).mockRejectedValueOnce(new Error('offline'));
+    const routes = createElectronAutomationSetupRoutes();
+    expect(await routes['GET /v1/setup/status'](context())).toMatchObject({
+      account: { configured: true, health: 'unknown' },
+    });
+    expect(await routes['GET /v1/setup/status'](context())).toMatchObject({
+      account: { configured: true, health: 'ok' },
+    });
+    vi.mocked(readSessionToken).mockResolvedValueOnce(null);
+    expect(await routes['GET /v1/setup/status'](context())).toMatchObject({
+      account: { configured: false, health: 'unknown' },
+    });
+  });
   it('status only returns redacted readiness', async () => {
     const { routes } = fixture();
     const result = await routes['GET /v1/setup/status'](context());

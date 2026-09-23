@@ -58,6 +58,7 @@ import {
 import { getCoreEventHub, getMusefoldCore } from './core-instance';
 import { getMainWindow } from './window';
 import { createDesktopGenerationPersistence, releaseTerminalReferences } from './automation-spend';
+import { wrapCloudGenerationGate } from './automation-cloud-generation';
 
 const AUDIT_RING_LIMIT = 200;
 
@@ -354,9 +355,18 @@ export async function startAutomationServer(): Promise<void> {
   const spendAudit = createSpendAuditService();
   const uploadOwner = createLocalUploadOwner();
   automationUploads = uploadOwner;
-  gate = createGenerationGate(createElectronGenerationHost(uploadOwner), hub, {
+  const generationHost = createElectronGenerationHost(uploadOwner);
+  gate = createGenerationGate(generationHost, hub, {
     onSpendAudit: (entry) => spendAudit.record({ ...entry, caller: 'http' }),
   });
+  gate = wrapCloudGenerationGate(
+    gate,
+    generationHost,
+    hub,
+    authorizeExternalSpend,
+    resolveAutomationConfirmation,
+    (paths) => uploadOwner.release(paths),
+  );
   // 确认事件转发给渲染层（卡片被 HTTP 回执/超时解决时同步关闭）
   unsubscribeEvents = hub.subscribe((event) => {
     if (event.type === 'confirmation.resolved') {

@@ -61,6 +61,8 @@ export const registerManagedGenerationSchema = z
     declaredBudgetPoints: z.number().finite().nonnegative().optional(),
     retryOfRequestId: localId.optional(),
     consent: z.literal('interactive').optional(),
+    /** Original local automation intent; replay must not depend on mutable default providers. */
+    automationInputHash: hash.optional(),
     now: time,
   })
   .strict();
@@ -88,6 +90,7 @@ export const managedGenerationRecordSchema = z
     frozenRequest: managedGenerationInputSchema,
     retryOf: managedGenerationRetrySchema.nullable().default(null),
     inputHash: hash,
+    automationInputHash: hash.optional(),
     /** unclaimed is not a restart permit: only the creating live coordinator can claim once. */
     submissionState: z.enum(['unclaimed', 'query_only']),
     receipt: generationExecutionReceiptSchema.nullable(),

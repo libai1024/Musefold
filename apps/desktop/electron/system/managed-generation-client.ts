@@ -12,6 +12,7 @@ import {
   type GenerationReferenceImage,
 } from '@musefold/contracts';
 import { readImagePixelSize } from '@musefold/core/providers/image-dimensions';
+import { quotaToPoints } from '@musefold/domain/billing-format';
 import { mimeFromHeader } from '@musefold/core/providers/local-image';
 import type {
   ManagedGenerationContext,
@@ -149,6 +150,22 @@ export class ManagedGenerationClient {
     )
       fail('MANAGED_IDENTITY_CHANGED');
     return executionBindingSchema.parse(binding);
+  }
+
+  /** A per-call price is only a bounded single-image estimate, never a settled charge. */
+  async automationEstimate(model: string, count: number): Promise<number | null> {
+    const catalog = accountModelCatalogSchema.parse(await this.json('/api/v1/account/models'));
+    if (
+      catalog.identity.apiIssuer !== this.context.apiIssuer ||
+      catalog.identity.principalId !== this.context.principalId
+    )
+      fail('MANAGED_IDENTITY_CHANGED');
+    const selected = catalog.models.find((entry) => entry.model === model);
+    if (!selected?.imageGeneration || selected.pricing.kind === 'unavailable')
+      fail('MANAGED_MODEL_UNAVAILABLE');
+    return count === 1 && selected.pricing.kind === 'per_call'
+      ? quotaToPoints(selected.pricing.quotaPerCall)
+      : null;
   }
 
   /**

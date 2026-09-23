@@ -15,13 +15,18 @@ import type {
   AutomationSetupRequest,
 } from '@musefold/desktop-contracts/ipc';
 import { IPC } from '@musefold/desktop-contracts/ipc';
-import { apiBase, readSessionToken } from './ipc-v25/account-domain';
+import { apiBase, readSessionToken, fetchAccountStatus } from './ipc-v25/account-domain';
 import { getMainWindow } from './window';
 import { getMusefoldCore } from './core-instance';
 import { createElectronLocalAdminOps } from './automation-local';
+import { getAccountCloudStatus } from '../system/account-cloud-connection';
 
 const PROVIDER_TYPES = new Set<ProviderConfig['type']>(['openai', 'openai-compatible']);
 const SENSITIVE_FIELD = /(api[-_]?key|password|token|secret|credential)/i;
+
+// Legacy core ProviderConfig is the local-provider creation contract. Its stored rows also
+// include host-owned v25 cloud connections, which must never require a local API key.
+const isCloudProvider = (provider: ProviderConfig) => String(provider.type) === 'musefold-cloud';
 
 /** setup/status 只暴露登录与服务器形态,不透传余额等账号细节(脱敏面)。 */
 export interface AutomationAccountSnapshot {
@@ -36,6 +41,7 @@ export interface AutomationSetupDependencies {
   setActiveProvider(providerId: string): unknown;
   openSetup(request: AutomationSetupRequest): void;
   providerChanged(providerId: string): void;
+  cloudReadyProviderId?(): Promise<string | null>;
 }
 
 function objectBody(context: AutomationRouteContext): Record<string, unknown> {
@@ -145,13 +151,17 @@ export function createAutomationSetupRoutes(
     'GET /v1/setup/status': async () => {
       const account = await deps.accountStatus();
       const providers = deps.listProviders();
+      const cloudReady = await deps.cloudReadyProviderId?.();
       return {
         account: {
           configured: account.loggedIn,
           health: account.health,
           serverKind: account.isDefaultServer ? 'default' : 'custom',
         },
-        providers: providers.map(safeProvider),
+        providers: providers.map((provider) => ({
+          ...safeProvider(provider),
+          available: isCloudProvider(provider) ? provider.id === cloudReady : provider.hasKey,
+        })),
         activeProviderId: providers.find((provider) => provider.isActive)?.id ?? null,
       };
     },
@@ -189,13 +199,25 @@ export function createAutomationSetupRoutes(
             : '已打开 Musefold 中转站配置。请让用户只在应用内输入 API Key 并测试连接。',
       };
     },
-    'POST /v1/setup/providers/:id/activate': (context) => {
+    'GET /v1/providers': async () => {
+      const ready = await deps.cloudReadyProviderId?.();
+      return {
+        providers: deps.listProviders().map((provider) => ({
+          ...provider,
+          available: isCloudProvider(provider) ? provider.id === ready : provider.hasKey,
+        })),
+      };
+    },
+    'POST /v1/setup/providers/:id/activate': async (context) => {
       const provider = deps.listProviders().find((item) => item.id === context.params.id);
       if (!provider)
         throw new AutomationError('NOT_FOUND', 'Provider 不存在', 404, {
           providerId: context.params.id,
         });
-      if (!provider.hasKey) {
+      const available = isCloudProvider(provider)
+        ? provider.id === (await deps.cloudReadyProviderId?.())
+        : provider.hasKey;
+      if (!available) {
         throw new AutomationError(
           'PROVIDER_NOT_READY',
           'Provider 尚未配置凭据，请先打开 Musefold 原生配置页',
@@ -203,21 +225,36 @@ export function createAutomationSetupRoutes(
           { providerId: provider.id },
         );
       }
-      deps.setActiveProvider(provider.id);
+      await deps.setActiveProvider(provider.id);
       deps.providerChanged(provider.id);
-      return { selected: { ...safeProvider(provider), isActive: true } };
+      return { selected: { ...safeProvider(provider), available, isActive: true } };
     },
   };
 }
 
 export function createElectronAutomationSetupRoutes(): Record<string, AutomationRouteHandler> {
   return createAutomationSetupRoutes({
-    // v2.5 账号域:登录态 = 本机存有 bearer token;云端健康探测属账号域自身职责。
+    cloudReadyProviderId: async () => {
+      if (!getMusefoldCore().providers.list().some(isCloudProvider)) return null;
+      const status = await getAccountCloudStatus();
+      return status.mode === 'active' ? status.connectionId : null;
+    },
+    // A cached token alone is not proof that the account service is reachable.
     accountStatus: async () => {
-      const loggedIn = (await readSessionToken()) !== null;
+      const token = await readSessionToken();
+      const loggedIn = token !== null;
+      let health: AutomationAccountSnapshot['health'] = 'unknown';
+      if (token) {
+        try {
+          await fetchAccountStatus(token);
+          health = 'ok';
+        } catch {
+          /* Remain unknown. */
+        }
+      }
       return {
         loggedIn,
-        health: loggedIn ? 'ok' : 'unknown',
+        health,
         isDefaultServer: apiBase() === OFFICIAL_CLOUD_API_BASE,
       };
     },

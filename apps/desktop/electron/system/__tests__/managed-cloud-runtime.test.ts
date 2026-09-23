@@ -80,6 +80,13 @@ import {
 import { managedExecutionWorkScope } from '../managed-execution';
 import { getAutomationSpendRepository } from '../../settings/automation';
 import { describeManagedRecovery } from '../account-cloud-recovery';
+import { wrapCloudGenerationGate } from '../../main/automation-cloud-generation';
+import { createEventHub } from '@musefold/core';
+import type {
+  AutomationRouteContext,
+  GenerationGate,
+  GenerationHost,
+} from '@musefold/automation-server';
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6p9sAAAAASUVORK5CYII=',
@@ -209,7 +216,7 @@ async function fixture() {
         identity: { apiIssuer, principalId, payer, credential },
         group: 'vip',
         checkedAt: new Date().toISOString(),
-        models: ['gpt-image-2', 'musefold-image'].map((model) => ({
+        models: ['gpt-image-2', 'musefold-image', 'musefold-image-pro'].map((model) => ({
           model,
           supportedEndpointTypes: ['openai'],
           imageGeneration: true,
@@ -397,6 +404,213 @@ async function fixture() {
     },
   };
 }
+
+describe('ordinary CLI/MCP cloud generation with real HTTP and durable SQLite', () => {
+  function routes(authorize = vi.fn(async () => {})) {
+    const legacyRoute = vi.fn(() => ({ legacy: true }));
+    const legacy = {
+      routes: Object.fromEntries(
+        [
+          'POST /v1/generations',
+          'POST /v1/generations/estimate',
+          'GET /v1/generations/:jobId',
+          'DELETE /v1/generations/:jobId',
+        ].map((key) => [key, legacyRoute]),
+      ),
+      resolveConfirmation: () => false,
+      pendingConfirmations: () => [],
+    } as GenerationGate;
+    const host = {
+      budget: { remainingPoints: () => 100, settle: () => {} },
+      authorizeReferencePath: (path: string) =>
+        path.startsWith(join(state.root, PREVIEWS_DIR_NAME, 'uploads')),
+      resolveHistoryImage: () => null,
+    } as unknown as GenerationHost;
+    const gate = wrapCloudGenerationGate(legacy, host, createEventHub(), authorize, () => true);
+    const invoke = async (route: string, body: unknown, key = 'cloud-cli-fixture', jobId = '') => {
+      let result: unknown;
+      const value = await gate.routes[route]({
+        body,
+        params: { jobId },
+        request: { headers: { 'idempotency-key': key } },
+        json: (payload: unknown) => {
+          result = payload;
+        },
+      } as unknown as AutomationRouteContext);
+      return (result ?? value) as {
+        jobId: string;
+        status: string;
+        costPoints: number;
+        assets: Array<{ path: string }>;
+      };
+    };
+    return { invoke, legacyRoute, authorize };
+  }
+  it('CLI consent reaches cloud, downloads bytes, and replay after default changes never resends', async () => {
+    const f = await fixture();
+    await f.enable();
+    const r = routes();
+    const body = {
+      prompt: 'monitor and report UI',
+      consent: 'interactive',
+      declaredBudgetPoints: 20,
+    };
+    const estimate = await r.invoke('POST /v1/generations/estimate', body);
+    expect(estimate).toMatchObject({ points: 0.4, model: 'musefold-image-pro' });
+    const submitted = await r.invoke('POST /v1/generations', body);
+    await vi.waitFor(
+      async () => {
+        const result = await r.invoke('GET /v1/generations/:jobId', {}, '', submitted.jobId);
+        expect(result.status).toBe('success');
+        expect(result.costPoints).toBe(4);
+        expect(readFileSync(result.assets[0].path)).toEqual(png);
+      },
+      { timeout: 5000 },
+    );
+    getDb().prepare('UPDATE providers SET is_active = 0').run();
+    const replay = await routes().invoke('POST /v1/generations', body);
+    expect(replay).toMatchObject({ jobId: submitted.jobId, status: 'success', costPoints: 4 });
+    await expect(
+      routes().invoke('POST /v1/generations', { ...body, prompt: 'changed' }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    expect(
+      f.calls.filter((c) => c.url === '/api/v1/generations' && c.method === 'POST'),
+    ).toHaveLength(1);
+    expect(r.legacyRoute).not.toHaveBeenCalled();
+  });
+  it('MCP without CLI consent asks once before sending; denied request sends nothing', async () => {
+    state.budget = {
+      monthlyLimitPoints: 0,
+      usedPoints: 0,
+      month: new Date().toISOString().slice(0, 7),
+    };
+    const f = await fixture();
+    await f.enable();
+    const r = routes(
+      vi.fn(async () => {
+        throw new Error('USER_DENIED');
+      }),
+    );
+    await expect(r.invoke('POST /v1/generations', { prompt: 'denied MCP' })).rejects.toThrow(
+      'USER_DENIED',
+    );
+    expect(r.authorize).toHaveBeenCalledOnce();
+    expect(f.calls.filter((c) => c.url === '/api/v1/generations')).toEqual([]);
+    expect(getAutomationSpendRepository().get(record().requestId)).toMatchObject({
+      state: 'terminal',
+      outcome: 'denied',
+    });
+  });
+  it('MCP confirmation approval authorizes the same guarded cloud request', async () => {
+    state.budget = {
+      monthlyLimitPoints: 0,
+      usedPoints: 0,
+      month: new Date().toISOString().slice(0, 7),
+    };
+    const f = await fixture();
+    await f.enable();
+    const r = routes();
+    const submitted = await r.invoke('POST /v1/generations', { prompt: 'approved MCP' });
+    await vi.waitFor(
+      async () =>
+        expect(await r.invoke('GET /v1/generations/:jobId', {}, '', submitted.jobId)).toMatchObject(
+          { status: 'success' },
+        ),
+      { timeout: 5000 },
+    );
+    expect(r.authorize).toHaveBeenCalledOnce();
+    expect(
+      f.calls.filter((c) => c.url === '/api/v1/generations' && c.method === 'POST'),
+    ).toHaveLength(1);
+  });
+  it('rejects a cost ceiling below cloud price and a different account before sending', async () => {
+    const f = await fixture();
+    await f.enable();
+    const r = routes();
+    await expect(
+      r.invoke('POST /v1/generations', {
+        prompt: 'capped',
+        consent: 'interactive',
+        declaredBudgetPoints: 0.1,
+      }),
+    ).rejects.toMatchObject({ code: 'BUDGET_EXCEEDED' });
+    f.access.session.principalId = 'another-principal';
+    await expect(
+      r.invoke('POST /v1/generations', { prompt: 'wrong owner' }, 'another-key'),
+    ).rejects.toMatchObject({ code: 'MANAGED_IDENTITY_CHANGED' });
+    expect(f.calls.filter((c) => c.url === '/api/v1/generations')).toEqual([]);
+  });
+  it('reference images freeze real uploaded bytes in the managed request', async () => {
+    const f = await fixture();
+    await f.enable();
+    const directory = join(state.root, PREVIEWS_DIR_NAME, 'uploads');
+    mkdirSync(directory, { recursive: true });
+    const path = join(directory, 'reference.png');
+    writeFileSync(path, png);
+    const submitted = await routes().invoke('POST /v1/generations', {
+      prompt: 'edit reference',
+      consent: 'interactive',
+      referenceImagePaths: [path],
+    });
+    await vi.waitFor(
+      async () =>
+        expect(
+          await routes().invoke('GET /v1/generations/:jobId', {}, '', submitted.jobId),
+        ).toMatchObject({ status: 'success' }),
+      { timeout: 5000 },
+    );
+    expect(f.referenceUploads).toHaveLength(1);
+    expect(record().frozenRequest.referenceImages[0].digest).toBe(
+      createHash('sha256').update(png).digest('hex'),
+    );
+  });
+  it('cancels the original cloud request without creating a second generation', async () => {
+    const f = await fixture();
+    await f.enable();
+    f.phase('queued');
+    const r = routes();
+    const submitted = await r.invoke('POST /v1/generations', {
+      prompt: 'cancel this cloud task',
+      consent: 'interactive',
+    });
+    await f.postReceived;
+    await r.invoke('DELETE /v1/generations/:jobId', {}, '', submitted.jobId);
+    await vi.waitFor(
+      async () =>
+        expect(await r.invoke('GET /v1/generations/:jobId', {}, '', submitted.jobId)).toMatchObject(
+          { status: 'cancelled' },
+        ),
+      { timeout: 5000 },
+    );
+    expect(
+      f.calls.filter((c) => c.url === '/api/v1/generations' && c.method === 'POST'),
+    ).toHaveLength(1);
+  });
+  it('does not expose another account’s saved result on replay', async () => {
+    const f = await fixture();
+    await f.enable();
+    const r = routes();
+    const body = { prompt: 'owner-bound image', consent: 'interactive' };
+    const submitted = await r.invoke('POST /v1/generations', body);
+    await vi.waitFor(
+      async () =>
+        expect(await r.invoke('GET /v1/generations/:jobId', {}, '', submitted.jobId)).toMatchObject(
+          { status: 'success' },
+        ),
+      { timeout: 5000 },
+    );
+    f.access.session.principalId = 'other-owner';
+    await expect(r.invoke('POST /v1/generations', body)).rejects.toMatchObject({
+      code: 'MANAGED_IDENTITY_CHANGED',
+    });
+    await expect(
+      r.invoke('GET /v1/generations/:jobId', {}, '', submitted.jobId),
+    ).rejects.toMatchObject({ code: 'MANAGED_IDENTITY_CHANGED' });
+    expect(
+      f.calls.filter((c) => c.url === '/api/v1/generations' && c.method === 'POST'),
+    ).toHaveLength(1);
+  });
+});
 
 describe('account cloud user path with real HTTP, SQLite and controlled assets', () => {
   it.each(['gpt-image-2', 'musefold-image'])(

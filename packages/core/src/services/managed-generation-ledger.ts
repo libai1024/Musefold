@@ -218,6 +218,7 @@ export class ManagedGenerationLedger {
       binding: input.binding,
       request: input.request,
       ...(input.retryOfRequestId ? { retryOfRequestId: input.retryOfRequestId } : {}),
+      ...(input.automationInputHash ? { automationInputHash: input.automationInputHash } : {}),
     });
     const result = await this.coordinate<{ record: ManagedGenerationRecord; replayed: boolean }>(
       'submit',
@@ -267,6 +268,9 @@ export class ManagedGenerationLedger {
               frozenRequest: input.request,
               retryOf,
               inputHash,
+              ...(input.automationInputHash
+                ? { automationInputHash: input.automationInputHash }
+                : {}),
               submissionState: 'unclaimed',
               receipt: null,
               cancelRequestedAt: null,

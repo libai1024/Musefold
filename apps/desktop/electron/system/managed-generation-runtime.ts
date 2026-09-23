@@ -34,6 +34,10 @@ const active = new Map<string, Promise<void>>();
 const terminal = new Set(['succeeded', 'failed', 'cancelled', 'rejected', 'expired']);
 const extensions = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
 
+export function isManagedGenerationActive(jobId: string): boolean {
+  return active.has(jobId);
+}
+
 export function managedRequestForLocalJob(jobId: string): string | null {
   const row = getDb()
     .prepare(`SELECT m.request_id AS id FROM managed_generation_requests m
@@ -311,7 +315,19 @@ function delay(signal: AbortSignal): Promise<void> {
 export async function startManagedGeneration(
   input: ParsedCreateGenerationInput,
   request: GenerateImageRequest,
-  options: { retryOfRequestId?: string; retryOfRunId?: string; callerKey?: string } = {},
+  options: {
+    retryOfRequestId?: string;
+    retryOfRunId?: string;
+    callerKey?: string;
+    automation?: {
+      inputHash: string;
+      consent?: 'interactive';
+      declaredBudgetPoints?: number;
+      estimatedPoints: number | null;
+      authorize(details: { confirmationId: string; confirmationExpiresAt: number }): Promise<void>;
+      onSettled(): void;
+    };
+  } = {},
 ): Promise<string> {
   const base = frozenRequest(input);
   const jobId = request.jobId;
@@ -340,20 +356,34 @@ export async function startManagedGeneration(
     const { getAutomationSpendRepository } = await import('../settings/automation');
     session.assertCurrent();
     getAutomationSpendRepository();
+    const estimatedPoints = options.automation
+      ? await session.client.automationEstimate(binding.model, input.count)
+      : null;
+    if (
+      options.automation?.declaredBudgetPoints !== undefined &&
+      (estimatedPoints === null || estimatedPoints > options.automation.declaredBudgetPoints)
+    )
+      throw new ManagedExecutionError('BUDGET_EXCEEDED');
     // Uploads complete before registration so the frozen request carries final cloud ids;
     // a failure leaves no spend row and never reaches the generation POST below.
     const referenceImages = await freezeReferenceImages(session, input, request);
     const frozen = referenceImages.length ? { ...base, referenceImages } : base;
     const { record, replayed } = await session.ledger.register({
       callerKey: options.callerKey ?? jobId,
-      caller: 'desktop-workbench',
+      caller: options.automation ? 'local-automation' : 'desktop-workbench',
       executionId: jobId,
       binding,
       authEpoch: session.client.context.authEpoch,
       request: frozen,
       ...(options.retryOfRequestId ? { retryOfRequestId: options.retryOfRequestId } : {}),
-      estimatedPoints: null,
-      consent: 'interactive',
+      estimatedPoints,
+      ...(options.automation
+        ? {
+            consent: options.automation.consent,
+            declaredBudgetPoints: options.automation.declaredBudgetPoints,
+            automationInputHash: options.automation.inputHash,
+          }
+        : { consent: 'interactive' as const }),
       now: Date.now(),
     });
     if (replayed) {
@@ -361,6 +391,36 @@ export async function startManagedGeneration(
       if (!existing) throw new ManagedExecutionError('MANAGED_QUERY_ONLY');
       resolveReady(existing);
       return;
+    }
+    if (options.automation) {
+      const spend = getAutomationSpendRepository().get(record.requestId);
+      if (spend?.state === 'pending_confirmation') {
+        if (!spend.confirmationId || spend.confirmationExpiresAt === null)
+          throw new ManagedExecutionError('MANAGED_REQUEST_CORRUPT');
+        try {
+          await options.automation.authorize({
+            confirmationId: spend.confirmationId,
+            confirmationExpiresAt: spend.confirmationExpiresAt,
+          });
+        } catch (error) {
+          await session.ledger.resolveConfirmation(
+            record.requestId,
+            session.client.context,
+            false,
+            Date.now(),
+          );
+          throw error;
+        }
+        if (
+          !(await session.ledger.resolveConfirmation(
+            record.requestId,
+            session.client.context,
+            true,
+            Date.now(),
+          ))
+        )
+          throw new ManagedExecutionError('CONFIRMATION_TIMEOUT');
+      }
     }
     let uncertain = false;
     const completion = generate(
@@ -414,6 +474,7 @@ export async function startManagedGeneration(
   active.set(jobId, settled);
   void settled.finally(() => {
     if (active.get(jobId) === settled) active.delete(jobId);
+    options.automation?.onSettled();
   });
   return ready;
 }
