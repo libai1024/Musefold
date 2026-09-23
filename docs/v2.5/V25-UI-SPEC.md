@@ -60,6 +60,9 @@
 | `--accent`(Ember) | `--primary` | `#d6653f` | `#ef7a52` |
 | `--border-default` | `--border` | `#dfdfdb` | — |
 | 状态色 | `--destructive` 等 | 承旧红/绿/黄 | — |
+| (新增,无旧对应)`--segment-on` | 段控件(ToggleGroup)选中面 | `#ecece9`(=accent) | `#3a3d44` |
+
+`--segment-on` 说明(2026-09 走查 P2):深色下选中面若沿用 `--accent`(#2a2c30)与轨道 `--card`(#25272a)仅差 ~5 灰阶,选中态近乎不可辨;提到 `#3a3d44`(Δ≈21 灰阶)。浅色与 accent 同值,外观不变。
 
 规则:
 - 组件只允许引用语义 token(Tailwind 语义类:`bg-background`、`text-muted-foreground`、`border-border`、`text-primary`…),**禁止**出现 `#hex`、`rgb()`、调色板类(如 `text-orange-500`)。
@@ -162,6 +165,7 @@
 
 - **挂载**:双宿主在 `PlatformProvider` 内、壳容器之后各挂一行 `<OnboardingFlow onOpenScreen>`(与 `Toaster` 同级);gate 未放行时返回 `null` 不占 DOM。切屏一律回调宿主既有导航,引导层不自建路由。
 - **gate 判定**(`useOnboardingGate`):哨兵 `AppPreferences.onboardingCompletedAt` 非 null → 不弹;无哨兵且账号未登录、无可用本地 Provider(桌面)、豆包未登录(桌面)→ 弹;无哨兵但已具备任一生图通道 → 不弹并**静默补哨兵**(存量用户不回放);偏好读取失败 fail-closed(不弹也不写)。流程中途拿到通道不撤走已放行的引导。宿主差异只经 capability(`hasLocalAiProviders` / `hasDoubaoWebLogin`)。
+- **首帧决策(2026-09 走查 P2 修复)**:完成哨兵镜像到 `localStorage`(`musefold.onboarding-completed-at`,完成/静默补写/读到哨兵时同步),已完成用户首帧即短路 gate,不等查询。镜像无法判定且前置查询未 settle 时渲染 `OnboardingBootShield` 全屏遮罩(品牌标 + 呼吸点,拦截点击)——避免冷启动先露可操作工作台、引导层 ~5s 后迟到挂载抢走点击落点;偏好读取失败(fail-closed)与镜像已完成都不经过遮罩。
 - **形态**:`Dialog` `role=dialog aria-modal`,桌面 md+ 居中 640px 卡、移动全屏;步骤指示带 `aria-current`;关闭 = 跳过,经 AlertDialog 确认。
 - **四步**:welcome(品牌行 / 标语 / 副文 theater reveal,60ms 错相,`skipMotion()` 命中直接终态)→ connect(三轨:官方账号 / 桌面 BYOK / 豆包免费试用;Web 只官方账号)→ validate(进入即自动确认一次;失败只给「重新确认」不给「继续」,可返回或跳过)→ first-image(只写 `pendingDraft` 送工作台,**不发起真实生图**)→ complete 写哨兵。完成、跳过、关闭写同一哨兵。
 - **E2E 夹具**:`tests/v25/onboarding-helpers.ts` 单入口。Electron `launchV25App` 默认预置哨兵(`onboarding: 'pending'` 显式开启);Web 各 spec 顶层 `seedOnboardingCompleted`。
@@ -279,15 +283,15 @@ testid 约定:`composer-prompt`、`composer-prompt-count`、`composer-submit`、
 
 ### 4.1 布局
 
-顶部工具行(搜索框 + 标签筛选 + 「新建提示词」主钮)→ Tabs(全部 / 收藏 / 回收站)→ 行式列表(承旧 v2.0 `PromptListRow` 信息架构)。
+顶部工具行(搜索框 + 文件夹/排序筛选 + 「新建提示词」主钮)→ Tabs(库 / 回收站;「库」内再以标签/文件夹筛选,不再有独立「收藏」页签)→ 行式列表(承旧 v2.0 `PromptListRow` 信息架构)。
 
 **详情(2026-09-06)**:md+ 为「列表 + 右侧详情 Inspector(384px,`w-96`)」双栏,详情开启时列表转单列(容器 `max-w-none`);<768px 详情装 `Sheet`,与生成历史 §5.1 同构。`PromptDetailInspector` = 头部(48px 封面 + 标题 + 置顶/评分)+ 正文(可复制,复制后图标转 Check)+ 「相关作品」面板(`PromptRelatedWorks`:该提示词产出的回合缩略,点击经 `history-select` 意图跳历史屏选中,宿主未注入 `onOpenHistory` 时退成只读画廊)+ 元数据(使用次数 / 创建 / 更新时间)。主动作「使用」(回填 Composer 并切工作台);更多菜单只含编辑 / 复制正文 / 置顶 / 移入回收站,「分享」属暂缓域(§0.2)。
 
 ### 4.2 列表行(`PromptListRow`)
 
-封面缩略(44px;`coverImageUrl` 有图显图 + hover `scale-[1.06]`,无封面 FileText 占位;`PromptCover` 单源)+ 主体(置顶针 + 标题 + 评分星 / 摘要行 / 元信息行:使用次数 + 更新相对时间 + 标签 Badge ≤4 个 + 溢出计数)+ **常驻操作组**(使用/复制/编辑/置顶/移入回收站;回收站行只留「恢复」「永久删除」)。
+封面缩略(44px;`coverImageUrl` 有图显图 + hover `scale-[1.06]`,无封面 FileText 占位;`PromptCover` 单源)+ 主体(置顶针 + 标题 + 评分星 / 摘要行 / 元信息行:使用次数 + 更新相对时间 + 标签 Badge ≤4 个 + 溢出计数)+ **操作组**(使用/复制/编辑/置顶/移入回收站;回收站行只留「恢复」「永久删除」)。
 
-- 操作组:桌面 hover/键盘聚焦渐显(`md:opacity-0 group-hover:opacity-100`),触屏常显。
+- 操作组:<md 触屏常显、行内占位;md+ **浮层覆盖行尾**(`absolute` + 左向渐隐遮罩 `from-card`,零占位不挤标题——2026-09 走查 P1 修复,双列 346px 行宽下标题曾被挤剩 3~4 字),桌面 hover/键盘聚焦渐显。侧栏会话行同款浮层(`from-sidebar-accent`)。
 - 点击行主体 = 打开详情(回收站行 = 恢复);编辑走操作组或详情菜单。
 - 封面来源:工作台「存为提示词」写入首图;契约 `coverImageUrl` 为 path-free URL(https / `media:` / `data:` / loopback http,拒绝裸绝对路径)。PG 迁移 `0006_prompt_cover_image`;SQLite 复用 `preview_image_path` 槽位,IPC 层做 `media://` ↔ 受管路径双向映射,不新增列。
 - **不使用下拉菜单藏动作**(§8-I2,E2E 稳定性教训)。
@@ -507,7 +511,7 @@ Cloud MCP 首次授权使用共享 `OAuthAuthorizationScreen`，Web 薄宿主挂
 - **I4 错误**:查询错误就地错误卡(标题+消息+重试钮);变更错误 toast(保留用户输入);表单校验错误字段下红字。
 - **I5 空态**:图标 + 一句引导 + 主 CTA(能创建的场景必须给 CTA);筛选空态给「清除筛选」。
 - **I6 乐观更新**:列表内 CRUD 一律乐观 + 失败回滚;跨屏影响(如生成完成)靠 query invalidation。
-- **I7 快捷键(桌面/Web 物理键盘)**:⌘N 新设计、⌘K 搜索提示词(全局:切到提示词库并聚焦搜索框,`shell/AppShell` 接线)、`/` 聚焦搜索框(提示词库非输入态)、⌘S 保存提示词(编辑器有未保存修改时)、Enter 发送、Shift+Enter 换行、Esc 关浮层/取消行内编辑。全部登记在 `packages/features/src/shell/shortcuts.ts` `PRODUCT_SHORTCUTS`(单源;关于卡快捷键表与 `shortcuts.test.ts` 接线镜像都读它)。
+- **I7 快捷键(桌面/Web 物理键盘)**:⌘N 新设计(切屏后聚焦 Composer,`workbench-focus-composer` 意图)、⌘K 搜索提示词(全局:切到提示词库并聚焦搜索框,`shell/AppShell` 接线)、⌘, 打开设置(全局,`shell/AppShell` 接线)、`/` 聚焦搜索框(提示词库非输入态)、⌘S 保存提示词(编辑器有未保存修改时)、Enter 发送、Shift+Enter 换行、Esc 关浮层/取消行内编辑。全部登记在 `packages/features/src/shell/shortcuts.ts` `PRODUCT_SHORTCUTS`(单源;关于卡快捷键表与 `shortcuts.test.ts` 接线镜像都读它)。
 - **I8 testid**:`<域>-<对象>-<动作>` 蛇形连字;列表行 `<域>-row-<id>`;E2E 只允许用 testid/role 定位。
 - **I9 可访问性**:图标钮必须 `aria-label`;活动导航 `aria-current`;浮层焦点圈闭 + Esc 关闭 + 焦点归还触发器。
 

@@ -22,6 +22,7 @@ import { Label } from '@musefold/ui/components/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@musefold/ui/components/popover';
 import { Spinner } from '@musefold/ui/components/spinner';
 import { Textarea } from '@musefold/ui/components/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@musefold/ui/components/tooltip';
 import {
   ArrowUp,
   Blocks,
@@ -793,6 +794,8 @@ export function Composer({
           <div className="contents" data-testid="workbench-context-menu">
             <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
               <DropdownMenuTrigger asChild>
+                {/* title 原生提示是既有契约(禁用/解释走 title,composer-context-menu 测试钉死);
+                    也是下拉触发钮,不另叠 Radix tooltip。 */}
                 <Button
                   ref={contextMenuTriggerRef}
                   variant="ghost"
@@ -906,22 +909,31 @@ export function Composer({
           </div>
 
           <Popover open={ratioOpen} onOpenChange={handleRatioOpenChange}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(TOOLBAR_TRIGGER_CLASS, 'min-w-[90px] border-border/55 bg-card/50')}
-                title="图片比例"
-                aria-label={`图片比例:${value.aspectRatio} ${selectedRatio?.label ?? '自定义'}`}
-                data-testid="composer-ratio"
-              >
-                <RatioPreview ratio={selectedRatio?.id ?? value.aspectRatio} />
-                <span className="min-w-0 truncate font-medium font-mono">{value.aspectRatio}</span>
-                <ChevronDown
-                  className="ml-auto size-3 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              </button>
-            </PopoverTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      TOOLBAR_TRIGGER_CLASS,
+                      'min-w-[90px] border-border/55 bg-card/50',
+                    )}
+                    aria-label={`图片比例:${value.aspectRatio} ${selectedRatio?.label ?? '自定义'}`}
+                    data-testid="composer-ratio"
+                  >
+                    <RatioPreview ratio={selectedRatio?.id ?? value.aspectRatio} />
+                    <span className="min-w-0 truncate font-medium font-mono">
+                      {value.aspectRatio}
+                    </span>
+                    <ChevronDown
+                      className="ml-auto size-3 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>图片比例</TooltipContent>
+            </Tooltip>
             <PopoverContent
               align="start"
               sideOffset={8}
@@ -1047,25 +1059,29 @@ export function Composer({
           </Popover>
 
           <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(TOOLBAR_TRIGGER_CLASS, 'max-w-32 border-transparent')}
-                title="生成设置"
-                aria-label="生成设置"
-                data-testid="composer-settings"
-              >
-                <SlidersHorizontal
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 truncate">
-                  {qualityLabel(value.quality)}
-                  {countControlVisible && value.count > 1 ? ` · ${value.count} 张` : ''}
-                  {negativeActive ? ' · 反向词' : ''}
-                </span>
-              </button>
-            </PopoverTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(TOOLBAR_TRIGGER_CLASS, 'max-w-32 border-transparent')}
+                    aria-label="生成设置"
+                    data-testid="composer-settings"
+                  >
+                    <SlidersHorizontal
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 truncate">
+                      {qualityLabel(value.quality)}
+                      {countControlVisible && value.count > 1 ? ` · ${value.count} 张` : ''}
+                      {negativeActive ? ' · 反向词' : ''}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>生成设置</TooltipContent>
+            </Tooltip>
             <PopoverContent
               align="start"
               sideOffset={8}
@@ -1172,22 +1188,28 @@ export function Composer({
             )}
 
             {running ? (
-              <Button
-                size="icon"
-                className="size-9 rounded-full bg-foreground text-background shadow-sm transition-[transform,background-color,opacity] duration-(--dur-fast) ease-(--ease-spring) hover:-translate-y-px hover:bg-foreground/90 active:translate-y-px active:scale-[0.96]"
-                disabled={cancelling || !onCancel}
-                onClick={onCancel}
-                aria-label={cancelling ? '正在取消' : '停止生成'}
-                title={cancelling ? '正在取消' : '停止生成(Esc)'}
-                data-testid="composer-cancel"
-              >
-                {cancelling ? (
-                  <Spinner className="size-4" />
-                ) : (
-                  <Square className="size-3.5 fill-current" />
-                )}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    className="size-9 rounded-full bg-foreground text-background shadow-sm transition-[transform,background-color,opacity] duration-(--dur-fast) ease-(--ease-spring) hover:-translate-y-px hover:bg-foreground/90 active:translate-y-px active:scale-[0.96]"
+                    disabled={cancelling || !onCancel}
+                    onClick={onCancel}
+                    aria-label={cancelling ? '正在取消' : '停止生成'}
+                    data-testid="composer-cancel"
+                  >
+                    {cancelling ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <Square className="size-3.5 fill-current" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{cancelling ? '正在取消' : '停止生成(Esc)'}</TooltipContent>
+              </Tooltip>
             ) : (
+              /* 禁用态解释走原生 title(方案域多处测试钉死的「禁用并解释」契约);
+                 禁用钮不派发指针事件,Radix tooltip 挂不上,原生 title 是唯一提示通道。 */
               <Button
                 size="icon"
                 className="size-9 rounded-full shadow-sm transition-[transform,background-color,opacity] duration-(--dur-fast) ease-(--ease-spring) hover:-translate-y-px active:translate-y-px active:scale-[0.96]"

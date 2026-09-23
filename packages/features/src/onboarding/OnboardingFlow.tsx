@@ -42,6 +42,26 @@ export interface OnboardingFlowProps {
  * 关闭(Esc / 点遮罩)= 跳过,先经 AlertDialog 确认;跳过与完成写同一个完成哨兵。
  * 四端同一份:BYOK 与豆包两轨由 capability 门控,Web 只显示官方账号轨。
  */
+/**
+ * 首帧决策遮罩(2026-09 走查 P2):gate 前置查询未 settle 且本地镜像无法判定时,
+ * 遮住尚未就绪的工作台并拦截点击——否则冷启动先露出可操作的工作面,
+ * 引导层 ~5s 后迟到挂载会抢走用户落点(实测「跳过首次设置?」确认框接住了点击)。
+ * 已完成用户经哨兵镜像同步短路,不经过此遮罩;偏好读取失败的宿主也不遮(fail-closed)。
+ */
+function OnboardingBootShield() {
+  return (
+    <div
+      className="fixed inset-0 z-60 flex flex-col items-center justify-center gap-3 bg-background"
+      aria-busy="true"
+      aria-label="正在准备 Musefold"
+      data-testid="onboarding-boot-shield"
+    >
+      <MusefoldMark className="size-6 text-foreground" aria-hidden />
+      <span className="mf-status-breathe size-1.5 rounded-full bg-primary" aria-hidden />
+    </div>
+  );
+}
+
 export function OnboardingFlow({ onOpenScreen }: OnboardingFlowProps) {
   const gate = useOnboardingGate();
   const step = useOnboardingFlow((state) => state.step);
@@ -81,6 +101,7 @@ export function OnboardingFlow({ onOpenScreen }: OnboardingFlowProps) {
     finish('workbench');
   };
 
+  if (!gate.resolved) return <OnboardingBootShield />;
   if (!gate.open) return null;
 
   return (

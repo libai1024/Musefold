@@ -14,6 +14,7 @@ const WIRED = [
   'prompts-search',
   'prompts-focus-search',
   'prompt-editor-save',
+  'open-settings',
   'dismiss',
 ] as const;
 
@@ -28,6 +29,7 @@ const WIRED_AT: Record<(typeof WIRED)[number], string> = {
   'prompts-search': 'shell/AppShell ⌘K keydown → screen-intent prompts-focus-search',
   'prompts-focus-search': 'prompts/PromptLibraryScreen 非输入态 "/" keydown',
   'prompt-editor-save': 'prompts/PromptEditorDialog DialogContent onKeyDown',
+  'open-settings': 'shell/AppShell ⌘, keydown → onNavigate(settings)',
   dismiss: 'Radix Dialog/Menu 内建 + SessionListPanel/HistoryRow 行内编辑 onKeyDown',
 };
 

@@ -18,8 +18,20 @@ function TooltipProvider({
   );
 }
 
-function Tooltip({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+/**
+ * Root 自带 Provider(shadcn 上游同款):组件树没有外层 Provider 时(单测/宿主局部渲染)
+ * 也能独立成立——Radix 否则抛 `Tooltip must be used within TooltipProvider`。
+ * 与外层 Provider 嵌套时以本层为准;延迟统一 300ms(与 AppShell 显式 Provider 同值)。
+ */
+function Tooltip({
+  delayDuration = 300,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return (
+    <TooltipProvider delayDuration={delayDuration}>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    </TooltipProvider>
+  );
 }
 
 function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {

@@ -31,6 +31,7 @@ import { Input } from '@musefold/ui/components/input';
 import { Kbd } from '@musefold/ui/components/kbd';
 import { Skeleton } from '@musefold/ui/components/skeleton';
 import { toast } from '@musefold/ui/components/sonner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@musefold/ui/components/tooltip';
 import {
   Archive,
   BellDot,
@@ -44,9 +45,10 @@ import {
   Trash2,
 } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { usePreferences, useRelaunchApp, useUpdatePreferences } from '../settings/hooks';
 import { isMacPlatform, shortcutDisplay } from '../shell/shortcuts';
+import { useScreenIntent } from '../shell/screen-intent-store';
 import { sessionHasActiveJob, useRemoveSession, useSessionList, useUpdateSession } from './hooks';
 import { isSessionUnread, useActiveSession } from './session-store';
 
@@ -141,18 +143,25 @@ export function NewSessionAction({ onOpen }: SessionPanelProps) {
     setShortcut(shortcutDisplay('new-session', isMacPlatform()));
   }, []);
 
+  /** 进入草稿态后直接落 Composer 输入框(承 ChatGPT ⌘N 语义,2026-09 走查 P2):
+   *  写 workbench-focus-composer 意图;已在工作台时意图同样会被消费,不依赖切屏重挂载。 */
+  const start = useCallback(() => {
+    useScreenIntent.getState().setIntent({ kind: 'workbench-focus-composer' });
+    startDraftSession();
+    onOpen();
+  }, [startDraftSession, onOpen]);
+
   // 浏览器可能保留 ⌘N(新窗口);Electron 渲染层可正常接管。
   useEffect(() => {
     function onKeydown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n' && !event.shiftKey) {
         event.preventDefault();
-        startDraftSession();
-        onOpen();
+        start();
       }
     }
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
-  }, [startDraftSession, onOpen]);
+  }, [start]);
 
   // 行样式与导航轨同构(承 ZCode「新建任务 ⌘N」行语法),Kbd 右列。
   return (
@@ -160,10 +169,7 @@ export function NewSessionAction({ onOpen }: SessionPanelProps) {
       type="button"
       className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-[var(--density-nav-y)] text-left text-[13px] text-muted-foreground transition-colors duration-(--dur-fast) hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
       title={shortcut ? `新设计(${shortcut})` : '新设计'}
-      onClick={() => {
-        startDraftSession();
-        onOpen();
-      }}
+      onClick={start}
       data-testid="session-create"
     >
       <SquarePen className="size-4 text-muted-foreground/80" aria-hidden /> 新设计
@@ -300,7 +306,7 @@ function SessionRow({
         <div
           data-testid={`session-row-${session.id}`}
           className={cn(
-            'group flex items-center gap-1 rounded-md pr-1 transition-colors',
+            'group relative flex items-center gap-1 rounded-md pr-1 transition-colors',
             active ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/60',
           )}
         >
@@ -324,75 +330,111 @@ function SessionRow({
           >
             {sessionRelativeTime(session.updatedAt)}
           </span>
-          {/* 窄屏抽屉和触屏常显;大屏鼠标 hover/键盘 focus 显示(§8-I2)。 */}
-          <div className="hidden shrink-0 items-center pointer-coarse:flex group-focus-within:flex group-hover:flex max-md:flex">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 text-muted-foreground hover:text-foreground"
-              aria-label={pinned ? '取消置顶' : '置顶对话'}
-              data-testid="session-pin"
-              onClick={onTogglePin}
-            >
-              {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 text-muted-foreground hover:text-foreground"
-              aria-label="重命名对话"
-              data-testid="session-rename"
-              onClick={startRename}
-            >
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 text-muted-foreground hover:text-foreground"
-              aria-label="归档对话"
-              data-testid="session-archive"
-              onClick={onArchive}
-            >
-              <Archive className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 text-muted-foreground hover:text-destructive"
-              aria-label="删除对话"
-              data-testid="session-remove"
-              onClick={onRequestRemove}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6 text-muted-foreground hover:text-foreground max-md:size-11"
-                  aria-label="更多操作"
-                  data-testid="session-more"
-                >
-                  <MoreHorizontal className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" data-testid="session-more-menu">
-                {menuItems.map((item, index) => (
-                  <Fragment key={item.id}>
-                    {index === menuItems.length - 1 && <DropdownMenuSeparator />}
-                    <DropdownMenuItem
-                      variant={item.variant}
-                      onSelect={item.onSelect}
-                      data-testid={`session-menu-${item.id}`}
-                    >
-                      <item.icon /> {item.label}
-                    </DropdownMenuItem>
-                  </Fragment>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {/* 窄屏抽屉和触屏常显(§8-I2);md+ 浮层覆盖行尾(absolute + 左向渐隐遮罩,
+              承提示词库行同款):不再挤标题,静息态标题占满整行宽(2026-09 走查 P3)。
+              遮罩本体 pointer-events-none——渐隐区放行点击给行本体,只有按钮接事件。 */}
+          <div
+            className={cn(
+              'hidden items-center max-md:shrink-0',
+              'pointer-coarse:flex group-focus-within:flex group-hover:flex max-md:flex',
+              'md:pointer-events-none md:absolute md:inset-y-0 md:right-0 md:z-1 md:pl-5',
+              'md:bg-linear-to-l md:from-sidebar-accent md:via-sidebar-accent md:to-transparent',
+            )}
+          >
+            <div className="flex items-center md:pointer-events-auto">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-muted-foreground hover:text-foreground"
+                    aria-label={pinned ? '取消置顶' : '置顶对话'}
+                    data-testid="session-pin"
+                    onClick={onTogglePin}
+                  >
+                    {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{pinned ? '取消置顶' : '置顶对话'}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-muted-foreground hover:text-foreground"
+                    aria-label="重命名对话"
+                    data-testid="session-rename"
+                    onClick={startRename}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>重命名对话</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-muted-foreground hover:text-foreground"
+                    aria-label="归档对话"
+                    data-testid="session-archive"
+                    onClick={onArchive}
+                  >
+                    <Archive className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>归档对话</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-muted-foreground hover:text-destructive"
+                    aria-label="删除对话"
+                    data-testid="session-remove"
+                    onClick={onRequestRemove}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>删除对话</TooltipContent>
+              </Tooltip>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground hover:text-foreground max-md:size-11"
+                        aria-label="更多操作"
+                        data-testid="session-more"
+                      >
+                        <MoreHorizontal className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>更多操作</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="start" data-testid="session-more-menu">
+                  {menuItems.map((item, index) => (
+                    <Fragment key={item.id}>
+                      {index === menuItems.length - 1 && <DropdownMenuSeparator />}
+                      <DropdownMenuItem
+                        variant={item.variant}
+                        onSelect={item.onSelect}
+                        data-testid={`session-menu-${item.id}`}
+                      >
+                        <item.icon /> {item.label}
+                      </DropdownMenuItem>
+                    </Fragment>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </ContextMenuTrigger>

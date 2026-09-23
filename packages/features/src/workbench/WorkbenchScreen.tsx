@@ -719,6 +719,15 @@ export function WorkbenchScreen({
     focusPromptEnd,
   ]);
 
+  // 「新设计」(钮/⌘N)一次性意图:切到/已在工作台即聚焦 Composer,直接进入输入状态
+  // (承 ChatGPT ⌘N 语义,2026-09 走查 P2)。依赖 intent 本身:同屏重复触发也要每次消费。
+  const shellIntent = useScreenIntent((s) => s.intent);
+  const consumeShellIntent = useScreenIntent((s) => s.consume);
+  useEffect(() => {
+    if (!shellIntent) return;
+    if (consumeShellIntent('workbench-focus-composer')) focusPromptEnd();
+  }, [shellIntent, consumeShellIntent, focusPromptEnd]);
+
   // 草稿防抖回写(800ms);同屏写入按服务端返回版本串行,避免 autosave 与提交后清空互相冲突。
   function handleComposerChange(next: ComposerValue) {
     if (inheritDefaults) {

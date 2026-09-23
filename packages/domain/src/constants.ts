@@ -171,7 +171,7 @@ export const SEED_TAG_GROUPS: { group: TagGroup; tags: string[] }[] = [
   { group: '场景', tags: ['头像', '壁纸', '海报', 'UI配图', '概念图'] },
   { group: '模型', tags: ['Midjourney v6', 'SDXL', 'Flux', 'DALL-E 3', 'gpt-image'] },
   { group: '主体', tags: ['人物', '风景', '物品', '抽象'] },
-  { group: '画质', tags: ['高清', '稳定出图', '易崩坏'] },
+  { group: '画质', tags: ['高清', '稳定出图', '出图不稳'] },
 ];
 
 /** 豆包网页桥接的保守本地硬限制；所有豆包 Provider 共享。 */

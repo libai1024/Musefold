@@ -14,9 +14,13 @@ export async function clickRowAction(
   await promptRow(page, title).getByTestId(actionTestId).click();
 }
 
-/** 行点击打开详情 Inspector(md+ 右栏 / 窄屏 Sheet 同一 testid),返回面板定位器。 */
+/** 行点击打开详情 Inspector(md+ 右栏 / 窄屏 Sheet 同一 testid),返回面板定位器。
+ *  点行首封面区:md+ 行尾是 hover 浮层操作组(absolute 覆盖,2026-09 走查 P1 修复),
+ *  双列窄行的中心点会落在浮层按钮下方,命中检测误判拦截。 */
 export async function openPromptDetail(page: Page, title: string): Promise<Locator> {
-  await promptRow(page, title).getByTestId('prompt-row-open').click();
+  await promptRow(page, title)
+    .getByTestId('prompt-row-open')
+    .click({ position: { x: 28, y: 32 } });
   const detail = page.getByTestId('prompt-detail');
   await expect(detail).toBeVisible();
   return detail;

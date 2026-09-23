@@ -3,7 +3,12 @@
 import { MusefoldMark } from '@musefold/ui/components/brand-mark';
 import { Button } from '@musefold/ui/components/button';
 import { Sheet, SheetContent, SheetTitle } from '@musefold/ui/components/sheet';
-import { TooltipProvider } from '@musefold/ui/components/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@musefold/ui/components/tooltip';
 import { PanelLeft, Search } from '@musefold/ui/icons';
 import { cn } from '@musefold/ui/lib/utils';
 import {
@@ -84,16 +89,21 @@ function SidebarBody({
       >
         <MusefoldMark className="size-4 shrink-0 text-sidebar-foreground" aria-hidden />
         <span className="font-semibold text-[13px] text-sidebar-foreground">Musefold</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto size-7 text-muted-foreground"
-          aria-label="收起侧栏"
-          data-testid="sidebar-collapse"
-          onClick={onCollapse}
-        >
-          <PanelLeft className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-7 text-muted-foreground"
+              aria-label="收起侧栏"
+              data-testid="sidebar-collapse"
+              onClick={onCollapse}
+            >
+              <PanelLeft className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>收起侧栏</TooltipContent>
+        </Tooltip>
       </div>
 
       {action && <div className="px-3 pt-1 pb-0.5">{action}</div>}
@@ -174,6 +184,8 @@ export function AppShell({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const drawerOpenRef = useRef(drawerOpen);
   drawerOpenRef.current = drawerOpen;
+  /** 抽屉面板容器:onOpenAutoFocus 落焦于此,避免聚焦首个 tooltip 钮(见 SheetContent 注释)。 */
+  const drawerPanelRef = useRef<HTMLDivElement>(null);
 
   const activeLabel = items.find((item) => item.id === activeId)?.label ?? '未像';
   // 设置不占导航轨(承 ZCode/Codex/Cursor 布局语法):入口在左下角账号区齿轮;
@@ -198,13 +210,21 @@ export function AppShell({
 
   // ⌘/Ctrl+K 全局唤起提示词搜索(shortcuts.ts 登记 prompts-search):
   // 写一次性意图 + 走宿主导航切屏;提示词屏 mount/意图变化时消费并聚焦搜索框。
+  // ⌘/Ctrl+, 打开设置(shortcuts.ts 登记 open-settings;macOS/Win/Linux 惯例键位)。
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'k') return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-      event.preventDefault();
-      useScreenIntent.getState().setIntent({ kind: 'prompts-focus-search' });
-      onNavigate('prompts');
+      const key = event.key.toLowerCase();
+      if (key === 'k') {
+        event.preventDefault();
+        useScreenIntent.getState().setIntent({ kind: 'prompts-focus-search' });
+        onNavigate('prompts');
+        return;
+      }
+      if (key === ',') {
+        event.preventDefault();
+        onNavigate('settings');
+      }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
@@ -356,16 +376,21 @@ export function AppShell({
             style={{ paddingTop: brandInset > 0 ? 36 : 8 }}
             data-testid="sidebar-expand-rail"
           >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-              aria-label="展开侧栏"
-              data-testid="sidebar-expand"
-              onClick={() => setCollapsed(false)}
-            >
-              <PanelLeft className="size-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground"
+                  aria-label="展开侧栏"
+                  data-testid="sidebar-expand"
+                  onClick={() => setCollapsed(false)}
+                >
+                  <PanelLeft className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>展开侧栏</TooltipContent>
+            </Tooltip>
           </div>
         )}
 
@@ -418,16 +443,21 @@ export function AppShell({
             ) : null}
             <header className="flex h-12 shrink-0 items-center gap-2 border-border border-b px-4 md:hidden">
               {compact && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 shrink-0 text-muted-foreground"
-                  aria-label="展开侧栏"
-                  data-testid="sidebar-drawer-open"
-                  onClick={() => setDrawerOpen(true)}
-                >
-                  <PanelLeft className="size-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 shrink-0 text-muted-foreground"
+                      aria-label="展开侧栏"
+                      data-testid="sidebar-drawer-open"
+                      onClick={() => setDrawerOpen(true)}
+                    >
+                      <PanelLeft className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>展开侧栏</TooltipContent>
+                </Tooltip>
               )}
               <MusefoldMark className="size-4 shrink-0 text-foreground" aria-hidden />
               <span className="min-w-0 truncate font-semibold text-foreground text-sm">
@@ -435,16 +465,21 @@ export function AppShell({
               </span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 {mobileExtra}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-muted-foreground"
-                  aria-label="搜索提示词"
-                  data-testid="mobile-search"
-                  onClick={() => onNavigate('prompts')}
-                >
-                  <Search className="size-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground"
+                      aria-label="搜索提示词"
+                      data-testid="mobile-search"
+                      onClick={() => onNavigate('prompts')}
+                    >
+                      <Search className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>搜索提示词</TooltipContent>
+                </Tooltip>
               </div>
             </header>
             <main className="min-h-0 flex-1 overflow-auto pb-16 md:pb-0">{children}</main>
@@ -485,11 +520,23 @@ export function AppShell({
               aria-describedby={undefined}
               onCloseAutoFocus={handleDrawerCloseAutoFocus}
               onClickCapture={handleDrawerClickCapture}
+              onOpenAutoFocus={(event) => {
+                // 默认会聚焦首个可聚焦钮(收起钮),它带 tooltip:聚焦即弹 tooltip 层,
+                // 其 DismissableLayer 会吃掉第一下 Esc。改为聚焦面板容器:
+                // 焦点仍在对话框内且不误弹 tooltip(2026-09 走查 P2 tooltip 推广)。
+                event.preventDefault();
+                drawerPanelRef.current?.focus();
+              }}
               className="w-auto gap-0 border-r-0 bg-sidebar p-0 shadow-pop ease-(--ease-smooth) data-[state=closed]:duration-(--dur-med) data-[state=open]:duration-(--dur-med) sm:max-w-none"
               style={{ width: SHELL_SIDEBAR_DRAWER_WIDTH }}
             >
               <SheetTitle className="sr-only">主导航</SheetTitle>
-              <div className="flex h-full min-h-0 flex-col" data-testid="app-sidebar">
+              <div
+                ref={drawerPanelRef}
+                tabIndex={-1}
+                className="flex h-full min-h-0 w-full flex-col outline-none"
+                data-testid="app-sidebar"
+              >
                 {sidebarBody(() => setDrawerOpen(false))}
               </div>
             </SheetContent>

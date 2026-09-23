@@ -36,6 +36,9 @@
   --muted-foreground: #74777c;
   --accent: #ecece9;
   --accent-foreground: #202124;
+  /* 段控件(ToggleGroup)选中面:亮色与 accent 同值;深色需比轨道(card)高 ≥12 灰阶,
+     见 .dark 注释(2026-09 走查 P2:原 accent 与 card 仅差 ~5 灰阶,选中态近乎不可辨)。 */
+  --segment-on: #ecece9;
   --destructive: #b54935;
   --destructive-foreground: #ffffff;
   --success: #2a7b4a;
@@ -81,6 +84,8 @@
   --muted-foreground: #a0a2a7;
   --accent: #2a2c30;
   --accent-foreground: #f4f4f1;
+  /* 段控件选中面:card 轨道 #25272a(37) → 本值 #3a3d44(58),Δ≈21 灰阶,选中态可辨。 */
+  --segment-on: #3a3d44;
   --destructive: #ff8b70;
   --destructive-foreground: #24100f;
   --success: #75d493;
@@ -122,6 +127,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-segment-on: var(--segment-on);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);

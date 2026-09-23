@@ -449,6 +449,43 @@ describe('AppShell ⌘/Ctrl+K 全局搜索(shortcuts prompts-search)', () => {
   });
 });
 
+describe('AppShell ⌘/Ctrl+, 打开设置(shortcuts open-settings,2026-09 走查 P3)', () => {
+  beforeEach(() => {
+    stubMatchMedia(false);
+    setInnerWidth(1440);
+    stubLocalStorage();
+    useScreenIntent.setState({ intent: null });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useScreenIntent.setState({ intent: null });
+  });
+
+  it('⌘, 与 Ctrl+, 都切到设置;裸 , 不触发', () => {
+    const onNavigate = vi.fn();
+    render(<Harness activeId="workbench" onNavigate={onNavigate} />);
+
+    fireEvent.keyDown(document, { key: ',', metaKey: true });
+    expect(onNavigate).toHaveBeenCalledWith('settings');
+
+    fireEvent.keyDown(document, { key: ',', ctrlKey: true });
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(document, { key: ',' });
+    fireEvent.keyDown(document, { key: ',', metaKey: true, shiftKey: true });
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('⌘, 不误伤 ⌘K:两键位互不串扰', () => {
+    const onNavigate = vi.fn();
+    render(<Harness activeId="workbench" onNavigate={onNavigate} />);
+
+    fireEvent.keyDown(document, { key: 'k', metaKey: true });
+    expect(onNavigate).toHaveBeenCalledWith('prompts');
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'prompts-focus-search' });
+  });
+});
+
 describe('AppShell 窗口控件槽与拖拽钩子(B2-T6)', () => {
   beforeEach(() => {
     stubMatchMedia(false);

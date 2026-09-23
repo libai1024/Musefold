@@ -75,6 +75,8 @@ interface HarnessOptions {
   testResult?: AiProviderTestResult;
   /** 偏好读取失败(宿主未提供 settings 域等):gate 必须 fail-closed 不弹。 */
   preferencesFails?: boolean;
+  /** 偏好查询永不 settle(验证首帧决策:遮罩与镜像短路)。 */
+  preferencesPending?: boolean;
 }
 
 function makeHarness(options: HarnessOptions = {}) {
@@ -89,6 +91,7 @@ function makeHarness(options: HarnessOptions = {}) {
   });
   const getPreferences = vi.fn(async () => {
     if (options.preferencesFails) throw new Error('宿主未提供设置域');
+    if (options.preferencesPending) return new Promise<AppPreferences>(() => {});
     return state.preferences;
   });
   const getStatus = vi.fn(async () => {
@@ -180,7 +183,30 @@ function sentinelWrites(updatePreferences: ReturnType<typeof vi.fn>): AppPrefere
     .filter((patch) => patch.onboardingCompletedAt != null);
 }
 
+/** 完成哨兵镜像的 localStorage 键(onboarding-store 私有常量的稳定契约,改键名须同步两侧)。 */
+const ONBOARDING_SENTINEL_MIRROR_KEY = 'musefold.onboarding-completed-at';
+
+/** 本仓 vitest jsdom 的 window.localStorage 无 Storage 实现(方法缺失),
+ *  镜像读写需可用的同步存储——与 app-shell.test 的 stubLocalStorage 同法。 */
+class MemoryStorage {
+  private store = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.store.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.store.set(key, String(value));
+  }
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+}
+
 beforeEach(() => {
+  Object.defineProperty(window, 'localStorage', {
+    writable: true,
+    configurable: true,
+    value: new MemoryStorage(),
+  });
   useOnboardingFlow.getState().reset();
   useActiveSession.setState({ pendingDraft: null, activeSessionId: null, draftSession: false });
 });
@@ -294,6 +320,62 @@ describe('首启引导 gate 判定矩阵', () => {
     expect(screen.getByTestId('onboarding-flow')).toBeTruthy();
     expect(screen.getByTestId('onboarding-step-connect')).toBeTruthy();
     expect(sentinelWrites(harness.spies.updatePreferences)).toHaveLength(0);
+  });
+});
+
+describe('首帧决策:哨兵镜像 + 遮罩(2026-09 走查 P2)', () => {
+  it('镜像缺失且查询未 settle → 首帧渲染遮罩拦截点击;settle 后撤遮罩弹引导', async () => {
+    renderFlow({});
+
+    // 首个提交帧:四个前置查询均 pending,gate 无结论 → 遮罩而非裸工作台。
+    expect(screen.getByTestId('onboarding-boot-shield')).toBeTruthy();
+    expect(await screen.findByTestId('onboarding-flow')).toBeTruthy();
+    expect(screen.queryByTestId('onboarding-boot-shield')).toBeNull();
+  });
+
+  it('镜像已有完成哨兵 → 首帧短路:不渲染遮罩、不弹引导,不等偏好查询', async () => {
+    window.localStorage.setItem(ONBOARDING_SENTINEL_MIRROR_KEY, '2026-09-01T00:00:00+00:00');
+    const { spies } = renderFlow({ preferencesPending: true });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('onboarding-boot-shield')).toBeNull();
+    });
+    expect(screen.queryByTestId('onboarding-flow')).toBeNull();
+    // 镜像视为已完成:不静默补写哨兵。
+    expect(spies.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('偏好读取失败(fail-closed)→ 不弹引导、不写哨兵,也不被遮罩永久卡住', async () => {
+    const { spies } = renderFlow({ preferencesFails: true });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('onboarding-boot-shield')).toBeNull();
+    });
+    expect(screen.queryByTestId('onboarding-flow')).toBeNull();
+    expect(spies.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('契约哨兵已有但镜像缺失 → 反向补写镜像,加速下次冷启动', async () => {
+    renderFlow({ completedAt: '2026-09-01T00:00:00+00:00' });
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(ONBOARDING_SENTINEL_MIRROR_KEY)).toBe(
+        '2026-09-01T00:00:00+00:00',
+      );
+    });
+    expect(screen.queryByTestId('onboarding-flow')).toBeNull();
+  });
+
+  it('跳过完成后镜像同步落盘:同 session 再挂载不再遮罩/重放', async () => {
+    renderFlow({});
+    await screen.findByTestId('onboarding-flow');
+    await user.click(screen.getByTestId('onboarding-skip'));
+    await screen.findByTestId('onboarding-skip-dialog');
+    await user.click(screen.getByTestId('onboarding-skip-confirm'));
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(ONBOARDING_SENTINEL_MIRROR_KEY)).not.toBeNull();
+    });
   });
 });
 

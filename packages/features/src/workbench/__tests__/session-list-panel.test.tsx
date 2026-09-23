@@ -6,12 +6,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  NewSessionAction,
   SESSION_TITLE_MAX_LENGTH,
   SessionListPanel,
   WORKBENCH_SESSION_RESTART_REQUIRED,
 } from '../SessionListPanel';
+import { useScreenIntent } from '../../shell/screen-intent-store';
 import { useActiveSession } from '../session-store';
 
 function nowIso(): string {
@@ -221,5 +223,46 @@ describe('SessionListPanel 逃生门 / 重命名 / 密度', () => {
     });
     expect(screen.getByTestId('session-session-1').className).toContain('--density-nav-y');
     expect(document.documentElement.dataset.density).toBe('compact');
+  });
+});
+
+describe('NewSessionAction:⌘N 新设计 → 聚焦 Composer 意图(2026-09 走查 P2)', () => {
+  beforeEach(() => {
+    useScreenIntent.setState({ intent: null });
+    useActiveSession.setState({ activeSessionId: null, draftSession: false, pendingDraft: null });
+  });
+
+  afterEach(() => {
+    useScreenIntent.setState({ intent: null });
+  });
+
+  it('点击「新设计」进入草稿态、切屏并写 workbench-focus-composer 意图', () => {
+    const onOpen = vi.fn();
+    render(<NewSessionAction onOpen={onOpen} />);
+
+    fireEvent.click(screen.getByTestId('session-create'));
+    expect(useActiveSession.getState().draftSession).toBe(true);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'workbench-focus-composer' });
+  });
+
+  it('⌘N / Ctrl+N 等价同路径;Shift 组合与裸 N 不触发', () => {
+    const onOpen = vi.fn();
+    render(<NewSessionAction onOpen={onOpen} />);
+
+    fireEvent.keyDown(window, { key: 'n', metaKey: true });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(useScreenIntent.getState().intent).toEqual({ kind: 'workbench-focus-composer' });
+
+    useScreenIntent.setState({ intent: null });
+    useActiveSession.setState({ draftSession: false });
+    fireEvent.keyDown(window, { key: 'N', ctrlKey: true });
+    expect(onOpen).toHaveBeenCalledTimes(2);
+
+    useScreenIntent.setState({ intent: null });
+    fireEvent.keyDown(window, { key: 'n', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: 'n' });
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(useScreenIntent.getState().intent).toBeNull();
   });
 });

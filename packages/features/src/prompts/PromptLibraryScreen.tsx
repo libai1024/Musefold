@@ -573,14 +573,23 @@ export function PromptLibraryScreen({
               {hasActiveFilter ? (
                 <>
                   <p className="text-sm">没有匹配的提示词</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    data-testid="prompt-clear-filters"
-                    onClick={clearFilters}
-                  >
-                    清除筛选
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid="prompt-clear-filters"
+                      onClick={clearFilters}
+                    >
+                      清除筛选
+                    </Button>
+                    <Button
+                      size="sm"
+                      data-testid="prompt-empty-filtered-create"
+                      onClick={openCreate}
+                    >
+                      <Plus className="size-4" /> 新建提示词
+                    </Button>
+                  </div>
                 </>
               ) : tab === 'trash' ? (
                 <p className="text-sm">回收站是空的</p>

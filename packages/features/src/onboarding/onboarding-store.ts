@@ -3,7 +3,7 @@
 import type { AppPreferences } from '@musefold/contracts';
 import { queryKeys, useCapabilities, useGateway } from '@musefold/platform';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 
 /**
@@ -90,7 +90,7 @@ export const useOnboardingFlow = create<OnboardingFlowState>((set) => ({
 }));
 
 export interface OnboardingGate {
-  /** 前置查询都有结论前为 false:避免引导层在首帧闪现又撤走。 */
+  /** 前置查询都有结论前为 false:避免引导层在首帧闪现又撤走。完成哨兵镜像可同步判「已完成」,直接短路为 true。 */
   resolved: boolean;
   /** 应显示引导层。 */
   open: boolean;
@@ -98,6 +98,32 @@ export interface OnboardingGate {
   hasUsableChannel: boolean;
   /** 完成哨兵;非 null 即永不重放。 */
   completedAt: string | null;
+}
+
+/**
+ * 完成哨兵的 localStorage 镜像(2026-09 走查 P2):
+ * 契约偏好要等查询 settle,冷启动 ~5s 内 gate 无结论——期间工作台可被点击,
+ * 引导层迟到挂载会抢走用户落点。镜像同步可读,让「已完成」用户首帧即得结论,
+ * 不再等任何查询。只作正向加速:镜像有值 → 视为完成;镜像缺失仍以契约偏好为准。
+ * 哨兵本体永远是契约偏好,镜像丢了只是下次启动多等一次查询。
+ */
+const ONBOARDING_SENTINEL_MIRROR_KEY = 'musefold.onboarding-completed-at';
+
+export function readOnboardingMirror(): string | null {
+  try {
+    return window.localStorage.getItem(ONBOARDING_SENTINEL_MIRROR_KEY);
+  } catch {
+    // SSR / 隐私模式等不可用存储:当作无镜像,回退等查询。
+    return null;
+  }
+}
+
+export function writeOnboardingMirror(completedAt: string): void {
+  try {
+    window.localStorage.setItem(ONBOARDING_SENTINEL_MIRROR_KEY, completedAt);
+  } catch {
+    // 写失败不影响正确性,只是下次冷启动回退到等查询。
+  }
 }
 
 /**
@@ -155,32 +181,54 @@ export function useOnboardingGate(): OnboardingGate {
   // 会短暂回到 pending,若用 isSuccess||isError 会让 gate 闪关,BYOK validate 的
   // onSuccess 失效 account 就会拆掉引导层再自动重跑,打出 /models 风暴。
   const settled = (query: { isFetched: boolean }, enabled = true) => !enabled || query.isFetched;
+  // 完成哨兵镜像同步短路:已完成用户不等查询,首帧即有结论(见 readOnboardingMirror)。
+  const [mirror] = useState(() => readOnboardingMirror());
+  // 「已知完成」同样短路 resolved:通道查询(account/providers/doubao)只为判断
+  // 要不要弹引导,已完成用户永远不弹,不该被慢/挂起的通道查询拖住首帧遮罩
+  // (2026-09 走查:web e2e 无 API 环境 account 永不 settle,遮罩挡死整页)。
+  const completedKnown =
+    mirror !== null || (preferences.data?.onboardingCompletedAt ?? null) !== null;
+  // 偏好读取失败 = fail-closed 结论(不弹引导、不写哨兵);对遮罩而言也算「有结论」,
+  // 不能让未 resolved 状态在坏宿主上永久遮挡整个应用。
+  const preferencesFailed = preferences.isError;
   const resolved =
-    preferences.isSuccess &&
-    settled(account) &&
-    settled(providers, providersEnabled) &&
-    settled(doubao, doubaoEnabled);
-  const completedAt = preferences.data?.onboardingCompletedAt ?? null;
+    completedKnown ||
+    preferencesFailed ||
+    (preferences.isSuccess &&
+      settled(account) &&
+      settled(providers, providersEnabled) &&
+      settled(doubao, doubaoEnabled));
+  const completedAt = preferences.data?.onboardingCompletedAt ?? mirror;
   const hasUsableChannel =
     account.isSuccess ||
     (providersEnabled && (providers.data ?? []).some((option) => option.available)) ||
     (doubaoEnabled && doubao.data?.loggedIn === true);
-  const open = resolved && completedAt === null && (flowHeld || !hasUsableChannel);
+  const open =
+    resolved && !preferencesFailed && completedAt === null && (flowHeld || !hasUsableChannel);
 
   useLayoutEffect(() => {
     if (open && !flowActive) markActive();
   }, [open, flowActive, markActive]);
 
+  // 反向补写镜像:契约已有哨兵但本地镜像缺失(老版本完成 / 存储被清)时补齐,
+  // 让下一次冷启动走同步短路,不进遮罩也不弹引导。
+  useEffect(() => {
+    if (resolved && completedAt !== null && mirror === null) {
+      writeOnboardingMirror(completedAt);
+    }
+  }, [resolved, completedAt, mirror]);
+
   // 静默补写:存量用户(有通道、无哨兵)不进流程,直接落哨兵。只尝试一次,失败不重试
-  // ——写不进去最坏是下次启动再判一遍,不该反复打宿主。
+  //——写不进去最坏是下次启动再判一遍,不该反复打宿主。
   const silentWriteTried = useRef(false);
   const writeSentinel = complete.mutate;
   useEffect(() => {
     if (silentWriteTried.current) return;
-    if (!resolved || completedAt !== null || !hasUsableChannel || flowHeld) return;
+    if (!resolved || preferencesFailed || completedAt !== null || !hasUsableChannel || flowHeld)
+      return;
     silentWriteTried.current = true;
     writeSentinel();
-  }, [resolved, completedAt, hasUsableChannel, flowHeld, writeSentinel]);
+  }, [resolved, preferencesFailed, completedAt, hasUsableChannel, flowHeld, writeSentinel]);
 
   return { resolved, open, hasUsableChannel, completedAt };
 }
@@ -205,6 +253,8 @@ export function useCompleteOnboarding() {
     },
     onSuccess: (next) => {
       queryClient.setQueryData(queryKeys.settings.preferences(), next);
+      // 同步镜像本地哨兵:下次冷启动 gate 首帧短路,不进遮罩不重判。
+      if (next.onboardingCompletedAt) writeOnboardingMirror(next.onboardingCompletedAt);
     },
   });
 }

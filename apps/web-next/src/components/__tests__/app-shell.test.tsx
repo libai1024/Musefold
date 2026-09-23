@@ -66,6 +66,9 @@ function renderShell(onboardingCompletedAt: string | null = SEEDED_SENTINEL) {
 beforeEach(() => {
   routerPush.mockClear();
   pathname = '/workbench';
+  // 引导完成哨兵会镜像到 localStorage(onboarding-store,跨启动加速首帧判定);
+  // jsdom 的 storage 跨用例存活,必须逐用例清理,否则「已完成」用例污染后续「未完成」用例。
+  window.localStorage.removeItem('musefold.onboarding-completed-at');
 });
 
 afterEach(() => cleanup());

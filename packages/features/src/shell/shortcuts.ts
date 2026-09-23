@@ -15,6 +15,7 @@ export interface ProductShortcut {
     | 'prompts-search'
     | 'prompts-focus-search'
     | 'prompt-editor-save'
+    | 'open-settings'
     | 'dismiss';
   /** macOS 显示串(⌘ 系) */
   mac: string;
@@ -34,7 +35,8 @@ export const PRODUCT_SHORTCUTS: readonly ProductShortcut[] = [
     mac: '⌘N',
     win: 'Ctrl+N',
     label: '新设计',
-    scope: '全局(浏览器可能保留 ⌘N)',
+    // 桌面端渲染层接管 ⌘N;只有 Web 宿主跑在浏览器里可能被「新窗口」抢走。
+    scope: '全局（Web 端浏览器可能优先响应）',
     wiredAt: 'workbench/SessionListPanel NewSessionAction keydown',
   },
   {
@@ -76,6 +78,14 @@ export const PRODUCT_SHORTCUTS: readonly ProductShortcut[] = [
     label: '保存提示词',
     scope: '提示词编辑器(有未保存修改时)',
     wiredAt: 'prompts/PromptEditorDialog DialogContent onKeyDown',
+  },
+  {
+    id: 'open-settings',
+    mac: '⌘,',
+    win: 'Ctrl+,',
+    label: '打开设置',
+    scope: '全局(macOS / Windows / Linux 惯例键位)',
+    wiredAt: 'shell/AppShell ⌘, keydown → onNavigate(settings)',
   },
   {
     id: 'dismiss',

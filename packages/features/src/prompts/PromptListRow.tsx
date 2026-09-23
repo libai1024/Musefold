@@ -118,8 +118,9 @@ export function PromptCover({
 
 /**
  * 库列表行(信息架构承自 v2.0 PromptListRow):
- * 封面缩略 + 标题/摘要/元信息 + 常驻操作组。操作不藏浮层——
- * 桌面 hover 渐显、触屏常显,回收站行留「恢复/永久删除」。
+ * 封面缩略 + 标题/摘要/元信息 + 操作组。操作不收进下拉菜单(§8-I2)——
+ * <md 触屏常显占位;md+ 浮层覆盖行尾(absolute + 左向渐隐遮罩),hover/聚焦渐显,
+ * 回收站行留「恢复/永久删除」。
  */
 export function PromptListRow({
   prompt,
@@ -157,7 +158,7 @@ export function PromptListRow({
         node.scrollIntoView?.({ block: 'center', behavior: skipMotion() ? 'auto' : 'smooth' });
       }}
       className={cn(
-        'group flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-card [[data-density=compact]_&]:gap-[var(--density-list-gap)] [[data-density=compact]_&]:p-[var(--density-row-padding)]',
+        'group relative flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-card [[data-density=compact]_&]:gap-[var(--density-list-gap)] [[data-density=compact]_&]:p-[var(--density-row-padding)]',
         deleted && 'opacity-70',
         selected && 'border-border bg-card',
         highlighted && 'mf-row-highlight',
@@ -205,69 +206,78 @@ export function PromptListRow({
 
       <div
         className={cn(
-          'flex shrink-0 items-center gap-0.5 transition-opacity',
+          'flex items-center gap-0.5 transition-opacity',
+          // <md(触屏常显)保持行内占位;md+ 改浮层覆盖:absolute 右缘 + 左向渐隐遮罩,
+          // 零占位不挤标题(2026-09 走查 P1:双列 346px 行宽下标题曾被挤剩 3~4 字)。
+          // 遮罩取 card 色,与 hover/选中态行底一致;遮罩本体放行指针事件,
+          // 渐隐区点击穿透给行本体(开详情),只有按钮自身接事件。
+          'max-md:shrink-0',
+          'md:pointer-events-none md:absolute md:inset-y-1 md:right-1.5 md:z-1 md:pl-7',
+          'md:bg-linear-to-l md:from-card md:via-card md:to-transparent',
           // 桌面 hover/键盘聚焦渐显;触屏(无 hover 能力)常显。
           'md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100',
         )}
       >
-        {deleted ? (
-          <>
-            <RowAction label="恢复" testId="prompt-row-restore" onClick={() => onRestore(prompt)}>
-              <RotateCcw className="size-4" />
-            </RowAction>
-            <RowAction label="永久删除" testId="prompt-row-purge" onClick={() => onPurge(prompt)}>
-              <Trash2 className="size-4" />
-            </RowAction>
-          </>
-        ) : (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 font-medium text-primary text-xs hover:text-primary"
-              data-testid="prompt-row-use"
-              onClick={() => onUse(prompt)}
-            >
-              使用
-            </Button>
-            <RowAction
-              label="复制内容"
-              testId="prompt-row-copy"
-              onClick={() => {
-                onCopy(prompt);
-                setCopied(true);
-              }}
-            >
-              {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
-            </RowAction>
-            {onCreateScheme ? (
-              <RowAction
-                label="创建方案"
-                testId="prompt-row-create-scheme"
-                onClick={() => onCreateScheme(prompt)}
-              >
-                <Blocks className="size-4" />
+        <div className="flex items-center gap-0.5 md:pointer-events-auto">
+          {deleted ? (
+            <>
+              <RowAction label="恢复" testId="prompt-row-restore" onClick={() => onRestore(prompt)}>
+                <RotateCcw className="size-4" />
               </RowAction>
-            ) : null}
-            <RowAction label="编辑" testId="prompt-row-edit" onClick={() => onEdit(prompt)}>
-              <Pencil className="size-4" />
-            </RowAction>
-            <RowAction
-              label={prompt.isPinned ? '取消置顶' : '置顶'}
-              testId="prompt-row-pin"
-              onClick={() => onTogglePin(prompt)}
-            >
-              {prompt.isPinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-            </RowAction>
-            <RowAction
-              label="移入回收站"
-              testId="prompt-row-remove"
-              onClick={() => onRemove(prompt)}
-            >
-              <Trash2 className="size-4" />
-            </RowAction>
-          </>
-        )}
+              <RowAction label="永久删除" testId="prompt-row-purge" onClick={() => onPurge(prompt)}>
+                <Trash2 className="size-4" />
+              </RowAction>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 font-medium text-primary text-xs hover:text-primary"
+                data-testid="prompt-row-use"
+                onClick={() => onUse(prompt)}
+              >
+                使用
+              </Button>
+              <RowAction
+                label="复制内容"
+                testId="prompt-row-copy"
+                onClick={() => {
+                  onCopy(prompt);
+                  setCopied(true);
+                }}
+              >
+                {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
+              </RowAction>
+              {onCreateScheme ? (
+                <RowAction
+                  label="创建方案"
+                  testId="prompt-row-create-scheme"
+                  onClick={() => onCreateScheme(prompt)}
+                >
+                  <Blocks className="size-4" />
+                </RowAction>
+              ) : null}
+              <RowAction label="编辑" testId="prompt-row-edit" onClick={() => onEdit(prompt)}>
+                <Pencil className="size-4" />
+              </RowAction>
+              <RowAction
+                label={prompt.isPinned ? '取消置顶' : '置顶'}
+                testId="prompt-row-pin"
+                onClick={() => onTogglePin(prompt)}
+              >
+                {prompt.isPinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+              </RowAction>
+              <RowAction
+                label="移入回收站"
+                testId="prompt-row-remove"
+                onClick={() => onRemove(prompt)}
+              >
+                <Trash2 className="size-4" />
+              </RowAction>
+            </>
+          )}
+        </div>
       </div>
     </article>
   );
