@@ -109,6 +109,13 @@ test('account model selection: Electron ordinary and formal scheme runs preserve
         .filter({ hasText: '模型引用快照' });
       await sourceRow.getByTestId('workbench-reference-expand').click();
       await sourceRow.getByTestId('workbench-reference-full').click();
+      // UI-SPEC §2.4(v2.5.1 起):错误提示持久保留。素材引用读取若弹错误 toast,
+      // 会盖住右上「收起参考素材面板」钮——存在即手动关闭后再点击。
+      const blockingToast = page
+        .getByRole('region', { name: 'Notifications alt+T' })
+        .getByRole('listitem');
+      if (await blockingToast.count())
+        await blockingToast.getByRole('button', { name: 'Close toast' }).click();
       await page.getByTestId('workbench-materials-close').click();
       await expect(page.getByTestId('prompt-reference-card')).toContainText('模型引用快照');
       await page.screenshot({ path: info.outputPath('electron-scheme-model.png') });
