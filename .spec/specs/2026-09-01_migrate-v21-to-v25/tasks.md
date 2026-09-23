@@ -1,5 +1,10 @@
 # Musefold v2.1 到 v2.5 全功能迁移 - 任务拆解
 
+- [x] 2026-09-22 本地 CLI/MCP 普通云账号生图修复与真实安装包验收
+  - boundary: 将 generate_image 接入现有 managed generation 身份/账本/确认/恢复与落盘通道，不取消 PAYMENT_IDENTITY_UNBOUND 对旧账号Key的保护，不增加 Cloud MCP 写权限；保留 BYOK/豆包路径及用户数据。修正本地账号健康投影的误导；凭据不进入源码/报告。
+  - verify: 先复现云连接走旧绑定失败；就地覆盖CLI/MCP共同路由的账号身份、明确同意/确认拒绝、幂等重放、取消、参考图和本地结果；完整check、Electron与实际包门禁。以用户指定xiaomiao账号在正式新云端分别经安装版CLI和真实stdio MCP生成，核对图片字节/费用/无重复收费并更新本机App；真实失败保留，不用mock替代实网。
+  - resolved_current: check38/38、专项48及契约2、包7、最终Electron139P/0F/83条件S通过，源码/包扫描0发现。真实CLI新请求68.407秒完整返回，stdio MCP成功，原请求同键重放不新增发送；共三张实图，余额差3.6积分，回执未知不伪填。已安装本机并注册Codex本地MCP，正常用户目录健康验证通过；首轮超时只读恢复、菜单首败及恢复包均保留，详见docs/v2.5/V25-CLI-MCP-CLOUD-FIX.md。代码与测试已提交为 `2561d2a`，源码/安装包绑定与证据路径见该记录末节。不关闭Windows及完整迁移父项。
+
 - [x] 2026-09-22 共享域名下的独立云端 2.5 部署与客户端真实登录
   - boundary: 已按用户要求创建当前开发快照 dedace4；不独占 www 或域名根登录路径，按 /Musefold/v25 隔离页面、API、Cookie 和 OAuth；新数据库/对象存储/运行角色与旧版独立，不迁移旧业务数据，不删除旧服务。
   - verify: 路径挂载真实认证/PG回归、完整 check、按提交构建的三个镜像及单次迁移/权限验证、旧路由保留、TLS实网登录/账号/业务读写、对象和队列验证、macOS新包与真实登录。最终证据写入 V25-CLOUD-DEPLOYMENT.md，不把健康200或单元测试代替部署成功。
