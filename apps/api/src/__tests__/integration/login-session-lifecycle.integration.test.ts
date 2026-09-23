@@ -398,7 +398,7 @@ describeDb('login lifecycle through real Better Auth, HTTP and PostgreSQL', () =
     await account.loginSessions.sweep();
     expect(release).not.toHaveBeenCalled();
     await database.pool.query(
-      'UPDATE login_session_releases SET upstream_issuer = $1, next_attempt_at = now()',
+      "UPDATE login_session_releases SET upstream_issuer = $1, next_attempt_at = now() - interval '1 second'",
       [fixture.baseUrl],
     );
     expect((await account.loginSessions.sweep()).released).toBe(1);
