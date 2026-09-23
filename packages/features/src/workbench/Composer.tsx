@@ -775,8 +775,6 @@ export function Composer({
           </p>
         )}
 
-        {modelSelector}
-
         <div className="mt-1 flex min-h-10 flex-wrap items-center gap-1 border-border/55 border-t pt-1.5">
           <input
             ref={fileInputRef}
@@ -1177,7 +1175,9 @@ export function Composer({
             </PopoverContent>
           </Popover>
 
-          <div className="ml-auto flex items-center gap-1.5 pl-1">
+          {/* 右簇:模型选择紧邻发送钮左侧(2026-09 走查美化,原独占一行已撤)。 */}
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 pl-1">
+            {modelSelector}
             {promptLength >= PROMPT_COUNTER_THRESHOLD && (
               <span
                 className="font-mono text-[11px] text-muted-foreground tabular-nums"

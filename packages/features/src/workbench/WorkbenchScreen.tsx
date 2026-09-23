@@ -375,7 +375,6 @@ export function WorkbenchScreen({
   );
   const submittingIntent = useRef(false);
   const [submissionPreparing, setSubmissionPreparing] = useState(false);
-  const [modelSelectorHeight, setModelSelectorHeight] = useState(0);
   useEffect(() => {
     if (
       !accountRestricted &&
@@ -1332,11 +1331,7 @@ export function WorkbenchScreen({
       cancelling={cancelling}
       noProvider={providers.isSuccess && providers.data.length === 0}
       modelSelector={
-        <AccountModelSelector
-          choice={accountModels}
-          disabled={submissionPreparing || running}
-          onHeightChange={setModelSelectorHeight}
-        />
+        <AccountModelSelector choice={accountModels} disabled={submissionPreparing || running} />
       }
       references={references}
       promptReferences={promptReferences}
@@ -1554,7 +1549,6 @@ export function WorkbenchScreen({
                 jobs={jobItems}
                 isRetryPending={retryGeneration.isPending}
                 keyboardInset={keyboardInset}
-                composerExtraInset={accountModels.enabled ? modelSelectorHeight : 0}
                 editDisabled={running}
                 onCancel={(job) => {
                   if (schemeRunning) {
