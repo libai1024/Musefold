@@ -32,7 +32,12 @@ describe('run-builder 参数组装(Windows 工作区根探测缺陷的 afterPack
   it('用户点号键(--config.key=v)不算自带配置文件:仍注入 yml,且用户键在后、可覆盖注入值', () => {
     const userDot = ['--config.afterPack=/custom/other.cjs'];
     const args = buildBuilderArgs(userDot, options);
-    expect(args).toEqual(['--config', options.configPath, `--config.afterPack=${options.afterPack}`, ...userDot]);
+    expect(args).toEqual([
+      '--config',
+      options.configPath,
+      `--config.afterPack=${options.afterPack}`,
+      ...userDot,
+    ]);
   });
 
   it('afterPack 路径含空格时加引号,避免 win32 shell:true 拆词', () => {
