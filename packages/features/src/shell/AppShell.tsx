@@ -68,6 +68,9 @@ interface SidebarBodyProps {
   brandInset: number;
   /** 品牌行收起钮语义分叉(承旧同一钮):常驻栏 = 收起侧栏;抽屉 = 关闭抽屉。 */
   onCollapse: () => void;
+  /** 悬停 tooltip 仅常驻栏启用:抽屉内 Tab 聚焦收起钮会弹 tooltip,
+   *  其 DismissableLayer 吃掉第一下 Esc(§8-I9 要求一次 Esc 关抽屉),且触屏无悬停语义。 */
+  tooltips?: boolean;
 }
 
 /** 侧栏五段内容(品牌行/新设计/主导航/对话区/底部账号),常驻栏与 compact 抽屉共用一份。 */
@@ -80,7 +83,20 @@ function SidebarBody({
   footer,
   brandInset,
   onCollapse,
+  tooltips = true,
 }: SidebarBodyProps) {
+  const collapseButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="ml-auto size-7 text-muted-foreground"
+      aria-label="收起侧栏"
+      data-testid="sidebar-collapse"
+      onClick={onCollapse}
+    >
+      <PanelLeft className="size-4" />
+    </Button>
+  );
   return (
     <>
       <div
@@ -89,21 +105,14 @@ function SidebarBody({
       >
         <MusefoldMark className="size-4 shrink-0 text-sidebar-foreground" aria-hidden />
         <span className="font-semibold text-[13px] text-sidebar-foreground">Musefold</span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto size-7 text-muted-foreground"
-              aria-label="收起侧栏"
-              data-testid="sidebar-collapse"
-              onClick={onCollapse}
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>收起侧栏</TooltipContent>
-        </Tooltip>
+        {tooltips ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{collapseButton}</TooltipTrigger>
+            <TooltipContent>收起侧栏</TooltipContent>
+          </Tooltip>
+        ) : (
+          collapseButton
+        )}
       </div>
 
       {action && <div className="px-3 pt-1 pb-0.5">{action}</div>}
@@ -315,7 +324,7 @@ export function AppShell({
     }
   };
 
-  const sidebarBody = (onCollapse: () => void) => (
+  const sidebarBody = (onCollapse: () => void, tooltips = true) => (
     <SidebarBody
       activeId={activeId}
       onNavigate={onNavigate}
@@ -325,6 +334,7 @@ export function AppShell({
       footer={footer}
       brandInset={brandInset}
       onCollapse={onCollapse}
+      tooltips={tooltips}
     />
   );
 
@@ -537,7 +547,7 @@ export function AppShell({
                 className="flex h-full min-h-0 w-full flex-col outline-none"
                 data-testid="app-sidebar"
               >
-                {sidebarBody(() => setDrawerOpen(false))}
+                {sidebarBody(() => setDrawerOpen(false), false)}
               </div>
             </SheetContent>
           </Sheet>

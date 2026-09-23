@@ -206,7 +206,9 @@ async function writeManagedImage(
       .run(entry.path, now, now);
     entry.release = retainLocalAssetWrite(scope.db, entry.path);
     scope.entries.push(entry);
-    if (fs.writeWholeFile) {
+    // 仅 Windows 走整块通道:Unix 的 fd 流路径有分段写检查点(崩溃恢复测试依赖的
+    // 逐步落盘语义),原生层新增可选方法不得改变 Unix 行为。
+    if (process.platform === 'win32' && fs.writeWholeFile) {
       // Windows 整块通道:排他新建+全量写入+落盘由原生一次完成(FILE_CREATE 语义,
       // 已存在即 EEXIST,对齐 openFile('create') 的独占口径);身份沿用 fileIdentity
       //(与 fstat 的 dev:ino 同构);写后崩溃留下的 NULL pending 行由 janitor 既有语义清理。

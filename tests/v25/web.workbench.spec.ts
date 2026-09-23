@@ -493,10 +493,19 @@ test('账号模型：键盘选择、刷新持久化与实际请求一致', async
     timeout: 15_000,
   });
   await expect(page.getByTestId('job-asset').first()).toBeVisible();
-  await expect(page.getByTestId('timeline')).toHaveAttribute(
-    'data-composer-extra-inset',
-    /^[1-9]\d*$/,
-  );
+  // 模型选择器内联进 Composer 右簇(2026-09 走查美化)后不再有独立高度行,
+  // 旧 data-composer-extra-inset 非零断言随之退役:直接断言选择器在 Composer
+  // 边界内,时间线不被遮挡的几何核对仍由下方滚动断言承担。
+  const selectorBox = await model.boundingBox();
+  const composerBar = await page.getByTestId('composer').boundingBox();
+  expect(selectorBox).not.toBeNull();
+  expect(composerBar).not.toBeNull();
+  if (selectorBox && composerBar) {
+    expect(selectorBox.y).toBeGreaterThanOrEqual(composerBar.y);
+    expect(selectorBox.y + selectorBox.height).toBeLessThanOrEqual(
+      composerBar.y + composerBar.height,
+    );
+  }
   await page.getByTestId('timeline').evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });

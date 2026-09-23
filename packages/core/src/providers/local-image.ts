@@ -125,7 +125,9 @@ export async function stageLocalImage(
     const name = chosen.parts.at(-1);
     if (!name) throw new Error('missing source');
     const identity = filesystem.fileIdentity(parent, name);
-    if (filesystem.readWholeFile) {
+    // 仅 Windows 走整块通道:Unix 上 fd 流路径带增量断续点检查(owner.assertCurrent)、
+    // 读前后 fstat mtime/ctime 防换等语义必须保留,不能因原生层新增可选方法而切换。
+    if (process.platform === 'win32' && filesystem.readWholeFile) {
       // Windows 整块通道:openFile 的 CRT fd 进不了 Node fd 表(静态 CRT 互不相通),
       // 读、尺寸与超限判定都在原生侧一次完成;换文件以读前后双查 fileIdentity 防换。
       let buffer: Buffer;
