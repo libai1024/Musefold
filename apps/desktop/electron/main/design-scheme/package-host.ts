@@ -31,8 +31,7 @@ function getStaging(): DesignSchemePackageStaging {
     rootDir: join(app.getPath('userData'), 'staging', 'design-scheme-packages'),
     filesystem: getManagedFilesystem(),
     trustedParentDir: app.getPath('userData'),
-    onCleanupFailure: (error) =>
-      console.warn('[package-staging] managed cleanup deferred', error),
+    onCleanupFailure: (error) => console.warn('[package-staging] managed cleanup deferred', error),
   });
   return staging;
 }

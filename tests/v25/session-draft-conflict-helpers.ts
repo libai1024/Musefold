@@ -7,9 +7,7 @@ import type { SessionRequest } from './session-trash-ui-helpers';
  *  循环:关掉当前全部错误 toast → 短超时尝试真实指针点击;被新 toast 拦截则再来一轮。 */
 async function clickDraftReviewPastErrorToasts(page: Page): Promise<void> {
   const reviewButton = page.getByTestId('session-draft-review');
-  const toasts = page
-    .getByRole('region', { name: 'Notifications alt+T' })
-    .getByRole('listitem');
+  const toasts = page.getByRole('region', { name: 'Notifications alt+T' }).getByRole('listitem');
   for (let attempt = 0; ; attempt++) {
     for (let index = (await toasts.count()) - 1; index >= 0; index--) {
       await toasts.nth(index).getByRole('button', { name: 'Close toast' }).click();
