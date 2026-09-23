@@ -191,13 +191,22 @@ export function useOnboardingGate(): OnboardingGate {
   // 偏好读取失败 = fail-closed 结论(不弹引导、不写哨兵);对遮罩而言也算「有结论」,
   // 不能让未 resolved 状态在坏宿主上永久遮挡整个应用。
   const preferencesFailed = preferences.isError;
-  const resolved =
+  const baseResolved =
     completedKnown ||
     preferencesFailed ||
     (preferences.isSuccess &&
       settled(account) &&
       settled(providers, providersEnabled) &&
       settled(doubao, doubaoEnabled));
+  // 遮罩硬死线:查询既不成功也不失败(悬死/无限退避)时,fail-open 放行应用。
+  // 遮罩是体验优化,不是门禁,任何路径都不允许把它变成整页 DoS。
+  const [shieldDeadlinePassed, setShieldDeadlinePassed] = useState(false);
+  useEffect(() => {
+    if (baseResolved) return;
+    const timer = setTimeout(() => setShieldDeadlinePassed(true), 8_000);
+    return () => clearTimeout(timer);
+  }, [baseResolved]);
+  const resolved = baseResolved || shieldDeadlinePassed;
   const completedAt = preferences.data?.onboardingCompletedAt ?? mirror;
   const hasUsableChannel =
     account.isSuccess ||

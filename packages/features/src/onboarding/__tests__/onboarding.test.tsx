@@ -24,7 +24,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useActiveSession } from '../../workbench/session-store';
 import { OnboardingFlow } from '../OnboardingFlow';
@@ -324,13 +324,37 @@ describe('首启引导 gate 判定矩阵', () => {
 });
 
 describe('首帧决策:哨兵镜像 + 遮罩(2026-09 走查 P2)', () => {
-  it('镜像缺失且查询未 settle → 首帧渲染遮罩拦截点击;settle 后撤遮罩弹引导', async () => {
-    renderFlow({});
+  it('镜像缺失且查询未 settle → 挂载后渲染遮罩拦截点击', async () => {
+    // 预渲染/SSR 首帧不输出遮罩(静态遮罩会随水合遗留成孤儿盖死整页,由 web e2e reload 用例钉住);
+    // jsdom 的 render 会同步 flush 挂载 effect,这里断言挂载后遮罩存在并持续拦截。
+    renderFlow({ preferencesPending: true });
+    expect(await screen.findByTestId('onboarding-boot-shield')).toBeTruthy();
+  });
 
-    // 首个提交帧:四个前置查询均 pending,gate 无结论 → 遮罩而非裸工作台。
-    expect(screen.getByTestId('onboarding-boot-shield')).toBeTruthy();
+  it('查询 settle 后撤遮罩弹引导', async () => {
+    renderFlow({});
     expect(await screen.findByTestId('onboarding-flow')).toBeTruthy();
     expect(screen.queryByTestId('onboarding-boot-shield')).toBeNull();
+  });
+
+  it('查询悬死超过 8 秒 → 遮罩硬死线放行:撤遮罩转引导,不整页卡死', async () => {
+    vi.useFakeTimers();
+    try {
+      renderFlow({ preferencesPending: true });
+      // flush 微任务让挂载 effect(clientMounted)与死线计时器装好
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByTestId('onboarding-boot-shield')).toBeTruthy();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8_100);
+      });
+      expect(screen.queryByTestId('onboarding-boot-shield')).toBeNull();
+      // fail-open 后按既有 gate 逻辑弹引导(无通道结论 → welcome),而不是空屏。
+      expect(screen.getByTestId('onboarding-flow')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('镜像已有完成哨兵 → 首帧短路:不渲染遮罩、不弹引导,不等偏好查询', async () => {

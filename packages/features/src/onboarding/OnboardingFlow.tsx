@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@musefold/ui/components/dialog';
 import { LockKeyhole } from '@musefold/ui/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useActiveSession } from '../workbench/session-store';
 import { OnboardingStepConnect } from './OnboardingStepConnect';
 import { OnboardingStepFirstImage } from './OnboardingStepFirstImage';
@@ -101,7 +101,13 @@ export function OnboardingFlow({ onOpenScreen }: OnboardingFlowProps) {
     finish('workbench');
   };
 
-  if (!gate.resolved) return <OnboardingBootShield />;
+  // 预渲染/SSR 不输出遮罩:gate 在服务端恒为未决,静态 HTML 会带一块全屏遮罩,
+  // 水合把它遗留成 body 孤儿节点时将永久盖住整页(reload 后实测);只在客户端
+  // 挂载完成后才允许渲染遮罩,预渲染首帧输出 null。
+  const [clientMounted, setClientMounted] = useState(false);
+  useEffect(() => setClientMounted(true), []);
+
+  if (!gate.resolved) return clientMounted ? <OnboardingBootShield /> : null;
   if (!gate.open) return null;
 
   return (
