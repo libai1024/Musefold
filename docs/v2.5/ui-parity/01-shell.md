@@ -69,7 +69,7 @@
 | `EmberMark` 朱点 | 外部任务活动指示 + 笺匣 | 冻结不迁(D8) | 已登记 |
 | `AutomationConfirmCard` | 外部 Agent 花钱动作确认 | `features/automation/AutomationConfirmCard`(经 `features/shell` 导出) | ✅ 已收口(B2-T2):desktop-shell 与 `Toaster` 同级挂一行;`hasLocalAutomation` 为假(Web)渲染 null |
 | `GlobalErrorBoundary` + `global-error-dialog` | 渲染异常兜底 + 恢复 | `ShellErrorBoundary`/`ShellErrorFallback` + web-next `error.tsx`/`global-error.tsx` | ✅ 已收口(2026-08-29):双宿主挂载,错误卡带「重试/重载」双路径 |
-| `ToastProvider/ToastHost`(Radix) | 全局 toast,右滑关闭,3500ms | sonner `Toaster`(bottom-right) | 已对位,行为细节见 §5 |
+| `ToastProvider/ToastHost`(Radix) | 全局 toast,右滑关闭,3500ms | sonner `Toaster`(移动顶部居中/桌面右上;成功 2.5s 自动关、错误手动关,v2.5.1 已按 UI-SPEC §2.4 在共享出口注入默认值) | 已对位,行为细节见 §5 |
 | `TooltipProvider`(300ms delay) | 全局 tooltip 时序 | `AppShell` 壳级唯一 `TooltipProvider delayDuration={300}` | ✅ 已收口(B2-T6);屏组件不再重复包裹 |
 
 ## 4. 交互对照
@@ -102,7 +102,7 @@
 
 ## 7. 差距 → 任务清单
 
-> **已收口(2026-08-29)**:全局 ErrorBoundary、`reducedMotion` 三态、侧栏 drag-region、U01 侧栏调宽/旧键持久化/四边浮岛/`<768px` 模态抽屉/占位式展开轨/a11y 与 Web desktop/mobile E2E;macOS 全屏 inset 的 preload/主进程/renderer 接线与单测已收口,真实原生全屏 E2E 待补。
+> **已收口(2026-08-29)**:全局 ErrorBoundary、`reducedMotion` 三态、侧栏 drag-region、U01 侧栏调宽/旧键持久化/四边浮岛/`<768px` 模态抽屉/占位式展开轨/a11y 与 Web desktop/mobile E2E;macOS 全屏 inset 的 preload/主进程/renderer 接线与单测已收口,真实原生全屏 E2E 待补。(2026-09-23 更正:全屏 E2E 已存在且 09-21 通过,但存在静默 IPC 回退、证据未记录实际走法;真实原生切换验证由 v2.5.1 P0-09 补做。)
 
 > **首启引导已收口(2026-09-06,U01-onboarding)**:`packages/features/src/onboarding` 四端同一份——welcome(品牌面板,reveal 过 `skipMotion()` 闸门)→ connect(三轨:官方账号 / 桌面 BYOK `hasLocalAiProviders` / 豆包免费试用 `hasDoubaoWebLogin`,Web 只显示账号轨)→ validate(账号 `getStatus` / Provider `test` / 豆包状态,失败可返回修正、重试、跳过)→ first-image(3 条示例 chips + 文本框,经 `pendingDraft` 送工作台,**不自动发起生成**)。完成哨兵是契约 `AppPreferences.onboardingCompletedAt`;gate = 无哨兵 **且** 无可用生图通道(桌面:本地 Provider 全不可用 + 账号未登录 + 豆包未登录;Web:账号未登录),已具备通道的存量用户静默补哨兵不弹,跳过/关闭写同一哨兵、不重放。形态:桌面 md+ 居中 640px 卡、移动全屏,`role=dialog aria-modal` + 步骤 `aria-current`;宿主各一行挂载(`apps/desktop/src/v25/desktop-shell.tsx`、`apps/web-next/src/components/app-shell.tsx`)。E2E:`tests/v25/web.onboarding.spec.ts`(双视口)+ `tests/v25/electron.onboarding.spec.ts`(BYOK 回环网关全链路),其余 spec 由 `tests/v25/onboarding-helpers.ts` 统一预置哨兵。
 

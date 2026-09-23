@@ -101,7 +101,7 @@
 ### 6.1 行为成效指标
 - 当前源码的统一门禁可复现通过 -> verify: `pnpm run check` 退出码 0，报告绑定实际版本/工作树和范围；不把历史固定用例数量作为以后实现的硬断言。
 - 三形态产品、真实数据库/Worker、迁移/恢复及目标产物有匹配证据 -> verify: 按 `docs/v2.5/V25-MIGRATION-TESTING.md` T0–T5 分阶段执行，跳过与阻塞分列，mock 不替代真实服务、源码构建不替代安装包。
-- 最新批次为 2026-09-09 B33；计数与限制见测试手册 §5.26。早期完整 E2E 98/1 fail/5 skip 和 Electron 33/1 fail/1 skip 仅为历史记录，不代表 B8 当前失败；manifest 的报告绑定仍需 G-BASE 补齐。
+- 最新批次已推进至 09-22（B34–B81、D02PURGE、B77、云端 G 参考图、G-RELEASE-01 基础、09-19~09-22 实网/部署/CLI 修复），分批计数与限制见测试手册 §5.26 与测试续篇各节；任务包当前 93/98，收口欠账见 [v2.5.1 审计](../../../docs/v2.5.1/README.md)。早期完整 E2E 98/1 fail/5 skip 和 Electron 33/1 fail/1 skip 仅为历史记录，不代表 B8 当前失败；manifest 的报告绑定仍需 G-BASE 补齐。
 - 数据/同步/方案路径不泄露凭据或私有路径 -> verify: disposable userData、HTTP/MCP、导出和真实产物分别按对应卡扫描，保留 synthetic/live 与原生/模拟的范围说明。
 
 ## 7. 风险与约束

@@ -13,11 +13,11 @@
 
 | # | 对应 | 状态 | 修复动作 | 验收 |
 |---|---|---|---|---|
-| R1.1 | P0-08（Toaster，D3） | 待做 | `packages/ui/src/components/sonner.tsx`：在既有 `toast` 单一出口上做类型化封装——`success` 注入 `duration: 2500`，`error` 注入 `duration: Infinity + closeButton: true`，其余类型维持 sonner 默认；`Toaster` 组件的位置/图标逻辑不动。**101 处 `toast.error` 调用点零改动** | 新增就地测试 `packages/ui/src/components/__tests__/sonner.test.tsx`：断言封装对各类型注入的 duration/closeButton，且显式传参不被覆盖；相关视觉快照复核 |
-| R1.2 | P0-10（演示页，D4） | 待做 | 删除 `apps/web-next/src/app/ceramic-button/`（源码零引用，已核实，仅 `.next` 陈旧产物） | `pnpm run build` 后产物 manifest 不再含 `/ceramic-button` |
-| R1.3 | P1-05.1（旧脚本，D8） | 待做 | ① `package.json` 删 `deploy:prod`/`deploy:rollback` 两行；② 删 `scripts/deploy/run.mjs`、`rollback.mjs`；③ `tests/repo/deploy-pipeline.test.ts` 重写为**退役守卫**（断言入口与脚本不存在、v25 流程 `v25-plan.mjs` 不引用它们）——不删测试换取绿灯；④ `scripts/deploy/README.md` 移除 v1.1 命令段；⑤ 执行时核查 `state.mjs`/`bootstrap-runner.sh` 是否仅被 run.mjs 使用，是则一并退役 | check 全绿；仓内不再有指向 `infra/v1.1`/`apps/web` 的活代码引用（历史文档除外） |
-| R1.4 | P0-13（过期文档） | 待做 | 见下方 R1.4 明细 | README §9.6：过期描述清零 |
-| R1.5 | §1.6 待核实（本机可完成 3 项） | 待做 | ① 读 09-21 证据 JSON 判定全屏用例实际走原生还是 IPC 回退；② 核对两轮完整 API（notices-2 / safety-fixes-1）各自的源码绑定；③ 补登 safety-fixes-1 与 paid-21/22 进 09-21 记录（并入 R1.4-2） | 三项写入本文档与 09-21 记录；其余 8 项待核实按阶段 4/5 处理 |
+| R1.1 | P0-08（Toaster，D3） | ✅ `f7c8f8f`（09-23） | `packages/ui/src/components/sonner.tsx`：在既有 `toast` 单一出口上做类型化封装——`success` 注入 `duration: 2500`，`error` 注入 `duration: Infinity + closeButton: true`，其余类型维持 sonner 默认；`Toaster` 组件的位置/图标逻辑不动。**101 处 `toast.error` 调用点零改动** | ✅ 新增 `packages/ui/src/__tests__/sonner.test.tsx` 4 项断言注入与显式传参优先；ui 包 19 测试 + typecheck 通过；全量视觉快照随 G4 复核 |
+| R1.2 | P0-10（演示页，D4） | ✅ `a179d86`（09-23） | 删除 `apps/web-next/src/app/ceramic-button/`（源码零引用，已核实，仅 `.next` 陈旧产物） | build 产物核验随 G4；公网 404 验证在 R5.3 |
+| R1.3 | P1-05.1（旧脚本，D8） | ✅ `8444c17`（09-23） | ① `package.json` 删 `deploy:prod`/`deploy:rollback`；② 删 `run.mjs`、`rollback.mjs` 及孤儿件 `state.mjs`、`web-release.mjs`、`infra-guard.mjs`、`bootstrap-runner.sh`（仅流水线引用）；③ `tests/repo/deploy-pipeline.test.ts` 重写为退役守卫，保留存活模块（expand-contract、detect-layers）测试；④ `scripts/deploy/README.md` 重写为退役说明；⑤ `main.yml` 头注释同步 | ✅ 守卫 6 测试通过；`deploy:v25:plan`/`deploy:desktop` 不受影响 |
+| R1.4 | P0-13（过期文档） | ✅ 09-23 | 六文件修正：v2.5 README（新增 09-23 状态段、LOGIN-SESSIONS 行改已实现、索引补 5 行、B62 CURRENT 刷新）；09-21 记录（标题终态、过期 API 句内联更正、文末补登节）；ui-parity README（L10 更正、壳行 electron.shell 措辞降强、P0 表第 5 项收口、P1 分组状态横幅）；01-shell（全屏待补句更正、Toaster 位置与行为更新）；DATA-LIFECYCLE（09-23 状态段、§18.6.1 改已实现）；spec §6.1 批次更新 | ✅ 过期描述清零；logo 文件仍待 U2（建议移除,未动） |
+| R1.5 | §1.6 待核实（本机可完成 3 项） | ✅ 09-23 | ① 全屏：09-21 用例 passed 但 annotations 为空——证据不记录实际路径，R4.3 实测补记；② API 绑定：notices-2 绑定 `8326109b…`（1897 项,快照 14:26）、safety-fixes-1 绑定 `2cdf8e15…`（1897 项,快照 15:08），逐文件比对 api/contracts/worker **零差异**、仅 4 个无关文件不同 → 审计「同一输入两种结果」成立，差异属环境不稳定；③ safety-fixes-1/paid-21/22 已补登进 09-21 记录 | ✅ 三项写入 v2.5.1 README §1.6 与 09-21 补登节 |
 
 **R1.4 文档修正明细**（逐文件）：
 1. `docs/v2.5/README.md`：头部状态停在 09-20「86/93」→ 更新为当前；「LOGIN-SESSIONS 机制尚未实现上线」→ 已实现；索引补 6 篇（云端部署、CLI/MCP 修复、09-19 收口、09-20 验收、09-21 验收、测试续篇）；B62 CURRENT 块过期内容刷新。
