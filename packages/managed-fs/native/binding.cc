@@ -222,6 +222,116 @@ static napi_value open_file(napi_env env, napi_callback_info info) {
   napi_create_int32(env, fd, &result); return result;
 #endif
 }
+// 整块 IO 原语(双向跨平台实现):Windows 上 openFile 返回的 CRT fd 无法进入
+// Node 的 fd 表(node.exe/electron.exe 静态链接 CRT,与插件实例互不相通,喂给
+// fs.* 只会 EBADF),宿主在 Windows 必须用这两个方法完成整文件读/写;
+// Unix 两侧都实现,供跨平台就地测试覆盖同一套语义。
+static napi_value read_file_whole(napi_env env, napi_callback_info info) {
+  napi_value argv[3];
+  if (!arguments(env, info, 3, argv)) return nullptr;
+  Directory* dir = unwrap(env, argv[0]);
+  if (!dir) return nullptr;
+  std::string name;
+  int64_t max_bytes = 0;
+  if (!text(env, argv[1], name, true)) return nullptr;
+  if (napi_get_value_int64(env, argv[2], &max_bytes) != napi_ok || max_bytes <= 0 ||
+      max_bytes > (static_cast<int64_t>(1) << 33)) {
+    fail(env, "INVALID_INPUT"); return nullptr;
+  }
+#ifdef _WIN32
+  NativeHandle file = relative_open(dir->value, name, GENERIC_READ | FILE_READ_ATTRIBUTES, 1 /* FILE_OPEN */, false);
+  if (file == invalid_handle) { os_fail(env); return nullptr; }
+  FILE_ATTRIBUTE_TAG_INFO attributes{};
+  if (!GetFileInformationByHandleEx(file, FileAttributeTagInfo, &attributes, sizeof(attributes)) ||
+      (attributes.FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) {
+    CloseHandle(file); fail(env, "UNSAFE_PATH"); return nullptr;
+  }
+  LARGE_INTEGER size{};
+  if (!GetFileSizeEx(file, &size) || size.QuadPart < 0 || size.QuadPart > max_bytes) {
+    CloseHandle(file); fail(env, "EFBIG"); return nullptr;
+  }
+  napi_value result; void* data = nullptr;
+  if (napi_create_buffer(env, static_cast<size_t>(size.QuadPart), &data, &result) != napi_ok) {
+    CloseHandle(file); fail(env, "HANDLE_FAILED"); return nullptr;
+  }
+  uint8_t* cursor = static_cast<uint8_t*>(data);
+  uint64_t left = static_cast<uint64_t>(size.QuadPart);
+  while (left > 0) {
+    DWORD chunk = left > (1ULL << 30) ? (1U << 30) : static_cast<DWORD>(left);
+    DWORD got = 0;
+    if (!ReadFile(file, cursor, chunk, &got, nullptr) || got == 0) {
+      CloseHandle(file); fail(env, "EIO"); return nullptr;
+    }
+    cursor += got; left -= got;
+  }
+  CloseHandle(file);
+  return result;
+#else
+  int fd = openat(dir->value, name.c_str(), O_NOFOLLOW | O_CLOEXEC | O_RDONLY);
+  if (fd < 0) { os_fail(env); return nullptr; }
+  struct stat st{};
+  if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) { close(fd); fail(env, "UNSAFE_PATH"); return nullptr; }
+  if (st.st_size < 0 || static_cast<uint64_t>(st.st_size) > static_cast<uint64_t>(max_bytes)) {
+    close(fd); fail(env, "EFBIG"); return nullptr;
+  }
+  napi_value result; void* data = nullptr;
+  if (napi_create_buffer(env, static_cast<size_t>(st.st_size), &data, &result) != napi_ok) {
+    close(fd); fail(env, "HANDLE_FAILED"); return nullptr;
+  }
+  uint8_t* cursor = static_cast<uint8_t*>(data);
+  ssize_t left = st.st_size;
+  while (left > 0) {
+    ssize_t got = read(fd, cursor, static_cast<size_t>(left));
+    if (got <= 0) { close(fd); fail(env, "EIO"); return nullptr; }
+    cursor += got; left -= got;
+  }
+  close(fd);
+  return result;
+#endif
+}
+static napi_value write_file_whole(napi_env env, napi_callback_info info) {
+  napi_value argv[3];
+  if (!arguments(env, info, 3, argv)) return nullptr;
+  Directory* dir = unwrap(env, argv[0]);
+  if (!dir) return nullptr;
+  std::string name;
+  if (!text(env, argv[1], name, true)) return nullptr;
+  bool is_buffer = false; void* data = nullptr; size_t length = 0;
+  if (napi_is_buffer(env, argv[2], &is_buffer) != napi_ok || !is_buffer ||
+      napi_get_buffer_info(env, argv[2], &data, &length) != napi_ok) {
+    fail(env, "INVALID_INPUT"); return nullptr;
+  }
+#ifdef _WIN32
+  // FILE_CREATE:排他新建(等价 O_CREAT|O_EXCL),文件由本次调用新建,无需再验型。
+  NativeHandle file = relative_open(dir->value, name, GENERIC_WRITE | FILE_READ_ATTRIBUTES, 2 /* FILE_CREATE */, false);
+  if (file == invalid_handle) { os_fail(env); return nullptr; }
+  uint8_t* cursor = static_cast<uint8_t*>(data);
+  uint64_t left = length;
+  while (left > 0) {
+    DWORD chunk = left > (1ULL << 30) ? (1U << 30) : static_cast<DWORD>(left);
+    DWORD wrote = 0;
+    if (!WriteFile(file, cursor, chunk, &wrote, nullptr) || wrote == 0) {
+      CloseHandle(file); fail(env, "EIO"); return nullptr;
+    }
+    cursor += wrote; left -= wrote;
+  }
+  FlushFileBuffers(file);
+  CloseHandle(file);
+#else
+  int fd = openat(dir->value, name.c_str(), O_NOFOLLOW | O_CLOEXEC | O_WRONLY | O_CREAT | O_EXCL, 0600);
+  if (fd < 0) { os_fail(env); return nullptr; }
+  uint8_t* cursor = static_cast<uint8_t*>(data);
+  size_t left = length;
+  while (left > 0) {
+    ssize_t wrote = write(fd, cursor, left);
+    if (wrote <= 0) { close(fd); fail(env, "EIO"); return nullptr; }
+    cursor += wrote; left -= static_cast<size_t>(wrote);
+  }
+  fsync(fd);
+  close(fd);
+#endif
+  return undefined(env);
+}
 static napi_value file_identity(napi_env env, napi_callback_info info) {
   napi_value argv[2], result; std::string name, identity;
   if (!arguments(env, info, 2, argv)) return nullptr;
@@ -383,6 +493,8 @@ static napi_value init(napi_env env, napi_value exports) {
     {"identity", nullptr, identity, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"close", nullptr, close_directory, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"openFile", nullptr, open_file, nullptr, nullptr, nullptr, napi_default, nullptr},
+    {"readWholeFile", nullptr, read_file_whole, nullptr, nullptr, nullptr, napi_default, nullptr},
+    {"writeWholeFile", nullptr, write_file_whole, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"fileIdentity", nullptr, file_identity, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"unlinkFile", nullptr, unlink_file, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"removeDirectory", nullptr, remove_directory, nullptr, nullptr, nullptr, napi_default, nullptr}

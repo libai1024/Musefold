@@ -125,39 +125,58 @@ export async function stageLocalImage(
     const name = chosen.parts.at(-1);
     if (!name) throw new Error('missing source');
     const identity = filesystem.fileIdentity(parent, name);
-    fd = filesystem.openFile(parent, name, 'read');
-    const before = fstatSync(fd, { bigint: true });
-    if (!before.isFile() || identity !== `${before.dev}:${before.ino}`)
-      throw new Error('changed source');
-    if (before.size > BigInt(MAX_LOCAL_IMAGE_BYTES))
-      throw new LocalImageError('IMAGE_TOO_LARGE', '图片不能超过 20 MiB，请选择较小的文件');
-    const buffer = Buffer.alloc(Number(before.size) + 1);
-    let offset = 0;
-    const sourceFd = fd;
-    while (offset < buffer.length) {
+    if (filesystem.readWholeFile) {
+      // Windows 整块通道:openFile 的 CRT fd 进不了 Node fd 表(静态 CRT 互不相通),
+      // 读、尺寸与超限判定都在原生侧一次完成;换文件以读前后双查 fileIdentity 防换。
+      let buffer: Buffer;
+      try {
+        buffer = filesystem.readWholeFile(parent, name, MAX_LOCAL_IMAGE_BYTES + 1);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EFBIG')
+          throw new LocalImageError('IMAGE_TOO_LARGE', '图片不能超过 20 MiB，请选择较小的文件');
+        throw error;
+      }
+      if (buffer.length === 0 || buffer.length > MAX_LOCAL_IMAGE_BYTES)
+        throw new LocalImageError('IMAGE_TOO_LARGE', '图片不能超过 20 MiB，请选择较小的文件');
       owner.assertCurrent();
-      const count = await new Promise<number>((resolve, reject) =>
-        read(
-          sourceFd,
-          buffer,
-          offset,
-          Math.min(65536, buffer.length - offset),
-          offset,
-          (error, count) => (error ? reject(error) : resolve(count)),
-        ),
-      );
-      if (!count) break;
-      offset += count;
+      if (filesystem.fileIdentity(parent, name) !== identity) throw new Error('changed source');
+      bytes = buffer;
+    } else {
+      fd = filesystem.openFile(parent, name, 'read');
+      const before = fstatSync(fd, { bigint: true });
+      if (!before.isFile() || identity !== `${before.dev}:${before.ino}`)
+        throw new Error('changed source');
+      if (before.size > BigInt(MAX_LOCAL_IMAGE_BYTES))
+        throw new LocalImageError('IMAGE_TOO_LARGE', '图片不能超过 20 MiB，请选择较小的文件');
+      const buffer = Buffer.alloc(Number(before.size) + 1);
+      let offset = 0;
+      const sourceFd = fd;
+      while (offset < buffer.length) {
+        owner.assertCurrent();
+        const count = await new Promise<number>((resolve, reject) =>
+          read(
+            sourceFd,
+            buffer,
+            offset,
+            Math.min(65536, buffer.length - offset),
+            offset,
+            (error, count) => (error ? reject(error) : resolve(count)),
+          ),
+        );
+        if (!count) break;
+        offset += count;
+      }
+      const after = fstatSync(fd, { bigint: true });
+      if (
+        BigInt(offset) !== before.size ||
+        after.size !== before.size ||
+        after.mtimeNs !== before.mtimeNs ||
+        after.ctimeNs !== before.ctimeNs ||
+        filesystem.fileIdentity(parent, name) !== identity
+      )
+        throw new Error('changed source');
+      bytes = buffer.subarray(0, offset);
     }
-    const after = fstatSync(fd, { bigint: true });
-    if (
-      BigInt(offset) !== before.size ||
-      after.size !== before.size ||
-      after.mtimeNs !== before.mtimeNs ||
-      after.ctimeNs !== before.ctimeNs ||
-      filesystem.fileIdentity(parent, name) !== identity
-    )
-      throw new Error('changed source');
     // Reopen the current namespace and compare every held directory before publishing bytes.
     const currentHandles: DirectoryHandle[] = [];
     try {
@@ -174,7 +193,6 @@ export async function stageLocalImage(
     } finally {
       for (const handle of currentHandles.reverse()) filesystem.close(handle);
     }
-    bytes = buffer.subarray(0, offset);
   } catch (error) {
     if (error instanceof LocalImageError) throw error;
     throw new LocalImageError('IMAGE_READ_FAILED', '图片读取失败，请重新选择');

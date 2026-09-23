@@ -96,6 +96,23 @@ export class PackageStagingDirectory {
     return this.filesystem.openFile(this.handle(dirname(path)), basename(path), mode);
   }
 
+  /** Windows 专用通道:openFile 的 CRT fd 进不了 Node 的 fd 表,整块读写由原生完成。 */
+  readonly wholeFileIo = process.platform === 'win32';
+
+  readWholeFile(path: string, maxBytes: number): Buffer {
+    this.assert(dirname(path));
+    const reader = this.filesystem.readWholeFile;
+    if (!reader) throw unsafe();
+    return reader.call(this.filesystem, this.handle(dirname(path)), basename(path), maxBytes);
+  }
+
+  writeWholeFile(path: string, bytes: Buffer): void {
+    this.assert(dirname(path));
+    const writer = this.filesystem.writeWholeFile;
+    if (!writer) throw unsafe();
+    writer.call(this.filesystem, this.handle(dirname(path)), basename(path), bytes);
+  }
+
   private *entries(path: string) {
     const reader = this.filesystem.openReader(this.handle(path));
     try {

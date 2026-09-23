@@ -13,6 +13,15 @@ export interface ManagedFilesystem {
   identity(directory: DirectoryHandle): string;
   close(directory: DirectoryHandle): void;
   openFile(directory: DirectoryHandle, name: string, mode: 'read' | 'create'): number;
+  /**
+   * 整块 IO 原语:Windows 上 openFile 返回的 CRT fd 无法进入 Node 的 fd 表
+   * (node.exe/electron.exe 静态链接 CRT,fd 表与插件实例互不相通,喂给 fs.* 只会 EBADF),
+   * 宿主在 Windows 必须改用这两个方法完成整文件读/写。Unix 两侧皆实现,供跨平台测试。
+   * readWholeFile:普通文件整体读入,超过 maxBytes 抛 EFBIG;
+   * writeWholeFile:排他新建(O_CREAT|O_EXCL 语义)+ 全量写入 + 落盘,已存在抛 EEXIST。
+   */
+  readWholeFile?(directory: DirectoryHandle, name: string, maxBytes: number): Buffer;
+  writeWholeFile?(directory: DirectoryHandle, name: string, bytes: Buffer): void;
   fileIdentity(directory: DirectoryHandle, name: string): string;
   unlinkFile(directory: DirectoryHandle, name: string): void;
   removeDirectory(parent: DirectoryHandle, name: string): void;

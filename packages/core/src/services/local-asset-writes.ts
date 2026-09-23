@@ -206,6 +206,48 @@ async function writeManagedImage(
       .run(entry.path, now, now);
     entry.release = retainLocalAssetWrite(scope.db, entry.path);
     scope.entries.push(entry);
+    if (fs.writeWholeFile) {
+      // Windows 整块通道:排他新建+全量写入+落盘由原生一次完成(FILE_CREATE 语义,
+      // 已存在即 EEXIST,对齐 openFile('create') 的独占口径);身份沿用 fileIdentity
+      //(与 fstat 的 dev:ino 同构);写后崩溃留下的 NULL pending 行由 janitor 既有语义清理。
+      try {
+        fs.writeWholeFile(
+          directory,
+          name,
+          Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+        );
+      } catch (error) {
+        scope.db
+          .prepare(
+            'DELETE FROM local_asset_cleanup WHERE path=? AND device IS NULL AND inode IS NULL',
+          )
+          .run(entry.path);
+        throw error;
+      }
+      const identity = fs.fileIdentity(directory, name);
+      const separator = identity.indexOf(':');
+      entry.device = identity.slice(0, separator);
+      entry.inode = identity.slice(separator + 1);
+      try {
+        current(scope);
+        const updated = scope.db
+          .prepare(
+            'UPDATE local_asset_cleanup SET device=?,inode=? WHERE path=? AND device IS NULL AND inode IS NULL',
+          )
+          .run(entry.device, entry.inode, entry.path).changes;
+        if (updated !== 1) throw unavailable();
+      } catch (error) {
+        if (fs.fileIdentity(directory, name) === `${entry.device}:${entry.inode}`)
+          fs.unlinkFile(directory, name);
+        throw error;
+      }
+      assertPublishedIdentity(scope, entry);
+      if (owner) {
+        owner.hold(entry.path, entry.release, entry.declaredPath);
+        entry.uploadOwner = owner;
+      }
+      return;
+    }
     try {
       fd = fs.openFile(directory, name, 'create');
     } catch (error) {

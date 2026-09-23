@@ -7,6 +7,7 @@ import {
   openSync,
   closeSync,
   fstatSync,
+  readFileSync,
   readSync,
 } from 'node:fs';
 import { Transform } from 'node:stream';
@@ -116,6 +117,34 @@ async function copyRegularFileAndHash(
   return { packageHash: hash.digest('hex'), sizeBytes };
 }
 
+/** Windows 整块通道(见 PackageStagingDirectory.wholeFileIo):源在受管根之外,
+ *  由 Node 读取(前置/后置 lstat 防换文件,语义对齐流式路径的 fstat 防换),
+ *  目标经受管原生句柄排他新建写入。上限与哈希口径与流式路径完全一致。 */
+function copyWholeFileAndHash(
+  sourcePath: string,
+  writeWhole: (bytes: Buffer) => void,
+  assertTarget: () => void,
+): { packageHash: string; sizeBytes: number } {
+  const before = validateSource(sourcePath);
+  const bytes = readFileSync(sourcePath);
+  const after = lstatSync(sourcePath);
+  if (
+    !after.isFile() ||
+    after.size !== bytes.byteLength ||
+    after.size !== before.size ||
+    after.dev !== before.dev ||
+    after.ino !== before.ino
+  ) {
+    throw new Error('选择的分享包在读取前发生变化');
+  }
+  assertTarget();
+  writeWhole(bytes);
+  return {
+    packageHash: createHash('sha256').update(bytes).digest('hex'),
+    sizeBytes: bytes.byteLength,
+  };
+}
+
 export class DesignSchemePackageStaging {
   private readonly byId = new Map<string, StagedPackage>();
   private readonly idsByOwner = new Map<number, Set<string>>();
@@ -149,12 +178,18 @@ export class DesignSchemePackageStaging {
     this.preparing.set(id, preparing);
     const packagePath = join(stageDir, 'package.musefold.design');
     try {
-      const copied = await copyRegularFileAndHash(
-        sourcePath,
-        packagePath,
-        () => this.directory.assert(stageDir),
-        () => this.directory.openFile(packagePath, 'create'),
-      );
+      const copied = this.directory.wholeFileIo
+        ? copyWholeFileAndHash(
+            sourcePath,
+            (bytes) => this.directory.writeWholeFile(packagePath, bytes),
+            () => this.directory.assert(stageDir),
+          )
+        : await copyRegularFileAndHash(
+            sourcePath,
+            packagePath,
+            () => this.directory.assert(stageDir),
+            () => this.directory.openFile(packagePath, 'create'),
+          );
       const inspected = this.deps.inspectPackage
         ? await this.deps.inspectPackage(packagePath, input.acceptedFormatVersions)
         : await readValidatedDesignSchemePackageBytes(
@@ -320,6 +355,11 @@ export class DesignSchemePackageStaging {
   }
 
   private readPackageBytes(path: string): Buffer {
+    if (this.directory.wholeFileIo) {
+      const bytes = this.directory.readWholeFile(path, MAX_DESIGN_SCHEME_PACKAGE_BYTES);
+      if (bytes.length <= 0) throw new Error('分享包超过大小上限或为空');
+      return bytes;
+    }
     const fd = this.directory.openFile(path, 'read');
     try {
       const size = fstatSync(fd).size;
@@ -348,13 +388,23 @@ export class DesignSchemePackageStaging {
     const promise = (async () => {
       const verifyPath = join(dirname(staged.path), `verify-${randomUUID()}.musefold.design`);
       this.directory.assert(dirname(staged.path));
-      const copied = await copyRegularFileAndHash(
-        staged.path,
-        verifyPath,
-        () => this.directory.assert(dirname(staged.path)),
-        () => this.directory.openFile(verifyPath, 'create'),
-        () => this.directory.openFile(staged.path, 'read'),
-      );
+      const copied = this.directory.wholeFileIo
+        ? (() => {
+            // Windows 整块通道:受管读源 → 校验哈希 → 受管排他写副本,口径与流式路径一致。
+            const bytes = this.readPackageBytes(staged.path);
+            this.directory.writeWholeFile(verifyPath, bytes);
+            return {
+              packageHash: createHash('sha256').update(bytes).digest('hex'),
+              sizeBytes: bytes.byteLength,
+            };
+          })()
+        : await copyRegularFileAndHash(
+            staged.path,
+            verifyPath,
+            () => this.directory.assert(dirname(staged.path)),
+            () => this.directory.openFile(verifyPath, 'create'),
+            () => this.directory.openFile(staged.path, 'read'),
+          );
       if (copied.packageHash !== staged.packageHash || copied.sizeBytes !== staged.sizeBytes) {
         throw new Error('暂存分享包在导入前发生变化');
       }
