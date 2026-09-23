@@ -31,8 +31,6 @@
     "db:migrate": "pnpm --filter @musefold/db run db:migrate",
     "derive:min-shell": "node scripts/derive-min-shell-version.mjs",
     "clean:artifacts": "node scripts/clean-artifacts.mjs",
-    "deploy:prod": "node scripts/deploy/run.mjs",
-    "deploy:rollback": "node scripts/deploy/rollback.mjs",
     "deploy:desktop": "node scripts/deploy/publish-desktop.mjs",
     "deploy:v25:plan": "node scripts/deploy/v25-plan.mjs",
     "bundle:manifest": "node packages/update-protocol/src/cli.ts"

@@ -1,5 +1,5 @@
 # v2.5 主干工作流:全量检查。部署 job 在 M2-07 随新 api/worker 镜像接入
-# 旧 deploy:prod 仍为 v1.1,不得用于 v2.5;部署/回滚由 G-RELEASE-04 单独验收。
+# v1.1 deploy:prod/deploy:rollback 已退役删除;v2.5 部署/回滚由 G-RELEASE-04 单独验收。
 name: Main
 
 on:
