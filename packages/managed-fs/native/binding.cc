@@ -200,10 +200,10 @@ static napi_value open_file(napi_env env, napi_callback_info info) {
   if (mode != "read" && mode != "create") { fail(env, "INVALID_INPUT"); return nullptr; }
   bool create = mode == "create";
 #ifdef _WIN32
-  // Node fs(libuv)在 Windows 上把 fd 数字直接当 Win32 HANDLE(uv_file)消费;
-  // CRT fd(_open_osfhandle)与之不兼容:写入落到无效小整数句柄,目标文件保持 0 字节。
-  // 内核句柄仅低 32 位有效,double 可无损承载,fs stream 的 autoClose 走 CloseHandle 语义。
-  // FILE_READ_ATTRIBUTES:下方 FileAttributeTagInfo 安全检查需要它,而 FILE_GENERIC_WRITE 不含。
+  // Node fs(libuv)在 Windows 上的 fd 语义就是 CRT fd(libuv uv_fs_* 走 _wopen/_write,
+  // fs.openSync 实测返回小整数 CRT fd),因此 _open_osfhandle 转换是正确口径;
+  // FILE_READ_ATTRIBUTES 必须显式加:下方 FileAttributeTagInfo 安全检查需要它,
+  // 而 FILE_GENERIC_WRITE 不含——缺失时 create 必抛 UNSAFE_PATH,文件留 0 字节被遗弃。
   NativeHandle file = relative_open(dir->value, name, (create ? GENERIC_WRITE : GENERIC_READ) | FILE_READ_ATTRIBUTES, create ? 2 /* FILE_CREATE */ : 1 /* FILE_OPEN */, false);
   if (file == invalid_handle) { os_fail(env); return nullptr; }
   FILE_ATTRIBUTE_TAG_INFO attributes{};
@@ -211,10 +211,9 @@ static napi_value open_file(napi_env env, napi_callback_info info) {
       (attributes.FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) {
     CloseHandle(file); fail(env, "UNSAFE_PATH"); return nullptr;
   }
-  if (napi_create_double(env, static_cast<double>(reinterpret_cast<uintptr_t>(file)), &result) != napi_ok) {
-    CloseHandle(file); fail(env, "EIO"); return nullptr;
-  }
-  return result;
+  int fd = _open_osfhandle(reinterpret_cast<intptr_t>(file), (create ? _O_WRONLY : _O_RDONLY) | _O_BINARY);
+  if (fd < 0) { CloseHandle(file); fail(env, "EIO"); return nullptr; }
+  napi_create_int32(env, fd, &result); return result;
 #else
   int fd = openat(dir->value, name.c_str(), O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | (create ? O_WRONLY | O_CREAT | O_EXCL : O_RDONLY), 0600);
   if (fd < 0) { os_fail(env); return nullptr; }
