@@ -199,8 +199,10 @@ static napi_value open_file(napi_env env, napi_callback_info info) {
   if (!dir || !text(env, argv[1], name, true) || !text(env, argv[2], mode, false)) return nullptr;
   if (mode != "read" && mode != "create") { fail(env, "INVALID_INPUT"); return nullptr; }
   bool create = mode == "create";
-  int fd;
 #ifdef _WIN32
+  // Node fs(libuv)在 Windows 上把 fd 数字直接当 Win32 HANDLE(uv_file)消费;
+  // CRT fd(_open_osfhandle)与之不兼容:写入落到无效小整数句柄,目标文件保持 0 字节。
+  // 内核句柄仅低 32 位有效,double 可无损承载,fs stream 的 autoClose 走 CloseHandle 语义。
   NativeHandle file = relative_open(dir->value, name, create ? GENERIC_WRITE : GENERIC_READ, create ? 2 /* FILE_CREATE */ : 1 /* FILE_OPEN */, false);
   if (file == invalid_handle) { os_fail(env); return nullptr; }
   FILE_ATTRIBUTE_TAG_INFO attributes{};
@@ -208,15 +210,17 @@ static napi_value open_file(napi_env env, napi_callback_info info) {
       (attributes.FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) {
     CloseHandle(file); fail(env, "UNSAFE_PATH"); return nullptr;
   }
-  fd = _open_osfhandle(reinterpret_cast<intptr_t>(file), (create ? _O_WRONLY : _O_RDONLY) | _O_BINARY);
-  if (fd < 0) { CloseHandle(file); fail(env, "EIO"); return nullptr; }
+  if (napi_create_double(env, static_cast<double>(reinterpret_cast<uintptr_t>(file)), &result) != napi_ok) {
+    CloseHandle(file); fail(env, "EIO"); return nullptr;
+  }
+  return result;
 #else
-  fd = openat(dir->value, name.c_str(), O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | (create ? O_WRONLY | O_CREAT | O_EXCL : O_RDONLY), 0600);
+  int fd = openat(dir->value, name.c_str(), O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | (create ? O_WRONLY | O_CREAT | O_EXCL : O_RDONLY), 0600);
   if (fd < 0) { os_fail(env); return nullptr; }
   struct stat attributes{};
   if (fstat(fd, &attributes) != 0 || !S_ISREG(attributes.st_mode)) { close(fd); fail(env, "UNSAFE_PATH"); return nullptr; }
-#endif
   napi_create_int32(env, fd, &result); return result;
+#endif
 }
 static napi_value file_identity(napi_env env, napi_callback_info info) {
   napi_value argv[2], result; std::string name, identity;
