@@ -372,6 +372,20 @@ svg {
   font-size: 9px;
   letter-spacing: 0.08em;
 }
+.app-frame iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1440 / 900;
+  border: 0;
+  background: #f6f6f4;
+}
+.app-frame--live {
+  cursor: default;
+}
+.app-frame--live iframe:focus-visible {
+  outline: 2px solid rgba(214, 101, 63, 0.55);
+  outline-offset: -2px;
+}
 .app-frame picture {
   display: block;
 }
