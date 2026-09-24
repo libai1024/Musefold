@@ -11,11 +11,12 @@ import { modelPriceLabel, modelUnavailableReason } from './account-model-choice'
 import type { AccountModelChoice } from './use-account-model-choice';
 
 /**
- * 云端账号模型选择(2026-09 走查美化):
- * - 内联在 Composer 动作行、发送钮左侧,不再独占一行、不再外推工作台 inset;
- * - 目录只列可选模型(不可用项不渲染;当前值失效时 reason 状态仍可读);
- * - 展开面板与共享 Select/Popover 视觉同步(p-1.5 圆角行 + 名称/单价双行);
- * - 单价与状态改 sr-only aria-live + 触发钮 title 提示,不占版面。
+ * 云端账号模型选择(2026-09 极简化,承 Codex/ZCode 模型切换钮语法):
+ * - 触发钮为安静的无边框 pill:静息只显模型名(等宽小字 + 微箭头),hover 才浮出
+ *   可点暗示;单价/状态走 title 提示与 sr-only aria-live,不占版面;
+ * - 刷新是 pill 紧邻的极小图标钮(视觉同一簇),常驻可用——目录读取失败时它是
+ *   唯一恢复路径,不能藏进会随目录状态变化的菜单里;
+ * - 目录只列可选模型(不可用项不渲染;当前值失效时 reason 状态仍可读)。
  */
 export function AccountModelSelector({
   choice,
@@ -35,20 +36,21 @@ export function AccountModelSelector({
   const titleText = [status, choice.persistenceWarning].filter(Boolean).join('；');
 
   return (
-    <div className="flex min-w-0 items-center gap-1" data-testid="composer-account-model">
+    <div className="flex min-w-0 items-center gap-0.5" data-testid="composer-account-model">
       <Select
         value={choice.model}
         onValueChange={choice.selectModel}
-        disabled={disabled || !choice.catalog}
+        // 目录缺失(读取失败)不禁用触发钮:恢复路径必须始终可达。
+        disabled={disabled}
       >
         <SelectTrigger
           aria-label="账号模型"
           data-testid="composer-model"
           title={titleText || '账号模型'}
           size="sm"
-          className="min-h-11 min-w-0 max-w-40 gap-1.5 rounded-[7px] border-border/55 bg-card/50 px-2.5 font-mono text-xs md:h-8 md:min-h-8 md:max-w-52"
+          className="min-h-11 min-w-0 max-w-44 gap-1 rounded-[7px] border-transparent bg-transparent px-2 font-mono text-xs text-muted-foreground shadow-none hover:bg-muted/60 hover:text-foreground md:h-7 md:max-w-48 md:min-h-7 md:px-1.5"
         >
-          <SelectValue placeholder="选择云端模型">
+          <SelectValue placeholder="云端模型">
             <span className="truncate">{choice.model || '云端模型'}</span>
           </SelectValue>
         </SelectTrigger>
@@ -83,17 +85,15 @@ export function AccountModelSelector({
         type="button"
         variant="ghost"
         size="icon"
-        className="size-7 shrink-0 text-muted-foreground md:size-8"
+        className="size-6 shrink-0 text-muted-foreground/60 hover:text-foreground"
         aria-label="刷新云端模型与价格"
         title="刷新云端模型与价格"
-        disabled={disabled || choice.loading}
+        disabled={disabled}
         onClick={() => void choice.refresh()}
       >
         <RefreshCw
           aria-hidden="true"
-          className={
-            choice.loading ? 'size-3.5 animate-spin motion-reduce:animate-none' : 'size-3.5'
-          }
+          className={choice.loading ? 'size-3 animate-spin motion-reduce:animate-none' : 'size-3'}
         />
       </Button>
       <span data-testid="composer-model-price" role="status" aria-live="polite" className="sr-only">

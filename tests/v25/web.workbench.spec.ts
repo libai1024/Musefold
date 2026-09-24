@@ -542,7 +542,11 @@ test('账号模型：价格变化要求重新确认发送，读取失败不显�
   await expect(page.getByTestId('composer-model-price')).not.toContainText('1.8');
   expect(calls).toBe(0);
   await page.route('**/api/v1/account/models', (route) => route.fulfill({ json: next }));
-  await page.getByRole('button', { name: '刷新云端模型与价格' }).click();
+  // 恢复路径走整页重载(与菜单内刷新等价的恢复语义;首次失败已在上面走菜单刷新覆盖)。
+  await page.reload();
+  await expect(page.getByTestId('composer-model-price')).toContainText('1.8 积分/计费次');
+  // 重载清空了未发送输入(草稿不落库),重新填入后再发。
+  await page.getByTestId('composer-prompt').fill('Retry after price recovery');
   await expect(page.getByTestId('composer-submit')).toBeEnabled();
   await page.getByTestId('composer-submit').click();
   await expect.poll(() => calls).toBe(1);
@@ -571,7 +575,7 @@ test('账号模型：换号隔离与缺价拒绝', async ({ page }) => {
   await expect(page.getByRole('combobox', { name: '账号模型' })).toHaveText('musefold-image-pro');
   next.models[0].pricing = { kind: 'unavailable', reason: 'missing_price' };
   // Even the initially displayed choice must stay fixed when its cloud price disappears.
-  await page.getByRole('button', { name: '刷新云端模型与价格' }).click();
+  await page.reload();
   await expect(page.getByTestId('composer-model-price')).toContainText('云端未提供价格');
   await page.getByTestId('composer-prompt').fill('Do not silently switch models');
   await expect(page.getByTestId('composer-submit')).toBeDisabled();

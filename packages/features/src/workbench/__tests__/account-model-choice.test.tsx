@@ -383,6 +383,7 @@ describe('account model choice and cloud price presentation', () => {
     await waitFor(() =>
       expect(screen.getByTestId('composer-model-price').textContent).toContain('读取失败'),
     );
-    expect(screen.getByRole('combobox').hasAttribute('disabled')).toBe(true);
+    // 读取失败不禁用触发钮:刷新收进菜单后,禁用会封死唯一恢复路径。
+    expect(screen.getByRole('combobox').hasAttribute('disabled')).toBe(false);
   });
 });
