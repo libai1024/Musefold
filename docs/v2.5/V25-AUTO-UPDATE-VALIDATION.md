@@ -43,7 +43,21 @@
 - **已收窄的范围**:冻结发生在启动早期(whenReady 前),由「用户数据存在」触发;干净 userData 不触发。触发分支未定位,候选:legacy 偏好迁移、账号恢复(加密 session)、doubao-web browser-service 分区、内容热更首启逻辑。
 - **建议排查法**:在启动链(`application.ts` whenReady 前后)插入分阶段心跳 + 二分禁用各数据相关分支;或用 `--inspect` 起 inspector 观察 Node 世界卡点。
 
-### P1 — 本机 electron-builder 打包链路损坏(CI 不受影响)
+### P1 — electron-builder 依赖收集器在 pnpm hoisted 布局下静默丢弃全部依赖 → **2026-09-26 已修复(应用侧免疫)**
+
+- **修复方式**(e75add4):纯 JS 运行时依赖(electron-store / electron-updater,连同既有
+  archiver/yauzl)全部打进 main bundle;native 的 better-sqlite3 由
+  `system/native-module-resolver` 垫片在打包态重定向到 extraResources 的
+  `integration/node_modules/better-sqlite3`(v13 自带全平台 prebuilds)。asar 不再依赖
+  收集器结果——**收集器失败时 App 依然可启动**(Windows 真机实测:新构建 asar 同样零
+  node_modules,但领域核心就绪、automation 正常、更新器正常)。
+- **2.5.0 Windows 包确认同病**(asar 零 node_modules,启动即找不到 better-sqlite3);
+  另有局域网自动化于 09-26 00:14 发布的 2.5.3 坏包(asar 零依赖且无垫片),已在服务器
+  隔离至 `/opt/musefold-v25/private/quarantine-2.5.3-broken/`,catalog 回指 2.5.2。
+- 原「本机打包链路损坏」两条细节(收集器路径解析 / files 显式映射被忽略)保留如下,供
+  追查 electron-builder 侧根因,但对交付已不再阻塞:
+
+### P1(原记录) — 本机 electron-builder 打包链路损坏(CI 不受影响)
 
 两个独立问题:
 
