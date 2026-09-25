@@ -11,6 +11,7 @@
  * 这里只保证文件存在与缓存目录名稳定。
  */
 import { mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -42,7 +43,11 @@ async function main() {
   }
   const urlArgIndex = process.argv.indexOf('--url');
   const url = urlArgIndex > -1 ? process.argv[urlArgIndex + 1] : DEFAULT_FEED_URL;
-  const target = resolve(appPath);
+  // 兼容两种调用基准:仓库根 pnpm script 里的 `../../release/...`(以 apps/desktop 为基准)
+  // 与任意 cwd 的绝对/相对路径。逐个试存在者。
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+  const candidates = [resolve(appPath), resolve(repoRoot, 'apps/desktop', appPath)];
+  const target = candidates.find((candidate) => candidate.endsWith('.app') && existsSync(candidate)) ?? candidates[0];
   if (!target.endsWith('.app')) {
     console.error(`refusing to write app-update.yml outside a .app bundle: ${target}`);
     process.exit(1);
