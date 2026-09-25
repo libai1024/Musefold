@@ -605,7 +605,7 @@ it.each(['replacement', 'same-inode', 'ancestor'] as const)(
           const target = join(directory, 'other-parent');
           mkdirSync(target);
           writeFileSync(join(target, 'original.png'), Buffer.concat([png, Buffer.from('changed')]));
-          renameSync(parent, parent + '-selected');
+          renameSync(parent, `${parent}-selected`);
           symlinkSync(target, parent, 'dir');
         }
         return true;

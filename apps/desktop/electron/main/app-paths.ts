@@ -2,8 +2,8 @@
 // 未打包时 app.getAppPath() 指向 apps/desktop/out/main，不能当仓库根；打包后 extraResources 又平铺在
 // process.resourcesPath 下。集中解析，避免各处自行拼接走错分支。
 
-import { existsSync, readFileSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { app } from 'electron';
 
 /** 桌面应用包名。npm 上的 musefold 留给 CLI，不能拿来识别仓库根。 */

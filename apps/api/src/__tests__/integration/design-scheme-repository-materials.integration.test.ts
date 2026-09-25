@@ -5,8 +5,6 @@ import { randomUUID } from 'node:crypto';
 import {
   designSchemeAgentSessionSchema,
   designSchemeRevisionDocumentSchema,
-  referenceAssetMetadataSchema,
-  sourceFileMetadataSchema,
   designSchemeTextModelOfferSchema,
 } from '@musefold/contracts';
 import { execFile, spawn } from 'node:child_process';

@@ -575,8 +575,7 @@ export class DesignSchemeAssetService {
           )
         : undefined;
       if (
-        !asset ||
-        asset.origin !== 'repository' ||
+        asset?.origin !== 'repository' ||
         asset.role !== 'reference' ||
         !parsed.success ||
         parsed.data.kind !== 'github' ||

@@ -120,7 +120,7 @@ app.whenReady().then(async () => {
   void startAutomationIfEnabled();
   registerMediaProtocolHandler();
   // 加载分支只在此处判断一次：Vite 开发态不消费 bundle。prepare 与解析必须看到同一结论。
-  const willLoadFromBundles = !process.env['ELECTRON_RENDERER_URL'];
+  const willLoadFromBundles = !process.env.ELECTRON_RENDERER_URL;
   // prepare 必须先于解析：会加载 bundle 时它会改写 pending（两次未达信标则拒绝）。
   prepareContentBundleStartup({ willLoadFromBundles });
   // 开发态窗口走 Vite，解析冻成 builtin，避免信标把未加载的 pending 提升为已知可用。
@@ -184,7 +184,7 @@ function createMainWindow(): BrowserWindow {
 
 async function promptForMainWindowClose(win: BrowserWindow): Promise<void> {
   // 自动化环境不保留托盘实例，避免测试退出被原生对话框阻塞。
-  if (process.env['MUSEFOLD_E2E'] === '1') {
+  if (process.env.MUSEFOLD_E2E === '1') {
     app.quit();
     return;
   }

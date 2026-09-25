@@ -94,9 +94,9 @@ beforeEach(async () => {
   sends = 0;
   failureStatus = null;
   server = createServer((request, response) => {
-    let body = '';
+    let _body = '';
     request.on('data', (chunk) => {
-      body += String(chunk);
+      _body += String(chunk);
     });
     request.on('end', () => {
       sends++;

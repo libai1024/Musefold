@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const builder = readFileSync(new URL('../../../electron-builder.yml', import.meta.url), 'utf8');

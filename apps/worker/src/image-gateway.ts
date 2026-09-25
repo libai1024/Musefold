@@ -111,8 +111,8 @@ export async function generateImage(
   references: ReferenceImageInput[],
   options: GenerateImageOptions,
 ): Promise<GeneratedImage[]> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), UPSTREAM_IMAGE_TIMEOUT_MS);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_IMAGE_TIMEOUT_MS);
   const abortExternal = () => controller.abort();
   if (options.signal?.aborted) controller.abort();
   else options.signal?.addEventListener('abort', abortExternal, { once: true });

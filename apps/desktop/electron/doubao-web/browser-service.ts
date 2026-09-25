@@ -1,6 +1,6 @@
 import { BrowserWindow, session, type Session } from 'electron';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { ulid } from 'ulid';
 import type {
   DoubaoWebAccountStatus,

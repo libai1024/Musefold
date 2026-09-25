@@ -139,8 +139,7 @@ export class S3AssetUrlSigner implements AssetUrlSigner {
       body = response.Body as Readable | undefined;
       const declared = response.ContentLength;
       if (
-        !body ||
-        !body[Symbol.asyncIterator] ||
+        !body?.[Symbol.asyncIterator] ||
         (declared !== undefined &&
           (!Number.isSafeInteger(declared) ||
             declared < 1 ||
