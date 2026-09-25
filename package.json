@@ -15,7 +15,7 @@
     "build:web": "pnpm --filter @musefold/web-next run build",
     "package": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs",
     "package:mac": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs --mac --config.electronDist=../../node_modules/electron/dist",
-    "package:mac:adhoc": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs --mac --arm64 --dir --config.electronDist=../../node_modules/electron/dist && node scripts/sign-macos-adhoc.mjs && node scripts/run-builder.mjs --mac dmg zip --arm64 --prepackaged ../../release/mac-arm64/Musefold.app",
+    "package:mac:adhoc": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs --mac --arm64 --dir --config.electronDist=../../node_modules/electron/dist && node scripts/build/write-app-update-config.mjs ../../release/mac-arm64/Musefold.app && node scripts/sign-macos-adhoc.mjs && node scripts/run-builder.mjs --mac dmg zip --arm64 --prepackaged ../../release/mac-arm64/Musefold.app",
     "package:win": "pnpm run build && node scripts/build-cli.mjs && node scripts/run-builder.mjs --win",
     "rebuild": "pnpm --filter musefold-app run postinstall",
     "typecheck": "tsc -b",
@@ -36,13 +36,15 @@
     "bundle:manifest": "node packages/update-protocol/src/cli.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.10",
+    "@biomejs/biome": "2.5.10",
     "@changesets/cli": "^3.0.1",
     "@electron/asar": "3.4.1",
     "@lhci/cli": "^0.15.1",
     "@musefold/core": "workspace:*",
     "@musefold/desktop-contracts": "workspace:*",
     "@musefold/domain": "workspace:*",
+    "@musefold/managed-fs": "workspace:*",
+    "@musefold/scheme-package": "workspace:*",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.3.3",
@@ -68,8 +70,6 @@
     "vitest": "^4.1.10",
     "yaml": "2.9.0",
     "yauzl": "2.10.0",
-    "zod": "^4.4.3",
-    "@musefold/scheme-package": "workspace:*",
-    "@musefold/managed-fs": "workspace:*"
+    "zod": "^4.4.3"
   }
 }
