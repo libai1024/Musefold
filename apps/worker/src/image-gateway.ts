@@ -8,6 +8,10 @@ import { CLOUD_GENERATION_MODEL } from '@musefold/domain/cloud-generation-policy
 
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
 
+// 复杂提示词在慢时段的云生图耗时超过两分钟；中转链路自身不设时限，这里若过短会在
+// 上游仍可能完成时提前掐断，2026-09-25 已实测 120s 造成科研类长提示词确定性失败。
+export const UPSTREAM_IMAGE_TIMEOUT_MS = 300_000;
+
 const NON_PUBLIC_IPV4_ADDRESSES = new BlockList();
 const NON_PUBLIC_IPV6_ADDRESSES = new BlockList();
 const GLOBAL_IPV6_ADDRESSES = new BlockList();
@@ -107,8 +111,8 @@ export async function generateImage(
   references: ReferenceImageInput[],
   options: GenerateImageOptions,
 ): Promise<GeneratedImage[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 120_000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_IMAGE_TIMEOUT_MS);
   const abortExternal = () => controller.abort();
   if (options.signal?.aborted) controller.abort();
   else options.signal?.addEventListener('abort', abortExternal, { once: true });

@@ -5,6 +5,7 @@ import {
   type GenerateImageOptions,
   type ImageDispatchSnapshot,
   UpstreamImageError,
+  UPSTREAM_IMAGE_TIMEOUT_MS,
   generateImage,
   imageChecksum,
 } from '../image-gateway.js';
@@ -524,6 +525,42 @@ describe('generation image gateway', () => {
     ).rejects.toMatchObject({ code: 'unknown', dispatch: 'unknown' });
     expect(claimUpstreamRequest).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('aborts the paid upstream fetch at the five-minute ceiling, not before', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(
+        (_endpoint: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('The operation was aborted', 'AbortError')),
+            );
+          }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const generating = generateImage(request, [], dispatchOptions()).catch(
+        (error: unknown) => error,
+      );
+
+      await vi.advanceTimersByTimeAsync(UPSTREAM_IMAGE_TIMEOUT_MS - 1);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const state = await Promise.race([
+        generating.then(() => 'settled' as const),
+        Promise.resolve('pending' as const),
+      ]);
+      expect(state).toBe('pending');
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(generating).resolves.toBeInstanceOf(UpstreamImageError);
+      await expect(generating).resolves.toMatchObject({
+        code: 'unknown',
+        message: '无法确认上游生图结果',
+        dispatch: 'unknown',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([
