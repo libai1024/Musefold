@@ -355,7 +355,8 @@ export class MusefoldClient {
     jobId: string,
     options: WaitForGenerationOptions = {},
   ): Promise<GenerationDetail> {
-    const timeoutMs = options.timeoutMs ?? 300_000;
+    // 必须大于 worker 侧 5 分钟生成上限：否则恰好跑满的任务在终态到达前被客户端放弃。
+    const timeoutMs = options.timeoutMs ?? 360_000;
     const fallbackPollMs = Math.max(1_000, options.fallbackPollMs ?? 15_000);
     const signal = options.signal;
 
