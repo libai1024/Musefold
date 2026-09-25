@@ -31,6 +31,11 @@ export default defineConfig({
           'archiver',
           'archiver-utils',
           'yauzl',
+          // 同因(2026-09-25 Windows 2.5.0 实测收集器整树丢弃,启动即模块缺失):
+          // 纯 JS 的 electron-store / electron-updater 一并打进 chunk,native 的
+          // better-sqlite3 走 system/native-module-resolver 的 integration 重定向。
+          'electron-store',
+          'electron-updater',
         ],
       },
       rollupOptions: {
