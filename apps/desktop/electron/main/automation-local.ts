@@ -23,7 +23,7 @@ import { createBackup, listBackups, restoreBackup } from '../system/backup';
 import { runExport, defaultExportName } from '../system/export';
 import { runImport } from '../system/import';
 import type { ExportRequest, ImportRequest } from '@musefold/desktop-contracts/ipc';
-import { join } from 'path';
+import { join } from 'node:path';
 import { app } from 'electron';
 
 function requireProviderRow(providerId: string): Record<string, unknown> {

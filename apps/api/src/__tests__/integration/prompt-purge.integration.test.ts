@@ -128,7 +128,7 @@ describeDb(
         let pending: ReturnType<typeof observe<unknown>> | undefined;
         try {
           const pid = await ready.promise;
-          pending = observe<undefined | { purged: number }>(purge(kind, id));
+          pending = observe<void | { purged: number }>(purge(kind, id));
           await blockedBy(pid);
           release.resolve();
           expect((await restore).status).toBe('fulfilled');

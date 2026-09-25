@@ -1156,8 +1156,7 @@ export class GenerationService {
     // Retry is a new authorization; an unknown or legacy-unbound charge cannot be
     // silently replaced by today's payer. Accepted keys replay before this check.
     if (
-      !receipt ||
-      receipt.bindingState !== 'bound' ||
+      receipt?.bindingState !== 'bound' ||
       !receipt.binding ||
       receipt.purgedAt ||
       !receipt.terminalAt ||

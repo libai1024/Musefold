@@ -4,8 +4,8 @@
 // localStorage / IndexedDB 分区被清空。handler 拒绝任何非 musefold 的 host。
 
 import { protocol } from 'electron';
-import { readFile, realpath } from 'fs/promises';
-import { extname, isAbsolute, join, resolve, sep } from 'path';
+import { readFile, realpath } from 'node:fs/promises';
+import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { APP_SCHEME_PRIVILEGES, registerPrivilegedSchemes } from './privileged-schemes';
 
 export const APP_SCHEME = APP_SCHEME_PRIVILEGES.scheme;
