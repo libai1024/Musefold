@@ -73,8 +73,7 @@ async function mockAll(page: Page) {
         }),
       );
     if (path === '/prompts') return route.fulfill(json({ items: prompts, nextCursor: null }));
-    if (path === '/workbench/sessions')
-      return route.fulfill(json({ items: [], nextCursor: null }));
+    if (path === '/workbench/sessions') return route.fulfill(json({ items: [], nextCursor: null }));
     if (path === '/account/models')
       return route.fulfill(
         json({
