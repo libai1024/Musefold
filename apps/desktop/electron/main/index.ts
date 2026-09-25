@@ -1,8 +1,6 @@
 // electron/main/index.ts
 // Minimal bootstrap: configure test isolation first, then load the application.
 
-// 必须第一个 import:垫片要在任何业务 chunk 求值(其中的 external require)之前装好。
-import '../system/native-module-resolver';
 import { app } from 'electron';
 import { appendFileSync, mkdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';

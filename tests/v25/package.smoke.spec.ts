@@ -4,9 +4,17 @@
 // 前置:`pnpm run package:mac:adhoc`(release/mac-arm64/);产物缺失时跳过,
 // 发布矩阵(release.yml)打包后必跑。
 
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { _electron as electron, type ElectronApplication, expect, test } from '@playwright/test';
 import Database from 'better-sqlite3';
 import {
@@ -44,9 +52,33 @@ const executablePath = resolvePackageArtifact({
 
 test.skip(!executablePath, '未找到打包产物;先跑 pnpm run package:mac:adhoc(或 win 矩阵产物)');
 
+let isolatedRoot: string | undefined;
+let isolatedExecutablePath: string | undefined;
+
+test.beforeAll(() => {
+  test.setTimeout(120_000);
+  if (!executablePath) return;
+  // 真实安装路径没有仓库祖先 node_modules;把整包移出仓库后再启动。
+  isolatedRoot = mkdtempSync(join(tmpdir(), 'musefold-package-isolated-'));
+  const sourceApp =
+    process.platform === 'darwin'
+      ? resolve(dirname(executablePath), '../..')
+      : dirname(executablePath);
+  const targetApp = join(isolatedRoot, basename(sourceApp));
+  cpSync(sourceApp, targetApp, { recursive: true, verbatimSymlinks: true });
+  isolatedExecutablePath =
+    process.platform === 'darwin'
+      ? join(targetApp, 'Contents', 'MacOS', basename(executablePath))
+      : join(targetApp, basename(executablePath));
+});
+
+test.afterAll(() => {
+  if (isolatedRoot) rmSync(isolatedRoot, { recursive: true, force: true });
+});
+
 test('打包 CLI 写盘中断后由新进程自动清理残留且不重发生图', async () => {
   test.setTimeout(60000);
-  const executable = executablePath as string;
+  const executable = isolatedExecutablePath as string;
   const resources =
     process.platform === 'darwin'
       ? join(dirname(executable), '..', 'Resources')
@@ -64,7 +96,7 @@ test('打包 CLI 写盘中断后由新进程自动清理残留且不重发生图
 
 test('打包 CLI 使用随包原生资源恢复持久清理并完成退出清理', async () => {
   test.setTimeout(60000);
-  const executable = executablePath as string;
+  const executable = isolatedExecutablePath as string;
   const resources =
     process.platform === 'darwin'
       ? join(dirname(executable), '..', 'Resources')
@@ -90,7 +122,7 @@ test('打包 App 使用随包原生文件句柄导入方案并清理暂存副本
   writeFileSync(picked, bytes);
   seedOnboardingCompletedFile(userDataDir);
   const app = await electron.launch({
-    executablePath: executablePath as string,
+    executablePath: isolatedExecutablePath as string,
     env: {
       ...process.env,
       MUSEFOLD_E2E: '1',
@@ -154,7 +186,7 @@ test('打包 App 验证真实产物、受管迁移与重启持久化', async () 
   seedOnboardingCompletedFile(userDataDir);
   const launch = () =>
     electron.launch({
-      executablePath: executablePath as string,
+      executablePath: isolatedExecutablePath as string,
       env: {
         ...process.env,
         MUSEFOLD_E2E: '1',
@@ -166,6 +198,35 @@ test('打包 App 验证真实产物、受管迁移与重启持久化', async () 
     const page = await v25ShellPage(app);
     await expectCurrentPackage(app, userDataDir);
     expect(page.url()).toMatch(/^app:\/\//);
+
+    // 从主进程入口相同的位置解析，禁止命中构建机仓库的 node_modules。
+    const nativeModule = await app.evaluate(() => {
+      const path = process.getBuiltinModule('node:path');
+      const { createRequire } = process.getBuiltinModule('node:module');
+      const fromMain = createRequire(
+        path.join(process.resourcesPath, 'app.asar', 'apps', 'desktop', 'out', 'main', 'index.js'),
+      );
+      const resolved = fromMain.resolve('better-sqlite3');
+      const expectedRoot = path.join(
+        process.resourcesPath,
+        'app.asar',
+        'node_modules',
+        'better-sqlite3',
+      );
+      const DatabaseConstructor = fromMain('better-sqlite3');
+      const probe = new DatabaseConstructor(':memory:');
+      try {
+        return {
+          resolved,
+          inPackage: resolved.startsWith(`${expectedRoot}${path.sep}`),
+          row: probe.prepare('SELECT 1 AS ok').get(),
+        };
+      } finally {
+        probe.close();
+      }
+    });
+    expect(nativeModule.inPackage, nativeModule.resolved).toBe(true);
+    expect(nativeModule.row).toEqual({ ok: 1 });
 
     // 壳可见 = 渲染层 bundle、preload 桥、app:// 协议链路全通
     await expect(page.getByTestId('v25-shell')).toBeVisible({ timeout: 15_000 });
@@ -222,7 +283,7 @@ for (const prefix of [10, 11] as const) {
     const seeded = seedSessionPackagePrefix(userDataDir, prefix);
     const launch = () =>
       electron.launch({
-        executablePath: executablePath as string,
+        executablePath: isolatedExecutablePath as string,
         env: { ...process.env, MUSEFOLD_E2E: '1', MUSEFOLD_E2E_USER_DATA_DIR: userDataDir },
       });
     let app: ElectronApplication | undefined;
@@ -329,7 +390,7 @@ for (const prefix of [10, 11] as const) {
 
 test('打包 CLI 发现文件删除失败时仍关闭端口并释放上传副本', async () => {
   test.setTimeout(60000);
-  const executable = executablePath as string;
+  const executable = isolatedExecutablePath as string;
   const resources =
     process.platform === 'darwin'
       ? join(dirname(executable), '..', 'Resources')

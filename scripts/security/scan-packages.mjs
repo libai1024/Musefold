@@ -132,6 +132,8 @@ export async function scanPackages({ repoRoot, platform = process.platform, arch
       const expectedFiles = await Promise.all(
         [
           'resources/app.asar',
+          `resources/app.asar.unpacked/node_modules/better-sqlite3/prebuilds/win32-${arch}.node`,
+          `resources/integration/node_modules/better-sqlite3/prebuilds/win32-${arch}.node`,
           'resources/integration/musefold-cli.mjs',
           'resources/integration/musefold-mcp.mjs',
         ].map(async (entry) => ({ entry, sha256: await sha256(join(unpacked, entry)) })),

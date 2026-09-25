@@ -12,11 +12,19 @@ directories:
   buildResources: ../../resources
   output: ../../release
 files:
-  # Keep the historical asar layout consumed by the runtime fallback resolver.
+  # Keep the historical asar layout consumed by the main process.
   - from: ../..
     to: .
     filter:
       - apps/desktop/out/**/*
+  # electron-builder 26 can miss direct dependencies in this pnpm workspace.
+  # An ESM import needs this package inside app.asar/node_modules before main runs.
+  - from: ../../node_modules/better-sqlite3
+    to: node_modules/better-sqlite3
+    filter:
+      - package.json
+      - lib/**/*
+      - prebuilds/**/*
   - package.json
   # Workspace modules are already bundled by electron-vite. The dependency collector
   # otherwise follows workspace links and ships test sources and local Turbo logs.
@@ -55,7 +63,7 @@ extraResources:
     to: product-docs
     filter: ['**/*.md']
 asarUnpack:
-  - '**/node_modules/better-sqlite3/**'
+  - '**/better-sqlite3/**'
 mac:
   category: public.app-category.productivity
   target:
