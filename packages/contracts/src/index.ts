@@ -2,6 +2,7 @@ export * from './account';
 export * from './account-notices';
 export * from './account-identity';
 export * from './account-cloud';
+export * from './app-update';
 export * from './automation';
 export * from './billing';
 export * from './cloud-mcp';

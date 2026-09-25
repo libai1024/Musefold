@@ -7,10 +7,24 @@ import type {
 } from '@musefold/desktop-contracts/updater';
 
 export const UPDATE_FEED_BASE_URL = 'https://zhaozhaoyue.top/Musefold/updates/';
+export const UPDATE_FEED_BASE_URL_ENV = 'MUSEFOLD_UPDATE_FEED_BASE_URL';
 export const DEFAULT_UPDATE_CHANNEL: Channel = DEFAULT_CHANNEL;
 
+/**
+ * feed 根地址:生产常量为默认,`MUSEFOLD_UPDATE_FEED_BASE_URL` 只在主进程环境注入时
+ * 覆盖(打包产物端到端验证 / 本地 feed 联调用;渲染层无法设置进程环境变量)。
+ * 只认 http(s),尾斜杠归一。
+ */
+export function resolveUpdateFeedBaseUrl(): string {
+  const fromEnv = process.env[UPDATE_FEED_BASE_URL_ENV];
+  if (typeof fromEnv === 'string' && /^https?:\/\/.+/.test(fromEnv)) {
+    return `${fromEnv.trim().replace(/\/+$/, '')}/`;
+  }
+  return UPDATE_FEED_BASE_URL;
+}
+
 export function resolveUpdateFeedUrl(channel: Channel): string {
-  return `${UPDATE_FEED_BASE_URL}${channel}/`;
+  return `${resolveUpdateFeedBaseUrl()}${channel}/`;
 }
 
 export function allowsPrereleaseForChannel(channel: Channel): boolean {
@@ -59,6 +73,23 @@ export interface UpdaterServiceOptions {
   disabledReason?: UpdateDisabledReason;
   channel?: Channel;
   feedUrl?: string;
+  /**
+   * 自动下载:任一次检查(启动自动检查、周期复查或手动「检查更新」)发现新版本后
+   * 直接转入后台下载,不等用户点「下载」。关闭时停留在 available 等手动触发。
+   */
+  autoDownload?: boolean;
+  /**
+   * 退出即安装:缺省跟随 autoDownload(VS Code/Chrome 基线)。显式传 false 固定关闭 ——
+   * macOS ad-hoc 构建必须固定 false:Squirrel 预取更新包时校验签名一致性,ad-hoc 必炸
+   * (下载完成立刻转 error,用户连「重启并安装」都看不到)。
+   */
+  autoInstallOnAppQuit?: boolean;
+  /**
+   * 安装动作:缺省走 adapter.quitAndInstall(Squirrel/NSIS)。
+   * macOS ad-hoc 构建注入自替换安装(ditto 解压 + 原子换 .app + relaunch),
+   * Squirrel 拒绝无 Team ID 的更新,自替换是唯一可装路径。
+   */
+  installAction?: () => Promise<void> | void;
   onStateChanged?: (status: UpdateStatus) => void;
   beforeInstall?: () => Promise<void> | void;
 }
@@ -73,6 +104,9 @@ export class UpdaterService {
   private readonly onStateChanged?: (status: UpdateStatus) => void;
   private readonly beforeInstall?: () => Promise<void> | void;
   private state: UpdateStatus;
+  private autoDownload: boolean;
+  private readonly installOnQuitFollowsAutoDownload: boolean;
+  private readonly installAction?: () => Promise<void> | void;
   private checkPromise: Promise<UpdateStatus> | null = null;
   private downloadPromise: Promise<UpdateStatus> | null = null;
   private updateMetadata: UpdateMetadata | null = null;
@@ -84,6 +118,9 @@ export class UpdaterService {
     this.currentVersion = options.currentVersion;
     this.onStateChanged = options.onStateChanged;
     this.beforeInstall = options.beforeInstall;
+    this.autoDownload = options.autoDownload ?? false;
+    this.installOnQuitFollowsAutoDownload = options.autoInstallOnAppQuit === undefined;
+    this.installAction = options.installAction;
     this.state = options.enabled
       ? { state: 'idle', currentVersion: options.currentVersion }
       : {
@@ -96,7 +133,9 @@ export class UpdaterService {
 
     const channel = options.channel ?? DEFAULT_CHANNEL;
     this.adapter.autoDownload = false;
-    this.adapter.autoInstallOnAppQuit = false;
+    // 自动下载开启时,退出即安装(VS Code/Chrome 主流基线);手动模式仍由用户显式触发。
+    // 显式传入的 autoInstallOnAppQuit 优先(ad-hoc mac 固定 false,见 options 注释)。
+    this.adapter.autoInstallOnAppQuit = options.autoInstallOnAppQuit ?? this.autoDownload;
     this.applyChannel(channel, options.feedUrl);
     this.bindAdapterEvents();
   }
@@ -115,6 +154,26 @@ export class UpdaterService {
     this.installRequested = false;
     this.applyChannel(channel);
     this.transition({ state: 'idle', currentVersion: this.currentVersion });
+  }
+
+  getAutoDownload(): boolean {
+    return this.autoDownload;
+  }
+
+  /**
+   * 运行时切换自动下载:立即生效 —— 开启时若已有版本停在 available 马上开始下载,
+   * 关闭时只影响后续检查(已开始的下载不打断)。退出即安装跟随同一开关。
+   */
+  setAutoDownload(enabled: boolean): void {
+    if (this.state.state === 'disabled') return;
+    if (this.autoDownload === enabled) return;
+    this.autoDownload = enabled;
+    if (this.installOnQuitFollowsAutoDownload) {
+      this.adapter.autoInstallOnAppQuit = enabled;
+    }
+    if (enabled && this.state.state === 'available') {
+      void this.download();
+    }
   }
 
   getState(): UpdateStatus {
@@ -200,7 +259,11 @@ export class UpdaterService {
     });
     try {
       await this.beforeInstall?.();
-      this.adapter.quitAndInstall(false, true);
+      if (this.installAction) {
+        await this.installAction();
+      } else {
+        this.adapter.quitAndInstall(false, true);
+      }
     } catch (error: unknown) {
       this.installRequested = false;
       this.setError(error);
@@ -263,6 +326,10 @@ export class UpdaterService {
       currentVersion: this.currentVersion,
       ...this.updateMetadata,
     });
+    // 自动下载:available 是唯一的等待用户点「下载」的状态,自动模式下不停留。
+    if (this.autoDownload) {
+      void this.download();
+    }
   }
 
   private metadataOrFallback(): UpdateMetadata {

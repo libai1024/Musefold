@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   workbench: vi.fn(),
   doubao: vi.fn(),
   system: vi.fn(),
+  appUpdate: vi.fn(),
   automation: vi.fn(),
   cloudMcp: vi.fn(),
   accountBeforeChange: vi.fn(),
@@ -54,6 +55,9 @@ vi.mock('../doubao-domain', () => ({ buildDoubaoDomainMethods: mocks.doubao }));
 // system 域的真实方法表与契约的双向比对在其就地测试里(system-domain.test.ts);
 // 这里只需保证 buildMethods 把它按域展开一次,避免备份/日志/electron-store 依赖进入本测。
 vi.mock('../system-domain', () => ({ buildSystemDomainMethods: mocks.system }));
+// appUpdate 域同理:真实方法表与契约的双向比对在 app-update-domain.test.ts,
+// 这里 mock 掉,避免 electron-store / electron-updater 宿主链进入本测。
+vi.mock('../app-update-domain', () => ({ buildAppUpdateDomainMethods: mocks.appUpdate }));
 // automation 域同理:真实方法表与契约的双向比对在 automation-domain.test.ts,
 // 这里 mock 掉,避免 automation server / electron-store / integration 的宿主链进入本测。
 vi.mock('../automation-domain', () => ({ buildAutomationDomainMethods: mocks.automation }));
@@ -330,6 +334,15 @@ function configureDomainMocksCorrectly(): void {
       'openExternal',
       'openProductDocs',
       'relaunch',
+    ]),
+  );
+  mocks.appUpdate.mockReturnValue(
+    makeMethods('appUpdate', [
+      'getState',
+      'checkForUpdates',
+      'downloadUpdate',
+      'installUpdate',
+      'updatePreferences',
     ]),
   );
   mocks.automation.mockReturnValue(

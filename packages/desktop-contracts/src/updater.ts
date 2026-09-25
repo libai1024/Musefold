@@ -1,58 +1,30 @@
 /**
  * Renderer-safe update state. Keep this contract free of electron-updater
  * objects so no update metadata or platform-specific classes cross IPC.
+ *
+ * 状态机形状的唯一事实源是 `@musefold/contracts` 的 app-update zod schema;
+ * 本文件只做 legacy 命名别名(v2.1 冻结面 import 不动),不再平行手写。
  */
+import type {
+  AppUpdateDisabledReason,
+  AppUpdateMetadata,
+  AppUpdateProgress,
+  AppUpdateState,
+  AppUpdateStatus,
+} from '@musefold/contracts';
 import type { Channel } from '@musefold/update-protocol';
 
 export type { Channel };
 
-export type UpdateState =
-  | 'disabled'
-  | 'idle'
-  | 'checking'
-  | 'not-available'
-  | 'available'
-  | 'downloading'
-  | 'downloaded'
-  | 'installing'
-  | 'error';
+export type UpdateState = AppUpdateState;
 
-export type UpdateDisabledReason =
-  | 'development'
-  | 'unsupported-platform'
-  | 'disabled-by-environment';
+export type UpdateDisabledReason = AppUpdateDisabledReason;
 
-export interface UpdateProgress {
-  percent: number;
-  transferred: number;
-  total: number;
-  bytesPerSecond: number;
-}
+export type UpdateProgress = AppUpdateProgress;
 
-export interface UpdateMetadata {
-  version: string;
-  releaseDate?: string;
-}
+export type UpdateMetadata = AppUpdateMetadata;
 
-export type UpdateStatus =
-  | {
-      state: 'disabled';
-      currentVersion: string;
-      reason: UpdateDisabledReason;
-    }
-  | {
-      state: 'idle' | 'checking' | 'not-available';
-      currentVersion: string;
-    }
-  | ({ state: 'available' | 'downloaded' | 'installing' } & UpdateMetadata & {
-        currentVersion: string;
-      })
-  | ({ state: 'downloading'; currentVersion: string; progress: UpdateProgress } & UpdateMetadata)
-  | {
-      state: 'error';
-      currentVersion: string;
-      message: string;
-    };
+export type UpdateStatus = AppUpdateStatus;
 
 /** Narrow IPC payload for the desktop update channel. No feed URL or paths. */
 export interface UpdateChannelInfo {

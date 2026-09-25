@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { buildAccountCloudDomainMethods } from './account-cloud-domain';
 import { buildAccountDomainMethods } from './account-domain';
+import { buildAppUpdateDomainMethods } from './app-update-domain';
 import { buildAutomationDomainMethods } from './automation-domain';
 import type { BridgeEnvelope, MethodDef } from './envelope';
 import { BridgeError } from './envelope';
@@ -104,6 +105,7 @@ export function buildMethods(): Record<string, MethodDef> {
   const agentConnections = buildAgentConnectionsDomainMethods();
   const doubao = buildDoubaoDomainMethods();
   const system = buildSystemDomainMethods();
+  const appUpdate = buildAppUpdateDomainMethods();
   const automation = buildAutomationDomainMethods();
   const designSchemes = buildDesignSchemesDomainMethods();
   const prompts = buildPromptsDomainMethods();
@@ -124,6 +126,7 @@ export function buildMethods(): Record<string, MethodDef> {
   assertDomainMethods('agentConnections', agentConnections);
   assertDomainMethods('doubao', doubao);
   assertDomainMethods('system', system);
+  assertDomainMethods('appUpdate', appUpdate);
   assertDomainMethods('automation', automation);
   assertDomainMethods('designSchemes', designSchemes);
   assertDomainMethods('prompts', prompts);
@@ -142,6 +145,7 @@ export function buildMethods(): Record<string, MethodDef> {
     ...agentConnections,
     ...doubao,
     ...system,
+    ...appUpdate,
     ...automation,
     ...designSchemes,
     ...sync,
