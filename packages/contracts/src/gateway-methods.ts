@@ -112,6 +112,15 @@ export const V25_METHODS_BY_DOMAIN = {
     'system.openProductDocs',
     'system.relaunch',
   ],
+  // 应用更新(桌面专属可选域):设置「关于 → 应用更新」卡。
+  // 状态机与偏好读写在主进程 UpdaterService / electron-store;渲染层轮询状态(无事件通道)。
+  appUpdate: [
+    'appUpdate.getState',
+    'appUpdate.checkForUpdates',
+    'appUpdate.downloadUpdate',
+    'appUpdate.installUpdate',
+    'appUpdate.updatePreferences',
+  ],
   // 开放能力 / 本地控制面(桌面专属可选域):设置「开放能力」三张卡 + 壳级确认卡。
   // 令牌只以掩码下发,复制经主进程剪贴板(automation.copyToken),渲染层拿不到明文;
   // 确认事件走 preload `automation:confirmation*` 独立通道,不进本方法表。
