@@ -47,7 +47,9 @@ async function main() {
   // 与任意 cwd 的绝对/相对路径。逐个试存在者。
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
   const candidates = [resolve(appPath), resolve(repoRoot, 'apps/desktop', appPath)];
-  const target = candidates.find((candidate) => candidate.endsWith('.app') && existsSync(candidate)) ?? candidates[0];
+  const target =
+    candidates.find((candidate) => candidate.endsWith('.app') && existsSync(candidate)) ??
+    candidates[0];
   if (!target.endsWith('.app')) {
     console.error(`refusing to write app-update.yml outside a .app bundle: ${target}`);
     process.exit(1);
