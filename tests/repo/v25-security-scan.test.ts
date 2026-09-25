@@ -141,6 +141,59 @@ it('reads compressed ZIP and nested asar bytes, rather than accepting archive fi
   expect(JSON.stringify(result)).not.toContain(canary);
 });
 
+it('keeps ASAR API paths with backslashes while normalizing report labels', async () => {
+  const { path, canary } = fixture();
+  const contents = join(path, 'contents');
+  mkdirSync(contents);
+  // On Windows listPackage uses backslashes for a nested path. Elsewhere a
+  // literal backslash in a filename exercises the same ASAR API requirement.
+  if (process.platform === 'win32') mkdirSync(join(contents, 'folder'));
+  writeFileSync(
+    process.platform === 'win32'
+      ? join(contents, 'folder', 'secret.txt')
+      : join(contents, 'folder\\secret.txt'),
+    canary,
+  );
+  const archive = join(path, 'app.asar');
+  await createPackage(contents, archive);
+  const report = await scanArtifacts({
+    targets: [target(archive, 'asar')],
+    canaries: [{ id: 'asar-backslash', value: canary }],
+  });
+  expect(report.errors).toEqual([]);
+  expect(
+    report.findings.some((finding: { entry: string }) => finding.entry === '.!/folder/secret.txt'),
+  ).toBe(true);
+});
+
+it('verifies physical expectedFiles after an unpacked ASAR entry was scanned virtually', async () => {
+  const { path } = fixture();
+  const contents = join(path, 'contents');
+  const bundle = join(path, 'bundle');
+  mkdirSync(contents);
+  mkdirSync(bundle);
+  writeFileSync(join(contents, 'native.node'), 'native content');
+  const archive = join(bundle, 'app.asar');
+  await createPackageWithOptions(contents, archive, { unpack: '*.node' });
+  const expectedFiles = [
+    { entry: 'app.asar.unpacked/native.node', sha256: digest('native content') },
+  ];
+  const plan = { targets: [{ ...target(bundle), expectedFiles }] };
+  const matching = await scanArtifacts(plan);
+  expect(matching.errors).toEqual([]);
+  expect(matching.targets[0].verifiedFiles).toBe(1);
+
+  writeFileSync(join(`${archive}.unpacked`, 'native.node'), 'tampered');
+  const mismatch = await scanArtifacts(plan);
+  expect(mismatch.errors).toEqual([
+    {
+      target: 'fixture',
+      code: 'ARTIFACT_IDENTITY_MISMATCH',
+      entry: 'app.asar.unpacked/native.node',
+    },
+  ]);
+});
+
 it('fails missing, empty, unsupported and malformed inputs with redacted error codes', async () => {
   const { path, canary } = fixture();
   const missing = await scanArtifacts({ targets: [target(join(path, canary))] });

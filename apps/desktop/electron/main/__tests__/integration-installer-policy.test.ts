@@ -28,5 +28,6 @@ describe('packaged SQLite dependency', () => {
       filter: ['package.json', 'lib/**/*', 'prebuilds/**/*'],
     });
     expect(config.asarUnpack).toContain('**/better-sqlite3/**');
+    expect(config.files).toContain('!node_modules/better-sqlite3/build/**/*');
   });
 });

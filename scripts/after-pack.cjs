@@ -1,7 +1,7 @@
 const { execFileSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
-const { statFile } = require('@electron/asar');
+const { listPackage, statFile } = require('@electron/asar');
 const { Arch } = require('builder-util');
 
 const UNUSED_PERMISSION_KEYS = [
@@ -29,6 +29,13 @@ function assertPackagedSqlite(resources, platform, arch) {
     if (!info.unpacked || !existsSync(path.join(resources, 'app.asar.unpacked', entry))) {
       throw new Error(`PACKAGED_SQLITE_NOT_UNPACKED: ${entry}`);
     }
+  }
+  if (
+    listPackage(archive).some((entry) =>
+      entry.replaceAll('\\', '/').includes('/node_modules/better-sqlite3/build/'),
+    )
+  ) {
+    throw new Error('PACKAGED_SQLITE_BUILD_FILES');
   }
 }
 

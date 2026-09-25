@@ -48,4 +48,30 @@ describe('afterPack SQLite gate', () => {
       'PACKAGED_SQLITE_NOT_UNPACKED',
     );
   });
+
+  it('rejects rebuilt SQLite files that can expose the build machine path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'musefold-after-pack-'));
+    roots.push(root);
+    const source = join(root, 'source');
+    const resources = join(root, 'resources');
+    const moduleRoot = join(source, 'node_modules', 'better-sqlite3');
+    mkdirSync(join(moduleRoot, 'lib'), { recursive: true });
+    mkdirSync(join(moduleRoot, 'prebuilds'), { recursive: true });
+    mkdirSync(join(moduleRoot, 'build'), { recursive: true });
+    mkdirSync(resources);
+    writeFileSync(join(moduleRoot, 'package.json'), '{"name":"better-sqlite3"}');
+    writeFileSync(join(moduleRoot, 'lib', 'index.js'), 'module.exports = {}');
+    writeFileSync(
+      join(moduleRoot, 'prebuilds', `${process.platform}-${process.arch}.node`),
+      'fixture',
+    );
+    writeFileSync(join(moduleRoot, 'build', 'module.vcxproj'), 'generated build file');
+    await createPackageWithOptions(source, join(resources, 'app.asar'), {
+      unpackDir: 'node_modules/better-sqlite3',
+    });
+
+    expect(() => assertPackagedSqlite(resources, process.platform, process.arch)).toThrow(
+      'PACKAGED_SQLITE_BUILD_FILES',
+    );
+  });
 });

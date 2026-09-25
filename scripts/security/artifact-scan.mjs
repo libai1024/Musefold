@@ -298,8 +298,11 @@ export async function scanArtifacts({
         await file(path, label);
         try {
           for (const raw of listPackage(path).sort()) {
-            const name = archiveName(raw.replace(/^\//, ''));
-            const stat = statFile(path, name, false);
+            // listPackage uses the host's path separators. Keep that spelling for
+            // the ASAR API; only normalize the report label and filesystem path.
+            const internalPath = raw.replace(/^[/\\]/, '');
+            const name = archiveName(internalPath);
+            const stat = statFile(path, internalPath, false);
             if ('files' in stat) continue;
             if ('link' in stat) {
               archiveName(stat.link);
@@ -329,7 +332,7 @@ export async function scanArtifacts({
               throw new Error('ARCHIVE_SIZE_MISMATCH');
             if (expectedSize > limits.entryBytes) throw new Error('ENTRY_LIMIT');
             if (bytes + expectedSize > limits.totalBytes) throw new Error('TOTAL_BYTE_LIMIT');
-            const data = extractFile(path, name, false);
+            const data = extractFile(path, internalPath, false);
             if (data.length !== expectedSize) throw new Error('ARCHIVE_SIZE_MISMATCH');
             const kind = containerKind(
               name,
@@ -490,7 +493,13 @@ export async function scanArtifacts({
             );
         } else if (stat.isFile()) {
           const real = realpathSync(path);
-          if (seen.has(real)) return;
+          if (seen.has(real)) {
+            // An unpacked ASAR entry is also present in the surrounding tree.
+            // Verify a caller's physical expectedFiles path even if the same
+            // bytes were already scanned through the archive's virtual path.
+            if (expectedFiles.has(label) && !checkedFiles.has(label)) await file(path, label);
+            return;
+          }
           seen.add(real);
           const kind = fileContainerKind(path, stat.size, limits);
           if (kind === 'asar') await asar(path, label, depth);

@@ -29,6 +29,10 @@ files:
   # Workspace modules are already bundled by electron-vite. The dependency collector
   # otherwise follows workspace links and ships test sources and local Turbo logs.
   - '!node_modules/@musefold/**/*'
+  # The dependency collector may also discover the workspace's rebuilt module.
+  # Its generated Visual Studio files embed the build machine path and are not
+  # needed at runtime; use the explicit package mapping above instead.
+  - '!node_modules/better-sqlite3/build/**/*'
   - '!**/{__tests__,.turbo}/**/*'
 afterPack: ../../scripts/after-pack.cjs
 extraResources:
