@@ -338,10 +338,10 @@ export class DesignSchemeTextExecution extends AgentState {
             )
           : [];
       const retainedBytes =
-        retained.length && this.assets
+        retained.length && this.assets && row.updateContext
           ? await this.assets.documentAssetBytes(
               row.userId,
-              row.updateContext!.base.document.schemeId,
+              row.updateContext.base.document.schemeId,
               retained,
             )
           : 0;

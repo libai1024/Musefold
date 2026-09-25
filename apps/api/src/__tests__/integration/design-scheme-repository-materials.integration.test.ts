@@ -5,7 +5,6 @@ import { randomUUID } from 'node:crypto';
 import {
   designSchemeAgentSessionSchema,
   designSchemeRevisionDocumentSchema,
-  sourceSnapshotSchema,
   referenceAssetMetadataSchema,
   sourceFileMetadataSchema,
   designSchemeTextModelOfferSchema,

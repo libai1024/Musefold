@@ -508,7 +508,7 @@ describeDb('same-origin generation content (real BA, PostgreSQL and local S3 HTT
       (await app.request(`/api/v1/reference-images/${reference.id}`, { method: 'DELETE' })).status,
     ).toBe(401);
     expect((await releaseReference('bad')).status).toBe(400);
-    expect((await releaseReference(reference.id + '?path=other')).status).toBe(400);
+    expect((await releaseReference(`${reference.id}?path=other`)).status).toBe(400);
     expect(await referenceFacts(reference.id)).toEqual(before);
   });
   it('reference release protocol: accepted run keeps its reference and result readable after upload release', async () => {
